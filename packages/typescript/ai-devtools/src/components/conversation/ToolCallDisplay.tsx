@@ -53,7 +53,7 @@ export const ToolCallDisplay: Component<ToolCallDisplayProps> = (props) => {
         >
           {tool().state}
         </div>
-        <Show when={tool().duration !== undefined && tool().duration! > 0}>
+        <Show when={(tool().duration ?? 0) > 0}>
           <div class={styles().conversationDetails.durationBadge}>
             ⏱️ {formatDuration(tool().duration)}
           </div>

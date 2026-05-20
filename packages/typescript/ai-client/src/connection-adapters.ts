@@ -35,13 +35,7 @@ async function* readStreamLines(
     const decoder = new TextDecoder()
     let buffer = ''
 
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-    while (true) {
-      // Check if aborted before reading
-      if (abortSignal?.aborted) {
-        break
-      }
-
+    while (!abortSignal?.aborted) {
       const { done, value } = await reader.read()
       if (done) break
 
@@ -183,8 +177,9 @@ export function normalizeConnectionAdapter(
       return (async function* () {
         while (!abortSignal?.aborted) {
           let chunk: StreamChunk | null
-          if (myBuffer.length > 0) {
-            chunk = myBuffer.shift()!
+          const buffered = myBuffer.shift()
+          if (buffered !== undefined) {
+            chunk = buffered
           } else {
             chunk = await new Promise<StreamChunk | null>((resolve) => {
               const onAbort = () => resolve(null)
@@ -351,12 +346,16 @@ export function fetchServerSentEvents(
       }
 
       const fetchClient = resolvedOptions.fetchClient ?? fetch
+      // `RequestInit.signal` is typed `AbortSignal | null` (no `undefined`
+      // under `exactOptionalPropertyTypes`), so spread it conditionally
+      // rather than passing `undefined` explicitly.
+      const signal = abortSignal || resolvedOptions.signal
       const response = await fetchClient(resolvedUrl, {
         method: 'POST',
         headers: requestHeaders,
         body: JSON.stringify(requestBody),
         credentials: resolvedOptions.credentials || 'same-origin',
-        signal: abortSignal || resolvedOptions.signal,
+        ...(signal ? { signal } : {}),
       })
 
       if (!response.ok) {
@@ -483,12 +482,16 @@ export function fetchHttpStream(
       }
 
       const fetchClient = resolvedOptions.fetchClient ?? fetch
+      // `RequestInit.signal` is typed `AbortSignal | null` (no `undefined`
+      // under `exactOptionalPropertyTypes`), so spread it conditionally
+      // rather than passing `undefined` explicitly.
+      const signal = abortSignal || resolvedOptions.signal
       const response = await fetchClient(resolvedUrl, {
         method: 'POST',
         headers: requestHeaders,
         body: JSON.stringify(requestBody),
         credentials: resolvedOptions.credentials || 'same-origin',
-        signal: abortSignal || resolvedOptions.signal,
+        ...(signal ? { signal } : {}),
       })
 
       if (!response.ok) {

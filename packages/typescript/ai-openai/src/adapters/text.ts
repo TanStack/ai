@@ -90,8 +90,8 @@ export class OpenAITextAdapter<
   OpenAIMessageMetadataByModality,
   TToolCapabilities
 > {
-  readonly kind = 'text' as const
-  readonly name = 'openai' as const
+  override readonly kind = 'text' as const
+  override readonly name = 'openai' as const
 
   constructor(config: OpenAITextConfig, model: TModel) {
     super(model, 'openai', new OpenAI(config))

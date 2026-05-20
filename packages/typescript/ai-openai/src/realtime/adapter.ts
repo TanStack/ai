@@ -91,7 +91,7 @@ async function createWebRTCConnection(
   // Audio element for playback (more reliable than AudioContext.destination)
   let audioElement: HTMLAudioElement | null = null
 
-  // Data channel for events
+  // Data channel for events (assigned at construction below; nulled out by teardown)
   let dataChannel: RTCDataChannel | null = null
 
   // Current state
@@ -116,19 +116,23 @@ async function createWebRTCConnection(
     }
   }
 
-  // Set up data channel for bidirectional communication
-  dataChannel = pc.createDataChannel('oai-events')
+  // Set up data channel for bidirectional communication. Captured into a const
+  // so closures see a non-nullable reference (teardown re-points the outer
+  // `dataChannel` to null, but in-flight closures still need to close their
+  // own channel).
+  const channel = pc.createDataChannel('oai-events')
+  dataChannel = channel
 
   // Promise that resolves when the data channel is open and ready
   const dataChannelReady = new Promise<void>((resolve) => {
-    dataChannel!.onopen = () => {
+    channel.onopen = () => {
       flushPendingEvents()
       emit('status_change', { status: 'connected' as RealtimeStatus })
       resolve()
     }
   })
 
-  dataChannel.onmessage = (event) => {
+  channel.onmessage = (event) => {
     try {
       const message = JSON.parse(event.data)
       logger.provider(
@@ -144,7 +148,7 @@ async function createWebRTCConnection(
     }
   }
 
-  dataChannel.onerror = (error) => {
+  channel.onerror = (error) => {
     logger.errors('openai.realtime fatal', {
       error,
       source: 'openai.realtime',
@@ -184,14 +188,16 @@ async function createWebRTCConnection(
   const offer = await pc.createOffer()
   await pc.setLocalDescription(offer)
 
-  // Send SDP to OpenAI and get answer
+  // Send SDP to OpenAI and get answer. `offer.sdp` is `string | undefined` per
+  // the WebRTC type definitions; coerce to `null` (which `RequestInit.body`
+  // accepts) under exactOptionalPropertyTypes.
   const sdpResponse = await fetch(`${OPENAI_REALTIME_URL}?model=${model}`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token.token}`,
       'Content-Type': 'application/sdp',
     },
-    body: offer.sdp,
+    body: offer.sdp ?? null,
   })
 
   if (!sdpResponse.ok) {
@@ -303,9 +309,11 @@ async function createWebRTCConnection(
 
       case 'response.function_call_arguments.done': {
         // Realtime payloads include both call_id and item_id; some sessions omit one.
-        const callId = (event.call_id ?? event.item_id) as string | undefined
-        const name = event.name as string
-        const args = event.arguments as string
+        const callId = (event['call_id'] ?? event['item_id']) as
+          | string
+          | undefined
+        const name = event['name'] as string
+        const args = event['arguments'] as string
         if (!callId) {
           logger.errors(
             'openai.realtime function_call_arguments.done missing ids',
@@ -374,7 +382,10 @@ async function createWebRTCConnection(
       }
 
       case 'conversation.item.truncated':
-        emit('interrupted', { messageId: currentMessageId ?? undefined })
+        emit(
+          'interrupted',
+          currentMessageId ? { messageId: currentMessageId } : {},
+        )
         break
 
       case 'error': {
@@ -466,7 +477,7 @@ async function createWebRTCConnection(
         `provider=openai direction=out type=${(event.type as string | undefined) ?? '<unknown>'}`,
         { frame: event },
       )
-      dataChannel!.send(JSON.stringify(event))
+      channel.send(JSON.stringify(event))
     }
     pendingEvents.length = 0
   }
@@ -641,17 +652,22 @@ async function createWebRTCConnection(
       sendEvent({ type: 'response.cancel' })
       currentMode = 'listening'
       emit('mode_change', { mode: 'listening' })
-      emit('interrupted', { messageId: currentMessageId ?? undefined })
+      emit(
+        'interrupted',
+        currentMessageId ? { messageId: currentMessageId } : {},
+      )
     },
 
     on<TEvent extends RealtimeEvent>(
       event: TEvent,
       handler: RealtimeEventHandler<TEvent>,
     ): () => void {
-      if (!eventHandlers.has(event)) {
-        eventHandlers.set(event, new Set())
+      let handlers = eventHandlers.get(event)
+      if (!handlers) {
+        handlers = new Set()
+        eventHandlers.set(event, handlers)
       }
-      eventHandlers.get(event)!.add(handler)
+      handlers.add(handler)
 
       return () => {
         eventHandlers.get(event)?.delete(handler)

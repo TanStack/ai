@@ -12,7 +12,10 @@ const props = defineProps<MessagePartProps>()
 
 type MessagePartSlots = {
   text?: (props: { content: string }) => any
-  thinking?: (props: { content: string; isComplete?: boolean }) => any
+  thinking?: (props: {
+    content: string
+    isComplete?: boolean | undefined
+  }) => any
   'tool-default'?: (props: ToolCallRenderProps) => any
   'tool-result'?: (props: {
     toolCallId: string
@@ -41,7 +44,7 @@ const toolProps = computed<ToolCallRenderProps | null>(() => {
 <template>
   <!-- Text part -->
   <div v-if="part.type === 'text'">
-    <slot v-if="$slots.text" name="text" :content="part.content" />
+    <slot v-if="$slots['text']" name="text" :content="part.content" />
     <div v-else data-part-type="text" data-part-content>
       {{ part.content }}
     </div>
@@ -50,7 +53,7 @@ const toolProps = computed<ToolCallRenderProps | null>(() => {
   <!-- Thinking part -->
   <div v-else-if="part.type === 'thinking'">
     <slot
-      v-if="$slots.thinking"
+      v-if="$slots['thinking']"
       name="thinking"
       :content="part.content"
       :is-complete="isThinkingComplete"

@@ -837,9 +837,9 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
         )
         expect(drainCall).toBeDefined()
         const ctx = drainCall![1] as Record<string, unknown>
-        expect(ctx.toolCallId).toBe('call_drain')
-        expect(ctx.toolName).toBe('lookup_weather')
-        expect(ctx.rawArguments).toBe('{"location":')
+        expect(ctx['toolCallId']).toBe('call_drain')
+        expect(ctx['toolName']).toBe('lookup_weather')
+        expect(ctx['rawArguments']).toBe('{"location":')
       } finally {
         errorsSpy.mockRestore()
       }

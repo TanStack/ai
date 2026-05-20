@@ -20,14 +20,16 @@ defineSlots<{
 
 const chat = useChat({
   connection: props.connection,
-  initialMessages: props.initialMessages,
-  id: props.id,
+  ...(props.initialMessages !== undefined && {
+    initialMessages: props.initialMessages,
+  }),
+  ...(props.id !== undefined && { id: props.id }),
   body: props.body,
   onResponse: (response?: Response) => emit('response', response),
   onChunk: (chunk: any) => emit('chunk', chunk),
   onFinish: (message: UIMessage) => emit('finish', message),
   onError: (error: Error) => emit('error', error),
-  tools: props.tools,
+  ...(props.tools !== undefined && { tools: props.tools }),
 })
 
 provide(CHAT_KEY, chat)

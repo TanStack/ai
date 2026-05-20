@@ -586,7 +586,9 @@ export interface Tool<
    *   return weather; // Can return object or string
    * }
    */
-  execute?: (args: any, context?: ToolExecutionContext) => Promise<any> | any
+  execute?:
+    | ((args: any, context?: ToolExecutionContext) => Promise<any> | any)
+    | undefined
 
   /** If true, tool execution requires user approval before running. Works with both server and client tools. */
   needsApproval?: boolean
@@ -595,7 +597,7 @@ export interface Tool<
   lazy?: boolean
 
   /** Additional metadata for adapters or custom extensions */
-  metadata?: Record<string, any>
+  metadata?: Record<string, any> | undefined
 }
 
 export interface ToolConfig {
@@ -729,7 +731,7 @@ export interface TextOptions<
 > {
   model: string
   messages: Array<ModelMessage>
-  tools?: Array<Tool<any, any, any>>
+  tools?: Array<Tool<any, any, any>> | undefined
   /**
    * System prompts to include with the request.
    *
@@ -791,7 +793,7 @@ export interface TextOptions<
    * - Anthropic: `metadata` (Record<string, any>) - includes optional user_id (max 256 chars)
    * - Gemini: Not directly available in TextProviderOptions
    */
-  metadata?: Record<string, any>
+  metadata?: Record<string, any> | undefined
   modelOptions?: TProviderOptionsForModel
   request?: Request | RequestInit
 
@@ -938,10 +940,12 @@ export interface RunErrorEvent extends AGUIRunErrorEvent {
    * @deprecated Use top-level `message` and `code` fields instead.
    * Kept for backward compatibility.
    */
-  error?: {
-    message: string
-    code?: string
-  }
+  error?:
+    | {
+        message: string
+        code?: string | undefined
+      }
+    | undefined
 }
 
 /**

@@ -169,18 +169,24 @@ describe('elevenlabsRealtime adapter', () => {
       inputSchema?: JSONSchema
       execute: (input: Record<string, unknown>) => unknown | Promise<unknown>
     }): AnyClientTool {
+      // Conditionally spread `inputSchema` — `ClientTool` declares it as
+      // strict `inputSchema?: TInput` (no `| undefined`) under
+      // `exactOptionalPropertyTypes`, so we omit the key when the caller
+      // didn't supply a schema rather than setting it to `undefined`.
       return {
         __toolSide: 'client',
         name: args.name,
         description: args.description ?? '',
-        inputSchema: args.inputSchema,
+        ...(args.inputSchema !== undefined && {
+          inputSchema: args.inputSchema,
+        }),
         execute: args.execute,
       }
     }
 
     it('should pass client tools as plain functions to @elevenlabs/client', async () => {
       const executeMock = vi.fn(
-        async (params: Record<string, unknown>) => `Sunny in ${params.city}`,
+        async (params: Record<string, unknown>) => `Sunny in ${params['city']}`,
       )
       const mockTool = createMockClientTool({
         name: 'get_weather',
@@ -195,7 +201,7 @@ describe('elevenlabsRealtime adapter', () => {
       await createConnection([mockTool])
 
       // The clientTools passed to startSession should contain plain functions
-      const registeredTool = capturedSessionOptions.clientTools?.get_weather
+      const registeredTool = capturedSessionOptions.clientTools?.['get_weather']
       expect(registeredTool).toBeDefined()
       expect(typeof registeredTool).toBe('function')
 
@@ -214,7 +220,7 @@ describe('elevenlabsRealtime adapter', () => {
 
       await createConnection([mockTool])
 
-      const registeredTool = capturedSessionOptions.clientTools?.get_data
+      const registeredTool = capturedSessionOptions.clientTools?.['get_data']
       const result = await registeredTool!({})
       expect(result).toBe(JSON.stringify({ temp: 72, unit: 'F' }))
     })

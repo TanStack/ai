@@ -39,12 +39,13 @@ const TOKEN_REFRESH_BUFFER_MS = 60_000
  * ```
  */
 export class RealtimeClient {
-  private options: RealtimeClientOptions
+  private readonly options: RealtimeClientOptions
   private connection: RealtimeConnection | null = null
   private token: RealtimeToken | null = null
   private tokenRefreshTimeout: ReturnType<typeof setTimeout> | null = null
-  private clientTools: Map<string, AnyClientTool>
-  private stateChangeCallbacks: Set<RealtimeStateChangeCallback> = new Set()
+  private readonly clientTools: Map<string, AnyClientTool>
+  private readonly stateChangeCallbacks: Set<RealtimeStateChangeCallback> =
+    new Set()
   private unsubscribers: Array<() => void> = []
 
   private state: RealtimeClientState = {
@@ -168,7 +169,7 @@ export class RealtimeClient {
     if (!this.connection || this.state.status !== 'connected') {
       return
     }
-    this.connection.startAudioCapture()
+    void this.connection.startAudioCapture()
     this.updateState({ mode: 'listening' })
   }
 
@@ -305,7 +306,7 @@ export class RealtimeClient {
    * Call this when disposing of the client.
    */
   destroy(): void {
-    this.disconnect()
+    void this.disconnect()
     this.stateChangeCallbacks.clear()
   }
 
@@ -344,7 +345,7 @@ export class RealtimeClient {
     const refreshIn = Math.max(0, timeUntilExpiry - TOKEN_REFRESH_BUFFER_MS)
 
     this.tokenRefreshTimeout = setTimeout(() => {
-      this.refreshToken()
+      void this.refreshToken()
     }, refreshIn)
   }
 
@@ -407,20 +408,20 @@ export class RealtimeClient {
 
     // Tool calls
     this.unsubscribers.push(
-      this.connection.on(
-        'tool_call',
-        async ({ toolCallId, toolName, input }) => {
-          if (!toolCallId) {
-            console.error(
-              '[RealtimeClient] tool_call missing toolCallId',
-              toolName,
-            )
-            return
-          }
-          const tool = this.clientTools.get(toolName)
-          if (tool?.execute) {
+      this.connection.on('tool_call', ({ toolCallId, toolName, input }) => {
+        if (!toolCallId) {
+          console.error(
+            '[RealtimeClient] tool_call missing toolCallId',
+            toolName,
+          )
+          return
+        }
+        const tool = this.clientTools.get(toolName)
+        const execute = tool?.execute
+        if (execute) {
+          void (async () => {
             try {
-              const output = await tool.execute(input)
+              const output = await execute(input)
               this.connection?.sendToolResult(
                 toolCallId,
                 typeof output === 'string' ? output : JSON.stringify(output),
@@ -433,16 +434,16 @@ export class RealtimeClient {
                 JSON.stringify({ error: errMsg }),
               )
             }
-          } else {
-            this.connection?.sendToolResult(
-              toolCallId,
-              JSON.stringify({
-                error: `Unknown or non-executable tool: ${String(toolName)}`,
-              }),
-            )
-          }
-        },
-      ),
+          })()
+        } else {
+          this.connection?.sendToolResult(
+            toolCallId,
+            JSON.stringify({
+              error: `Unknown or non-executable tool: ${String(toolName)}`,
+            }),
+          )
+        }
+      }),
     )
 
     // Message complete
@@ -512,25 +513,34 @@ export class RealtimeClient {
       semanticEagerness
     if (!hasConfig) return
 
+    // `RealtimeToolConfig.inputSchema` is `Record<string, any>` (no
+    // `undefined` under `exactOptionalPropertyTypes`). Conditionally spread
+    // it so we don't pass `undefined` when the tool has no input schema.
     const toolsConfig = tools
-      ? Array.from(this.clientTools.values()).map((t) => ({
-          name: t.name,
-          description: t.description,
-          inputSchema: t.inputSchema
+      ? Array.from(this.clientTools.values()).map((t) => {
+          const inputSchema = t.inputSchema
             ? convertSchemaToJsonSchema(t.inputSchema)
-            : undefined,
-        }))
+            : undefined
+          return {
+            name: t.name,
+            description: t.description,
+            ...(inputSchema ? { inputSchema } : {}),
+          }
+        })
       : undefined
 
+    // `RealtimeSessionConfig` declares each field as `field?: T` (no
+    // `undefined`). Spread each one conditionally so we don't violate
+    // `exactOptionalPropertyTypes` when the source is `T | undefined`.
     this.connection.updateSession({
-      instructions,
-      voice,
-      vadMode,
-      tools: toolsConfig,
-      outputModalities,
-      temperature,
-      maxOutputTokens,
-      semanticEagerness,
+      ...(instructions !== undefined ? { instructions } : {}),
+      ...(voice !== undefined ? { voice } : {}),
+      ...(vadMode !== undefined ? { vadMode } : {}),
+      ...(toolsConfig !== undefined ? { tools: toolsConfig } : {}),
+      ...(outputModalities !== undefined ? { outputModalities } : {}),
+      ...(temperature !== undefined ? { temperature } : {}),
+      ...(maxOutputTokens !== undefined ? { maxOutputTokens } : {}),
+      ...(semanticEagerness !== undefined ? { semanticEagerness } : {}),
     })
   }
 

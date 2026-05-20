@@ -98,7 +98,7 @@ export type GenerationTransport<TInput, TResult> =
  * @template TResult - The result type returned by the generation
  * @template TOutput - The output type after optional transform (defaults to TResult)
  */
-// eslint-disable-next-line @typescript-eslint/naming-convention
+// eslint-disable-next-line @typescript-eslint/naming-convention -- _TInput is unused in the interface body but part of the public positional generic API (callers supply it for inference)
 export interface GenerationClientOptions<_TInput, TResult, TOutput = TResult> {
   /** Unique identifier for this generation client instance */
   id?: string

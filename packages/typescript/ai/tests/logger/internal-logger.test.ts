@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { InternalLogger } from '../../src/logger/internal-logger'
 import type { Logger } from '../../src/logger/types'
 
-type SpyCall = [keyof Logger, string, Record<string, unknown>?]
+type SpyCall = [keyof Logger, string, (Record<string, unknown> | undefined)?]
 
 const makeSpyLogger = () => {
   const calls: Array<SpyCall> = []

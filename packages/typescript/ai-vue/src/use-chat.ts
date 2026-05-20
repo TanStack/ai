@@ -65,12 +65,21 @@ export function useChat<
   // in-place mutations propagate. When the user clears a callback (sets it to
   // undefined), `?.` no-ops — unlike `client.updateOptions`, which silently
   // skips undefined and leaves the old callback installed.
+  //
+  // Conditional spreads for `initialMessages`, `body`, `forwardedProps`, and
+  // `tools`: the ChatClient target declares those as strict-optional
+  // (`field?: T`), so under `exactOptionalPropertyTypes` we omit the key when
+  // the source value is `undefined` instead of assigning `undefined`.
   const client = new ChatClient({
     connection: options.connection,
     id: clientId,
-    initialMessages: options.initialMessages,
-    body: options.body,
-    forwardedProps: options.forwardedProps,
+    ...(options.initialMessages !== undefined && {
+      initialMessages: options.initialMessages,
+    }),
+    ...(options.body !== undefined && { body: options.body }),
+    ...(options.forwardedProps !== undefined && {
+      forwardedProps: options.forwardedProps,
+    }),
     onResponse: (response) => options.onResponse?.(response),
     onChunk: (chunk: StreamChunk) => {
       options.onChunk?.(chunk)
@@ -84,7 +93,9 @@ export function useChat<
     tools: options.tools,
     onCustomEvent: (eventType, data, context) =>
       options.onCustomEvent?.(eventType, data, context),
-    streamProcessor: options.streamProcessor,
+    ...(options.streamProcessor !== undefined && {
+      streamProcessor: options.streamProcessor,
+    }),
     onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
       messages.value = newMessages
     },
@@ -111,12 +122,16 @@ export function useChat<
   // Sync body / forwardedProps changes to the client.
   // Both populate the same wire payload; `forwardedProps` is preferred
   // and `body` is deprecated but still supported.
+  // Conditional spread: `updateOptions` declares strict-optional fields and
+  // rejects explicit `undefined` under EOPT.
   watch(
     () => [options.body, options.forwardedProps] as const,
     ([newBody, newForwardedProps]) => {
       client.updateOptions({
         body: newBody,
-        forwardedProps: newForwardedProps,
+        ...(newForwardedProps !== undefined && {
+          forwardedProps: newForwardedProps,
+        }),
       })
     },
   )
@@ -198,15 +213,15 @@ export function useChat<
     const list = messages.value
     let lastUserIndex = -1
     for (let i = list.length - 1; i >= 0; i--) {
-      if (list[i]!.role === 'user') {
+      if (list[i]?.role === 'user') {
         lastUserIndex = i
         break
       }
     }
     if (lastUserIndex === -1) return null
     for (let i = list.length - 1; i > lastUserIndex; i--) {
-      const m = list[i]!
-      if (m.role !== 'assistant') continue
+      const m = list[i]
+      if (m?.role !== 'assistant') continue
       const part = m.parts.find(
         (p): p is StructuredOutputPart => p.type === 'structured-output',
       )
@@ -231,6 +246,7 @@ export function useChat<
   // partial / final are runtime-tracked unconditionally; the conditional
   // return type (UseChatReturn<TTools, TSchema>) hides them from callers that
   // didn't supply `outputSchema`.
+  // eslint-disable-next-line no-restricted-syntax -- composable return shape diverges from conditional UseChatReturn<TTools, TSchema>; TS can't structurally narrow the TSchema-gated partial/final refs
   return {
     messages: readonly(messages),
     sendMessage,

@@ -97,14 +97,16 @@ export interface TextActivityOptions<
    *
    * The three shapes can be mixed in a single array (e.g., when forwarding a wire payload that includes both anchor UIMessages and AG-UI fan-out ModelMessages).
    */
-  messages?: Array<
-    | UIMessage
-    | ModelMessage
-    | ConstrainedModelMessage<{
-        inputModalities: TAdapter['~types']['inputModalities']
-        messageMetadataByModality: TAdapter['~types']['messageMetadataByModality']
-      }>
-  >
+  messages?:
+    | Array<
+        | UIMessage
+        | ModelMessage
+        | ConstrainedModelMessage<{
+            inputModalities: TAdapter['~types']['inputModalities']
+            messageMetadataByModality: TAdapter['~types']['messageMetadataByModality']
+          }>
+      >
+    | undefined
   /**
    * System prompts to prepend to the conversation.
    *
@@ -114,9 +116,9 @@ export interface TextActivityOptions<
    * caching), providers without per-prompt metadata reject the field
    * entirely.
    */
-  systemPrompts?: Array<
-    SystemPrompt<TAdapter['~types']['systemPromptMetadata']>
-  >
+  systemPrompts?:
+    | Array<SystemPrompt<TAdapter['~types']['systemPromptMetadata']>>
+    | undefined
   /**
    * Tools for function calling (auto-executed when called).
    *
@@ -127,10 +129,12 @@ export interface TextActivityOptions<
    *    `supports.tools` list. Passing an unsupported tool produces a
    *    compile-time error on the array element.
    */
-  tools?: Array<
-    | (Tool & { readonly '~toolKind'?: never })
-    | ProviderTool<string, TAdapter['~types']['toolCapabilities'][number]>
-  >
+  tools?:
+    | Array<
+        | (Tool & { readonly '~toolKind'?: never })
+        | ProviderTool<string, TAdapter['~types']['toolCapabilities'][number]>
+      >
+    | undefined
   /** Controls the randomness of the output. Higher values make output more random. Range: [0.0, 2.0] */
   temperature?: TextOptions['temperature']
   /** Nucleus sampling parameter. The model considers tokens with topP probability mass. */
@@ -348,7 +352,7 @@ class TextEngine<
     []
   private currentThinkingContent = ''
   private currentThinkingSignature = ''
-  private eventOptions?: Record<string, unknown>
+  private eventOptions?: Record<string, unknown> | undefined
   private eventToolNames?: Array<string>
   private finishedEvent: RunFinishedEvent | null = null
   private earlyTermination = false
@@ -359,16 +363,16 @@ class TextEngine<
   private readonly initialClientToolResults: Map<string, any>
 
   // AG-UI protocol IDs
-  private threadId: string
-  private runIdOverride?: string
-  private parentRunIdOverride?: string
+  private readonly threadId: string
+  private readonly runIdOverride?: string
+  private readonly parentRunIdOverride?: string
 
   // Middleware support
   private readonly middlewareRunner: MiddlewareRunner
   private readonly middlewareCtx: ChatMiddlewareContext
   private readonly deferredPromises: Array<Promise<unknown>> = []
   private abortReason?: string
-  private middlewareAbortController?: AbortController
+  private readonly middlewareAbortController?: AbortController
   private terminalHookCalled = false
 
   private readonly logger: InternalLogger
@@ -447,8 +451,11 @@ class TextEngine<
     // handleStreamChunk processes raw chunks BEFORE middleware, so internal
     // state management sees extended fields (finishReason, delta, toolCallName, etc.).
     // The strip middleware ensures the yielded public stream is AG-UI spec-compliant.
-    const allMiddleware = [
-      devtoolsMiddleware(),
+    // `devtoolsMiddleware()` returns a structurally compatible
+    // `DevtoolsChatMiddleware` (defined in `@tanstack/ai-event-client` to
+    // avoid a circular dep). Cast it to `ChatMiddleware` for the runner.
+    const allMiddleware: Array<ChatMiddleware> = [
+      devtoolsMiddleware() as ChatMiddleware,
       ...(config.middleware || []),
       stripToSpecMiddleware(),
     ]
@@ -829,6 +836,7 @@ class TextEngine<
   }
 
   private handleStreamChunk(chunk: StreamChunk): void {
+    // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- AG-UI EventType enum members vs string-literal case labels; default branch handles untraced events.
     switch (chunk.type) {
       // AG-UI Events
       case 'TEXT_MESSAGE_CONTENT':
@@ -1127,11 +1135,10 @@ class TextEngine<
       return true
     })
 
-    if (undiscoveredLazyResults.length > 0) {
-      const finishEvt = this.finishedEvent!
+    if (undiscoveredLazyResults.length > 0 && this.finishedEvent) {
       for (const chunk of this.buildToolResultChunks(
         undiscoveredLazyResults,
-        finishEvt,
+        this.finishedEvent,
       )) {
         yield* this.pipeThroughMiddleware(chunk)
       }
@@ -2185,8 +2192,9 @@ async function* runStreamingText(
 function runNonStreamingText(
   options: TextActivityOptions<AnyTextAdapter, undefined, false>,
 ): Promise<string> {
-  // Run the streaming text and collect all text using streamToText
+  // Run the streaming text and collect all text using streamToText.
   const stream = runStreamingText(
+    // eslint-disable-next-line no-restricted-syntax -- generic-stream remap: caller is non-streaming (false), but runStreamingText is invoked internally to collect text; concrete `false`→`true` literals don't structurally overlap.
     options as unknown as TextActivityOptions<AnyTextAdapter, undefined, true>,
   )
 

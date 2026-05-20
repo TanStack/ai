@@ -1,3 +1,4 @@
+import { brandProviderTool } from '@tanstack/ai'
 import type {
   BetaCodeExecutionTool20250522,
   BetaCodeExecutionTool20250825,
@@ -26,10 +27,9 @@ export function convertCodeExecutionToolToAdapterFormat(
 export function codeExecutionTool(
   config: CodeExecutionToolConfig,
 ): AnthropicCodeExecutionTool {
-  // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
-  return {
+  return brandProviderTool<AnthropicCodeExecutionTool>({
     name: 'code_execution',
     description: '',
     metadata: config,
-  } as unknown as AnthropicCodeExecutionTool
+  })
 }

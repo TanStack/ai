@@ -141,20 +141,22 @@ export const MessageCard: Component<MessageCardProps> = (props) => {
         </Show>
 
         <Show
-          when={msg().role === 'tool' && parseJsonContent() !== null}
+          when={msg().role === 'tool' && parseJsonContent()}
           fallback={
             <div class={styles().conversationDetails.messageContent}>
               {msg().content}
             </div>
           }
         >
-          <div class={styles().conversationDetails.toolJsonContainer}>
-            <JsonTree value={parseJsonContent()!} />
-          </div>
+          {(parsed) => (
+            <div class={styles().conversationDetails.toolJsonContainer}>
+              <JsonTree value={parsed()} />
+            </div>
+          )}
         </Show>
 
         {/* Tool Calls Display */}
-        <Show when={msg().toolCalls && msg().toolCalls!.length > 0}>
+        <Show when={msg().toolCalls?.length}>
           <div class={styles().conversationDetails.toolCallsContainer}>
             <For each={msg().toolCalls}>
               {(tool) => <ToolCallDisplay tool={tool} />}
@@ -163,8 +165,8 @@ export const MessageCard: Component<MessageCardProps> = (props) => {
         </Show>
 
         {/* Chunks Display (for client conversations with server chunks) */}
-        <Show when={msg().chunks && msg().chunks!.length > 0}>
-          <ChunksCollapsible chunks={msg().chunks!} />
+        <Show when={msg().chunks?.length ? msg().chunks : null}>
+          {(chunks) => <ChunksCollapsible chunks={chunks()} />}
         </Show>
       </div>
     </div>

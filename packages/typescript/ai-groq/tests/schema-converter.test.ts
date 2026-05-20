@@ -20,7 +20,7 @@ describe('makeGroqStructuredOutputCompatible', () => {
       required: ['value'],
     }
 
-    const result = makeGroqStructuredOutputCompatible(schema, ['value'])
+    const result: any = makeGroqStructuredOutputCompatible(schema, ['value'])
 
     // Empty required inside anyOf variant should be removed
     const objectVariant = result.properties.value.anyOf.find(
@@ -45,7 +45,7 @@ describe('makeGroqStructuredOutputCompatible', () => {
     }
 
     // First create a schema that would produce empty required after processing
-    const result = makeGroqStructuredOutputCompatible(schema, ['data'])
+    const result: any = makeGroqStructuredOutputCompatible(schema, ['data'])
 
     // Should not have empty required arrays anywhere
     const checkNoEmptyRequired = (obj: any): void => {
@@ -75,7 +75,7 @@ describe('makeGroqStructuredOutputCompatible', () => {
       required: ['child'],
     }
 
-    const result = makeGroqStructuredOutputCompatible(schema, ['child'])
+    const result: any = makeGroqStructuredOutputCompatible(schema, ['child'])
 
     expect(result.properties.child.type).toBe('object')
     expect(result.properties.child.properties).toEqual({})
@@ -95,7 +95,7 @@ describe('makeGroqStructuredOutputCompatible', () => {
       required: ['items'],
     }
 
-    const result = makeGroqStructuredOutputCompatible(schema, ['items'])
+    const result: any = makeGroqStructuredOutputCompatible(schema, ['items'])
 
     expect(result.properties.items.items.type).toBe('object')
     expect(result.properties.items.items.properties).toEqual({})
@@ -113,7 +113,7 @@ describe('makeGroqStructuredOutputCompatible', () => {
       required: ['value'],
     }
 
-    const result = makeGroqStructuredOutputCompatible(schema, ['value'])
+    const result: any = makeGroqStructuredOutputCompatible(schema, ['value'])
 
     const objectVariant = result.properties.value.anyOf.find(
       (v: any) => v.type === 'object',
@@ -142,7 +142,7 @@ describe('makeGroqStructuredOutputCompatible', () => {
       required: ['meta'],
     }
 
-    const result = makeGroqStructuredOutputCompatible(schema, ['meta'])
+    const result: any = makeGroqStructuredOutputCompatible(schema, ['meta'])
 
     // meta should have required with allPropertyNames
     expect(result.properties.meta.required).toEqual(['name'])

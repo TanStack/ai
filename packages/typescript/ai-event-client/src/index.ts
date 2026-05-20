@@ -134,6 +134,10 @@ export interface ImageUsage {
   totalTokens?: number
 }
 
+// All optional fields explicitly allow `| undefined` so that callers
+// can spread shared-context builders (which set every field to a
+// possibly-undefined value) without `exactOptionalPropertyTypes`
+// rejecting the assignment.
 interface BaseEventContext {
   timestamp: number
   requestId?: string
@@ -144,8 +148,8 @@ interface BaseEventContext {
   provider?: string
   model?: string
   systemPrompts?: Array<string>
-  options?: Record<string, unknown>
-  modelOptions?: Record<string, unknown>
+  options?: Record<string, unknown> | undefined
+  modelOptions?: Record<string, unknown> | undefined
   toolNames?: Array<string>
   messageCount?: number
   hasTools?: boolean

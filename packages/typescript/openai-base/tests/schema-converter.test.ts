@@ -11,7 +11,7 @@ describe('makeStructuredOutputCompatible', () => {
       required: ['name'],
     }
 
-    const result = makeStructuredOutputCompatible(schema, ['name'])
+    const result: any = makeStructuredOutputCompatible(schema, ['name'])
     expect(result.additionalProperties).toBe(false)
   })
 
@@ -25,7 +25,7 @@ describe('makeStructuredOutputCompatible', () => {
       required: ['name'],
     }
 
-    const result = makeStructuredOutputCompatible(schema, ['name'])
+    const result: any = makeStructuredOutputCompatible(schema, ['name'])
     expect(result.required).toEqual(['name', 'age'])
   })
 
@@ -39,7 +39,7 @@ describe('makeStructuredOutputCompatible', () => {
       required: ['name'],
     }
 
-    const result = makeStructuredOutputCompatible(schema, ['name'])
+    const result: any = makeStructuredOutputCompatible(schema, ['name'])
     expect(result.properties.name.type).toBe('string')
     expect(result.properties.nickname.type).toEqual(['string', 'null'])
   })
@@ -66,7 +66,7 @@ describe('makeStructuredOutputCompatible', () => {
       required: ['u'],
     }
 
-    const result = makeStructuredOutputCompatible(schema, ['u'])
+    const result: any = makeStructuredOutputCompatible(schema, ['u'])
 
     // Each variant in anyOf should have additionalProperties: false
     expect(result.properties.u.anyOf[0].additionalProperties).toBe(false)
@@ -103,7 +103,7 @@ describe('makeStructuredOutputCompatible', () => {
       required: ['data'],
     }
 
-    const result = makeStructuredOutputCompatible(schema, ['data'])
+    const result: any = makeStructuredOutputCompatible(schema, ['data'])
 
     // The nested object inside anyOf variant should also have additionalProperties: false
     expect(result.properties.data.anyOf[0].additionalProperties).toBe(false)
@@ -128,7 +128,7 @@ describe('makeStructuredOutputCompatible', () => {
       required: ['items'],
     }
 
-    const result = makeStructuredOutputCompatible(schema, ['items'])
+    const result: any = makeStructuredOutputCompatible(schema, ['items'])
     expect(result.properties.items.items.additionalProperties).toBe(false)
   })
 
@@ -170,7 +170,7 @@ describe('makeStructuredOutputCompatible', () => {
     }
 
     // Call without second argument — should use schema.required
-    const result = makeStructuredOutputCompatible(schema)
+    const result: any = makeStructuredOutputCompatible(schema)
     expect(result.properties.name.type).toBe('string')
     expect(result.properties.nickname.type).toEqual(['string', 'null'])
     expect(result.required).toEqual(['name', 'nickname'])
@@ -194,7 +194,7 @@ describe('makeStructuredOutputCompatible', () => {
       required: ['required_obj'],
     }
 
-    const result = makeStructuredOutputCompatible(schema, ['required_obj'])
+    const result: any = makeStructuredOutputCompatible(schema, ['required_obj'])
 
     // required_obj should be recursed into but NOT made nullable
     expect(result.properties.required_obj.additionalProperties).toBe(false)
@@ -221,7 +221,7 @@ describe('makeStructuredOutputCompatible', () => {
       required: [],
     }
 
-    const result = makeStructuredOutputCompatible(schema, [])
+    const result: any = makeStructuredOutputCompatible(schema, [])
 
     // tags is optional, should be nullable AND have items recursed
     expect(result.properties.tags.type).toEqual(['array', 'null'])
@@ -239,7 +239,7 @@ describe('makeStructuredOutputCompatible', () => {
       required: [],
     }
 
-    const result = makeStructuredOutputCompatible(schema, [])
+    const result: any = makeStructuredOutputCompatible(schema, [])
 
     // optional anyOf should have a null variant added
     expect(result.properties.value.anyOf).toContainEqual({ type: 'null' })

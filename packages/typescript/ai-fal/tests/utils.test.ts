@@ -147,7 +147,7 @@ describe('mapSizeToFalFormat', () => {
       string,
       unknown
     >
-    expect(result.aspect_ratio).toBeUndefined()
+    expect(result['aspect_ratio']).toBeUndefined()
     expect(Object.prototype.hasOwnProperty.call(result, 'aspect_ratio')).toBe(
       false,
     )

@@ -1017,7 +1017,7 @@ describe('message-updaters', () => {
       ]
 
       const data: Record<string, unknown> = { name: 'circ' }
-      data.self = data
+      data['self'] = data
 
       expect(() =>
         completeStructuredOutputPart(messages, 'msg-1', data, ''),

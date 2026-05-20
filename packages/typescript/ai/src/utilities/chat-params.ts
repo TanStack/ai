@@ -131,7 +131,7 @@ export async function chatParamsFromRequest(
       'Invalid AG-UI request body. See docs/migration/ag-ui-compliance.md.',
       { status: 400 },
     )
-    ;(res as unknown as { cause?: unknown }).cause = cause
+    ;(res as { cause?: unknown }).cause = cause
     throw res
   }
   try {
@@ -145,7 +145,7 @@ export async function chatParamsFromRequest(
       'Invalid AG-UI request body. See docs/migration/ag-ui-compliance.md.',
       { status: 400 },
     )
-    ;(res as unknown as { cause?: unknown }).cause = cause
+    ;(res as { cause?: unknown }).cause = cause
     throw res
   }
 }

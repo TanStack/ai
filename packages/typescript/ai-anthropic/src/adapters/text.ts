@@ -21,10 +21,12 @@ import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
   Base64ImageSource,
   Base64PDFSource,
+  ContentBlockParam,
   DocumentBlockParam,
   ImageBlockParam,
-  MessageParam,
   TextBlockParam,
+  ThinkingBlockParam,
+  ToolUseBlockParam,
   URLImageSource,
   URLPDFSource,
 } from '@anthropic-ai/sdk/resources/messages'
@@ -59,13 +61,6 @@ export interface AnthropicTextConfig extends AnthropicClientConfig {}
  * Anthropic-specific provider options for text/chat
  */
 export type AnthropicTextProviderOptions = ExternalTextProviderOptions
-
-type AnthropicContentBlocks =
-  Extract<MessageParam['content'], Array<unknown>> extends Array<infer Block>
-    ? Array<Block>
-    : never
-type AnthropicContentBlock =
-  AnthropicContentBlocks extends Array<infer Block> ? Block : never
 
 // ===========================
 // Type Resolution Helpers
@@ -123,10 +118,10 @@ export class AnthropicTextAdapter<
   // chat() call site so users get `cache_control` autocomplete.
   AnthropicSystemPromptMetadata
 > {
-  readonly kind = 'text' as const
+  override readonly kind = 'text' as const
   readonly name = 'anthropic' as const
 
-  private client: Anthropic_SDK
+  private readonly client: Anthropic_SDK
 
   constructor(config: AnthropicTextConfig, model: TModel) {
     super({}, model)
@@ -356,29 +351,40 @@ export class AnthropicTextAdapter<
         ? thinkingBudget + 1
         : defaultMaxTokens
 
+    // `InternalTextProviderOptions.system` is typed
+    // `string | Array<TextBlockParam>` (no `| undefined`), so build it
+    // outside the literal and spread it conditionally rather than
+    // assigning `undefined` under exactOptionalPropertyTypes.
+    const systemBlocks = ((): Array<TextBlockParam> | undefined => {
+      const normalized = normalizeSystemPrompts<AnthropicSystemPromptMetadata>(
+        options.systemPrompts,
+      )
+      if (normalized.length === 0) return undefined
+      return normalized.map(
+        (p): TextBlockParam => ({
+          type: 'text',
+          text: p.content,
+          ...(p.metadata?.cache_control && {
+            cache_control: p.metadata.cache_control,
+          }),
+        }),
+      )
+    })()
+    // `InternalTextProviderOptions` declares `temperature`, `top_p`,
+    // and `tools` as `T?: ...` (no `| undefined`), so spread them
+    // conditionally rather than passing explicit `undefined` from the
+    // optional common `TextOptions` fields under
+    // exactOptionalPropertyTypes.
     const requestParams: InternalTextProviderOptions = {
       model: options.model,
       max_tokens: maxTokens,
-      temperature: options.temperature,
-      top_p: options.topP,
+      ...(options.temperature !== undefined && {
+        temperature: options.temperature,
+      }),
+      ...(options.topP !== undefined && { top_p: options.topP }),
       messages: formattedMessages,
-      system: (() => {
-        const normalized =
-          normalizeSystemPrompts<AnthropicSystemPromptMetadata>(
-            options.systemPrompts,
-          )
-        if (normalized.length === 0) return undefined
-        return normalized.map(
-          (p): TextBlockParam => ({
-            type: 'text',
-            text: p.content,
-            ...(p.metadata?.cache_control && {
-              cache_control: p.metadata.cache_control,
-            }),
-          }),
-        )
-      })(),
-      tools: tools,
+      ...(systemBlocks !== undefined && { system: systemBlocks }),
+      ...(tools !== undefined && { tools }),
       ...validProviderOptions,
     }
     validateTextProviderOptions(requestParams)
@@ -478,14 +484,14 @@ export class AnthropicTextAdapter<
       }
 
       if (role === 'assistant' && message.toolCalls?.length) {
-        const contentBlocks: AnthropicContentBlocks = []
+        const contentBlocks: Array<ContentBlockParam> = []
 
         this.appendThinkingBlocks(contentBlocks, message.thinking)
 
         if (message.content) {
           const content =
             typeof message.content === 'string' ? message.content : ''
-          const textBlock: AnthropicContentBlock = {
+          const textBlock: TextBlockParam = {
             type: 'text',
             text: content,
           }
@@ -503,7 +509,7 @@ export class AnthropicTextAdapter<
             parsedInput = toolCall.function.arguments
           }
 
-          const toolUseBlock: AnthropicContentBlock = {
+          const toolUseBlock: ToolUseBlockParam = {
             type: 'tool_use',
             id: toolCall.id,
             name: toolCall.function.name,
@@ -521,7 +527,7 @@ export class AnthropicTextAdapter<
       }
 
       if (role === 'assistant') {
-        const contentBlocks: AnthropicContentBlocks = []
+        const contentBlocks: Array<ContentBlockParam> = []
         this.appendThinkingBlocks(contentBlocks, message.thinking)
 
         if (Array.isArray(message.content)) {
@@ -573,18 +579,19 @@ export class AnthropicTextAdapter<
   }
 
   private appendThinkingBlocks(
-    contentBlocks: AnthropicContentBlocks,
+    contentBlocks: Array<ContentBlockParam>,
     thinkingParts: ModelMessage['thinking'],
   ): void {
     if (!thinkingParts?.length) return
 
     for (const thinking of thinkingParts) {
       if (!thinking.signature) continue
-      contentBlocks.push({
+      const block: ThinkingBlockParam = {
         type: 'thinking',
         thinking: thinking.content,
         signature: thinking.signature,
-      } as unknown as AnthropicContentBlock)
+      }
+      contentBlocks.push(block)
     }
   }
 
@@ -782,14 +789,17 @@ export class AnthropicTextAdapter<
               delta,
               content: accumulatedContent,
             }
-          } else if (event.delta.type === 'thinking_delta') {
+          } else if (
+            event.delta.type === 'thinking_delta' &&
+            reasoningMessageId
+          ) {
             const delta = event.delta.thinking
             accumulatedThinking += delta
 
             // Spec REASONING content event
             yield {
               type: EventType.REASONING_MESSAGE_CONTENT,
-              messageId: reasoningMessageId!,
+              messageId: reasoningMessageId,
               delta,
               model,
               timestamp: Date.now(),
@@ -992,7 +1002,16 @@ export class AnthropicTextAdapter<
                 }
                 break
               }
+              case 'stop_sequence':
+              case 'end_turn':
+              case 'pause_turn':
+              case 'refusal':
+              case 'model_context_window_exceeded':
               default: {
+                // All remaining Anthropic stop_reason variants map to the
+                // generic "stop" finish reason — they describe *why* the
+                // stream ended, but for AG-UI consumers the resulting event
+                // shape is identical.
                 yield {
                   type: EventType.RUN_FINISHED,
                   runId,

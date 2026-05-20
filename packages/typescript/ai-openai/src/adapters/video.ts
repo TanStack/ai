@@ -76,7 +76,10 @@ export class OpenAIVideoAdapter<
   protected clientConfig: OpenAIVideoConfig
 
   constructor(config: OpenAIVideoConfig, model: TModel) {
-    super(config, model)
+    // `VideoAdapterConfig` declares its optional fields without `| undefined`,
+    // which collides with `OpenAIClientConfig` fields like `timeout?: number | undefined`.
+    // We hold our own typed copy on `clientConfig` and pass an empty object up.
+    super({}, model)
     this.clientConfig = config
     this.client = new OpenAI(config)
   }
@@ -94,13 +97,22 @@ export class OpenAIVideoAdapter<
       model: model as VideoModel,
       prompt: options.prompt,
     }
+    // `VideoCreateParams.size` is `size?: VideoSize` (no `| undefined`), so we
+    // narrow before assignment instead of casting from a `T | undefined` source.
     if (size) {
-      request.size = size as OpenAI_SDK.Videos.VideoCreateParams['size']
+      request.size = size as NonNullable<
+        OpenAI_SDK.Videos.VideoCreateParams['size']
+      >
     } else if (modelOptions?.size) {
       request.size = modelOptions.size
     }
     if (seconds !== undefined) {
-      request.seconds = toApiSeconds(seconds)
+      // `toApiSeconds` returns `OpenAIVideoSeconds | undefined`; we already
+      // guarded the input, but the signature still includes `undefined`.
+      const apiSeconds = toApiSeconds(seconds)
+      if (apiSeconds !== undefined) {
+        request.seconds = apiSeconds
+      }
     }
 
     try {
@@ -153,11 +165,16 @@ export class OpenAIVideoAdapter<
     try {
       const videosClient = this.getVideosClient()
       const response = await videosClient.retrieve(jobId)
+      // `VideoStatusResult` declares optional fields without `| undefined`;
+      // spread conditionally so we omit absent fields rather than assigning
+      // `undefined`.
       return {
         jobId,
         status: this.mapStatus(response.status),
         progress: response.progress,
-        error: response.error?.message,
+        ...(response.error?.message !== undefined && {
+          error: response.error.message,
+        }),
       }
     } catch (error: any) {
       if (error.status === 404) {
@@ -176,12 +193,14 @@ export class OpenAIVideoAdapter<
       // and do not implement a separate /content endpoint.
       const videoInfo = await videosClient.retrieve(jobId)
       if (videoInfo.url) {
+        // `VideoUrlResult.expiresAt` is `expiresAt?: Date` without `| undefined`;
+        // omit the field when the API didn't return an expiry.
         return {
           jobId,
           url: videoInfo.url,
-          expiresAt: videoInfo.expires_at
-            ? new Date(videoInfo.expires_at)
-            : undefined,
+          ...(videoInfo.expires_at !== undefined && {
+            expiresAt: new Date(videoInfo.expires_at),
+          }),
         }
       }
 
@@ -194,10 +213,11 @@ export class OpenAIVideoAdapter<
         const base64 = arrayBufferToBase64(buffer)
         const mimeType =
           contentResponse.headers.get('content-type') || 'video/mp4'
+        // Omit `expiresAt` to satisfy exactOptionalPropertyTypes; data URLs do
+        // not have a vendor-provided expiry.
         return {
           jobId,
           url: `data:${mimeType};base64,${base64}`,
-          expiresAt: undefined,
         }
       }
 
@@ -241,7 +261,6 @@ export class OpenAIVideoAdapter<
         return {
           jobId,
           url: `data:${mimeType};base64,${base64}`,
-          expiresAt: undefined,
         }
       }
 
@@ -274,7 +293,6 @@ export class OpenAIVideoAdapter<
       return {
         jobId,
         url: `data:${fallthroughMime};base64,${fallthroughBase64}`,
-        expiresAt: undefined,
       }
     } catch (error: any) {
       if (error.status === 404) {

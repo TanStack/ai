@@ -304,6 +304,7 @@ export function parseNativeImageSize(
   size: string,
 ): { aspectRatio: string; resolution: string } | undefined {
   const match = size.match(/^(\d+:\d+)_(.+)$/)
-  if (!match) return undefined
-  return { aspectRatio: match[1]!, resolution: match[2]! }
+  const [, aspectRatio, resolution] = match ?? []
+  if (aspectRatio === undefined || resolution === undefined) return undefined
+  return { aspectRatio, resolution }
 }

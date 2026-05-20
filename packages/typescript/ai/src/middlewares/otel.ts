@@ -137,8 +137,11 @@ function serializeContent(content: unknown): string {
       case 'document':
         parts.push('[document]')
         break
+      case undefined:
+        parts.push('[unknown]')
+        break
       default:
-        parts.push(`[${type ?? 'unknown'}]`)
+        parts.push(`[${type}]`)
     }
   }
   return parts.join(' ')
@@ -630,9 +633,10 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
 
         if (!info.ok && info.error !== undefined) {
           toolSpan.recordException(info.error as Exception)
+          const msg = errorMessage(info.error)
           toolSpan.setStatus({
             code: SpanStatusCode.ERROR,
-            message: errorMessage(info.error),
+            ...(msg !== undefined && { message: msg }),
           })
         }
 
@@ -688,13 +692,16 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
 
         const errType = errorTypeName(info.error)
         const message = errorMessage(info.error)
+        const statusMessage =
+          message !== undefined ? { message } : ({} as const)
         const exception = info.error as Exception
 
-        if (state.currentIterationSpan) {
-          state.currentIterationSpan.recordException(exception)
-          state.currentIterationSpan.setStatus({
+        const iterationSpan = state.currentIterationSpan
+        if (iterationSpan) {
+          iterationSpan.recordException(exception)
+          iterationSpan.setStatus({
             code: SpanStatusCode.ERROR,
-            message,
+            ...statusMessage,
           })
           safeCall('otel.onSpanEnd', () =>
             onSpanEnd?.(
@@ -703,17 +710,17 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
                 ctx,
                 iteration: state.iterationCount - 1,
               } as OtelSpanInfo<'iteration'>,
-              state.currentIterationSpan!,
+              iterationSpan,
             ),
           )
-          state.currentIterationSpan.end()
+          iterationSpan.end()
           state.currentIterationSpan = null
         }
 
         for (const [id, entry] of state.toolSpans) {
           const { span, toolName } = entry
           span.recordException(exception)
-          span.setStatus({ code: SpanStatusCode.ERROR, message })
+          span.setStatus({ code: SpanStatusCode.ERROR, ...statusMessage })
           safeCall('otel.onSpanEnd', () =>
             onSpanEnd?.(
               {
@@ -731,7 +738,10 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
         }
 
         state.rootSpan.recordException(exception)
-        state.rootSpan.setStatus({ code: SpanStatusCode.ERROR, message })
+        state.rootSpan.setStatus({
+          code: SpanStatusCode.ERROR,
+          ...statusMessage,
+        })
 
         if (durationHistogram) {
           durationHistogram.record(info.duration / 1000, {
@@ -763,8 +773,9 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
           span.setStatus({ code: SpanStatusCode.ERROR, message: 'cancelled' })
         }
 
-        if (state.currentIterationSpan) {
-          closeCancelled(state.currentIterationSpan)
+        const iterationSpan = state.currentIterationSpan
+        if (iterationSpan) {
+          closeCancelled(iterationSpan)
           safeCall('otel.onSpanEnd', () =>
             onSpanEnd?.(
               {
@@ -772,10 +783,10 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
                 ctx,
                 iteration: state.iterationCount - 1,
               } as OtelSpanInfo<'iteration'>,
-              state.currentIterationSpan!,
+              iterationSpan,
             ),
           )
-          state.currentIterationSpan.end()
+          iterationSpan.end()
           state.currentIterationSpan = null
         }
         for (const [id, entry] of state.toolSpans) {

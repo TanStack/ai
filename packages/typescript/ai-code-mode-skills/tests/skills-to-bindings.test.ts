@@ -44,7 +44,7 @@ describe('skillsToBindings', () => {
       storage,
     })
 
-    await bindings.skill_x!.execute({ value: 42 })
+    await bindings['skill_x']!.execute({ value: 42 })
     const call = executeInSandbox.mock.calls[0] as unknown as [string, unknown]
     expect(call[0]).toContain('const input = {"value":42}')
     expect(call[0]).toContain('return input;')
@@ -61,7 +61,7 @@ describe('skillsToBindings', () => {
       context: { emitCustomEvent } as any,
     })
 
-    await bindings.skill_x!.execute({})
+    await bindings['skill_x']!.execute({})
 
     const eventNames = emitCustomEvent.mock.calls.map(([name]) => name)
     expect(eventNames).toEqual([
@@ -82,7 +82,7 @@ describe('skillsToBindings', () => {
       context: { emitCustomEvent } as any,
     })
 
-    await expect(bindings.skill_x!.execute({})).rejects.toThrow('boom')
+    await expect(bindings['skill_x']!.execute({})).rejects.toThrow('boom')
     const eventNames = emitCustomEvent.mock.calls.map(([name]) => name)
     expect(eventNames).toContain('code_mode:skill_error')
   })
@@ -98,7 +98,7 @@ describe('skillsToBindings', () => {
       storage,
     })
 
-    await bindings.skill_x!.execute({})
+    await bindings['skill_x']!.execute({})
     expect(updateStats).toHaveBeenCalledWith('x', true)
   })
 
@@ -113,7 +113,7 @@ describe('skillsToBindings', () => {
       storage,
     })
 
-    await expect(bindings.skill_x!.execute({})).rejects.toThrow()
+    await expect(bindings['skill_x']!.execute({})).rejects.toThrow()
     expect(updateStats).toHaveBeenCalledWith('x', false)
   })
 
@@ -128,7 +128,7 @@ describe('skillsToBindings', () => {
       storage,
     })
 
-    await expect(bindings.skill_x!.execute({})).resolves.toBe('ok')
+    await expect(bindings['skill_x']!.execute({})).resolves.toBe('ok')
   })
 
   it('serializes string inputs as JSON strings (prevents code injection via input)', async () => {
@@ -142,7 +142,7 @@ describe('skillsToBindings', () => {
 
     // Adversarial payload: attempts to escape the wrapping const-declaration
     const malicious = `"); throw new Error("escaped"); ("`
-    await bindings.skill_x!.execute(malicious)
+    await bindings['skill_x']!.execute(malicious)
 
     const wrappedCode = (
       executeInSandbox.mock.calls[0] as unknown as [string, unknown]
@@ -165,7 +165,7 @@ describe('skillsToBindings', () => {
     })
 
     const input = { complex: { nested: [1, 2] } }
-    await bindings.skill_x!.execute(input)
+    await bindings['skill_x']!.execute(input)
     expect(
       (executeInSandbox.mock.calls[0] as unknown as [string, unknown])[1],
     ).toBe(input)
@@ -186,15 +186,15 @@ describe('skillsToSimpleBindings', () => {
       outputSchema: { type: 'number' },
     })
     const bindings = skillsToSimpleBindings([skill])
-    expect(bindings.skill_meta!.name).toBe('skill_meta')
-    expect(bindings.skill_meta!.description).toBe('desc')
-    expect(bindings.skill_meta!.inputSchema).toEqual({ type: 'string' })
-    expect(bindings.skill_meta!.outputSchema).toEqual({ type: 'number' })
+    expect(bindings['skill_meta']!.name).toBe('skill_meta')
+    expect(bindings['skill_meta']!.description).toBe('desc')
+    expect(bindings['skill_meta']!.inputSchema).toEqual({ type: 'string' })
+    expect(bindings['skill_meta']!.outputSchema).toEqual({ type: 'number' })
   })
 
   it('execute() throws because execution is not available in this mode', async () => {
     const bindings = skillsToSimpleBindings([makeSkill({ name: 'x' })])
-    await expect(bindings.skill_x!.execute({})).rejects.toThrow(
+    await expect(bindings['skill_x']!.execute({})).rejects.toThrow(
       /not available for execution/,
     )
   })

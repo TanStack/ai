@@ -142,10 +142,15 @@ function createDeltaStrategy(
 
       if (blockOnMatch) return null // drop chunk
 
+      // Strip out the previous `content` field by destructuring it away — with
+      // `exactOptionalPropertyTypes` we can't assign `content: undefined`
+      // against `content?: string`. The replacement event carries only the
+      // filtered delta.
+      const { content: _strippedContent, ...rest } = chunk
+      void _strippedContent
       return {
-        ...chunk,
+        ...rest,
         delta: filtered,
-        content: undefined,
       } as StreamChunk
     },
   }
@@ -278,8 +283,11 @@ function createBufferedStrategy(
         content: filtered.slice(0, safeFilteredEnd),
       } as StreamChunk
 
+      // `pending` was empty before this push iff `emitChunk` is now the only
+      // entry — return it directly without re-indexing through `pending[0]`.
+      const wasEmpty = pending.length === 0
       pending.push(emitChunk)
-      return pending.length === 1 ? pending[0]! : pending
+      return wasEmpty ? emitChunk : pending
     },
   }
 }

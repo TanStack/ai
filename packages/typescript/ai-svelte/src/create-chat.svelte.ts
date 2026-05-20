@@ -81,13 +81,22 @@ export function createChat<
   // by reference. Callbacks are therefore frozen to whatever the caller passed
   // at creation — to swap them dynamically, mutate the options object
   // in-place or call `client.updateOptions(...)` imperatively.
+  // Optional fields use conditional spread because the target
+  // `ChatClientOptions` declares them as `field?: T` (absent vs. present)
+  // rather than `field?: T | undefined`. Under `exactOptionalPropertyTypes`,
+  // passing an explicit `undefined` for an absent-only optional is a type
+  // error, so we omit the key when the caller's value is undefined.
   const client = new ChatClient({
     connection: options.connection,
     id: clientId,
-    initialMessages: options.initialMessages,
-    body: options.body,
-    forwardedProps: options.forwardedProps,
-    onResponse: options.onResponse,
+    ...(options.initialMessages !== undefined && {
+      initialMessages: options.initialMessages,
+    }),
+    ...(options.body !== undefined && { body: options.body }),
+    ...(options.forwardedProps !== undefined && {
+      forwardedProps: options.forwardedProps,
+    }),
+    ...(options.onResponse !== undefined && { onResponse: options.onResponse }),
     onChunk: (chunk: StreamChunk) => {
       options.onChunk?.(chunk)
     },
@@ -98,8 +107,12 @@ export function createChat<
       options.onError?.(err)
     },
     tools: options.tools,
-    onCustomEvent: options.onCustomEvent,
-    streamProcessor: options.streamProcessor,
+    ...(options.onCustomEvent !== undefined && {
+      onCustomEvent: options.onCustomEvent,
+    }),
+    ...(options.streamProcessor !== undefined && {
+      streamProcessor: options.streamProcessor,
+    }),
     onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
       messages = newMessages
     },
@@ -195,15 +208,15 @@ export function createChat<
   const activeStructuredPart: StructuredOutputPart | null = $derived.by(() => {
     let lastUserIndex = -1
     for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i]!.role === 'user') {
+      if (messages[i]?.role === 'user') {
         lastUserIndex = i
         break
       }
     }
     if (lastUserIndex === -1) return null
     for (let i = messages.length - 1; i > lastUserIndex; i--) {
-      const m = messages[i]!
-      if (m.role !== 'assistant') continue
+      const m = messages[i]
+      if (m?.role !== 'assistant') continue
       const part = m.parts.find(
         (p): p is StructuredOutputPart => p.type === 'structured-output',
       )
@@ -226,6 +239,7 @@ export function createChat<
 
   // Return the chat interface with reactive getters
   // Using getters allows Svelte to track reactivity without needing $ prefix
+  // eslint-disable-next-line no-restricted-syntax -- rune return shape diverges from generic CreateChatReturn<TTools, TSchema> due to TSchema conditional partial/final fields; TS can't structurally narrow.
   return {
     get messages() {
       return messages

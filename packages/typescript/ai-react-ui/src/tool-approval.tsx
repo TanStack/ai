@@ -61,14 +61,14 @@ export function ToolApproval({
   const { addToolApprovalResponse } = useChatContext()
 
   const handleApprove = () => {
-    addToolApprovalResponse({
+    void addToolApprovalResponse({
       id: approval.id,
       approved: true,
     })
   }
 
   const handleDeny = () => {
-    addToolApprovalResponse({
+    void addToolApprovalResponse({
       id: approval.id,
       approved: false,
     })

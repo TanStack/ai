@@ -9,7 +9,7 @@ title: chat
 function chat<TAdapter, TSchema, TStream>(options): TextActivityResult<TSchema, TStream>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/index.ts:1982](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/index.ts#L1982)
+Defined in: [packages/typescript/ai/src/activities/chat/index.ts:2115](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/index.ts#L2115)
 
 Text activity - handles agentic text generation, one-shot text generation, and agentic structured output.
 
@@ -54,7 +54,7 @@ for await (const chunk of chat({
   messages: [{ role: 'user', content: 'What is the weather?' }],
   tools: [weatherTool]
 })) {
-  if (chunk.type === 'content') {
+  if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
     console.log(chunk.delta)
   }
 }

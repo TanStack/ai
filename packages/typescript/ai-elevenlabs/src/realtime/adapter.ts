@@ -257,10 +257,12 @@ async function createElevenLabsConnection(
       event: TEvent,
       handler: RealtimeEventHandler<TEvent>,
     ): () => void {
-      if (!eventHandlers.has(event)) {
-        eventHandlers.set(event, new Set())
+      let handlers = eventHandlers.get(event)
+      if (!handlers) {
+        handlers = new Set()
+        eventHandlers.set(event, handlers)
       }
-      eventHandlers.get(event)!.add(handler)
+      handlers.add(handler)
 
       return () => {
         eventHandlers.get(event)?.delete(handler)

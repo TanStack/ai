@@ -80,7 +80,7 @@ class MockTextAdapter<TModel extends MockModel> extends BaseTextAdapter<
   ResolveInputModalities<TModel>,
   MockMessageMetadataByModality
 > {
-  readonly kind = 'text' as const
+  override readonly kind = 'text' as const
   readonly name = 'mock' as const
 
   constructor(model: TModel, _config?: MockAdapterConfig) {

@@ -463,12 +463,13 @@ export function modelMessagesToUIMessages(
     if (msg.role === 'tool') {
       // Tool result - merge into the last assistant message if possible
       if (
+        msg.toolCallId !== undefined &&
         currentAssistantMessage &&
         currentAssistantMessage.role === 'assistant'
       ) {
         currentAssistantMessage.parts.push({
           type: 'tool-result',
-          toolCallId: msg.toolCallId!,
+          toolCallId: msg.toolCallId,
           content: getTextContent(msg.content),
           state: 'complete',
         })

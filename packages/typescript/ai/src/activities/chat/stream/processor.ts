@@ -133,25 +133,25 @@ export interface StreamProcessorOptions {
  * @see docs/chat-architecture.md#adapter-contract — What this class expects from adapters
  */
 export class StreamProcessor {
-  private chunkStrategy: ChunkStrategy
-  private events: StreamProcessorEvents
-  private jsonParser: { parse: (jsonString: string) => any }
+  private readonly chunkStrategy: ChunkStrategy
+  private readonly events: StreamProcessorEvents
+  private readonly jsonParser: { parse: (jsonString: string) => any }
   private recordingEnabled: boolean
 
   // Message state
   private messages: Array<UIMessage> = []
 
   // Per-message stream state
-  private messageStates: Map<string, MessageStreamState> = new Map()
-  private activeMessageIds: Set<string> = new Set()
-  private toolCallToMessage: Map<string, string> = new Map()
+  private readonly messageStates: Map<string, MessageStreamState> = new Map()
+  private readonly activeMessageIds: Set<string> = new Set()
+  private readonly toolCallToMessage: Map<string, string> = new Map()
   private pendingManualMessageId: string | null = null
   private pendingThinkingStepId: string | null = null
 
-  private structuredMessageIds: Set<string> = new Set()
+  private readonly structuredMessageIds: Set<string> = new Set()
 
   // Run tracking (for concurrent run safety)
-  private activeRuns = new Set<string>()
+  private readonly activeRuns = new Set<string>()
 
   // Shared stream state
   private finishReason: string | null = null
@@ -480,6 +480,7 @@ export class StreamProcessor {
     // Cast needed: @ag-ui/core Zod passthrough types add `& { [k: string]: unknown }`
     // which prevents TypeScript from narrowing the `type` discriminant in switch.
     const c = chunk as StreamChunk & { type: string }
+    // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- AG-UI EventType enum members vs string-literal case labels; default branch handles untraced events.
     switch (c.type) {
       // AG-UI Events
       case 'TEXT_MESSAGE_START':
@@ -645,10 +646,9 @@ export class StreamProcessor {
    * Used as fallback for events that don't include a messageId.
    */
   private getActiveAssistantMessageId(): string | null {
-    // Set iteration is insertion-order; convert to array and search from the end
-    const ids = Array.from(this.activeMessageIds)
-    for (let i = ids.length - 1; i >= 0; i--) {
-      const id = ids[i]!
+    // Set iteration is insertion-order; reverse-iterate to search from the end
+    const ids = Array.from(this.activeMessageIds).reverse()
+    for (const id of ids) {
       const state = this.messageStates.get(id)
       if (state && state.role === 'assistant') {
         return id
@@ -679,8 +679,8 @@ export class StreamProcessor {
     // Try active assistant message
     const activeId = this.getActiveAssistantMessageId()
     if (activeId) {
-      const state = this.getMessageState(activeId)!
-      return { messageId: activeId, state }
+      const state = this.getMessageState(activeId)
+      if (state) return { messageId: activeId, state }
     }
 
     // Check if a message with preferredId already exists (reconnect/resume case).
@@ -781,10 +781,10 @@ export class StreamProcessor {
     const existingMsg = this.messages.find((m) => m.id === messageId)
     if (existingMsg) {
       this.activeMessageIds.add(messageId)
-      if (!this.messageStates.has(messageId)) {
+      const existingState = this.messageStates.get(messageId)
+      if (!existingState) {
         this.createMessageState(messageId, uiRole)
       } else {
-        const existingState = this.messageStates.get(messageId)!
         // If tool calls happened since last text, this TEXT_MESSAGE_START
         // signals a new text segment — reset segment accumulation
         if (existingState.hasToolCallsSinceTextStart) {
@@ -845,7 +845,7 @@ export class StreamProcessor {
   ): void {
     this.resetStreamState()
     // AG-UI Message[] is compatible with UIMessage[] at runtime
-    this.messages = [...chunk.messages] as unknown as Array<UIMessage>
+    this.messages = [...chunk.messages] as Array<UIMessage>
     this.emitMessagesChange()
   }
 
@@ -1365,7 +1365,7 @@ export class StreamProcessor {
       state.currentThinkingStepId = stepId
     }
 
-    const previous = state.thinkingSteps.get(stepId)!
+    const previous = state.thinkingSteps.get(stepId) ?? ''
     let nextThinking = previous
 
     // Prefer delta over content
@@ -1900,7 +1900,7 @@ export function createReplayStream(
   recording: ChunkRecording,
 ): AsyncIterable<StreamChunk> {
   return {
-    // eslint-disable-next-line @typescript-eslint/require-await
+    // eslint-disable-next-line @typescript-eslint/require-await -- async generator required by AsyncIterable contract; body has no await
     async *[Symbol.asyncIterator]() {
       for (const { chunk } of recording.chunks) {
         yield chunk

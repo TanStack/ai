@@ -46,7 +46,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   TMessageMetadata,
   TToolCapabilities
 > {
-  readonly kind = 'text' as const
+  override readonly kind = 'text' as const
   readonly name: string
   protected client: OpenAI
 
@@ -110,14 +110,20 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         }
       }
 
-      // Emit AG-UI RUN_ERROR
+      // Emit AG-UI RUN_ERROR. Conditional `code` spread keeps the wire
+      // shape spec-compliant under `exactOptionalPropertyTypes`: AG-UI's
+      // `RunErrorEvent.code` is `string?` (absent vs explicit `undefined`
+      // matter), so we omit the key when there's no code.
       yield {
         type: EventType.RUN_ERROR,
         model: options.model,
         timestamp: Date.now(),
         message: errorPayload.message,
         code: errorPayload.code,
-        error: errorPayload,
+        error: {
+          message: errorPayload.message,
+          code: errorPayload.code,
+        },
       }
 
       options.logger.errors(`${this.name}.chatStream fatal`, {
@@ -518,14 +524,21 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         `${this.name}.structuredOutputStream failed`,
       )
 
+      // Conditional `code` spread keeps the wire shape spec-compliant under
+      // `exactOptionalPropertyTypes`: AG-UI's `RunErrorEvent.code` is `string?`
+      // (absent vs explicit `undefined` matter).
+      const resolvedCode = isAbort ? 'aborted' : errorPayload.code
       yield {
         type: EventType.RUN_ERROR,
         runId: aguiState.runId,
         model: lastModel || chatOptions.model,
         timestamp,
         message: errorPayload.message,
-        code: isAbort ? 'aborted' : errorPayload.code,
-        error: { ...errorPayload, ...(isAbort && { code: 'aborted' }) },
+        ...(resolvedCode !== undefined && { code: resolvedCode }),
+        error: {
+          message: errorPayload.message,
+          ...(resolvedCode !== undefined && { code: resolvedCode }),
+        },
       }
 
       chatOptions.logger.errors(`${this.name}.structuredOutputStream fatal`, {
@@ -788,16 +801,16 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             const index = toolCallDelta.index
 
             // Initialize or update the tool call in progress
-            if (!toolCallsInProgress.has(index)) {
-              toolCallsInProgress.set(index, {
+            let toolCall = toolCallsInProgress.get(index)
+            if (!toolCall) {
+              toolCall = {
                 id: toolCallDelta.id || '',
                 name: toolCallDelta.function?.name || '',
                 arguments: '',
                 started: false,
-              })
+              }
+              toolCallsInProgress.set(index, toolCall)
             }
-
-            const toolCall = toolCallsInProgress.get(index)!
 
             // Update with any new data from the delta
             if (toolCallDelta.id) {
@@ -1030,19 +1043,22 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
                 ? 'tool_calls'
                 : (pendingFinishReason ?? 'stop')
 
+        // Conditional `usage` spread: AG-UI's `RunFinishedEvent.usage` is
+        // optional with no `| undefined`; omit the key entirely when no usage
+        // arrived rather than emitting `usage: undefined`.
         yield {
           type: EventType.RUN_FINISHED,
           runId: aguiState.runId,
           threadId: aguiState.threadId,
           model: lastModel || options.model,
           timestamp: Date.now(),
-          usage: lastUsage
-            ? {
-                promptTokens: lastUsage.prompt_tokens || 0,
-                completionTokens: lastUsage.completion_tokens || 0,
-                totalTokens: lastUsage.total_tokens || 0,
-              }
-            : undefined,
+          ...(lastUsage && {
+            usage: {
+              promptTokens: lastUsage.prompt_tokens || 0,
+              completionTokens: lastUsage.completion_tokens || 0,
+              totalTokens: lastUsage.total_tokens || 0,
+            },
+          }),
           finishReason,
         }
       }
@@ -1058,14 +1074,18 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         source: `${this.name}.processStreamChunks`,
       })
 
-      // Emit AG-UI RUN_ERROR
+      // Emit AG-UI RUN_ERROR with conditional `code` spread (see chatStream's
+      // catch block for the rationale).
       yield {
         type: EventType.RUN_ERROR,
         model: options.model,
         timestamp: Date.now(),
         message: errorPayload.message,
-        code: errorPayload.code,
-        error: errorPayload,
+        ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+        error: {
+          message: errorPayload.message,
+          ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+        },
       }
     }
   }

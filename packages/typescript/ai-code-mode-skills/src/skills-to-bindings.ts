@@ -122,11 +122,12 @@ export function skillsToSimpleBindings(
       description: skill.description,
       inputSchema: skill.inputSchema,
       outputSchema: skill.outputSchema,
-      execute: async () => {
-        throw new Error(
-          `Skill ${skill.name} is not available for execution in this context`,
-        )
-      },
+      execute: () =>
+        Promise.reject(
+          new Error(
+            `Skill ${skill.name} is not available for execution in this context`,
+          ),
+        ),
     }
   }
 

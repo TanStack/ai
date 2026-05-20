@@ -54,8 +54,8 @@ export class GroqTextAdapter<
   GroqMessageMetadataByModality,
   TToolCapabilities
 > {
-  readonly kind = 'text' as const
-  readonly name = 'groq' as const
+  override readonly kind = 'text' as const
+  override readonly name = 'groq' as const
 
   constructor(config: GroqTextConfig, model: TModel) {
     super(model, 'groq', new OpenAI(withGroqDefaults(config)))

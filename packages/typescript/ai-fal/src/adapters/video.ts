@@ -66,7 +66,7 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
   Record<TModel, FalVideoProviderOptions<TModel>>,
   Record<TModel, FalModelVideoSize<TModel>>
 > {
-  readonly kind = 'video' as const
+  override readonly kind = 'video' as const
   readonly name = 'fal' as const
 
   constructor(model: TModel, config?: FalClientConfig) {
@@ -124,10 +124,11 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
     return {
       jobId,
       status: mapFalStatusToVideoStatus(statusResponse.status),
-      progress:
-        statusResponse.queue_position != null
-          ? Math.max(0, 100 - statusResponse.queue_position * 10)
-          : undefined,
+      ...(statusResponse.queue_position != null
+        ? {
+            progress: Math.max(0, 100 - statusResponse.queue_position * 10),
+          }
+        : {}),
     }
   }
 
@@ -137,10 +138,11 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
       result = await fal.queue.result(this.model, {
         requestId: jobId,
       })
-    } catch (error: any) {
+    } catch (error: unknown) {
       // fal.ai may report COMPLETED status but throw on result fetch
       // (e.g. 422 validation errors). Extract the detailed error info.
-      const detail = error?.body?.detail
+      const err = error as { body?: { detail?: unknown }; message?: string }
+      const detail = err.body?.detail
       if (Array.isArray(detail)) {
         const messages = detail.map(
           (d: { msg?: string; loc?: Array<string> }) =>
@@ -149,7 +151,7 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
         throw new Error(`Video generation failed: ${messages.join('; ')}`)
       }
       throw new Error(
-        `Failed to retrieve video result: ${error.message || error}`,
+        `Failed to retrieve video result: ${err.message || String(error)}`,
       )
     }
 

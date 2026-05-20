@@ -10,6 +10,7 @@ import type {
   TextMessageContentEvent,
   TextMessageEndEvent,
   TextMessageStartEvent,
+  TextOptions,
   Tool,
   ToolCallArgsEvent,
   ToolCallEndEvent,
@@ -157,7 +158,7 @@ export function createMockAdapter(options: {
    *  synthesized fallback in `runStructuredFinalization`. */
   structuredOutputStream?: (opts: any) => AsyncIterable<StreamChunk>
 }) {
-  const calls: Array<Record<string, unknown>> = []
+  const calls: Array<TextOptions<any, any>> = []
   let callIndex = 0
 
   const adapter: AnyTextAdapter = {

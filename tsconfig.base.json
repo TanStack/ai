@@ -14,6 +14,8 @@
     "module": "ES2022",
     "moduleResolution": "Bundler",
     "noEmit": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
     "noImplicitReturns": true,
     "noUncheckedIndexedAccess": true,
     "noUnusedLocals": true,
@@ -22,6 +24,7 @@
     "skipLibCheck": true,
     "strict": true,
     "target": "ES2020",
+    "useDefineForClassFields": true,
     "noErrorTruncation": true
   }
 }

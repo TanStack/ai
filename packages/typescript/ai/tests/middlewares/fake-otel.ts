@@ -18,18 +18,18 @@ import type { ToolCall } from '../../src/types'
 
 export interface RecordedEvent {
   name: string
-  attributes?: Attributes
+  attributes?: Attributes | undefined
 }
 
 export interface RecordedException {
   exception: unknown
-  attributes?: Attributes
+  attributes?: Attributes | undefined
 }
 
 export interface FakeSpan extends Span {
   name: string
-  kind?: number
-  parent?: FakeSpan | null
+  kind?: number | undefined
+  parent?: FakeSpan | null | undefined
   startTimeMs: number
   endTimeMs: number | null
   attributes: Record<string, AttributeValue>
@@ -42,8 +42,8 @@ export interface FakeSpan extends Span {
 export interface HistogramRecord {
   name: string
   value: number
-  attributes?: Attributes
-  options?: MetricOptions
+  attributes?: Attributes | undefined
+  options?: MetricOptions | undefined
 }
 
 export interface FakeMeter {

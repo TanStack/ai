@@ -6,7 +6,6 @@ import {
   mergeAgentTools,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import type { Tool } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
 import { anthropicText } from '@tanstack/ai-anthropic'
@@ -83,17 +82,13 @@ const addToCartToolServer = addToCartToolDef.server((args) => ({
   totalItems: args.quantity,
 }))
 
-const serverToolsList = [
+const serverTools = [
   getGuitars, // Server tool
   recommendGuitarToolDef, // No server execute - client will handle
   addToCartToolServer,
   addToWishListToolDef,
   getPersonalGuitarPreferenceToolDef,
 ]
-
-const serverTools: Record<string, Tool> = Object.fromEntries(
-  serverToolsList.map((t) => [t.name, t]),
-)
 
 export const POST: RequestHandler = async ({ request }) => {
   // Capture request signal before reading body (it may be aborted after body is consumed)
@@ -124,21 +119,29 @@ export const POST: RequestHandler = async ({ request }) => {
       : 'openai'
 
   try {
-    // Get typed adapter options using createOptions pattern
-    const options = adapterConfig[provider]()
-
     const mergedTools = mergeAgentTools(serverTools, params.tools)
 
-    const stream = chat({
-      ...options,
-      tools: Object.values(mergedTools),
+    const sharedOptions = {
+      tools: mergedTools,
       systemPrompts: [SYSTEM_PROMPT],
       agentLoopStrategy: maxIterations(20),
       messages: params.messages,
       threadId: params.threadId,
       runId: params.runId,
       abortController,
-    })
+    }
+
+    // Narrow per-provider so `chat()`'s generic adapter inference works.
+    // Spreading a union of `createChatOptions(...)` results into `chat()`
+    // confuses TS's adapter narrowing, so we branch instead.
+    const stream =
+      provider === 'anthropic'
+        ? chat({ ...adapterConfig.anthropic(), ...sharedOptions })
+        : provider === 'gemini'
+          ? chat({ ...adapterConfig.gemini(), ...sharedOptions })
+          : provider === 'ollama'
+            ? chat({ ...adapterConfig.ollama(), ...sharedOptions })
+            : chat({ ...adapterConfig.openai(), ...sharedOptions })
 
     return toServerSentEventsResponse(stream, { abortController })
   } catch (error: any) {

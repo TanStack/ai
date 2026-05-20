@@ -23,7 +23,7 @@ export type FalModel = keyof EndpointTypeMap | (string & {})
 export type FalModelInput<TModel extends string> =
   TModel extends keyof EndpointTypeMap
     ? EndpointTypeMap[TModel]['input']
-    : Record<string, any>
+    : Record<string, unknown>
 
 /**
  * Utility type to extract the output type for a specific fal model.
@@ -125,7 +125,7 @@ export type FalModelVideoSizeInput<TModel extends string> =
 export type FalVideoProviderOptions<TModel extends string> =
   TModel extends keyof EndpointTypeMap
     ? Omit<FalModelInput<TModel>, 'prompt'>
-    : Record<string, any>
+    : Record<string, unknown>
 
 /**
  * Provider options for TTS, excluding fields TanStack AI handles.

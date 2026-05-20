@@ -5,7 +5,7 @@ title: UsageInfo
 
 # Interface: UsageInfo
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:261](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L261)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:267](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L267)
 
 Token usage statistics passed to the onUsage hook.
 Extracted from the RUN_FINISHED chunk when usage data is present.
@@ -18,7 +18,7 @@ Extracted from the RUN_FINISHED chunk when usage data is present.
 completionTokens: number;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:263](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L263)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:269](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L269)
 
 ***
 
@@ -28,7 +28,7 @@ Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:263]
 promptTokens: number;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:262](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L262)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:268](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L268)
 
 ***
 
@@ -38,4 +38,4 @@ Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:262]
 totalTokens: number;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:264](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L264)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:270](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L270)

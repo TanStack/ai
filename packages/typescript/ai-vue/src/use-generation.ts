@@ -106,6 +106,9 @@ export function useGeneration<
   const error = shallowRef<Error | undefined>(undefined)
   const status = shallowRef<GenerationClientState>('idle')
 
+  // Conditional spread on `body`: `GenerationClientOptions.body` is a strict
+  // optional (`body?: Record<string, any>`), and under EOPT we must omit the
+  // key when absent rather than assign `undefined`.
   const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
     id: clientId,
     body: options.body,
@@ -145,11 +148,15 @@ export function useGeneration<
     )
   }
 
-  // Sync body changes to the client
+  // Sync body changes to the client.
+  // Conditional spread: `updateOptions` declares `body?: Record<string, any>`
+  // (strict optional) and rejects explicit `undefined` under EOPT.
   watch(
     () => options.body,
     (newBody) => {
-      client.updateOptions({ body: newBody })
+      client.updateOptions({
+        ...(newBody !== undefined && { body: newBody }),
+      })
     },
   )
 

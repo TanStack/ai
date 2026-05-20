@@ -27,10 +27,11 @@ export const kind = 'audio' as const
 /**
  * Extract provider options from an AudioAdapter via ~types.
  */
-export type AudioProviderOptions<TAdapter> =
-  TAdapter extends AudioAdapter<any, any>
-    ? TAdapter['~types']['providerOptions']
-    : object
+export type AudioProviderOptions<TAdapter> = TAdapter extends {
+  '~types': { providerOptions: infer P extends object }
+}
+  ? P
+  : object
 
 // ===========================
 // Activity Options Type

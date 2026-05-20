@@ -84,7 +84,7 @@ const handleButtonMouseLeave = (e: MouseEvent) => {
 
 <template>
   <!-- Scoped slot for custom UI -->
-  <slot v-if="$slots.default" v-bind="slotProps" />
+  <slot v-if="$slots['default']" v-bind="slotProps" />
 
   <!-- Default implementation -->
   <div

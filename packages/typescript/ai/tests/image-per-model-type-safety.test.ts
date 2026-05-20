@@ -201,7 +201,7 @@ class MockImageAdapter<TModel extends MockImageModel> extends BaseImageAdapter<
   MockImageModelProviderOptionsByName,
   MockImageModelSizeByName
 > {
-  readonly kind = 'image' as const
+  override readonly kind = 'image' as const
   readonly name = 'mock' as const
 
   constructor(model: TModel) {

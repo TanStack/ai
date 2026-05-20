@@ -40,7 +40,9 @@ const getWeatherTool = toolDefinition({
     'Get the current weather for a location. Returns temperature, conditions, and humidity.',
   inputSchema: getWeatherInputSchema,
   outputSchema: getWeatherOutputSchema,
-}).server((args) => {
+}).server((rawArgs) => {
+  // JSONSchema doesn't carry compile-time types, so `rawArgs` is `unknown`.
+  const args = rawArgs as { location: string; unit?: string }
   // Mock weather data - in a real app this would call a weather API
   const mockWeatherData: Record<
     string,
@@ -53,8 +55,8 @@ const getWeatherTool = toolDefinition({
     sydney: { temp: 78, conditions: 'Clear skies', humidity: 45 },
   }
 
-  const location = (args.location as string).toLowerCase()
-  const unit = (args.unit as string | undefined) ?? 'celsius'
+  const location = args.location.toLowerCase()
+  const unit = args.unit ?? 'celsius'
   const weather = mockWeatherData[location] ?? {
     temp: 65,
     conditions: 'Unknown',
@@ -157,7 +159,7 @@ export class ClaudeService {
       })) {
         chunkCount++
 
-        if (chunk.type === 'content' && chunk.delta) {
+        if (chunk.type === 'TEXT_MESSAGE_CONTENT' && chunk.delta) {
           accumulatedContent += chunk.delta
           console.log(
             `🤖 Claude: Chunk #${chunkCount} [content] delta: "${chunk.delta}" (total: ${accumulatedContent.length} chars)`,

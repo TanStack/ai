@@ -63,13 +63,22 @@ export function useChat<
 
     isFirstMountRef.current = false
 
+    // Build options with conditional spreads for fields whose source
+    // type is `T | undefined` but the ChatClient target uses a strict
+    // optional (`field?: T`) — `exactOptionalPropertyTypes` rejects
+    // assigning `undefined` to those, so we omit the key when absent.
+    const initialOptions = optionsRef.current
     return new ChatClient({
-      connection: optionsRef.current.connection,
+      connection: initialOptions.connection,
       id: clientId,
       initialMessages: messagesToUse,
-      body: optionsRef.current.body,
-      forwardedProps: optionsRef.current.forwardedProps,
-      onResponse: (response) => optionsRef.current.onResponse?.(response),
+      ...(initialOptions.body !== undefined && { body: initialOptions.body }),
+      ...(initialOptions.forwardedProps !== undefined && {
+        forwardedProps: initialOptions.forwardedProps,
+      }),
+      onResponse: (response) => {
+        void optionsRef.current.onResponse?.(response)
+      },
       onChunk: (chunk: StreamChunk) => {
         optionsRef.current.onChunk?.(chunk)
       },
@@ -79,10 +88,15 @@ export function useChat<
       onError: (error: Error) => {
         optionsRef.current.onError?.(error)
       },
-      tools: optionsRef.current.tools,
-      onCustomEvent: (eventType, data, context) =>
-        optionsRef.current.onCustomEvent?.(eventType, data, context),
-      streamProcessor: options.streamProcessor,
+      ...(initialOptions.tools !== undefined && {
+        tools: initialOptions.tools,
+      }),
+      onCustomEvent: (eventType, data, context) => {
+        optionsRef.current.onCustomEvent?.(eventType, data, context)
+      },
+      ...(options.streamProcessor !== undefined && {
+        streamProcessor: options.streamProcessor,
+      }),
       onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
         setMessages(newMessages)
       },
@@ -108,9 +122,13 @@ export function useChat<
   }, [clientId])
 
   useEffect(() => {
+    // Conditional spread: `updateOptions` declares strict-optional
+    // fields and rejects explicit `undefined` under EOPT.
     client.updateOptions({
       body: options.body,
-      forwardedProps: options.forwardedProps,
+      ...(options.forwardedProps !== undefined && {
+        forwardedProps: options.forwardedProps,
+      }),
     })
   }, [client, options.body, options.forwardedProps])
 
@@ -206,15 +224,15 @@ export function useChat<
   const activeStructuredPart = useMemo<StructuredOutputPart | null>(() => {
     let lastUserIndex = -1
     for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i]!.role === 'user') {
+      if (messages[i]?.role === 'user') {
         lastUserIndex = i
         break
       }
     }
     if (lastUserIndex === -1) return null
     for (let i = messages.length - 1; i > lastUserIndex; i--) {
-      const m = messages[i]!
-      if (m.role !== 'assistant') continue
+      const m = messages[i]
+      if (m?.role !== 'assistant') continue
       const part = m.parts.find(
         (p): p is StructuredOutputPart => p.type === 'structured-output',
       )
@@ -236,6 +254,10 @@ export function useChat<
     return activeStructuredPart.data as Final
   }, [activeStructuredPart])
 
+  // The runtime shape unconditionally exposes partial/final; the public
+  // return type hides them when no outputSchema was supplied. TS can't
+  // structurally narrow across that conditional, so the `as` is the seam.
+  // eslint-disable-next-line no-restricted-syntax -- hook return shape diverges from generic UseChatReturn<TTools, TSchema> due to conditional type on TSchema; TS can't structurally narrow
   return {
     messages,
     sendMessage,
