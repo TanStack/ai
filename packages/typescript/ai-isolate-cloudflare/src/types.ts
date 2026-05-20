@@ -20,9 +20,9 @@ export interface ExecuteRequest {
   /** Tool schemas available for the code to call */
   tools: Array<ToolSchema>
   /** Results from previous tool calls (for continuation) */
-  toolResults?: Record<string, ToolResultPayload>
+  toolResults?: Record<string, ToolResultPayload> | undefined
   /** Execution timeout in ms */
-  timeout?: number
+  timeout?: number | undefined
 }
 
 /**
@@ -46,7 +46,7 @@ export interface ToolResultPayload {
   /** The result value if successful */
   value?: unknown
   /** Error message if failed */
-  error?: string
+  error?: string | undefined
 }
 
 /**
@@ -57,11 +57,13 @@ export type ExecuteResponse =
       status: 'done'
       success: boolean
       value?: unknown
-      error?: {
-        name: string
-        message: string
-        stack?: string
-      }
+      error?:
+        | {
+            name: string
+            message: string
+            stack?: string | undefined
+          }
+        | undefined
       logs: Array<string>
     }
   | {

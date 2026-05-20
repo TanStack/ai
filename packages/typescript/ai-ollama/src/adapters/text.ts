@@ -554,9 +554,11 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
       | undefined
 
     const ollamaOptions = {
-      temperature: options.temperature,
-      top_p: options.topP,
-      num_predict: options.maxTokens,
+      ...(options.temperature !== undefined && {
+        temperature: options.temperature,
+      }),
+      ...(options.topP !== undefined && { top_p: options.topP }),
+      ...(options.maxTokens !== undefined && { num_predict: options.maxTokens }),
       ...modelOptions,
     }
 
@@ -570,11 +572,13 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
       })
     }
 
+    const convertedTools = this.convertToolsToOllamaFormat(options.tools)
+
     return {
       model,
       options: ollamaOptions,
       messages: formattedMessages,
-      tools: this.convertToolsToOllamaFormat(options.tools),
+      ...(convertedTools !== undefined && { tools: convertedTools }),
     }
   }
 }

@@ -60,13 +60,15 @@ export class OpenAITTSAdapter<
       })
     }
 
+    // With exactOptionalPropertyTypes, vendor SDK request shapes reject
+    // `T | undefined` in optional fields; spread optional inputs conditionally.
     const request: OpenAI_SDK.Audio.SpeechCreateParams = {
       model,
       input: text,
       voice: (voice || 'alloy') as OpenAI_SDK.Audio.SpeechCreateParams['voice'],
-      response_format: format,
-      speed,
-      ...modelOptions,
+      ...(format !== undefined && { response_format: format }),
+      ...(speed !== undefined && { speed }),
+      ...(modelOptions ?? {}),
     }
 
     try {

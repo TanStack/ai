@@ -111,7 +111,7 @@ export class OpenRouterResponsesTextAdapter<
         name: string
         started: boolean
         ended?: boolean
-        pendingArguments?: string
+        pendingArguments?: string | undefined
       }
     >()
 
@@ -137,7 +137,7 @@ export class OpenRouterResponsesTextAdapter<
       const response = await this.orClient.beta.responses.send(
         { responsesRequest: { ...responsesRequest, stream: true } },
         {
-          signal: reqOptions.signal ?? undefined,
+          ...(reqOptions.signal != null && { signal: reqOptions.signal }),
           ...(reqOptions.headers && { headers: reqOptions.headers }),
         },
       )
@@ -174,8 +174,11 @@ export class OpenRouterResponsesTextAdapter<
         model: options.model,
         timestamp: Date.now(),
         message: errorPayload.message,
-        code: errorPayload.code,
-        error: errorPayload,
+        ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+        error: {
+          message: errorPayload.message,
+          ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+        },
       }
 
       options.logger.errors(`${this.name}.chatStream fatal`, {
@@ -222,7 +225,7 @@ export class OpenRouterResponsesTextAdapter<
           },
         },
         {
-          signal: reqOptions.signal ?? undefined,
+          ...(reqOptions.signal != null && { signal: reqOptions.signal }),
           ...(reqOptions.headers && { headers: reqOptions.headers }),
         },
       )
@@ -390,7 +393,7 @@ export class OpenRouterResponsesTextAdapter<
           },
         },
         {
-          signal: reqOptions.signal ?? undefined,
+          ...(reqOptions.signal != null && { signal: reqOptions.signal }),
           ...(reqOptions.headers && { headers: reqOptions.headers }),
         },
       )
@@ -650,14 +653,18 @@ export class OpenRouterResponsesTextAdapter<
         `${this.name}.structuredOutputStream failed`,
       )
 
+      const resolvedCode = isAbort ? 'aborted' : errorPayload.code
       yield {
         type: EventType.RUN_ERROR,
         runId: aguiState.runId,
         model,
         timestamp,
         message: errorPayload.message,
-        code: isAbort ? 'aborted' : errorPayload.code,
-        error: { ...errorPayload, ...(isAbort && { code: 'aborted' }) },
+        ...(resolvedCode !== undefined && { code: resolvedCode }),
+        error: {
+          message: errorPayload.message,
+          ...(resolvedCode !== undefined && { code: resolvedCode }),
+        },
       }
 
       chatOptions.logger.errors(`${this.name}.structuredOutputStream fatal`, {
@@ -765,7 +772,7 @@ export class OpenRouterResponsesTextAdapter<
         name: string
         started: boolean
         ended?: boolean
-        pendingArguments?: string
+        pendingArguments?: string | undefined
       }
     >,
     options: TextOptions<OpenRouterResponsesTextProviderOptions>,
@@ -1466,7 +1473,6 @@ export class OpenRouterResponsesTextAdapter<
           threadId: aguiState.threadId,
           model: model || options.model,
           timestamp: Date.now(),
-          usage: undefined,
           finishReason: toolCallMetadata.size > 0 ? 'tool_calls' : 'stop',
         }
       }
@@ -1484,8 +1490,11 @@ export class OpenRouterResponsesTextAdapter<
         model: options.model,
         timestamp: Date.now(),
         message: errorPayload.message,
-        code: errorPayload.code,
-        error: errorPayload,
+        ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+        error: {
+          message: errorPayload.message,
+          ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+        },
       }
     }
   }

@@ -158,11 +158,14 @@ describe('GeminiAdapter through AI', () => {
         // models a stale call site reaching the adapter via JS / `as any`.
         // The adapter must still produce the expected systemInstruction
         // string and never leak the foreign field anywhere on the payload.
+        // Under `exactOptionalPropertyTypes`, even the inner `as any` is
+        // rejected (an optional `never` field can't accept anything), so the
+        // whole entry is cast to model the bypass.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         {
           content: 'with-foreign-meta',
-          metadata: { cache_control: {} } as any,
-        },
+          metadata: { cache_control: {} },
+        } as any,
       ],
     })) {
       /* consume stream */

@@ -142,10 +142,15 @@ function createDeltaStrategy(
 
       if (blockOnMatch) return null // drop chunk
 
+      // Strip out the previous `content` field by destructuring it away — with
+      // `exactOptionalPropertyTypes` we can't assign `content: undefined`
+      // against `content?: string`. The replacement event carries only the
+      // filtered delta.
+      const { content: _strippedContent, ...rest } = chunk
+      void _strippedContent
       return {
-        ...chunk,
+        ...rest,
         delta: filtered,
-        content: undefined,
       } as StreamChunk
     },
   }

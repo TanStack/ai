@@ -351,29 +351,41 @@ export class AnthropicTextAdapter<
         ? thinkingBudget + 1
         : defaultMaxTokens
 
+    // `InternalTextProviderOptions.system` is typed
+    // `string | Array<TextBlockParam>` (no `| undefined`), so build it
+    // outside the literal and spread it conditionally rather than
+    // assigning `undefined` under exactOptionalPropertyTypes.
+    const systemBlocks = ((): Array<TextBlockParam> | undefined => {
+      const normalized =
+        normalizeSystemPrompts<AnthropicSystemPromptMetadata>(
+          options.systemPrompts,
+        )
+      if (normalized.length === 0) return undefined
+      return normalized.map(
+        (p): TextBlockParam => ({
+          type: 'text',
+          text: p.content,
+          ...(p.metadata?.cache_control && {
+            cache_control: p.metadata.cache_control,
+          }),
+        }),
+      )
+    })()
+    // `InternalTextProviderOptions` declares `temperature`, `top_p`,
+    // and `tools` as `T?: ...` (no `| undefined`), so spread them
+    // conditionally rather than passing explicit `undefined` from the
+    // optional common `TextOptions` fields under
+    // exactOptionalPropertyTypes.
     const requestParams: InternalTextProviderOptions = {
       model: options.model,
       max_tokens: maxTokens,
-      temperature: options.temperature,
-      top_p: options.topP,
+      ...(options.temperature !== undefined && {
+        temperature: options.temperature,
+      }),
+      ...(options.topP !== undefined && { top_p: options.topP }),
       messages: formattedMessages,
-      system: (() => {
-        const normalized =
-          normalizeSystemPrompts<AnthropicSystemPromptMetadata>(
-            options.systemPrompts,
-          )
-        if (normalized.length === 0) return undefined
-        return normalized.map(
-          (p): TextBlockParam => ({
-            type: 'text',
-            text: p.content,
-            ...(p.metadata?.cache_control && {
-              cache_control: p.metadata.cache_control,
-            }),
-          }),
-        )
-      })(),
-      tools: tools,
+      ...(systemBlocks !== undefined && { system: systemBlocks }),
+      ...(tools !== undefined && { tools }),
       ...validProviderOptions,
     }
     validateTextProviderOptions(requestParams)

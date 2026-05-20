@@ -41,13 +41,13 @@ export interface SkillToToolOptions {
    * Timeout for skill execution in ms
    * @default 30000
    */
-  timeout?: number
+  timeout?: number | undefined
 
   /**
    * Memory limit in bytes
    * @default 128
    */
-  memoryLimit?: number
+  memoryLimit?: number | undefined
 }
 
 interface SkillsToToolsOptions {
@@ -76,13 +76,13 @@ interface SkillsToToolsOptions {
    * Timeout for skill execution in ms
    * @default 30000
    */
-  timeout?: number
+  timeout?: number | undefined
 
   /**
    * Memory limit in bytes
    * @default 128
    */
-  memoryLimit?: number
+  memoryLimit?: number | undefined
 }
 
 /**

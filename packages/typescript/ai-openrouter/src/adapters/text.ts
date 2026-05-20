@@ -136,7 +136,7 @@ export class OpenRouterTextAdapter<
           },
         },
         {
-          signal: reqOptions.signal ?? undefined,
+          ...(reqOptions.signal != null && { signal: reqOptions.signal }),
           ...(reqOptions.headers && { headers: reqOptions.headers }),
         },
       )
@@ -169,8 +169,11 @@ export class OpenRouterTextAdapter<
         model: options.model,
         timestamp: Date.now(),
         message: errorPayload.message,
-        code: errorPayload.code,
-        error: errorPayload,
+        ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+        error: {
+          message: errorPayload.message,
+          ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+        },
       }
 
       options.logger.errors(`${this.name}.chatStream fatal`, {
@@ -224,7 +227,7 @@ export class OpenRouterTextAdapter<
           },
         },
         {
-          signal: reqOptions.signal ?? undefined,
+          ...(reqOptions.signal != null && { signal: reqOptions.signal }),
           ...(reqOptions.headers && { headers: reqOptions.headers }),
         },
       )
@@ -379,7 +382,7 @@ export class OpenRouterTextAdapter<
           },
         },
         {
-          signal: reqOptions.signal ?? undefined,
+          ...(reqOptions.signal != null && { signal: reqOptions.signal }),
           ...(reqOptions.headers && { headers: reqOptions.headers }),
         },
       )
@@ -577,14 +580,18 @@ export class OpenRouterTextAdapter<
         `${this.name}.structuredOutputStream failed`,
       )
 
+      const resolvedCode = isAbort ? 'aborted' : errorPayload.code
       yield {
         type: EventType.RUN_ERROR,
         runId: aguiState.runId,
         model: lastModel || chatOptions.model,
         timestamp,
         message: errorPayload.message,
-        code: isAbort ? 'aborted' : errorPayload.code,
-        error: { ...errorPayload, ...(isAbort && { code: 'aborted' }) },
+        ...(resolvedCode !== undefined && { code: resolvedCode }),
+        error: {
+          message: errorPayload.message,
+          ...(resolvedCode !== undefined && { code: resolvedCode }),
+        },
       }
 
       chatOptions.logger.errors(`${this.name}.structuredOutputStream fatal`, {
@@ -1064,13 +1071,13 @@ export class OpenRouterTextAdapter<
           threadId: aguiState.threadId,
           model: lastModel || options.model,
           timestamp: Date.now(),
-          usage: lastUsage
-            ? {
-                promptTokens: lastUsage.promptTokens || 0,
-                completionTokens: lastUsage.completionTokens || 0,
-                totalTokens: lastUsage.totalTokens || 0,
-              }
-            : undefined,
+          ...(lastUsage && {
+            usage: {
+              promptTokens: lastUsage.promptTokens || 0,
+              completionTokens: lastUsage.completionTokens || 0,
+              totalTokens: lastUsage.totalTokens || 0,
+            },
+          }),
           finishReason,
         }
       }
@@ -1092,8 +1099,11 @@ export class OpenRouterTextAdapter<
         model: options.model,
         timestamp: Date.now(),
         message: errorPayload.message,
-        code: errorPayload.code,
-        error: errorPayload,
+        ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+        error: {
+          message: errorPayload.message,
+          ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+        },
       }
     }
   }

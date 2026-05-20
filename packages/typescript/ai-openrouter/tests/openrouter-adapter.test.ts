@@ -202,7 +202,7 @@ describe('OpenRouter adapter option mapping', () => {
         // produce the joined system message and never leak the foreign
         // field to the wire.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        { content: 'with-meta', metadata: { cache_control: {} } as any },
+        { content: 'with-meta', metadata: { cache_control: {} } } as any,
       ],
     })) {
       /* consume */

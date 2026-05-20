@@ -29,6 +29,11 @@ export interface ClientTool<
   __toolSide: 'client'
   name: TName
   description: string
+  // Note: `inputSchema` / `outputSchema` stay as bare optionals (not
+  // widened to `| undefined`). They participate in inference via
+  // `InferToolInput` / `InferToolOutput` — widening with `| undefined`
+  // breaks the `infer TInput extends StandardJSONSchemaV1<...>` chain
+  // because `undefined` doesn't extend the schema constraint.
   inputSchema?: TInput
   outputSchema?: TOutput
   needsApproval?: boolean
@@ -215,7 +220,7 @@ export function toolDefinition<
       return {
         __toolSide: 'client',
         ...config,
-        execute,
+        ...(execute !== undefined && { execute }),
       }
     },
   }

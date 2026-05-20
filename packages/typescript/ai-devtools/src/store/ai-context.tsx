@@ -14,15 +14,15 @@ interface MessagePart {
     | 'audio'
     | 'video'
     | 'document'
-  content?: string
-  toolCallId?: string
-  toolName?: string
-  arguments?: string
-  state?: string
+  content?: string | undefined
+  toolCallId?: string | undefined
+  toolName?: string | undefined
+  arguments?: string | undefined
+  state?: string | undefined
   output?: unknown
-  error?: string
+  error?: string | undefined
   // Multimodal content fields
-  source?: ContentPartSource
+  source?: ContentPartSource | undefined
   metadata?: unknown
 }
 
@@ -49,19 +49,19 @@ export interface Message {
   role: 'user' | 'assistant' | 'system' | 'tool'
   content: string
   timestamp: number
-  parts?: Array<MessagePart>
-  toolCalls?: Array<ToolCall>
+  parts?: Array<MessagePart> | undefined
+  toolCalls?: Array<ToolCall> | undefined
   /** Consolidated chunks - consecutive same-type chunks are merged into one entry */
-  chunks?: Array<Chunk>
+  chunks?: Array<Chunk> | undefined
   /** Total number of raw chunks received (before consolidation) */
-  totalChunkCount?: number
-  model?: string
-  usage?: TokenUsage
-  thinkingContent?: string
+  totalChunkCount?: number | undefined
+  model?: string | undefined
+  usage?: TokenUsage | undefined
+  thinkingContent?: string | undefined
   /** Source of the message: 'client' for aggregated client-side data, 'server' for individual server chunks */
-  source?: 'client' | 'server'
+  source?: 'client' | 'server' | undefined
   /** The requestId this message belongs to (for scoping usage calculations) */
-  requestId?: string
+  requestId?: string | undefined
 }
 
 /**
@@ -79,27 +79,27 @@ export interface Chunk {
     | 'approval'
     | 'thinking'
   timestamp: number
-  messageId?: string
+  messageId?: string | undefined
   /** Accumulated content from all merged chunks */
-  content?: string
+  content?: string | undefined
   /** The last delta received (kept for debugging) */
-  delta?: string
-  toolName?: string
-  toolCallId?: string
-  finishReason?: string
-  error?: string
-  approvalId?: string
+  delta?: string | undefined
+  toolName?: string | undefined
+  toolCallId?: string | undefined
+  finishReason?: string | undefined
+  error?: string | undefined
+  approvalId?: string | undefined
   input?: unknown
   /** Tool arguments for tool_call chunks */
-  arguments?: string
+  arguments?: string | undefined
   /** Tool result data for tool_result chunks */
   result?: unknown
   /** Duration in ms for tool execution */
-  duration?: number
+  duration?: number | undefined
   /** Number of raw chunks that were merged into this consolidated chunk */
   chunkCount: number
   /** Whether this is a client-side tool execution */
-  isClientTool?: boolean
+  isClientTool?: boolean | undefined
 }
 
 export interface MiddlewareEvent {
@@ -117,19 +117,19 @@ export interface MiddlewareEvent {
 
 export interface Iteration {
   /** The requestId this iteration belongs to (unique per chat() call) */
-  requestId?: string
+  requestId?: string | undefined
   index: number
   messageId: string
   startedAt: number
-  completedAt?: number
-  model?: string
-  provider?: string
-  systemPrompts?: Array<string>
-  toolNames?: Array<string>
-  options?: Record<string, unknown>
-  modelOptions?: Record<string, unknown>
-  finishReason?: string
-  usage?: TokenUsage
+  completedAt?: number | undefined
+  model?: string | undefined
+  provider?: string | undefined
+  systemPrompts?: Array<string> | undefined
+  toolNames?: Array<string> | undefined
+  options?: Record<string, unknown> | undefined
+  modelOptions?: Record<string, unknown> | undefined
+  finishReason?: string | undefined
+  usage?: TokenUsage | undefined
   middlewareEvents: Array<MiddlewareEvent>
   messageIds: Array<string>
 }
@@ -157,31 +157,31 @@ export interface Conversation {
   label: string
   messages: Array<Message>
   chunks: Array<Chunk>
-  model?: string
-  provider?: string
+  model?: string | undefined
+  provider?: string | undefined
   status: 'active' | 'completed' | 'error'
   startedAt: number
-  completedAt?: number
-  usage?: TokenUsage
+  completedAt?: number | undefined
+  usage?: TokenUsage | undefined
   iterations: Array<Iteration>
-  iterationCount?: number
-  toolNames?: Array<string>
-  options?: Record<string, unknown>
-  modelOptions?: Record<string, unknown>
-  systemPrompts?: Array<string>
+  iterationCount?: number | undefined
+  toolNames?: Array<string> | undefined
+  options?: Record<string, unknown> | undefined
+  modelOptions?: Record<string, unknown> | undefined
+  systemPrompts?: Array<string> | undefined
   /** Flags for which operation types this conversation has */
-  hasChat?: boolean
-  hasSummarize?: boolean
-  hasImage?: boolean
-  hasSpeech?: boolean
-  hasTranscription?: boolean
-  hasVideo?: boolean
+  hasChat?: boolean | undefined
+  hasSummarize?: boolean | undefined
+  hasImage?: boolean | undefined
+  hasSpeech?: boolean | undefined
+  hasTranscription?: boolean | undefined
+  hasVideo?: boolean | undefined
   /** Summarize operations in this conversation */
-  summaries?: Array<SummarizeOperation>
-  imageEvents?: Array<ActivityEvent>
-  speechEvents?: Array<ActivityEvent>
-  transcriptionEvents?: Array<ActivityEvent>
-  videoEvents?: Array<ActivityEvent>
+  summaries?: Array<SummarizeOperation> | undefined
+  imageEvents?: Array<ActivityEvent> | undefined
+  speechEvents?: Array<ActivityEvent> | undefined
+  transcriptionEvents?: Array<ActivityEvent> | undefined
+  videoEvents?: Array<ActivityEvent> | undefined
 }
 
 interface AIStoreState {
@@ -605,7 +605,7 @@ export const AIProvider: ParentComponent = (props) => {
         'conversations',
         conversationId,
         key as keyof Conversation,
-        value as Conversation[keyof Conversation],
+        value,
       )
     }
   }
@@ -624,7 +624,7 @@ export const AIProvider: ParentComponent = (props) => {
         'messages',
         messageIndex,
         key as keyof Message,
-        value as Message[keyof Message],
+        value,
       )
     }
   }

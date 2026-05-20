@@ -12,5 +12,13 @@ export function extractRequestOptions(
   request: Request | RequestInit | undefined,
 ): { headers?: HeadersInit; signal?: AbortSignal | null } {
   if (!request) return {}
-  return { headers: request.headers, signal: request.signal ?? undefined }
+  // Conditional spread: under exactOptionalPropertyTypes the target's
+  // `headers?: HeadersInit` and `signal?: AbortSignal | null` forbid an
+  // explicit `undefined`. Omit the keys entirely when the source values
+  // are absent so the OpenAI SDK sees `headers: undefined` as "not set"
+  // rather than a present-but-undefined value.
+  return {
+    ...(request.headers !== undefined && { headers: request.headers }),
+    ...(request.signal != null && { signal: request.signal }),
+  }
 }

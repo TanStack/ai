@@ -633,9 +633,10 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
 
         if (!info.ok && info.error !== undefined) {
           toolSpan.recordException(info.error as Exception)
+          const msg = errorMessage(info.error)
           toolSpan.setStatus({
             code: SpanStatusCode.ERROR,
-            message: errorMessage(info.error),
+            ...(msg !== undefined && { message: msg }),
           })
         }
 
@@ -691,13 +692,15 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
 
         const errType = errorTypeName(info.error)
         const message = errorMessage(info.error)
+        const statusMessage =
+          message !== undefined ? { message } : ({} as const)
         const exception = info.error as Exception
 
         if (state.currentIterationSpan) {
           state.currentIterationSpan.recordException(exception)
           state.currentIterationSpan.setStatus({
             code: SpanStatusCode.ERROR,
-            message,
+            ...statusMessage,
           })
           safeCall('otel.onSpanEnd', () =>
             onSpanEnd?.(
@@ -716,7 +719,7 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
         for (const [id, entry] of state.toolSpans) {
           const { span, toolName } = entry
           span.recordException(exception)
-          span.setStatus({ code: SpanStatusCode.ERROR, message })
+          span.setStatus({ code: SpanStatusCode.ERROR, ...statusMessage })
           safeCall('otel.onSpanEnd', () =>
             onSpanEnd?.(
               {
@@ -734,7 +737,7 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
         }
 
         state.rootSpan.recordException(exception)
-        state.rootSpan.setStatus({ code: SpanStatusCode.ERROR, message })
+        state.rootSpan.setStatus({ code: SpanStatusCode.ERROR, ...statusMessage })
 
         if (durationHistogram) {
           durationHistogram.record(info.duration / 1000, {

@@ -586,16 +586,18 @@ export interface Tool<
    *   return weather; // Can return object or string
    * }
    */
-  execute?: (args: any, context?: ToolExecutionContext) => Promise<any> | any
+  execute?:
+    | ((args: any, context?: ToolExecutionContext) => Promise<any> | any)
+    | undefined
 
   /** If true, tool execution requires user approval before running. Works with both server and client tools. */
-  needsApproval?: boolean
+  needsApproval?: boolean | undefined
 
   /** If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Only meaningful when used with chat(). */
-  lazy?: boolean
+  lazy?: boolean | undefined
 
   /** Additional metadata for adapters or custom extensions */
-  metadata?: Record<string, any>
+  metadata?: Record<string, any> | undefined
 }
 
 export interface ToolConfig {
@@ -729,7 +731,7 @@ export interface TextOptions<
 > {
   model: string
   messages: Array<ModelMessage>
-  tools?: Array<Tool<any, any, any>>
+  tools?: Array<Tool<any, any, any>> | undefined
   /**
    * System prompts to include with the request.
    *
@@ -744,8 +746,8 @@ export interface TextOptions<
    *
    * @see SystemPrompt
    */
-  systemPrompts?: Array<SystemPrompt>
-  agentLoopStrategy?: AgentLoopStrategy
+  systemPrompts?: Array<SystemPrompt> | undefined
+  agentLoopStrategy?: AgentLoopStrategy | undefined
   /**
    * Controls the randomness of the output.
    * Higher values (e.g., 0.8) make output more random, lower values (e.g., 0.2) make it more focused and deterministic.
@@ -758,7 +760,7 @@ export interface TextOptions<
    * - Anthropic: `temperature` (number) - ranges from 0.0 to 1.0, default 1.0
    * - Gemini: `generationConfig.temperature` (number) - ranges from 0.0 to 2.0
    */
-  temperature?: number
+  temperature?: number | undefined
   /**
    * Nucleus sampling parameter. An alternative to temperature sampling.
    * The model considers the results of tokens with topP probability mass.
@@ -771,7 +773,7 @@ export interface TextOptions<
    * - Anthropic: `top_p` (number | null)
    * - Gemini: `generationConfig.topP` (number)
    */
-  topP?: number
+  topP?: number | undefined
   /**
    * The maximum number of tokens to generate in the response.
    *
@@ -780,7 +782,7 @@ export interface TextOptions<
    * - Anthropic: `max_tokens` (number, required) - range x >= 1
    * - Gemini: `generationConfig.maxOutputTokens` (number)
    */
-  maxTokens?: number
+  maxTokens?: number | undefined
   /**
    * Additional metadata to attach to the request.
    * Can be used for tracking, debugging, or passing custom information.
@@ -791,9 +793,9 @@ export interface TextOptions<
    * - Anthropic: `metadata` (Record<string, any>) - includes optional user_id (max 256 chars)
    * - Gemini: Not directly available in TextProviderOptions
    */
-  metadata?: Record<string, any>
-  modelOptions?: TProviderOptionsForModel
-  request?: Request | RequestInit
+  metadata?: Record<string, any> | undefined
+  modelOptions?: TProviderOptionsForModel | undefined
+  request?: Request | RequestInit | undefined
 
   /**
    * Schema for structured output.
@@ -802,7 +804,7 @@ export interface TextOptions<
    * The schema will be converted to JSON Schema format before being sent to the provider.
    * Supports any Standard JSON Schema compliant library (Zod, ArkType, Valibot, etc.).
    */
-  outputSchema?: SchemaInput
+  outputSchema?: SchemaInput | undefined
   /**
    * @deprecated Use `threadId` instead. `conversationId` is the legacy
    * pre-AG-UI name for the same concept (a stable per-conversation
@@ -813,7 +815,7 @@ export interface TextOptions<
    *
    * Will be removed in a future major release.
    */
-  conversationId?: string
+  conversationId?: string | undefined
   /**
    * AbortController for request cancellation.
    *
@@ -827,7 +829,7 @@ export interface TextOptions<
    *
    * @see https://developer.mozilla.org/en-US/docs/Web/API/AbortController
    */
-  abortController?: AbortController
+  abortController?: AbortController | undefined
 
   /**
    * Internal logger threaded from the chat entry point. Adapter implementations
@@ -840,18 +842,18 @@ export interface TextOptions<
    * Thread ID for AG-UI protocol run correlation.
    * When provided, this will be used in RunStartedEvent and RunFinishedEvent.
    */
-  threadId?: string
+  threadId?: string | undefined
   /**
    * Run ID for AG-UI protocol run correlation.
    * When provided, this will be used in RunStartedEvent and RunFinishedEvent.
    * If not provided, a unique ID will be generated.
    */
-  runId?: string
+  runId?: string | undefined
   /**
    * Parent run ID for AG-UI protocol nested run correlation.
    * Surfaced for observability/middleware; not consumed by the LLM call.
    */
-  parentRunId?: string
+  parentRunId?: string | undefined
 }
 
 // ============================================================================
@@ -933,15 +935,17 @@ export interface RunFinishedEvent extends AGUIRunFinishedEvent {
  */
 export interface RunErrorEvent extends AGUIRunErrorEvent {
   /** Model identifier for multi-model support */
-  model?: string
+  model?: string | undefined
   /**
    * @deprecated Use top-level `message` and `code` fields instead.
    * Kept for backward compatibility.
    */
-  error?: {
-    message: string
-    code?: string
-  }
+  error?:
+    | {
+        message: string
+        code?: string | undefined
+      }
+    | undefined
 }
 
 /**
@@ -1378,11 +1382,11 @@ export interface SummarizationOptions<
 > {
   model: string
   text: string
-  maxLength?: number
-  style?: 'bullet-points' | 'paragraph' | 'concise'
-  focus?: Array<string>
+  maxLength?: number | undefined
+  style?: 'bullet-points' | 'paragraph' | 'concise' | undefined
+  focus?: Array<string> | undefined
   /** Provider-specific options forwarded by the summarize() activity. */
-  modelOptions?: TProviderOptions
+  modelOptions?: TProviderOptions | undefined
   /**
    * Internal logger threaded from the summarize() entry point. Adapters must
    * call logger.request() before the SDK call and logger.errors() in catch blocks.
@@ -1418,11 +1422,11 @@ export interface ImageGenerationOptions<
   /** Text description of the desired image(s) */
   prompt: string
   /** Number of images to generate (default: 1) */
-  numberOfImages?: number
+  numberOfImages?: number | undefined
   /** Image size in WIDTHxHEIGHT format (e.g., "1024x1024") */
-  size?: TSize
+  size?: TSize | undefined
   /** Model-specific options for image generation */
-  modelOptions?: TProviderOptions
+  modelOptions?: TProviderOptions | undefined
   /**
    * Internal logger threaded from the generateImage() entry point. Adapters must
    * call logger.request() before the SDK call and logger.errors() in catch blocks.
@@ -1490,9 +1494,9 @@ export interface AudioGenerationOptions<
   /** Text description of the desired audio */
   prompt: string
   /** Desired duration in seconds */
-  duration?: number
+  duration?: number | undefined
   /** Model-specific options for audio generation */
-  modelOptions?: TProviderOptions
+  modelOptions?: TProviderOptions | undefined
   /**
    * Internal logger threaded from the generateAudio() entry point. Adapters
    * must call logger.request() before the SDK call and logger.errors() in
@@ -1548,11 +1552,11 @@ export interface VideoGenerationOptions<
   /** Text description of the desired video */
   prompt: string
   /** Video size — format depends on the provider (e.g., "16:9", "1280x720") */
-  size?: TSize
+  size?: TSize | undefined
   /** Video duration in seconds */
-  duration?: number
+  duration?: number | undefined
   /** Model-specific options for video generation */
-  modelOptions?: TProviderOptions
+  modelOptions?: TProviderOptions | undefined
   /**
    * Internal logger threaded from the generateVideo() entry point. Adapters must
    * call logger.request() before the SDK call and logger.errors() in catch blocks.

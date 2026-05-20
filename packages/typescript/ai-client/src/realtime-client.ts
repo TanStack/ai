@@ -322,10 +322,10 @@ export class RealtimeClient {
     }
 
     // Notify specific callbacks
-    if ('status' in updates && updates.status !== undefined) {
+    if ('status' in updates) {
       this.options.onStatusChange?.(updates.status)
     }
-    if ('mode' in updates && updates.mode !== undefined) {
+    if ('mode' in updates) {
       this.options.onModeChange?.(updates.mode)
     }
   }
@@ -512,25 +512,34 @@ export class RealtimeClient {
       semanticEagerness
     if (!hasConfig) return
 
+    // `RealtimeToolConfig.inputSchema` is `Record<string, any>` (no
+     // `undefined` under `exactOptionalPropertyTypes`). Conditionally spread
+     // it so we don't pass `undefined` when the tool has no input schema.
     const toolsConfig = tools
-      ? Array.from(this.clientTools.values()).map((t) => ({
-          name: t.name,
-          description: t.description,
-          inputSchema: t.inputSchema
+      ? Array.from(this.clientTools.values()).map((t) => {
+          const inputSchema = t.inputSchema
             ? convertSchemaToJsonSchema(t.inputSchema)
-            : undefined,
-        }))
+            : undefined
+          return {
+            name: t.name,
+            description: t.description,
+            ...(inputSchema ? { inputSchema } : {}),
+          }
+        })
       : undefined
 
+    // `RealtimeSessionConfig` declares each field as `field?: T` (no
+    // `undefined`). Spread each one conditionally so we don't violate
+    // `exactOptionalPropertyTypes` when the source is `T | undefined`.
     this.connection.updateSession({
-      instructions,
-      voice,
-      vadMode,
-      tools: toolsConfig,
-      outputModalities,
-      temperature,
-      maxOutputTokens,
-      semanticEagerness,
+      ...(instructions !== undefined ? { instructions } : {}),
+      ...(voice !== undefined ? { voice } : {}),
+      ...(vadMode !== undefined ? { vadMode } : {}),
+      ...(toolsConfig !== undefined ? { tools: toolsConfig } : {}),
+      ...(outputModalities !== undefined ? { outputModalities } : {}),
+      ...(temperature !== undefined ? { temperature } : {}),
+      ...(maxOutputTokens !== undefined ? { maxOutputTokens } : {}),
+      ...(semanticEagerness !== undefined ? { semanticEagerness } : {}),
     })
   }
 

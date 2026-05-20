@@ -108,14 +108,23 @@ export function useGeneration<
   const client = useMemo(() => {
     const opts = optionsRef.current
 
+    // Conditional spread for `body` (strict-optional in target;
+    // local source is `Record<string, any> | undefined`). Callbacks
+    // wrap optional ones in non-returning bodies so `?.()`'s
+    // implicit `undefined` doesn't pollute the function return type.
     const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
       id: clientId,
-      body: opts.body,
+      ...(opts.body !== undefined && { body: opts.body }),
       onResult: (r: TResult) => optionsRef.current.onResult?.(r),
-      onError: (e: Error) => optionsRef.current.onError?.(e),
-      onProgress: (p: number, m?: string) =>
-        optionsRef.current.onProgress?.(p, m),
-      onChunk: (c: StreamChunk) => optionsRef.current.onChunk?.(c),
+      onError: (e: Error) => {
+        optionsRef.current.onError?.(e)
+      },
+      onProgress: (p: number, m?: string) => {
+        optionsRef.current.onProgress?.(p, m)
+      },
+      onChunk: (c: StreamChunk) => {
+        optionsRef.current.onChunk?.(c)
+      },
       onResultChange: setResult,
       onLoadingChange: setIsLoading,
       onErrorChange: setError,
@@ -143,7 +152,10 @@ export function useGeneration<
 
   // Sync body changes without recreating client
   useEffect(() => {
-    client.updateOptions({ body: options.body })
+    // Conditional spread: target uses strict-optional `body?: T`.
+    client.updateOptions({
+      ...(options.body !== undefined && { body: options.body }),
+    })
   }, [client, options.body])
 
   // Cleanup on unmount

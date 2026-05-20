@@ -21,7 +21,9 @@ export function convertFunctionToolToAdapterFormat(tool: Tool): OllamaTool {
     function: {
       name: tool.name,
       description: tool.description,
-      parameters: inputSchema as OllamaTool['function']['parameters'],
+      parameters: inputSchema as NonNullable<
+        OllamaTool['function']['parameters']
+      >,
     },
   }
 }

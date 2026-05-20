@@ -76,13 +76,13 @@ export function Chat({
 }: ChatProps) {
   const chat = useChat({
     connection,
-    initialMessages,
-    id,
-    body,
-    onResponse,
-    onChunk,
-    onFinish,
-    onError,
+    ...(initialMessages !== undefined ? { initialMessages } : {}),
+    ...(id !== undefined ? { id } : {}),
+    ...(body !== undefined ? { body } : {}),
+    ...(onResponse !== undefined ? { onResponse } : {}),
+    ...(onChunk !== undefined ? { onChunk } : {}),
+    ...(onFinish !== undefined ? { onFinish } : {}),
+    ...(onError !== undefined ? { onError } : {}),
   })
 
   return (

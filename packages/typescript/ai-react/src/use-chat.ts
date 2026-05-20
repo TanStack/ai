@@ -63,13 +63,22 @@ export function useChat<
 
     isFirstMountRef.current = false
 
+    // Build options with conditional spreads for fields whose source
+    // type is `T | undefined` but the ChatClient target uses a strict
+    // optional (`field?: T`) — `exactOptionalPropertyTypes` rejects
+    // assigning `undefined` to those, so we omit the key when absent.
+    const initialOptions = optionsRef.current
     return new ChatClient({
-      connection: optionsRef.current.connection,
+      connection: initialOptions.connection,
       id: clientId,
       initialMessages: messagesToUse,
-      body: optionsRef.current.body,
-      forwardedProps: optionsRef.current.forwardedProps,
-      onResponse: (response) => optionsRef.current.onResponse?.(response),
+      ...(initialOptions.body !== undefined && { body: initialOptions.body }),
+      ...(initialOptions.forwardedProps !== undefined && {
+        forwardedProps: initialOptions.forwardedProps,
+      }),
+      onResponse: (response) => {
+        void optionsRef.current.onResponse?.(response)
+      },
       onChunk: (chunk: StreamChunk) => {
         optionsRef.current.onChunk?.(chunk)
       },
@@ -79,10 +88,15 @@ export function useChat<
       onError: (error: Error) => {
         optionsRef.current.onError?.(error)
       },
-      tools: optionsRef.current.tools,
-      onCustomEvent: (eventType, data, context) =>
-        optionsRef.current.onCustomEvent?.(eventType, data, context),
-      streamProcessor: options.streamProcessor,
+      ...(initialOptions.tools !== undefined && {
+        tools: initialOptions.tools,
+      }),
+      onCustomEvent: (eventType, data, context) => {
+        optionsRef.current.onCustomEvent?.(eventType, data, context)
+      },
+      ...(options.streamProcessor !== undefined && {
+        streamProcessor: options.streamProcessor,
+      }),
       onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
         setMessages(newMessages)
       },
@@ -108,9 +122,13 @@ export function useChat<
   }, [clientId])
 
   useEffect(() => {
+    // Conditional spread: `updateOptions` declares strict-optional
+    // fields and rejects explicit `undefined` under EOPT.
     client.updateOptions({
-      body: options.body,
-      forwardedProps: options.forwardedProps,
+      ...(options.body !== undefined && { body: options.body }),
+      ...(options.forwardedProps !== undefined && {
+        forwardedProps: options.forwardedProps,
+      }),
     })
   }, [client, options.body, options.forwardedProps])
 

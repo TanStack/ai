@@ -95,14 +95,16 @@ export interface TextActivityOptions<
    *
    * The three shapes can be mixed in a single array (e.g., when forwarding a wire payload that includes both anchor UIMessages and AG-UI fan-out ModelMessages).
    */
-  messages?: Array<
-    | UIMessage
-    | ModelMessage
-    | ConstrainedModelMessage<{
-        inputModalities: TAdapter['~types']['inputModalities']
-        messageMetadataByModality: TAdapter['~types']['messageMetadataByModality']
-      }>
-  >
+  messages?:
+    | Array<
+        | UIMessage
+        | ModelMessage
+        | ConstrainedModelMessage<{
+            inputModalities: TAdapter['~types']['inputModalities']
+            messageMetadataByModality: TAdapter['~types']['messageMetadataByModality']
+          }>
+      >
+    | undefined
   /**
    * System prompts to prepend to the conversation.
    *
@@ -112,9 +114,9 @@ export interface TextActivityOptions<
    * caching), providers without per-prompt metadata reject the field
    * entirely.
    */
-  systemPrompts?: Array<
-    SystemPrompt<TAdapter['~types']['systemPromptMetadata']>
-  >
+  systemPrompts?:
+    | Array<SystemPrompt<TAdapter['~types']['systemPromptMetadata']>>
+    | undefined
   /**
    * Tools for function calling (auto-executed when called).
    *
@@ -125,10 +127,12 @@ export interface TextActivityOptions<
    *    `supports.tools` list. Passing an unsupported tool produces a
    *    compile-time error on the array element.
    */
-  tools?: Array<
-    | (Tool & { readonly '~toolKind'?: never })
-    | ProviderTool<string, TAdapter['~types']['toolCapabilities'][number]>
-  >
+  tools?:
+    | Array<
+        | (Tool & { readonly '~toolKind'?: never })
+        | ProviderTool<string, TAdapter['~types']['toolCapabilities'][number]>
+      >
+    | undefined
   /** Controls the randomness of the output. Higher values make output more random. Range: [0.0, 2.0] */
   temperature?: TextOptions['temperature']
   /** Nucleus sampling parameter. The model considers tokens with topP probability mass. */
@@ -138,7 +142,7 @@ export interface TextActivityOptions<
   /** Additional metadata to attach to the request. */
   metadata?: TextOptions['metadata']
   /** Model-specific provider options (type comes from adapter) */
-  modelOptions?: TAdapter['~types']['providerOptions']
+  modelOptions?: TAdapter['~types']['providerOptions'] | undefined
   /** AbortController for cancellation */
   abortController?: TextOptions['abortController']
   /** Strategy for controlling the agent loop */
@@ -169,7 +173,7 @@ export interface TextActivityOptions<
    * // result is { name: string, age: number }
    * ```
    */
-  outputSchema?: TSchema
+  outputSchema?: TSchema | undefined
   /**
    * Whether to stream the text result.
    * When true (default), returns an AsyncIterable<StreamChunk> for streaming output.
@@ -190,7 +194,7 @@ export interface TextActivityOptions<
    * // text is a string with the full response
    * ```
    */
-  stream?: TStream
+  stream?: TStream | undefined
   /**
    * Optional middleware array for observing/transforming chat behavior.
    * Middleware hooks are called in array order. See {@link ChatMiddleware} for available hooks.
@@ -204,7 +208,7 @@ export interface TextActivityOptions<
    * })
    * ```
    */
-  middleware?: Array<ChatMiddleware>
+  middleware?: Array<ChatMiddleware> | undefined
   /**
    * Opaque user-provided context value passed to middleware hooks.
    * Can be used to pass request-scoped data (e.g., user ID, request context).
@@ -216,7 +220,7 @@ export interface TextActivityOptions<
    * granular control and/or a custom `Logger`. Defaults to `undefined`, which
    * means only the `errors` category is active.
    */
-  debug?: DebugOption
+  debug?: DebugOption | undefined
 }
 
 // ===========================
@@ -286,9 +290,9 @@ interface TextEngineConfig<
   TParams extends TextOptions<any, any> = TextOptions<any>,
 > {
   adapter: TAdapter
-  systemPrompts?: Array<SystemPrompt>
+  systemPrompts?: Array<SystemPrompt> | undefined
   params: TParams
-  middleware?: Array<ChatMiddleware>
+  middleware?: Array<ChatMiddleware> | undefined
   context?: unknown
 }
 
@@ -309,8 +313,8 @@ class TextEngine<
   private readonly initialMessageCount: number
   private readonly requestId: string
   private readonly streamId: string
-  private readonly effectiveRequest?: Request | RequestInit
-  private readonly effectiveSignal?: AbortSignal
+  private readonly effectiveRequest?: Request | RequestInit | undefined
+  private readonly effectiveSignal?: AbortSignal | undefined
 
   private messages: Array<ModelMessage>
   private iterationCount = 0
@@ -323,8 +327,8 @@ class TextEngine<
     []
   private currentThinkingContent = ''
   private currentThinkingSignature = ''
-  private eventOptions?: Record<string, unknown>
-  private eventToolNames?: Array<string>
+  private eventOptions?: Record<string, unknown> | undefined
+  private eventToolNames?: Array<string> | undefined
   private finishedEvent: RunFinishedEvent | null = null
   private earlyTermination = false
   private toolPhase: ToolPhaseResult = 'continue'
@@ -335,15 +339,15 @@ class TextEngine<
 
   // AG-UI protocol IDs
   private threadId: string
-  private runIdOverride?: string
-  private parentRunIdOverride?: string
+  private runIdOverride?: string | undefined
+  private parentRunIdOverride?: string | undefined
 
   // Middleware support
   private readonly middlewareRunner: MiddlewareRunner
   private readonly middlewareCtx: ChatMiddlewareContext
   private readonly deferredPromises: Array<Promise<unknown>> = []
-  private abortReason?: string
-  private middlewareAbortController?: AbortController
+  private abortReason?: string | undefined
+  private middlewareAbortController?: AbortController | undefined
   private terminalHookCalled = false
 
   private readonly logger: InternalLogger
@@ -402,8 +406,11 @@ class TextEngine<
     // handleStreamChunk processes raw chunks BEFORE middleware, so internal
     // state management sees extended fields (finishReason, delta, toolCallName, etc.).
     // The strip middleware ensures the yielded public stream is AG-UI spec-compliant.
-    const allMiddleware = [
-      devtoolsMiddleware(),
+    // `devtoolsMiddleware()` returns a structurally compatible
+    // `DevtoolsChatMiddleware` (defined in `@tanstack/ai-event-client` to
+    // avoid a circular dep). Cast it to `ChatMiddleware` for the runner.
+    const allMiddleware: Array<ChatMiddleware> = [
+      devtoolsMiddleware() as ChatMiddleware,
       ...(config.middleware || []),
       stripToSpecMiddleware(),
     ]

@@ -126,10 +126,16 @@ export class ChatClient {
       },
     }
 
-    // Create StreamProcessor with event handlers
+    // Create StreamProcessor with event handlers.
+    // Use conditional spreads so we don't pass `undefined` into
+    // `StreamProcessorOptions` fields under `exactOptionalPropertyTypes`.
     this.processor = new StreamProcessor({
-      chunkStrategy: options.streamProcessor?.chunkStrategy,
-      initialMessages: options.initialMessages,
+      ...(options.streamProcessor?.chunkStrategy
+        ? { chunkStrategy: options.streamProcessor.chunkStrategy }
+        : {}),
+      ...(options.initialMessages
+        ? { initialMessages: options.initialMessages }
+        : {}),
       events: {
         onMessagesChange: (messages: Array<UIMessage>) => {
           this.callbacksRef.current.onMessagesChange(messages)
@@ -530,7 +536,7 @@ export class ChatClient {
    */
   private normalizeMessageInput(input: string | MultimodalContent): {
     content: string | Array<ContentPart>
-    id?: string
+    id?: string | undefined
   } {
     if (typeof input === 'string') {
       return { content: input.trim() }

@@ -46,9 +46,9 @@ export interface ThinkingPartProps {
   /** The thinking content to render */
   content: string
   /** Base class applied to thinking parts */
-  class?: string
+  class?: string | undefined
   /** Whether thinking is complete (has text content after) */
-  isComplete?: boolean
+  isComplete?: boolean | undefined
 }
 
 export interface ToolCallRenderProps {
@@ -120,5 +120,5 @@ export interface ToolApprovalRenderProps {
   /** Whether user has responded */
   hasResponded: boolean
   /** User's decision (if responded) */
-  approved?: boolean
+  approved?: boolean | undefined
 }

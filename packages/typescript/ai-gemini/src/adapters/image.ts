@@ -214,7 +214,6 @@ export class GeminiImageAdapter<
       id: generateId(this.name),
       model,
       images,
-      usage: undefined,
     }
   }
 
@@ -223,10 +222,14 @@ export class GeminiImageAdapter<
   ): GenerateImagesConfig {
     const { size, numberOfImages, modelOptions } = options
 
+    // Build with conditional spreads — under exactOptionalPropertyTypes the
+    // vendor `GenerateImagesConfig` fields are `field?: T` (no `| undefined`),
+    // so we can only assign the property when we actually have a value.
+    const sizeAspectRatio = size ? sizeToAspectRatio(size) : undefined
     return {
       numberOfImages: numberOfImages ?? 1,
       // Map size to aspect ratio if provided (modelOptions.aspectRatio will override)
-      aspectRatio: size ? sizeToAspectRatio(size) : undefined,
+      ...(sizeAspectRatio !== undefined && { aspectRatio: sizeAspectRatio }),
       ...modelOptions,
     }
   }
@@ -242,7 +245,12 @@ export class GeminiImageAdapter<
     for (const item of entries) {
       const b64Json = item.image?.imageBytes
       if (b64Json) {
-        images.push({ b64Json, revisedPrompt: item.enhancedPrompt })
+        images.push({
+          b64Json,
+          ...(item.enhancedPrompt !== undefined && {
+            revisedPrompt: item.enhancedPrompt,
+          }),
+        })
         continue
       }
       // Imagen can drop individual entries with a raiFilteredReason when
@@ -277,7 +285,6 @@ export class GeminiImageAdapter<
       id: generateId(this.name),
       model,
       images,
-      usage: undefined,
     }
   }
 }

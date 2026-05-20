@@ -55,12 +55,21 @@ export async function* streamGenerationResult<TResult>(
     }
   } catch (error: unknown) {
     const payload = toRunErrorPayload(error, 'Generation failed')
+    // `code` is omitted entirely when undefined so the event matches the
+    // AG-UI `code?: string` shape under `exactOptionalPropertyTypes`. The
+    // deprecated nested `error` form preserves the same conditional
+    // structure for backward compatibility.
+    const codeFields =
+      payload.code !== undefined ? { code: payload.code } : undefined
     yield {
       type: EventType.RUN_ERROR,
       message: payload.message,
-      code: payload.code,
+      ...codeFields,
       // Deprecated nested form for backward compatibility
-      error: payload,
+      error: {
+        message: payload.message,
+        ...codeFields,
+      },
       timestamp: Date.now(),
     }
   }

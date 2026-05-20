@@ -77,9 +77,9 @@ export interface MessageStreamState {
  */
 export interface ProcessorResult {
   content: string
-  thinking?: string
-  toolCalls?: Array<ToolCall>
-  finishReason?: string | null
+  thinking?: string | undefined
+  toolCalls?: Array<ToolCall> | undefined
+  finishReason?: string | null | undefined
 }
 
 /**

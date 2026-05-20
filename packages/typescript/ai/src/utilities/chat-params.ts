@@ -39,7 +39,7 @@ export function chatParamsFromRequestBody(body: unknown): Promise<{
   messages: Array<UIMessage | ModelMessage>
   threadId: string
   runId: string
-  parentRunId?: string
+  parentRunId?: string | undefined
   tools: Array<{ name: string; description: string; parameters: JSONSchema }>
   forwardedProps: Record<string, unknown>
   state: unknown

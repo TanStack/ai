@@ -81,13 +81,22 @@ export function createChat<
   // by reference. Callbacks are therefore frozen to whatever the caller passed
   // at creation — to swap them dynamically, mutate the options object
   // in-place or call `client.updateOptions(...)` imperatively.
+  // Optional fields use conditional spread because the target
+  // `ChatClientOptions` declares them as `field?: T` (absent vs. present)
+  // rather than `field?: T | undefined`. Under `exactOptionalPropertyTypes`,
+  // passing an explicit `undefined` for an absent-only optional is a type
+  // error, so we omit the key when the caller's value is undefined.
   const client = new ChatClient({
     connection: options.connection,
     id: clientId,
-    initialMessages: options.initialMessages,
-    body: options.body,
-    forwardedProps: options.forwardedProps,
-    onResponse: options.onResponse,
+    ...(options.initialMessages !== undefined && {
+      initialMessages: options.initialMessages,
+    }),
+    ...(options.body !== undefined && { body: options.body }),
+    ...(options.forwardedProps !== undefined && {
+      forwardedProps: options.forwardedProps,
+    }),
+    ...(options.onResponse !== undefined && { onResponse: options.onResponse }),
     onChunk: (chunk: StreamChunk) => {
       options.onChunk?.(chunk)
     },
@@ -97,9 +106,13 @@ export function createChat<
     onError: (err) => {
       options.onError?.(err)
     },
-    tools: options.tools,
-    onCustomEvent: options.onCustomEvent,
-    streamProcessor: options.streamProcessor,
+    ...(options.tools !== undefined && { tools: options.tools }),
+    ...(options.onCustomEvent !== undefined && {
+      onCustomEvent: options.onCustomEvent,
+    }),
+    ...(options.streamProcessor !== undefined && {
+      streamProcessor: options.streamProcessor,
+    }),
     onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
       messages = newMessages
     },

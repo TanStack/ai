@@ -155,8 +155,8 @@ export class FalTranscriptionAdapter<
       id: response.requestId || this.generateId(),
       model: this.model,
       text,
-      language,
-      segments,
+      ...(language !== undefined ? { language } : {}),
+      ...(segments !== undefined ? { segments } : {}),
     }
   }
 }

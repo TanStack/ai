@@ -65,12 +65,23 @@ export class OpenAIImageAdapter<
     validateImageSize(model, size)
     validateNumberOfImages(model, numberOfImages)
 
+    // With exactOptionalPropertyTypes, vendor SDK request shapes reject
+    // `T | undefined` in optional fields. Build the request incrementally and
+    // only set `size` when it's actually defined.
     const request: OpenAI_SDK.Images.ImageGenerateParams = {
       model,
       prompt,
       n: numberOfImages ?? 1,
-      size: size as OpenAI_SDK.Images.ImageGenerateParams['size'],
-      ...modelOptions,
+      ...(modelOptions ?? {}),
+    }
+    if (size !== undefined) {
+      // Index into ImageGenerateParams['size'] gives `... | null | undefined`;
+      // strip `undefined` so the value matches the SDK's `size?: ... | null`
+      // shape under exactOptionalPropertyTypes.
+      request.size = size as Exclude<
+        OpenAI_SDK.Images.ImageGenerateParams['size'],
+        undefined
+      >
     }
 
     try {
@@ -85,12 +96,18 @@ export class OpenAIImageAdapter<
 
       const images: Array<GeneratedImage> = (response.data ?? []).flatMap(
         (item): Array<GeneratedImage> => {
-          const revisedPrompt = item.revised_prompt
+          // `GeneratedImage.revisedPrompt` is declared as `revisedPrompt?: string`
+          // (no `| undefined`) so under exactOptionalPropertyTypes we must omit
+          // the field entirely when the SDK didn't return one.
+          const revisedPromptField =
+            item.revised_prompt !== undefined
+              ? { revisedPrompt: item.revised_prompt }
+              : {}
           if (item.b64_json) {
-            return [{ b64Json: item.b64_json, revisedPrompt }]
+            return [{ b64Json: item.b64_json, ...revisedPromptField }]
           }
           if (item.url) {
-            return [{ url: item.url, revisedPrompt }]
+            return [{ url: item.url, ...revisedPromptField }]
           }
           return []
         },
@@ -100,13 +117,16 @@ export class OpenAIImageAdapter<
         id: generateId(this.name),
         model,
         images,
-        usage: response.usage
+        // `ImageGenerationResult.usage` is `usage?: {...}` without `| undefined`.
+        ...(response.usage
           ? {
-              inputTokens: response.usage.input_tokens,
-              outputTokens: response.usage.output_tokens,
-              totalTokens: response.usage.total_tokens,
+              usage: {
+                inputTokens: response.usage.input_tokens,
+                outputTokens: response.usage.output_tokens,
+                totalTokens: response.usage.total_tokens,
+              },
             }
-          : undefined,
+          : {}),
       }
     } catch (error: unknown) {
       // Narrow before logging: raw SDK errors can carry request metadata

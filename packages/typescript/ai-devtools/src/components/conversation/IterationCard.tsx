@@ -21,7 +21,7 @@ import type { Component } from 'solid-js'
 
 interface IterationCardProps {
   iteration: Iteration
-  previousIteration?: Iteration
+  previousIteration?: Iteration | undefined
   messages: Array<Message>
   index: number
   isLast: boolean

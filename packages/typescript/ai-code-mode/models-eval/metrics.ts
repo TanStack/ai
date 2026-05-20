@@ -3,9 +3,9 @@ import type { UIMessage } from '@tanstack/ai'
 export interface TypeScriptAttempt {
   toolCallId: string
   typescriptCode: string
-  success?: boolean
-  errorName?: string
-  errorMessage?: string
+  success?: boolean | undefined
+  errorName?: string | undefined
+  errorMessage?: string | undefined
 }
 
 export interface ComputedMetrics {
@@ -48,7 +48,7 @@ export function computeMetrics(messages: Array<UIMessage>): ComputedMetrics {
   const toolCallLookup = new Map<string, { name: string; arguments: string }>()
   const toolResultLookup = new Map<
     string,
-    { content: string; state?: string; error?: string }
+    { content: string; state?: string | undefined; error?: string | undefined }
   >()
 
   let totalToolCalls = 0

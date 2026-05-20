@@ -110,9 +110,12 @@ export function useGeneration<
   const [status, setStatus] = createSignal<GenerationClientState>('idle')
 
   const client = createMemo(() => {
+    // Conditional spread on `body`: `GenerationClientOptions.body` is a
+    // strict optional (`body?: Record<string, any>`) and EOPT forbids
+    // assigning the source `T | undefined` directly.
     const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
       id: clientId,
-      body: options.body,
+      ...(options.body !== undefined && { body: options.body }),
       onResult: (r: TResult) => options.onResult?.(r),
       onError: (e: Error) => options.onError?.(e),
       onProgress: (p: number, m?: string) => options.onProgress?.(p, m),
@@ -145,7 +148,9 @@ export function useGeneration<
   // Sync body changes without recreating client
   createEffect(() => {
     const currentBody = options.body
-    client().updateOptions({ body: currentBody })
+    client().updateOptions({
+      ...(currentBody !== undefined && { body: currentBody }),
+    })
   })
 
   // Cleanup on unmount: stop any in-flight requests

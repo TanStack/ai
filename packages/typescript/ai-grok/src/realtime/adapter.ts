@@ -497,7 +497,7 @@ async function createWebRTCConnection(
         Authorization: `Bearer ${token.token}`,
         'Content-Type': 'application/sdp',
       },
-      body: offer.sdp,
+      ...(offer.sdp !== undefined && { body: offer.sdp }),
     })
 
     if (!sdpResponse.ok) {
@@ -731,7 +731,9 @@ async function createWebRTCConnection(
           currentMode = 'listening'
           emit('mode_change', { mode: 'listening' })
         }
-        emit('interrupted', { messageId: currentMessageId ?? undefined })
+        emit('interrupted', {
+          ...(currentMessageId !== null && { messageId: currentMessageId }),
+        })
         break
 
       case 'error': {
@@ -1120,7 +1122,9 @@ async function createWebRTCConnection(
       sendEvent({ type: 'response.cancel' })
       currentMode = 'listening'
       emit('mode_change', { mode: 'listening' })
-      emit('interrupted', { messageId: currentMessageId ?? undefined })
+      emit('interrupted', {
+        ...(currentMessageId !== null && { messageId: currentMessageId }),
+      })
     },
 
     on<TEvent extends RealtimeEvent>(

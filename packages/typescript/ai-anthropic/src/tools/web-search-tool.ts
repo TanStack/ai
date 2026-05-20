@@ -67,13 +67,22 @@ export function convertWebSearchToolToAdapterFormat(
     } | null
     cacheControl?: CacheControl | null
   }
+  // Vendor `WebSearchTool20250305` declares these fields as `T | null`
+  // (no `| undefined`) under exactOptionalPropertyTypes, so spread them
+  // conditionally rather than passing explicit `undefined`.
   return {
     name: 'web_search',
     type: 'web_search_20250305',
-    allowed_domains: metadata.allowedDomains,
-    blocked_domains: metadata.blockedDomains,
-    max_uses: metadata.maxUses,
-    user_location: metadata.userLocation,
+    ...(metadata.allowedDomains !== undefined && {
+      allowed_domains: metadata.allowedDomains,
+    }),
+    ...(metadata.blockedDomains !== undefined && {
+      blocked_domains: metadata.blockedDomains,
+    }),
+    ...(metadata.maxUses !== undefined && { max_uses: metadata.maxUses }),
+    ...(metadata.userLocation !== undefined && {
+      user_location: metadata.userLocation,
+    }),
     cache_control: metadata.cacheControl || null,
   }
 }

@@ -7,7 +7,10 @@ const props = defineProps<ChatMessageProps>()
 
 type ChatMessageSlots = {
   text?: (props: { content: string }) => any
-  thinking?: (props: { content: string; isComplete?: boolean }) => any
+  thinking?: (props: {
+    content: string
+    isComplete?: boolean | undefined
+  }) => any
   'tool-default'?: (props: any) => any
   'tool-result'?: (props: {
     toolCallId: string

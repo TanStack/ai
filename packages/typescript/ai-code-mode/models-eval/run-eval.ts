@@ -218,11 +218,11 @@ interface EvalRow {
   modelId: string
   modelCategory: ModelCategory
   durationMs: number
-  ttftMs?: number
+  ttftMs?: number | undefined
   promptTokens: number
   completionTokens: number
   totalTokens: number
-  tokenEfficiency?: number
+  tokenEfficiency?: number | undefined
   speedTier: number
   tokenEfficiencyTier: number
   stabilityTier: number
@@ -234,10 +234,10 @@ interface EvalRow {
   compilationFailures: number
   runtimeFailures: number
   redundantSchemaChecks: number
-  stars?: 1 | 2 | 3
-  weightedScore?: number
-  error?: string
-  judge?: JudgeResult
+  stars?: 1 | 2 | 3 | undefined
+  weightedScore?: number | undefined
+  error?: string | undefined
+  judge?: JudgeResult | undefined
 }
 
 function parseArgs(argv: Array<string>): {
@@ -309,12 +309,12 @@ interface RunLogPayload {
   entry: { name: string; model: string }
   query: string
   durationMs: number
-  ttftMs?: number
+  ttftMs?: number | undefined
   modelCategory: ModelCategory
   promptTokens: number
   completionTokens: number
   totalTokens: number
-  tokenEfficiency?: number
+  tokenEfficiency?: number | undefined
   speedTier: number
   tokenEfficiencyTier: number
   stabilityTier: number
@@ -326,13 +326,13 @@ interface RunLogPayload {
   compilationFailures: number
   runtimeFailures: number
   redundantSchemaChecks: number
-  stars?: 1 | 2 | 3
-  weightedScore?: number
+  stars?: 1 | 2 | 3 | undefined
+  weightedScore?: number | undefined
   candidateReportChars: number
   candidateReportEmpty: boolean
   goldReportChars: number
-  error?: string
-  judge?: JudgeResult
+  error?: string | undefined
+  judge?: JudgeResult | undefined
   noJudge: boolean
   goldReport: string
   candidateReport: string

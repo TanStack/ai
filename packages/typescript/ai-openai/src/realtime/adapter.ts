@@ -184,14 +184,16 @@ async function createWebRTCConnection(
   const offer = await pc.createOffer()
   await pc.setLocalDescription(offer)
 
-  // Send SDP to OpenAI and get answer
+  // Send SDP to OpenAI and get answer. `offer.sdp` is `string | undefined` per
+  // the WebRTC type definitions; coerce to `null` (which `RequestInit.body`
+  // accepts) under exactOptionalPropertyTypes.
   const sdpResponse = await fetch(`${OPENAI_REALTIME_URL}?model=${model}`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token.token}`,
       'Content-Type': 'application/sdp',
     },
-    body: offer.sdp,
+    body: offer.sdp ?? null,
   })
 
   if (!sdpResponse.ok) {
@@ -376,7 +378,10 @@ async function createWebRTCConnection(
       }
 
       case 'conversation.item.truncated':
-        emit('interrupted', { messageId: currentMessageId ?? undefined })
+        emit(
+          'interrupted',
+          currentMessageId ? { messageId: currentMessageId } : {},
+        )
         break
 
       case 'error': {
@@ -643,7 +648,10 @@ async function createWebRTCConnection(
       sendEvent({ type: 'response.cancel' })
       currentMode = 'listening'
       emit('mode_change', { mode: 'listening' })
-      emit('interrupted', { messageId: currentMessageId ?? undefined })
+      emit(
+        'interrupted',
+        currentMessageId ? { messageId: currentMessageId } : {},
+      )
     },
 
     on<TEvent extends RealtimeEvent>(

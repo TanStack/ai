@@ -124,10 +124,11 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
     return {
       jobId,
       status: mapFalStatusToVideoStatus(statusResponse.status),
-      progress:
-        statusResponse.queue_position != null
-          ? Math.max(0, 100 - statusResponse.queue_position * 10)
-          : undefined,
+      ...(statusResponse.queue_position != null
+        ? {
+            progress: Math.max(0, 100 - statusResponse.queue_position * 10),
+          }
+        : {}),
     }
   }
 

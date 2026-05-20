@@ -41,7 +41,7 @@ export interface ChatMiddlewareContext {
    * `threadId` so middleware written before the AG-UI rename keeps
    * working unchanged. Will be removed in a future major release.
    */
-  conversationId?: string
+  conversationId?: string | undefined
   /** Current lifecycle phase */
   phase: ChatMiddlewarePhase
   /** Current agent loop iteration (0-indexed) */
@@ -49,7 +49,7 @@ export interface ChatMiddlewareContext {
   /** Running count of chunks yielded so far */
   chunkIndex: number
   /** Abort signal from the chat request */
-  signal?: AbortSignal
+  signal?: AbortSignal | undefined
   /** Abort the chat run with a reason */
   abort: (reason?: string) => void
   /** Opaque user-provided value from chat() options */
@@ -77,11 +77,11 @@ export interface ChatMiddlewareContext {
   /** System prompts configured for this chat */
   systemPrompts: Array<SystemPrompt>
   /** Names of configured tools, if any */
-  toolNames?: Array<string>
+  toolNames?: Array<string> | undefined
   /** Flattened generation options (temperature, topP, maxTokens, metadata) */
-  options?: Record<string, unknown>
+  options?: Record<string, unknown> | undefined
   /** Provider-specific model options */
-  modelOptions?: Record<string, unknown>
+  modelOptions?: Record<string, unknown> | undefined
 
   // --- Computed info ---
 
@@ -118,11 +118,11 @@ export interface ChatMiddlewareConfig {
   messages: Array<ModelMessage>
   systemPrompts: Array<SystemPrompt>
   tools: Array<Tool>
-  temperature?: number
-  topP?: number
-  maxTokens?: number
-  metadata?: Record<string, unknown>
-  modelOptions?: Record<string, unknown>
+  temperature?: number | undefined
+  topP?: number | undefined
+  maxTokens?: number | undefined
+  metadata?: Record<string, unknown> | undefined
+  modelOptions?: Record<string, unknown> | undefined
 }
 
 // ===========================
@@ -257,11 +257,13 @@ export interface FinishInfo {
   /** Final accumulated text content */
   content: string
   /** Final usage totals, if available */
-  usage?: {
-    promptTokens: number
-    completionTokens: number
-    totalTokens: number
-  }
+  usage?:
+    | {
+        promptTokens: number
+        completionTokens: number
+        totalTokens: number
+      }
+    | undefined
 }
 
 /**
@@ -269,7 +271,7 @@ export interface FinishInfo {
  */
 export interface AbortInfo {
   /** The reason for the abort, if provided */
-  reason?: string
+  reason?: string | undefined
   /** Duration until abort in milliseconds */
   duration: number
 }

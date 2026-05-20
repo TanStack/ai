@@ -316,7 +316,10 @@ export async function validateWithStandardSchema<T>(
   data: unknown,
 ): Promise<
   | { success: true; data: T }
-  | { success: false; issues: Array<{ message: string; path?: Array<string> }> }
+  | {
+      success: false
+      issues: Array<{ message: string; path?: Array<string> | undefined }>
+    }
 > {
   if (!isStandardSchema(schema)) {
     // If it's not a Standard Schema, just return the data as-is

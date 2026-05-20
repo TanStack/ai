@@ -351,12 +351,16 @@ export function fetchServerSentEvents(
       }
 
       const fetchClient = resolvedOptions.fetchClient ?? fetch
+      // `RequestInit.signal` is typed `AbortSignal | null` (no `undefined`
+      // under `exactOptionalPropertyTypes`), so spread it conditionally
+      // rather than passing `undefined` explicitly.
+      const signal = abortSignal || resolvedOptions.signal
       const response = await fetchClient(resolvedUrl, {
         method: 'POST',
         headers: requestHeaders,
         body: JSON.stringify(requestBody),
         credentials: resolvedOptions.credentials || 'same-origin',
-        signal: abortSignal || resolvedOptions.signal,
+        ...(signal ? { signal } : {}),
       })
 
       if (!response.ok) {
@@ -483,12 +487,16 @@ export function fetchHttpStream(
       }
 
       const fetchClient = resolvedOptions.fetchClient ?? fetch
+      // `RequestInit.signal` is typed `AbortSignal | null` (no `undefined`
+      // under `exactOptionalPropertyTypes`), so spread it conditionally
+      // rather than passing `undefined` explicitly.
+      const signal = abortSignal || resolvedOptions.signal
       const response = await fetchClient(resolvedUrl, {
         method: 'POST',
         headers: requestHeaders,
         body: JSON.stringify(requestBody),
         credentials: resolvedOptions.credentials || 'same-origin',
-        signal: abortSignal || resolvedOptions.signal,
+        ...(signal ? { signal } : {}),
       })
 
       if (!response.ok) {

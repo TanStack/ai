@@ -124,9 +124,12 @@ export function useGenerateVideo<
   const error = shallowRef<Error | undefined>(undefined)
   const status = shallowRef<GenerationClientState>('idle')
 
+  // Conditional spread on `body`: `VideoGenerationClientOptions.body` is a
+  // strict optional and under EOPT we must omit the key when absent rather
+  // than assign `undefined`.
   const baseOptions = {
     id: clientId,
-    body: options.body,
+    ...(options.body !== undefined && { body: options.body }),
     onResult: (r: VideoGenerateResult) => options.onResult?.(r),
     onError: (e: Error) => options.onError?.(e),
     onProgress: (p: number, m?: string) => options.onProgress?.(p, m),
@@ -171,11 +174,15 @@ export function useGenerateVideo<
     )
   }
 
-  // Sync body changes to the client
+  // Sync body changes to the client.
+  // Conditional spread: `updateOptions` declares `body?: Record<string, any>`
+  // (strict optional) and rejects explicit `undefined` under EOPT.
   watch(
     () => options.body,
     (newBody) => {
-      client.updateOptions({ body: newBody })
+      client.updateOptions({
+        ...(newBody !== undefined && { body: newBody }),
+      })
     },
   )
 

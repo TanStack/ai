@@ -2634,7 +2634,7 @@ describe('chat() middleware', () => {
       const configSnapshots: Array<{
         phase: string
         iteration: number
-        maxTokens?: number
+        maxTokens?: number | undefined
         systemPrompts: Array<SystemPrompt>
       }> = []
 

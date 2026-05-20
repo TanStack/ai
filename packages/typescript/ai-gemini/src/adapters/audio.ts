@@ -120,7 +120,7 @@ export class GeminiAudioAdapter<
         model,
         audio: {
           b64Json: audioPart.inlineData.data,
-          contentType,
+          ...(contentType !== undefined && { contentType }),
         },
       }
     } catch (error) {

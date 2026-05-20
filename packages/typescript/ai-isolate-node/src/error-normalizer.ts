@@ -5,11 +5,12 @@ import type { NormalizedError } from '@tanstack/ai-code-mode'
  */
 export function normalizeError(error: unknown): NormalizedError {
   if (error instanceof Error) {
+    const code = (error as NodeJS.ErrnoException).code
     return {
       name: error.name,
       message: error.message,
-      stack: error.stack,
-      code: (error as NodeJS.ErrnoException).code,
+      ...(error.stack !== undefined ? { stack: error.stack } : {}),
+      ...(code !== undefined ? { code } : {}),
     }
   }
 
@@ -25,8 +26,8 @@ export function normalizeError(error: unknown): NormalizedError {
     return {
       name: String(errObj['name'] || 'Error'),
       message: String(errObj['message'] || 'Unknown error'),
-      stack: errObj['stack'] ? String(errObj['stack']) : undefined,
-      code: errObj['code'] ? String(errObj['code']) : undefined,
+      ...(errObj['stack'] ? { stack: String(errObj['stack']) } : {}),
+      ...(errObj['code'] ? { code: String(errObj['code']) } : {}),
     }
   }
 

@@ -451,9 +451,9 @@ export async function getVideoJobStatus<
   jobId: string
 }): Promise<{
   status: 'pending' | 'processing' | 'completed' | 'failed'
-  progress?: number
-  url?: string
-  error?: string
+  progress?: number | undefined
+  url?: string | undefined
+  error?: string | undefined
 }> {
   const { adapter, jobId } = options
   const requestId = createId('video-status')

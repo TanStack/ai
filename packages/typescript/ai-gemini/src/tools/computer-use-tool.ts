@@ -11,10 +11,17 @@ export type GeminiComputerUseTool = ProviderTool<'gemini', 'computer_use'>
 
 export function convertComputerUseToolToAdapterFormat(tool: Tool) {
   const metadata = tool.metadata as ComputerUseToolConfig
+  // Vendor `ComputerUse` fields are `field?: T` (no `| undefined`) under EOPT,
+  // so spread each field conditionally rather than emitting explicit
+  // `undefined`s on the wire payload.
   return {
     computerUse: {
-      environment: metadata.environment,
-      excludedPredefinedFunctions: metadata.excludedPredefinedFunctions,
+      ...(metadata.environment !== undefined && {
+        environment: metadata.environment,
+      }),
+      ...(metadata.excludedPredefinedFunctions !== undefined && {
+        excludedPredefinedFunctions: metadata.excludedPredefinedFunctions,
+      }),
     },
   }
 }
@@ -26,8 +33,12 @@ export function computerUseTool(
     name: 'computer_use',
     description: '',
     metadata: {
-      environment: config.environment,
-      excludedPredefinedFunctions: config.excludedPredefinedFunctions,
+      ...(config.environment !== undefined && {
+        environment: config.environment,
+      }),
+      ...(config.excludedPredefinedFunctions !== undefined && {
+        excludedPredefinedFunctions: config.excludedPredefinedFunctions,
+      }),
     },
   })
 }

@@ -227,9 +227,14 @@ async function runGenerateImage<
       requestId,
       provider: adapter.name,
       model,
+      // GeneratedImage is a discriminated `{ url } | { b64Json }` union, but the
+      // wire shape on the devtools event is a plain optional pair. Use
+      // conditional spreads so the emitted record only sets the field actually
+      // present — `exactOptionalPropertyTypes` rejects `field: undefined`
+      // against `field?: string` targets.
       images: result.images.map((image) => ({
-        url: image.url,
-        b64Json: image.b64Json,
+        ...(image.url !== undefined && { url: image.url }),
+        ...(image.b64Json !== undefined && { b64Json: image.b64Json }),
       })),
       duration,
       modelOptions: rest.modelOptions as Record<string, unknown> | undefined,

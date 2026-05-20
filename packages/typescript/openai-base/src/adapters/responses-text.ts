@@ -74,8 +74,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         ended?: boolean
         // Set when args.done arrives before TOOL_CALL_START could fire
         // (output_item.added lacked a name). output_item.done picks these
-        // up to emit the missing END.
-        pendingArguments?: string
+        // up to emit the missing END. Allow explicit `undefined` so the
+        // emission paths can re-clear the slot after handing it off.
+        pendingArguments?: string | undefined
       }
     >()
 
@@ -132,14 +133,20 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         }
       }
 
-      // Emit AG-UI RUN_ERROR
+      // Emit AG-UI RUN_ERROR. Conditional `code` spread keeps the wire
+      // shape spec-compliant under `exactOptionalPropertyTypes`: AG-UI's
+      // `RunErrorEvent.code` is `string?` (absent vs explicit `undefined`
+      // matter), so we omit the key when there's no code.
       yield {
         type: EventType.RUN_ERROR,
         model: options.model,
         timestamp: Date.now(),
         message: errorPayload.message,
-        code: errorPayload.code,
-        error: errorPayload,
+        ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+        error: {
+          message: errorPayload.message,
+          ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+        },
       }
 
       options.logger.errors(`${this.name}.chatStream fatal`, {
@@ -499,14 +506,17 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           ).response
           const message =
             response?.error?.message || 'Responses API stream failed'
+          const code = response?.error?.code
+          // Conditional `code` spread keeps the wire shape spec-compliant
+          // under `exactOptionalPropertyTypes` (see chatStream catch).
           yield {
             type: EventType.RUN_ERROR,
             runId: aguiState.runId,
             model,
             timestamp,
             message,
-            code: response?.error?.code,
-            error: { message, code: response?.error?.code },
+            ...(code !== undefined && { code }),
+            error: { message, ...(code !== undefined && { code }) },
           }
           return
         }
@@ -606,14 +616,20 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         `${this.name}.structuredOutputStream failed`,
       )
 
+      // Conditional `code` spread keeps the wire shape spec-compliant under
+      // `exactOptionalPropertyTypes` (see chatStream catch).
+      const resolvedCode = isAbort ? 'aborted' : errorPayload.code
       yield {
         type: EventType.RUN_ERROR,
         runId: aguiState.runId,
         model,
         timestamp,
         message: errorPayload.message,
-        code: isAbort ? 'aborted' : errorPayload.code,
-        error: { ...errorPayload, ...(isAbort && { code: 'aborted' }) },
+        ...(resolvedCode !== undefined && { code: resolvedCode }),
+        error: {
+          message: errorPayload.message,
+          ...(resolvedCode !== undefined && { code: resolvedCode }),
+        },
       }
 
       chatOptions.logger.errors(`${this.name}.structuredOutputStream fatal`, {
@@ -742,7 +758,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         name: string
         started: boolean
         ended?: boolean
-        pendingArguments?: string
+        pendingArguments?: string | undefined
       }
     >,
     options: TextOptions<TProviderOptions>,
@@ -1496,15 +1512,18 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         }
 
         if (chunk.type === 'error') {
+          // Conditional `code` spread keeps the wire shape spec-compliant
+          // under `exactOptionalPropertyTypes` (see chatStream catch).
+          const code = chunk.code ?? undefined
           yield {
             type: EventType.RUN_ERROR,
             model: model || options.model,
             timestamp: Date.now(),
             message: chunk.message,
-            code: chunk.code ?? undefined,
+            ...(code !== undefined && { code }),
             error: {
               message: chunk.message,
-              code: chunk.code ?? undefined,
+              ...(code !== undefined && { code }),
             },
           }
           // RUN_ERROR is terminal — don't let the synthetic RUN_FINISHED
@@ -1531,13 +1550,16 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             timestamp: Date.now(),
           }
         }
+        // Omit `usage` entirely (vs `usage: undefined`) — the synthetic
+        // RUN_FINISHED for truncated streams has no usage data, and AG-UI's
+        // `RunFinishedEvent.usage` is optional without `| undefined` under
+        // `exactOptionalPropertyTypes`.
         yield {
           type: EventType.RUN_FINISHED,
           runId: aguiState.runId,
           threadId: aguiState.threadId,
           model: model || options.model,
           timestamp: Date.now(),
-          usage: undefined,
           finishReason: toolCallMetadata.size > 0 ? 'tool_calls' : 'stop',
         }
       }
@@ -1552,13 +1574,18 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         error: errorPayload,
         source: `${this.name}.processStreamChunks`,
       })
+      // Emit AG-UI RUN_ERROR with conditional `code` spread (see chatStream
+      // catch for the rationale).
       yield {
         type: EventType.RUN_ERROR,
         model: options.model,
         timestamp: Date.now(),
         message: errorPayload.message,
-        code: errorPayload.code,
-        error: errorPayload,
+        ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+        error: {
+          message: errorPayload.message,
+          ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+        },
       }
     }
   }

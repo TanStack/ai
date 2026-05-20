@@ -15,7 +15,7 @@ interface MessageGroupProps {
   messageId: string
   chunks: Array<Chunk>
   groupIndex: number
-  usage?: TokenUsage
+  usage?: TokenUsage | undefined
 }
 
 export const MessageGroup: Component<MessageGroupProps> = (props) => {

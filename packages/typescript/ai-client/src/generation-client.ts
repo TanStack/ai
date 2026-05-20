@@ -11,15 +11,18 @@ import type {
 /**
  * Callbacks stored in a ref so hooks can update them without recreating the client.
  */
+// All optional fields explicitly allow `| undefined` so callers can spread
+// option bags (where each callback may be `undefined`) into the callbacks
+// ref under `exactOptionalPropertyTypes`.
 interface GenerationCallbacks<TResult, TOutput> {
-  onResult?: (result: TResult) => TOutput | null | void
-  onError?: (error: Error) => void
-  onProgress?: (progress: number, message?: string) => void
-  onChunk?: (chunk: StreamChunk) => void
-  onResultChange?: (result: TOutput | null) => void
-  onLoadingChange?: (isLoading: boolean) => void
-  onErrorChange?: (error: Error | undefined) => void
-  onStatusChange?: (status: GenerationClientState) => void
+  onResult?: ((result: TResult) => TOutput | null | void) | undefined
+  onError?: ((error: Error) => void) | undefined
+  onProgress?: ((progress: number, message?: string) => void) | undefined
+  onChunk?: ((chunk: StreamChunk) => void) | undefined
+  onResultChange?: ((result: TOutput | null) => void) | undefined
+  onLoadingChange?: ((isLoading: boolean) => void) | undefined
+  onErrorChange?: ((error: Error | undefined) => void) | undefined
+  onStatusChange?: ((status: GenerationClientState) => void) | undefined
 }
 
 /**

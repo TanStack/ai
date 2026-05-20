@@ -12,7 +12,10 @@ const props = defineProps<MessagePartProps>()
 
 type MessagePartSlots = {
   text?: (props: { content: string }) => any
-  thinking?: (props: { content: string; isComplete?: boolean }) => any
+  thinking?: (props: {
+    content: string
+    isComplete?: boolean | undefined
+  }) => any
   'tool-default'?: (props: ToolCallRenderProps) => any
   'tool-result'?: (props: {
     toolCallId: string

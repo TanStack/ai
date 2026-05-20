@@ -134,13 +134,14 @@ export class GrokTranscriptionAdapter<
         },
       )
 
+      const resolvedLanguage = data.language ?? language
       return {
         id: generateId(this.name),
         model,
         text: data.text,
-        language: data.language ?? language,
-        duration: data.duration,
-        words,
+        ...(resolvedLanguage !== undefined && { language: resolvedLanguage }),
+        ...(data.duration !== undefined && { duration: data.duration }),
+        ...(words !== undefined && { words }),
       }
     } catch (error) {
       logger.errors('grok.transcribe fatal', {

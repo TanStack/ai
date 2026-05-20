@@ -169,11 +169,17 @@ describe('elevenlabsRealtime adapter', () => {
       inputSchema?: JSONSchema
       execute: (input: Record<string, unknown>) => unknown | Promise<unknown>
     }): AnyClientTool {
+      // Conditionally spread `inputSchema` — `ClientTool` declares it as
+      // strict `inputSchema?: TInput` (no `| undefined`) under
+      // `exactOptionalPropertyTypes`, so we omit the key when the caller
+      // didn't supply a schema rather than setting it to `undefined`.
       return {
         __toolSide: 'client',
         name: args.name,
         description: args.description ?? '',
-        inputSchema: args.inputSchema,
+        ...(args.inputSchema !== undefined && {
+          inputSchema: args.inputSchema,
+        }),
         execute: args.execute,
       }
     }

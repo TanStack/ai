@@ -399,7 +399,11 @@ export class GeminiTextAdapter<
                     : JSON.stringify(functionArgs),
                 index: nextToolIndex++,
                 started: false,
-                thoughtSignature: partThoughtSignature,
+                // Only set thoughtSignature when present — under EOPT, the
+                // optional field cannot accept an explicit `undefined`.
+                ...(partThoughtSignature !== undefined && {
+                  thoughtSignature: partThoughtSignature,
+                }),
               }
               toolCallMap.set(toolCallId, toolCallData)
             } else {
@@ -617,13 +621,16 @@ export class GeminiTextAdapter<
           model,
           timestamp: Date.now(),
           finishReason: toolCallMap.size > 0 ? 'tool_calls' : 'stop',
-          usage: chunk.usageMetadata
-            ? {
-                promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
-                completionTokens: chunk.usageMetadata.candidatesTokenCount ?? 0,
-                totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
-              }
-            : undefined,
+          // RunFinishedEvent.usage is `usage?: {...}` (no `| undefined`) under
+          // exactOptionalPropertyTypes; only include it when usageMetadata is
+          // present rather than assigning an explicit `undefined`.
+          ...(chunk.usageMetadata && {
+            usage: {
+              promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
+              completionTokens: chunk.usageMetadata.candidatesTokenCount ?? 0,
+              totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
+            },
+          }),
         }
       }
     }
@@ -800,7 +807,7 @@ export class GeminiTextAdapter<
       if (!msg.parts) continue
       const seenFunctionResponseNames = new Set<string>()
       msg.parts = msg.parts.filter((part) => {
-        if ('functionResponse' in part && part.functionResponse?.name) {
+        if ('functionResponse' in part && part.functionResponse.name) {
           if (seenFunctionResponseNames.has(part.functionResponse.name)) {
             return false
           }
@@ -816,31 +823,58 @@ export class GeminiTextAdapter<
   private mapCommonOptionsToGemini(
     options: TextOptions<GeminiTextProviderOptions>,
   ) {
-    const modelOpts = options.modelOptions
-    const thinkingConfig = modelOpts?.thinkingConfig
+    // Separate `thinkingConfig` from the other model options so the loose
+    // local `thinkingLevel?: keyof typeof ThinkingLevel` type doesn't leak
+    // into the SDK config object via the `...modelOpts` spread — we re-add a
+    // properly-typed `ThinkingConfig` below.
+    const { thinkingConfig, ...modelOpts } =
+      options.modelOptions ?? ({} as GeminiTextProviderOptions)
+    // Build the thinkingConfig payload only when the caller actually supplied
+    // one. Our local `thinkingLevel` is typed as `keyof typeof ThinkingLevel`
+    // (string union) so users can pass plain strings; the SDK target is the
+    // `ThinkingLevel` enum, and every field is `field?: T` under EOPT — so we
+    // re-emit fields via conditional spreads.
+    const mappedThinkingConfig = thinkingConfig
+      ? {
+          ...(thinkingConfig.includeThoughts !== undefined && {
+            includeThoughts: thinkingConfig.includeThoughts,
+          }),
+          ...(thinkingConfig.thinkingBudget !== undefined && {
+            thinkingBudget: thinkingConfig.thinkingBudget,
+          }),
+          ...(thinkingConfig.thinkingLevel
+            ? {
+                thinkingLevel: thinkingConfig.thinkingLevel as ThinkingLevel,
+              }
+            : {}),
+        }
+      : undefined
+
+    const normalizedPrompts = normalizeSystemPrompts(options.systemPrompts)
+    const systemInstruction =
+      normalizedPrompts.length > 0
+        ? normalizedPrompts.map((p) => p.content).join('\n')
+        : undefined
+
+    // Vendor `GenerateContentConfig` fields are `field?: T` (no `| undefined`)
+    // under EOPT, so spread each common option only when present rather than
+    // emitting `field: undefined`s into the wire payload.
     const requestOptions: GenerateContentParameters = {
       model: options.model,
       contents: this.formatMessages(options.messages),
       config: {
         ...modelOpts,
-        temperature: options.temperature,
-        topP: options.topP,
-        maxOutputTokens: options.maxTokens,
-        thinkingConfig: thinkingConfig
-          ? {
-              ...thinkingConfig,
-              thinkingLevel: thinkingConfig.thinkingLevel
-                ? // Enum is provided by the SDK, we use it for the type but cast it to string constants, here we just cast them back
-                  (thinkingConfig.thinkingLevel as ThinkingLevel)
-                : undefined,
-            }
-          : undefined,
-        systemInstruction: (() => {
-          const prompts = normalizeSystemPrompts(options.systemPrompts)
-          return prompts.length > 0
-            ? prompts.map((p) => p.content).join('\n')
-            : undefined
-        })(),
+        ...(options.temperature !== undefined && {
+          temperature: options.temperature,
+        }),
+        ...(options.topP !== undefined && { topP: options.topP }),
+        ...(options.maxTokens !== undefined && {
+          maxOutputTokens: options.maxTokens,
+        }),
+        ...(mappedThinkingConfig !== undefined && {
+          thinkingConfig: mappedThinkingConfig,
+        }),
+        ...(systemInstruction !== undefined && { systemInstruction }),
         tools: convertToolsToProviderFormat(options.tools),
       },
     }

@@ -64,12 +64,20 @@ export function useChat<
   // in-place mutations propagate. When the user clears a callback (sets it to
   // undefined), `?.` no-ops.
   const client = createMemo(() => {
+    // Build options with conditional spreads for fields whose source
+    // type is `T | undefined` but the ChatClient target uses a strict
+    // optional (`field?: T`) — `exactOptionalPropertyTypes` rejects
+    // assigning `undefined` to those, so we omit the key when absent.
     return new ChatClient({
       connection: options.connection,
       id: clientId,
-      initialMessages: options.initialMessages,
-      body: options.body,
-      forwardedProps: options.forwardedProps,
+      ...(options.initialMessages !== undefined && {
+        initialMessages: options.initialMessages,
+      }),
+      ...(options.body !== undefined && { body: options.body }),
+      ...(options.forwardedProps !== undefined && {
+        forwardedProps: options.forwardedProps,
+      }),
       onResponse: (response) => options.onResponse?.(response),
       onChunk: (chunk: StreamChunk) => {
         options.onChunk?.(chunk)
@@ -80,10 +88,12 @@ export function useChat<
       onError: (err) => {
         options.onError?.(err)
       },
-      tools: options.tools,
+      ...(options.tools !== undefined && { tools: options.tools }),
       onCustomEvent: (eventType, data, context) =>
         options.onCustomEvent?.(eventType, data, context),
-      streamProcessor: options.streamProcessor,
+      ...(options.streamProcessor !== undefined && {
+        streamProcessor: options.streamProcessor,
+      }),
       onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
         setMessages(newMessages)
       },
@@ -114,9 +124,13 @@ export function useChat<
   // Both populate the same wire payload; `forwardedProps` is preferred
   // and `body` is deprecated but still supported.
   createEffect(() => {
+    // Conditional spread: `updateOptions` declares strict-optional
+    // fields and rejects explicit `undefined` under EOPT.
     client().updateOptions({
-      body: options.body,
-      forwardedProps: options.forwardedProps,
+      ...(options.body !== undefined && { body: options.body }),
+      ...(options.forwardedProps !== undefined && {
+        forwardedProps: options.forwardedProps,
+      }),
     })
   })
 
