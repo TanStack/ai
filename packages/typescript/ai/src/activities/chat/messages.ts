@@ -32,6 +32,14 @@ function safeJsonStringify(value: unknown): string {
   }
 }
 
+function parseToolResultContent(content: string): unknown {
+  try {
+    return JSON.parse(content)
+  } catch {
+    return content
+  }
+}
+
 /**
  * Collapse an array of ContentParts into the most compact ModelMessage content:
  * - Empty array → null
@@ -468,10 +476,21 @@ export function modelMessagesToUIMessages(
         currentAssistantMessage &&
         currentAssistantMessage.role === 'assistant'
       ) {
+        const content = getTextContent(msg.content)
+        const toolCallPart = currentAssistantMessage.parts.find(
+          (part): part is ToolCallPart =>
+            part.type === 'tool-call' && part.id === msg.toolCallId,
+        )
+
+        if (toolCallPart) {
+          toolCallPart.output = parseToolResultContent(content)
+          toolCallPart.state = 'complete'
+        }
+
         currentAssistantMessage.parts.push({
           type: 'tool-result',
           toolCallId: msg.toolCallId,
-          content: getTextContent(msg.content),
+          content,
           state: 'complete',
         })
       } else {
