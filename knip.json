@@ -20,9 +20,6 @@
   ],
   "ignoreExportsUsedInFile": true,
   "workspaces": {
-    "packages/react-ai": {
-      "ignore": []
-    },
     "packages/typescript/ai": {
       "ignoreDependencies": ["@opentelemetry/api"]
     },

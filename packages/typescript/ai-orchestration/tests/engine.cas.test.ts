@@ -26,18 +26,24 @@ describe('CAS — idempotent retry', () => {
     // The scenario: client posts a signal, gets an SSE response back.
     // Network drops mid-response. Client retries with the same
     // signalId (generated once by the client lib, reused on retry).
-    // Server's second-attempt resume would replay through the log and
-    // then attempt to append at the same index — CAS catches that and
-    // the engine treats it as idempotent.
+    // Server's second-attempt resume replays through the log and
+    // finds the existing entry — CAS catches that and the engine
+    // treats it as idempotent: the user's `waitForSignal` already
+    // received the recorded payload, so the run continues to its next
+    // pause without re-applying the delivery.
+    //
+    // We use a two-stage workflow that pauses again after the first
+    // signal so the run state and step log survive across the retry.
     const wf = defineWorkflow({
-      name: 'idempotent-wf',
+      name: 'idempotent-two-stage',
       input: z.object({}).default({}),
-      output: z.object({ payload: z.any() }),
+      output: z.object({}).default({}),
       state: z.object({}).default({}),
       agents: {},
       run: async function* () {
-        const p = yield* waitForSignal<{ ok: boolean }>('go')
-        return { payload: p }
+        yield* waitForSignal<{ ok: boolean }>('first')
+        yield* waitForSignal('second')
+        return {}
       },
     })
 
@@ -51,8 +57,8 @@ describe('CAS — idempotent retry', () => {
       }),
     )
 
-    // First delivery — succeeds, run finishes.
-    const first = await collect(
+    // First delivery — the run advances to the second pause point.
+    await collect(
       runWorkflow({
         workflow: wf,
         runId: 'run-a',
@@ -60,7 +66,31 @@ describe('CAS — idempotent retry', () => {
         runStore: store,
       }),
     )
-    expect(first.find((e) => e.type === 'RUN_FINISHED')).toBeDefined()
+    const logAfterFirst = await store.getSteps('run-a')
+    expect(logAfterFirst).toHaveLength(1)
+    expect(logAfterFirst[0]?.signalId).toBe('same-id')
+
+    // Drop the live handle so the retry takes the replay path —
+    // mirrors a process restart between the dropped SSE and the
+    // client's retry.
+    simulateRestart(store)
+
+    // Retry delivery with the SAME signalId. The engine replays log[0]
+    // (already recorded with signalId 'same-id'), then on the next
+    // pending descriptor (the second signal) tries to append at index 1
+    // with the SAME signalId. The seed-consumption code treats this
+    // as an idempotent retry of the second signal rather than as a
+    // signal_lost — the run completes successfully.
+    const retry = await collect(
+      runWorkflow({
+        workflow: wf,
+        runId: 'run-a',
+        signalDelivery: { signalId: 'same-id', payload: { ok: true } },
+        runStore: store,
+      }),
+    )
+    expect(retry.find((e) => e.type === 'RUN_FINISHED')).toBeDefined()
+    expect(retry.find((e) => e.type === 'RUN_ERROR')).toBeUndefined()
   })
 
   it('retry through the replay path with same signalId is idempotent', async () => {

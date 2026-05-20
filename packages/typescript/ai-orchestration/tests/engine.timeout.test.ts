@@ -184,7 +184,7 @@ describe('step timeout', () => {
     const wf = defineWorkflow({
       name: 'retry-predicate-w-timeout',
       input: z.object({}).default({}),
-      output: z.object({ caughtImmediately: z.boolean() }),
+      output: z.object({ caughtImmediately: z.boolean(), attempts: z.number() }),
       state: z.object({}).default({}),
       agents: {},
       run: async function* () {
@@ -192,7 +192,10 @@ describe('step timeout', () => {
         try {
           yield* step(
             'timing-out',
-            () => new Promise(() => {}), // never resolves
+            () => {
+              callCount++
+              return new Promise(() => {})
+            },
             {
               timeout: 20,
               retry: {
@@ -206,41 +209,29 @@ describe('step timeout', () => {
         } catch (err) {
           caughtImmediately = err instanceof StepTimeoutError && callCount === 1
         }
-        return { caughtImmediately }
+        return { caughtImmediately, attempts: callCount }
       },
     })
 
     const store = inMemoryRunStore()
     callCount = 0
-    let timeoutFired = 0
-    const monkeyPatch = setInterval(() => {
-      // not used; just here to keep node alive
-    }, 10000)
-    try {
-      // Note: we can't easily observe attempts here since the fn
-      // never resolves. The shouldRetry predicate aborts after the
-      // first timeout. The test passes if the run completes
-      // quickly (i.e., retries did NOT keep trying).
-      const startedAt = Date.now()
-      const events = await collect(
-        runWorkflow({
-          workflow: wf,
-          input: {},
-          runStore: store,
-        }),
-      )
-      const elapsed = Date.now() - startedAt
-      // Should have stopped after the first timeout (~20ms) plus
-      // overhead. Five attempts would be 5*20 + 4*1 = 104ms+. We
-      // allow generous slack here for CI noise.
-      expect(elapsed).toBeLessThan(200)
-      // caughtImmediately can only be true if we caught a
-      // StepTimeoutError before retrying — exactly the predicate's
-      // contract.
-      expect(events.find((e) => e.type === 'RUN_FINISHED')).toBeDefined()
-      void timeoutFired
-    } finally {
-      clearInterval(monkeyPatch)
-    }
+    const startedAt = Date.now()
+    const events = await collect(
+      runWorkflow({
+        workflow: wf,
+        input: {},
+        runStore: store,
+      }),
+    )
+    const elapsed = Date.now() - startedAt
+    // Should have stopped after the first timeout (~20ms) plus overhead.
+    // Five attempts would be 5*20 + 4*1 = 104ms+. Allow CI slack.
+    expect(elapsed).toBeLessThan(200)
+    // The shouldRetry predicate must return false for StepTimeoutError,
+    // so we expect exactly one attempt and `caughtImmediately === true`.
+    expect(callCount).toBe(1)
+    expect(events.find((e) => e.type === 'RUN_FINISHED')).toMatchObject({
+      output: { caughtImmediately: true, attempts: 1 },
+    })
   })
 })

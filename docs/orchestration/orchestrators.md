@@ -268,8 +268,11 @@ Same surface as `useWorkflow`:
 | `output` | Final typed output. Populated on `finished`. |
 | `error` | `{ message, code? }` on error |
 | `pendingApproval` | Non-null while the run is paused awaiting approval — see [Approvals](./approvals) |
-| `start(input)` | Kick off a fresh run |
+| `pendingSignal` | Non-null while the run is paused on a `waitForSignal()` |
+| `start(input, { runId? })` | Kick off a fresh run. Pass `runId` to opt into client-supplied IDs (idempotent retry). |
 | `approve(approved, feedback?)` | Resolve a pending approval |
+| `signal(name, payload, { signalId? })` | Deliver a `waitForSignal()` payload |
+| `attach(runId)` | Read-only attach to an existing run |
 | `stop()` | Abort the run |
 
 ## Where to go next

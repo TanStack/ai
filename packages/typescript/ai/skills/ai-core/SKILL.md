@@ -10,7 +10,7 @@ description: >
   sandboxed LLM code execution see @tanstack/ai-code-mode.
 type: core
 library: tanstack-ai
-library_version: '0.10.0'
+library_version: '0.20.0'
 ---
 
 # TanStack AI — Core Concepts
@@ -58,8 +58,8 @@ Always import from the framework package on the client — never from
 3. **Use `toServerSentEventsResponse()`** to convert streams to HTTP responses. Never implement SSE manually.
 4. **Use middleware for lifecycle events.** No `onEnd`/`onFinish` callbacks on `chat()` — use `middleware: [{ onFinish: ... }]`.
 5. **Ask the user which adapter and model** they want. Suggest the latest model. Also ask if they want Code Mode.
-6. **Tools must be passed to both server and client.** Server gets the tool in `chat({ tools })`, client gets the definition in `useChat({ clientTools })`.
+6. **Tools must be passed to both server and client.** Server gets the tool in `chat({ tools })`. Client uses the `clientTools()` helper to build a typed array which is passed to `createChatClientOptions({ tools })` (or directly to `useChat({ tools })`).
 
 ## Version
 
-Targets TanStack AI v0.10.0.
+Targets TanStack AI v0.20.0.

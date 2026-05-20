@@ -197,7 +197,7 @@ export async function POST(request: Request) {
 }
 ```
 
-`parseWorkflowRequest` extracts the four fields the client sends: `input` (first call), `runId` + `approval` (resume after pause), or `abort: true` (stop signal). `runWorkflow` handles all three modes — see the [API reference](../api/ai-orchestration) for details.
+`parseWorkflowRequest` extracts the fields the client sends: `input` (first call), `runId` + `approval` or `signalDelivery` (resume after pause), or `abort: true` (stop signal). `runWorkflow` handles all the modes — see the [API reference](../api/ai-orchestration) for details.
 
 `inMemoryRunStore({ ttl })` is the default persistence. Runs that pause for approval are stored here until they resume or expire. For production you'll want a durable store — see [Run Persistence](./run-persistence).
 

@@ -19,15 +19,26 @@ This page covers what the store actually holds, the default in-memory implementa
 
 ## What's in a run store
 
-The `RunStore` interface is small:
+The `RunStore` interface has two halves — a `RunState` snapshot and an append-only step log used by the engine's replay path:
 
 ```typescript
 interface RunStore {
-  get: (runId: string) => Promise<RunState | undefined>;
-  set: (runId: string, state: RunState) => Promise<void>;
-  delete: (runId: string, reason: DeleteReason) => Promise<void>;
+  // State snapshot
+  getRunState: (runId: string) => Promise<RunState | undefined>;
+  setRunState: (runId: string, state: RunState) => Promise<void>;
+  deleteRun: (runId: string, reason: DeleteReason) => Promise<void>;
+
+  // Append-only step log (CAS)
+  appendStep: (
+    runId: string,
+    expectedNextIndex: number,
+    record: StepRecord,
+  ) => Promise<void>;
+  getSteps: (runId: string) => Promise<ReadonlyArray<StepRecord>>;
 }
 ```
+
+`appendStep` is contractually atomic — it throws `LogConflictError` if another writer has already committed at `expectedNextIndex`. The engine uses this to distinguish idempotent retries (same `signalId`) from lost races (different `signalId`).
 
 `RunState` is the serializable snapshot:
 
@@ -36,17 +47,25 @@ interface RunState<TInput = unknown, TState = unknown, TOutput = unknown> {
   runId: string;
   status: "running" | "paused" | "finished" | "error" | "aborted";
   workflowName: string;
+  workflowVersion?: string;
+  fingerprint?: string;
+  startingPatches?: ReadonlyArray<string>;
   input: TInput;
   state: TState;
   output?: TOutput;
   error?: { name: string; message: string; stack?: string };
   pendingApproval?: { approvalId: string; title: string; description?: string };
+  waitingFor?: {
+    signalName: string;
+    deadline?: number;
+    meta?: Record<string, unknown>;
+  };
   createdAt: number;
   updatedAt: number;
 }
 ```
 
-That's the wire format. Everything you'd need to *describe* a run without actually executing it.
+That's the wire format. Everything a host needs to *describe* a run without actually executing it. `fingerprint`, `workflowVersion`, and `startingPatches` are load-bearing for resume — the engine uses them on every replay to verify the deployed workflow's source hasn't drifted since the run started.
 
 ## What's *not* in the wire format
 
@@ -64,12 +83,13 @@ interface LiveRun {
   abortController: AbortController;
   approvalResolver?: (result: ApprovalResult) => void;
   pendingEvents: Array<StreamChunk>;
+  pendingApprovalStepId?: string;
 }
 ```
 
-The `generator`, `abortController`, and `approvalResolver` are *not* serializable. They're JavaScript references that only exist inside the process that started the run. When the engine resumes a paused run, it calls `getLive(runId)` to find the same in-process generator and `gen.next(approval)` to deliver the approval. That's also how `stop()` works — the route handler calls `runStore.getLive(runId)?.abortController.abort()`.
+The `generator`, `abortController`, and `approvalResolver` are *not* serializable. They're JavaScript references that only exist inside the process that started the run. When the engine resumes a paused run on the same node, it calls `getLive(runId)` to find the same in-process generator and `gen.next(approval)` to deliver the approval — the fast path. That's also how `stop()` works — the route handler calls `runStore.getLive(runId)?.abortController.abort()`.
 
-This is the key constraint: **pause-and-resume requires the same Node.js process** that started the run to still be alive when the resume request arrives.
+When the live handle is *not* available (different process after a restart or horizontal scale), the engine takes the **replay-from-log** path: it reconstructs the run by replaying every `StepRecord` from `getSteps(runId)` into a fresh generator until it reaches the pause point, then resumes from there. The fingerprint check guards against replaying into code that has drifted from the original source.
 
 ## The default: `inMemoryRunStore`
 
@@ -81,7 +101,9 @@ const runStore = inMemoryRunStore({
 });
 ```
 
-The TTL governs how long a `RunState` (and its live handle) survive after the last update. Each `set()` resets the timer. After the TTL expires, the entry is dropped — a resume request with that `runId` 404s.
+The TTL governs how long a `RunState` (and its live handle and step log) survive after the last update. Each `setRunState` / `appendStep` resets the timer. After the TTL expires, the entry is dropped — a resume request with that `runId` 404s.
+
+> **Note:** A run that pauses longer than the TTL with no intermediate engine activity will silently be deleted. For long-lived approvals or sleeps, raise `ttl` or use a durable store implementation.
 
 **Use it when:**
 
@@ -96,17 +118,22 @@ The TTL governs how long a `RunState` (and its live handle) survive after the la
 
 ## Going durable: what changes, what stays
 
-The `RunStore` interface is the easy part. Persist `RunState` to Postgres, Redis, DynamoDB — whatever fits. `set()` becomes an UPSERT, `get()` becomes a SELECT, `delete()` becomes a DELETE.
+The engine already implements replay-from-log — if a `RunStore` implementation persists `RunState` and the step log durably, the engine can resume across a process restart by replaying records into a fresh generator until it reaches the pause point. The `runWorkflow` options field is currently typed `runStore: InMemoryRunStore`, so swapping in a durable implementation today requires a cast; widening that to `RunStore` is on the roadmap.
 
-The hard part is the live generator. Today the engine assumes it can call `getLive(runId)` and find the same `AsyncGenerator` instance that yielded the approval. A durable store can't return that — generators don't serialize. So a true durable orchestrator needs one of two strategies:
+What a durable implementation needs:
 
-1. **Sticky resume.** Persist enough state that a fresh process can recreate the in-flight run by *replaying* events. This is the event-sourcing approach: every step result is written to the store, and on resume the engine reconstructs state by replaying past results into a fresh generator until it reaches the approval, then `gen.next(approval)` continues from there.
+- **`getRunState` / `setRunState` / `deleteRun`** — straightforward UPSERT / SELECT / DELETE on the run row.
+- **`appendStep` with atomic CAS** — the engine relies on the conflict semantics of `appendStep`. A Postgres implementation can use a unique constraint on `(run_id, index)`; Redis can use a Lua script with WATCH/MULTI; DynamoDB can use a conditional `PutItem`. Whatever you pick, the contract is: throw `LogConflictError` (with the existing record attached if cheaply available) when another writer already committed at `expectedNextIndex`.
+- **`getSteps` ordered ascending by index** — replay reads sequentially.
 
-2. **Re-route to the owning process.** Persist run state durably, but route resume requests back to the process that owns the live generator (via a session cookie, sticky load balancing, or a routing table keyed by `runId`).
+What you cannot persist:
 
-The package ships **only the in-memory store today.** A community / built-in durable implementation is on the roadmap. If you need durability now, the recommended path is option 2 — pin resume requests back to the originating instance, and treat `runStore.set()` as a "what was the last-known status" log for ops/debugging rather than a true durable substrate.
+- **The `LiveRun` handle** (generator, abort controller). Those are in-process JavaScript references. A pause-and-resume across processes goes through the replay path, not through `getLive`.
+- **The `pendingApprovalStepId`** field on `LiveRun` is also in-process — used only by the same-process fast path.
 
-> **Note:** If your orchestrator never calls `approve()` (workflows that run start-to-finish in a single request), durability isn't a concern — the run lives entirely inside one streaming response. The in-memory store is fine.
+The package ships **only the in-memory store today.** Implementing the `RunStore` interface is enough to enable cross-process resume; the engine's replay path doesn't need additional engine-side work.
+
+> **Note:** If your orchestrator never pauses (no `approve()`, no `waitForSignal`, no `sleep`), durability isn't a concern — the run lives entirely inside one streaming response. The in-memory store is fine.
 
 ## A custom in-memory store with extra bookkeeping
 
@@ -122,22 +149,26 @@ function observableRunStore(): InMemoryRunStore {
   const inner = inMemoryRunStore({ ttl: 60 * 60 * 1000 });
   return {
     ...inner,
-    async set(runId, state) {
+    async setRunState(runId, state) {
       metrics.increment("workflow.state.set", {
         status: state.status,
         workflow: state.workflowName,
       });
-      return inner.set(runId, state);
+      return inner.setRunState(runId, state);
     },
-    async delete(runId, reason) {
+    async deleteRun(runId, reason) {
       metrics.increment("workflow.state.delete", { reason });
-      return inner.delete(runId, reason);
+      return inner.deleteRun(runId, reason);
+    },
+    async appendStep(runId, expectedNextIndex, record) {
+      metrics.increment("workflow.step.append", { kind: record.kind });
+      return inner.appendStep(runId, expectedNextIndex, record);
     },
   };
 }
 ```
 
-Same shape, same engine semantics — just instrumented.
+Same shape, same engine semantics — just instrumented. The spread (`...inner`) preserves `getRunState`, `getSteps`, `setLive`, and `getLive` from the original store; the overrides instrument the mutating paths.
 
 ## Where to go next
 

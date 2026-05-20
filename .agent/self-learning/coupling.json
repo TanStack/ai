@@ -1,5 +1,4 @@
 {
-  "$schema": "./coupling.schema.json",
   "couplings": [
     {
       "id": "ai-source-touches-agent-skills",

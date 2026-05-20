@@ -175,7 +175,7 @@ describe('signal idempotency record', () => {
     )
     expect(start.some((e) => e.type === 'RUN_STARTED')).toBe(true)
 
-    await collect(
+    const resume = await collect(
       runWorkflow({
         workflow: wf,
         runId: 'r1',
@@ -187,14 +187,13 @@ describe('signal idempotency record', () => {
       }),
     )
 
-    // After resume the run is finished and the store entry was deleted
-    // — but we can inspect the log right after the resume completes by
-    // grabbing it during a paused state. Restructure: start, pause,
-    // grab log midway. Actually the test above already shows the log
-    // entry gets the signalId via the resume path. Let's verify with a
-    // workflow that pauses again after the signal so we can read the
-    // store mid-flight.
-    void 0
+    // The single-signal workflow finishes on resume, which means the
+    // signalDelivery was accepted and the payload reached user code.
+    // The store's step log gets deleted on finish, so the persisted
+    // signalId is verified instead by the multi-signal test below
+    // (which pauses again between signals so the log can be inspected
+    // mid-flight).
+    expect(resume.find((e) => e.type === 'RUN_FINISHED')).toBeDefined()
   })
 
   it('records signalId on the log for an interim signal in a multi-signal run', async () => {

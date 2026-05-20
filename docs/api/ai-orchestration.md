@@ -104,11 +104,14 @@ const pipeline = defineWorkflow({
 |---|---|---|
 | `name` | `string` | |
 | `description` | `string?` | |
+| `version` | `string?` | Caller-supplied version label (e.g. `'v1'`). Used by `selectWorkflowVersion` / `createWorkflowRegistry` to route resumes to the right version when running multiple versions side-by-side. |
+| `patches` | `ReadonlyArray<string>?` | Opt into patch-versioned fingerprint mode. Workflows declaring `patches` use a lighter fingerprint (name + sorted patches) so code-body changes don't trigger `workflow_version_mismatch` on resume; compatibility is enforced by the `startingPatches ⊆ current patches` check. |
+| `defaultStepRetry` | `StepRetryOptions?` | Fallback retry policy applied to `step()` calls that don't carry their own `{ retry }`. |
 | `input` | `StandardSchemaV1?` | |
 | `output` | `StandardSchemaV1?` | |
 | `state` | `StandardSchemaV1?` | Shape of mutable state available to the generator. |
 | `agents` | `AgentMap` | Record of `defineAgent(...)` or `defineWorkflow(...)` instances. |
-| `initialize` | `(args) => Partial<TState>?` | Seed initial state from input. |
+| `initialize` | `(args) => Partial<TState>` (optional field) | Seed initial state from input. The function itself is optional; when present it returns `Partial<TState>`. |
 | `run` | `(args) => AsyncGenerator<StepDescriptor, TOutput, unknown>` | Generator body. `yield*` agents to compose. |
 
 `run` argument: `{ input, state, agents, emit, signal }`. `state` is mutable. `agents` is the typed bound map — call `agents.someAgent({...})` and `yield*` the result.
@@ -242,13 +245,16 @@ export async function POST(request: Request) {
 | Option | Type | |
 |---|---|---|
 | `workflow` | `WorkflowDefinition` | Required. The workflow or orchestrator. |
-| `runStore` | `InMemoryRunStore` | Required. |
+| `runStore` | `InMemoryRunStore` | Required. (Engine accepts the in-memory shape today; widening to the general `RunStore` interface is on the roadmap.) |
 | `input` | `unknown?` | Provide on the *first* call to start a run. |
-| `runId` | `string?` | Provide alongside `approval` to resume a paused run. |
-| `approval` | `ApprovalResult?` | Provide alongside `runId` to resume. |
+| `runId` | `string?` | Provide alongside `approval` or `signalDelivery` to resume a paused run. Also accepted on a fresh start to opt into client-supplied IDs (idempotent retry then becomes possible). |
+| `approval` | `ApprovalResult?` | Provide alongside `runId` to resume a run paused on `approve()`. |
+| `signalDelivery` | `SignalResult?` | Provide alongside `runId` to resume a run paused on `waitForSignal()` / `sleep()`. Carries a `signalId` for idempotent retry. |
+| `attach` | `boolean?` | Read-only attach to an existing run (read snapshot + steps; do not drive). |
 | `signal` | `AbortSignal?` | Optional external abort. |
 | `threadId` | `string?` | Optional correlation ID surfaced in events. |
 | `outputSink` | `(output) => void?` | Called with the final output before the store entry is deleted. |
+| `publish` | `(runId, event) => Promise<void>?` | Multi-node publisher hook. Errors thrown by the hook are swallowed so a misbehaving publisher can't break the run. |
 
 Returns `AsyncIterable<StreamChunk>` — pipe directly to `toServerSentEventsResponse`.
 
@@ -258,12 +264,14 @@ Parse a POST body into `runWorkflow` params.
 
 ```typescript
 const params = await parseWorkflowRequest(request);
-// { input?, runId?, approval?, abort? }
+// { input?, runId?, approval?, signalDelivery?, abort? }
 ```
+
+The HTTP body field name for `signalDelivery` is `signal` — the parser renames it on the way through.
 
 ## `inMemoryRunStore(options)`
 
-Single-process run store. Holds `RunState` plus the live generator handle so the engine can resume in-process.
+Single-process run store. Holds `RunState`, the append-only step log, and the live generator handle so the engine can resume in-process.
 
 ```typescript
 const runStore = inMemoryRunStore({ ttl: 60 * 60 * 1000 });
@@ -271,7 +279,7 @@ const runStore = inMemoryRunStore({ ttl: 60 * 60 * 1000 });
 
 | Option | Default | |
 |---|---|---|
-| `ttl` | `60 * 60 * 1000` | TTL in ms. Resets on every `set()`. |
+| `ttl` | `60 * 60 * 1000` | TTL in ms. Resets on every `setRunState` / `appendStep`. After expiry the run state, live handle, and step log are dropped. |
 
 Returns `InMemoryRunStore` which extends `RunStore` with `setLive` / `getLive` for the engine-internal live generator handle.
 
@@ -318,14 +326,20 @@ try {
 | `AgentRunResult<TOutput>` | Union of the four allowable agent return shapes |
 | `WorkflowRunArgs<TInput, TState, TAgents>` | `{ input, state, agents, emit, signal }` |
 | `BoundAgents<TAgents>` | Typed callable map injected into workflow / router bodies |
-| `StepDescriptor` | What the engine sees on `yield`. Tagged `'agent' \| 'nested-workflow' \| 'approval'`. |
-| `StepGenerator<T>` | `Generator<StepDescriptor, T, any>` — what `agents.*(...)` returns. |
+| `StepDescriptor` | What the engine sees on `yield`. Tagged `'agent' \| 'nested-workflow' \| 'approval' \| 'step' \| 'signal' \| 'now' \| 'uuid' \| 'patched'`. |
+| `StepGenerator<T>` | `Generator<StepDescriptor, T, any>` — what `agents.*(...)` and the durable primitives return. |
+| `StepRecord` | Persisted record for a single step in the log. Tagged by `kind: StepKind`. |
+| `StepKind` | Union of step record kinds; matches the descriptor tag set. |
+| `StepRetryOptions` | `{ maxAttempts, backoff?, baseMs?, maxMs?, shouldRetry? }` — the `step({ retry })` policy shape. |
 | `ApprovalResult` | `{ approved, approvalId, feedback? }` |
-| `RouterDecision` | `{ done: true, output } \| { agent, input }` |
-| `RunState` | Serializable snapshot of a run. |
+| `SignalResult<TPayload>` | `{ signalId, payload }` — delivered to `waitForSignal()` pauses. |
+| `RouterDecision` | `{ done: true, output } \| { done?: false, agent, input }` |
+| `RunState` | Serializable snapshot of a run. Includes `workflowVersion`, `fingerprint`, `startingPatches`, `waitingFor` for durable resume. |
 | `RunStatus` | `'running' \| 'paused' \| 'finished' \| 'error' \| 'aborted'` |
-| `RunStore` | Persistence interface: `get` / `set` / `delete`. |
-| `InMemoryRunStore` | Extends `RunStore` with `setLive` / `getLive`. |
+| `RunStore` | Persistence interface: `getRunState` / `setRunState` / `deleteRun` / `appendStep` / `getSteps`. |
+| `InMemoryRunStore` | Extends `RunStore` with `setLive` / `getLive` for the in-process live generator handle. |
+| `LogConflictError` | Thrown by `appendStep` when another writer has already committed at `expectedNextIndex`. Carries `runId`, `attemptedIndex`, and optionally `existing` (the conflicting record). |
+| `StepTimeoutError` | Thrown when a `step({ timeout })` exceeds its wall-clock budget on a given attempt. |
 | `DeleteReason` | `'finished' \| 'error' \| 'aborted'` |
 | `EmitFn` | `(name, value) => void` |
 | `LiveRun` | Engine-internal live handle (live generator, abort controller, etc). |
@@ -334,9 +348,19 @@ try {
 
 The companion client hooks live in framework packages:
 
-- `useWorkflow` — `@tanstack/ai-react`, `@tanstack/ai-solid`, `@tanstack/ai-vue`, `@tanstack/ai-svelte`, `@tanstack/ai-preact`
+- `useWorkflow` — `@tanstack/ai-react` (and other framework packages as they land)
 - `useOrchestration` — same hook, re-exported under a routing-friendly name
 - `WorkflowClient` — `@tanstack/ai-client` for vanilla / non-React clients
-- `fetchWorkflowEvents(url, options?)` — connection adapter, exported from every framework package and `@tanstack/ai-client`
+- `fetchWorkflowEvents(url, options?)` — connection adapter, exported from `@tanstack/ai-client` and `@tanstack/ai-react`
+
+The hook exposes the following actions on the returned object:
+
+| Action | Signature | Purpose |
+|---|---|---|
+| `start` | `(input, options?: { runId? }) => Promise<void>` | Kick off a new run. Pass `runId` to opt into client-supplied IDs for idempotent retry. |
+| `approve` | `(approved, feedback?) => Promise<void>` | Resolve a pending approval. |
+| `signal` | `(name, payload, { signalId? }?) => Promise<void>` | Deliver a `waitForSignal()` payload. |
+| `attach` | `(runId) => Promise<void>` | Read-only attach to an existing run (browser refresh, second tab). |
+| `stop` | `() => void` | Abort the run. |
 
 See the framework-specific [`@tanstack/ai-react` reference](./ai-react) for hook signatures.

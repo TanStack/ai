@@ -31,8 +31,10 @@ describe('engine durability — step log', () => {
       run: async ({ input }) => ({ echoed: input.msg.toUpperCase() }),
     })
 
+    // Two agents then approve, so the run pauses before deleteRun
+    // fires and the step log is inspectable.
     const wf = defineWorkflow({
-      name: 'two-agent-wf',
+      name: 'two-agent-then-pause',
       input: z.object({ msg: z.string() }),
       output: z.object({}).default({}),
       state: z.object({}).default({}),
@@ -40,6 +42,7 @@ describe('engine durability — step log', () => {
       run: async function* ({ input, agents }) {
         yield* agents.echo({ msg: input.msg })
         yield* agents.echo({ msg: input.msg + '!' })
+        yield* approve({ title: 'pause to inspect log' })
         return {}
       },
     })
@@ -54,14 +57,20 @@ describe('engine durability — step log', () => {
     )
     const runId = findRunId(events)
 
-    // After the run finishes the engine deletes the store entry; the
-    // log we want to inspect lives on a *separate* call before
-    // deleteRun fires. Workaround: re-read inside a setImmediate after
-    // RUN_FINISHED... or simpler, run a pausing workflow to keep the
-    // entry alive. We use the pause-path test for that; here we just
-    // verify the events fired correctly.
-    expect(events.map((e) => e.type)).toContain('RUN_FINISHED')
-    void runId
+    // The stream paused before deleteRun ran. We can read the log.
+    const log = await store.getSteps(runId)
+    const agentRecords = log.filter((r) => r.kind === 'agent')
+    expect(agentRecords).toHaveLength(2)
+    expect(agentRecords[0]).toMatchObject({
+      kind: 'agent',
+      name: 'echo',
+      result: { echoed: 'HI' },
+    })
+    expect(agentRecords[1]).toMatchObject({
+      kind: 'agent',
+      name: 'echo',
+      result: { echoed: 'HI!' },
+    })
   })
 
   it('persists agent results to the log up to the approval pause', async () => {
