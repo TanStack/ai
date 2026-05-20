@@ -200,6 +200,7 @@ function createSegment(): AssistantSegment {
 function isToolCallIncluded(part: ToolCallPart): boolean {
   return (
     part.state === 'input-complete' ||
+    part.state === 'complete' ||
     part.state === 'approval-responded' ||
     part.output !== undefined
   )

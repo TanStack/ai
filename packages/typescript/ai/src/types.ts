@@ -40,6 +40,7 @@ export type ToolCallState =
   | 'input-complete' // All arguments received
   | 'approval-requested' // Waiting for user approval
   | 'approval-responded' // User has approved/denied
+  | 'complete' // Result is complete
 
 /**
  * Tool result states - track the lifecycle of a tool result

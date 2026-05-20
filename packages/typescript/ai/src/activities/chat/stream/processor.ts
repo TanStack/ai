@@ -378,6 +378,7 @@ export class StreamProcessor {
     // 3. It has a corresponding tool-result part (server tool completed)
     return toolParts.every(
       (part) =>
+        part.state === 'complete' ||
         part.state === 'approval-responded' ||
         (part.output !== undefined && !part.approval) ||
         toolResultIds.has(part.id),
