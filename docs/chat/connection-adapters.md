@@ -112,8 +112,7 @@ The factory receives the conversation messages plus any per-request `data` you p
 `rpcStream()` is identical in behavior to `stream()` but reads better at call sites that hand off to an RPC client. Use it when integrating with Cap'n Web, gRPC-Web, tRPC subscriptions, or any RPC framework that already returns an async iterable:
 
 ```typescript
-import { rpcStream } from "@tanstack/ai-client";
-import { useChat } from "@tanstack/ai-react";
+import { useChat, rpcStream } from "@tanstack/ai-react";
 import { api } from "./rpc-client";
 
 // `api.chat.stream` is your RPC method; it must return an AsyncIterable<StreamChunk>.
@@ -124,8 +123,6 @@ const { messages } = useChat({
 });
 ```
 
-> **Tip:** `rpcStream` isn't re-exported from the framework hook packages (`@tanstack/ai-react`, `-vue`, `-solid`, `-svelte`). Import it directly from `@tanstack/ai-client`. The same applies to `ConnectConnectionAdapter`, `SubscribeConnectionAdapter`, and `RunAgentInputContext`.
-
 ## Persistent Transports (WebSockets and Friends)
 
 A persistent transport — WebSocket, BroadcastChannel, postMessage between iframes, a shared worker — is fundamentally different from request/response. You open the channel **once**, then send and receive over it for the lifetime of the client. `stream()`/`connect()` can't model this cleanly because they assume one async iterable per request.
@@ -133,7 +130,7 @@ A persistent transport — WebSocket, BroadcastChannel, postMessage between ifra
 For these cases, implement the `SubscribeConnectionAdapter` interface directly. The shape (full definition in [The Adapter Interface](#the-adapter-interface)):
 
 ```typescript
-import type { SubscribeConnectionAdapter } from "@tanstack/ai-client";
+import type { SubscribeConnectionAdapter } from "@tanstack/ai-react";
 
 // subscribe(abortSignal?): AsyncIterable<StreamChunk>   — long-lived
 // send(messages, data?, abortSignal?, runContext?): Promise<void> — one per user message
@@ -147,11 +144,8 @@ The runtime correlates them: chunks emitted on the subscription queue between `s
 ### WebSocket example
 
 ```typescript
-import { useChat } from "@tanstack/ai-react";
-import type {
-  SubscribeConnectionAdapter,
-  StreamChunk,
-} from "@tanstack/ai-client";
+import { useChat, type SubscribeConnectionAdapter } from "@tanstack/ai-react";
+import type { StreamChunk } from "@tanstack/ai";
 
 function websocketConnection(url: string): SubscribeConnectionAdapter {
   const ws = new WebSocket(url);
@@ -261,11 +255,8 @@ The `fetchClient` must satisfy the standard `fetch` signature. `fetchHttpStream`
 When none of the built-ins fit but the transport is still request-scoped (one request per user message), implement `ConnectConnectionAdapter` directly. This is the lowest-level escape hatch short of going persistent:
 
 ```typescript
-import { useChat } from "@tanstack/ai-react";
-import type {
-  ConnectConnectionAdapter,
-  StreamChunk,
-} from "@tanstack/ai-client";
+import { useChat, type ConnectConnectionAdapter } from "@tanstack/ai-react";
+import type { StreamChunk } from "@tanstack/ai";
 
 const myAdapter: ConnectConnectionAdapter = {
   async *connect(messages, data, abortSignal, runContext) {
