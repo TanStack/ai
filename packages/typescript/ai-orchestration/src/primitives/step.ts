@@ -72,5 +72,6 @@ export function* step<T>(
     retry: options?.retry,
     timeout: options?.timeout,
   }
+  // eslint-disable-next-line no-restricted-syntax -- yield expression has unknown type; engine guarantees a T resume value (recorded step result)
   return (yield descriptor) as unknown as T
 }

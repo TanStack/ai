@@ -13,5 +13,6 @@ import type { StepDescriptor, StepGenerator } from '../types'
  */
 export function* now(): StepGenerator<number> {
   const descriptor: StepDescriptor = { kind: 'now' }
+  // eslint-disable-next-line no-restricted-syntax -- yield expression has unknown type; engine guarantees a number resume value (recorded timestamp)
   return (yield descriptor) as unknown as number
 }

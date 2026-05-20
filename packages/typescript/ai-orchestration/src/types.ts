@@ -441,7 +441,7 @@ export interface StepRecord {
  * (default) or surfaces it to user code (via `shouldRetry`).
  */
 export class StepTimeoutError extends Error {
-  readonly name = 'StepTimeoutError'
+  override readonly name = 'StepTimeoutError'
   constructor(
     public readonly stepName: string,
     public readonly timeoutMs: number,
@@ -463,7 +463,7 @@ export class StepTimeoutError extends Error {
  * distinguish CAS failure from other store errors.
  */
 export class LogConflictError extends Error {
-  readonly name = 'LogConflictError'
+  override readonly name = 'LogConflictError'
   constructor(
     public readonly runId: string,
     public readonly attemptedIndex: number,

@@ -223,6 +223,7 @@ export async function* runWorkflow(
   let knownRunId = options.runId
   for await (const event of inner()) {
     if (event.type === 'RUN_STARTED' && !knownRunId) {
+      // eslint-disable-next-line no-restricted-syntax -- StreamChunk is a discriminated union but TS doesn't narrow runId onto RUN_STARTED here; the emit-events helper sets it
       knownRunId = (event as unknown as { runId: string }).runId
     }
     if (options.publish && knownRunId) {
@@ -605,6 +606,7 @@ async function* resumeRun(
       status: 'running',
       updatedAt: Date.now(),
     },
+    // eslint-disable-next-line no-restricted-syntax -- generator is assigned on the next line; field is required to be non-optional in LiveRun
     generator: undefined as unknown as LiveRun['generator'],
     abortController,
     approvalResolver: undefined,

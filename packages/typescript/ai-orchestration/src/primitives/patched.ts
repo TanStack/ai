@@ -31,5 +31,6 @@ import type { StepDescriptor, StepGenerator } from '../types'
  */
 export function* patched(name: string): StepGenerator<boolean> {
   const descriptor: StepDescriptor = { kind: 'patched', name }
+  // eslint-disable-next-line no-restricted-syntax -- yield expression has unknown type; engine guarantees a boolean resume value (patch decision)
   return (yield descriptor) as unknown as boolean
 }
