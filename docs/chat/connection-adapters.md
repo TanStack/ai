@@ -63,8 +63,12 @@ const { messages } = useChat({
 **Static body.** Anything in `options.body` is merged into the AG-UI `forwardedProps` payload sent to your server. Per-message data passed to `sendMessage` wins over this:
 
 ```typescript
-fetchServerSentEvents("/api/chat", {
-  body: { provider: "openai", model: "gpt-5.1" },
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
+const { messages } = useChat({
+  connection: fetchServerSentEvents("/api/chat", {
+    body: { provider: "openai", model: "gpt-5.1" },
+  }),
 });
 ```
 
@@ -89,14 +93,13 @@ Server-side, write each chunk as `JSON.stringify(chunk) + "\n"` to the response 
 When your client can call into your server without going over HTTP — TanStack Start server functions, RSC streams, in-process tests — skip the transport entirely. `stream()` takes a factory that returns an `AsyncIterable<StreamChunk>` and wires it straight into the client:
 
 ```typescript
-import { stream } from "@tanstack/ai-client";
-import { useChat } from "@tanstack/ai-react";
+import { useChat, stream } from "@tanstack/ai-react";
 import { chatServerFn } from "./server/chat.server";
 
+// `chatServerFn` is a server function that returns an AsyncIterable<StreamChunk>,
+// e.g. the result of `chat({ adapter, model, messages })` on the server.
 const { messages } = useChat({
-  connection: stream(async function* (messages, data) {
-    yield* await chatServerFn({ messages, ...data });
-  }),
+  connection: stream((messages, data) => chatServerFn({ messages, ...data })),
 });
 ```
 
@@ -110,35 +113,30 @@ The factory receives the conversation messages plus any per-request `data` you p
 
 ```typescript
 import { rpcStream } from "@tanstack/ai-client";
+import { useChat } from "@tanstack/ai-react";
 import { api } from "./rpc-client";
 
-const connection = rpcStream((messages, data) =>
-  api.chat.stream({ messages, ...data })
-);
+// `api.chat.stream` is your RPC method; it must return an AsyncIterable<StreamChunk>.
+const { messages } = useChat({
+  connection: rpcStream((messages, data) =>
+    api.chat.stream({ messages, ...data }),
+  ),
+});
 ```
+
+> **Tip:** `rpcStream` isn't re-exported from the framework hook packages (`@tanstack/ai-react`, `-vue`, `-solid`, `-svelte`). Import it directly from `@tanstack/ai-client`. The same applies to `ConnectConnectionAdapter`, `SubscribeConnectionAdapter`, and `RunAgentInputContext`.
 
 ## Persistent Transports (WebSockets and Friends)
 
 A persistent transport — WebSocket, BroadcastChannel, postMessage between iframes, a shared worker — is fundamentally different from request/response. You open the channel **once**, then send and receive over it for the lifetime of the client. `stream()`/`connect()` can't model this cleanly because they assume one async iterable per request.
 
-For these cases, implement the `SubscribeConnectionAdapter` interface directly:
+For these cases, implement the `SubscribeConnectionAdapter` interface directly. The shape (full definition in [The Adapter Interface](#the-adapter-interface)):
 
 ```typescript
-import type {
-  SubscribeConnectionAdapter,
-  RunAgentInputContext,
-  StreamChunk,
-} from "@tanstack/ai-client";
+import type { SubscribeConnectionAdapter } from "@tanstack/ai-client";
 
-interface SubscribeConnectionAdapter {
-  subscribe(abortSignal?: AbortSignal): AsyncIterable<StreamChunk>;
-  send(
-    messages: UIMessage[] | ModelMessage[],
-    data?: Record<string, any>,
-    abortSignal?: AbortSignal,
-    runContext?: RunAgentInputContext,
-  ): Promise<void>;
-}
+// subscribe(abortSignal?): AsyncIterable<StreamChunk>   — long-lived
+// send(messages, data?, abortSignal?, runContext?): Promise<void> — one per user message
 ```
 
 - `subscribe()` is called **once** by the `ChatClient` and returns a long-lived async iterable of every chunk the channel produces.
@@ -149,6 +147,7 @@ The runtime correlates them: chunks emitted on the subscription queue between `s
 ### WebSocket example
 
 ```typescript
+import { useChat } from "@tanstack/ai-react";
 import type {
   SubscribeConnectionAdapter,
   StreamChunk,
@@ -156,36 +155,46 @@ import type {
 
 function websocketConnection(url: string): SubscribeConnectionAdapter {
   const ws = new WebSocket(url);
-  const queue: StreamChunk[] = [];
-  const waiters: Array<(chunk: StreamChunk | null) => void> = [];
+  const queue: Array<StreamChunk> = [];
+  let pending: ((chunk: StreamChunk | null) => void) | null = null;
+  let closed = false;
+
   const ready = new Promise<void>((resolve) => {
     ws.addEventListener("open", () => resolve(), { once: true });
   });
 
-  ws.addEventListener("message", (event) => {
-    const chunk: StreamChunk = JSON.parse(event.data);
-    const waiter = waiters.shift();
-    if (waiter) waiter(chunk);
-    else queue.push(chunk);
-  });
+  function deliver(chunk: StreamChunk | null) {
+    const resolve = pending;
+    if (resolve) {
+      pending = null;
+      resolve(chunk);
+    } else if (chunk !== null) {
+      queue.push(chunk);
+    }
+  }
 
+  ws.addEventListener("message", (event) => {
+    deliver(JSON.parse(event.data) as StreamChunk);
+  });
   ws.addEventListener("close", () => {
-    while (waiters.length) waiters.shift()!(null);
+    closed = true;
+    deliver(null);
   });
 
   return {
     async *subscribe(abortSignal) {
-      while (!abortSignal?.aborted) {
-        const chunk = queue.shift() ?? (await new Promise<StreamChunk | null>(
-          (resolve) => {
-            const onAbort = () => resolve(null);
-            waiters.push((c) => {
-              abortSignal?.removeEventListener("abort", onAbort);
-              resolve(c);
-            });
-            abortSignal?.addEventListener("abort", onAbort, { once: true });
-          },
-        ));
+      while (!abortSignal?.aborted && !closed) {
+        const buffered = queue.shift();
+        if (buffered !== undefined) {
+          yield buffered;
+          continue;
+        }
+        const chunk = await new Promise<StreamChunk | null>((resolve) => {
+          pending = resolve;
+          abortSignal?.addEventListener("abort", () => resolve(null), {
+            once: true,
+          });
+        });
         if (chunk === null) return;
         yield chunk;
       }
@@ -252,6 +261,7 @@ The `fetchClient` must satisfy the standard `fetch` signature. `fetchHttpStream`
 When none of the built-ins fit but the transport is still request-scoped (one request per user message), implement `ConnectConnectionAdapter` directly. This is the lowest-level escape hatch short of going persistent:
 
 ```typescript
+import { useChat } from "@tanstack/ai-react";
 import type {
   ConnectConnectionAdapter,
   StreamChunk,
@@ -272,12 +282,27 @@ const myAdapter: ConnectConnectionAdapter = {
     });
 
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (!response.body) throw new Error("Response has no body");
 
-    for await (const chunk of parseMyFormat(response)) {
-      yield chunk as StreamChunk;
+    // Example: newline-delimited JSON. Replace this loop with whatever
+    // framing your wire format uses, yielding one `StreamChunk` per event.
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        if (line.trim()) yield JSON.parse(line) as StreamChunk;
+      }
     }
   },
 };
+
+const { messages } = useChat({ connection: myAdapter });
 ```
 
 `runContext` carries `threadId`, `runId`, `clientTools`, and `forwardedProps`. Include them in your request payload so the server can build an AG-UI-compliant response. If your `connect` stream completes without emitting `RUN_FINISHED`, the runtime synthesizes one for you; if it throws, a `RUN_ERROR` is synthesized.
@@ -326,17 +351,25 @@ Internally, `ChatClient` normalizes both shapes to a single `subscribe`/`send` p
 Static headers go in `options.headers`:
 
 ```typescript
-fetchServerSentEvents("/api/chat", {
-  headers: { Authorization: `Bearer ${token}` },
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
+const { messages } = useChat({
+  connection: fetchServerSentEvents("/api/chat", {
+    headers: { Authorization: `Bearer ${token}` },
+  }),
 });
 ```
 
-For tokens that change per request (refresh tokens, short-lived JWTs), pass a function:
+For tokens that change per request (refresh tokens, short-lived JWTs), pass a function — it's called on every send, so the header always reflects the latest token:
 
 ```typescript
-fetchServerSentEvents("/api/chat", () => ({
-  headers: { Authorization: `Bearer ${getToken()}` },
-}));
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
+const { messages } = useChat({
+  connection: fetchServerSentEvents("/api/chat", () => ({
+    headers: { Authorization: `Bearer ${getToken()}` },
+  })),
+});
 ```
 
 Cookies are sent automatically when `credentials` is `"same-origin"` (default) or `"include"`.
