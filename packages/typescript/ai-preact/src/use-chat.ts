@@ -184,7 +184,7 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     async (result: {
       toolCallId: string
       tool: string
-      output: any
+      output: unknown
       state?: 'output-available' | 'output-error'
       errorText?: string
     }) => {
