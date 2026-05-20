@@ -73,7 +73,7 @@ Pick the journey that matches what you're building. The four guides under "Struc
 
 The streaming and multi-turn paths both build on `useChat({ outputSchema })`. The "with tools" path layers on top of either. Pick the one that describes your shipping shape — start there, follow the cross-links when you need a piece of another story.
 
-> **Note:** Server-side validation against your schema is always authoritative. The schema you pass to `useChat({ outputSchema })` on the client is used only for TypeScript inference — the schema you pass to `chat({ outputSchema })` on the server is what actually runs the validation.
+> **Note:** Server-side validation is **path-dependent**. For the non-streaming agentic path (`await chat({ outputSchema })`), the engine runs Standard Schema validation inside the finalization step and routes failures through `onError` (the awaited promise rejects). For the streaming path (`chat({ outputSchema, stream: true })`), validation is deliberately deferred to the consumer — the engine forwards the adapter-emitted `structured-output.complete` event verbatim, and consumers read the validated object from the `value.object` field (or call `parseWithStandardSchema` themselves on the raw text). The schema you pass to `useChat({ outputSchema })` on the client is used for TypeScript inference and (in `useChat`) for client-side `parsePartialJSON`-based progressive parsing — the typed-object guarantee comes from the server-side path you pick.
 
 ## Middleware integration
 
