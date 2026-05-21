@@ -181,15 +181,15 @@ The terminal event is a `CUSTOM` chunk: `{ type: 'CUSTOM', name: 'structured-out
 
 **Adapter coverage for streaming:**
 
-| Adapter                                                                                      | `outputSchema` + `stream: true`                                                                                                                  |
-| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `@tanstack/ai-openai` (Responses + Chat Completions)                                         | **Native combined mode (#605)** — schema wired into the regular `chatStream` call alongside `tools`; engine harvests JSON, no finalization round-trip |
-| `@tanstack/ai-anthropic` (Claude 4.5+ only)                                                  | **Native combined mode (#605)** — `output_config.format` + `tools` in one beta Messages call. Older Claude models fall back                       |
-| `@tanstack/ai-gemini` (Gemini 3.x only)                                                      | **Native combined mode (#605)** — `responseSchema` + `tools` in one `generateContentStream`. Gemini 2.x falls back                                |
-| `@tanstack/ai-grok` (Grok 4 family only)                                                     | **Native combined mode (#605)** — `response_format: json_schema` + `tools`. Grok 2 / 3 fall back                                                  |
-| `@tanstack/ai-openrouter`                                                                    | Native single-request stream (legacy `structuredOutputStream` path; per-call combined-mode lookup is a follow-up)                                |
-| `@tanstack/ai-groq`                                                                          | Legacy `structuredOutputStream` only (no tools — Groq's API rejects schema + tools + stream)                                                     |
-| All other adapters (ollama, older Claude, Gemini 2.x, Grok 2/3)                              | Fallback: runs non-streaming `structuredOutput`, emits one `structured-output.complete` event                                                    |
+| Adapter                                                         | `outputSchema` + `stream: true`                                                                                                                       |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@tanstack/ai-openai` (Responses + Chat Completions)            | **Native combined mode (#605)** — schema wired into the regular `chatStream` call alongside `tools`; engine harvests JSON, no finalization round-trip |
+| `@tanstack/ai-anthropic` (Claude 4.5+ only)                     | **Native combined mode (#605)** — `output_config.format` + `tools` in one beta Messages call. Older Claude models fall back                           |
+| `@tanstack/ai-gemini` (Gemini 3.x only)                         | **Native combined mode (#605)** — `responseSchema` + `tools` in one `generateContentStream`. Gemini 2.x falls back                                    |
+| `@tanstack/ai-grok` (Grok 4 family only)                        | **Native combined mode (#605)** — `response_format: json_schema` + `tools`. Grok 2 / 3 fall back                                                      |
+| `@tanstack/ai-openrouter`                                       | Native single-request stream (legacy `structuredOutputStream` path; per-call combined-mode lookup is a follow-up)                                     |
+| `@tanstack/ai-groq`                                             | Legacy `structuredOutputStream` only (no tools — Groq's API rejects schema + tools + stream)                                                          |
+| All other adapters (ollama, older Claude, Gemini 2.x, Grok 2/3) | Fallback: runs non-streaming `structuredOutput`, emits one `structured-output.complete` event                                                         |
 
 **Native combined mode vs fallback** is signaled by the adapter's
 optional `supportsCombinedToolsAndSchema(modelOptions)` method. When
