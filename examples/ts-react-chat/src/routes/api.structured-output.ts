@@ -189,9 +189,14 @@ function reasoningOptionsFor(
         return undefined
       }
       if (model.startsWith('claude-opus-4-7')) {
+        // Effort `'high'` matches "Claude will almost always think" per the
+        // adaptive-thinking docs — `'medium'` may skip thinking on simpler
+        // prompts (like the guitar recommendation used in this demo), which
+        // would leave the reasoning panel empty and obscure that thinking
+        // streaming works at all on 4.7.
         return {
           thinking: { type: 'adaptive' },
-          output_config: { effort: 'medium' },
+          output_config: { effort: 'high' },
         }
       }
       return { thinking: { type: 'enabled', budget_tokens: 1024 } }
