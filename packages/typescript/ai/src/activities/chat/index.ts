@@ -55,7 +55,6 @@ import type {
   ChatMiddleware,
   ChatMiddlewareConfig,
   ChatMiddlewareContext,
-  ChatMiddlewarePhase,
   StructuredOutputMiddlewareConfig,
 } from './middleware/types'
 import type { SystemPrompt } from '../../system-prompts'
