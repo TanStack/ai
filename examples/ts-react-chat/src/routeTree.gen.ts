@@ -10,7 +10,6 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as RealtimeRouteImport } from './routes/realtime'
-import { Route as Issue390ReproRouteImport } from './routes/issue-390-repro'
 import { Route as ImageGenRouteImport } from './routes/image-gen'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GenerationsVideoRouteImport } from './routes/generations.video'
@@ -26,7 +25,6 @@ import { Route as ApiTanchatRouteImport } from './routes/api.tanchat'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiStructuredOutputRouteImport } from './routes/api.structured-output'
 import { Route as ApiStructuredChatRouteImport } from './routes/api.structured-chat'
-import { Route as ApiIssue390ReproRouteImport } from './routes/api.issue-390-repro'
 import { Route as ApiImageGenRouteImport } from './routes/api.image-gen'
 import { Route as ExampleGuitarsIndexRouteImport } from './routes/example.guitars/index'
 import { Route as ExampleGuitarsGuitarIdRouteImport } from './routes/example.guitars/$guitarId'
@@ -38,11 +36,6 @@ import { Route as ApiGenerateAudioRouteImport } from './routes/api.generate.audi
 const RealtimeRoute = RealtimeRouteImport.update({
   id: '/realtime',
   path: '/realtime',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const Issue390ReproRoute = Issue390ReproRouteImport.update({
-  id: '/issue-390-repro',
-  path: '/issue-390-repro',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ImageGenRoute = ImageGenRouteImport.update({
@@ -123,11 +116,6 @@ const ApiStructuredChatRoute = ApiStructuredChatRouteImport.update({
   path: '/api/structured-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiIssue390ReproRoute = ApiIssue390ReproRouteImport.update({
-  id: '/api/issue-390-repro',
-  path: '/api/issue-390-repro',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiImageGenRoute = ApiImageGenRouteImport.update({
   id: '/api/image-gen',
   path: '/api/image-gen',
@@ -167,10 +155,8 @@ const ApiGenerateAudioRoute = ApiGenerateAudioRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/image-gen': typeof ImageGenRoute
-  '/issue-390-repro': typeof Issue390ReproRoute
   '/realtime': typeof RealtimeRoute
   '/api/image-gen': typeof ApiImageGenRoute
-  '/api/issue-390-repro': typeof ApiIssue390ReproRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -194,10 +180,8 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/image-gen': typeof ImageGenRoute
-  '/issue-390-repro': typeof Issue390ReproRoute
   '/realtime': typeof RealtimeRoute
   '/api/image-gen': typeof ApiImageGenRoute
-  '/api/issue-390-repro': typeof ApiIssue390ReproRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -222,10 +206,8 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/image-gen': typeof ImageGenRoute
-  '/issue-390-repro': typeof Issue390ReproRoute
   '/realtime': typeof RealtimeRoute
   '/api/image-gen': typeof ApiImageGenRoute
-  '/api/issue-390-repro': typeof ApiIssue390ReproRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -251,10 +233,8 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/image-gen'
-    | '/issue-390-repro'
     | '/realtime'
     | '/api/image-gen'
-    | '/api/issue-390-repro'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
@@ -278,10 +258,8 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/image-gen'
-    | '/issue-390-repro'
     | '/realtime'
     | '/api/image-gen'
-    | '/api/issue-390-repro'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
@@ -305,10 +283,8 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/image-gen'
-    | '/issue-390-repro'
     | '/realtime'
     | '/api/image-gen'
-    | '/api/issue-390-repro'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
@@ -333,10 +309,8 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ImageGenRoute: typeof ImageGenRoute
-  Issue390ReproRoute: typeof Issue390ReproRoute
   RealtimeRoute: typeof RealtimeRoute
   ApiImageGenRoute: typeof ApiImageGenRoute
-  ApiIssue390ReproRoute: typeof ApiIssue390ReproRoute
   ApiStructuredChatRoute: typeof ApiStructuredChatRoute
   ApiStructuredOutputRoute: typeof ApiStructuredOutputRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
@@ -365,13 +339,6 @@ declare module '@tanstack/react-router' {
       path: '/realtime'
       fullPath: '/realtime'
       preLoaderRoute: typeof RealtimeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/issue-390-repro': {
-      id: '/issue-390-repro'
-      path: '/issue-390-repro'
-      fullPath: '/issue-390-repro'
-      preLoaderRoute: typeof Issue390ReproRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/image-gen': {
@@ -479,13 +446,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiStructuredChatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/issue-390-repro': {
-      id: '/api/issue-390-repro'
-      path: '/api/issue-390-repro'
-      fullPath: '/api/issue-390-repro'
-      preLoaderRoute: typeof ApiIssue390ReproRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/image-gen': {
       id: '/api/image-gen'
       path: '/api/image-gen'
@@ -541,10 +501,8 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ImageGenRoute: ImageGenRoute,
-  Issue390ReproRoute: Issue390ReproRoute,
   RealtimeRoute: RealtimeRoute,
   ApiImageGenRoute: ApiImageGenRoute,
-  ApiIssue390ReproRoute: ApiIssue390ReproRoute,
   ApiStructuredChatRoute: ApiStructuredChatRoute,
   ApiStructuredOutputRoute: ApiStructuredOutputRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
