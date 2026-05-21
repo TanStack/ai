@@ -105,7 +105,7 @@ export function ChatInput({
         ref={inputRef as React.RefObject<HTMLInputElement>}
         type="text"
         value={value}
-        onChange={(e) => setValue((e.target as HTMLInputElement).value)}
+        onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => {
           if (submitOnEnter && e.key === 'Enter') {
             e.preventDefault()
@@ -127,15 +127,12 @@ export function ChatInput({
           transition: 'all 0.2s',
         }}
         onFocus={(e) => {
-          ;(e.target as HTMLInputElement).style.borderColor =
-            'rgba(249, 115, 22, 0.4)'
-          ;(e.target as HTMLInputElement).style.boxShadow =
-            '0 0 0 2px rgba(249, 115, 22, 0.2)'
+          e.target.style.borderColor = 'rgba(249, 115, 22, 0.4)'
+          e.target.style.boxShadow = '0 0 0 2px rgba(249, 115, 22, 0.2)'
         }}
         onBlur={(e) => {
-          ;(e.target as HTMLInputElement).style.borderColor =
-            'rgba(255, 255, 255, 0.1)'
-          ;(e.target as HTMLInputElement).style.boxShadow = 'none'
+          e.target.style.borderColor = 'rgba(255, 255, 255, 0.1)'
+          e.target.style.boxShadow = 'none'
         }}
       />
       <button
