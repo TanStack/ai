@@ -22,6 +22,7 @@ import { Route as ApiMiddlewareTestRouteImport } from './routes/api.middleware-t
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
+import { Route as ApiAnthropicBugTestRouteImport } from './routes/api.anthropic-bug-test'
 import { Route as ProviderFeatureRouteImport } from './routes/$provider/$feature'
 import { Route as ApiVideoStreamRouteImport } from './routes/api.video.stream'
 import { Route as ApiTtsStreamRouteImport } from './routes/api.tts.stream'
@@ -94,6 +95,11 @@ const ApiAudioRoute = ApiAudioRouteImport.update({
   path: '/api/audio',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAnthropicBugTestRoute = ApiAnthropicBugTestRouteImport.update({
+  id: '/api/anthropic-bug-test',
+  path: '/api/anthropic-bug-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProviderFeatureRoute = ProviderFeatureRouteImport.update({
   id: '/$provider/$feature',
   path: '/$provider/$feature',
@@ -130,6 +136,7 @@ export interface FileRoutesByFullPath {
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
+  '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
@@ -151,6 +158,7 @@ export interface FileRoutesByTo {
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
+  '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
@@ -173,6 +181,7 @@ export interface FileRoutesById {
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
+  '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
@@ -196,6 +205,7 @@ export interface FileRouteTypes {
     | '/middleware-test'
     | '/tools-test'
     | '/$provider/$feature'
+    | '/api/anthropic-bug-test'
     | '/api/audio'
     | '/api/chat'
     | '/api/image'
@@ -217,6 +227,7 @@ export interface FileRouteTypes {
     | '/middleware-test'
     | '/tools-test'
     | '/$provider/$feature'
+    | '/api/anthropic-bug-test'
     | '/api/audio'
     | '/api/chat'
     | '/api/image'
@@ -238,6 +249,7 @@ export interface FileRouteTypes {
     | '/middleware-test'
     | '/tools-test'
     | '/$provider/$feature'
+    | '/api/anthropic-bug-test'
     | '/api/audio'
     | '/api/chat'
     | '/api/image'
@@ -260,6 +272,7 @@ export interface RootRouteChildren {
   MiddlewareTestRoute: typeof MiddlewareTestRoute
   ToolsTestRoute: typeof ToolsTestRoute
   ProviderFeatureRoute: typeof ProviderFeatureRoute
+  ApiAnthropicBugTestRoute: typeof ApiAnthropicBugTestRoute
   ApiAudioRoute: typeof ApiAudioRouteWithChildren
   ApiChatRoute: typeof ApiChatRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
@@ -363,6 +376,13 @@ declare module '@tanstack/react-router' {
       path: '/api/audio'
       fullPath: '/api/audio'
       preLoaderRoute: typeof ApiAudioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/anthropic-bug-test': {
+      id: '/api/anthropic-bug-test'
+      path: '/api/anthropic-bug-test'
+      fullPath: '/api/anthropic-bug-test'
+      preLoaderRoute: typeof ApiAnthropicBugTestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$provider/$feature': {
@@ -473,6 +493,7 @@ const rootRouteChildren: RootRouteChildren = {
   MiddlewareTestRoute: MiddlewareTestRoute,
   ToolsTestRoute: ToolsTestRoute,
   ProviderFeatureRoute: ProviderFeatureRoute,
+  ApiAnthropicBugTestRoute: ApiAnthropicBugTestRoute,
   ApiAudioRoute: ApiAudioRouteWithChildren,
   ApiChatRoute: ApiChatRoute,
   ApiImageRoute: ApiImageRouteWithChildren,

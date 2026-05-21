@@ -43,6 +43,14 @@ export default async function globalSetup() {
   mock.mount('/v1/text-to-speech', elevenLabsTTSMount())
   mock.mount('/v1/speech-to-text', elevenLabsSTTMount())
 
+  // Anthropic server_tool_use bug reproduction (issue #604). aimock can't
+  // natively synthesize `server_tool_use` / `web_fetch_tool_result` content
+  // blocks, so this mount hand-crafts the raw SSE Claude would emit when a
+  // client `tool_use` is followed by a `web_fetch` `server_tool_use` in the
+  // same response. The corresponding api.anthropic-bug-test.ts route points
+  // the Anthropic adapter here.
+  mock.mount('/anthropic-bug-test', anthropicServerToolBugMount())
+
   await mock.start()
   console.log(`[aimock] started on port 4010`)
   ;(globalThis as any).__aimock = mock
@@ -229,6 +237,191 @@ function elevenLabsSTTMount(): Mountable {
       return true
     },
   }
+}
+
+/**
+ * Mounts a Claude-shaped SSE response that includes a client `tool_use` block
+ * followed by a `web_fetch` `server_tool_use` block, plus its
+ * `web_fetch_tool_result`. Reproduces the streaming scenario from issue #604
+ * — the adapter must not let server-tool `input_json_delta`s leak into the
+ * prior client tool's input buffer.
+ *
+ * The first turn returns the mixed tool_use + server_tool_use response so the
+ * adapter can dispatch the client tool. The second turn (after the client
+ * tool result is fed back) returns a simple text completion so the agent
+ * loop can settle.
+ */
+function anthropicServerToolBugMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      // The Anthropic SDK posts to /v1/messages; query string (?beta=...)
+      // is stripped from `pathname` by aimock before dispatch.
+      if (req.method !== 'POST' || !pathname.startsWith('/v1/messages')) {
+        return false
+      }
+
+      const bodyText = await readBody(req)
+      let hasToolResult = false
+      try {
+        const body = JSON.parse(bodyText) as {
+          messages?: Array<{
+            role: string
+            content?: Array<{ type: string }> | string
+          }>
+        }
+        hasToolResult = (body.messages ?? []).some(
+          (m) =>
+            Array.isArray(m.content) &&
+            m.content.some((c) => c.type === 'tool_result'),
+        )
+      } catch {
+        // Malformed body — fall through and emit the first-turn stream.
+      }
+
+      const events = hasToolResult
+        ? buildFollowUpEvents()
+        : buildToolPlusServerToolEvents()
+
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'text/event-stream')
+      res.setHeader('Cache-Control', 'no-cache')
+      res.setHeader('Connection', 'keep-alive')
+      for (const event of events) {
+        res.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`)
+      }
+      res.end()
+      return true
+    },
+  }
+}
+
+function buildToolPlusServerToolEvents(): Array<Record<string, unknown>> {
+  const messageId = 'msg_bug_604'
+  const model = 'claude-sonnet-4-5'
+  return [
+    {
+      type: 'message_start',
+      message: {
+        id: messageId,
+        type: 'message',
+        role: 'assistant',
+        content: [],
+        model,
+        stop_reason: null,
+        stop_sequence: null,
+        usage: { input_tokens: 10, output_tokens: 0 },
+      },
+    },
+    {
+      type: 'content_block_start',
+      index: 0,
+      content_block: {
+        type: 'tool_use',
+        id: 'toolu_client_weather',
+        name: 'lookup_weather',
+        input: {},
+      },
+    },
+    {
+      type: 'content_block_delta',
+      index: 0,
+      delta: { type: 'input_json_delta', partial_json: '{"location":"Berlin"}' },
+    },
+    { type: 'content_block_stop', index: 0 },
+    {
+      type: 'content_block_start',
+      index: 1,
+      content_block: {
+        type: 'server_tool_use',
+        id: 'srvtoolu_web_fetch',
+        name: 'web_fetch',
+        input: {},
+      },
+    },
+    {
+      type: 'content_block_delta',
+      index: 1,
+      delta: {
+        type: 'input_json_delta',
+        partial_json: '{"url":"https://example.com"}',
+      },
+    },
+    { type: 'content_block_stop', index: 1 },
+    {
+      type: 'content_block_start',
+      index: 2,
+      content_block: {
+        type: 'web_fetch_tool_result',
+        tool_use_id: 'srvtoolu_web_fetch',
+        content: {
+          type: 'web_fetch_result',
+          url: 'https://example.com',
+          content: {
+            type: 'document',
+            source: { type: 'text', media_type: 'text/plain', data: 'ok' },
+          },
+          retrieved_at: '2026-01-01T00:00:00Z',
+        },
+      },
+    },
+    { type: 'content_block_stop', index: 2 },
+    {
+      type: 'message_delta',
+      delta: { stop_reason: 'tool_use', stop_sequence: null },
+      usage: { output_tokens: 20 },
+    },
+    { type: 'message_stop' },
+  ]
+}
+
+function buildFollowUpEvents(): Array<Record<string, unknown>> {
+  const messageId = 'msg_bug_604_followup'
+  const model = 'claude-sonnet-4-5'
+  return [
+    {
+      type: 'message_start',
+      message: {
+        id: messageId,
+        type: 'message',
+        role: 'assistant',
+        content: [],
+        model,
+        stop_reason: null,
+        stop_sequence: null,
+        usage: { input_tokens: 30, output_tokens: 0 },
+      },
+    },
+    {
+      type: 'content_block_start',
+      index: 0,
+      content_block: { type: 'text', text: '' },
+    },
+    {
+      type: 'content_block_delta',
+      index: 0,
+      delta: { type: 'text_delta', text: 'Berlin is sunny.' },
+    },
+    { type: 'content_block_stop', index: 0 },
+    {
+      type: 'message_delta',
+      delta: { stop_reason: 'end_turn', stop_sequence: null },
+      usage: { output_tokens: 5 },
+    },
+    { type: 'message_stop' },
+  ]
+}
+
+function readBody(req: http.IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const chunks: Array<Buffer> = []
+    req.on('data', (c: Buffer) => chunks.push(c))
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')))
+    req.on('error', reject)
+  })
 }
 
 function drainBody(req: http.IncomingMessage): Promise<void> {
