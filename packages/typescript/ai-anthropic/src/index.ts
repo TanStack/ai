@@ -29,7 +29,10 @@ export type {
   AnthropicChatModelToolCapabilitiesByName,
   AnthropicModelInputModalitiesByName,
 } from './model-meta'
-export { ANTHROPIC_MODELS } from './model-meta'
+export {
+  ANTHROPIC_MODELS,
+  ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS,
+} from './model-meta'
 export type {
   AnthropicTextMetadata,
   AnthropicImageMetadata,

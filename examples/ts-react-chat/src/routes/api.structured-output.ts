@@ -1,7 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiChatCompletions, openaiText } from '@tanstack/ai-openai'
-import { anthropicText } from '@tanstack/ai-anthropic'
+import {
+  ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS,
+  anthropicText,
+} from '@tanstack/ai-anthropic'
 import { grokText } from '@tanstack/ai-grok'
 import { groqText } from '@tanstack/ai-groq'
 import {
@@ -167,15 +170,19 @@ function reasoningOptionsFor(
       // option to inject here.
       return undefined
     case 'anthropic':
-      // Claude 4.5+ extended thinking surfaces via REASONING_* events when
+      // Claude extended thinking surfaces via REASONING_* events when
       // enabled. budget_tokens is in addition to max_tokens, so keep it
-      // modest for the demo. Older Claude models (e.g. 3-5-haiku) reject
-      // the field — caller should drop this case there.
-      if (
-        model?.startsWith('claude-opus-4-') ||
-        model?.startsWith('claude-sonnet-4-') ||
-        model?.startsWith('claude-haiku-4-')
-      ) {
+      // modest for the demo.
+      //
+      // Gating *strictly* to combined-mode-capable models matters: if we
+      // enabled thinking on a legacy-path model, the engine's
+      // forced-tool-use finalization workaround triggers the API error
+      // "Thinking may not be enabled when tool_choice forces tool use".
+      // Sharing the exported set with the adapter's
+      // `supportsCombinedToolsAndSchema()` keeps the two checks from
+      // drifting (model-meta uses both `-` and `.` separators across
+      // releases, which would otherwise be easy to get wrong here).
+      if (model && ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(model)) {
         return { thinking: { type: 'enabled', budget_tokens: 1024 } }
       }
       return undefined
