@@ -127,7 +127,7 @@ export class MiddlewareRunner {
           current = { ...current, ...result }
           if (!skip) {
             this.logger.config(
-              `middleware=${mw.name ?? 'unnamed'} keys=${Object.keys(result as object).join(',')}`,
+              `middleware=${mw.name ?? 'unnamed'} keys=${Object.keys(result).join(',')}`,
               {
                 middleware: mw.name ?? 'unnamed',
                 changes: result,
