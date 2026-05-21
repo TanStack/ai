@@ -189,13 +189,21 @@ function reasoningOptionsFor(
         return undefined
       }
       if (model.startsWith('claude-opus-4-7')) {
-        // Effort `'high'` matches "Claude will almost always think" per the
-        // adaptive-thinking docs — `'medium'` may skip thinking on simpler
-        // prompts (like the guitar recommendation used in this demo), which
-        // would leave the reasoning panel empty and obscure that thinking
-        // streaming works at all on 4.7.
+        // Two 4.7-specific quirks vs 4.5/4.6:
+        //
+        //   1. Manual extended thinking (`type: 'enabled'` + `budget_tokens`)
+        //      is rejected with HTTP 400 — adaptive is the only supported
+        //      mode.
+        //   2. The default for `display` flipped from `'summarized'` (on
+        //      4.6) to `'omitted'` (on 4.7). Without `display: 'summarized'`
+        //      the API still streams a thinking content block but only
+        //      emits `signature_delta` events, no `thinking_delta` — so the
+        //      reasoning panel stays empty even when the model IS thinking.
+        //
+        // `effort: 'high'` keeps "Claude will almost always think" so the
+        // demo reliably shows the streaming reasoning surface.
         return {
-          thinking: { type: 'adaptive' },
+          thinking: { type: 'adaptive', display: 'summarized' },
           output_config: { effort: 'high' },
         }
       }

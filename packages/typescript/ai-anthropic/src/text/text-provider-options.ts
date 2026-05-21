@@ -134,6 +134,19 @@ export interface AnthropicAdaptiveThinkingOptions {
   thinking?:
     | {
         type: 'adaptive'
+        /**
+         * Controls what (if any) thinking content is streamed back.
+         *
+         * - `'summarized'`: stream summarized thinking via `thinking_delta`
+         *   events (the user-visible reasoning text).
+         * - `'omitted'`: stream the thinking block's `signature_delta` only
+         *   (no reasoning text reaches the client).
+         *
+         * On Claude Opus 4.6 the default is `'summarized'`. On
+         * Claude Opus 4.7 the default flipped to `'omitted'` — callers
+         * must set `'summarized'` explicitly to get the reasoning text.
+         */
+        display?: 'summarized' | 'omitted'
       }
     | {
         /**
