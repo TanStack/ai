@@ -408,6 +408,35 @@ describe('onStructuredOutputConfig transforms', () => {
 
     expect(calls).toHaveLength(1)
   })
+
+  it('can replace messages before the final structured-output call', async () => {
+    const calls: Recorder = []
+    const adapter = makeAdapter({ recordStructuredCalls: calls })
+
+    const replaced = [
+      { role: 'user' as const, content: 'REPLACED — extract a person' },
+    ]
+    const replacer: ChatMiddleware = {
+      name: 'replace-messages',
+      onStructuredOutputConfig() {
+        return { messages: replaced }
+      },
+    }
+
+    await chat({
+      adapter,
+      messages: [{ role: 'user', content: 'original message' }],
+      outputSchema: PersonSchema,
+      middleware: [replacer],
+    })
+
+    expect(calls).toHaveLength(1)
+    const sentMessages = (
+      calls[0]!.chatOptions as { messages: Array<{ content: string }> }
+    ).messages
+    expect(sentMessages).toHaveLength(1)
+    expect(sentMessages[0]!.content).toBe('REPLACED — extract a person')
+  })
 })
 
 describe('failure paths', () => {
@@ -473,6 +502,89 @@ describe('failure paths', () => {
 
     expect(hookLog.filter((h) => h === 'onError')).toHaveLength(1)
     expect(hookLog.filter((h) => h === 'onFinish')).toHaveLength(0)
+  })
+
+  it('mid-finalization abort routes through onAbort with phase=structuredOutput', async () => {
+    const hookLog: Array<{
+      hook: 'onAbort' | 'onFinish' | 'onError'
+      phase: ChatMiddlewarePhase
+    }> = []
+
+    let abortPhaseSeen: ChatMiddlewarePhase | undefined
+
+    const aborter: ChatMiddleware = {
+      name: 'aborter',
+      onChunk(ctx) {
+        if (ctx.phase === 'structuredOutput' && !abortPhaseSeen) {
+          abortPhaseSeen = ctx.phase
+          ctx.abort('mid-finalization abort')
+        }
+      },
+      onAbort(ctx) {
+        hookLog.push({ hook: 'onAbort', phase: ctx.phase })
+      },
+      onFinish(ctx) {
+        hookLog.push({ hook: 'onFinish', phase: ctx.phase })
+      },
+      onError(ctx) {
+        hookLog.push({ hook: 'onError', phase: ctx.phase })
+      },
+    }
+
+    const adapter = makeAdapter({})
+
+    await chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Give me a person' }],
+      outputSchema: PersonSchema,
+      middleware: [aborter],
+    }).catch(() => {
+      // chat() rejects when middleware aborts; we only care about hook routing
+    })
+
+    expect(hookLog.filter((h) => h.hook === 'onAbort')).toHaveLength(1)
+    expect(hookLog.filter((h) => h.hook === 'onFinish')).toHaveLength(0)
+    expect(hookLog.filter((h) => h.hook === 'onError')).toHaveLength(0)
+    expect(hookLog[0]!.phase).toBe('structuredOutput')
+  })
+
+  it('validation failure preserves Standard Schema issues[] on the error received by onError', async () => {
+    let capturedError: unknown = undefined
+    const recorder: ChatMiddleware = {
+      name: 'recorder',
+      onError(_ctx, info) {
+        capturedError = info.error
+      },
+    }
+
+    const { adapter } = createMockAdapter({
+      structuredOutput: async () => ({
+        data: { name: 'Alice', age: 'not-a-number' },
+        rawText: JSON.stringify({ name: 'Alice', age: 'not-a-number' }),
+      }),
+    })
+
+    await expect(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Give me a person' }],
+        outputSchema: PersonSchema,
+        middleware: [recorder],
+      }),
+    ).rejects.toThrow()
+
+    // The error reaching onError has its `cause` set to the original
+    // StandardSchemaValidationError, whose `issues` array exposes each
+    // validator failure (path, message, expected/received) for programmatic
+    // inspection.
+    expect(capturedError).toBeInstanceOf(Error)
+    const errWithCause = capturedError as { cause?: unknown; code?: unknown }
+    expect(errWithCause.code).toBe('structured-output-validation-failed')
+    expect(errWithCause.cause).toBeDefined()
+    const cause = errWithCause.cause as { name?: string; issues?: unknown }
+    expect(cause.name).toBe('StandardSchemaValidationError')
+    expect(Array.isArray(cause.issues)).toBe(true)
+    expect((cause.issues as Array<unknown>).length).toBeGreaterThan(0)
   })
 
   it('empty stream produces missing-result error', async () => {

@@ -377,7 +377,7 @@ class TextEngine<
 
   private readonly logger: InternalLogger
 
-  // Structured-output finalization state (set by runStructuredFinalization in Task 7)
+  // Structured-output finalization state (populated by runStructuredFinalization)
   private structuredOutputResult: { data: unknown; rawText: string } | null =
     null
   // Holds the validated value when `finalStructuredOutput.validate` is provided
@@ -563,43 +563,49 @@ class TextEngine<
         return
       }
 
-      do {
-        if (this.earlyTermination || this.isCancelled()) {
-          return
-        }
+      // Skip the agent loop entirely when there are no tools AND a structured-
+      // output finalization will run. Without tools the model has nothing to
+      // do in the loop, so executing one iteration would burn an extra
+      // provider call before the finalization request.
+      const skipAgentLoop =
+        !!this.finalStructuredOutput && this.tools.length === 0
 
-        this.logger.agentLoop(`iteration=${this.middlewareCtx.iteration}`, {
-          iteration: this.middlewareCtx.iteration,
-        })
+      if (!skipAgentLoop) {
+        do {
+          if (this.earlyTermination || this.isCancelled()) {
+            return
+          }
 
-        await this.beginCycle()
+          this.logger.agentLoop(`iteration=${this.middlewareCtx.iteration}`, {
+            iteration: this.middlewareCtx.iteration,
+          })
 
-        if (this.cyclePhase === 'processText') {
-          // Run onConfig before each model call (phase = beforeModel)
-          this.middlewareCtx.phase = 'beforeModel'
-          this.middlewareCtx.iteration = this.iterationCount
-          const iterConfig = this.buildMiddlewareConfig()
-          const transformedConfig = await this.middlewareRunner.runOnConfig(
-            this.middlewareCtx,
-            iterConfig,
-          )
-          this.applyMiddlewareConfig(transformedConfig)
+          await this.beginCycle()
 
-          yield* this.streamModelResponse()
-        } else {
-          yield* this.processToolCalls()
-        }
+          if (this.cyclePhase === 'processText') {
+            // Run onConfig before each model call (phase = beforeModel)
+            this.middlewareCtx.phase = 'beforeModel'
+            this.middlewareCtx.iteration = this.iterationCount
+            const iterConfig = this.buildMiddlewareConfig()
+            const transformedConfig = await this.middlewareRunner.runOnConfig(
+              this.middlewareCtx,
+              iterConfig,
+            )
+            this.applyMiddlewareConfig(transformedConfig)
 
-        this.endCycle()
-      } while (this.shouldContinue())
+            yield* this.streamModelResponse()
+          } else {
+            yield* this.processToolCalls()
+          }
+
+          this.endCycle()
+        } while (this.shouldContinue())
+      }
 
       this.logger.agentLoop('run finished', {
         finishReason: this.lastFinishReason,
       })
 
-      // ============================================================
-      // Structured-output finalization (new — closes issue #390)
-      // ============================================================
       // After the agent loop ends, if a structured-output finalization was
       // requested AND the run hasn't already errored/aborted, run it through
       // the middleware pipeline. The terminal hook fires once at the very
@@ -1604,9 +1610,13 @@ class TextEngine<
 
     this.middlewareCtx.phase = 'structuredOutput'
 
-    // Build the structured-output config view
+    // Build the structured-output config view. `tools` is intentionally
+    // excluded from the type because it isn't forwarded to the structured-
+    // output adapter call — including it here would be misleading API.
+    const baseConfig = this.buildMiddlewareConfig()
+    const { tools: _omitTools, ...baseWithoutTools } = baseConfig
     let structuredConfig: StructuredOutputMiddlewareConfig = {
-      ...this.buildMiddlewareConfig(),
+      ...baseWithoutTools,
       outputSchema: this.finalStructuredOutput.jsonSchema,
     }
 
@@ -1616,11 +1626,15 @@ class TextEngine<
       structuredConfig,
     )
 
-    // 2) onConfig — phase-aware general-purpose middleware re-runs at the boundary
+    // 2) onConfig — phase-aware general-purpose middleware re-runs at the
+    // boundary. Re-attach the engine's current tools so onConfig observers
+    // see the live tool set (they still won't be forwarded to the structured
+    // call — same constraint applies — but the view is consistent with the
+    // ChatMiddlewareConfig shape).
     const { outputSchema: pinnedSchema, ...chatConfigSlice } = structuredConfig
     const postOnConfig = await this.middlewareRunner.runOnConfig(
       this.middlewareCtx,
-      chatConfigSlice,
+      { ...chatConfigSlice, tools: baseConfig.tools },
     )
 
     // Apply merged config back to engine state
@@ -1648,10 +1662,20 @@ class TextEngine<
       outputSchema: pinnedSchema,
     }
 
-    // Select the provider call: native streaming if available, else synthesized fallback
+    // Select the provider call: native streaming if available, else synthesized fallback.
+    // The fallback path captures the original adapter error so the engine can
+    // attach it as `finalizationError.cause` (the RUN_ERROR wire shape only
+    // carries `message` and `code`, losing stack/cause/provider properties).
+    let fallbackAdapterError: unknown = undefined
     const providerStream = this.adapter.structuredOutputStream
       ? this.adapter.structuredOutputStream(structuredCallOptions)
-      : fallbackStructuredOutputStream(this.adapter, structuredCallOptions)
+      : fallbackStructuredOutputStream(
+          this.adapter,
+          structuredCallOptions,
+          (err) => {
+            fallbackAdapterError = err
+          },
+        )
 
     // ============================================================
     // structured-output.start synthesis
@@ -1800,6 +1824,9 @@ class TextEngine<
         this.finalizationError = {
           message: chunk.message,
           ...(chunk.code ? { code: chunk.code } : {}),
+          ...(fallbackAdapterError !== undefined
+            ? { cause: fallbackAdapterError }
+            : {}),
         }
       }
 
@@ -1861,26 +1888,7 @@ class TextEngine<
         this.validatedStructuredOutput = validated
         this.hasValidatedStructuredOutput = true
       } catch (err: unknown) {
-        // Surface the most informative message we can extract without
-        // landing on "[object Object]" for plain-object errors (e.g. some
-        // Standard Schema validators throw `{ issues: [...] }`).
-        let message: string
-        if (err instanceof Error) {
-          message = err.message
-        } else if (
-          typeof err === 'object' &&
-          err !== null &&
-          'message' in err &&
-          typeof (err as { message: unknown }).message === 'string'
-        ) {
-          message = (err as { message: string }).message
-        } else {
-          try {
-            message = JSON.stringify(err)
-          } catch {
-            message = String(err)
-          }
-        }
+        const message = err instanceof Error ? err.message : String(err)
         this.finalizationError = {
           message,
           code: 'structured-output-validation-failed',
@@ -2320,10 +2328,17 @@ function readStructuredOutputCompleteValue(
  * Synthesize a streaming structured-output stream by wrapping a non-streaming
  * `structuredOutput` call. Used when an adapter doesn't implement
  * `structuredOutputStream` natively.
+ *
+ * `onAdapterError`, when provided, is invoked with the raw error from
+ * `adapter.structuredOutput` before the synthesized RUN_ERROR is yielded.
+ * The engine uses this to preserve the original error (stack, cause, custom
+ * properties like provider `status`/`code`) as `finalizationError.cause`,
+ * because the RUN_ERROR wire shape only carries `message` and `code`.
  */
 async function* fallbackStructuredOutputStream(
   adapter: AnyTextAdapter,
   options: StructuredOutputOptions<Record<string, unknown>>,
+  onAdapterError?: (err: unknown) => void,
 ): AsyncIterable<StreamChunk> {
   const { chatOptions } = options
   // Synthesize run/thread/message IDs only when the caller didn't supply them.
@@ -2349,7 +2364,8 @@ async function* fallbackStructuredOutputStream(
   try {
     result = await adapter.structuredOutput(options)
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
+    onAdapterError?.(error)
+    const message = error instanceof Error ? error.message : String(error)
     yield {
       type: EventType.RUN_ERROR,
       runId,

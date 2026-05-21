@@ -53,7 +53,10 @@ export {
 } from './activities/chat/tools/tool-definition'
 
 // Schema conversion (Standard JSON Schema compliant)
-export { convertSchemaToJsonSchema } from './activities/chat/tools/schema-converter'
+export {
+  convertSchemaToJsonSchema,
+  StandardSchemaValidationError,
+} from './activities/chat/tools/schema-converter'
 
 // Stream utilities
 export {

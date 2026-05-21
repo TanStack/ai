@@ -520,4 +520,41 @@ describe('chat({ outputSchema, stream: true })', () => {
       expect(firstContentIndex).toBeLessThan(completeIndex)
     })
   })
+
+  describe('agent-loop short-circuit', () => {
+    it('skips chatStream when no tools are configured (no extra provider call before finalization)', async () => {
+      let chatStreamCalls = 0
+      let structuredStreamCalls = 0
+      const adapter: AnyTextAdapter = {
+        ...makeAdapter({
+          structuredOutputStream: () => {
+            structuredStreamCalls++
+            return (async function* () {
+              for (const c of structuredStreamChunks(
+                JSON.stringify(validPerson),
+                validPerson,
+              ))
+                yield c
+            })()
+          },
+        }),
+        chatStream: () => {
+          chatStreamCalls++
+          return (async function* () {})()
+        },
+      } as AnyTextAdapter
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'extract' }],
+        outputSchema: PersonSchema,
+        stream: true,
+      })
+
+      await collectChunks(stream as unknown as AsyncIterable<StreamChunk>)
+
+      expect(chatStreamCalls).toBe(0)
+      expect(structuredStreamCalls).toBe(1)
+    })
+  })
 })
