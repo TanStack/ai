@@ -46,7 +46,9 @@ export interface SummarizeAdapter<
   /**
    * Summarize the given text
    */
-  summarize: (options: SummarizationOptions) => Promise<SummarizationResult>
+  summarize: (
+    options: SummarizationOptions<TProviderOptions>,
+  ) => Promise<SummarizationResult>
 
   /**
    * Stream summarization of the given text.
@@ -54,7 +56,7 @@ export interface SummarizeAdapter<
    * non-streaming summarize and yield the result as a single chunk.
    */
   summarizeStream?: (
-    options: SummarizationOptions,
+    options: SummarizationOptions<TProviderOptions>,
   ) => AsyncIterable<StreamChunk>
 }
 
@@ -91,7 +93,7 @@ export abstract class BaseSummarizeAdapter<
   }
 
   abstract summarize(
-    options: SummarizationOptions,
+    options: SummarizationOptions<TProviderOptions>,
   ): Promise<SummarizationResult>
 
   /**
@@ -99,7 +101,9 @@ export abstract class BaseSummarizeAdapter<
    * Override this method in concrete implementations to enable streaming.
    * If not overridden, the activity layer will fall back to non-streaming.
    */
-  summarizeStream?(options: SummarizationOptions): AsyncIterable<StreamChunk>
+  summarizeStream?(
+    options: SummarizationOptions<TProviderOptions>,
+  ): AsyncIterable<StreamChunk>
 
   protected generateId(): string {
     return `${this.name}-${Date.now()}-${Math.random().toString(36).substring(7)}`

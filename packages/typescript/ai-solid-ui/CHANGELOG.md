@@ -1,5 +1,67 @@
 # @tanstack/ai-solid-ui
 
+## 0.6.7
+
+### Patch Changes
+
+- Tighten TypeScript safety: enable `noImplicitOverride`, ([#579](https://github.com/TanStack/ai/pull/579))
+  `noFallthroughCasesInSwitch`, and `useDefineForClassFields` in the
+  root `tsconfig.json`; add a typed-ESLint block scoped to
+  `packages/typescript/*/src/**` that turns on `no-floating-promises`,
+  `no-misused-promises`, `await-thenable`,
+  `switch-exhaustiveness-check`, `consistent-type-exports`,
+  `prefer-readonly`, and `no-non-null-assertion` (errors), plus
+  `no-explicit-any` (warning). `@ts-ignore` and `@ts-nocheck` are
+  disallowed in library source via `@typescript-eslint/ban-ts-comment`,
+  and `as unknown as <T>` double-casts are blocked by a
+  `no-restricted-syntax` rule (escape hatches available with an inline
+  reason). Two flags from the original five-flag set —
+  `noPropertyAccessFromIndexSignature` and `exactOptionalPropertyTypes`
+  — were tried and rolled back: they produced ~500 lines of bracket-
+  access and conditional-spread churn without catching any real bugs,
+  and `exactOptionalPropertyTypes` would have forced consumers using
+  it themselves to deal with our internals' style preferences.
+
+  User-visible API surface is unchanged; this is a hardening pass to
+  keep streaming/agent-loop correctness and discriminated-union
+  exhaustiveness honest going forward. See issue #564.
+
+- Updated dependencies []:
+  - @tanstack/ai-client@0.11.3
+  - @tanstack/ai-solid@0.10.3
+
+## 0.6.6
+
+### Patch Changes
+
+- Updated dependencies [[`2e0e2eb`](https://github.com/TanStack/ai/commit/2e0e2eb72684aac82e570d57767656e218289b49)]:
+  - @tanstack/ai-client@0.11.0
+  - @tanstack/ai-solid@0.10.0
+
+## 0.6.5
+
+### Patch Changes
+
+- Updated dependencies [[`a9d1916`](https://github.com/TanStack/ai/commit/a9d19165a5028515cf1d091d611c8ac4b5b86099)]:
+  - @tanstack/ai-client@0.10.0
+  - @tanstack/ai-solid@0.9.0
+
+## 0.6.4
+
+### Patch Changes
+
+- Updated dependencies [[`98979f7`](https://github.com/TanStack/ai/commit/98979f7e72f4b5bfb816fb14b60a12871f8c4bec)]:
+  - @tanstack/ai-solid@0.8.0
+  - @tanstack/ai-client@0.9.2
+
+## 0.6.3
+
+### Patch Changes
+
+- Updated dependencies [[`b2d3cc1`](https://github.com/TanStack/ai/commit/b2d3cc131a31c54bd1e5841f958fbe333514e508), [`13cceae`](https://github.com/TanStack/ai/commit/13cceaedf64e398ca15b8dbbbfe215329ea26794)]:
+  - @tanstack/ai-client@0.9.0
+  - @tanstack/ai-solid@0.7.1
+
 ## 0.6.2
 
 ### Patch Changes

@@ -1,40 +1,27 @@
-import type OpenAI from 'openai'
-import type { ProviderTool, Tool } from '@tanstack/ai'
+import { computerUseTool as baseComputerUseTool } from '@tanstack/openai-base'
+import type { ProviderTool } from '@tanstack/ai'
+import type { ComputerUseToolConfig } from '@tanstack/openai-base'
 
-export type ComputerUseToolConfig = OpenAI.Responses.ComputerTool
+export {
+  type ComputerUseToolConfig,
+  type ComputerUseTool,
+  convertComputerUseToolToAdapterFormat,
+} from '@tanstack/openai-base'
 
-/** @deprecated Renamed to `ComputerUseToolConfig`. Will be removed in a future release. */
-export type ComputerUseTool = ComputerUseToolConfig
-
+// The brand discriminator (`computer_use`) intentionally differs from the
+// runtime tool name (`computer_use_preview`). The brand matches the model-meta
+// tool-capability union (`tools: ['computer_use', ...]`) used to gate which
+// models can construct this tool at compile time, while the runtime name
+// matches the OpenAI SDK's literal `'computer_use_preview'` that the
+// special-tool dispatcher in `convertToolsToProviderFormat` switches on.
 export type OpenAIComputerUseTool = ProviderTool<'openai', 'computer_use'>
 
 /**
- * Converts a standard Tool to OpenAI ComputerUseTool format
- */
-export function convertComputerUseToolToAdapterFormat(
-  tool: Tool,
-): ComputerUseToolConfig {
-  const metadata = tool.metadata as ComputerUseToolConfig
-  return {
-    type: 'computer_use_preview',
-    display_height: metadata.display_height,
-    display_width: metadata.display_width,
-    environment: metadata.environment,
-  }
-}
-
-/**
- * Creates a standard Tool from ComputerUseTool parameters
+ * Creates a standard Tool from ComputerUseTool parameters, branded as an
+ * OpenAI provider tool.
  */
 export function computerUseTool(
   toolData: ComputerUseToolConfig,
 ): OpenAIComputerUseTool {
-  // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
-  return {
-    name: 'computer_use_preview',
-    description: 'Control a virtual computer',
-    metadata: {
-      ...toolData,
-    },
-  } as unknown as OpenAIComputerUseTool
+  return baseComputerUseTool(toolData) as OpenAIComputerUseTool
 }

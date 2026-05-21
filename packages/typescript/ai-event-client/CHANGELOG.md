@@ -1,5 +1,155 @@
 # @tanstack/ai-event-client
 
+## 0.3.6
+
+### Patch Changes
+
+- Updated dependencies [[`2ad137b`](https://github.com/TanStack/ai/commit/2ad137bd22512248bd1684cccce35ba89597cf96)]:
+  - @tanstack/ai@0.20.1
+
+## 0.3.5
+
+### Patch Changes
+
+- feat(ai): `systemPrompts` accept `{ content, metadata }` with adapter-inferred metadata typing ([#575](https://github.com/TanStack/ai/pull/575))
+
+  `chat({ systemPrompts })` now accepts either a plain string (the existing
+  shape — fully backward compatible) or `{ content, metadata }`. The `metadata`
+  field's type is inferred from the adapter via a new
+  `TSystemPromptMetadata` generic on `TextAdapter` / `BaseTextAdapter`:
+  - `@tanstack/ai-anthropic` declares `AnthropicSystemPromptMetadata` →
+    users get `cache_control` autocomplete and type-checking on
+    `systemPrompts[i].metadata` for Anthropic chats.
+  - Adapters with no per-prompt metadata (OpenAI, Gemini, Ollama,
+    OpenRouter, openai-base) inherit the default `never`, which means the
+    `metadata` field carries no meaningful value at the call site —
+    TypeScript only accepts `undefined` there. Provider-foreign metadata
+    that reaches an adapter via JS / `as any` is silently dropped, never
+    written to the wire.
+
+  ```ts
+  import { chat } from '@tanstack/ai'
+  import { anthropicText } from '@tanstack/ai-anthropic'
+
+  // Anthropic — `cache_control` is autocompleted, no `satisfies` needed.
+  chat({
+    adapter: anthropicText({ apiKey }, 'claude-sonnet-4-6'),
+    systemPrompts: [
+      {
+        content: 'Stable instructions — cache me.',
+        metadata: { cache_control: { type: 'ephemeral' } },
+      },
+      'Volatile per-request instruction.',
+    ],
+  })
+
+  // OpenAI — `metadata` is `never`; only `undefined` is assignable, so the
+  // field is effectively unusable. The object form without `metadata` still
+  // works for portability.
+  chat({
+    adapter: openaiText({ apiKey }, 'gpt-4o-mini'),
+    systemPrompts: [
+      'Plain string.',
+      { content: 'Object form without metadata is allowed.' },
+    ],
+  })
+  ```
+
+  New exports:
+  - `@tanstack/ai`: `SystemPrompt`, `NormalizedSystemPrompt` types and the
+    `normalizeSystemPrompts()` helper adapters use to normalize the wide
+    input shape to `{ content, metadata? }` before consumption.
+  - `@tanstack/ai-anthropic`: `AnthropicSystemPromptMetadata` interface
+    (currently exposes `cache_control` for prompt caching).
+
+  Internal:
+  - New `TSystemPromptMetadata = never` generic on `TextAdapter` /
+    `BaseTextAdapter`, surfaced via `'~types'['systemPromptMetadata']`
+    for inference at the `chat()` call site.
+  - Anthropic adapter reads `metadata.cache_control` and attaches it to
+    the corresponding `TextBlockParam`.
+  - All other text adapters call `normalizeSystemPrompts()` and join
+    `.content` for their respective `instructions` / `system` /
+    `systemInstruction` fields. Foreign metadata that reaches them via JS
+    / `as any` is dropped (never written to the wire).
+  - `normalizeSystemPrompts()` is the public API boundary and throws
+    `TypeError` (naming the offending index) for object-form entries whose
+    `content` isn't a string — preventing literal `"undefined"` from
+    reaching the model on stale call sites.
+  - OpenTelemetry middleware attaches per-prompt metadata as the
+    `tanstack.ai.system_prompt.metadata` JSON span attribute when
+    `captureContent: true` and at least one entry carries metadata, so
+    observability backends can distinguish cache hit/miss for Anthropic.
+  - `@tanstack/ai-event-client` mirrors the `SystemPrompt` shape locally
+    (avoids a circular import) and projects metadata away on the devtools
+    wire — devtools UI still receives `Array<string>`.
+
+- Updated dependencies [[`496db9c`](https://github.com/TanStack/ai/commit/496db9c42a7d3051a1295091eae29ae1c31ef997)]:
+  - @tanstack/ai@0.20.0
+
+## 0.3.4
+
+### Patch Changes
+
+- Updated dependencies [[`617b5b5`](https://github.com/TanStack/ai/commit/617b5b512a6b3989c442efa41975dacc194d882a)]:
+  - @tanstack/ai@0.19.1
+
+## 0.3.3
+
+### Patch Changes
+
+- Updated dependencies [[`2e0e2eb`](https://github.com/TanStack/ai/commit/2e0e2eb72684aac82e570d57767656e218289b49)]:
+  - @tanstack/ai@0.19.0
+
+## 0.3.2
+
+### Patch Changes
+
+- Updated dependencies [[`a9d1916`](https://github.com/TanStack/ai/commit/a9d19165a5028515cf1d091d611c8ac4b5b86099), [`e810153`](https://github.com/TanStack/ai/commit/e810153b34e593d3f3e1bbd8050164a6ad4423ed)]:
+  - @tanstack/ai@0.18.0
+
+## 0.3.1
+
+### Patch Changes
+
+- Updated dependencies [[`98979f7`](https://github.com/TanStack/ai/commit/98979f7e72f4b5bfb816fb14b60a12871f8c4bec), [`02527c2`](https://github.com/TanStack/ai/commit/02527c28c3285829535cd486e529e659260b3c5d)]:
+  - @tanstack/ai@0.17.0
+
+## 0.3.0
+
+### Minor Changes
+
+- fix(ai-gemini): read/write thoughtSignature at Part level + thread typed metadata through tool-call lifecycle ([#459](https://github.com/TanStack/ai/pull/459))
+
+  Two fixes shipped together because the adapter fix is only effective once the framework also preserves provider metadata across the tool-call round-trip.
+
+  **Adapter (Gemini):** Gemini emits `thoughtSignature` as a Part-level sibling of `functionCall` (per the `@google/genai` `Part` type definition), not nested inside `functionCall`. The `FunctionCall` type has never had a `thoughtSignature` property. The adapter was reading from `functionCall.thoughtSignature` (does not exist in SDK types) and writing it back nested inside `functionCall`, causing Gemini 3.x to reject subsequent tool-call turns with `400 INVALID_ARGUMENT: "Function call is missing a thought_signature"`.
+  - **Read side:** reads `part.thoughtSignature` directly using the SDK's typed `Part` interface
+  - **Write side:** emits `thoughtSignature` as a Part-level sibling of `functionCall`
+
+  **Framework (typed tool-call metadata):**
+  - `ToolCall.providerMetadata: Record<string, unknown>` is now `ToolCall<TMetadata>.metadata?: TMetadata`, mirroring the existing typed-metadata pattern on content parts (`ImagePart<TMetadata>`, `AudioPart<TMetadata>`, etc.).
+  - `ToolCallPart` gains a typed `metadata?: TMetadata` field (also generic).
+  - `ToolCallStartEvent.providerMetadata` becomes `metadata` (kept as `Record<string, unknown>` because the AGUIEvent discriminated union does not survive a generic on the event type; adapters cast to their typed shape when emitting).
+  - `BaseTextAdapter` and `TextAdapter` gain a sixth generic `TToolCallMetadata` (default `unknown`), exposed via `~types.toolCallMetadata` for inference at call sites.
+  - `InternalToolCallState` gains a `metadata?: Record<string, unknown>` field captured at `TOOL_CALL_START` and threaded through `updateToolCallPart`, `buildAssistantMessages`, `modelMessageToUIMessage`, and `completeToolCall`, fixing a previously-silent drop of provider metadata across the client-side UIMessage pipeline (closes the gap surfaced in #403/#404).
+
+  **Gemini concrete impl:** new `GeminiToolCallMetadata { thoughtSignature?: string }` exported from `@tanstack/ai-gemini`. The adapter declares its `TToolCallMetadata` as this type, so consumers see `toolCall.metadata?.thoughtSignature` typed end-to-end.
+
+  **Breaking:** consumers reading `toolCall.providerMetadata` or `toolCallStartEvent.providerMetadata` should rename to `metadata`.
+
+### Patch Changes
+
+- Updated dependencies [[`87f305c`](https://github.com/TanStack/ai/commit/87f305c9961d608fd7bea93a5100698a98aed11d)]:
+  - @tanstack/ai@0.16.0
+
+## 0.2.9
+
+### Patch Changes
+
+- Updated dependencies [[`a4e2c55`](https://github.com/TanStack/ai/commit/a4e2c55a79490c2245ff2de2d3e1803a533c867b), [`82078bd`](https://github.com/TanStack/ai/commit/82078bdabe28d7d4a15a2847d667f363bf0a9cbe), [`b2d3cc1`](https://github.com/TanStack/ai/commit/b2d3cc131a31c54bd1e5841f958fbe333514e508)]:
+  - @tanstack/ai@0.15.0
+
 ## 0.2.8
 
 ### Patch Changes

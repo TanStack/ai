@@ -41,7 +41,7 @@ const app = express()
 app.use(express.json())
 
 app.post('/api/chat', async (req, res) => {
-  const { messages, conversationId } = req.body
+  const { messages } = req.body
 
   if (!process.env.OPENAI_API_KEY) {
     res.status(500).json({ error: 'OPENAI_API_KEY not configured' })
@@ -49,10 +49,11 @@ app.post('/api/chat', async (req, res) => {
   }
 
   try {
+    // `chat()` uses the AG-UI `threadId` for devtools correlation
+    // when available — no need to plumb `conversationId` manually.
     const stream = chat({
       adapter: openaiText('gpt-4o'),
       messages,
-      conversationId,
     })
 
     const response = toServerSentEventsResponse(stream)

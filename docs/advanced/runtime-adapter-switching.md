@@ -34,11 +34,12 @@ const adapters = {
 }
 
 // In your request handler:
-const provider: Provider = request.body.provider || 'openai'
+const body = await request.json()
+const provider: Provider = body.forwardedProps?.provider || 'openai'
 
 const stream = chat({
   adapter: adapters[provider](),
-  messages,
+  messages: body.messages,
 })
 ```
 
@@ -89,15 +90,16 @@ export const Route = createFileRoute('/api/chat')({
       POST: async ({ request }) => {
         const abortController = new AbortController()
         const body = await request.json()
-        const { messages, data } = body
-
-        const provider: Provider = data?.provider || 'openai'
+        // `forwardedProps` is the AG-UI field set by `useChat({ forwardedProps })`.
+        // The legacy `body.data.provider` access still works (mirrored on the
+        // wire for backward compatibility) but `forwardedProps` is preferred.
+        const provider: Provider = body.forwardedProps?.provider || 'openai'
 
         const stream = chat({
           adapter: adapters[provider](),
           tools: [...],
           systemPrompts: [...],
-          messages,
+          messages: body.messages,
           abortController,
         })
 

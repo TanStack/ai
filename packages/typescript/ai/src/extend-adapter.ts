@@ -65,7 +65,7 @@ export function createModel<
   return {
     name,
     input,
-    modelOptions: {} as unknown,
+    modelOptions: {},
   }
 }
 

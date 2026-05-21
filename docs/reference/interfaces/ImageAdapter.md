@@ -34,7 +34,7 @@ Generic parameters:
 
 ### TModelSizeByName
 
-`TModelSizeByName` *extends* `Record`\<`string`, `string`\> = `Record`\<`string`, `string`\>
+`TModelSizeByName` *extends* `Record`\<`string`, `string` \| `undefined`\> = `Record`\<`string`, `string`\>
 
 ## Properties
 
@@ -44,7 +44,7 @@ Generic parameters:
 ~types: object;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateImage/adapter.ts:49](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateImage/adapter.ts#L49)
+Defined in: [packages/typescript/ai/src/activities/generateImage/adapter.ts:52](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateImage/adapter.ts#L52)
 
 **`Internal`**
 
@@ -76,7 +76,7 @@ providerOptions: TProviderOptions;
 generateImages: (options) => Promise<ImageGenerationResult>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateImage/adapter.ts:58](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateImage/adapter.ts#L58)
+Defined in: [packages/typescript/ai/src/activities/generateImage/adapter.ts:61](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateImage/adapter.ts#L61)
 
 Generate images from a prompt
 
@@ -98,7 +98,7 @@ Generate images from a prompt
 readonly kind: "image";
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateImage/adapter.ts:40](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateImage/adapter.ts#L40)
+Defined in: [packages/typescript/ai/src/activities/generateImage/adapter.ts:43](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateImage/adapter.ts#L43)
 
 Discriminator for adapter kind - used by generate() to determine API shape
 
@@ -110,7 +110,7 @@ Discriminator for adapter kind - used by generate() to determine API shape
 readonly model: TModel;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateImage/adapter.ts:44](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateImage/adapter.ts#L44)
+Defined in: [packages/typescript/ai/src/activities/generateImage/adapter.ts:47](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateImage/adapter.ts#L47)
 
 The model this adapter is configured for
 
@@ -122,6 +122,6 @@ The model this adapter is configured for
 readonly name: string;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateImage/adapter.ts:42](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateImage/adapter.ts#L42)
+Defined in: [packages/typescript/ai/src/activities/generateImage/adapter.ts:45](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateImage/adapter.ts#L45)
 
 Adapter name identifier

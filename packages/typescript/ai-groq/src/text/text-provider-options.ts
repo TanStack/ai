@@ -1,6 +1,4 @@
 import type {
-  ChatCompletionMessageParam,
-  ChatCompletionTool,
   ChatCompletionToolChoiceOption,
   CompoundCustom,
   Document,
@@ -186,40 +184,6 @@ export interface GroqTextProviderOptions {
 }
 
 /**
- * Internal options interface used for validation within the adapter.
- * Extends provider options with required fields for API requests.
- */
-export interface InternalTextProviderOptions extends GroqTextProviderOptions {
-  /** An array of messages comprising the conversation. */
-  messages: Array<ChatCompletionMessageParam>
-
-  /**
-   * The model name (e.g. "llama-3.3-70b-versatile", "openai/gpt-oss-120b").
-   * @see https://console.groq.com/docs/models
-   */
-  model: string
-
-  /** Whether to stream partial message deltas as server-sent events. */
-  stream?: boolean | null
-
-  /**
-   * Tools the model may call (functions, code_interpreter, etc).
-   * @see https://console.groq.com/docs/tool-use
-   */
-  tools?: Array<ChatCompletionTool>
-}
-
-/**
  * External provider options (what users pass in)
  */
 export type ExternalTextProviderOptions = GroqTextProviderOptions
-
-/**
- * Validates text provider options.
- * Basic validation stub — Groq API handles detailed validation.
- */
-export function validateTextProviderOptions(
-  _options: InternalTextProviderOptions,
-): void {
-  // Groq API handles detailed validation
-}

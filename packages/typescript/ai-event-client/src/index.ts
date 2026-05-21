@@ -49,7 +49,7 @@ export interface DocumentPart {
   metadata?: unknown
 }
 
-export interface ToolCallPart {
+export interface ToolCallPart<TMetadata = unknown> {
   type: 'tool-call'
   id: string
   name: string
@@ -61,6 +61,9 @@ export interface ToolCallPart {
     approved?: boolean
   }
   output?: any
+  /** Provider-specific metadata that round-trips with the tool call.
+   * Mirrors `ToolCallPart.metadata` in `@tanstack/ai`. */
+  metadata?: TMetadata
 }
 
 export interface ToolResultPart {
@@ -86,15 +89,17 @@ export type MessagePart =
   | ToolResultPart
   | ThinkingPart
 
-export interface ToolCall {
+export interface ToolCall<TMetadata = unknown> {
   id: string
   type: 'function'
   function: {
     name: string
     arguments: string
   }
-  /** Provider-specific metadata to carry through the tool call lifecycle */
-  providerMetadata?: Record<string, unknown>
+  /** Provider-specific metadata to carry through the tool call lifecycle.
+   * Typed per-adapter via `TToolCallMetadata` (e.g. Gemini's
+   * `{ thoughtSignature?: string }`). */
+  metadata?: TMetadata
 }
 
 /**
@@ -129,6 +134,10 @@ export interface ImageUsage {
   totalTokens?: number
 }
 
+// All optional fields explicitly allow `| undefined` so that callers
+// can spread shared-context builders (which set every field to a
+// possibly-undefined value) without `exactOptionalPropertyTypes`
+// rejecting the assignment.
 interface BaseEventContext {
   timestamp: number
   requestId?: string
@@ -139,8 +148,8 @@ interface BaseEventContext {
   provider?: string
   model?: string
   systemPrompts?: Array<string>
-  options?: Record<string, unknown>
-  modelOptions?: Record<string, unknown>
+  options?: Record<string, unknown> | undefined
+  modelOptions?: Record<string, unknown> | undefined
   toolNames?: Array<string>
   messageCount?: number
   hasTools?: boolean

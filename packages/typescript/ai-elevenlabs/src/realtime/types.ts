@@ -4,8 +4,11 @@ import type { DebugOption } from '@tanstack/ai'
  * Options for the ElevenLabs realtime token adapter
  */
 export interface ElevenLabsRealtimeTokenOptions {
-  /** Agent ID configured in ElevenLabs dashboard */
-  agentId: string
+  /**
+   * Agent ID configured in ElevenLabs dashboard. Falls back to
+   * `ELEVENLABS_AGENT_ID` in the environment when omitted.
+   */
+  agentId?: string
   /** Optional override values for the agent */
   overrides?: {
     /** Custom voice ID to use */

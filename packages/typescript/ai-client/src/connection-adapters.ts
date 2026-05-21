@@ -1,4 +1,4 @@
-import { EventType } from '@tanstack/ai'
+import { EventType, uiMessagesToWire } from '@tanstack/ai'
 import type {
   ModelMessage,
   RunErrorEvent,
@@ -20,6 +20,10 @@ export class StreamTruncatedError extends Error {
     )
     this.name = 'StreamTruncatedError'
   }
+}
+
+function generateRunId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
 /**
@@ -52,13 +56,7 @@ async function* readStreamLines(
     const decoder = new TextDecoder()
     let buffer = ''
 
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-    while (true) {
-      // Check if aborted before reading
-      if (abortSignal?.aborted) {
-        break
-      }
-
+    while (!abortSignal?.aborted) {
       const { done, value } = await reader.read()
       if (done) break
 
@@ -150,6 +148,25 @@ async function* responseToSSEChunks(
   }
 }
 
+/**
+ * Per-send context provided by the chat client to the connection adapter.
+ * The adapter combines this with serialized messages to build a full
+ * AG-UI `RunAgentInput` payload.
+ */
+export interface RunAgentInputContext {
+  threadId: string
+  runId: string
+  parentRunId?: string
+  /** Client-declared tools to advertise in the request payload. */
+  clientTools?: Array<{
+    name: string
+    description: string
+    parameters: unknown
+  }>
+  /** Arbitrary user-controlled passthrough data. */
+  forwardedProps?: Record<string, unknown>
+}
+
 export interface ConnectConnectionAdapter {
   /**
    * Connect and return an async iterable of StreamChunks.
@@ -158,6 +175,7 @@ export interface ConnectConnectionAdapter {
     messages: Array<UIMessage> | Array<ModelMessage>,
     data?: Record<string, any>,
     abortSignal?: AbortSignal,
+    runContext?: RunAgentInputContext,
   ) => AsyncIterable<StreamChunk>
 }
 
@@ -173,6 +191,7 @@ export interface SubscribeConnectionAdapter {
     messages: Array<UIMessage> | Array<ModelMessage>,
     data?: Record<string, any>,
     abortSignal?: AbortSignal,
+    runContext?: RunAgentInputContext,
   ) => Promise<void>
 }
 
@@ -245,8 +264,9 @@ export function normalizeConnectionAdapter(
       return (async function* () {
         while (!abortSignal?.aborted) {
           let chunk: StreamChunk | null
-          if (myBuffer.length > 0) {
-            chunk = myBuffer.shift()!
+          const buffered = myBuffer.shift()
+          if (buffered !== undefined) {
+            chunk = buffered
           } else {
             chunk = await new Promise<StreamChunk | null>((resolve) => {
               const onAbort = () => resolve(null)
@@ -261,12 +281,17 @@ export function normalizeConnectionAdapter(
         }
       })()
     },
-    async send(messages, data, abortSignal) {
+    async send(messages, data, abortSignal, runContext) {
       let hasTerminalEvent = false
       let upstreamThreadId: string | undefined
       let upstreamRunId: string | undefined
       try {
-        const stream = connection.connect(messages, data, abortSignal)
+        const stream = connection.connect(
+          messages,
+          data,
+          abortSignal,
+          runContext,
+        )
         for await (const chunk of stream) {
           if ('threadId' in chunk && typeof chunk.threadId === 'string') {
             upstreamThreadId = chunk.threadId
@@ -282,11 +307,15 @@ export function normalizeConnectionAdapter(
 
         // If the connect stream ended cleanly without a terminal event,
         // synthesize RUN_FINISHED so request-scoped consumers can complete.
+        // Reuse the caller's threadId/runId so client-side activeRunIds tracking matches.
         if (!abortSignal?.aborted && !hasTerminalEvent) {
           const synthetic: RunFinishedEvent = {
             type: EventType.RUN_FINISHED,
-            threadId: upstreamThreadId ?? `thread-${Date.now()}`,
-            runId: upstreamRunId ?? `run-${Date.now()}`,
+            threadId:
+              upstreamThreadId ??
+              runContext?.threadId ??
+              `thread-${Date.now()}`,
+            runId: upstreamRunId ?? runContext?.runId ?? `run-${Date.now()}`,
             model: 'connect-wrapper',
             timestamp: Date.now(),
             finishReason: 'stop',
@@ -299,8 +328,14 @@ export function normalizeConnectionAdapter(
             err instanceof Error ? err.message : 'Unknown error in connect()'
           const synthetic: RunErrorEvent = {
             type: EventType.RUN_ERROR,
+            threadId:
+              upstreamThreadId ??
+              runContext?.threadId ??
+              `thread-${Date.now()}`,
+            runId: upstreamRunId ?? runContext?.runId ?? `run-${Date.now()}`,
             timestamp: Date.now(),
             message,
+            error: { message },
           }
           push(synthetic)
         }
@@ -362,7 +397,7 @@ export function fetchServerSentEvents(
     | (() => FetchConnectionOptions | Promise<FetchConnectionOptions>) = {},
 ): ConnectConnectionAdapter {
   return {
-    async *connect(messages, data, abortSignal) {
+    async *connect(messages, data, abortSignal, runContext) {
       // Resolve URL and options if they are functions
       const resolvedUrl = typeof url === 'function' ? url() : url
       const resolvedOptions =
@@ -373,21 +408,53 @@ export function fetchServerSentEvents(
         ...mergeHeaders(resolvedOptions.headers),
       }
 
-      // Send messages as-is (UIMessages with parts preserved)
-      // Server-side TextEngine handles conversion to ModelMessages
-      const requestBody = {
-        messages,
-        data,
+      // Build AG-UI RunAgentInput payload.
+      //
+      // Precedence (later spreads win): static adapter `body` is the base,
+      // overridden by `runContext.forwardedProps` (constructor body /
+      // forwardedProps options), overridden by per-message `data` passed
+      // to `connection.send`. Runtime values win over static config —
+      // this matches the documented "forwardedProps wins" semantic.
+      const wireMessages = uiMessagesToWire(messages as Array<UIMessage>)
+      const forwardedProps = {
         ...resolvedOptions.body,
+        ...(runContext?.forwardedProps ?? {}),
+        ...data,
+      }
+      const requestBody = {
+        threadId: runContext?.threadId ?? generateRunId('thread'),
+        runId: runContext?.runId ?? generateRunId('run'),
+        ...(runContext?.parentRunId !== undefined && {
+          parentRunId: runContext.parentRunId,
+        }),
+        state: {},
+        messages: wireMessages,
+        tools: runContext?.clientTools ?? [],
+        context: [],
+        forwardedProps,
+        // Backward-compat mirror of `forwardedProps` under the legacy
+        // field name `data`. Server endpoints that have not migrated
+        // off the pre-AG-UI shape (`{ messages, data }`) keep working.
+        // AG-UI strict consumers strip this via `RunAgentInputSchema`
+        // (see `chatParamsFromRequestBody`). Will be removed when the
+        // legacy `body` client option is dropped.
+        // Shallow-cloned so that downstream mutation of `data` (e.g.
+        // by a logging interceptor or fetch wrapper) cannot corrupt
+        // `forwardedProps` and vice versa.
+        data: { ...forwardedProps },
       }
 
       const fetchClient = resolvedOptions.fetchClient ?? fetch
+      // `RequestInit.signal` is typed `AbortSignal | null` (no `undefined`
+      // under `exactOptionalPropertyTypes`), so spread it conditionally
+      // rather than passing `undefined` explicitly.
+      const signal = abortSignal || resolvedOptions.signal
       const response = await fetchClient(resolvedUrl, {
         method: 'POST',
         headers: requestHeaders,
         body: JSON.stringify(requestBody),
         credentials: resolvedOptions.credentials || 'same-origin',
-        signal: abortSignal || resolvedOptions.signal,
+        ...(signal ? { signal } : {}),
       })
 
       yield* responseToSSEChunks(response, abortSignal)
@@ -436,7 +503,7 @@ export function fetchHttpStream(
     | (() => FetchConnectionOptions | Promise<FetchConnectionOptions>) = {},
 ): ConnectConnectionAdapter {
   return {
-    async *connect(messages, data, abortSignal) {
+    async *connect(messages, data, abortSignal, runContext) {
       // Resolve URL and options if they are functions
       const resolvedUrl = typeof url === 'function' ? url() : url
       const resolvedOptions =
@@ -447,21 +514,53 @@ export function fetchHttpStream(
         ...mergeHeaders(resolvedOptions.headers),
       }
 
-      // Send messages as-is (UIMessages with parts preserved)
-      // Server-side TextEngine handles conversion to ModelMessages
-      const requestBody = {
-        messages,
-        data,
+      // Build AG-UI RunAgentInput payload.
+      //
+      // Precedence (later spreads win): static adapter `body` is the base,
+      // overridden by `runContext.forwardedProps` (constructor body /
+      // forwardedProps options), overridden by per-message `data` passed
+      // to `connection.send`. Runtime values win over static config —
+      // this matches the documented "forwardedProps wins" semantic.
+      const wireMessages = uiMessagesToWire(messages as Array<UIMessage>)
+      const forwardedProps = {
         ...resolvedOptions.body,
+        ...(runContext?.forwardedProps ?? {}),
+        ...data,
+      }
+      const requestBody = {
+        threadId: runContext?.threadId ?? generateRunId('thread'),
+        runId: runContext?.runId ?? generateRunId('run'),
+        ...(runContext?.parentRunId !== undefined && {
+          parentRunId: runContext.parentRunId,
+        }),
+        state: {},
+        messages: wireMessages,
+        tools: runContext?.clientTools ?? [],
+        context: [],
+        forwardedProps,
+        // Backward-compat mirror of `forwardedProps` under the legacy
+        // field name `data`. Server endpoints that have not migrated
+        // off the pre-AG-UI shape (`{ messages, data }`) keep working.
+        // AG-UI strict consumers strip this via `RunAgentInputSchema`
+        // (see `chatParamsFromRequestBody`). Will be removed when the
+        // legacy `body` client option is dropped.
+        // Shallow-cloned so that downstream mutation of `data` (e.g.
+        // by a logging interceptor or fetch wrapper) cannot corrupt
+        // `forwardedProps` and vice versa.
+        data: { ...forwardedProps },
       }
 
       const fetchClient = resolvedOptions.fetchClient ?? fetch
+      // `RequestInit.signal` is typed `AbortSignal | null` (no `undefined`
+      // under `exactOptionalPropertyTypes`), so spread it conditionally
+      // rather than passing `undefined` explicitly.
+      const signal = abortSignal || resolvedOptions.signal
       const response = await fetchClient(resolvedUrl, {
         method: 'POST',
         headers: requestHeaders,
         body: JSON.stringify(requestBody),
         credentials: resolvedOptions.credentials || 'same-origin',
-        signal: abortSignal || resolvedOptions.signal,
+        ...(signal ? { signal } : {}),
       })
 
       if (!response.ok) {

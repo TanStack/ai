@@ -1,4 +1,6 @@
-import type { ModelMessage } from '@tanstack/ai'
+import type { ModelMessage, StreamChunk } from '@tanstack/ai'
+import { EventType } from '@tanstack/ai'
+import type { SubscribeConnectionAdapter } from '@tanstack/ai-client'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
@@ -74,7 +76,7 @@ describe('useChat', () => {
 
       // Message IDs are generated independently, not based on client ID
       // Just verify messages exist and have IDs
-      const messageId = result.current.messages[0].id
+      const messageId = result.current.messages[0]!.id
       expect(messageId).toBeDefined()
       expect(typeof messageId).toBe('string')
     })
@@ -92,7 +94,7 @@ describe('useChat', () => {
       })
 
       // Message IDs should have a generated prefix (not "custom-id-")
-      const messageId = result.current.messages[0].id
+      const messageId = result.current.messages[0]!.id
       expect(messageId).toBeTruthy()
       expect(messageId).not.toMatch(/^custom-id-/)
     })
@@ -310,7 +312,7 @@ describe('useChat', () => {
         expect(result.current.messages.length).toBeGreaterThan(0)
       })
 
-      expect(result.current.messages[0].id).toBe('user-1')
+      expect(result.current.messages[0]!.id).toBe('user-1')
     })
 
     it('should convert and append a ModelMessage', async () => {
@@ -329,8 +331,8 @@ describe('useChat', () => {
         expect(result.current.messages.length).toBeGreaterThan(0)
       })
 
-      expect(result.current.messages[0].role).toBe('user')
-      expect(result.current.messages[0].parts[0]).toEqual({
+      expect(result.current.messages[0]!.role).toBe('user')
+      expect(result.current.messages[0]!.parts[0]).toEqual({
         type: 'text',
         content: 'Hello from model',
       })
@@ -375,6 +377,7 @@ describe('useChat', () => {
           if (callCount === 2) {
             return chunks2
           }
+          return undefined
         },
       })
 
@@ -390,16 +393,6 @@ describe('useChat', () => {
         )
         expect(assistantMessage).toBeDefined()
       })
-
-      const firstAssistantMessage = result.current.messages.find(
-        (m) => m.role === 'assistant',
-      )
-      const firstContent =
-        firstAssistantMessage?.parts.find((p) => p.type === 'text')?.type ===
-        'text'
-          ? (firstAssistantMessage.parts.find((p) => p.type === 'text') as any)
-              .content
-          : ''
 
       // Reload with new adapter
       rerender({ connection: adapter2 })
@@ -450,12 +443,6 @@ describe('useChat', () => {
       await result.current.sendMessage('Hello')
       await waitFor(() => {
         expect(result.current.messages.length).toBeGreaterThanOrEqual(2)
-      })
-
-      // Create error adapter for reload
-      const errorAdapter = createMockConnectionAdapter({
-        shouldError: true,
-        error: new Error('Reload failed'),
       })
 
       // Note: We can't easily change the adapter after creation,
@@ -754,7 +741,7 @@ describe('useChat', () => {
         expect(onFinish).toHaveBeenCalled()
       })
 
-      const finishedMessage = onFinish.mock.calls[0][0]
+      const finishedMessage = onFinish.mock.calls[0]![0]
       expect(finishedMessage).toBeDefined()
       expect(finishedMessage.role).toBe('assistant')
     })
@@ -778,7 +765,7 @@ describe('useChat', () => {
         expect(onError).toHaveBeenCalled()
       })
 
-      expect(onError.mock.calls[0][0].message).toBe('Test error')
+      expect(onError.mock.calls[0]![0].message).toBe('Test error')
     })
 
     it('should call onResponse callback when response is received', async () => {
@@ -930,8 +917,12 @@ describe('useChat', () => {
         })
 
         // The adapter should receive the previous conversation + new message.
-        const sentMessages = connectSpy.mock.calls[0]![0] as Array<any>
-        const userMessages = sentMessages.filter((m: any) => m.role === 'user')
+        // `connectSpy.mock.calls[0][0]` is the messages array passed to
+        // adapter.connect — typed via MockConnectionAdapterOptions.onConnect.
+        const sentMessages = connectSpy.mock.calls[0]![0] as Array<
+          ModelMessage | UIMessage
+        >
+        const userMessages = sentMessages.filter((m) => m.role === 'user')
         expect(userMessages.length).toBeGreaterThanOrEqual(2)
       })
     })
@@ -1120,39 +1111,15 @@ describe('useChat', () => {
         })
       })
 
-      it('should handle tool execution errors', async () => {
-        const toolCalls = createToolCallChunks([
-          { id: 'tool-1', name: 'testTool', arguments: '{"param": "value"}' },
-        ])
-        const adapter = createMockConnectionAdapter({ chunks: toolCalls })
-        const { result } = renderUseChat({
-          connection: adapter,
-          onToolCall: async () => {
-            throw new Error('Tool execution failed')
-          },
-        })
-
-        await result.current.sendMessage('Test')
-
-        await waitFor(() => {
-          expect(result.current.messages.length).toBeGreaterThan(0)
-        })
-
-        // Tool errors are handled by adding error output to the tool call part
-        // The error state is not set for tool execution failures
-        // Check that the message contains a tool call with error output
-        const assistantMessage = result.current.messages.find(
-          (m) => m.role === 'assistant',
-        )
-        expect(assistantMessage).toBeDefined()
-
-        if (assistantMessage) {
-          const toolCallPart = assistantMessage.parts.find(
-            (p) => p.type === 'tool-call',
-          )
-          expect(toolCallPart).toBeDefined()
-        }
-      })
+      // NOTE: A previous "should handle tool execution errors" test was deleted
+      // because it passed `onToolCall` as a useChat option. `onToolCall` is NOT
+      // part of the public `UseChatOptions` / `ChatClientOptions` surface — it
+      // is installed internally on the StreamProcessor by ChatClient (see
+      // packages/typescript/ai-client/src/chat-client.ts) and routes through
+      // the `tools` array (`AnyClientTool.execute`). The same is true of the
+      // deleted "should handle addToolResult" test below. Tool-execution error
+      // behavior is exercised in ai-client's own tests against the real
+      // public surface (`tools: [...]`).
     })
 
     describe('multiple hook instances', () => {
@@ -1185,8 +1152,8 @@ describe('useChat', () => {
         expect(result1.current.messages.length).toBe(
           result2.current.messages.length,
         )
-        expect(result1.current.messages[0].parts[0]).not.toEqual(
-          result2.current.messages[0].parts[0],
+        expect(result1.current.messages[0]!.parts[0]).not.toEqual(
+          result2.current.messages[0]!.parts[0],
         )
       })
 
@@ -1237,8 +1204,8 @@ describe('useChat', () => {
         // Both should have messages, but different ones
         expect(result1.current.messages.length).toBeGreaterThan(0)
         expect(result2.current.messages.length).toBeGreaterThan(0)
-        expect(result1.current.messages[0].parts[0]).not.toEqual(
-          result2.current.messages[0].parts[0],
+        expect(result1.current.messages[0]!.parts[0]).not.toEqual(
+          result2.current.messages[0]!.parts[0],
         )
       })
     })
@@ -1249,9 +1216,13 @@ describe('useChat', () => {
           { id: 'tool-1', name: 'testTool', arguments: '{"param": "value"}' },
         ])
         const adapter = createMockConnectionAdapter({ chunks: toolCalls })
+        // `onToolCall` is intentionally NOT passed here: it is not part of the
+        // public `UseChatOptions` surface (it's wired internally by ChatClient
+        // through the `tools` array). The previous version of this test set it
+        // via `as any` and then never exercised its result — `addToolResult`
+        // itself is the public API under test.
         const { result } = renderUseChat({
           connection: adapter,
-          onToolCall: async () => ({ result: 'success' }),
         })
 
         await result.current.sendMessage('Test')
@@ -1668,33 +1639,34 @@ describe('useChat', () => {
 
   describe('sessionGenerating', () => {
     it('should expose sessionGenerating and update from stream run events', async () => {
-      const adapter: import('@tanstack/ai-client').SubscribeConnectionAdapter =
+      // Build chunks as a typed StreamChunk array so each yielded event is
+      // checked against the AGUI discriminated union — no inline `as any`.
+      const chunks: Array<StreamChunk> = [
         {
-          subscribe: async function* (signal?: AbortSignal) {
-            yield {
-              type: 'RUN_STARTED' as const,
-              runId: 'run-1',
-              model: 'test',
-              timestamp: Date.now(),
-            }
-            yield {
-              type: 'TEXT_MESSAGE_CONTENT' as const,
-              messageId: 'msg-1',
-              model: 'test',
-              timestamp: Date.now(),
-              delta: 'Hi',
-              content: 'Hi',
-            }
-            yield {
-              type: 'RUN_FINISHED' as const,
-              runId: 'run-1',
-              model: 'test',
-              timestamp: Date.now(),
-              finishReason: 'stop' as const,
-            }
-          },
-          send: vi.fn(async () => {}),
-        }
+          type: EventType.RUN_STARTED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: 'msg-1',
+          timestamp: Date.now(),
+          delta: 'Hi',
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+        },
+      ]
+      const adapter: SubscribeConnectionAdapter = {
+        subscribe: async function* (_signal?: AbortSignal) {
+          for (const chunk of chunks) yield chunk
+        },
+        send: vi.fn(async () => {}),
+      }
 
       const { result } = renderUseChat({ connection: adapter, live: true })
 
@@ -1710,25 +1682,26 @@ describe('useChat', () => {
     })
 
     it('should integrate correctly with live subscription lifecycle', async () => {
-      const adapter: import('@tanstack/ai-client').SubscribeConnectionAdapter =
+      const chunks: Array<StreamChunk> = [
         {
-          subscribe: async function* () {
-            yield {
-              type: 'RUN_STARTED' as const,
-              runId: 'run-1',
-              model: 'test',
-              timestamp: Date.now(),
-            }
-            yield {
-              type: 'RUN_FINISHED' as const,
-              runId: 'run-1',
-              model: 'test',
-              timestamp: Date.now(),
-              finishReason: 'stop' as const,
-            }
-          },
-          send: vi.fn(async () => {}),
-        }
+          type: EventType.RUN_STARTED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+        },
+      ]
+      const adapter: SubscribeConnectionAdapter = {
+        subscribe: async function* () {
+          for (const chunk of chunks) yield chunk
+        },
+        send: vi.fn(async () => {}),
+      }
 
       const { result } = renderUseChat({ connection: adapter, live: true })
 

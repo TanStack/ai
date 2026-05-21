@@ -1,4 +1,5 @@
 import { FinishReason } from '@google/genai'
+import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import {
@@ -33,13 +34,11 @@ import type {
   TextOptions,
 } from '@tanstack/ai'
 import type { ExternalTextProviderOptions } from '../text/text-provider-options'
-import type { GeminiMessageMetadataByModality } from '../message-types'
+import type {
+  GeminiMessageMetadataByModality,
+  GeminiToolCallMetadata,
+} from '../message-types'
 import type { GeminiClientConfig } from '../utils'
-
-/** Cast an event object to StreamChunk. Adapters construct events with string
- *  literal types which are structurally compatible with the EventType enum. */
-const asChunk = (chunk: Record<string, unknown>) =>
-  chunk as unknown as StreamChunk
 
 /**
  * Configuration for Gemini text adapter
@@ -104,12 +103,13 @@ export class GeminiTextAdapter<
   TProviderOptions,
   TInputModalities,
   GeminiMessageMetadataByModality,
-  TToolCapabilities
+  TToolCapabilities,
+  GeminiToolCallMetadata
 > {
-  readonly kind = 'text' as const
+  override readonly kind = 'text' as const
   readonly name = 'gemini' as const
 
-  private client: GoogleGenAI
+  private readonly client: GoogleGenAI
 
   constructor(config: GeminiTextConfig, model: TModel) {
     super({}, model)
@@ -132,15 +132,14 @@ export class GeminiTextAdapter<
 
       yield* this.processStreamChunks(result, options, logger)
     } catch (error) {
-      const timestamp = Date.now()
       logger.errors('gemini.chatStream fatal', {
         error,
         source: 'gemini.chatStream',
       })
-      yield asChunk({
-        type: 'RUN_ERROR',
+      yield {
+        type: EventType.RUN_ERROR,
         model: options.model,
-        timestamp,
+        timestamp: Date.now(),
         message:
           error instanceof Error
             ? error.message
@@ -151,7 +150,7 @@ export class GeminiTextAdapter<
               ? error.message
               : 'An unknown error occurred during the chat stream.',
         },
-      })
+      }
     }
   }
 
@@ -236,7 +235,6 @@ export class GeminiTextAdapter<
     logger: InternalLogger,
   ): AsyncIterable<StreamChunk> {
     const model = options.model
-    const timestamp = Date.now()
     let accumulatedContent = ''
     let accumulatedThinking = ''
     const toolCallMap = new Map<
@@ -267,13 +265,14 @@ export class GeminiTextAdapter<
       // Emit RUN_STARTED on first chunk
       if (!hasEmittedRunStarted) {
         hasEmittedRunStarted = true
-        yield asChunk({
-          type: 'RUN_STARTED',
+        yield {
+          type: EventType.RUN_STARTED,
           runId,
           threadId,
           model,
-          timestamp,
-        })
+          timestamp: Date.now(),
+          parentRunId: options.parentRunId,
+        }
       }
 
       if (chunk.candidates?.[0]?.content?.parts) {
@@ -289,92 +288,94 @@ export class GeminiTextAdapter<
                 reasoningMessageId = generateId(this.name)
 
                 // Spec REASONING events
-                yield asChunk({
-                  type: 'REASONING_START',
+                yield {
+                  type: EventType.REASONING_START,
                   messageId: reasoningMessageId,
                   model,
-                  timestamp,
-                })
-                yield asChunk({
-                  type: 'REASONING_MESSAGE_START',
+                  timestamp: Date.now(),
+                }
+                yield {
+                  type: EventType.REASONING_MESSAGE_START,
                   messageId: reasoningMessageId,
                   role: 'reasoning' as const,
                   model,
-                  timestamp,
-                })
+                  timestamp: Date.now(),
+                }
 
                 // Legacy STEP events (kept during transition)
-                yield asChunk({
-                  type: 'STEP_STARTED',
+                yield {
+                  type: EventType.STEP_STARTED,
                   stepName: stepId,
                   stepId,
                   model,
-                  timestamp,
+                  timestamp: Date.now(),
                   stepType: 'thinking',
-                })
+                }
               }
 
               accumulatedThinking += part.text
 
-              // Spec REASONING content event
-              yield asChunk({
-                type: 'REASONING_MESSAGE_CONTENT',
-                messageId: reasoningMessageId!,
+              // Spec REASONING content event — reasoningMessageId is set in the
+              // hasEmittedStepStarted block above (entered on the same `part.thought` path)
+              if (!reasoningMessageId) continue
+              yield {
+                type: EventType.REASONING_MESSAGE_CONTENT,
+                messageId: reasoningMessageId,
                 delta: part.text,
                 model,
-                timestamp,
-              })
+                timestamp: Date.now(),
+              }
 
               // Legacy STEP event
-              yield asChunk({
-                type: 'STEP_FINISHED',
+              yield {
+                type: EventType.STEP_FINISHED,
                 stepName: stepId || generateId(this.name),
                 stepId: stepId || generateId(this.name),
                 model,
-                timestamp,
+                timestamp: Date.now(),
                 delta: part.text,
                 content: accumulatedThinking,
-              })
+              }
             } else if (part.text.trim()) {
               // Close reasoning before text starts
               if (reasoningMessageId && !hasClosedReasoning) {
                 hasClosedReasoning = true
-                yield asChunk({
-                  type: 'REASONING_MESSAGE_END',
+                yield {
+                  type: EventType.REASONING_MESSAGE_END,
                   messageId: reasoningMessageId,
                   model,
-                  timestamp,
-                })
-                yield asChunk({
-                  type: 'REASONING_END',
+                  timestamp: Date.now(),
+                }
+                yield {
+                  type: EventType.REASONING_END,
                   messageId: reasoningMessageId,
                   model,
-                  timestamp,
-                })
+                  timestamp: Date.now(),
+                }
               }
 
               // Skip whitespace-only text parts (e.g. "\n" during auto-continuation)
               // Emit TEXT_MESSAGE_START on first text content
               if (!hasEmittedTextMessageStart) {
                 hasEmittedTextMessageStart = true
-                yield asChunk({
-                  type: 'TEXT_MESSAGE_START',
+                yield {
+                  type: EventType.TEXT_MESSAGE_START,
                   messageId,
                   model,
-                  timestamp,
+                  timestamp: Date.now(),
                   role: 'assistant',
-                })
+                }
               }
 
               accumulatedContent += part.text
-              yield asChunk({
-                type: 'TEXT_MESSAGE_CONTENT',
+              yield {
+                type: EventType.TEXT_MESSAGE_CONTENT,
                 messageId,
                 model,
-                timestamp,
+                timestamp: Date.now(),
                 delta: part.text,
                 content: accumulatedContent,
-              })
+              }
             }
           }
 
@@ -384,6 +385,11 @@ export class GeminiTextAdapter<
               functionCall.id ||
               `${functionCall.name}_${Date.now()}_${nextToolIndex}`
             const functionArgs = functionCall.args || {}
+
+            // Gemini emits thoughtSignature as a Part-level sibling of
+            // functionCall (per @google/genai Part type), not nested inside
+            // functionCall itself.
+            const partThoughtSignature = part.thoughtSignature || undefined
 
             let toolCallData = toolCallMap.get(toolCallId)
             if (!toolCallData) {
@@ -395,11 +401,17 @@ export class GeminiTextAdapter<
                     : JSON.stringify(functionArgs),
                 index: nextToolIndex++,
                 started: false,
-                thoughtSignature:
-                  (functionCall as any).thoughtSignature || undefined,
+                // Only set thoughtSignature when present — under EOPT, the
+                // optional field cannot accept an explicit `undefined`.
+                ...(partThoughtSignature !== undefined && {
+                  thoughtSignature: partThoughtSignature,
+                }),
               }
               toolCallMap.set(toolCallId, toolCallData)
             } else {
+              if (!toolCallData.thoughtSignature && partThoughtSignature) {
+                toolCallData.thoughtSignature = partThoughtSignature
+              }
               try {
                 const existingArgs = JSON.parse(toolCallData.args)
                 const newArgs =
@@ -419,31 +431,31 @@ export class GeminiTextAdapter<
             // Emit TOOL_CALL_START if not already started
             if (!toolCallData.started) {
               toolCallData.started = true
-              yield asChunk({
-                type: 'TOOL_CALL_START',
+              yield {
+                type: EventType.TOOL_CALL_START,
                 toolCallId,
                 toolCallName: toolCallData.name,
                 toolName: toolCallData.name,
                 model,
-                timestamp,
+                timestamp: Date.now(),
                 index: toolCallData.index,
                 ...(toolCallData.thoughtSignature && {
-                  providerMetadata: {
+                  metadata: {
                     thoughtSignature: toolCallData.thoughtSignature,
-                  },
+                  } satisfies GeminiToolCallMetadata,
                 }),
-              })
+              }
             }
 
             // Emit TOOL_CALL_ARGS
-            yield asChunk({
-              type: 'TOOL_CALL_ARGS',
+            yield {
+              type: EventType.TOOL_CALL_ARGS,
               toolCallId,
               model,
-              timestamp,
+              timestamp: Date.now(),
               delta: toolCallData.args,
               args: toolCallData.args,
-            })
+            }
           }
         }
       } else if (chunk.data && chunk.data.trim()) {
@@ -451,24 +463,24 @@ export class GeminiTextAdapter<
         // Emit TEXT_MESSAGE_START on first text content
         if (!hasEmittedTextMessageStart) {
           hasEmittedTextMessageStart = true
-          yield asChunk({
-            type: 'TEXT_MESSAGE_START',
+          yield {
+            type: EventType.TEXT_MESSAGE_START,
             messageId,
             model,
-            timestamp,
+            timestamp: Date.now(),
             role: 'assistant',
-          })
+          }
         }
 
         accumulatedContent += chunk.data
-        yield asChunk({
-          type: 'TEXT_MESSAGE_CONTENT',
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
           messageId,
           model,
-          timestamp,
+          timestamp: Date.now(),
           delta: chunk.data,
           content: accumulatedContent,
-        })
+        }
       }
 
       if (chunk.candidates?.[0]?.finishReason) {
@@ -497,15 +509,15 @@ export class GeminiTextAdapter<
                 })
 
                 // Emit TOOL_CALL_START
-                yield asChunk({
-                  type: 'TOOL_CALL_START',
+                yield {
+                  type: EventType.TOOL_CALL_START,
                   toolCallId,
                   toolCallName: functionCall.name || '',
                   toolName: functionCall.name || '',
                   model,
-                  timestamp,
+                  timestamp: Date.now(),
                   index: nextToolIndex - 1,
-                })
+                }
 
                 // Emit TOOL_CALL_END with parsed input
                 let parsedInput: unknown = {}
@@ -520,15 +532,15 @@ export class GeminiTextAdapter<
                   parsedInput = {}
                 }
 
-                yield asChunk({
-                  type: 'TOOL_CALL_END',
+                yield {
+                  type: EventType.TOOL_CALL_END,
                   toolCallId,
                   toolCallName: functionCall.name || '',
                   toolName: functionCall.name || '',
                   model,
-                  timestamp,
+                  timestamp: Date.now(),
                   input: parsedInput,
-                })
+                }
               }
             }
           }
@@ -544,15 +556,15 @@ export class GeminiTextAdapter<
             parsedInput = {}
           }
 
-          yield asChunk({
-            type: 'TOOL_CALL_END',
+          yield {
+            type: EventType.TOOL_CALL_END,
             toolCallId,
             toolCallName: toolCallData.name,
             toolName: toolCallData.name,
             model,
-            timestamp,
+            timestamp: Date.now(),
             input: parsedInput,
-          })
+          }
         }
 
         // Reset so a new TEXT_MESSAGE_START is emitted if text follows tool calls
@@ -561,11 +573,11 @@ export class GeminiTextAdapter<
         }
 
         if (finishReason === FinishReason.MAX_TOKENS) {
-          yield asChunk({
-            type: 'RUN_ERROR',
+          yield {
+            type: EventType.RUN_ERROR,
             runId,
             model,
-            timestamp,
+            timestamp: Date.now(),
             message:
               'The response was cut off because the maximum token limit was reached.',
             code: 'max_tokens',
@@ -574,51 +586,54 @@ export class GeminiTextAdapter<
                 'The response was cut off because the maximum token limit was reached.',
               code: 'max_tokens',
             },
-          })
+          }
         }
 
         // Close reasoning events if still open
         if (reasoningMessageId && !hasClosedReasoning) {
           hasClosedReasoning = true
-          yield asChunk({
-            type: 'REASONING_MESSAGE_END',
+          yield {
+            type: EventType.REASONING_MESSAGE_END,
             messageId: reasoningMessageId,
             model,
-            timestamp,
-          })
-          yield asChunk({
-            type: 'REASONING_END',
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.REASONING_END,
             messageId: reasoningMessageId,
             model,
-            timestamp,
-          })
+            timestamp: Date.now(),
+          }
         }
 
         // Emit TEXT_MESSAGE_END if we had text content
         if (hasEmittedTextMessageStart) {
-          yield asChunk({
-            type: 'TEXT_MESSAGE_END',
+          yield {
+            type: EventType.TEXT_MESSAGE_END,
             messageId,
             model,
-            timestamp,
-          })
+            timestamp: Date.now(),
+          }
         }
 
-        yield asChunk({
-          type: 'RUN_FINISHED',
+        yield {
+          type: EventType.RUN_FINISHED,
           runId,
           threadId,
           model,
-          timestamp,
+          timestamp: Date.now(),
           finishReason: toolCallMap.size > 0 ? 'tool_calls' : 'stop',
-          usage: chunk.usageMetadata
-            ? {
-                promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
-                completionTokens: chunk.usageMetadata.candidatesTokenCount ?? 0,
-                totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
-              }
-            : undefined,
-        })
+          // RunFinishedEvent.usage is `usage?: {...}` (no `| undefined`) under
+          // exactOptionalPropertyTypes; only include it when usageMetadata is
+          // present rather than assigning an explicit `undefined`.
+          ...(chunk.usageMetadata && {
+            usage: {
+              promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
+              completionTokens: chunk.usageMetadata.candidatesTokenCount ?? 0,
+              totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
+            },
+          }),
+        }
       }
     }
   }
@@ -701,22 +716,27 @@ export class GeminiTextAdapter<
                 >)
               : {}
           } catch {
-            parsedArgs = toolCall.function.arguments as unknown as Record<
-              string,
-              unknown
-            >
+            parsedArgs = {}
           }
 
-          const thoughtSignature = toolCall.providerMetadata
-            ?.thoughtSignature as string | undefined
-          parts.push({
+          const thoughtSignature = (
+            toolCall.metadata as GeminiToolCallMetadata | undefined
+          )?.thoughtSignature
+          // Gemini requires thoughtSignature at the Part level (sibling of
+          // functionCall), not nested inside functionCall. Nesting it causes
+          // the API to reject the next turn with
+          // "Function call is missing a thought_signature".
+          const part: Part = {
             functionCall: {
               id: toolCall.id,
               name: toolCall.function.name,
               args: parsedArgs,
-              ...(thoughtSignature && { thoughtSignature }),
-            } as any,
-          })
+            },
+          }
+          if (thoughtSignature) {
+            part.thoughtSignature = thoughtSignature
+          }
+          parts.push(part)
         }
       }
 
@@ -730,7 +750,7 @@ export class GeminiTextAdapter<
             response: {
               content: msg.content || '',
             },
-          } as any,
+          },
         })
       }
 
@@ -805,26 +825,57 @@ export class GeminiTextAdapter<
   private mapCommonOptionsToGemini(
     options: TextOptions<GeminiTextProviderOptions>,
   ) {
-    const modelOpts = options.modelOptions
-    const thinkingConfig = modelOpts?.thinkingConfig
+    // Separate `thinkingConfig` from the other model options so the loose
+    // local `thinkingLevel?: keyof typeof ThinkingLevel` type doesn't leak
+    // into the SDK config object via the `...modelOpts` spread — we re-add a
+    // properly-typed `ThinkingConfig` below.
+    const { thinkingConfig, ...modelOpts } = options.modelOptions ?? {}
+    // Build the thinkingConfig payload only when the caller actually supplied
+    // one. Our local `thinkingLevel` is typed as `keyof typeof ThinkingLevel`
+    // (string union) so users can pass plain strings; the SDK target is the
+    // `ThinkingLevel` enum, and every field is `field?: T` under EOPT — so we
+    // re-emit fields via conditional spreads.
+    const mappedThinkingConfig = thinkingConfig
+      ? {
+          ...(thinkingConfig.includeThoughts !== undefined && {
+            includeThoughts: thinkingConfig.includeThoughts,
+          }),
+          ...(thinkingConfig.thinkingBudget !== undefined && {
+            thinkingBudget: thinkingConfig.thinkingBudget,
+          }),
+          ...(thinkingConfig.thinkingLevel
+            ? {
+                thinkingLevel: thinkingConfig.thinkingLevel as ThinkingLevel,
+              }
+            : {}),
+        }
+      : undefined
+
+    const normalizedPrompts = normalizeSystemPrompts(options.systemPrompts)
+    const systemInstruction =
+      normalizedPrompts.length > 0
+        ? normalizedPrompts.map((p) => p.content).join('\n')
+        : undefined
+
+    // Vendor `GenerateContentConfig` fields are `field?: T` (no `| undefined`)
+    // under EOPT, so spread each common option only when present rather than
+    // emitting `field: undefined`s into the wire payload.
     const requestOptions: GenerateContentParameters = {
       model: options.model,
       contents: this.formatMessages(options.messages),
       config: {
         ...modelOpts,
-        temperature: options.temperature,
-        topP: options.topP,
-        maxOutputTokens: options.maxTokens,
-        thinkingConfig: thinkingConfig
-          ? {
-              ...thinkingConfig,
-              thinkingLevel: thinkingConfig.thinkingLevel
-                ? // Enum is provided by the SDK, we use it for the type but cast it to string constants, here we just cast them back
-                  (thinkingConfig.thinkingLevel as ThinkingLevel)
-                : undefined,
-            }
-          : undefined,
-        systemInstruction: options.systemPrompts?.join('\n'),
+        ...(options.temperature !== undefined && {
+          temperature: options.temperature,
+        }),
+        ...(options.topP !== undefined && { topP: options.topP }),
+        ...(options.maxTokens !== undefined && {
+          maxOutputTokens: options.maxTokens,
+        }),
+        ...(mappedThinkingConfig !== undefined && {
+          thinkingConfig: mappedThinkingConfig,
+        }),
+        ...(systemInstruction !== undefined && { systemInstruction }),
         tools: convertToolsToProviderFormat(options.tools),
       },
     }

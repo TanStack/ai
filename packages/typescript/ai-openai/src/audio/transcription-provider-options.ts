@@ -17,7 +17,13 @@ export interface OpenAITranscriptionProviderOptions {
    * gpt-4o-mini-transcribe, and gpt-4o-mini-transcribe-2025-12-15.
    * This field is not supported when using gpt-4o-transcribe-diarize.
    */
-  include?: OpenAI.Audio.TranscriptionCreateParams['include']
+  // Strip the implicit `| undefined` introduced by indexing into the vendor's
+  // optional field so this option type stays compatible under
+  // exactOptionalPropertyTypes when spread back into the SDK params.
+  include?: Exclude<
+    OpenAI.Audio.TranscriptionCreateParams['include'],
+    undefined
+  >
   /**
    * The timestamp granularities to populate for this transcription.
    * response_format must be set to verbose_json to use timestamp granularities.

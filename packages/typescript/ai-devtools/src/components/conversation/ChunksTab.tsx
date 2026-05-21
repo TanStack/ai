@@ -28,10 +28,12 @@ export const ChunksTab: Component<ChunksTabProps> = (props) => {
 
     props.chunks.forEach((chunk) => {
       const key = chunk.messageId || 'no-message-id'
-      if (!groups.has(key)) {
-        groups.set(key, [])
+      let group = groups.get(key)
+      if (!group) {
+        group = []
+        groups.set(key, group)
       }
-      groups.get(key)!.push(chunk)
+      group.push(chunk)
     })
 
     return Array.from(groups.entries())

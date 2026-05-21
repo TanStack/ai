@@ -31,6 +31,6 @@ type AGUIEvent =
   | ReasoningEncryptedValueEvent;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1124](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1124)
+Defined in: [packages/typescript/ai/src/types.ts:1335](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1335)
 
 Union of all AG-UI events.

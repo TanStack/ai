@@ -130,3 +130,17 @@ export interface GeminiMessageMetadataByModality {
   video: GeminiVideoMetadata
   document: GeminiDocumentMetadata
 }
+
+/**
+ * Provider-specific metadata that round-trips with each Gemini tool call.
+ *
+ * `thoughtSignature` is emitted by Gemini 3.x (and 2.5 thinking) models on
+ * the Part containing the `functionCall`. The same signature must be echoed
+ * back at the Part level on the next turn or the API rejects the request
+ * with `400 INVALID_ARGUMENT: "Function call is missing a thought_signature"`.
+ *
+ * @see https://ai.google.dev/gemini-api/docs/thinking
+ */
+export interface GeminiToolCallMetadata {
+  thoughtSignature?: string
+}

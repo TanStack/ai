@@ -98,7 +98,7 @@ Summarize the given text
 
 ##### options
 
-[`SummarizationOptions`](SummarizationOptions.md)
+[`SummarizationOptions`](SummarizationOptions.md)\<`TProviderOptions`\>
 
 #### Returns
 
@@ -112,7 +112,7 @@ Summarize the given text
 optional summarizeStream: (options) => AsyncIterable<AGUIEvent>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/summarize/adapter.ts:56](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/summarize/adapter.ts#L56)
+Defined in: [packages/typescript/ai/src/activities/summarize/adapter.ts:58](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/summarize/adapter.ts#L58)
 
 Stream summarization of the given text.
 Optional - if not implemented, the activity layer will fall back to
@@ -122,7 +122,7 @@ non-streaming summarize and yield the result as a single chunk.
 
 ##### options
 
-[`SummarizationOptions`](SummarizationOptions.md)
+[`SummarizationOptions`](SummarizationOptions.md)\<`TProviderOptions`\>
 
 #### Returns
 

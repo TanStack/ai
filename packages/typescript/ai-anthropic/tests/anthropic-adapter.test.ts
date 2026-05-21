@@ -35,9 +35,8 @@ vi.mock('@anthropic-ai/sdk', () => {
   return { default: MockAnthropic }
 })
 
-const createAdapter = <TModel extends 'claude-3-7-sonnet-20250219'>(
-  model: TModel,
-) => new AnthropicTextAdapter({ apiKey: 'test-key' }, model)
+const createAdapter = <TModel extends 'claude-3-7-sonnet'>(model: TModel) =>
+  new AnthropicTextAdapter({ apiKey: 'test-key' }, model)
 
 const toolArguments = JSON.stringify({ location: 'Berlin' })
 
@@ -49,9 +48,197 @@ const weatherTool: Tool = {
   }),
 }
 
+function createTextStream(text: string) {
+  return (async function* () {
+    yield {
+      type: 'content_block_start',
+      index: 0,
+      content_block: { type: 'text', text: '' },
+    }
+    yield {
+      type: 'content_block_delta',
+      index: 0,
+      delta: { type: 'text_delta', text },
+    }
+    yield { type: 'content_block_stop', index: 0 }
+    yield {
+      type: 'message_delta',
+      delta: { stop_reason: 'end_turn' },
+      usage: { output_tokens: 5 },
+    }
+    yield { type: 'message_stop' }
+  })()
+}
+
 describe('Anthropic adapter option mapping', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('passes systemPrompts as TextBlockParam[] for prompt caching support', async () => {
+    const mockStream = (async function* () {
+      yield {
+        type: 'content_block_start',
+        index: 0,
+        content_block: { type: 'text', text: '' },
+      }
+      yield {
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'text_delta', text: 'Hello' },
+      }
+      yield {
+        type: 'message_delta',
+        delta: { stop_reason: 'end_turn' },
+        usage: { output_tokens: 3 },
+      }
+      yield { type: 'message_stop' }
+    })()
+
+    mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
+
+    const adapter = createAdapter('claude-3-7-sonnet')
+
+    const chunks: StreamChunk[] = []
+    for await (const chunk of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+      systemPrompts: ['You are a helpful assistant.', 'Be concise.'],
+    })) {
+      chunks.push(chunk)
+    }
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+
+    // system should be an array of TextBlockParam, not a joined string
+    expect(payload.system).toEqual([
+      { type: 'text', text: 'You are a helpful assistant.' },
+      { type: 'text', text: 'Be concise.' },
+    ])
+  })
+
+  it('attaches cache_control to system TextBlockParams via systemPrompts metadata', async () => {
+    const mockStream = (async function* () {
+      yield {
+        type: 'content_block_start',
+        index: 0,
+        content_block: { type: 'text', text: '' },
+      }
+      yield {
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'text_delta', text: 'ok' },
+      }
+      yield {
+        type: 'message_delta',
+        delta: { stop_reason: 'end_turn' },
+        usage: { output_tokens: 1 },
+      }
+      yield { type: 'message_stop' }
+    })()
+
+    mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
+
+    const adapter = createAdapter('claude-3-7-sonnet')
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+      systemPrompts: [
+        {
+          content: 'Stable instructions — cache me.',
+          // metadata is narrowed to AnthropicSystemPromptMetadata via the
+          // adapter's `~types['systemPromptMetadata']` declaration — no
+          // `satisfies` needed.
+          metadata: { cache_control: { type: 'ephemeral', ttl: '5m' } },
+        },
+        'Volatile per-request instruction.',
+      ],
+    })) {
+      // consume stream
+    }
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+
+    // Object-form prompts attach their metadata cache_control; plain strings
+    // produce a TextBlockParam with no cache_control.
+    expect(payload.system).toEqual([
+      {
+        type: 'text',
+        text: 'Stable instructions — cache me.',
+        cache_control: { type: 'ephemeral', ttl: '5m' },
+      },
+      {
+        type: 'text',
+        text: 'Volatile per-request instruction.',
+      },
+    ])
+  })
+
+  it('drops unknown modelOptions keys (e.g. `system`) and warns via logger.error', async () => {
+    const mockStream = (async function* () {
+      yield {
+        type: 'content_block_start',
+        index: 0,
+        content_block: { type: 'text', text: '' },
+      }
+      yield {
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'text_delta', text: 'ok' },
+      }
+      yield {
+        type: 'message_delta',
+        delta: { stop_reason: 'end_turn' },
+        usage: { output_tokens: 1 },
+      }
+      yield { type: 'message_stop' }
+    })()
+
+    mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
+
+    const adapter = createAdapter('claude-3-7-sonnet')
+
+    const logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+      systemPrompts: ['real system prompt'],
+      modelOptions: {
+        system: 'ignored escape hatch',
+        bogus_key: 'also ignored',
+      } as unknown as AnthropicTextProviderOptions,
+      debug: { logger, errors: true },
+    })) {
+      // consume stream
+    }
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+
+    // systemPrompts wins; modelOptions.system was dropped.
+    expect(payload.system).toEqual([
+      { type: 'text', text: 'real system prompt' },
+    ])
+    // bogus_key did not leak into the request either.
+    expect(payload).not.toHaveProperty('bogus_key')
+
+    // The drop is loud — error fired with both keys named and a hint for `system`.
+    expect(logger.error).toHaveBeenCalled()
+    const errorCall = logger.error.mock.calls.find((call) =>
+      String(call[0]).includes('dropped unknown modelOptions key'),
+    )
+    expect(errorCall).toBeDefined()
+    const [, meta] = errorCall!
+    expect((meta as { droppedKeys: Array<string> }).droppedKeys).toEqual(
+      expect.arrayContaining(['system', 'bogus_key']),
+    )
+    expect((meta as { hint?: string }).hint).toMatch(/systemPrompts/)
   })
 
   it('maps normalized options and Anthropic provider settings', async () => {
@@ -100,10 +287,9 @@ describe('Anthropic adapter option mapping', () => {
       stop_sequences: ['</done>'],
       thinking: { type: 'enabled', budget_tokens: 1500 },
       top_k: 5,
-      system: 'Respond with JSON',
-    } satisfies AnthropicTextProviderOptions & { system: string }
+    } satisfies AnthropicTextProviderOptions
 
-    const adapter = createAdapter('claude-3-7-sonnet-20250219')
+    const adapter = createAdapter('claude-3-7-sonnet')
 
     // Consume the stream to trigger the API call
     const chunks: StreamChunk[] = []
@@ -133,10 +319,10 @@ describe('Anthropic adapter option mapping', () => {
     }
 
     expect(mocks.betaMessagesCreate).toHaveBeenCalledTimes(1)
-    const [payload] = mocks.betaMessagesCreate.mock.calls[0]
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
 
     expect(payload).toMatchObject({
-      model: 'claude-3-7-sonnet-20250219',
+      model: 'claude-3-7-sonnet',
       max_tokens: 3000,
       temperature: 0.4,
       container: providerOptions.container,
@@ -145,7 +331,6 @@ describe('Anthropic adapter option mapping', () => {
       stop_sequences: providerOptions.stop_sequences,
       thinking: providerOptions.thinking,
       top_k: providerOptions.top_k,
-      system: providerOptions.system,
     })
     expect(payload.stream).toBe(true)
 
@@ -213,7 +398,7 @@ describe('Anthropic adapter option mapping', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-3-7-sonnet-20250219')
+    const adapter = createAdapter('claude-3-7-sonnet')
 
     // Multi-turn: user -> assistant(tool_calls) -> tool_result -> follow-up user
     const chunks: StreamChunk[] = []
@@ -241,7 +426,7 @@ describe('Anthropic adapter option mapping', () => {
     }
 
     expect(mocks.betaMessagesCreate).toHaveBeenCalledTimes(1)
-    const [payload] = mocks.betaMessagesCreate.mock.calls[0]
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
 
     // The tool_result (user) and follow-up user message should be merged into one user message
     expect(payload.messages).toEqual([
@@ -281,6 +466,108 @@ describe('Anthropic adapter option mapping', () => {
     }
   })
 
+  it('replays signed thinking blocks before tool use in multi-turn history', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(
+      createTextStream('Follow-up answer'),
+    )
+
+    const adapter = createAdapter('claude-3-7-sonnet')
+
+    const chunks: StreamChunk[] = []
+    for await (const chunk of chat({
+      adapter,
+      messages: [
+        { role: 'user', content: 'What is the weather in Berlin?' },
+        {
+          role: 'assistant',
+          content: null,
+          thinking: [
+            {
+              content: 'Need to fetch weather before answering.',
+              signature: 'signed-thinking-1',
+            },
+          ],
+          toolCalls: [
+            {
+              id: 'call_1',
+              type: 'function',
+              function: { name: 'lookup_weather', arguments: toolArguments },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_1', content: '{"temp":72}' },
+        { role: 'user', content: 'What should I wear?' },
+      ],
+      tools: [weatherTool],
+      modelOptions: {
+        thinking: { type: 'enabled', budget_tokens: 1024 },
+      } satisfies AnthropicTextProviderOptions,
+    })) {
+      chunks.push(chunk)
+    }
+
+    expect(mocks.betaMessagesCreate).toHaveBeenCalledTimes(1)
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+
+    expect(payload.betas).toEqual(['interleaved-thinking-2025-05-14'])
+    expect(payload.messages[1].content).toEqual([
+      {
+        type: 'thinking',
+        thinking: 'Need to fetch weather before answering.',
+        signature: 'signed-thinking-1',
+      },
+      {
+        type: 'tool_use',
+        id: 'call_1',
+        name: 'lookup_weather',
+        input: { location: 'Berlin' },
+      },
+    ])
+  })
+
+  it('replays signed thinking blocks for assistant messages without tool calls', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(
+      createTextStream('Next answer'),
+    )
+
+    const adapter = createAdapter('claude-3-7-sonnet')
+
+    const chunks: StreamChunk[] = []
+    for await (const chunk of chat({
+      adapter,
+      messages: [
+        { role: 'user', content: 'Think then answer.' },
+        {
+          role: 'assistant',
+          content: 'Prior answer.',
+          thinking: [
+            {
+              content: 'Prior signed thinking.',
+              signature: 'signed-thinking-text-only',
+            },
+          ],
+        },
+        { role: 'user', content: 'Continue.' },
+      ],
+      modelOptions: {
+        thinking: { type: 'enabled', budget_tokens: 1024 },
+      } satisfies AnthropicTextProviderOptions,
+    })) {
+      chunks.push(chunk)
+    }
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+
+    expect(payload.messages[1].content).toEqual([
+      {
+        type: 'thinking',
+        thinking: 'Prior signed thinking.',
+        signature: 'signed-thinking-text-only',
+      },
+      { type: 'text', text: 'Prior answer.' },
+    ])
+  })
+
   it('merges multiple consecutive tool result messages into one user message', async () => {
     // When multiple tools are called, each tool result becomes a role:'user' message.
     // These must be merged into a single user message.
@@ -309,7 +596,7 @@ describe('Anthropic adapter option mapping', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-3-7-sonnet-20250219')
+    const adapter = createAdapter('claude-3-7-sonnet')
 
     const chunks: StreamChunk[] = []
     for await (const chunk of chat({
@@ -347,7 +634,7 @@ describe('Anthropic adapter option mapping', () => {
     }
 
     expect(mocks.betaMessagesCreate).toHaveBeenCalledTimes(1)
-    const [payload] = mocks.betaMessagesCreate.mock.calls[0]
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
 
     // Both tool results should be merged into a single user message
     expect(payload.messages).toEqual([
@@ -425,7 +712,7 @@ describe('Anthropic adapter option mapping', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-3-7-sonnet-20250219')
+    const adapter = createAdapter('claude-3-7-sonnet')
 
     const chunks: StreamChunk[] = []
     for await (const chunk of chat({
@@ -480,7 +767,7 @@ describe('Anthropic adapter option mapping', () => {
     }
 
     expect(mocks.betaMessagesCreate).toHaveBeenCalledTimes(1)
-    const [payload] = mocks.betaMessagesCreate.mock.calls[0]
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
 
     // Verify: no consecutive same-role messages, no empty assistants, no duplicate tool_results
     const roles = payload.messages.map((m: any) => m.role)
@@ -537,7 +824,7 @@ describe('Anthropic adapter option mapping', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-3-7-sonnet-20250219')
+    const adapter = createAdapter('claude-3-7-sonnet')
 
     const chunks: StreamChunk[] = []
     for await (const chunk of chat({
@@ -552,7 +839,7 @@ describe('Anthropic adapter option mapping', () => {
     }
 
     expect(mocks.betaMessagesCreate).toHaveBeenCalledTimes(1)
-    const [payload] = mocks.betaMessagesCreate.mock.calls[0]
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
 
     // The empty assistant message should be filtered out, and consecutive
     // user messages should be merged
@@ -601,7 +888,7 @@ describe('Anthropic stream processing', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-3-7-sonnet-20250219')
+    const adapter = createAdapter('claude-3-7-sonnet')
 
     const chunks: StreamChunk[] = []
     for await (const chunk of chat({
@@ -616,6 +903,254 @@ describe('Anthropic stream processing', () => {
     expect(runFinished).toHaveLength(1)
     expect(runFinished[0]).toMatchObject({
       type: 'RUN_FINISHED',
+    })
+  })
+
+  it('does not leak server_tool_use input deltas into the prior client tool', async () => {
+    const mockStream = (async function* () {
+      yield {
+        type: 'content_block_start',
+        index: 0,
+        content_block: {
+          type: 'tool_use',
+          id: 'tool_client',
+          name: 'lookup_weather',
+        },
+      }
+      yield {
+        type: 'content_block_delta',
+        index: 0,
+        delta: {
+          type: 'input_json_delta',
+          partial_json: '{"location":"Berlin"}',
+        },
+      }
+      yield { type: 'content_block_stop', index: 0 }
+      yield {
+        type: 'content_block_start',
+        index: 1,
+        content_block: {
+          type: 'server_tool_use',
+          id: 'srv_fetch',
+          name: 'web_fetch',
+        },
+      }
+      yield {
+        type: 'content_block_delta',
+        index: 1,
+        delta: {
+          type: 'input_json_delta',
+          partial_json: '{"url":"https://example.com"}',
+        },
+      }
+      yield { type: 'content_block_stop', index: 1 }
+      yield {
+        type: 'content_block_start',
+        index: 2,
+        content_block: {
+          type: 'web_fetch_tool_result',
+          tool_use_id: 'srv_fetch',
+          content: {
+            type: 'web_fetch_result',
+            url: 'https://example.com',
+            content: { type: 'document', source: { type: 'text', data: 'ok' } },
+            retrieved_at: '2026-01-01T00:00:00Z',
+          },
+        },
+      }
+      yield { type: 'content_block_stop', index: 2 }
+      yield {
+        type: 'message_delta',
+        delta: { stop_reason: 'tool_use' },
+        usage: { output_tokens: 10 },
+      }
+      yield { type: 'message_stop' }
+    })()
+
+    mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
+
+    const adapter = createAdapter('claude-3-7-sonnet')
+
+    const chunks: StreamChunk[] = []
+    for await (const chunk of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Weather + fetch' }],
+      tools: [weatherTool],
+    })) {
+      chunks.push(chunk)
+    }
+
+    const toolEnds = chunks.filter((c) => c.type === 'TOOL_CALL_END')
+    expect(toolEnds).toHaveLength(1)
+    expect(toolEnds[0]).toMatchObject({
+      toolCallId: 'tool_client',
+      input: { location: 'Berlin' },
+    })
+
+    expect(
+      chunks.some(
+        (c) =>
+          c.type === 'TOOL_CALL_START' &&
+          (c as { toolCallId: string }).toolCallId === 'srv_fetch',
+      ),
+    ).toBe(false)
+  })
+
+  it.each([
+    [
+      'web_fetch',
+      'web_fetch_tool_result',
+      {
+        type: 'web_fetch_result',
+        url: 'https://example.com',
+        content: { type: 'document', source: { type: 'text', data: 'ok' } },
+        retrieved_at: '2026-01-01T00:00:00Z',
+      },
+    ],
+    [
+      'web_search',
+      'web_search_tool_result',
+      [
+        {
+          type: 'web_search_result',
+          encrypted_content: 'enc',
+          page_age: null,
+          title: 'Example',
+          url: 'https://example.com',
+        },
+      ],
+    ],
+  ] as const)(
+    'cleanly handles a server-only %s response with no prior client tool_use',
+    async (toolName, resultType, resultContent) => {
+      // With no prior client tool_use, currentToolIndex is -1; server-tool
+      // deltas must not crash or create phantom client tool calls.
+      const mockStream = (async function* () {
+        yield {
+          type: 'content_block_start',
+          index: 0,
+          content_block: {
+            type: 'server_tool_use',
+            id: 'srv_only',
+            name: toolName,
+          },
+        }
+        yield {
+          type: 'content_block_delta',
+          index: 0,
+          delta: {
+            type: 'input_json_delta',
+            partial_json: '{"url":"https://example.com"}',
+          },
+        }
+        yield { type: 'content_block_stop', index: 0 }
+        yield {
+          type: 'content_block_start',
+          index: 1,
+          content_block: {
+            type: resultType,
+            tool_use_id: 'srv_only',
+            content: resultContent,
+          },
+        }
+        yield { type: 'content_block_stop', index: 1 }
+        yield {
+          type: 'message_delta',
+          delta: { stop_reason: 'end_turn' },
+          usage: { output_tokens: 5 },
+        }
+        yield { type: 'message_stop' }
+      })()
+
+      mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
+
+      const adapter = createAdapter('claude-3-7-sonnet')
+
+      const chunks: StreamChunk[] = []
+      for await (const chunk of chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Use the server tool' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      expect(chunks.some((c) => c.type === 'TOOL_CALL_START')).toBe(false)
+      expect(chunks.some((c) => c.type === 'TOOL_CALL_END')).toBe(false)
+
+      const runFinished = chunks.filter((c) => c.type === 'RUN_FINISHED')
+      expect(runFinished).toHaveLength(1)
+    },
+  )
+
+  it('logs an error when a server tool result block carries an error variant', async () => {
+    // A failed web_fetch (e.g. url_not_accessible) is otherwise invisible —
+    // the model just keeps going. Surface it via the debug logger.
+    const mockStream = (async function* () {
+      yield {
+        type: 'content_block_start',
+        index: 0,
+        content_block: {
+          type: 'server_tool_use',
+          id: 'srv_err',
+          name: 'web_fetch',
+        },
+      }
+      yield {
+        type: 'content_block_delta',
+        index: 0,
+        delta: {
+          type: 'input_json_delta',
+          partial_json: '{"url":"https://blocked.example"}',
+        },
+      }
+      yield { type: 'content_block_stop', index: 0 }
+      yield {
+        type: 'content_block_start',
+        index: 1,
+        content_block: {
+          type: 'web_fetch_tool_result',
+          tool_use_id: 'srv_err',
+          content: {
+            type: 'web_fetch_tool_result_error',
+            error_code: 'url_not_accessible',
+          },
+        },
+      }
+      yield { type: 'content_block_stop', index: 1 }
+      yield {
+        type: 'message_delta',
+        delta: { stop_reason: 'end_turn' },
+        usage: { output_tokens: 5 },
+      }
+      yield { type: 'message_stop' }
+    })()
+
+    mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
+
+    const adapter = createAdapter('claude-3-7-sonnet')
+
+    const logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Fetch it' }],
+      debug: { logger, errors: true },
+    })) {
+      // consume stream
+    }
+
+    const errorCall = logger.error.mock.calls.find((call) =>
+      String(call[0]).includes('web_fetch_tool_result'),
+    )
+    expect(errorCall).toBeDefined()
+    expect(errorCall![1]).toMatchObject({
+      toolUseId: 'srv_err',
+      errorCode: 'url_not_accessible',
     })
   })
 
@@ -664,7 +1199,7 @@ describe('Anthropic stream processing', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-3-7-sonnet-20250219')
+    const adapter = createAdapter('claude-3-7-sonnet')
 
     const chunks: StreamChunk[] = []
     for await (const chunk of chat({

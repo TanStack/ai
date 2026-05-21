@@ -42,7 +42,7 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
   Record<TModel, FalImageProviderOptions<TModel>>,
   Record<TModel, FalModelImageSize<TModel>>
 > {
-  readonly kind = 'image' as const
+  override readonly kind = 'image' as const
   readonly name = 'fal' as const
 
   constructor(model: TModel, config?: FalClientConfig) {
@@ -77,7 +77,10 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
   }
 
   private buildInput(
-    options: ImageGenerationOptions<FalImageProviderOptions<TModel>, string>,
+    options: ImageGenerationOptions<
+      FalImageProviderOptions<TModel>,
+      FalModelImageSize<TModel>
+    >,
   ): FalModelInput<TModel> {
     const sizeParams = mapSizeToFalFormat(options.size)
     const input = {
@@ -132,7 +135,7 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
       img &&
       typeof img === 'object' &&
       'url' in img &&
-      typeof (img as { url: unknown }).url === 'string'
+      typeof img.url === 'string'
     ) {
       url = (img as { url: string }).url
     } else {

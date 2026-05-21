@@ -3,6 +3,7 @@ import {
   toServerSentEventsStream,
   toServerSentEventsResponse,
 } from '../src/stream-to-response'
+import { EventType } from '../src/types'
 import type { StreamChunk } from '../src/types'
 
 // Helper to create mock async iterable
@@ -228,13 +229,13 @@ describe('toServerSentEventsStream', () => {
   it('should handle stream errors and send error chunk', async () => {
     async function* errorStream(): AsyncGenerator<StreamChunk> {
       yield {
-        type: 'TEXT_MESSAGE_CONTENT',
+        type: EventType.TEXT_MESSAGE_CONTENT,
         messageId: 'msg-1',
         model: 'test',
         timestamp: Date.now(),
         delta: 'Test',
         content: 'Test',
-      } as unknown as StreamChunk
+      }
       throw new Error('Stream error')
     }
 
@@ -544,7 +545,7 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
       const original = originalChunks[i]
       const parsed = parsedChunks[i]
 
-      expect(parsed?.type).toBe(original?.type)
+      expect(parsed?.['type']).toBe(original?.['type'])
       expect((parsed as any)?.messageId).toBe((original as any)?.messageId)
       expect((parsed as any)?.delta).toBe((original as any)?.delta)
       expect((parsed as any)?.content).toBe((original as any)?.content)
@@ -583,18 +584,18 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
     expect(parsedChunks.length).toBe(3)
 
     // Verify TOOL_CALL_START
-    expect(parsedChunks[0]?.type).toBe('TOOL_CALL_START')
+    expect(parsedChunks[0]?.['type']).toBe('TOOL_CALL_START')
     expect((parsedChunks[0] as any)?.toolCallId).toBe('tc-1')
     expect((parsedChunks[0] as any)?.toolName).toBe('get_weather')
     expect((parsedChunks[0] as any)?.index).toBe(0)
 
     // Verify TOOL_CALL_ARGS
-    expect(parsedChunks[1]?.type).toBe('TOOL_CALL_ARGS')
+    expect(parsedChunks[1]?.['type']).toBe('TOOL_CALL_ARGS')
     expect((parsedChunks[1] as any)?.toolCallId).toBe('tc-1')
     expect((parsedChunks[1] as any)?.delta).toBe('{"city":"NYC"}')
 
     // Verify TOOL_CALL_END
-    expect(parsedChunks[2]?.type).toBe('TOOL_CALL_END')
+    expect(parsedChunks[2]?.['type']).toBe('TOOL_CALL_END')
     expect((parsedChunks[2] as any)?.toolCallId).toBe('tc-1')
   })
 
@@ -620,10 +621,10 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
 
     expect(parsedChunks.length).toBe(2)
 
-    expect(parsedChunks[0]?.type).toBe('RUN_STARTED')
+    expect(parsedChunks[0]?.['type']).toBe('RUN_STARTED')
     expect((parsedChunks[0] as any)?.runId).toBe('run-1')
 
-    expect(parsedChunks[1]?.type).toBe('RUN_FINISHED')
+    expect(parsedChunks[1]?.['type']).toBe('RUN_FINISHED')
     expect((parsedChunks[1] as any)?.finishReason).toBe('stop')
   })
 
@@ -642,7 +643,7 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
     const parsedChunks = await parseSSEStream(sseStream)
 
     expect(parsedChunks.length).toBe(1)
-    expect(parsedChunks[0]?.type).toBe('RUN_ERROR')
+    expect(parsedChunks[0]?.['type']).toBe('RUN_ERROR')
     expect((parsedChunks[0] as any)?.error?.message).toBe(
       'Something went wrong',
     )
@@ -672,10 +673,10 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
 
     expect(parsedChunks.length).toBe(2)
 
-    expect(parsedChunks[0]?.type).toBe('STEP_STARTED')
+    expect(parsedChunks[0]?.['type']).toBe('STEP_STARTED')
     expect((parsedChunks[0] as any)?.stepId).toBe('step-1')
 
-    expect(parsedChunks[1]?.type).toBe('STEP_FINISHED')
+    expect(parsedChunks[1]?.['type']).toBe('STEP_FINISHED')
     expect((parsedChunks[1] as any)?.delta).toBe('Let me think...')
   })
 
@@ -712,13 +713,13 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
     expect(parsedChunks.length).toBe(2)
 
     // Verify tool-input-available
-    expect(parsedChunks[0]?.type).toBe('CUSTOM')
+    expect(parsedChunks[0]?.['type']).toBe('CUSTOM')
     expect((parsedChunks[0] as any)?.name).toBe('tool-input-available')
     expect((parsedChunks[0] as any)?.value?.toolCallId).toBe('tc-1')
     expect((parsedChunks[0] as any)?.value?.input?.city).toBe('NYC')
 
     // Verify approval-requested
-    expect(parsedChunks[1]?.type).toBe('CUSTOM')
+    expect(parsedChunks[1]?.['type']).toBe('CUSTOM')
     expect((parsedChunks[1] as any)?.name).toBe('approval-requested')
     expect((parsedChunks[1] as any)?.value?.approval?.id).toBe('approval-1')
   })
@@ -751,9 +752,9 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
     const parsedChunks = await parseSSEStream(sseStream)
 
     expect(parsedChunks.length).toBe(3)
-    expect(parsedChunks[0]?.type).toBe('TEXT_MESSAGE_START')
-    expect(parsedChunks[1]?.type).toBe('TEXT_MESSAGE_CONTENT')
-    expect(parsedChunks[2]?.type).toBe('TEXT_MESSAGE_END')
+    expect(parsedChunks[0]?.['type']).toBe('TEXT_MESSAGE_START')
+    expect(parsedChunks[1]?.['type']).toBe('TEXT_MESSAGE_CONTENT')
+    expect(parsedChunks[2]?.['type']).toBe('TEXT_MESSAGE_END')
   })
 
   it('should preserve complex mixed event sequence', async () => {
@@ -845,7 +846,7 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
     ]
 
     for (let i = 0; i < expectedTypes.length; i++) {
-      expect(parsedChunks[i]?.type).toBe(expectedTypes[i])
+      expect(parsedChunks[i]?.['type']).toBe(expectedTypes[i])
     }
   })
 

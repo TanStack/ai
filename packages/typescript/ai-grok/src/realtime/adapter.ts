@@ -7,7 +7,6 @@ import type {
   RealtimeMessage,
   RealtimeMode,
   RealtimeSessionConfig,
-  RealtimeStatus,
   RealtimeToken,
 } from '@tanstack/ai'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
@@ -129,7 +128,11 @@ async function createWebRTCConnection(
 
   let audioElement: HTMLAudioElement | null = null
 
-  let dataChannel: RTCDataChannel | null = null
+  // Captured into a const so closures see a non-nullable reference (teardown
+  // re-points the outer `dataChannel` to null, but in-flight closures still
+  // need to close their own channel).
+  const channel = pc.createDataChannel('oai-events')
+  let dataChannel: RTCDataChannel | null = channel
 
   let currentMode: RealtimeMode = 'idle'
   let currentMessageId: string | null = null
@@ -171,8 +174,6 @@ async function createWebRTCConnection(
     }
   }
 
-  dataChannel = pc.createDataChannel('oai-events')
-
   let dataChannelOpened = false
   let rejectDataChannelReady: ((reason: unknown) => void) | null = null
   let dataChannelReadyTimeout: ReturnType<typeof setTimeout> | null = null
@@ -198,7 +199,7 @@ async function createWebRTCConnection(
       }
     }, 15000)
 
-    dataChannel!.onopen = () => {
+    channel.onopen = () => {
       dataChannelOpened = true
       if (dataChannelReadyTimeout !== null) {
         clearTimeout(dataChannelReadyTimeout)
@@ -208,12 +209,12 @@ async function createWebRTCConnection(
       // don't attempt a redundant reject on an already-settled promise.
       rejectDataChannelReady = null
       flushPendingEvents()
-      emit('status_change', { status: 'connected' as RealtimeStatus })
+      emit('status_change', { status: 'connected' })
       resolve()
     }
   })
 
-  dataChannel.onmessage = (event) => {
+  channel.onmessage = (event) => {
     try {
       const message = JSON.parse(event.data)
       const messageRecord: Record<string, unknown> =
@@ -235,7 +236,7 @@ async function createWebRTCConnection(
     }
   }
 
-  dataChannel.onerror = (error) => {
+  channel.onerror = (error) => {
     // Closing the peer connection cascades into `onerror`/`onclose` on the
     // data channel. Once teardown has started, re-surfacing those as
     // `emit('error')` is noise that confuses consumers (they just called
@@ -250,6 +251,7 @@ async function createWebRTCConnection(
     // doesn't end up as "[object Event]".
     // `onerror` always fires with an Event (often an RTCErrorEvent), so we
     // can read it via the untyped helpers without first proving object-ness.
+    // eslint-disable-next-line no-restricted-syntax -- RTCErrorEvent is a typed DOM class that does not structurally overlap Record<string, unknown>; we duck-type it via readObject/readString
     const errorRecord = error as unknown as Record<string, unknown>
     const rtcError = readObject(errorRecord, 'error')
     const msg =
@@ -261,7 +263,7 @@ async function createWebRTCConnection(
     emit('error', { error: dcErr })
   }
 
-  dataChannel.onclose = () => {
+  channel.onclose = () => {
     // Same rationale as `onerror` above: `pc.close()` during teardown
     // cascades to the data channel's `onclose`. If we've already started
     // teardown, there's nothing to do here.
@@ -294,10 +296,7 @@ async function createWebRTCConnection(
       // guard listeners would see two `idle` events per disconnect.
       if (!isTornDown) {
         emit('status_change', {
-          status:
-            state === 'failed'
-              ? ('error' as RealtimeStatus)
-              : ('idle' as RealtimeStatus),
+          status: state === 'failed' ? 'error' : 'idle',
         })
       }
       if (!dataChannelOpened) {
@@ -730,7 +729,9 @@ async function createWebRTCConnection(
           currentMode = 'listening'
           emit('mode_change', { mode: 'listening' })
         }
-        emit('interrupted', { messageId: currentMessageId ?? undefined })
+        emit('interrupted', {
+          ...(currentMessageId !== null && { messageId: currentMessageId }),
+        })
         break
 
       case 'error': {
@@ -759,10 +760,12 @@ async function createWebRTCConnection(
         break
       }
 
+      case undefined:
       default:
         // The xAI realtime protocol is a moving target; log unhandled event
         // types at provider level so they're visible during debugging without
-        // emitting a user-visible error.
+        // emitting a user-visible error. `undefined` shares the bucket because
+        // a malformed event without a `type` field is just as unhandleable.
         logger.provider('grok.realtime unhandled server event', {
           type: event.type,
         })
@@ -928,7 +931,7 @@ async function createWebRTCConnection(
           `provider=grok direction=out type=${readString(event, 'type') ?? '<unknown>'}`,
           { frame: event },
         )
-        dataChannel!.send(JSON.stringify(event))
+        channel.send(JSON.stringify(event))
       }
       pendingEvents.length = 0
     } catch (error) {
@@ -954,7 +957,7 @@ async function createWebRTCConnection(
       // every cleanup site stays in sync (input analyser, output analyser,
       // output source, audio element, etc.).
       await teardownConnection()
-      emit('status_change', { status: 'idle' as RealtimeStatus })
+      emit('status_change', { status: 'idle' })
     },
 
     async startAudioCapture() {
@@ -1117,17 +1120,21 @@ async function createWebRTCConnection(
       sendEvent({ type: 'response.cancel' })
       currentMode = 'listening'
       emit('mode_change', { mode: 'listening' })
-      emit('interrupted', { messageId: currentMessageId ?? undefined })
+      emit('interrupted', {
+        ...(currentMessageId !== null && { messageId: currentMessageId }),
+      })
     },
 
     on<TEvent extends RealtimeEvent>(
       event: TEvent,
       handler: RealtimeEventHandler<TEvent>,
     ): () => void {
-      if (!eventHandlers.has(event)) {
-        eventHandlers.set(event, new Set())
+      let handlers = eventHandlers.get(event)
+      if (!handlers) {
+        handlers = new Set()
+        eventHandlers.set(event, handlers)
       }
-      eventHandlers.get(event)!.add(handler)
+      handlers.add(handler)
 
       return () => {
         eventHandlers.get(event)?.delete(handler)

@@ -132,6 +132,8 @@ export function useGenerateVideo<
   const [status, setStatus] = createSignal<GenerationClientState>('idle')
 
   const client = createMemo(() => {
+    // Conditional spread on `body`: VideoGenerationClientOptions.body
+    // is a strict optional; EOPT forbids passing `T | undefined`.
     const baseOptions = {
       id: clientId,
       body: options.body,
@@ -171,7 +173,9 @@ export function useGenerateVideo<
   // Sync body changes without recreating client
   createEffect(() => {
     const currentBody = options.body
-    client().updateOptions({ body: currentBody })
+    client().updateOptions({
+      ...(currentBody !== undefined && { body: currentBody }),
+    })
   })
 
   // Cleanup on unmount: stop any in-flight requests

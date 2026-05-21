@@ -6,7 +6,7 @@ title: detectImageMimeType
 # Function: detectImageMimeType()
 
 ```ts
-function detectImageMimeType(base64Data): "image/jpeg" | "image/png" | "image/gif" | "image/webp" | undefined;
+function detectImageMimeType(base64Data): "image/png" | "image/jpeg" | "image/gif" | "image/webp" | undefined;
 ```
 
 Defined in: [packages/typescript/ai/src/utils.ts:17](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/utils.ts#L17)
@@ -27,7 +27,7 @@ The base64-encoded image data
 
 ## Returns
 
-`"image/jpeg"` \| `"image/png"` \| `"image/gif"` \| `"image/webp"` \| `undefined`
+`"image/png"` \| `"image/jpeg"` \| `"image/gif"` \| `"image/webp"` \| `undefined`
 
 The detected mime type, or undefined if unrecognized
 

@@ -1,3 +1,4 @@
+import { brandProviderTool } from '@tanstack/ai'
 import type { ProviderTool, Tool } from '@tanstack/ai'
 
 /**
@@ -56,7 +57,7 @@ export function convertWebSearchToolToAdapterFormat(
   }
   return {
     type: 'web_search',
-    web_search: metadata.web_search as WebSearchToolConfig['web_search'],
+    web_search: metadata.web_search,
   }
 }
 
@@ -72,8 +73,7 @@ export function webSearchTool(options?: {
   maxResults?: number
   searchPrompt?: string
 }): OpenRouterWebSearchTool {
-  // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
-  return {
+  return brandProviderTool<OpenRouterWebSearchTool>({
     name: 'web_search',
     description: '',
     metadata: {
@@ -85,5 +85,5 @@ export function webSearchTool(options?: {
         search_prompt: options?.searchPrompt,
       },
     },
-  } as unknown as OpenRouterWebSearchTool
+  })
 }

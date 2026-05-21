@@ -10,7 +10,16 @@
   "updateInternalDependencies": "patch",
   "fixed": [],
   "linked": [],
-  "ignore": [],
+  "ignore": [
+    "@tanstack/ai-codemods",
+    "@tanstack/ai-code-mode-models-eval",
+    "@tanstack/ai-e2e",
+    "stream-processor-panel",
+    "php-slim",
+    "python-fastapi",
+    "ts-*",
+    "vanilla-chat"
+  ],
   "___experimentalUnsafeOptions_WILL_CHANGE_IN_PATCH": {
     "onlyUpdatePeerDependentsWhenOutOfRange": true
   }

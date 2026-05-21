@@ -1,13 +1,24 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import type { RealtimeConnection } from '@tanstack/ai-client'
-import type { AnyClientTool, RealtimeMessage } from '@tanstack/ai'
+import type { AnyClientTool, JSONSchema, RealtimeMessage } from '@tanstack/ai'
+
+/**
+ * Captured `startSession` argument shape. Only the fields the realtime
+ * adapter actually sets on the session-options bag are listed; tests
+ * `expect(...).toBeUndefined()` against absent keys, so optional is fine.
+ */
+type CapturedSessionOptions = {
+  onConnect?: () => void
+  onMessage?: (msg: { message: string; source: 'user' | 'ai' }) => void
+  clientTools?: Record<string, (params: Record<string, unknown>) => unknown>
+}
 
 // Capture the session options passed to Conversation.startSession
-let capturedSessionOptions: Record<string, any> = {}
+let capturedSessionOptions: CapturedSessionOptions = {}
 
-vi.mock('@11labs/client', () => ({
+vi.mock('@elevenlabs/client', () => ({
   Conversation: {
-    startSession: vi.fn(async (options: Record<string, any>) => {
+    startSession: vi.fn(async (options: CapturedSessionOptions) => {
       capturedSessionOptions = options
       // Call onConnect to simulate connection established
       options.onConnect?.()
@@ -31,9 +42,11 @@ describe('elevenlabsRealtime adapter', () => {
   })
 
   const fakeToken = {
+    provider: 'elevenlabs',
     token: 'wss://fake-signed-url',
     expiresAt: Date.now() + 60_000,
-  }
+    config: {},
+  } as const
 
   async function createConnection(
     tools?: ReadonlyArray<AnyClientTool>,
@@ -43,25 +56,28 @@ describe('elevenlabsRealtime adapter', () => {
   }
 
   describe('onMessage duplicate user messages', () => {
+    type TranscriptEvent = {
+      role: string
+      transcript: string
+      isFinal: boolean
+    }
+    type MessageCompleteEvent = { message: RealtimeMessage }
+
     it('should emit only transcript for user messages, not message_complete', async () => {
       const connection = await createConnection()
 
-      const transcriptEvents: Array<{
-        role: string
-        transcript: string
-        isFinal: boolean
-      }> = []
-      const messageCompleteEvents: Array<{ message: RealtimeMessage }> = []
+      const transcriptEvents: Array<TranscriptEvent> = []
+      const messageCompleteEvents: Array<MessageCompleteEvent> = []
 
       connection.on('transcript', (payload) => {
-        transcriptEvents.push(payload as any)
+        transcriptEvents.push(payload)
       })
       connection.on('message_complete', (payload) => {
-        messageCompleteEvents.push(payload as any)
+        messageCompleteEvents.push(payload)
       })
 
       // Simulate a user message from ElevenLabs
-      capturedSessionOptions.onMessage({
+      capturedSessionOptions.onMessage!({
         message: 'Hello from user',
         source: 'user',
       })
@@ -82,22 +98,18 @@ describe('elevenlabsRealtime adapter', () => {
     it('should emit only message_complete for assistant messages, not transcript', async () => {
       const connection = await createConnection()
 
-      const transcriptEvents: Array<{
-        role: string
-        transcript: string
-        isFinal: boolean
-      }> = []
-      const messageCompleteEvents: Array<{ message: RealtimeMessage }> = []
+      const transcriptEvents: Array<TranscriptEvent> = []
+      const messageCompleteEvents: Array<MessageCompleteEvent> = []
 
       connection.on('transcript', (payload) => {
-        transcriptEvents.push(payload as any)
+        transcriptEvents.push(payload)
       })
       connection.on('message_complete', (payload) => {
-        messageCompleteEvents.push(payload as any)
+        messageCompleteEvents.push(payload)
       })
 
       // Simulate an assistant message from ElevenLabs
-      capturedSessionOptions.onMessage({
+      capturedSessionOptions.onMessage!({
         message: 'Hello from assistant',
         source: 'ai',
       })
@@ -117,8 +129,8 @@ describe('elevenlabsRealtime adapter', () => {
     it('should not produce duplicate messages when both user and assistant speak', async () => {
       const connection = await createConnection()
 
-      const transcriptEvents: Array<any> = []
-      const messageCompleteEvents: Array<any> = []
+      const transcriptEvents: Array<TranscriptEvent> = []
+      const messageCompleteEvents: Array<MessageCompleteEvent> = []
 
       connection.on('transcript', (payload) => transcriptEvents.push(payload))
       connection.on('message_complete', (payload) =>
@@ -126,61 +138,90 @@ describe('elevenlabsRealtime adapter', () => {
       )
 
       // User speaks, then assistant responds
-      capturedSessionOptions.onMessage({
+      capturedSessionOptions.onMessage!({
         message: 'What is the weather?',
         source: 'user',
       })
-      capturedSessionOptions.onMessage({
+      capturedSessionOptions.onMessage!({
         message: 'It is sunny today.',
         source: 'ai',
       })
 
       // One transcript event (user only)
       expect(transcriptEvents).toHaveLength(1)
-      expect(transcriptEvents[0].role).toBe('user')
+      expect(transcriptEvents[0]!.role).toBe('user')
 
       // One message_complete event (assistant only)
       expect(messageCompleteEvents).toHaveLength(1)
-      expect(messageCompleteEvents[0].message.role).toBe('assistant')
+      expect(messageCompleteEvents[0]!.message.role).toBe('assistant')
     })
   })
 
   describe('clientTools registration', () => {
-    it('should pass client tools as plain functions to @11labs/client', async () => {
-      const mockTool: AnyClientTool = {
+    /**
+     * Build a fully-typed `AnyClientTool` for tests. Returns a `ClientTool`
+     * (the `__toolSide: 'client'` branch of `AnyClientTool`) so it satisfies
+     * the union shape `connect()` expects without resorting to `as`.
+     */
+    function createMockClientTool(args: {
+      name: string
+      description?: string
+      inputSchema?: JSONSchema
+      execute: (input: Record<string, unknown>) => unknown | Promise<unknown>
+    }): AnyClientTool {
+      // Conditionally spread `inputSchema` — `ClientTool` declares it as
+      // strict `inputSchema?: TInput` (no `| undefined`) under
+      // `exactOptionalPropertyTypes`, so we omit the key when the caller
+      // didn't supply a schema rather than setting it to `undefined`.
+      return {
+        __toolSide: 'client',
+        name: args.name,
+        description: args.description ?? '',
+        ...(args.inputSchema !== undefined && {
+          inputSchema: args.inputSchema,
+        }),
+        execute: args.execute,
+      }
+    }
+
+    it('should pass client tools as plain functions to @elevenlabs/client', async () => {
+      const executeMock = vi.fn(
+        async (params: Record<string, unknown>) => `Sunny in ${params['city']}`,
+      )
+      const mockTool = createMockClientTool({
         name: 'get_weather',
         description: 'Get current weather',
         inputSchema: {
           type: 'object',
           properties: { city: { type: 'string' } },
-        } as any,
-        execute: vi.fn(async (params: any) => `Sunny in ${params.city}`),
-      }
+        },
+        execute: executeMock,
+      })
 
       await createConnection([mockTool])
 
       // The clientTools passed to startSession should contain plain functions
-      const registeredTool = capturedSessionOptions.clientTools?.get_weather
+      const registeredTool = capturedSessionOptions.clientTools?.['get_weather']
       expect(registeredTool).toBeDefined()
       expect(typeof registeredTool).toBe('function')
 
       // Calling the function directly should invoke the tool's execute
-      const result = await registeredTool({ city: 'Seattle' })
+      const result = await registeredTool!({ city: 'Seattle' })
       expect(result).toBe('Sunny in Seattle')
-      expect(mockTool.execute).toHaveBeenCalledWith({ city: 'Seattle' })
+      expect(executeMock).toHaveBeenCalledWith({ city: 'Seattle' })
     })
 
     it('should JSON-stringify non-string tool results', async () => {
-      const mockTool: AnyClientTool = {
+      const mockTool = createMockClientTool({
         name: 'get_data',
         description: 'Get data',
         execute: vi.fn(async () => ({ temp: 72, unit: 'F' })),
-      }
+      })
 
       await createConnection([mockTool])
 
-      const registeredTool = capturedSessionOptions.clientTools?.get_data
-      const result = await registeredTool({})
+      const registeredTool = capturedSessionOptions.clientTools?.['get_data']
+      const result = await registeredTool!({})
       expect(result).toBe(JSON.stringify({ temp: 72, unit: 'F' }))
     })
 

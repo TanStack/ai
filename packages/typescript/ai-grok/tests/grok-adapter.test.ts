@@ -3,21 +3,21 @@ import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { createGrokText, grokText } from '../src/adapters/text'
 import { createGrokImage, grokImage } from '../src/adapters/image'
 import { createGrokSummarize, grokSummarize } from '../src/adapters/summarize'
+import { EventType } from '@tanstack/ai'
 import type { StreamChunk, Tool } from '@tanstack/ai'
 
 // Test helper: a silent logger for test chatStream calls.
 const testLogger = resolveDebugOption(false)
 
-// Declare mockCreate at module level
-let mockCreate: ReturnType<typeof vi.fn>
-
-// Mock the OpenAI SDK
+// Mock the OpenAI SDK to avoid constructing a real client during adapter
+// instantiation. Tests that need to inspect calls inject their own mock client
+// via `injectMockClient`.
 vi.mock('openai', () => {
   return {
     default: class {
       chat = {
         completions: {
-          create: (...args: Array<unknown>) => mockCreate(...args),
+          create: vi.fn(),
         },
       }
     },
@@ -41,17 +41,26 @@ function createAsyncIterable<T>(chunks: Array<T>): AsyncIterable<T> {
   }
 }
 
-// Helper to setup the mock SDK client for streaming responses
-function setupMockSdkClient(
+// Helper to create a mock OpenAI client and inject it into an adapter
+function injectMockClient(
+  adapter: object,
   streamChunks: Array<Record<string, unknown>>,
   nonStreamResponse?: Record<string, unknown>,
-) {
-  mockCreate = vi.fn().mockImplementation((params) => {
+): ReturnType<typeof vi.fn> {
+  const mockCreate = vi.fn().mockImplementation((params) => {
     if (params.stream) {
       return Promise.resolve(createAsyncIterable(streamChunks))
     }
     return Promise.resolve(nonStreamResponse)
   })
+  ;(adapter as any).client = {
+    chat: {
+      completions: {
+        create: mockCreate,
+      },
+    },
+  }
+  return mockCreate
 }
 
 const weatherTool: Tool = {
@@ -77,11 +86,11 @@ describe('Grok adapters', () => {
     it('creates a text adapter from environment variable', () => {
       vi.stubEnv('XAI_API_KEY', 'env-api-key')
 
-      const adapter = grokText('grok-4-0709')
+      const adapter = grokText('grok-4')
 
       expect(adapter).toBeDefined()
       expect(adapter.kind).toBe('text')
-      expect(adapter.model).toBe('grok-4-0709')
+      expect(adapter.model).toBe('grok-4')
     })
 
     it('throws if XAI_API_KEY is not set when using grokText', () => {
@@ -140,7 +149,7 @@ describe('Grok adapters', () => {
     it('creates a summarize adapter from environment variable', () => {
       vi.stubEnv('XAI_API_KEY', 'env-api-key')
 
-      const adapter = grokSummarize('grok-4-0709')
+      const adapter = grokSummarize('grok-4')
 
       expect(adapter).toBeDefined()
       expect(adapter.kind).toBe('summarize')
@@ -192,8 +201,8 @@ describe('Grok AG-UI event emission', () => {
       },
     ]
 
-    setupMockSdkClient(streamChunks)
     const adapter = createGrokText('grok-3', 'test-api-key')
+    injectMockClient(adapter, streamChunks)
     const chunks: Array<StreamChunk> = []
 
     for await (const chunk of adapter.chatStream({
@@ -240,8 +249,8 @@ describe('Grok AG-UI event emission', () => {
       },
     ]
 
-    setupMockSdkClient(streamChunks)
     const adapter = createGrokText('grok-3', 'test-api-key')
+    injectMockClient(adapter, streamChunks)
     const chunks: Array<StreamChunk> = []
 
     for await (const chunk of adapter.chatStream({
@@ -299,8 +308,8 @@ describe('Grok AG-UI event emission', () => {
       },
     ]
 
-    setupMockSdkClient(streamChunks)
     const adapter = createGrokText('grok-3', 'test-api-key')
+    injectMockClient(adapter, streamChunks)
     const chunks: Array<StreamChunk> = []
 
     for await (const chunk of adapter.chatStream({
@@ -390,8 +399,8 @@ describe('Grok AG-UI event emission', () => {
       },
     ]
 
-    setupMockSdkClient(streamChunks)
     const adapter = createGrokText('grok-3', 'test-api-key')
+    injectMockClient(adapter, streamChunks)
     const chunks: Array<StreamChunk> = []
 
     for await (const chunk of adapter.chatStream({
@@ -458,9 +467,16 @@ describe('Grok AG-UI event emission', () => {
       },
     }
 
-    mockCreate = vi.fn().mockResolvedValue(errorIterable)
-
     const adapter = createGrokText('grok-3', 'test-api-key')
+    const mockCreate = vi.fn().mockResolvedValue(errorIterable)
+    ;(adapter as any).client = {
+      chat: {
+        completions: {
+          create: mockCreate,
+        },
+      },
+    }
+
     const chunks: Array<StreamChunk> = []
 
     for await (const chunk of adapter.chatStream({
@@ -475,7 +491,7 @@ describe('Grok AG-UI event emission', () => {
     const runErrorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
     expect(runErrorChunk).toBeDefined()
     if (runErrorChunk?.type === 'RUN_ERROR') {
-      expect(runErrorChunk.error.message).toBe('Stream interrupted')
+      expect(runErrorChunk.error!.message).toBe('Stream interrupted')
     }
   })
 
@@ -508,8 +524,8 @@ describe('Grok AG-UI event emission', () => {
       },
     ]
 
-    setupMockSdkClient(streamChunks)
     const adapter = createGrokText('grok-3', 'test-api-key')
+    injectMockClient(adapter, streamChunks)
     const chunks: Array<StreamChunk> = []
 
     for await (const chunk of adapter.chatStream({
@@ -527,14 +543,14 @@ describe('Grok AG-UI event emission', () => {
     expect(eventTypes[0]).toBe('RUN_STARTED')
 
     // Should have TEXT_MESSAGE_START before TEXT_MESSAGE_CONTENT
-    const textStartIndex = eventTypes.indexOf('TEXT_MESSAGE_START')
-    const textContentIndex = eventTypes.indexOf('TEXT_MESSAGE_CONTENT')
+    const textStartIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_START)
+    const textContentIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_CONTENT)
     expect(textStartIndex).toBeGreaterThan(-1)
     expect(textContentIndex).toBeGreaterThan(textStartIndex)
 
     // Should have TEXT_MESSAGE_END before RUN_FINISHED
-    const textEndIndex = eventTypes.indexOf('TEXT_MESSAGE_END')
-    const runFinishedIndex = eventTypes.indexOf('RUN_FINISHED')
+    const textEndIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_END)
+    const runFinishedIndex = eventTypes.indexOf(EventType.RUN_FINISHED)
     expect(textEndIndex).toBeGreaterThan(-1)
     expect(runFinishedIndex).toBeGreaterThan(textEndIndex)
 
@@ -585,8 +601,8 @@ describe('Grok AG-UI event emission', () => {
       },
     ]
 
-    setupMockSdkClient(streamChunks)
     const adapter = createGrokText('grok-3', 'test-api-key')
+    injectMockClient(adapter, streamChunks)
     const chunks: Array<StreamChunk> = []
 
     for await (const chunk of adapter.chatStream({

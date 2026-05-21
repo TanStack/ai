@@ -1,3 +1,4 @@
+import { brandProviderTool } from '@tanstack/ai'
 import type { ProviderTool, Tool } from '@tanstack/ai'
 
 export interface UrlContextToolConfig {}
@@ -14,10 +15,9 @@ export function convertUrlContextToolToAdapterFormat(_tool: Tool) {
 }
 
 export function urlContextTool(): GeminiUrlContextTool {
-  // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
-  return {
+  return brandProviderTool<GeminiUrlContextTool>({
     name: 'url_context',
     description: '',
     metadata: {},
-  } as unknown as GeminiUrlContextTool
+  })
 }

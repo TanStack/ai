@@ -327,3 +327,79 @@ describe('OllamaTextAdapter.structuredOutput', () => {
     ).rejects.toThrow(/Structured output generation failed.*network down/)
   })
 })
+
+describe('OllamaTextAdapter system prompts', () => {
+  it('prepends mixed string + object-form systemPrompts as a single role:system message and drops foreign metadata', async () => {
+    chatMock.mockResolvedValueOnce(
+      asyncIterable([
+        {
+          message: { role: 'assistant', content: 'ok' },
+          done: true,
+          done_reason: 'stop',
+        },
+      ]),
+    )
+
+    const adapter = createOllamaChat('llama3.2')
+    await collectStream(
+      adapter.chatStream({
+        logger: testLogger,
+        model: 'llama3.2',
+        messages: [{ role: 'user', content: 'hi' }],
+        systemPrompts: [
+          'plain',
+          { content: 'object-form' },
+          // `metadata` on an Ollama chat is `never` at the type level; the
+          // cast models a stale call site reaching the adapter via JS / `as
+          // any`. The adapter must still join the content correctly and
+          // never leak the foreign field onto the wire.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          { content: 'with-meta', metadata: { cache_control: {} } as any },
+        ],
+      }),
+    )
+
+    expect(chatMock).toHaveBeenCalledTimes(1)
+    const [payload] = chatMock.mock.calls[0]!
+    const messages = payload.messages as Array<{
+      role: string
+      content: string
+    }>
+
+    // System prompt is the first message and joins all content with '\n'.
+    expect(messages[0]).toEqual({
+      role: 'system',
+      content: 'plain\nobject-form\nwith-meta',
+    })
+    expect(messages[1]).toMatchObject({ role: 'user' })
+    // Foreign metadata never reaches the wire.
+    expect(JSON.stringify(payload)).not.toContain('cache_control')
+  })
+
+  it('omits the system message entirely when systemPrompts is empty or undefined', async () => {
+    chatMock.mockResolvedValueOnce(
+      asyncIterable([
+        {
+          message: { role: 'assistant', content: 'ok' },
+          done: true,
+          done_reason: 'stop',
+        },
+      ]),
+    )
+
+    const adapter = createOllamaChat('llama3.2')
+    await collectStream(
+      adapter.chatStream({
+        logger: testLogger,
+        model: 'llama3.2',
+        messages: [{ role: 'user', content: 'hi' }],
+      }),
+    )
+
+    const [payload] = chatMock.mock.calls[0]!
+    const roles = (payload.messages as Array<{ role: string }>).map(
+      (m) => m.role,
+    )
+    expect(roles).not.toContain('system')
+  })
+})

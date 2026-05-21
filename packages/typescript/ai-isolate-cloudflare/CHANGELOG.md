@@ -1,5 +1,92 @@
 # @tanstack/ai-isolate-cloudflare
 
+## 0.2.7
+
+### Patch Changes
+
+- Updated dependencies [[`2ad137b`](https://github.com/TanStack/ai/commit/2ad137bd22512248bd1684cccce35ba89597cf96)]:
+  - @tanstack/ai-code-mode@0.1.16
+
+## 0.2.6
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-code-mode@0.1.15
+
+## 0.2.5
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-code-mode@0.1.14
+
+## 0.2.4
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-code-mode@0.1.13
+
+## 0.2.3
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-code-mode@0.1.12
+
+## 0.2.2
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-code-mode@0.1.11
+
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-code-mode@0.1.10
+
+## 0.2.0
+
+### Minor Changes
+
+- Port the Cloudflare worker driver from `unsafe_eval` to `worker_loader` (Dynamic Workers). ([#523](https://github.com/TanStack/ai/pull/523))
+
+  Cloudflare gates the `unsafe_eval` binding for all customer prod accounts; the previous driver was unusable in production and broken in `wrangler dev` on current Wrangler 4.x. The supported replacement is the `worker_loader` binding (GA-beta'd 2026-03-24).
+
+  **Breaking:** the worker now requires the `LOADER` binding instead of `UNSAFE_EVAL`. Update your `wrangler.toml`:
+
+  ```toml
+  # before
+  [[unsafe.bindings]]
+  name = "UNSAFE_EVAL"
+  type = "unsafe_eval"
+
+  # after
+  [[worker_loaders]]
+  binding = "LOADER"
+  ```
+
+  The HTTP tool-callback protocol and public driver API are unchanged. Workers Paid plan is required for any edge usage (deploy or `wrangler dev --remote`); local `wrangler dev` works on the Free plan.
+
+  Closes #522.
+
+### Patch Changes
+
+- fix(ai-isolate-cloudflare): accumulate `toolResults` across rounds in the driver round-trip ([#524](https://github.com/TanStack/ai/pull/524))
+
+  The Cloudflare isolate driver was wiping `toolResults` between rounds. `wrap-code` uses sequential `tc_<idx>` ids that are re-derived every round when the Worker re-executes user code, so prior-round results must remain in the cache. With the wipe, multi-tool programs (e.g. `await A(); await B();`) would ping-pong between `{tc_0}` and `{tc_1}` and exhaust `maxToolRounds`, surfacing as `MaxRoundsExceeded`.
+
+  Single-tool code worked because only one cache entry was ever needed in a given round. Existing tests covered single-round flows only and did not exercise real `wrap-code` ids end-to-end, so the regression slipped through.
+
+  Added a `tc_<idx>`-shaped regression test that fails on the prior implementation and passes with the merge.
+
+- Updated dependencies []:
+  - @tanstack/ai-code-mode@0.1.9
+
 ## 0.1.8
 
 ### Patch Changes

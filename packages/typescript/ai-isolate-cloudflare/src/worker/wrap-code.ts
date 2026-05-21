@@ -1,6 +1,6 @@
 /**
  * Code wrapping utilities for the Cloudflare Worker.
- * Extracted for testability without UNSAFE_EVAL.
+ * Extracted for testability without a live worker_loader binding.
  */
 
 import type { ToolResultPayload, ToolSchema } from '../types'

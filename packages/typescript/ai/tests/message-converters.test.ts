@@ -184,7 +184,7 @@ describe('Message Converters', () => {
       expect(contentParts[3]?.type).toBe('text')
     })
 
-    it('should skip thinking parts in conversion', () => {
+    it('should preserve thinking parts in conversion', () => {
       const uiMessage: UIMessage = {
         id: 'msg-1',
         role: 'assistant',
@@ -198,6 +198,7 @@ describe('Message Converters', () => {
 
       expect(result.length).toBe(1)
       expect(result[0]?.content).toBe('Here is my answer')
+      expect(result[0]?.thinking).toEqual([{ content: 'Let me think...' }])
     })
 
     it('should skip system messages', () => {
@@ -581,6 +582,37 @@ describe('Message Converters', () => {
           arguments: '{"city": "NYC"}',
           state: 'input-complete',
         },
+      ])
+    })
+
+    it('should convert assistant thinking into UIMessage parts', () => {
+      const modelMessage: ModelMessage = {
+        role: 'assistant',
+        content: 'Here is my answer.',
+        thinking: [
+          {
+            content: 'Signed thought.',
+            signature: 'sig-1',
+          },
+          {
+            content: 'Unsigned thought.',
+          },
+        ],
+      }
+
+      const result = modelMessageToUIMessage(modelMessage)
+
+      expect(result.parts).toEqual([
+        {
+          type: 'thinking',
+          content: 'Signed thought.',
+          signature: 'sig-1',
+        },
+        {
+          type: 'thinking',
+          content: 'Unsigned thought.',
+        },
+        { type: 'text', content: 'Here is my answer.' },
       ])
     })
 
@@ -1546,6 +1578,133 @@ describe('Message Converters', () => {
       expect(content.approved).toBe(false)
       expect(content.pendingExecution).toBeUndefined()
       expect(content.message).toBe('User denied this action')
+    })
+  })
+
+  describe('uiMessageToModelMessages — structured-output round-trip', () => {
+    it('emits a complete structured-output part as assistant text content using `raw`', () => {
+      // The multi-turn coherence promise: when an assistant turn carries a
+      // completed structured-output part, the next LLM call must see that
+      // turn's `raw` JSON as the assistant content so the model can
+      // self-reference. `raw` is the source of truth.
+      const uiMessage: UIMessage = {
+        id: 'msg-1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'structured-output',
+            status: 'complete',
+            raw: '{"title":"Cheese Toast","servings":2}',
+            data: { title: 'Cheese Toast', servings: 2 },
+            partial: { title: 'Cheese Toast', servings: 2 },
+          },
+        ],
+      }
+      const result = uiMessageToModelMessages(uiMessage)
+      expect(result).toHaveLength(1)
+      expect(result[0]!.role).toBe('assistant')
+      expect(result[0]!.content).toBe('{"title":"Cheese Toast","servings":2}')
+    })
+
+    it('falls back to JSON.stringify(data) when complete but raw is empty', () => {
+      // Terminal-only completes (no streamed deltas) leave the part with an
+      // empty `raw` if `completeStructuredOutputPart`'s defensive stringify
+      // also failed — but if `data` itself is serializable, the converter
+      // synthesizes a clean string via `safeJsonStringify(data)`.
+      const data = { title: 'Salad', items: ['lettuce', 'tomato'] }
+      const uiMessage: UIMessage = {
+        id: 'msg-1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'structured-output',
+            status: 'complete',
+            raw: '',
+            data,
+          },
+        ],
+      }
+      const result = uiMessageToModelMessages(uiMessage)
+      expect(result).toHaveLength(1)
+      expect(result[0]!.content).toBe(JSON.stringify(data))
+    })
+
+    it('skips streaming structured-output parts (no in-flight JSON in history)', () => {
+      // A streaming part is mid-flight by definition; serializing it would
+      // ship malformed JSON to the next LLM turn. The converter drops the
+      // assistant message entirely if it has no other emit-worthy parts.
+      const uiMessage: UIMessage = {
+        id: 'msg-1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'structured-output',
+            status: 'streaming',
+            raw: '{"title":"par',
+            partial: { title: 'par' },
+          },
+        ],
+      }
+      const result = uiMessageToModelMessages(uiMessage)
+      // No assistant text emitted → empty result (the no-content branch
+      // in flushSegment skips emit).
+      const assistantWithContent = result.find(
+        (m) =>
+          m.role === 'assistant' &&
+          typeof m.content === 'string' &&
+          m.content !== '',
+      )
+      expect(assistantWithContent).toBeUndefined()
+    })
+
+    it('skips errored structured-output parts', () => {
+      const uiMessage: UIMessage = {
+        id: 'msg-1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'structured-output',
+            status: 'error',
+            raw: '{"truncated',
+            errorMessage: 'truncated',
+          },
+        ],
+      }
+      const result = uiMessageToModelMessages(uiMessage)
+      const assistantWithContent = result.find(
+        (m) =>
+          m.role === 'assistant' &&
+          typeof m.content === 'string' &&
+          m.content !== '',
+      )
+      expect(assistantWithContent).toBeUndefined()
+    })
+
+    it('skips complete structured-output parts whose raw is empty and data is unserializable', () => {
+      // BigInt branch: `completeStructuredOutputPart` left raw='' and the
+      // converter's `safeJsonStringify(data)` will also return ''. The
+      // assistant turn is silently dropped — preferable to shipping invalid
+      // content to the LLM and crashing the round-trip.
+      const uiMessage: UIMessage = {
+        id: 'msg-1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'structured-output',
+            status: 'complete',
+            raw: '',
+            data: { val: 1n },
+          },
+        ],
+      }
+      const result = uiMessageToModelMessages(uiMessage)
+      const assistantWithContent = result.find(
+        (m) =>
+          m.role === 'assistant' &&
+          typeof m.content === 'string' &&
+          m.content !== '',
+      )
+      expect(assistantWithContent).toBeUndefined()
     })
   })
 })

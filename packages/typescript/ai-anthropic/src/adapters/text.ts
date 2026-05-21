@@ -1,3 +1,4 @@
+import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import { validateTextProviderOptions } from '../text/text-provider-options'
@@ -20,14 +21,17 @@ import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
   Base64ImageSource,
   Base64PDFSource,
+  ContentBlockParam,
   DocumentBlockParam,
   ImageBlockParam,
-  MessageParam,
   TextBlockParam,
+  ThinkingBlockParam,
+  ToolUseBlockParam,
   URLImageSource,
   URLPDFSource,
 } from '@anthropic-ai/sdk/resources/messages'
 import type Anthropic_SDK from '@anthropic-ai/sdk'
+import type { AnthropicBeta } from '@anthropic-ai/sdk/resources/beta/beta'
 import type {
   ContentPart,
   Modality,
@@ -36,6 +40,7 @@ import type {
   TextOptions,
 } from '@tanstack/ai'
 import type {
+  AnthropicSystemPromptMetadata,
   ExternalTextProviderOptions,
   InternalTextProviderOptions,
 } from '../text/text-provider-options'
@@ -47,11 +52,6 @@ import type {
 } from '../message-types'
 import type { AnthropicClientConfig } from '../utils'
 
-/** Cast an event object to StreamChunk. Adapters construct events with string
- *  literal types which are structurally compatible with the EventType enum. */
-const asChunk = (chunk: Record<string, unknown>) =>
-  chunk as unknown as StreamChunk
-
 /**
  * Configuration for Anthropic text adapter
  */
@@ -61,13 +61,6 @@ export interface AnthropicTextConfig extends AnthropicClientConfig {}
  * Anthropic-specific provider options for text/chat
  */
 export type AnthropicTextProviderOptions = ExternalTextProviderOptions
-
-type AnthropicContentBlocks =
-  Extract<MessageParam['content'], Array<unknown>> extends Array<infer Block>
-    ? Array<Block>
-    : never
-type AnthropicContentBlock =
-  AnthropicContentBlocks extends Array<infer Block> ? Block : never
 
 // ===========================
 // Type Resolution Helpers
@@ -118,12 +111,17 @@ export class AnthropicTextAdapter<
   TProviderOptions,
   TInputModalities,
   AnthropicMessageMetadataByModality,
-  TToolCapabilities
+  TToolCapabilities,
+  // TToolCallMetadata — anthropic has no tool-call metadata round-tripping
+  unknown,
+  // TSystemPromptMetadata — narrows `systemPrompts[i].metadata` at the
+  // chat() call site so users get `cache_control` autocomplete.
+  AnthropicSystemPromptMetadata
 > {
-  readonly kind = 'text' as const
+  override readonly kind = 'text' as const
   readonly name = 'anthropic' as const
 
-  private client: Anthropic_SDK
+  private readonly client: Anthropic_SDK
 
   constructor(config: AnthropicTextConfig, model: TModel) {
     super({}, model)
@@ -141,8 +139,23 @@ export class AnthropicTextAdapter<
         `activity=chat provider=anthropic model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
         { provider: 'anthropic', model: this.model },
       )
+
+      // Interleaved thinking is only supported on the beta messages endpoint,
+      // so the `betas` flag is attached here rather than in the shared mapper
+      // (structuredOutput uses the non-beta endpoint which rejects `betas`).
+      const modelOptions = options.modelOptions as
+        | InternalTextProviderOptions
+        | undefined
+      const useInterleavedThinking =
+        modelOptions?.thinking?.type === 'enabled' &&
+        typeof modelOptions.thinking.budget_tokens === 'number' &&
+        modelOptions.thinking.budget_tokens > 0
+      const betas: Array<AnthropicBeta> | undefined = useInterleavedThinking
+        ? ['interleaved-thinking-2025-05-14']
+        : undefined
+
       const stream = await this.client.beta.messages.create(
-        { ...requestParams, stream: true },
+        { ...requestParams, stream: true, ...(betas && { betas }) },
         {
           signal: options.request?.signal,
           headers: options.request?.headers,
@@ -161,8 +174,8 @@ export class AnthropicTextAdapter<
         error,
         source: 'anthropic.chatStream',
       })
-      yield asChunk({
-        type: 'RUN_ERROR',
+      yield {
+        type: EventType.RUN_ERROR,
         model: options.model,
         timestamp: Date.now(),
         message: err.message || 'Unknown error occurred',
@@ -171,7 +184,7 @@ export class AnthropicTextAdapter<
           message: err.message || 'Unknown error occurred',
           code: err.code || String(err.status),
         },
-      })
+      }
     }
   }
 
@@ -289,11 +302,31 @@ export class AnthropicTextAdapter<
         'mcp_servers',
         'service_tier',
         'stop_sequences',
-        'system',
         'thinking',
         'tool_choice',
         'top_k',
       ]
+      const validKeySet = new Set<string>(validKeys)
+      const droppedKeys = Object.keys(modelOptions).filter(
+        (key) => !validKeySet.has(key),
+      )
+      if (droppedKeys.length > 0) {
+        // Reachable when callers cast around the public type (e.g.
+        // `modelOptions: { system: ... } as any`). Without this warning the
+        // unknown keys are silently dropped — `system` in particular was a
+        // previously-tested path for attaching `cache_control` and we don't
+        // want that to fail in production with no signal.
+        options.logger.errors(
+          `anthropic.mapCommonOptionsToAnthropic dropped unknown modelOptions key(s): ${droppedKeys.join(', ')}`,
+          {
+            source: 'anthropic.mapCommonOptionsToAnthropic',
+            droppedKeys,
+            hint: droppedKeys.includes('system')
+              ? 'pass system prompts via the top-level `systemPrompts` option; `modelOptions.system` is no longer honored'
+              : undefined,
+          },
+        )
+      }
       for (const key of validKeys) {
         if (key in modelOptions) {
           const value = modelOptions[key]
@@ -318,14 +351,40 @@ export class AnthropicTextAdapter<
         ? thinkingBudget + 1
         : defaultMaxTokens
 
+    // `InternalTextProviderOptions.system` is typed
+    // `string | Array<TextBlockParam>` (no `| undefined`), so build it
+    // outside the literal and spread it conditionally rather than
+    // assigning `undefined` under exactOptionalPropertyTypes.
+    const systemBlocks = ((): Array<TextBlockParam> | undefined => {
+      const normalized = normalizeSystemPrompts<AnthropicSystemPromptMetadata>(
+        options.systemPrompts,
+      )
+      if (normalized.length === 0) return undefined
+      return normalized.map(
+        (p): TextBlockParam => ({
+          type: 'text',
+          text: p.content,
+          ...(p.metadata?.cache_control && {
+            cache_control: p.metadata.cache_control,
+          }),
+        }),
+      )
+    })()
+    // `InternalTextProviderOptions` declares `temperature`, `top_p`,
+    // and `tools` as `T?: ...` (no `| undefined`), so spread them
+    // conditionally rather than passing explicit `undefined` from the
+    // optional common `TextOptions` fields under
+    // exactOptionalPropertyTypes.
     const requestParams: InternalTextProviderOptions = {
       model: options.model,
       max_tokens: maxTokens,
-      temperature: options.temperature,
-      top_p: options.topP,
+      ...(options.temperature !== undefined && {
+        temperature: options.temperature,
+      }),
+      ...(options.topP !== undefined && { top_p: options.topP }),
       messages: formattedMessages,
-      system: options.systemPrompts?.join('\n'),
-      tools: tools,
+      ...(systemBlocks !== undefined && { system: systemBlocks }),
+      ...(tools !== undefined && { tools }),
       ...validProviderOptions,
     }
     validateTextProviderOptions(requestParams)
@@ -425,12 +484,14 @@ export class AnthropicTextAdapter<
       }
 
       if (role === 'assistant' && message.toolCalls?.length) {
-        const contentBlocks: AnthropicContentBlocks = []
+        const contentBlocks: Array<ContentBlockParam> = []
+
+        this.appendThinkingBlocks(contentBlocks, message.thinking)
 
         if (message.content) {
           const content =
             typeof message.content === 'string' ? message.content : ''
-          const textBlock: AnthropicContentBlock = {
+          const textBlock: TextBlockParam = {
             type: 'text',
             text: content,
           }
@@ -448,7 +509,7 @@ export class AnthropicTextAdapter<
             parsedInput = toolCall.function.arguments
           }
 
-          const toolUseBlock: AnthropicContentBlock = {
+          const toolUseBlock: ToolUseBlockParam = {
             type: 'tool_use',
             id: toolCall.id,
             name: toolCall.function.name,
@@ -465,6 +526,28 @@ export class AnthropicTextAdapter<
         continue
       }
 
+      if (role === 'assistant') {
+        const contentBlocks: Array<ContentBlockParam> = []
+        this.appendThinkingBlocks(contentBlocks, message.thinking)
+
+        if (Array.isArray(message.content)) {
+          for (const part of message.content) {
+            contentBlocks.push(this.convertContentPartToAnthropic(part))
+          }
+        } else if (message.content) {
+          contentBlocks.push({
+            type: 'text',
+            text: message.content,
+          })
+        }
+
+        formattedMessages.push({
+          role: 'assistant',
+          content: contentBlocks.length > 0 ? contentBlocks : '',
+        })
+        continue
+      }
+
       if (role === 'user' && Array.isArray(message.content)) {
         const contentBlocks = message.content.map((part) =>
           this.convertContentPartToAnthropic(part),
@@ -477,7 +560,7 @@ export class AnthropicTextAdapter<
       }
 
       formattedMessages.push({
-        role: role === 'assistant' ? 'assistant' : 'user',
+        role: 'user',
         content:
           typeof message.content === 'string'
             ? message.content
@@ -493,6 +576,23 @@ export class AnthropicTextAdapter<
     // Tool results are sent as role:'user' messages, which can create consecutive
     // user messages when followed by a new user message. Merge them.
     return this.mergeConsecutiveSameRoleMessages(formattedMessages)
+  }
+
+  private appendThinkingBlocks(
+    contentBlocks: Array<ContentBlockParam>,
+    thinkingParts: ModelMessage['thinking'],
+  ): void {
+    if (!thinkingParts?.length) return
+
+    for (const thinking of thinkingParts) {
+      if (!thinking.signature) continue
+      const block: ThinkingBlockParam = {
+        type: 'thinking',
+        thinking: thinking.content,
+        signature: thinking.signature,
+      }
+      contentBlocks.push(block)
+    }
   }
 
   /**
@@ -568,12 +668,17 @@ export class AnthropicTextAdapter<
     const model = options.model
     let accumulatedContent = ''
     let accumulatedThinking = ''
-    const timestamp = Date.now()
+    let accumulatedSignature = ''
     const toolCallsMap = new Map<
       number,
       { id: string; name: string; input: string; started: boolean }
     >()
     let currentToolIndex = -1
+    // Server-side tools share the `input_json_delta` wire format with client
+    // `tool_use` blocks; routing both to the same buffer corrupts client tool
+    // input.
+    let currentServerTool: { id: string; name: string; input: string } | null =
+      null
 
     // AG-UI lifecycle tracking
     const runId = options.runId ?? genId()
@@ -596,13 +701,14 @@ export class AnthropicTextAdapter<
         // Emit RUN_STARTED on first event
         if (!hasEmittedRunStarted) {
           hasEmittedRunStarted = true
-          yield asChunk({
-            type: 'RUN_STARTED',
+          yield {
+            type: EventType.RUN_STARTED,
             runId,
             threadId,
             model,
-            timestamp,
-          })
+            timestamp: Date.now(),
+            parentRunId: options.parentRunId,
+          }
         }
 
         if (event.type === 'content_block_start') {
@@ -615,146 +721,215 @@ export class AnthropicTextAdapter<
               input: '',
               started: false,
             })
+          } else if (event.content_block.type === 'server_tool_use') {
+            currentServerTool = {
+              id: event.content_block.id,
+              name: event.content_block.name,
+              input: '',
+            }
+          } else if (
+            event.content_block.type === 'web_fetch_tool_result' ||
+            event.content_block.type === 'web_search_tool_result'
+          ) {
+            // The result content arrives in full at content_block_start (no
+            // deltas). Surface error variants so a failed fetch/search isn't
+            // invisible to the consumer.
+            const content = event.content_block.content as
+              | { type?: string; error_code?: string }
+              | Array<unknown>
+            const errorBlock =
+              !Array.isArray(content) &&
+              (content.type === 'web_fetch_tool_result_error' ||
+                content.type === 'web_search_tool_result_error')
+                ? content
+                : null
+            if (errorBlock) {
+              logger.errors(
+                `anthropic.${event.content_block.type} error_code=${errorBlock.error_code}`,
+                {
+                  toolUseId: event.content_block.tool_use_id,
+                  blockType: event.content_block.type,
+                  errorCode: errorBlock.error_code,
+                  source: 'anthropic.processAnthropicStream',
+                },
+              )
+            }
           } else if (event.content_block.type === 'thinking') {
             accumulatedThinking = ''
+            accumulatedSignature = ''
             // Emit REASONING and STEP_STARTED for thinking
             stepId = genId()
             reasoningMessageId = genId()
 
             // Spec REASONING events
-            yield asChunk({
-              type: 'REASONING_START',
+            yield {
+              type: EventType.REASONING_START,
               messageId: reasoningMessageId,
               model,
-              timestamp,
-            })
-            yield asChunk({
-              type: 'REASONING_MESSAGE_START',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.REASONING_MESSAGE_START,
               messageId: reasoningMessageId,
               role: 'reasoning' as const,
               model,
-              timestamp,
-            })
+              timestamp: Date.now(),
+            }
 
             // Legacy STEP events (kept during transition)
-            yield asChunk({
-              type: 'STEP_STARTED',
+            yield {
+              type: EventType.STEP_STARTED,
               stepName: stepId,
               stepId,
               model,
-              timestamp,
+              timestamp: Date.now(),
               stepType: 'thinking',
-            })
+            }
           }
         } else if (event.type === 'content_block_delta') {
           if (event.delta.type === 'text_delta') {
             // Close reasoning before text starts
             if (reasoningMessageId && !hasClosedReasoning) {
               hasClosedReasoning = true
-              yield asChunk({
-                type: 'REASONING_MESSAGE_END',
+              yield {
+                type: EventType.REASONING_MESSAGE_END,
                 messageId: reasoningMessageId,
                 model,
-                timestamp,
-              })
-              yield asChunk({
-                type: 'REASONING_END',
+                timestamp: Date.now(),
+              }
+              yield {
+                type: EventType.REASONING_END,
                 messageId: reasoningMessageId,
                 model,
-                timestamp,
-              })
+                timestamp: Date.now(),
+              }
             }
 
             // Emit TEXT_MESSAGE_START on first text content
             if (!hasEmittedTextMessageStart) {
               hasEmittedTextMessageStart = true
-              yield asChunk({
-                type: 'TEXT_MESSAGE_START',
+              yield {
+                type: EventType.TEXT_MESSAGE_START,
                 messageId,
                 model,
-                timestamp,
+                timestamp: Date.now(),
                 role: 'assistant',
-              })
+              }
             }
 
             const delta = event.delta.text
             accumulatedContent += delta
-            yield asChunk({
-              type: 'TEXT_MESSAGE_CONTENT',
+            yield {
+              type: EventType.TEXT_MESSAGE_CONTENT,
               messageId,
               model,
-              timestamp,
+              timestamp: Date.now(),
               delta,
               content: accumulatedContent,
-            })
-          } else if (event.delta.type === 'thinking_delta') {
+            }
+          } else if (
+            event.delta.type === 'thinking_delta' &&
+            reasoningMessageId
+          ) {
             const delta = event.delta.thinking
             accumulatedThinking += delta
 
             // Spec REASONING content event
-            yield asChunk({
-              type: 'REASONING_MESSAGE_CONTENT',
-              messageId: reasoningMessageId!,
+            yield {
+              type: EventType.REASONING_MESSAGE_CONTENT,
+              messageId: reasoningMessageId,
               delta,
               model,
-              timestamp,
-            })
+              timestamp: Date.now(),
+            }
 
             // Legacy STEP event
-            yield asChunk({
-              type: 'STEP_FINISHED',
+            yield {
+              type: EventType.STEP_FINISHED,
               stepName: stepId || genId(),
               stepId: stepId || genId(),
               model,
-              timestamp,
+              timestamp: Date.now(),
               delta,
               content: accumulatedThinking,
-            })
+            }
+          } else if (
+            (event.delta as { type: string }).type === 'signature_delta'
+          ) {
+            accumulatedSignature +=
+              (event.delta as { signature: string }).signature || ''
           } else if (event.delta.type === 'input_json_delta') {
-            const existing = toolCallsMap.get(currentToolIndex)
-            if (existing) {
-              // Emit TOOL_CALL_START on first args delta
-              if (!existing.started) {
-                existing.started = true
-                yield asChunk({
-                  type: 'TOOL_CALL_START',
+            // Route deltas by current block type so server_tool_use input
+            // never appends onto the prior client tool's buffer.
+            if (currentBlockType === 'tool_use') {
+              const existing = toolCallsMap.get(currentToolIndex)
+              if (existing) {
+                // Emit TOOL_CALL_START on first args delta
+                if (!existing.started) {
+                  existing.started = true
+                  yield {
+                    type: EventType.TOOL_CALL_START,
+                    toolCallId: existing.id,
+                    toolCallName: existing.name,
+                    toolName: existing.name,
+                    model,
+                    timestamp: Date.now(),
+                    index: currentToolIndex,
+                  }
+                }
+
+                existing.input += event.delta.partial_json
+
+                yield {
+                  type: EventType.TOOL_CALL_ARGS,
                   toolCallId: existing.id,
-                  toolCallName: existing.name,
-                  toolName: existing.name,
                   model,
-                  timestamp,
-                  index: currentToolIndex,
-                })
+                  timestamp: Date.now(),
+                  delta: event.delta.partial_json,
+                  args: existing.input,
+                }
               }
-
-              existing.input += event.delta.partial_json
-
-              yield asChunk({
-                type: 'TOOL_CALL_ARGS',
-                toolCallId: existing.id,
-                model,
-                timestamp,
-                delta: event.delta.partial_json,
-                args: existing.input,
-              })
+            } else if (
+              currentBlockType === 'server_tool_use' &&
+              currentServerTool
+            ) {
+              // Accumulate server tool input internally. We don't emit
+              // TOOL_CALL_* events: the call is executed by Anthropic, not
+              // by our agent loop, so surfacing it as a client tool call
+              // would cause downstream code to try (and fail) to run it.
+              currentServerTool.input += event.delta.partial_json
             }
           }
         } else if (event.type === 'content_block_stop') {
-          if (currentBlockType === 'tool_use') {
+          if (currentBlockType === 'thinking') {
+            // Emit signature so it can be replayed in multi-turn context
+            if (accumulatedSignature && stepId) {
+              yield {
+                type: EventType.STEP_FINISHED,
+                stepName: stepId,
+                stepId,
+                model,
+                timestamp: Date.now(),
+                delta: '',
+                content: accumulatedThinking,
+                signature: accumulatedSignature,
+              }
+            }
+          } else if (currentBlockType === 'tool_use') {
             const existing = toolCallsMap.get(currentToolIndex)
             if (existing) {
               // If tool call wasn't started yet (no args), start it now
               if (!existing.started) {
                 existing.started = true
-                yield asChunk({
-                  type: 'TOOL_CALL_START',
+                yield {
+                  type: EventType.TOOL_CALL_START,
                   toolCallId: existing.id,
                   toolCallName: existing.name,
                   toolName: existing.name,
                   model,
-                  timestamp,
+                  timestamp: Date.now(),
                   index: currentToolIndex,
-                })
+                }
               }
 
               // Emit TOOL_CALL_END
@@ -766,28 +941,48 @@ export class AnthropicTextAdapter<
                 parsedInput = {}
               }
 
-              yield asChunk({
-                type: 'TOOL_CALL_END',
+              yield {
+                type: EventType.TOOL_CALL_END,
                 toolCallId: existing.id,
                 toolCallName: existing.name,
                 toolName: existing.name,
                 model,
-                timestamp,
+                timestamp: Date.now(),
                 input: parsedInput,
-              })
+              }
 
               // Reset so a new TEXT_MESSAGE_START is emitted if text follows tool calls
               hasEmittedTextMessageStart = false
             }
+          } else if (currentBlockType === 'server_tool_use') {
+            if (currentServerTool) {
+              // Anthropic executes the call; we only need a breadcrumb so
+              // consumers (devtools, telemetry) can see what ran.
+              logger.provider(
+                `provider=anthropic server_tool_use name=${currentServerTool.name}`,
+                {
+                  toolUseId: currentServerTool.id,
+                  name: currentServerTool.name,
+                  input: currentServerTool.input,
+                },
+              )
+            }
+            currentServerTool = null
+          } else if (
+            currentBlockType === 'web_fetch_tool_result' ||
+            currentBlockType === 'web_search_tool_result'
+          ) {
+            // The model already consumed the result; error variants were
+            // already surfaced at content_block_start.
           } else {
             // Emit TEXT_MESSAGE_END only for text blocks (not tool_use blocks)
             if (hasEmittedTextMessageStart && accumulatedContent) {
-              yield asChunk({
-                type: 'TEXT_MESSAGE_END',
+              yield {
+                type: EventType.TEXT_MESSAGE_END,
                 messageId,
                 model,
-                timestamp,
-              })
+                timestamp: Date.now(),
+              }
             }
           }
           currentBlockType = null
@@ -795,32 +990,32 @@ export class AnthropicTextAdapter<
           // Close reasoning events if still open
           if (reasoningMessageId && !hasClosedReasoning) {
             hasClosedReasoning = true
-            yield asChunk({
-              type: 'REASONING_MESSAGE_END',
+            yield {
+              type: EventType.REASONING_MESSAGE_END,
               messageId: reasoningMessageId,
               model,
-              timestamp,
-            })
-            yield asChunk({
-              type: 'REASONING_END',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.REASONING_END,
               messageId: reasoningMessageId,
               model,
-              timestamp,
-            })
+              timestamp: Date.now(),
+            }
           }
 
           // Only emit RUN_FINISHED from message_stop if message_delta didn't already emit one.
           // message_delta carries the real stop_reason (tool_use, end_turn, etc.),
           // while message_stop is just a completion signal.
           if (!hasEmittedRunFinished) {
-            yield asChunk({
-              type: 'RUN_FINISHED',
+            yield {
+              type: EventType.RUN_FINISHED,
               runId,
               threadId,
               model,
-              timestamp,
+              timestamp: Date.now(),
               finishReason: 'stop',
-            })
+            }
           }
         } else if (event.type === 'message_delta') {
           if (event.delta.stop_reason) {
@@ -829,28 +1024,28 @@ export class AnthropicTextAdapter<
             // Close reasoning events if still open
             if (reasoningMessageId && !hasClosedReasoning) {
               hasClosedReasoning = true
-              yield asChunk({
-                type: 'REASONING_MESSAGE_END',
+              yield {
+                type: EventType.REASONING_MESSAGE_END,
                 messageId: reasoningMessageId,
                 model,
-                timestamp,
-              })
-              yield asChunk({
-                type: 'REASONING_END',
+                timestamp: Date.now(),
+              }
+              yield {
+                type: EventType.REASONING_END,
                 messageId: reasoningMessageId,
                 model,
-                timestamp,
-              })
+                timestamp: Date.now(),
+              }
             }
 
             switch (event.delta.stop_reason) {
               case 'tool_use': {
-                yield asChunk({
-                  type: 'RUN_FINISHED',
+                yield {
+                  type: EventType.RUN_FINISHED,
                   runId,
                   threadId,
                   model,
-                  timestamp,
+                  timestamp: Date.now(),
                   finishReason: 'tool_calls',
                   usage: {
                     promptTokens: event.usage.input_tokens || 0,
@@ -859,15 +1054,14 @@ export class AnthropicTextAdapter<
                       (event.usage.input_tokens || 0) +
                       (event.usage.output_tokens || 0),
                   },
-                })
+                }
                 break
               }
               case 'max_tokens': {
-                yield asChunk({
-                  type: 'RUN_ERROR',
-                  runId,
+                yield {
+                  type: EventType.RUN_ERROR,
                   model,
-                  timestamp,
+                  timestamp: Date.now(),
                   message:
                     'The response was cut off because the maximum token limit was reached.',
                   code: 'max_tokens',
@@ -876,16 +1070,25 @@ export class AnthropicTextAdapter<
                       'The response was cut off because the maximum token limit was reached.',
                     code: 'max_tokens',
                   },
-                })
+                }
                 break
               }
+              case 'stop_sequence':
+              case 'end_turn':
+              case 'pause_turn':
+              case 'refusal':
+              case 'model_context_window_exceeded':
               default: {
-                yield asChunk({
-                  type: 'RUN_FINISHED',
+                // All remaining Anthropic stop_reason variants map to the
+                // generic "stop" finish reason — they describe *why* the
+                // stream ended, but for AG-UI consumers the resulting event
+                // shape is identical.
+                yield {
+                  type: EventType.RUN_FINISHED,
                   runId,
                   threadId,
                   model,
-                  timestamp,
+                  timestamp: Date.now(),
                   finishReason: 'stop',
                   usage: {
                     promptTokens: event.usage.input_tokens || 0,
@@ -894,7 +1097,7 @@ export class AnthropicTextAdapter<
                       (event.usage.input_tokens || 0) +
                       (event.usage.output_tokens || 0),
                   },
-                })
+                }
               }
             }
           }
@@ -907,18 +1110,17 @@ export class AnthropicTextAdapter<
         error,
         source: 'anthropic.processAnthropicStream',
       })
-      yield asChunk({
-        type: 'RUN_ERROR',
-        runId,
+      yield {
+        type: EventType.RUN_ERROR,
         model,
-        timestamp,
+        timestamp: Date.now(),
         message: err.message || 'Unknown error occurred',
         code: err.code || String(err.status),
         error: {
           message: err.message || 'Unknown error occurred',
           code: err.code || String(err.status),
         },
-      })
+      }
     }
   }
 }

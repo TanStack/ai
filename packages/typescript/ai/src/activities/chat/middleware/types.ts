@@ -1,4 +1,11 @@
-import type { ModelMessage, StreamChunk, Tool, ToolCall } from '../../../types'
+import type {
+  JSONSchema,
+  ModelMessage,
+  StreamChunk,
+  Tool,
+  ToolCall,
+} from '../../../types'
+import type { SystemPrompt } from '../../../system-prompts'
 
 // ===========================
 // Middleware Context
@@ -11,6 +18,8 @@ import type { ModelMessage, StreamChunk, Tool, ToolCall } from '../../../types'
  * - 'modelStream': During model streaming
  * - 'beforeTools': Before tool execution phase
  * - 'afterTools': After tool execution phase
+ * - 'structuredOutput': During the final structured-output adapter call (set
+ *   for chunks from adapter.structuredOutputStream or the synthesized fallback)
  */
 export type ChatMiddlewarePhase =
   | 'init'
@@ -18,6 +27,7 @@ export type ChatMiddlewarePhase =
   | 'modelStream'
   | 'beforeTools'
   | 'afterTools'
+  | 'structuredOutput'
 
 /**
  * Stable context object passed to all middleware hooks.
@@ -28,7 +38,18 @@ export interface ChatMiddlewareContext {
   requestId: string
   /** Unique identifier for this stream */
   streamId: string
-  /** Conversation identifier, if provided by the caller */
+  /**
+   * AG-UI thread identifier — a stable per-conversation ID used to
+   * correlate client and server devtools events. Resolves to the
+   * caller-provided `threadId` (or legacy `conversationId`), or an
+   * auto-generated value when neither is supplied.
+   */
+  threadId: string
+  /**
+   * @deprecated Use `threadId` instead. Retained as an alias of
+   * `threadId` so middleware written before the AG-UI rename keeps
+   * working unchanged. Will be removed in a future major release.
+   */
   conversationId?: string
   /** Current lifecycle phase */
   phase: ChatMiddlewarePhase
@@ -63,13 +84,13 @@ export interface ChatMiddlewareContext {
   // --- Config-derived info (may update per-iteration via onConfig) ---
 
   /** System prompts configured for this chat */
-  systemPrompts: Array<string>
+  systemPrompts: Array<SystemPrompt>
   /** Names of configured tools, if any */
   toolNames?: Array<string>
   /** Flattened generation options (temperature, topP, maxTokens, metadata) */
-  options?: Record<string, unknown>
+  options?: Record<string, unknown> | undefined
   /** Provider-specific model options */
-  modelOptions?: Record<string, unknown>
+  modelOptions?: Record<string, unknown> | undefined
 
   // --- Computed info ---
 
@@ -104,13 +125,31 @@ export interface ChatMiddlewareContext {
  */
 export interface ChatMiddlewareConfig {
   messages: Array<ModelMessage>
-  systemPrompts: Array<string>
+  systemPrompts: Array<SystemPrompt>
   tools: Array<Tool>
   temperature?: number
   topP?: number
   maxTokens?: number
-  metadata?: Record<string, unknown>
-  modelOptions?: Record<string, unknown>
+  metadata?: Record<string, unknown> | undefined
+  modelOptions?: Record<string, unknown> | undefined
+}
+
+/**
+ * Config passed to onStructuredOutputConfig.
+ *
+ * Mirrors ChatMiddlewareConfig minus `tools` (the final structured-output call
+ * is a single typed-response request, not an agentic loop — tools cannot be
+ * forwarded to it), plus the `outputSchema` being sent to the provider.
+ * Middleware may transform the schema (e.g., inject $defs, strip
+ * vendor-incompatible keywords) by returning a partial that includes
+ * `outputSchema`.
+ */
+export interface StructuredOutputMiddlewareConfig extends Omit<
+  ChatMiddlewareConfig,
+  'tools'
+> {
+  /** JSON Schema being sent to the provider for structured output. */
+  outputSchema: JSONSchema
 }
 
 // ===========================
@@ -245,11 +284,13 @@ export interface FinishInfo {
   /** Final accumulated text content */
   content: string
   /** Final usage totals, if available */
-  usage?: {
-    promptTokens: number
-    completionTokens: number
-    totalTokens: number
-  }
+  usage?:
+    | {
+        promptTokens: number
+        completionTokens: number
+        totalTokens: number
+      }
+    | undefined
 }
 
 /**
@@ -323,7 +364,31 @@ export interface ChatMiddleware {
     | void
     | null
     | Partial<ChatMiddlewareConfig>
-    | Promise<void | Partial<ChatMiddlewareConfig>>
+    | Promise<void | null | Partial<ChatMiddlewareConfig>>
+
+  /**
+   * Called at the start of the final structured-output call (when the chat
+   * was invoked with outputSchema). Pipes through middleware in order, like
+   * onConfig, but with access to the JSON Schema being sent to the provider.
+   *
+   * Return a partial to shallow-merge into the current config, or void to
+   * pass through.
+   *
+   * Fires BEFORE onConfig at the structured-output boundary. onConfig also
+   * re-fires at the same boundary with ctx.phase === 'structuredOutput',
+   * receiving the post-onStructuredOutputConfig view of the config (minus
+   * outputSchema). Use onConfig for general-purpose transforms that apply
+   * to every adapter call; use this hook when you need to transform the
+   * outputSchema or apply structured-output-specific behavior.
+   */
+  onStructuredOutputConfig?: (
+    ctx: ChatMiddlewareContext,
+    config: StructuredOutputMiddlewareConfig,
+  ) =>
+    | void
+    | null
+    | Partial<StructuredOutputMiddlewareConfig>
+    | Promise<void | null | Partial<StructuredOutputMiddlewareConfig>>
 
   /**
    * Called when the chat run starts (after initial onConfig).

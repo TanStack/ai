@@ -2,6 +2,7 @@ export { createChat } from './create-chat.svelte'
 export type {
   CreateChatOptions,
   CreateChatReturn,
+  DeepPartial,
   UIMessage,
   ChatRequestBody,
 } from './types'
@@ -54,9 +55,13 @@ export {
   fetchServerSentEvents,
   fetchHttpStream,
   stream,
+  rpcStream,
   createChatClientOptions,
   clientTools,
   type ConnectionAdapter,
+  type ConnectConnectionAdapter,
+  type SubscribeConnectionAdapter,
+  type RunAgentInputContext,
   type FetchConnectionOptions,
   type InferChatMessages,
   type GenerationClientState,

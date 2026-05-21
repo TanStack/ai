@@ -1,10 +1,28 @@
-/* eslint-disable @typescript-eslint/no-unnecessary-condition */
-
 import type {
   StandardJSONSchemaV1,
   StandardSchemaV1,
 } from '@standard-schema/spec'
 import type { JSONSchema, SchemaInput } from '../../../types'
+
+/**
+ * Build a JSONSchema object from any plain key/value source. The `JSONSchema`
+ * interface's `[key: string]: any` index signature makes every property
+ * assignable through bracket access without a type cast — copying keys here
+ * lets us narrow either `Record<string, unknown>` (returned by
+ * `~standard.jsonSchema.input()`) or a `JSONSchema` (from the SchemaInput
+ * pass-through arm) into the typed view used by the rest of this module.
+ *
+ * Accepts `object` so callers don't need a cast when narrowing from union
+ * types like `SchemaInput`.
+ */
+function toJsonSchema(obj: object): JSONSchema {
+  const result: JSONSchema = {}
+  for (const [key, value] of Object.entries(obj)) {
+    if (key === '$schema') continue // not needed by LLM providers
+    result[key] = value
+  }
+  return result
+}
 
 /**
  * Check if a value is a Standard JSON Schema compliant schema.
@@ -19,6 +37,7 @@ export function isStandardJSONSchema(
     schema !== null &&
     '~standard' in schema &&
     typeof (schema as StandardJSONSchemaV1)['~standard'] === 'object' &&
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime guard for caller-provided unknown; type assertion narrows but doesn't validate the wire payload
     (schema as StandardJSONSchemaV1)['~standard'].version === 1 &&
     typeof (schema as StandardJSONSchemaV1)['~standard'].jsonSchema ===
       'object' &&
@@ -37,7 +56,6 @@ export function isStandardSchema(schema: unknown): schema is StandardSchemaV1 {
     schema !== null &&
     '~standard' in schema &&
     typeof schema['~standard'] === 'object' &&
-    schema !== null &&
     schema['~standard'] !== null &&
     'version' in schema['~standard'] &&
     schema['~standard'].version === 1 &&
@@ -58,19 +76,20 @@ export function isStandardSchema(schema: unknown): schema is StandardSchemaV1 {
  * @returns Transformed schema compatible with OpenAI structured output
  */
 function makeStructuredOutputCompatible(
-  schema: Record<string, any>,
+  schema: JSONSchema,
   originalRequired: Array<string> = [],
-): Record<string, any> {
-  const result = { ...schema }
+): JSONSchema {
+  const result: JSONSchema = { ...schema }
 
   // Handle object types
   if (result.type === 'object' && result.properties) {
-    const properties = { ...result.properties }
+    const properties: Record<string, JSONSchema> = { ...result.properties }
     const allPropertyNames = Object.keys(properties)
 
     // Transform each property
     for (const propName of allPropertyNames) {
       const prop = properties[propName]
+      if (!prop) continue
       const wasOptional = !originalRequired.includes(propName)
 
       // Recursively transform nested objects/arrays
@@ -83,12 +102,12 @@ function makeStructuredOutputCompatible(
           ? { ...transformed, type: ['object', 'null'] }
           : transformed
       } else if (prop.type === 'array' && prop.items) {
-        const transformed = {
+        const items = Array.isArray(prop.items) ? prop.items[0] : prop.items
+        const transformed: JSONSchema = {
           ...prop,
-          items: makeStructuredOutputCompatible(
-            prop.items,
-            prop.items.required || [],
-          ),
+          items: items
+            ? makeStructuredOutputCompatible(items, items.required || [])
+            : prop.items,
         }
         properties[propName] = wasOptional
           ? { ...transformed, type: ['array', 'null'] }
@@ -118,10 +137,10 @@ function makeStructuredOutputCompatible(
 
   // Handle array types with object items
   if (result.type === 'array' && result.items) {
-    result.items = makeStructuredOutputCompatible(
-      result.items,
-      result.items.required || [],
-    )
+    const items = Array.isArray(result.items) ? result.items[0] : result.items
+    if (items) {
+      result.items = makeStructuredOutputCompatible(items, items.required || [])
+    }
   }
 
   return result
@@ -216,55 +235,71 @@ export function convertSchemaToJsonSchema(
       target: 'draft-07',
     })
 
-    let result = jsonSchema
-
-    if (typeof result === 'object' && '$schema' in result) {
-      // Remove $schema property as it's not needed for LLM providers
-      const { $schema, ...rest } = result
-      result = rest
-    }
+    // Rebuild structurally so the typed JSONSchema view is acquired without
+    // a `Record<string, unknown> as JSONSchema` cast; `toJsonSchema()` also
+    // drops the `$schema` key which LLM providers don't need.
+    let result: JSONSchema = toJsonSchema(jsonSchema)
 
     // Ensure object schemas always have type: "object"
-
-    if (typeof result === 'object') {
-      // If it has properties (even empty), it should be an object type
-      if ('properties' in result && !result.type) {
-        result.type = 'object'
-      }
-
-      // Ensure properties exists for object types (even if empty)
-      if (result.type === 'object' && !('properties' in result)) {
-        result.properties = {}
-      }
-
-      // Ensure required exists for object types (even if empty array)
-      if (result.type === 'object' && !('required' in result)) {
-        result.required = []
-      }
-
-      // Apply structured output transformation if requested
-      if (forStructuredOutput) {
-        result = makeStructuredOutputCompatible(
-          result,
-          (result.required as Array<string>) || [],
-        )
-      }
+    // If it has properties (even empty), it should be an object type
+    if ('properties' in result && !result.type) {
+      result.type = 'object'
     }
 
-    return result as JSONSchema
+    // Ensure properties exists for object types (even if empty)
+    if (result.type === 'object' && !('properties' in result)) {
+      result.properties = {}
+    }
+
+    // Ensure required exists for object types (even if empty array)
+    if (result.type === 'object' && !('required' in result)) {
+      result.required = []
+    }
+
+    // Apply structured output transformation if requested
+    if (forStructuredOutput) {
+      result = makeStructuredOutputCompatible(result, result.required || [])
+    }
+
+    return result
+  }
+
+  // Detect Standard Schema validators (Zod, ArkType, Valibot, …) that don't
+  // expose a `~standard.jsonSchema` converter. These would otherwise fall
+  // through to the JSONSchema pass-through below and ship `{ '~standard': … }`
+  // straight to the LLM provider, producing an opaque downstream error. Fail
+  // fast with actionable guidance instead.
+  if (isStandardSchema(schema)) {
+    throw new Error(
+      'Schema is a Standard Schema validator but does not expose a JSON Schema ' +
+        'converter on `~standard.jsonSchema`. Use Zod v4.2+, ArkType v2.1.28+, ' +
+        'or wrap a Valibot schema with `toStandardJsonSchema()` from ' +
+        '`@valibot/to-json-schema` before passing it as `outputSchema`.',
+    )
   }
 
   // If it's not a Standard JSON Schema, assume it's already a JSONSchema and pass through
   // Still apply structured output transformation if requested
 
-  if (forStructuredOutput && typeof schema === 'object') {
-    return makeStructuredOutputCompatible(
-      schema as Record<string, any>,
-      ((schema as JSONSchema).required as Array<string>) || [],
-    ) as JSONSchema
+  // At this branch, `schema` is the plain `JSONSchema` arm of `SchemaInput`
+  // (the two `~standard` arms were handled above). When no transformation
+  // is requested we pass the schema through by reference to preserve
+  // identity for callers that compare via `===`.
+  if (typeof schema !== 'object') {
+    // The SchemaInput union is object-shaped on every arm; if we ever hit a
+    // non-object here, propagate it untouched and let the downstream
+    // provider error loudly rather than silently widen.
+    return schema
   }
 
-  return schema as JSONSchema
+  if (forStructuredOutput) {
+    // Build a typed view structurally so we don't need a SchemaInput→JSONSchema
+    // cast on the transformation path.
+    const typedView = toJsonSchema(schema)
+    return makeStructuredOutputCompatible(typedView, typedView.required || [])
+  }
+
+  return schema
 }
 
 /**
@@ -279,7 +314,10 @@ export async function validateWithStandardSchema<T>(
   data: unknown,
 ): Promise<
   | { success: true; data: T }
-  | { success: false; issues: Array<{ message: string; path?: Array<string> }> }
+  | {
+      success: false
+      issues: Array<{ message: string; path?: Array<string> | undefined }>
+    }
 > {
   if (!isStandardSchema(schema)) {
     // If it's not a Standard Schema, just return the data as-is
@@ -302,6 +340,25 @@ export async function validateWithStandardSchema<T>(
 }
 
 /**
+ * Error thrown when Standard Schema validation fails. Carries the original
+ * `issues` array so consumers (middleware `onError`, callers catching from
+ * `chat({ outputSchema })`) can programmatically inspect each failure.
+ */
+export class StandardSchemaValidationError extends Error {
+  override readonly name = 'StandardSchemaValidationError'
+  readonly issues: ReadonlyArray<StandardSchemaV1.Issue>
+
+  constructor(issues: ReadonlyArray<StandardSchemaV1.Issue>) {
+    super(
+      `Validation failed: ${issues
+        .map((i) => i.message || 'Validation failed')
+        .join(', ')}`,
+    )
+    this.issues = issues
+  }
+}
+
+/**
  * Synchronously validates data against a Standard Schema compliant schema.
  * Note: Some Standard Schema implementations may only support async validation.
  * In those cases, this function will throw.
@@ -309,7 +366,8 @@ export async function validateWithStandardSchema<T>(
  * @param schema - Standard Schema compliant schema
  * @param data - Data to validate
  * @returns Parsed/validated data
- * @throws Error if validation fails or if the schema only supports async validation
+ * @throws StandardSchemaValidationError if validation fails; Error if the
+ *         schema only supports async validation.
  */
 export function parseWithStandardSchema<T>(schema: unknown, data: unknown): T {
   if (!isStandardSchema(schema)) {
@@ -330,9 +388,5 @@ export function parseWithStandardSchema<T>(schema: unknown, data: unknown): T {
     return result.value as T
   }
 
-  // invalid validation, throw error with all issues
-  const errorMessages = result.issues
-    .map((issue) => issue.message || 'Validation failed')
-    .join(', ')
-  throw new Error(`Validation failed: ${errorMessages}`)
+  throw new StandardSchemaValidationError(result.issues)
 }

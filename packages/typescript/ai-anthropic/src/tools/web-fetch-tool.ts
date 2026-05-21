@@ -1,3 +1,4 @@
+import { brandProviderTool } from '@tanstack/ai'
 import type { BetaWebFetchTool20250910 } from '@anthropic-ai/sdk/resources/beta'
 import type { ProviderTool, Tool } from '@tanstack/ai'
 
@@ -22,10 +23,9 @@ export function convertWebFetchToolToAdapterFormat(
 export function webFetchTool(
   config?: Omit<WebFetchToolConfig, 'type' | 'name'>,
 ): AnthropicWebFetchTool {
-  // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
-  return {
+  return brandProviderTool<AnthropicWebFetchTool>({
     name: 'web_fetch',
     description: '',
     metadata: config,
-  } as unknown as AnthropicWebFetchTool
+  })
 }

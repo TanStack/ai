@@ -1,5 +1,90 @@
 # @tanstack/ai-vue-ui
 
+## 0.1.40
+
+### Patch Changes
+
+- Tighten TypeScript safety: enable `noImplicitOverride`, ([#579](https://github.com/TanStack/ai/pull/579))
+  `noFallthroughCasesInSwitch`, and `useDefineForClassFields` in the
+  root `tsconfig.json`; add a typed-ESLint block scoped to
+  `packages/typescript/*/src/**` that turns on `no-floating-promises`,
+  `no-misused-promises`, `await-thenable`,
+  `switch-exhaustiveness-check`, `consistent-type-exports`,
+  `prefer-readonly`, and `no-non-null-assertion` (errors), plus
+  `no-explicit-any` (warning). `@ts-ignore` and `@ts-nocheck` are
+  disallowed in library source via `@typescript-eslint/ban-ts-comment`,
+  and `as unknown as <T>` double-casts are blocked by a
+  `no-restricted-syntax` rule (escape hatches available with an inline
+  reason). Two flags from the original five-flag set —
+  `noPropertyAccessFromIndexSignature` and `exactOptionalPropertyTypes`
+  — were tried and rolled back: they produced ~500 lines of bracket-
+  access and conditional-spread churn without catching any real bugs,
+  and `exactOptionalPropertyTypes` would have forced consumers using
+  it themselves to deal with our internals' style preferences.
+
+  User-visible API surface is unchanged; this is a hardening pass to
+  keep streaming/agent-loop correctness and discriminated-union
+  exhaustiveness honest going forward. See issue #564.
+
+- Updated dependencies []:
+  - @tanstack/ai-vue@0.10.4
+
+## 0.1.39
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-vue@0.10.3
+
+## 0.1.38
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-vue@0.10.2
+
+## 0.1.37
+
+### Patch Changes
+
+- Updated dependencies [[`88fe80c`](https://github.com/TanStack/ai/commit/88fe80c404a218bf3e3a1ed5853a14f61248ed14)]:
+  - @tanstack/ai-vue@0.10.1
+
+## 0.1.36
+
+### Patch Changes
+
+- Updated dependencies [[`2e0e2eb`](https://github.com/TanStack/ai/commit/2e0e2eb72684aac82e570d57767656e218289b49)]:
+  - @tanstack/ai-vue@0.10.0
+
+## 0.1.35
+
+### Patch Changes
+
+- Updated dependencies [[`a9d1916`](https://github.com/TanStack/ai/commit/a9d19165a5028515cf1d091d611c8ac4b5b86099)]:
+  - @tanstack/ai-vue@0.9.0
+
+## 0.1.34
+
+### Patch Changes
+
+- Updated dependencies [[`98979f7`](https://github.com/TanStack/ai/commit/98979f7e72f4b5bfb816fb14b60a12871f8c4bec)]:
+  - @tanstack/ai-vue@0.8.0
+
+## 0.1.33
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-vue@0.7.2
+
+## 0.1.32
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-vue@0.7.1
+
 ## 0.1.31
 
 ### Patch Changes

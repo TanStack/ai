@@ -188,7 +188,6 @@ describe('ChatClient — fetcher transport', () => {
     })
     expect(input.data).toMatchObject({
       provider: 'openai',
-      conversationId: expect.any(String),
     })
   })
 

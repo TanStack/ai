@@ -1,3 +1,4 @@
+import { brandProviderTool } from '@tanstack/ai'
 import type { ComputerUse } from '@google/genai'
 import type { ProviderTool, Tool } from '@tanstack/ai'
 
@@ -10,10 +11,17 @@ export type GeminiComputerUseTool = ProviderTool<'gemini', 'computer_use'>
 
 export function convertComputerUseToolToAdapterFormat(tool: Tool) {
   const metadata = tool.metadata as ComputerUseToolConfig
+  // Vendor `ComputerUse` fields are `field?: T` (no `| undefined`) under EOPT,
+  // so spread each field conditionally rather than emitting explicit
+  // `undefined`s on the wire payload.
   return {
     computerUse: {
-      environment: metadata.environment,
-      excludedPredefinedFunctions: metadata.excludedPredefinedFunctions,
+      ...(metadata.environment !== undefined && {
+        environment: metadata.environment,
+      }),
+      ...(metadata.excludedPredefinedFunctions !== undefined && {
+        excludedPredefinedFunctions: metadata.excludedPredefinedFunctions,
+      }),
     },
   }
 }
@@ -21,13 +29,16 @@ export function convertComputerUseToolToAdapterFormat(tool: Tool) {
 export function computerUseTool(
   config: ComputerUseToolConfig,
 ): GeminiComputerUseTool {
-  // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
-  return {
+  return brandProviderTool<GeminiComputerUseTool>({
     name: 'computer_use',
     description: '',
     metadata: {
-      environment: config.environment,
-      excludedPredefinedFunctions: config.excludedPredefinedFunctions,
+      ...(config.environment !== undefined && {
+        environment: config.environment,
+      }),
+      ...(config.excludedPredefinedFunctions !== undefined && {
+        excludedPredefinedFunctions: config.excludedPredefinedFunctions,
+      }),
     },
-  } as unknown as GeminiComputerUseTool
+  })
 }

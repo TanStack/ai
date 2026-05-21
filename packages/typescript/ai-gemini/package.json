@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-gemini",
-  "version": "0.10.0",
+  "version": "0.10.8",
   "description": "Google Gemini adapter for TanStack AI",
   "author": "",
   "license": "MIT",
@@ -44,7 +44,8 @@
     "adapter"
   ],
   "dependencies": {
-    "@google/genai": "^1.43.0"
+    "@google/genai": "^1.43.0",
+    "@tanstack/ai-utils": "workspace:*"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^"
@@ -52,7 +53,7 @@
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
     "@vitest/coverage-v8": "4.0.14",
-    "vite": "^7.2.7",
+    "vite": "^7.3.3",
     "zod": "^4.2.0"
   }
 }

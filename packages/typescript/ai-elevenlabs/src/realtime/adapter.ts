@@ -1,4 +1,4 @@
-import { Conversation } from '@11labs/client'
+import { Conversation } from '@elevenlabs/client'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import type {
   AnyClientTool,
@@ -8,7 +8,6 @@ import type {
   RealtimeMessage,
   RealtimeMode,
   RealtimeSessionConfig,
-  RealtimeStatus,
   RealtimeToken,
 } from '@tanstack/ai'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
@@ -18,7 +17,7 @@ import type { ElevenLabsRealtimeOptions } from './types'
 /**
  * Creates an ElevenLabs realtime adapter for client-side use.
  *
- * Wraps the @11labs/client SDK for voice conversations.
+ * Wraps the @elevenlabs/client SDK for voice conversations.
  *
  * @param options - Optional configuration
  * @returns A RealtimeAdapter for use with RealtimeClient
@@ -91,7 +90,7 @@ async function createElevenLabsConnection(
   }
 
   // Convert TanStack tool definitions to ElevenLabs clientTools format.
-  // @11labs/client@0.2.0 expects plain async functions, not objects.
+  // @elevenlabs/client expects plain async functions, not objects.
   const elevenLabsClientTools: Record<
     string,
     (params: unknown) => Promise<string>
@@ -119,7 +118,7 @@ async function createElevenLabsConnection(
       logger.provider(`provider=elevenlabs direction=in type=connect`, {
         frame: { type: 'connect' },
       })
-      emit('status_change', { status: 'connected' as RealtimeStatus })
+      emit('status_change', { status: 'connected' })
       emit('mode_change', { mode: 'listening' })
     },
 
@@ -127,7 +126,7 @@ async function createElevenLabsConnection(
       logger.provider(`provider=elevenlabs direction=in type=disconnect`, {
         frame: { type: 'disconnect' },
       })
-      emit('status_change', { status: 'idle' as RealtimeStatus })
+      emit('status_change', { status: 'idle' })
       emit('mode_change', { mode: 'idle' })
     },
 
@@ -205,7 +204,7 @@ async function createElevenLabsConnection(
         await conversation.endSession()
         conversation = null
       }
-      emit('status_change', { status: 'idle' as RealtimeStatus })
+      emit('status_change', { status: 'idle' })
     },
 
     async startAudioCapture() {
@@ -257,10 +256,12 @@ async function createElevenLabsConnection(
       event: TEvent,
       handler: RealtimeEventHandler<TEvent>,
     ): () => void {
-      if (!eventHandlers.has(event)) {
-        eventHandlers.set(event, new Set())
+      let handlers = eventHandlers.get(event)
+      if (!handlers) {
+        handlers = new Set()
+        eventHandlers.set(event, handlers)
       }
-      eventHandlers.get(event)!.add(handler)
+      handlers.add(handler)
 
       return () => {
         eventHandlers.get(event)?.delete(handler)

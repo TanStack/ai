@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { EventType } from '@tanstack/ai'
 import {
   fetchHttpStream,
   fetchServerSentEvents,
@@ -7,10 +8,6 @@ import {
   stream,
 } from '../src/connection-adapters'
 import type { StreamChunk } from '@tanstack/ai'
-
-/** Cast an event object to StreamChunk for type compatibility with EventType enum. */
-const asChunk = (chunk: Record<string, unknown>) =>
-  chunk as unknown as StreamChunk
 
 describe('connection-adapters', () => {
   let originalFetch: typeof fetch
@@ -63,7 +60,7 @@ describe('connection-adapters', () => {
 
       expect(chunks).toHaveLength(1)
       expect(chunks[0]).toMatchObject({
-        type: 'TEXT_MESSAGE_CONTENT',
+        type: EventType.TEXT_MESSAGE_CONTENT,
         messageId: 'msg-1',
         delta: 'Hello',
       })
@@ -291,7 +288,7 @@ describe('connection-adapters', () => {
       expect(authValue).toBe('Bearer token')
     })
 
-    it('should pass data to request body', async () => {
+    it('should pass data to request body forwardedProps', async () => {
       const mockReader = {
         read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
         releaseLock: vi.fn(),
@@ -318,7 +315,36 @@ describe('connection-adapters', () => {
       expect(fetchMock).toHaveBeenCalled()
       const call = fetchMock.mock.calls[0]
       const body = JSON.parse(call?.[1]?.body as string)
-      expect(body.data).toEqual({ key: 'value' })
+      expect(body.forwardedProps).toMatchObject({ key: 'value' })
+    })
+
+    it('should mirror forwardedProps under legacy `data` field for backward-compat', async () => {
+      const mockReader = {
+        read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+      const mockResponse = {
+        ok: true,
+        body: { getReader: () => mockReader },
+      }
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchServerSentEvents('/api/chat')
+
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        { provider: 'openai', model: 'gpt-4o' },
+      )) {
+        // Consume
+      }
+
+      const call = fetchMock.mock.calls[0]
+      const body = JSON.parse(call?.[1]?.body as string)
+      // Legacy server code reads `body.data.X`; new server code reads
+      // `body.forwardedProps.X`. Both must contain the same content
+      // until the legacy `body` client option is removed.
+      expect(body.data).toEqual(body.forwardedProps)
+      expect(body.data).toMatchObject({ provider: 'openai', model: 'gpt-4o' })
     })
 
     it('should use custom fetchClient when provided', async () => {
@@ -425,7 +451,7 @@ describe('connection-adapters', () => {
       expect(call?.[1]?.headers).toMatchObject({ 'X-Async': 'token' })
     })
 
-    it('should merge options.body into request body', async () => {
+    it('should merge options.body into request body forwardedProps', async () => {
       const mockReader = {
         read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
         releaseLock: vi.fn(),
@@ -451,9 +477,11 @@ describe('connection-adapters', () => {
 
       const call = fetchMock.mock.calls[0]
       const body = JSON.parse(call?.[1]?.body as string)
-      expect(body.model).toBe('gpt-4o')
-      expect(body.provider).toBe('openai')
-      expect(body.data).toEqual({ key: 'value' })
+      expect(body.forwardedProps).toMatchObject({
+        model: 'gpt-4o',
+        provider: 'openai',
+        key: 'value',
+      })
     })
 
     it('should handle multiple chunks across multiple reads', async () => {
@@ -672,7 +700,7 @@ describe('connection-adapters', () => {
       })
     })
 
-    it('should pass data to request body', async () => {
+    it('should pass data to request body forwardedProps', async () => {
       const mockReader = {
         read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
         releaseLock: vi.fn(),
@@ -696,7 +724,7 @@ describe('connection-adapters', () => {
 
       const call = fetchMock.mock.calls[0]
       const body = JSON.parse(call?.[1]?.body as string)
-      expect(body.data).toEqual({ key: 'value' })
+      expect(body.forwardedProps).toMatchObject({ key: 'value' })
     })
 
     it('should resolve dynamic URL from function', async () => {
@@ -773,14 +801,14 @@ describe('connection-adapters', () => {
   describe('stream', () => {
     it('should delegate to stream factory', async () => {
       const streamFactory = vi.fn().mockImplementation(function* () {
-        yield asChunk({
-          type: 'TEXT_MESSAGE_CONTENT',
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
           messageId: 'msg-1',
           model: 'test',
           timestamp: Date.now(),
           delta: 'Hello',
           content: 'Hello',
-        })
+        }
       })
 
       const adapter = stream(streamFactory)
@@ -798,13 +826,14 @@ describe('connection-adapters', () => {
 
     it('should pass data to stream factory', async () => {
       const streamFactory = vi.fn().mockImplementation(function* () {
-        yield asChunk({
-          type: 'RUN_FINISHED',
+        yield {
+          type: EventType.RUN_FINISHED,
           runId: 'run-1',
+          threadId: 'thread-1',
           model: 'test',
           timestamp: Date.now(),
           finishReason: 'stop',
-        })
+        }
       })
 
       const adapter = stream(streamFactory)
@@ -859,14 +888,14 @@ describe('connection-adapters', () => {
 
     it('should synthesize RUN_FINISHED when wrapped connect stream has no terminal event', async () => {
       const base = stream(async function* () {
-        yield asChunk({
-          type: 'TEXT_MESSAGE_CONTENT',
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
           messageId: 'msg-1',
           model: 'test',
           timestamp: Date.now(),
           delta: 'Hi',
           content: 'Hi',
-        })
+        }
       })
 
       const adapter = normalizeConnectionAdapter(base)
@@ -890,6 +919,7 @@ describe('connection-adapters', () => {
     })
 
     it('should synthesize RUN_ERROR when wrapped connect stream throws', async () => {
+      // eslint-disable-next-line require-yield
       const base = stream(async function* () {
         throw new Error('connect exploded')
       })
@@ -918,13 +948,14 @@ describe('connection-adapters', () => {
 
     it('should not synthesize duplicate RUN_ERROR when stream already emitted one before throwing', async () => {
       const base = stream(async function* () {
-        yield asChunk({
-          type: 'RUN_ERROR',
+        yield {
+          type: EventType.RUN_ERROR,
+          message: 'already failed',
           timestamp: Date.now(),
           error: {
             message: 'already failed',
           },
-        })
+        }
         throw new Error('connect exploded')
       })
 
@@ -957,14 +988,14 @@ describe('connection-adapters', () => {
   describe('rpcStream', () => {
     it('should delegate to RPC call', async () => {
       const rpcCall = vi.fn().mockImplementation(function* () {
-        yield asChunk({
-          type: 'TEXT_MESSAGE_CONTENT',
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
           messageId: 'msg-1',
           model: 'test',
           timestamp: Date.now(),
           delta: 'Hello',
           content: 'Hello',
-        })
+        }
       })
 
       const adapter = rpcStream(rpcCall)
@@ -979,20 +1010,21 @@ describe('connection-adapters', () => {
       expect(rpcCall).toHaveBeenCalled()
       expect(chunks).toHaveLength(1)
       expect(chunks[0]).toMatchObject({
-        type: 'TEXT_MESSAGE_CONTENT',
+        type: EventType.TEXT_MESSAGE_CONTENT,
         delta: 'Hello',
       })
     })
 
     it('should pass messages and data to RPC call', async () => {
       const rpcCall = vi.fn().mockImplementation(function* () {
-        yield asChunk({
-          type: 'RUN_FINISHED',
+        yield {
+          type: EventType.RUN_FINISHED,
           runId: 'run-1',
+          threadId: 'thread-1',
           model: 'test',
           timestamp: Date.now(),
           finishReason: 'stop',
-        })
+        }
       })
 
       const adapter = rpcStream(rpcCall)

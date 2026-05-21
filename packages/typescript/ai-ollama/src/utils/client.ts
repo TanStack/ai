@@ -1,8 +1,9 @@
 import { Ollama } from 'ollama'
+import { generateId as _generateId } from '@tanstack/ai-utils'
 
 export interface OllamaClientConfig {
   host?: string
-  headers?: Record<string, string>
+  headers?: Record<string, string> | undefined
 }
 
 /**
@@ -32,14 +33,14 @@ export function getOllamaHostFromEnv(): string {
       : typeof process !== 'undefined'
         ? process.env
         : undefined
-  return env?.OLLAMA_HOST || 'http://localhost:11434'
+  return env?.['OLLAMA_HOST'] || 'http://localhost:11434'
 }
 
 /**
  * Generates a unique ID with a prefix
  */
 export function generateId(prefix: string = 'msg'): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(7)}`
+  return _generateId(prefix)
 }
 
 /**

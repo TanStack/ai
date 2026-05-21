@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-devtools-core",
-  "version": "0.3.25",
+  "version": "0.3.33",
   "description": "Core TanStack AI Devtools",
   "author": "",
   "license": "MIT",
@@ -90,7 +90,7 @@
     "jsdom": "^27.2.0",
     "tsup": "^8.5.1",
     "tsup-preset-solid": "^2.2.0",
-    "vite": "^7.2.7",
+    "vite": "^7.3.3",
     "vite-plugin-solid": "^2.11.10"
   }
 }

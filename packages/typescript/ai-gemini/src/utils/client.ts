@@ -1,4 +1,5 @@
 import { GoogleGenAI } from '@google/genai'
+import { generateId as _generateId, getApiKeyFromEnv } from '@tanstack/ai-utils'
 import type { GoogleGenAIOptions } from '@google/genai'
 
 export interface GeminiClientConfig extends GoogleGenAIOptions {
@@ -20,26 +21,22 @@ export function createGeminiClient(config: GeminiClientConfig): GoogleGenAI {
  * @throws Error if GOOGLE_API_KEY or GEMINI_API_KEY is not found
  */
 export function getGeminiApiKeyFromEnv(): string {
-  const env =
-    typeof globalThis !== 'undefined' && (globalThis as any).window?.env
-      ? (globalThis as any).window.env
-      : typeof process !== 'undefined'
-        ? process.env
-        : undefined
-  const key = env?.GOOGLE_API_KEY || env?.GEMINI_API_KEY
-
-  if (!key) {
-    throw new Error(
-      'GOOGLE_API_KEY or GEMINI_API_KEY is required. Please set it in your environment variables or use the factory function with an explicit API key.',
-    )
+  try {
+    return getApiKeyFromEnv('GOOGLE_API_KEY')
+  } catch {
+    try {
+      return getApiKeyFromEnv('GEMINI_API_KEY')
+    } catch {
+      throw new Error(
+        'GOOGLE_API_KEY or GEMINI_API_KEY is not set. Please set one of these environment variables or pass the API key directly.',
+      )
+    }
   }
-
-  return key
 }
 
 /**
  * Generates a unique ID with a prefix
  */
 export function generateId(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(7)}`
+  return _generateId(prefix)
 }

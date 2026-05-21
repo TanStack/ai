@@ -379,14 +379,14 @@ await client.sendMessage({
 })
 ```
 
-### Per-Message Body Parameters
+### Per-Message Forwarded Props
 
-The second parameter allows you to pass additional body parameters for that specific request. These are shallow-merged with the client's base body configuration, with per-message parameters taking priority:
+The second parameter allows you to pass additional `forwardedProps` for that specific request. These are shallow-merged with the client's base `forwardedProps` configuration, with per-message values taking priority:
 
 ```typescript
 const client = new ChatClient({
   connection: fetchServerSentEvents('/api/chat'),
-  body: { model: 'gpt-5' }, // Base body params
+  forwardedProps: { model: 'gpt-5' }, // Base forwarded props
 })
 
 // Override model for this specific message
@@ -394,9 +394,9 @@ await client.sendMessage('Analyze this complex problem', {
   model: 'gpt-5',
   temperature: 0.2,
 })
-
- 
 ```
+
+> **Note:** The legacy `body` constructor option is still supported but deprecated. New code should use `forwardedProps`. Both populate the same wire field.
 
 ### React Example
 

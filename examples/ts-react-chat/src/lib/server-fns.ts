@@ -74,15 +74,21 @@ function rethrowAudioAdapterError(err: unknown): never {
 }
 
 const SPEECH_PROVIDER_SCHEMA = z
-  .enum(['openai', 'gemini', 'fal', 'grok'])
+  .enum(['openai', 'gemini', 'fal', 'grok', 'elevenlabs'])
   .optional()
 
 const TRANSCRIPTION_PROVIDER_SCHEMA = z
-  .enum(['openai', 'fal', 'grok'])
+  .enum(['openai', 'fal', 'grok', 'elevenlabs'])
   .optional()
 
 const AUDIO_PROVIDER_SCHEMA = z
-  .enum(['gemini-lyria', 'fal-audio', 'fal-sfx'])
+  .enum([
+    'gemini-lyria',
+    'fal-audio',
+    'fal-sfx',
+    'elevenlabs-music',
+    'elevenlabs-sfx',
+  ])
   .optional()
 
 // =============================================================================
@@ -192,11 +198,12 @@ export const summarizeFn = createServerFn({ method: 'POST' })
       text: z.string(),
       maxLength: z.number().optional(),
       style: z.enum(['bullet-points', 'paragraph', 'concise']).optional(),
+      model: z.string().optional(),
     }),
   )
   .handler(async ({ data }) => {
     return summarize({
-      adapter: openaiSummarize('gpt-4o-mini'),
+      adapter: openaiSummarize((data.model ?? 'gpt-4o-mini') as 'gpt-4o-mini'),
       text: data.text,
       maxLength: data.maxLength,
       style: data.style,
@@ -339,12 +346,15 @@ export const summarizeStreamFn = createServerFn({ method: 'POST' })
       text: z.string(),
       maxLength: z.number().optional(),
       style: z.enum(['bullet-points', 'paragraph', 'concise']).optional(),
+      model: z.string().optional(),
     }),
   )
   .handler(({ data }) => {
     return toServerSentEventsResponse(
       summarize({
-        adapter: openaiSummarize('gpt-4o-mini'),
+        adapter: openaiSummarize(
+          (data.model ?? 'gpt-4o-mini') as 'gpt-4o-mini',
+        ),
         text: data.text,
         maxLength: data.maxLength,
         style: data.style,

@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-preact",
-  "version": "0.6.20",
+  "version": "0.6.28",
   "description": "Preact hooks for TanStack AI",
   "author": "",
   "license": "MIT",
@@ -48,7 +48,7 @@
     "@vitest/coverage-v8": "4.0.14",
     "jsdom": "^27.2.0",
     "preact": "^10.26.9",
-    "vite": "^7.2.7"
+    "vite": "^7.3.3"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",

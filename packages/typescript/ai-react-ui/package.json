@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-react-ui",
-  "version": "0.6.2",
+  "version": "0.7.2",
   "description": "Headless React components for building AI chat interfaces",
   "module": "./dist/esm/index.js",
   "types": "./dist/esm/index.d.ts",
@@ -58,6 +58,6 @@
     "@vitest/coverage-v8": "4.0.14",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
-    "vite": "^7.2.7"
+    "vite": "^7.3.3"
   }
 }

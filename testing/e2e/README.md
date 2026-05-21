@@ -12,25 +12,27 @@ End-to-end tests for TanStack AI using Playwright and [aimock](https://github.co
 
 Each test iterates over supported providers using `providersFor('feature')`:
 
-| Feature               | Providers | Spec file                             |
-| --------------------- | --------- | ------------------------------------- |
-| chat                  | 7         | `tests/chat.spec.ts`                  |
-| one-shot-text         | 7         | `tests/one-shot-text.spec.ts`         |
-| multi-turn            | 7         | `tests/multi-turn.spec.ts`            |
-| structured-output     | 7         | `tests/structured-output.spec.ts`     |
-| tool-calling          | 7         | `tests/tool-calling.spec.ts`          |
-| parallel-tool-calls   | 6         | `tests/parallel-tool-calls.spec.ts`   |
-| tool-approval         | 6         | `tests/tool-approval.spec.ts`         |
-| text-tool-text        | 6         | `tests/text-tool-text.spec.ts`        |
-| agentic-structured    | 7         | `tests/agentic-structured.spec.ts`    |
-| reasoning             | 3         | `tests/reasoning.spec.ts`             |
-| multimodal-image      | 5         | `tests/multimodal-image.spec.ts`      |
-| multimodal-structured | 5         | `tests/multimodal-structured.spec.ts` |
-| summarize             | 6         | `tests/summarize.spec.ts`             |
-| summarize-stream      | 6         | `tests/summarize-stream.spec.ts`      |
-| image-gen             | 7         | `tests/image-gen.spec.ts`             |
-| tts                   | 7         | `tests/tts.spec.ts`                   |
-| transcription         | 7         | `tests/transcription.spec.ts`         |
+| Feature                  | Providers | Spec file                                |
+| ------------------------ | --------- | ---------------------------------------- |
+| chat                     | 7         | `tests/chat.spec.ts`                     |
+| one-shot-text            | 7         | `tests/one-shot-text.spec.ts`            |
+| multi-turn               | 7         | `tests/multi-turn.spec.ts`               |
+| structured-output        | 7         | `tests/structured-output.spec.ts`        |
+| structured-output-stream | 4         | `tests/structured-output-stream.spec.ts` |
+| tool-calling             | 7         | `tests/tool-calling.spec.ts`             |
+| parallel-tool-calls      | 6         | `tests/parallel-tool-calls.spec.ts`      |
+| tool-approval            | 6         | `tests/tool-approval.spec.ts`            |
+| text-tool-text           | 6         | `tests/text-tool-text.spec.ts`           |
+| agentic-structured       | 7         | `tests/agentic-structured.spec.ts`       |
+| reasoning                | 3         | `tests/reasoning.spec.ts`                |
+| multimodal-image         | 5         | `tests/multimodal-image.spec.ts`         |
+| multimodal-structured    | 5         | `tests/multimodal-structured.spec.ts`    |
+| summarize                | 6         | `tests/summarize.spec.ts`                |
+| summarize-stream         | 6         | `tests/summarize-stream.spec.ts`         |
+| image-gen                | 7         | `tests/image-gen.spec.ts`                |
+| tts                      | 3         | `tests/tts.spec.ts`                      |
+| transcription            | 3         | `tests/transcription.spec.ts`            |
+| audio-gen                | 1         | `tests/audio-gen.spec.ts`                |
 
 ### Tools-test page
 
@@ -122,7 +124,7 @@ Clean up the fixture:
 }
 ```
 
-Existing prefixes: `[chat]`, `[oneshot]`, `[reasoning]`, `[multiturn-1]`, `[multiturn-2]`, `[toolcall]`, `[parallel]`, `[approval]`, `[approval-deny]`, `[text-tool-text]`, `[structured]`, `[agentic]`, `[mmimage]`, `[mmstruct]`, `[summarize]`, `[imagegen]`, `[tts]`, `[transcription]`, `[abort-test]`, `[error-test]`.
+Existing prefixes: `[chat]`, `[oneshot]`, `[reasoning]`, `[multiturn-1]`, `[multiturn-2]`, `[toolcall]`, `[parallel]`, `[approval]`, `[approval-deny]`, `[text-tool-text]`, `[structured]`, `[structured-stream]`, `[structured-stream-abort]`, `[agentic]`, `[mmimage]`, `[mmstruct]`, `[summarize]`, `[imagegen]`, `[tts]`, `[transcription]`, `[abort-test]`, `[error-test]`.
 
 ## 4. Writing a Test
 

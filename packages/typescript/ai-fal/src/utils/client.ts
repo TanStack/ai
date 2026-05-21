@@ -1,42 +1,13 @@
 import { fal } from '@fal-ai/client'
+import { generateId as _generateId, getApiKeyFromEnv } from '@tanstack/ai-utils'
 
 export interface FalClientConfig {
   apiKey: string
   proxyUrl?: string
 }
 
-interface EnvObject {
-  FAL_KEY?: string
-}
-
-interface WindowWithEnv {
-  env?: EnvObject
-}
-
-function getEnvironment(): EnvObject | undefined {
-  if (typeof globalThis !== 'undefined') {
-    const win = (globalThis as { window?: WindowWithEnv }).window
-    if (win?.env) {
-      return win.env
-    }
-  }
-  if (typeof process !== 'undefined') {
-    return process.env as EnvObject
-  }
-  return undefined
-}
-
 export function getFalApiKeyFromEnv(): string {
-  const env = getEnvironment()
-  const key = env?.FAL_KEY
-
-  if (!key) {
-    throw new Error(
-      'FAL_KEY is required. Please set it in your environment variables or use the factory function with an explicit API key.',
-    )
-  }
-
-  return key
+  return getApiKeyFromEnv('FAL_KEY')
 }
 
 export function configureFalClient(config?: FalClientConfig): void {
@@ -48,7 +19,7 @@ export function configureFalClient(config?: FalClientConfig): void {
 }
 
 export function generateId(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2)}`
+  return _generateId(prefix)
 }
 
 /**
@@ -67,7 +38,7 @@ export function extractUrlExtension(url: string): string | undefined {
   } catch {
     // Fall back to treating the input as a raw path when URL parsing fails
     // (e.g. the caller passed a bare path). Still strip ?query and #fragment.
-    pathname = url.split('?')[0]!.split('#')[0]!
+    pathname = url.split('?')[0]?.split('#')[0] ?? url
   }
   // Drop trailing slashes so `/path/audio.mp3/` still yields `mp3`.
   const normalized = pathname.replace(/\/+$/, '')
@@ -112,6 +83,7 @@ export function deriveAudioContentType(
       return 'audio/mp4'
     case 'webm':
       return 'audio/webm'
+    case undefined:
     default:
       return 'audio/mpeg'
   }
@@ -161,8 +133,8 @@ export function arrayBufferToBase64(bytes: ArrayBuffer): string {
   }
   const view = new Uint8Array(bytes)
   let binary = ''
-  for (let i = 0; i < view.byteLength; i += 1) {
-    binary += String.fromCharCode(view[i]!)
+  for (const byte of view) {
+    binary += String.fromCharCode(byte)
   }
   return btoa(binary)
 }

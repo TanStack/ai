@@ -1,3 +1,4 @@
+import { brandProviderTool } from '@tanstack/ai'
 import type { FileSearch } from '@google/genai'
 import type { ProviderTool, Tool } from '@tanstack/ai'
 
@@ -18,10 +19,9 @@ export function convertFileSearchToolToAdapterFormat(tool: Tool) {
 export function fileSearchTool(
   config: FileSearchToolConfig,
 ): GeminiFileSearchTool {
-  // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
-  return {
+  return brandProviderTool<GeminiFileSearchTool>({
     name: 'file_search',
     description: '',
     metadata: config,
-  } as unknown as GeminiFileSearchTool
+  })
 }

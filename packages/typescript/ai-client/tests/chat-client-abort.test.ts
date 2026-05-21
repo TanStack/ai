@@ -1,11 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { EventType } from '@tanstack/ai'
 import { ChatClient } from '../src/chat-client'
 import type { ConnectionAdapter } from '../src/connection-adapters'
 import type { StreamChunk } from '@tanstack/ai'
-
-/** Cast an event object to StreamChunk for type compatibility with EventType enum. */
-const asChunk = (chunk: Record<string, unknown>) =>
-  chunk as unknown as StreamChunk
 
 describe('ChatClient - Abort Signal Handling', () => {
   let mockAdapter: ConnectionAdapter
@@ -20,29 +17,30 @@ describe('ChatClient - Abort Signal Handling', () => {
         receivedAbortSignal = abortSignal
 
         // Simulate streaming chunks (AG-UI format)
-        yield asChunk({
-          type: 'TEXT_MESSAGE_CONTENT',
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
           messageId: '1',
           model: 'test',
           timestamp: Date.now(),
           delta: 'Hello',
           content: 'Hello',
-        })
-        yield asChunk({
-          type: 'TEXT_MESSAGE_CONTENT',
+        }
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
           messageId: '1',
           model: 'test',
           timestamp: Date.now(),
           delta: ' World',
           content: 'Hello World',
-        })
-        yield asChunk({
-          type: 'RUN_FINISHED',
+        }
+        yield {
+          type: EventType.RUN_FINISHED,
           runId: 'run-1',
+          threadId: 'thread-1',
           model: 'test',
           timestamp: Date.now(),
           finishReason: 'stop',
-        })
+        }
       },
     }
   })
@@ -82,24 +80,24 @@ describe('ChatClient - Abort Signal Handling', () => {
         }
 
         try {
-          yield asChunk({
-            type: 'TEXT_MESSAGE_CONTENT',
+          yield {
+            type: EventType.TEXT_MESSAGE_CONTENT,
             messageId: '1',
             model: 'test',
             timestamp: Date.now(),
             delta: 'Hello',
             content: 'Hello',
-          })
+          }
           // Simulate long-running stream
           await new Promise((resolve) => setTimeout(resolve, 100))
-          yield asChunk({
-            type: 'TEXT_MESSAGE_CONTENT',
+          yield {
+            type: EventType.TEXT_MESSAGE_CONTENT,
             messageId: '1',
             model: 'test',
             timestamp: Date.now(),
             delta: ' World',
             content: 'Hello World',
-          })
+          }
         } catch (err) {
           // Abort errors are expected
           if (err instanceof Error && err.name === 'AbortError') {
@@ -137,28 +135,28 @@ describe('ChatClient - Abort Signal Handling', () => {
     const adapterWithPartial: ConnectionAdapter = {
       // eslint-disable-next-line @typescript-eslint/require-await
       async *connect(_messages, _data, abortSignal) {
-        yield asChunk({
-          type: 'TEXT_MESSAGE_CONTENT',
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
           messageId: '1',
           model: 'test',
           timestamp: Date.now(),
           delta: 'Hello',
           content: 'Hello',
-        })
+        }
         yieldedChunks++
 
         if (abortSignal?.aborted) {
           return
         }
 
-        yield asChunk({
-          type: 'TEXT_MESSAGE_CONTENT',
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
           messageId: '1',
           model: 'test',
           timestamp: Date.now(),
           delta: ' World',
           content: 'Hello World',
-        })
+        }
         yieldedChunks++
       },
     }
@@ -194,14 +192,14 @@ describe('ChatClient - Abort Signal Handling', () => {
     const adapterWithAbort: ConnectionAdapter = {
       // eslint-disable-next-line @typescript-eslint/require-await
       async *connect(_messages, _data, abortSignal) {
-        yield asChunk({
-          type: 'TEXT_MESSAGE_CONTENT',
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
           messageId: '1',
           model: 'test',
           timestamp: Date.now(),
           delta: 'Hello',
           content: 'Hello',
-        })
+        }
 
         if (abortSignal?.aborted) {
           return
@@ -234,14 +232,14 @@ describe('ChatClient - Abort Signal Handling', () => {
   it('should set isLoading to false after abort', async () => {
     const adapterWithAbort: ConnectionAdapter = {
       async *connect(_messages, _data, _abortSignal) {
-        yield asChunk({
-          type: 'TEXT_MESSAGE_CONTENT',
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
           messageId: '1',
           model: 'test',
           timestamp: Date.now(),
           delta: 'Hello',
           content: 'Hello',
-        })
+        }
         await new Promise((resolve) => setTimeout(resolve, 50))
       },
     }
@@ -276,13 +274,14 @@ describe('ChatClient - Abort Signal Handling', () => {
         if (abortSignal) {
           abortSignals.push(abortSignal)
         }
-        yield asChunk({
-          type: 'RUN_FINISHED',
+        yield {
+          type: EventType.RUN_FINISHED,
           runId: 'run-1',
+          threadId: 'thread-1',
           model: 'test',
           timestamp: Date.now(),
           finishReason: 'stop',
-        })
+        }
       },
     }
 
@@ -309,5 +308,110 @@ describe('ChatClient - Abort Signal Handling', () => {
     expect(abortSignals.length).toBe(2)
     // Each should be a different signal instance
     expect(abortSignals[0]).not.toBe(abortSignals[1])
+  })
+
+  it('should resolve cleanly when stop() is called during onResponse', async () => {
+    let connectCalled = false
+    const errorSpy = vi.fn()
+
+    const adapter: ConnectionAdapter = {
+      // eslint-disable-next-line @typescript-eslint/require-await
+      async *connect(_messages, _data, _abortSignal) {
+        connectCalled = true
+        yield {
+          type: EventType.RUN_FINISHED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          model: 'test',
+          timestamp: Date.now(),
+          finishReason: 'stop',
+        }
+      },
+    }
+
+    const client = new ChatClient({
+      connection: adapter,
+      onError: errorSpy,
+      onResponse: () => {
+        // stop() during the onResponse await aborts the captured signal and
+        // nulls this.abortController. Pre-fix this dereferenced null and
+        // threw a TypeError; with the captured-signal fix and the post-await
+        // signal.aborted check, streamResponse short-circuits cleanly.
+        client.stop()
+      },
+    })
+
+    await client.append({
+      id: 'user-1',
+      role: 'user',
+      parts: [{ type: 'text', content: 'Hello' }],
+      createdAt: new Date(),
+    })
+
+    // Cancelled streams must not invoke the connection (no wasted request),
+    // surface no error to user code, and not deadlock the append() promise.
+    expect(connectCalled).toBe(false)
+    expect(errorSpy).not.toHaveBeenCalled()
+    expect(client.getError()).toBeUndefined()
+    expect(client.getIsLoading()).toBe(false)
+  })
+
+  it('should resolve cleanly when reload() supersedes the stream during onResponse', async () => {
+    const signalsPassedToConnect: Array<AbortSignal> = []
+    let reloadPromise: Promise<unknown> | undefined
+    const errorSpy = vi.fn()
+
+    const adapter: ConnectionAdapter = {
+      // eslint-disable-next-line @typescript-eslint/require-await
+      async *connect(_messages, _data, abortSignal) {
+        if (abortSignal) {
+          signalsPassedToConnect.push(abortSignal)
+        }
+        yield {
+          type: EventType.RUN_FINISHED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          model: 'test',
+          timestamp: Date.now(),
+          finishReason: 'stop',
+        }
+      },
+    }
+
+    let firstCall = true
+    const client = new ChatClient({
+      connection: adapter,
+      onError: errorSpy,
+      onResponse: () => {
+        if (firstCall) {
+          firstCall = false
+          // reload() aborts the in-flight stream's signal and starts a fresh
+          // streamResponse that assigns a new AbortController. Pre-fix, the
+          // first stream re-read this.abortController.signal after this
+          // await and would either crash or pass the second stream's signal
+          // to its own connect() call. With the fix, the first stream
+          // short-circuits because its captured signal was aborted.
+          reloadPromise = client.reload()
+        }
+      },
+    })
+
+    await client.append({
+      id: 'user-1',
+      role: 'user',
+      parts: [{ type: 'text', content: 'Hello' }],
+      createdAt: new Date(),
+    })
+
+    await reloadPromise
+
+    // Only the surviving (reload) stream invokes connect(); the cancelled
+    // first stream short-circuits before reaching the connection layer.
+    // Its signal must be fresh (not the aborted one from the cancelled stream).
+    expect(signalsPassedToConnect.length).toBe(1)
+    expect(signalsPassedToConnect[0]).toBeInstanceOf(AbortSignal)
+    expect(signalsPassedToConnect[0]?.aborted).toBe(false)
+    expect(errorSpy).not.toHaveBeenCalled()
+    expect(client.getError()).toBeUndefined()
   })
 })

@@ -5,16 +5,21 @@ export function mapSizeToFalFormat<TModel extends string>(
 ): FalModelImageSizeInput<TModel> | undefined {
   if (!size) return undefined
 
-  // "16:9_4K" → { aspect_ratio, resolution }
-  // "16:9"    → { aspect_ratio }
-  // no match  → { image_size }
+  // "16:9_4K"     → { aspect_ratio, resolution }
+  // "16:9"        → { aspect_ratio }
+  // "4K"          → { resolution }    (no colon, no underscore, model has `resolution`)
+  // "square_hd"   → { image_size }    (no colon, no resolution field on model)
   if (typeof size === 'string') {
-    const match = size.match(/^(\d+:\d+)(?:_(.+))?$/)
-    if (match) {
-      return {
-        aspect_ratio: match[1],
-        ...(match[2] ? { resolution: match[2] } : {}),
-      } as FalModelImageSizeInput<TModel>
+    if (size.includes('_')) {
+      const [first, second] = size.split('_')
+      if (first && first.includes(':')) {
+        return {
+          aspect_ratio: first,
+          resolution: second,
+        } as FalModelImageSizeInput<TModel>
+      }
+    } else if (size.includes(':')) {
+      return { aspect_ratio: size } as FalModelImageSizeInput<TModel>
     }
   }
 

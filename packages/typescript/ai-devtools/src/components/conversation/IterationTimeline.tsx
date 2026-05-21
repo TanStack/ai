@@ -39,8 +39,7 @@ export const IterationTimeline: Component<IterationTimelineProps> = (props) => {
       (a, b) => a.timestamp - b.timestamp,
     )
 
-    for (let u = 0; u < sortedUsers.length; u++) {
-      const currentUser = sortedUsers[u]!
+    for (const [u, currentUser] of sortedUsers.entries()) {
       const nextUser = sortedUsers[u + 1]
 
       const groupIters = iters.filter((it) => {
@@ -55,9 +54,10 @@ export const IterationTimeline: Component<IterationTimelineProps> = (props) => {
     }
 
     // Catch any iterations before the first user message
-    if (sortedUsers[0]) {
+    const firstUser = sortedUsers[0]
+    if (firstUser) {
       const earlyIters = iters.filter(
-        (it) => it.startedAt < sortedUsers[0]!.timestamp,
+        (it) => it.startedAt < firstUser.timestamp,
       )
       if (earlyIters.length > 0) {
         result.unshift({ userMessage: null, iterations: earlyIters })
@@ -332,12 +332,14 @@ const UserMessageGroupCard: Component<{
             </span>
           </Show>
           <Show when={totalUsage()}>
-            <span
-              class={`${s().badge} ${s().badgeUsage}`}
-              title={`Prompt: ${totalUsage()!.promptTokens.toLocaleString()} | Completion: ${totalUsage()!.completionTokens.toLocaleString()}`}
-            >
-              🎯 {totalUsage()!.totalTokens.toLocaleString()}
-            </span>
+            {(usage) => (
+              <span
+                class={`${s().badge} ${s().badgeUsage}`}
+                title={`Prompt: ${usage().promptTokens.toLocaleString()} | Completion: ${usage().completionTokens.toLocaleString()}`}
+              >
+                🎯 {usage().totalTokens.toLocaleString()}
+              </span>
+            )}
           </Show>
           <Show when={isActive()}>
             <span class={`${s().badge} ${s().badgeDuration}`}>⟳ streaming</span>

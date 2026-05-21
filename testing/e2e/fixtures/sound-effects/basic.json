@@ -1,0 +1,16 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[sfx] castle door opening",
+        "endpoint": "audio-gen"
+      },
+      "response": {
+        "audio": {
+          "b64Json": "SGVsbG8gc2Z4",
+          "contentType": "audio/mpeg"
+        }
+      }
+    }
+  ]
+}

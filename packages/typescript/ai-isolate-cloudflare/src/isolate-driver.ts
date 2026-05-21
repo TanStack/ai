@@ -74,11 +74,11 @@ function normalizeError(error: unknown): { name: string; message: string } {
  * IsolateContext implementation using Cloudflare Workers
  */
 class CloudflareIsolateContext implements IsolateContext {
-  private workerUrl: string
-  private authorization?: string
-  private timeout: number
-  private maxToolRounds: number
-  private bindings: Record<string, ToolBinding>
+  private readonly workerUrl: string
+  private readonly authorization?: string
+  private readonly timeout: number
+  private readonly maxToolRounds: number
+  private readonly bindings: Record<string, ToolBinding>
   private disposed = false
 
   constructor(
@@ -162,10 +162,21 @@ class CloudflareIsolateContext implements IsolateContext {
 
         if (result.status === 'done') {
           allLogs = [...allLogs, ...result.logs]
+          const resultError = result.error
           return {
             success: result.success,
             value: result.value as T,
-            error: result.error,
+            ...(resultError !== undefined
+              ? {
+                  error: {
+                    name: resultError.name,
+                    message: resultError.message,
+                    ...(resultError.stack !== undefined
+                      ? { stack: resultError.stack }
+                      : {}),
+                  },
+                }
+              : {}),
             logs: allLogs,
           }
         }
@@ -174,13 +185,15 @@ class CloudflareIsolateContext implements IsolateContext {
         // Collect logs from this round
         allLogs = [...allLogs, ...result.logs]
 
-        // Execute tool calls locally
-        toolResults = {}
+        // Execute tool calls locally. Accumulate across rounds so prior-round
+        // results stay cached when the Worker re-executes user code.
+        // wrap-code uses sequential `tc_<idx>` ids re-derived every round; if
+        // we wipe the cache, multi-tool programs ping-pong between missing
+        // ids and exhaust `maxToolRounds` (MaxRoundsExceeded).
+        toolResults = { ...(toolResults ?? {}) }
 
         for (const toolCall of result.toolCalls) {
-          const binding = this.bindings[toolCall.name] as
-            | ToolBinding
-            | undefined
+          const binding = this.bindings[toolCall.name]
 
           if (!binding) {
             toolResults[toolCall.id] = {

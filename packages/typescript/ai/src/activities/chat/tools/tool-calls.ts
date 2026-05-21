@@ -81,8 +81,8 @@ export class MiddlewareAbortError extends Error {
  * ```
  */
 export class ToolCallManager {
-  private toolCallsMap = new Map<number, ToolCall>()
-  private tools: ReadonlyArray<Tool>
+  private readonly toolCallsMap = new Map<number, ToolCall>()
+  private readonly tools: ReadonlyArray<Tool>
 
   constructor(tools: ReadonlyArray<Tool>) {
     this.tools = tools
@@ -93,7 +93,9 @@ export class ToolCallManager {
    */
   addToolCallStartEvent(event: ToolCallStartEvent): void {
     const index = event.index ?? this.toolCallsMap.size
-    const name = event.toolCallName
+    const runtimeEvent = event as Partial<ToolCallStartEvent> &
+      Pick<ToolCallStartEvent, 'toolName'>
+    const name = runtimeEvent.toolCallName ?? runtimeEvent.toolName
     this.toolCallsMap.set(index, {
       id: event.toolCallId,
       type: 'function',
@@ -101,9 +103,7 @@ export class ToolCallManager {
         name,
         arguments: '',
       },
-      ...(event.providerMetadata && {
-        providerMetadata: event.providerMetadata,
-      }),
+      ...(event.metadata !== undefined && { metadata: event.metadata }),
     })
   }
 
@@ -320,14 +320,16 @@ async function* executeWithEventPolling<T>(
     ])
 
     // Flush any pending events
-    while (pendingEvents.length > 0) {
-      yield pendingEvents.shift()!
+    let event: CustomEvent | undefined
+    while ((event = pendingEvents.shift()) !== undefined) {
+      yield event
     }
   }
 
   // Final flush in case events were emitted right at completion
-  while (pendingEvents.length > 0) {
-    yield pendingEvents.shift()!
+  let event: CustomEvent | undefined
+  while ((event = pendingEvents.shift()) !== undefined) {
+    yield event
   }
 
   return state.result
@@ -404,13 +406,17 @@ async function* executeServerTool(
 ): AsyncGenerator<CustomEvent, void, void> {
   const startTime = Date.now()
   try {
-    const executionPromise = Promise.resolve(tool.execute!(input, context))
+    if (!tool.execute) {
+      throw new Error(`Tool ${toolName} has no execute() implementation`)
+    }
+    const executionPromise = Promise.resolve(tool.execute(input, context))
     let result = yield* executeWithEventPolling(executionPromise, pendingEvents)
     const duration = Date.now() - startTime
 
     // Flush remaining events
-    while (pendingEvents.length > 0) {
-      yield pendingEvents.shift()!
+    let pendingEvent: CustomEvent | undefined
+    while ((pendingEvent = pendingEvents.shift()) !== undefined) {
+      yield pendingEvent
     }
 
     // Validate output against outputSchema if provided
@@ -448,8 +454,9 @@ async function* executeServerTool(
     const duration = Date.now() - startTime
 
     // Flush remaining events
-    while (pendingEvents.length > 0) {
-      yield pendingEvents.shift()!
+    let pendingEvent: CustomEvent | undefined
+    while ((pendingEvent = pendingEvents.shift()) !== undefined) {
+      yield pendingEvent
     }
 
     if (error instanceof MiddlewareAbortError) {

@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { useState } from 'react'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { clientTools } from '@tanstack/ai-client'
 import type { Feature, Mode, Provider } from '@/lib/types'
@@ -139,6 +140,14 @@ function ChatFeature({
 
   const { testId, aimockPort } = Route.useSearch()
 
+  // Tracks streaming-structured-output observability for e2e tests:
+  // - structuredObject: captured from the terminal CUSTOM event
+  // - contentDeltaCount: incremented per TEXT_MESSAGE_CONTENT chunk so tests
+  //   can verify the response actually streamed (rather than silently
+  //   collapsing to a single synthetic delta)
+  const [structuredObject, setStructuredObject] = useState<unknown>(null)
+  const [contentDeltaCount, setContentDeltaCount] = useState(0)
+
   const transport =
     mode === 'fetcher'
       ? {
@@ -167,12 +176,25 @@ function ChatFeature({
       ...transport,
       tools,
       body: { provider, feature, testId, aimockPort },
+      onCustomEvent: (eventType, data) => {
+        if (eventType === 'structured-output.complete') {
+          const value = data as { object: unknown; raw: string } | undefined
+          setStructuredObject(value?.object ?? null)
+        }
+      },
+      onChunk: (chunk) => {
+        if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+          setContentDeltaCount((n) => n + 1)
+        }
+      },
     })
 
   return (
     <ChatUI
       messages={messages}
       isLoading={isLoading}
+      structuredObject={structuredObject}
+      contentDeltaCount={contentDeltaCount}
       onSendMessage={(text) => {
         sendMessage(text)
       }}

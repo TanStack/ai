@@ -194,6 +194,7 @@ export function arrayBufferToBase64(buffer: ArrayBuffer): string {
     const end = Math.min(i + chunkSize, bytes.length)
     binary += String.fromCharCode.apply(
       null,
+      // eslint-disable-next-line no-restricted-syntax -- TS lib types String.fromCharCode.apply as Array<number> but runtime accepts any ArrayLike
       bytes.subarray(i, end) as unknown as Array<number>,
     )
   }

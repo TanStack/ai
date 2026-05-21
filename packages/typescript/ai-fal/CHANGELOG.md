@@ -1,5 +1,108 @@
 # @tanstack/ai-fal
 
+## 0.7.9
+
+### Patch Changes
+
+- Tighten TypeScript safety: enable `noImplicitOverride`, ([#579](https://github.com/TanStack/ai/pull/579))
+  `noFallthroughCasesInSwitch`, and `useDefineForClassFields` in the
+  root `tsconfig.json`; add a typed-ESLint block scoped to
+  `packages/typescript/*/src/**` that turns on `no-floating-promises`,
+  `no-misused-promises`, `await-thenable`,
+  `switch-exhaustiveness-check`, `consistent-type-exports`,
+  `prefer-readonly`, and `no-non-null-assertion` (errors), plus
+  `no-explicit-any` (warning). `@ts-ignore` and `@ts-nocheck` are
+  disallowed in library source via `@typescript-eslint/ban-ts-comment`,
+  and `as unknown as <T>` double-casts are blocked by a
+  `no-restricted-syntax` rule (escape hatches available with an inline
+  reason). Two flags from the original five-flag set —
+  `noPropertyAccessFromIndexSignature` and `exactOptionalPropertyTypes`
+  — were tried and rolled back: they produced ~500 lines of bracket-
+  access and conditional-spread churn without catching any real bugs,
+  and `exactOptionalPropertyTypes` would have forced consumers using
+  it themselves to deal with our internals' style preferences.
+
+  User-visible API surface is unchanged; this is a hardening pass to
+  keep streaming/agent-loop correctness and discriminated-union
+  exhaustiveness honest going forward. See issue #564.
+
+- Updated dependencies [[`2ad137b`](https://github.com/TanStack/ai/commit/2ad137bd22512248bd1684cccce35ba89597cf96)]:
+  - @tanstack/ai@0.20.1
+
+## 0.7.8
+
+### Patch Changes
+
+- Updated dependencies [[`496db9c`](https://github.com/TanStack/ai/commit/496db9c42a7d3051a1295091eae29ae1c31ef997)]:
+  - @tanstack/ai@0.20.0
+
+## 0.7.7
+
+### Patch Changes
+
+- Updated dependencies [[`617b5b5`](https://github.com/TanStack/ai/commit/617b5b512a6b3989c442efa41975dacc194d882a)]:
+  - @tanstack/ai@0.19.1
+
+## 0.7.6
+
+### Patch Changes
+
+- Updated dependencies [[`2e0e2eb`](https://github.com/TanStack/ai/commit/2e0e2eb72684aac82e570d57767656e218289b49)]:
+  - @tanstack/ai@0.19.0
+
+## 0.7.5
+
+### Patch Changes
+
+- Updated dependencies [[`a9d1916`](https://github.com/TanStack/ai/commit/a9d19165a5028515cf1d091d611c8ac4b5b86099), [`e810153`](https://github.com/TanStack/ai/commit/e810153b34e593d3f3e1bbd8050164a6ad4423ed)]:
+  - @tanstack/ai@0.18.0
+
+## 0.7.4
+
+### Patch Changes
+
+- Update `@fal-ai/client` dependency to `^1.10.1`. Picks up upstream retry-on-transport-error and proxy-runtime-gate improvements. No public adapter API changes — `fal.config`, `fal.subscribe`, `fal.queue.{submit,status,result}` are unchanged. ([#556](https://github.com/TanStack/ai/pull/556))
+
+  The fal type-meta narrowing now covers four cases per model, each strict:
+  - `aspect_ratio` + `resolution` → `"16:9_1080p"` style template literal
+  - `aspect_ratio` only → the aspect-ratio union (`"16:9" | "9:16" | …`)
+  - `resolution` only → the resolution union (`"1080p" | "1440p" | "2160p"`) — new
+  - neither → `undefined` (the model has no size knob, so you must omit `size`)
+
+  For example, `fal-ai/ltx-2/text-to-video/fast` (resolution-only) now type-checks `size: '2160p'`, and `fal-ai/kling-video/v2.6/pro/image-to-video` (neither field) refuses any `size` value at compile time.
+
+  The "neither" case uses `undefined` instead of `never` so the adapter class still satisfies the generic `VideoAdapter<string, any, any, any>` (method-parameter contravariance: `any` can't flow into `never` but it does flow into `undefined`).
+
+  To support the `undefined` slot, `@tanstack/ai`'s `BaseImageAdapter`/`BaseVideoAdapter` (and the matching `ImageGenerationOptions`/`VideoGenerationOptions` types) widen their `TSize` constraint from `extends string` to `extends string | undefined`. The default remains `string`, so existing adapters and call sites are unaffected.
+
+  `Extract<…['aspect_ratio'], string>` filters out the new `AspectRatio` object type that upstream 1.10 introduced on `AgeModifyInput`/`CityTeleportInput`, keeping the template-literal sizes valid for those endpoints.
+
+- Updated dependencies [[`98979f7`](https://github.com/TanStack/ai/commit/98979f7e72f4b5bfb816fb14b60a12871f8c4bec), [`02527c2`](https://github.com/TanStack/ai/commit/02527c28c3285829535cd486e529e659260b3c5d)]:
+  - @tanstack/ai@0.17.0
+
+## 0.7.3
+
+### Patch Changes
+
+- Updated dependencies [[`87f305c`](https://github.com/TanStack/ai/commit/87f305c9961d608fd7bea93a5100698a98aed11d)]:
+  - @tanstack/ai@0.16.0
+
+## 0.7.2
+
+### Patch Changes
+
+- Internal refactor: every provider now delegates `getApiKeyFromEnv` / `generateId` / `transformNullsToUndefined` / `ModelMeta` helpers to the new `@tanstack/ai-utils` package. `ai-openai` and `ai-grok` additionally inherit OpenAI-compatible adapter base classes (Chat Completions / Responses text, image, summarize, transcription, TTS, video) from the new `@tanstack/openai-base` package; `ai-groq` keeps its own `BaseTextAdapter`-derived text adapter (Groq uses the `groq-sdk`, not the OpenAI SDK) but consumes `@tanstack/openai-base`'s schema converter and tool converters. The remaining providers (`ai-anthropic`, `ai-gemini`, `ai-ollama`, `ai-openrouter`, `ai-fal`, `ai-elevenlabs`) only consume `@tanstack/ai-utils` because they speak provider-native protocols, not OpenAI-compatible ones. No breaking changes — all public APIs remain identical. ([#409](https://github.com/TanStack/ai/pull/409))
+
+- Updated dependencies [[`27c9aeb`](https://github.com/TanStack/ai/commit/27c9aeb80993f8262e65ef623a4cc6dadf18817e)]:
+  - @tanstack/ai-utils@0.2.0
+
+## 0.7.1
+
+### Patch Changes
+
+- Updated dependencies [[`a4e2c55`](https://github.com/TanStack/ai/commit/a4e2c55a79490c2245ff2de2d3e1803a533c867b), [`82078bd`](https://github.com/TanStack/ai/commit/82078bdabe28d7d4a15a2847d667f363bf0a9cbe), [`b2d3cc1`](https://github.com/TanStack/ai/commit/b2d3cc131a31c54bd1e5841f958fbe333514e508)]:
+  - @tanstack/ai@0.15.0
+
 ## 0.7.0
 
 ### Minor Changes

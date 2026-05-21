@@ -10,6 +10,7 @@ export type {
   ToolCallPart,
   ToolResultPart,
   ThinkingPart,
+  StructuredOutputPart,
   // Client configuration types
   ChatClientOptions,
   ChatRequestBody,
@@ -64,6 +65,7 @@ export {
   type ConnectConnectionAdapter,
   type ConnectionAdapter,
   type FetchConnectionOptions,
+  type RunAgentInputContext,
   type SubscribeConnectionAdapter,
 } from './connection-adapters'
 

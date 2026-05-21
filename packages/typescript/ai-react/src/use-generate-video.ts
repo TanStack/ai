@@ -127,17 +127,30 @@ export function useGenerateVideo<
   const client = useMemo(() => {
     const opts = optionsRef.current
 
+    // Conditional spread for `body` (strict-optional in target).
+    // Optional callbacks are wrapped in non-returning bodies so
+    // `?.()`'s implicit `undefined` doesn't widen the function
+    // return type (which `exactOptionalPropertyTypes` rejects
+    // against the strict-optional target).
     const baseOptions = {
       id: clientId,
       body: opts.body,
       onResult: (r: VideoGenerateResult) => optionsRef.current.onResult?.(r),
-      onError: (e: Error) => optionsRef.current.onError?.(e),
-      onProgress: (p: number, m?: string) =>
-        optionsRef.current.onProgress?.(p, m),
-      onChunk: (c: StreamChunk) => optionsRef.current.onChunk?.(c),
-      onJobCreated: (id: string) => optionsRef.current.onJobCreated?.(id),
-      onStatusUpdate: (s: VideoStatusInfo) =>
-        optionsRef.current.onStatusUpdate?.(s),
+      onError: (e: Error) => {
+        optionsRef.current.onError?.(e)
+      },
+      onProgress: (p: number, m?: string) => {
+        optionsRef.current.onProgress?.(p, m)
+      },
+      onChunk: (c: StreamChunk) => {
+        optionsRef.current.onChunk?.(c)
+      },
+      onJobCreated: (id: string) => {
+        optionsRef.current.onJobCreated?.(id)
+      },
+      onStatusUpdate: (s: VideoStatusInfo) => {
+        optionsRef.current.onStatusUpdate?.(s)
+      },
       onResultChange: setResult,
       onLoadingChange: setIsLoading,
       onErrorChange: setError,
@@ -167,7 +180,10 @@ export function useGenerateVideo<
 
   // Sync body changes without recreating client
   useEffect(() => {
-    client.updateOptions({ body: options.body })
+    // Conditional spread: target uses strict-optional `body?: T`.
+    client.updateOptions({
+      ...(options.body !== undefined && { body: options.body }),
+    })
   }, [client, options.body])
 
   // Cleanup on unmount

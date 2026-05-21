@@ -15,11 +15,27 @@ export interface ModelOption {
 
 export const MODEL_OPTIONS: Array<ModelOption> = [
   // OpenAI
+  { provider: 'openai', model: 'gpt-5.2', label: 'OpenAI - GPT-5.2' },
+  { provider: 'openai', model: 'gpt-5.2-pro', label: 'OpenAI - GPT-5.2 Pro' },
+  { provider: 'openai', model: 'gpt-5.1', label: 'OpenAI - GPT-5.1' },
+  { provider: 'openai', model: 'gpt-5', label: 'OpenAI - GPT-5' },
+  { provider: 'openai', model: 'gpt-5-mini', label: 'OpenAI - GPT-5 Mini' },
+  { provider: 'openai', model: 'gpt-5-nano', label: 'OpenAI - GPT-5 Nano' },
+  { provider: 'openai', model: 'gpt-4.1', label: 'OpenAI - GPT-4.1' },
   { provider: 'openai', model: 'gpt-4o', label: 'OpenAI - GPT-4o' },
   { provider: 'openai', model: 'gpt-4o-mini', label: 'OpenAI - GPT-4o Mini' },
-  { provider: 'openai', model: 'gpt-5', label: 'OpenAI - GPT-5' },
 
   // Anthropic
+  {
+    provider: 'anthropic',
+    model: 'claude-opus-4-7',
+    label: 'Anthropic - Claude Opus 4.7',
+  },
+  {
+    provider: 'anthropic',
+    model: 'claude-opus-4-6',
+    label: 'Anthropic - Claude Opus 4.6',
+  },
   {
     provider: 'anthropic',
     model: 'claude-sonnet-4-6',
@@ -27,25 +43,20 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   },
   {
     provider: 'anthropic',
-    model: 'claude-sonnet-4-5-20250929',
+    model: 'claude-sonnet-4-5',
     label: 'Anthropic - Claude Sonnet 4.5',
   },
   {
     provider: 'anthropic',
-    model: 'claude-opus-4-5-20251101',
-    label: 'Anthropic - Claude Opus 4.5',
-  },
-  {
-    provider: 'anthropic',
-    model: 'claude-haiku-4-0-20250514',
-    label: 'Anthropic - Claude Haiku 4.0',
+    model: 'claude-haiku-4-5',
+    label: 'Anthropic - Claude Haiku 4.5',
   },
 
   // Gemini
   {
     provider: 'gemini',
-    model: 'gemini-2.0-flash',
-    label: 'Gemini - 2.0 Flash',
+    model: 'gemini-2.5-pro',
+    label: 'Gemini - 2.5 Pro',
   },
   {
     provider: 'gemini',
@@ -54,20 +65,60 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   },
   {
     provider: 'gemini',
-    model: 'gemini-2.5-pro',
-    label: 'Gemini - 2.5 Pro',
+    model: 'gemini-2.0-flash',
+    label: 'Gemini - 2.0 Flash',
   },
 
-  // Openrouter
+  // Openrouter — multi-provider via OpenRouter's unified API
   {
     provider: 'openrouter',
-    model: 'openai/chatgpt-4o-latest',
-    label: 'Openrouter - ChatGPT 4o Latest',
+    model: 'openai/gpt-5.2',
+    label: 'OpenRouter - OpenAI GPT-5.2',
   },
   {
     provider: 'openrouter',
-    model: 'openai/chatgpt-4o-mini',
-    label: 'Openrouter - ChatGPT 4o Mini',
+    model: 'openai/gpt-5.1',
+    label: 'OpenRouter - OpenAI GPT-5.1',
+  },
+  {
+    provider: 'openrouter',
+    model: 'openai/gpt-5',
+    label: 'OpenRouter - OpenAI GPT-5',
+  },
+  {
+    provider: 'openrouter',
+    model: 'openai/gpt-4o',
+    label: 'OpenRouter - OpenAI GPT-4o',
+  },
+  {
+    provider: 'openrouter',
+    model: 'anthropic/claude-opus-4.7',
+    label: 'OpenRouter - Anthropic Claude Opus 4.7',
+  },
+  {
+    provider: 'openrouter',
+    model: 'anthropic/claude-sonnet-4.6',
+    label: 'OpenRouter - Anthropic Claude Sonnet 4.6',
+  },
+  {
+    provider: 'openrouter',
+    model: 'anthropic/claude-haiku-4.5',
+    label: 'OpenRouter - Anthropic Claude Haiku 4.5',
+  },
+  {
+    provider: 'openrouter',
+    model: 'google/gemini-2.5-pro',
+    label: 'OpenRouter - Google Gemini 2.5 Pro',
+  },
+  {
+    provider: 'openrouter',
+    model: 'x-ai/grok-4',
+    label: 'OpenRouter - xAI Grok 4',
+  },
+  {
+    provider: 'openrouter',
+    model: 'meta-llama/llama-3.3-70b-instruct',
+    label: 'OpenRouter - Meta Llama 3.3 70B (Groq-routed)',
   },
 
   // Ollama

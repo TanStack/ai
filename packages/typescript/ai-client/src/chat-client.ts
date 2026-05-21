@@ -1,5 +1,6 @@
 import {
   StreamProcessor,
+  convertSchemaToJsonSchema,
   generateMessageId,
   normalizeToUIMessage,
 } from '@tanstack/ai'
@@ -34,27 +35,28 @@ function resolveTransport(transport: {
   connection?: ConnectionAdapter
   fetcher?: ChatFetcher
 }): ConnectionAdapter {
-  const hasConnection = transport.connection !== undefined
-  const hasFetcher = transport.fetcher !== undefined
-  if (hasConnection && hasFetcher) {
+  const { connection, fetcher } = transport
+  if (connection && fetcher) {
     throw new Error(
       'ChatClient: pass either `connection` or `fetcher`, not both.',
     )
   }
-  if (hasConnection) {
-    return transport.connection!
-  }
-  if (hasFetcher) {
-    return fetcherToConnectionAdapter(transport.fetcher!)
-  }
+  if (connection) return connection
+  if (fetcher) return fetcherToConnectionAdapter(fetcher)
   throw new Error('ChatClient: either `connection` or `fetcher` is required.')
 }
 
 export class ChatClient {
-  private processor: StreamProcessor
+  private readonly processor: StreamProcessor
   private connection: SubscribeConnectionAdapter
-  private uniqueId: string
-  private body: Record<string, any> = {}
+  private readonly uniqueId: string
+  private readonly threadId: string
+  // Track the legacy `body` option and the canonical `forwardedProps`
+  // option as separate slots so that `updateOptions({ forwardedProps })`
+  // doesn't wipe a previously-set `body` (and vice versa). They are
+  // merged on every send, with `forwardedProps` winning on key collision.
+  private bodyOption: Record<string, any> = {}
+  private forwardedPropsOption: Record<string, any> = {}
   private pendingMessageBody: Record<string, any> | undefined = undefined
   private isLoading = false
   private isSubscribed = false
@@ -62,13 +64,13 @@ export class ChatClient {
   private status: ChatClientState = 'ready'
   private connectionStatus: ConnectionStatus = 'disconnected'
   private abortController: AbortController | null = null
-  private events: ChatClientEventEmitter
-  private clientToolsRef: { current: Map<string, AnyClientTool> }
+  private readonly events: ChatClientEventEmitter
+  private readonly clientToolsRef: { current: Map<string, AnyClientTool> }
   private currentStreamId: string | null = null
   private currentMessageId: string | null = null
-  private postStreamActions: Array<() => Promise<void>> = []
+  private readonly postStreamActions: Array<() => Promise<void>> = []
   // Track pending client tool executions to await them before stream finalization
-  private pendingToolExecutions: Map<string, Promise<void>> = new Map()
+  private readonly pendingToolExecutions: Map<string, Promise<void>> = new Map()
   // Flag to deduplicate continuation checks during action draining
   private continuationPending = false
   private subscriptionAbortController: AbortController | null = null
@@ -80,9 +82,9 @@ export class ChatClient {
   private continuationSkipped = false
   private draining = false
   private sessionGenerating = false
-  private activeRunIds = new Set<string>()
+  private readonly activeRunIds = new Set<string>()
 
-  private callbacksRef: {
+  private readonly callbacksRef: {
     current: {
       onResponse: (response?: Response) => void | Promise<void>
       onChunk: (chunk: StreamChunk) => void
@@ -105,7 +107,14 @@ export class ChatClient {
 
   constructor(options: ChatClientOptions) {
     this.uniqueId = options.id || this.generateUniqueId('chat')
-    this.body = options.body || {}
+    this.threadId = options.threadId || this.generateUniqueId('thread')
+    // Both `body` (deprecated) and `forwardedProps` populate the AG-UI
+    // `RunAgentInput.forwardedProps` wire field. They are stored
+    // separately so `updateOptions` can replace one without touching the
+    // other; the merge happens at send time, with `forwardedProps`
+    // winning on key collision.
+    this.bodyOption = options.body || {}
+    this.forwardedPropsOption = options.forwardedProps || {}
     this.connection = normalizeConnectionAdapter(resolveTransport(options))
     this.events = new DefaultChatClientEventEmitter(this.uniqueId)
 
@@ -136,10 +145,16 @@ export class ChatClient {
       },
     }
 
-    // Create StreamProcessor with event handlers
+    // Create StreamProcessor with event handlers.
+    // Use conditional spreads so we don't pass `undefined` into
+    // `StreamProcessorOptions` fields under `exactOptionalPropertyTypes`.
     this.processor = new StreamProcessor({
-      chunkStrategy: options.streamProcessor?.chunkStrategy,
-      initialMessages: options.initialMessages,
+      ...(options.streamProcessor?.chunkStrategy
+        ? { chunkStrategy: options.streamProcessor.chunkStrategy }
+        : {}),
+      ...(options.initialMessages
+        ? { initialMessages: options.initialMessages }
+        : {}),
       events: {
         onMessagesChange: (messages: Array<UIMessage>) => {
           this.callbacksRef.current.onMessagesChange(messages)
@@ -421,7 +436,14 @@ export class ChatClient {
       // RUN_FINISHED / RUN_ERROR signal run completion — resolve processing
       // (redundant if onStreamEnd already resolved it, harmless)
       if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
-        const runId = chunk.type === 'RUN_FINISHED' ? chunk.runId : undefined
+        // RUN_FINISHED has runId in its schema; RUN_ERROR carries it via the
+        // AG-UI passthrough so adapters can correlate per-run errors. Extract
+        // both so a RUN_ERROR with a runId only clears that run, not every
+        // active run in the session.
+        const runId =
+          chunk.type === 'RUN_FINISHED'
+            ? chunk.runId
+            : (chunk as { runId?: string }).runId
         if (runId) {
           this.activeRunIds.delete(runId)
         } else if (chunk.type === 'RUN_ERROR') {
@@ -592,6 +614,10 @@ export class ChatClient {
     this.setError(undefined)
     this.errorReportedGeneration = null
     this.abortController = new AbortController()
+    // Capture the signal immediately so that a concurrent stop() or
+    // sendMessage() that reassigns this.abortController cannot cause
+    // connect() to receive a stale or null signal.
+    const signal = this.abortController.signal
     // Reset pending tool executions for the new stream
     this.pendingToolExecutions.clear()
     let streamCompletedSuccessfully = false
@@ -603,12 +629,28 @@ export class ChatClient {
       // Call onResponse callback
       await this.callbacksRef.current.onResponse()
 
-      // Merge body: base body + per-message body (per-message takes priority)
-      // Include conversationId for server-side event correlation
+      // If the stream was cancelled during the onResponse await (e.g. stop()
+      // from a callback or unmount, or reload() superseding this stream),
+      // bail out before allocating waitForProcessing() — otherwise the
+      // resolveProcessing() that ran during cancellation is a no-op and the
+      // await processingComplete below would deadlock.
+      if (signal.aborted) {
+        return false
+      }
+
+      // Merge sources for the wire `forwardedProps` field, in priority
+      // order (later spreads win):
+      //   1. Legacy `body` option (deprecated).
+      //   2. Canonical `forwardedProps` option (wins over `body`).
+      //   3. Per-message `body` arg passed to `sendMessage` (highest).
+      // The AG-UI standard `threadId` is sent at the wire's top level for
+      // run/conversation correlation, so we no longer auto-emit a separate
+      // `conversationId` here — `chat({ threadId })` server-side covers the
+      // same role for devtools/observability.
       const mergedBody = {
-        ...this.body,
+        ...this.bodyOption,
+        ...this.forwardedPropsOption,
         ...this.pendingMessageBody,
-        conversationId: this.uniqueId,
       }
 
       // Clear the pending message body after use
@@ -629,12 +671,31 @@ export class ChatClient {
       // Set up promise that resolves when onStreamEnd fires
       const processingComplete = this.waitForProcessing()
 
+      // Build per-send run context for AG-UI compliance
+      // Note: mergedBody already contains the merged this.body + pendingMessageBody
+      // (pendingMessageBody was cleared above, so we use mergedBody as forwardedProps)
+      // Convert each client tool's `inputSchema` (a Standard Schema:
+      // Zod, ArkType, Valibot, etc.) to JSON Schema for the wire. Foreign
+      // AG-UI servers consuming `RunAgentInput.tools[].parameters` expect
+      // JSON Schema; sending a Standard Schema instance directly would
+      // serialize to an unusable shape.
+      const runContext = {
+        threadId: this.threadId,
+        runId: `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        clientTools: Array.from(this.clientToolsRef.current.values()).map(
+          (t) => ({
+            name: t.name,
+            description: t.description,
+            parameters: t.inputSchema
+              ? convertSchemaToJsonSchema(t.inputSchema)
+              : { type: 'object' },
+          }),
+        ),
+        forwardedProps: { ...mergedBody },
+      }
+
       // Send through normalized connection (pushes chunks to subscription queue)
-      await this.connection.send(
-        messages,
-        mergedBody,
-        this.abortController.signal,
-      )
+      await this.connection.send(messages, mergedBody, signal, runContext)
 
       // Wait for subscription loop to finish processing all chunks
       await processingComplete
@@ -875,8 +936,8 @@ export class ChatClient {
     if (this.draining) return
     this.draining = true
     try {
-      while (this.postStreamActions.length > 0) {
-        const action = this.postStreamActions.shift()!
+      let action: (() => Promise<void>) | undefined
+      while ((action = this.postStreamActions.shift()) !== undefined) {
         await action()
       }
     } finally {
@@ -922,9 +983,13 @@ export class ChatClient {
    */
   private shouldAutoSend(): boolean {
     const messages = this.processor.getMessages()
-    const lastAssistant = messages.findLast((m) => m.role === 'assistant')
+    const lastAssistant = messages.findLast(
+      (m: UIMessage) => m.role === 'assistant',
+    )
     if (!lastAssistant) return false
-    const hasToolCalls = lastAssistant.parts.some((p) => p.type === 'tool-call')
+    const hasToolCalls = lastAssistant.parts.some(
+      (p: MessagePart) => p.type === 'tool-call',
+    )
     if (!hasToolCalls) return false
     return this.processor.areAllToolsComplete()
   }
@@ -994,7 +1059,9 @@ export class ChatClient {
   updateOptions(options: {
     connection?: ConnectionAdapter
     fetcher?: ChatFetcher
+    /** @deprecated Use `forwardedProps` instead. */
     body?: Record<string, any>
+    forwardedProps?: Record<string, any>
     tools?: ReadonlyArray<AnyClientTool>
     onResponse?: (response?: Response) => void | Promise<void>
     onChunk?: (chunk: StreamChunk) => void
@@ -1035,8 +1102,14 @@ export class ChatClient {
         this.subscribe()
       }
     }
+    // Replace each slot independently so callers can update one without
+    // wiping the other. (Passing `undefined` for either field is a "leave
+    // unchanged" signal — to clear a slot, pass an empty object `{}`.)
     if (options.body !== undefined) {
-      this.body = options.body
+      this.bodyOption = options.body
+    }
+    if (options.forwardedProps !== undefined) {
+      this.forwardedPropsOption = options.forwardedProps
     }
     if (options.tools !== undefined) {
       this.clientToolsRef.current = new Map()

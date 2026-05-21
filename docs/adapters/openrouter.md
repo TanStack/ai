@@ -35,16 +35,17 @@ const stream = chat({
 ## Configuration
 
 ```typescript
-import { createOpenRouter, type OpenRouterConfig } from "@tanstack/ai-openrouter";
+import { createOpenRouterText } from "@tanstack/ai-openrouter";
 
-const config: OpenRouterConfig = {
-  apiKey: process.env.OPENROUTER_API_KEY!,
-  baseURL: "https://openrouter.ai/api/v1", // Optional
-  httpReferer: "https://your-app.com", // Optional, for rankings
-  xTitle: "Your App Name", // Optional, for rankings
-};
-
-const adapter = createOpenRouter(config.apiKey, config);
+const adapter = createOpenRouterText(
+  "openai/gpt-5",
+  process.env.OPENROUTER_API_KEY!,
+  {
+    serverURL: "https://openrouter.ai/api/v1", // Optional
+    httpReferer: "https://your-app.com", // Optional, for rankings
+    appTitle: "Your App Name", // Optional, for rankings
+  },
+);
 ```
 
 ## Available Models
@@ -122,18 +123,52 @@ OpenRouter can automatically route requests to the best available provider:
 ```typescript
 const stream = chat({
   adapter: openRouterText("openrouter/auto"),
-  messages, 
-  providerOptions: {
+  messages,
+  modelOptions: {
     models: [
       "openai/gpt-4o",
       "anthropic/claude-3.5-sonnet",
       "google/gemini-pro",
     ],
-    route: "fallback", // Use fallback if primary fails
   },
 });
 ```
- 
+
+## Chat Completions vs Responses (beta)
+
+OpenRouter exposes two OpenAI-compatible wire formats, and the adapter
+package ships one of each:
+
+| Adapter                    | Endpoint                  | Status   | When to use                                                                  |
+| -------------------------- | ------------------------- | -------- | ---------------------------------------------------------------------------- |
+| `openRouterText`           | `/v1/chat/completions`    | Stable   | Default for almost everything. Broadest model + tool support.                |
+| `openRouterResponsesText`  | `/v1/responses`           | Beta     | OpenAI Responses-shaped request/response; richer multi-turn state on OpenAI-style models. |
+
+Both adapters route to any underlying model OpenRouter supports
+(`anthropic/...`, `google/...`, `meta-llama/...`, etc.) — the wire format
+describes how your client talks to OpenRouter, not which provider answers.
+`/v1/responses` is OpenAI's newer API surface; OpenRouter implements it so
+clients that prefer that wire format can use it across the same 300+
+model catalogue.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openRouterResponsesText } from "@tanstack/ai-openrouter";
+
+const stream = chat({
+  adapter: openRouterResponsesText("anthropic/claude-sonnet-4.5"),
+  messages: [{ role: "user", content: "Hello!" }],
+});
+```
+
+Caveats while the Responses adapter is in beta:
+
+- Function tools are supported; OpenRouter's branded server-tools (web
+  search, file search, …) are not yet wired through this path — use
+  `openRouterText` if you need those.
+- If in doubt, prefer `openRouterText`. The Chat Completions endpoint has
+  broader provider coverage and feature parity today.
+
 ## Next Steps
 
 - [Getting Started](../getting-started/quick-start) - Learn the basics

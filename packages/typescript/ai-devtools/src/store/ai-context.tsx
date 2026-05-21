@@ -126,8 +126,8 @@ export interface Iteration {
   provider?: string
   systemPrompts?: Array<string>
   toolNames?: Array<string>
-  options?: Record<string, unknown>
-  modelOptions?: Record<string, unknown>
+  options?: Record<string, unknown> | undefined
+  modelOptions?: Record<string, unknown> | undefined
   finishReason?: string
   usage?: TokenUsage
   middlewareEvents: Array<MiddlewareEvent>
@@ -166,8 +166,8 @@ export interface Conversation {
   iterations: Array<Iteration>
   iterationCount?: number
   toolNames?: Array<string>
-  options?: Record<string, unknown>
-  modelOptions?: Record<string, unknown>
+  options?: Record<string, unknown> | undefined
+  modelOptions?: Record<string, unknown> | undefined
   systemPrompts?: Array<string>
   /** Flags for which operation types this conversation has */
   hasChat?: boolean
@@ -328,13 +328,11 @@ export const AIProvider: ParentComponent = (props) => {
   }
 
   function queueChunk(conversationId: string, chunk: Chunk): void {
-    if (!pendingConversationChunks.has(conversationId)) {
-      pendingConversationChunks.set(conversationId, {
-        chunks: [],
-        newChunkCount: 0,
-      })
+    let pending = pendingConversationChunks.get(conversationId)
+    if (!pending) {
+      pending = { chunks: [], newChunkCount: 0 }
+      pendingConversationChunks.set(conversationId, pending)
     }
-    const pending = pendingConversationChunks.get(conversationId)!
 
     // Pre-merge in pending buffer to reduce array operations during flush
     const lastPending = pending.chunks[pending.chunks.length - 1]
@@ -361,14 +359,16 @@ export const AIProvider: ParentComponent = (props) => {
     messageIndex: number,
     chunk: Chunk,
   ): void {
-    if (!pendingMessageChunks.has(conversationId)) {
-      pendingMessageChunks.set(conversationId, new Map())
+    let messageMap = pendingMessageChunks.get(conversationId)
+    if (!messageMap) {
+      messageMap = new Map()
+      pendingMessageChunks.set(conversationId, messageMap)
     }
-    const messageMap = pendingMessageChunks.get(conversationId)!
-    if (!messageMap.has(messageIndex)) {
-      messageMap.set(messageIndex, { chunks: [], newChunkCount: 0 })
+    let pending = messageMap.get(messageIndex)
+    if (!pending) {
+      pending = { chunks: [], newChunkCount: 0 }
+      messageMap.set(messageIndex, pending)
     }
-    const pending = messageMap.get(messageIndex)!
 
     // Pre-merge in pending buffer
     const lastPending = pending.chunks[pending.chunks.length - 1]
@@ -605,7 +605,7 @@ export const AIProvider: ParentComponent = (props) => {
         'conversations',
         conversationId,
         key as keyof Conversation,
-        value as Conversation[keyof Conversation],
+        value,
       )
     }
   }
@@ -624,7 +624,7 @@ export const AIProvider: ParentComponent = (props) => {
         'messages',
         messageIndex,
         key as keyof Message,
-        value as Message[keyof Message],
+        value,
       )
     }
   }
@@ -816,14 +816,12 @@ export const AIProvider: ParentComponent = (props) => {
                 content: part.content,
               }
             }
-            // Handle multimodal parts (image, audio, video, document)
+            // Handle multimodal parts (image, audio, video)
             // These have a source property instead of content
             if (
               part.type === 'image' ||
               part.type === 'audio' ||
-              part.type === 'video' ||
-              // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-              part.type === 'document'
+              part.type === 'video'
             ) {
               return {
                 type: part.type,

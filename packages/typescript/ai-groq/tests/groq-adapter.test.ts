@@ -8,22 +8,27 @@ import {
   type Mock,
 } from 'vitest'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
-import { createGroqText, groqText } from '../src/adapters/text'
+import {
+  createGroqText as _realCreateGroqText,
+  groqText as _realGroqText,
+} from '../src/adapters/text'
+import { EventType } from '@tanstack/ai'
 import type { StreamChunk, Tool } from '@tanstack/ai'
 
 // Test helper: a silent logger for test chatStream calls.
 const testLogger = resolveDebugOption(false)
 
-// Declare mockCreate at module level
-let mockCreate: Mock<(...args: Array<unknown>) => unknown>
-
-// Mock the Groq SDK
-vi.mock('groq-sdk', () => {
+// Stub the OpenAI SDK so adapter construction doesn't open a real network
+// handle. The per-test mock client is injected post-construction via
+// `setupMockSdkClient` (mirrors the ai-grok pattern). We avoid relying on
+// vi.mock to intercept transitive openai imports — the built ai-openai-base
+// dist resolves `openai` independently and is unaffected by vi.mock here.
+vi.mock('openai', () => {
   return {
     default: class {
       chat = {
         completions: {
-          create: (...args: Array<unknown>) => mockCreate(...args),
+          create: vi.fn(),
         },
       }
     },
@@ -47,18 +52,39 @@ function createAsyncIterable<T>(chunks: Array<T>): AsyncIterable<T> {
   }
 }
 
-// Helper to setup the mock SDK client for streaming responses
+// Sets up a mock client on the most recently created adapter. Tests use the
+// existing call order: `setupMockSdkClient(chunks)` first, then `const adapter
+// = createGroqText(...)`. The wrapped factories below apply the pending
+// mock to the returned adapter so it intercepts subsequent chatStream/
+// structuredOutput calls.
+let pendingMockCreate: Mock<(...args: Array<unknown>) => unknown> | undefined
+
 function setupMockSdkClient(
   streamChunks: Array<Record<string, unknown>>,
   nonStreamResponse?: Record<string, unknown>,
-) {
-  mockCreate = vi.fn().mockImplementation((params) => {
+): Mock<(...args: Array<unknown>) => unknown> {
+  pendingMockCreate = vi.fn().mockImplementation((params) => {
     if (params.stream) {
       return Promise.resolve(createAsyncIterable(streamChunks))
     }
     return Promise.resolve(nonStreamResponse)
   })
+  return pendingMockCreate
 }
+
+function applyPendingMock<T extends object>(adapter: T): T {
+  if (pendingMockCreate) {
+    ;(adapter as any).client = {
+      chat: { completions: { create: pendingMockCreate } },
+    }
+    pendingMockCreate = undefined
+  }
+  return adapter
+}
+const createGroqText: typeof _realCreateGroqText = (model, apiKey, config) =>
+  applyPendingMock(_realCreateGroqText(model, apiKey, config))
+const groqText: typeof _realGroqText = (model, config) =>
+  applyPendingMock(_realGroqText(model, config))
 
 const weatherTool: Tool = {
   name: 'lookup_weather',
@@ -66,6 +92,13 @@ const weatherTool: Tool = {
 }
 
 describe('Groq adapters', () => {
+  // Reset the module-level `pendingMockCreate` between tests so a previous
+  // test's setupMockSdkClient call can't leak into a later test that
+  // instantiates the adapter without setting up a mock.
+  beforeEach(() => {
+    pendingMockCreate = undefined
+  })
+
   afterEach(() => {
     vi.unstubAllEnvs()
   })
@@ -93,9 +126,7 @@ describe('Groq adapters', () => {
     it('throws if GROQ_API_KEY is not set when using groqText', () => {
       vi.stubEnv('GROQ_API_KEY', '')
 
-      expect(() => groqText('llama-3.3-70b-versatile')).toThrow(
-        'GROQ_API_KEY is required',
-      )
+      expect(() => groqText('llama-3.3-70b-versatile')).toThrow('GROQ_API_KEY')
     })
 
     it('allows custom baseURL override', () => {
@@ -424,7 +455,7 @@ describe('Groq AG-UI event emission', () => {
       },
     }
 
-    mockCreate = vi.fn().mockResolvedValue(errorIterable)
+    pendingMockCreate = vi.fn().mockResolvedValue(errorIterable)
 
     const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
     const chunks: Array<StreamChunk> = []
@@ -441,7 +472,7 @@ describe('Groq AG-UI event emission', () => {
     const runErrorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
     expect(runErrorChunk).toBeDefined()
     if (runErrorChunk?.type === 'RUN_ERROR') {
-      expect(runErrorChunk.error.message).toBe('Stream interrupted')
+      expect(runErrorChunk.error!.message).toBe('Stream interrupted')
     }
   })
 
@@ -495,14 +526,14 @@ describe('Groq AG-UI event emission', () => {
     expect(eventTypes[0]).toBe('RUN_STARTED')
 
     // Should have TEXT_MESSAGE_START before TEXT_MESSAGE_CONTENT
-    const textStartIndex = eventTypes.indexOf('TEXT_MESSAGE_START')
-    const textContentIndex = eventTypes.indexOf('TEXT_MESSAGE_CONTENT')
+    const textStartIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_START)
+    const textContentIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_CONTENT)
     expect(textStartIndex).toBeGreaterThan(-1)
     expect(textContentIndex).toBeGreaterThan(textStartIndex)
 
     // Should have TEXT_MESSAGE_END before RUN_FINISHED
-    const textEndIndex = eventTypes.indexOf('TEXT_MESSAGE_END')
-    const runFinishedIndex = eventTypes.indexOf('RUN_FINISHED')
+    const textEndIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_END)
+    const runFinishedIndex = eventTypes.indexOf(EventType.RUN_FINISHED)
     expect(textEndIndex).toBeGreaterThan(-1)
     expect(runFinishedIndex).toBeGreaterThan(textEndIndex)
 

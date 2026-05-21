@@ -121,7 +121,7 @@ export class GeminiTTSAdapter<
 > extends BaseTTSAdapter<TModel, GeminiTTSProviderOptions> {
   readonly name = 'gemini' as const
 
-  private client: GoogleGenAI
+  private readonly client: GoogleGenAI
 
   constructor(config: GeminiTTSConfig, model: TModel) {
     super(model, config)
@@ -251,8 +251,9 @@ export class GeminiTTSAdapter<
       }
 
       // Strip any mime parameters (e.g. `audio/ogg;codec=opus`) before pulling
-      // the subtype out as the file format.
-      const format = mimeType.split(';')[0]!.split('/')[1] || 'wav'
+      // the subtype out as the file format. `String.split` always returns at
+      // least one element, so [0] is defined.
+      const format = (mimeType.split(';')[0] ?? '').split('/')[1] || 'wav'
 
       return {
         id: generateId(this.name),
@@ -275,7 +276,7 @@ function parsePcmMimeType(
   mimeType: string,
 ): { sampleRate: number; channels: number; bitsPerSample: number } | undefined {
   const normalized = mimeType.toLowerCase()
-  const subtype = normalized.split(';')[0]!.split('/')[1] ?? ''
+  const subtype = (normalized.split(';')[0] ?? '').split('/')[1] ?? ''
   // Exclude containerized wav (e.g. `audio/wav;codec=pcm`) — those already
   // carry a RIFF header and must not be re-wrapped.
   if (subtype.includes('wav')) return undefined
@@ -351,8 +352,8 @@ function wrapPcmBase64AsWav(
   }
   let binary = ''
   const bytes = new Uint8Array(buffer)
-  for (let i = 0; i < bytes.byteLength; i += 1) {
-    binary += String.fromCharCode(bytes[i]!)
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte)
   }
   return btoa(binary)
 }

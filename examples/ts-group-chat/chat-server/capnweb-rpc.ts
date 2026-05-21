@@ -63,7 +63,6 @@ export const clients = new Map<string, (...args: Array<any>) => void>()
 // Chat Server Implementation (one per connection)
 export class ChatServer extends RpcTarget {
   public currentUsername: string | null = null
-  private webSocket: WebSocket | null = null
 
   constructor() {
     super()
@@ -74,8 +73,6 @@ export class ChatServer extends RpcTarget {
 
   // Set the WebSocket connection for this server instance
   setWebSocket(ws: WebSocket) {
-    this.webSocket = ws
-
     // Handle WebSocket disconnection
     ws.on('close', () => {
       if (this.currentUsername) {

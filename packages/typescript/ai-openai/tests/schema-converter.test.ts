@@ -38,7 +38,7 @@ describe('makeOpenAIStructuredOutputCompatible', () => {
       required: ['name'],
     }
 
-    const result = makeOpenAIStructuredOutputCompatible(schema, ['name'])
+    const result: any = makeOpenAIStructuredOutputCompatible(schema, ['name'])
     expect(result.additionalProperties).toBe(false)
   })
 
@@ -52,7 +52,7 @@ describe('makeOpenAIStructuredOutputCompatible', () => {
       required: ['name'],
     }
 
-    const result = makeOpenAIStructuredOutputCompatible(schema, ['name'])
+    const result: any = makeOpenAIStructuredOutputCompatible(schema, ['name'])
     expect(result.required).toEqual(['name', 'age'])
   })
 
@@ -66,7 +66,7 @@ describe('makeOpenAIStructuredOutputCompatible', () => {
       required: ['name'],
     }
 
-    const result = makeOpenAIStructuredOutputCompatible(schema, ['name'])
+    const result: any = makeOpenAIStructuredOutputCompatible(schema, ['name'])
     expect(result.properties.name.type).toBe('string')
     expect(result.properties.nickname.type).toEqual(['string', 'null'])
   })
@@ -93,7 +93,7 @@ describe('makeOpenAIStructuredOutputCompatible', () => {
       required: ['u'],
     }
 
-    const result = makeOpenAIStructuredOutputCompatible(schema, ['u'])
+    const result: any = makeOpenAIStructuredOutputCompatible(schema, ['u'])
 
     // Each variant in anyOf should have additionalProperties: false
     expect(result.properties.u.anyOf[0].additionalProperties).toBe(false)
@@ -130,7 +130,7 @@ describe('makeOpenAIStructuredOutputCompatible', () => {
       required: ['data'],
     }
 
-    const result = makeOpenAIStructuredOutputCompatible(schema, ['data'])
+    const result: any = makeOpenAIStructuredOutputCompatible(schema, ['data'])
 
     // The nested object inside anyOf variant should also have additionalProperties: false
     expect(result.properties.data.anyOf[0].additionalProperties).toBe(false)
@@ -155,7 +155,7 @@ describe('makeOpenAIStructuredOutputCompatible', () => {
       required: ['items'],
     }
 
-    const result = makeOpenAIStructuredOutputCompatible(schema, ['items'])
+    const result: any = makeOpenAIStructuredOutputCompatible(schema, ['items'])
     expect(result.properties.items.items.additionalProperties).toBe(false)
   })
 

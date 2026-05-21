@@ -33,6 +33,7 @@ export default mergeConfig(
       './src/index.ts',
       './src/activities/index.ts',
       './src/middlewares/index.ts',
+      './src/middlewares/otel.ts',
       './src/adapter-internals.ts',
     ],
     srcDir: './src',

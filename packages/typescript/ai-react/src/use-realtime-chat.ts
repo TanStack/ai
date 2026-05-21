@@ -83,19 +83,38 @@ export function useRealtimeChat(
   // Create client instance - use ref to ensure we reuse the same instance
   // This handles React StrictMode double-rendering
   if (!clientRef.current) {
+    // Each optional source field is spread conditionally because the
+    // `RealtimeClientOptions` target declares strict optionals
+    // (`field?: T`) and `exactOptionalPropertyTypes` rejects passing
+    // `undefined` for absent values.
+    const initial = optionsRef.current
     clientRef.current = new RealtimeClient({
-      getToken: optionsRef.current.getToken,
-      adapter: optionsRef.current.adapter,
-      tools: optionsRef.current.tools,
-      instructions: optionsRef.current.instructions,
-      voice: optionsRef.current.voice,
-      autoPlayback: optionsRef.current.autoPlayback,
-      autoCapture: optionsRef.current.autoCapture,
-      vadMode: optionsRef.current.vadMode,
-      outputModalities: optionsRef.current.outputModalities,
-      temperature: optionsRef.current.temperature,
-      maxOutputTokens: optionsRef.current.maxOutputTokens,
-      semanticEagerness: optionsRef.current.semanticEagerness,
+      getToken: initial.getToken,
+      adapter: initial.adapter,
+      ...(initial.tools !== undefined && { tools: initial.tools }),
+      ...(initial.instructions !== undefined && {
+        instructions: initial.instructions,
+      }),
+      ...(initial.voice !== undefined && { voice: initial.voice }),
+      ...(initial.autoPlayback !== undefined && {
+        autoPlayback: initial.autoPlayback,
+      }),
+      ...(initial.autoCapture !== undefined && {
+        autoCapture: initial.autoCapture,
+      }),
+      ...(initial.vadMode !== undefined && { vadMode: initial.vadMode }),
+      ...(initial.outputModalities !== undefined && {
+        outputModalities: initial.outputModalities,
+      }),
+      ...(initial.temperature !== undefined && {
+        temperature: initial.temperature,
+      }),
+      ...(initial.maxOutputTokens !== undefined && {
+        maxOutputTokens: initial.maxOutputTokens,
+      }),
+      ...(initial.semanticEagerness !== undefined && {
+        semanticEagerness: initial.semanticEagerness,
+      }),
       onStatusChange: (newStatus) => {
         setStatus(newStatus)
       },

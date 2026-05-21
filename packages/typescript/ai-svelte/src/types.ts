@@ -1,4 +1,9 @@
-import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
+import type {
+  AnyClientTool,
+  InferSchemaType,
+  ModelMessage,
+  SchemaInput,
+} from '@tanstack/ai'
 import type {
   ChatClientOptions,
   ChatClientState,
@@ -10,6 +15,18 @@ import type {
 
 // Re-export types from ai-client
 export type { ChatRequestBody, MultimodalContent, UIMessage }
+
+/**
+ * Recursive partial — every property and every nested array element is
+ * optional. Used to type the in-flight `partial` getter while a structured-
+ * output stream is still arriving.
+ */
+export type DeepPartial<T> =
+  T extends ReadonlyArray<infer U>
+    ? Array<DeepPartial<U>>
+    : T extends object
+      ? { [K in keyof T]?: DeepPartial<T[K]> }
+      : T
 
 /**
  * Options for the createChat function.
@@ -24,11 +41,17 @@ export type { ChatRequestBody, MultimodalContent, UIMessage }
  * All other callbacks (onResponse, onChunk, onFinish, onError) are
  * passed through to the underlying ChatClient and can be used for side effects.
  *
+ * When `outputSchema` is supplied, the return adds typed `partial` and `final`
+ * reactive getters. The schema is used purely for type inference; server-side
+ * validation still runs against the schema passed to `chat({ outputSchema })`
+ * on the server route.
+ *
  * Note: Connection and body changes will recreate the ChatClient instance.
  * To update these options, remount the component or use a key prop.
  */
 export type CreateChatOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
+  TSchema extends SchemaInput | undefined = undefined,
 > = Omit<
   ChatClientOptions<TTools>,
   | 'onMessagesChange'
@@ -40,15 +63,52 @@ export type CreateChatOptions<
   | 'onSessionGeneratingChange'
 > & {
   live?: boolean
+  /**
+   * Standard-schema-compatible schema (Zod, Valibot, ArkType, or plain JSON
+   * Schema). Used to infer the shape of `partial` and `final`.
+   */
+  outputSchema?: TSchema
 }
 
-export interface CreateChatReturn<
+/**
+ * Discriminated return shape: when `outputSchema` is supplied, the return adds
+ * typed `partial` / `final` reactive getters; otherwise the return is
+ * unchanged.
+ */
+export type CreateChatReturn<
   TTools extends ReadonlyArray<AnyClientTool> = any,
+  TSchema extends SchemaInput | undefined = undefined,
+> = BaseCreateChatReturn<
+  TTools,
+  TSchema extends SchemaInput ? InferSchemaType<TSchema> : unknown
+> &
+  (TSchema extends SchemaInput
+    ? {
+        /**
+         * Live progressively-parsed structured output (reactive getter).
+         * Derived from the latest assistant message's structured-output part.
+         */
+        readonly partial: DeepPartial<InferSchemaType<TSchema>>
+        /**
+         * Final, schema-validated structured output (reactive getter). `null`
+         * until the latest assistant turn's structured-output part transitions
+         * to `complete`.
+         */
+        readonly final: InferSchemaType<TSchema> | null
+      }
+    : Record<never, never>)
+
+interface BaseCreateChatReturn<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TData = unknown,
 > {
   /**
-   * Current messages in the conversation (reactive getter)
+   * Current messages in the conversation (reactive getter). When
+   * `outputSchema` is supplied, `messages[i].parts.find(p => p.type ===
+   * 'structured-output')` is typed by the schema — `data: T`,
+   * `partial: DeepPartial<T>`.
    */
-  readonly messages: Array<UIMessage<TTools>>
+  readonly messages: Array<UIMessage<TTools, TData>>
 
   /**
    * Send a message and get a response.
@@ -59,7 +119,7 @@ export interface CreateChatReturn<
   /**
    * Append a message to the conversation
    */
-  append: (message: ModelMessage | UIMessage<TTools>) => Promise<void>
+  append: (message: ModelMessage | UIMessage<TTools, TData>) => Promise<void>
 
   /**
    * Add the result of a client-side tool execution
@@ -103,7 +163,7 @@ export interface CreateChatReturn<
   /**
    * Set messages manually
    */
-  setMessages: (messages: Array<UIMessage<TTools>>) => void
+  setMessages: (messages: Array<UIMessage<TTools, TData>>) => void
 
   /**
    * Clear all messages
@@ -130,9 +190,15 @@ export interface CreateChatReturn<
    */
   readonly sessionGenerating: boolean
   /**
-   * Update the body sent with requests (e.g., for changing model selection)
+   * @deprecated Use `updateForwardedProps` instead. Both populate the
+   * same wire payload; `updateBody` is retained for backward compatibility.
    */
   updateBody: (body: Record<string, any>) => void
+  /**
+   * Update the AG-UI `forwardedProps` sent with requests (e.g., for
+   * changing model selection or other client-driven options).
+   */
+  updateForwardedProps: (forwardedProps: Record<string, any>) => void
 }
 
 // Note: createChatClientOptions and InferChatMessages are now in @tanstack/ai-client

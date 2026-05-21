@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ToolsTestRouteImport } from './routes/tools-test'
 import { Route as MiddlewareTestRouteImport } from './routes/middleware-test'
+import { Route as MarkdownCjkRouteImport } from './routes/markdown-cjk'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProviderIndexRouteImport } from './routes/$provider/index'
 import { Route as ApiVideoRouteImport } from './routes/api.video'
@@ -21,11 +22,14 @@ import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiMiddlewareTestRouteImport } from './routes/api.middleware-test'
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
+import { Route as ApiAudioRouteImport } from './routes/api.audio'
+import { Route as ApiAnthropicBugTestRouteImport } from './routes/api.anthropic-bug-test'
 import { Route as ProviderFeatureRouteImport } from './routes/$provider/$feature'
 import { Route as ApiVideoStreamRouteImport } from './routes/api.video.stream'
 import { Route as ApiTtsStreamRouteImport } from './routes/api.tts.stream'
 import { Route as ApiTranscriptionStreamRouteImport } from './routes/api.transcription.stream'
 import { Route as ApiImageStreamRouteImport } from './routes/api.image.stream'
+import { Route as ApiAudioStreamRouteImport } from './routes/api.audio.stream'
 
 const ToolsTestRoute = ToolsTestRouteImport.update({
   id: '/tools-test',
@@ -35,6 +39,11 @@ const ToolsTestRoute = ToolsTestRouteImport.update({
 const MiddlewareTestRoute = MiddlewareTestRouteImport.update({
   id: '/middleware-test',
   path: '/middleware-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MarkdownCjkRoute = MarkdownCjkRouteImport.update({
+  id: '/markdown-cjk',
+  path: '/markdown-cjk',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -87,6 +96,16 @@ const ApiChatRoute = ApiChatRouteImport.update({
   path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAudioRoute = ApiAudioRouteImport.update({
+  id: '/api/audio',
+  path: '/api/audio',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAnthropicBugTestRoute = ApiAnthropicBugTestRouteImport.update({
+  id: '/api/anthropic-bug-test',
+  path: '/api/anthropic-bug-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProviderFeatureRoute = ProviderFeatureRouteImport.update({
   id: '/$provider/$feature',
   path: '/$provider/$feature',
@@ -112,12 +131,20 @@ const ApiImageStreamRoute = ApiImageStreamRouteImport.update({
   path: '/stream',
   getParentRoute: () => ApiImageRoute,
 } as any)
+const ApiAudioStreamRoute = ApiAudioStreamRouteImport.update({
+  id: '/stream',
+  path: '/stream',
+  getParentRoute: () => ApiAudioRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
+  '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
@@ -127,6 +154,7 @@ export interface FileRoutesByFullPath {
   '/api/tts': typeof ApiTtsRouteWithChildren
   '/api/video': typeof ApiVideoRouteWithChildren
   '/$provider/': typeof ProviderIndexRoute
+  '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
   '/api/tts/stream': typeof ApiTtsStreamRoute
@@ -134,9 +162,12 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
+  '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
@@ -146,6 +177,7 @@ export interface FileRoutesByTo {
   '/api/tts': typeof ApiTtsRouteWithChildren
   '/api/video': typeof ApiVideoRouteWithChildren
   '/$provider': typeof ProviderIndexRoute
+  '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
   '/api/tts/stream': typeof ApiTtsStreamRoute
@@ -154,9 +186,12 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
+  '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
@@ -166,6 +201,7 @@ export interface FileRoutesById {
   '/api/tts': typeof ApiTtsRouteWithChildren
   '/api/video': typeof ApiVideoRouteWithChildren
   '/$provider/': typeof ProviderIndexRoute
+  '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
   '/api/tts/stream': typeof ApiTtsStreamRoute
@@ -175,9 +211,12 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/markdown-cjk'
     | '/middleware-test'
     | '/tools-test'
     | '/$provider/$feature'
+    | '/api/anthropic-bug-test'
+    | '/api/audio'
     | '/api/chat'
     | '/api/image'
     | '/api/middleware-test'
@@ -187,6 +226,7 @@ export interface FileRouteTypes {
     | '/api/tts'
     | '/api/video'
     | '/$provider/'
+    | '/api/audio/stream'
     | '/api/image/stream'
     | '/api/transcription/stream'
     | '/api/tts/stream'
@@ -194,9 +234,12 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/markdown-cjk'
     | '/middleware-test'
     | '/tools-test'
     | '/$provider/$feature'
+    | '/api/anthropic-bug-test'
+    | '/api/audio'
     | '/api/chat'
     | '/api/image'
     | '/api/middleware-test'
@@ -206,6 +249,7 @@ export interface FileRouteTypes {
     | '/api/tts'
     | '/api/video'
     | '/$provider'
+    | '/api/audio/stream'
     | '/api/image/stream'
     | '/api/transcription/stream'
     | '/api/tts/stream'
@@ -213,9 +257,12 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/markdown-cjk'
     | '/middleware-test'
     | '/tools-test'
     | '/$provider/$feature'
+    | '/api/anthropic-bug-test'
+    | '/api/audio'
     | '/api/chat'
     | '/api/image'
     | '/api/middleware-test'
@@ -225,6 +272,7 @@ export interface FileRouteTypes {
     | '/api/tts'
     | '/api/video'
     | '/$provider/'
+    | '/api/audio/stream'
     | '/api/image/stream'
     | '/api/transcription/stream'
     | '/api/tts/stream'
@@ -233,9 +281,12 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  MarkdownCjkRoute: typeof MarkdownCjkRoute
   MiddlewareTestRoute: typeof MiddlewareTestRoute
   ToolsTestRoute: typeof ToolsTestRoute
   ProviderFeatureRoute: typeof ProviderFeatureRoute
+  ApiAnthropicBugTestRoute: typeof ApiAnthropicBugTestRoute
+  ApiAudioRoute: typeof ApiAudioRouteWithChildren
   ApiChatRoute: typeof ApiChatRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
   ApiMiddlewareTestRoute: typeof ApiMiddlewareTestRoute
@@ -261,6 +312,13 @@ declare module '@tanstack/react-router' {
       path: '/middleware-test'
       fullPath: '/middleware-test'
       preLoaderRoute: typeof MiddlewareTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/markdown-cjk': {
+      id: '/markdown-cjk'
+      path: '/markdown-cjk'
+      fullPath: '/markdown-cjk'
+      preLoaderRoute: typeof MarkdownCjkRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -333,6 +391,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/audio': {
+      id: '/api/audio'
+      path: '/api/audio'
+      fullPath: '/api/audio'
+      preLoaderRoute: typeof ApiAudioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/anthropic-bug-test': {
+      id: '/api/anthropic-bug-test'
+      path: '/api/anthropic-bug-test'
+      fullPath: '/api/anthropic-bug-test'
+      preLoaderRoute: typeof ApiAnthropicBugTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/$provider/$feature': {
       id: '/$provider/$feature'
       path: '/$provider/$feature'
@@ -368,8 +440,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiImageStreamRouteImport
       parentRoute: typeof ApiImageRoute
     }
+    '/api/audio/stream': {
+      id: '/api/audio/stream'
+      path: '/stream'
+      fullPath: '/api/audio/stream'
+      preLoaderRoute: typeof ApiAudioStreamRouteImport
+      parentRoute: typeof ApiAudioRoute
+    }
   }
 }
+
+interface ApiAudioRouteChildren {
+  ApiAudioStreamRoute: typeof ApiAudioStreamRoute
+}
+
+const ApiAudioRouteChildren: ApiAudioRouteChildren = {
+  ApiAudioStreamRoute: ApiAudioStreamRoute,
+}
+
+const ApiAudioRouteWithChildren = ApiAudioRoute._addFileChildren(
+  ApiAudioRouteChildren,
+)
 
 interface ApiImageRouteChildren {
   ApiImageStreamRoute: typeof ApiImageStreamRoute
@@ -419,9 +510,12 @@ const ApiVideoRouteWithChildren = ApiVideoRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  MarkdownCjkRoute: MarkdownCjkRoute,
   MiddlewareTestRoute: MiddlewareTestRoute,
   ToolsTestRoute: ToolsTestRoute,
   ProviderFeatureRoute: ProviderFeatureRoute,
+  ApiAnthropicBugTestRoute: ApiAnthropicBugTestRoute,
+  ApiAudioRoute: ApiAudioRouteWithChildren,
   ApiChatRoute: ApiChatRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
   ApiMiddlewareTestRoute: ApiMiddlewareTestRoute,

@@ -49,8 +49,8 @@ describe('convertSchemaToJsonSchema', () => {
     expect(result).toBeDefined()
     expect(result?.type).toBe('object')
     expect(result?.properties).toBeDefined()
-    expect(result?.properties?.name?.type).toBe('string')
-    expect(result?.properties?.age?.type).toBe('number')
+    expect(result?.properties?.['name']?.type).toBe('string')
+    expect(result?.properties?.['age']?.type).toBe('number')
     expect(result?.required).toContain('name')
     expect(result?.required).toContain('age')
   })
@@ -75,7 +75,10 @@ describe('convertSchemaToJsonSchema', () => {
     const result = convertSchemaToJsonSchema(schema)
 
     expect(result).toBeDefined()
-    expect(result?.properties?.unit?.enum).toEqual(['celsius', 'fahrenheit'])
+    expect(result?.properties?.['unit']?.enum).toEqual([
+      'celsius',
+      'fahrenheit',
+    ])
     expect(result?.required).toContain('unit')
   })
 
@@ -86,7 +89,10 @@ describe('convertSchemaToJsonSchema', () => {
     const result = convertSchemaToJsonSchema(schema)
 
     expect(result).toBeDefined()
-    expect(result?.properties?.unit?.enum).toEqual(['celsius', 'fahrenheit'])
+    expect(result?.properties?.['unit']?.enum).toEqual([
+      'celsius',
+      'fahrenheit',
+    ])
     expect(result?.required).not.toContain('unit')
   })
 
@@ -101,8 +107,8 @@ describe('convertSchemaToJsonSchema', () => {
     const result = convertSchemaToJsonSchema(schema)
 
     expect(result).toBeDefined()
-    expect(result?.properties?.location?.description).toBe('City name')
-    expect(result?.properties?.unit?.description).toBe('Temperature unit')
+    expect(result?.properties?.['location']?.description).toBe('City name')
+    expect(result?.properties?.['unit']?.description).toBe('Temperature unit')
   })
 
   it('should handle nested objects', () => {
@@ -116,9 +122,13 @@ describe('convertSchemaToJsonSchema', () => {
 
     expect(result).toBeDefined()
     expect(result?.type).toBe('object')
-    expect(result?.properties?.address?.type).toBe('object')
-    expect(result?.properties?.address?.properties?.street?.type).toBe('string')
-    expect(result?.properties?.address?.properties?.city?.type).toBe('string')
+    expect(result?.properties?.['address']?.type).toBe('object')
+    expect(result?.properties?.['address']?.properties?.['street']?.type).toBe(
+      'string',
+    )
+    expect(result?.properties?.['address']?.properties?.['city']?.type).toBe(
+      'string',
+    )
   })
 
   it('should handle empty object schema', () => {
@@ -180,8 +190,8 @@ describe('convertSchemaToJsonSchema', () => {
     const result = convertSchemaToJsonSchema(schema)
 
     expect(result).toBeDefined()
-    expect(result?.properties?.items?.type).toBe('array')
-    const itemsSchema = result?.properties?.items?.items
+    expect(result?.properties?.['items']?.type).toBe('array')
+    const itemsSchema = result?.properties?.['items']?.['items']
     expect(!Array.isArray(itemsSchema) && itemsSchema?.type).toBe('string')
   })
 
@@ -197,12 +207,12 @@ describe('convertSchemaToJsonSchema', () => {
     const result = convertSchemaToJsonSchema(schema)
 
     expect(result).toBeDefined()
-    expect(result?.properties?.users?.type).toBe('array')
-    const usersItems = result?.properties?.users?.items
+    expect(result?.properties?.['users']?.type).toBe('array')
+    const usersItems = result?.properties?.['users']?.['items']
     if (!Array.isArray(usersItems)) {
       expect(usersItems?.type).toBe('object')
-      expect(usersItems?.properties?.name?.type).toBe('string')
-      expect(usersItems?.properties?.age?.type).toBe('number')
+      expect(usersItems?.properties?.['name']?.type).toBe('string')
+      expect(usersItems?.properties?.['age']?.type).toBe('number')
     }
   })
 
@@ -213,9 +223,9 @@ describe('convertSchemaToJsonSchema', () => {
     const result = convertSchemaToJsonSchema(schema)
 
     expect(result).toBeDefined()
-    expect(result?.properties?.value).toBeDefined()
+    expect(result?.properties?.['value']).toBeDefined()
     // Union types may be represented differently by zod-to-json-schema
-    expect(result?.properties?.value).toBeDefined()
+    expect(result?.properties?.['value']).toBeDefined()
   })
 
   it('should handle default values', () => {
@@ -226,7 +236,7 @@ describe('convertSchemaToJsonSchema', () => {
 
     expect(result).toBeDefined()
     // Default values may be included in the schema
-    expect(result?.properties?.count).toBeDefined()
+    expect(result?.properties?.['count']).toBeDefined()
   })
 
   it('should handle complex nested schema', () => {
@@ -245,15 +255,17 @@ describe('convertSchemaToJsonSchema', () => {
 
     expect(result).toBeDefined()
     expect(result?.type).toBe('object')
-    expect(result?.properties?.user?.type).toBe('object')
-    expect(result?.properties?.user?.properties?.name?.type).toBe('string')
-    expect(result?.properties?.user?.properties?.name?.description).toBe(
-      'User name',
+    expect(result?.properties?.['user']?.type).toBe('object')
+    expect(result?.properties?.['user']?.properties?.['name']?.type).toBe(
+      'string',
     )
-    expect(result?.properties?.user?.properties?.preferences?.type).toBe(
-      'object',
-    )
-    expect(result?.properties?.tags?.type).toBe('array')
+    expect(
+      result?.properties?.['user']?.properties?.['name']?.description,
+    ).toBe('User name')
+    expect(
+      result?.properties?.['user']?.properties?.['preferences']?.type,
+    ).toBe('object')
+    expect(result?.properties?.['tags']?.type).toBe('array')
   })
 
   it('should handle nullable fields', () => {
@@ -263,7 +275,7 @@ describe('convertSchemaToJsonSchema', () => {
     const result = convertSchemaToJsonSchema(schema)
 
     expect(result).toBeDefined()
-    expect(result?.properties?.value).toBeDefined()
+    expect(result?.properties?.['value']).toBeDefined()
   })
 
   it('should handle date schema', () => {
@@ -275,7 +287,7 @@ describe('convertSchemaToJsonSchema', () => {
     const result = convertSchemaToJsonSchema(schema)
 
     expect(result).toBeDefined()
-    expect(result?.properties?.createdAt).toBeDefined()
+    expect(result?.properties?.['createdAt']).toBeDefined()
   })
 
   it('should handle string with constraints', () => {
@@ -287,9 +299,9 @@ describe('convertSchemaToJsonSchema', () => {
     const result = convertSchemaToJsonSchema(schema)
 
     expect(result).toBeDefined()
-    expect(result?.properties?.email?.type).toBe('string')
-    expect(result?.properties?.minLength?.type).toBe('string')
-    expect(result?.properties?.maxLength?.type).toBe('string')
+    expect(result?.properties?.['email']?.type).toBe('string')
+    expect(result?.properties?.['minLength']?.type).toBe('string')
+    expect(result?.properties?.['maxLength']?.type).toBe('string')
   })
 
   it('should handle number with constraints', () => {
@@ -301,10 +313,10 @@ describe('convertSchemaToJsonSchema', () => {
     const result = convertSchemaToJsonSchema(schema)
 
     expect(result).toBeDefined()
-    expect(result?.properties?.min?.type).toBe('number')
-    expect(result?.properties?.max?.type).toBe('number')
+    expect(result?.properties?.['min']?.type).toBe('number')
+    expect(result?.properties?.['max']?.type).toBe('number')
     // z.number().int() returns type "integer" in JSON Schema
-    expect(result?.properties?.int?.type).toBe('integer')
+    expect(result?.properties?.['int']?.type).toBe('integer')
   })
 
   describe('JSONSchema passthrough', () => {
@@ -408,7 +420,7 @@ describe('convertSchemaToJsonSchema', () => {
 
       expect(result).toBe(jsonSchema)
       expect(result?.description).toBe('A weather request')
-      expect(result?.properties?.location?.description).toBe(
+      expect(result?.properties?.['location']?.description).toBe(
         'The city or location to get weather for',
       )
     })
@@ -481,10 +493,10 @@ describe('convertSchemaToJsonSchema', () => {
       const result = convertSchemaToJsonSchema(jsonSchema)
 
       expect(result).toBe(jsonSchema)
-      expect(result?.properties?.age?.minimum).toBe(0)
-      expect(result?.properties?.age?.maximum).toBe(150)
-      expect(result?.properties?.email?.format).toBe('email')
-      expect(result?.properties?.tags?.uniqueItems).toBe(true)
+      expect(result?.properties?.['age']?.minimum).toBe(0)
+      expect(result?.properties?.['age']?.maximum).toBe(150)
+      expect(result?.properties?.['email']?.format).toBe('email')
+      expect(result?.properties?.['tags']?.uniqueItems).toBe(true)
     })
 
     it('should pass through empty JSONSchema object', () => {
@@ -528,7 +540,9 @@ describe('convertSchemaToJsonSchema', () => {
       const result = convertSchemaToJsonSchema(jsonSchema)
 
       expect(result).toBe(jsonSchema)
-      expect(result?.properties?.phone?.pattern).toBe('^\\+?[1-9]\\d{1,14}$')
+      expect(result?.properties?.['phone']?.pattern).toBe(
+        '^\\+?[1-9]\\d{1,14}$',
+      )
     })
 
     it('should distinguish between Zod schemas and plain objects', () => {
@@ -546,13 +560,35 @@ describe('convertSchemaToJsonSchema', () => {
       // Both should produce similar output structure
       expect(zodResult?.type).toBe('object')
       expect(jsonResult?.type).toBe('object')
-      expect(zodResult?.properties?.name?.type).toBe('string')
-      expect(jsonResult?.properties?.name?.type).toBe('string')
+      expect(zodResult?.properties?.['name']?.type).toBe('string')
+      expect(jsonResult?.properties?.['name']?.type).toBe('string')
 
       // But JSONSchema should be the same reference
       expect(jsonResult).toBe(jsonSchema)
       // Zod result should be a new object
       expect(zodResult).not.toBe(zodSchema)
+    })
+  })
+
+  describe('Standard Schema validator without jsonSchema converter', () => {
+    // Regression guard for #562: widening `SchemaInput` to also accept
+    // `StandardSchemaV1<any, any>` means a validator-only schema (no
+    // `~standard.jsonSchema`) now type-checks. Without the runtime guard
+    // this would fall through and ship `{ '~standard': … }` to the LLM —
+    // throw a clear, actionable error instead.
+    it('should throw an actionable error pointing at the missing converter', () => {
+      const validatorOnlySchema = {
+        '~standard': {
+          version: 1 as const,
+          vendor: 'fake',
+          validate: (value: unknown) => ({ value }),
+          types: undefined,
+        },
+      }
+
+      expect(() => convertSchemaToJsonSchema(validatorOnlySchema)).toThrow(
+        /does not expose a JSON Schema converter/i,
+      )
     })
   })
 })

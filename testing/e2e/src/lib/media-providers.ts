@@ -4,13 +4,18 @@ import {
   createOpenaiTranscription,
   createOpenaiVideo,
 } from '@tanstack/ai-openai'
-import { createGeminiImage } from '@tanstack/ai-gemini'
+import { createGeminiAudio, createGeminiImage } from '@tanstack/ai-gemini'
 import {
   createGrokImage,
   createGrokSpeech,
   createGrokTranscription,
 } from '@tanstack/ai-grok'
-import type { Provider } from '@/lib/types'
+import {
+  createElevenLabsAudio,
+  createElevenLabsSpeech,
+  createElevenLabsTranscription,
+} from '@tanstack/ai-elevenlabs'
+import type { Feature, Provider } from '@/lib/types'
 
 const LLMOCK_DEFAULT_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
 const DUMMY_KEY = 'sk-e2e-test-dummy-key'
@@ -72,6 +77,11 @@ export function createTTSAdapter(
         baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),
+    elevenlabs: () =>
+      createElevenLabsSpeech('eleven_multilingual_v2', DUMMY_KEY, {
+        baseUrl: llmockBase(aimockPort),
+        headers,
+      }),
   }
   const factory = factories[provider]
   if (!factory) throw new Error(`No TTS adapter for provider: ${provider}`)
@@ -95,6 +105,11 @@ export function createTranscriptionAdapter(
         baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),
+    elevenlabs: () =>
+      createElevenLabsTranscription('scribe_v1', DUMMY_KEY, {
+        baseUrl: llmockBase(aimockPort),
+        headers,
+      }),
   }
   const factory = factories[provider]
   if (!factory)
@@ -117,5 +132,36 @@ export function createVideoAdapter(
   }
   const factory = factories[provider]
   if (!factory) throw new Error(`No video adapter for provider: ${provider}`)
+  return factory()
+}
+
+export function createAudioAdapter(
+  provider: Provider,
+  aimockPort?: number,
+  testId?: string,
+  feature: Feature = 'audio-gen',
+) {
+  const headers = testHeaders(testId)
+  const base = llmockBase(aimockPort)
+  if (provider === 'elevenlabs') {
+    if (feature === 'sound-effects') {
+      return createElevenLabsAudio('eleven_text_to_sound_v2', DUMMY_KEY, {
+        baseUrl: base,
+        headers,
+      })
+    }
+    return createElevenLabsAudio('music_v1', DUMMY_KEY, {
+      baseUrl: base,
+      headers,
+    })
+  }
+  const factories: Record<string, () => any> = {
+    gemini: () =>
+      createGeminiAudio('lyria-3-clip-preview', DUMMY_KEY, {
+        httpOptions: { baseUrl: base, headers },
+      }),
+  }
+  const factory = factories[provider]
+  if (!factory) throw new Error(`No audio adapter for provider: ${provider}`)
   return factory()
 }

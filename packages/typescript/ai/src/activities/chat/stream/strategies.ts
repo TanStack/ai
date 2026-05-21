@@ -20,7 +20,7 @@ export class ImmediateStrategy implements ChunkStrategy {
  * Useful for natural text flow in UI
  */
 export class PunctuationStrategy implements ChunkStrategy {
-  private punctuation = /[.,!?;:\n]/
+  private readonly punctuation = /[.,!?;:\n]/
 
   shouldEmit(chunk: string, _accumulated: string): boolean {
     return this.punctuation.test(chunk)
@@ -34,7 +34,7 @@ export class PunctuationStrategy implements ChunkStrategy {
 export class BatchStrategy implements ChunkStrategy {
   private chunkCount = 0
 
-  constructor(private batchSize: number = 5) {}
+  constructor(private readonly batchSize: number = 5) {}
 
   shouldEmit(_chunk: string, _accumulated: string): boolean {
     this.chunkCount++
@@ -66,7 +66,7 @@ export class WordBoundaryStrategy implements ChunkStrategy {
  * Emits if ANY strategy says to emit
  */
 export class CompositeStrategy implements ChunkStrategy {
-  constructor(private strategies: Array<ChunkStrategy>) {}
+  constructor(private readonly strategies: Array<ChunkStrategy>) {}
 
   shouldEmit(chunk: string, accumulated: string): boolean {
     return this.strategies.some((s) => s.shouldEmit(chunk, accumulated))

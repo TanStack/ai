@@ -5,7 +5,6 @@ import type { GrokTTSModel } from '../model-meta'
 import type {
   GrokTTSCodec,
   GrokTTSProviderOptions,
-  GrokTTSVoice,
 } from '../audio/tts-provider-options'
 
 const DEFAULT_GROK_BASE_URL = 'https://api.x.ai/v1'
@@ -155,7 +154,7 @@ export function buildTTSRequestBody(options: {
 
   const body: Record<string, unknown> = {
     text,
-    voice_id: (voice as GrokTTSVoice | undefined) ?? 'eve',
+    voice_id: voice ?? 'eve',
     language: modelOptions?.language ?? 'en',
     output_format: outputFormat,
   }
