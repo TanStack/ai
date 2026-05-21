@@ -152,7 +152,12 @@ function ChatFeature({
     mode === 'fetcher'
       ? {
           fetcher: async (
-            input: { messages: unknown; data?: unknown },
+            input: {
+              messages: unknown
+              data?: unknown
+              threadId: string
+              runId: string
+            },
             options: { signal: AbortSignal },
           ) =>
             fetch('/api/chat', {
@@ -161,6 +166,8 @@ function ChatFeature({
               body: JSON.stringify({
                 messages: input.messages,
                 data: input.data,
+                threadId: input.threadId,
+                runId: input.runId,
                 provider,
                 feature,
                 testId,

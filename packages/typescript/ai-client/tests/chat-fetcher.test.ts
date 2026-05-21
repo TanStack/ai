@@ -189,6 +189,8 @@ describe('ChatClient — fetcher transport', () => {
     expect(input.data).toMatchObject({
       provider: 'openai',
     })
+    expect(input.threadId).toEqual(expect.any(String))
+    expect(input.runId).toEqual(expect.any(String))
   })
 
   it('throws when both connection and fetcher are passed', () => {

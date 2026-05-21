@@ -624,15 +624,25 @@ export function fetcherToConnectionAdapter(
   fetcher: ChatFetcher,
 ): ConnectConnectionAdapter {
   return {
-    async *connect(messages, data, abortSignal) {
+    async *connect(messages, data, abortSignal, runContext) {
       if (!abortSignal) {
         throw new Error(
           'fetcherToConnectionAdapter requires an AbortSignal — the chat client always supplies one.',
         )
       }
+      if (!runContext) {
+        throw new Error(
+          'fetcherToConnectionAdapter requires a RunAgentInputContext — the chat client always supplies one.',
+        )
+      }
       const uiMessages = messages as Array<UIMessage>
       const result = await fetcher(
-        { messages: uiMessages, data },
+        {
+          messages: uiMessages,
+          data,
+          threadId: runContext.threadId,
+          runId: runContext.runId,
+        },
         { signal: abortSignal },
       )
       if (result instanceof Response) {

@@ -19,11 +19,15 @@ export type { StructuredOutputPart } from '@tanstack/ai'
 /**
  * `messages` is the full UIMessage history (not a delta). `data` is the
  * merged body — `ChatClientOptions.body` plus any per-call data passed to
- * `sendMessage(...)`.
+ * `sendMessage(...)`. `threadId` / `runId` are the AG-UI correlation ids
+ * the chat client uses to track this turn — forward them to your server
+ * if it needs to correlate requests.
  */
 export interface ChatFetcherInput {
   messages: Array<UIMessage>
   data?: Record<string, unknown>
+  threadId: string
+  runId: string
 }
 
 export interface ChatFetcherOptions {
