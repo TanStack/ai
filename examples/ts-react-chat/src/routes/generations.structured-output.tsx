@@ -132,6 +132,9 @@ function StructuredOutputPage() {
   const [reasoningFull, setReasoningFull] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [phaseCounts, setPhaseCounts] = useState<Record<string, number> | null>(
+    null,
+  )
   const abortRef = useRef<AbortController | null>(null)
 
   const onProviderChange = (next: Provider) => {
@@ -147,6 +150,7 @@ function StructuredOutputPage() {
     setReasoningLine('')
     setReasoningFull('')
     setError(null)
+    setPhaseCounts(null)
   }
 
   const handleGenerate = async () => {
@@ -182,6 +186,12 @@ function StructuredOutputPage() {
         const payload = await response.json()
         setResult(payload.data as PartialResult)
         setHasFinalResult(true)
+        const diag = (payload as {
+          _diagnostics?: { phaseCounts?: Record<string, number> }
+        })._diagnostics
+        if (diag?.phaseCounts) {
+          setPhaseCounts(diag.phaseCounts)
+        }
         return
       }
 
@@ -236,6 +246,12 @@ function StructuredOutputPage() {
               // One-liner: take the last non-empty line/sentence so consumers
               // see "what it's thinking right now" without a wall of text.
               setReasoningLine(latestThought(reasoning))
+            } else if (
+              chunk.type === 'CUSTOM' &&
+              chunk.name === 'phase-counts' &&
+              chunk.value
+            ) {
+              setPhaseCounts(chunk.value as unknown as Record<string, number>)
             } else if (
               chunk.type === 'CUSTOM' &&
               chunk.name === 'structured-output.complete' &&
@@ -573,6 +589,39 @@ function StructuredOutputPage() {
                     {rawJson}
                   </pre>
                 </details>
+              )}
+
+              {phaseCounts && (
+                <div
+                  className={`p-4 border rounded-lg ${
+                    phaseCounts.structuredOutput
+                      ? 'bg-emerald-900/20 border-emerald-700/50'
+                      : 'bg-amber-900/20 border-amber-700/50'
+                  }`}
+                >
+                  <p className="text-sm font-semibold mb-2">
+                    Middleware phase counts{' '}
+                    <span className="font-normal text-gray-400">
+                      (PR #600 verification)
+                    </span>
+                  </p>
+                  <ul className="text-xs font-mono space-y-1">
+                    {Object.entries(phaseCounts).map(([phase, count]) => (
+                      <li key={phase}>
+                        <span className="text-cyan-300">{phase}</span>
+                        {': '}
+                        <span className="text-gray-300">
+                          {count} chunk{count === 1 ? '' : 's'}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-xs text-gray-400 mt-2">
+                    {phaseCounts.structuredOutput
+                      ? 'PR #600 verified: middleware observed chunks during the structured-output adapter call.'
+                      : 'No `structuredOutput` phase observed. Either the provider response was empty, or the bug is still present.'}
+                  </p>
+                </div>
               )}
             </div>
           )}

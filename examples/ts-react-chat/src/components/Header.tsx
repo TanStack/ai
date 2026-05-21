@@ -3,7 +3,7 @@ import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import {
   Braces,
-  CheckCircle2,
+  Bug,
   FileAudio,
   FileText,
   Guitar,
@@ -215,11 +215,11 @@ export default function Header() {
           <hr className="border-gray-700 my-2" />
 
           <p className="text-xs text-gray-500 uppercase tracking-wider px-3 pt-2 pb-1">
-            Diagnostics
+            Bug repros
           </p>
 
           <Link
-            to="/verify-pr600"
+            to="/issue-390-repro"
             onClick={() => setIsOpen(false)}
             className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
             activeProps={{
@@ -227,8 +227,8 @@ export default function Header() {
                 'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
             }}
           >
-            <CheckCircle2 size={20} />
-            <span className="font-medium">Verify PR #600 fixes</span>
+            <Bug size={20} />
+            <span className="font-medium">Issue #390 (Gemini)</span>
           </Link>
         </nav>
       </aside>
