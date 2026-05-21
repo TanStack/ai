@@ -102,7 +102,7 @@ The context's `phase` field tracks where you are in the lifecycle:
 | `modelStream` | While adapter streams chunks | `onChunk`, `onUsage` |
 | `beforeTools` | Before tool execution | `onBeforeToolCall` |
 | `afterTools` | After tool execution | `onAfterToolCall` |
-| `structuredOutput` | During the final structured-output adapter call (when `outputSchema` is set **and** the adapter does not declare `supportsCombinedToolsAndSchema()`). Chunks from `adapter.structuredOutputStream` (or the synthesized non-streaming fallback) flow through `onChunk` with this phase, and `onUsage` fires for the final call's tokens. **Does not fire** for adapters that natively combine tools + schema in one streaming call (modern OpenAI Chat Completions, OpenAI Responses, Claude 4.5+ — see issue #605); on that path middleware observes the run through `beforeModel` / `modelStream` as usual. | `onStructuredOutputConfig`, `onConfig`, `onChunk`, `onUsage` |
+| `structuredOutput` | During the final structured-output adapter call (when `outputSchema` is set **and** the adapter does not declare `supportsCombinedToolsAndSchema()`). Chunks from `adapter.structuredOutputStream` (or the synthesized non-streaming fallback) flow through `onChunk` with this phase, and `onUsage` fires for the final call's tokens. **Does not fire** for adapters that natively combine tools + schema in one streaming call (modern OpenAI Chat Completions, OpenAI Responses, Claude 4.5+, Gemini 3.x, Grok 4.x family — see issue #605); on that path middleware observes the run through `beforeModel` / `modelStream` as usual. | `onStructuredOutputConfig`, `onConfig`, `onChunk`, `onUsage` |
 
 ## Hooks Reference
 
@@ -155,7 +155,7 @@ When multiple middleware define `onConfig`, the config is **piped** through them
 
 Called once at the start of the final structured-output adapter call — only when `chat()` was invoked with `outputSchema` **and** the adapter takes the legacy finalization path (i.e. does not declare `supportsCombinedToolsAndSchema()`). Pipes through middleware in order, like `onConfig`, but with access to the **JSON Schema** being sent to the provider. Use this hook when you need to transform the schema (e.g., inject `$defs`, strip vendor-incompatible keywords) or apply structured-output-specific behavior (e.g., suppress system prompts on the final call).
 
-> Native-combined adapters (modern OpenAI, Claude 4.5+ — see issue #605) skip the separate finalization call and never invoke this hook. If you need to mutate the schema for a native-combined adapter, do it in `onConfig` (the schema is on `config.modelOptions` / the request — adapter-specific).
+> Native-combined adapters (modern OpenAI, Claude 4.5+, Gemini 3.x, Grok 4.x — see issue #605) skip the separate finalization call and never invoke this hook. If you need to mutate the schema for a native-combined adapter, do it in `onConfig` (the schema is on `config.modelOptions` / the request — adapter-specific).
 
 Return a **partial** `StructuredOutputMiddlewareConfig` with only the fields you want to change — they are shallow-merged with the current config. Return `void` to pass through.
 

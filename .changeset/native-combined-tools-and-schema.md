@@ -2,11 +2,12 @@
 '@tanstack/ai': minor
 '@tanstack/openai-base': minor
 '@tanstack/ai-anthropic': minor
+'@tanstack/ai-gemini': minor
+'@tanstack/ai-grok': minor
 '@tanstack/ai-groq': patch
-'@tanstack/ai-grok': patch
 ---
 
-Route `chat({ outputSchema, tools })` through the provider's native single-pass call where supported (modern OpenAI Chat Completions + Responses, Claude 4.5+). Closes #605.
+Route `chat({ outputSchema, tools })` through the provider's native single-pass call where supported (modern OpenAI Chat Completions + Responses, Claude 4.5+, Gemini 3.x, Grok 4.x family). Closes #605.
 
 Historically, `chat({ outputSchema, tools })` ran the agent loop with `tools` and then issued a separate finalization call against the structured-output adapter for the typed answer — because most providers couldn't combine `tools` with a schema-constrained response in one call. That has changed for most modern providers, making the second round-trip pure overhead.
 
@@ -14,11 +15,12 @@ Historically, `chat({ outputSchema, tools })` ran the agent loop with `tools` an
 
 **Per-adapter status:**
 
-- **OpenAI (Chat Completions + Responses):** opted in. `response_format: json_schema` / `text.format: json_schema` is attached when `outputSchema` is set.
-- **Anthropic:** opted in for Claude 4.5+ (Opus / Sonnet / Haiku 4.5, 4.6, 4.6-fast, 4.7, 4.7-fast). Wires `output_format: { type: 'json_schema', schema }` on the beta Messages request. Pre-4.5 Claude models keep the forced-tool finalization workaround.
+- **OpenAI (Chat Completions + Responses):** opted in for all models. `response_format: json_schema` / `text.format: json_schema` attached when `outputSchema` is set.
+- **Anthropic:** opted in for Claude 4.5+ (Opus / Sonnet / Haiku 4.5, 4.6, 4.7). Wires `output_config.format` on the beta Messages request. Pre-4.5 Claude models keep the forced-tool finalization workaround. Gated by exported `ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS`.
+- **Gemini:** opted in for Gemini 3.x (3-pro, 3-flash, 3.1-pro-preview, 3.1-flash-lite). Wires `responseSchema` + `responseMimeType: 'application/json'` into the regular `generateContentStream` call. Gemini 2.x keeps the legacy path. Gated by exported `GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS`.
+- **Grok (xAI):** opted in for the Grok 4 family (`grok-4`, `grok-4-1-fast-*`, `grok-4-fast-*`, `grok-4-20*`, `grok-4-3`, `grok-code-fast-1`). Inherits the OpenAI Chat Completions wiring from `openai-base`; the override gates the capability claim by model. Grok 2 / 3 keep the legacy path. Gated by exported `GROK_COMBINED_TOOLS_AND_SCHEMA_MODELS`.
 - **Groq:** explicitly opts out — the Groq API rejects `response_format` + `tools` + `stream` with HTTP 400 ("Streaming and tool use are not currently supported with Structured Outputs").
-- **Grok (xAI):** opts out pending per-model gating (Grok 4 supports the combination; Grok 2/3 reject it) — follow-up.
-- **OpenRouter, Gemini, Ollama:** unchanged; still take the finalization path.
+- **OpenRouter, Ollama:** unchanged; still take the legacy finalization path. OpenRouter's per-request capability lookup (depends on resolved upstream model) is tracked as a follow-up.
 
 **Backward compatibility:**
 

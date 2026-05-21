@@ -979,6 +979,20 @@ export const GEMINI_MODELS = [
   GEMINI_2_FLASH_LITE.name,
 ] as const
 
+/**
+ * Gemini models that support combining `tools` + `responseSchema` in a
+ * single streaming `generateContent` call (per issue #605). Per the
+ * provider matrix, Gemini 3.x natively interleaves the schema-constrained
+ * answer with function-calling on one pass; Gemini 2.x is unsupported /
+ * brittle and keeps the engine's legacy finalization fallback.
+ */
+export const GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS = new Set<string>([
+  GEMINI_3_1_PRO.name,
+  GEMINI_3_PRO.name,
+  GEMINI_3_FLASH.name,
+  GEMINI_3_1_FLASH_LITE.name,
+])
+
 export type GeminiModels = (typeof GEMINI_MODELS)[number]
 
 export type GeminiImageModels = (typeof GEMINI_IMAGE_MODELS)[number]

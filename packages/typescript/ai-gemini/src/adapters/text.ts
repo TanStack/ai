@@ -7,6 +7,7 @@ import {
   generateId,
   getGeminiApiKeyFromEnv,
 } from '../utils'
+import { GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS } from '../model-meta'
 import type {
   GEMINI_MODELS,
   GeminiChatModelProviderOptionsByName,
@@ -857,6 +858,25 @@ export class GeminiTextAdapter<
         ? normalizedPrompts.map((p) => p.content).join('\n')
         : undefined
 
+    // Native combined mode (issue #605): when the engine threads
+    // `outputSchema` through TextOptions, the adapter declared
+    // `supportsCombinedToolsAndSchema` (Gemini 3.x only). The schema is
+    // already JSON Schema (pre-converted at the activity boundary). Wire
+    // it into `config.responseSchema` + `responseMimeType: 'application/json'`
+    // alongside any `tools` — the model emits function calls during the
+    // agent loop and the schema-constrained JSON on its natural final
+    // turn, so the engine can harvest it without the separate
+    // `structuredOutput` finalization round-trip.
+    const combinedSchema = options.outputSchema as
+      | Record<string, unknown>
+      | undefined
+    const combinedSchemaConfig = combinedSchema
+      ? {
+          responseMimeType: 'application/json' as const,
+          responseSchema: combinedSchema,
+        }
+      : undefined
+
     // Vendor `GenerateContentConfig` fields are `field?: T` (no `| undefined`)
     // under EOPT, so spread each common option only when present rather than
     // emitting `field: undefined`s into the wire payload.
@@ -877,10 +897,21 @@ export class GeminiTextAdapter<
         }),
         ...(systemInstruction !== undefined && { systemInstruction }),
         tools: convertToolsToProviderFormat(options.tools),
+        ...(combinedSchemaConfig ?? {}),
       },
     }
 
     return requestOptions
+  }
+
+  /**
+   * Gemini 3.x natively combines `tools` + `responseSchema` in a single
+   * streaming `generateContentStream` call (issue #605). Gemini 2.x is
+   * documented as brittle for the combination and keeps the engine's
+   * legacy finalization path.
+   */
+  supportsCombinedToolsAndSchema(): boolean {
+    return GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(this.model)
   }
 }
 

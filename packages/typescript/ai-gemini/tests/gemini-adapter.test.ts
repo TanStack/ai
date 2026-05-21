@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { z } from 'zod'
 import { chat, summarize } from '@tanstack/ai'
 import type { Tool, StreamChunk } from '@tanstack/ai'
 import {
@@ -802,6 +803,67 @@ describe('GeminiAdapter through AI', () => {
     expect(funcResponsePart.functionResponse.name).toBe('lookup_weather')
     // id must be the original function call id from the model
     expect(funcResponsePart.functionResponse.id).toBe('fc_001')
+  })
+
+  it('native combined mode (#605): wires outputSchema into responseSchema alongside tools on Gemini 3.x', async () => {
+    const finalJson = JSON.stringify({ city: 'Madrid', temp: 24 })
+    mocks.generateContentStreamSpy.mockResolvedValue(
+      createStream([
+        {
+          candidates: [
+            {
+              content: { parts: [{ text: finalJson }] },
+              finishReason: 'STOP',
+            },
+          ],
+          usageMetadata: { totalTokenCount: 5 },
+        },
+      ]),
+    )
+
+    const adapter = new GeminiTextAdapter(
+      { apiKey: 'test-key' },
+      'gemini-3-pro-preview',
+    )
+    expect(adapter.supportsCombinedToolsAndSchema()).toBe(true)
+
+    const ForecastSchema = z.object({
+      city: z.string(),
+      temp: z.number(),
+    })
+
+    const result = await chat({
+      adapter,
+      messages: [{ role: 'user', content: 'forecast Madrid' }],
+      tools: [weatherTool],
+      outputSchema: ForecastSchema,
+    })
+
+    expect(result).toEqual({ city: 'Madrid', temp: 24 })
+
+    expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
+    const [payload] = mocks.generateContentStreamSpy.mock.calls[0]!
+    expect(payload.model).toBe('gemini-3-pro-preview')
+    expect(payload.config).toMatchObject({
+      responseMimeType: 'application/json',
+      responseSchema: expect.objectContaining({ type: 'object' }),
+    })
+    // tools must still be forwarded — native combined mode is specifically
+    // about coexistence of tools + schema in one call.
+    expect(payload.config.tools?.[0]?.functionDeclarations?.[0]?.name).toBe(
+      'lookup_weather',
+    )
+    // No second generateContent call (the legacy structuredOutput finalization
+    // path is skipped).
+    expect(mocks.generateContentSpy).not.toHaveBeenCalled()
+  })
+
+  it('native combined mode (#605): Gemini 2.x stays on the legacy finalization path', () => {
+    const adapter = new GeminiTextAdapter(
+      { apiKey: 'test-key' },
+      'gemini-2.5-pro',
+    )
+    expect(adapter.supportsCombinedToolsAndSchema()).toBe(false)
   })
 
   it('routes summarize() through the gemini chat-stream path', async () => {

@@ -147,9 +147,12 @@ test.describe('Structured Output × Middleware Coverage', () => {
     const phasesJson = await page.locator('#mw-phases-json').textContent()
     const phases = parseStringArray(phasesJson)
     // Combined-mode contract: middleware sees the run through the regular
-    // chat phases, not `structuredOutput`.
+    // chat phases, not `structuredOutput`. The phase-recorder records
+    // `ctx.phase` per `onChunk`, and the engine tags streaming chunks
+    // with `'modelStream'` (the `'beforeModel'` phase tag is set only for
+    // the `onConfig` hook boundary, not for chunks).
     expect(phases).not.toContain('structuredOutput')
-    expect(phases).toContain('beforeModel')
+    expect(phases).toContain('modelStream')
 
     const finishCountRaw = await page
       .locator('#mw-onfinish-count')
