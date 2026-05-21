@@ -246,7 +246,10 @@ function reasoningOptionsFor(
       // reject `thinkingLevel`; gate strictly to the combined-mode set so
       // we don't send an unsupported option on the legacy path.
       const baseModel = stripModelSuffix(model)
-      if (!baseModel || !GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(baseModel)) {
+      if (
+        !baseModel ||
+        !GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(baseModel)
+      ) {
         return undefined
       }
       return {
