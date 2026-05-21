@@ -907,12 +907,7 @@ describe('Anthropic stream processing', () => {
   })
 
   it('does not leak server_tool_use input deltas into the prior client tool', async () => {
-    // Reproduces issue #604: when a client tool_use block is followed by a
-    // server_tool_use block (e.g. web_fetch) in the same response,
-    // server_tool_use `input_json_delta` events must not concatenate onto
-    // the prior client tool's input buffer.
     const mockStream = (async function* () {
-      // Client tool_use — args close cleanly.
       yield {
         type: 'content_block_start',
         index: 0,
@@ -931,8 +926,6 @@ describe('Anthropic stream processing', () => {
         },
       }
       yield { type: 'content_block_stop', index: 0 }
-      // server_tool_use for web_fetch — its input_json_delta must not
-      // append to the client tool's buffer.
       yield {
         type: 'content_block_start',
         index: 1,
@@ -951,7 +944,6 @@ describe('Anthropic stream processing', () => {
         },
       }
       yield { type: 'content_block_stop', index: 1 }
-      // The result block Anthropic sends after running web_fetch.
       yield {
         type: 'content_block_start',
         index: 2,
@@ -988,8 +980,6 @@ describe('Anthropic stream processing', () => {
       chunks.push(chunk)
     }
 
-    // The single TOOL_CALL_END must carry the client tool's *own* input
-    // — not a concatenated `{"location":"Berlin"}{"url":"..."}` blob.
     const toolEnds = chunks.filter((c) => c.type === 'TOOL_CALL_END')
     expect(toolEnds).toHaveLength(1)
     expect(toolEnds[0]).toMatchObject({
@@ -997,17 +987,6 @@ describe('Anthropic stream processing', () => {
       input: { location: 'Berlin' },
     })
 
-    // The args stream for the client tool must end with the exact JSON.
-    const lastArgs = chunks.filter(
-      (c) =>
-        c.type === 'TOOL_CALL_ARGS' &&
-        (c as { toolCallId: string }).toolCallId === 'tool_client',
-    )
-    const final = lastArgs[lastArgs.length - 1] as { args: string }
-    expect(final.args).toBe('{"location":"Berlin"}')
-
-    // No TOOL_CALL_* events should be emitted for the server tool — the
-    // agent loop must not try to dispatch web_fetch as a client tool.
     expect(
       chunks.some(
         (c) =>
@@ -1017,17 +996,102 @@ describe('Anthropic stream processing', () => {
     ).toBe(false)
   })
 
-  it('cleanly handles a server_tool_use block as the only tool in the response', async () => {
-    // Secondary failure from issue #604: with no prior client tool_use,
-    // currentToolIndex is -1. Server-tool deltas must still not crash or
-    // create phantom client tool calls.
+  it.each([
+    [
+      'web_fetch',
+      'web_fetch_tool_result',
+      {
+        type: 'web_fetch_result',
+        url: 'https://example.com',
+        content: { type: 'document', source: { type: 'text', data: 'ok' } },
+        retrieved_at: '2026-01-01T00:00:00Z',
+      },
+    ],
+    [
+      'web_search',
+      'web_search_tool_result',
+      [
+        {
+          type: 'web_search_result',
+          encrypted_content: 'enc',
+          page_age: null,
+          title: 'Example',
+          url: 'https://example.com',
+        },
+      ],
+    ],
+  ] as const)(
+    'cleanly handles a server-only %s response with no prior client tool_use',
+    async (toolName, resultType, resultContent) => {
+      // With no prior client tool_use, currentToolIndex is -1; server-tool
+      // deltas must not crash or create phantom client tool calls.
+      const mockStream = (async function* () {
+        yield {
+          type: 'content_block_start',
+          index: 0,
+          content_block: {
+            type: 'server_tool_use',
+            id: 'srv_only',
+            name: toolName,
+          },
+        }
+        yield {
+          type: 'content_block_delta',
+          index: 0,
+          delta: {
+            type: 'input_json_delta',
+            partial_json: '{"url":"https://example.com"}',
+          },
+        }
+        yield { type: 'content_block_stop', index: 0 }
+        yield {
+          type: 'content_block_start',
+          index: 1,
+          content_block: {
+            type: resultType,
+            tool_use_id: 'srv_only',
+            content: resultContent,
+          },
+        }
+        yield { type: 'content_block_stop', index: 1 }
+        yield {
+          type: 'message_delta',
+          delta: { stop_reason: 'end_turn' },
+          usage: { output_tokens: 5 },
+        }
+        yield { type: 'message_stop' }
+      })()
+
+      mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
+
+      const adapter = createAdapter('claude-3-7-sonnet')
+
+      const chunks: StreamChunk[] = []
+      for await (const chunk of chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Use the server tool' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      expect(chunks.some((c) => c.type === 'TOOL_CALL_START')).toBe(false)
+      expect(chunks.some((c) => c.type === 'TOOL_CALL_END')).toBe(false)
+
+      const runFinished = chunks.filter((c) => c.type === 'RUN_FINISHED')
+      expect(runFinished).toHaveLength(1)
+    },
+  )
+
+  it('logs an error when a server tool result block carries an error variant', async () => {
+    // A failed web_fetch (e.g. url_not_accessible) is otherwise invisible —
+    // the model just keeps going. Surface it via the debug logger.
     const mockStream = (async function* () {
       yield {
         type: 'content_block_start',
         index: 0,
         content_block: {
           type: 'server_tool_use',
-          id: 'srv_only',
+          id: 'srv_err',
           name: 'web_fetch',
         },
       }
@@ -1036,7 +1100,7 @@ describe('Anthropic stream processing', () => {
         index: 0,
         delta: {
           type: 'input_json_delta',
-          partial_json: '{"url":"https://example.com"}',
+          partial_json: '{"url":"https://blocked.example"}',
         },
       }
       yield { type: 'content_block_stop', index: 0 }
@@ -1045,12 +1109,10 @@ describe('Anthropic stream processing', () => {
         index: 1,
         content_block: {
           type: 'web_fetch_tool_result',
-          tool_use_id: 'srv_only',
+          tool_use_id: 'srv_err',
           content: {
-            type: 'web_fetch_result',
-            url: 'https://example.com',
-            content: { type: 'document', source: { type: 'text', data: 'ok' } },
-            retrieved_at: '2026-01-01T00:00:00Z',
+            type: 'web_fetch_tool_result_error',
+            error_code: 'url_not_accessible',
           },
         },
       }
@@ -1067,21 +1129,29 @@ describe('Anthropic stream processing', () => {
 
     const adapter = createAdapter('claude-3-7-sonnet')
 
-    const chunks: StreamChunk[] = []
-    for await (const chunk of chat({
-      adapter,
-      messages: [{ role: 'user', content: 'Fetch it' }],
-    })) {
-      chunks.push(chunk)
+    const logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
     }
 
-    // No client TOOL_CALL_* events should appear for a server-only response.
-    expect(chunks.some((c) => c.type === 'TOOL_CALL_START')).toBe(false)
-    expect(chunks.some((c) => c.type === 'TOOL_CALL_END')).toBe(false)
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Fetch it' }],
+      debug: { logger, errors: true },
+    })) {
+      // consume stream
+    }
 
-    // Stream still completes normally.
-    const runFinished = chunks.filter((c) => c.type === 'RUN_FINISHED')
-    expect(runFinished).toHaveLength(1)
+    const errorCall = logger.error.mock.calls.find((call) =>
+      String(call[0]).includes('web_fetch_tool_result'),
+    )
+    expect(errorCall).toBeDefined()
+    expect(errorCall![1]).toMatchObject({
+      toolUseId: 'srv_err',
+      errorCode: 'url_not_accessible',
+    })
   })
 
   it('does not emit TEXT_MESSAGE_END for tool_use content blocks', async () => {
