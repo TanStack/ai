@@ -953,6 +953,9 @@ importers:
       '@ag-ui/core':
         specifier: ^0.0.52
         version: 0.0.52
+      '@standard-schema/spec':
+        specifier: ^1.1.0
+        version: 1.1.0
       '@tanstack/ai-event-client':
         specifier: workspace:*
         version: link:../ai-event-client
@@ -963,9 +966,6 @@ importers:
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.1
-      '@standard-schema/spec':
-        specifier: ^1.1.0
-        version: 1.1.0
       '@vitest/coverage-v8':
         specifier: 4.0.14
         version: 4.0.14(vitest@4.0.14(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.9))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))

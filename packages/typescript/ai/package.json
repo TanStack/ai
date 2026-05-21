@@ -66,6 +66,7 @@
   ],
   "dependencies": {
     "@ag-ui/core": "^0.0.52",
+    "@standard-schema/spec": "^1.1.0",
     "@tanstack/ai-event-client": "workspace:*",
     "partial-json": "^0.1.7"
   },
@@ -79,7 +80,6 @@
   },
   "devDependencies": {
     "@opentelemetry/api": "^1.9.0",
-    "@standard-schema/spec": "^1.1.0",
     "@vitest/coverage-v8": "4.0.14",
     "zod": "^4.2.0"
   }
