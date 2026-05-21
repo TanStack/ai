@@ -42,14 +42,19 @@ const PROVIDER_MODELS: Record<
   // (`output_config.format` + `tools` in one beta Messages call). Older
   // models fall back to the forced-tool-use workaround in
   // `structuredOutput` (no real streaming), so they're omitted here.
+  //
+  // The `*-fast` variants in `ai-anthropic/model-meta` (e.g.
+  // `claude-opus-4-7-fast`) currently 404 against the Messages API — that
+  // ~6× pricing in the meta entries looks like priority-tier pricing
+  // (selected via `service_tier: 'priority'` on the request), not a
+  // distinct model id. They're omitted from the dropdown until the real
+  // ids are confirmed.
   anthropic: [
     { value: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
     { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
     { value: 'claude-opus-4-5', label: 'Claude Opus 4.5' },
     { value: 'claude-opus-4-6', label: 'Claude Opus 4.6' },
-    { value: 'claude-opus-4-6-fast', label: 'Claude Opus 4.6 Fast' },
     { value: 'claude-opus-4-7', label: 'Claude Opus 4.7' },
-    { value: 'claude-opus-4-7-fast', label: 'Claude Opus 4.7 Fast' },
     { value: 'claude-haiku-4-5', label: 'Claude Haiku 4.5' },
   ],
   grok: [
