@@ -2127,8 +2127,7 @@ class TextEngine<
     // `streamModelResponse`.
     if (!this.combinedStartEmitted) {
       this.combinedStartEmitted = true
-      const messageId =
-        this.combinedStructuredMessageId ?? generateMessageId()
+      const messageId = this.combinedStructuredMessageId ?? generateMessageId()
       this.combinedStructuredMessageId = messageId
       const synthStart: StreamChunk = {
         type: EventType.CUSTOM,
