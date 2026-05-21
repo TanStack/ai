@@ -105,22 +105,35 @@ const StructuredOutputRequestSchema = z.object({
   stream: z.boolean().optional(),
 })
 
+/**
+ * Synthetic suffixes the dropdown uses to opt the route into reasoning
+ * modes that aren't first-class on the wire (e.g. "Opus 4.7 with max
+ * adaptive thinking"). The suffix is stripped before reaching the
+ * adapter. Currently `:thinking-max` is the only one defined.
+ */
+function stripModelSuffix(model: string | undefined): string | undefined {
+  if (!model) return model
+  const colonIdx = model.indexOf(':')
+  return colonIdx === -1 ? model : model.slice(0, colonIdx)
+}
+
 function adapterFor(provider: Provider, model?: string): AnyTextAdapter {
+  const baseModel = stripModelSuffix(model)
   switch (provider) {
     case 'openai':
-      return openaiText((model || 'gpt-5.2') as 'gpt-5.2')
+      return openaiText((baseModel || 'gpt-5.2') as 'gpt-5.2')
     case 'openai-chat':
       // Same model surface as the Responses adapter, but talks to
       // `/v1/chat/completions`. Useful for side-by-side comparison of
       // streaming structured output across the two OpenAI wire formats.
-      return openaiChatCompletions((model || 'gpt-4o') as 'gpt-4o')
+      return openaiChatCompletions((baseModel || 'gpt-4o') as 'gpt-4o')
     case 'anthropic':
       // Claude 4.5+ supports native combined tools + schema-constrained
-      // streaming (#605) via `output_format` on the beta Messages endpoint.
-      // Earlier models fall back to the forced-tool-use workaround in
-      // `structuredOutput` (no real streaming).
+      // streaming (#605) via `output_config.format` on the beta Messages
+      // endpoint. Earlier models fall back to the forced-tool-use
+      // workaround in `structuredOutput` (no real streaming).
       return anthropicText(
-        (model || 'claude-sonnet-4-5') as 'claude-sonnet-4-5',
+        (baseModel || 'claude-sonnet-4-5') as 'claude-sonnet-4-5',
       )
     case 'grok':
       return grokText(
@@ -169,50 +182,46 @@ function reasoningOptionsFor(
       // Responses does. Reasoning models still reason silently; no opt-in
       // option to inject here.
       return undefined
-    case 'anthropic':
-      // Claude extended thinking surfaces via REASONING_* events when
-      // enabled. Gating *strictly* to combined-mode-capable models matters:
-      // enabling thinking on a legacy-path model triggers the engine's
-      // forced-tool-use finalization workaround, which the API rejects with
-      // "Thinking may not be enabled when tool_choice forces tool use".
-      //
-      // The thinking API itself changed between Claude generations:
-      //   • 4.5 / 4.6 / 4.6-fast / haiku 4.5:
-      //       `thinking: { type: 'enabled', budget_tokens }`
-      //   • 4.7 / 4.7-fast (and 4.6+ adaptive-capable):
-      //       `thinking: { type: 'adaptive' }` paired with
-      //       `output_config.effort`. The API explicitly rejects
-      //       `type: 'enabled'` on 4.7 with
-      //       "thinking.type.enabled is not supported for this model.
-      //        Use thinking.type.adaptive and output_config.effort."
-      if (!model || !ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(model)) {
+    case 'anthropic': {
+      // Default: thinking OFF. Demo flows that just want streaming
+      // structured output shouldn't pay for reasoning tokens, and 4.7
+      // adaptive thinking can easily blow the default `max_tokens` budget
+      // before the schema-constrained JSON finishes — leaving the user
+      // staring at "response was cut off". The dropdown opts back in via
+      // the synthetic `:thinking-max` suffix.
+      const baseModel = stripModelSuffix(model)
+      if (
+        !baseModel ||
+        !ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(baseModel)
+      ) {
         return undefined
       }
-      if (model.startsWith('claude-opus-4-7')) {
-        // Three 4.7-specific quirks vs 4.5/4.6:
-        //
-        //   1. Manual extended thinking (`type: 'enabled'` + `budget_tokens`)
-        //      is rejected with HTTP 400 — adaptive is the only supported
-        //      mode.
-        //   2. The default for `display` flipped from `'summarized'` (on
-        //      4.6) to `'omitted'` (on 4.7). Without `display: 'summarized'`
-        //      the API still streams a thinking content block but only
-        //      emits `signature_delta` events, no `thinking_delta` — so the
-        //      reasoning panel stays empty even when the model IS thinking.
-        //   3. Adaptive thinking is non-deterministic. The model decides
-        //      whether to think based on prompt complexity, not just the
-        //      `effort` knob. For short prompts like the demo's guitar
-        //      recommendation, `'high'` ("Claude will almost always think")
-        //      still skipped thinking in practice — only `'max'` ("absolute
-        //      highest capability") reliably engaged it. Even `'max'` is
-        //      not a guarantee; on a sufficiently trivial prompt the model
-        //      may still answer directly.
+      const wantsThinking = model?.endsWith(':thinking-max') === true
+      if (!wantsThinking) return undefined
+
+      // Three 4.7-specific quirks (only relevant on the thinking variant):
+      //   1. Manual extended thinking (`type: 'enabled'` + `budget_tokens`)
+      //      is rejected with HTTP 400 — adaptive is the only supported
+      //      mode.
+      //   2. The default for `display` flipped from `'summarized'` (4.6)
+      //      to `'omitted'` (4.7). Without `display: 'summarized'` the
+      //      API still streams a thinking content block but only emits
+      //      `signature_delta`, no `thinking_delta` — empty reasoning
+      //      panel even when the model IS thinking.
+      //   3. Adaptive thinking is non-deterministic. The model decides
+      //      based on prompt complexity. For short prompts like the demo
+      //      `'high'` still skipped thinking; only `'max'` reliably
+      //      engages it (and even that's not a hard guarantee).
+      if (baseModel.startsWith('claude-opus-4-7')) {
         return {
           thinking: { type: 'adaptive', display: 'summarized' },
           output_config: { effort: 'max' },
         }
       }
+      // 4.5 / 4.6 / haiku 4.5 still accept the legacy
+      // `type: 'enabled' + budget_tokens` shape.
       return { thinking: { type: 'enabled', budget_tokens: 1024 } }
+    }
     case 'groq':
       // Groq's Chat Completions only streams `delta.reasoning` when
       // `reasoning_format: 'parsed'`. Required for gpt-oss / qwen3 / kimi-k2
@@ -260,6 +269,18 @@ export const Route = createFileRoute('/api/structured-output')({
           const resolvedProvider: Provider = provider || 'openrouter'
           const modelOptions = reasoningOptionsFor(resolvedProvider, model)
 
+          // Adaptive thinking on Claude 4.7 can chew through a few thousand
+          // tokens before the schema-constrained JSON even starts. The
+          // adapter's default `max_tokens` (1024) was producing truncated
+          // outputs ("response was cut off"). Bump for the
+          // `:thinking-max` variant so the reasoning + JSON both fit. We
+          // keep the budget modest (16k) for everyone else to avoid
+          // surprising bills on the demo.
+          const wantsAnthropicMaxThinking =
+            resolvedProvider === 'anthropic' &&
+            model?.endsWith(':thinking-max') === true
+          const maxTokens = wantsAnthropicMaxThinking ? 16_000 : undefined
+
           const counter = phaseCounterMiddleware()
 
           if (stream) {
@@ -276,6 +297,7 @@ export const Route = createFileRoute('/api/structured-output')({
               stream: true,
               middleware: [counter.middleware],
               abortController,
+              ...(maxTokens !== undefined && { maxTokens }),
             }) as AsyncIterable<StreamChunk>
             const withCounts = withTrailingPhaseCounts(
               streamIterable,
@@ -298,6 +320,7 @@ export const Route = createFileRoute('/api/structured-output')({
             outputSchema: GuitarRecommendationSchema,
             middleware: [counter.middleware],
             abortController,
+            ...(maxTokens !== undefined && { maxTokens }),
           })
 
           return new Response(
