@@ -144,8 +144,10 @@ export interface ChatMiddlewareConfig {
  * vendor-incompatible keywords) by returning a partial that includes
  * `outputSchema`.
  */
-export interface StructuredOutputMiddlewareConfig
-  extends Omit<ChatMiddlewareConfig, 'tools'> {
+export interface StructuredOutputMiddlewareConfig extends Omit<
+  ChatMiddlewareConfig,
+  'tools'
+> {
   /** JSON Schema being sent to the provider for structured output. */
   outputSchema: JSONSchema
 }

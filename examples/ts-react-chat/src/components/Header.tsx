@@ -210,7 +210,6 @@ export default function Header() {
             <Mic size={20} />
             <span className="font-medium">Voice Chat (Realtime)</span>
           </Link>
-
         </nav>
       </aside>
     </>

@@ -186,9 +186,11 @@ function StructuredOutputPage() {
         const payload = await response.json()
         setResult(payload.data as PartialResult)
         setHasFinalResult(true)
-        const diag = (payload as {
-          _diagnostics?: { phaseCounts?: Record<string, number> }
-        })._diagnostics
+        const diag = (
+          payload as {
+            _diagnostics?: { phaseCounts?: Record<string, number> }
+          }
+        )._diagnostics
         if (diag?.phaseCounts) {
           setPhaseCounts(diag.phaseCounts)
         }
