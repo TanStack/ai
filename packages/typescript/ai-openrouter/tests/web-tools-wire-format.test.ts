@@ -30,9 +30,9 @@ let mockSend: any
 
 // eslint-disable-next-line @typescript-eslint/require-await
 vi.mock('@openrouter/sdk', async () => {
-  function OpenRouter(
-    this: { chat: { send: (...args: Array<unknown>) => unknown } },
-  ) {
+  function OpenRouter(this: {
+    chat: { send: (...args: Array<unknown>) => unknown }
+  }) {
     this.chat = {
       send: (...args: Array<unknown>) => mockSend(...args),
     }

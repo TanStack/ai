@@ -40,16 +40,23 @@ export const Route = createFileRoute('/api/openrouter-web-tools-wire')({
           })
         }
 
-        const adapter = createOpenRouterText('openai/gpt-4o' as never, DUMMY_KEY, {
-          serverURL: `${LLMOCK_DEFAULT_BASE}/v1`,
-          httpClient,
-        })
+        const adapter = createOpenRouterText(
+          'openai/gpt-4o' as never,
+          DUMMY_KEY,
+          {
+            serverURL: `${LLMOCK_DEFAULT_BASE}/v1`,
+            httpClient,
+          },
+        )
 
         try {
           for await (const _ of chat({
             ...createChatOptions({ adapter }),
             messages: [
-              { role: 'user', content: '[wire-test] check tools serialization' },
+              {
+                role: 'user',
+                content: '[wire-test] check tools serialization',
+              },
             ],
             tools: [
               webSearchTool({

@@ -37,7 +37,9 @@ describe('webFetchTool()', () => {
   it('accepts a no-options call (parameters omitted from metadata)', () => {
     const tool = webFetchTool()
     expect(isWebFetchTool(tool as unknown as Tool)).toBe(true)
-    expect((tool.metadata as { parameters?: unknown }).parameters).toBeUndefined()
+    expect(
+      (tool.metadata as { parameters?: unknown }).parameters,
+    ).toBeUndefined()
   })
 })
 
