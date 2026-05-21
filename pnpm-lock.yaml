@@ -1368,8 +1368,8 @@ importers:
   packages/typescript/ai-openrouter:
     dependencies:
       '@openrouter/sdk':
-        specifier: 0.12.14
-        version: 0.12.14
+        specifier: 0.12.35
+        version: 0.12.35
       '@tanstack/ai-utils':
         specifier: workspace:*
         version: link:../ai-utils
@@ -1768,8 +1768,8 @@ importers:
         specifier: ^1.18.0
         version: 1.18.0(vitest@4.1.4(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jsdom@27.3.0(postcss@8.5.9))(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)))
       '@openrouter/sdk':
-        specifier: 0.12.14
-        version: 0.12.14
+        specifier: 0.12.35
+        version: 0.12.35
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.1
@@ -3733,8 +3733,8 @@ packages:
     resolution: {integrity: sha512-T8TbSnGsxo6TDBJx/Sgv/BlVJL3tshxZP7Aq5R1mSnM5OcHY2dQaxLMu2+E8u3gN0MLOzdjurqN4ZRVuzQycOQ==}
     engines: {node: '>=8.0'}
 
-  '@openrouter/sdk@0.12.14':
-    resolution: {integrity: sha512-G32CZ1IkmtsGfQF7/mzcvt7W0Lmd6HUHFGjDWv5knBvL6sJcMmX6i3VPSIpHQYSgEqRQSxFuDROP6iErTu7XcA==}
+  '@openrouter/sdk@0.12.35':
+    resolution: {integrity: sha512-s4QVLLnG1AmfW3TjnnHUqGfsCkzwVK+kboGcZmKbde09m1DPqgzl4RUFt/HJ5v97MX8aEaN0UG3mKv2S+qj2Gw==}
 
   '@opentelemetry/api@1.9.1':
     resolution: {integrity: sha512-gLyJlPHPZYdAk1JENA9LeHejZe1Ti77/pTeFm/nMXmQH/HFZlcS/O2XJB+L8fkbrNSqhdtlvjBVjxwUYanNH5Q==}
@@ -13933,7 +13933,7 @@ snapshots:
 
   '@oozcitak/util@8.3.8': {}
 
-  '@openrouter/sdk@0.12.14':
+  '@openrouter/sdk@0.12.35':
     dependencies:
       zod: 4.3.6
 

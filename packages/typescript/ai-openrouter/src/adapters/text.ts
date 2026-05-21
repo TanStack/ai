@@ -1153,14 +1153,7 @@ export class OpenRouterTextAdapter<
         maxCompletionTokens: options.maxTokens,
       }),
       ...(options.topP !== undefined && { topP: options.topP }),
-      // Cast at the SDK boundary: the SDK's `ChatRequest.tools` is typed as
-      // `Array<ChatFunctionTool>`, whose union accidentally accepts the
-      // existing `WebSearchToolConfig` shape (because `'web_search'` happens
-      // to be in `ChatWebSearchShorthandType`) but not the new
-      // `WebFetchToolConfig` shape — the SDK does not yet declare an input
-      // type for `openrouter:web_fetch`.
-      ...(tools &&
-        tools.length > 0 && { tools: tools as ChatRequest['tools'] }),
+      ...(tools && tools.length > 0 && { tools }),
     }
     return request
   }

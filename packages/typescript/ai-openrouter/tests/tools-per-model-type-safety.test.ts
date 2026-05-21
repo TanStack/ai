@@ -46,7 +46,7 @@ describe('OpenRouter per-model tool gating', () => {
     const adapter = openRouterText('openai/gpt-4o')
     typedTools(adapter, [
       userTool,
-      webSearchTool({ engine: 'exa', searchPrompt: 'latest news' }),
+      webSearchTool({ engine: 'exa', maxTotalResults: 20 }),
     ])
   })
 

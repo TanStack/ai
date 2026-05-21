@@ -1,4 +1,5 @@
 import { brandProviderTool } from '@tanstack/ai'
+import type { WebFetchServerTool } from '@openrouter/sdk/models'
 import type { ProviderTool, Tool } from '@tanstack/ai'
 
 /**
@@ -9,26 +10,13 @@ import type { ProviderTool, Tool } from '@tanstack/ai'
 export const WEB_FETCH_TOOL_KIND = 'openrouter.web_fetch'
 
 /**
- * OpenRouter `openrouter:web_fetch` server-tool wire shape.
+ * Wire shape for OpenRouter's `openrouter:web_fetch` server tool, sourced
+ * directly from `@openrouter/sdk`'s `WebFetchServerTool` so the SDK's outbound
+ * Zod schema preserves every field on the wire.
  *
- * Mirrors the nested shape used by {@link WebSearchToolConfig} — the
- * `@openrouter/sdk` does not yet declare an input type for `web_fetch`, only
- * the output item (`OutputWebFetchServerToolItem`). If OpenRouter requires the
- * flat `{type: "openrouter:web_fetch", ...}` namespacing shown in their
- * announcement, both this and `webSearchTool()` should be flipped together to
- * keep the package consistent.
- *
- * @see https://openrouter.ai/announcements/agentic-web-tools
+ * @see https://openrouter.ai/docs/guides/features/server-tools/web-fetch
  */
-export interface WebFetchToolConfig {
-  type: 'web_fetch'
-  web_fetch: {
-    engine?: 'auto' | 'native' | 'openrouter' | 'exa' | 'parallel'
-    max_content_tokens?: number
-    allowed_domains?: Array<string>
-    blocked_domains?: Array<string>
-  }
-}
+export type WebFetchToolConfig = WebFetchServerTool
 
 export type OpenRouterWebFetchTool = ProviderTool<'openrouter', 'web_fetch'>
 
@@ -49,25 +37,19 @@ export function convertWebFetchToolToAdapterFormat(
   const metadata = tool.metadata as
     | {
         __kind?: unknown
-        type?: unknown
-        web_fetch?: unknown
+        parameters?: WebFetchServerTool['parameters']
       }
     | undefined
-  if (
-    !metadata ||
-    metadata.__kind !== WEB_FETCH_TOOL_KIND ||
-    metadata.type !== 'web_fetch' ||
-    typeof metadata.web_fetch !== 'object' ||
-    metadata.web_fetch === null ||
-    Array.isArray(metadata.web_fetch)
-  ) {
+  if (!metadata || metadata.__kind !== WEB_FETCH_TOOL_KIND) {
     throw new Error(
       `convertWebFetchToolToAdapterFormat: tool "${tool.name}" is not a valid webFetchTool() output (missing branded metadata).`,
     )
   }
   return {
-    type: 'web_fetch',
-    web_fetch: metadata.web_fetch,
+    type: 'openrouter:web_fetch',
+    ...(metadata.parameters !== undefined && {
+      parameters: metadata.parameters,
+    }),
   }
 }
 
@@ -77,29 +59,22 @@ export function convertWebFetchToolToAdapterFormat(
  * The web fetch tool is available across all OpenRouter chat models via the
  * OpenRouter gateway. The model decides which URL to fetch; the `engine`
  * option chooses how OpenRouter retrieves it. With `engine: 'native'` the
- * provider's own fetch is used (e.g. Anthropic's web_fetch on Claude models),
- * in which case `allowed_domains` / `blocked_domains` may not be respected.
+ * provider's own fetch is used (e.g. Anthropic's `web_fetch` on Claude
+ * models), in which case `allowedDomains` / `blockedDomains` may not be
+ * respected. Use `'openrouter'`, `'exa'`, or `'firecrawl'` for consistent
+ * behaviour across models.
  *
  * Pass the returned value in the `tools` array when calling a chat function.
  */
-export function webFetchTool(options?: {
-  engine?: 'auto' | 'native' | 'openrouter' | 'exa' | 'parallel'
-  maxContentTokens?: number
-  allowedDomains?: Array<string>
-  blockedDomains?: Array<string>
-}): OpenRouterWebFetchTool {
+export function webFetchTool(
+  options?: WebFetchServerTool['parameters'],
+): OpenRouterWebFetchTool {
   return brandProviderTool<OpenRouterWebFetchTool>({
     name: 'web_fetch',
     description: '',
     metadata: {
       __kind: WEB_FETCH_TOOL_KIND,
-      type: 'web_fetch' as const,
-      web_fetch: {
-        engine: options?.engine,
-        max_content_tokens: options?.maxContentTokens,
-        allowed_domains: options?.allowedDomains,
-        blocked_domains: options?.blockedDomains,
-      },
+      ...(options !== undefined && { parameters: options }),
     },
   })
 }

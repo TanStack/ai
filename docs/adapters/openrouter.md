@@ -189,9 +189,12 @@ any proxied chat model. Import it from `@tanstack/ai-openrouter/tools`.
 
 ### `webSearchTool`
 
-Adds web search capability to any OpenRouter-proxied chat model. Choose the
-search `engine` (`native` or `exa`), cap results with `maxResults`, and
-optionally provide a `searchPrompt` to guide query formation.
+Adds web search capability to any OpenRouter-proxied chat model. The factory
+accepts OpenRouter's `WebSearchConfig` directly — pick the `engine`
+(`auto`, `native`, `exa`, `firecrawl`, or `parallel`), cap results with
+`maxResults` / `maxTotalResults`, restrict which sites can appear in results
+with `allowedDomains` / `excludedDomains`, and optionally pass
+`searchContextSize` or `userLocation` for finer control.
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -205,7 +208,7 @@ const stream = chat({
     webSearchTool({
       engine: "exa",
       maxResults: 5,
-      searchPrompt: "Recent AI news and research papers",
+      allowedDomains: ["arxiv.org", "openai.com"],
     }),
   ],
 });
@@ -216,15 +219,17 @@ const stream = chat({
 ### `webFetchTool`
 
 Lets any OpenRouter-proxied chat model fetch the full contents of a URL the
-model chooses, instead of running a search. Pick the fetch `engine`
-(`auto` — the default, `native`, `openrouter`, `exa`, or `parallel`), cap how
-much page content the model receives with `maxContentTokens`, and restrict
-which URLs the model can fetch with `allowedDomains` / `blockedDomains`.
+model chooses, instead of running a search. The factory accepts OpenRouter's
+`WebFetchServerToolConfig` directly — pick the fetch `engine` (`auto` — the
+default, `native`, `openrouter`, `exa`, or `firecrawl`), cap how much page
+content the model receives with `maxContentTokens`, cap how many fetches the
+model can make per request with `maxUses`, and restrict which URLs the model
+can fetch with `allowedDomains` / `blockedDomains`.
 
 > The `native` engine routes to the underlying provider's own fetch (for
 > example, Anthropic's `web_fetch` on Claude models). Native fetch
 > capabilities vary, so `allowedDomains` and `blockedDomains` may be
-> ignored. Use `openrouter`, `exa`, or `parallel` if you need consistent
+> ignored. Use `openrouter`, `exa`, or `firecrawl` if you need consistent
 > behaviour across models.
 
 ```typescript

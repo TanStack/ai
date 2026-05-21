@@ -11,37 +11,33 @@ import { convertToolsToProviderFormat } from '../src/tools/tool-converter'
 import type { Tool } from '@tanstack/ai'
 
 describe('webFetchTool()', () => {
-  it('produces a branded tool with snake_case wire keys', () => {
+  it('produces a branded tool whose metadata carries the SDK parameters', () => {
     const tool = webFetchTool({
       engine: 'native',
       maxContentTokens: 4000,
       allowedDomains: ['example.com'],
       blockedDomains: ['evil.example'],
+      maxUses: 3,
     })
     expect(tool.name).toBe('web_fetch')
     expect((tool.metadata as { __kind?: string }).__kind).toBe(
       WEB_FETCH_TOOL_KIND,
     )
     expect(tool.metadata).toMatchObject({
-      type: 'web_fetch',
-      web_fetch: {
+      parameters: {
         engine: 'native',
-        max_content_tokens: 4000,
-        allowed_domains: ['example.com'],
-        blocked_domains: ['evil.example'],
+        maxContentTokens: 4000,
+        allowedDomains: ['example.com'],
+        blockedDomains: ['evil.example'],
+        maxUses: 3,
       },
     })
   })
 
-  it('accepts a no-options call (all fields optional)', () => {
+  it('accepts a no-options call (parameters omitted from metadata)', () => {
     const tool = webFetchTool()
     expect(isWebFetchTool(tool as unknown as Tool)).toBe(true)
-    expect((tool.metadata as { web_fetch: unknown }).web_fetch).toEqual({
-      engine: undefined,
-      max_content_tokens: undefined,
-      allowed_domains: undefined,
-      blocked_domains: undefined,
-    })
+    expect((tool.metadata as { parameters?: unknown }).parameters).toBeUndefined()
   })
 })
 
@@ -70,55 +66,50 @@ describe('isWebFetchTool()', () => {
 })
 
 describe('convertWebFetchToolToAdapterFormat()', () => {
-  it('returns the OpenRouter wire shape for a valid branded tool', () => {
+  it('emits the openrouter:web_fetch wire shape with parameters preserved', () => {
     const wireShape = convertWebFetchToolToAdapterFormat(
-      webFetchTool({ engine: 'exa', maxContentTokens: 2000 }) as unknown as Tool,
+      webFetchTool({
+        engine: 'exa',
+        maxContentTokens: 2000,
+      }) as unknown as Tool,
     )
     expect(wireShape).toEqual({
-      type: 'web_fetch',
-      web_fetch: {
+      type: 'openrouter:web_fetch',
+      parameters: {
         engine: 'exa',
-        max_content_tokens: 2000,
-        allowed_domains: undefined,
-        blocked_domains: undefined,
+        maxContentTokens: 2000,
       },
     })
+  })
+
+  it('omits parameters when the factory was called with no options', () => {
+    const wireShape = convertWebFetchToolToAdapterFormat(
+      webFetchTool() as unknown as Tool,
+    )
+    expect(wireShape).toEqual({ type: 'openrouter:web_fetch' })
   })
 
   it('throws on a tool missing the brand marker', () => {
     const unbranded: Tool = {
       name: 'web_fetch',
       description: '',
-      metadata: { type: 'web_fetch', web_fetch: {} },
+      metadata: { parameters: {} },
     }
     expect(() => convertWebFetchToolToAdapterFormat(unbranded)).toThrow(
       /not a valid webFetchTool/,
     )
   })
-
-  it('throws on a tool with mismatched metadata.type', () => {
-    const wrongType: Tool = {
-      name: 'web_fetch',
-      description: '',
-      metadata: {
-        __kind: WEB_FETCH_TOOL_KIND,
-        type: 'web_search',
-        web_fetch: {},
-      },
-    }
-    expect(() => convertWebFetchToolToAdapterFormat(wrongType)).toThrow()
-  })
 })
 
 describe('convertToolsToProviderFormat()', () => {
-  it('routes webFetchTool() to the web_fetch wire branch', () => {
+  it('routes webFetchTool() to the openrouter:web_fetch wire branch', () => {
     const out = convertToolsToProviderFormat([
       webFetchTool({ engine: 'openrouter' }) as unknown as Tool,
     ])
     expect(out).toHaveLength(1)
     expect(out[0]).toMatchObject({
-      type: 'web_fetch',
-      web_fetch: { engine: 'openrouter' },
+      type: 'openrouter:web_fetch',
+      parameters: { engine: 'openrouter' },
     })
   })
 
@@ -134,6 +125,6 @@ describe('convertToolsToProviderFormat()', () => {
     ])
     expect(out).toHaveLength(2)
     expect((out[0] as { type: string }).type).toBe('function')
-    expect((out[1] as { type: string }).type).toBe('web_fetch')
+    expect((out[1] as { type: string }).type).toBe('openrouter:web_fetch')
   })
 })
