@@ -1,5 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { chat, createChatOptions, maxIterations, toolDefinition } from '@tanstack/ai'
+import {
+  chat,
+  createChatOptions,
+  maxIterations,
+  toolDefinition,
+} from '@tanstack/ai'
 import { createAnthropicChat } from '@tanstack/ai-anthropic'
 import { webFetchTool } from '@tanstack/ai-anthropic/tools'
 import { z } from 'zod'
