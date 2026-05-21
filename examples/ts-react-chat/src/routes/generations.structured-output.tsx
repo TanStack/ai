@@ -40,24 +40,16 @@ const PROVIDER_MODELS: Record<
   // Anthropic: Claude 4.5+ models stream the schema-constrained JSON
   // natively via the #605 combined-mode path
   // (`output_config.format` + `tools` in one beta Messages call). Older
-  // models would fall back to the forced-tool-use workaround in
+  // models fall back to the forced-tool-use workaround in
   // `structuredOutput` (no real streaming), so they're omitted here.
-  //
-  // ⚠ Model-meta currently uses dash separators for 4.5 / 4.6 base
-  // releases (`claude-opus-4-6`) but dot separators for the *fast* variants
-  // and the 4.7 line (`claude-opus-4.7`, `claude-opus-4.7-fast`). The
-  // values below mirror the canonical ids from `ai-anthropic/model-meta` —
-  // changing them will silently break combined-mode routing because the
-  // `ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS` set keys on the exact
-  // string match.
   anthropic: [
     { value: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
     { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
     { value: 'claude-opus-4-5', label: 'Claude Opus 4.5' },
     { value: 'claude-opus-4-6', label: 'Claude Opus 4.6' },
-    { value: 'claude-opus-4.6-fast', label: 'Claude Opus 4.6 Fast' },
-    { value: 'claude-opus-4.7', label: 'Claude Opus 4.7' },
-    { value: 'claude-opus-4.7-fast', label: 'Claude Opus 4.7 Fast' },
+    { value: 'claude-opus-4-6-fast', label: 'Claude Opus 4.6 Fast' },
+    { value: 'claude-opus-4-7', label: 'Claude Opus 4.7' },
+    { value: 'claude-opus-4-7-fast', label: 'Claude Opus 4.7 Fast' },
     { value: 'claude-haiku-4-5', label: 'Claude Haiku 4.5' },
   ],
   grok: [

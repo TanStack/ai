@@ -516,8 +516,8 @@ const CLAUDE_HAIKU_3 = {
   : unknown */
 
 const CLAUDE_OPUS_4_6_FAST = {
-  name: 'claude-opus-4.6-fast',
-  id: 'claude-opus-4.6-fast',
+  name: 'claude-opus-4-6-fast',
+  id: 'claude-opus-4-6-fast',
   context_window: 1_000_000,
   max_output_tokens: 128_000,
   supports: {
@@ -555,8 +555,8 @@ const CLAUDE_OPUS_4_6_FAST = {
 >
 
 const CLAUDE_OPUS_4_7 = {
-  name: 'claude-opus-4.7',
-  id: 'claude-opus-4.7',
+  name: 'claude-opus-4-7',
+  id: 'claude-opus-4-7',
   context_window: 1_000_000,
   max_output_tokens: 128_000,
   supports: {
@@ -594,8 +594,8 @@ const CLAUDE_OPUS_4_7 = {
 >
 
 const CLAUDE_OPUS_4_7_FAST = {
-  name: 'claude-opus-4.7-fast',
-  id: 'claude-opus-4.7-fast',
+  name: 'claude-opus-4-7-fast',
+  id: 'claude-opus-4-7-fast',
   context_window: 1_000_000,
   max_output_tokens: 128_000,
   supports: {
