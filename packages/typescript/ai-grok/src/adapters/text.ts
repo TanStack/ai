@@ -79,6 +79,17 @@ export class GrokTextAdapter<
     }
     return undefined
   }
+
+  /**
+   * Grok's combined tools + schema support is gated to the Grok 4 family
+   * per xAI's structured-output docs; Grok 2/3 reject the combination.
+   * Pinning to `false` here preserves the legacy finalization path for
+   * every Grok model until per-model gating lands as a follow-up — see
+   * issue #605.
+   */
+  override supportsCombinedToolsAndSchema(): boolean {
+    return false
+  }
 }
 
 /**

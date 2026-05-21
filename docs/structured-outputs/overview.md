@@ -82,6 +82,18 @@ provider call in addition to the agent loop. Chunks from the structured-output
 adapter are attributed to `ctx.phase === 'structuredOutput'`; `onFinish` fires
 exactly once at the end of the entire run.
 
+> **Path-dependent:** Adapters that natively combine `tools` + a schema-
+> constrained final answer in one streaming call (modern OpenAI Chat
+> Completions, OpenAI Responses, Claude 4.5+) do **not** issue a separate
+> finalization round-trip. The engine wires `outputSchema` into the regular
+> `chatStream` request and harvests the structured result from the agent
+> loop's final-turn text. On this path the `'structuredOutput'` middleware
+> phase does **not** fire — middleware sees the run through `'beforeModel'`
+> / `'modelStream'` as usual, and `onStructuredOutputConfig` is not invoked.
+> Adapters without native combined-mode support (Anthropic 4.4-, Groq,
+> Ollama, Gemini 2.x, Grok 2/3) keep the legacy finalization path and the
+> `'structuredOutput'` phase fires as before.
+
 ### Observing structured-output chunks
 
 ```ts

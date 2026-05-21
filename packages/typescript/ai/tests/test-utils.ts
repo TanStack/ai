@@ -157,6 +157,11 @@ export function createMockAdapter(options: {
    *  has no `structuredOutputStream` and consumers fall through to the
    *  synthesized fallback in `runStructuredFinalization`. */
   structuredOutputStream?: (opts: any) => AsyncIterable<StreamChunk>
+  /** When true, the adapter declares it natively combines tools + a
+   *  schema-constrained final answer in one streaming call (issue #605).
+   *  The engine then forwards `outputSchema` into `chatStream` and skips
+   *  the separate finalization round-trip. */
+  supportsCombinedToolsAndSchema?: boolean
 }) {
   const calls: Array<TextOptions<any, any>> = []
   let callIndex = 0
@@ -202,6 +207,10 @@ export function createMockAdapter(options: {
 
   if (options.structuredOutputStream) {
     adapter.structuredOutputStream = options.structuredOutputStream
+  }
+
+  if (options.supportsCombinedToolsAndSchema) {
+    adapter.supportsCombinedToolsAndSchema = () => true
   }
 
   return { adapter, calls }

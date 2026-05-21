@@ -123,6 +123,29 @@ export interface TextAdapter<
   structuredOutputStream?: (
     options: StructuredOutputOptions<TProviderOptions>,
   ) => AsyncIterable<StreamChunk>
+
+  /**
+   * Declares whether the adapter supports combining `tools` and a
+   * schema-constrained final answer in a single streaming request.
+   *
+   * When `true`, the engine wires `outputSchema` into the regular
+   * `chatStream()` call and skips the separate `runStructuredFinalization`
+   * round-trip. The model's natural final turn carries the
+   * schema-constrained JSON text and the engine harvests it from the agent
+   * loop's accumulated content.
+   *
+   * When `false`, `undefined`, or the method is omitted, the engine runs
+   * the agent loop without `outputSchema` and then issues a separate
+   * `structuredOutput` / `structuredOutputStream` call against the JSON
+   * schema for finalization (the legacy path).
+   *
+   * The method receives the per-call `modelOptions` so providers whose
+   * support depends on the resolved upstream model (e.g. OpenRouter) can
+   * answer per-request. Most adapters can return a constant.
+   */
+  supportsCombinedToolsAndSchema?: (
+    modelOptions?: TProviderOptions | undefined,
+  ) => boolean
 }
 
 /**

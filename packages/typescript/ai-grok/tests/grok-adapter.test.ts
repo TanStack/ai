@@ -106,6 +106,16 @@ describe('Grok adapters', () => {
 
       expect(adapter).toBeDefined()
     })
+
+    it('opts out of native combined tools+schema mode pending per-model gating (#605)', () => {
+      // The OpenAI Chat Completions base defaults to `true`. The Grok
+      // override forces `false` for every model until per-family gating
+      // (Grok 4.x yes, Grok 2/3 no) lands as a follow-up.
+      const grok3 = createGrokText('grok-3', 'test-api-key')
+      const grok4 = createGrokText('grok-4', 'test-api-key')
+      expect(grok3.supportsCombinedToolsAndSchema()).toBe(false)
+      expect(grok4.supportsCombinedToolsAndSchema()).toBe(false)
+    })
   })
 
   describe('Image adapter', () => {

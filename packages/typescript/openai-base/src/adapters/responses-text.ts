@@ -1608,6 +1608,33 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
     const modelOptions = options.modelOptions
 
+    // Native combined mode (issue #605): when the engine threads
+    // `outputSchema` through TextOptions, the adapter declared
+    // `supportsCombinedToolsAndSchema` and the schema is already JSON Schema
+    // (pre-converted at the activity boundary). Wire it into `text.format`
+    // alongside any `tools` — the Responses API supports both together and
+    // emits the schema-constrained text on the natural final turn.
+    const combinedSchema = options.outputSchema as
+      | Record<string, unknown>
+      | undefined
+    const textFormat = combinedSchema
+      ? {
+          text: {
+            format: {
+              type: 'json_schema' as const,
+              name: 'structured_output',
+              schema: this.makeStructuredOutputCompatible(
+                combinedSchema,
+                Array.isArray(combinedSchema.required)
+                  ? (combinedSchema.required as Array<string>)
+                  : undefined,
+              ),
+              strict: true,
+            },
+          },
+        }
+      : undefined
+
     // Spread modelOptions first, then explicit top-level options when set.
     // Mirrors the chat-completions base adapter's precedence so callers
     // tuning either backend get identical behaviour. Leaving `modelOptions`
@@ -1635,7 +1662,17 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       // Conditional spread: `tools: undefined` would clobber any
       // modelOptions.tools the caller set above.
       ...(tools && tools.length > 0 && { tools }),
+      ...(textFormat ?? {}),
     }
+  }
+
+  /**
+   * The OpenAI Responses API supports `tools` and `text.format: json_schema`
+   * together in a single streaming request (per issue #605). Subclasses
+   * that route to providers without this capability should override.
+   */
+  supportsCombinedToolsAndSchema(): boolean {
+    return true
   }
 
   /**

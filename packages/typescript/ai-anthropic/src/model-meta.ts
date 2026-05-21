@@ -652,6 +652,24 @@ export const ANTHROPIC_MODELS = [
   CLAUDE_OPUS_4_7_FAST.id,
 ] as const
 
+/**
+ * Anthropic models that support combining `tools` + JSON-Schema-constrained
+ * output in a single streaming Messages request (per issue #605). GA'd
+ * 2026-01-29 for Claude 4.5+ via `output_format` on the beta messages
+ * endpoint. Older Claude models still need the forced-tool-use workaround
+ * in `structuredOutput`.
+ */
+export const ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS = new Set<string>([
+  CLAUDE_OPUS_4_5.id,
+  CLAUDE_OPUS_4_6.id,
+  CLAUDE_OPUS_4_6_FAST.id,
+  CLAUDE_OPUS_4_7.id,
+  CLAUDE_OPUS_4_7_FAST.id,
+  CLAUDE_SONNET_4_5.id,
+  CLAUDE_SONNET_4_6.id,
+  CLAUDE_HAIKU_4_5.id,
+])
+
 // const ANTHROPIC_IMAGE_MODELS = [] as const
 // const ANTHROPIC_EMBEDDING_MODELS = [] as const
 // const ANTHROPIC_AUDIO_MODELS = [] as const

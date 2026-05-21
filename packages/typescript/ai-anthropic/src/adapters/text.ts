@@ -7,6 +7,7 @@ import {
   generateId,
   getAnthropicApiKeyFromEnv,
 } from '../utils'
+import { ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS } from '../model-meta'
 import type {
   ANTHROPIC_MODELS,
   AnthropicChatModelProviderOptionsByName,
@@ -370,6 +371,25 @@ export class AnthropicTextAdapter<
         }),
       )
     })()
+    // Native combined mode (issue #605): when the engine threads
+    // `outputSchema` through TextOptions, the adapter declared
+    // `supportsCombinedToolsAndSchema` (Claude 4.5+ only). The schema is
+    // already JSON Schema (pre-converted at the activity boundary). Wire
+    // it into the beta Messages `output_format` field alongside any
+    // `tools` — the model emits tool calls during the agent loop and
+    // a single schema-constrained JSON message on its natural final turn.
+    const combinedSchema = options.outputSchema as
+      | Record<string, unknown>
+      | undefined
+    const outputFormat = combinedSchema
+      ? {
+          output_format: {
+            type: 'json_schema' as const,
+            schema: combinedSchema,
+          },
+        }
+      : undefined
+
     // `InternalTextProviderOptions` declares `temperature`, `top_p`,
     // and `tools` as `T?: ...` (no `| undefined`), so spread them
     // conditionally rather than passing explicit `undefined` from the
@@ -386,9 +406,20 @@ export class AnthropicTextAdapter<
       ...(systemBlocks !== undefined && { system: systemBlocks }),
       ...(tools !== undefined && { tools }),
       ...validProviderOptions,
+      ...(outputFormat ?? {}),
     }
     validateTextProviderOptions(requestParams)
     return requestParams
+  }
+
+  /**
+   * Anthropic supports `output_format` + `tools` in a single streaming
+   * Messages request only for Claude 4.5+ (GA 2026-01-29). For 4.4 and
+   * earlier we keep the forced-tool-use workaround in
+   * {@link structuredOutput} via the engine's finalization path.
+   */
+  supportsCombinedToolsAndSchema(): boolean {
+    return ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(this.model)
   }
 
   private convertContentPartToAnthropic(
