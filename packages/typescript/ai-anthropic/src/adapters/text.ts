@@ -375,17 +375,28 @@ export class AnthropicTextAdapter<
     // `outputSchema` through TextOptions, the adapter declared
     // `supportsCombinedToolsAndSchema` (Claude 4.5+ only). The schema is
     // already JSON Schema (pre-converted at the activity boundary). Wire
-    // it into the beta Messages `output_format` field alongside any
-    // `tools` — the model emits tool calls during the agent loop and
-    // a single schema-constrained JSON message on its natural final turn.
+    // it into the beta Messages `output_config.format` field alongside
+    // any `tools` — the model emits tool calls during the agent loop
+    // and a single schema-constrained JSON message on its natural final
+    // turn.
+    //
+    // (Anthropic deprecated the top-level `output_format` field in
+    // favour of `output_config.format` — see
+    // https://platform.claude.com/docs/en/build-with-claude/structured-outputs.
+    // We merge into any existing `output_config` from `modelOptions` so
+    // callers can keep tuning `output_config.effort` alongside the
+    // schema.)
     const combinedSchema = options.outputSchema as
       | Record<string, unknown>
       | undefined
-    const outputFormat = combinedSchema
+    const outputConfig = combinedSchema
       ? {
-          output_format: {
-            type: 'json_schema' as const,
-            schema: combinedSchema,
+          output_config: {
+            ...(validProviderOptions.output_config ?? {}),
+            format: {
+              type: 'json_schema' as const,
+              schema: combinedSchema,
+            },
           },
         }
       : undefined
@@ -406,14 +417,14 @@ export class AnthropicTextAdapter<
       ...(systemBlocks !== undefined && { system: systemBlocks }),
       ...(tools !== undefined && { tools }),
       ...validProviderOptions,
-      ...(outputFormat ?? {}),
+      ...(outputConfig ?? {}),
     }
     validateTextProviderOptions(requestParams)
     return requestParams
   }
 
   /**
-   * Anthropic supports `output_format` + `tools` in a single streaming
+   * Anthropic supports `output_config.format` + `tools` in a single streaming
    * Messages request only for Claude 4.5+ (GA 2026-01-29). For 4.4 and
    * earlier we keep the forced-tool-use workaround in
    * {@link structuredOutput} via the engine's finalization path.

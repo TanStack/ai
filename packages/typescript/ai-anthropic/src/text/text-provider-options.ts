@@ -226,12 +226,21 @@ export interface InternalTextProviderOptions extends ExternalTextProviderOptions
    * `supportsCombinedToolsAndSchema` and a caller passed `outputSchema`
    * to `chat()`. The model emits tool calls during the agent loop and a
    * schema-matching JSON message on the natural final turn — no separate
-   * finalization round-trip needed. Wire-format mirrors
-   * `BetaJSONOutputFormat` from `@anthropic-ai/sdk/resources/beta/messages`.
+   * finalization round-trip needed.
+   *
+   * The SDK type (`BetaOutputConfig`) currently exposes only `effort`;
+   * `format` is accepted at runtime per the deprecation notice on the
+   * older `output_format` field
+   * (https://platform.claude.com/docs/en/build-with-claude/structured-outputs).
+   * We type it explicitly here so the adapter call site doesn't need a
+   * cast.
    */
-  output_format?: {
-    type: 'json_schema'
-    schema: Record<string, unknown>
+  output_config?: {
+    effort?: 'low' | 'medium' | 'high' | null
+    format?: {
+      type: 'json_schema'
+      schema: Record<string, unknown>
+    }
   }
 
   /**

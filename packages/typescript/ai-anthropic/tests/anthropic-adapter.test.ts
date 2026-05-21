@@ -419,9 +419,11 @@ describe('Anthropic adapter option mapping', () => {
     const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
     expect(payload).toMatchObject({
       model: 'claude-sonnet-4-5',
-      output_format: {
-        type: 'json_schema',
-        schema: expect.objectContaining({ type: 'object' }),
+      output_config: {
+        format: {
+          type: 'json_schema',
+          schema: expect.objectContaining({ type: 'object' }),
+        },
       },
     })
     expect(payload.tools?.[0]).toMatchObject({
