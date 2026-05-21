@@ -16252,7 +16252,10 @@ export const OPENROUTER_CHAT_MODELS = [
 ] as const
 
 export type OpenRouterChatModelToolCapabilitiesByName = {
-  [K in (typeof OPENROUTER_CHAT_MODELS)[number]]: readonly ['web_search']
+  [K in (typeof OPENROUTER_CHAT_MODELS)[number]]: readonly [
+    'web_search',
+    'web_fetch',
+  ]
 }
 
 export const OPENROUTER_IMAGE_MODELS = [

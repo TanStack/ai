@@ -8,7 +8,7 @@ import { beforeAll, describe, it } from 'vitest'
 import { z } from 'zod'
 import { toolDefinition } from '@tanstack/ai'
 import { openRouterText } from '../src'
-import { webSearchTool } from '../src/tools'
+import { webSearchTool, webFetchTool } from '../src/tools'
 import type { TextActivityOptions } from '@tanstack/ai/adapters'
 import type { ProviderTool } from '@tanstack/ai'
 
@@ -46,7 +46,27 @@ describe('OpenRouter per-model tool gating', () => {
     const adapter = openRouterText('openai/gpt-4o')
     typedTools(adapter, [
       userTool,
-      webSearchTool({ engine: 'exa', searchPrompt: 'latest news' }),
+      webSearchTool({ engine: 'exa', maxTotalResults: 20 }),
+    ])
+  })
+
+  it('anthropic/claude-opus-4.6 accepts webFetchTool and user-defined tools', () => {
+    const adapter = openRouterText('anthropic/claude-opus-4.6')
+    typedTools(adapter, [
+      userTool,
+      webFetchTool({
+        engine: 'native',
+        maxContentTokens: 4000,
+        allowedDomains: ['example.com'],
+      }),
+    ])
+  })
+
+  it('openai/gpt-4o accepts webFetchTool and user-defined tools', () => {
+    const adapter = openRouterText('openai/gpt-4o')
+    typedTools(adapter, [
+      userTool,
+      webFetchTool({ engine: 'exa', blockedDomains: ['evil.example'] }),
     ])
   })
 
