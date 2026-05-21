@@ -31,6 +31,7 @@ import type {
   URLImageSource,
   URLPDFSource,
 } from '@anthropic-ai/sdk/resources/messages'
+import type { MessageCreateParamsStreaming as BetaMessageCreateParamsStreaming } from '@anthropic-ai/sdk/resources/beta/messages/messages'
 import type Anthropic_SDK from '@anthropic-ai/sdk'
 import type { AnthropicBeta } from '@anthropic-ai/sdk/resources/beta/beta'
 import type {
@@ -155,8 +156,20 @@ export class AnthropicTextAdapter<
         ? ['interleaved-thinking-2025-05-14']
         : undefined
 
+      // Cast at the SDK boundary: the runtime API accepts
+      // `output_config: { effort: 'max', format: {...} }` (verified
+      // against Anthropic's extended-thinking + structured-outputs docs)
+      // but `BetaOutputConfig` in @anthropic-ai/sdk@0.71 only types
+      // `effort` as `'low' | 'medium' | 'high'` and doesn't declare
+      // `format` at all. Both fields ride the same SDK-type-lag issue;
+      // collapse the gap with a single cast here so the rest of
+      // mapCommonOptionsToAnthropic stays strictly typed.
       const stream = await this.client.beta.messages.create(
-        { ...requestParams, stream: true, ...(betas && { betas }) },
+        {
+          ...requestParams,
+          stream: true,
+          ...(betas && { betas }),
+        } as BetaMessageCreateParamsStreaming,
         {
           signal: options.request?.signal,
           headers: options.request?.headers,

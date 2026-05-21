@@ -188,7 +188,7 @@ export interface AnthropicOutputConfigOptions {
    * preserved when the engine adds `format`.
    */
   output_config?: {
-    effort?: 'low' | 'medium' | 'high' | null
+    effort?: 'low' | 'medium' | 'high' | 'max' | null
   }
 }
 
@@ -270,7 +270,7 @@ export interface InternalTextProviderOptions extends ExternalTextProviderOptions
    * cast.
    */
   output_config?: {
-    effort?: 'low' | 'medium' | 'high' | null
+    effort?: 'low' | 'medium' | 'high' | 'max' | null
     format?: {
       type: 'json_schema'
       schema: Record<string, unknown>
