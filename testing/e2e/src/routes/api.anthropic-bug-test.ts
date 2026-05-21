@@ -23,11 +23,9 @@ export const Route = createFileRoute('/api/anthropic-bug-test')({
   server: {
     handlers: {
       POST: async () => {
-        const adapter = createAnthropicChat(
-          'claude-sonnet-4-5',
-          DUMMY_KEY,
-          { baseURL: `${LLMOCK_DEFAULT_BASE}/anthropic-bug-test` },
-        )
+        const adapter = createAnthropicChat('claude-sonnet-4-5', DUMMY_KEY, {
+          baseURL: `${LLMOCK_DEFAULT_BASE}/anthropic-bug-test`,
+        })
 
         // A trivial client tool. The server lookup just echoes back so the
         // agent loop can settle into the follow-up text response.
@@ -43,7 +41,10 @@ export const Route = createFileRoute('/api/anthropic-bug-test')({
             ...createChatOptions({ adapter }),
             tools: [lookupWeather],
             messages: [
-              { role: 'user', content: 'Weather in Berlin and fetch example.com' },
+              {
+                role: 'user',
+                content: 'Weather in Berlin and fetch example.com',
+              },
             ],
             agentLoopStrategy: maxIterations(3),
           })) {

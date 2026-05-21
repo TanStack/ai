@@ -61,7 +61,8 @@ test.describe('anthropic — server_tool_use streaming (#604)', () => {
     // No phantom client tool call for the server-side web_fetch.
     expect(
       toolCallStarts.some(
-        (c) => (c as { toolCallId?: string }).toolCallId === 'srvtoolu_web_fetch',
+        (c) =>
+          (c as { toolCallId?: string }).toolCallId === 'srvtoolu_web_fetch',
       ),
     ).toBe(false)
 
