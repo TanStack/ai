@@ -9,6 +9,7 @@ type Provider =
   | 'openai'
   | 'openai-chat'
   | 'anthropic'
+  | 'gemini'
   | 'grok'
   | 'groq'
   | 'openrouter'
@@ -65,6 +66,27 @@ const PROVIDER_MODELS: Record<
       label: 'Claude Opus 4.7 (Max Thinking)',
     },
     { value: 'claude-haiku-4-5', label: 'Claude Haiku 4.5' },
+  ],
+  // Gemini 3.x stream the schema-constrained JSON natively via the #605
+  // combined-mode path (`responseSchema` + `tools` in one
+  // `generateContentStream`). Gemini 2.x is omitted because the docs
+  // mark the tools-with-schema combination as brittle and the demo would
+  // hit the engine's legacy finalization path instead.
+  //
+  // Naming gotcha: Google uses a dash separator for the major version
+  // (`gemini-3-pro-preview`) but a dot separator for the minor version
+  // (`gemini-3.1-pro-preview`). The dropdown values mirror the canonical
+  // ids from `ai-gemini/model-meta` — `GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS`
+  // keys on the exact string, so any drift here silently breaks
+  // combined-mode routing.
+  gemini: [
+    { value: 'gemini-3-pro-preview', label: 'Gemini 3 Pro (Preview)' },
+    { value: 'gemini-3-flash-preview', label: 'Gemini 3 Flash (Preview)' },
+    { value: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro (Preview)' },
+    {
+      value: 'gemini-3.1-flash-lite-preview',
+      label: 'Gemini 3.1 Flash Lite (Preview)',
+    },
   ],
   grok: [
     { value: 'grok-4-1-fast-reasoning', label: 'Grok 4.1 Fast (reasoning)' },
@@ -381,6 +403,7 @@ function StructuredOutputPage() {
                 <option value="openai">OpenAI (Responses)</option>
                 <option value="openai-chat">OpenAI (Chat Completions)</option>
                 <option value="anthropic">Anthropic (Claude 4.5+)</option>
+                <option value="gemini">Gemini (3.x)</option>
                 <option value="grok">Grok (xAI)</option>
                 <option value="groq">Groq</option>
                 <option value="openrouter">

@@ -5,6 +5,10 @@ import {
   ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS,
   anthropicText,
 } from '@tanstack/ai-anthropic'
+import {
+  GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS,
+  geminiText,
+} from '@tanstack/ai-gemini'
 import { grokText } from '@tanstack/ai-grok'
 import { groqText } from '@tanstack/ai-groq'
 import {
@@ -83,6 +87,7 @@ type Provider =
   | 'openai'
   | 'openai-chat'
   | 'anthropic'
+  | 'gemini'
   | 'grok'
   | 'groq'
   | 'openrouter'
@@ -95,6 +100,7 @@ const StructuredOutputRequestSchema = z.object({
       'openai',
       'openai-chat',
       'anthropic',
+      'gemini',
       'grok',
       'groq',
       'openrouter',
@@ -134,6 +140,16 @@ function adapterFor(provider: Provider, model?: string): AnyTextAdapter {
       // workaround in `structuredOutput` (no real streaming).
       return anthropicText(
         (baseModel || 'claude-sonnet-4-5') as 'claude-sonnet-4-5',
+      )
+    case 'gemini':
+      // Gemini 3.x supports native combined tools + schema-constrained
+      // streaming (#605) via `config.responseSchema` +
+      // `responseMimeType: 'application/json'` on a single
+      // `generateContentStream` call. Gemini 2.x is documented as brittle
+      // for the combination and falls back to the engine's legacy
+      // finalization path.
+      return geminiText(
+        (baseModel || 'gemini-3-pro-preview') as 'gemini-3-pro-preview',
       )
     case 'grok':
       return grokText(
@@ -221,6 +237,24 @@ function reasoningOptionsFor(
       // 4.5 / 4.6 / haiku 4.5 still accept the legacy
       // `type: 'enabled' + budget_tokens` shape.
       return { thinking: { type: 'enabled', budget_tokens: 1024 } }
+    }
+    case 'gemini': {
+      // Gemini 3.x surfaces reasoning via `thinkingLevel: 'HIGH'` —
+      // `includeThoughts: true` is what makes the API stream
+      // `parts[].thought` events that the adapter routes to REASONING_*
+      // chunks. Gemini 2.x uses the older budget-based shape and may
+      // reject `thinkingLevel`; gate strictly to the combined-mode set so
+      // we don't send an unsupported option on the legacy path.
+      const baseModel = stripModelSuffix(model)
+      if (!baseModel || !GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(baseModel)) {
+        return undefined
+      }
+      return {
+        thinkingConfig: {
+          includeThoughts: true,
+          thinkingLevel: 'HIGH',
+        },
+      }
     }
     case 'groq':
       // Groq's Chat Completions only streams `delta.reasoning` when
