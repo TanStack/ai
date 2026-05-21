@@ -66,7 +66,7 @@ therefore universally accepted by any chat model, just like `toolDefinition()`.
 | Anthropic | `webSearchTool`, `webFetchTool`, `codeExecutionTool`, `computerUseTool`, `bashTool`, `textEditorTool`, `memoryTool` — see [Anthropic adapter](../adapters/anthropic.md#provider-tools). |
 | OpenAI | `webSearchTool`, `webSearchPreviewTool`, `fileSearchTool`, `imageGenerationTool`, `codeInterpreterTool`, `mcpTool`, `computerUseTool`, `localShellTool`, `shellTool`, `applyPatchTool` — see [OpenAI adapter](../adapters/openai.md#provider-tools). |
 | Gemini | `codeExecutionTool`, `fileSearchTool`, `googleSearchTool`, `googleSearchRetrievalTool`, `googleMapsTool`, `urlContextTool`, `computerUseTool` — see [Gemini adapter](../adapters/gemini.md#provider-tools). |
-| OpenRouter | `webSearchTool` — see [OpenRouter adapter](../adapters/openrouter.md#provider-tools). |
+| OpenRouter | `webSearchTool`, `webFetchTool` — see [OpenRouter adapter](../adapters/openrouter.md#provider-tools). |
 | Grok | function tools only (no provider-specific tools). |
 | Groq | function tools only (no provider-specific tools). |
 
@@ -82,7 +82,8 @@ matrix is maintained alongside `model-meta.ts` and reflected here:
   preview/shell variants. GPT-3.5 and audio-focused models: none.
 - **Gemini**: 3.x Pro/Flash models support the full tool set. Lite and
   image/video variants have narrower support.
-- **OpenRouter**: every chat model supports `webSearchTool` via the gateway.
+- **OpenRouter**: every chat model supports `webSearchTool` and
+  `webFetchTool` via the gateway.
 
 For the exact per-model list, open the adapter page or read the model's
 `supports.tools` array directly from `model-meta.ts`.

@@ -213,3 +213,39 @@ const stream = chat({
 
 **Supported models:** all OpenRouter chat models. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
 
+### `webFetchTool`
+
+Lets any OpenRouter-proxied chat model fetch the full contents of a URL the
+model chooses, instead of running a search. Pick the fetch `engine`
+(`auto` — the default, `native`, `openrouter`, `exa`, or `parallel`), cap how
+much page content the model receives with `maxContentTokens`, and restrict
+which URLs the model can fetch with `allowedDomains` / `blockedDomains`.
+
+> The `native` engine routes to the underlying provider's own fetch (for
+> example, Anthropic's `web_fetch` on Claude models). Native fetch
+> capabilities vary, so `allowedDomains` and `blockedDomains` may be
+> ignored. Use `openrouter`, `exa`, or `parallel` if you need consistent
+> behaviour across models.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openRouterText } from "@tanstack/ai-openrouter";
+import { webFetchTool } from "@tanstack/ai-openrouter/tools";
+
+const stream = chat({
+  adapter: openRouterText("openai/gpt-5"),
+  messages: [
+    { role: "user", content: "Summarize https://example.com/article" },
+  ],
+  tools: [
+    webFetchTool({
+      engine: "openrouter",
+      maxContentTokens: 4000,
+      allowedDomains: ["example.com"],
+    }),
+  ],
+});
+```
+
+**Supported models:** all OpenRouter chat models. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+
