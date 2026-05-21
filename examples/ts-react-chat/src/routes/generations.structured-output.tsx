@@ -8,6 +8,7 @@ const SAMPLE_PROMPT =
 type Provider =
   | 'openai'
   | 'openai-chat'
+  | 'anthropic'
   | 'grok'
   | 'groq'
   | 'openrouter'
@@ -35,6 +36,19 @@ const PROVIDER_MODELS: Record<
     { value: 'gpt-5', label: 'GPT-5' },
     { value: 'gpt-5.1', label: 'GPT-5.1' },
     { value: 'gpt-5.2', label: 'GPT-5.2 (frontier)' },
+  ],
+  // Anthropic: Claude 4.5+ models stream the schema-constrained JSON
+  // natively via the #605 combined-mode path (`output_format` + `tools` in
+  // one beta Messages call). Older models would fall back to the
+  // forced-tool-use workaround in `structuredOutput` (no real streaming),
+  // so they're omitted here.
+  anthropic: [
+    { value: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
+    { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
+    { value: 'claude-opus-4-5', label: 'Claude Opus 4.5' },
+    { value: 'claude-opus-4-6', label: 'Claude Opus 4.6' },
+    { value: 'claude-opus-4-7', label: 'Claude Opus 4.7' },
+    { value: 'claude-haiku-4-5', label: 'Claude Haiku 4.5' },
   ],
   grok: [
     { value: 'grok-4-1-fast-reasoning', label: 'Grok 4.1 Fast (reasoning)' },
@@ -350,6 +364,7 @@ function StructuredOutputPage() {
               >
                 <option value="openai">OpenAI (Responses)</option>
                 <option value="openai-chat">OpenAI (Chat Completions)</option>
+                <option value="anthropic">Anthropic (Claude 4.5+)</option>
                 <option value="grok">Grok (xAI)</option>
                 <option value="groq">Groq</option>
                 <option value="openrouter">

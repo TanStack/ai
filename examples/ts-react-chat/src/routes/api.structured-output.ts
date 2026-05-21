@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiChatCompletions, openaiText } from '@tanstack/ai-openai'
+import { anthropicText } from '@tanstack/ai-anthropic'
 import { grokText } from '@tanstack/ai-grok'
 import { groqText } from '@tanstack/ai-groq'
 import {
@@ -78,6 +79,7 @@ const GuitarRecommendationSchema = z.object({
 type Provider =
   | 'openai'
   | 'openai-chat'
+  | 'anthropic'
   | 'grok'
   | 'groq'
   | 'openrouter'
@@ -89,6 +91,7 @@ const StructuredOutputRequestSchema = z.object({
     .enum([
       'openai',
       'openai-chat',
+      'anthropic',
       'grok',
       'groq',
       'openrouter',
@@ -108,6 +111,14 @@ function adapterFor(provider: Provider, model?: string): AnyTextAdapter {
       // `/v1/chat/completions`. Useful for side-by-side comparison of
       // streaming structured output across the two OpenAI wire formats.
       return openaiChatCompletions((model || 'gpt-4o') as 'gpt-4o')
+    case 'anthropic':
+      // Claude 4.5+ supports native combined tools + schema-constrained
+      // streaming (#605) via `output_format` on the beta Messages endpoint.
+      // Earlier models fall back to the forced-tool-use workaround in
+      // `structuredOutput` (no real streaming).
+      return anthropicText(
+        (model || 'claude-sonnet-4-5') as 'claude-sonnet-4-5',
+      )
     case 'grok':
       return grokText(
         (model || 'grok-4-1-fast-reasoning') as 'grok-4-1-fast-reasoning',
@@ -154,6 +165,19 @@ function reasoningOptionsFor(
       // Chat Completions API doesn't surface reasoning summaries the way
       // Responses does. Reasoning models still reason silently; no opt-in
       // option to inject here.
+      return undefined
+    case 'anthropic':
+      // Claude 4.5+ extended thinking surfaces via REASONING_* events when
+      // enabled. budget_tokens is in addition to max_tokens, so keep it
+      // modest for the demo. Older Claude models (e.g. 3-5-haiku) reject
+      // the field — caller should drop this case there.
+      if (
+        model?.startsWith('claude-opus-4-') ||
+        model?.startsWith('claude-sonnet-4-') ||
+        model?.startsWith('claude-haiku-4-')
+      ) {
+        return { thinking: { type: 'enabled', budget_tokens: 1024 } }
+      }
       return undefined
     case 'groq':
       // Groq's Chat Completions only streams `delta.reasoning` when
