@@ -53,6 +53,7 @@ export function uiMessagesToWire(
     // Defensive: if parts is missing (ModelMessage-shaped input), pass through as-is.
     // UIMessage always has parts; ModelMessage uses content directly.
     const parts: ReadonlyArray<MessagePart> =
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- runtime input may be ModelMessage-shaped (no `parts`); cast forces the optional-chain fallback below to remain in scope
       (msg.parts as ReadonlyArray<MessagePart> | undefined) ?? []
 
     if (msg.role === 'system') {
@@ -161,7 +162,7 @@ function collectUserContent(
       p.type === 'video' ||
       p.type === 'document'
     ) {
-      out.push(p as AGUIInputContent)
+      out.push(p)
     }
   }
   return out

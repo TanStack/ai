@@ -54,7 +54,6 @@ import type {
   ChatMiddleware,
   ChatMiddlewareConfig,
   ChatMiddlewareContext,
-  ChatMiddlewarePhase,
 } from './middleware/types'
 import type { SystemPrompt } from '../../system-prompts'
 import type { InternalLogger } from '../../logger/internal-logger'
@@ -375,9 +374,7 @@ class TextEngine<
 
     // Convert messages to ModelMessage format (handles both UIMessage and ModelMessage input)
     // This ensures consistent internal format regardless of what the client sends
-    this.messages = convertMessagesToModelMessages(
-      config.params.messages as Array<any>,
-    )
+    this.messages = convertMessagesToModelMessages(config.params.messages)
 
     // Initialize lazy tool manager after messages are converted (needs message history for scanning)
     this.lazyToolManager = new LazyToolManager(
@@ -410,7 +407,7 @@ class TextEngine<
     // `DevtoolsChatMiddleware` (defined in `@tanstack/ai-event-client` to
     // avoid a circular dep). Cast it to `ChatMiddleware` for the runner.
     const allMiddleware: Array<ChatMiddleware> = [
-      devtoolsMiddleware() as ChatMiddleware,
+      devtoolsMiddleware(),
       ...(config.middleware || []),
       stripToSpecMiddleware(),
     ]
@@ -423,7 +420,7 @@ class TextEngine<
       // Legacy alias kept on the ctx so middleware that reads
       // `ctx.conversationId` keeps working. Always equals `threadId`.
       conversationId: this.threadId,
-      phase: 'init' as ChatMiddlewarePhase,
+      phase: 'init',
       iteration: 0,
       chunkIndex: 0,
       signal: this.effectiveSignal,

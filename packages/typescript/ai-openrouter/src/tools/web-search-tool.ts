@@ -57,7 +57,7 @@ export function convertWebSearchToolToAdapterFormat(
   }
   return {
     type: 'web_search',
-    web_search: metadata.web_search as WebSearchToolConfig['web_search'],
+    web_search: metadata.web_search,
   }
 }
 

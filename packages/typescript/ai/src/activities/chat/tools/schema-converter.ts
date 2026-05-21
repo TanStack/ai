@@ -58,7 +58,6 @@ export function isStandardSchema(schema: unknown): schema is StandardSchemaV1 {
     typeof schema['~standard'] === 'object' &&
     schema['~standard'] !== null &&
     'version' in schema['~standard'] &&
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime guard for caller-provided unknown; in-operator narrows but doesn't validate the wire payload
     schema['~standard'].version === 1 &&
     'validate' in schema['~standard'] &&
     typeof schema['~standard'].validate === 'function'

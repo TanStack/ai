@@ -135,7 +135,7 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
       img &&
       typeof img === 'object' &&
       'url' in img &&
-      typeof (img as { url: unknown }).url === 'string'
+      typeof img.url === 'string'
     ) {
       url = (img as { url: string }).url
     } else {

@@ -256,10 +256,7 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
     const span = state.currentIterationSpan
     const iteration = state.iterationCount - 1
     safeCall('otel.onSpanEnd', () =>
-      onSpanEnd?.(
-        { kind: 'iteration', ctx, iteration } as OtelSpanInfo<'iteration'>,
-        span,
-      ),
+      onSpanEnd?.({ kind: 'iteration', ctx, iteration }, span),
     )
     span.end()
     state.currentIterationSpan = null
@@ -676,7 +673,7 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
               toolName: info.toolName,
               toolCallId: info.toolCallId,
               iteration: state.iterationCount - 1,
-            } as OtelSpanInfo<'tool'>,
+            },
             toolSpan,
           ),
         )
@@ -709,7 +706,7 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
                 kind: 'iteration',
                 ctx,
                 iteration: state.iterationCount - 1,
-              } as OtelSpanInfo<'iteration'>,
+              },
               iterationSpan,
             ),
           )
@@ -729,7 +726,7 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
                 toolCallId: id,
                 toolName,
                 iteration: state.iterationCount - 1,
-              } as OtelSpanInfo<'tool'>,
+              },
               span,
             ),
           )
@@ -782,7 +779,7 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
                 kind: 'iteration',
                 ctx,
                 iteration: state.iterationCount - 1,
-              } as OtelSpanInfo<'iteration'>,
+              },
               iterationSpan,
             ),
           )
@@ -800,7 +797,7 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
                 toolCallId: id,
                 toolName,
                 iteration: state.iterationCount - 1,
-              } as OtelSpanInfo<'tool'>,
+              },
               span,
             ),
           )
@@ -845,7 +842,7 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
                 toolCallId: id,
                 toolName,
                 iteration: state.iterationCount - 1,
-              } as OtelSpanInfo<'tool'>,
+              },
               span,
             ),
           )

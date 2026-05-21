@@ -71,7 +71,7 @@ export class MiddlewareRunner {
           current = { ...current, ...result }
           if (!skip) {
             this.logger.config(
-              `middleware=${mw.name ?? 'unnamed'} keys=${Object.keys(result as object).join(',')}`,
+              `middleware=${mw.name ?? 'unnamed'} keys=${Object.keys(result).join(',')}`,
               {
                 middleware: mw.name ?? 'unnamed',
                 changes: result,
@@ -94,7 +94,7 @@ export class MiddlewareRunner {
               ...base,
               middlewareName: mw.name || 'unnamed',
               iteration: ctx.iteration,
-              changes: result as Record<string, unknown>,
+              changes: result,
             })
           }
         }
@@ -152,7 +152,7 @@ export class MiddlewareRunner {
       const nextChunks: Array<StreamChunk> = []
       for (const c of chunks) {
         // Cast: @ag-ui/core Zod passthrough types prevent direct `.type` access
-        const chunkType = (c as StreamChunk & { type: string }).type
+        const chunkType = c.type
         if (!skip) {
           this.logger.middleware(
             `hook=onChunk middleware=${mw.name ?? 'unnamed'} in=${chunkType}`,
@@ -188,7 +188,7 @@ export class MiddlewareRunner {
           nextChunks.push(...result)
           if (!skip) {
             this.logger.middleware(
-              `hook=onChunk middleware=${mw.name ?? 'unnamed'} in=${chunkType} out=[${result.map((r: StreamChunk) => (r as StreamChunk & { type: string }).type).join(',')}]`,
+              `hook=onChunk middleware=${mw.name ?? 'unnamed'} in=${chunkType} out=[${result.map((r: StreamChunk) => r.type).join(',')}]`,
               {
                 middleware: mw.name ?? 'unnamed',
                 hook: 'onChunk',
@@ -209,7 +209,7 @@ export class MiddlewareRunner {
           nextChunks.push(result)
           if (!skip) {
             this.logger.middleware(
-              `hook=onChunk middleware=${mw.name ?? 'unnamed'} in=${chunkType} out=${(result as StreamChunk & { type: string }).type}`,
+              `hook=onChunk middleware=${mw.name ?? 'unnamed'} in=${chunkType} out=${result.type}`,
               {
                 middleware: mw.name ?? 'unnamed',
                 hook: 'onChunk',

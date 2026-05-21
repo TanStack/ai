@@ -210,7 +210,7 @@ async function runGenerateImage<
     prompt: rest.prompt,
     numberOfImages: rest.numberOfImages,
     size: rest.size,
-    modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
+    modelOptions: rest.modelOptions,
     timestamp: startTime,
   })
 
@@ -237,7 +237,7 @@ async function runGenerateImage<
         b64Json: image.b64Json,
       })),
       duration,
-      modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
+      modelOptions: rest.modelOptions,
       timestamp: Date.now(),
     })
 
@@ -246,7 +246,7 @@ async function runGenerateImage<
         requestId,
         model,
         usage: result.usage,
-        modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
+        modelOptions: rest.modelOptions,
         timestamp: Date.now(),
       })
     }

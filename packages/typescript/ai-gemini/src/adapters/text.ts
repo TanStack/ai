@@ -750,7 +750,7 @@ export class GeminiTextAdapter<
             response: {
               content: msg.content || '',
             },
-          } as any,
+          },
         })
       }
 
@@ -829,8 +829,7 @@ export class GeminiTextAdapter<
     // local `thinkingLevel?: keyof typeof ThinkingLevel` type doesn't leak
     // into the SDK config object via the `...modelOpts` spread — we re-add a
     // properly-typed `ThinkingConfig` below.
-    const { thinkingConfig, ...modelOpts } =
-      options.modelOptions ?? ({} as GeminiTextProviderOptions)
+    const { thinkingConfig, ...modelOpts } = options.modelOptions ?? {}
     // Build the thinkingConfig payload only when the caller actually supplied
     // one. Our local `thinkingLevel` is typed as `keyof typeof ThinkingLevel`
     // (string union) so users can pass plain strings; the SDK target is the
