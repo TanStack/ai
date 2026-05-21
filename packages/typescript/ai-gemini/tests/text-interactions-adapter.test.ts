@@ -55,7 +55,12 @@ const collectChunks = async (stream: AsyncIterable<StreamChunk>) => {
 
 describe('GeminiTextInteractionsAdapter', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    // `mockReset()` (vs `clearAllMocks`) also clears `mockResolvedValue`
+    // and `mockResolvedValueOnce` queues, preventing a prior test's
+    // permanent return value (e.g. the upstream-error test's "boom"
+    // stream) from leaking into a later test's third+ call.
+    mocks.interactionsCreateSpy.mockReset()
+    mocks.constructorSpy.mockReset()
   })
 
   it('translates a basic text stream into AG-UI chunks and surfaces the interaction id', async () => {
@@ -208,7 +213,7 @@ describe('GeminiTextInteractionsAdapter', () => {
     )
 
     expect(mocks.interactionsCreateSpy).toHaveBeenCalledTimes(1)
-    const [payload] = mocks.interactionsCreateSpy.mock.calls[0]
+    const [payload] = mocks.interactionsCreateSpy.mock.calls[0]!
     expect(payload.previous_interaction_id).toBe('int_1')
     expect(payload.model).toBe('gemini-2.5-flash')
     expect(payload.stream).toBe(true)
@@ -270,7 +275,7 @@ describe('GeminiTextInteractionsAdapter', () => {
       }),
     )
 
-    const [payload] = mocks.interactionsCreateSpy.mock.calls[0]
+    const [payload] = mocks.interactionsCreateSpy.mock.calls[0]!
     expect(payload.previous_interaction_id).toBe('int_prev')
     // Tool result follow-ups are sent as Step[] with `function_result`
     // entries at the top level (NOT wrapped in `user_input` content).
@@ -328,7 +333,7 @@ describe('GeminiTextInteractionsAdapter', () => {
       }),
     )
 
-    const [payload] = mocks.interactionsCreateSpy.mock.calls[0]
+    const [payload] = mocks.interactionsCreateSpy.mock.calls[0]!
     expect(payload.input).toEqual([
       { type: 'user_input', content: [{ type: 'text', text: 'Hello' }] },
     ])
@@ -379,7 +384,7 @@ describe('GeminiTextInteractionsAdapter', () => {
       }),
     )
 
-    const [payload] = mocks.interactionsCreateSpy.mock.calls[0]
+    const [payload] = mocks.interactionsCreateSpy.mock.calls[0]!
     expect(payload.tools).toEqual([
       expect.objectContaining({
         type: 'function',
@@ -452,7 +457,7 @@ describe('GeminiTextInteractionsAdapter', () => {
       }),
     )
 
-    const [payload] = mocks.interactionsCreateSpy.mock.calls[0]
+    const [payload] = mocks.interactionsCreateSpy.mock.calls[0]!
     expect(payload.input).toContainEqual(
       expect.objectContaining({
         type: 'function_result',
@@ -525,7 +530,7 @@ describe('GeminiTextInteractionsAdapter', () => {
       }),
     )
 
-    const [payload] = mocks.interactionsCreateSpy.mock.calls[0]
+    const [payload] = mocks.interactionsCreateSpy.mock.calls[0]!
     expect(payload.tools).toEqual([
       { type: 'google_search', search_types: ['web_search'] },
       { type: 'code_execution' },
@@ -566,7 +571,7 @@ describe('GeminiTextInteractionsAdapter', () => {
       }),
     )
 
-    const [payload] = mocks.interactionsCreateSpy.mock.calls[0]
+    const [payload] = mocks.interactionsCreateSpy.mock.calls[0]!
     expect(payload.tools).toEqual([
       {
         type: 'file_search',
@@ -622,7 +627,7 @@ describe('GeminiTextInteractionsAdapter', () => {
       }),
     )
 
-    const [payload] = mocks.interactionsCreateSpy.mock.calls[0]
+    const [payload] = mocks.interactionsCreateSpy.mock.calls[0]!
     expect(payload.tools).toEqual([
       {
         type: 'function',
@@ -788,26 +793,9 @@ describe('GeminiTextInteractionsAdapter', () => {
   })
 
   it('structuredOutput parses JSON text from interaction.outputs', async () => {
-    // First call: agentic loop's streaming turn (no tools, short completion).
-    mocks.interactionsCreateSpy.mockResolvedValueOnce(
-      mkStream([
-        {
-          event_type: 'interaction.start',
-          interaction: { id: 'int_struct_stream', status: 'in_progress' },
-        },
-        {
-          event_type: 'content.start',
-          index: 0,
-          content: { type: 'text', text: '' },
-        },
-        { event_type: 'content.stop', index: 0 },
-        {
-          event_type: 'interaction.complete',
-          interaction: { id: 'int_struct_stream', status: 'completed' },
-        },
-      ]),
-    )
-    // Second call: non-streaming structured output.
+    // `chat({outputSchema, …no tools})` goes straight to structuredOutput;
+    // no agent-loop chatStream first. So a single mocked Interaction
+    // response is enough.
     mocks.interactionsCreateSpy.mockResolvedValueOnce({
       id: 'int_structured',
       status: 'completed',
@@ -823,8 +811,8 @@ describe('GeminiTextInteractionsAdapter', () => {
 
     expect(result).toEqual({ foo: 'bar' })
 
-    expect(mocks.interactionsCreateSpy).toHaveBeenCalledTimes(2)
-    const structuredPayload = mocks.interactionsCreateSpy.mock.calls[1][0]
+    expect(mocks.interactionsCreateSpy).toHaveBeenCalledTimes(1)
+    const structuredPayload = mocks.interactionsCreateSpy.mock.calls[0]![0]
     expect(structuredPayload.response_mime_type).toBe('application/json')
     expect(structuredPayload.response_format).toBeDefined()
     expect(structuredPayload.stream).toBeUndefined()
@@ -919,7 +907,7 @@ describe('GeminiTextInteractionsAdapter', () => {
       }),
     )
 
-    const secondPayload = mocks.interactionsCreateSpy.mock.calls[1][0]
+    const secondPayload = mocks.interactionsCreateSpy.mock.calls[1]![0]
     expect(secondPayload.previous_interaction_id).toBe('int_tool_chain')
   })
 
@@ -970,7 +958,7 @@ describe('GeminiTextInteractionsAdapter', () => {
       }),
     )
 
-    const secondPayload = mocks.interactionsCreateSpy.mock.calls[1][0]
+    const secondPayload = mocks.interactionsCreateSpy.mock.calls[1]![0]
     expect(secondPayload.previous_interaction_id).toBeUndefined()
   })
 
@@ -1013,7 +1001,7 @@ describe('GeminiTextInteractionsAdapter', () => {
       }),
     )
 
-    const secondPayload = mocks.interactionsCreateSpy.mock.calls[1][0]
+    const secondPayload = mocks.interactionsCreateSpy.mock.calls[1]![0]
     expect(secondPayload.previous_interaction_id).toBeUndefined()
   })
 
@@ -1080,7 +1068,7 @@ describe('GeminiTextInteractionsAdapter', () => {
 
     // Open TEXT_MESSAGE_START / TOOL_CALL_START must be sealed before
     // the RUN_ERROR so the StreamProcessor sees a balanced event stream.
-    const types = truncatedChunks.map((c) => c.type)
+    const types = truncatedChunks.map((c) => c.type as string)
     const textStart = types.indexOf('TEXT_MESSAGE_START')
     const textEnd = types.indexOf('TEXT_MESSAGE_END')
     expect(textStart).toBeGreaterThanOrEqual(0)
@@ -1101,7 +1089,7 @@ describe('GeminiTextInteractionsAdapter', () => {
       }),
     )
 
-    const secondPayload = mocks.interactionsCreateSpy.mock.calls[1][0]
+    const secondPayload = mocks.interactionsCreateSpy.mock.calls[1]![0]
     expect(secondPayload.previous_interaction_id).toBeUndefined()
   })
 
@@ -1162,23 +1150,21 @@ describe('GeminiTextInteractionsAdapter', () => {
       }),
     )
 
-    const secondPayload = mocks.interactionsCreateSpy.mock.calls[1][0]
+    const secondPayload = mocks.interactionsCreateSpy.mock.calls[1]![0]
     expect(secondPayload.previous_interaction_id).toBeUndefined()
   })
 
-  it('structuredOutput chains via the captured interactionId after a multi-turn chatStream', async () => {
-    // Regression for the agentic-structured composition: chat() runs
-    // a tool-using chatStream first, then calls structuredOutput with
-    // the accumulated multi-turn messages. Without the captured id
-    // surviving across the two calls, convertMessagesToInteractionsInput
-    // would throw "cannot send prior conversation history on a fresh
-    // interaction" on the structuredOutput call.
+  it('structuredOutput chains via the captured interactionId when composed after a chatStream on the same thread', async () => {
+    // Regression: when an app composes a chatStream call (turn 1) and a
+    // structured-output call (turn 2) on the same threadId with the
+    // accumulated multi-turn history, the structured-output call must
+    // pick up the id captured by chatStream. Otherwise
+    // convertMessagesToInteractionsInput throws "cannot send prior
+    // conversation history on a fresh interaction" on turn 2.
     //
-    // Three mocked calls:
-    //   1. Seed: a fresh single-user turn that captures `int_seed`.
-    //   2. chatStream multi-turn iteration: must chain off `int_seed`,
-    //      captures `int_iter`.
-    //   3. structuredOutput (non-streaming): must chain off `int_iter`.
+    // Two mocked calls:
+    //   1. Seed chatStream: a fresh single-user turn captures `int_seed`.
+    //   2. structuredOutput on the seeded thread with multi-turn history.
     mocks.interactionsCreateSpy
       .mockResolvedValueOnce(
         mkStream([
@@ -1187,30 +1173,16 @@ describe('GeminiTextInteractionsAdapter', () => {
             interaction: { id: 'int_seed', status: 'in_progress' },
           },
           {
+            event_type: 'content.delta',
+            index: 0,
+            delta: { type: 'text', text: 'ack' },
+          },
+          {
             event_type: 'interaction.complete',
             interaction: { id: 'int_seed', status: 'completed' },
           },
         ]),
       )
-      // chatStream multi-turn iteration: must chain off id_seed.
-      .mockResolvedValueOnce(
-        mkStream([
-          {
-            event_type: 'interaction.start',
-            interaction: { id: 'int_iter', status: 'in_progress' },
-          },
-          {
-            event_type: 'content.delta',
-            index: 0,
-            delta: { type: 'text', text: 'ok' },
-          },
-          {
-            event_type: 'interaction.complete',
-            interaction: { id: 'int_iter', status: 'completed' },
-          },
-        ]),
-      )
-      // structuredOutput (non-streaming): must chain off id_iter.
       .mockResolvedValueOnce({
         id: 'int_struct',
         status: 'completed',
@@ -1218,47 +1190,43 @@ describe('GeminiTextInteractionsAdapter', () => {
       })
 
     const adapter = createAdapter()
-    const messagesAfterToolLoop: Parameters<typeof chat>[0]['messages'] = [
-      { role: 'user', content: 'Compute the answer.' },
-      {
-        role: 'assistant',
-        content: '',
-        toolCalls: [
-          {
-            id: 'call_compute',
-            type: 'function',
-            function: { name: 'compute', arguments: '{}' },
-          },
-        ],
-      },
-      { role: 'tool', toolCallId: 'call_compute', content: '42' },
-    ]
 
-    // Seed call: a fresh single-user turn on the same thread to capture
-    // an id in the Map.
+    // Seed: a fresh single-user turn captures int_seed in the Map.
     await collectChunks(
       chat({
         adapter,
         threadId: 'thread_agentic',
-        messages: [{ role: 'user', content: 'Hi' }],
+        messages: [{ role: 'user', content: 'Compute the answer.' }],
       }),
     )
-    // Compose: chatStream + structuredOutput on the same threadId,
-    // multi-turn messages, no caller-provided previous_interaction_id.
+
+    // Compose: structuredOutput on the same threadId with multi-turn
+    // history. Caller did NOT pass `previous_interaction_id` —
+    // structuredOutput must pull `int_seed` from the Map.
     const result = await chat({
       adapter,
       threadId: 'thread_agentic',
-      messages: messagesAfterToolLoop,
+      messages: [
+        { role: 'user', content: 'Compute the answer.' },
+        {
+          role: 'assistant',
+          content: '',
+          toolCalls: [
+            {
+              id: 'call_compute',
+              type: 'function',
+              function: { name: 'compute', arguments: '{}' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_compute', content: '42' },
+      ],
       outputSchema: z.object({ answer: z.string() }),
     })
 
     expect(result).toEqual({ answer: '42' })
-    // Iteration call must chain off the seeded id.
-    const iterPayload = mocks.interactionsCreateSpy.mock.calls[1][0]
-    expect(iterPayload.previous_interaction_id).toBe('int_seed')
-    // structuredOutput must chain off the iteration's id.
-    const structuredPayload = mocks.interactionsCreateSpy.mock.calls[2][0]
-    expect(structuredPayload.previous_interaction_id).toBe('int_iter')
+    const structuredPayload = mocks.interactionsCreateSpy.mock.calls[1]![0]
+    expect(structuredPayload.previous_interaction_id).toBe('int_seed')
     expect(structuredPayload.response_mime_type).toBe('application/json')
   })
 
@@ -1334,7 +1302,7 @@ describe('GeminiTextInteractionsAdapter', () => {
       }),
     )
 
-    const secondPayload = mocks.interactionsCreateSpy.mock.calls[1][0]
+    const secondPayload = mocks.interactionsCreateSpy.mock.calls[1]![0]
     expect(secondPayload.previous_interaction_id).toBeUndefined()
   })
 })

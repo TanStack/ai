@@ -172,8 +172,8 @@ export class GeminiTextInteractionsAdapter<
   GeminiMessageMetadataByModality,
   TToolCapabilities
 > {
-  readonly kind = 'text' as const
-  readonly name = 'gemini-text-interactions' as const
+  override readonly kind = 'text' as const
+  override readonly name = 'gemini-text-interactions' as const
 
   private client: GoogleGenAI
   // Tracks the most recent server-assigned interaction id per threadId
