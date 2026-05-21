@@ -1,5 +1,27 @@
 # @tanstack/ai-solid
 
+## 0.10.4
+
+### Patch Changes
+
+- Expose the connection adapter primitives needed to build custom ([#597](https://github.com/TanStack/ai/pull/597))
+  transports from every framework hook package. `@tanstack/ai-client`
+  now re-exports `RunAgentInputContext` at its entry point, and
+  `@tanstack/ai-react`, `@tanstack/ai-vue`, `@tanstack/ai-solid`,
+  `@tanstack/ai-svelte`, and `@tanstack/ai-preact` now re-export
+  `rpcStream`, `ConnectConnectionAdapter`, `SubscribeConnectionAdapter`,
+  and `RunAgentInputContext` alongside the existing `stream`,
+  `fetchServerSentEvents`, and `fetchHttpStream` re-exports.
+
+  Previously, authors of WebSocket / persistent or RPC-backed adapters
+  had to import these symbols from `@tanstack/ai-client` even though
+  they were already pulling `useChat` from a framework package. No
+  runtime change.
+
+- Updated dependencies [[`ec1393d`](https://github.com/TanStack/ai/commit/ec1393db4383798e5f2574dfd87779c22c309529), [`a03d12b`](https://github.com/TanStack/ai/commit/a03d12b13ade93f3e262c6ffa996696ce27472ef), [`188fe11`](https://github.com/TanStack/ai/commit/188fe11b9b9691e5a241cfc416803da5b8ce5376)]:
+  - @tanstack/ai@0.21.0
+  - @tanstack/ai-client@0.11.4
+
 ## 0.10.3
 
 ### Patch Changes

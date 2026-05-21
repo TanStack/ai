@@ -1,5 +1,48 @@
 # @tanstack/ai-react-ui
 
+## 0.8.0
+
+### Minor Changes
+
+- `TextPart` now accepts `remarkPlugins`, `rehypePlugins`, and (React/Solid) ([#599](https://github.com/TanStack/ai/pull/599))
+  `components` props, plus a `disableDefaultPlugins` escape hatch. User plugins
+  merge with the secure defaults — `rehype-sanitize` continues to run last
+  unless defaults are disabled.
+
+  This fixes [#164](https://github.com/TanStack/ai/issues/164): bold and
+  emphasis in Japanese, Chinese, and Korean text rendered incorrectly because
+  of a CommonMark spec defect. Consumers can now drop in
+  [`remark-cjk-friendly`](https://www.npmjs.com/package/remark-cjk-friendly)
+  with a single prop:
+
+  ```tsx
+  import remarkCjkFriendly from 'remark-cjk-friendly'
+  ;<TextPart content={content} remarkPlugins={[remarkCjkFriendly]} />
+  ```
+
+  Also fixes a latent bug in `@tanstack/ai-react-ui` where `remark-gfm` was
+  passed inside the rehype plugin array, silently disabling GFM features
+  (tables, strikethrough, task lists) in the React `TextPart`.
+
+  `@tanstack/ai-vue-ui` omits the `components` prop because its underlying
+  renderer (`@crazydos/vue-markdown`) does not expose component overrides;
+  use that library's slot API for custom rendering.
+
+### Patch Changes
+
+- Adopt `@tanstack/eslint-config@0.4.0` and clean up the local override layer. ([#607](https://github.com/TanStack/ai/pull/607))
+  - Bump `@tanstack/eslint-config` from `0.3.3` to `0.4.0`.
+  - Drop dead `pnpm/enforce-catalog` and `pnpm/json-enforce-catalog` disables (upstream removed `eslint-plugin-pnpm` in `0.3.1`).
+  - Drop the `no-case-declarations: off` override — no current source actually violates it.
+  - Drop the `no-shadow: off` override — upstream sets it to `warn`, so it surfaces in editors without blocking CI.
+  - Remove ~25 unnecessary type assertions across the publishable packages that the upgraded `typescript-eslint` now catches via `no-unnecessary-type-assertion`. One deliberately defensive cast in `ag-ui-wire.ts` is preserved with an inline opt-out and a reason comment.
+
+  No public-API or runtime-behavior changes.
+
+- Updated dependencies [[`a03d12b`](https://github.com/TanStack/ai/commit/a03d12b13ade93f3e262c6ffa996696ce27472ef)]:
+  - @tanstack/ai-client@0.11.4
+  - @tanstack/ai-react@0.11.4
+
 ## 0.7.2
 
 ### Patch Changes

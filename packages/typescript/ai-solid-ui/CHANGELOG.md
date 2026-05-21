@@ -1,5 +1,39 @@
 # @tanstack/ai-solid-ui
 
+## 0.7.0
+
+### Minor Changes
+
+- `TextPart` now accepts `remarkPlugins`, `rehypePlugins`, and (React/Solid) ([#599](https://github.com/TanStack/ai/pull/599))
+  `components` props, plus a `disableDefaultPlugins` escape hatch. User plugins
+  merge with the secure defaults — `rehype-sanitize` continues to run last
+  unless defaults are disabled.
+
+  This fixes [#164](https://github.com/TanStack/ai/issues/164): bold and
+  emphasis in Japanese, Chinese, and Korean text rendered incorrectly because
+  of a CommonMark spec defect. Consumers can now drop in
+  [`remark-cjk-friendly`](https://www.npmjs.com/package/remark-cjk-friendly)
+  with a single prop:
+
+  ```tsx
+  import remarkCjkFriendly from 'remark-cjk-friendly'
+  ;<TextPart content={content} remarkPlugins={[remarkCjkFriendly]} />
+  ```
+
+  Also fixes a latent bug in `@tanstack/ai-react-ui` where `remark-gfm` was
+  passed inside the rehype plugin array, silently disabling GFM features
+  (tables, strikethrough, task lists) in the React `TextPart`.
+
+  `@tanstack/ai-vue-ui` omits the `components` prop because its underlying
+  renderer (`@crazydos/vue-markdown`) does not expose component overrides;
+  use that library's slot API for custom rendering.
+
+### Patch Changes
+
+- Updated dependencies [[`a03d12b`](https://github.com/TanStack/ai/commit/a03d12b13ade93f3e262c6ffa996696ce27472ef)]:
+  - @tanstack/ai-client@0.11.4
+  - @tanstack/ai-solid@0.10.4
+
 ## 0.6.7
 
 ### Patch Changes

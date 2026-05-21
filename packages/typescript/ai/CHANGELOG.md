@@ -1,5 +1,38 @@
 # @tanstack/ai
 
+## 0.21.0
+
+### Minor Changes
+
+- Middleware now wraps the final structured-output provider call in `chat({ outputSchema })` (both Promise<T> and streaming variants). Closes #390. ([#600](https://github.com/TanStack/ai/pull/600))
+
+  **New public surface:**
+  - `ChatMiddlewarePhase` gains a `'structuredOutput'` value, set on `ChatMiddlewareContext` for the duration of the final structured-output adapter call.
+  - New optional `ChatMiddleware.onStructuredOutputConfig` hook receives a `StructuredOutputMiddlewareConfig` (including the JSON Schema being sent to the provider) and can return a partial to transform the config before the final call.
+  - New exported type `StructuredOutputMiddlewareConfig` extends `ChatMiddlewareConfig` with `outputSchema: JSONSchema`.
+
+  **Behavior change for existing middleware:**
+  - `onChunk` now observes chunks from the final structured-output call. Phase-aware middleware can branch on `ctx.phase === 'structuredOutput'` to opt out: `if (ctx.phase === 'structuredOutput') return`.
+  - `onFinish` fires once at the end of the whole `chat()` invocation, after finalization completes — not after the agent loop.
+  - `onFinish.info` reflects the agent loop's terminal state only. `info.usage` / `info.finishReason` / `info.content` do not include the final structured-output adapter call. To observe finalization tokens, use `onUsage` (fires for both agent-loop and finalization `RUN_FINISHED` events).
+
+  **Internal cleanup:**
+  - The previous `RUN_STARTED`/`RUN_FINISHED` suppression hack in `runStreamingStructuredOutput` was relocated into the engine (`streamModelResponse`) and gated on `finalStructuredOutput.yieldChunks`. The streaming consumer still sees exactly one outer pair around the whole run.
+
+### Patch Changes
+
+- Adopt `@tanstack/eslint-config@0.4.0` and clean up the local override layer. ([#607](https://github.com/TanStack/ai/pull/607))
+  - Bump `@tanstack/eslint-config` from `0.3.3` to `0.4.0`.
+  - Drop dead `pnpm/enforce-catalog` and `pnpm/json-enforce-catalog` disables (upstream removed `eslint-plugin-pnpm` in `0.3.1`).
+  - Drop the `no-case-declarations: off` override — no current source actually violates it.
+  - Drop the `no-shadow: off` override — upstream sets it to `warn`, so it surfaces in editors without blocking CI.
+  - Remove ~25 unnecessary type assertions across the publishable packages that the upgraded `typescript-eslint` now catches via `no-unnecessary-type-assertion`. One deliberately defensive cast in `ag-ui-wire.ts` is preserved with an inline opt-out and a reason comment.
+
+  No public-API or runtime-behavior changes.
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.3.7
+
 ## 0.20.1
 
 ### Patch Changes
