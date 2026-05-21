@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as VerifyPr600RouteImport } from './routes/verify-pr600'
 import { Route as RealtimeRouteImport } from './routes/realtime'
 import { Route as ImageGenRouteImport } from './routes/image-gen'
 import { Route as IndexRouteImport } from './routes/index'
@@ -20,6 +21,7 @@ import { Route as GenerationsStructuredChatRouteImport } from './routes/generati
 import { Route as GenerationsSpeechRouteImport } from './routes/generations.speech'
 import { Route as GenerationsImageRouteImport } from './routes/generations.image'
 import { Route as GenerationsAudioRouteImport } from './routes/generations.audio'
+import { Route as ApiVerifyPr600RouteImport } from './routes/api.verify-pr600'
 import { Route as ApiTranscribeRouteImport } from './routes/api.transcribe'
 import { Route as ApiTanchatRouteImport } from './routes/api.tanchat'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
@@ -33,6 +35,11 @@ import { Route as ApiGenerateSpeechRouteImport } from './routes/api.generate.spe
 import { Route as ApiGenerateImageRouteImport } from './routes/api.generate.image'
 import { Route as ApiGenerateAudioRouteImport } from './routes/api.generate.audio'
 
+const VerifyPr600Route = VerifyPr600RouteImport.update({
+  id: '/verify-pr600',
+  path: '/verify-pr600',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RealtimeRoute = RealtimeRouteImport.update({
   id: '/realtime',
   path: '/realtime',
@@ -89,6 +96,11 @@ const GenerationsImageRoute = GenerationsImageRouteImport.update({
 const GenerationsAudioRoute = GenerationsAudioRouteImport.update({
   id: '/generations/audio',
   path: '/generations/audio',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiVerifyPr600Route = ApiVerifyPr600RouteImport.update({
+  id: '/api/verify-pr600',
+  path: '/api/verify-pr600',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTranscribeRoute = ApiTranscribeRouteImport.update({
@@ -156,12 +168,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/image-gen': typeof ImageGenRoute
   '/realtime': typeof RealtimeRoute
+  '/verify-pr600': typeof VerifyPr600Route
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tanchat': typeof ApiTanchatRoute
   '/api/transcribe': typeof ApiTranscribeRoute
+  '/api/verify-pr600': typeof ApiVerifyPr600Route
   '/generations/audio': typeof GenerationsAudioRoute
   '/generations/image': typeof GenerationsImageRoute
   '/generations/speech': typeof GenerationsSpeechRoute
@@ -181,12 +195,14 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/image-gen': typeof ImageGenRoute
   '/realtime': typeof RealtimeRoute
+  '/verify-pr600': typeof VerifyPr600Route
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tanchat': typeof ApiTanchatRoute
   '/api/transcribe': typeof ApiTranscribeRoute
+  '/api/verify-pr600': typeof ApiVerifyPr600Route
   '/generations/audio': typeof GenerationsAudioRoute
   '/generations/image': typeof GenerationsImageRoute
   '/generations/speech': typeof GenerationsSpeechRoute
@@ -207,12 +223,14 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/image-gen': typeof ImageGenRoute
   '/realtime': typeof RealtimeRoute
+  '/verify-pr600': typeof VerifyPr600Route
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tanchat': typeof ApiTanchatRoute
   '/api/transcribe': typeof ApiTranscribeRoute
+  '/api/verify-pr600': typeof ApiVerifyPr600Route
   '/generations/audio': typeof GenerationsAudioRoute
   '/generations/image': typeof GenerationsImageRoute
   '/generations/speech': typeof GenerationsSpeechRoute
@@ -234,12 +252,14 @@ export interface FileRouteTypes {
     | '/'
     | '/image-gen'
     | '/realtime'
+    | '/verify-pr600'
     | '/api/image-gen'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
     | '/api/tanchat'
     | '/api/transcribe'
+    | '/api/verify-pr600'
     | '/generations/audio'
     | '/generations/image'
     | '/generations/speech'
@@ -259,12 +279,14 @@ export interface FileRouteTypes {
     | '/'
     | '/image-gen'
     | '/realtime'
+    | '/verify-pr600'
     | '/api/image-gen'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
     | '/api/tanchat'
     | '/api/transcribe'
+    | '/api/verify-pr600'
     | '/generations/audio'
     | '/generations/image'
     | '/generations/speech'
@@ -284,12 +306,14 @@ export interface FileRouteTypes {
     | '/'
     | '/image-gen'
     | '/realtime'
+    | '/verify-pr600'
     | '/api/image-gen'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
     | '/api/tanchat'
     | '/api/transcribe'
+    | '/api/verify-pr600'
     | '/generations/audio'
     | '/generations/image'
     | '/generations/speech'
@@ -310,12 +334,14 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ImageGenRoute: typeof ImageGenRoute
   RealtimeRoute: typeof RealtimeRoute
+  VerifyPr600Route: typeof VerifyPr600Route
   ApiImageGenRoute: typeof ApiImageGenRoute
   ApiStructuredChatRoute: typeof ApiStructuredChatRoute
   ApiStructuredOutputRoute: typeof ApiStructuredOutputRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
   ApiTanchatRoute: typeof ApiTanchatRoute
   ApiTranscribeRoute: typeof ApiTranscribeRoute
+  ApiVerifyPr600Route: typeof ApiVerifyPr600Route
   GenerationsAudioRoute: typeof GenerationsAudioRoute
   GenerationsImageRoute: typeof GenerationsImageRoute
   GenerationsSpeechRoute: typeof GenerationsSpeechRoute
@@ -334,6 +360,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/verify-pr600': {
+      id: '/verify-pr600'
+      path: '/verify-pr600'
+      fullPath: '/verify-pr600'
+      preLoaderRoute: typeof VerifyPr600RouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/realtime': {
       id: '/realtime'
       path: '/realtime'
@@ -409,6 +442,13 @@ declare module '@tanstack/react-router' {
       path: '/generations/audio'
       fullPath: '/generations/audio'
       preLoaderRoute: typeof GenerationsAudioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/verify-pr600': {
+      id: '/api/verify-pr600'
+      path: '/api/verify-pr600'
+      fullPath: '/api/verify-pr600'
+      preLoaderRoute: typeof ApiVerifyPr600RouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/transcribe': {
@@ -502,12 +542,14 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ImageGenRoute: ImageGenRoute,
   RealtimeRoute: RealtimeRoute,
+  VerifyPr600Route: VerifyPr600Route,
   ApiImageGenRoute: ApiImageGenRoute,
   ApiStructuredChatRoute: ApiStructuredChatRoute,
   ApiStructuredOutputRoute: ApiStructuredOutputRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
   ApiTanchatRoute: ApiTanchatRoute,
   ApiTranscribeRoute: ApiTranscribeRoute,
+  ApiVerifyPr600Route: ApiVerifyPr600Route,
   GenerationsAudioRoute: GenerationsAudioRoute,
   GenerationsImageRoute: GenerationsImageRoute,
   GenerationsSpeechRoute: GenerationsSpeechRoute,
