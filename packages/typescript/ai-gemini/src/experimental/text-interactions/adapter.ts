@@ -175,7 +175,7 @@ export class GeminiTextInteractionsAdapter<
   override readonly kind = 'text' as const
   override readonly name = 'gemini-text-interactions' as const
 
-  private client: GoogleGenAI
+  private readonly client: GoogleGenAI
   // Tracks the most recent server-assigned interaction id per threadId
   // so the adapter can chain follow-up calls on the same thread without
   // the caller having to thread the id manually. Two callers rely on
@@ -190,7 +190,7 @@ export class GeminiTextInteractionsAdapter<
   // the caller signals fresh-turn intent (no caller-provided id AND a
   // single user message — anything else is a follow-up). Errors evict
   // immediately so a failed turn never chains into the next one.
-  private interactionIdByThread = new Map<string, string>()
+  private readonly interactionIdByThread = new Map<string, string>()
 
   constructor(config: GeminiTextInteractionsConfig, model: TModel) {
     super({}, model)
@@ -393,8 +393,7 @@ export class GeminiTextInteractionsAdapter<
         },
       )
       const result = (await this.client.interactions.create(
-        request as GeminiInteractionsRequestBody &
-          Parameters<typeof this.client.interactions.create>[0],
+        request as Parameters<typeof this.client.interactions.create>[0],
         { signal: chatOptions.abortController?.signal },
       )) as Interaction
 
@@ -544,15 +543,15 @@ function convertMessagesToInteractionsInput(
   }
 
   if (!hasPreviousInteraction) {
-    if (source.length === 0) {
+    const [only, ...rest] = source
+    if (!only) {
       throw new Error('Gemini Interactions adapter: no messages to send.')
     }
-    if (source.length > 1) {
+    if (rest.length > 0) {
       throw new Error(
         'Gemini Interactions adapter: cannot send prior conversation history on a fresh interaction. Either set modelOptions.previous_interaction_id to chain prior turns server-side, or trim the message list to a single new user turn. See docs/adapters/gemini.md ("Wiring with useChat") for the canonical client/server pattern.',
       )
     }
-    const only = source[0]!
     if (only.role !== 'user') {
       throw new Error(
         `Gemini Interactions adapter: the first message of a fresh interaction must be a user turn (got role="${only.role}"). Set modelOptions.previous_interaction_id to continue an existing interaction.`,
@@ -1181,7 +1180,7 @@ async function* translateInteractionEvents(
             const thoughtText =
               delta.content && 'text' in delta.content ? delta.content.text : ''
             if (!thoughtText) break
-            if (thinkingStepId === null) {
+            if (thinkingStepId === null || reasoningMessageId === null) {
               thinkingStepId = generateId(adapterName)
               reasoningMessageId = generateId(adapterName)
               yield {
@@ -1209,7 +1208,7 @@ async function* translateInteractionEvents(
             thinkingAccumulated += thoughtText
             yield {
               type: EventType.REASONING_MESSAGE_CONTENT,
-              messageId: reasoningMessageId!,
+              messageId: reasoningMessageId,
               delta: thoughtText,
               model,
               timestamp,
@@ -1225,11 +1224,20 @@ async function* translateInteractionEvents(
             }
             break
           }
+          // The following delta types are valid per the SDK type union
+          // but aren't yet translated by this adapter (output modalities
+          // text-only adapter shouldn't see, response-side function_result
+          // / mcp_server_*, thought_signature). Falling through to the
+          // observability default so SDK drift is visible.
+          case 'image':
+          case 'audio':
+          case 'video':
+          case 'document':
+          case 'function_result':
+          case 'mcp_server_tool_call':
+          case 'mcp_server_tool_result':
+          case 'thought_signature':
           default:
-            // Unknown delta types — surface to observability so SDK
-            // drift is visible (the Interactions API is beta and
-            // emits e.g. `mcp_server_tool_call_delta` shapes we don't
-            // translate yet).
             logger.provider(
               `gemini-text-interactions unhandled content.delta type`,
               { delta },
