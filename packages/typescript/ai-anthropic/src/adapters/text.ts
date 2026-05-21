@@ -674,6 +674,13 @@ export class AnthropicTextAdapter<
       { id: string; name: string; input: string; started: boolean }
     >()
     let currentToolIndex = -1
+    // Server-side tools (web_fetch, web_search, code_execution, ...) run
+    // entirely on Anthropic's side. They share the same content_block_delta
+    // wire format (`input_json_delta`) as client `tool_use` blocks, so we must
+    // route their deltas to a separate buffer or they leak into the prior
+    // client tool's input and corrupt downstream JSON.parse.
+    let currentServerTool: { id: string; name: string; input: string } | null =
+      null
 
     // AG-UI lifecycle tracking
     const runId = options.runId ?? genId()
@@ -716,6 +723,14 @@ export class AnthropicTextAdapter<
               input: '',
               started: false,
             })
+          } else if (event.content_block.type === 'server_tool_use') {
+            // Tracked separately from client tools so the shared
+            // `input_json_delta` event format cannot corrupt them.
+            currentServerTool = {
+              id: event.content_block.id,
+              name: event.content_block.name,
+              input: '',
+            }
           } else if (event.content_block.type === 'thinking') {
             accumulatedThinking = ''
             accumulatedSignature = ''
@@ -821,32 +836,45 @@ export class AnthropicTextAdapter<
             accumulatedSignature +=
               (event.delta as { signature: string }).signature || ''
           } else if (event.delta.type === 'input_json_delta') {
-            const existing = toolCallsMap.get(currentToolIndex)
-            if (existing) {
-              // Emit TOOL_CALL_START on first args delta
-              if (!existing.started) {
-                existing.started = true
+            // Route deltas by current block type so server_tool_use input
+            // never appends onto the prior client tool's buffer.
+            if (currentBlockType === 'tool_use') {
+              const existing = toolCallsMap.get(currentToolIndex)
+              if (existing) {
+                // Emit TOOL_CALL_START on first args delta
+                if (!existing.started) {
+                  existing.started = true
+                  yield {
+                    type: EventType.TOOL_CALL_START,
+                    toolCallId: existing.id,
+                    toolCallName: existing.name,
+                    toolName: existing.name,
+                    model,
+                    timestamp: Date.now(),
+                    index: currentToolIndex,
+                  }
+                }
+
+                existing.input += event.delta.partial_json
+
                 yield {
-                  type: EventType.TOOL_CALL_START,
+                  type: EventType.TOOL_CALL_ARGS,
                   toolCallId: existing.id,
-                  toolCallName: existing.name,
-                  toolName: existing.name,
                   model,
                   timestamp: Date.now(),
-                  index: currentToolIndex,
+                  delta: event.delta.partial_json,
+                  args: existing.input,
                 }
               }
-
-              existing.input += event.delta.partial_json
-
-              yield {
-                type: EventType.TOOL_CALL_ARGS,
-                toolCallId: existing.id,
-                model,
-                timestamp: Date.now(),
-                delta: event.delta.partial_json,
-                args: existing.input,
-              }
+            } else if (
+              currentBlockType === 'server_tool_use' &&
+              currentServerTool
+            ) {
+              // Accumulate server tool input internally. We don't emit
+              // TOOL_CALL_* events: the call is executed by Anthropic, not
+              // by our agent loop, so surfacing it as a client tool call
+              // would cause downstream code to try (and fail) to run it.
+              currentServerTool.input += event.delta.partial_json
             }
           }
         } else if (event.type === 'content_block_stop') {
@@ -903,6 +931,16 @@ export class AnthropicTextAdapter<
               // Reset so a new TEXT_MESSAGE_START is emitted if text follows tool calls
               hasEmittedTextMessageStart = false
             }
+          } else if (currentBlockType === 'server_tool_use') {
+            // Anthropic executes the call server-side; nothing for us to
+            // dispatch. Just drop the accumulated buffer.
+            currentServerTool = null
+          } else if (
+            currentBlockType === 'web_fetch_tool_result' ||
+            currentBlockType === 'web_search_tool_result'
+          ) {
+            // Result blocks for server-side tools — the model already
+            // consumed them. We acknowledge and ignore.
           } else {
             // Emit TEXT_MESSAGE_END only for text blocks (not tool_use blocks)
             if (hasEmittedTextMessageStart && accumulatedContent) {

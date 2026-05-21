@@ -906,6 +906,184 @@ describe('Anthropic stream processing', () => {
     })
   })
 
+  it('does not leak server_tool_use input deltas into the prior client tool', async () => {
+    // Reproduces issue #604: when a client tool_use block is followed by a
+    // server_tool_use block (e.g. web_fetch) in the same response,
+    // server_tool_use `input_json_delta` events must not concatenate onto
+    // the prior client tool's input buffer.
+    const mockStream = (async function* () {
+      // Client tool_use — args close cleanly.
+      yield {
+        type: 'content_block_start',
+        index: 0,
+        content_block: {
+          type: 'tool_use',
+          id: 'tool_client',
+          name: 'lookup_weather',
+        },
+      }
+      yield {
+        type: 'content_block_delta',
+        index: 0,
+        delta: {
+          type: 'input_json_delta',
+          partial_json: '{"location":"Berlin"}',
+        },
+      }
+      yield { type: 'content_block_stop', index: 0 }
+      // server_tool_use for web_fetch — its input_json_delta must not
+      // append to the client tool's buffer.
+      yield {
+        type: 'content_block_start',
+        index: 1,
+        content_block: {
+          type: 'server_tool_use',
+          id: 'srv_fetch',
+          name: 'web_fetch',
+        },
+      }
+      yield {
+        type: 'content_block_delta',
+        index: 1,
+        delta: {
+          type: 'input_json_delta',
+          partial_json: '{"url":"https://example.com"}',
+        },
+      }
+      yield { type: 'content_block_stop', index: 1 }
+      // The result block Anthropic sends after running web_fetch.
+      yield {
+        type: 'content_block_start',
+        index: 2,
+        content_block: {
+          type: 'web_fetch_tool_result',
+          tool_use_id: 'srv_fetch',
+          content: {
+            type: 'web_fetch_result',
+            url: 'https://example.com',
+            content: { type: 'document', source: { type: 'text', data: 'ok' } },
+            retrieved_at: '2026-01-01T00:00:00Z',
+          },
+        },
+      }
+      yield { type: 'content_block_stop', index: 2 }
+      yield {
+        type: 'message_delta',
+        delta: { stop_reason: 'tool_use' },
+        usage: { output_tokens: 10 },
+      }
+      yield { type: 'message_stop' }
+    })()
+
+    mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
+
+    const adapter = createAdapter('claude-3-7-sonnet')
+
+    const chunks: StreamChunk[] = []
+    for await (const chunk of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Weather + fetch' }],
+      tools: [weatherTool],
+    })) {
+      chunks.push(chunk)
+    }
+
+    // The single TOOL_CALL_END must carry the client tool's *own* input
+    // — not a concatenated `{"location":"Berlin"}{"url":"..."}` blob.
+    const toolEnds = chunks.filter((c) => c.type === 'TOOL_CALL_END')
+    expect(toolEnds).toHaveLength(1)
+    expect(toolEnds[0]).toMatchObject({
+      toolCallId: 'tool_client',
+      input: { location: 'Berlin' },
+    })
+
+    // The args stream for the client tool must end with the exact JSON.
+    const lastArgs = chunks.filter(
+      (c) =>
+        c.type === 'TOOL_CALL_ARGS' &&
+        (c as { toolCallId: string }).toolCallId === 'tool_client',
+    )
+    const final = lastArgs[lastArgs.length - 1] as { args: string }
+    expect(final.args).toBe('{"location":"Berlin"}')
+
+    // No TOOL_CALL_* events should be emitted for the server tool — the
+    // agent loop must not try to dispatch web_fetch as a client tool.
+    expect(
+      chunks.some(
+        (c) =>
+          c.type === 'TOOL_CALL_START' &&
+          (c as { toolCallId: string }).toolCallId === 'srv_fetch',
+      ),
+    ).toBe(false)
+  })
+
+  it('cleanly handles a server_tool_use block as the only tool in the response', async () => {
+    // Secondary failure from issue #604: with no prior client tool_use,
+    // currentToolIndex is -1. Server-tool deltas must still not crash or
+    // create phantom client tool calls.
+    const mockStream = (async function* () {
+      yield {
+        type: 'content_block_start',
+        index: 0,
+        content_block: {
+          type: 'server_tool_use',
+          id: 'srv_only',
+          name: 'web_fetch',
+        },
+      }
+      yield {
+        type: 'content_block_delta',
+        index: 0,
+        delta: {
+          type: 'input_json_delta',
+          partial_json: '{"url":"https://example.com"}',
+        },
+      }
+      yield { type: 'content_block_stop', index: 0 }
+      yield {
+        type: 'content_block_start',
+        index: 1,
+        content_block: {
+          type: 'web_fetch_tool_result',
+          tool_use_id: 'srv_only',
+          content: {
+            type: 'web_fetch_result',
+            url: 'https://example.com',
+            content: { type: 'document', source: { type: 'text', data: 'ok' } },
+            retrieved_at: '2026-01-01T00:00:00Z',
+          },
+        },
+      }
+      yield { type: 'content_block_stop', index: 1 }
+      yield {
+        type: 'message_delta',
+        delta: { stop_reason: 'end_turn' },
+        usage: { output_tokens: 5 },
+      }
+      yield { type: 'message_stop' }
+    })()
+
+    mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
+
+    const adapter = createAdapter('claude-3-7-sonnet')
+
+    const chunks: StreamChunk[] = []
+    for await (const chunk of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Fetch it' }],
+    })) {
+      chunks.push(chunk)
+    }
+
+    // No client TOOL_CALL_* events should appear for a server-only response.
+    expect(chunks.some((c) => c.type === 'TOOL_CALL_START')).toBe(false)
+    expect(chunks.some((c) => c.type === 'TOOL_CALL_END')).toBe(false)
+
+    // Stream still completes normally.
+    const runFinished = chunks.filter((c) => c.type === 'RUN_FINISHED')
+    expect(runFinished).toHaveLength(1)
+  })
+
   it('does not emit TEXT_MESSAGE_END for tool_use content blocks', async () => {
     // When text is followed by a tool_use block, TEXT_MESSAGE_END should only
     // fire once (for the text block), not again when the tool block stops.
