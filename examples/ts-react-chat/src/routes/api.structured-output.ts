@@ -171,21 +171,30 @@ function reasoningOptionsFor(
       return undefined
     case 'anthropic':
       // Claude extended thinking surfaces via REASONING_* events when
-      // enabled. budget_tokens is in addition to max_tokens, so keep it
-      // modest for the demo.
-      //
-      // Gating *strictly* to combined-mode-capable models matters: if we
-      // enabled thinking on a legacy-path model, the engine's
-      // forced-tool-use finalization workaround triggers the API error
+      // enabled. Gating *strictly* to combined-mode-capable models matters:
+      // enabling thinking on a legacy-path model triggers the engine's
+      // forced-tool-use finalization workaround, which the API rejects with
       // "Thinking may not be enabled when tool_choice forces tool use".
-      // Sharing the exported set with the adapter's
-      // `supportsCombinedToolsAndSchema()` keeps the two checks from
-      // drifting (model-meta uses both `-` and `.` separators across
-      // releases, which would otherwise be easy to get wrong here).
-      if (model && ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(model)) {
-        return { thinking: { type: 'enabled', budget_tokens: 1024 } }
+      //
+      // The thinking API itself changed between Claude generations:
+      //   • 4.5 / 4.6 / 4.6-fast / haiku 4.5:
+      //       `thinking: { type: 'enabled', budget_tokens }`
+      //   • 4.7 / 4.7-fast (and 4.6+ adaptive-capable):
+      //       `thinking: { type: 'adaptive' }` paired with
+      //       `output_config.effort`. The API explicitly rejects
+      //       `type: 'enabled'` on 4.7 with
+      //       "thinking.type.enabled is not supported for this model.
+      //        Use thinking.type.adaptive and output_config.effort."
+      if (!model || !ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(model)) {
+        return undefined
       }
-      return undefined
+      if (model.startsWith('claude-opus-4-7')) {
+        return {
+          thinking: { type: 'adaptive' },
+          output_config: { effort: 'medium' },
+        }
+      }
+      return { thinking: { type: 'enabled', budget_tokens: 1024 } }
     case 'groq':
       // Groq's Chat Completions only streams `delta.reasoning` when
       // `reasoning_format: 'parsed'`. Required for gpt-oss / qwen3 / kimi-k2

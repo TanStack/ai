@@ -159,6 +159,26 @@ export interface AnthropicEffortOptions {
   effort?: 'max' | 'high' | 'medium' | 'low'
 }
 
+export interface AnthropicOutputConfigOptions {
+  /**
+   * Output configuration for the model's response.
+   *
+   * On Claude 4.7+ the top-level `effort` field was relocated under
+   * `output_config.effort`, and `thinking: { type: 'enabled', budget_tokens }`
+   * was replaced by `thinking: { type: 'adaptive' }` paired with
+   * `output_config.effort`. Earlier models continue to accept the legacy
+   * top-level `effort` / `thinking.type: 'enabled'` shape.
+   *
+   * The engine also writes `output_config.format` here when the caller
+   * passes `outputSchema` to a Claude 4.5+ adapter (issue #605 native
+   * combined mode). Both fields coexist: user-supplied `effort` is
+   * preserved when the engine adds `format`.
+   */
+  output_config?: {
+    effort?: 'low' | 'medium' | 'high' | null
+  }
+}
+
 export interface AnthropicToolChoiceOptions {
   tool_choice?: BetaToolChoiceAny | BetaToolChoiceTool | BetaToolChoiceAuto
 }
@@ -184,7 +204,8 @@ export type ExternalTextProviderOptions = AnthropicContainerOptions &
   AnthropicToolChoiceOptions &
   AnthropicSamplingOptions &
   Partial<AnthropicAdaptiveThinkingOptions> &
-  Partial<AnthropicEffortOptions>
+  Partial<AnthropicEffortOptions> &
+  Partial<AnthropicOutputConfigOptions>
 
 export interface InternalTextProviderOptions extends ExternalTextProviderOptions {
   model: string
