@@ -11,9 +11,7 @@
   "paths": {
     "/v1/api-key": {
       "get": {
-        "tags": [
-          "v1"
-        ],
+        "tags": ["v1"],
         "summary": "Get information about an API key, including name, status, permissions and users who created or modified this key.",
         "operationId": "handle_get_api_key_info_request",
         "responses": {
@@ -32,10 +30,7 @@
                   "modify_time": "2024-08-28T17:20:12.343321Z",
                   "modified_by": "3d38b4dc-4eb7-4785-ae26-c3fa8997ffc7",
                   "team_id": "5ea6f6bd-7815-4b8a-9135-28b2d7ba6722",
-                  "acls": [
-                    "api-key:model:*",
-                    "api-key:endpoint:*"
-                  ],
+                  "acls": ["api-key:model:*", "api-key:endpoint:*"],
                   "api_key_id": "ae1e1841-4326-4b36-a8a9-8a1a7237db11",
                   "team_blocked": false,
                   "api_key_blocked": false,
@@ -57,9 +52,7 @@
     },
     "/v1/chat/completions": {
       "post": {
-        "tags": [
-          "v1"
-        ],
+        "tags": ["v1"],
         "summary": "Create a chat response from text/image chat prompts. This is the endpoint for making requests to chat and image understanding models.",
         "operationId": "handle_generic_completion_request",
         "requestBody": {
@@ -148,9 +141,7 @@
     },
     "/v1/chat/deferred-completion/{request_id}": {
       "get": {
-        "tags": [
-          "v1"
-        ],
+        "tags": ["v1"],
         "summary": "Tries to fetch a result for a previously-started deferred completion. Returns `200 Success` with the response body, if the request has been completed. Returns `202 Accepted` when the request is pending processing.",
         "operationId": "handle_get_deferred_completion_request",
         "parameters": [
@@ -229,9 +220,7 @@
     },
     "/v1/complete": {
       "post": {
-        "tags": [
-          "v1"
-        ],
+        "tags": ["v1"],
         "summary": "(Legacy - Not supported by reasoning models) Create a text completion response. This endpoint is compatible with the Anthropic API.",
         "operationId": "handle_generic_complete_request",
         "requestBody": {
@@ -284,9 +273,7 @@
     },
     "/v1/completions": {
       "post": {
-        "tags": [
-          "v1"
-        ],
+        "tags": ["v1"],
         "summary": "(Legacy - Not supported by reasoning models) Create a text completion response for a given prompt. Replaced by /v1/chat/completions.",
         "operationId": "handle_sample_request",
         "requestBody": {
@@ -362,9 +349,7 @@
     },
     "/v1/documents/search": {
       "post": {
-        "tags": [
-          "v1"
-        ],
+        "tags": ["v1"],
         "summary": "Search for content related to the query within the given collections.",
         "operationId": "handle_document_search_request_v2",
         "requestBody": {
@@ -423,9 +408,7 @@
     },
     "/v1/embedding-models": {
       "get": {
-        "tags": [
-          "v1"
-        ],
+        "tags": ["v1"],
         "summary": "List all embedding models available to the authenticating API key with full information. Additional information compared to /v1/models includes modalities, pricing, fingerprint and alias(es).",
         "operationId": "handle_embedding_models_list_request",
         "responses": {
@@ -445,9 +428,7 @@
                       "object": "model",
                       "owned_by": "xai",
                       "version": "0.1.0",
-                      "input_modalities": [
-                        "text"
-                      ],
+                      "input_modalities": ["text"],
                       "prompt_text_token_price": 100,
                       "prompt_image_token_price": 0,
                       "aliases": []
@@ -470,9 +451,7 @@
     },
     "/v1/embedding-models/{model_id}": {
       "get": {
-        "tags": [
-          "v1"
-        ],
+        "tags": ["v1"],
         "summary": "Get full information about an embedding model with its model_id.",
         "operationId": "handle_embedding_model_get_request",
         "parameters": [
@@ -500,9 +479,7 @@
                   "object": "model",
                   "owned_by": "xai",
                   "version": "0.1.0",
-                  "input_modalities": [
-                    "text"
-                  ],
+                  "input_modalities": ["text"],
                   "prompt_text_token_price": 10,
                   "prompt_image_token_price": 0,
                   "aliases": []
@@ -526,9 +503,7 @@
     },
     "/v1/embeddings": {
       "post": {
-        "tags": [
-          "v1"
-        ],
+        "tags": ["v1"],
         "summary": "Create an embedding vector representation corresponding to the input text. This is the endpoint for making requests to embedding models.",
         "operationId": "handle_embedding_request",
         "requestBody": {
@@ -556,11 +531,7 @@
                   "data": [
                     {
                       "index": 0,
-                      "embedding": [
-                        0.01567895,
-                        0.063257694,
-                        0.045925662
-                      ],
+                      "embedding": [0.01567895, 0.063257694, 0.045925662],
                       "object": "embedding"
                     }
                   ],
@@ -588,9 +559,7 @@
     },
     "/v1/files": {
       "get": {
-        "tags": [
-          "v1"
-        ],
+        "tags": ["v1"],
         "summary": "List files owned by the authenticated team, paginated. The response\nalways returns a `pagination_token`; pass it back as a query parameter\nto fetch the next page. The end of the list is reached when the\nreturned `data` array is shorter than `limit`.",
         "operationId": "handle_list_files_request",
         "parameters": [
@@ -683,9 +652,7 @@
         ]
       },
       "post": {
-        "tags": [
-          "v1"
-        ],
+        "tags": ["v1"],
         "summary": "Upload a file to xAI's storage. Returns the file's metadata. Files can\nbe referenced by ID anywhere a `file_id` is accepted (e.g. chat\nattachments). Maximum file size: 50 MB. Files are kept until you\ndelete them, or until `expires_after` elapses if set at upload time.",
         "operationId": "handle_upload_file_request",
         "requestBody": {
@@ -734,9 +701,7 @@
     },
     "/v1/files/{file_id}": {
       "get": {
-        "tags": [
-          "v1"
-        ],
+        "tags": ["v1"],
         "summary": "Retrieve metadata for a single file by ID. Errors with 404 if the file\ndoesn't exist, has been deleted, or has passed its `expires_at`.",
         "operationId": "handle_retrieve_file_request",
         "parameters": [
@@ -772,9 +737,7 @@
         ]
       },
       "delete": {
-        "tags": [
-          "v1"
-        ],
+        "tags": ["v1"],
         "summary": "Delete a file by ID. After this returns, the file no longer appears in\n`GET /v1/files`, content download returns 404, and the ID can no longer\nbe referenced in chat attachments.",
         "operationId": "handle_delete_file_request",
         "parameters": [
@@ -816,9 +779,7 @@
     },
     "/v1/files/{file_id}/content": {
       "get": {
-        "tags": [
-          "v1"
-        ],
+        "tags": ["v1"],
         "summary": "Download the contents of a file as a stream of raw bytes. The response\n`Content-Type` is `application/octet-stream`. Use this for the binary\npayload; use `GET /v1/files/{file_id}` for metadata only.",
         "operationId": "handle_download_file_content_request",
         "parameters": [
@@ -865,9 +826,7 @@
     },
     "/v1/image-generation-models": {
       "get": {
-        "tags": [
-          "v1"
-        ],
+        "tags": ["v1"],
         "summary": "List all image generation models available to the authenticating API key with full information. Additional information compared to /v1/models includes modalities, pricing, fingerprint and alias(es).",
         "operationId": "handle_image_generation_models_list_request",
         "responses": {
@@ -911,9 +870,7 @@
     },
     "/v1/image-generation-models/{model_id}": {
       "get": {
-        "tags": [
-          "v1"
-        ],
+        "tags": ["v1"],
         "summary": "Get full information about an image generation model with its model_id.",
         "operationId": "handle_image_generation_model_get_request",
         "parameters": [
@@ -967,9 +924,7 @@
     },
     "/v1/images/edits": {
       "post": {
-        "tags": [
-          "v1"
-        ],
+        "tags": ["v1"],
         "summary": "Edit an image based on a prompt. This is the endpoint for making edit requests to image generation models.",
         "operationId": "handle_edit_image_request",
         "requestBody": {
@@ -1023,9 +978,7 @@
     },
     "/v1/images/generations": {
       "post": {
-        "tags": [
-          "v1"
-        ],
+        "tags": ["v1"],
         "summary": "Generate an image based on a prompt. This is the endpoint for making generation requests to image generation models.",
         "operationId": "handle_generate_image_request",
         "requestBody": {
@@ -1081,9 +1034,7 @@
     },
     "/v1/language-models": {
       "get": {
-        "tags": [
-          "v1"
-        ],
+        "tags": ["v1"],
         "summary": "List all chat and image understanding models available to the authenticating API key with full information. Additional information compared to /v1/models includes modalities, pricing, fingerprint and alias(es).",
         "operationId": "handle_language_models_list_request",
         "responses": {
@@ -1103,21 +1054,14 @@
                       "object": "model",
                       "owned_by": "xai",
                       "version": "1.0",
-                      "input_modalities": [
-                        "text"
-                      ],
-                      "output_modalities": [
-                        "text"
-                      ],
+                      "input_modalities": ["text"],
+                      "output_modalities": ["text"],
                       "prompt_text_token_price": 30000,
                       "cached_prompt_text_token_price": 7500,
                       "prompt_image_token_price": 0,
                       "completion_text_token_price": 150000,
                       "search_price": 250000000,
-                      "aliases": [
-                        "grok-3-latest",
-                        "grok-3-beta"
-                      ]
+                      "aliases": ["grok-3-latest", "grok-3-beta"]
                     },
                     {
                       "id": "grok-3-mini",
@@ -1126,21 +1070,14 @@
                       "object": "model",
                       "owned_by": "xai",
                       "version": "1.0",
-                      "input_modalities": [
-                        "text"
-                      ],
-                      "output_modalities": [
-                        "text"
-                      ],
+                      "input_modalities": ["text"],
+                      "output_modalities": ["text"],
                       "prompt_text_token_price": 3000,
                       "cached_prompt_text_token_price": 750,
                       "prompt_image_token_price": 0,
                       "completion_text_token_price": 5000,
                       "search_price": 250000000,
-                      "aliases": [
-                        "grok-3-mini-latest",
-                        "grok-3-mini-beta"
-                      ]
+                      "aliases": ["grok-3-mini-latest", "grok-3-mini-beta"]
                     },
                     {
                       "id": "grok-2-vision-1212",
@@ -1149,13 +1086,8 @@
                       "object": "model",
                       "owned_by": "xai",
                       "version": "0.1.0",
-                      "input_modalities": [
-                        "text",
-                        "image"
-                      ],
-                      "output_modalities": [
-                        "text"
-                      ],
+                      "input_modalities": ["text", "image"],
+                      "output_modalities": ["text"],
                       "prompt_text_token_price": 20000,
                       "prompt_image_token_price": 20000,
                       "completion_text_token_price": 100000,
@@ -1179,9 +1111,7 @@
     },
     "/v1/language-models/{model_id}": {
       "get": {
-        "tags": [
-          "v1"
-        ],
+        "tags": ["v1"],
         "summary": "Get full information about a chat or image understanding model with its model_id.",
         "operationId": "handle_language_model_get_request",
         "parameters": [
@@ -1210,20 +1140,13 @@
                   "object": "model",
                   "owned_by": "xai",
                   "version": "1.0.0",
-                  "input_modalities": [
-                    "text"
-                  ],
-                  "output_modalities": [
-                    "text"
-                  ],
+                  "input_modalities": ["text"],
+                  "output_modalities": ["text"],
                   "prompt_text_token_price": 20000,
                   "cached_prompt_text_token_price": 0,
                   "prompt_image_token_price": 0,
                   "completion_text_token_price": 100000,
-                  "aliases": [
-                    "grok-4",
-                    "grok-4-latest"
-                  ]
+                  "aliases": ["grok-4", "grok-4-latest"]
                 }
               }
             }
@@ -1244,9 +1167,7 @@
     },
     "/v1/me": {
       "get": {
-        "tags": [
-          "v1"
-        ],
+        "tags": ["v1"],
         "summary": "Get information about the currently authenticated caller.\nWorks with both API keys and OAuth tokens. Returns identity, team, and ZDR status.",
         "operationId": "handle_get_me_request",
         "responses": {
@@ -1285,9 +1206,7 @@
     },
     "/v1/messages": {
       "post": {
-        "tags": [
-          "v1"
-        ],
+        "tags": ["v1"],
         "summary": "Create a messages response. This endpoint is compatible with the Anthropic API.",
         "operationId": "handle_generic_messages_request",
         "requestBody": {
@@ -1357,9 +1276,7 @@
     },
     "/v1/models": {
       "get": {
-        "tags": [
-          "v1"
-        ],
+        "tags": ["v1"],
         "summary": "List all models available to the authenticating API key with minimalized information, including model names (ID), creation times, etc.",
         "operationId": "handle_models_list_request",
         "responses": {
@@ -1427,9 +1344,7 @@
     },
     "/v1/models/{model_id}": {
       "get": {
-        "tags": [
-          "v1"
-        ],
+        "tags": ["v1"],
         "summary": "Get minimalized information about a model with its model_id.",
         "operationId": "handle_model_get_request",
         "parameters": [
@@ -1476,9 +1391,7 @@
     },
     "/v1/responses": {
       "post": {
-        "tags": [
-          "v1"
-        ],
+        "tags": ["v1"],
         "summary": "Generates a response based on text or image prompts. The response ID can be used to retrieve the response later or to continue the conversation without repeating prior context. New responses will be stored for 30 days and then permanently deleted.",
         "operationId": "handle_generic_model_request",
         "requestBody": {
@@ -1583,9 +1496,7 @@
     },
     "/v1/responses/{response_id}": {
       "get": {
-        "tags": [
-          "v1"
-        ],
+        "tags": ["v1"],
         "summary": "Retrieve a previously generated response.",
         "operationId": "handle_get_stored_completion_request",
         "parameters": [
@@ -1692,9 +1603,7 @@
         ]
       },
       "delete": {
-        "tags": [
-          "v1"
-        ],
+        "tags": ["v1"],
         "summary": "Delete a previously generated response.",
         "operationId": "handle_delete_stored_completion_request",
         "parameters": [
@@ -1740,9 +1649,7 @@
     },
     "/v1/responses/{response_id}/input_items": {
       "get": {
-        "tags": [
-          "v1"
-        ],
+        "tags": ["v1"],
         "summary": "List input items for a previously generated response.",
         "description": "Returns a paginated list of the input items that were part of the\nconversation context for the given response.",
         "operationId": "handle_list_input_items",
@@ -1812,9 +1719,7 @@
     },
     "/v1/tokenize-text": {
       "post": {
-        "tags": [
-          "v1"
-        ],
+        "tags": ["v1"],
         "summary": "Tokenize text with the specified model",
         "operationId": "handle_tokenize_text_request",
         "requestBody": {
@@ -1844,32 +1749,17 @@
                     {
                       "token_id": 13902,
                       "string_token": "Hello",
-                      "token_bytes": [
-                        72,
-                        101,
-                        108,
-                        108,
-                        111
-                      ]
+                      "token_bytes": [72, 101, 108, 108, 111]
                     },
                     {
                       "token_id": 1749,
                       "string_token": " world",
-                      "token_bytes": [
-                        32,
-                        119,
-                        111,
-                        114,
-                        108,
-                        100
-                      ]
+                      "token_bytes": [32, 119, 111, 114, 108, 100]
                     },
                     {
                       "token_id": 161,
                       "string_token": "!",
-                      "token_bytes": [
-                        33
-                      ]
+                      "token_bytes": [33]
                     }
                   ]
                 }
@@ -1889,9 +1779,7 @@
     },
     "/v1/video-generation-models": {
       "get": {
-        "tags": [
-          "v1"
-        ],
+        "tags": ["v1"],
         "summary": "List all video generation models available to the authenticating API key with full information.",
         "operationId": "handle_video_generation_models_list_request",
         "responses": {
@@ -1911,13 +1799,8 @@
                       "object": "model",
                       "owned_by": "xai",
                       "version": "1.0.0",
-                      "input_modalities": [
-                        "text",
-                        "image"
-                      ],
-                      "output_modalities": [
-                        "video"
-                      ],
+                      "input_modalities": ["text", "image"],
+                      "output_modalities": ["video"],
                       "aliases": []
                     }
                   ]
@@ -1938,9 +1821,7 @@
     },
     "/v1/video-generation-models/{model_id}": {
       "get": {
-        "tags": [
-          "v1"
-        ],
+        "tags": ["v1"],
         "summary": "Get full information about a video generation model with its model_id.",
         "operationId": "handle_video_generation_model_get_request",
         "parameters": [
@@ -1969,13 +1850,8 @@
                   "object": "model",
                   "owned_by": "xai",
                   "version": "1.0",
-                  "input_modalities": [
-                    "text",
-                    "image"
-                  ],
-                  "output_modalities": [
-                    "video"
-                  ],
+                  "input_modalities": ["text", "image"],
+                  "output_modalities": ["video"],
                   "aliases": []
                 }
               }
@@ -1997,9 +1873,7 @@
     },
     "/v1/videos/edits": {
       "post": {
-        "tags": [
-          "v1"
-        ],
+        "tags": ["v1"],
         "summary": "Edit a video based on a prompt.\nThis is an asynchronous operation that returns a request_id for polling.",
         "operationId": "handle_edit_video_request",
         "requestBody": {
@@ -2049,9 +1923,7 @@
     },
     "/v1/videos/extensions": {
       "post": {
-        "tags": [
-          "v1"
-        ],
+        "tags": ["v1"],
         "summary": "Extend a video by generating continuation content.\nThis is an asynchronous operation that returns a request_id for polling.",
         "operationId": "handle_extend_video_request",
         "requestBody": {
@@ -2102,9 +1974,7 @@
     },
     "/v1/videos/generations": {
       "post": {
-        "tags": [
-          "v1"
-        ],
+        "tags": ["v1"],
         "summary": "Generate a video from a text prompt and optionally an image.\nThis is an asynchronous operation that returns a request_id for polling.",
         "operationId": "handle_generate_video_request",
         "requestBody": {
@@ -2152,9 +2022,7 @@
     },
     "/v1/videos/{request_id}": {
       "get": {
-        "tags": [
-          "v1"
-        ],
+        "tags": ["v1"],
         "summary": "Get the result of a deferred video generation request.",
         "description": "Returns the current status of a video generation job. When the job completes\nsuccessfully the response contains the generated video URL. When the job fails\nthe response contains a structured `error` object with a machine-readable\n`code` and a human-readable `message`.\n\nBoth successful and failed completions return HTTP 200 — use the `status`\nfield (`\"done\"` or `\"failed\"`) to distinguish between the two.",
         "operationId": "handle_get_deferred_video_request",
@@ -2211,32 +2079,20 @@
     "schemas": {
       "Annotation": {
         "type": "object",
-        "required": [
-          "type",
-          "url"
-        ],
+        "required": ["type", "url"],
         "properties": {
           "end_index": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32",
             "description": "The end index of the annotation."
           },
           "start_index": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32",
             "description": "The summary of the annotation."
           },
           "title": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "The title of the annotation."
           },
           "type": {
@@ -2324,18 +2180,12 @@
         "description": "The chat request body for `/v1/chat/completions` endpoint.",
         "properties": {
           "deferred": {
-            "type": [
-              "boolean",
-              "null"
-            ],
+            "type": ["boolean", "null"],
             "description": "If set to `true`, the request returns a `request_id`. You can then get the deferred response by GET `/v1/chat/deferred-completion/{request_id}`.",
             "default": false
           },
           "frequency_penalty": {
-            "type": [
-              "number",
-              "null"
-            ],
+            "type": ["number", "null"],
             "format": "float",
             "description": "(Not supported by reasoning models) Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim.",
             "default": 0,
@@ -2343,10 +2193,7 @@
             "minimum": -2
           },
           "logit_bias": {
-            "type": [
-              "object",
-              "null"
-            ],
+            "type": ["object", "null"],
             "description": "(Unsupported) A JSON object that maps tokens (specified by their token ID in the tokenizer) to an associated bias value from -100 to 100. Mathematically, the bias is added to the logits generated by the model prior to sampling. The exact effect will vary per model, but values between -1 and 1 should decrease or increase likelihood of selection; values like -100 or 100 should result in a ban or exclusive selection of the relevant token.",
             "additionalProperties": {
               "type": "number",
@@ -2358,27 +2205,18 @@
             }
           },
           "logprobs": {
-            "type": [
-              "boolean",
-              "null"
-            ],
+            "type": ["boolean", "null"],
             "description": "Whether to return log probabilities of the output tokens or not. If true, returns the log probabilities of each output token returned in the content of message. Not supported by models `grok-4.20` and newer; the field will be silently ignored if set.",
             "default": false
           },
           "max_completion_tokens": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32",
             "description": "An upper bound for the number of tokens that can be generated for a completion, only applies to visible output tokens (i.e. does not apply to tokens used for reasoning or function calls). Defaults to None, meaning the model will generate as many tokens as needed up until the model's maximum context length.",
             "example": 8192
           },
           "max_tokens": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32",
             "description": "\\[DEPRECATED\\] The maximum number of tokens that can be generated in the chat completion. Deprecated in favor of `max_completion_tokens`.",
             "example": 8192
@@ -2396,10 +2234,7 @@
             "example": "latest"
           },
           "n": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32",
             "description": "How many chat completion choices to generate for each input message. Note that you will be charged based on the number of generated tokens across all of the choices. Keep n as 1 to minimize costs.",
             "default": 1,
@@ -2407,19 +2242,13 @@
             "minimum": 1
           },
           "parallel_tool_calls": {
-            "type": [
-              "boolean",
-              "null"
-            ],
+            "type": ["boolean", "null"],
             "description": "If set to false, the model can perform maximum one tool call.",
             "default": true,
             "example": false
           },
           "presence_penalty": {
-            "type": [
-              "number",
-              "null"
-            ],
+            "type": ["number", "null"],
             "format": "float",
             "description": "(Not supported by `grok-3` and reasoning models) Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics.",
             "default": 0,
@@ -2427,10 +2256,7 @@
             "minimum": -2
           },
           "reasoning_effort": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Constrains how hard a reasoning model thinks before responding. Not supported by `grok-4` and will result in error if used with `grok-4`. Possible values are `low` (uses fewer reasoning tokens) and `high` (uses more reasoning tokens)."
           },
           "response_format": {
@@ -2456,28 +2282,19 @@
             ]
           },
           "seed": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32",
             "description": "If specified, our system will make a best effort to sample deterministically, such that repeated requests with the same `seed` and parameters should return the same result. Determinism is not guaranteed, and you should refer to the `system_fingerprint` response parameter to monitor changes in the backend."
           },
           "stop": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": ["array", "null"],
             "items": {
               "type": "string"
             },
             "description": "(Not supported by reasoning models) Up to 4 sequences where the API will stop generating further tokens."
           },
           "stream": {
-            "type": [
-              "boolean",
-              "null"
-            ],
+            "type": ["boolean", "null"],
             "description": "If set, partial message deltas will be sent. Tokens will be sent as data-only server-sent events as they become available, with the stream terminated by a `data: [DONE]` message.",
             "default": false,
             "example": true
@@ -2494,10 +2311,7 @@
             ]
           },
           "temperature": {
-            "type": [
-              "number",
-              "null"
-            ],
+            "type": ["number", "null"],
             "format": "float",
             "description": "What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.",
             "default": 1,
@@ -2517,10 +2331,7 @@
             ]
           },
           "tools": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": ["array", "null"],
             "items": {
               "$ref": "#/components/schemas/Tool"
             },
@@ -2528,20 +2339,14 @@
             "maxItems": 128
           },
           "top_logprobs": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32",
             "description": "An integer between 0 and 8 specifying the number of most likely tokens to return at each token position, each with an associated log probability. logprobs must be set to true if this parameter is used. Not supported by models `grok-4.20` and newer; the field will be silently ignored if set.",
             "maximum": 8,
             "minimum": 0
           },
           "top_p": {
-            "type": [
-              "number",
-              "null"
-            ],
+            "type": ["number", "null"],
             "format": "float",
             "description": "An alternative to sampling with `temperature`, called nucleus sampling, where the model considers the results of the tokens with `top_p` probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered. It is generally recommended to alter this or `temperature` but not both.",
             "default": 1,
@@ -2549,10 +2354,7 @@
             "exclusiveMinimum": 0
           },
           "user": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "A unique identifier representing your end-user, which can help xAI to monitor and detect abuse."
           },
           "web_search_options": {
@@ -2571,13 +2373,7 @@
       "ChatResponse": {
         "type": "object",
         "description": "The chat response body for `/v1/chat/completions` endpoint.",
-        "required": [
-          "id",
-          "object",
-          "created",
-          "model",
-          "choices"
-        ],
+        "required": ["id", "object", "created", "model", "choices"],
         "properties": {
           "choices": {
             "type": "array",
@@ -2587,10 +2383,7 @@
             "description": "A list of response choices from the model. The length corresponds to the `n` in request body (default to 1)."
           },
           "citations": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": ["array", "null"],
             "items": {
               "type": "string"
             },
@@ -2615,20 +2408,14 @@
             "description": "The object type, which is always `\"chat.completion\"`."
           },
           "output_files": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": ["array", "null"],
             "items": {
               "$ref": "#/components/schemas/OutputFile"
             },
             "description": "Files generated during the response (e.g., by the code execution tool).\nOnly populated when `code_execution_files_output` is included."
           },
           "system_fingerprint": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "System fingerprint, used to indicate xAI system configuration changes."
           },
           "usage": {
@@ -2646,13 +2433,7 @@
       },
       "ChatResponseChunk": {
         "type": "object",
-        "required": [
-          "id",
-          "object",
-          "created",
-          "model",
-          "choices"
-        ],
+        "required": ["id", "object", "created", "model", "choices"],
         "properties": {
           "choices": {
             "type": "array",
@@ -2662,10 +2443,7 @@
             "description": "A list of response choices from the model. The length corresponds to the `n` in request body (default to 1)."
           },
           "citations": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": ["array", "null"],
             "items": {
               "type": "string"
             },
@@ -2690,20 +2468,14 @@
             "description": "The object type, which is always `\"chat.completion.chunk\"`."
           },
           "output_files": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": ["array", "null"],
             "items": {
               "$ref": "#/components/schemas/OutputFile"
             },
             "description": "Files generated during the response (e.g., by the code execution tool).\nOnly populated for the final chunk when `code_execution_files_output` is included."
           },
           "system_fingerprint": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "System fingerprint, used to indicate xAI system configuration changes."
           },
           "usage": {
@@ -2721,16 +2493,10 @@
       },
       "Choice": {
         "type": "object",
-        "required": [
-          "index",
-          "message"
-        ],
+        "required": ["index", "message"],
         "properties": {
           "finish_reason": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Finish reason. `\"stop\"` means the inference has reached a model-defined or user-supplied stop sequence in `stop`. `\"length\"` means the inference result has reached models' maximum allowed token length or user defined value in `max_tokens`. `\"end_turn\"` or `null` in streaming mode when the chunk is not the last."
           },
           "index": {
@@ -2757,20 +2523,14 @@
       },
       "ChoiceChunk": {
         "type": "object",
-        "required": [
-          "index",
-          "delta"
-        ],
+        "required": ["index", "delta"],
         "properties": {
           "delta": {
             "$ref": "#/components/schemas/Delta",
             "description": "Additional difference (delta) of the result."
           },
           "finish_reason": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Finish reason. `\"stop\"` means the inference has reached a model-defined or user-supplied stop sequence in `stop`. `\"length\"` means the inference result has reached models' maximum allowed token length or user defined value in `max_tokens`. `\"end_turn\"` or `null` in streaming mode when the chunk is not the last."
           },
           "index": {
@@ -2793,29 +2553,18 @@
       },
       "ChoiceMessage": {
         "type": "object",
-        "required": [
-          "role"
-        ],
+        "required": ["role"],
         "properties": {
           "content": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "The content of the message."
           },
           "reasoning_content": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "The reasoning trace generated by the model."
           },
           "refusal": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "The reason given by model if the model is unable to generate a response. null if model is able to generate."
           },
           "role": {
@@ -2823,10 +2572,7 @@
             "description": "The role that the message belongs to, the response from model is always `\"assistant\"`."
           },
           "tool_calls": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": ["array", "null"],
             "items": {
               "$ref": "#/components/schemas/ToolCall"
             },
@@ -2837,10 +2583,7 @@
       "CodeInterpreterCall": {
         "type": "object",
         "description": "The output of a code interpreter tool call.",
-        "required": [
-          "type",
-          "outputs"
-        ],
+        "required": ["type", "outputs"],
         "properties": {
           "code": {
             "type": "string",
@@ -2872,10 +2615,7 @@
           {
             "type": "object",
             "description": "The output of the code interpreter tool call.",
-            "required": [
-              "logs",
-              "type"
-            ],
+            "required": ["logs", "type"],
             "properties": {
               "logs": {
                 "type": "string",
@@ -2883,25 +2623,18 @@
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "logs"
-                ]
+                "enum": ["logs"]
               }
             }
           },
           {
             "type": "object",
             "description": "The error of the code interpreter tool call.",
-            "required": [
-              "url",
-              "type"
-            ],
+            "required": ["url", "type"],
             "properties": {
               "type": {
                 "type": "string",
-                "enum": [
-                  "image"
-                ]
+                "enum": ["image"]
               },
               "url": {
                 "type": "string",
@@ -2914,20 +2647,14 @@
       "CompactionOutputItem": {
         "type": "object",
         "description": "A compaction item from a previous `/v1/responses/compact` call.\n\nAccepted as input in `/v1/responses` calls. Clients must treat\n`encrypted_content` as opaque — do not parse or depend on its\ninternal structure.",
-        "required": [
-          "type",
-          "encrypted_content"
-        ],
+        "required": ["type", "encrypted_content"],
         "properties": {
           "encrypted_content": {
             "type": "string",
             "description": "The encrypted content of the compacted conversation."
           },
           "id": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "The unique ID of the compaction item (e.g. `cmp_<uuid>`)."
           },
           "type": {
@@ -2965,27 +2692,18 @@
             "description": "Prompt for the model to perform completion on."
           },
           "stop_sequences": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": ["array", "null"],
             "items": {
               "type": "string"
             },
             "description": "(Not supported by reasoning models) Up to 4 sequences where the API will stop generating further tokens."
           },
           "stream": {
-            "type": [
-              "boolean",
-              "null"
-            ],
+            "type": ["boolean", "null"],
             "description": "(Unsupported) If set, partial message deltas will be sent. Tokens will be sent as data-only server-sent events as they become available, with the stream terminated by a `data: [DONE]` message."
           },
           "temperature": {
-            "type": [
-              "number",
-              "null"
-            ],
+            "type": ["number", "null"],
             "format": "float",
             "description": "What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.",
             "default": 1,
@@ -2994,18 +2712,12 @@
             "minimum": 0
           },
           "top_k": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32",
             "description": "(Unsupported) When generating next tokens, randomly selecting the next token from the k most likely options."
           },
           "top_p": {
-            "type": [
-              "number",
-              "null"
-            ],
+            "type": ["number", "null"],
             "format": "float",
             "description": "An alternative to sampling with `temperature`, called nucleus sampling, where the model considers the results of the tokens with `top_p` probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered. It is generally recommended to alter this or `temperature` but not both.",
             "default": 1,
@@ -3017,12 +2729,7 @@
       "CompleteResponse": {
         "type": "object",
         "description": "(Legacy) Anthropic compatible complete response on `/v1/complete` endpoint.",
-        "required": [
-          "type",
-          "id",
-          "completion",
-          "model"
-        ],
+        "required": ["type", "id", "completion", "model"],
         "properties": {
           "completion": {
             "type": "string",
@@ -3037,10 +2744,7 @@
             "description": "The model that handled the request."
           },
           "stop_reason": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "The reason to stop completion. `\"stop_sequence\"` means the inference has reached a model-defined or user-supplied stop sequence in `stop`. `\"length\"` means the inference result has reached models' maximum allowed token length or user defined value in `max_tokens`. `\"end_turn\"` or `null` in streaming mode when the chunk is not the last."
           },
           "type": {
@@ -3100,16 +2804,11 @@
       "ContentFormat": {
         "type": "string",
         "description": "Format of the downloaded file content.",
-        "enum": [
-          "original",
-          "text"
-        ]
+        "enum": ["original", "text"]
       },
       "ContentPart": {
         "type": "object",
-        "required": [
-          "type"
-        ],
+        "required": ["type"],
         "properties": {
           "file": {
             "oneOf": [
@@ -3134,10 +2833,7 @@
             ]
           },
           "text": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Text prompt."
           },
           "type": {
@@ -3149,12 +2845,7 @@
       "CustomToolCall": {
         "type": "object",
         "description": "The output of a custom tool call.",
-        "required": [
-          "call_id",
-          "name",
-          "type",
-          "id"
-        ],
+        "required": ["call_id", "name", "type", "id"],
         "properties": {
           "call_id": {
             "type": "string",
@@ -3184,11 +2875,7 @@
       },
       "DeleteFileResponse": {
         "type": "object",
-        "required": [
-          "id",
-          "deleted",
-          "object"
-        ],
+        "required": ["id", "deleted", "object"],
         "properties": {
           "deleted": {
             "type": "boolean",
@@ -3207,11 +2894,7 @@
       "DeleteStoredCompletionResponse": {
         "type": "object",
         "description": "Response to delete a stored completion.",
-        "required": [
-          "id",
-          "object",
-          "deleted"
-        ],
+        "required": ["id", "object", "deleted"],
         "properties": {
           "deleted": {
             "type": "boolean",
@@ -3231,38 +2914,23 @@
         "type": "object",
         "properties": {
           "content": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "images": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": ["array", "null"],
             "items": {
               "type": "string"
             },
             "description": "Images generated by the model."
           },
           "reasoning_content": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "role": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "tool_calls": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": ["array", "null"],
             "items": {
               "$ref": "#/components/schemas/ToolCall"
             }
@@ -3272,9 +2940,7 @@
       "DocumentsSource": {
         "type": "object",
         "description": "DocumentsSource defines the source of documents to search over.",
-        "required": [
-          "collection_ids"
-        ],
+        "required": ["collection_ids"],
         "properties": {
           "collection_ids": {
             "type": "array",
@@ -3316,9 +2982,7 @@
       "EditImageRequest": {
         "type": "object",
         "description": "Request for editing image",
-        "required": [
-          "prompt"
-        ],
+        "required": ["prompt"],
         "properties": {
           "aspect_ratio": {
             "oneOf": [
@@ -3350,18 +3014,12 @@
             "description": "List of input images for multi-reference editing.\nMutually exclusive with `image`. When multiple images are provided,\nrefer to them as \\<IMAGE_0\\>, \\<IMAGE_1\\>, etc. in the prompt."
           },
           "model": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Model to be used.",
             "example": "grok-imagine-image"
           },
           "n": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32",
             "description": "Number of image edits to be generated."
           },
@@ -3381,18 +3039,12 @@
             ]
           },
           "response_format": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Response format to return the image in. Can be `url` or `b64_json`. If `b64_json` is specified, the image will be returned as a base64-encoded string instead of a url to the generated image file.",
             "default": "url"
           },
           "user": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "A unique identifier representing your end-user, which can help xAI to monitor and detect abuse."
           }
         }
@@ -3400,16 +3052,10 @@
       "EditVideoRequest": {
         "type": "object",
         "description": "Request for editing video for `/v1/videos/edits` endpoint",
-        "required": [
-          "prompt",
-          "video"
-        ],
+        "required": ["prompt", "video"],
         "properties": {
           "model": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Model to be used.",
             "example": "grok-imagine-video"
           },
@@ -3429,10 +3075,7 @@
             "description": "Prompt for video editing."
           },
           "user": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "A unique identifier representing your end-user."
           },
           "video": {
@@ -3443,11 +3086,7 @@
       },
       "Embedding": {
         "type": "object",
-        "required": [
-          "index",
-          "embedding",
-          "object"
-        ],
+        "required": ["index", "embedding", "object"],
         "properties": {
           "embedding": {
             "$ref": "#/components/schemas/EmbeddingContent",
@@ -3485,9 +3124,7 @@
           {
             "type": "object",
             "description": "A strings to be embedded. For best performance, prepend \"query: \" in front of query content and prepend \"passage: \" in front of passage/text",
-            "required": [
-              "String"
-            ],
+            "required": ["String"],
             "properties": {
               "String": {
                 "type": "string",
@@ -3498,9 +3135,7 @@
           {
             "type": "object",
             "description": "An array of strings to be embedded",
-            "required": [
-              "StringArray"
-            ],
+            "required": ["StringArray"],
             "properties": {
               "StringArray": {
                 "type": "array",
@@ -3514,9 +3149,7 @@
           {
             "type": "object",
             "description": "A token in integer to be embedded",
-            "required": [
-              "Ints"
-            ],
+            "required": ["Ints"],
             "properties": {
               "Ints": {
                 "type": "array",
@@ -3531,9 +3164,7 @@
           {
             "type": "object",
             "description": "An array of tokens in integers to be embedded",
-            "required": [
-              "IntsArray"
-            ],
+            "required": ["IntsArray"],
             "properties": {
               "IntsArray": {
                 "type": "array",
@@ -3629,18 +3260,12 @@
         "type": "object",
         "properties": {
           "dimensions": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32",
             "description": "The number of dimensions the resulting output embeddings should have."
           },
           "encoding_format": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "The format to return the embeddings in. Can be either `float` or `base64`."
           },
           "input": {
@@ -3653,28 +3278,18 @@
             "example": "v1"
           },
           "preview": {
-            "type": [
-              "boolean",
-              "null"
-            ],
+            "type": ["boolean", "null"],
             "description": "Flag to use the new format of the API."
           },
           "user": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "A unique identifier representing your end-user, which can help xAI to monitor and detect abuse."
           }
         }
       },
       "EmbeddingResponse": {
         "type": "object",
-        "required": [
-          "object",
-          "model",
-          "data"
-        ],
+        "required": ["object", "model", "data"],
         "properties": {
           "data": {
             "type": "array",
@@ -3706,10 +3321,7 @@
       },
       "EmbeddingUsage": {
         "type": "object",
-        "required": [
-          "prompt_tokens",
-          "total_tokens"
-        ],
+        "required": ["prompt_tokens", "total_tokens"],
         "properties": {
           "prompt_tokens": {
             "type": "integer",
@@ -3726,24 +3338,15 @@
       "ExtendVideoRequest": {
         "type": "object",
         "description": "Request for extending a video for `/v1/videos/extensions` endpoint",
-        "required": [
-          "prompt",
-          "video"
-        ],
+        "required": ["prompt", "video"],
         "properties": {
           "duration": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32",
             "description": "Duration of the extension segment to generate in seconds (1-10).\nDefaults to 6 seconds if not specified."
           },
           "model": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Model to be used.",
             "example": "grok-imagine-video"
           },
@@ -3771,13 +3374,7 @@
       "File": {
         "type": "object",
         "description": "An uploaded file.",
-        "required": [
-          "bytes",
-          "created_at",
-          "filename",
-          "id",
-          "object"
-        ],
+        "required": ["bytes", "created_at", "filename", "id", "object"],
         "properties": {
           "bytes": {
             "type": "integer",
@@ -3790,10 +3387,7 @@
             "description": "The Unix timestamp (in seconds) for file creation time."
           },
           "expires_at": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int64",
             "description": "The Unix timestamp (in seconds) for file expiry time. null if file does not expire."
           },
@@ -3819,17 +3413,11 @@
         "type": "object",
         "properties": {
           "file_id": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "The file ID from the Files API."
           },
           "url": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Public URL for a file attachment."
           }
         }
@@ -3837,11 +3425,7 @@
       "FileSearchCall": {
         "type": "object",
         "description": "The output of a web search tool call.",
-        "required": [
-          "type",
-          "queries",
-          "results"
-        ],
+        "required": ["type", "queries", "results"],
         "properties": {
           "id": {
             "type": "string",
@@ -3873,11 +3457,7 @@
       },
       "FileSearchResult": {
         "type": "object",
-        "required": [
-          "file_id",
-          "filename",
-          "text"
-        ],
+        "required": ["file_id", "filename", "text"],
         "properties": {
           "file_id": {
             "type": "string",
@@ -3900,10 +3480,7 @@
       },
       "Function": {
         "type": "object",
-        "required": [
-          "name",
-          "arguments"
-        ],
+        "required": ["name", "arguments"],
         "properties": {
           "arguments": {
             "type": "string"
@@ -3915,10 +3492,7 @@
       },
       "FunctionCall": {
         "type": "object",
-        "required": [
-          "name",
-          "arguments"
-        ],
+        "required": ["name", "arguments"],
         "properties": {
           "arguments": {
             "type": "string",
@@ -3933,9 +3507,7 @@
       "FunctionChoice": {
         "type": "object",
         "description": "Function name.",
-        "required": [
-          "name"
-        ],
+        "required": ["name"],
         "properties": {
           "name": {
             "type": "string"
@@ -3945,16 +3517,10 @@
       "FunctionDefinition": {
         "type": "object",
         "description": "Definition of the tool call made available to the model.",
-        "required": [
-          "name",
-          "parameters"
-        ],
+        "required": ["name", "parameters"],
         "properties": {
           "description": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "A description of the function to indicate to the model when to call it."
           },
           "name": {
@@ -3965,10 +3531,7 @@
             "description": "A JSON schema describing the function parameters. The model _should_ follow the schema,\nhowever, this is not enforced at the moment."
           },
           "strict": {
-            "type": [
-              "boolean",
-              "null"
-            ],
+            "type": ["boolean", "null"],
             "description": "Not supported. Only maintained for compatibility reasons."
           }
         }
@@ -3976,12 +3539,7 @@
       "FunctionToolCall": {
         "type": "object",
         "description": "A tool call to run a function.",
-        "required": [
-          "arguments",
-          "call_id",
-          "name",
-          "type"
-        ],
+        "required": ["arguments", "call_id", "name", "type"],
         "properties": {
           "arguments": {
             "type": "string",
@@ -4012,11 +3570,7 @@
       "FunctionToolCallOutput": {
         "type": "object",
         "description": "The output of a function tool call.",
-        "required": [
-          "call_id",
-          "output",
-          "type"
-        ],
+        "required": ["call_id", "output", "type"],
         "properties": {
           "call_id": {
             "type": "string",
@@ -4047,18 +3601,12 @@
             ]
           },
           "model": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Model to be used.",
             "example": "grok-imagine-image"
           },
           "n": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32",
             "description": "Number of images to be generated",
             "default": 1,
@@ -4081,18 +3629,12 @@
             ]
           },
           "response_format": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Response format to return the image in. Can be url or b64_json. If b64_json is specified, the image will be returned as a base64-encoded string instead of a url to the generated image file.",
             "default": "url"
           },
           "user": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "A unique identifier representing your end-user, which can help xAI to monitor and detect abuse."
           }
         }
@@ -4113,10 +3655,7 @@
             ]
           },
           "duration": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32",
             "description": "Video duration in seconds. Range: [1, 15]. Default: 8.\nAlso accepts `seconds` for OpenAI API compatibility.\nAccepts both number (8) and string (\"8\") values.",
             "default": 8,
@@ -4135,10 +3674,7 @@
             ]
           },
           "model": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Model to be used.",
             "example": "grok-imagine-video"
           },
@@ -4176,10 +3712,7 @@
             ]
           },
           "user": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "A unique identifier representing your end-user."
           }
         }
@@ -4189,24 +3722,15 @@
         "description": "Generated images",
         "properties": {
           "b64_json": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "A base64-encoded string representation of the generated image (without the data-URI prefix), if `b64_json` is specified as `response_format` in the request."
           },
           "mime_type": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "The MIME type of the generated image (e.g. `image/png`, `image/jpeg`, `image/webp`)."
           },
           "url": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "A url to the generated image, if `response_format` is not specified or with `url` in the request."
           }
         }
@@ -4214,9 +3738,7 @@
       "GeneratedImageResponse": {
         "type": "object",
         "description": "Image generation response for `/v1/image/generations` endpoint",
-        "required": [
-          "data"
-        ],
+        "required": ["data"],
         "properties": {
           "data": {
             "type": "array",
@@ -4241,10 +3763,7 @@
       "GeneratedVideo": {
         "type": "object",
         "description": "Generated video.",
-        "required": [
-          "duration",
-          "respect_moderation"
-        ],
+        "required": ["duration", "respect_moderation"],
         "properties": {
           "duration": {
             "type": "integer",
@@ -4256,10 +3775,7 @@
             "description": "Whether the video generated by the model respects moderation rules.\nThe field will be true if the video respects moderation rules. Otherwise\nthe field will be false and the video url field will be empty."
           },
           "url": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "A url to the generated video."
           }
         }
@@ -4267,9 +3783,7 @@
       "GetDeferredVideoRequest": {
         "type": "object",
         "description": "Request to get deferred video result with a request ID.",
-        "required": [
-          "request_id"
-        ],
+        "required": ["request_id"],
         "properties": {
           "request_id": {
             "type": "string",
@@ -4280,9 +3794,7 @@
       "GetDeferredVideoResponse": {
         "type": "object",
         "description": "Response for getting deferred video result.",
-        "required": [
-          "status"
-        ],
+        "required": ["status"],
         "properties": {
           "response": {
             "oneOf": [
@@ -4304,12 +3816,7 @@
       "GetMeResponse": {
         "type": "object",
         "description": "Information about the currently authenticated caller.\nWorks with both API keys and OAuth tokens.",
-        "required": [
-          "user_id",
-          "team_id",
-          "zdr_status",
-          "team_blocked"
-        ],
+        "required": ["user_id", "team_id", "zdr_status", "team_blocked"],
         "properties": {
           "api_key": {
             "oneOf": [
@@ -4354,9 +3861,7 @@
       "GroupBy": {
         "type": "object",
         "description": "Group search results by metadata key(s) and keep top-k per group.",
-        "required": [
-          "keys"
-        ],
+        "required": ["keys"],
         "properties": {
           "aggregate": {
             "oneOf": [
@@ -4383,17 +3888,12 @@
           {
             "type": "object",
             "description": "Keep the k records with the smallest values (best scores).",
-            "required": [
-              "min_k"
-            ],
+            "required": ["min_k"],
             "properties": {
               "min_k": {
                 "type": "object",
                 "description": "Keep the k records with the smallest values (best scores).",
-                "required": [
-                  "keys",
-                  "k"
-                ],
+                "required": ["keys", "k"],
                 "properties": {
                   "k": {
                     "type": "integer",
@@ -4414,17 +3914,12 @@
           {
             "type": "object",
             "description": "Keep the k records with the largest values.",
-            "required": [
-              "max_k"
-            ],
+            "required": ["max_k"],
             "properties": {
               "max_k": {
                 "type": "object",
                 "description": "Keep the k records with the largest values.",
-                "required": [
-                  "keys",
-                  "k"
-                ],
+                "required": ["keys", "k"],
                 "properties": {
                   "k": {
                     "type": "integer",
@@ -4455,15 +3950,11 @@
               },
               {
                 "type": "object",
-                "required": [
-                  "type"
-                ],
+                "required": ["type"],
                 "properties": {
                   "type": {
                     "type": "string",
-                    "enum": [
-                      "reranker_model"
-                    ]
+                    "enum": ["reranker_model"]
                   }
                 }
               }
@@ -4478,15 +3969,11 @@
               },
               {
                 "type": "object",
-                "required": [
-                  "type"
-                ],
+                "required": ["type"],
                 "properties": {
                   "type": {
                     "type": "string",
-                    "enum": [
-                      "rrf"
-                    ]
+                    "enum": ["rrf"]
                   }
                 }
               }
@@ -4512,10 +3999,7 @@
             ]
           },
           "search_multiplier": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32",
             "description": "Additional multiplier to requested search limit.\nValid range is [1, 100]. Defaults to 1 when unset."
           }
@@ -4618,20 +4102,14 @@
       "ImageResolution": {
         "type": "string",
         "description": "Resolution for image generation.\nOnly supported by grok-imagine models.",
-        "enum": [
-          "1k",
-          "2k"
-        ]
+        "enum": ["1k", "2k"]
       },
       "ImageUrl": {
         "type": "object",
         "description": "Image input for generation and editing requests.\nAccepts a public URL, a base64-encoded data URL, or a file_id from the xAI Files API.",
         "properties": {
           "file_id": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "File ID from the xAI Files API. Mutually exclusive with `url`.\nThe file must be an image (JPEG, PNG, or WebP) and fully uploaded."
           },
           "url": {
@@ -4644,43 +4122,31 @@
         "oneOf": [
           {
             "type": "object",
-            "required": [
-              "reason"
-            ],
+            "required": ["reason"],
             "properties": {
               "reason": {
                 "type": "string",
-                "enum": [
-                  "max_output_tokens"
-                ]
+                "enum": ["max_output_tokens"]
               }
             }
           },
           {
             "type": "object",
-            "required": [
-              "reason"
-            ],
+            "required": ["reason"],
             "properties": {
               "reason": {
                 "type": "string",
-                "enum": [
-                  "max_prompt_tokens"
-                ]
+                "enum": ["max_prompt_tokens"]
               }
             }
           },
           {
             "type": "object",
-            "required": [
-              "reason"
-            ],
+            "required": ["reason"],
             "properties": {
               "reason": {
                 "type": "string",
-                "enum": [
-                  "max_time_limit"
-                ]
+                "enum": ["max_time_limit"]
               }
             }
           }
@@ -4695,9 +4161,7 @@
           },
           {
             "type": "object",
-            "required": [
-              "id"
-            ],
+            "required": ["id"],
             "properties": {
               "id": {
                 "type": "string",
@@ -4710,9 +4174,7 @@
       },
       "InputTokensDetails": {
         "type": "object",
-        "required": [
-          "cached_tokens"
-        ],
+        "required": ["cached_tokens"],
         "properties": {
           "cached_tokens": {
             "type": "integer",
@@ -4833,9 +4295,7 @@
       },
       "ListEmbeddingModelsResponse": {
         "type": "object",
-        "required": [
-          "models"
-        ],
+        "required": ["models"],
         "properties": {
           "models": {
             "type": "array",
@@ -4851,25 +4311,16 @@
         "description": "Parameters to control listing of files.",
         "properties": {
           "after": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Only included for compatibility. Use `pagination_token` instead."
           },
           "filter": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "AIP-160 filter expression to narrow down results.\n\n**Filterable fields:**\n\n| Field | Type | Description |\n|-------|------|-------------|\n| `name` (or `file_name`) | string | Fuzzy match on filename |\n| `file_id` | string | Exact match on file ID |\n| `size_bytes` | integer | File size in bytes |\n| `content_type` | string | Partial match on MIME type (e.g. `\"pdf\"` matches `\"application/pdf\"`) |\n| `created_at` | timestamp | RFC 3339 timestamp (e.g. `\"2024-01-01T00:00:00Z\"`) |\n| `expires_at` | timestamp | RFC 3339 timestamp |\n| `upload_status` | string | Upload status (`\"Complete\"`) |\n| `user_defined_id` | string | Exact match on user-defined ID |\n\n**Operators:** `=`, `!=`, `>`, `>=`, `<`, `<=`\n\n**Logical:** `AND`, `OR`, `NOT`\n\n**Examples:**\n- `name:\"quarterly report\"` — fuzzy match on filename\n- `content_type = \"pdf\"` — files with PDF content type\n- `size_bytes > 1000000 AND created_at > \"2024-01-01T00:00:00Z\"` — files larger than 1 MB created after Jan 1, 2024\n- `file_id = \"file_abc123\"` — exact file ID match",
             "example": "content_type = \"application/pdf\""
           },
           "limit": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32",
             "description": "The maximum number of objects to be returned in a single response.",
             "default": 100,
@@ -4878,25 +4329,16 @@
             "minimum": 1
           },
           "order": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "The ordering to sort the returned files. Use `asc` for ascending and `desc` for descending order.",
             "default": "desc"
           },
           "pagination_token": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "The pagination token returned by the previous list files request."
           },
           "sort_by": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "The field to sort by. Valid options: `created_at`, `filename`, `size`. Defaults to `created_at`.",
             "default": "created_at"
           }
@@ -4904,9 +4346,7 @@
       },
       "ListFilesResponse": {
         "type": "object",
-        "required": [
-          "data"
-        ],
+        "required": ["data"],
         "properties": {
           "data": {
             "type": "array",
@@ -4916,19 +4356,14 @@
             "description": "List of files."
           },
           "pagination_token": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Pagination token to use with next request."
           }
         }
       },
       "ListImageGenerationModelsResponse": {
         "type": "object",
-        "required": [
-          "models"
-        ],
+        "required": ["models"],
         "properties": {
           "models": {
             "type": "array",
@@ -4942,11 +4377,7 @@
       "ListInputItemsResponse": {
         "type": "object",
         "description": "A paginated list of input items for a stored response.",
-        "required": [
-          "object",
-          "data",
-          "has_more"
-        ],
+        "required": ["object", "data", "has_more"],
         "properties": {
           "data": {
             "type": "array",
@@ -4956,10 +4387,7 @@
             "description": "The list of input items."
           },
           "first_id": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "The ID of the first item in the list."
           },
           "has_more": {
@@ -4967,10 +4395,7 @@
             "description": "Whether there are more items beyond this page."
           },
           "last_id": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "The ID of the last item in the list."
           },
           "object": {
@@ -4981,9 +4406,7 @@
       },
       "ListLanguageModelsResponse": {
         "type": "object",
-        "required": [
-          "models"
-        ],
+        "required": ["models"],
         "properties": {
           "models": {
             "type": "array",
@@ -4996,10 +4419,7 @@
       },
       "ListModelsResponse": {
         "type": "object",
-        "required": [
-          "data",
-          "object"
-        ],
+        "required": ["data", "object"],
         "properties": {
           "data": {
             "type": "array",
@@ -5016,9 +4436,7 @@
       },
       "ListVideoGenerationModelsResponse": {
         "type": "object",
-        "required": [
-          "models"
-        ],
+        "required": ["models"],
         "properties": {
           "models": {
             "type": "array",
@@ -5032,11 +4450,7 @@
       "LocalShellSkill": {
         "type": "object",
         "description": "A skill available in the local shell environment.",
-        "required": [
-          "name",
-          "description",
-          "path"
-        ],
+        "required": ["name", "description", "path"],
         "properties": {
           "description": {
             "type": "string",
@@ -5056,10 +4470,7 @@
         "type": "object",
         "properties": {
           "content": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": ["array", "null"],
             "items": {
               "$ref": "#/components/schemas/TokenLogProb"
             },
@@ -5070,13 +4481,7 @@
       "McpCall": {
         "type": "object",
         "description": "The output of a MCP tool call.",
-        "required": [
-          "type",
-          "name",
-          "server_label",
-          "arguments",
-          "output"
-        ],
+        "required": ["type", "name", "server_label", "arguments", "output"],
         "properties": {
           "arguments": {
             "type": "string",
@@ -5115,12 +4520,7 @@
       "MeApiKeyInfo": {
         "type": "object",
         "description": "API key details nested in the `/v1/me` response.",
-        "required": [
-          "redacted_api_key",
-          "api_key_id",
-          "blocked",
-          "disabled"
-        ],
+        "required": ["redacted_api_key", "api_key_id", "blocked", "disabled"],
         "properties": {
           "api_key_id": {
             "type": "string",
@@ -5143,9 +4543,7 @@
       "MeOAuthInfo": {
         "type": "object",
         "description": "OAuth token details nested in the `/v1/me` response.",
-        "required": [
-          "client_id"
-        ],
+        "required": ["client_id"],
         "properties": {
           "client_id": {
             "type": "string",
@@ -5156,9 +4554,7 @@
       "MediaUsage": {
         "type": "object",
         "description": "Billing and cost information for media generation requests (image and video).",
-        "required": [
-          "cost_in_usd_ticks"
-        ],
+        "required": ["cost_in_usd_ticks"],
         "properties": {
           "cost_in_usd_ticks": {
             "type": "integer",
@@ -5172,63 +4568,45 @@
           {
             "type": "object",
             "description": "System message, usually instructions for the model to respond in a certain way.",
-            "required": [
-              "content",
-              "role"
-            ],
+            "required": ["content", "role"],
             "properties": {
               "content": {
                 "$ref": "#/components/schemas/Content",
                 "description": "System prompt content."
               },
               "name": {
-                "type": [
-                  "string",
-                  "null"
-                ],
+                "type": ["string", "null"],
                 "description": "A unique identifier representing your end-user, which can help xAI to monitor and detect abuse."
               },
               "role": {
                 "type": "string",
-                "enum": [
-                  "system"
-                ]
+                "enum": ["system"]
               }
             }
           },
           {
             "type": "object",
             "description": "User message, typically request from user for the model to answer.",
-            "required": [
-              "content",
-              "role"
-            ],
+            "required": ["content", "role"],
             "properties": {
               "content": {
                 "$ref": "#/components/schemas/Content",
                 "description": "System prompt content."
               },
               "name": {
-                "type": [
-                  "string",
-                  "null"
-                ],
+                "type": ["string", "null"],
                 "description": "A unique identifier representing your end-user, which can help xAI to monitor and detect abuse."
               },
               "role": {
                 "type": "string",
-                "enum": [
-                  "user"
-                ]
+                "enum": ["user"]
               }
             }
           },
           {
             "type": "object",
             "description": "Assistant role message, previous chat messages from the model.",
-            "required": [
-              "role"
-            ],
+            "required": ["role"],
             "properties": {
               "content": {
                 "oneOf": [
@@ -5242,30 +4620,19 @@
                 ]
               },
               "name": {
-                "type": [
-                  "string",
-                  "null"
-                ],
+                "type": ["string", "null"],
                 "description": "A unique identifier representing your end-user, which can help xAI to monitor and detect abuse."
               },
               "reasoning_content": {
-                "type": [
-                  "string",
-                  "null"
-                ],
+                "type": ["string", "null"],
                 "description": "Assistant reasoning content."
               },
               "role": {
                 "type": "string",
-                "enum": [
-                  "assistant"
-                ]
+                "enum": ["assistant"]
               },
               "tool_calls": {
-                "type": [
-                  "array",
-                  "null"
-                ],
+                "type": ["array", "null"],
                 "items": {
                   "$ref": "#/components/schemas/ToolCall"
                 },
@@ -5276,10 +4643,7 @@
           {
             "type": "object",
             "description": "Tool call role message, used to return function call result to the model.",
-            "required": [
-              "content",
-              "role"
-            ],
+            "required": ["content", "role"],
             "properties": {
               "content": {
                 "$ref": "#/components/schemas/Content",
@@ -5287,15 +4651,10 @@
               },
               "role": {
                 "type": "string",
-                "enum": [
-                  "tool"
-                ]
+                "enum": ["tool"]
               },
               "tool_call_id": {
-                "type": [
-                  "string",
-                  "null"
-                ],
+                "type": ["string", "null"],
                 "description": "The ID of the tool call received from assistant message response."
               }
             }
@@ -5303,27 +4662,19 @@
           {
             "type": "object",
             "description": "Function call role message. Deprecated in favor of `{\"role\": \"tool\"}`.",
-            "required": [
-              "content",
-              "role"
-            ],
+            "required": ["content", "role"],
             "properties": {
               "content": {
                 "$ref": "#/components/schemas/Content",
                 "description": "Content of the tool call result."
               },
               "name": {
-                "type": [
-                  "string",
-                  "null"
-                ],
+                "type": ["string", "null"],
                 "description": "A unique identifier representing your end-user, which can help xAI to monitor and detect abuse."
               },
               "role": {
                 "type": "string",
-                "enum": [
-                  "function"
-                ]
+                "enum": ["function"]
               }
             }
           }
@@ -5333,10 +4684,7 @@
       "MessageBody": {
         "type": "object",
         "description": "Anthropic compatible message body",
-        "required": [
-          "role",
-          "content"
-        ],
+        "required": ["role", "content"],
         "properties": {
           "content": {
             "$ref": "#/components/schemas/MessageContent",
@@ -5368,10 +4716,7 @@
           {
             "type": "object",
             "description": "Text prompt message content part.",
-            "required": [
-              "text",
-              "type"
-            ],
+            "required": ["text", "type"],
             "properties": {
               "cache_control": {
                 "description": "(Unsupported) Cache control."
@@ -5382,19 +4727,14 @@
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "text"
-                ]
+                "enum": ["text"]
               }
             }
           },
           {
             "type": "object",
             "description": "Image prompt message content part.",
-            "required": [
-              "source",
-              "type"
-            ],
+            "required": ["source", "type"],
             "properties": {
               "cache_control": {
                 "description": "(Unsupported) Cache control."
@@ -5405,21 +4745,14 @@
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "image"
-                ]
+                "enum": ["image"]
               }
             }
           },
           {
             "type": "object",
             "description": "Tool call message content part. Received from model.",
-            "required": [
-              "id",
-              "name",
-              "input",
-              "type"
-            ],
+            "required": ["id", "name", "input", "type"],
             "properties": {
               "cache_control": {
                 "description": "(Unsupported) Cache control."
@@ -5437,20 +4770,14 @@
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "tool_use"
-                ]
+                "enum": ["tool_use"]
               }
             }
           },
           {
             "type": "object",
             "description": "Tool call result.",
-            "required": [
-              "tool_use_id",
-              "content",
-              "type"
-            ],
+            "required": ["tool_use_id", "content", "type"],
             "properties": {
               "cache_control": {
                 "description": "(Unsupported) Cache control."
@@ -5460,10 +4787,7 @@
                 "description": "Result content of the tool call. Can be a string or an array of content blocks."
               },
               "is_error": {
-                "type": [
-                  "boolean",
-                  "null"
-                ],
+                "type": ["boolean", "null"],
                 "description": "Whether the tool call returns an error."
               },
               "tool_use_id": {
@@ -5472,19 +4796,14 @@
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "tool_result"
-                ]
+                "enum": ["tool_result"]
               }
             }
           },
           {
             "type": "object",
             "description": "(Redacted) Thinking of the model.",
-            "required": [
-              "data",
-              "type"
-            ],
+            "required": ["data", "type"],
             "properties": {
               "data": {
                 "type": "string",
@@ -5492,25 +4811,17 @@
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "redacted_thinking"
-                ]
+                "enum": ["redacted_thinking"]
               }
             }
           },
           {
             "type": "object",
             "description": "Thinking of the model.",
-            "required": [
-              "thinking",
-              "type"
-            ],
+            "required": ["thinking", "type"],
             "properties": {
               "signature": {
-                "type": [
-                  "string",
-                  "null"
-                ],
+                "type": ["string", "null"],
                 "description": "Signature of the thinking block (required by Anthropic SDK for round-tripping)."
               },
               "thinking": {
@@ -5519,9 +4830,7 @@
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "thinking"
-                ]
+                "enum": ["thinking"]
               }
             }
           }
@@ -5531,11 +4840,7 @@
         "oneOf": [
           {
             "type": "object",
-            "required": [
-              "media_type",
-              "data",
-              "type"
-            ],
+            "required": ["media_type", "data", "type"],
             "properties": {
               "data": {
                 "type": "string",
@@ -5547,24 +4852,17 @@
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "base64"
-                ]
+                "enum": ["base64"]
               }
             }
           },
           {
             "type": "object",
-            "required": [
-              "url",
-              "type"
-            ],
+            "required": ["url", "type"],
             "properties": {
               "type": {
                 "type": "string",
-                "enum": [
-                  "url"
-                ]
+                "enum": ["url"]
               },
               "url": {
                 "type": "string",
@@ -5578,10 +4876,7 @@
         "type": "object",
         "properties": {
           "user_id": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "A unique identifier representing your end-user, which can help xAI to monitor and detect abuse."
           }
         }
@@ -5619,20 +4914,14 @@
             "example": "latest"
           },
           "stop_sequences": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": ["array", "null"],
             "items": {
               "type": "string"
             },
             "description": "(Not supported by reasoning models) Up to 4 sequences where the API will stop generating further tokens."
           },
           "stream": {
-            "type": [
-              "boolean",
-              "null"
-            ],
+            "type": ["boolean", "null"],
             "description": "If set, partial message deltas will be sent. Tokens will be sent as data-only server-sent events as they become available, with the stream terminated by a `data: [DONE]` message."
           },
           "system": {
@@ -5647,10 +4936,7 @@
             ]
           },
           "temperature": {
-            "type": [
-              "number",
-              "null"
-            ],
+            "type": ["number", "null"],
             "format": "float",
             "description": "What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic. It may not work well with reasoning models.",
             "default": 1,
@@ -5669,28 +4955,19 @@
             ]
           },
           "tools": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": ["array", "null"],
             "items": {
               "$ref": "#/components/schemas/MessageTools"
             },
             "description": "A list of tools the model may call in JSON-schema. Currently, only functions are supported as a tool. Use this to provide a list of functions the model may generate JSON inputs for. A max of 128 functions are supported."
           },
           "top_k": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32",
             "description": "(Unsupported) When generating next tokens, randomly selecting the next token from the k most likely options."
           },
           "top_p": {
-            "type": [
-              "number",
-              "null"
-            ],
+            "type": ["number", "null"],
             "format": "float",
             "description": "An alternative to sampling with `temperature`, called nucleus sampling, where the model considers the results of the tokens with `top_p` probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered. It is generally recommended to alter this or `temperature` but not both.",
             "default": 1,
@@ -5702,14 +4979,7 @@
       "MessageResponse": {
         "type": "object",
         "description": "Response message for `/v1/messages`",
-        "required": [
-          "id",
-          "type",
-          "role",
-          "content",
-          "model",
-          "usage"
-        ],
+        "required": ["id", "type", "role", "content", "model", "usage"],
         "properties": {
           "content": {
             "type": "array",
@@ -5732,17 +5002,11 @@
             "description": "Role of the generated message. Always `\"assistant\"`"
           },
           "stop_reason": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Reason to stop. `\"stop_sequence\"` means the inference has reached a model-defined or user-supplied stop sequence in `stop`. `\"max_tokens\"` means the inference result has reached models' maximum allowed token length or user defined value in `max_tokens`. `\"end_turn\"` or `null` in streaming mode when the chunk is not the last. `\"tool_use\"` means the model has called a tool and is waiting for the tool response."
           },
           "stop_sequence": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Custom stop sequence used to stop the generation."
           },
           "type": {
@@ -5761,30 +5025,21 @@
           {
             "type": "object",
             "description": "Text response from the model.",
-            "required": [
-              "text",
-              "type"
-            ],
+            "required": ["text", "type"],
             "properties": {
               "text": {
                 "type": "string"
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "text"
-                ]
+                "enum": ["text"]
               }
             }
           },
           {
             "type": "object",
             "description": "Thinking response for the model",
-            "required": [
-              "signature",
-              "thinking",
-              "type"
-            ],
+            "required": ["signature", "thinking", "type"],
             "properties": {
               "signature": {
                 "type": "string",
@@ -5796,19 +5051,14 @@
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "thinking"
-                ]
+                "enum": ["thinking"]
               }
             }
           },
           {
             "type": "object",
             "description": "Redacted thinking response for the model",
-            "required": [
-              "data",
-              "type"
-            ],
+            "required": ["data", "type"],
             "properties": {
               "data": {
                 "type": "string",
@@ -5816,21 +5066,14 @@
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "redacted_thinking"
-                ]
+                "enum": ["redacted_thinking"]
               }
             }
           },
           {
             "type": "object",
             "description": "Request by the model to invoke a tool call.",
-            "required": [
-              "id",
-              "name",
-              "input",
-              "type"
-            ],
+            "required": ["id", "name", "input", "type"],
             "properties": {
               "id": {
                 "type": "string",
@@ -5845,9 +5088,7 @@
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "tool_use"
-                ]
+                "enum": ["tool_use"]
               }
             }
           }
@@ -5858,40 +5099,29 @@
           {
             "type": "object",
             "description": "Allows the model to automatically decide whether to call the tool",
-            "required": [
-              "type"
-            ],
+            "required": ["type"],
             "properties": {
               "type": {
                 "type": "string",
-                "enum": [
-                  "auto"
-                ]
+                "enum": ["auto"]
               }
             }
           },
           {
             "type": "object",
             "description": "Forces the model to use at least one tool, without specifying the tool.",
-            "required": [
-              "type"
-            ],
+            "required": ["type"],
             "properties": {
               "type": {
                 "type": "string",
-                "enum": [
-                  "any"
-                ]
+                "enum": ["any"]
               }
             }
           },
           {
             "type": "object",
             "description": "Forces the model to use the named tool",
-            "required": [
-              "name",
-              "type"
-            ],
+            "required": ["name", "type"],
             "properties": {
               "name": {
                 "type": "string",
@@ -5899,9 +5129,7 @@
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "tool"
-                ]
+                "enum": ["tool"]
               }
             }
           }
@@ -5910,19 +5138,13 @@
       },
       "MessageToolInputSchema": {
         "type": "object",
-        "required": [
-          "type",
-          "properties"
-        ],
+        "required": ["type", "properties"],
         "properties": {
           "properties": {
             "description": "JSON-object of the tool input schema."
           },
           "required": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": ["array", "null"],
             "items": {
               "type": "string"
             },
@@ -5936,11 +5158,7 @@
       },
       "MessageTools": {
         "type": "object",
-        "required": [
-          "name",
-          "description",
-          "input_schema"
-        ],
+        "required": ["name", "description", "input_schema"],
         "properties": {
           "cache_control": {
             "description": "(Unsupported) Cache control."
@@ -5993,12 +5211,7 @@
       "Model": {
         "type": "object",
         "description": "Same as `LanguageModel` but fully compliant with the OpenAI API.",
-        "required": [
-          "id",
-          "created",
-          "object",
-          "owned_by"
-        ],
+        "required": ["id", "created", "object", "owned_by"],
         "properties": {
           "created": {
             "type": "integer",
@@ -6055,10 +5268,7 @@
           {
             "type": "object",
             "description": "Text input.",
-            "required": [
-              "text",
-              "type"
-            ],
+            "required": ["text", "type"],
             "properties": {
               "text": {
                 "type": "string",
@@ -6066,44 +5276,31 @@
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "input_text"
-                ]
+                "enum": ["input_text"]
               }
             }
           },
           {
             "type": "object",
             "description": "Text output (used in compact response output items).",
-            "required": [
-              "text",
-              "type"
-            ],
+            "required": ["text", "type"],
             "properties": {
               "text": {
                 "type": "string"
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "output_text"
-                ]
+                "enum": ["output_text"]
               }
             }
           },
           {
             "type": "object",
             "description": "Image input. Note: Storing and fetching images is not fully supported at the moment.",
-            "required": [
-              "image_url",
-              "type"
-            ],
+            "required": ["image_url", "type"],
             "properties": {
               "file_id": {
-                "type": [
-                  "string",
-                  "null"
-                ],
+                "type": ["string", "null"],
                 "description": "Only included for compatibility."
               },
               "image_url": {
@@ -6112,59 +5309,38 @@
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "input_image"
-                ]
+                "enum": ["input_image"]
               }
             }
           },
           {
             "type": "object",
             "description": "File input.",
-            "required": [
-              "type"
-            ],
+            "required": ["type"],
             "properties": {
               "file_data": {
-                "type": [
-                  "string",
-                  "null"
-                ],
+                "type": ["string", "null"],
                 "description": "Inline file bytes (base64 encoded).\n\nWhen set, the file content is provided directly in the request and does NOT need\nto be uploaded to the Files API first.\n\nExactly one of `file_id`, `file_data`, or `file_url` should be set."
               },
               "file_id": {
-                "type": [
-                  "string",
-                  "null"
-                ],
+                "type": ["string", "null"],
                 "description": "The file ID from the Files API.\n\nSet this to reference a previously-uploaded file.\nExactly one of `file_id`, `file_data`, or `file_url` should be set."
               },
               "file_url": {
-                "type": [
-                  "string",
-                  "null"
-                ],
+                "type": ["string", "null"],
                 "description": "Public URL for a file attachment.\n\nWhen set, the file content is fetched from this URL.\nExactly one of `file_id`, `file_data`, or `file_url` should be set."
               },
               "filename": {
-                "type": [
-                  "string",
-                  "null"
-                ],
+                "type": ["string", "null"],
                 "description": "Filename for inline uploads.\n\nRequired when `file_data` is set."
               },
               "mime_type": {
-                "type": [
-                  "string",
-                  "null"
-                ],
+                "type": ["string", "null"],
                 "description": "Optional MIME type for inline uploads (e.g. \"application/pdf\")."
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "input_file"
-                ]
+                "enum": ["input_file"]
               }
             }
           }
@@ -6175,20 +5351,14 @@
           {
             "type": "object",
             "description": "Message input to the model.",
-            "required": [
-              "content",
-              "role"
-            ],
+            "required": ["content", "role"],
             "properties": {
               "content": {
                 "$ref": "#/components/schemas/ModelInputContent",
                 "description": "Text, image or audio input."
               },
               "name": {
-                "type": [
-                  "string",
-                  "null"
-                ],
+                "type": ["string", "null"],
                 "description": "A unique identifier representing your end-user, which can help xAI to monitor and detect abuse. Only supported for `user` messages."
               },
               "role": {
@@ -6196,10 +5366,7 @@
                 "description": "The role of the message. Possible values are `user`, `assistant`, `system` and `developer`."
               },
               "type": {
-                "type": [
-                  "string",
-                  "null"
-                ],
+                "type": ["string", "null"],
                 "description": "The type of the message, which is always `message`."
               }
             }
@@ -6308,31 +5475,20 @@
       "ModelRequest": {
         "type": "object",
         "description": "The request body for `/v1/responses` endpoint.",
-        "required": [
-          "input"
-        ],
+        "required": ["input"],
         "properties": {
           "background": {
-            "type": [
-              "boolean",
-              "null"
-            ],
+            "type": ["boolean", "null"],
             "description": "(Unsupported) Whether to process the response asynchronously in the background.",
             "default": false
           },
           "context_management": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": ["array", "null"],
             "items": {},
             "description": "Optional context-management directives (e.g. compaction). Parsed but not yet executed."
           },
           "include": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": ["array", "null"],
             "items": {
               "type": "string"
             },
@@ -6343,33 +5499,21 @@
             "description": "The input passed to the model. Can be text, image or file."
           },
           "instructions": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "An alternate way to specify the system prompt. Note that this cannot be used alongside `previous_response_id`, where the system prompt of the previous message will be used."
           },
           "logprobs": {
-            "type": [
-              "boolean",
-              "null"
-            ],
+            "type": ["boolean", "null"],
             "description": "Whether to return log probabilities of the output tokens or not. If true, returns the log probabilities of each output token returned in the content of message. Not supported by models `grok-4.20` and newer; the field will be silently ignored if set.",
             "default": false
           },
           "max_output_tokens": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32",
             "description": "Max number of tokens that can be generated in a response. This includes both output and reasoning tokens."
           },
           "max_turns": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32",
             "description": "Maximum number of agentic tool calling turns allowed for this request.\nIf not set, defaults to the server's global cap.\nThis parameter will be ignored for any non-agentic requests."
           },
@@ -6382,25 +5526,16 @@
             "example": "latest"
           },
           "parallel_tool_calls": {
-            "type": [
-              "boolean",
-              "null"
-            ],
+            "type": ["boolean", "null"],
             "description": "Whether to allow the model to run parallel tool calls.",
             "default": true
           },
           "previous_response_id": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "The ID of the previous response from the model."
           },
           "prompt_cache_key": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Plumbed to x-grok-conv-id for Open Responses compatibility, used for routing."
           },
           "reasoning": {
@@ -6426,34 +5561,22 @@
             ]
           },
           "service_tier": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Not supported. Only maintained for compatibility reasons."
           },
           "store": {
-            "type": [
-              "boolean",
-              "null"
-            ],
+            "type": ["boolean", "null"],
             "description": "Whether to store the input message(s) and model response for later retrieval.",
             "default": true
           },
           "stream": {
-            "type": [
-              "boolean",
-              "null"
-            ],
+            "type": ["boolean", "null"],
             "description": "If set, partial message deltas will be sent. Tokens will be sent as data-only server-sent events as they become available, with the stream terminated by a `data: [DONE]` message.",
             "default": false,
             "example": true
           },
           "temperature": {
-            "type": [
-              "number",
-              "null"
-            ],
+            "type": ["number", "null"],
             "format": "float",
             "description": "What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.",
             "default": 1,
@@ -6484,10 +5607,7 @@
             ]
           },
           "tools": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": ["array", "null"],
             "items": {
               "$ref": "#/components/schemas/ModelTool"
             },
@@ -6495,20 +5615,14 @@
             "maxItems": 128
           },
           "top_logprobs": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32",
             "description": "An integer between 0 and 8 specifying the number of most likely tokens to return at each token position, each with an associated log probability. logprobs must be set to true if this parameter is used. Not supported by models `grok-4.20` and newer; the field will be silently ignored if set.",
             "maximum": 8,
             "minimum": 0
           },
           "top_p": {
-            "type": [
-              "number",
-              "null"
-            ],
+            "type": ["number", "null"],
             "format": "float",
             "description": "An alternative to sampling with `temperature`, called nucleus sampling, where the model considers the results of the tokens with `top_p` probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered. It is generally recommended to alter this or `temperature` but not both.",
             "default": 1,
@@ -6516,17 +5630,11 @@
             "exclusiveMinimum": 0
           },
           "truncation": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Not supported. Only maintained for compatibility reasons."
           },
           "user": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "A unique identifier representing your end-user, which can help xAI to monitor and detect abuse."
           }
         }
@@ -6561,10 +5669,7 @@
             "default": false
           },
           "completed_at": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int64",
             "description": "The Unix timestamp (in seconds) for the response completion time. Only set when the response is completed."
           },
@@ -6597,25 +5702,16 @@
             ]
           },
           "instructions": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "A system (or developer) message inserted into the model's context."
           },
           "max_output_tokens": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32",
             "description": "Max number of tokens that can be generated in a response. This includes both output and reasoning tokens."
           },
           "max_tool_calls": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32",
             "description": "The maximum number of tool calls allowed for this response."
           },
@@ -6647,17 +5743,11 @@
             "description": "(NOT SUPPORTED in Responses API) Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics."
           },
           "previous_response_id": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "The ID of the previous response from the model."
           },
           "prompt_cache_key": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "The cache key used for the prompt for routing to the correct engine."
           },
           "reasoning": {
@@ -6672,10 +5762,7 @@
             ]
           },
           "safety_identifier": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "A stable identifier used to help detect users of your application that may be violating xAI's usage policies."
           },
           "service_tier": {
@@ -6693,10 +5780,7 @@
             "default": true
           },
           "temperature": {
-            "type": [
-              "number",
-              "null"
-            ],
+            "type": ["number", "null"],
             "format": "float",
             "description": "What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.",
             "default": 1,
@@ -6725,10 +5809,7 @@
             "description": "An integer between 0 and 8 specifying the number of most likely tokens to return at each token position."
           },
           "top_p": {
-            "type": [
-              "number",
-              "null"
-            ],
+            "type": ["number", "null"],
             "format": "float",
             "description": "An alternative to sampling with `temperature`, called nucleus sampling, where the model considers the results of the tokens with `top_p` probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered. It is generally recommended to alter this or `temperature` but not both.",
             "default": 1,
@@ -6752,10 +5833,7 @@
             ]
           },
           "user": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "A unique identifier representing your end-user, which can help xAI to monitor and detect abuse."
           }
         }
@@ -6781,70 +5859,48 @@
           {
             "type": "object",
             "description": "Specify text response format, always `\"text\"`.",
-            "required": [
-              "type"
-            ],
+            "required": ["type"],
             "properties": {
               "type": {
                 "type": "string",
-                "enum": [
-                  "text"
-                ]
+                "enum": ["text"]
               }
             }
           },
           {
             "type": "object",
             "description": "Specify json_object response format, always `json_object`. Used for backward compatibility. Prefer to use `\"json_schema\"` instead of this.",
-            "required": [
-              "type"
-            ],
+            "required": ["type"],
             "properties": {
               "type": {
                 "type": "string",
-                "enum": [
-                  "json_object"
-                ]
+                "enum": ["json_object"]
               }
             }
           },
           {
             "type": "object",
             "description": "Specify json_schema response format with a given schema. Type is always `\"json_schema\"`.",
-            "required": [
-              "schema",
-              "type"
-            ],
+            "required": ["schema", "type"],
             "properties": {
               "description": {
-                "type": [
-                  "string",
-                  "null"
-                ],
+                "type": ["string", "null"],
                 "description": "Only included for compatibility."
               },
               "name": {
-                "type": [
-                  "string",
-                  "null"
-                ],
+                "type": ["string", "null"],
                 "description": "Only included for compatibility."
               },
               "schema": {
                 "description": "A json schema representing the desired response schema."
               },
               "strict": {
-                "type": [
-                  "boolean",
-                  "null"
-                ],
+                "type": ["boolean", "null"],
                 "description": "Only included for compatibility."
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "json_schema"
-                ]
+                "enum": ["json_schema"]
               }
             }
           }
@@ -6861,15 +5917,11 @@
               {
                 "type": "object",
                 "description": "A function that the model can call.",
-                "required": [
-                  "type"
-                ],
+                "required": ["type"],
                 "properties": {
                   "type": {
                     "type": "string",
-                    "enum": [
-                      "function"
-                    ]
+                    "enum": ["function"]
                   }
                 }
               }
@@ -6885,52 +5937,33 @@
                 "type": "object",
                 "properties": {
                   "allowed_domains": {
-                    "type": [
-                      "array",
-                      "null"
-                    ],
+                    "type": ["array", "null"],
                     "items": {
                       "type": "string"
                     },
                     "description": "List of website domains to allow in the search results. This parameter act as a whitelist\nwhere only those websites can be selected. A maximum of 5 websites can be selected.\n\nNote: This parameter cannot be set with `excluded_domains`.",
-                    "example": [
-                      "wikipedia.com"
-                    ],
+                    "example": ["wikipedia.com"],
                     "maxItems": 5
                   },
                   "enable_image_search": {
-                    "type": [
-                      "boolean",
-                      "null"
-                    ],
+                    "type": ["boolean", "null"],
                     "description": "When true, activates the image search server-side tool, enabling\nthe model to search for images alongside the standard web search."
                   },
                   "enable_image_understanding": {
-                    "type": [
-                      "boolean",
-                      "null"
-                    ],
+                    "type": ["boolean", "null"],
                     "description": "Enable image understanding during web search."
                   },
                   "excluded_domains": {
-                    "type": [
-                      "array",
-                      "null"
-                    ],
+                    "type": ["array", "null"],
                     "items": {
                       "type": "string"
                     },
                     "description": "List of website domains to exclude from the search results without protocol specification or\nsubdomains. A maximum of 5 websites can be excluded.\n\nNote: This parameter cannot be set with `allowed_domains`",
-                    "example": [
-                      "wikipedia.com"
-                    ],
+                    "example": ["wikipedia.com"],
                     "maxItems": 5
                   },
                   "external_web_access": {
-                    "type": [
-                      "boolean",
-                      "null"
-                    ],
+                    "type": ["boolean", "null"],
                     "description": "Control whether the web search tool fetches live content or uses only cached content.\nFor OpenAI API compatibility ONLY. Request will be rejected if this field is set."
                   },
                   "filters": {
@@ -6945,10 +5978,7 @@
                     ]
                   },
                   "search_context_size": {
-                    "type": [
-                      "string",
-                      "null"
-                    ],
+                    "type": ["string", "null"],
                     "description": "High level guidance for the amount of context window space to use for the\nsearch. Available values are `low`, `medium`, or `high`.\nFor OpenAI API compatibility ONLY. Request will be rejected if this field is set."
                   },
                   "user_location": {
@@ -6967,15 +5997,11 @@
               {
                 "type": "object",
                 "description": "Search the web.",
-                "required": [
-                  "type"
-                ],
+                "required": ["type"],
                 "properties": {
                   "type": {
                     "type": "string",
-                    "enum": [
-                      "web_search"
-                    ]
+                    "enum": ["web_search"]
                   }
                 }
               }
@@ -6985,94 +6011,62 @@
           {
             "type": "object",
             "description": "Search X.",
-            "required": [
-              "type"
-            ],
+            "required": ["type"],
             "properties": {
               "allowed_x_handles": {
-                "type": [
-                  "array",
-                  "null"
-                ],
+                "type": ["array", "null"],
                 "items": {
                   "type": "string"
                 },
                 "description": "List of X Handles of the users from whom to consider the posts.\n\nNote: This parameter cannot be set with `excluded_x_handles`.",
-                "example": [
-                  "elonmusk"
-                ],
+                "example": ["elonmusk"],
                 "maxItems": 10
               },
               "enable_image_understanding": {
-                "type": [
-                  "boolean",
-                  "null"
-                ],
+                "type": ["boolean", "null"],
                 "description": "Enable image understanding during X search."
               },
               "enable_video_understanding": {
-                "type": [
-                  "boolean",
-                  "null"
-                ],
+                "type": ["boolean", "null"],
                 "description": "Enable video understanding during X search."
               },
               "excluded_x_handles": {
-                "type": [
-                  "array",
-                  "null"
-                ],
+                "type": ["array", "null"],
                 "items": {
                   "type": "string"
                 },
                 "description": "List of X Handles of the users from whom to exclude the posts.\n\nNote: This parameter cannot be set with `allowed_x_handles`.",
-                "example": [
-                  "elonmusk"
-                ],
+                "example": ["elonmusk"],
                 "maxItems": 10
               },
               "from_date": {
-                "type": [
-                  "string",
-                  "null"
-                ],
+                "type": ["string", "null"],
                 "format": "date",
                 "description": "Date from which to consider the results in ISO-8601 YYYY-MM-DD. See\n<https://en.wikipedia.org/wiki/ISO_8601>.",
                 "example": "2024-06-24"
               },
               "to_date": {
-                "type": [
-                  "string",
-                  "null"
-                ],
+                "type": ["string", "null"],
                 "format": "date",
                 "description": "Date up to which to consider the results in ISO-8601 YYYY-MM-DD. See\n<https://en.wikipedia.org/wiki/ISO_8601>.",
                 "example": "2024-12-24"
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "x_search"
-                ]
+                "enum": ["x_search"]
               }
             }
           },
           {
             "type": "object",
             "description": "Search the knowledge bases.",
-            "required": [
-              "vector_store_ids",
-              "type"
-            ],
+            "required": ["vector_store_ids", "type"],
             "properties": {
               "filters": {
                 "description": "A filter to apply.\nFor OpenAI API compatibility ONLY. Request will be rejected if this field is set."
               },
               "max_num_results": {
-                "type": [
-                  "integer",
-                  "null"
-                ],
+                "type": ["integer", "null"],
                 "format": "int32",
                 "example": 10,
                 "minimum": 1
@@ -7082,9 +6076,7 @@
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "file_search"
-                ]
+                "enum": ["file_search"]
               },
               "vector_store_ids": {
                 "type": "array",
@@ -7092,10 +6084,7 @@
                   "type": "string"
                 },
                 "description": "List of vector store IDs to search within.",
-                "example": [
-                  "collection_id_1",
-                  "collection_id_2"
-                ],
+                "example": ["collection_id_1", "collection_id_2"],
                 "maxItems": 10
               }
             }
@@ -7103,56 +6092,36 @@
           {
             "type": "object",
             "description": "Execute code.",
-            "required": [
-              "type"
-            ],
+            "required": ["type"],
             "properties": {
               "container": {
                 "description": "The code interpreter container. Can be a container ID or an object that specifies\nuploaded file IDs to make available to your code.\nFor OpenAI API compatibility ONLY. Request will be rejected if this field is set."
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "code_interpreter"
-                ]
+                "enum": ["code_interpreter"]
               }
             }
           },
           {
             "type": "object",
             "description": "A remote MCP server to use.",
-            "required": [
-              "server_label",
-              "server_url",
-              "type"
-            ],
+            "required": ["server_label", "server_url", "type"],
             "properties": {
               "allowed_tools": {
-                "type": [
-                  "array",
-                  "null"
-                ],
+                "type": ["array", "null"],
                 "items": {
                   "type": "string"
                 }
               },
               "authorization": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+                "type": ["string", "null"]
               },
               "connector_id": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+                "type": ["string", "null"]
               },
               "headers": {
-                "type": [
-                  "object",
-                  "null"
-                ],
+                "type": ["object", "null"],
                 "additionalProperties": {
                   "type": "string"
                 },
@@ -7161,16 +6130,10 @@
                 }
               },
               "require_approval": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+                "type": ["string", "null"]
               },
               "server_description": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+                "type": ["string", "null"]
               },
               "server_label": {
                 "type": "string"
@@ -7180,19 +6143,14 @@
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "mcp"
-                ]
+                "enum": ["mcp"]
               }
             }
           },
           {
             "type": "object",
             "description": "A local shell execution tool.",
-            "required": [
-              "environment",
-              "type"
-            ],
+            "required": ["environment", "type"],
             "properties": {
               "environment": {
                 "$ref": "#/components/schemas/ShellEnvironment",
@@ -7200,9 +6158,7 @@
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "shell"
-                ]
+                "enum": ["shell"]
               }
             }
           }
@@ -7217,10 +6173,7 @@
           },
           {
             "type": "object",
-            "required": [
-              "type",
-              "name"
-            ],
+            "required": ["type", "name"],
             "properties": {
               "name": {
                 "type": "string",
@@ -7248,18 +6201,12 @@
         ],
         "properties": {
           "cost_in_nano_usd": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int64",
             "description": "Cost in nano US dollars for this request."
           },
           "cost_in_usd_ticks": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int64",
             "description": "Accurate cost of this request in USD ticks, where \"tick\" is defined as follows:\nTICKS_IN_USD_CENT: i64 = 100_000_000\nwhich means there is 10'000'000'000 ticks in one *dollar*."
           },
@@ -7312,10 +6259,7 @@
       "OutputFile": {
         "type": "object",
         "description": "A file generated during the model's response (e.g., by the code execution tool).",
-        "required": [
-          "file_id",
-          "name"
-        ],
+        "required": ["file_id", "name"],
         "properties": {
           "file_id": {
             "type": "string",
@@ -7330,11 +6274,7 @@
       "OutputMessage": {
         "type": "object",
         "description": "An output message from the model.",
-        "required": [
-          "content",
-          "role",
-          "type"
-        ],
+        "required": ["content", "role", "type"],
         "properties": {
           "content": {
             "type": "array",
@@ -7366,10 +6306,7 @@
           {
             "type": "object",
             "description": "Text output.",
-            "required": [
-              "text",
-              "type"
-            ],
+            "required": ["text", "type"],
             "properties": {
               "annotations": {
                 "type": "array",
@@ -7391,19 +6328,14 @@
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "output_text"
-                ]
+                "enum": ["output_text"]
               }
             }
           },
           {
             "type": "object",
             "description": "Refusal.",
-            "required": [
-              "refusal",
-              "type"
-            ],
+            "required": ["refusal", "type"],
             "properties": {
               "refusal": {
                 "type": "string",
@@ -7411,9 +6343,7 @@
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "refusal"
-                ]
+                "enum": ["refusal"]
               }
             }
           }
@@ -7421,9 +6351,7 @@
       },
       "OutputTokensDetails": {
         "type": "object",
-        "required": [
-          "reasoning_tokens"
-        ],
+        "required": ["reasoning_tokens"],
         "properties": {
           "reasoning_tokens": {
             "type": "integer",
@@ -7466,10 +6394,7 @@
       },
       "RagPipeline": {
         "type": "string",
-        "enum": [
-          "chroma_db",
-          "es"
-        ]
+        "enum": ["chroma_db", "es"]
       },
       "RankingMetric": {
         "type": "string",
@@ -7483,10 +6408,7 @@
       "Reasoning": {
         "type": "object",
         "description": "The reasoning done by the model.",
-        "required": [
-          "summary",
-          "type"
-        ],
+        "required": ["summary", "type"],
         "properties": {
           "content": {
             "type": "array",
@@ -7496,10 +6418,7 @@
             "description": "The reasoning text contents."
           },
           "encrypted_content": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "The enrypted reasoning. Returned when `reasoning.encrypted_content` is passed in `include`."
           },
           "id": {
@@ -7527,35 +6446,23 @@
         "type": "object",
         "properties": {
           "effort": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Constrains how hard a reasoning model thinks before responding. Possible values are `low` (uses fewer reasoning tokens), `medium` and `high` (uses more reasoning tokens).",
             "default": "medium"
           },
           "generate_summary": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Only included for compatibility."
           },
           "summary": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "A summary of the model's reasoning process. Possible values are `auto`, `concise` and `detailed`. Only included for compatibility. The model shall always return `detailed`."
           }
         }
       },
       "ReasoningText": {
         "type": "object",
-        "required": [
-          "text",
-          "type"
-        ],
+        "required": ["text", "type"],
         "properties": {
           "text": {
             "type": "string",
@@ -7577,10 +6484,7 @@
             "description": "Weight for embedding (dense) search results. Should be between 0 and 1. Defaults to 0.5."
           },
           "k": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32",
             "description": "The RRF constant k used in the reciprocal rank fusion formula. Defaults to 60."
           },
@@ -7596,17 +6500,11 @@
         "description": "Configuration for model-based reranking.",
         "properties": {
           "instructions": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Instructions for the reranking model. Defaults to generic reranking instructions."
           },
           "model": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "The model to use for reranking. Defaults to standard reranker model."
           }
         }
@@ -7616,49 +6514,36 @@
           {
             "type": "object",
             "description": "Specify text response format, always `\"text\"`.",
-            "required": [
-              "type"
-            ],
+            "required": ["type"],
             "properties": {
               "type": {
                 "type": "string",
-                "enum": [
-                  "text"
-                ]
+                "enum": ["text"]
               }
             }
           },
           {
             "type": "object",
             "description": "Specify json_object response format, always `json_object`. Used for backward compatibility. Prefer to use `\"json_schema\"` instead of this.",
-            "required": [
-              "type"
-            ],
+            "required": ["type"],
             "properties": {
               "type": {
                 "type": "string",
-                "enum": [
-                  "json_object"
-                ]
+                "enum": ["json_object"]
               }
             }
           },
           {
             "type": "object",
             "description": "Specify json_schema response format with a given schema. Type is always `\"json_schema\"`.",
-            "required": [
-              "json_schema",
-              "type"
-            ],
+            "required": ["json_schema", "type"],
             "properties": {
               "json_schema": {
                 "description": "A json schema representing the desired response schema. Includes the schema as a `\"schema\"` field."
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "json_schema"
-                ]
+                "enum": ["json_schema"]
               }
             }
           }
@@ -7675,15 +6560,11 @@
               },
               {
                 "type": "object",
-                "required": [
-                  "type"
-                ],
+                "required": ["type"],
                 "properties": {
                   "type": {
                     "type": "string",
-                    "enum": [
-                      "hybrid"
-                    ]
+                    "enum": ["hybrid"]
                   }
                 }
               }
@@ -7698,15 +6579,11 @@
               },
               {
                 "type": "object",
-                "required": [
-                  "type"
-                ],
+                "required": ["type"],
                 "properties": {
                   "type": {
                     "type": "string",
-                    "enum": [
-                      "semantic"
-                    ]
+                    "enum": ["semantic"]
                   }
                 }
               }
@@ -7721,15 +6598,11 @@
               },
               {
                 "type": "object",
-                "required": [
-                  "type"
-                ],
+                "required": ["type"],
                 "properties": {
                   "type": {
                     "type": "string",
-                    "enum": [
-                      "keyword"
-                    ]
+                    "enum": ["keyword"]
                   }
                 }
               }
@@ -7741,11 +6614,7 @@
       },
       "SampleChoice": {
         "type": "object",
-        "required": [
-          "index",
-          "text",
-          "finish_reason"
-        ],
+        "required": ["index", "text", "finish_reason"],
         "properties": {
           "finish_reason": {
             "type": "string",
@@ -7782,33 +6651,21 @@
         "description": "(Legacy) Request for `/v1/completions` endpoint",
         "properties": {
           "best_of": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32",
             "description": "(Unsupported) Generates multiple completions internally and returns the top-scoring one. Not functional yet."
           },
           "echo": {
-            "type": [
-              "boolean",
-              "null"
-            ],
+            "type": ["boolean", "null"],
             "description": "Option to include the original prompt in the response along with the generated completion."
           },
           "frequency_penalty": {
-            "type": [
-              "number",
-              "null"
-            ],
+            "type": ["number", "null"],
             "format": "float",
             "description": "(Unsupported) Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim."
           },
           "logit_bias": {
-            "type": [
-              "object",
-              "null"
-            ],
+            "type": ["object", "null"],
             "description": "(Unsupported) Accepts a JSON object that maps tokens to an associated bias value from -100 to 100. You can use this tokenizer tool to convert text to token IDs. Mathematically, the bias is added to the logits generated by the model prior to sampling. The exact effect will vary per model, but values between -1 and 1 should decrease or increase likelihood of selection; values like -100 or 100 should result in a ban or exclusive selection of the relevant token.",
             "additionalProperties": {
               "type": "number",
@@ -7820,17 +6677,11 @@
             }
           },
           "logprobs": {
-            "type": [
-              "boolean",
-              "null"
-            ],
+            "type": ["boolean", "null"],
             "description": "Include the log probabilities on the `logprobs` most likely output tokens, as well the chosen tokens. For example, if `logprobs` is 5, the API will return a list of the 5 most likely tokens. The API will always return the logprob of the sampled token, so there may be up to `logprobs+1` elements in the response. Not supported by models `grok-4.20` and newer; the field will be silently ignored if set."
           },
           "max_tokens": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32",
             "description": "Limits the number of tokens that can be produced in the output. Ensure the sum of prompt tokens and `max_tokens` does not exceed the model's context limit."
           },
@@ -7839,18 +6690,12 @@
             "description": "Specifies the model to be used for the request."
           },
           "n": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32",
             "description": "Determines how many completion sequences to produce for each prompt. Be cautious with its use due to high token consumption; adjust `max_tokens` and stop sequences accordingly."
           },
           "presence_penalty": {
-            "type": [
-              "number",
-              "null"
-            ],
+            "type": ["number", "null"],
             "format": "float",
             "description": "(Not supported by `grok-3` and reasoning models) Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics."
           },
@@ -7859,28 +6704,19 @@
             "description": "Input for generating completions, which can be a string, list of strings, token list, or list of token lists. `<|endoftext|>` is used as a document separator, implying a new context start if omitted."
           },
           "seed": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32",
             "description": "If specified, our system will make a best effort to sample deterministically, such that repeated requests with the same seed and parameters should return the same result. Determinism is not guaranteed, and you should refer to the system_fingerprint response parameter to monitor changes in the backend."
           },
           "stop": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": ["array", "null"],
             "items": {
               "type": "string"
             },
             "description": "(Not supported by reasoning models) Up to 4 sequences where the API will stop generating further tokens."
           },
           "stream": {
-            "type": [
-              "boolean",
-              "null"
-            ],
+            "type": ["boolean", "null"],
             "description": "Whether to stream back partial progress. If set, tokens will be sent as data-only server-sent events as they become available, with the stream terminated by a `data: [DONE]` message."
           },
           "stream_options": {
@@ -7895,17 +6731,11 @@
             ]
           },
           "suffix": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "(Unsupported) Optional string to append after the generated text."
           },
           "temperature": {
-            "type": [
-              "number",
-              "null"
-            ],
+            "type": ["number", "null"],
             "format": "float",
             "description": "What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic. We generally recommend altering this or `top_p` but not both.",
             "default": 1,
@@ -7914,18 +6744,12 @@
             "minimum": 0
           },
           "top_p": {
-            "type": [
-              "number",
-              "null"
-            ],
+            "type": ["number", "null"],
             "format": "float",
             "description": "An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with `top_p` probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered. We generally recommend altering this or temperature but not both."
           },
           "user": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "A unique identifier representing your end-user, which can help xAI to monitor and detect abuse."
           }
         }
@@ -7933,13 +6757,7 @@
       "SampleResponse": {
         "type": "object",
         "description": "(Legacy) Response for `/v1/completions` endpoint",
-        "required": [
-          "id",
-          "object",
-          "created",
-          "model",
-          "choices"
-        ],
+        "required": ["id", "object", "created", "model", "choices"],
         "properties": {
           "choices": {
             "type": "array",
@@ -7967,10 +6785,7 @@
             "description": "Object type of the response. This is always `\"text_completion\"`."
           },
           "system_fingerprint": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "System fingerprint, used to indicate xAI system configuration changes."
           },
           "usage": {
@@ -8044,19 +6859,13 @@
         "description": "Parameters to control realtime data.",
         "properties": {
           "from_date": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "format": "date",
             "description": "Date from which to consider the results in ISO-8601 YYYY-MM-DD. See\n<https://en.wikipedia.org/wiki/ISO_8601>.",
             "example": "2024-06-24"
           },
           "max_search_results": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32",
             "description": "Maximum number of search results to use.",
             "default": 15,
@@ -8064,37 +6873,25 @@
             "minimum": 1
           },
           "mode": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Choose the mode to query realtime data:\n* `off`: no search performed and no external will be considered.\n* `on` (default): the model will search in every sources for relevant data.\n* `auto`: the model choose whether to search data or not and where to search the data.",
             "default": "auto",
             "example": "auto"
           },
           "return_citations": {
-            "type": [
-              "boolean",
-              "null"
-            ],
+            "type": ["boolean", "null"],
             "description": "Whether to return citations in the response or not.",
             "default": true
           },
           "sources": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": ["array", "null"],
             "items": {
               "$ref": "#/components/schemas/SearchSource"
             },
             "description": "List of sources to search in. If no sources specified, the model will look over the web and X by default."
           },
           "to_date": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "format": "date",
             "description": "Date up to which to consider the results in ISO-8601 YYYY-MM-DD. See\n<https://en.wikipedia.org/wiki/ISO_8601>.",
             "example": "2024-12-24"
@@ -8104,16 +6901,10 @@
       "SearchRequest": {
         "type": "object",
         "description": "SearchRequest defines the request to search for documents.",
-        "required": [
-          "query",
-          "source"
-        ],
+        "required": ["query", "source"],
         "properties": {
           "filter": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Optional metadata filter string to apply to search results.\nUses AIP-160 filter syntax for querying document metadata.\nSupports comparison operators: `=`, `!=`, `>`, `>=`, `<`, `<=`\nSupports logical operators: `AND`, `OR`\nSupports range syntax: `field:10..20` (inclusive)\nExamples: `author = \"John\"` or `year > 2020 AND category = \"finance\"`"
           },
           "group_by": {
@@ -8128,17 +6919,11 @@
             ]
           },
           "instructions": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "User-defined instructions to be included in the search query. Defaults to generic search instructions."
           },
           "limit": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32",
             "description": "The number of chunks to return.\nWill always return the top matching chunks.\nOptional, defaults to 10."
           },
@@ -8177,9 +6962,7 @@
       "SearchResponse": {
         "type": "object",
         "description": "SearchResponse defines the response to a search request.",
-        "required": [
-          "matches"
-        ],
+        "required": ["matches"],
         "properties": {
           "matches": {
             "type": "array",
@@ -8194,57 +6977,38 @@
         "oneOf": [
           {
             "type": "object",
-            "required": [
-              "type"
-            ],
+            "required": ["type"],
             "properties": {
               "excluded_x_handles": {
-                "type": [
-                  "array",
-                  "null"
-                ],
+                "type": ["array", "null"],
                 "items": {
                   "type": "string"
                 },
                 "description": "List of X handles to exclude from the search results. X posts returned will not include\nany posts authored by these handles."
               },
               "included_x_handles": {
-                "type": [
-                  "array",
-                  "null"
-                ],
+                "type": ["array", "null"],
                 "items": {
                   "type": "string"
                 },
                 "description": " NOTE: `included_x_handles` and `x_handles` are the same parameter.\n`included_x_handles` is the new name but we keep both for backward compatibility.\n\nX Handles of the users from whom to consider the posts. Only available if mode is `auto`, `on` or `x`."
               },
               "post_favorite_count": {
-                "type": [
-                  "integer",
-                  "null"
-                ],
+                "type": ["integer", "null"],
                 "format": "int32",
                 "description": "The minimum favorite count of the X posts to consider."
               },
               "post_view_count": {
-                "type": [
-                  "integer",
-                  "null"
-                ],
+                "type": ["integer", "null"],
                 "format": "int32",
                 "description": "The minimum view count of the X posts to consider."
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "x"
-                ]
+                "enum": ["x"]
               },
               "x_handles": {
-                "type": [
-                  "array",
-                  "null"
-                ],
+                "type": ["array", "null"],
                 "items": {
                   "type": "string"
                 },
@@ -8255,112 +7019,74 @@
           },
           {
             "type": "object",
-            "required": [
-              "type"
-            ],
+            "required": ["type"],
             "properties": {
               "allowed_websites": {
-                "type": [
-                  "array",
-                  "null"
-                ],
+                "type": ["array", "null"],
                 "items": {
                   "type": "string"
                 },
                 "description": "List of website to allow in the search results. This parameter act as a whitelist\nwhere only those websites can be selected. A maximum of 5 websites can be selected.\n\nNote 1: If no relevant information is found on those websites, the number of results\nreturned might be smaller than `max_search_results`.\n\nNote 2: This parameter cannot be set with `excluded_websites`.",
-                "example": [
-                  "wikipedia.com"
-                ],
+                "example": ["wikipedia.com"],
                 "maxItems": 5
               },
               "country": {
-                "type": [
-                  "string",
-                  "null"
-                ],
+                "type": ["string", "null"],
                 "format": "iso3166-1-alpha-2",
                 "description": "ISO alpha-2 code of the country. If the country is set, only data coming from this country\nwill be considered. See <https://en.wikipedia.org/wiki/ISO_3166-2>.",
                 "example": "BE"
               },
               "excluded_websites": {
-                "type": [
-                  "array",
-                  "null"
-                ],
+                "type": ["array", "null"],
                 "items": {
                   "type": "string"
                 },
                 "description": "List of website to exclude from the search results without protocol specification or\nsubdomains. A maximum of 5 websites can be excluded.\n\nNote 2: This parameter cannot be set with `allowed_websites`",
-                "example": [
-                  "wikipedia.com"
-                ],
+                "example": ["wikipedia.com"],
                 "maxItems": 5
               },
               "safe_search": {
-                "type": [
-                  "boolean",
-                  "null"
-                ],
+                "type": ["boolean", "null"],
                 "description": "If set to true, mature content won't be considered during the search. Default to `true`."
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "web"
-                ]
+                "enum": ["web"]
               }
             }
           },
           {
             "type": "object",
-            "required": [
-              "type"
-            ],
+            "required": ["type"],
             "properties": {
               "country": {
-                "type": [
-                  "string",
-                  "null"
-                ],
+                "type": ["string", "null"],
                 "format": "iso3166-1-alpha-2",
                 "description": "ISO alpha-2 code of the country. If the country is set, only data coming from this country\nwill be considered. See <https://en.wikipedia.org/wiki/ISO_3166-2>.",
                 "example": "BE"
               },
               "excluded_websites": {
-                "type": [
-                  "array",
-                  "null"
-                ],
+                "type": ["array", "null"],
                 "items": {
                   "type": "string"
                 },
                 "description": "List of website to exclude from the search results without protocol specification or\nsubdomains. A maximum of 5 websites can be excluded.",
-                "example": [
-                  "foxnews.com"
-                ],
+                "example": ["foxnews.com"],
                 "maxItems": 5
               },
               "safe_search": {
-                "type": [
-                  "boolean",
-                  "null"
-                ],
+                "type": ["boolean", "null"],
                 "description": "If set to true, mature content won't be considered during the search. Default to `true`."
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "news"
-                ]
+                "enum": ["news"]
               }
             }
           },
           {
             "type": "object",
-            "required": [
-              "links",
-              "type"
-            ],
+            "required": ["links", "type"],
             "properties": {
               "links": {
                 "type": "array",
@@ -8368,17 +7094,13 @@
                   "type": "string"
                 },
                 "description": "Links of the RSS feeds.",
-                "example": [
-                  "https://status.x.ai/feed.xml"
-                ],
+                "example": ["https://status.x.ai/feed.xml"],
                 "maxItems": 1,
                 "minItems": 1
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "rss"
-                ]
+                "enum": ["rss"]
               }
             }
           }
@@ -8447,11 +7169,7 @@
       "ShellCall": {
         "type": "object",
         "description": "A shell command call emitted by the model for local execution.",
-        "required": [
-          "action",
-          "call_id",
-          "type"
-        ],
+        "required": ["action", "call_id", "type"],
         "properties": {
           "action": {
             "$ref": "#/components/schemas/ShellCallAction",
@@ -8489,9 +7207,7 @@
       "ShellCallAction": {
         "type": "object",
         "description": "The shell commands and limits that describe how to run the tool call.",
-        "required": [
-          "commands"
-        ],
+        "required": ["commands"],
         "properties": {
           "commands": {
             "type": "array",
@@ -8501,26 +7217,17 @@
             "description": "The commands to run."
           },
           "max_output_length": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32",
             "description": "Optional maximum number of characters to return from each command."
           },
           "timeout_ms": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int64",
             "description": "Optional timeout in milliseconds for the commands."
           },
           "type": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "The type of the action, which is always `exec`."
           }
         }
@@ -8530,10 +7237,7 @@
           {
             "type": "object",
             "description": "The command exited normally.",
-            "required": [
-              "exit_code",
-              "type"
-            ],
+            "required": ["exit_code", "type"],
             "properties": {
               "exit_code": {
                 "type": "integer",
@@ -8542,24 +7246,18 @@
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "exit"
-                ]
+                "enum": ["exit"]
               }
             }
           },
           {
             "type": "object",
             "description": "The command timed out.",
-            "required": [
-              "type"
-            ],
+            "required": ["type"],
             "properties": {
               "type": {
                 "type": "string",
-                "enum": [
-                  "timeout"
-                ]
+                "enum": ["timeout"]
               }
             }
           }
@@ -8569,21 +7267,14 @@
       "ShellCallOutput": {
         "type": "object",
         "description": "The output of a shell tool call, sent by the client after local execution.",
-        "required": [
-          "call_id",
-          "output",
-          "type"
-        ],
+        "required": ["call_id", "output", "type"],
         "properties": {
           "call_id": {
             "type": "string",
             "description": "The unique ID of the shell tool call generated by the model."
           },
           "max_output_length": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32",
             "description": "The maximum length of the shell command output. Generated by the model\nand should be passed back with the raw output."
           },
@@ -8603,9 +7294,7 @@
       "ShellCallOutputResult": {
         "type": "object",
         "description": "The content of a shell tool call output that was emitted.",
-        "required": [
-          "outcome"
-        ],
+        "required": ["outcome"],
         "properties": {
           "outcome": {
             "$ref": "#/components/schemas/ShellCallOutcome",
@@ -8624,9 +7313,7 @@
       "ShellEnvironment": {
         "type": "object",
         "description": "The environment configuration for a shell tool.",
-        "required": [
-          "type"
-        ],
+        "required": ["type"],
         "properties": {
           "skills": {
             "type": "array",
@@ -8644,16 +7331,11 @@
       "SortOrder": {
         "type": "string",
         "description": "Sort order for paginated listings.",
-        "enum": [
-          "asc",
-          "desc"
-        ]
+        "enum": ["asc", "desc"]
       },
       "StartDeferredChatResponse": {
         "type": "object",
-        "required": [
-          "request_id"
-        ],
+        "required": ["request_id"],
         "properties": {
           "request_id": {
             "type": "string",
@@ -8664,9 +7346,7 @@
       "StartDeferredResponse": {
         "type": "object",
         "description": "Response for starting a deferred operation.",
-        "required": [
-          "request_id"
-        ],
+        "required": ["request_id"],
         "properties": {
           "request_id": {
             "type": "string",
@@ -8677,9 +7357,7 @@
       "StreamOptions": {
         "type": "object",
         "description": "Options available when using streaming response.",
-        "required": [
-          "include_usage"
-        ],
+        "required": ["include_usage"],
         "properties": {
           "include_usage": {
             "type": "boolean",
@@ -8689,10 +7367,7 @@
       },
       "SummaryText": {
         "type": "object",
-        "required": [
-          "text",
-          "type"
-        ],
+        "required": ["text", "type"],
         "properties": {
           "text": {
             "type": "string",
@@ -8721,10 +7396,7 @@
       },
       "SystemMessagePart": {
         "type": "object",
-        "required": [
-          "type",
-          "text"
-        ],
+        "required": ["type", "text"],
         "properties": {
           "cache_control": {
             "description": "(Unsupported) Cache control."
@@ -8741,17 +7413,10 @@
       },
       "TokenLogProb": {
         "type": "object",
-        "required": [
-          "token",
-          "logprob",
-          "top_logprobs"
-        ],
+        "required": ["token", "logprob", "top_logprobs"],
         "properties": {
           "bytes": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": ["array", "null"],
             "items": {
               "type": "integer",
               "format": "int32",
@@ -8789,19 +7454,14 @@
             "description": "The text content to be tokenized."
           },
           "user": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Optional user identifier."
           }
         }
       },
       "TokenizeResponse": {
         "type": "object",
-        "required": [
-          "token_ids"
-        ],
+        "required": ["token_ids"],
         "properties": {
           "token_ids": {
             "type": "array",
@@ -8814,11 +7474,7 @@
       },
       "TokenizeResponseToken": {
         "type": "object",
-        "required": [
-          "token_id",
-          "string_token",
-          "token_bytes"
-        ],
+        "required": ["token_id", "string_token", "token_bytes"],
         "properties": {
           "string_token": {
             "type": "string",
@@ -8845,10 +7501,7 @@
         "oneOf": [
           {
             "type": "object",
-            "required": [
-              "function",
-              "type"
-            ],
+            "required": ["function", "type"],
             "properties": {
               "function": {
                 "$ref": "#/components/schemas/FunctionDefinition",
@@ -8856,18 +7509,13 @@
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "function"
-                ]
+                "enum": ["function"]
               }
             }
           },
           {
             "type": "object",
-            "required": [
-              "sources",
-              "type"
-            ],
+            "required": ["sources", "type"],
             "properties": {
               "sources": {
                 "type": "array",
@@ -8877,9 +7525,7 @@
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "live_search"
-                ]
+                "enum": ["live_search"]
               }
             }
           }
@@ -8888,10 +7534,7 @@
       },
       "ToolCall": {
         "type": "object",
-        "required": [
-          "id",
-          "function"
-        ],
+        "required": ["id", "function"],
         "properties": {
           "function": {
             "$ref": "#/components/schemas/Function",
@@ -8902,18 +7545,12 @@
             "description": "A unique ID of the tool call generated by xAI. After performing tool call's function, user provides this ID with tool call's result in the subsequent request to xAI. xAI can then match the tool call result sent with tool call request."
           },
           "index": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32",
             "description": "Index of the tool call."
           },
           "type": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Type of tool call, should be `\"function\"` or `\"web_search_call\"` or `\"x_search_call\"` or `\"code_interpreter_call\"` or `\"mcp_call\"`"
           }
         }
@@ -8926,9 +7563,7 @@
           },
           {
             "type": "object",
-            "required": [
-              "type"
-            ],
+            "required": ["type"],
             "properties": {
               "function": {
                 "oneOf": [
@@ -8971,10 +7606,7 @@
           {
             "type": "object",
             "description": "Text content block.",
-            "required": [
-              "text",
-              "type"
-            ],
+            "required": ["text", "type"],
             "properties": {
               "text": {
                 "type": "string",
@@ -8982,19 +7614,14 @@
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "text"
-                ]
+                "enum": ["text"]
               }
             }
           },
           {
             "type": "object",
             "description": "Image content block.",
-            "required": [
-              "source",
-              "type"
-            ],
+            "required": ["source", "type"],
             "properties": {
               "source": {
                 "$ref": "#/components/schemas/MessageImageContent",
@@ -9002,9 +7629,7 @@
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "image"
-                ]
+                "enum": ["image"]
               }
             }
           }
@@ -9013,16 +7638,10 @@
       },
       "TopLogProb": {
         "type": "object",
-        "required": [
-          "token",
-          "logprob"
-        ],
+        "required": ["token", "logprob"],
         "properties": {
           "bytes": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": ["array", "null"],
             "items": {
               "type": "integer",
               "format": "int32",
@@ -9044,15 +7663,10 @@
       "UploadFileMultipartRequest": {
         "type": "object",
         "description": "Multipart form fields accepted by `POST /v1/files`. The `expires_after`\nfield MUST appear before `file` in the multipart body when both are\npresent (the upload handler streams `file` straight to gRPC and cannot\nrewind to read metadata after).",
-        "required": [
-          "file"
-        ],
+        "required": ["file"],
         "properties": {
           "expires_after": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int64",
             "description": "Optional TTL in seconds (measured from upload time). Must be between\n3600 (1 hour) and 2592000 (30 days). If unset the file does not expire.\n\nAccepts either a plain integer or the OpenAI SDK deepObject form\n(`expires_after[anchor]=created_at` + `expires_after[seconds]=N`)\nas separate multipart fields. The anchor+seconds form must arrive\nbefore the `file` part."
           },
@@ -9062,10 +7676,7 @@
             "description": "The file to upload. The filename from the multipart\n`Content-Disposition: filename=` header is recorded as the file's\n`filename`."
           },
           "purpose": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Optional purpose label, accepted for OpenAI SDK compatibility. xAI\ndoes not enforce or interpret this field. Setting `\"assistants\"`\nis the conventional choice."
           }
         }
@@ -9120,23 +7731,12 @@
       "VideoAspectRatio": {
         "type": "string",
         "description": "Aspect ratio for video generation.",
-        "enum": [
-          "1:1",
-          "16:9",
-          "9:16",
-          "4:3",
-          "3:4",
-          "3:2",
-          "2:3"
-        ]
+        "enum": ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"]
       },
       "VideoError": {
         "type": "object",
         "description": "Structured error returned when video generation fails.",
-        "required": [
-          "code",
-          "message"
-        ],
+        "required": ["code", "message"],
         "properties": {
           "code": {
             "$ref": "#/components/schemas/VideoErrorCode",
@@ -9224,9 +7824,7 @@
       "VideoOutput": {
         "type": "object",
         "description": "Output destination for generated video.",
-        "required": [
-          "upload_url"
-        ],
+        "required": ["upload_url"],
         "properties": {
           "upload_url": {
             "type": "string",
@@ -9237,19 +7835,12 @@
       "VideoResolution": {
         "type": "string",
         "description": "Resolution for video generation.",
-        "enum": [
-          "480p",
-          "720p",
-          "1080p"
-        ]
+        "enum": ["480p", "720p", "1080p"]
       },
       "VideoResponse": {
         "type": "object",
         "description": "Video generation response.",
-        "required": [
-          "status",
-          "progress"
-        ],
+        "required": ["status", "progress"],
         "properties": {
           "error": {
             "oneOf": [
@@ -9263,10 +7854,7 @@
             ]
           },
           "model": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "The model used to generate the video. Omitted when status is \"failed\"."
           },
           "progress": {
@@ -9309,10 +7897,7 @@
         "description": "Video input for editing and extension requests.\nAccepts a public URL, a base64-encoded data URL, or a file_id from the xAI Files API.",
         "properties": {
           "file_id": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "File ID from the xAI Files API. Mutually exclusive with `url`.\nThe file must be a video (e.g., MP4) and fully uploaded."
           },
           "url": {
@@ -9326,10 +7911,7 @@
           {
             "type": "object",
             "description": "Action type \"search\" - Performs a web search query.",
-            "required": [
-              "query",
-              "type"
-            ],
+            "required": ["query", "type"],
             "properties": {
               "query": {
                 "type": "string",
@@ -9344,25 +7926,18 @@
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "search"
-                ]
+                "enum": ["search"]
               }
             }
           },
           {
             "type": "object",
             "description": "Action type \"open_page\" - Opens a specific URL from search results.",
-            "required": [
-              "url",
-              "type"
-            ],
+            "required": ["url", "type"],
             "properties": {
               "type": {
                 "type": "string",
-                "enum": [
-                  "open_page"
-                ]
+                "enum": ["open_page"]
               },
               "url": {
                 "type": "string",
@@ -9373,11 +7948,7 @@
           {
             "type": "object",
             "description": "Action type \"find_in_page\": Searches for a pattern within a loaded\npage. Wire shape mirrors OpenAI's `ActionFind` so the OpenAI Python\nSDK's typed `web_search_call.action` parses correctly — note the\n`find_in_page` tag (not `find`) and the flat `url` (not nested\nunder a `source` field).",
-            "required": [
-              "url",
-              "pattern",
-              "type"
-            ],
+            "required": ["url", "pattern", "type"],
             "properties": {
               "pattern": {
                 "type": "string",
@@ -9385,9 +7956,7 @@
               },
               "type": {
                 "type": "string",
-                "enum": [
-                  "find_in_page"
-                ]
+                "enum": ["find_in_page"]
               },
               "url": {
                 "type": "string",
@@ -9400,10 +7969,7 @@
       "WebSearchCall": {
         "type": "object",
         "description": "The output of a web search tool call.",
-        "required": [
-          "type",
-          "action"
-        ],
+        "required": ["type", "action"],
         "properties": {
           "action": {
             "$ref": "#/components/schemas/WebSearchAction",
@@ -9427,31 +7993,21 @@
         "type": "object",
         "properties": {
           "allowed_domains": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": ["array", "null"],
             "items": {
               "type": "string"
             },
             "description": "List of website domains (without protocol specification or subdomains)\nto restrict search results to (e.g., [\"example.com\"]). A maximum of 5 websites can be allowed.\nUse this as a whitelist to limit results to only these specific sites; no other websites will\nbe considered. If no relevant information is found on these websites, the number of results\nreturned might be smaller than `max_search_results` set in `SearchParameters`. Note: This\nparameter cannot be set together with `excluded_domains`.",
-            "example": [
-              "example.com"
-            ],
+            "example": ["example.com"],
             "maxItems": 5
           },
           "excluded_domains": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": ["array", "null"],
             "items": {
               "type": "string"
             },
             "description": "List of website domains (without protocol specification or subdomains) to exclude from search results (e.g., [\"example.com\"]).\nUse this to prevent results from unwanted sites. A maximum of 5 websites can be excluded.\nThis parameter cannot be set together with `allowed_domains`.",
-            "example": [
-              "example.com"
-            ],
+            "example": ["example.com"],
             "maxItems": 5
           }
         }
@@ -9463,10 +8019,7 @@
             "description": "Only included for compatibility."
           },
           "search_context_size": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "This field included for compatibility reason with OpenAI's API. It is mapped to `max_search`.",
             "default": "medium",
             "example": "medium"
@@ -9478,9 +8031,7 @@
       },
       "WebSearchSource": {
         "type": "object",
-        "required": [
-          "type"
-        ],
+        "required": ["type"],
         "properties": {
           "type": {
             "type": "string",
@@ -9494,36 +8045,22 @@
       },
       "WebSearchUserLocation": {
         "type": "object",
-        "required": [
-          "type"
-        ],
+        "required": ["type"],
         "properties": {
           "city": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "City of the user's location."
           },
           "country": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Two-letter ISO 3166-1 alpha-2 country code, like US, GB, etc."
           },
           "region": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Region of the user's location."
           },
           "timezone": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Timezone of the user's location, IANA timezone like America/Chicago, Europe/London, etc."
           },
           "type": {
