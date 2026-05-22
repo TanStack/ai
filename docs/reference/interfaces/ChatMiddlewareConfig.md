@@ -11,10 +11,6 @@ Chat configuration that middleware can observe or transform.
 This is a subset of the chat engine's effective configuration
 that middleware is allowed to modify.
 
-## Extended by
-
-- [`StructuredOutputMiddlewareConfig`](StructuredOutputMiddlewareConfig.md)
-
 ## Properties
 
 ### maxTokens?

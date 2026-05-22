@@ -19,6 +19,7 @@ import { Route as ApiTtsRouteImport } from './routes/api.tts'
 import { Route as ApiTranscriptionRouteImport } from './routes/api.transcription'
 import { Route as ApiToolsTestRouteImport } from './routes/api.tools-test'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
+import { Route as ApiOpenrouterWebToolsWireRouteImport } from './routes/api.openrouter-web-tools-wire'
 import { Route as ApiMiddlewareTestRouteImport } from './routes/api.middleware-test'
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
@@ -81,6 +82,12 @@ const ApiSummarizeRoute = ApiSummarizeRouteImport.update({
   path: '/api/summarize',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOpenrouterWebToolsWireRoute =
+  ApiOpenrouterWebToolsWireRouteImport.update({
+    id: '/api/openrouter-web-tools-wire',
+    path: '/api/openrouter-web-tools-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiMiddlewareTestRoute = ApiMiddlewareTestRouteImport.update({
   id: '/api/middleware-test',
   path: '/api/middleware-test',
@@ -148,6 +155,7 @@ export interface FileRoutesByFullPath {
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
+  '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
@@ -171,6 +179,7 @@ export interface FileRoutesByTo {
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
+  '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
@@ -195,6 +204,7 @@ export interface FileRoutesById {
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
+  '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
@@ -220,6 +230,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/image'
     | '/api/middleware-test'
+    | '/api/openrouter-web-tools-wire'
     | '/api/summarize'
     | '/api/tools-test'
     | '/api/transcription'
@@ -243,6 +254,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/image'
     | '/api/middleware-test'
+    | '/api/openrouter-web-tools-wire'
     | '/api/summarize'
     | '/api/tools-test'
     | '/api/transcription'
@@ -266,6 +278,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/image'
     | '/api/middleware-test'
+    | '/api/openrouter-web-tools-wire'
     | '/api/summarize'
     | '/api/tools-test'
     | '/api/transcription'
@@ -290,6 +303,7 @@ export interface RootRouteChildren {
   ApiChatRoute: typeof ApiChatRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
   ApiMiddlewareTestRoute: typeof ApiMiddlewareTestRoute
+  ApiOpenrouterWebToolsWireRoute: typeof ApiOpenrouterWebToolsWireRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
   ApiToolsTestRoute: typeof ApiToolsTestRoute
   ApiTranscriptionRoute: typeof ApiTranscriptionRouteWithChildren
@@ -368,6 +382,13 @@ declare module '@tanstack/react-router' {
       path: '/api/summarize'
       fullPath: '/api/summarize'
       preLoaderRoute: typeof ApiSummarizeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/openrouter-web-tools-wire': {
+      id: '/api/openrouter-web-tools-wire'
+      path: '/api/openrouter-web-tools-wire'
+      fullPath: '/api/openrouter-web-tools-wire'
+      preLoaderRoute: typeof ApiOpenrouterWebToolsWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/middleware-test': {
@@ -519,6 +540,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiChatRoute: ApiChatRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
   ApiMiddlewareTestRoute: ApiMiddlewareTestRoute,
+  ApiOpenrouterWebToolsWireRoute: ApiOpenrouterWebToolsWireRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
   ApiToolsTestRoute: ApiToolsTestRoute,
   ApiTranscriptionRoute: ApiTranscriptionRouteWithChildren,

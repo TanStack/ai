@@ -5,24 +5,20 @@ title: StructuredOutputMiddlewareConfig
 
 # Interface: StructuredOutputMiddlewareConfig
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:151](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L151)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:147](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L147)
 
 Config passed to onStructuredOutputConfig.
 
-Extends ChatMiddlewareConfig with the outputSchema being sent to the
-provider. Middleware may transform the schema (e.g., inject $defs, strip
+Mirrors ChatMiddlewareConfig minus `tools` (the final structured-output call
+is a single typed-response request, not an agentic loop — tools cannot be
+forwarded to it), plus the `outputSchema` being sent to the provider.
+Middleware may transform the schema (e.g., inject $defs, strip
 vendor-incompatible keywords) by returning a partial that includes
 `outputSchema`.
 
-Note: `tools` is structurally inherited from ChatMiddlewareConfig but is
-NOT forwarded to the structured-output adapter call — the final call is a
-single typed-response request, not an agentic loop. Returning a transformed
-`tools` array from onStructuredOutputConfig updates engine state but does
-not change what reaches the provider's structured-output endpoint.
-
 ## Extends
 
-- [`ChatMiddlewareConfig`](ChatMiddlewareConfig.md)
+- `Omit`\<[`ChatMiddlewareConfig`](ChatMiddlewareConfig.md), `"tools"`\>
 
 ## Properties
 
@@ -91,7 +87,7 @@ Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:134]
 outputSchema: JSONSchema;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:153](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L153)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:152](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L152)
 
 JSON Schema being sent to the provider for structured output.
 
@@ -122,20 +118,6 @@ Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:130]
 #### Inherited from
 
 [`ChatMiddlewareConfig`](ChatMiddlewareConfig.md).[`temperature`](ChatMiddlewareConfig.md#temperature)
-
-***
-
-### tools
-
-```ts
-tools: Tool<SchemaInput, SchemaInput, string>[];
-```
-
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:129](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L129)
-
-#### Inherited from
-
-[`ChatMiddlewareConfig`](ChatMiddlewareConfig.md).[`tools`](ChatMiddlewareConfig.md#tools)
 
 ***
 

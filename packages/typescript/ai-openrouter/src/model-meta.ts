@@ -99,7 +99,7 @@ const _GOOGLE_GEMINI_FLASH_LATEST = {
   id: '~google/gemini-flash-latest',
   name: 'Google Gemini Flash Latest',
   supports: {
-    input: ['text', 'image', 'document', 'audio', 'video'],
+    input: ['text', 'image', 'video', 'document', 'audio'],
     output: ['text'],
     supports: [
       'maxCompletionTokens',
@@ -117,14 +117,14 @@ const _GOOGLE_GEMINI_FLASH_LATEST = {
   pricing: {
     text: {
       input: {
-        normal: 0.5,
-        cached: 0.13333333330000002,
+        normal: 1.5,
+        cached: 0.2333333333,
       },
       output: {
-        normal: 3,
+        normal: 9,
       },
     },
-    image: 5e-7,
+    image: 0.0000015,
   },
 } as const
 const _GOOGLE_GEMINI_PRO_LATEST = {
@@ -2365,7 +2365,7 @@ const GOOGLE_GEMINI_2_0_FLASH_001 = {
       'topP',
     ],
   },
-  context_window: 1048576,
+  context_window: 1000000,
   max_output_tokens: 8192,
   pricing: {
     text: {
@@ -2853,6 +2853,38 @@ const GOOGLE_GEMINI_3_1_PRO_PREVIEW_CUSTOMTOOLS = {
       },
     },
     image: 0.000002,
+  },
+} as const
+const GOOGLE_GEMINI_3_5_FLASH = {
+  id: 'google/gemini-3.5-flash',
+  name: 'Google: Gemini 3.5 Flash',
+  supports: {
+    input: ['text', 'image', 'video', 'document', 'audio'],
+    output: ['text'],
+    supports: [
+      'maxCompletionTokens',
+      'reasoning',
+      'responseFormat',
+      'seed',
+      'stop',
+      'temperature',
+      'toolChoice',
+      'topP',
+    ],
+  },
+  context_window: 1048576,
+  max_output_tokens: 65536,
+  pricing: {
+    text: {
+      input: {
+        normal: 1.5,
+        cached: 0.2333333333,
+      },
+      output: {
+        normal: 9,
+      },
+    },
+    image: 0.0000015,
   },
 } as const
 const GOOGLE_GEMMA_2_27B_IT = {
@@ -3364,11 +3396,11 @@ const INCLUSIONAI_LING_2_6_1T = {
   pricing: {
     text: {
       input: {
-        normal: 0.3,
-        cached: 0.06,
+        normal: 0.075,
+        cached: 0.015,
       },
       output: {
-        normal: 2.5,
+        normal: 0.625,
       },
     },
     image: 0,
@@ -9551,12 +9583,11 @@ const QWEN_QWEN3_5_35B_A3B = {
     ],
   },
   context_window: 262144,
-  max_output_tokens: 81920,
   pricing: {
     text: {
       input: {
-        normal: 0.14,
-        cached: 0.05,
+        normal: 0.139,
+        cached: 0,
       },
       output: {
         normal: 1,
@@ -9593,7 +9624,7 @@ const QWEN_QWEN3_5_397B_A17B = {
     text: {
       input: {
         normal: 0.39,
-        cached: 0.195,
+        cached: 0,
       },
       output: {
         normal: 2.34,
@@ -9781,6 +9812,7 @@ const QWEN_QWEN3_6_35B_A3B = {
     supports: [
       'frequencyPenalty',
       'logitBias',
+      'logprobs',
       'maxCompletionTokens',
       'presencePenalty',
       'reasoning',
@@ -9789,16 +9821,16 @@ const QWEN_QWEN3_6_35B_A3B = {
       'stop',
       'temperature',
       'toolChoice',
+      'topLogprobs',
       'topP',
     ],
   },
   context_window: 262144,
-  max_output_tokens: 262144,
   pricing: {
     text: {
       input: {
-        normal: 0.15,
-        cached: 0.05,
+        normal: 0.149,
+        cached: 0,
       },
       output: {
         normal: 1,
@@ -10207,12 +10239,12 @@ const STEPFUN_STEP_3_5_FLASH = {
     ],
   },
   context_window: 262144,
-  max_output_tokens: 65536,
+  max_output_tokens: 16384,
   pricing: {
     text: {
       input: {
-        normal: 0.1,
-        cached: 0,
+        normal: 0.09,
+        cached: 0.02,
       },
       output: {
         normal: 0.3,
@@ -10631,6 +10663,41 @@ const X_AI_GROK_4_3 = {
     image: 0,
   },
 } as const
+const X_AI_GROK_BUILD_0_1 = {
+  id: 'x-ai/grok-build-0.1',
+  name: 'xAI: Grok Build 0.1',
+  supports: {
+    input: ['text', 'image'],
+    output: ['text'],
+    supports: [
+      'frequencyPenalty',
+      'logprobs',
+      'maxCompletionTokens',
+      'presencePenalty',
+      'reasoning',
+      'responseFormat',
+      'seed',
+      'stop',
+      'temperature',
+      'toolChoice',
+      'topLogprobs',
+      'topP',
+    ],
+  },
+  context_window: 256000,
+  pricing: {
+    text: {
+      input: {
+        normal: 1,
+        cached: 0.2,
+      },
+      output: {
+        normal: 2,
+      },
+    },
+    image: 0,
+  },
+} as const
 const XIAOMI_MIMO_V2_FLASH = {
   id: 'xiaomi/mimo-v2-flash',
   name: 'Xiaomi: MiMo-V2-Flash',
@@ -10997,6 +11064,7 @@ const Z_AI_GLM_4_6V = {
       'maxCompletionTokens',
       'presencePenalty',
       'reasoning',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
@@ -11183,15 +11251,16 @@ const Z_AI_GLM_5_1 = {
       'topP',
     ],
   },
-  context_window: 202752,
+  context_window: 202800,
+  max_output_tokens: 202800,
   pricing: {
     text: {
       input: {
-        normal: 0.98,
-        cached: 0.182,
+        normal: 0,
+        cached: 0,
       },
       output: {
-        normal: 3.08,
+        normal: 0,
       },
     },
     image: 0,
@@ -12241,6 +12310,18 @@ export type OpenRouterModelOptionsByName = {
       | 'topP'
     >
   [GOOGLE_GEMINI_3_1_PRO_PREVIEW_CUSTOMTOOLS.id]: OpenRouterCommonOptions &
+    Pick<
+      OpenRouterBaseOptions,
+      | 'maxCompletionTokens'
+      | 'reasoning'
+      | 'responseFormat'
+      | 'seed'
+      | 'stop'
+      | 'temperature'
+      | 'toolChoice'
+      | 'topP'
+    >
+  [GOOGLE_GEMINI_3_5_FLASH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
@@ -14914,6 +14995,7 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'frequencyPenalty'
       | 'logitBias'
+      | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
       | 'reasoning'
@@ -14922,6 +15004,7 @@ export type OpenRouterModelOptionsByName = {
       | 'stop'
       | 'temperature'
       | 'toolChoice'
+      | 'topLogprobs'
       | 'topP'
     >
   [QWEN_QWEN3_6_FLASH.id]: OpenRouterCommonOptions &
@@ -15235,6 +15318,22 @@ export type OpenRouterModelOptionsByName = {
       | 'topLogprobs'
       | 'topP'
     >
+  [X_AI_GROK_BUILD_0_1.id]: OpenRouterCommonOptions &
+    Pick<
+      OpenRouterBaseOptions,
+      | 'frequencyPenalty'
+      | 'logprobs'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'reasoning'
+      | 'responseFormat'
+      | 'seed'
+      | 'stop'
+      | 'temperature'
+      | 'toolChoice'
+      | 'topLogprobs'
+      | 'topP'
+    >
   [XIAOMI_MIMO_V2_FLASH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
@@ -15380,6 +15479,7 @@ export type OpenRouterModelOptionsByName = {
       | 'maxCompletionTokens'
       | 'presencePenalty'
       | 'reasoning'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
@@ -15490,7 +15590,7 @@ export type OpenRouterModelInputModalitiesByName = {
     'text' | 'image' | 'document'
   >
   [_GOOGLE_GEMINI_FLASH_LATEST.id]: ReadonlyArray<
-    'text' | 'image' | 'document' | 'audio' | 'video'
+    'text' | 'image' | 'video' | 'document' | 'audio'
   >
   [_GOOGLE_GEMINI_PRO_LATEST.id]: ReadonlyArray<
     'audio' | 'document' | 'image' | 'text' | 'video'
@@ -15613,6 +15713,9 @@ export type OpenRouterModelInputModalitiesByName = {
   >
   [GOOGLE_GEMINI_3_1_PRO_PREVIEW_CUSTOMTOOLS.id]: ReadonlyArray<
     'text' | 'audio' | 'image' | 'video' | 'document'
+  >
+  [GOOGLE_GEMINI_3_5_FLASH.id]: ReadonlyArray<
+    'text' | 'image' | 'video' | 'document' | 'audio'
   >
   [GOOGLE_GEMMA_2_27B_IT.id]: ReadonlyArray<'text'>
   [GOOGLE_GEMMA_3_12B_IT.id]: ReadonlyArray<'text' | 'image'>
@@ -15874,6 +15977,7 @@ export type OpenRouterModelInputModalitiesByName = {
   [X_AI_GROK_4_20.id]: ReadonlyArray<'text' | 'image' | 'document'>
   [X_AI_GROK_4_20_MULTI_AGENT.id]: ReadonlyArray<'text' | 'image' | 'document'>
   [X_AI_GROK_4_3.id]: ReadonlyArray<'text' | 'image'>
+  [X_AI_GROK_BUILD_0_1.id]: ReadonlyArray<'text' | 'image'>
   [XIAOMI_MIMO_V2_FLASH.id]: ReadonlyArray<'text'>
   [XIAOMI_MIMO_V2_OMNI.id]: ReadonlyArray<'text' | 'audio' | 'image' | 'video'>
   [XIAOMI_MIMO_V2_PRO.id]: ReadonlyArray<'text'>
@@ -15990,6 +16094,7 @@ export const OPENROUTER_CHAT_MODELS = [
   GOOGLE_GEMINI_3_1_FLASH_LITE_PREVIEW.id,
   GOOGLE_GEMINI_3_1_PRO_PREVIEW.id,
   GOOGLE_GEMINI_3_1_PRO_PREVIEW_CUSTOMTOOLS.id,
+  GOOGLE_GEMINI_3_5_FLASH.id,
   GOOGLE_GEMMA_2_27B_IT.id,
   GOOGLE_GEMMA_3_12B_IT.id,
   GOOGLE_GEMMA_3_27B_IT.id,
@@ -16230,6 +16335,7 @@ export const OPENROUTER_CHAT_MODELS = [
   X_AI_GROK_4_20.id,
   X_AI_GROK_4_20_MULTI_AGENT.id,
   X_AI_GROK_4_3.id,
+  X_AI_GROK_BUILD_0_1.id,
   XIAOMI_MIMO_V2_FLASH.id,
   XIAOMI_MIMO_V2_OMNI.id,
   XIAOMI_MIMO_V2_PRO.id,
@@ -16252,7 +16358,10 @@ export const OPENROUTER_CHAT_MODELS = [
 ] as const
 
 export type OpenRouterChatModelToolCapabilitiesByName = {
-  [K in (typeof OPENROUTER_CHAT_MODELS)[number]]: readonly ['web_search']
+  [K in (typeof OPENROUTER_CHAT_MODELS)[number]]: readonly [
+    'web_search',
+    'web_fetch',
+  ]
 }
 
 export const OPENROUTER_IMAGE_MODELS = [

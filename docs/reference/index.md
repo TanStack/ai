@@ -13,6 +13,7 @@ title: "@tanstack/ai"
 - [ImmediateStrategy](classes/ImmediateStrategy.md)
 - [PartialJSONParser](classes/PartialJSONParser.md)
 - [PunctuationStrategy](classes/PunctuationStrategy.md)
+- [StandardSchemaValidationError](classes/StandardSchemaValidationError.md)
 - [StreamProcessor](classes/StreamProcessor.md)
 - [ToolCallManager](classes/ToolCallManager.md)
 - [WordBoundaryStrategy](classes/WordBoundaryStrategy.md)
