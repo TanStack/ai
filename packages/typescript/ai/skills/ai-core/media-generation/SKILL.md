@@ -612,7 +612,7 @@ spec. Parse the request before sending and surface the issues client-side
 instead of paying for a round-trip:
 
 ```ts
-import { videoEndpointZodMap } from '@tanstack/ai-schemas/zod/fal-video'
+import { videoEndpointZodMap } from '@tanstack/ai-schemas/fal-video/zod'
 
 const validated =
   videoEndpointZodMap[
@@ -621,9 +621,11 @@ const validated =
 if (!validated.success) throw validated.error
 ```
 
-Use the JSON Schema side (`schemas/{provider}`) when building dropdowns or
-exposing allowed values to an LLM — each schema bundles its `$defs` closure
-so it can be handed straight to a tool-use API.
+Use the JSON Schema side (`{provider}/json-schema`) when building dropdowns
+or exposing allowed values to an LLM — each schema bundles its `$defs`
+closure so it can be handed straight to a tool-use API. There is no
+aggregator barrel: importing `@tanstack/ai-schemas/gemini/json-schema`
+ships only Gemini's schemas, no other provider's bytes.
 
 ## Cross-References
 

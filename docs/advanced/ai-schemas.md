@@ -18,14 +18,32 @@ It complements the `model-meta.ts` shipped with each provider adapter: where `mo
 
 ```bash
 pnpm add @tanstack/ai-schemas
-# Optional: only required if you import from `./zod` or `./zod/{provider}`
+# Optional: only required if you import from `@tanstack/ai-schemas/{provider}/zod`
 pnpm add zod
 ```
+
+## Subpath imports
+
+Provider-first — pick the provider, then `json-schema` or `zod`:
+
+```ts
+// JSON Schemas (no `zod` peer required).
+import { geminiEndpointSchemaMap } from '@tanstack/ai-schemas/gemini/json-schema'
+
+// Zod (requires `zod ^4`).
+import { openaiEndpointZodMap } from '@tanstack/ai-schemas/openai/zod'
+
+// FAL splits by category — the category is part of the subpath.
+import { videoEndpointZodMap } from '@tanstack/ai-schemas/fal-video/zod'
+import { imageEndpointSchemaMap } from '@tanstack/ai-schemas/fal-image/json-schema'
+```
+
+There is **no aggregator barrel**. `import … from '@tanstack/ai-schemas/gemini/json-schema'` only ships Gemini's JSON Schemas — no other provider's bytes leak into the consumer's bundle.
 
 ## Validate a video-generation request
 
 ```ts
-import { videoEndpointZodMap } from '@tanstack/ai-schemas/zod/fal-video'
+import { videoEndpointZodMap } from '@tanstack/ai-schemas/fal-video/zod'
 
 const result = videoEndpointZodMap[
   'fal-ai/kling-video/o3/pro/text-to-video'
@@ -41,7 +59,7 @@ if (!result.success) console.error(result.error.issues)
 ## Discover what a model supports
 
 ```ts
-import { KlingVideoO3ProTextToVideoInputSchema } from '@tanstack/ai-schemas/schemas/fal-video'
+import { KlingVideoO3ProTextToVideoInputSchema } from '@tanstack/ai-schemas/fal-video/json-schema'
 
 KlingVideoO3ProTextToVideoInputSchema.properties.duration.enum
 // ['3', '4', …, '15']
@@ -54,7 +72,7 @@ KlingVideoO3ProTextToVideoInputSchema.properties.aspect_ratio.enum
 
 ```ts
 import { toOpenAIStrict } from '@tanstack/ai-schemas/openai-strict'
-import { Veo3InputSchema } from '@tanstack/ai-schemas/schemas/fal-video'
+import { Veo3InputSchema } from '@tanstack/ai-schemas/fal-video/json-schema'
 
 await openai.chat.completions.create({
   model: 'gpt-5',

@@ -2,20 +2,19 @@
 /**
  * Post-process @hey-api/openapi-ts output for every (provider, category) tuple.
  *
- * For each unit we emit:
- *   - schemas.gen.ts (rewritten in place to bundle $ref closures under $defs).
- *   - endpoint-zod-map.ts: { [endpointId]: { input, output } } Zod schemas.
- *   - endpoint-schema-map.ts: same shape, JSON Schemas.
- *   - index.ts: Zod barrel for `@tanstack/ai-schemas/zod/{provider-id}`.
- *   - schemas-index.ts: JSON Schema barrel for `@tanstack/ai-schemas/schemas/{provider-id}`.
+ * Each tuple gets its own top-level directory under src/providers/{subpath}/
+ * (where `subpath = providerId` or `${providerId}-${category}`). For each
+ * one we emit:
+ *   - schemas.gen.ts (rewritten in place to bundle $ref closures under $defs)
+ *   - endpoint-zod-map.ts: { [endpointId]: { input, output } } Zod schemas
+ *   - endpoint-schema-map.ts: same shape, JSON Schemas
+ *   - index.ts: Zod barrel for `@tanstack/ai-schemas/{subpath}/zod`
+ *   - schemas-index.ts: JSON Schema barrel for `@tanstack/ai-schemas/{subpath}/json-schema`
  *
- * At the package root we then emit:
- *   - src/schemas.ts: namespaced JSON Schema barrels (one per provider unit).
- *   - src/zod.ts: namespaced Zod barrels.
- *   - src/index.ts: default entry, re-exports schemas.ts.
+ * The package has no aggregator barrels — provider-first imports keep
+ * tree-shaking dead simple. `src/index.ts` only re-exports `openai-strict`.
  *
- * Ported from fal-ai/fal-js PR #212 and generalised so every provider unit
- * (with optional category) lives under src/providers/{providerId}/[category]/.
+ * Ported from fal-ai/fal-js PR #212 and generalised across providers.
  */
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
@@ -498,59 +497,33 @@ async function generateUnitSchemasIndex(
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Top-level barrels
+// Default entry
 // ──────────────────────────────────────────────────────────────────────────────
 
 interface ProcessedUnit {
-  /** Full label, e.g. "openai" or "fal/video". Drives namespace name. */
+  /** Subpath segment (e.g. "openai" or "fal-video"). */
   label: string
-  /** Subpath segment exposed in package.json exports (e.g. "openai" or "fal-video"). */
-  subpath: string
-  /** Source-relative directory (e.g. "providers/openai" or "providers/fal-video/video"). */
+  /** Source-relative directory (e.g. "providers/openai"). */
   relSrc: string
 }
 
-async function generateSchemasBarrel(
-  units: Array<ProcessedUnit>,
-): Promise<void> {
-  const lines = [
-    `// AUTO-GENERATED - Do not edit manually`,
-    `// Generated via scripts/generate-endpoint-maps.ts`,
-    ``,
-    `// Per-provider JSON Schemas + endpoint schema maps. Namespaced so identical`,
-    `// schema names across providers (e.g. \`MessageInputSchema\`) don't collide.`,
-    ...units.map(
-      (u) =>
-        `export * as ${toPascalCase(u.label)} from './${u.relSrc}/schemas-index.js'`,
-    ),
-  ]
-  const out = await formatTypeScript(lines.join('\n'))
-  writeFileSync(join(SCHEMAS_SRC, 'schemas.ts'), out)
-  console.log(`  ✓ Generated schemas.ts`)
-}
-
-async function generateZodBarrel(units: Array<ProcessedUnit>): Promise<void> {
-  const lines = [
-    `// AUTO-GENERATED - Do not edit manually`,
-    `// Generated via scripts/generate-endpoint-maps.ts`,
-    ``,
-    `// Per-provider Zod barrels. Requires the optional \`zod ^4\` peer.`,
-    ...units.map(
-      (u) =>
-        `export * as ${toPascalCase(u.label)} from './${u.relSrc}/index.js'`,
-    ),
-  ]
-  const out = await formatTypeScript(lines.join('\n'))
-  writeFileSync(join(SCHEMAS_SRC, 'zod.ts'), out)
-  console.log(`  ✓ Generated zod.ts`)
-}
-
+/**
+ * The package has no aggregator barrel — every provider lives behind its own
+ * subpath (`@tanstack/ai-schemas/{provider}/json-schema` and `/zod`) so
+ * bundlers tree-shake by file rather than relying on namespaced re-exports.
+ * The default `.` entry just surfaces the `toOpenAIStrict` helper for
+ * consumers who reach for the bare package name.
+ */
 async function generateIndex(): Promise<void> {
   const lines = [
     `// AUTO-GENERATED - Do not edit manually`,
     `// Generated via scripts/generate-endpoint-maps.ts`,
     ``,
-    `export * from './schemas.js'`,
+    `// Per-provider schemas live behind subpath exports:`,
+    `//   @tanstack/ai-schemas/{provider}/json-schema`,
+    `//   @tanstack/ai-schemas/{provider}/zod`,
+    `// The default entry only re-exports the shared OpenAI strict-mode helper.`,
+    `export * from './openai-strict.js'`,
   ]
   const out = await formatTypeScript(lines.join('\n'))
   writeFileSync(join(SCHEMAS_SRC, 'index.ts'), out)
@@ -573,12 +546,14 @@ async function main(): Promise<void> {
 
   const processed: Array<ProcessedUnit> = []
   for (const unit of units) {
+    // Flat directory layout: every (provider, category) tuple gets its own
+    // top-level subpath. This keeps the `./*/json-schema` and `./*/zod`
+    // wildcard exports in package.json single-segment, which Node's exports
+    // resolver requires (`*` doesn't match across slashes).
     const subpath = unit.category
       ? `${unit.providerId}-${unit.category}`
       : unit.providerId
-    const relSrc = unit.category
-      ? `providers/${unit.providerId}/${unit.category}`
-      : `providers/${unit.providerId}`
+    const relSrc = `providers/${subpath}`
     const unitPath = join(SCHEMAS_SRC, relSrc)
     const label = subpath
 
@@ -602,12 +577,10 @@ async function main(): Promise<void> {
     await generateEndpointSchemaMap(label, unitPath, endpoints)
     await generateUnitZodIndex(label, unitPath)
     await generateUnitSchemasIndex(label, unitPath)
-    processed.push({ label, subpath, relSrc })
+    processed.push({ label, relSrc })
   }
 
-  console.log('\nGenerating top-level barrels...')
-  await generateSchemasBarrel(processed)
-  await generateZodBarrel(processed)
+  console.log('\nGenerating default entry...')
   await generateIndex()
 
   console.log(`\n✓ Done! Generated schemas under ${PROVIDERS_ROOT}`)

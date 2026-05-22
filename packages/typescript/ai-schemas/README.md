@@ -8,7 +8,7 @@ Schemas are generated nightly from each provider's official OpenAPI spec (or equ
 
 ```bash
 pnpm add @tanstack/ai-schemas
-# Zod is an optional peer; only required if you import from `./zod` or `./zod/{provider}`.
+# Zod is an optional peer; only required if you import from `@tanstack/ai-schemas/{provider}/zod`.
 pnpm add zod
 ```
 
@@ -26,41 +26,34 @@ OpenAI-compatible providers (Groq, xAI/Grok) reuse the OpenAI schemas.
 
 ## Entry points
 
-ES modules only, per-provider subpath exports:
+ES modules only. Provider-first subpaths — pick the provider, then the format:
 
 ```ts
-// Default entry — namespaced JSON Schemas across providers.
-import {
-  OpenAi,
-  Anthropic,
-  Gemini,
-  Fal,
-  ElevenLabs,
-} from '@tanstack/ai-schemas'
-
 // Per-provider JSON Schemas (no `zod` peer required).
-import { openaiEndpointSchemaMap } from '@tanstack/ai-schemas/schemas/openai'
+import { openaiEndpointSchemaMap } from '@tanstack/ai-schemas/openai/json-schema'
 
 // Per-provider Zod (requires `zod ^4`).
-import { openaiEndpointZodMap } from '@tanstack/ai-schemas/zod/openai'
+import { openaiEndpointZodMap } from '@tanstack/ai-schemas/openai/zod'
 
 // OpenAI structured-outputs strict-mode helper.
 import { toOpenAIStrict } from '@tanstack/ai-schemas/openai-strict'
 ```
 
-For multi-category providers (currently just FAL), schemas are further split:
+For multi-category providers (currently just FAL), the category is part of the subpath:
 
 ```ts
-import { videoEndpointZodMap } from '@tanstack/ai-schemas/zod/fal-video'
-import { imageEndpointSchemaMap } from '@tanstack/ai-schemas/schemas/fal-image'
+import { videoEndpointZodMap } from '@tanstack/ai-schemas/fal-video/zod'
+import { imageEndpointSchemaMap } from '@tanstack/ai-schemas/fal-image/json-schema'
 ```
+
+There is **no aggregator barrel** — provider-first imports mean bundlers tree-shake by file. Importing `@tanstack/ai-schemas/gemini/json-schema` ships only Gemini's JSON Schemas; no other provider's bytes end up in your app.
 
 ## Examples
 
 Validate a video generation request before hitting the network:
 
 ```ts
-import { videoEndpointZodMap } from '@tanstack/ai-schemas/zod/fal-video'
+import { videoEndpointZodMap } from '@tanstack/ai-schemas/fal-video/zod'
 
 const result = videoEndpointZodMap[
   'fal-ai/kling-video/o3/pro/text-to-video'
@@ -76,7 +69,7 @@ if (!result.success) console.error(result.error.issues)
 Discover what a model supports (build a duration picker):
 
 ```ts
-import { KlingVideoO3ProTextToVideoInputSchema } from '@tanstack/ai-schemas/schemas/fal-video'
+import { KlingVideoO3ProTextToVideoInputSchema } from '@tanstack/ai-schemas/fal-video/json-schema'
 
 KlingVideoO3ProTextToVideoInputSchema.properties.duration.enum
 // ['3', '4', …, '15']
@@ -84,7 +77,7 @@ KlingVideoO3ProTextToVideoInputSchema.properties.duration.enum
 
 ## Bundle size and tree-shaking
 
-The package is `sideEffects: false` and JSON Schemas ship self-contained — each schema bundles its `$ref` closure under `$defs`. Importing one schema pulls only that schema's transitive closure, not the whole category. See the [fal-ai/schemas reference](https://github.com/fal-ai/fal-js/pull/212) for the design rationale.
+The package is `sideEffects: false` and JSON Schemas ship self-contained — each schema bundles its `$ref` closure under `$defs`. Importing one schema pulls only that schema's transitive closure, not the whole category. The provider-first subpaths mean a `import … from '@tanstack/ai-schemas/openai/json-schema'` carries no Anthropic, Gemini, ElevenLabs, or FAL bytes.
 
 ## How updates work
 

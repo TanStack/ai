@@ -18,23 +18,15 @@
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
     },
-    "./schemas": {
-      "types": "./dist/esm/schemas.d.ts",
-      "import": "./dist/esm/schemas.js"
-    },
-    "./zod": {
-      "types": "./dist/esm/zod.d.ts",
-      "import": "./dist/esm/zod.js"
-    },
     "./openai-strict": {
       "types": "./dist/esm/openai-strict.d.ts",
       "import": "./dist/esm/openai-strict.js"
     },
-    "./schemas/*": {
+    "./*/json-schema": {
       "types": "./dist/esm/providers/*/schemas-index.d.ts",
       "import": "./dist/esm/providers/*/schemas-index.js"
     },
-    "./zod/*": {
+    "./*/zod": {
       "types": "./dist/esm/providers/*/index.d.ts",
       "import": "./dist/esm/providers/*/index.js"
     }

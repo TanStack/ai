@@ -1,6 +1,32 @@
+import { existsSync, readdirSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { defineConfig, mergeConfig } from 'vitest/config'
 import { tanstackViteConfig } from '@tanstack/vite-config'
 import packageJson from './package.json'
+
+const HERE = dirname(fileURLToPath(import.meta.url))
+const PROVIDERS_DIR = join(HERE, 'src', 'providers')
+
+// Discover every per-provider barrel under src/providers/{id}/ at build time.
+// Each `index.ts` (Zod barrel) and `schemas-index.ts` (JSON Schema barrel)
+// becomes its own Vite entry so it's emitted as a separately-addressable
+// chunk; that's what makes the `./*/json-schema` and `./*/zod` exports in
+// package.json resolve to a real file in dist.
+function discoverProviderEntries() {
+  if (!existsSync(PROVIDERS_DIR)) return []
+  const entries = []
+  for (const providerDir of readdirSync(PROVIDERS_DIR)) {
+    const root = `./src/providers/${providerDir}`
+    if (existsSync(join(PROVIDERS_DIR, providerDir, 'index.ts'))) {
+      entries.push(`${root}/index.ts`)
+    }
+    if (existsSync(join(PROVIDERS_DIR, providerDir, 'schemas-index.ts'))) {
+      entries.push(`${root}/schemas-index.ts`)
+    }
+  }
+  return entries
+}
 
 const config = defineConfig({
   test: {
@@ -27,16 +53,18 @@ const config = defineConfig({
   },
 })
 
-// The schemas package ships per-provider subpath barrels. Each entry must be a
-// real source file so vite emits a separate chunk consumers can deep-import.
+// The schemas package ships per-provider subpath barrels. Each entry below
+// becomes its own dist chunk. We deliberately do NOT add a top-level
+// aggregator entry — the default `index.ts` only re-exports `openai-strict`,
+// forcing consumers to the per-provider subpaths so bundlers tree-shake by
+// file.
 export default mergeConfig(
   config,
   tanstackViteConfig({
     entry: [
       './src/index.ts',
-      './src/schemas.ts',
-      './src/zod.ts',
       './src/openai-strict.ts',
+      ...discoverProviderEntries(),
     ],
     srcDir: './src',
     cjs: false,

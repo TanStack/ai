@@ -35,9 +35,11 @@ console.log = (...args: Array<unknown>) => {
 
 export default loadAllProviderSpecs().map(
   ({ providerId, category, mergedSpec }) => {
-    const outputPath = category
-      ? `./src/providers/${providerId}/${category}`
-      : `./src/providers/${providerId}`
+    // Flat layout — every (provider, category) tuple owns a top-level
+    // subpath. Matches the `./*/json-schema` and `./*/zod` exports in
+    // package.json (Node's `*` wildcard doesn't cross `/`).
+    const subpath = category ? `${providerId}-${category}` : providerId
+    const outputPath = `./src/providers/${subpath}`
     return {
       input: mergedSpec,
       output: {
