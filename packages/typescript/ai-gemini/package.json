@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-gemini",
-  "version": "0.10.9",
+  "version": "0.10.10",
   "description": "Google Gemini adapter for TanStack AI chat, images, speech, audio generation, and structured outputs.",
   "author": "",
   "license": "MIT",
