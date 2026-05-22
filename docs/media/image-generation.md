@@ -90,6 +90,7 @@ All image adapters support these common options:
 
 | Model | Supported Sizes |
 |-------|----------------|
+| `gpt-image-2` | `1024x1024`, `1536x1024`, `1024x1536`, `auto` |
 | `gpt-image-1` | `1024x1024`, `1536x1024`, `1024x1536`, `auto` |
 | `gpt-image-1-mini` | `1024x1024`, `1536x1024`, `1024x1536`, `auto` |
 | `dall-e-3` | `1024x1024`, `1792x1024`, `1024x1792` |
@@ -138,11 +139,11 @@ const result = await generateImage({
 
 OpenAI models support model-specific Model Options:
 
-#### GPT-Image-1 / GPT-Image-1-Mini
+#### GPT-Image-2 / GPT-Image-1 / GPT-Image-1-Mini
 
 ```typescript
 const result = await generateImage({
-  adapter: openaiImage('gpt-image-1'),
+  adapter: openaiImage('gpt-image-2'),
   prompt: 'A cat wearing a hat',
   modelOptions: {
     quality: 'high', // 'high' | 'medium' | 'low' | 'auto'
@@ -223,6 +224,7 @@ interface GeneratedImage {
 
 | Model | Images per Request |
 |-------|-------------------|
+| `gpt-image-2` | 1-10 |
 | `gpt-image-1` | 1-10 |
 | `gpt-image-1-mini` | 1-10 |
 | `dall-e-3` | 1 |
