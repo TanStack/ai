@@ -2150,7 +2150,12 @@ class TextEngine<
     }
 
     // On success, emit the synthetic `structured-output.complete` carrying
-    // the parsed object + raw text.
+    // the parsed object + raw text. Pin the messageId so the client-side
+    // handler can target the right UIMessage even when the agent loop's
+    // terminal RUN_FINISHED has already cleared `activeMessageIds` (the
+    // complete event yields AFTER the loop ends, by which point
+    // `getActiveAssistantMessageId()` returns null and would otherwise drop
+    // the event silently).
     if (this.structuredOutputResult && !this.finalizationError) {
       const completeChunk: StreamChunk = {
         type: EventType.CUSTOM,
@@ -2158,6 +2163,9 @@ class TextEngine<
         value: {
           object: this.structuredOutputResult.data,
           raw: this.structuredOutputResult.rawText,
+          ...(this.combinedStructuredMessageId
+            ? { messageId: this.combinedStructuredMessageId }
+            : {}),
         },
         model: this.params.model,
         timestamp: Date.now(),

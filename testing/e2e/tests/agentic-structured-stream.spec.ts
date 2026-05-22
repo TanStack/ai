@@ -20,20 +20,14 @@ import { providersFor } from './test-matrix'
  *
  * Observable contracts pinned per provider:
  *   1. A `getGuitars` tool call lands during the agent loop.
- *   2. The schema-constrained final-turn content reaches the assistant
- *      message (asserted via substring; the typed `structured-output`
- *      part routing through useChat is a separate concern tracked under
- *      the multi-turn-structured Anthropic exclusion in
- *      `feature-support.ts`).
+ *   2. The schema-constrained final-turn content lands as a typed
+ *      `structured-output` part on the assistant message (NOT a text part).
+ *      Confirms the engine's synthetic `structured-output.start` reached
+ *      the client and routed subsequent TEXT_MESSAGE_CONTENT deltas into a
+ *      StructuredOutputPart.
  *   3. The `structured-output.complete` custom event reaches the client
- *      with the parsed object matching the schema. This is the
- *      load-bearing contract — engine harvested the JSON, validated it
- *      against the Standard Schema, and surfaced it through the synthetic
- *      lifecycle. Whether the assistant message renders it as a typed
- *      `structured-output` part vs a `text` part doesn't affect the
- *      structured-output value delivered to consumers.
- *   4. The content streamed (more than one TEXT_MESSAGE_CONTENT delta),
- *      guarding against silent collapse to a single synthetic chunk.
+ *      with the parsed object matching the schema.
+ *   4. The content streamed (more than one TEXT_MESSAGE_CONTENT delta).
  */
 for (const provider of providersFor('agentic-structured-stream')) {
   test.describe(`${provider} — agentic-structured-stream`, () => {
@@ -45,6 +39,10 @@ for (const provider of providersFor('agentic-structured-stream')) {
       await page.goto(
         featureUrl(provider, 'agentic-structured-stream', testId, aimockPort),
       )
+      // Confirms useChat has hydrated before we send — under parallel workers
+      // the first POST can otherwise race React hydration and lose the
+      // synthetic `structured-output.start` event ordering at the processor.
+      await page.getByTestId('chat-input').waitFor({ state: 'visible' })
 
       await sendMessage(page, '[agentic-stream] check inventory and recommend')
       await waitForResponse(page)
@@ -54,8 +52,22 @@ for (const provider of providersFor('agentic-structured-stream')) {
 
       await waitForAssistantText(page, 'Fender Stratocaster')
 
+      // Anchor on `structured-output-complete` first — this testid only
+      // renders after `useChat`'s `onCustomEvent('structured-output.complete')`
+      // fired. `waitForResponse` keys on `isLoading` flipping false
+      // (RUN_FINISHED), which can land before the React tree re-renders the
+      // streaming TextPart → completed StructuredOutputPart.
       const completeEl = page.getByTestId('structured-output-complete')
-      await expect(completeEl).toBeAttached()
+      await expect(completeEl).toBeAttached({ timeout: 10_000 })
+
+      // Use a longer timeout — under parallel-worker dev-server contention
+      // the final React commit landing the structured-output part can lag
+      // 10s behind the `structured-output.complete` testid attachment.
+      const assistantMessage = page.getByTestId('assistant-message').last()
+      await expect(
+        assistantMessage.getByTestId('structured-output-part'),
+      ).toHaveCount(1, { timeout: 15_000 })
+
       const structuredAttr = await completeEl.getAttribute(
         'data-structured-output',
       )
