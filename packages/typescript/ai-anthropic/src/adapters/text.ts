@@ -31,7 +31,6 @@ import type {
   URLImageSource,
   URLPDFSource,
 } from '@anthropic-ai/sdk/resources/messages'
-import type { MessageCreateParamsStreaming as BetaMessageCreateParamsStreaming } from '@anthropic-ai/sdk/resources/beta/messages/messages'
 import type Anthropic_SDK from '@anthropic-ai/sdk'
 import type { AnthropicBeta } from '@anthropic-ai/sdk/resources/beta/beta'
 import type {
@@ -142,9 +141,9 @@ export class AnthropicTextAdapter<
         { provider: 'anthropic', model: this.model },
       )
 
-      // Interleaved thinking is only supported on the beta messages endpoint,
-      // so the `betas` flag is attached here rather than in the shared mapper
-      // (structuredOutput uses the non-beta endpoint which rejects `betas`).
+      // `betas` is attached at the call site rather than in the shared mapper
+      // because the `interleaved-thinking-2025-05-14` header is only useful for
+      // the streaming path.
       const modelOptions = options.modelOptions as
         | InternalTextProviderOptions
         | undefined
@@ -156,20 +155,18 @@ export class AnthropicTextAdapter<
         ? ['interleaved-thinking-2025-05-14']
         : undefined
 
-      // Cast at the SDK boundary: the runtime API accepts
-      // `output_config: { effort: 'max', format: {...} }` (verified
-      // against Anthropic's extended-thinking + structured-outputs docs)
-      // but `BetaOutputConfig` in @anthropic-ai/sdk@0.71 only types
-      // `effort` as `'low' | 'medium' | 'high'` and doesn't declare
-      // `format` at all. Both fields ride the same SDK-type-lag issue;
-      // collapse the gap with a single cast here so the rest of
-      // mapCommonOptionsToAnthropic stays strictly typed.
+      // `client.beta.messages` is Anthropic's permanent staging surface, not a
+      // sunset path: it's a superset of `client.messages` that additionally
+      // accepts the `betas: AnthropicBeta[]` header (e.g. interleaved
+      // thinking) plus richer `container` (skills) and `context_management`
+      // shapes that `InternalTextProviderOptions` carries. We route every
+      // Messages call through it so the request mapper stays single-shape.
       const stream = await this.client.beta.messages.create(
         {
           ...requestParams,
           stream: true,
           ...(betas && { betas }),
-        } as BetaMessageCreateParamsStreaming,
+        },
         {
           signal: options.request?.signal,
           headers: options.request?.headers,
@@ -235,7 +232,7 @@ export class AnthropicTextAdapter<
         { provider: 'anthropic', model: this.model },
       )
       // Make non-streaming request with tool_choice forced to our structured output tool
-      const response = await this.client.messages.create(
+      const response = await this.client.beta.messages.create(
         {
           ...requestParams,
           stream: false,
@@ -385,21 +382,11 @@ export class AnthropicTextAdapter<
         }),
       )
     })()
-    // Native combined mode (issue #605): when the engine threads
-    // `outputSchema` through TextOptions, the adapter declared
-    // `supportsCombinedToolsAndSchema` (Claude 4.5+ only). The schema is
-    // already JSON Schema (pre-converted at the activity boundary). Wire
-    // it into the beta Messages `output_config.format` field alongside
-    // any `tools` — the model emits tool calls during the agent loop
-    // and a single schema-constrained JSON message on its natural final
-    // turn.
-    //
-    // (Anthropic deprecated the top-level `output_format` field in
-    // favour of `output_config.format` — see
-    // https://platform.claude.com/docs/en/build-with-claude/structured-outputs.
-    // We merge into any existing `output_config` from `modelOptions` so
-    // callers can keep tuning `output_config.effort` alongside the
-    // schema.)
+    // Wire engine-threaded outputSchema into Messages `output_config.format`
+    // alongside any `tools` so the model emits tool calls during the agent
+    // loop and a single schema-constrained JSON message on its final turn.
+    // Merge into any existing `output_config` so callers can keep tuning
+    // `output_config.effort` alongside the schema.
     const combinedSchema = options.outputSchema as
       | Record<string, unknown>
       | undefined
@@ -1134,6 +1121,7 @@ export class AnthropicTextAdapter<
               case 'pause_turn':
               case 'refusal':
               case 'model_context_window_exceeded':
+              case 'compaction':
               default: {
                 // All remaining Anthropic stop_reason variants map to the
                 // generic "stop" finish reason — they describe *why* the

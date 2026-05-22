@@ -89,14 +89,27 @@ const PROVIDER_MODELS: Record<
       label: 'Gemini 3.1 Flash Lite (Preview)',
     },
   ],
+  // Grok 4 family supports the #605 combined-mode path (`tools` +
+  // `response_format: json_schema` in one streaming Chat Completions
+  // request). Grok 2 / 3 reject the combination per xAI docs, so they're
+  // omitted — they'd hit the engine's legacy finalization path instead
+  // and silently lose streaming. Values must match `GROK_COMBINED_TOOLS_AND_SCHEMA_MODELS`
+  // in `ai-grok/model-meta` exactly.
   grok: [
+    { value: 'grok-4.3', label: 'Grok 4.3' },
+    { value: 'grok-4.20', label: 'Grok 4.20' },
     { value: 'grok-4-1-fast-reasoning', label: 'Grok 4.1 Fast (reasoning)' },
     {
       value: 'grok-4-1-fast-non-reasoning',
       label: 'Grok 4.1 Fast (non-reasoning)',
     },
+    { value: 'grok-4-fast-reasoning', label: 'Grok 4 Fast (reasoning)' },
+    {
+      value: 'grok-4-fast-non-reasoning',
+      label: 'Grok 4 Fast (non-reasoning)',
+    },
+    { value: 'grok-code-fast-1', label: 'Grok Code Fast 1' },
     { value: 'grok-4', label: 'Grok 4' },
-    { value: 'grok-3', label: 'Grok 3' },
   ],
   groq: [
     {

@@ -19,8 +19,8 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { chat } from '../src/activities/chat/index'
 import { EventType } from '../src/types'
-import type { StreamChunk } from '../src/types'
 import { collectChunks, createMockAdapter } from './test-utils'
+import type { StreamChunk } from '../src/types'
 
 const PersonSchema = z.object({
   name: z.string(),
@@ -38,31 +38,31 @@ function textTurn(json: string): Array<StreamChunk> {
       runId: 'run-1',
       threadId: 'thread-1',
       timestamp: ts,
-    } as StreamChunk,
+    },
     {
       type: EventType.TEXT_MESSAGE_START,
       messageId: 'msg-1',
       role: 'assistant',
       timestamp: ts,
-    } as StreamChunk,
+    },
     {
       type: EventType.TEXT_MESSAGE_CONTENT,
       messageId: 'msg-1',
       delta: json,
       timestamp: ts,
-    } as StreamChunk,
+    } ,
     {
       type: EventType.TEXT_MESSAGE_END,
       messageId: 'msg-1',
       timestamp: ts,
-    } as StreamChunk,
+    } ,
     {
       type: EventType.RUN_FINISHED,
       runId: 'run-1',
       threadId: 'thread-1',
       finishReason: 'stop',
       timestamp: ts,
-    } as StreamChunk,
+    } ,
   ]
 }
 
@@ -91,7 +91,7 @@ describe('chat({ outputSchema, stream: true }) — native combined mode (#605)',
       stream: true,
     })
 
-    await collectChunks(stream as unknown as AsyncIterable<StreamChunk>)
+    await collectChunks(stream)
 
     // The agent loop's single chatStream call IS the structured call.
     expect(calls.length).toBe(1)
@@ -114,7 +114,7 @@ describe('chat({ outputSchema, stream: true }) — native combined mode (#605)',
         messages: [{ role: 'user', content: 'extract' }],
         outputSchema: PersonSchema,
         stream: true,
-      }) as unknown as AsyncIterable<StreamChunk>,
+      })
     )
 
     const startIdx = chunks.findIndex(
@@ -158,7 +158,7 @@ describe('chat({ outputSchema, stream: true }) — native combined mode (#605)',
         messages: [{ role: 'user', content: 'extract' }],
         outputSchema: PersonSchema,
         stream: true,
-      }) as unknown as AsyncIterable<StreamChunk>,
+      }),
     )
 
     const runStarted = chunks.filter((c) => c.type === EventType.RUN_STARTED)
@@ -218,7 +218,7 @@ describe('chat({ outputSchema, stream: true }) — native combined mode (#605)',
         messages: [{ role: 'user', content: 'extract' }],
         outputSchema: PersonSchema,
         stream: true,
-      }) as unknown as AsyncIterable<StreamChunk>,
+      }),
     )
 
     const runError = chunks.find((c) => c.type === EventType.RUN_ERROR) as
@@ -249,37 +249,37 @@ describe('chat({ outputSchema, stream: true }) — native combined mode (#605)',
             runId: 'run-2',
             threadId: 'thread-1',
             timestamp: ts,
-          } as StreamChunk
+          } 
           yield {
             type: EventType.TEXT_MESSAGE_START,
             messageId: 'msg-2',
             role: 'assistant',
             timestamp: ts,
-          } as StreamChunk
+          } 
           yield {
             type: EventType.TEXT_MESSAGE_CONTENT,
             messageId: 'msg-2',
             delta: JSON.stringify(validPerson),
             timestamp: ts,
-          } as StreamChunk
+          } 
           yield {
             type: EventType.TEXT_MESSAGE_END,
             messageId: 'msg-2',
             timestamp: ts,
-          } as StreamChunk
+          } 
           yield {
             type: EventType.CUSTOM,
             name: 'structured-output.complete',
             value: { object: validPerson, raw: JSON.stringify(validPerson) },
             timestamp: ts,
-          } as StreamChunk
+          } 
           yield {
             type: EventType.RUN_FINISHED,
             runId: 'run-2',
             threadId: 'thread-1',
             finishReason: 'stop',
             timestamp: ts,
-          } as StreamChunk
+          } 
         })()
       },
       // supportsCombinedToolsAndSchema NOT set
@@ -291,7 +291,7 @@ describe('chat({ outputSchema, stream: true }) — native combined mode (#605)',
         messages: [{ role: 'user', content: 'extract' }],
         outputSchema: PersonSchema,
         stream: true,
-      }) as unknown as AsyncIterable<StreamChunk>,
+      }),
     )
 
     // Engine took the legacy finalization path: separate adapter call.
