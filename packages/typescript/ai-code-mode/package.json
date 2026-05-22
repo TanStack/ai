@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-code-mode",
   "version": "0.1.18",
-  "description": "Code Mode for TanStack AI - LLM-driven code execution in secure sandboxes",
+  "description": "Secure TypeScript Code Mode for TanStack AI agents to execute sandboxed tool orchestration programs.",
   "author": "",
   "license": "MIT",
   "repository": {
@@ -39,11 +39,16 @@
   },
   "keywords": [
     "ai",
+    "ai-sdk",
+    "typescript",
     "tanstack",
     "code-mode",
+    "agents",
     "llm",
+    "tool-calling",
     "sandbox",
     "isolate",
+    "code-execution",
     "tanstack-intent"
   ],
   "dependencies": {

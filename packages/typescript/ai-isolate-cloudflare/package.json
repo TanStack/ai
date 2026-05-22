@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-isolate-cloudflare",
   "version": "0.2.9",
-  "description": "Cloudflare Workers driver for TanStack AI Code Mode - execute code on the edge",
+  "description": "Cloudflare Workers sandbox driver for TanStack AI Code Mode TypeScript execution at the edge.",
   "author": "",
   "license": "MIT",
   "repository": {
@@ -46,12 +46,16 @@
   },
   "keywords": [
     "ai",
+    "ai-sdk",
+    "typescript",
     "tanstack",
     "code-mode",
     "cloudflare",
     "workers",
     "edge",
-    "isolate"
+    "isolate",
+    "sandbox",
+    "code-execution"
   ],
   "dependencies": {
     "@tanstack/ai-code-mode": "workspace:*"

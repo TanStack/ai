@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/solid-ai-devtools",
   "version": "0.2.39",
-  "description": "Solid TanStack AI Devtools",
+  "description": "Solid Devtools plugin for inspecting TanStack AI chat messages, tool calls, streams, and errors.",
   "author": "",
   "license": "MIT",
   "repository": {
@@ -40,11 +40,16 @@
   },
   "keywords": [
     "ai",
+    "ai-sdk",
+    "typescript",
     "tanstack",
-    "sdk",
-    "llm",
+    "solid",
+    "solidjs",
+    "devtools",
+    "debugging",
+    "observability",
     "chat",
-    "embeddings"
+    "tool-calling"
   ],
   "dependencies": {
     "@tanstack/ai-devtools-core": "workspace:*",

@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/preact-ai-devtools",
   "version": "0.1.39",
-  "description": "Preact Devtools for TanStack AI.",
+  "description": "Preact Devtools plugin for inspecting TanStack AI chat messages, tool calls, streams, and errors.",
   "author": "tannerlinsley",
   "license": "MIT",
   "homepage": "https://tanstack.com/ai",
@@ -57,5 +57,17 @@
   },
   "peerDependencies": {
     "preact": "^10.0.0"
-  }
+  },
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "preact",
+    "devtools",
+    "debugging",
+    "observability",
+    "chat",
+    "tool-calling"
+  ]
 }

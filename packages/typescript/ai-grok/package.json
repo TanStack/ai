@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-grok",
   "version": "0.8.6",
-  "description": "Grok (xAI) adapter for TanStack AI",
+  "description": "xAI Grok adapter for TanStack AI chat, image generation, realtime, and structured outputs.",
   "author": "",
   "license": "MIT",
   "repository": {
@@ -38,10 +38,17 @@
   },
   "keywords": [
     "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
     "grok",
     "xai",
-    "tanstack",
-    "adapter"
+    "adapter",
+    "chat",
+    "tool-calling",
+    "structured-outputs",
+    "image-generation",
+    "realtime"
   ],
   "dependencies": {
     "@tanstack/ai-utils": "workspace:*",

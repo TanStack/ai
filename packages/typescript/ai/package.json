@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai",
   "version": "0.21.1",
-  "description": "Core TanStack AI library - Open source AI SDK",
+  "description": "Type-safe TypeScript AI SDK for streaming chat, tool calling, agents, structured outputs, and multimodal generation.",
   "author": "Tanner Linsley",
   "license": "MIT",
   "repository": {
@@ -57,11 +57,19 @@
   },
   "keywords": [
     "ai",
+    "ai-sdk",
+    "typescript",
     "tanstack",
-    "sdk",
     "llm",
+    "generative-ai",
     "chat",
-    "embeddings",
+    "streaming",
+    "tool-calling",
+    "function-calling",
+    "agents",
+    "structured-outputs",
+    "multimodal",
+    "zod",
     "tanstack-intent"
   ],
   "dependencies": {

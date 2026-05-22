@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-openrouter",
   "version": "0.9.6",
-  "description": "OpenRouter adapter for TanStack AI",
+  "description": "TanStack AI adapter for OpenRouter chat, provider tools, structured outputs, and access to hundreds of LLMs.",
   "author": "",
   "license": "MIT",
   "repository": {
@@ -38,9 +38,18 @@
   },
   "keywords": [
     "ai",
+    "ai-sdk",
+    "typescript",
+    "llm",
+    "generative-ai",
     "openrouter",
     "tanstack",
-    "adapter"
+    "adapter",
+    "chat",
+    "streaming",
+    "tool-calling",
+    "structured-outputs",
+    "model-router"
   ],
   "dependencies": {
     "@openrouter/sdk": "0.12.35",

@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-anthropic",
   "version": "0.10.2",
-  "description": "Anthropic Claude adapter for TanStack AI",
+  "description": "Anthropic Claude adapter for TanStack AI chat, tool calling, thinking, and structured outputs.",
   "author": "",
   "license": "MIT",
   "repository": {
@@ -11,10 +11,16 @@
   },
   "keywords": [
     "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
     "anthropic",
     "claude",
-    "tanstack",
-    "adapter"
+    "adapter",
+    "chat",
+    "tool-calling",
+    "structured-outputs",
+    "thinking"
   ],
   "type": "module",
   "module": "./dist/esm/index.js",

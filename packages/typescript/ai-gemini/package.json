@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-gemini",
   "version": "0.10.9",
-  "description": "Google Gemini adapter for TanStack AI",
+  "description": "Google Gemini adapter for TanStack AI chat, images, speech, audio generation, and structured outputs.",
   "author": "",
   "license": "MIT",
   "repository": {
@@ -38,10 +38,18 @@
   },
   "keywords": [
     "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
     "gemini",
     "google",
-    "tanstack",
-    "adapter"
+    "adapter",
+    "chat",
+    "tool-calling",
+    "structured-outputs",
+    "image-generation",
+    "audio-generation",
+    "text-to-speech"
   ],
   "dependencies": {
     "@google/genai": "^1.43.0",

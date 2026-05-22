@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-elevenlabs",
   "version": "0.2.9",
-  "description": "ElevenLabs adapter for TanStack AI realtime voice",
+  "description": "ElevenLabs adapter for TanStack AI realtime voice, text-to-speech, transcription, music, and sound effects.",
   "author": "",
   "license": "MIT",
   "repository": {
@@ -11,18 +11,20 @@
   },
   "keywords": [
     "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
     "elevenlabs",
+    "adapter",
     "voice",
     "realtime",
-    "tanstack",
-    "adapter",
-    "tts",
     "text-to-speech",
+    "tts",
+    "transcription",
+    "speech-to-text",
     "audio-generation",
     "music",
-    "sound-effects",
-    "transcription",
-    "speech-to-text"
+    "sound-effects"
   ],
   "type": "module",
   "module": "./dist/esm/index.js",

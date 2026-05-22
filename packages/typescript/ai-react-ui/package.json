@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-react-ui",
   "version": "0.8.0",
-  "description": "Headless React components for building AI chat interfaces",
+  "description": "Headless React components for building TanStack AI chat interfaces with streamed message parts.",
   "module": "./dist/esm/index.js",
   "types": "./dist/esm/index.d.ts",
   "type": "module",
@@ -29,13 +29,17 @@
     "test:types": "tsc"
   },
   "keywords": [
-    "tanstack",
     "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
     "react",
     "chat",
     "ui",
     "headless",
-    "components"
+    "components",
+    "streaming",
+    "generative-ai"
   ],
   "dependencies": {
     "react-markdown": "^10.1.0",

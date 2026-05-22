@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-isolate-quickjs",
   "version": "0.1.18",
-  "description": "QuickJS WASM driver for TanStack AI Code Mode - runs everywhere",
+  "description": "QuickJS WASM sandbox driver for TanStack AI Code Mode TypeScript execution across runtimes.",
   "author": "",
   "license": "MIT",
   "repository": {
@@ -35,12 +35,15 @@
   },
   "keywords": [
     "ai",
+    "ai-sdk",
+    "typescript",
     "tanstack",
     "code-mode",
+    "quickjs",
+    "wasm",
     "isolate",
     "sandbox",
-    "quickjs",
-    "wasm"
+    "code-execution"
   ],
   "dependencies": {
     "quickjs-emscripten": "^0.31.0"

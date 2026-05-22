@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-utils",
   "version": "0.2.0",
-  "description": "Shared utilities for TanStack AI adapter packages",
+  "description": "Shared TypeScript utilities for TanStack AI provider adapters and runtime packages.",
   "author": "",
   "license": "MIT",
   "repository": {
@@ -34,8 +34,12 @@
   },
   "keywords": [
     "ai",
-    "utils",
-    "tanstack"
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "utilities",
+    "adapter",
+    "provider-adapter"
   ],
   "devDependencies": {
     "@types/node": "^24.10.1",

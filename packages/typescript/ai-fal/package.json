@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-fal",
   "version": "0.7.11",
-  "description": "fal.ai adapter for TanStack AI",
+  "description": "fal.ai adapter for TanStack AI image, video, audio, speech, and transcription generation.",
   "author": "",
   "license": "MIT",
   "repository": {
@@ -34,8 +34,11 @@
   },
   "keywords": [
     "ai",
-    "fal",
+    "ai-sdk",
+    "typescript",
     "tanstack",
+    "fal",
+    "fal-ai",
     "adapter",
     "image-generation",
     "video-generation",
@@ -43,7 +46,8 @@
     "text-to-speech",
     "speech-to-text",
     "tts",
-    "transcription"
+    "transcription",
+    "media-generation"
   ],
   "dependencies": {
     "@fal-ai/client": "^1.10.1",

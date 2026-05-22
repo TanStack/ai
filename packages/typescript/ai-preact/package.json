@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-preact",
   "version": "0.6.30",
-  "description": "Preact hooks for TanStack AI",
+  "description": "Preact hooks for TanStack AI streaming chat and typed messages.",
   "author": "",
   "license": "MIT",
   "repository": {
@@ -34,11 +34,14 @@
   },
   "keywords": [
     "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
     "preact",
     "hooks",
-    "tanstack",
     "chat",
-    "streaming"
+    "streaming",
+    "tool-calling"
   ],
   "dependencies": {
     "@tanstack/ai-client": "workspace:*"

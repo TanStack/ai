@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-svelte",
   "version": "0.10.5",
-  "description": "Svelte bindings for TanStack AI",
+  "description": "Svelte 5 bindings for TanStack AI streaming chat, structured outputs, and media generation.",
   "author": "",
   "license": "MIT",
   "repository": {
@@ -36,11 +36,16 @@
   },
   "keywords": [
     "ai",
-    "svelte",
-    "hooks",
+    "ai-sdk",
+    "typescript",
     "tanstack",
+    "svelte",
+    "svelte5",
     "chat",
-    "streaming"
+    "streaming",
+    "tool-calling",
+    "structured-outputs",
+    "media-generation"
   ],
   "dependencies": {
     "@tanstack/ai-client": "workspace:*"

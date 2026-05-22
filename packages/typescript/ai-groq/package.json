@@ -2,7 +2,7 @@
   "name": "@tanstack/ai-groq",
   "version": "0.2.5",
   "type": "module",
-  "description": "Groq adapter for TanStack AI",
+  "description": "Groq adapter for TanStack AI low-latency chat, tool calling, and structured outputs.",
   "author": "",
   "license": "MIT",
   "repository": {
@@ -38,9 +38,16 @@
   },
   "keywords": [
     "ai",
-    "groq",
+    "ai-sdk",
+    "typescript",
     "tanstack",
-    "adapter"
+    "groq",
+    "adapter",
+    "llm",
+    "chat",
+    "low-latency",
+    "tool-calling",
+    "structured-outputs"
   ],
   "devDependencies": {
     "@vitest/coverage-v8": "4.0.14",

@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-solid",
   "version": "0.10.5",
-  "description": "Solid hooks for TanStack AI",
+  "description": "Solid hooks for TanStack AI streaming chat, structured outputs, and media generation.",
   "author": "",
   "license": "MIT",
   "repository": {
@@ -32,11 +32,17 @@
   },
   "keywords": [
     "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "solid",
     "solidjs",
     "hooks",
-    "tanstack",
     "chat",
-    "streaming"
+    "streaming",
+    "tool-calling",
+    "structured-outputs",
+    "media-generation"
   ],
   "dependencies": {
     "@tanstack/ai-client": "workspace:*"

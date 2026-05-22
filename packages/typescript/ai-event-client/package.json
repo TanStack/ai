@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-event-client",
   "version": "0.3.8",
-  "description": "Event client for TanStack AI devtools integration",
+  "description": "Typed event client for TanStack AI devtools, observability, and streamed runtime events.",
   "author": "",
   "license": "MIT",
   "repository": {
@@ -41,5 +41,16 @@
   },
   "devDependencies": {
     "@vitest/coverage-v8": "4.0.14"
-  }
+  },
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "events",
+    "devtools",
+    "observability",
+    "streaming",
+    "chat"
+  ]
 }

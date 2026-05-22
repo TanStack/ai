@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-vue",
   "version": "0.10.6",
-  "description": "Vue hooks for TanStack AI",
+  "description": "Vue composables for TanStack AI streaming chat, structured outputs, and media generation.",
   "author": "",
   "license": "MIT",
   "repository": {
@@ -32,11 +32,17 @@
   },
   "keywords": [
     "ai",
-    "vue",
-    "hooks",
+    "ai-sdk",
+    "typescript",
     "tanstack",
+    "vue",
+    "vue3",
+    "composables",
     "chat",
-    "streaming"
+    "streaming",
+    "tool-calling",
+    "structured-outputs",
+    "media-generation"
   ],
   "dependencies": {
     "@tanstack/ai-client": "workspace:*"

@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-code-mode-skills",
   "version": "0.1.18",
-  "description": "Persistent skill library for TanStack AI Code Mode - LLM-created reusable code snippets",
+  "description": "Persistent runtime skill library for TanStack AI Code Mode agents and sandboxed tool orchestration.",
   "author": "",
   "license": "MIT",
   "repository": {
@@ -50,11 +50,16 @@
   },
   "keywords": [
     "ai",
+    "ai-sdk",
+    "typescript",
     "tanstack",
     "code-mode",
     "skills",
+    "agents",
     "llm",
-    "sandbox"
+    "sandbox",
+    "tool-calling",
+    "tanstack-intent"
   ],
   "dependencies": {
     "@tanstack/ai": "workspace:*",

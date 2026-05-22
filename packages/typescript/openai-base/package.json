@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/openai-base",
   "version": "0.3.5",
-  "description": "Shared base adapters for OpenAI-SDK-backed providers in TanStack AI (Chat Completions and Responses)",
+  "description": "Shared OpenAI SDK base adapters for TanStack AI providers using Chat Completions and Responses APIs.",
   "author": "",
   "license": "MIT",
   "repository": {
@@ -34,9 +34,15 @@
   },
   "keywords": [
     "ai",
-    "openai",
+    "ai-sdk",
+    "typescript",
     "tanstack",
-    "adapter"
+    "openai",
+    "adapter",
+    "provider-adapter",
+    "chat-completions",
+    "responses-api",
+    "structured-outputs"
   ],
   "dependencies": {
     "@tanstack/ai-utils": "workspace:*",

@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-isolate-node",
   "version": "0.1.18",
-  "description": "Node.js isolated-vm driver for TanStack AI Code Mode",
+  "description": "Node.js isolated-vm sandbox driver for TanStack AI Code Mode TypeScript execution.",
   "author": "",
   "license": "MIT",
   "repository": {
@@ -38,11 +38,15 @@
   },
   "keywords": [
     "ai",
+    "ai-sdk",
+    "typescript",
     "tanstack",
     "code-mode",
+    "nodejs",
+    "isolated-vm",
     "isolate",
     "sandbox",
-    "isolated-vm"
+    "code-execution"
   ],
   "dependencies": {
     "isolated-vm": "^6.0.2"

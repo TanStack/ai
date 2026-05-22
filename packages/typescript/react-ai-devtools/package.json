@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/react-ai-devtools",
   "version": "0.2.39",
-  "description": "React Devtools for TanStack AI.",
+  "description": "React Devtools plugin for inspecting TanStack AI chat messages, tool calls, streams, and errors.",
   "author": "tannerlinsley",
   "license": "MIT",
   "homepage": "https://tanstack.com/ai",
@@ -60,5 +60,17 @@
     "@vitest/coverage-v8": "4.0.14",
     "react": "^19.2.3",
     "vite": "^7.3.3"
-  }
+  },
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "react",
+    "devtools",
+    "debugging",
+    "observability",
+    "chat",
+    "tool-calling"
+  ]
 }
