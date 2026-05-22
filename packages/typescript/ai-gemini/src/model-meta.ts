@@ -1027,6 +1027,7 @@ export const GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS = new Set<string>([
   GEMINI_3_PRO.name,
   GEMINI_3_FLASH.name,
   GEMINI_3_1_FLASH_LITE.name,
+  GEMINI_3_5_FLASH.name,
 ])
 
 export type GeminiModels = (typeof GEMINI_MODELS)[number]
