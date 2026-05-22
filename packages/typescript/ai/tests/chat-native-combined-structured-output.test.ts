@@ -50,19 +50,19 @@ function textTurn(json: string): Array<StreamChunk> {
       messageId: 'msg-1',
       delta: json,
       timestamp: ts,
-    } ,
+    },
     {
       type: EventType.TEXT_MESSAGE_END,
       messageId: 'msg-1',
       timestamp: ts,
-    } ,
+    },
     {
       type: EventType.RUN_FINISHED,
       runId: 'run-1',
       threadId: 'thread-1',
       finishReason: 'stop',
       timestamp: ts,
-    } ,
+    },
   ]
 }
 
@@ -114,7 +114,7 @@ describe('chat({ outputSchema, stream: true }) — native combined mode (#605)',
         messages: [{ role: 'user', content: 'extract' }],
         outputSchema: PersonSchema,
         stream: true,
-      })
+      }),
     )
 
     const startIdx = chunks.findIndex(
@@ -249,37 +249,37 @@ describe('chat({ outputSchema, stream: true }) — native combined mode (#605)',
             runId: 'run-2',
             threadId: 'thread-1',
             timestamp: ts,
-          } 
+          }
           yield {
             type: EventType.TEXT_MESSAGE_START,
             messageId: 'msg-2',
             role: 'assistant',
             timestamp: ts,
-          } 
+          }
           yield {
             type: EventType.TEXT_MESSAGE_CONTENT,
             messageId: 'msg-2',
             delta: JSON.stringify(validPerson),
             timestamp: ts,
-          } 
+          }
           yield {
             type: EventType.TEXT_MESSAGE_END,
             messageId: 'msg-2',
             timestamp: ts,
-          } 
+          }
           yield {
             type: EventType.CUSTOM,
             name: 'structured-output.complete',
             value: { object: validPerson, raw: JSON.stringify(validPerson) },
             timestamp: ts,
-          } 
+          }
           yield {
             type: EventType.RUN_FINISHED,
             runId: 'run-2',
             threadId: 'thread-1',
             finishReason: 'stop',
             timestamp: ts,
-          } 
+          }
         })()
       },
       // supportsCombinedToolsAndSchema NOT set

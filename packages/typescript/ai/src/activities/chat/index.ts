@@ -611,10 +611,11 @@ class TextEngine<
             this.middlewareCtx.phase = 'beforeModel'
             this.middlewareCtx.iteration = this.iterationCount
             const iterConfig = this.buildMiddlewareConfig()
-            const iterTransformedConfig = await this.middlewareRunner.runOnConfig(
-              this.middlewareCtx,
-              iterConfig,
-            )
+            const iterTransformedConfig =
+              await this.middlewareRunner.runOnConfig(
+                this.middlewareCtx,
+                iterConfig,
+              )
             this.applyMiddlewareConfig(iterTransformedConfig)
 
             yield* this.streamModelResponse()
