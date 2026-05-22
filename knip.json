@@ -50,7 +50,7 @@
         "scripts/**",
         "openapi-ts.config.ts"
       ],
-      "ignoreDependencies": ["zod"]
+      "ignoreDependencies": ["zod", "vite"]
     }
   }
 }
