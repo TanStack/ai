@@ -33,7 +33,7 @@ provider or switch between many. Import only chat, or add image, audio, video,
 speech, transcription, summarization, realtime, Code Mode, devtools, and
 framework bindings as your app needs them.
 
-### <a href="https://tanstack.com/ai">Read the docs -></a>
+## <a href="https://tanstack.com/ai">Read the docs -></a>
 
 ## Start Here
 
@@ -292,7 +292,7 @@ on.
   range and slider primitives
 - <a href="https://github.com/tanstack/router"><b>TanStack Router</b></a> -
   type-safe routing, caching, and URL state
-- <a href="https://github.com/tanstack/router"><b>TanStack Start</b></a> -
+- <a href="https://github.com/tanstack/start"><b>TanStack Start</b></a> -
   full-stack SSR and streaming
 - <a href="https://github.com/tanstack/store"><b>TanStack Store</b></a> -
   reactive data store
