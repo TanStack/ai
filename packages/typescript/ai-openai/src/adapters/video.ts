@@ -100,9 +100,7 @@ export class OpenAIVideoAdapter<
     // `VideoCreateParams.size` is `size?: VideoSize` (no `| undefined`), so we
     // narrow before assignment instead of casting from a `T | undefined` source.
     if (size) {
-      request.size = size as NonNullable<
-        OpenAI_SDK.Videos.VideoCreateParams['size']
-      >
+      request.size = size
     } else if (modelOptions?.size) {
       request.size = modelOptions.size
     }

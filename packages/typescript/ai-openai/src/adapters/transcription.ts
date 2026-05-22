@@ -186,7 +186,7 @@ export class OpenAITranscriptionAdapter<
     format?: 'json' | 'text' | 'srt' | 'verbose_json' | 'vtt',
   ): OpenAI_SDK.Audio.TranscriptionCreateParams['response_format'] {
     if (!format) return 'json'
-    return format as OpenAI_SDK.Audio.TranscriptionCreateParams['response_format']
+    return format
   }
 }
 

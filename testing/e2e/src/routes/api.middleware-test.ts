@@ -6,8 +6,16 @@ import {
   toServerSentEventsResponse,
   toolDefinition,
 } from '@tanstack/ai'
-import type { ChatMiddleware } from '@tanstack/ai'
+import type { ChatMiddleware, StreamChunk } from '@tanstack/ai'
 import { otelMiddleware } from '@tanstack/ai/middlewares/otel'
+import { guitarRecommendationSchema } from '@/lib/schemas'
+import {
+  getPhaseCapture,
+  recordOnFinish,
+  recordPhase,
+  recordYieldedChunk,
+  resetPhaseCapture,
+} from '@/lib/phase-capture'
 import { SpanStatusCode } from '@opentelemetry/api'
 import type {
   AttributeValue,
@@ -71,6 +79,46 @@ const toolSkipMiddleware: ChatMiddleware = {
     }
     return undefined
   },
+}
+
+/**
+ * Per-testId recorder used by `phase-recorder` mode.
+ *
+ * Captures every `ctx.phase` observed during `onChunk` and counts `onFinish`
+ * invocations. The capture is stored in a module-global keyed by `testId` so
+ * the page can fetch it via `GET /api/middleware-test?testId=...&kind=phase`
+ * after the run finishes.
+ *
+ * Why a factory: middleware closes over `captureId` so we don't have to thread
+ * a per-request shim through global state.
+ */
+function createPhaseRecorderMiddleware(captureId: string): ChatMiddleware {
+  return {
+    name: 'phase-recorder',
+    onChunk(ctx, chunk) {
+      recordPhase(captureId, ctx.phase)
+      return chunk
+    },
+    onFinish() {
+      recordOnFinish(captureId)
+    },
+  }
+}
+
+/**
+ * Wraps a chat stream so every chunk that leaves `chat()` (post-middleware)
+ * is recorded into the per-testId phase capture as a yielded chunk. Used by
+ * `phase-recorder` mode to let the spec assert what the consumer actually
+ * sees — distinct from what `onChunk` observes inside the middleware chain.
+ */
+async function* teeForPhaseCapture(
+  source: AsyncIterable<StreamChunk>,
+  captureId: string,
+): AsyncIterable<StreamChunk> {
+  for await (const chunk of source) {
+    recordYieldedChunk(captureId, { type: chunk.type })
+    yield chunk
+  }
 }
 
 // Minimal in-memory tracer/meter. Captures into a per-testId bucket so that
@@ -232,6 +280,21 @@ export const Route = createFileRoute('/api/middleware-test')({
             middleware.push(chunkTransformMiddleware)
           if (middlewareMode === 'tool-skip')
             middleware.push(toolSkipMiddleware)
+          if (middlewareMode === 'phase-recorder') {
+            if (!testId) {
+              return new Response(
+                JSON.stringify({
+                  error: 'phase-recorder mode requires testId',
+                }),
+                {
+                  status: 400,
+                  headers: { 'Content-Type': 'application/json' },
+                },
+              )
+            }
+            resetPhaseCapture(testId)
+            middleware.push(createPhaseRecorderMiddleware(testId))
+          }
           if (middlewareMode === 'otel') {
             if (!OTEL_TEST_ENABLED) {
               return new Response(null, { status: 404 })
@@ -257,16 +320,43 @@ export const Route = createFileRoute('/api/middleware-test')({
 
           const tools = scenario === 'with-tool' ? [weatherTool] : []
 
-          const stream = chat({
-            ...adapterOptions,
-            messages: params.messages,
-            tools,
-            middleware,
-            threadId: params.threadId,
-            runId: params.runId,
-            agentLoopStrategy: maxIterations(10),
-            abortController,
-          })
+          // The two `structured-output*` scenarios both bind the same
+          // guitar schema; they differ only in what the spec asserts (phases
+          // observed vs RUN_STARTED/RUN_FINISHED uniqueness). A single
+          // outputSchema branch keeps the route narrow.
+          const isStructured =
+            scenario === 'structured-output' ||
+            scenario === 'structured-output-stream'
+
+          const rawStream = isStructured
+            ? chat({
+                ...adapterOptions,
+                messages: params.messages,
+                middleware,
+                threadId: params.threadId,
+                runId: params.runId,
+                outputSchema: guitarRecommendationSchema,
+                stream: true,
+                abortController,
+              })
+            : chat({
+                ...adapterOptions,
+                messages: params.messages,
+                tools,
+                middleware,
+                threadId: params.threadId,
+                runId: params.runId,
+                agentLoopStrategy: maxIterations(10),
+                abortController,
+              })
+
+          // Tee the post-middleware stream when `phase-recorder` is active
+          // so the spec can assert on what the consumer ultimately sees
+          // (e.g. exactly one RUN_STARTED/RUN_FINISHED pair).
+          const stream =
+            middlewareMode === 'phase-recorder' && testId
+              ? teeForPhaseCapture(rawStream, testId)
+              : rawStream
 
           return toServerSentEventsResponse(stream, { abortController })
         } catch (error: any) {
@@ -281,11 +371,33 @@ export const Route = createFileRoute('/api/middleware-test')({
         }
       },
       GET: async ({ request }) => {
+        const url = new URL(request.url)
+        const testId = url.searchParams.get('testId')
+        const kind = url.searchParams.get('kind')
+
+        // Phase capture is independent of OTEL — keep it available without
+        // requiring the OTEL_TEST_ENABLED gate so that the structured-output
+        // middleware spec works under any harness build configuration.
+        if (kind === 'phase') {
+          if (!testId) {
+            return new Response(
+              JSON.stringify({ error: 'testId query param required' }),
+              {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' },
+              },
+            )
+          }
+          return new Response(JSON.stringify(getPhaseCapture(testId)), {
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+
+        // OTEL capture remains gated — the GET cannot act as an oracle in a
+        // production-like build.
         if (!OTEL_TEST_ENABLED) {
           return new Response(null, { status: 404 })
         }
-        const url = new URL(request.url)
-        const testId = url.searchParams.get('testId')
         if (!testId) {
           return new Response(
             JSON.stringify({ error: 'testId query param required' }),

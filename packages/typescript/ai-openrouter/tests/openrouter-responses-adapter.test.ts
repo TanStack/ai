@@ -4,6 +4,7 @@ import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { ResponsesRequest$outboundSchema } from '@openrouter/sdk/models'
 import { createOpenRouterResponsesText } from '../src/adapters/responses-text'
 import { webSearchTool } from '../src/tools/web-search-tool'
+import { webFetchTool } from '../src/tools/web-fetch-tool'
 import type { StreamChunk, Tool } from '@tanstack/ai'
 
 const testLogger = resolveDebugOption(false)
@@ -211,6 +212,27 @@ describe('OpenRouter responses adapter — request shape', () => {
         e.type === EventType.RUN_ERROR,
     )
     expect(runError).toBeDefined()
+    expect(runError!.message).toMatch(/openRouterText/)
+  })
+
+  it('rejects webFetchTool() as RUN_ERROR pointing at the chat adapter', async () => {
+    const adapter = createAdapter()
+    const wf = webFetchTool() as Tool
+    const events: Array<StreamChunk> = []
+    for await (const evt of adapter.chatStream({
+      model: 'openai/gpt-4o-mini' as any,
+      messages: [{ role: 'user', content: 'hi' }],
+      tools: [wf],
+      logger: testLogger,
+    })) {
+      events.push(evt)
+    }
+    const runError = events.find(
+      (e): e is Extract<StreamChunk, { type: typeof EventType.RUN_ERROR }> =>
+        e.type === EventType.RUN_ERROR,
+    )
+    expect(runError).toBeDefined()
+    expect(runError!.message).toMatch(/webFetchTool/)
     expect(runError!.message).toMatch(/openRouterText/)
   })
 

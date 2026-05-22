@@ -8,7 +8,54 @@ import {
   openRouterText,
 } from '@tanstack/ai-openrouter'
 import { z } from 'zod'
-import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
+import type { AnyTextAdapter, ChatMiddleware, StreamChunk } from '@tanstack/ai'
+import { EventType } from '@tanstack/ai'
+
+/**
+ * Diagnostic middleware that records which middleware phases observed chunks.
+ * Used here to verify PR #600 — middleware should now see chunks attributed
+ * to `phase === 'structuredOutput'` during the final structured-output call.
+ *
+ * Counts are exposed via:
+ *   - the JSON response (`_diagnostics` field) for non-streaming
+ *   - a trailing CUSTOM `phase-counts` event for streaming
+ */
+function phaseCounterMiddleware(): {
+  middleware: ChatMiddleware
+  snapshot: () => Record<string, number>
+} {
+  const counts: Record<string, number> = {}
+  return {
+    middleware: {
+      name: 'phase-counter',
+      onChunk(ctx) {
+        counts[ctx.phase] = (counts[ctx.phase] ?? 0) + 1
+      },
+    },
+    snapshot: () => ({ ...counts }),
+  }
+}
+
+/**
+ * Wrap a chat stream so it emits a trailing CUSTOM `phase-counts` event
+ * right before terminating, carrying the counter middleware's snapshot.
+ */
+async function* withTrailingPhaseCounts(
+  stream: AsyncIterable<StreamChunk>,
+  snapshot: () => Record<string, number>,
+  model: string,
+): AsyncIterable<StreamChunk> {
+  for await (const chunk of stream) {
+    yield chunk
+  }
+  yield {
+    type: EventType.CUSTOM,
+    name: 'phase-counts',
+    value: snapshot(),
+    model,
+    timestamp: Date.now(),
+  }
+}
 
 const GuitarRecommendationSchema = z.object({
   title: z.string().describe('Short headline for the recommendation'),
@@ -155,20 +202,29 @@ export const Route = createFileRoute('/api/structured-output')({
           const resolvedProvider: Provider = provider || 'openrouter'
           const modelOptions = reasoningOptionsFor(resolvedProvider, model)
 
+          const counter = phaseCounterMiddleware()
+
           if (stream) {
             const abortController = new AbortController()
             request.signal.addEventListener('abort', () =>
               abortController.abort(),
             )
+            const adapter = adapterFor(resolvedProvider, model)
             const streamIterable = chat({
-              adapter: adapterFor(resolvedProvider, model),
+              adapter,
               modelOptions: modelOptions as never,
               messages: [{ role: 'user', content: prompt }],
               outputSchema: GuitarRecommendationSchema,
               stream: true,
+              middleware: [counter.middleware],
               abortController,
             }) as AsyncIterable<StreamChunk>
-            return toServerSentEventsResponse(streamIterable, {
+            const withCounts = withTrailingPhaseCounts(
+              streamIterable,
+              counter.snapshot,
+              adapter.model,
+            )
+            return toServerSentEventsResponse(withCounts, {
               abortController,
             })
           }
@@ -182,12 +238,19 @@ export const Route = createFileRoute('/api/structured-output')({
             modelOptions: modelOptions as never,
             messages: [{ role: 'user', content: prompt }],
             outputSchema: GuitarRecommendationSchema,
+            middleware: [counter.middleware],
             abortController,
           })
 
-          return new Response(JSON.stringify({ data: result }), {
-            headers: { 'Content-Type': 'application/json' },
-          })
+          return new Response(
+            JSON.stringify({
+              data: result,
+              _diagnostics: { phaseCounts: counter.snapshot() },
+            }),
+            {
+              headers: { 'Content-Type': 'application/json' },
+            },
+          )
         } catch (error: unknown) {
           const message =
             error instanceof Error ? error.message : 'An error occurred'

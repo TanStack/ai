@@ -1,5 +1,53 @@
 # @tanstack/ai-solid
 
+## 0.10.6
+
+### Patch Changes
+
+- Refresh package README content and npm metadata for better discoverability. ([#626](https://github.com/TanStack/ai/pull/626))
+
+- Updated dependencies [[`ebeb22e`](https://github.com/TanStack/ai/commit/ebeb22ec68f456b09e0181ac6f5d1ac25a0affd2)]:
+  - @tanstack/ai@0.21.2
+  - @tanstack/ai-client@0.11.6
+
+## 0.10.5
+
+### Patch Changes
+
+- Updated dependencies [[`573f12e`](https://github.com/TanStack/ai/commit/573f12eb5a3b04a2625be92900099f48d6f76632)]:
+  - @tanstack/ai@0.21.1
+  - @tanstack/ai-client@0.11.5
+
+## 0.10.4
+
+### Patch Changes
+
+- Expose the connection adapter primitives needed to build custom ([#597](https://github.com/TanStack/ai/pull/597))
+  transports from every framework hook package. `@tanstack/ai-client`
+  now re-exports `RunAgentInputContext` at its entry point, and
+  `@tanstack/ai-react`, `@tanstack/ai-vue`, `@tanstack/ai-solid`,
+  `@tanstack/ai-svelte`, and `@tanstack/ai-preact` now re-export
+  `rpcStream`, `ConnectConnectionAdapter`, `SubscribeConnectionAdapter`,
+  and `RunAgentInputContext` alongside the existing `stream`,
+  `fetchServerSentEvents`, and `fetchHttpStream` re-exports.
+
+  Previously, authors of WebSocket / persistent or RPC-backed adapters
+  had to import these symbols from `@tanstack/ai-client` even though
+  they were already pulling `useChat` from a framework package. No
+  runtime change.
+
+- Updated dependencies [[`ec1393d`](https://github.com/TanStack/ai/commit/ec1393db4383798e5f2574dfd87779c22c309529), [`a03d12b`](https://github.com/TanStack/ai/commit/a03d12b13ade93f3e262c6ffa996696ce27472ef), [`188fe11`](https://github.com/TanStack/ai/commit/188fe11b9b9691e5a241cfc416803da5b8ce5376)]:
+  - @tanstack/ai@0.21.0
+  - @tanstack/ai-client@0.11.4
+
+## 0.10.3
+
+### Patch Changes
+
+- Updated dependencies [[`2ad137b`](https://github.com/TanStack/ai/commit/2ad137bd22512248bd1684cccce35ba89597cf96)]:
+  - @tanstack/ai@0.20.1
+  - @tanstack/ai-client@0.11.3
+
 ## 0.10.2
 
 ### Patch Changes

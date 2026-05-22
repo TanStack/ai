@@ -7,6 +7,7 @@ import { extractRequestOptions } from '../internal/request-options'
 import { makeStructuredOutputCompatible } from '../internal/schema-converter'
 import { convertFunctionToolToResponsesFormat } from '../internal/responses-tool-converter'
 import { isWebSearchTool } from '../tools/web-search-tool'
+import { isWebFetchTool } from '../tools/web-fetch-tool'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
 import type { SDKOptions } from '@openrouter/sdk'
 import type { ResponsesFunctionTool } from '../internal/responses-tool-converter'
@@ -1505,13 +1506,20 @@ export class OpenRouterResponsesTextAdapter<
   protected mapOptionsToRequest(
     options: TextOptions<OpenRouterResponsesTextProviderOptions>,
   ): Omit<ResponsesRequest, 'stream'> {
-    // Fail loud on webSearchTool() — v1 only routes function tools.
+    // Fail loud on webSearchTool() / webFetchTool() — v1 only routes function tools.
     if (options.tools) {
       for (const tool of options.tools) {
         if (isWebSearchTool(tool)) {
           throw new Error(
             `OpenRouterResponsesTextAdapter does not yet support webSearchTool(). ` +
               `Use the chat-completions adapter (openRouterText) for web search ` +
+              `tools, or pass function tools only to this adapter.`,
+          )
+        }
+        if (isWebFetchTool(tool)) {
+          throw new Error(
+            `OpenRouterResponsesTextAdapter does not yet support webFetchTool(). ` +
+              `Use the chat-completions adapter (openRouterText) for web fetch ` +
               `tools, or pass function tools only to this adapter.`,
           )
         }
@@ -1823,9 +1831,7 @@ function normalizeStreamEvent(event: StreamEvents): NormalizedStreamEvent {
     }
     if ('part' in raw) out.part = raw.part
     out.type =
-      typeof raw['type'] === 'string'
-        ? raw['type']
-        : (e.type as string) || 'unknown'
+      typeof raw['type'] === 'string' ? raw['type'] : e.type || 'unknown'
     // eslint-disable-next-line no-restricted-syntax -- NormalizedStreamEvent is a discriminated union built field-by-field from Record<string, unknown>; TS can't narrow the variant from construction.
     return out as unknown as NormalizedStreamEvent
   }

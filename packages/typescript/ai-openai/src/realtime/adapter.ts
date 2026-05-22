@@ -7,7 +7,6 @@ import type {
   RealtimeMessage,
   RealtimeMode,
   RealtimeSessionConfig,
-  RealtimeStatus,
   RealtimeToken,
 } from '@tanstack/ai'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
@@ -127,7 +126,7 @@ async function createWebRTCConnection(
   const dataChannelReady = new Promise<void>((resolve) => {
     channel.onopen = () => {
       flushPendingEvents()
-      emit('status_change', { status: 'connected' as RealtimeStatus })
+      emit('status_change', { status: 'connected' })
       resolve()
     }
   })
@@ -510,7 +509,7 @@ async function createWebRTCConnection(
         audioContext = null
       }
 
-      emit('status_change', { status: 'idle' as RealtimeStatus })
+      emit('status_change', { status: 'idle' })
     },
 
     async startAudioCapture() {

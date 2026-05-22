@@ -480,8 +480,21 @@ already installed.
 
 Source: maintainer interview
 
+## Middleware coverage
+
+The final structured-output adapter call runs through the same middleware
+pipeline as the agent loop. `onChunk` observes chunks attributed to
+`ctx.phase === 'structuredOutput'`; `onUsage` fires for the final call's
+tokens; `onFinish` fires once at the end of the whole `chat()` invocation,
+after the structured-output result is available.
+
+For schema-aware middleware (e.g., transforming the JSON Schema before the
+provider call, stripping system prompts), use the dedicated
+`onStructuredOutputConfig` hook. See [middleware skill](../middleware/SKILL.md).
+
 ## Cross-References
 
 - See also: **ai-core/chat-experience/SKILL.md** — Base `useChat` surface; the structured-output additions documented here layer on top.
 - See also: **ai-core/adapter-configuration/SKILL.md** — Adapter handles structured-output strategy transparently.
 - See also: **ai-core/tool-calling/SKILL.md** — Combine `tools` with `outputSchema` for an agent loop that runs tools first and returns a typed object. Tool-approval and client-tool flows compose with structured runs without extra wiring; see [docs/structured-outputs/with-tools.md](https://github.com/TanStack/ai/blob/main/docs/structured-outputs/with-tools.md).
+- See also: **ai-core/middleware/SKILL.md** — `onStructuredOutputConfig` hook and the `structuredOutput` phase for observing/transforming the final structured-output call.

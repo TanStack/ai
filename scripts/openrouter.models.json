@@ -177,19 +177,19 @@
     "context_length": 1048576,
     "architecture": {
       "modality": "text+image+file+audio+video->text",
-      "input_modalities": ["text", "image", "file", "audio", "video"],
+      "input_modalities": ["text", "image", "video", "file", "audio"],
       "output_modalities": ["text"],
       "tokenizer": "Router",
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.0000005",
-      "completion": "0.000003",
-      "image": "0.0000005",
-      "audio": "0.000001",
+      "prompt": "0.0000015",
+      "completion": "0.000009",
+      "image": "0.0000015",
+      "audio": "0.000003",
       "web_search": "0.014",
-      "internal_reasoning": "0.000003",
-      "input_cache_read": "0.00000005",
+      "internal_reasoning": "0.000009",
+      "input_cache_read": "0.00000015",
       "input_cache_write": "0.00000008333333333333334"
     },
     "top_provider": {
@@ -220,7 +220,7 @@
       "repetition_penalty": null
     },
     "supported_voices": null,
-    "knowledge_cutoff": null,
+    "knowledge_cutoff": "2025-01-01",
     "expiration_date": null,
     "links": {
       "details": "/api/v1/models/~google/gemini-flash-latest/endpoints"
@@ -1919,55 +1919,6 @@
     }
   },
   {
-    "id": "arcee-ai/trinity-large-preview",
-    "canonical_slug": "arcee-ai/trinity-large-preview",
-    "hugging_face_id": "arcee-ai/Trinity-Large-Preview",
-    "name": "Arcee AI: Trinity Large Preview",
-    "created": 1769552670,
-    "description": "Trinity-Large-Preview is a frontier-scale open-weight language model from Arcee, built as a 400B-parameter sparse Mixture-of-Experts with 13B active parameters per token using 4-of-256 expert routing. It excels in creative writing,...",
-    "context_length": 131000,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
-      "output_modalities": ["text"],
-      "tokenizer": "Other",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.00000015",
-      "completion": "0.00000045"
-    },
-    "top_provider": {
-      "context_length": 131000,
-      "max_completion_tokens": null,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "max_tokens",
-      "response_format",
-      "structured_outputs",
-      "temperature",
-      "tools",
-      "top_k",
-      "top_p"
-    ],
-    "default_parameters": {
-      "temperature": 0.8,
-      "top_p": 0.8,
-      "top_k": null,
-      "frequency_penalty": null,
-      "presence_penalty": null,
-      "repetition_penalty": null
-    },
-    "supported_voices": null,
-    "knowledge_cutoff": null,
-    "expiration_date": "2026-05-21",
-    "links": {
-      "details": "/api/v1/models/arcee-ai/trinity-large-preview/endpoints"
-    }
-  },
-  {
     "id": "arcee-ai/trinity-large-thinking",
     "canonical_slug": "arcee-ai/trinity-large-thinking",
     "hugging_face_id": "arcee-ai/Trinity-Large-Thinking",
@@ -2499,7 +2450,7 @@
     },
     "supported_voices": null,
     "knowledge_cutoff": null,
-    "expiration_date": null,
+    "expiration_date": "2026-05-28",
     "links": {
       "details": "/api/v1/models/baidu/qianfan-ocr-fast-20260420/endpoints"
     }
@@ -3859,7 +3810,7 @@
     "name": "Google: Gemini 2.0 Flash",
     "created": 1738769413,
     "description": "Gemini Flash 2.0 offers a significantly faster time to first token (TTFT) compared to [Gemini Flash 1.5](/google/gemini-flash-1.5), while maintaining quality on par with larger models like [Gemini Pro 1.5](/google/gemini-pro-1.5). It...",
-    "context_length": 1048576,
+    "context_length": 1000000,
     "architecture": {
       "modality": "text+image+file+audio+video->text",
       "input_modalities": ["text", "image", "file", "audio", "video"],
@@ -3878,7 +3829,7 @@
       "input_cache_write": "0.00000008333333333333334"
     },
     "top_provider": {
-      "context_length": 1048576,
+      "context_length": 1000000,
       "max_completion_tokens": 8192,
       "is_moderated": false
     },
@@ -4741,6 +4692,65 @@
     }
   },
   {
+    "id": "google/gemini-3.5-flash",
+    "canonical_slug": "google/gemini-3.5-flash-20260519",
+    "hugging_face_id": null,
+    "name": "Google: Gemini 3.5 Flash",
+    "created": 1779193800,
+    "description": "Gemini 3.5 Flash is Google's high-efficiency multimodal model, bringing near-Pro level coding and reasoning at Flash-tier cost and speed. It is highly optimized for coding proficiency and parallel agentic execution...",
+    "context_length": 1048576,
+    "architecture": {
+      "modality": "text+image+file+audio+video->text",
+      "input_modalities": ["text", "image", "video", "file", "audio"],
+      "output_modalities": ["text"],
+      "tokenizer": "Gemini",
+      "instruct_type": null
+    },
+    "pricing": {
+      "prompt": "0.0000015",
+      "completion": "0.000009",
+      "image": "0.0000015",
+      "audio": "0.000003",
+      "web_search": "0.014",
+      "internal_reasoning": "0.000009",
+      "input_cache_read": "0.00000015",
+      "input_cache_write": "0.00000008333333333333334"
+    },
+    "top_provider": {
+      "context_length": 1048576,
+      "max_completion_tokens": 65536,
+      "is_moderated": false
+    },
+    "per_request_limits": null,
+    "supported_parameters": [
+      "include_reasoning",
+      "max_tokens",
+      "reasoning",
+      "response_format",
+      "seed",
+      "stop",
+      "structured_outputs",
+      "temperature",
+      "tool_choice",
+      "tools",
+      "top_p"
+    ],
+    "default_parameters": {
+      "temperature": null,
+      "top_p": null,
+      "top_k": null,
+      "frequency_penalty": null,
+      "presence_penalty": null,
+      "repetition_penalty": null
+    },
+    "supported_voices": null,
+    "knowledge_cutoff": "2025-01-01",
+    "expiration_date": null,
+    "links": {
+      "details": "/api/v1/models/google/gemini-3.5-flash-20260519/endpoints"
+    }
+  },
+  {
     "id": "google/gemma-2-27b-it",
     "canonical_slug": "google/gemma-2-27b-it",
     "hugging_face_id": "google/gemma-2-27b-it",
@@ -5519,9 +5529,9 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.0000003",
-      "completion": "0.0000025",
-      "input_cache_read": "0.00000006"
+      "prompt": "0.000000075",
+      "completion": "0.000000625",
+      "input_cache_read": "0.000000015"
     },
     "top_provider": {
       "context_length": 262144,
@@ -9898,7 +9908,8 @@
     },
     "pricing": {
       "prompt": "0.00001",
-      "completion": "0.00003"
+      "completion": "0.00003",
+      "web_search": "0.01"
     },
     "top_provider": {
       "context_length": 128000,
@@ -10046,6 +10057,7 @@
     "pricing": {
       "prompt": "0.000002",
       "completion": "0.000008",
+      "web_search": "0.01",
       "input_cache_read": "0.0000005"
     },
     "top_provider": {
@@ -10625,6 +10637,7 @@
     "pricing": {
       "prompt": "0.00000125",
       "completion": "0.00001",
+      "web_search": "0.01",
       "input_cache_read": "0.000000125"
     },
     "top_provider": {
@@ -10718,6 +10731,7 @@
     "pricing": {
       "prompt": "0.00000125",
       "completion": "0.00001",
+      "web_search": "0.01",
       "input_cache_read": "0.000000125"
     },
     "top_provider": {
@@ -10929,6 +10943,7 @@
     "pricing": {
       "prompt": "0.00000005",
       "completion": "0.0000004",
+      "web_search": "0.01",
       "input_cache_read": "0.00000001"
     },
     "top_provider": {
@@ -11029,6 +11044,7 @@
     "pricing": {
       "prompt": "0.00000125",
       "completion": "0.00001",
+      "web_search": "0.01",
       "input_cache_read": "0.00000013"
     },
     "top_provider": {
@@ -11129,6 +11145,7 @@
     "pricing": {
       "prompt": "0.00000125",
       "completion": "0.00001",
+      "web_search": "0.01",
       "input_cache_read": "0.000000125"
     },
     "top_provider": {
@@ -11234,6 +11251,7 @@
     "pricing": {
       "prompt": "0.00000025",
       "completion": "0.000002",
+      "web_search": "0.01",
       "input_cache_read": "0.00000003"
     },
     "top_provider": {
@@ -11286,6 +11304,7 @@
     "pricing": {
       "prompt": "0.00000175",
       "completion": "0.000014",
+      "web_search": "0.01",
       "input_cache_read": "0.000000175"
     },
     "top_provider": {
@@ -11338,6 +11357,7 @@
     "pricing": {
       "prompt": "0.00000175",
       "completion": "0.000014",
+      "web_search": "0.01",
       "input_cache_read": "0.000000175"
     },
     "top_provider": {
@@ -11385,6 +11405,7 @@
     "pricing": {
       "prompt": "0.00000175",
       "completion": "0.000014",
+      "web_search": "0.01",
       "input_cache_read": "0.000000175"
     },
     "top_provider": {
@@ -12381,6 +12402,7 @@
     "pricing": {
       "prompt": "0.000015",
       "completion": "0.00006",
+      "web_search": "0.01",
       "input_cache_read": "0.0000075"
     },
     "top_provider": {
@@ -12431,7 +12453,8 @@
     },
     "pricing": {
       "prompt": "0.00015",
-      "completion": "0.0006"
+      "completion": "0.0006",
+      "web_search": "0.01"
     },
     "top_provider": {
       "context_length": 200000,
@@ -12575,6 +12598,7 @@
     "pricing": {
       "prompt": "0.0000011",
       "completion": "0.0000044",
+      "web_search": "0.01",
       "input_cache_read": "0.00000055"
     },
     "top_provider": {
@@ -12626,6 +12650,7 @@
     "pricing": {
       "prompt": "0.0000011",
       "completion": "0.0000044",
+      "web_search": "0.01",
       "input_cache_read": "0.00000055"
     },
     "top_provider": {
@@ -12895,14 +12920,7 @@
       "top_k",
       "top_p"
     ],
-    "default_parameters": {
-      "temperature": null,
-      "top_p": null,
-      "top_k": null,
-      "frequency_penalty": null,
-      "presence_penalty": null,
-      "repetition_penalty": null
-    },
+    "default_parameters": null,
     "supported_voices": null,
     "knowledge_cutoff": null,
     "expiration_date": null,
@@ -15103,7 +15121,7 @@
     },
     "top_provider": {
       "context_length": 262144,
-      "max_completion_tokens": 65536,
+      "max_completion_tokens": 262144,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -15220,13 +15238,12 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.00000014",
-      "completion": "0.000001",
-      "input_cache_read": "0.00000005"
+      "prompt": "0.000000139",
+      "completion": "0.000001"
     },
     "top_provider": {
       "context_length": 262144,
-      "max_completion_tokens": 81920,
+      "max_completion_tokens": null,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -15283,8 +15300,7 @@
     },
     "pricing": {
       "prompt": "0.00000039",
-      "completion": "0.00000234",
-      "input_cache_read": "0.000000195"
+      "completion": "0.00000234"
     },
     "top_provider": {
       "context_length": 262144,
@@ -15553,12 +15569,12 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.00000032",
+      "prompt": "0.0000003",
       "completion": "0.0000032"
     },
     "top_provider": {
       "context_length": 262144,
-      "max_completion_tokens": 81920,
+      "max_completion_tokens": 262144,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -15628,6 +15644,7 @@
       "frequency_penalty",
       "include_reasoning",
       "logit_bias",
+      "logprobs",
       "max_tokens",
       "min_p",
       "presence_penalty",
@@ -15641,6 +15658,7 @@
       "tool_choice",
       "tools",
       "top_k",
+      "top_logprobs",
       "top_p"
     ],
     "default_parameters": {
@@ -15671,9 +15689,9 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.0000001875",
-      "completion": "0.000001125",
-      "input_cache_write": "0.000000234375"
+      "prompt": "0.00000012375",
+      "completion": "0.0000007425",
+      "input_cache_write": "0.0000001545"
     },
     "top_provider": {
       "context_length": 1000000,
@@ -15767,9 +15785,9 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.000000325",
-      "completion": "0.00000195",
-      "input_cache_write": "0.00000040625"
+      "prompt": "0.0000001794",
+      "completion": "0.00000107315",
+      "input_cache_write": "0.0000002236"
     },
     "top_provider": {
       "context_length": 1000000,
@@ -15803,6 +15821,62 @@
     "expiration_date": null,
     "links": {
       "details": "/api/v1/models/qwen/qwen3.6-plus-04-02/endpoints"
+    }
+  },
+  {
+    "id": "qwen/qwen3.7-max",
+    "canonical_slug": "qwen/qwen3.7-max-20260520",
+    "hugging_face_id": null,
+    "name": "Qwen: Qwen3.7 Max",
+    "created": 1779376861,
+    "description": "Qwen3.7-Max is the flagship model in Alibaba's Qwen3.7 series. It supports text input and output and is designed for agent-centric workloads, with particular strengths in coding, office and productivity tasks,...",
+    "context_length": 1000000,
+    "architecture": {
+      "modality": "text->text",
+      "input_modalities": ["text"],
+      "output_modalities": ["text"],
+      "tokenizer": "Qwen",
+      "instruct_type": null
+    },
+    "pricing": {
+      "prompt": "0.0000025",
+      "completion": "0.0000075",
+      "input_cache_write": "0.000003125"
+    },
+    "top_provider": {
+      "context_length": 1000000,
+      "max_completion_tokens": 65536,
+      "is_moderated": false
+    },
+    "per_request_limits": null,
+    "supported_parameters": [
+      "include_reasoning",
+      "logprobs",
+      "max_tokens",
+      "presence_penalty",
+      "reasoning",
+      "response_format",
+      "seed",
+      "structured_outputs",
+      "temperature",
+      "tool_choice",
+      "tools",
+      "top_logprobs",
+      "top_p"
+    ],
+    "default_parameters": {
+      "temperature": null,
+      "top_p": null,
+      "top_k": null,
+      "frequency_penalty": null,
+      "presence_penalty": null,
+      "repetition_penalty": null
+    },
+    "supported_voices": null,
+    "knowledge_cutoff": null,
+    "expiration_date": null,
+    "links": {
+      "details": "/api/v1/models/qwen/qwen3.7-max-20260520/endpoints"
     }
   },
   {
@@ -16247,12 +16321,13 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.0000001",
-      "completion": "0.0000003"
+      "prompt": "0.00000009",
+      "completion": "0.0000003",
+      "input_cache_read": "0.00000002"
     },
     "top_provider": {
       "context_length": 262144,
-      "max_completion_tokens": 65536,
+      "max_completion_tokens": 16384,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -16940,6 +17015,65 @@
     }
   },
   {
+    "id": "x-ai/grok-build-0.1",
+    "canonical_slug": "x-ai/grok-build-0.1-20260520",
+    "hugging_face_id": null,
+    "name": "xAI: Grok Build 0.1",
+    "created": 1779298123,
+    "description": "Grok Build 0.1 is xAI’s fast coding model trained specifically for agentic software engineering workflows. It supports text and image inputs with text output, and is optimized for interactive coding...",
+    "context_length": 256000,
+    "architecture": {
+      "modality": "text+image->text",
+      "input_modalities": ["text", "image"],
+      "output_modalities": ["text"],
+      "tokenizer": "Grok",
+      "instruct_type": null
+    },
+    "pricing": {
+      "prompt": "0.000001",
+      "completion": "0.000002",
+      "web_search": "0.005",
+      "input_cache_read": "0.0000002"
+    },
+    "top_provider": {
+      "context_length": 256000,
+      "max_completion_tokens": null,
+      "is_moderated": false
+    },
+    "per_request_limits": null,
+    "supported_parameters": [
+      "frequency_penalty",
+      "include_reasoning",
+      "logprobs",
+      "max_tokens",
+      "presence_penalty",
+      "reasoning",
+      "response_format",
+      "seed",
+      "stop",
+      "structured_outputs",
+      "temperature",
+      "tool_choice",
+      "tools",
+      "top_logprobs",
+      "top_p"
+    ],
+    "default_parameters": {
+      "temperature": null,
+      "top_p": null,
+      "top_k": null,
+      "frequency_penalty": null,
+      "presence_penalty": null,
+      "repetition_penalty": null
+    },
+    "supported_voices": null,
+    "knowledge_cutoff": null,
+    "expiration_date": null,
+    "links": {
+      "details": "/api/v1/models/x-ai/grok-build-0.1-20260520/endpoints"
+    }
+  },
+  {
     "id": "xiaomi/mimo-v2-flash",
     "canonical_slug": "xiaomi/mimo-v2-flash-20251210",
     "hugging_face_id": "XiaomiMiMo/MiMo-V2-Flash",
@@ -17559,6 +17693,7 @@
       "presence_penalty",
       "reasoning",
       "repetition_penalty",
+      "response_format",
       "seed",
       "stop",
       "temperature",

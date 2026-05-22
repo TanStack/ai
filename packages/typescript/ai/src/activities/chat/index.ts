@@ -35,6 +35,7 @@ import type {
   ConstrainedModelMessage,
   CustomEvent,
   InferSchemaType,
+  JSONSchema,
   ModelMessage,
   RunFinishedEvent,
   SchemaInput,
@@ -54,7 +55,7 @@ import type {
   ChatMiddleware,
   ChatMiddlewareConfig,
   ChatMiddlewareContext,
-  ChatMiddlewarePhase,
+  StructuredOutputMiddlewareConfig,
 } from './middleware/types'
 import type { SystemPrompt } from '../../system-prompts'
 import type { InternalLogger } from '../../logger/internal-logger'
@@ -294,6 +295,29 @@ interface TextEngineConfig<
   params: TParams
   middleware?: Array<ChatMiddleware>
   context?: unknown
+  /**
+   * If set, after the agent loop finishes the engine runs a
+   * structured-output finalization step through the same middleware
+   * pipeline. See `runStructuredFinalization` for the flow.
+   *
+   * - jsonSchema: the JSON Schema to send to the provider
+   * - yieldChunks: when true, finalization chunks are yielded to the caller
+   *   (used by runStreamingStructuredOutput). When false, chunks are
+   *   consumed internally for middleware visibility but not yielded
+   *   (used by runAgenticStructuredOutput).
+   * - validate: optional callback invoked AFTER the structured-output result
+   *   is captured but BEFORE the terminal hook fires. If it throws, the
+   *   engine records a `finalizationError` and fires `onError` instead of
+   *   `onFinish` (per spec §7.3). On success, the returned value is stored
+   *   as the validated result and retrievable via
+   *   `getValidatedStructuredOutput()`. Used by `runAgenticStructuredOutput`
+   *   to perform Standard Schema validation inside the engine.
+   */
+  finalStructuredOutput?: {
+    jsonSchema: JSONSchema
+    yieldChunks: boolean
+    validate?: (data: unknown) => unknown
+  }
 }
 
 type ToolPhaseResult = 'continue' | 'stop' | 'wait'
@@ -352,12 +376,32 @@ class TextEngine<
 
   private readonly logger: InternalLogger
 
+  // Structured-output finalization state (populated by runStructuredFinalization)
+  private structuredOutputResult: { data: unknown; rawText: string } | null =
+    null
+  // Holds the validated value when `finalStructuredOutput.validate` is provided
+  // and succeeds. Distinct from `structuredOutputResult.data` (the raw,
+  // unvalidated payload from the structured-output.complete chunk).
+  private validatedStructuredOutput: unknown = undefined
+  private hasValidatedStructuredOutput = false
+  private finalizationError: {
+    message: string
+    code?: string
+    cause?: unknown
+  } | null = null
+  private readonly finalStructuredOutput?: {
+    jsonSchema: JSONSchema
+    yieldChunks: boolean
+    validate?: (data: unknown) => unknown
+  }
+
   constructor(
     config: TextEngineConfig<TAdapter, TParams>,
     logger: InternalLogger,
   ) {
     this.logger = logger
     this.adapter = config.adapter
+    this.finalStructuredOutput = config.finalStructuredOutput
     this.params = config.params
     this.systemPrompts = config.params.systemPrompts || []
     this.loopStrategy =
@@ -375,9 +419,7 @@ class TextEngine<
 
     // Convert messages to ModelMessage format (handles both UIMessage and ModelMessage input)
     // This ensures consistent internal format regardless of what the client sends
-    this.messages = convertMessagesToModelMessages(
-      config.params.messages as Array<any>,
-    )
+    this.messages = convertMessagesToModelMessages(config.params.messages)
 
     // Initialize lazy tool manager after messages are converted (needs message history for scanning)
     this.lazyToolManager = new LazyToolManager(
@@ -410,7 +452,7 @@ class TextEngine<
     // `DevtoolsChatMiddleware` (defined in `@tanstack/ai-event-client` to
     // avoid a circular dep). Cast it to `ChatMiddleware` for the runner.
     const allMiddleware: Array<ChatMiddleware> = [
-      devtoolsMiddleware() as ChatMiddleware,
+      devtoolsMiddleware(),
       ...(config.middleware || []),
       stripToSpecMiddleware(),
     ]
@@ -423,7 +465,7 @@ class TextEngine<
       // Legacy alias kept on the ctx so middleware that reads
       // `ctx.conversationId` keeps working. Always equals `threadId`.
       conversationId: this.threadId,
-      phase: 'init' as ChatMiddlewarePhase,
+      phase: 'init',
       iteration: 0,
       chunkIndex: 0,
       signal: this.effectiveSignal,
@@ -467,6 +509,33 @@ class TextEngine<
     return this.messages
   }
 
+  /** Returns the structured-output result if finalization ran successfully. */
+  getStructuredOutputResult(): { data: unknown; rawText: string } | null {
+    return this.structuredOutputResult
+  }
+
+  /**
+   * Returns the validated structured-output value (the result of running
+   * `finalStructuredOutput.validate` against the raw structured-output data)
+   * wrapped in a `{ value }` object so callers can distinguish "no validation
+   * happened" from "validation produced undefined". Returns `null` when no
+   * validator was configured or validation hasn't been performed yet.
+   */
+  getValidatedStructuredOutput(): { value: unknown } | null {
+    return this.hasValidatedStructuredOutput
+      ? { value: this.validatedStructuredOutput }
+      : null
+  }
+
+  /** Returns the recorded finalization error, if any. */
+  getFinalizationError(): {
+    message: string
+    code?: string
+    cause?: unknown
+  } | null {
+    return this.finalizationError
+  }
+
   async *run(): AsyncGenerator<StreamChunk> {
     this.beforeRun()
     this.logger.agentLoop('run started', {
@@ -491,49 +560,96 @@ class TextEngine<
         return
       }
 
-      do {
-        if (this.earlyTermination || this.isCancelled()) {
-          return
-        }
+      // Skip the agent loop entirely when there are no tools AND a structured-
+      // output finalization will run. Without tools the model has nothing to
+      // do in the loop, so executing one iteration would burn an extra
+      // provider call before the finalization request.
+      const skipAgentLoop =
+        !!this.finalStructuredOutput && this.tools.length === 0
 
-        this.logger.agentLoop(`iteration=${this.middlewareCtx.iteration}`, {
-          iteration: this.middlewareCtx.iteration,
-        })
+      if (!skipAgentLoop) {
+        do {
+          if (this.earlyTermination || this.isCancelled()) {
+            return
+          }
 
-        await this.beginCycle()
+          this.logger.agentLoop(`iteration=${this.middlewareCtx.iteration}`, {
+            iteration: this.middlewareCtx.iteration,
+          })
 
-        if (this.cyclePhase === 'processText') {
-          // Run onConfig before each model call (phase = beforeModel)
-          this.middlewareCtx.phase = 'beforeModel'
-          this.middlewareCtx.iteration = this.iterationCount
-          const iterConfig = this.buildMiddlewareConfig()
-          const transformedConfig = await this.middlewareRunner.runOnConfig(
-            this.middlewareCtx,
-            iterConfig,
-          )
-          this.applyMiddlewareConfig(transformedConfig)
+          await this.beginCycle()
 
-          yield* this.streamModelResponse()
-        } else {
-          yield* this.processToolCalls()
-        }
+          if (this.cyclePhase === 'processText') {
+            // Run onConfig before each model call (phase = beforeModel)
+            this.middlewareCtx.phase = 'beforeModel'
+            this.middlewareCtx.iteration = this.iterationCount
+            const iterConfig = this.buildMiddlewareConfig()
+            const transformedConfig = await this.middlewareRunner.runOnConfig(
+              this.middlewareCtx,
+              iterConfig,
+            )
+            this.applyMiddlewareConfig(transformedConfig)
 
-        this.endCycle()
-      } while (this.shouldContinue())
+            yield* this.streamModelResponse()
+          } else {
+            yield* this.processToolCalls()
+          }
+
+          this.endCycle()
+        } while (this.shouldContinue())
+      }
 
       this.logger.agentLoop('run finished', {
         finishReason: this.lastFinishReason,
       })
 
-      // Call terminal onFinish hook (skip when waiting for client — stream is paused, not finished)
-      if (!this.terminalHookCalled && this.toolPhase !== 'wait') {
-        this.terminalHookCalled = true
-        await this.middlewareRunner.runOnFinish(this.middlewareCtx, {
-          finishReason: this.lastFinishReason,
-          duration: Date.now() - this.streamStartTime,
-          content: this.accumulatedContent,
-          usage: this.finishedEvent?.usage,
-        })
+      // After the agent loop ends, if a structured-output finalization was
+      // requested AND the run hasn't already errored/aborted, run it through
+      // the middleware pipeline. The terminal hook fires once at the very
+      // end (after finalization), not after the agent loop.
+      if (
+        this.finalStructuredOutput &&
+        !this.isCancelled() &&
+        !this.finalizationError
+      ) {
+        yield* this.runStructuredFinalization()
+      }
+
+      // Call terminal hook (skip when waiting for client — stream is paused, not finished).
+      // Priority: finalizationError → onError; otherwise normal onFinish.
+      // Skip on cancellation — the finally block routes aborts to onAbort.
+      if (
+        !this.terminalHookCalled &&
+        this.toolPhase !== 'wait' &&
+        !this.isCancelled()
+      ) {
+        if (this.finalizationError) {
+          this.terminalHookCalled = true
+          const errForHook = new Error(
+            this.finalizationError.message,
+            this.finalizationError.cause !== undefined
+              ? { cause: this.finalizationError.cause }
+              : undefined,
+          )
+          if (this.finalizationError.code !== undefined) {
+            Object.defineProperty(errForHook, 'code', {
+              value: this.finalizationError.code,
+              enumerable: true,
+            })
+          }
+          await this.middlewareRunner.runOnError(this.middlewareCtx, {
+            error: errForHook,
+            duration: Date.now() - this.streamStartTime,
+          })
+        } else {
+          this.terminalHookCalled = true
+          await this.middlewareRunner.runOnFinish(this.middlewareCtx, {
+            finishReason: this.lastFinishReason,
+            duration: Date.now() - this.streamStartTime,
+            content: this.accumulatedContent,
+            usage: this.finishedEvent?.usage,
+          })
+        }
       }
     } catch (error: unknown) {
       if (!this.terminalHookCalled) {
@@ -692,7 +808,20 @@ class TextEngine<
         this.middlewareCtx,
         chunk,
       )
+      // When a streaming structured-output finalization step will run after
+      // the agent loop, suppress the agent-loop's RUN_STARTED/RUN_FINISHED
+      // here — the finalization step emits the single outer lifecycle pair
+      // that reaches the consumer.
+      const suppressAgentLifecycle =
+        !!this.finalStructuredOutput && this.finalStructuredOutput.yieldChunks
       for (const outputChunk of outputChunks) {
+        if (
+          suppressAgentLifecycle &&
+          (outputChunk.type === EventType.RUN_STARTED ||
+            outputChunk.type === EventType.RUN_FINISHED)
+        ) {
+          continue
+        }
         this.logger.output(`type=${outputChunk.type}`, { chunk: outputChunk })
         yield outputChunk
         this.middlewareCtx.chunkIndex++
@@ -1460,6 +1589,365 @@ class TextEngine<
     return this.isAborted() || this.isMiddlewareAborted()
   }
 
+  /**
+   * Run the final structured-output adapter call through the middleware
+   * pipeline. Yields chunks to the caller only when
+   * `this.finalStructuredOutput.yieldChunks` is true; otherwise consumes
+   * silently while still piping through middleware.
+   *
+   * On success, populates this.structuredOutputResult.
+   * On failure, populates this.finalizationError.
+   */
+  private async *runStructuredFinalization(): AsyncGenerator<StreamChunk> {
+    if (!this.finalStructuredOutput) {
+      throw new Error(
+        'runStructuredFinalization called without finalStructuredOutput config',
+      )
+    }
+
+    this.middlewareCtx.phase = 'structuredOutput'
+
+    // Build the structured-output config view. `tools` is intentionally
+    // excluded from the type because it isn't forwarded to the structured-
+    // output adapter call — including it here would be misleading API.
+    const baseConfig = this.buildMiddlewareConfig()
+    const { tools: _omitTools, ...baseWithoutTools } = baseConfig
+    let structuredConfig: StructuredOutputMiddlewareConfig = {
+      ...baseWithoutTools,
+      outputSchema: this.finalStructuredOutput.jsonSchema,
+    }
+
+    // 1) onStructuredOutputConfig — middleware can transform messages, options, outputSchema
+    structuredConfig = await this.middlewareRunner.runOnStructuredOutputConfig(
+      this.middlewareCtx,
+      structuredConfig,
+    )
+
+    // 2) onConfig — phase-aware general-purpose middleware re-runs at the
+    // boundary. Re-attach the engine's current tools so onConfig observers
+    // see the live tool set (they still won't be forwarded to the structured
+    // call — same constraint applies — but the view is consistent with the
+    // ChatMiddlewareConfig shape).
+    const { outputSchema: pinnedSchema, ...chatConfigSlice } = structuredConfig
+    const postOnConfig = await this.middlewareRunner.runOnConfig(
+      this.middlewareCtx,
+      { ...chatConfigSlice, tools: baseConfig.tools },
+    )
+
+    // Apply merged config back to engine state
+    this.applyMiddlewareConfig(postOnConfig)
+
+    // Build the StructuredOutputOptions the adapter expects.
+    // `this.adapter` is already `TAdapter extends AnyTextAdapter` per the
+    // class generics — no cast needed.
+    const structuredCallOptions = {
+      chatOptions: {
+        model: this.params.model,
+        messages: this.messages,
+        temperature: postOnConfig.temperature,
+        topP: postOnConfig.topP,
+        maxTokens: postOnConfig.maxTokens,
+        metadata: postOnConfig.metadata,
+        modelOptions: postOnConfig.modelOptions,
+        systemPrompts: postOnConfig.systemPrompts,
+        logger: this.logger,
+        threadId: this.threadId,
+        runId: this.runIdOverride,
+        parentRunId: this.parentRunIdOverride,
+        ...(this.effectiveRequest ? { request: this.effectiveRequest } : {}),
+      },
+      outputSchema: pinnedSchema,
+    }
+
+    // Select the provider call: native streaming if available, else synthesized fallback.
+    // The fallback path captures the original adapter error so the engine can
+    // attach it as `finalizationError.cause` (the RUN_ERROR wire shape only
+    // carries `message` and `code`, losing stack/cause/provider properties).
+    let fallbackAdapterError: unknown = undefined
+    const providerStream = this.adapter.structuredOutputStream
+      ? this.adapter.structuredOutputStream(structuredCallOptions)
+      : fallbackStructuredOutputStream(
+          this.adapter,
+          structuredCallOptions,
+          (err) => {
+            fallbackAdapterError = err
+          },
+        )
+
+    // ============================================================
+    // structured-output.start synthesis
+    // ============================================================
+    // The client-side StreamProcessor (PR #577) requires a CUSTOM
+    // `structured-output.start` event BEFORE the JSON TEXT_MESSAGE_CONTENT
+    // deltas — that's how it routes deltas into a `StructuredOutputPart`
+    // rather than a plain `TextPart`. No adapter currently emits this,
+    // so the engine synthesizes one (and tracks whether the adapter
+    // emitted its own to avoid duplicating).
+    //
+    // Synthesis fires before the FIRST TEXT_MESSAGE_* event from the inner
+    // stream, OR before a pre-delta RUN_ERROR (so the client can construct
+    // an errored structured-output placeholder).
+    let startEmitted = false
+    let structuredMessageId: string | null = null
+
+    const extractMessageId = (c: StreamChunk): string | null => {
+      if (
+        c.type === EventType.TEXT_MESSAGE_START ||
+        c.type === EventType.TEXT_MESSAGE_CONTENT ||
+        c.type === EventType.TEXT_MESSAGE_END
+      ) {
+        return typeof c.messageId === 'string' && c.messageId !== ''
+          ? c.messageId
+          : null
+      }
+      return null
+    }
+
+    const buildSynthesizedStart = (): StreamChunk => {
+      const idForStart = structuredMessageId ?? generateMessageId()
+      structuredMessageId = idForStart
+      return {
+        type: EventType.CUSTOM,
+        name: 'structured-output.start',
+        value: { messageId: idForStart },
+        model: this.params.model,
+        timestamp: Date.now(),
+        threadId: this.threadId,
+        ...(this.runIdOverride ? { runId: this.runIdOverride } : {}),
+      }
+    }
+
+    const pipeThroughMiddleware = async (
+      synthChunk: StreamChunk,
+    ): Promise<Array<StreamChunk>> =>
+      this.middlewareRunner.runOnChunk(this.middlewareCtx, synthChunk)
+
+    // Track whether a RUN_ERROR has been yielded to streaming consumers so
+    // we don't emit a duplicate synthetic one at the end.
+    let runErrorYielded = false
+
+    // Pipe chunks through middleware; yield to consumer only when yieldChunks=true
+    for await (const chunk of providerStream) {
+      // Honor cancellation between chunks (mirrors streamModelResponse).
+      if (this.isCancelled()) {
+        break
+      }
+
+      // Detect adapter-emitted structured-output.start so we don't duplicate
+      if (
+        !startEmitted &&
+        chunk.type === EventType.CUSTOM &&
+        chunk.name === 'structured-output.start'
+      ) {
+        startEmitted = true
+      }
+
+      // Capture the assistant messageId off any text-message event so the
+      // synthesized start (when needed) uses the SAME id the deltas carry
+      if (!structuredMessageId) {
+        const extracted = extractMessageId(chunk)
+        if (extracted) structuredMessageId = extracted
+      }
+
+      // Synthesis only matters for the streaming client path — the agentic
+      // Promise path consumes chunks internally and returns a Promise, so
+      // there's no client-side StreamProcessor to route deltas for.
+      if (this.finalStructuredOutput.yieldChunks) {
+        // Synthesize start before the FIRST TEXT_MESSAGE_* event
+        if (
+          !startEmitted &&
+          (chunk.type === EventType.TEXT_MESSAGE_START ||
+            chunk.type === EventType.TEXT_MESSAGE_CONTENT ||
+            chunk.type === EventType.TEXT_MESSAGE_END)
+        ) {
+          startEmitted = true
+          const synthStart = buildSynthesizedStart()
+          const synthOutputs = await pipeThroughMiddleware(synthStart)
+          for (const outputChunk of synthOutputs) {
+            yield outputChunk
+            this.middlewareCtx.chunkIndex++
+          }
+        }
+
+        // Synthesize start before a pre-delta RUN_ERROR so the client can
+        // construct an errored placeholder structured-output part instead
+        // of a silent UI.
+        if (!startEmitted && chunk.type === EventType.RUN_ERROR) {
+          startEmitted = true
+          const synthStart = buildSynthesizedStart()
+          const synthOutputs = await pipeThroughMiddleware(synthStart)
+          for (const outputChunk of synthOutputs) {
+            yield outputChunk
+            this.middlewareCtx.chunkIndex++
+          }
+        }
+      }
+
+      // 7a. Targeted state updates only.
+      // We deliberately do NOT call `handleStreamChunk(chunk)` here — that
+      // would mutate agent-loop state with finalization data:
+      //  - TEXT_MESSAGE_CONTENT deltas would pollute `accumulatedContent`
+      //    (raw JSON would leak into `info.content` on onFinish)
+      //  - RUN_FINISHED would overwrite `finishedEvent` + `lastFinishReason`
+      //    (finalization's 'stop' would overwrite the agent-loop's real
+      //    finish reason)
+      //  - STEP_FINISHED would pollute `currentThinkingContent`
+      // Finalization is a separate phase from the agent loop; its state must
+      // not cross-contaminate. The explicit branches below capture the only
+      // bits we actually need from this stream.
+      // All narrowing below is via the discriminated-union `chunk.type`
+      // — no `as` casts.
+
+      if (
+        chunk.type === EventType.CUSTOM &&
+        chunk.name === 'structured-output.complete'
+      ) {
+        const parsed = readStructuredOutputCompleteValue(chunk.value)
+        if (parsed) {
+          this.structuredOutputResult = {
+            data: parsed.object,
+            rawText: parsed.raw,
+          }
+        }
+      }
+
+      if (chunk.type === EventType.RUN_FINISHED && chunk.usage) {
+        // RunFinishedEvent already exposes `usage` after type narrowing.
+        await this.middlewareRunner.runOnUsage(this.middlewareCtx, chunk.usage)
+      }
+
+      if (chunk.type === EventType.RUN_ERROR) {
+        // RunErrorEvent already exposes `message` and `code` after narrowing.
+        this.finalizationError = {
+          message: chunk.message,
+          ...(chunk.code ? { code: chunk.code } : {}),
+          ...(fallbackAdapterError !== undefined
+            ? { cause: fallbackAdapterError }
+            : {}),
+        }
+      }
+
+      // 7b. Pipe through middleware
+      const outputChunks = await this.middlewareRunner.runOnChunk(
+        this.middlewareCtx,
+        chunk,
+      )
+
+      // 7c. Decide consumer visibility — only yieldChunks=true callers get them.
+      // We do NOT strip the finalization stream's RUN_STARTED/RUN_FINISHED:
+      // they are the single outer lifecycle pair the consumer sees (the
+      // agent-loop's pair was suppressed in streamModelResponse when
+      // finalStructuredOutput.yieldChunks is true).
+      if (this.finalStructuredOutput.yieldChunks) {
+        for (const outputChunk of outputChunks) {
+          if (outputChunk.type === EventType.RUN_ERROR) {
+            runErrorYielded = true
+          }
+          yield outputChunk
+          this.middlewareCtx.chunkIndex++
+        }
+      }
+
+      // 7d. Terminate on error
+      if (this.finalizationError) {
+        break
+      }
+    }
+
+    // Mid-finalization abort: don't attribute a missing-result error.
+    // Let the engine's `finally` block in `run()` route to `onAbort` instead
+    // of mis-routing through `onError`.
+    if (this.isCancelled()) {
+      return
+    }
+
+    // Empty stream / missing complete event
+    if (!this.structuredOutputResult && !this.finalizationError) {
+      this.finalizationError = {
+        message: 'missing structured result',
+        code: 'structured-output-missing-result',
+      }
+    }
+
+    // Run schema validation INSIDE the engine — before the terminal hook
+    // chooser runs. Per spec §7.3, validation failures must route through
+    // `onError`, not `onFinish`. We do this by writing to `finalizationError`
+    // so the chooser in `run()` picks `onError`.
+    if (
+      this.structuredOutputResult &&
+      !this.finalizationError &&
+      this.finalStructuredOutput.validate
+    ) {
+      try {
+        const validated = this.finalStructuredOutput.validate(
+          this.structuredOutputResult.data,
+        )
+        this.validatedStructuredOutput = validated
+        this.hasValidatedStructuredOutput = true
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err)
+        this.finalizationError = {
+          message,
+          code: 'structured-output-validation-failed',
+          cause: err,
+        }
+      }
+    }
+
+    // Streaming consumers must see a RUN_ERROR for finalization failures
+    // (missing-result, validation-failed, or a finalizationError set after
+    // a structured-output.complete already yielded). Without this synthetic
+    // emission, the `for await` on the engine ends silently for the client.
+    //
+    // Skip when a RUN_ERROR was already yielded from the inner stream
+    // (otherwise the consumer would see two error events for one failure).
+    if (
+      this.finalizationError &&
+      this.finalStructuredOutput.yieldChunks &&
+      !runErrorYielded
+    ) {
+      // Empty-stream case: no in-loop synthesis fired because no chunks
+      // arrived. Synthesize `structured-output.start` here so the client-side
+      // StreamProcessor can route the upcoming RUN_ERROR to a
+      // `StructuredOutputPart` instead of dropping it as an orphan error.
+      if (!startEmitted) {
+        const synthStart = buildSynthesizedStart()
+        const startOutputs = await pipeThroughMiddleware(synthStart)
+        for (const outputChunk of startOutputs) {
+          yield outputChunk
+          this.middlewareCtx.chunkIndex++
+        }
+        startEmitted = true
+      }
+
+      const errChunk: StreamChunk = {
+        type: EventType.RUN_ERROR,
+        runId: this.runIdOverride ?? this.requestId,
+        model: this.params.model,
+        timestamp: Date.now(),
+        threadId: this.threadId,
+        message: this.finalizationError.message,
+        ...(this.finalizationError.code
+          ? { code: this.finalizationError.code }
+          : {}),
+        error: {
+          message: this.finalizationError.message,
+          ...(this.finalizationError.code
+            ? { code: this.finalizationError.code }
+            : {}),
+        },
+      }
+      const outputChunks = await this.middlewareRunner.runOnChunk(
+        this.middlewareCtx,
+        errChunk,
+      )
+      for (const outputChunk of outputChunks) {
+        yield outputChunk
+        this.middlewareCtx.chunkIndex++
+      }
+    }
+  }
+
   private buildMiddlewareConfig(): ChatMiddlewareConfig {
     return {
       messages: this.messages,
@@ -1587,7 +2075,7 @@ class TextEngine<
  *   messages: [{ role: 'user', content: 'What is the weather?' }],
  *   tools: [weatherTool]
  * })) {
- *   if (chunk.type === 'content') {
+ *   if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
  *     console.log(chunk.delta)
  *   }
  * }
@@ -1736,7 +2224,25 @@ async function runAgenticStructuredOutput<TSchema extends SchemaInput>(
     throw new Error('outputSchema is required for structured output')
   }
 
-  // Create the engine and run the agentic loop
+  // Same strict-conversion as the streaming path (`forStructuredOutput: true`)
+  // so the same Zod schema produces the same JSON Schema regardless of
+  // stream mode — Promise<T> and stream:true must not diverge here.
+  const jsonSchema = convertSchemaToJsonSchema(outputSchema, {
+    forStructuredOutput: true,
+  })
+  if (!jsonSchema) {
+    throw new Error('Failed to convert output schema to JSON Schema')
+  }
+
+  // Validation runs INSIDE the engine (per spec §7.3) so validation failures
+  // route through the engine's terminal-hook chooser as `onError`. We pass a
+  // `validate` callback when the schema is a Standard Schema; otherwise we
+  // pass through the raw data and the engine returns it unchanged.
+  const validate = isStandardSchema(outputSchema)
+    ? (data: unknown): unknown =>
+        parseWithStandardSchema<InferSchemaType<TSchema>>(outputSchema, data)
+    : undefined
+
   const engine = new TextEngine(
     {
       adapter,
@@ -1746,80 +2252,100 @@ async function runAgenticStructuredOutput<TSchema extends SchemaInput>(
       >,
       middleware,
       context,
+      finalStructuredOutput: {
+        jsonSchema,
+        yieldChunks: false,
+        ...(validate ? { validate } : {}),
+      },
     },
     logger,
   )
 
-  // Consume the stream to run the agentic loop
+  // Consume the stream — chunks pipe through middleware but are not yielded externally
   for await (const _chunk of engine.run()) {
-    // Just consume the stream to execute the agentic loop
+    // intentionally empty
   }
 
-  // Get the final messages from the engine (includes tool results)
-  const finalMessages = engine.getMessages()
-
-  // Build text options for structured output, excluding tools since
-  // the agentic loop is complete and we only need the final response
-  const {
-    tools: _tools,
-    agentLoopStrategy: _als,
-    ...structuredTextOptions
-  } = textOptions
-
-  // Convert the schema to JSON Schema before passing to the adapter
-  const jsonSchema = convertSchemaToJsonSchema(outputSchema)
-  if (!jsonSchema) {
-    throw new Error('Failed to convert output schema to JSON Schema')
-  }
-
-  const providerName =
-    (adapter as { provider?: string }).provider ?? adapter.name
-  logger.request(
-    `activity=chat-structured provider=${providerName} model=${model} messages=${finalMessages.length}`,
-    {
-      provider: providerName,
-      model,
-      messageCount: finalMessages.length,
-    },
-  )
-
-  // Call the adapter's structured output method with the conversation context
-  // The adapter receives JSON Schema and can apply vendor-specific patches
-  const result = await adapter.structuredOutput({
-    chatOptions: {
-      ...structuredTextOptions,
-      model,
-      messages: finalMessages,
-      logger,
-    },
-    outputSchema: jsonSchema,
-  })
-
-  // Validate the result against the schema if it's a Standard Schema
-  if (isStandardSchema(outputSchema)) {
-    return parseWithStandardSchema<InferSchemaType<TSchema>>(
-      outputSchema,
-      result.data,
+  const finalizationError = engine.getFinalizationError()
+  if (finalizationError) {
+    const err = new Error(
+      finalizationError.message,
+      finalizationError.cause !== undefined
+        ? { cause: finalizationError.cause }
+        : undefined,
     )
+    if (finalizationError.code !== undefined) {
+      Object.defineProperty(err, 'code', {
+        value: finalizationError.code,
+        enumerable: true,
+      })
+    }
+    throw err
   }
 
-  // For plain JSON Schema, return the data as-is
+  // If a validator ran, return the validated value (typed by InferSchemaType
+  // via the callback closure). Otherwise return the raw data.
+  const validated = engine.getValidatedStructuredOutput()
+  if (validated) {
+    return validated.value as InferSchemaType<TSchema>
+  }
+
+  const result = engine.getStructuredOutputResult()
+  if (!result) {
+    throw new Error('structured output finalization produced no result')
+  }
   return result.data as InferSchemaType<TSchema>
+}
+
+/**
+ * Parse the `value` payload of a `structured-output.complete` CUSTOM event
+ * into a typed shape, returning `null` if the runtime payload doesn't match.
+ *
+ * Uses an `unknown`-input runtime check rather than `as` casts so the engine
+ * stays cast-free in its hot path.
+ */
+function readStructuredOutputCompleteValue(
+  value: unknown,
+): { object: unknown; raw: string; reasoning?: string } | null {
+  if (typeof value !== 'object' || value === null) return null
+  if (!('object' in value) || !('raw' in value)) return null
+  const raw = (value as { raw: unknown }).raw
+  if (typeof raw !== 'string') return null
+  const reasoningField = (value as { reasoning?: unknown }).reasoning
+  const reasoning =
+    typeof reasoningField === 'string' ? reasoningField : undefined
+  return {
+    object: (value as { object: unknown }).object,
+    raw,
+    ...(reasoning !== undefined ? { reasoning } : {}),
+  }
 }
 
 /**
  * Synthesize a streaming structured-output stream by wrapping a non-streaming
  * `structuredOutput` call. Used when an adapter doesn't implement
  * `structuredOutputStream` natively.
+ *
+ * `onAdapterError`, when provided, is invoked with the raw error from
+ * `adapter.structuredOutput` before the synthesized RUN_ERROR is yielded.
+ * The engine uses this to preserve the original error (stack, cause, custom
+ * properties like provider `status`/`code`) as `finalizationError.cause`,
+ * because the RUN_ERROR wire shape only carries `message` and `code`.
  */
 async function* fallbackStructuredOutputStream(
   adapter: AnyTextAdapter,
   options: StructuredOutputOptions<Record<string, unknown>>,
+  onAdapterError?: (err: unknown) => void,
 ): AsyncIterable<StreamChunk> {
   const { chatOptions } = options
-  const runId = chatOptions.runId ?? `mock-${Date.now()}`
-  const threadId = chatOptions.threadId ?? `mock-${Date.now()}`
-  const messageId = `mock-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  // Synthesize run/thread/message IDs only when the caller didn't supply them.
+  // Prefix `fallback-` (not `mock-`) because this is production fallback code
+  // used by adapters without native `structuredOutputStream`, not test fixtures.
+  const fallbackRand = Math.random().toString(36).slice(2)
+  const runId = chatOptions.runId ?? `fallback-${Date.now()}-${fallbackRand}`
+  const threadId =
+    chatOptions.threadId ?? `fallback-${Date.now()}-${fallbackRand}`
+  const messageId = `fallback-${Date.now()}-${fallbackRand}`
   const model = chatOptions.model
   const timestamp = Date.now()
 
@@ -1835,10 +2361,12 @@ async function* fallbackStructuredOutputStream(
   try {
     result = await adapter.structuredOutput(options)
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
+    onAdapterError?.(error)
+    const message = error instanceof Error ? error.message : String(error)
     yield {
       type: EventType.RUN_ERROR,
       runId,
+      threadId,
       model,
       timestamp,
       message,
@@ -1889,15 +2417,21 @@ async function* fallbackStructuredOutputStream(
 }
 
 /**
- * Run streaming structured output:
- * - Without tools: call adapter.structuredOutputStream directly (single
- *   provider request emitting JSON deltas + a final CUSTOM event).
- * - With tools: run the agent loop, yield its non-terminal chunks, then call
- *   structuredOutputStream on the final messages so the structured stream's
- *   own RUN_STARTED/RUN_FINISHED bracket the run.
+ * Run streaming structured output via the TextEngine, with the engine's
+ * `finalStructuredOutput.yieldChunks: true` mode. The agent loop's
+ * RUN_STARTED/RUN_FINISHED are suppressed; the structured-output finalization
+ * step's pair brackets the run for the consumer.
  *
- * Validates the parsed object against the original Standard Schema (if
- * applicable) when forwarding the final `structured-output.complete` event.
+ * Schema validation is intentionally NOT run on this path — it is the
+ * consumer's responsibility. The `structured-output.complete` CUSTOM event
+ * is forwarded with the adapter-produced `value.object` as-is. This is a
+ * deliberate asymmetry vs. `runAgenticStructuredOutput` (Promise<T> path),
+ * which DOES run Standard Schema validation inside the engine and routes
+ * validation failures through `onError`. The reason for the asymmetry:
+ * streaming consumers typically render partial JSON progressively (via
+ * `parsePartialJSON` or `useChat`'s `partial` slot) and validate downstream
+ * after assembly. Running validation server-side would force a hard error
+ * on partial-by-design payloads. See `docs/structured-outputs/overview.md`.
  *
  * Pre-flight validation (missing schema, unconvertible schema) throws
  * synchronously at call time rather than as a yielded RUN_ERROR mid-stream —
@@ -1958,282 +2492,31 @@ async function* runStreamingStructuredOutputImpl<TSchema extends SchemaInput>(
     options
   const model = adapter.model
   const logger = resolveDebugOption(debug)
-  const runId = textOptions.runId
 
   // Inputs may be UIMessages (from useChat) or ModelMessages (from server-side
-  // callers). The agent-loop branch converts via TextEngine; the no-tools
-  // branch must convert here so the adapter sees a uniform ModelMessage shape.
-  let finalMessages = convertMessagesToModelMessages(textOptions.messages ?? [])
-
-  if (textOptions.tools?.length) {
-    const engine = new TextEngine(
-      {
-        adapter,
-        params: { ...textOptions, model, logger, messages: finalMessages },
-        middleware,
-        context,
-      },
-      logger,
-    )
-
-    // The structured-output stream emits its own RUN_STARTED + RUN_FINISHED
-    // pair to bracket the run — drop both from the engine's output so
-    // consumers see exactly one terminal lifecycle pair.
-    let agentLoopErrored = false
-    try {
-      for await (const chunk of engine.run()) {
-        if (chunk.type === 'RUN_STARTED' || chunk.type === 'RUN_FINISHED') {
-          continue
-        }
-        if (chunk.type === 'RUN_ERROR') {
-          // The engine yielded RUN_ERROR without throwing (provider error mid
-          // agent loop). Forward it once and short-circuit before invoking
-          // structuredOutputStream — otherwise consumers would see a confusing
-          // RUN_ERROR → RUN_STARTED → structured-output.complete sequence and
-          // we would bill another provider call after a failed run.
-          agentLoopErrored = true
-          yield chunk
-          continue
-        }
-        yield chunk
-      }
-    } catch (engineError) {
-      const message = (engineError as Error).message || 'Agent loop failed'
-      logger.errors('runStreamingStructuredOutput agent loop failed', {
-        error: engineError,
-        source: 'runStreamingStructuredOutput',
-      })
-      yield {
-        type: EventType.RUN_ERROR,
-        runId,
-        model,
-        timestamp: Date.now(),
-        message,
-        code: 'agent-loop-failed',
-        error: { message, code: 'agent-loop-failed' },
-      }
-      return
-    }
-
-    if (agentLoopErrored) {
-      return
-    }
-
-    finalMessages = engine.getMessages()
-  }
-
-  const {
-    tools: _tools,
-    agentLoopStrategy: _als,
-    ...structuredTextOptions
-  } = textOptions
-
-  logger.request(
-    `activity=chat-structured-stream provider=${adapter.name} model=${model} messages=${finalMessages.length}`,
+  // callers). TextEngine handles the conversion uniformly.
+  const engine = new TextEngine(
     {
-      provider: adapter.name,
-      model,
-      messageCount: finalMessages.length,
+      adapter,
+      params: { ...textOptions, model, logger } as TextOptions<
+        Record<string, unknown>,
+        Record<string, unknown>
+      >,
+      middleware,
+      context,
+      finalStructuredOutput: { jsonSchema, yieldChunks: true },
     },
+    logger,
   )
 
-  // Adapters consume the abort signal via `chatOptions.request?.signal` and
-  // pass it to the underlying network call. Without this, aborting the SSE
-  // response never cancels the upstream provider request and a terminal
-  // structured-output.complete event still gets yielded after stop.
-  const structuredChatOptions = {
-    ...structuredTextOptions,
-    model,
-    messages: finalMessages,
-    logger,
-    request: textOptions.abortController
-      ? { signal: textOptions.abortController.signal }
-      : undefined,
-  }
-
-  // Adapters that don't implement structuredOutputStream natively fall back
-  // to wrapping the non-streaming `structuredOutput` — `fallbackStructuredOutputStream`
-  // synthesizes the AG-UI lifecycle events around it.
-  const stream = adapter.structuredOutputStream
-    ? adapter.structuredOutputStream({
-        chatOptions: structuredChatOptions,
-        outputSchema: jsonSchema,
-      })
-    : fallbackStructuredOutputStream(adapter, {
-        chatOptions: structuredChatOptions,
-        outputSchema: jsonSchema,
-      })
-
-  // Tag the start/complete events with the assistant messageId so the
-  // client-side processor can route JSON deltas to (and snap) the right
-  // StructuredOutputPart. Missing messageId is treated as a hard error
-  // below to avoid silently rendering JSON as plain text.
-  let structuredMessageId: string | null = null
-  let startEmitted = false
-
-  const extractMessageId = (c: StreamChunk): string | null => {
-    const id = (c as { messageId?: unknown }).messageId
-    return typeof id === 'string' && id !== '' ? id : null
-  }
-
-  // Emit a `structured-output.start` (synthesizing a messageId if the
-  // adapter hasn't picked one yet) so that the client processor can route
-  // the forthcoming error chunk into a `structured-output` part on the
-  // placeholder assistant message. Without this, a RUN_ERROR that fires
-  // before the adapter has yielded any TEXT_MESSAGE_START leaves the
-  // assistant message with zero parts — the structured-output UI surface
-  // never sees the error.
-  const emitStartIfNeeded = function* (
-    referenceChunk: StreamChunk,
-  ): Generator<StreamChunk, void, void> {
-    if (startEmitted) return
-    const idForStart = structuredMessageId ?? generateMessageId()
-    structuredMessageId = idForStart
-    startEmitted = true
-    yield {
-      type: EventType.CUSTOM,
-      name: 'structured-output.start',
-      value: { messageId: idForStart },
-      model:
-        'model' in referenceChunk ? (referenceChunk.model ?? model) : model,
-      timestamp:
-        'timestamp' in referenceChunk
-          ? (referenceChunk.timestamp ?? Date.now())
-          : Date.now(),
-      runId,
-    }
-  }
-
-  for await (const chunk of stream) {
-    if (!structuredMessageId) {
-      if (
-        chunk.type === EventType.TEXT_MESSAGE_START ||
-        chunk.type === EventType.TEXT_MESSAGE_CONTENT
-      ) {
-        structuredMessageId = extractMessageId(chunk)
-      }
-    }
-
-    // RUN_ERROR before any text deltas: synthesize the structured-output.start
-    // so the client snaps an errored part instead of a silent UI. The
-    // synthesized messageId becomes the assistant message id the client
-    // creates on its side (handleRunErrorEvent calls ensureAssistantMessage()
-    // which picks up the same id from the structured-output.start above).
-    if (chunk.type === EventType.RUN_ERROR && !startEmitted) {
-      yield* emitStartIfNeeded(chunk)
-    }
-
-    // Adapter emitted content with no usable messageId. Routing JSON deltas
-    // into a TextPart would silently render raw JSON in the user's chat, so
-    // fail loudly here instead.
-    if (!structuredMessageId && chunk.type === EventType.TEXT_MESSAGE_CONTENT) {
-      yield {
-        type: EventType.RUN_ERROR,
-        runId,
-        model,
-        timestamp: Date.now(),
-        message:
-          'Structured-output stream produced text content without a messageId; ' +
-          'adapter is not honoring the AG-UI contract.',
-        code: 'structured-output-missing-message-id',
-      }
-      return
-    }
-
-    if (
-      !startEmitted &&
-      structuredMessageId &&
-      (chunk.type === EventType.TEXT_MESSAGE_START ||
-        chunk.type === EventType.TEXT_MESSAGE_CONTENT)
-    ) {
-      startEmitted = true
-      yield {
-        type: EventType.CUSTOM,
-        name: 'structured-output.start',
-        value: { messageId: structuredMessageId },
-        model: 'model' in chunk ? (chunk.model ?? model) : model,
-        timestamp:
-          'timestamp' in chunk ? (chunk.timestamp ?? Date.now()) : Date.now(),
-        runId,
-      }
-    }
-
-    if (
-      chunk.type === EventType.CUSTOM &&
-      chunk.name === 'structured-output.complete'
-    ) {
-      const value = chunk.value as {
-        object: unknown
-        raw: string
-        reasoning?: string
-      }
-      if (isStandardSchema(outputSchema)) {
-        try {
-          const validated = parseWithStandardSchema<InferSchemaType<TSchema>>(
-            outputSchema,
-            value.object,
-          )
-          yield {
-            ...chunk,
-            // Forward `reasoning` through schema validation so consumers that
-            // only listen for the terminal event don't lose chain-of-thought.
-            // Tag with messageId so the client processor can snap the right
-            // assistant message's structured-output part.
-            value: {
-              object: validated,
-              raw: value.raw,
-              ...(value.reasoning ? { reasoning: value.reasoning } : {}),
-              ...(structuredMessageId
-                ? { messageId: structuredMessageId }
-                : {}),
-            },
-          }
-          continue
-        } catch (err) {
-          const message = (err as Error).message || 'Schema validation failed'
-          logger.errors(
-            'runStreamingStructuredOutput schema validation failed',
-            {
-              error: err,
-              source: 'runStreamingStructuredOutput',
-              // Include reasoning in error meta so post-mortems can recover
-              // what the model thought through before producing invalid JSON.
-              ...(value.reasoning ? { reasoning: value.reasoning } : {}),
-            },
-          )
-          yield {
-            type: EventType.RUN_ERROR,
-            runId,
-            model: chunk.model ?? model,
-            timestamp: chunk.timestamp ?? Date.now(),
-            message,
-            code: 'schema-validation',
-            error: {
-              message,
-              code: 'schema-validation',
-              ...(value.reasoning ? { reasoning: value.reasoning } : {}),
-            },
-          }
-          return
-        }
-      }
-      // No Standard schema (raw JSONSchema). Still tag the terminal event
-      // with messageId so the client processor can snap the right part.
-      if (structuredMessageId) {
-        yield {
-          ...chunk,
-          value: {
-            ...(chunk.value as Record<string, unknown>),
-            messageId: structuredMessageId,
-          },
-        }
-        continue
-      }
-      yield chunk
-      continue
-    }
+  for await (const chunk of engine.run()) {
     yield chunk
   }
+
+  // Schema validation for the streaming variant remains the consumer's
+  // responsibility — they read the CUSTOM 'structured-output.complete' from
+  // the yielded stream. Matches pre-fix behavior.
+  void outputSchema
 }
 
 // Re-export adapter types

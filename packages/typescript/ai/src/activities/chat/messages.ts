@@ -122,7 +122,7 @@ export function convertMessagesToModelMessages(
       modelMessages.push({
         role: 'system' as ModelMessage['role'],
         content: (msg as { content: string }).content,
-      } as ModelMessage)
+      })
       continue
     }
 

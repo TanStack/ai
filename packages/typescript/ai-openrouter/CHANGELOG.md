@@ -1,5 +1,128 @@
 # @tanstack/ai-openrouter
 
+## 0.9.7
+
+### Patch Changes
+
+- Restore `web_fetch` in `OpenRouterChatModelToolCapabilitiesByName` so `webFetchTool()` is assignable to OpenRouter text adapters again. The recent model-metadata sync (#623) regenerated this map with `web_search` only, breaking the per-model type-safety tests added in #611. ([#625](https://github.com/TanStack/ai/pull/625))
+
+- Fix OpenRouter provider tool type metadata to include `webFetchTool`. ([#626](https://github.com/TanStack/ai/pull/626))
+
+- Refresh package README content and npm metadata for better discoverability. ([#626](https://github.com/TanStack/ai/pull/626))
+
+- Update model metadata from OpenRouter API ([#623](https://github.com/TanStack/ai/pull/623))
+
+- Updated dependencies [[`ebeb22e`](https://github.com/TanStack/ai/commit/ebeb22ec68f456b09e0181ac6f5d1ac25a0affd2)]:
+  - @tanstack/ai@0.21.2
+  - @tanstack/ai-utils@0.2.1
+
+## 0.9.6
+
+### Patch Changes
+
+- Adopt `@tanstack/eslint-config@0.4.0` and clean up the local override layer. ([#607](https://github.com/TanStack/ai/pull/607))
+  - Bump `@tanstack/eslint-config` from `0.3.3` to `0.4.0`.
+  - Drop dead `pnpm/enforce-catalog` and `pnpm/json-enforce-catalog` disables (upstream removed `eslint-plugin-pnpm` in `0.3.1`).
+  - Drop the `no-case-declarations: off` override — no current source actually violates it.
+  - Drop the `no-shadow: off` override — upstream sets it to `warn`, so it surfaces in editors without blocking CI.
+  - Remove ~25 unnecessary type assertions across the publishable packages that the upgraded `typescript-eslint` now catches via `no-unnecessary-type-assertion`. One deliberately defensive cast in `ag-ui-wire.ts` is preserved with an inline opt-out and a reason comment.
+
+  No public-API or runtime-behavior changes.
+
+- `webFetchTool()` + `webSearchTool()` now produce wire shapes that survive the ([#611](https://github.com/TanStack/ai/pull/611))
+  OpenRouter SDK's outbound Zod serializer. Closes #603.
+
+  ### What changed
+  - Added `webFetchTool()` to `@tanstack/ai-openrouter/tools` for OpenRouter's
+    `openrouter:web_fetch` server tool (`engine`, `maxContentTokens`,
+    `allowedDomains`, `blockedDomains`, `maxUses`).
+  - Bumped `@openrouter/sdk` from `0.12.14` to `0.12.35` so we can source the
+    canonical input types (`WebFetchServerTool`, `WebFetchServerToolConfig`,
+    `OpenRouterWebSearchServerTool`, `WebSearchConfig`) directly from the SDK.
+  - Reworked the wire format for both factories from the non-SDK
+    `{type: 'web_*', web_*: {...}}` nesting to the SDK's canonical
+    `{type: 'openrouter:web_*', parameters: {...}}` shape.
+
+  ### Why this matters
+
+  Prior versions of `webSearchTool()` typed the nested `web_search` sub-object
+  in the metadata, but the SDK's outbound serializer (`ChatRequest$outboundSchema`)
+  only recognised `type` on the `ChatFunctionTool` union — the nested
+  sub-object wasn't a field on any member, so it was silently stripped before
+  HTTP send. Every option you set (`engine`, `maxResults`, `searchPrompt`) was
+  dropped on the wire; OpenRouter received `{type: 'web_search'}` and applied
+  defaults. The newly added `webFetchTool()` initially inherited the same bug.
+
+  After this change, the request body actually contains your `parameters`, so
+  options take effect on OpenRouter.
+
+  ### Breaking change
+
+  `webSearchTool()`'s option surface now matches OpenRouter's
+  `WebSearchConfig` exactly:
+  - Removed: `searchPrompt` (never modelled by OpenRouter; was silently
+    dropped pre-fix).
+  - Added: `allowedDomains`, `excludedDomains`, `maxTotalResults`,
+    `searchContextSize`, `userLocation`.
+  - Unchanged: `engine`, `maxResults` (engine enum now widens to `auto`,
+    `native`, `exa`, `firecrawl`, `parallel`).
+
+  Callers passing `searchPrompt` will get a TS error and should drop it — it
+  wasn't reaching OpenRouter anyway.
+
+  ```ts
+  import { chat } from '@tanstack/ai'
+  import { openRouterText } from '@tanstack/ai-openrouter'
+  import { webFetchTool, webSearchTool } from '@tanstack/ai-openrouter/tools'
+
+  const stream = chat({
+    adapter: openRouterText('openai/gpt-5'),
+    messages: [{ role: 'user', content: 'Summarize https://example.com' }],
+    tools: [
+      webSearchTool({ engine: 'exa', maxResults: 5 }),
+      webFetchTool({ engine: 'openrouter', maxContentTokens: 4000 }),
+    ],
+  })
+  ```
+
+  The Responses adapter (`createOpenRouterResponsesText`) rejects both factories
+  with a `RUN_ERROR` pointing at the chat-completions adapter, matching the
+  existing `webSearchTool()` rejection.
+
+- Update model metadata from OpenRouter API ([#594](https://github.com/TanStack/ai/pull/594))
+
+- Updated dependencies [[`ec1393d`](https://github.com/TanStack/ai/commit/ec1393db4383798e5f2574dfd87779c22c309529), [`188fe11`](https://github.com/TanStack/ai/commit/188fe11b9b9691e5a241cfc416803da5b8ce5376)]:
+  - @tanstack/ai@0.21.0
+
+## 0.9.5
+
+### Patch Changes
+
+- Tighten TypeScript safety: enable `noImplicitOverride`, ([#579](https://github.com/TanStack/ai/pull/579))
+  `noFallthroughCasesInSwitch`, and `useDefineForClassFields` in the
+  root `tsconfig.json`; add a typed-ESLint block scoped to
+  `packages/typescript/*/src/**` that turns on `no-floating-promises`,
+  `no-misused-promises`, `await-thenable`,
+  `switch-exhaustiveness-check`, `consistent-type-exports`,
+  `prefer-readonly`, and `no-non-null-assertion` (errors), plus
+  `no-explicit-any` (warning). `@ts-ignore` and `@ts-nocheck` are
+  disallowed in library source via `@typescript-eslint/ban-ts-comment`,
+  and `as unknown as <T>` double-casts are blocked by a
+  `no-restricted-syntax` rule (escape hatches available with an inline
+  reason). Two flags from the original five-flag set —
+  `noPropertyAccessFromIndexSignature` and `exactOptionalPropertyTypes`
+  — were tried and rolled back: they produced ~500 lines of bracket-
+  access and conditional-spread churn without catching any real bugs,
+  and `exactOptionalPropertyTypes` would have forced consumers using
+  it themselves to deal with our internals' style preferences.
+
+  User-visible API surface is unchanged; this is a hardening pass to
+  keep streaming/agent-loop correctness and discriminated-union
+  exhaustiveness honest going forward. See issue #564.
+
+- Updated dependencies [[`2ad137b`](https://github.com/TanStack/ai/commit/2ad137bd22512248bd1684cccce35ba89597cf96)]:
+  - @tanstack/ai@0.20.1
+
 ## 0.9.4
 
 ### Patch Changes

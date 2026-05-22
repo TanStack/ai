@@ -1190,24 +1190,18 @@ describe('OpenRouter structured output', () => {
       required: ['name', 'age'],
     }
 
-    const nonStreamResponse = {
-      choices: [
-        { message: { content: '{"name":"Alice","age":30,"nickname":null}' } },
-      ],
-    }
+    const personJson = '{"name":"Alice","age":30,"nickname":null}'
 
-    setupMockSdkClient(
-      [
-        // The agentic loop runs one streaming pass before the structured
-        // output call — provide a trivial stream that terminates immediately.
-        {
-          id: 'c1',
-          model: 'openai/gpt-4o-mini',
-          choices: [{ delta: { content: 'ok' }, finishReason: 'stop' }],
-        },
-      ],
-      nonStreamResponse,
-    )
+    // With no tools, the engine skips the agent loop and goes straight to
+    // structuredOutputStream — which sends `stream: true` to the SDK. So the
+    // structured payload arrives via the streaming mock.
+    setupMockSdkClient([
+      {
+        id: 'c1',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: personJson }, finishReason: 'stop' }],
+      },
+    ])
     const adapter = createAdapter()
 
     const result = await chat({
@@ -1218,9 +1212,9 @@ describe('OpenRouter structured output', () => {
 
     expect(result).toEqual({ name: 'Alice', age: 30, nickname: null })
 
-    // Find the non-streaming call (the structured output request).
+    // The structured-output streaming call carries the strict-transformed schema.
     const structuredCall = mockSend.mock.calls.find(
-      ([args]: Array<any>) => args.chatRequest.stream === false,
+      ([args]: Array<any>) => args.chatRequest.responseFormat,
     )
     expect(structuredCall).toBeDefined()
     const sentSchema =

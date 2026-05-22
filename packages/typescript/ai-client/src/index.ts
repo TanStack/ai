@@ -61,6 +61,7 @@ export {
   type ConnectConnectionAdapter,
   type ConnectionAdapter,
   type FetchConnectionOptions,
+  type RunAgentInputContext,
   type SubscribeConnectionAdapter,
 } from './connection-adapters'
 

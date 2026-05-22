@@ -1,5 +1,60 @@
 # @tanstack/ai-anthropic
 
+## 0.10.3
+
+### Patch Changes
+
+- Refresh package README content and npm metadata for better discoverability. ([#626](https://github.com/TanStack/ai/pull/626))
+
+- Updated dependencies [[`ebeb22e`](https://github.com/TanStack/ai/commit/ebeb22ec68f456b09e0181ac6f5d1ac25a0affd2)]:
+  - @tanstack/ai@0.21.2
+  - @tanstack/ai-utils@0.2.1
+
+## 0.10.2
+
+### Patch Changes
+
+- Fix streaming corruption when Anthropic responses mix client `tool_use` with server-side tools (`web_fetch`, `web_search`). Closes #604. ([#606](https://github.com/TanStack/ai/pull/606))
+
+  The Anthropic streaming adapter previously had no handler for `server_tool_use` / `web_fetch_tool_result` / `web_search_tool_result` content blocks. When a client `tool_use` was followed by a `server_tool_use` in the same response, the server tool's `input_json_delta` events appended onto the prior client tool's input buffer — producing concatenated JSON like `{...prevToolArgs...}{"url":"..."}` that threw in the agent loop's `JSON.parse`.
+  - `server_tool_use` is now tracked in a separate buffer so its deltas can't bleed into client tool args.
+  - `input_json_delta` is dispatched by the current block type instead of unconditionally appending to `toolCallsMap[currentToolIndex]`.
+  - `web_fetch_tool_result` and `web_search_tool_result` blocks are explicitly acknowledged (and ignored — they are consumed by Anthropic, not the client), so they no longer fall through to the text-block handler.
+
+  No new public events are introduced: server-side tool execution stays internal to the provider, matching how `webFetchTool()` / `webSearchTool()` were always intended to be used.
+
+- Updated dependencies [[`ec1393d`](https://github.com/TanStack/ai/commit/ec1393db4383798e5f2574dfd87779c22c309529), [`188fe11`](https://github.com/TanStack/ai/commit/188fe11b9b9691e5a241cfc416803da5b8ce5376)]:
+  - @tanstack/ai@0.21.0
+
+## 0.10.1
+
+### Patch Changes
+
+- Tighten TypeScript safety: enable `noImplicitOverride`, ([#579](https://github.com/TanStack/ai/pull/579))
+  `noFallthroughCasesInSwitch`, and `useDefineForClassFields` in the
+  root `tsconfig.json`; add a typed-ESLint block scoped to
+  `packages/typescript/*/src/**` that turns on `no-floating-promises`,
+  `no-misused-promises`, `await-thenable`,
+  `switch-exhaustiveness-check`, `consistent-type-exports`,
+  `prefer-readonly`, and `no-non-null-assertion` (errors), plus
+  `no-explicit-any` (warning). `@ts-ignore` and `@ts-nocheck` are
+  disallowed in library source via `@typescript-eslint/ban-ts-comment`,
+  and `as unknown as <T>` double-casts are blocked by a
+  `no-restricted-syntax` rule (escape hatches available with an inline
+  reason). Two flags from the original five-flag set —
+  `noPropertyAccessFromIndexSignature` and `exactOptionalPropertyTypes`
+  — were tried and rolled back: they produced ~500 lines of bracket-
+  access and conditional-spread churn without catching any real bugs,
+  and `exactOptionalPropertyTypes` would have forced consumers using
+  it themselves to deal with our internals' style preferences.
+
+  User-visible API surface is unchanged; this is a hardening pass to
+  keep streaming/agent-loop correctness and discriminated-union
+  exhaustiveness honest going forward. See issue #564.
+
+- Updated dependencies [[`2ad137b`](https://github.com/TanStack/ai/commit/2ad137bd22512248bd1684cccce35ba89597cf96)]:
+  - @tanstack/ai@0.20.1
+
 ## 0.10.0
 
 ### Minor Changes

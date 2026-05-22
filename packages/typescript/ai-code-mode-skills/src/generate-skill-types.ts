@@ -116,7 +116,7 @@ export function generateSkillTypes(skills: Array<Skill>): string {
     if (
       skill.inputSchema.type === 'object' &&
       skill.inputSchema.properties &&
-      Object.keys(skill.inputSchema.properties as object).length > 0
+      Object.keys(skill.inputSchema.properties).length > 0
     ) {
       declarations.push(`interface ${inputTypeName} ${inputType}`)
     }
@@ -126,7 +126,7 @@ export function generateSkillTypes(skills: Array<Skill>): string {
     if (
       skill.outputSchema.type === 'object' &&
       skill.outputSchema.properties &&
-      Object.keys(skill.outputSchema.properties as object).length > 0
+      Object.keys(skill.outputSchema.properties).length > 0
     ) {
       declarations.push(`interface ${outputTypeName} ${outputType}`)
     }
@@ -135,14 +135,14 @@ export function generateSkillTypes(skills: Array<Skill>): string {
     const inputRef =
       skill.inputSchema.type === 'object' &&
       skill.inputSchema.properties &&
-      Object.keys(skill.inputSchema.properties as object).length > 0
+      Object.keys(skill.inputSchema.properties).length > 0
         ? inputTypeName
         : inputType
 
     const outputRef =
       skill.outputSchema.type === 'object' &&
       skill.outputSchema.properties &&
-      Object.keys(skill.outputSchema.properties as object).length > 0
+      Object.keys(skill.outputSchema.properties).length > 0
         ? outputTypeName
         : outputType
 

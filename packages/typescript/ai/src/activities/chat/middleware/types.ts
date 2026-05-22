@@ -1,4 +1,10 @@
-import type { ModelMessage, StreamChunk, Tool, ToolCall } from '../../../types'
+import type {
+  JSONSchema,
+  ModelMessage,
+  StreamChunk,
+  Tool,
+  ToolCall,
+} from '../../../types'
 import type { SystemPrompt } from '../../../system-prompts'
 
 // ===========================
@@ -12,6 +18,8 @@ import type { SystemPrompt } from '../../../system-prompts'
  * - 'modelStream': During model streaming
  * - 'beforeTools': Before tool execution phase
  * - 'afterTools': After tool execution phase
+ * - 'structuredOutput': During the final structured-output adapter call (set
+ *   for chunks from adapter.structuredOutputStream or the synthesized fallback)
  */
 export type ChatMiddlewarePhase =
   | 'init'
@@ -19,6 +27,7 @@ export type ChatMiddlewarePhase =
   | 'modelStream'
   | 'beforeTools'
   | 'afterTools'
+  | 'structuredOutput'
 
 /**
  * Stable context object passed to all middleware hooks.
@@ -123,6 +132,24 @@ export interface ChatMiddlewareConfig {
   maxTokens?: number
   metadata?: Record<string, unknown> | undefined
   modelOptions?: Record<string, unknown> | undefined
+}
+
+/**
+ * Config passed to onStructuredOutputConfig.
+ *
+ * Mirrors ChatMiddlewareConfig minus `tools` (the final structured-output call
+ * is a single typed-response request, not an agentic loop — tools cannot be
+ * forwarded to it), plus the `outputSchema` being sent to the provider.
+ * Middleware may transform the schema (e.g., inject $defs, strip
+ * vendor-incompatible keywords) by returning a partial that includes
+ * `outputSchema`.
+ */
+export interface StructuredOutputMiddlewareConfig extends Omit<
+  ChatMiddlewareConfig,
+  'tools'
+> {
+  /** JSON Schema being sent to the provider for structured output. */
+  outputSchema: JSONSchema
 }
 
 // ===========================
@@ -337,7 +364,31 @@ export interface ChatMiddleware {
     | void
     | null
     | Partial<ChatMiddlewareConfig>
-    | Promise<void | Partial<ChatMiddlewareConfig>>
+    | Promise<void | null | Partial<ChatMiddlewareConfig>>
+
+  /**
+   * Called at the start of the final structured-output call (when the chat
+   * was invoked with outputSchema). Pipes through middleware in order, like
+   * onConfig, but with access to the JSON Schema being sent to the provider.
+   *
+   * Return a partial to shallow-merge into the current config, or void to
+   * pass through.
+   *
+   * Fires BEFORE onConfig at the structured-output boundary. onConfig also
+   * re-fires at the same boundary with ctx.phase === 'structuredOutput',
+   * receiving the post-onStructuredOutputConfig view of the config (minus
+   * outputSchema). Use onConfig for general-purpose transforms that apply
+   * to every adapter call; use this hook when you need to transform the
+   * outputSchema or apply structured-output-specific behavior.
+   */
+  onStructuredOutputConfig?: (
+    ctx: ChatMiddlewareContext,
+    config: StructuredOutputMiddlewareConfig,
+  ) =>
+    | void
+    | null
+    | Partial<StructuredOutputMiddlewareConfig>
+    | Promise<void | null | Partial<StructuredOutputMiddlewareConfig>>
 
   /**
    * Called when the chat run starts (after initial onConfig).

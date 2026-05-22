@@ -13,6 +13,7 @@ title: "@tanstack/ai"
 - [ImmediateStrategy](classes/ImmediateStrategy.md)
 - [PartialJSONParser](classes/PartialJSONParser.md)
 - [PunctuationStrategy](classes/PunctuationStrategy.md)
+- [StandardSchemaValidationError](classes/StandardSchemaValidationError.md)
 - [StreamProcessor](classes/StreamProcessor.md)
 - [ToolCallManager](classes/ToolCallManager.md)
 - [WordBoundaryStrategy](classes/WordBoundaryStrategy.md)
@@ -90,6 +91,7 @@ title: "@tanstack/ai"
 - [StreamProcessorEvents](interfaces/StreamProcessorEvents.md)
 - [StreamProcessorOptions](interfaces/StreamProcessorOptions.md)
 - [StructuredOutputCompleteEvent](interfaces/StructuredOutputCompleteEvent.md)
+- [StructuredOutputMiddlewareConfig](interfaces/StructuredOutputMiddlewareConfig.md)
 - [StructuredOutputPart](interfaces/StructuredOutputPart.md)
 - [StructuredOutputStartEvent](interfaces/StructuredOutputStartEvent.md)
 - [SummarizationOptions](interfaces/SummarizationOptions.md)
@@ -193,6 +195,7 @@ title: "@tanstack/ai"
 
 ## Functions
 
+- [brandProviderTool](functions/brandProviderTool.md)
 - [chat](functions/chat.md)
 - [chatParamsFromRequest](functions/chatParamsFromRequest.md)
 - [chatParamsFromRequestBody](functions/chatParamsFromRequestBody.md)
