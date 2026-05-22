@@ -120,6 +120,16 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'grok',
     'openrouter',
   ]),
+  // Native-combined-mode adapters only. Each provider's default test model
+  // (or per-feature override in `features.ts`) must opt into combined mode
+  // — otherwise the engine takes the legacy finalization path, which makes
+  // an extra request that this feature's fixture doesn't model.
+  'agentic-structured-stream': new Set([
+    'openai',
+    'anthropic',
+    'gemini',
+    'grok',
+  ]),
   'multimodal-image': new Set([
     'openai',
     'anthropic',

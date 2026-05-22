@@ -105,17 +105,31 @@ export const Route = createFileRoute('/api/chat')({
                     stream: true,
                     abortController,
                   })
-                : chat({
-                    ...adapterOptions,
-                    tools: config.tools,
-                    modelOptions: config.modelOptions,
-                    systemPrompts,
-                    agentLoopStrategy: maxIterations(5),
-                    messages: params.messages,
-                    threadId: params.threadId,
-                    runId: params.runId,
-                    abortController,
-                  })
+                : feature === 'agentic-structured-stream'
+                  ? chat({
+                      ...adapterOptions,
+                      tools: config.tools,
+                      modelOptions: config.modelOptions,
+                      systemPrompts,
+                      agentLoopStrategy: maxIterations(5),
+                      messages: params.messages,
+                      threadId: params.threadId,
+                      runId: params.runId,
+                      outputSchema: guitarRecommendationSchema,
+                      stream: true,
+                      abortController,
+                    })
+                  : chat({
+                      ...adapterOptions,
+                      tools: config.tools,
+                      modelOptions: config.modelOptions,
+                      systemPrompts,
+                      agentLoopStrategy: maxIterations(5),
+                      messages: params.messages,
+                      threadId: params.threadId,
+                      runId: params.runId,
+                      abortController,
+                    })
 
           return toServerSentEventsResponse(stream, { abortController })
         } catch (error: any) {
