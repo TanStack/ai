@@ -29,6 +29,16 @@ jobs:
       - name: Setup Tools
         uses: TanStack/config/.github/setup@e4b48f16568324f76f467aa4c2aac2f05db632c3 # main
 
+      # Codegen runs `@hey-api/openapi-ts` and its transitive deps with full
+      # code-execution privileges in CI. The audit step surfaces known
+      # advisories so the human reviewing the nightly PR sees them, but it
+      # doesn't gate the run — the workspace carries pre-existing transitive
+      # advisories (e.g. an old protobufjs via @google/genai) unrelated to the
+      # schemas codegen. Treat the output as a signal, not a block.
+      - name: Audit dependencies
+        run: pnpm audit --audit-level=high || true
+        continue-on-error: true
+
       - name: Fetch provider OpenAPI specs
         run: pnpm --filter @tanstack/ai-schemas fetch-schemas
         env:

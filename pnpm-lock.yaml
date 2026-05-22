@@ -1486,7 +1486,7 @@ importers:
   packages/typescript/ai-schemas:
     devDependencies:
       '@hey-api/openapi-ts':
-        specifier: ^0.97.2
+        specifier: 0.97.2
         version: 0.97.2(magicast@0.5.2)(typescript@5.9.3)
       '@vitest/coverage-v8':
         specifier: 4.0.14
