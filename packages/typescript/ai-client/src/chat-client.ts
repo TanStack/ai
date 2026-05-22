@@ -27,7 +27,10 @@ import type {
   UIMessage,
 } from './types'
 
-export class ChatClient {
+export class ChatClient<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TContext = unknown,
+> {
   private readonly processor: StreamProcessor
   private connection: SubscribeConnectionAdapter
   private readonly uniqueId: string
@@ -38,6 +41,7 @@ export class ChatClient {
   // merged on every send, with `forwardedProps` winning on key collision.
   private bodyOption: Record<string, any> = {}
   private forwardedPropsOption: Record<string, any> = {}
+  private context: TContext | undefined = undefined
   private pendingMessageBody: Record<string, any> | undefined = undefined
   private isLoading = false
   private isSubscribed = false
@@ -86,7 +90,7 @@ export class ChatClient {
     }
   }
 
-  constructor(options: ChatClientOptions) {
+  constructor(options: ChatClientOptions<TTools, TContext>) {
     this.uniqueId = options.id || this.generateUniqueId('chat')
     this.threadId = options.threadId || this.generateUniqueId('thread')
     // Both `body` (deprecated) and `forwardedProps` populate the AG-UI
@@ -96,6 +100,7 @@ export class ChatClient {
     // winning on key collision.
     this.bodyOption = options.body || {}
     this.forwardedPropsOption = options.forwardedProps || {}
+    this.context = options.context
     this.connection = normalizeConnectionAdapter(options.connection)
     this.events = new DefaultChatClientEventEmitter(this.uniqueId)
 
@@ -223,7 +228,11 @@ export class ChatClient {
             // Create and track the execution promise
             const executionPromise = (async () => {
               try {
-                const output = await executeFunc(args.input)
+                const output = await executeFunc(args.input, {
+                  toolCallId: args.toolCallId,
+                  context: this.context as TContext,
+                  emitCustomEvent: () => {},
+                })
                 await this.addToolResult({
                   toolCallId: args.toolCallId,
                   tool: args.toolName,
@@ -1039,6 +1048,7 @@ export class ChatClient {
     body?: Record<string, any>
     forwardedProps?: Record<string, any>
     tools?: ReadonlyArray<AnyClientTool>
+    context?: TContext | undefined
     onResponse?: (response?: Response) => void | Promise<void>
     onChunk?: (chunk: StreamChunk) => void
     onFinish?: (message: UIMessage) => void
@@ -1073,14 +1083,18 @@ export class ChatClient {
         this.subscribe()
       }
     }
-    // Replace each slot independently so callers can update one without
-    // wiping the other. (Passing `undefined` for either field is a "leave
-    // unchanged" signal — to clear a slot, pass an empty object `{}`.)
+    // Replace each wire-payload slot independently so callers can update one
+    // without wiping the other. Passing `undefined` for `body` or
+    // `forwardedProps` leaves that slot unchanged; context is cleared when the
+    // key is present with an `undefined` value.
     if (options.body !== undefined) {
       this.bodyOption = options.body
     }
     if (options.forwardedProps !== undefined) {
       this.forwardedPropsOption = options.forwardedProps
+    }
+    if ('context' in options) {
+      this.context = options.context
     }
     if (options.tools !== undefined) {
       this.clientToolsRef.current = new Map()

@@ -26,6 +26,18 @@ interface ToolEvent {
   details?: string
 }
 
+type ClientRuntimeContext = {
+  userId: string
+  tenantId: string
+  source: string
+}
+
+const clientRuntimeContext: ClientRuntimeContext = {
+  userId: 'client-user-context',
+  tenantId: 'client-tenant-context',
+  source: 'client-local',
+}
+
 /**
  * Client-side tool definitions with execute functions
  * These track execution for testing purposes
@@ -33,6 +45,35 @@ interface ToolEvent {
 function createTrackedTools(
   addEvent: (event: Omit<ToolEvent, 'timestamp'>) => void,
 ) {
+  const readClientContextTool = toolDefinition({
+    name: 'read_client_context',
+    description: 'Read the typed runtime context provided by the client',
+    inputSchema: z.object({}),
+    outputSchema: z.object({
+      userId: z.string(),
+      tenantId: z.string(),
+      source: z.string(),
+    }),
+  }).client<ClientRuntimeContext>(async (_args, context) => {
+    addEvent({
+      type: 'execution-start',
+      toolName: 'read_client_context',
+      details: context.context.userId,
+    })
+
+    addEvent({
+      type: 'execution-complete',
+      toolName: 'read_client_context',
+      details: `${context.context.userId}/${context.context.tenantId}`,
+    })
+
+    return {
+      userId: context.context.userId,
+      tenantId: context.context.tenantId,
+      source: context.context.source,
+    }
+  })
+
   const showNotificationTool = toolDefinition({
     name: 'show_notification',
     description: 'Show a notification to the user',
@@ -99,7 +140,7 @@ function createTrackedTools(
     }
   })
 
-  return [showNotificationTool, displayChartTool]
+  return [readClientContextTool, showNotificationTool, displayChartTool]
 }
 
 function createHistoryFixtureMessages(historyFixture?: string) {
@@ -133,8 +174,13 @@ function createHistoryFixtureMessages(historyFixture?: string) {
 }
 
 function ToolsTestPage() {
-  const { testId, aimockPort, historyFixture } = Route.useSearch()
-  const [scenario, setScenario] = useState('text-only')
+  const {
+    testId,
+    aimockPort,
+    historyFixture,
+    scenario: initialScenario,
+  } = Route.useSearch()
+  const [scenario, setScenario] = useState(initialScenario || 'text-only')
   const [toolEvents, setToolEvents] = useState<Array<ToolEvent>>([])
   const [testStartTime, setTestStartTime] = useState<number | null>(null)
   const [testComplete, setTestComplete] = useState(false)
@@ -166,7 +212,15 @@ function ToolsTestPage() {
     id: `tools-test-${scenario}-${historyFixture || 'empty'}`,
     connection: fetchServerSentEvents('/api/tools-test'),
     initialMessages,
-    body: { scenario, testId, aimockPort },
+    forwardedProps: {
+      scenario,
+      testId,
+      aimockPort,
+      ...(scenario === 'client-server-context'
+        ? { runtimeUserId: 'client-forwarded-user-context' }
+        : {}),
+    },
+    context: clientRuntimeContext,
     tools: clientTools,
     onFinish: () => {
       setTestComplete(true)
@@ -677,6 +731,8 @@ export const Route = createFileRoute('/tools-test')({
         typeof search.historyFixture === 'string'
           ? search.historyFixture
           : undefined,
+      scenario:
+        typeof search.scenario === 'string' ? search.scenario : undefined,
     }
   },
 })

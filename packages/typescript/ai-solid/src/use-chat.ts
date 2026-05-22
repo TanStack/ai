@@ -10,6 +10,7 @@ import { ChatClient } from '@tanstack/ai-client'
 import type {
   ChatClientState,
   ConnectionStatus,
+  InferredClientContext,
   StructuredOutputPart,
 } from '@tanstack/ai-client'
 import type {
@@ -30,10 +31,12 @@ import type {
 export function useChat<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
+  TContext = InferredClientContext<TTools>,
 >(
-  options: UseChatOptions<TTools, TSchema> = {} as UseChatOptions<
+  options: UseChatOptions<TTools, TSchema, TContext> = {} as UseChatOptions<
     TTools,
-    TSchema
+    TSchema,
+    TContext
   >,
 ): UseChatReturn<TTools, TSchema> {
   const hookId = createUniqueId()
@@ -68,7 +71,7 @@ export function useChat<
     // type is `T | undefined` but the ChatClient target uses a strict
     // optional (`field?: T`) — `exactOptionalPropertyTypes` rejects
     // assigning `undefined` to those, so we omit the key when absent.
-    return new ChatClient({
+    return new ChatClient<TTools, TContext>({
       connection: options.connection,
       id: clientId,
       ...(options.initialMessages !== undefined && {
@@ -78,6 +81,7 @@ export function useChat<
       ...(options.forwardedProps !== undefined && {
         forwardedProps: options.forwardedProps,
       }),
+      ...(options.context !== undefined && { context: options.context }),
       onResponse: (response) => options.onResponse?.(response),
       onChunk: (chunk: StreamChunk) => {
         options.onChunk?.(chunk)
@@ -131,6 +135,7 @@ export function useChat<
       ...(options.forwardedProps !== undefined && {
         forwardedProps: options.forwardedProps,
       }),
+      context: options.context,
     })
   })
 

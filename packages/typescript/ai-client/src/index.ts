@@ -13,8 +13,10 @@ export type {
   StructuredOutputPart,
   // Client configuration types
   ChatClientOptions,
+  ClientContextOptionFromTools,
   ChatRequestBody,
   InferChatMessages,
+  InferredClientContext,
   ChatClientState,
   ConnectionStatus,
   // Multimodal content input type

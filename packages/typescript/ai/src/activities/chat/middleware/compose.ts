@@ -18,12 +18,12 @@ import type {
 } from './types'
 
 /** Check if a middleware should be skipped for instrumentation events. */
-function shouldSkipInstrumentation(mw: ChatMiddleware): boolean {
+function shouldSkipInstrumentation(mw: ChatMiddleware<any>): boolean {
   return mw.name === 'devtools' || mw.name === 'strip-to-spec'
 }
 
 /** Build the base context for middleware instrumentation events. */
-function instrumentCtx(ctx: ChatMiddlewareContext) {
+function instrumentCtx(ctx: ChatMiddlewareContext<any>) {
   return {
     requestId: ctx.requestId,
     streamId: ctx.streamId,
@@ -36,12 +36,12 @@ function instrumentCtx(ctx: ChatMiddlewareContext) {
  * Internal middleware runner that manages composed execution of middleware hooks.
  * Created once per chat() invocation.
  */
-export class MiddlewareRunner {
-  private readonly middlewares: ReadonlyArray<ChatMiddleware>
+export class MiddlewareRunner<TContext = unknown> {
+  private readonly middlewares: ReadonlyArray<ChatMiddleware<TContext>>
   private readonly logger: InternalLogger
 
   constructor(
-    middlewares: ReadonlyArray<ChatMiddleware>,
+    middlewares: ReadonlyArray<ChatMiddleware<TContext>>,
     logger: InternalLogger,
   ) {
     this.middlewares = middlewares
@@ -58,7 +58,7 @@ export class MiddlewareRunner {
    * Partial returns are shallow-merged with the current config.
    */
   async runOnConfig(
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     config: ChatMiddlewareConfig,
   ): Promise<ChatMiddlewareConfig> {
     let current = config
@@ -166,7 +166,7 @@ export class MiddlewareRunner {
   /**
    * Call onStart on all middleware in order.
    */
-  async runOnStart(ctx: ChatMiddlewareContext): Promise<void> {
+  async runOnStart(ctx: ChatMiddlewareContext<TContext>): Promise<void> {
     for (const mw of this.middlewares) {
       if (mw.onStart) {
         const skip = shouldSkipInstrumentation(mw)
@@ -200,7 +200,7 @@ export class MiddlewareRunner {
    * - null: drop the chunk entirely
    */
   async runOnChunk(
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     chunk: StreamChunk,
   ): Promise<Array<StreamChunk>> {
     let chunks: Array<StreamChunk> = [chunk]
@@ -298,7 +298,7 @@ export class MiddlewareRunner {
    * Returns the first non-void decision, or undefined to continue normally.
    */
   async runOnBeforeToolCall(
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     hookCtx: ToolCallHookContext,
   ): Promise<BeforeToolCallDecision> {
     for (const mw of this.middlewares) {
@@ -333,7 +333,7 @@ export class MiddlewareRunner {
    * Run onAfterToolCall on all middleware in order.
    */
   async runOnAfterToolCall(
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     info: AfterToolCallInfo,
   ): Promise<void> {
     for (const mw of this.middlewares) {
@@ -363,7 +363,7 @@ export class MiddlewareRunner {
    * Run onUsage on all middleware in order.
    */
   async runOnUsage(
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     usage: UsageInfo,
   ): Promise<void> {
     for (const mw of this.middlewares) {
@@ -393,7 +393,7 @@ export class MiddlewareRunner {
    * Run onFinish on all middleware in order.
    */
   async runOnFinish(
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     info: FinishInfo,
   ): Promise<void> {
     for (const mw of this.middlewares) {
@@ -422,7 +422,10 @@ export class MiddlewareRunner {
   /**
    * Run onAbort on all middleware in order.
    */
-  async runOnAbort(ctx: ChatMiddlewareContext, info: AbortInfo): Promise<void> {
+  async runOnAbort(
+    ctx: ChatMiddlewareContext<TContext>,
+    info: AbortInfo,
+  ): Promise<void> {
     for (const mw of this.middlewares) {
       if (mw.onAbort) {
         const skip = shouldSkipInstrumentation(mw)
@@ -449,7 +452,10 @@ export class MiddlewareRunner {
   /**
    * Run onError on all middleware in order.
    */
-  async runOnError(ctx: ChatMiddlewareContext, info: ErrorInfo): Promise<void> {
+  async runOnError(
+    ctx: ChatMiddlewareContext<TContext>,
+    info: ErrorInfo,
+  ): Promise<void> {
     for (const mw of this.middlewares) {
       if (mw.onError) {
         const skip = shouldSkipInstrumentation(mw)
@@ -478,7 +484,7 @@ export class MiddlewareRunner {
    * Called at the start of each agent loop iteration.
    */
   async runOnIteration(
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     info: IterationInfo,
   ): Promise<void> {
     for (const mw of this.middlewares) {
@@ -509,7 +515,7 @@ export class MiddlewareRunner {
    * Called after all tool calls in an iteration have been processed.
    */
   async runOnToolPhaseComplete(
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     info: ToolPhaseCompleteInfo,
   ): Promise<void> {
     for (const mw of this.middlewares) {

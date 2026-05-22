@@ -443,33 +443,61 @@ export type ConstrainedModelMessage<
   content: ConstrainedContent<TInputModalitiesTypes>
 }
 
+type IsUnknown<T> = unknown extends T
+  ? [T] extends [unknown]
+    ? true
+    : false
+  : false
+
+type RuntimeContextField<TContext> =
+  IsUnknown<TContext> extends true
+    ? {
+        /**
+         * Runtime context provided by the caller.
+         *
+         * This is request-local application state for tool and middleware
+         * implementations, not the AG-UI `Context[]` protocol field.
+         */
+        context?: TContext
+      }
+    : {
+        /**
+         * Runtime context provided by the caller.
+         *
+         * This is request-local application state for tool and middleware
+         * implementations, not the AG-UI `Context[]` protocol field.
+         */
+        context: TContext
+      }
+
 /**
  * Context passed to tool execute functions, providing capabilities like
  * emitting custom events during execution.
  */
-export interface ToolExecutionContext {
-  /** The ID of the tool call being executed */
-  toolCallId?: string
-  /**
-   * Emit a custom event during tool execution.
-   * Events are streamed to the client in real-time as AG-UI CUSTOM events.
-   *
-   * @param eventName - Name of the custom event
-   * @param value - Event payload value
-   *
-   * @example
-   * ```ts
-   * const tool = toolDefinition({ ... }).server(async (args, context) => {
-   *   context?.emitCustomEvent('progress', { step: 1, total: 3 })
-   *   // ... do work ...
-   *   context?.emitCustomEvent('progress', { step: 2, total: 3 })
-   *   // ... do more work ...
-   *   return result
-   * })
-   * ```
-   */
-  emitCustomEvent: (eventName: string, value: Record<string, any>) => void
-}
+export type ToolExecutionContext<TContext = unknown> =
+  RuntimeContextField<TContext> & {
+    /** The ID of the tool call being executed */
+    toolCallId?: string
+    /**
+     * Emit a custom event during tool execution.
+     * Events are streamed to the client in real-time as AG-UI CUSTOM events.
+     *
+     * @param eventName - Name of the custom event
+     * @param value - Event payload value
+     *
+     * @example
+     * ```ts
+     * const tool = toolDefinition({ ... }).server(async (args, context) => {
+     *   context?.emitCustomEvent('progress', { step: 1, total: 3 })
+     *   // ... do work ...
+     *   context?.emitCustomEvent('progress', { step: 2, total: 3 })
+     *   // ... do more work ...
+     *   return result
+     * })
+     * ```
+     */
+    emitCustomEvent: (eventName: string, value: Record<string, any>) => void
+  }
 
 /**
  * Tool/Function definition for function calling.
@@ -488,6 +516,7 @@ export interface Tool<
   TInput extends SchemaInput = SchemaInput,
   TOutput extends SchemaInput = SchemaInput,
   TName extends string = string,
+  TContext = unknown,
 > {
   /**
    * Unique name of the tool (used by the model to call it).
@@ -588,7 +617,10 @@ export interface Tool<
    * }
    */
   execute?:
-    | ((args: any, context?: ToolExecutionContext) => Promise<any> | any)
+    | ((
+        args: InferSchemaType<TInput>,
+        context?: ToolExecutionContext<TContext>,
+      ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>)
     | undefined
 
   /** If true, tool execution requires user approval before running. Works with both server and client tools. */
@@ -599,6 +631,10 @@ export interface Tool<
 
   /** Additional metadata for adapters or custom extensions */
   metadata?: Record<string, any> | undefined
+}
+
+export type AnyTool = Omit<Tool<any, any, any, any>, 'execute'> & {
+  execute?: ((args: any, context?: any) => any) | undefined
 }
 
 export interface ToolConfig {
@@ -729,10 +765,16 @@ export type AgentLoopStrategy = (state: AgentLoopState) => boolean
 export interface TextOptions<
   TProviderOptionsSuperset extends Record<string, any> = Record<string, any>,
   TProviderOptionsForModel = TProviderOptionsSuperset,
+  TContext = unknown,
 > {
   model: string
   messages: Array<ModelMessage>
-  tools?: Array<Tool<any, any, any>> | undefined
+  tools?: Array<AnyTool> | undefined
+  /**
+   * Runtime context provided by the caller and passed to middleware and
+   * server-side tool implementations.
+   */
+  context?: TContext
   /**
    * System prompts to include with the request.
    *

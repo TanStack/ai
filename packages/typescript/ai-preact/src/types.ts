@@ -3,7 +3,9 @@ import type {
   ChatClientOptions,
   ChatClientState,
   ChatRequestBody,
+  ClientContextOptionFromTools,
   ConnectionStatus,
+  InferredClientContext,
   MultimodalContent,
   UIMessage,
 } from '@tanstack/ai-client'
@@ -27,19 +29,22 @@ export type { ChatRequestBody, MultimodalContent, UIMessage }
  * Note: Connection and body changes will recreate the ChatClient instance.
  * To update these options, remount the component or use a key prop.
  */
-export type UseChatOptions<TTools extends ReadonlyArray<AnyClientTool> = any> =
-  Omit<
-    ChatClientOptions<TTools>,
-    | 'onMessagesChange'
-    | 'onLoadingChange'
-    | 'onErrorChange'
-    | 'onStatusChange'
-    | 'onSubscriptionChange'
-    | 'onConnectionStatusChange'
-    | 'onSessionGeneratingChange'
-  > & {
-    live?: boolean
-  }
+export type UseChatOptions<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TContext = InferredClientContext<TTools>,
+> = Omit<
+  ChatClientOptions<TTools, TContext>,
+  | 'onMessagesChange'
+  | 'onLoadingChange'
+  | 'onErrorChange'
+  | 'onStatusChange'
+  | 'onSubscriptionChange'
+  | 'onConnectionStatusChange'
+  | 'onSessionGeneratingChange'
+  | 'context'
+> & {
+  live?: boolean
+} & ClientContextOptionFromTools<TTools, TContext>
 
 export interface UseChatReturn<
   TTools extends ReadonlyArray<AnyClientTool> = any,

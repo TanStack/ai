@@ -202,8 +202,83 @@ export interface UIMessage<
   createdAt?: Date
 }
 
-export interface ChatClientOptions<
+type IsUnknown<T> = unknown extends T
+  ? [T] extends [unknown]
+    ? true
+    : false
+  : false
+
+type KnownContext<T> = IsUnknown<T> extends true ? never : T
+
+type MergeContext<TLeft, TRight> = [TLeft] extends [never]
+  ? TRight
+  : [TRight] extends [never]
+    ? TLeft
+    : TLeft & TRight
+
+type UnionToIntersection<T> = [T] extends [never]
+  ? never
+  : (T extends unknown ? (value: T) => void : never) extends (
+        value: infer TIntersection,
+      ) => void
+    ? TIntersection
+    : never
+
+type DefinedContext<T> = Exclude<T, undefined>
+
+type ContextFromClientTool<T> = T extends AnyClientTool
+  ? T extends {
+      execute?: (args: any, context?: infer TExecutionContext) => any
+    }
+    ? TExecutionContext extends { context: infer TContext }
+      ? KnownContext<TContext>
+      : never
+    : never
+  : never
+
+type RequiredContextFromClientToolUnion<T> = T extends unknown
+  ? undefined extends ContextFromClientTool<T>
+    ? never
+    : ContextFromClientTool<T>
+  : never
+
+type ContextFromClientToolUnion<T> = [
+  UnionToIntersection<DefinedContext<ContextFromClientTool<T>>>,
+] extends [never]
+  ? never
+  : [RequiredContextFromClientToolUnion<T>] extends [never]
+    ? UnionToIntersection<DefinedContext<ContextFromClientTool<T>>> | undefined
+    : UnionToIntersection<DefinedContext<ContextFromClientTool<T>>>
+
+type ContextFromClientTools<TTools> =
+  IsUnknown<TTools> extends true
+    ? never
+    : TTools extends readonly [infer THead, ...infer TTail]
+      ? MergeContext<
+          ContextFromClientTool<THead>,
+          ContextFromClientTools<TTail>
+        >
+      : TTools extends ReadonlyArray<infer TItem>
+        ? ContextFromClientToolUnion<TItem>
+        : never
+
+export type InferredClientContext<TTools> = [
+  ContextFromClientTools<TTools>,
+] extends [never]
+  ? unknown
+  : ContextFromClientTools<TTools>
+
+export type ClientContextOptionFromTools<TTools, TContext> = [
+  ContextFromClientTools<TTools>,
+] extends [never]
+  ? { context?: TContext }
+  : undefined extends ContextFromClientTools<TTools>
+    ? { context?: TContext & ContextFromClientTools<TTools> }
+    : { context: TContext & ContextFromClientTools<TTools> }
+
+export interface ChatClientBaseOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
+  TContext = unknown,
 > {
   /**
    * Connection adapter for streaming.
@@ -248,6 +323,14 @@ export interface ChatClientOptions<
    * migrated yet. Will be removed in a future major release.
    */
   body?: Record<string, any>
+
+  /**
+   * Client-local runtime context passed to client tool implementations.
+   *
+   * This value is not serialized to the server. Use `forwardedProps` for
+   * explicit client-to-server handoff of serializable values.
+   */
+  context?: TContext
 
   /**
    * Callback when a response is received
@@ -341,6 +424,12 @@ export interface ChatClientOptions<
   }
 }
 
+export type ChatClientOptions<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TContext = InferredClientContext<TTools>,
+> = Omit<ChatClientBaseOptions<TTools, TContext>, 'context'> &
+  ClientContextOptionFromTools<TTools, TContext>
+
 export interface ChatRequestBody {
   messages: Array<ModelMessage>
   data?: Record<string, any>
@@ -385,7 +474,10 @@ export function clientTools<const T extends Array<AnyClientTool>>(
  */
 export function createChatClientOptions<
   const TTools extends ReadonlyArray<AnyClientTool>,
->(options: ChatClientOptions<TTools>): ChatClientOptions<TTools> {
+  TContext = InferredClientContext<TTools>,
+>(
+  options: ChatClientOptions<TTools, TContext>,
+): ChatClientOptions<TTools, TContext> {
   return options
 }
 
@@ -404,4 +496,6 @@ export function createChatClientOptions<
  * ```
  */
 export type InferChatMessages<T> =
-  T extends ChatClientOptions<infer TTools> ? Array<UIMessage<TTools>> : never
+  T extends ChatClientOptions<infer TTools, any>
+    ? Array<UIMessage<TTools>>
+    : never

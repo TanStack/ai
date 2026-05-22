@@ -8,7 +8,9 @@ import type {
   ChatClientOptions,
   ChatClientState,
   ChatRequestBody,
+  ClientContextOptionFromTools,
   ConnectionStatus,
+  InferredClientContext,
   MultimodalContent,
   UIMessage,
 } from '@tanstack/ai-client'
@@ -54,8 +56,9 @@ export type DeepPartial<T> =
 export type UseChatOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
+  TContext = InferredClientContext<TTools>,
 > = Omit<
-  ChatClientOptions<TTools>,
+  ChatClientOptions<TTools, TContext>,
   | 'onMessagesChange'
   | 'onLoadingChange'
   | 'onErrorChange'
@@ -63,6 +66,7 @@ export type UseChatOptions<
   | 'onSubscriptionChange'
   | 'onConnectionStatusChange'
   | 'onSessionGeneratingChange'
+  | 'context'
 > & {
   live?: boolean
   /**
@@ -70,7 +74,7 @@ export type UseChatOptions<
    * Schema). Used to infer the shape of `partial` and `final`.
    */
   outputSchema?: TSchema
-}
+} & ClientContextOptionFromTools<TTools, TContext>
 
 /**
  * Discriminated return shape: when `outputSchema` is supplied, the composable

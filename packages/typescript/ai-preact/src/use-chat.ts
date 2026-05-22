@@ -7,7 +7,11 @@ import {
   useRef,
   useState,
 } from 'preact/hooks'
-import type { ChatClientState, ConnectionStatus } from '@tanstack/ai-client'
+import type {
+  ChatClientState,
+  ConnectionStatus,
+  InferredClientContext,
+} from '@tanstack/ai-client'
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
 
 import type {
@@ -17,9 +21,10 @@ import type {
   UseChatReturn,
 } from './types'
 
-export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
-  options: UseChatOptions<TTools>,
-): UseChatReturn<TTools> {
+export function useChat<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TContext = InferredClientContext<TTools>,
+>(options: UseChatOptions<TTools, TContext>): UseChatReturn<TTools> {
   const hookId = useId()
   const clientId = options.id || hookId
 
@@ -39,7 +44,7 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     options.initialMessages || [],
   )
   const isFirstMountRef = useRef(true)
-  const optionsRef = useRef<UseChatOptions<TTools>>(options)
+  const optionsRef = useRef<UseChatOptions<TTools, TContext>>(options)
 
   optionsRef.current = options
 
@@ -60,13 +65,16 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     // optional (`field?: T`) — `exactOptionalPropertyTypes` rejects
     // assigning `undefined` to those, so we omit the key when absent.
     const initialOptions = optionsRef.current
-    return new ChatClient({
+    return new ChatClient<TTools, TContext>({
       connection: initialOptions.connection,
       id: clientId,
       initialMessages: messagesToUse,
       ...(initialOptions.body !== undefined && { body: initialOptions.body }),
       ...(initialOptions.forwardedProps !== undefined && {
         forwardedProps: initialOptions.forwardedProps,
+      }),
+      ...(initialOptions.context !== undefined && {
+        context: initialOptions.context,
       }),
       // Wrap every callback so the latest options are read at call time.
       // Capturing the function reference directly would freeze it to whatever
@@ -122,8 +130,9 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       ...(options.forwardedProps !== undefined && {
         forwardedProps: options.forwardedProps,
       }),
+      context: options.context,
     })
-  }, [client, options.body, options.forwardedProps])
+  }, [client, options.body, options.forwardedProps, options.context])
 
   // Sync initial messages on mount only
   // Note: initialMessages are passed to ChatClient constructor, but we also

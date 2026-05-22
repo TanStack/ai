@@ -8,7 +8,9 @@ import type {
   ChatClientOptions,
   ChatClientState,
   ChatRequestBody,
+  ClientContextOptionFromTools,
   ConnectionStatus,
+  InferredClientContext,
   MultimodalContent,
   UIMessage,
 } from '@tanstack/ai-client'
@@ -52,8 +54,9 @@ export type DeepPartial<T> =
 export type CreateChatOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
+  TContext = InferredClientContext<TTools>,
 > = Omit<
-  ChatClientOptions<TTools>,
+  ChatClientOptions<TTools, TContext>,
   | 'onMessagesChange'
   | 'onLoadingChange'
   | 'onErrorChange'
@@ -61,6 +64,7 @@ export type CreateChatOptions<
   | 'onSubscriptionChange'
   | 'onConnectionStatusChange'
   | 'onSessionGeneratingChange'
+  | 'context'
 > & {
   live?: boolean
   /**
@@ -68,7 +72,7 @@ export type CreateChatOptions<
    * Schema). Used to infer the shape of `partial` and `final`.
    */
   outputSchema?: TSchema
-}
+} & ClientContextOptionFromTools<TTools, TContext>
 
 /**
  * Discriminated return shape: when `outputSchema` is supplied, the return adds
@@ -78,9 +82,11 @@ export type CreateChatOptions<
 export type CreateChatReturn<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
+  TContext = unknown,
 > = BaseCreateChatReturn<
   TTools,
-  TSchema extends SchemaInput ? InferSchemaType<TSchema> : unknown
+  TSchema extends SchemaInput ? InferSchemaType<TSchema> : unknown,
+  TContext
 > &
   (TSchema extends SchemaInput
     ? {
@@ -101,6 +107,7 @@ export type CreateChatReturn<
 interface BaseCreateChatReturn<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TData = unknown,
+  TContext = unknown,
 > {
   /**
    * Current messages in the conversation (reactive getter). When
@@ -199,6 +206,11 @@ interface BaseCreateChatReturn<
    * changing model selection or other client-driven options).
    */
   updateForwardedProps: (forwardedProps: Record<string, any>) => void
+  /**
+   * Update the client-local runtime context passed to client tool
+   * implementations. This value is not serialized to the server.
+   */
+  updateContext: (context: TContext) => void
 }
 
 // Note: createChatClientOptions and InferChatMessages are now in @tanstack/ai-client

@@ -28,7 +28,7 @@ function createMockTool(name: string) {
     inputSchema: z.object({ query: z.string() }),
     outputSchema: z.object({ result: z.string() }),
   })
-  return def.server(async (input: any) => ({ result: input.query }))
+  return def.server(async (input) => ({ result: input.query }))
 }
 
 describe('createCodeModeTool', () => {

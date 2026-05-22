@@ -1,5 +1,6 @@
 import { isStandardSchema, parseWithStandardSchema } from './schema-converter'
 import type {
+  AnyTool,
   CustomEvent,
   ModelMessage,
   RunFinishedEvent,
@@ -80,11 +81,11 @@ export class MiddlewareAbortError extends Error {
  * }
  * ```
  */
-export class ToolCallManager {
+export class ToolCallManager<TContext = unknown> {
   private readonly toolCallsMap = new Map<number, ToolCall>()
-  private readonly tools: ReadonlyArray<Tool>
+  private readonly tools: ReadonlyArray<AnyTool>
 
-  constructor(tools: ReadonlyArray<Tool>) {
+  constructor(tools: ReadonlyArray<AnyTool>) {
     this.tools = tools
   }
 
@@ -161,9 +162,11 @@ export class ToolCallManager {
    */
   async *executeTools(
     finishEvent: RunFinishedEvent,
+    userContext?: TContext,
   ): AsyncGenerator<ToolCallEndEvent, Array<ModelMessage>, void> {
     const toolCallsArray = this.getToolCalls()
     const toolResults: Array<ModelMessage> = []
+    const hasRuntimeContext = arguments.length > 1
 
     for (const toolCall of toolCallsArray) {
       const tool = this.tools.find((t) => t.name === toolCall.function.name)
@@ -199,7 +202,14 @@ export class ToolCallManager {
           }
 
           // Execute the tool
-          let result = await tool.execute(args)
+          const executionContext: ToolExecutionContext<TContext> = {
+            toolCallId: toolCall.id,
+            context: userContext as TContext,
+            emitCustomEvent: () => {},
+          }
+          let result = hasRuntimeContext
+            ? await tool.execute(args, executionContext)
+            : await tool.execute(args)
 
           // Validate output against outputSchema if provided (for Standard Schema compliant schemas)
           if (
@@ -394,12 +404,12 @@ async function applyBeforeToolCallDecision(
  * Execute a server-side tool with event polling, output validation, and middleware hooks.
  * Yields CustomEvent chunks during execution and pushes the result to the results array.
  */
-async function* executeServerTool(
+async function* executeServerTool<TContext = unknown>(
   toolCall: ToolCall,
-  tool: Tool,
+  tool: AnyTool,
   toolName: string,
   input: unknown,
-  context: ToolExecutionContext,
+  context: ToolExecutionContext<TContext>,
   pendingEvents: Array<CustomEvent>,
   results: Array<ToolResult>,
   middlewareHooks?: ToolExecutionMiddlewareHooks,
@@ -501,9 +511,9 @@ async function* executeServerTool(
  * @param clientResults - Map of client-side execution results (toolCallId -> result)
  * @param createCustomEventChunk - Factory to create CustomEvent chunks (optional)
  */
-export async function* executeToolCalls(
+export async function* executeToolCalls<TContext = unknown>(
   toolCalls: Array<ToolCall>,
-  tools: ReadonlyArray<Tool>,
+  tools: ReadonlyArray<AnyTool>,
   approvals: Map<string, boolean> = new Map(),
   clientResults: Map<string, any> = new Map(),
   createCustomEventChunk?: (
@@ -511,13 +521,14 @@ export async function* executeToolCalls(
     value: Record<string, any>,
   ) => CustomEvent,
   middlewareHooks?: ToolExecutionMiddlewareHooks,
+  userContext?: TContext,
 ): AsyncGenerator<CustomEvent, ExecuteToolCallsResult, void> {
   const results: Array<ToolResult> = []
   const needsApproval: Array<ApprovalRequest> = []
   const needsClientExecution: Array<ClientToolRequest> = []
 
   // Create tool lookup map
-  const toolMap = new Map<string, Tool>()
+  const toolMap = new Map<string, AnyTool>()
   for (const tool of tools) {
     toolMap.set(tool.name, tool)
   }
@@ -588,8 +599,9 @@ export async function* executeToolCalls(
 
     // Create a ToolExecutionContext for this tool call with event emission
     const pendingEvents: Array<CustomEvent> = []
-    const context: ToolExecutionContext = {
+    const context: ToolExecutionContext<TContext> = {
       toolCallId: toolCall.id,
+      context: userContext as TContext,
       emitCustomEvent: (eventName: string, value: Record<string, any>) => {
         if (createCustomEventChunk) {
           pendingEvents.push(

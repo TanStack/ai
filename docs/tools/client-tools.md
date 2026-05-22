@@ -216,6 +216,42 @@ Client tools are **automatically executed** when the model calls them. No manual
 4. Result is sent back to server
 5. Conversation continues with the result
 
+## Client Runtime Context
+
+Client tools can receive typed runtime context as their second argument. This context is local to the `ChatClient` or framework hook instance and is not serialized to the server.
+
+```typescript
+import { createChatClientOptions, clientTools } from "@tanstack/ai-client";
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { toolDefinition } from "@tanstack/ai";
+
+type ClientContext = {
+  activeProjectId: string;
+  toast(message: string): void;
+};
+
+const showToast = toolDefinition({
+  name: "show_toast",
+  description: "Show a browser notification",
+}).client<ClientContext>((_input, ctx) => {
+  ctx.context.toast(`Project ${ctx.context.activeProjectId} updated`);
+  return { ok: true };
+});
+
+const chatOptions = createChatClientOptions({
+  connection: fetchServerSentEvents("/api/chat"),
+  tools: clientTools(showToast),
+  context: {
+    activeProjectId,
+    toast: (message) => toast(message),
+  },
+});
+
+const chat = useChat(chatOptions);
+```
+
+Use `context` for local browser dependencies. If the server also needs a value from the client, send it with `forwardedProps`, validate it in your route, and map it into server `chat({ context })` explicitly. See [Runtime Context](../advanced/runtime-context) for the full pattern.
+
 ## Type Safety Benefits
 
 The isomorphic architecture provides complete end-to-end type safety:
@@ -335,4 +371,3 @@ chat({ adapter: openaiText('gpt-5.2'), messages: [], tools: [addToCartServer] })
 - [How Tools Work](./tools) - Deep dive into the tool architecture
 - [Server Tools](./server-tools) - Learn about server-side tool execution
 - [Tool Approval Flow](./tool-approval) - Add approval workflows for sensitive operations
-

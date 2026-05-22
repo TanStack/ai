@@ -1,5 +1,5 @@
 import type {
-  ServerTool,
+  AnyTool,
   ToolDefinition,
   ToolExecutionContext,
 } from '@tanstack/ai'
@@ -149,9 +149,7 @@ export type { ToolExecutionContext }
 /**
  * Tool types that can be passed to Code Mode
  */
-export type CodeModeTool =
-  | ServerTool<any, any, any>
-  | ToolDefinition<any, any, any>
+export type CodeModeTool = AnyTool | ToolDefinition<any, any, any>
 
 /**
  * Configuration for createCodeModeTool

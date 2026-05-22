@@ -49,6 +49,7 @@ const client = new ChatClient({
 - `threadId?` - Thread ID for AG-UI run correlation. Persists across sends; auto-generated if omitted
 - `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field
 - `body?` - **Deprecated.** Use `forwardedProps` instead. Still works — values are merged into `forwardedProps` on the wire and mirrored under the legacy `data` field for backward compatibility
+- `context?` - Typed client-local runtime context passed to client tool implementations. This value is not serialized to the server
 - `onResponse?` - Callback when response is received
 - `onChunk?` - Callback when stream chunk is received
 - `onFinish?` - Callback when response finishes
@@ -247,6 +248,28 @@ const chatOptions = createChatClientOptions({
 // Use InferChatMessages to extract message types
 type ChatMessages = InferChatMessages<typeof chatOptions>;
 ```
+
+`createChatClientOptions` also preserves typed client runtime context:
+
+```typescript
+type ClientContext = {
+  activeProjectId: string;
+};
+
+const tool = projectTool.client<ClientContext>((input, ctx) => {
+  return runProjectAction(ctx.context.activeProjectId, input);
+});
+
+const chatOptions = createChatClientOptions({
+  connection: fetchServerSentEvents("/api/chat"),
+  tools: clientTools(tool),
+  context: {
+    activeProjectId: "project_123",
+  },
+});
+```
+
+Client runtime context is local to the client instance. Use `forwardedProps` for explicit client-to-server handoff of serializable values, then validate and map those values into server `chat({ context })`.
 
 ## Types
 

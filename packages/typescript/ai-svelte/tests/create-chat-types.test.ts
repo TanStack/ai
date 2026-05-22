@@ -61,4 +61,17 @@ describe('createChat() return type (svelte)', () => {
       >()
     })
   })
+
+  describe('with runtime context', () => {
+    it('types context options and updateContext', () => {
+      type ClientContext = { localUserId: string }
+      type O = CreateChatOptions<NoTools, undefined, ClientContext>
+      type R = CreateChatReturn<NoTools, undefined, ClientContext>
+
+      expectTypeOf<O['context']>().toEqualTypeOf<ClientContext | undefined>()
+      expectTypeOf<R['updateContext']>().toEqualTypeOf<
+        (context: ClientContext) => void
+      >()
+    })
+  })
 })

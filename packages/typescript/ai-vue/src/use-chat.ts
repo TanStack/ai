@@ -17,6 +17,7 @@ import type {
 import type {
   ChatClientState,
   ConnectionStatus,
+  InferredClientContext,
   StructuredOutputPart,
 } from '@tanstack/ai-client'
 import type {
@@ -30,10 +31,12 @@ import type {
 export function useChat<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
+  TContext = InferredClientContext<TTools>,
 >(
-  options: UseChatOptions<TTools, TSchema> = {} as UseChatOptions<
+  options: UseChatOptions<TTools, TSchema, TContext> = {} as UseChatOptions<
     TTools,
-    TSchema
+    TSchema,
+    TContext
   >,
 ): UseChatReturn<TTools, TSchema> {
   const hookId = useId() // Available in Vue 3.5+
@@ -70,7 +73,7 @@ export function useChat<
   // `tools`: the ChatClient target declares those as strict-optional
   // (`field?: T`), so under `exactOptionalPropertyTypes` we omit the key when
   // the source value is `undefined` instead of assigning `undefined`.
-  const client = new ChatClient({
+  const client = new ChatClient<TTools, TContext>({
     connection: options.connection,
     id: clientId,
     ...(options.initialMessages !== undefined && {
@@ -80,6 +83,7 @@ export function useChat<
     ...(options.forwardedProps !== undefined && {
       forwardedProps: options.forwardedProps,
     }),
+    ...(options.context !== undefined && { context: options.context }),
     onResponse: (response) => options.onResponse?.(response),
     onChunk: (chunk: StreamChunk) => {
       options.onChunk?.(chunk)
@@ -125,13 +129,14 @@ export function useChat<
   // Conditional spread: `updateOptions` declares strict-optional fields and
   // rejects explicit `undefined` under EOPT.
   watch(
-    () => [options.body, options.forwardedProps] as const,
-    ([newBody, newForwardedProps]) => {
+    () => [options.body, options.forwardedProps, options.context] as const,
+    ([newBody, newForwardedProps, newContext]) => {
       client.updateOptions({
         body: newBody,
         ...(newForwardedProps !== undefined && {
           forwardedProps: newForwardedProps,
         }),
+        context: newContext,
       })
     },
   )
