@@ -31,7 +31,7 @@ import { chat } from "@tanstack/ai";
 import { geminiText } from "@tanstack/ai-gemini";
 
 const stream = chat({
-  adapter: geminiText("gemini-2.5-pro"),
+  adapter: geminiText("gemini-3.1-pro-preview"),
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
@@ -42,7 +42,7 @@ const stream = chat({
 import { chat } from "@tanstack/ai";
 import { createGeminiChat } from "@tanstack/ai-gemini";
 
-const adapter = createGeminiChat("gemini-2.5-pro", process.env.GEMINI_API_KEY!, {
+const adapter = createGeminiChat("gemini-3.1-pro-preview", process.env.GEMINI_API_KEY!, {
   // ... your config options
 });
 
@@ -61,7 +61,7 @@ const config: Omit<GeminiTextConfig, 'apiKey'> = {
   baseURL: "https://generativelanguage.googleapis.com/v1beta", // Optional
 };
 
-const adapter = createGeminiChat("gemini-2.5-pro", process.env.GEMINI_API_KEY!, config);
+const adapter = createGeminiChat("gemini-3.1-pro-preview", process.env.GEMINI_API_KEY!, config);
 ```
   
 
@@ -75,7 +75,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: geminiText("gemini-2.5-pro"),
+    adapter: geminiText("gemini-3.1-pro-preview"),
     messages,
   });
 
@@ -104,7 +104,7 @@ const getCalendarEvents = getCalendarEventsDef.server(async ({ date }) => {
 });
 
 const stream = chat({
-  adapter: geminiText("gemini-2.5-pro"),
+  adapter: geminiText("gemini-3.1-pro-preview"),
   messages,
   tools: [getCalendarEvents],
 });
@@ -122,23 +122,29 @@ The `geminiTextInteractions` adapter routes through `client.interactions.create`
 
 ```typescript
 import { chat } from "@tanstack/ai";
-import { geminiTextInteractions } from "@tanstack/ai-gemini/experimental";
+import {
+  geminiTextInteractions,
+  type GeminiInteractionsCustomEventValue,
+} from "@tanstack/ai-gemini/experimental";
 
 // Turn 1: introduce yourself, capture the interaction id.
 let interactionId: string | undefined;
 
 for await (const chunk of chat({
-  adapter: geminiTextInteractions("gemini-2.5-flash"),
+  adapter: geminiTextInteractions("gemini-3.5-flash"),
   messages: [{ role: "user", content: "Hi, my name is Amir." }],
 })) {
   if (chunk.type === "CUSTOM" && chunk.name === "gemini.interactionId") {
-    interactionId = (chunk.value as { interactionId?: string }).interactionId;
+    const value = chunk.value as GeminiInteractionsCustomEventValue<
+      "gemini.interactionId"
+    >;
+    interactionId = value.interactionId;
   }
 }
 
 // Turn 2: only send the new turn's content — the server has the history.
 for await (const chunk of chat({
-  adapter: geminiTextInteractions("gemini-2.5-flash"),
+  adapter: geminiTextInteractions("gemini-3.5-flash"),
   messages: [{ role: "user", content: "What is my name?" }],
   modelOptions: {
     previous_interaction_id: interactionId,
@@ -173,7 +179,7 @@ export async function POST({ request }: { request: Request }) {
       : undefined;
 
   const stream = chat({
-    adapter: geminiTextInteractions("gemini-2.5-flash"),
+    adapter: geminiTextInteractions("gemini-3.5-flash"),
     messages: params.messages,
     modelOptions: {
       previous_interaction_id: previousInteractionId,
@@ -247,7 +253,7 @@ The adapter exposes Interactions-specific options on `modelOptions`:
 import { geminiTextInteractions } from "@tanstack/ai-gemini/experimental";
 
 const stream = chat({
-  adapter: geminiTextInteractions("gemini-2.5-flash"),
+  adapter: geminiTextInteractions("gemini-3.5-flash"),
   messages,
   modelOptions: {
     // Stateful chaining — passed only on turn 2+.
@@ -302,7 +308,7 @@ Gemini supports various model-specific options:
 
 ```typescript
 const stream = chat({
-  adapter: geminiText("gemini-2.5-pro"),
+  adapter: geminiText("gemini-3.1-pro-preview"),
   messages,
   modelOptions: {
     maxOutputTokens: 2048,
@@ -345,7 +351,7 @@ import { summarize } from "@tanstack/ai";
 import { geminiSummarize } from "@tanstack/ai-gemini";
 
 const result = await summarize({
-  adapter: geminiSummarize("gemini-2.5-pro"),
+  adapter: geminiSummarize("gemini-3.1-pro-preview"),
   text: "Your long text to summarize...",
   maxLength: 100,
   style: "concise", // "concise" | "bullet-points" | "paragraph"
@@ -461,7 +467,7 @@ import { generateSpeech } from "@tanstack/ai";
 import { geminiSpeech } from "@tanstack/ai-gemini";
 
 const result = await generateSpeech({
-  adapter: geminiSpeech("gemini-2.5-flash-preview-tts"),
+  adapter: geminiSpeech("gemini-3.1-flash-tts-preview"),
   text: "Hello from Gemini TTS!",
 });
 
@@ -516,7 +522,7 @@ Creates a Gemini text/chat adapter using environment variables.
 
 **Parameters:**
 
-- `model` - The model name (e.g. `"gemini-2.5-pro"`)
+- `model` - The model name (e.g. `"gemini-3.1-pro-preview"`)
 - `config.baseURL?` - Custom base URL (optional)
 
 **Returns:** A Gemini text adapter instance.
@@ -527,7 +533,7 @@ Creates a Gemini text/chat adapter with an explicit API key.
 
 **Parameters:**
 
-- `model` - The model name (e.g. `"gemini-2.5-pro"`)
+- `model` - The model name (e.g. `"gemini-3.1-pro-preview"`)
 - `apiKey` - Your Gemini API key
 - `config.baseURL?` - Custom base URL (optional)
 
@@ -543,7 +549,7 @@ Creates a Gemini Interactions API text adapter using environment variables. Back
 
 Creates a Gemini Interactions API text adapter with an explicit API key.
 
-- `model` - The model name (e.g. `gemini-2.5-flash`)
+- `model` - The model name (e.g. `gemini-3.5-flash`)
 - `apiKey` - Your Google API key
 - `config.baseURL?` - Custom base URL (optional)
 
@@ -555,7 +561,7 @@ Creates a Gemini summarization adapter using environment variables.
 
 **Parameters:**
 
-- `model` - The model name (e.g. `"gemini-2.5-pro"`)
+- `model` - The model name (e.g. `"gemini-3.1-pro-preview"`)
 - `config.baseURL?` - Custom base URL (optional)
 
 **Returns:** A Gemini summarize adapter instance.
@@ -567,7 +573,7 @@ Creates a Gemini summarization adapter with an explicit API key.
 **Parameters:**
 
 - `apiKey` - Your Gemini API key
-- `model` - The model name (e.g. `"gemini-2.5-pro"`)
+- `model` - The model name (e.g. `"gemini-3.1-pro-preview"`)
 - `config.baseURL?` - Custom base URL (optional)
 
 **Returns:** A Gemini summarize adapter instance.
@@ -601,7 +607,7 @@ Creates a Gemini text-to-speech adapter using environment variables.
 
 **Parameters:**
 
-- `model` - The model name (e.g. `"gemini-2.5-flash-preview-tts"`)
+- `model` - The model name (e.g. `"gemini-3.1-flash-tts-preview"`)
 - `config.baseURL?` - Custom base URL (optional)
 
 **Returns:** A Gemini TTS adapter instance.
@@ -612,7 +618,7 @@ Creates a Gemini text-to-speech adapter with an explicit API key.
 
 **Parameters:**
 
-- `model` - The model name (e.g. `"gemini-2.5-flash-preview-tts"`)
+- `model` - The model name (e.g. `"gemini-3.1-flash-tts-preview"`)
 - `apiKey` - Your Gemini API key
 - `config.baseURL?` - Custom base URL (optional)
 
@@ -647,7 +653,7 @@ import { geminiText } from "@tanstack/ai-gemini";
 import { codeExecutionTool } from "@tanstack/ai-gemini/tools";
 
 const stream = chat({
-  adapter: geminiText("gemini-2.5-pro"),
+  adapter: geminiText("gemini-3.1-pro-preview"),
   messages: [{ role: "user", content: "Calculate the first 10 Fibonacci numbers" }],
   tools: [codeExecutionTool()],
 });
@@ -666,7 +672,7 @@ import { geminiText } from "@tanstack/ai-gemini";
 import { fileSearchTool } from "@tanstack/ai-gemini/tools";
 
 const stream = chat({
-  adapter: geminiText("gemini-2.5-pro"),
+  adapter: geminiText("gemini-3.1-pro-preview"),
   messages: [{ role: "user", content: "Find the quarterly revenue figures" }],
   tools: [
     fileSearchTool({
@@ -690,7 +696,7 @@ import { geminiText } from "@tanstack/ai-gemini";
 import { googleSearchTool } from "@tanstack/ai-gemini/tools";
 
 const stream = chat({
-  adapter: geminiText("gemini-2.5-pro"),
+  adapter: geminiText("gemini-3.1-pro-preview"),
   messages: [{ role: "user", content: "What's the weather in Tokyo right now?" }],
   tools: [googleSearchTool()],
 });
@@ -710,7 +716,7 @@ import { geminiText } from "@tanstack/ai-gemini";
 import { googleSearchRetrievalTool } from "@tanstack/ai-gemini/tools";
 
 const stream = chat({
-  adapter: geminiText("gemini-2.5-pro"),
+  adapter: geminiText("gemini-3.1-pro-preview"),
   messages: [{ role: "user", content: "Explain the latest JavaScript proposals" }],
   tools: [
     googleSearchRetrievalTool({
@@ -734,7 +740,7 @@ import { geminiText } from "@tanstack/ai-gemini";
 import { googleMapsTool } from "@tanstack/ai-gemini/tools";
 
 const stream = chat({
-  adapter: geminiText("gemini-2.5-pro"),
+  adapter: geminiText("gemini-3.1-pro-preview"),
   messages: [{ role: "user", content: "Find coffee shops near Union Square, SF" }],
   tools: [googleMapsTool()],
 });
@@ -753,7 +759,7 @@ import { geminiText } from "@tanstack/ai-gemini";
 import { urlContextTool } from "@tanstack/ai-gemini/tools";
 
 const stream = chat({
-  adapter: geminiText("gemini-2.5-pro"),
+  adapter: geminiText("gemini-3.1-pro-preview"),
   messages: [{ role: "user", content: "Summarise https://example.com/article" }],
   tools: [urlContextTool()],
 });
@@ -773,7 +779,7 @@ import { geminiText } from "@tanstack/ai-gemini";
 import { computerUseTool } from "@tanstack/ai-gemini/tools";
 
 const stream = chat({
-  adapter: geminiText("gemini-2.5-pro"),
+  adapter: geminiText("gemini-3.1-pro-preview"),
   messages: [{ role: "user", content: "Navigate to example.com in the browser" }],
   tools: [
     computerUseTool({
