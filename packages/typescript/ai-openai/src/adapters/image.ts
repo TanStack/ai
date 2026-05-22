@@ -31,7 +31,7 @@ export interface OpenAIImageConfig extends OpenAIClientConfig {}
  * OpenAI Image Generation Adapter
  *
  * Tree-shakeable adapter for OpenAI image generation functionality.
- * Supports gpt-image-1, gpt-image-1-mini, dall-e-3, and dall-e-2 models.
+ * Supports gpt-image-2, gpt-image-1, gpt-image-1-mini, dall-e-3, and dall-e-2 models.
  *
  * Features:
  * - Model-specific type-safe provider options
