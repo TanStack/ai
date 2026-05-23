@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-perplexity",
   "version": "0.1.0",
-  "description": "Perplexity adapter for TanStack AI — Search API and OpenAI-compatible chat",
+  "description": "Perplexity adapter for TanStack AI \u2014 Search API and OpenAI-compatible chat",
   "author": "",
   "license": "MIT",
   "repository": {
@@ -16,6 +16,14 @@
     ".": {
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
+    },
+    "./adapters/search": {
+      "types": "./dist/esm/search/index.d.ts",
+      "import": "./dist/esm/search/index.js"
+    },
+    "./adapters/chat": {
+      "types": "./dist/esm/chat/index.d.ts",
+      "import": "./dist/esm/chat/index.js"
     },
     "./search": {
       "types": "./dist/esm/search/index.d.ts",
