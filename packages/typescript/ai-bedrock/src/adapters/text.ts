@@ -482,7 +482,7 @@ export class BedrockTextAdapter<
                                     } as StreamChunk
                                 }
                                 isInsideThinking = true
-                                text = text.substring('<thinking>'.length) // 10 chars
+                                text = text.substring(startIdx + '<thinking>'.length)
                             } else if (text.includes('<')) {
                                 // Possible partial <thinking> tag — buffer
                                 const idx = text.lastIndexOf('<')
