@@ -5,7 +5,7 @@ title: StateDeltaEvent
 
 # Interface: StateDeltaEvent
 
-Defined in: [packages/typescript/ai/src/types.ts:1134](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1134)
+Defined in: [packages/typescript/ai/src/types.ts:1135](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1135)
 
 Emitted to provide an incremental state update.
 
@@ -30,6 +30,6 @@ TanStack AI adds: `model?`
 optional model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1136](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1136)
+Defined in: [packages/typescript/ai/src/types.ts:1137](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1137)
 
 Model identifier for multi-model support

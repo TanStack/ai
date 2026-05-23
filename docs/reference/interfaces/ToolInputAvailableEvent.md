@@ -5,7 +5,7 @@ title: ToolInputAvailableEvent
 
 # Interface: ToolInputAvailableEvent
 
-Defined in: [packages/typescript/ai/src/types.ts:1211](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1211)
+Defined in: [packages/typescript/ai/src/types.ts:1212](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1212)
 
 Emitted when a client tool is invoked. The agent loop yields this and
 pauses to let the caller run the tool client-side — `structured-output.complete`
@@ -30,7 +30,7 @@ will not fire for that run. Shape fixed by the agent-loop forwarding in
 optional model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1147](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1147)
+Defined in: [packages/typescript/ai/src/types.ts:1148](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1148)
 
 Model identifier for multi-model support
 
@@ -46,7 +46,7 @@ Model identifier for multi-model support
 name: "tool-input-available";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1212](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1212)
+Defined in: [packages/typescript/ai/src/types.ts:1213](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1213)
 
 #### Overrides
 
@@ -62,7 +62,7 @@ CustomEvent.name
 value: object;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1213](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1213)
+Defined in: [packages/typescript/ai/src/types.ts:1214](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1214)
 
 #### input
 

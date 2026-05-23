@@ -65,7 +65,7 @@ Defined in: [packages/typescript/ai/src/tools/provider-tool.ts:24](https://githu
 description: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:509](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L509)
+Defined in: [packages/typescript/ai/src/types.ts:510](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L510)
 
 Clear description of what the tool does.
 
@@ -90,7 +90,7 @@ Be specific about what the tool does, what parameters it needs, and what it retu
 optional execute: (args, context?) => any;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:589](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L589)
+Defined in: [packages/typescript/ai/src/types.ts:590](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L590)
 
 Optional function to execute when the model calls this tool.
 
@@ -138,7 +138,7 @@ execute: async (args) => {
 optional inputSchema: SchemaInput;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:549](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L549)
+Defined in: [packages/typescript/ai/src/types.ts:550](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L550)
 
 Schema describing the tool's input parameters.
 
@@ -196,7 +196,7 @@ type({
 optional lazy: boolean;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:597](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L597)
+Defined in: [packages/typescript/ai/src/types.ts:598](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L598)
 
 If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Only meaningful when used with chat().
 
@@ -212,7 +212,7 @@ If true, this tool is lazy and will only be sent to the LLM after being discover
 optional metadata: Record<string, any>;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:600](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L600)
+Defined in: [packages/typescript/ai/src/types.ts:601](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L601)
 
 Additional metadata for adapters or custom extensions
 
@@ -228,7 +228,7 @@ Additional metadata for adapters or custom extensions
 name: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:499](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L499)
+Defined in: [packages/typescript/ai/src/types.ts:500](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L500)
 
 Unique name of the tool (used by the model to call it).
 
@@ -253,7 +253,7 @@ Must be unique within the tools array.
 optional needsApproval: boolean;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:594](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L594)
+Defined in: [packages/typescript/ai/src/types.ts:595](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L595)
 
 If true, tool execution requires user approval before running. Works with both server and client tools.
 
@@ -269,7 +269,7 @@ If true, tool execution requires user approval before running. Works with both s
 optional outputSchema: SchemaInput;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:570](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L570)
+Defined in: [packages/typescript/ai/src/types.ts:571](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L571)
 
 Optional schema for validating tool output.
 

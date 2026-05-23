@@ -5,7 +5,7 @@ title: StructuredOutputPart
 
 # Interface: StructuredOutputPart\<TData\>
 
-Defined in: [packages/typescript/ai/src/types.ts:390](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L390)
+Defined in: [packages/typescript/ai/src/types.ts:391](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L391)
 
 StructuredOutputPart — a typed structured response attached to the assistant
 message that produced it. Generic over the schema-inferred data type so
@@ -27,7 +27,7 @@ to `messages[i].parts[j].data`. Defaults to `unknown` so untyped consumers
 optional data: TData;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:396](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L396)
+Defined in: [packages/typescript/ai/src/types.ts:397](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L397)
 
 Validated final object — only set when `status === 'complete'`.
 
@@ -39,7 +39,7 @@ Validated final object — only set when `status === 'complete'`.
 optional errorMessage: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:402](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L402)
+Defined in: [packages/typescript/ai/src/types.ts:403](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L403)
 
 Populated when `status === 'error'`.
 
@@ -51,7 +51,7 @@ Populated when `status === 'error'`.
 optional partial: DeepPartial<TData>;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:394](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L394)
+Defined in: [packages/typescript/ai/src/types.ts:395](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L395)
 
 Progressive parse of `raw` via parsePartialJSON — populated while streaming and after complete.
 
@@ -63,7 +63,7 @@ Progressive parse of `raw` via parsePartialJSON — populated while streaming an
 raw: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:398](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L398)
+Defined in: [packages/typescript/ai/src/types.ts:399](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L399)
 
 Accumulating JSON buffer. Source of truth for wire round-trip.
 
@@ -75,7 +75,7 @@ Accumulating JSON buffer. Source of truth for wire round-trip.
 optional reasoning: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:400](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L400)
+Defined in: [packages/typescript/ai/src/types.ts:401](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L401)
 
 Optional chain-of-thought surfaced by reasoning models alongside the structured output.
 
@@ -84,10 +84,10 @@ Optional chain-of-thought surfaced by reasoning models alongside the structured 
 ### status
 
 ```ts
-status: "error" | "streaming" | "complete";
+status: "error" | "complete" | "streaming";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:392](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L392)
+Defined in: [packages/typescript/ai/src/types.ts:393](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L393)
 
 ***
 
@@ -97,4 +97,4 @@ Defined in: [packages/typescript/ai/src/types.ts:392](https://github.com/TanStac
 type: "structured-output";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:391](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L391)
+Defined in: [packages/typescript/ai/src/types.ts:392](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L392)
