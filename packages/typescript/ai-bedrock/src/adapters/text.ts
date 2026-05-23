@@ -26,15 +26,35 @@ import type { BedrockTextProviderOptions } from '../text/text-provider-options'
  * Configuration for the AWS Bedrock client.
  */
 export interface BedrockTextConfig {
-    /** AWS region where Bedrock is accessed (e.g. `'us-east-1'`). */
-    region: string
-    /** AWS credentials used to authenticate requests. */
-    credentials: {
+    /**
+     * AWS region where Bedrock is accessed (e.g. `'us-east-1'`).
+     * When omitted, reads from `AWS_REGION` or `AWS_DEFAULT_REGION` env vars.
+     */
+    region?: string
+    /**
+     * AWS IAM credentials (access key + secret key).
+     *
+     * Use for programmatic access with long-lived or STS temporary credentials.
+     * Cannot be combined with `apiKey`.
+     */
+    credentials?: {
         /** AWS access key ID. */
         accessKeyId: string
         /** AWS secret access key. */
         secretAccessKey: string
+        /** Temporary session token (for STS / assumed roles). */
+        sessionToken?: string
     }
+    /**
+     * Bedrock API key (bearer token) for authentication.
+     *
+     * Generate short-term or long-term keys via the AWS Console or CLI.
+     * Passed as `Authorization: Bearer <apiKey>`.
+     * Cannot be combined with `credentials`.
+     *
+     * @see https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html
+     */
+    apiKey?: string
 }
 
 /**
@@ -80,8 +100,13 @@ export class BedrockTextAdapter<
     constructor(config: BedrockTextConfig, model: TModel) {
         super({}, model)
         this.client = new BedrockRuntimeClient({
-            region: config.region,
-            credentials: config.credentials,
+            ...(config.region ? { region: config.region } : {}),
+            // API key (bearer token) — takes precedence over IAM credentials
+            ...(config.apiKey ? { token: config.apiKey } : {}),
+            // IAM credentials — only when no API key is set
+            ...(!config.apiKey && config.credentials
+                ? { credentials: config.credentials }
+                : {}),
         })
     }
 

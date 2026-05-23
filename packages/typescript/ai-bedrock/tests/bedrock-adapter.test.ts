@@ -557,4 +557,75 @@ describe('BedrockTextAdapter', () => {
             expect(command.system).toEqual([{ text: 'You are a helpful assistant.' }])
         })
     })
+
+    // -----------------------------------------------------------------------
+    // Credential configuration
+    // -----------------------------------------------------------------------
+
+    describe('credential configuration', () => {
+        it('creates client without credentials (default chain)', async () => {
+            // We test that the adapter works when no auth config is passed.
+            // The mock intercepts the client constructor, so we just verify
+            // the stream works without explicit credentials.
+            const noCredsAdapter = new BedrockTextAdapter({}, 'amazon.nova-pro-v1:0')
+
+            makeStream([
+                { contentBlockDelta: { delta: { text: 'ok' } } },
+                { messageStop: { stopReason: 'end_turn' } },
+            ])
+
+            const chunks = await collectChunks(noCredsAdapter.chatStream({
+                model: 'amazon.nova-pro-v1:0',
+                messages: [{ role: 'user', content: 'Hi' }],
+            }))
+
+            // Should stream successfully
+            expect(chunks.find(c => c.type === EventType.TEXT_MESSAGE_CONTENT)).toBeDefined()
+            expect(chunks.find(c => c.type === EventType.RUN_FINISHED)).toBeDefined()
+        })
+
+        it('creates adapter with apiKey (bearer token)', async () => {
+            const apiKeyAdapter = new BedrockTextAdapter(
+                { apiKey: 'bedrock-key-abc123' },
+                'amazon.nova-pro-v1:0',
+            )
+
+            makeStream([
+                { contentBlockDelta: { delta: { text: 'ok' } } },
+                { messageStop: { stopReason: 'end_turn' } },
+            ])
+
+            const chunks = await collectChunks(apiKeyAdapter.chatStream({
+                model: 'amazon.nova-pro-v1:0',
+                messages: [{ role: 'user', content: 'Hi' }],
+            }))
+
+            expect(chunks.find(c => c.type === EventType.TEXT_MESSAGE_CONTENT)).toBeDefined()
+        })
+
+        it('creates adapter with explicit credentials', async () => {
+            const credsAdapter = new BedrockTextAdapter(
+                {
+                    region: 'us-west-2',
+                    credentials: {
+                        accessKeyId: 'my-key',
+                        secretAccessKey: 'my-secret',
+                    },
+                },
+                'amazon.nova-pro-v1:0',
+            )
+
+            makeStream([
+                { contentBlockDelta: { delta: { text: 'ok' } } },
+                { messageStop: { stopReason: 'end_turn' } },
+            ])
+
+            const chunks = await collectChunks(credsAdapter.chatStream({
+                model: 'amazon.nova-pro-v1:0',
+                messages: [{ role: 'user', content: 'Hi' }],
+            }))
+
+            expect(chunks.find(c => c.type === EventType.TEXT_MESSAGE_CONTENT)).toBeDefined()
+        })
+    })
 })

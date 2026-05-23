@@ -6,6 +6,8 @@
 export interface BedrockClientConfig {
     /** AWS region (e.g. `'us-east-1'`). */
     region?: string
+    /** Bedrock API key (bearer token). Set via `BEDROCK_API_KEY` env var. */
+    apiKey?: string
     /** AWS credentials. */
     credentials?: {
         /** AWS access key ID. */
@@ -32,6 +34,10 @@ export function getBedrockConfigFromEnv(): BedrockClientConfig {
 
     if (env?.AWS_REGION || env?.AWS_DEFAULT_REGION) {
         config.region = env.AWS_REGION || env.AWS_DEFAULT_REGION
+    }
+
+    if (env?.BEDROCK_API_KEY) {
+        config.apiKey = env.BEDROCK_API_KEY
     }
 
     if (env?.AWS_ACCESS_KEY_ID && env?.AWS_SECRET_ACCESS_KEY) {

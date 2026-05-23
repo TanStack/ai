@@ -17,23 +17,31 @@ export function createBedrockChat<
 }
 
 /**
- * Creates a Bedrock text adapter, reading AWS credentials from environment variables
- * (`AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`).
- * Any values provided in `config` take precedence over environment variables.
+ * Creates a Bedrock text adapter with pluggable authentication.
+ *
+ * Auth is resolved in this order (first match wins):
+ * 1. `config.apiKey` or `BEDROCK_API_KEY` env var → bearer token
+ * 2. `config.credentials` or `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` env vars → IAM access keys
+ * 3. AWS SDK default credential chain → IAM roles, SSO, instance profiles, etc.
+ *
+ * Region is resolved in this order:
+ * 1. Explicit `config.region`
+ * 2. `AWS_REGION` or `AWS_DEFAULT_REGION` env vars
+ * 3. AWS SDK default region resolution
  *
  * @param model - The Bedrock model ID (e.g. `'amazon.nova-pro-v1:0'`).
- * @param config - Optional partial configuration to override environment variable defaults.
+ * @param config - Optional partial configuration to override auto-detected values.
  * @returns A configured {@link BedrockTextAdapter} instance.
  *
  * @example
  * ```typescript
- * import { bedrockText } from '@tanstack/ai-bedrock'
- * import { chat } from '@tanstack/ai'
- *
- * const stream = chat({
- *   adapter: bedrockText('amazon.nova-pro-v1:0'),
- *   messages: [{ role: 'user', content: 'Hello!' }],
+ * // API key (bearer token)
+ * const adapter = bedrockText('amazon.nova-pro-v1:0', {
+ *   apiKey: 'bedrock-api-key-...',
  * })
+ *
+ * // Or from env: BEDROCK_API_KEY=...
+ * const adapter = bedrockText('amazon.nova-pro-v1:0')
  * ```
  */
 export function bedrockText<TModel extends BedrockModelId>(
@@ -41,12 +49,37 @@ export function bedrockText<TModel extends BedrockModelId>(
     config?: Partial<BedrockTextConfig>,
 ): BedrockTextAdapter<TModel> {
     const envConfig = getBedrockConfigFromEnv()
+
+    // Region: explicit > env > undefined (let SDK resolve)
+    const region = config?.region || envConfig.region || undefined
+
+    // API key (bearer token): explicit > env
+    const apiKey = config?.apiKey || envConfig.apiKey || undefined
+
+    // Build full config — if apiKey is set, skip credentials
     const fullConfig: BedrockTextConfig = {
-        region: config?.region || envConfig.region || 'us-east-1',
-        credentials: {
-            accessKeyId: config?.credentials?.accessKeyId || envConfig.credentials?.accessKeyId || '',
-            secretAccessKey: config?.credentials?.secretAccessKey || envConfig.credentials?.secretAccessKey || '',
-        },
+        ...(region ? { region } : {}),
+        ...(apiKey ? { apiKey } : {}),
     }
+
+    // IAM credentials: only when no apiKey and explicitly provided
+    if (!apiKey) {
+        const explicitAccessKey =
+            config?.credentials?.accessKeyId || envConfig.credentials?.accessKeyId || undefined
+        const explicitSecretKey =
+            config?.credentials?.secretAccessKey || envConfig.credentials?.secretAccessKey || undefined
+
+        if (explicitAccessKey && explicitSecretKey) {
+            fullConfig.credentials = {
+                accessKeyId: explicitAccessKey,
+                secretAccessKey: explicitSecretKey,
+                sessionToken:
+                    config?.credentials?.sessionToken ||
+                    envConfig.credentials?.sessionToken ||
+                    undefined,
+            }
+        }
+    }
+
     return createBedrockChat(model, fullConfig)
 }
