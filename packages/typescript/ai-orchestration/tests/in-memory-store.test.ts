@@ -5,11 +5,21 @@
  * implementations can be validated against the same expectations.
  */
 import { describe, expect, it } from 'vitest'
+import type { RunState } from '@tanstack/workflow-core'
 import { inMemoryRunStore } from '../src/run-store/in-memory'
 import { LogConflictError } from '../src/types'
-import type { RunState, StepRecord } from '../src/types'
+import type { RunState as LegacyRunState, StepRecord } from '../src/types'
 
 const baseRunState: RunState = {
+  runId: 'run-1',
+  status: 'running',
+  workflowId: 'test',
+  input: { msg: 'hi' },
+  createdAt: 1,
+  updatedAt: 1,
+}
+
+const baseLegacyRunState: LegacyRunState = {
   runId: 'run-1',
   status: 'running',
   workflowName: 'test',
@@ -57,7 +67,7 @@ describe('inMemoryRunStore — state surface', () => {
     const controller = new AbortController()
     let approvalCalled: { approved: boolean } | null = null
     store.setLive('run-2', {
-      runState: { ...baseRunState, runId: 'run-2', status: 'paused' },
+      runState: { ...baseLegacyRunState, runId: 'run-2', status: 'paused' },
       generator: {} as any,
       abortController: controller,
       approvalResolver: (r) => {
@@ -114,7 +124,11 @@ describe('inMemoryRunStore — step log surface', () => {
 
   it('LogConflictError carries the existing record so the engine can dedupe', async () => {
     const store = inMemoryRunStore()
-    const winner = stepRecord({ name: 'winner', signalId: 'sig-1' })
+    const winner = stepRecord({
+      kind: 'signal',
+      name: 'winner',
+      signalId: 'sig-1',
+    })
     await store.appendStep('run-1', 0, winner)
 
     try {

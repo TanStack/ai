@@ -1394,6 +1394,10 @@ importers:
         version: 4.3.6
 
   packages/typescript/ai-orchestration:
+    dependencies:
+      '@tanstack/workflow-core':
+        specifier: 0.0.1
+        version: 0.0.1
     devDependencies:
       '@standard-schema/spec':
         specifier: ^1.1.0
@@ -6430,6 +6434,10 @@ packages:
 
   '@tanstack/vite-config@0.4.1':
     resolution: {integrity: sha512-FOl8EF6SAcljanKSm5aBeJaflFcxQAytTbxtNW8HC6D4x+UBW68IC4tBcrlrsI0wXHBmC/Gz4Ovvv8qCtiXSgQ==}
+    engines: {node: '>=18'}
+
+  '@tanstack/workflow-core@0.0.1':
+    resolution: {integrity: sha512-Js6NF16ACbN2lm9GX2S2+NpPvpBo6NvYME5mEEccesWmlQlrqKUSp9Z4kS57HiXXa1eYCnqFa2KMXoeH8tbM2w==}
     engines: {node: '>=18'}
 
   '@tanstack/zod-adapter@1.166.9':
@@ -17037,6 +17045,10 @@ snapshots:
       - supports-color
       - typescript
       - vite
+
+  '@tanstack/workflow-core@0.0.1':
+    dependencies:
+      '@standard-schema/spec': 1.1.0
 
   '@tanstack/zod-adapter@1.166.9(@tanstack/react-router@1.159.5(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(zod@4.3.6)':
     dependencies:

@@ -45,11 +45,16 @@ export type {
   InMemoryRunStore,
   InMemoryRunStoreOptions,
 } from './run-store/in-memory'
-export type { DeleteReason, RunState, RunStatus, RunStore } from './types'
+export type {
+  DeleteReason,
+  RunState,
+  RunStatus,
+  RunStore,
+} from '@tanstack/workflow-core'
 
 // ===== Errors =====
 export { SchemaValidationError } from './engine/invoke-agent'
-export { LogConflictError, StepTimeoutError } from './types'
+export { LogConflictError, StepTimeoutError } from '@tanstack/workflow-core'
 
 // ===== Public types =====
 export type {

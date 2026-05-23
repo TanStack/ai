@@ -20,8 +20,8 @@ export interface DefineWorkflowConfig<
    *  Used with `selectWorkflowVersion` for cross-version routing. */
   version?: string
   /** Migration patch names. Pairs with `yield* patched(name)` calls
-   *  in user code. Declaring this switches the workflow to a lighter
-   *  fingerprint that tolerates code-body changes. */
+   *  in user code. Strict in-flight migration routing should use
+   *  explicit workflow versions. */
   patches?: ReadonlyArray<string>
   input?: TInputSchema
   output?: TOutputSchema

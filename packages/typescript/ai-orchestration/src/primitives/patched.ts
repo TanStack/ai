@@ -9,10 +9,8 @@ import type { StepDescriptor, StepGenerator } from '../types'
  *       // old behavior, kept for runs started before the patch
  *     }
  *
- * Returns `true` for runs that were started under a workflow version
- * which declared `patches: ['add-auth-check', ...]`, `false` for runs
- * started before the patch existed. The decision is read from the
- * run's persisted `startingPatches` field — stable across replays.
+ * The decision is executed as a workflow-core step checkpoint, so it
+ * remains stable for a run once recorded.
  *
  * Workflows that use `patched()` must declare the patch names on the
  * workflow definition so new runs see them at start:
@@ -23,10 +21,8 @@ import type { StepDescriptor, StepGenerator } from '../types'
  *       run: async function* () { ... }
  *     })
  *
- * Declaring `patches` also switches the workflow into patch-versioned
- * fingerprint mode — code-body changes no longer trigger
- * `workflow_version_mismatch`. Hosts running multiple versions of the
- * same workflow side-by-side should pair this with
+ * Hosts running multiple versions of the same workflow side-by-side
+ * should pair patch checks with explicit workflow versions and
  * `selectWorkflowVersion`.
  */
 export function* patched(name: string): StepGenerator<boolean> {

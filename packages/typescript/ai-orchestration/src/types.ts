@@ -109,13 +109,9 @@ export interface WorkflowDefinition<
   agents: TAgents
   /**
    * Migration patch list. Each entry is a string name that user code
-   * gates on via `yield* patched(name)`. Declaring `patches` switches
-   * this workflow into the lighter "patch-versioned" fingerprint
-   * mode: code-body changes no longer trigger
-   * `workflow_version_mismatch`; instead the engine checks that the
-   * run's recorded patches are a subset of the current workflow's
-   * patches. Workflows without `patches` get the strict source-hash
-   * fingerprint (unchanged).
+   * gates on via `yield* patched(name)`. The AI wrapper records the
+   * patch decision through workflow-core step checkpoints; strict
+   * in-flight migration routing should use explicit workflow versions.
    */
   patches?: ReadonlyArray<string>
   initialize?: (args: {
@@ -306,26 +302,9 @@ export interface RunState<
    * registered version when running multiple versions side-by-side.
    */
   workflowVersion?: string
-  /**
-   * Stable hash of the workflow's source (definition + agents). Computed
-   * once at run start, persisted with state, and compared on every
-   * replay-from-store resume. A mismatch means the deployed workflow's
-   * code drifted since the run was started — the engine refuses resume
-   * with `RUN_ERROR { code: 'workflow_version_mismatch' }` rather than
-   * blindly driving a fresh generator through a log whose positional
-   * indices may not line up.
-   *
-   * For workflows that declared `patches` the fingerprint uses a
-   * lighter scheme (name + sorted patches) so code-body changes don't
-   * invalidate in-flight runs; compatibility is enforced by the
-   * `startingPatches ⊆ current patches` check on resume.
-   */
+  /** Legacy pre-workflow-core metadata retained for compatibility. */
   fingerprint?: string
-  /**
-   * Patches the workflow declared at the moment this run was started.
-   * `yield* patched(name)` returns `startingPatches.includes(name)`.
-   * Persisted so the answer stays stable across replays.
-   */
+  /** Legacy pre-workflow-core metadata retained for compatibility. */
   startingPatches?: ReadonlyArray<string>
   input: TInput
   state: TState
@@ -359,6 +338,7 @@ export interface RunState<
  */
 export interface SignalResult<TPayload = unknown> {
   signalId: string
+  name?: string
   payload: TPayload
 }
 
@@ -435,22 +415,6 @@ export interface StepRecord {
 }
 
 /**
- * Thrown when a `step()` with `{ timeout }` exceeds its wall-clock
- * budget on a given attempt. Subject to the retry policy — the retry
- * loop sees this like any other thrown error and either retries
- * (default) or surfaces it to user code (via `shouldRetry`).
- */
-export class StepTimeoutError extends Error {
-  override readonly name = 'StepTimeoutError'
-  constructor(
-    public readonly stepName: string,
-    public readonly timeoutMs: number,
-  ) {
-    super(`Step "${stepName}" exceeded ${timeoutMs}ms timeout.`)
-  }
-}
-
-/**
  * Thrown by `RunStore.appendStep` when another writer has already
  * committed a record at the requested index. The engine catches it,
  * re-reads the log, and either:
@@ -477,61 +441,7 @@ export class LogConflictError extends Error {
   }
 }
 
-// ==========================================
-// RunStore
-// ==========================================
-
 export type DeleteReason = 'finished' | 'error' | 'aborted'
-
-/**
- * Pluggable backing store for orchestration runs.
- *
- * Two concerns, kept deliberately separate:
- *
- * - **State** (`getRunState` / `setRunState` / `deleteRun`) is the
- *   *materialized view*. Holds the current snapshot — status, input,
- *   user-defined state, output, error, pause info. Written on each
- *   meaningful transition. Low frequency, snapshot writes. If state is
- *   missing or torn after a crash, the engine reconstructs it by
- *   replaying the log.
- *
- * - **Step log** (`appendStep` / `getSteps`) is the *authoritative
- *   source of truth*. Append-only. Each entry records one checkpoint
- *   boundary in the run (agent invocation, approval, side-effecting
- *   step, …). High frequency, conditional writes.
- *
- * `appendStep` is optimistic-CAS: writers pass the implicit
- * `expectedNextIndex`, and the store must reject the append (by throwing
- * `LogConflictError`) if a record already exists at that index. The
- * conditional check and the insert must be a single atomic operation on
- * the backing system (Postgres `INSERT ... WHERE NOT EXISTS`, DynamoDB
- * `ConditionExpression`, Redis `WATCH`/multi, SQLite, …). Backends that
- * can't enforce atomic CAS are unsuitable for multi-instance
- * deployments.
- *
- * No transactional contract is required *between* state and log writes —
- * the engine writes log entries before any state mutation that depends
- * on them, and replay guarantees state correctness from the log alone.
- */
-export interface RunStore {
-  // ── state (snapshot) ───────────────────────────────────────────────
-  getRunState: (runId: string) => Promise<RunState | undefined>
-  setRunState: (runId: string, state: RunState) => Promise<void>
-  deleteRun: (runId: string, reason: DeleteReason) => Promise<void>
-
-  // ── step log (append-only, CAS) ────────────────────────────────────
-  /**
-   * Append `record` at `expectedNextIndex`. Throws `LogConflictError` if
-   * another writer has already committed at that index. Must be atomic.
-   */
-  appendStep: (
-    runId: string,
-    expectedNextIndex: number,
-    record: StepRecord,
-  ) => Promise<void>
-  /** Read every record for `runId`, ordered by `index` ascending. */
-  getSteps: (runId: string) => Promise<ReadonlyArray<StepRecord>>
-}
 
 // ==========================================
 // Engine-internal: live (non-serializable) run handle

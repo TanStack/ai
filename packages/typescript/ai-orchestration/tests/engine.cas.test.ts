@@ -192,8 +192,9 @@ describe('CAS — lost race', () => {
     // the engine takes the replay path (which is where the append-
     // collision can happen — the in-memory fast path drives the
     // already-paused live generator).
-    await store.appendStep('race', 0, {
-      index: 0,
+    const currentCoreEvents = await store.getEvents('race')
+    await store.appendStep('race', currentCoreEvents.length, {
+      index: currentCoreEvents.length,
       kind: 'signal',
       name: 'only-one-wins',
       signalId: 'winner',
@@ -221,10 +222,9 @@ describe('CAS — lost race', () => {
       }),
     )
 
-    // The engine sees the pre-existing log entry as the resolution
-    // for the signal — replay returns 'winner-payload' to user code,
-    // run completes normally. The 'lost' caller's payload is silently
-    // ignored because the winning record was already durable.
-    expect(loser.find((e) => e.type === 'RUN_FINISHED')).toBeDefined()
+    const err = loser.find((e) => e.type === 'RUN_ERROR') as
+      | { code?: string }
+      | undefined
+    expect(err?.code).toBe('signal_lost')
   })
 })

@@ -1,5 +1,5 @@
 import type { StreamChunk } from '@tanstack/ai'
-import type { Operation } from './state-diff'
+import type { Operation } from '@tanstack/workflow-core'
 
 /**
  * Helpers that produce native AG-UI event chunks for the workflow lifecycle.

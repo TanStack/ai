@@ -2,10 +2,10 @@
  * Tests for client-provided runId + signalId idempotency (step 8 of
  * the durability roadmap). Pins:
  *   - Start with a client-supplied runId.
- *   - A second start with the same runId + same fingerprint returns an
+ *   - A second start with the same runId returns an
  *     attach snapshot (idempotent retry).
- *   - A second start with the same runId + different fingerprint is
- *     rejected with run_id_conflict.
+ *   - A second start with the same runId + changed workflow code is
+ *     handled by workflow-core as an idempotent attach.
  *   - signalDelivery.signalId is recorded on the resulting step record
  *     (CAS conflict handling lands in step 9).
  */
@@ -52,7 +52,7 @@ describe('start idempotency', () => {
     expect(runState).toBeDefined()
   })
 
-  it('treats a duplicate start (same id + fingerprint) as an idempotent retry', async () => {
+  it('treats a duplicate start with the same id as an idempotent retry', async () => {
     const wf = defineWorkflow({
       name: 'wf',
       input: z.object({ msg: z.string() }),
@@ -101,7 +101,7 @@ describe('start idempotency', () => {
     expect(stepsSnap).toBeDefined()
   })
 
-  it('rejects a duplicate start with a different fingerprint as run_id_conflict', async () => {
+  it('treats a duplicate start with changed workflow code as an attach', async () => {
     const v1 = defineWorkflow({
       name: 'wf',
       input: z.object({}).default({}),
@@ -143,10 +143,14 @@ describe('start idempotency', () => {
       }),
     )
 
-    const err = second.find((e) => e.type === 'RUN_ERROR') as
-      | { code?: string }
-      | undefined
-    expect(err?.code).toBe('run_id_conflict')
+    expect(second.find((e) => e.type === 'RUN_ERROR')).toBeUndefined()
+    expect(
+      second.find(
+        (e) =>
+          e.type === 'CUSTOM' &&
+          (e as { name?: string }).name === 'steps-snapshot',
+      ),
+    ).toBeDefined()
   })
 })
 

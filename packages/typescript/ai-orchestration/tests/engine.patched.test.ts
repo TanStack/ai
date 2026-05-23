@@ -3,12 +3,12 @@
  *
  *   - `patched(name)` returns true when the workflow declared the
  *     patch at start time, false otherwise.
- *   - Workflows with `patches` declared switch to patch-versioned
- *     fingerprint mode: code-body changes don't trigger
- *     workflow_version_mismatch on resume.
+ *   - `patched()` decisions are delegated to workflow-core step
+ *     checkpoints.
  *   - Adding a patch across a deploy doesn't break in-flight runs;
  *     the old runs see `patched()` return false for the new patch.
- *   - Removing a patch is rejected with workflow_patches_removed.
+ *   - Patch removal is not reimplemented in the AI wrapper; hosts that
+ *     need strict migration routing should use explicit workflow versions.
  */
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
@@ -141,7 +141,7 @@ describe('patched()', () => {
     })
   })
 
-  it('refuses resume when patches were REMOVED across the deploy', async () => {
+  it('does not add an AI-side removed-patch guard on top of workflow-core', async () => {
     const oldWf = defineWorkflow({
       name: 'remove-patch',
       input: z.object({}).default({}),
@@ -187,10 +187,8 @@ describe('patched()', () => {
       }),
     )
 
-    const err = phase2.find((e) => e.type === 'RUN_ERROR') as
-      | { code?: string }
-      | undefined
-    expect(err?.code).toBe('workflow_patches_removed')
+    expect(phase2.find((e) => e.type === 'RUN_ERROR')).toBeUndefined()
+    expect(phase2.map((e) => e.type)).toContain('RUN_FINISHED')
   })
 
   it('allows resume when code body changed but patches list is unchanged', async () => {

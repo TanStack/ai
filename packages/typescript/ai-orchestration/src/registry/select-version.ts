@@ -1,4 +1,5 @@
-import type { AnyWorkflowDefinition, RunStore } from '../types'
+import type { RunStore } from '@tanstack/workflow-core'
+import type { AnyWorkflowDefinition } from '../types'
 
 /**
  * Pick the workflow version that a persisted run was started under.
@@ -40,7 +41,7 @@ export async function selectWorkflowVersion<T extends AnyWorkflowDefinition>(
     // into v-undefined code, which is a determinism violation.
     return versions.find(
       (v) =>
-        v.name === runState.workflowName &&
+        v.name === runState.workflowId &&
         v.version === runState.workflowVersion,
     )
   }
@@ -48,7 +49,7 @@ export async function selectWorkflowVersion<T extends AnyWorkflowDefinition>(
   // Legacy fallback: pre-versioning runs have no workflowVersion;
   // match by name + no version declared.
   return versions.find(
-    (v) => v.name === runState.workflowName && v.version === undefined,
+    (v) => v.name === runState.workflowId && v.version === undefined,
   )
 }
 

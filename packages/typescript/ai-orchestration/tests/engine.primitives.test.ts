@@ -94,8 +94,8 @@ describe('step()', () => {
     expect(idsSeen).toHaveLength(2)
     // Two different steps → two different IDs, both starting with the
     // run prefix and ending with the step's log index.
-    expect(idsSeen[0]).toMatch(/:step-0$/)
-    expect(idsSeen[1]).toMatch(/:step-1$/)
+    expect(idsSeen[0]).toMatch(/:step:a$/)
+    expect(idsSeen[1]).toMatch(/:step:b$/)
     expect(idsSeen[0]).not.toBe(idsSeen[1])
   })
 

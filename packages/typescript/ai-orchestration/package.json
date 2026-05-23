@@ -54,5 +54,8 @@
     "@vitest/coverage-v8": "4.0.14",
     "vite": "^7.3.3",
     "zod": "^4.2.0"
+  },
+  "dependencies": {
+    "@tanstack/workflow-core": "0.0.1"
   }
 }

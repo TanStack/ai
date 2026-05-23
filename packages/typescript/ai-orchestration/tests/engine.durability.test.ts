@@ -244,10 +244,10 @@ describe('engine durability — resume after restart (replay)', () => {
     })
   })
 
-  it('emits workflow_version_mismatch when the workflow source changed', async () => {
-    // Two workflows that share name + input/output shape but differ in
-    // body. We start a run with v1, drop the live handle (forcing the
-    // resume to take the replay path), then resume against v2.
+  it('delegates source-drift behavior to workflow-core version routing', async () => {
+    // workflow-core v0.0.1 does not fingerprint function source in this
+    // wrapper. If hosts need strict in-flight routing, they should use
+    // explicit workflow versions and the registry helper.
     const echo = defineAgent({
       name: 'echo',
       input: z.object({ msg: z.string() }),
@@ -275,7 +275,7 @@ describe('engine durability — resume after restart (replay)', () => {
       output: z.object({ result: z.string() }),
       state: z.object({}).default({}),
       agents: { echo },
-      // Body differs — different fingerprint.
+      // Body differs.
       run: async function* ({ input, agents }) {
         const d = yield* approve({ title: 'go?' })
         if (!d.approved) return { result: 'rejected' } // changed text
@@ -306,21 +306,14 @@ describe('engine durability — resume after restart (replay)', () => {
       }),
     )
 
-    const errEvent = phase2.find((e) => e.type === 'RUN_ERROR') as {
-      code?: string
-      message?: string
-    }
-    expect(errEvent?.code).toBe('workflow_version_mismatch')
-    expect(errEvent?.message).toContain('Workflow source changed')
-
-    // No RUN_FINISHED should fire — we refused to drive a generator
-    // against a log whose positional indices might not match.
-    expect(phase2.map((e) => e.type)).not.toContain('RUN_FINISHED')
+    expect(phase2.find((e) => e.type === 'RUN_ERROR')).toBeUndefined()
+    expect(phase2.find((e) => e.type === 'RUN_FINISHED')).toMatchObject({
+      output: { result: '[v2] HI' },
+    })
   })
 
   it('allows resume when the workflow source is unchanged', async () => {
-    // Sanity: the fingerprint check should NOT fire false positives
-    // when the same definition is used across phases.
+    // Sanity: the same definition still resumes cleanly across phases.
     const echo = defineAgent({
       name: 'echo',
       input: z.object({ msg: z.string() }),

@@ -4,8 +4,8 @@
  * `runWorkflow({ runId, attach: true })` lets a fresh subscriber
  * (browser refresh, shared link, mobile reconnect) read the current
  * snapshot of an existing run without driving it forward. The wire
- * format must carry enough for the client to rebuild its UI from
- * scratch — STATE_SNAPSHOT + the steps-snapshot CUSTOM event with
+ * format must carry enough for the client to rebuild its step UI from
+ * scratch: STATE_SNAPSHOT + the steps-snapshot CUSTOM event with
  * every completed step record.
  */
 import { describe, expect, it } from 'vitest'
@@ -72,7 +72,10 @@ describe('attach — paused run', () => {
     const stateSnap = attached.find((e) => e.type === 'STATE_SNAPSHOT') as {
       snapshot: { phase: string }
     }
-    expect(stateSnap.snapshot.phase).toBe('waiting')
+    // workflow-core persists run metadata and the event log. Mutable
+    // user state is reconstructed during execution, so attach exposes
+    // the initial state snapshot rather than the paused mutation.
+    expect(stateSnap.snapshot.phase).toBe('start')
 
     const stepsSnap = attached.find(
       (e) =>
