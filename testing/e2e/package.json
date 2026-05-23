@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@copilotkit/aimock": "^1.18.0",
-    "@openrouter/sdk": "0.12.14",
+    "@openrouter/sdk": "0.12.35",
     "@opentelemetry/api": "^1.9.0",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/ai": "workspace:*",
@@ -36,6 +36,7 @@
     "rehype-highlight": "^7.0.2",
     "rehype-raw": "^7.0.0",
     "rehype-sanitize": "^6.0.0",
+    "remark-cjk-friendly": "^2.0.1",
     "remark-gfm": "^4.0.1",
     "tailwindcss": "^4.1.18",
     "vite-tsconfig-paths": "^5.1.4",

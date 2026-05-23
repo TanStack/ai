@@ -52,6 +52,6 @@ export function* waitForSignal<TPayload = unknown>(
     deadline: options?.deadline,
     meta: options?.meta,
   }
-  // eslint-disable-next-line no-restricted-syntax -- yield expression has unknown type; engine guarantees a TPayload resume value (signal payload)
-  return (yield descriptor) as unknown as TPayload
+
+  return yield descriptor
 }

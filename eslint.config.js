@@ -12,11 +12,7 @@ const config = [
       'unused-imports': unusedImports,
     },
     rules: {
-      'no-case-declarations': 'off',
-      'no-shadow': 'off',
       'unused-imports/no-unused-imports': 'warn',
-      'pnpm/enforce-catalog': 'off',
-      'pnpm/json-enforce-catalog': 'off',
     },
   },
   {

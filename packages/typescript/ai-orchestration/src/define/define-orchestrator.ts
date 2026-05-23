@@ -96,8 +96,8 @@ export function defineOrchestrator<
       let lastResult: unknown = undefined
       for (let turn = 0; turn < maxTurns; turn++) {
         const decision = yield* config.router({
-          input: args.input as any,
-          state: args.state as any,
+          input: args.input,
+          state: args.state,
           agents: args.agents,
           turn,
           lastResult,

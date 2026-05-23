@@ -548,7 +548,7 @@ function buildInitialStateSnapshot(
   input: unknown,
 ): Record<string, unknown> {
   const initial = workflow.initialize
-    ? workflow.initialize({ input: input as never })
+    ? workflow.initialize({ input: input })
     : {}
   const withPatches = {
     ...initial,

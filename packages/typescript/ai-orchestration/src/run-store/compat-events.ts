@@ -176,9 +176,5 @@ function readApprovalResult(value: unknown): {
   feedback?: string
 } {
   if (typeof value !== 'object' || value === null) return {}
-  return value as {
-    approved?: boolean
-    approvalId?: string
-    feedback?: string
-  }
+  return value
 }

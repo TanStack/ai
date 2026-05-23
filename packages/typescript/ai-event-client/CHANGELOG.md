@@ -1,5 +1,37 @@
 # @tanstack/ai-event-client
 
+## 0.3.10
+
+### Patch Changes
+
+- Populate server-executed tool results on the matching `tool-call` part and mark successful tool calls as `complete`. ([#596](https://github.com/TanStack/ai/pull/596))
+
+- Updated dependencies [[`e144a53`](https://github.com/TanStack/ai/commit/e144a53e4348bb0bc365dbe342c8538544242227)]:
+  - @tanstack/ai@0.21.3
+
+## 0.3.9
+
+### Patch Changes
+
+- Refresh package README content and npm metadata for better discoverability. ([#626](https://github.com/TanStack/ai/pull/626))
+
+- Updated dependencies [[`ebeb22e`](https://github.com/TanStack/ai/commit/ebeb22ec68f456b09e0181ac6f5d1ac25a0affd2)]:
+  - @tanstack/ai@0.21.2
+
+## 0.3.8
+
+### Patch Changes
+
+- Updated dependencies [[`573f12e`](https://github.com/TanStack/ai/commit/573f12eb5a3b04a2625be92900099f48d6f76632)]:
+  - @tanstack/ai@0.21.1
+
+## 0.3.7
+
+### Patch Changes
+
+- Updated dependencies [[`ec1393d`](https://github.com/TanStack/ai/commit/ec1393db4383798e5f2574dfd87779c22c309529), [`188fe11`](https://github.com/TanStack/ai/commit/188fe11b9b9691e5a241cfc416803da5b8ce5376)]:
+  - @tanstack/ai@0.21.0
+
 ## 0.3.6
 
 ### Patch Changes

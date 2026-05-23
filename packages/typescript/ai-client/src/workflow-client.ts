@@ -342,14 +342,14 @@ export class WorkflowClient<
         this.setState({
           status: 'finished',
           output: chunk.output as TOutput,
-        } as Partial<WorkflowClientState<TState, TOutput>>)
+        })
         break
       case 'RUN_STARTED':
         if (this.isTerminal()) break
         this.setState({
           runId: chunk.runId as string,
           status: 'running',
-        } as Partial<WorkflowClientState<TState, TOutput>>)
+        })
         break
       case 'STATE_DELTA': {
         const next = applyJsonPatch(
@@ -422,7 +422,7 @@ export class WorkflowClient<
   private setState(patch: Partial<WorkflowClientState<TState, TOutput>>): void {
     this.clientState = { ...this.clientState, ...patch }
     for (const sub of this.subscribers) sub(this.clientState)
-    this.opts.onStateChange?.(this.clientState as WorkflowClientState)
+    this.opts.onStateChange?.(this.clientState)
   }
 }
 

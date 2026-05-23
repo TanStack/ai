@@ -1,5 +1,35 @@
 # @tanstack/ai-isolate-node
 
+## 0.1.20
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-code-mode@0.1.20
+
+## 0.1.19
+
+### Patch Changes
+
+- Refresh package README content and npm metadata for better discoverability. ([#626](https://github.com/TanStack/ai/pull/626))
+
+- Updated dependencies [[`ebeb22e`](https://github.com/TanStack/ai/commit/ebeb22ec68f456b09e0181ac6f5d1ac25a0affd2)]:
+  - @tanstack/ai-code-mode@0.1.19
+
+## 0.1.18
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-code-mode@0.1.18
+
+## 0.1.17
+
+### Patch Changes
+
+- Updated dependencies [[`ec1393d`](https://github.com/TanStack/ai/commit/ec1393db4383798e5f2574dfd87779c22c309529)]:
+  - @tanstack/ai-code-mode@0.1.17
+
 ## 0.1.16
 
 ### Patch Changes

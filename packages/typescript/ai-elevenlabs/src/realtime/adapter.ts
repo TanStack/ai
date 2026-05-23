@@ -8,7 +8,6 @@ import type {
   RealtimeMessage,
   RealtimeMode,
   RealtimeSessionConfig,
-  RealtimeStatus,
   RealtimeToken,
 } from '@tanstack/ai'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
@@ -119,7 +118,7 @@ async function createElevenLabsConnection(
       logger.provider(`provider=elevenlabs direction=in type=connect`, {
         frame: { type: 'connect' },
       })
-      emit('status_change', { status: 'connected' as RealtimeStatus })
+      emit('status_change', { status: 'connected' })
       emit('mode_change', { mode: 'listening' })
     },
 
@@ -127,7 +126,7 @@ async function createElevenLabsConnection(
       logger.provider(`provider=elevenlabs direction=in type=disconnect`, {
         frame: { type: 'disconnect' },
       })
-      emit('status_change', { status: 'idle' as RealtimeStatus })
+      emit('status_change', { status: 'idle' })
       emit('mode_change', { mode: 'idle' })
     },
 
@@ -205,7 +204,7 @@ async function createElevenLabsConnection(
         await conversation.endSession()
         conversation = null
       }
-      emit('status_change', { status: 'idle' as RealtimeStatus })
+      emit('status_change', { status: 'idle' })
     },
 
     async startAudioCapture() {

@@ -11,6 +11,7 @@ import type {
   ErrorInfo,
   FinishInfo,
   IterationInfo,
+  StructuredOutputMiddlewareConfig,
   ToolCallHookContext,
   ToolPhaseCompleteInfo,
   UsageInfo,
@@ -71,7 +72,7 @@ export class MiddlewareRunner {
           current = { ...current, ...result }
           if (!skip) {
             this.logger.config(
-              `middleware=${mw.name ?? 'unnamed'} keys=${Object.keys(result as object).join(',')}`,
+              `middleware=${mw.name ?? 'unnamed'} keys=${Object.keys(result).join(',')}`,
               {
                 middleware: mw.name ?? 'unnamed',
                 changes: result,
@@ -94,7 +95,66 @@ export class MiddlewareRunner {
               ...base,
               middlewareName: mw.name || 'unnamed',
               iteration: ctx.iteration,
-              changes: result as Record<string, unknown>,
+              changes: result,
+            })
+          }
+        }
+      }
+    }
+    return current
+  }
+
+  /**
+   * Pipe config through all middleware onStructuredOutputConfig hooks in order.
+   * Each middleware receives the merged config from previous middleware.
+   * Partial returns are shallow-merged with the current config.
+   *
+   * Called once at the structured-output boundary, before runOnConfig at the
+   * same boundary (which receives a ChatMiddlewareConfig view, no outputSchema).
+   */
+  async runOnStructuredOutputConfig(
+    ctx: ChatMiddlewareContext,
+    config: StructuredOutputMiddlewareConfig,
+  ): Promise<StructuredOutputMiddlewareConfig> {
+    let current = config
+    for (const mw of this.middlewares) {
+      if (mw.onStructuredOutputConfig) {
+        const skip = shouldSkipInstrumentation(mw)
+        const start = Date.now()
+        const result = await mw.onStructuredOutputConfig(ctx, current)
+        const hasTransform = result !== undefined && result !== null
+        if (hasTransform) {
+          current = { ...current, ...result }
+          if (!skip) {
+            this.logger.config(
+              `middleware=${mw.name ?? 'unnamed'} keys=${Object.keys(result).join(',')}`,
+              {
+                middleware: mw.name ?? 'unnamed',
+                changes: result,
+              },
+            )
+          }
+        }
+        if (!skip) {
+          const base = instrumentCtx(ctx)
+          aiEventClient.emit('middleware:hook:executed', {
+            ...base,
+            middlewareName: mw.name || 'unnamed',
+            hookName: 'onStructuredOutputConfig',
+            iteration: ctx.iteration,
+            duration: Date.now() - start,
+            hasTransform,
+          })
+          if (hasTransform) {
+            aiEventClient.emit('middleware:config:transformed', {
+              ...base,
+              middlewareName: mw.name || 'unnamed',
+              iteration: ctx.iteration,
+              // `result` is `Partial<StructuredOutputMiddlewareConfig>` —
+              // Object.fromEntries(Object.entries(result)) yields the
+              // structural `Record<string, unknown>` the event emitter wants
+              // without an `as` cast.
+              changes: Object.fromEntries(Object.entries(result)),
             })
           }
         }
@@ -152,7 +212,7 @@ export class MiddlewareRunner {
       const nextChunks: Array<StreamChunk> = []
       for (const c of chunks) {
         // Cast: @ag-ui/core Zod passthrough types prevent direct `.type` access
-        const chunkType = (c as StreamChunk & { type: string }).type
+        const chunkType = c.type
         if (!skip) {
           this.logger.middleware(
             `hook=onChunk middleware=${mw.name ?? 'unnamed'} in=${chunkType}`,
@@ -188,7 +248,7 @@ export class MiddlewareRunner {
           nextChunks.push(...result)
           if (!skip) {
             this.logger.middleware(
-              `hook=onChunk middleware=${mw.name ?? 'unnamed'} in=${chunkType} out=[${result.map((r: StreamChunk) => (r as StreamChunk & { type: string }).type).join(',')}]`,
+              `hook=onChunk middleware=${mw.name ?? 'unnamed'} in=${chunkType} out=[${result.map((r: StreamChunk) => r.type).join(',')}]`,
               {
                 middleware: mw.name ?? 'unnamed',
                 hook: 'onChunk',
@@ -209,7 +269,7 @@ export class MiddlewareRunner {
           nextChunks.push(result)
           if (!skip) {
             this.logger.middleware(
-              `hook=onChunk middleware=${mw.name ?? 'unnamed'} in=${chunkType} out=${(result as StreamChunk & { type: string }).type}`,
+              `hook=onChunk middleware=${mw.name ?? 'unnamed'} in=${chunkType} out=${result.type}`,
               {
                 middleware: mw.name ?? 'unnamed',
                 hook: 'onChunk',

@@ -58,7 +58,6 @@ export function isStandardSchema(schema: unknown): schema is StandardSchemaV1 {
     typeof schema['~standard'] === 'object' &&
     schema['~standard'] !== null &&
     'version' in schema['~standard'] &&
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime guard for caller-provided unknown; in-operator narrows but doesn't validate the wire payload
     schema['~standard'].version === 1 &&
     'validate' in schema['~standard'] &&
     typeof schema['~standard'].validate === 'function'
@@ -341,6 +340,25 @@ export async function validateWithStandardSchema<T>(
 }
 
 /**
+ * Error thrown when Standard Schema validation fails. Carries the original
+ * `issues` array so consumers (middleware `onError`, callers catching from
+ * `chat({ outputSchema })`) can programmatically inspect each failure.
+ */
+export class StandardSchemaValidationError extends Error {
+  override readonly name = 'StandardSchemaValidationError'
+  readonly issues: ReadonlyArray<StandardSchemaV1.Issue>
+
+  constructor(issues: ReadonlyArray<StandardSchemaV1.Issue>) {
+    super(
+      `Validation failed: ${issues
+        .map((i) => i.message || 'Validation failed')
+        .join(', ')}`,
+    )
+    this.issues = issues
+  }
+}
+
+/**
  * Synchronously validates data against a Standard Schema compliant schema.
  * Note: Some Standard Schema implementations may only support async validation.
  * In those cases, this function will throw.
@@ -348,7 +366,8 @@ export async function validateWithStandardSchema<T>(
  * @param schema - Standard Schema compliant schema
  * @param data - Data to validate
  * @returns Parsed/validated data
- * @throws Error if validation fails or if the schema only supports async validation
+ * @throws StandardSchemaValidationError if validation fails; Error if the
+ *         schema only supports async validation.
  */
 export function parseWithStandardSchema<T>(schema: unknown, data: unknown): T {
   if (!isStandardSchema(schema)) {
@@ -369,9 +388,5 @@ export function parseWithStandardSchema<T>(schema: unknown, data: unknown): T {
     return result.value as T
   }
 
-  // invalid validation, throw error with all issues
-  const errorMessages = result.issues
-    .map((issue) => issue.message || 'Validation failed')
-    .join(', ')
-  throw new Error(`Validation failed: ${errorMessages}`)
+  throw new StandardSchemaValidationError(result.issues)
 }

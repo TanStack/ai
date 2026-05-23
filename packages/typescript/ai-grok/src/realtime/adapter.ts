@@ -7,7 +7,6 @@ import type {
   RealtimeMessage,
   RealtimeMode,
   RealtimeSessionConfig,
-  RealtimeStatus,
   RealtimeToken,
 } from '@tanstack/ai'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
@@ -210,7 +209,7 @@ async function createWebRTCConnection(
       // don't attempt a redundant reject on an already-settled promise.
       rejectDataChannelReady = null
       flushPendingEvents()
-      emit('status_change', { status: 'connected' as RealtimeStatus })
+      emit('status_change', { status: 'connected' })
       resolve()
     }
   })
@@ -297,10 +296,7 @@ async function createWebRTCConnection(
       // guard listeners would see two `idle` events per disconnect.
       if (!isTornDown) {
         emit('status_change', {
-          status:
-            state === 'failed'
-              ? ('error' as RealtimeStatus)
-              : ('idle' as RealtimeStatus),
+          status: state === 'failed' ? 'error' : 'idle',
         })
       }
       if (!dataChannelOpened) {
@@ -961,7 +957,7 @@ async function createWebRTCConnection(
       // every cleanup site stays in sync (input analyser, output analyser,
       // output source, audio element, etc.).
       await teardownConnection()
-      emit('status_change', { status: 'idle' as RealtimeStatus })
+      emit('status_change', { status: 'idle' })
     },
 
     async startAudioCapture() {

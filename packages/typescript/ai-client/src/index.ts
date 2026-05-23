@@ -63,6 +63,7 @@ export {
   type ConnectionAdapter,
   type FetchConnectionOptions,
   type FetchWorkflowEventsOptions,
+  type RunAgentInputContext,
   type SubscribeConnectionAdapter,
 } from './connection-adapters'
 

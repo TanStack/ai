@@ -1,5 +1,31 @@
 # @tanstack/ai-anthropic
 
+## 0.10.3
+
+### Patch Changes
+
+- Refresh package README content and npm metadata for better discoverability. ([#626](https://github.com/TanStack/ai/pull/626))
+
+- Updated dependencies [[`ebeb22e`](https://github.com/TanStack/ai/commit/ebeb22ec68f456b09e0181ac6f5d1ac25a0affd2)]:
+  - @tanstack/ai@0.21.2
+  - @tanstack/ai-utils@0.2.1
+
+## 0.10.2
+
+### Patch Changes
+
+- Fix streaming corruption when Anthropic responses mix client `tool_use` with server-side tools (`web_fetch`, `web_search`). Closes #604. ([#606](https://github.com/TanStack/ai/pull/606))
+
+  The Anthropic streaming adapter previously had no handler for `server_tool_use` / `web_fetch_tool_result` / `web_search_tool_result` content blocks. When a client `tool_use` was followed by a `server_tool_use` in the same response, the server tool's `input_json_delta` events appended onto the prior client tool's input buffer — producing concatenated JSON like `{...prevToolArgs...}{"url":"..."}` that threw in the agent loop's `JSON.parse`.
+  - `server_tool_use` is now tracked in a separate buffer so its deltas can't bleed into client tool args.
+  - `input_json_delta` is dispatched by the current block type instead of unconditionally appending to `toolCallsMap[currentToolIndex]`.
+  - `web_fetch_tool_result` and `web_search_tool_result` blocks are explicitly acknowledged (and ignored — they are consumed by Anthropic, not the client), so they no longer fall through to the text-block handler.
+
+  No new public events are introduced: server-side tool execution stays internal to the provider, matching how `webFetchTool()` / `webSearchTool()` were always intended to be used.
+
+- Updated dependencies [[`ec1393d`](https://github.com/TanStack/ai/commit/ec1393db4383798e5f2574dfd87779c22c309529), [`188fe11`](https://github.com/TanStack/ai/commit/188fe11b9b9691e5a241cfc416803da5b8ce5376)]:
+  - @tanstack/ai@0.21.0
+
 ## 0.10.1
 
 ### Patch Changes

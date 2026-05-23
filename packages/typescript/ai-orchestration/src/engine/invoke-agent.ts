@@ -36,7 +36,7 @@ export function invokeAgent<T>(
     input = validated.value
   }
 
-  const result = agent.run({ input, emit, signal } as any) as AgentRunResult<T>
+  const result = agent.run({ input, emit, signal }) as AgentRunResult<T>
   const candidate = result as unknown
 
   // Shape (c): { stream, output }

@@ -1,8 +1,7 @@
 import ReactMarkdown from 'react-markdown'
-import rehypeRaw from 'rehype-raw'
-import rehypeSanitize from 'rehype-sanitize'
-import rehypeHighlight from 'rehype-highlight'
-import remarkGfm from 'remark-gfm'
+import { resolveMarkdownPlugins } from './markdown-plugins'
+import type { Components } from 'react-markdown'
+import type { PluggableList } from './markdown-plugins'
 
 export interface TextPartProps {
   /** The text content to render */
@@ -15,16 +14,31 @@ export interface TextPartProps {
   userClassName?: string
   /** Additional className for assistant messages (also used for system messages) */
   assistantClassName?: string
+  /**
+   * Additional remark plugins, appended after the defaults
+   * (or replacing them when `disableDefaultPlugins` is true).
+   */
+  remarkPlugins?: PluggableList
+  /**
+   * Additional rehype plugins. Inserted between the built-in
+   * `rehypeRaw`/`rehypeHighlight` and the trailing `rehypeSanitize`
+   * so sanitization always runs last. When `disableDefaultPlugins`
+   * is true, replaces the entire chain.
+   */
+  rehypePlugins?: PluggableList
+  /** react-markdown `components` overrides (e.g. custom `a`, `code`). */
+  components?: Components
+  /**
+   * Drop the built-in plugin defaults entirely. The consumer becomes
+   * responsible for syntax highlighting, GFM, raw HTML handling, and
+   * sanitization. Use with care — disabling defaults removes the
+   * built-in XSS sanitizer.
+   */
+  disableDefaultPlugins?: boolean
 }
 
 /**
- * TextPart component - renders markdown text with syntax highlighting
- *
- * Features:
- * - Full markdown support with GFM (tables, strikethrough, etc.)
- * - Syntax highlighting for code blocks
- * - Sanitized HTML rendering
- * - Role-based styling (user vs assistant)
+ * TextPart component - renders markdown text with syntax highlighting.
  *
  * @example Standalone usage
  * ```tsx
@@ -37,22 +51,11 @@ export interface TextPartProps {
  * />
  * ```
  *
- * @example Usage in partRenderers
+ * @example Add a markdown plugin (e.g. CJK bold/emphasis support)
  * ```tsx
- * <ChatMessage
- *   message={message}
- *   partRenderers={{
- *     text: ({ content }) => (
- *       <TextPart
- *         content={content}
- *         role={message.role}
- *         className="px-5 py-3 rounded-2xl"
- *         userClassName="bg-orange-500 text-white"
- *         assistantClassName="bg-gray-800 text-white"
- *       />
- *     )
- *   }}
- * />
+ * import remarkCjkFriendly from 'remark-cjk-friendly'
+ *
+ * <TextPart content={content} remarkPlugins={[remarkCjkFriendly]} />
  * ```
  */
 export function TextPart({
@@ -61,8 +64,11 @@ export function TextPart({
   className = '',
   userClassName = '',
   assistantClassName = '',
+  remarkPlugins,
+  rehypePlugins,
+  components,
+  disableDefaultPlugins,
 }: TextPartProps) {
-  // Combine classes based on role
   const roleClassName =
     role === 'user'
       ? userClassName
@@ -71,10 +77,18 @@ export function TextPart({
         : ''
   const combinedClassName = [className, roleClassName].filter(Boolean).join(' ')
 
+  const resolved = resolveMarkdownPlugins({
+    remarkPlugins,
+    rehypePlugins,
+    disableDefaultPlugins,
+  })
+
   return (
     <div className={combinedClassName || undefined}>
       <ReactMarkdown
-        rehypePlugins={[rehypeRaw, rehypeSanitize, rehypeHighlight, remarkGfm]}
+        remarkPlugins={resolved.remarkPlugins}
+        rehypePlugins={resolved.rehypePlugins}
+        components={components}
       >
         {content}
       </ReactMarkdown>

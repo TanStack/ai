@@ -5,7 +5,7 @@ title: AfterToolCallInfo
 
 # Interface: AfterToolCallInfo
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:166](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L166)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:193](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L193)
 
 Outcome information provided to onAfterToolCall.
 
@@ -17,7 +17,7 @@ Outcome information provided to onAfterToolCall.
 duration: number;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:178](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L178)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:205](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L205)
 
 Duration of tool execution in milliseconds
 
@@ -29,7 +29,7 @@ Duration of tool execution in milliseconds
 optional error: unknown;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:181](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L181)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:208](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L208)
 
 ***
 
@@ -39,7 +39,7 @@ Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:181]
 ok: boolean;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:176](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L176)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:203](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L203)
 
 Whether the execution succeeded
 
@@ -51,7 +51,7 @@ Whether the execution succeeded
 optional result: unknown;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:180](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L180)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:207](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L207)
 
 The result (if ok) or error (if not ok)
 
@@ -65,7 +65,7 @@ tool:
   | undefined;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:170](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L170)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:197](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L197)
 
 The resolved tool definition
 
@@ -77,7 +77,7 @@ The resolved tool definition
 toolCall: ToolCall;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:168](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L168)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:195](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L195)
 
 The tool call that was executed
 
@@ -89,7 +89,7 @@ The tool call that was executed
 toolCallId: string;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:174](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L174)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:201](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L201)
 
 ID of the tool call
 
@@ -101,6 +101,6 @@ ID of the tool call
 toolName: string;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:172](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L172)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:199](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L199)
 
 Name of the tool

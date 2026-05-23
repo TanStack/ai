@@ -151,7 +151,7 @@ function createDeltaStrategy(
       return {
         ...rest,
         delta: filtered,
-      } as StreamChunk
+      }
     },
   }
 }

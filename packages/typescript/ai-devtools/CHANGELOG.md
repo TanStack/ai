@@ -1,5 +1,39 @@
 # @tanstack/ai-devtools-core
 
+## 0.3.37
+
+### Patch Changes
+
+- Updated dependencies [[`e144a53`](https://github.com/TanStack/ai/commit/e144a53e4348bb0bc365dbe342c8538544242227)]:
+  - @tanstack/ai@0.21.3
+  - @tanstack/ai-event-client@0.3.10
+
+## 0.3.36
+
+### Patch Changes
+
+- Refresh package README content and npm metadata for better discoverability. ([#626](https://github.com/TanStack/ai/pull/626))
+
+- Updated dependencies [[`ebeb22e`](https://github.com/TanStack/ai/commit/ebeb22ec68f456b09e0181ac6f5d1ac25a0affd2)]:
+  - @tanstack/ai@0.21.2
+  - @tanstack/ai-event-client@0.3.9
+
+## 0.3.35
+
+### Patch Changes
+
+- Updated dependencies [[`573f12e`](https://github.com/TanStack/ai/commit/573f12eb5a3b04a2625be92900099f48d6f76632)]:
+  - @tanstack/ai@0.21.1
+  - @tanstack/ai-event-client@0.3.8
+
+## 0.3.34
+
+### Patch Changes
+
+- Updated dependencies [[`ec1393d`](https://github.com/TanStack/ai/commit/ec1393db4383798e5f2574dfd87779c22c309529), [`188fe11`](https://github.com/TanStack/ai/commit/188fe11b9b9691e5a241cfc416803da5b8ce5376)]:
+  - @tanstack/ai@0.21.0
+  - @tanstack/ai-event-client@0.3.7
+
 ## 0.3.33
 
 ### Patch Changes

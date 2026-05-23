@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as WorkflowRouteImport } from './routes/workflow'
 import { Route as RealtimeRouteImport } from './routes/realtime'
 import { Route as OrchestrationRouteImport } from './routes/orchestration'
+import { Route as Issue176ToolResultRouteImport } from './routes/issue-176-tool-result'
 import { Route as ImageGenRouteImport } from './routes/image-gen'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GenerationsVideoRouteImport } from './routes/generations.video'
@@ -50,6 +51,11 @@ const RealtimeRoute = RealtimeRouteImport.update({
 const OrchestrationRoute = OrchestrationRouteImport.update({
   id: '/orchestration',
   path: '/orchestration',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const Issue176ToolResultRoute = Issue176ToolResultRouteImport.update({
+  id: '/issue-176-tool-result',
+  path: '/issue-176-tool-result',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ImageGenRoute = ImageGenRouteImport.update({
@@ -179,6 +185,7 @@ const ApiGenerateAudioRoute = ApiGenerateAudioRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/image-gen': typeof ImageGenRoute
+  '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/orchestration': typeof OrchestrationRoute
   '/realtime': typeof RealtimeRoute
   '/workflow': typeof WorkflowRoute
@@ -208,6 +215,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/image-gen': typeof ImageGenRoute
+  '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/orchestration': typeof OrchestrationRoute
   '/realtime': typeof RealtimeRoute
   '/workflow': typeof WorkflowRoute
@@ -238,6 +246,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/image-gen': typeof ImageGenRoute
+  '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/orchestration': typeof OrchestrationRoute
   '/realtime': typeof RealtimeRoute
   '/workflow': typeof WorkflowRoute
@@ -269,6 +278,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/image-gen'
+    | '/issue-176-tool-result'
     | '/orchestration'
     | '/realtime'
     | '/workflow'
@@ -298,6 +308,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/image-gen'
+    | '/issue-176-tool-result'
     | '/orchestration'
     | '/realtime'
     | '/workflow'
@@ -327,6 +338,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/image-gen'
+    | '/issue-176-tool-result'
     | '/orchestration'
     | '/realtime'
     | '/workflow'
@@ -357,6 +369,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ImageGenRoute: typeof ImageGenRoute
+  Issue176ToolResultRoute: typeof Issue176ToolResultRoute
   OrchestrationRoute: typeof OrchestrationRoute
   RealtimeRoute: typeof RealtimeRoute
   WorkflowRoute: typeof WorkflowRoute
@@ -398,6 +411,13 @@ declare module '@tanstack/react-router' {
       path: '/realtime'
       fullPath: '/realtime'
       preLoaderRoute: typeof RealtimeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/issue-176-tool-result': {
+      id: '/issue-176-tool-result'
+      path: '/issue-176-tool-result'
+      fullPath: '/issue-176-tool-result'
+      preLoaderRoute: typeof Issue176ToolResultRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/orchestration': {
@@ -581,6 +601,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ImageGenRoute: ImageGenRoute,
+  Issue176ToolResultRoute: Issue176ToolResultRoute,
   OrchestrationRoute: OrchestrationRoute,
   RealtimeRoute: RealtimeRoute,
   WorkflowRoute: WorkflowRoute,

@@ -1,5 +1,35 @@
 # @tanstack/ai-grok
 
+## 0.8.7
+
+### Patch Changes
+
+- Refresh package README content and npm metadata for better discoverability. ([#626](https://github.com/TanStack/ai/pull/626))
+
+- Updated dependencies [[`ebeb22e`](https://github.com/TanStack/ai/commit/ebeb22ec68f456b09e0181ac6f5d1ac25a0affd2)]:
+  - @tanstack/ai@0.21.2
+  - @tanstack/ai-utils@0.2.1
+  - @tanstack/openai-base@0.3.6
+
+## 0.8.6
+
+### Patch Changes
+
+- Adopt `@tanstack/eslint-config@0.4.0` and clean up the local override layer. ([#607](https://github.com/TanStack/ai/pull/607))
+  - Bump `@tanstack/eslint-config` from `0.3.3` to `0.4.0`.
+  - Drop dead `pnpm/enforce-catalog` and `pnpm/json-enforce-catalog` disables (upstream removed `eslint-plugin-pnpm` in `0.3.1`).
+  - Drop the `no-case-declarations: off` override — no current source actually violates it.
+  - Drop the `no-shadow: off` override — upstream sets it to `warn`, so it surfaces in editors without blocking CI.
+  - Remove ~25 unnecessary type assertions across the publishable packages that the upgraded `typescript-eslint` now catches via `no-unnecessary-type-assertion`. One deliberately defensive cast in `ag-ui-wire.ts` is preserved with an inline opt-out and a reason comment.
+
+  No public-API or runtime-behavior changes.
+
+- Update model metadata from OpenRouter API ([#594](https://github.com/TanStack/ai/pull/594))
+
+- Updated dependencies [[`ec1393d`](https://github.com/TanStack/ai/commit/ec1393db4383798e5f2574dfd87779c22c309529), [`188fe11`](https://github.com/TanStack/ai/commit/188fe11b9b9691e5a241cfc416803da5b8ce5376)]:
+  - @tanstack/ai@0.21.0
+  - @tanstack/openai-base@0.3.5
+
 ## 0.8.5
 
 ### Patch Changes

@@ -917,6 +917,7 @@ describe('StreamProcessor', () => {
         (p) => p.type === 'tool-call',
       ) as ToolCallPart
       expect((toolCallPart as any).output).toEqual({ temp: 72 })
+      expect(toolCallPart.state).toBe('complete')
 
       const toolResultPart = messages[0]?.parts.find(
         (p) => p.type === 'tool-result',
@@ -981,6 +982,7 @@ describe('StreamProcessor', () => {
         (p) => p.type === 'tool-call',
       ) as ToolCallPart
       expect((toolCallPart as any).output).toEqual({ temp: 72 })
+      expect(toolCallPart.state).toBe('complete')
 
       const toolResultPart = messages[0]!.parts.find(
         (p) => p.type === 'tool-result',
@@ -1020,6 +1022,7 @@ describe('StreamProcessor', () => {
         .getMessages()[0]!
         .parts.find((p) => p.type === 'tool-call') as ToolCallPart
       expect((toolCallPart as any).output).toEqual({ error: 'Network error' })
+      expect(toolCallPart.state).toBe('input-complete')
 
       const toolResultPart = processor
         .getMessages()[0]!
@@ -3326,6 +3329,7 @@ describe('StreamProcessor', () => {
         (p) => p.type === 'tool-call',
       ) as ToolCallPart
       expect((toolCallPart as any).output).toEqual({ temp: 72 })
+      expect(toolCallPart.state).toBe('complete')
 
       const toolResultPart = messages[0]?.parts.find(
         (p) => p.type === 'tool-result',

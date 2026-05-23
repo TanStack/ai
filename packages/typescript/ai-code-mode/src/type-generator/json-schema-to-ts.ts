@@ -84,7 +84,7 @@ export function jsonSchemaToTypeScript(
   if (
     schema.type === 'object' &&
     schema.properties &&
-    Object.keys(schema.properties as object).length > 0
+    Object.keys(schema.properties).length > 0
   ) {
     return {
       name: typeName,

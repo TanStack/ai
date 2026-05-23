@@ -1,9 +1,7 @@
 import { SolidMarkdown } from 'solid-markdown'
-import remarkGfm from 'remark-gfm'
-
-import rehypeRaw from 'rehype-raw'
-import rehypeSanitize from 'rehype-sanitize'
-import rehypeHighlight from 'rehype-highlight'
+import { resolveMarkdownPlugins } from './markdown-plugins'
+import type { SolidMarkdownComponents } from 'solid-markdown'
+import type { PluggableList } from './markdown-plugins'
 
 export interface TextPartProps {
   /** The text content to render */
@@ -16,48 +14,33 @@ export interface TextPartProps {
   userClass?: string
   /** Additional class for assistant messages (also used for system messages) */
   assistantClass?: string
+  /** Additional remark plugins, appended after the defaults. */
+  remarkPlugins?: PluggableList
+  /**
+   * Additional rehype plugins. Inserted before the trailing
+   * `rehypeSanitize` so sanitization always runs last.
+   */
+  rehypePlugins?: PluggableList
+  /** solid-markdown `components` overrides. */
+  components?: SolidMarkdownComponents
+  /**
+   * Drop the built-in plugin defaults entirely. Disables the XSS
+   * sanitizer; the caller becomes responsible for sanitization.
+   */
+  disableDefaultPlugins?: boolean
 }
 
 /**
- * TextPart component - renders markdown text with syntax highlighting
+ * TextPart component - renders markdown text with syntax highlighting.
  *
- * Features:
- * - Full markdown support with GFM (tables, strikethrough, etc.)
- * - Syntax highlighting for code blocks
- * - Sanitized HTML rendering
- * - Role-based styling (user vs assistant)
- *
- * @example Standalone usage
+ * @example Add a markdown plugin (e.g. CJK bold/emphasis support)
  * ```tsx
- * <TextPart
- *   content="Hello **world**!"
- *   role="user"
- *   class="p-4 rounded"
- *   userClass="bg-blue-500"
- *   assistantClass="bg-gray-500"
- * />
- * ```
+ * import remarkCjkFriendly from 'remark-cjk-friendly'
  *
- * @example Usage in partRenderers
- * ```tsx
- * <ChatMessage
- *   message={message}
- *   partRenderers={{
- *     text: ({ content }) => (
- *       <TextPart
- *         content={content}
- *         role={message.role}
- *         class="px-5 py-3 rounded-2xl"
- *         userClass="bg-orange-500 text-white"
- *         assistantClass="bg-gray-800 text-white"
- *       />
- *     )
- *   }}
- * />
+ * <TextPart content={content} remarkPlugins={[remarkCjkFriendly]} />
  * ```
  */
 export function TextPart(props: TextPartProps) {
-  // Combine classes based on role
   const roleClass = () =>
     props.role === 'user'
       ? (props.userClass ?? '')
@@ -67,11 +50,19 @@ export function TextPart(props: TextPartProps) {
   const combinedClass = () =>
     [props.class ?? '', roleClass()].filter(Boolean).join(' ')
 
+  const resolved = () =>
+    resolveMarkdownPlugins({
+      remarkPlugins: props.remarkPlugins,
+      rehypePlugins: props.rehypePlugins,
+      disableDefaultPlugins: props.disableDefaultPlugins,
+    })
+
   return (
     <div class={combinedClass() || undefined}>
       <SolidMarkdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeRaw, rehypeSanitize, rehypeHighlight]}
+        remarkPlugins={resolved().remarkPlugins}
+        rehypePlugins={resolved().rehypePlugins}
+        components={props.components}
       >
         {props.content}
       </SolidMarkdown>

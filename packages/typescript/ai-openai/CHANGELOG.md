@@ -1,5 +1,56 @@
 # @tanstack/ai-openai
 
+## 0.10.0
+
+### Minor Changes
+
+- Add `gpt-image-2` to the OpenAI image model list. The new model is exposed ([#625](https://github.com/TanStack/ai/pull/625))
+  through the same tree-shakeable `openaiImage` adapter as `gpt-image-1` and
+  shares its provider options (`quality`, `background`, `output_format`,
+  `output_compression`, `moderation`, `partial_images`) and size set
+  (`1024x1024`, `1536x1024`, `1024x1536`, `auto`).
+
+  ```ts
+  import { openaiImage } from '@tanstack/ai-openai/adapters'
+  import { generate } from '@tanstack/ai'
+
+  const adapter = openaiImage({ apiKey: process.env.OPENAI_API_KEY! })
+
+  const result = await generate({
+    adapter,
+    model: 'gpt-image-2',
+    prompt: 'A watercolor fox in a snowy forest',
+  })
+  ```
+
+### Patch Changes
+
+- Refresh package README content and npm metadata for better discoverability. ([#626](https://github.com/TanStack/ai/pull/626))
+
+- Updated dependencies [[`ebeb22e`](https://github.com/TanStack/ai/commit/ebeb22ec68f456b09e0181ac6f5d1ac25a0affd2)]:
+  - @tanstack/ai@0.21.2
+  - @tanstack/ai-client@0.11.6
+  - @tanstack/ai-utils@0.2.1
+  - @tanstack/openai-base@0.3.6
+
+## 0.9.6
+
+### Patch Changes
+
+- Adopt `@tanstack/eslint-config@0.4.0` and clean up the local override layer. ([#607](https://github.com/TanStack/ai/pull/607))
+  - Bump `@tanstack/eslint-config` from `0.3.3` to `0.4.0`.
+  - Drop dead `pnpm/enforce-catalog` and `pnpm/json-enforce-catalog` disables (upstream removed `eslint-plugin-pnpm` in `0.3.1`).
+  - Drop the `no-case-declarations: off` override — no current source actually violates it.
+  - Drop the `no-shadow: off` override — upstream sets it to `warn`, so it surfaces in editors without blocking CI.
+  - Remove ~25 unnecessary type assertions across the publishable packages that the upgraded `typescript-eslint` now catches via `no-unnecessary-type-assertion`. One deliberately defensive cast in `ag-ui-wire.ts` is preserved with an inline opt-out and a reason comment.
+
+  No public-API or runtime-behavior changes.
+
+- Updated dependencies [[`ec1393d`](https://github.com/TanStack/ai/commit/ec1393db4383798e5f2574dfd87779c22c309529), [`a03d12b`](https://github.com/TanStack/ai/commit/a03d12b13ade93f3e262c6ffa996696ce27472ef), [`188fe11`](https://github.com/TanStack/ai/commit/188fe11b9b9691e5a241cfc416803da5b8ce5376)]:
+  - @tanstack/ai@0.21.0
+  - @tanstack/ai-client@0.11.4
+  - @tanstack/openai-base@0.3.5
+
 ## 0.9.5
 
 ### Patch Changes

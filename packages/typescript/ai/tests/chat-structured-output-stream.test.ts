@@ -168,8 +168,11 @@ describe('chat({ outputSchema, stream: true })', () => {
       expect(value.object).toEqual(validPerson)
     })
 
-    it('emits RUN_ERROR (code: schema-validation) when adapter data fails schema parse', async () => {
-      // Adapter emits an object that's not a valid Person (age missing, email invalid).
+    it('forwards the adapter-emitted structured-output.complete event without orchestrator-side schema validation', async () => {
+      // The streaming orchestrator no longer schema-validates the terminal
+      // event — that's the consumer's responsibility (they call
+      // parseWithStandardSchema on `value.object`). The orchestrator only
+      // pipes chunks through the engine + middleware pipeline.
       const invalidObject = { name: 'X', email: 'not-an-email' }
       const adapter = makeAdapter({
         structuredOutputStream: () =>
@@ -189,31 +192,25 @@ describe('chat({ outputSchema, stream: true })', () => {
         stream: true,
       })
 
-      // `collectChunks` expects `AsyncIterable<StreamChunk>`. The orchestrator
-      // returns the narrower `StructuredOutputStream<T>` whose element union
-      // includes tagged events that TS doesn't always realise are structural
-      // subtypes of `CustomEvent` (and thus of `StreamChunk`) — cast through
-      // the wider iterable type for the test boundary.
       const chunks = await collectChunks(
         stream as unknown as AsyncIterable<StreamChunk>,
       )
 
+      // No orchestrator-emitted schema-validation RUN_ERROR.
       const runError = chunks.find((c) => c.type === EventType.RUN_ERROR) as
         | { type: EventType.RUN_ERROR; code?: string; message?: string }
         | undefined
+      expect(runError).toBeUndefined()
 
-      expect(runError).toBeDefined()
-      expect(runError!.code).toBe('schema-validation')
-
-      // The (unvalidated) structured-output.complete must not have been
-      // forwarded to consumers — validation failure short-circuits the
-      // happy-path emit.
-      const completeAfterError = chunks.find(
+      // The unvalidated `structured-output.complete` event is forwarded
+      // verbatim so the consumer can run its own schema validation.
+      const complete = chunks.find(
         (c) =>
           c.type === EventType.CUSTOM &&
           (c as { name?: string }).name === 'structured-output.complete',
-      )
-      expect(completeAfterError).toBeUndefined()
+      ) as { value: { object: unknown } } | undefined
+      expect(complete).toBeDefined()
+      expect(complete!.value.object).toEqual(invalidObject)
     })
 
     it('forwards `reasoning` through schema validation', async () => {
@@ -343,7 +340,11 @@ describe('chat({ outputSchema, stream: true })', () => {
       expect(complete!.value.raw).toBe(JSON.stringify(validPerson))
     })
 
-    it('emits RUN_ERROR on schema validation failure (fallback path)', async () => {
+    it('forwards the fallback-synthesized structured-output.complete event without orchestrator-side schema validation', async () => {
+      // Same invariant as the native-stream variant: schema validation is
+      // the consumer's responsibility. The fallback synthesizes an
+      // AG-UI lifecycle around `structuredOutput` and forwards the
+      // `structured-output.complete` event verbatim.
       const invalidObject = { name: 'X', age: 'not-a-number' }
       const adapter = makeAdapter({
         structuredOutput: async () => ({
@@ -359,29 +360,32 @@ describe('chat({ outputSchema, stream: true })', () => {
         stream: true,
       })
 
-      // `collectChunks` expects `AsyncIterable<StreamChunk>`. The orchestrator
-      // returns the narrower `StructuredOutputStream<T>` whose element union
-      // includes tagged events that TS doesn't always realise are structural
-      // subtypes of `CustomEvent` (and thus of `StreamChunk`) — cast through
-      // the wider iterable type for the test boundary.
       const chunks = await collectChunks(
         stream as unknown as AsyncIterable<StreamChunk>,
       )
 
-      const runError = chunks.find((c) => c.type === EventType.RUN_ERROR) as
-        | { type: EventType.RUN_ERROR; code?: string }
-        | undefined
-      expect(runError).toBeDefined()
-      expect(runError!.code).toBe('schema-validation')
+      const runError = chunks.find((c) => c.type === EventType.RUN_ERROR)
+      expect(runError).toBeUndefined()
+
+      const complete = chunks.find(
+        (c) =>
+          c.type === EventType.CUSTOM &&
+          (c as { name?: string }).name === 'structured-output.complete',
+      ) as { value: { object: unknown } } | undefined
+      expect(complete).toBeDefined()
+      expect(complete!.value.object).toEqual(invalidObject)
     })
   })
 
   describe('lifecycle ordering', () => {
     it('emits structured-output.start before the first TEXT_MESSAGE_CONTENT', async () => {
-      // Coverage gap: the client-side routing the PR introduces only works
-      // if the server orchestrator emits `structured-output.start` BEFORE
-      // any TEXT_MESSAGE_CONTENT. Without this ordering, deltas would land
-      // in a plain TextPart instead of the structured-output part.
+      // Client-side routing (PR #577) requires `structured-output.start`
+      // BEFORE any TEXT_MESSAGE_CONTENT. Without it, JSON deltas would land
+      // in a plain TextPart instead of the structured-output part — so
+      // `useChat({ outputSchema })` consumers would silently get raw JSON.
+      //
+      // No adapter currently emits `structured-output.start`, so the
+      // engine's finalization step synthesizes one.
       const adapter = makeAdapter({
         structuredOutputStream: () =>
           (async function* () {
@@ -415,16 +419,25 @@ describe('chat({ outputSchema, stream: true })', () => {
       expect(startIndex).toBeGreaterThanOrEqual(0)
       expect(firstContentIndex).toBeGreaterThanOrEqual(0)
       expect(startIndex).toBeLessThan(firstContentIndex)
+
+      // The synthesized start carries a non-empty messageId so the
+      // client processor can route deltas to a structured-output part on
+      // the correct assistant message.
+      const startChunk = chunks[startIndex] as {
+        value: { messageId: string }
+      }
+      expect(typeof startChunk.value.messageId).toBe('string')
+      expect(startChunk.value.messageId.length).toBeGreaterThan(0)
     })
 
     it('synthesizes structured-output.start before forwarding a pre-delta RUN_ERROR', async () => {
-      // F1 regression: if the adapter errors before any TEXT_MESSAGE_START
-      // (auth failure, network error before stream open, schema-pre-flight
-      // throw), the orchestrator must still emit `structured-output.start`
-      // so the client snaps an errored structured-output part on a
-      // placeholder assistant message. Without this, the UI would render
-      // nothing — the part the multi-turn renderer reads off the message
-      // never gets created.
+      // F1 regression: if the adapter errors before yielding any
+      // TEXT_MESSAGE_START (auth failure, network error before stream open,
+      // schema-pre-flight throw), the orchestrator must still emit
+      // `structured-output.start` so the client snaps an errored
+      // structured-output part on a placeholder assistant message. Without
+      // this, the UI renders nothing — the part the multi-turn renderer
+      // reads off the message never gets created.
       const adapter = makeAdapter({
         // Throws synchronously when fallback awaits it — the adapter never
         // yielded any TEXT_MESSAGE_START.
@@ -461,6 +474,87 @@ describe('chat({ outputSchema, stream: true })', () => {
       }
       expect(typeof startChunk.value.messageId).toBe('string')
       expect(startChunk.value.messageId.length).toBeGreaterThan(0)
+    })
+
+    it('forwards adapter-emitted lifecycle ordering (TEXT_MESSAGE_CONTENT precedes structured-output.complete)', async () => {
+      // The new streaming orchestrator delegates lifecycle emission to the
+      // engine + adapter pipeline. The engine still synthesizes a
+      // `structured-output.start` event when the adapter doesn't emit one
+      // (see neighboring test "synthesizes structured-output.start ..."),
+      // so the consumer always sees a start marker before the first delta.
+      // What this test guarantees is the natural delta ordering:
+      // TEXT_MESSAGE_CONTENT chunks reach the consumer before the terminal
+      // `structured-output.complete` event.
+      const adapter = makeAdapter({
+        structuredOutputStream: () =>
+          (async function* () {
+            for (const c of structuredStreamChunks(
+              JSON.stringify(validPerson),
+              validPerson,
+            ))
+              yield c
+          })(),
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'extract' }],
+        outputSchema: PersonSchema,
+        stream: true,
+      })
+
+      const chunks = await collectChunks(
+        stream as unknown as AsyncIterable<StreamChunk>,
+      )
+
+      const firstContentIndex = chunks.findIndex(
+        (c) => c.type === EventType.TEXT_MESSAGE_CONTENT,
+      )
+      const completeIndex = chunks.findIndex(
+        (c) =>
+          c.type === EventType.CUSTOM &&
+          (c as { name?: string }).name === 'structured-output.complete',
+      )
+      expect(firstContentIndex).toBeGreaterThanOrEqual(0)
+      expect(completeIndex).toBeGreaterThanOrEqual(0)
+      expect(firstContentIndex).toBeLessThan(completeIndex)
+    })
+  })
+
+  describe('agent-loop short-circuit', () => {
+    it('skips chatStream when no tools are configured (no extra provider call before finalization)', async () => {
+      let chatStreamCalls = 0
+      let structuredStreamCalls = 0
+      const adapter: AnyTextAdapter = {
+        ...makeAdapter({
+          structuredOutputStream: () => {
+            structuredStreamCalls++
+            return (async function* () {
+              for (const c of structuredStreamChunks(
+                JSON.stringify(validPerson),
+                validPerson,
+              ))
+                yield c
+            })()
+          },
+        }),
+        chatStream: () => {
+          chatStreamCalls++
+          return (async function* () {})()
+        },
+      } as AnyTextAdapter
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'extract' }],
+        outputSchema: PersonSchema,
+        stream: true,
+      })
+
+      await collectChunks(stream as unknown as AsyncIterable<StreamChunk>)
+
+      expect(chatStreamCalls).toBe(0)
+      expect(structuredStreamCalls).toBe(1)
     })
   })
 })

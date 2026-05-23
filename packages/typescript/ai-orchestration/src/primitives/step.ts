@@ -68,10 +68,10 @@ export function* step<T>(
   const descriptor: StepDescriptor = {
     kind: 'step',
     name,
-    fn: fn as (ctx: StepContext) => unknown | Promise<unknown>,
+    fn: fn,
     retry: options?.retry,
     timeout: options?.timeout,
   }
-  // eslint-disable-next-line no-restricted-syntax -- yield expression has unknown type; engine guarantees a T resume value (recorded step result)
-  return (yield descriptor) as unknown as T
+
+  return yield descriptor
 }

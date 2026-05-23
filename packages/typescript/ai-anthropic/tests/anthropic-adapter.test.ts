@@ -906,6 +906,254 @@ describe('Anthropic stream processing', () => {
     })
   })
 
+  it('does not leak server_tool_use input deltas into the prior client tool', async () => {
+    const mockStream = (async function* () {
+      yield {
+        type: 'content_block_start',
+        index: 0,
+        content_block: {
+          type: 'tool_use',
+          id: 'tool_client',
+          name: 'lookup_weather',
+        },
+      }
+      yield {
+        type: 'content_block_delta',
+        index: 0,
+        delta: {
+          type: 'input_json_delta',
+          partial_json: '{"location":"Berlin"}',
+        },
+      }
+      yield { type: 'content_block_stop', index: 0 }
+      yield {
+        type: 'content_block_start',
+        index: 1,
+        content_block: {
+          type: 'server_tool_use',
+          id: 'srv_fetch',
+          name: 'web_fetch',
+        },
+      }
+      yield {
+        type: 'content_block_delta',
+        index: 1,
+        delta: {
+          type: 'input_json_delta',
+          partial_json: '{"url":"https://example.com"}',
+        },
+      }
+      yield { type: 'content_block_stop', index: 1 }
+      yield {
+        type: 'content_block_start',
+        index: 2,
+        content_block: {
+          type: 'web_fetch_tool_result',
+          tool_use_id: 'srv_fetch',
+          content: {
+            type: 'web_fetch_result',
+            url: 'https://example.com',
+            content: { type: 'document', source: { type: 'text', data: 'ok' } },
+            retrieved_at: '2026-01-01T00:00:00Z',
+          },
+        },
+      }
+      yield { type: 'content_block_stop', index: 2 }
+      yield {
+        type: 'message_delta',
+        delta: { stop_reason: 'tool_use' },
+        usage: { output_tokens: 10 },
+      }
+      yield { type: 'message_stop' }
+    })()
+
+    mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
+
+    const adapter = createAdapter('claude-3-7-sonnet')
+
+    const chunks: StreamChunk[] = []
+    for await (const chunk of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Weather + fetch' }],
+      tools: [weatherTool],
+    })) {
+      chunks.push(chunk)
+    }
+
+    const toolEnds = chunks.filter((c) => c.type === 'TOOL_CALL_END')
+    expect(toolEnds).toHaveLength(1)
+    expect(toolEnds[0]).toMatchObject({
+      toolCallId: 'tool_client',
+      input: { location: 'Berlin' },
+    })
+
+    expect(
+      chunks.some(
+        (c) =>
+          c.type === 'TOOL_CALL_START' &&
+          (c as { toolCallId: string }).toolCallId === 'srv_fetch',
+      ),
+    ).toBe(false)
+  })
+
+  it.each([
+    [
+      'web_fetch',
+      'web_fetch_tool_result',
+      {
+        type: 'web_fetch_result',
+        url: 'https://example.com',
+        content: { type: 'document', source: { type: 'text', data: 'ok' } },
+        retrieved_at: '2026-01-01T00:00:00Z',
+      },
+    ],
+    [
+      'web_search',
+      'web_search_tool_result',
+      [
+        {
+          type: 'web_search_result',
+          encrypted_content: 'enc',
+          page_age: null,
+          title: 'Example',
+          url: 'https://example.com',
+        },
+      ],
+    ],
+  ] as const)(
+    'cleanly handles a server-only %s response with no prior client tool_use',
+    async (toolName, resultType, resultContent) => {
+      // With no prior client tool_use, currentToolIndex is -1; server-tool
+      // deltas must not crash or create phantom client tool calls.
+      const mockStream = (async function* () {
+        yield {
+          type: 'content_block_start',
+          index: 0,
+          content_block: {
+            type: 'server_tool_use',
+            id: 'srv_only',
+            name: toolName,
+          },
+        }
+        yield {
+          type: 'content_block_delta',
+          index: 0,
+          delta: {
+            type: 'input_json_delta',
+            partial_json: '{"url":"https://example.com"}',
+          },
+        }
+        yield { type: 'content_block_stop', index: 0 }
+        yield {
+          type: 'content_block_start',
+          index: 1,
+          content_block: {
+            type: resultType,
+            tool_use_id: 'srv_only',
+            content: resultContent,
+          },
+        }
+        yield { type: 'content_block_stop', index: 1 }
+        yield {
+          type: 'message_delta',
+          delta: { stop_reason: 'end_turn' },
+          usage: { output_tokens: 5 },
+        }
+        yield { type: 'message_stop' }
+      })()
+
+      mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
+
+      const adapter = createAdapter('claude-3-7-sonnet')
+
+      const chunks: StreamChunk[] = []
+      for await (const chunk of chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Use the server tool' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      expect(chunks.some((c) => c.type === 'TOOL_CALL_START')).toBe(false)
+      expect(chunks.some((c) => c.type === 'TOOL_CALL_END')).toBe(false)
+
+      const runFinished = chunks.filter((c) => c.type === 'RUN_FINISHED')
+      expect(runFinished).toHaveLength(1)
+    },
+  )
+
+  it('logs an error when a server tool result block carries an error variant', async () => {
+    // A failed web_fetch (e.g. url_not_accessible) is otherwise invisible —
+    // the model just keeps going. Surface it via the debug logger.
+    const mockStream = (async function* () {
+      yield {
+        type: 'content_block_start',
+        index: 0,
+        content_block: {
+          type: 'server_tool_use',
+          id: 'srv_err',
+          name: 'web_fetch',
+        },
+      }
+      yield {
+        type: 'content_block_delta',
+        index: 0,
+        delta: {
+          type: 'input_json_delta',
+          partial_json: '{"url":"https://blocked.example"}',
+        },
+      }
+      yield { type: 'content_block_stop', index: 0 }
+      yield {
+        type: 'content_block_start',
+        index: 1,
+        content_block: {
+          type: 'web_fetch_tool_result',
+          tool_use_id: 'srv_err',
+          content: {
+            type: 'web_fetch_tool_result_error',
+            error_code: 'url_not_accessible',
+          },
+        },
+      }
+      yield { type: 'content_block_stop', index: 1 }
+      yield {
+        type: 'message_delta',
+        delta: { stop_reason: 'end_turn' },
+        usage: { output_tokens: 5 },
+      }
+      yield { type: 'message_stop' }
+    })()
+
+    mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
+
+    const adapter = createAdapter('claude-3-7-sonnet')
+
+    const logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Fetch it' }],
+      debug: { logger, errors: true },
+    })) {
+      // consume stream
+    }
+
+    const errorCall = logger.error.mock.calls.find((call) =>
+      String(call[0]).includes('web_fetch_tool_result'),
+    )
+    expect(errorCall).toBeDefined()
+    expect(errorCall![1]).toMatchObject({
+      toolUseId: 'srv_err',
+      errorCode: 'url_not_accessible',
+    })
+  })
+
   it('does not emit TEXT_MESSAGE_END for tool_use content blocks', async () => {
     // When text is followed by a tool_use block, TEXT_MESSAGE_END should only
     // fire once (for the text block), not again when the tool block stops.

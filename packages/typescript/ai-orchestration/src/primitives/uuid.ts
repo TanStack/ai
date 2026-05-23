@@ -12,6 +12,6 @@ import type { StepDescriptor, StepGenerator } from '../types'
  */
 export function* uuid(): StepGenerator<string> {
   const descriptor: StepDescriptor = { kind: 'uuid' }
-  // eslint-disable-next-line no-restricted-syntax -- yield expression has unknown type; engine guarantees a string resume value (recorded UUID)
-  return (yield descriptor) as unknown as string
+
+  return yield descriptor
 }
