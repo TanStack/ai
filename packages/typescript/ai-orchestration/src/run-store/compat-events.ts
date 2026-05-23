@@ -1,6 +1,11 @@
 import type { WorkflowEvent } from '@tanstack/workflow-core'
 import type { StepRecord } from '../types'
 
+type CheckpointStepKind = Extract<
+  StepRecord['kind'],
+  'agent' | 'nested-workflow' | 'patched' | 'step'
+>
+
 export function workflowEventsToStepRecords(
   events: ReadonlyArray<WorkflowEvent>,
 ): ReadonlyArray<StepRecord> {
@@ -133,7 +138,7 @@ export function stepRecordToWorkflowEvent(record: StepRecord): WorkflowEvent {
     return {
       type: 'STEP_FAILED',
       ts,
-      stepId: `${record.kind}:${record.name}`,
+      stepId: makeStepId(record.kind, record.name, record.index),
       error: record.error,
       attempts: record.attempts,
     }
@@ -142,10 +147,21 @@ export function stepRecordToWorkflowEvent(record: StepRecord): WorkflowEvent {
   return {
     type: 'STEP_FINISHED',
     ts,
-    stepId: `${record.kind}:${record.name}`,
+    stepId: makeStepId(record.kind, record.name, record.index),
     result: record.result,
     attempts: record.attempts,
   }
+}
+
+function makeStepId(
+  kind: CheckpointStepKind,
+  name: string,
+  occurrence = 0,
+): string {
+  const encodedName = encodeURIComponent(name)
+  return occurrence === 0
+    ? `${kind}:${encodedName}`
+    : `${kind}:${encodedName}#${occurrence}`
 }
 
 function parseStepId(stepId: string): {
@@ -156,7 +172,7 @@ function parseStepId(stepId: string): {
   if (separator === -1) return { kind: 'step', name: stepId }
 
   const prefix = stepId.slice(0, separator)
-  const name = stepId.slice(separator + 1)
+  const rest = stepId.slice(separator + 1)
 
   if (
     prefix === 'agent' ||
@@ -164,10 +180,20 @@ function parseStepId(stepId: string): {
     prefix === 'patched' ||
     prefix === 'step'
   ) {
-    return { kind: prefix, name }
+    return { kind: prefix, name: parseStepName(rest) }
   }
 
-  return { kind: 'step', name }
+  return { kind: 'step', name: stepId }
+}
+
+function parseStepName(rest: string): string {
+  const encodedName = rest.replace(/#\d+$/, '')
+
+  try {
+    return decodeURIComponent(encodedName)
+  } catch {
+    return encodedName
+  }
 }
 
 function readApprovalResult(value: unknown): {

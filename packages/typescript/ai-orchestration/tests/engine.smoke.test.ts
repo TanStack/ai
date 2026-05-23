@@ -176,4 +176,71 @@ describe('engine smoke', () => {
     // addEventListener never fires for an already-aborted signal.
     expect(observedAborted).toBe(true)
   })
+
+  it('emits unique step ids for repeated agent calls inside nested workflows', async () => {
+    const coder = defineAgent({
+      name: 'coder',
+      input: z.object({ filename: z.string() }),
+      output: z.object({ filename: z.string() }),
+      run: async ({ input }) => ({ filename: input.filename }),
+    })
+
+    const child = defineWorkflow({
+      name: 'child',
+      input: z.object({ files: z.array(z.string()) }),
+      output: z.object({
+        patches: z.array(z.object({ filename: z.string() })),
+      }),
+      state: z.object({}).default({}),
+      agents: { coder },
+      run: async function* ({ input, agents }) {
+        const patches = []
+        for (const filename of input.files) {
+          patches.push(yield* agents.coder({ filename }))
+        }
+        return { patches }
+      },
+    })
+
+    const parent = defineWorkflow({
+      name: 'parent',
+      input: z.object({ files: z.array(z.string()) }),
+      output: z.object({
+        patches: z.array(z.object({ filename: z.string() })),
+      }),
+      state: z.object({}).default({}),
+      agents: { child },
+      run: async function* ({ input, agents }) {
+        return yield* agents.child({ files: input.files })
+      },
+    })
+
+    const events = await collect(
+      runWorkflow({
+        workflow: parent,
+        input: { files: ['server.ts', 'routes/metrics.ts', 'middleware.ts'] },
+        runStore: inMemoryRunStore(),
+      }),
+    )
+
+    const coderStarts = events.filter(
+      (e) => e.type === 'STEP_STARTED' && e.stepName === 'coder',
+    )
+    const coderFinishes = events.filter(
+      (e) => e.type === 'STEP_FINISHED' && e.stepName === 'coder',
+    )
+
+    expect(coderStarts).toHaveLength(3)
+    expect(new Set(coderStarts.map((e) => e.stepId)).size).toBe(3)
+    expect(coderStarts.map((e) => e.stepName)).toEqual([
+      'coder',
+      'coder',
+      'coder',
+    ])
+    expect(coderFinishes.map((e) => e.content)).toEqual([
+      { filename: 'server.ts' },
+      { filename: 'routes/metrics.ts' },
+      { filename: 'middleware.ts' },
+    ])
+  })
 })

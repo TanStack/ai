@@ -60,6 +60,9 @@ interface AttachEnvelope {
   steps: unknown
 }
 
+type CoreStepKind = 'agent' | 'nested-workflow' | 'patched' | 'step'
+type StepIdFactory = (stepType: CoreStepKind, name: string) => string
+
 /**
  * Drive an AI orchestration workflow through @tanstack/workflow-core.
  *
@@ -146,12 +149,18 @@ async function driveGenerator(
   ctx: CoreCtx<unknown, any>,
   runtime: CoreRuntime,
 ): Promise<unknown> {
+  const nextStepId = createStepIdFactory()
   let nextValue: unknown
   let result = await generator.next()
 
   while (!result.done) {
     try {
-      nextValue = await executeDescriptor(result.value, ctx, runtime)
+      nextValue = await executeDescriptor(
+        result.value,
+        ctx,
+        runtime,
+        nextStepId,
+      )
       result = await generator.next(nextValue)
     } catch (err) {
       result = await generator.throw(err)
@@ -165,31 +174,38 @@ async function executeDescriptor(
   descriptor: StepDescriptor,
   ctx: CoreCtx<unknown, any>,
   runtime: CoreRuntime,
+  nextStepId: StepIdFactory,
 ): Promise<unknown> {
   switch (descriptor.kind) {
     case 'agent':
-      return executeAgentDescriptor(descriptor, ctx)
+      return executeAgentDescriptor(
+        descriptor,
+        ctx,
+        nextStepId('agent', descriptor.name),
+      )
     case 'nested-workflow':
-      return executeNestedWorkflowDescriptor(descriptor, ctx, runtime)
+      return executeNestedWorkflowDescriptor(
+        descriptor,
+        ctx,
+        runtime,
+        nextStepId('nested-workflow', descriptor.name),
+      )
     case 'approval':
       return ctx.approve({
         title: descriptor.title,
         description: descriptor.description,
       })
-    case 'step':
+    case 'step': {
+      const stepId = nextStepId('step', descriptor.name)
       try {
-        const stepId = makeStepId('step', descriptor.name)
         return await ctx.step(stepId, descriptor.fn, {
           retry: descriptor.retry,
           timeout: descriptor.timeout,
         })
       } catch (err) {
-        throw normalizeStepError(
-          err,
-          makeStepId('step', descriptor.name),
-          descriptor.timeout,
-        )
+        throw normalizeStepError(err, stepId, descriptor.timeout)
       }
+    }
     case 'signal':
       return ctx.waitForEvent(descriptor.name, {
         deadline: descriptor.deadline,
@@ -200,7 +216,7 @@ async function executeDescriptor(
     case 'uuid':
       return ctx.uuid()
     case 'patched':
-      return ctx.step(makeStepId('patched', descriptor.name), () =>
+      return ctx.step(nextStepId('patched', descriptor.name), () =>
         Boolean(runtime.patchNames?.includes(descriptor.name)),
       )
   }
@@ -227,8 +243,9 @@ async function buildAttachEnvelope(
 function executeAgentDescriptor(
   descriptor: Extract<StepDescriptor, { kind: 'agent' }>,
   ctx: CoreCtx<unknown, Record<string, unknown>>,
+  stepId: string,
 ): Promise<unknown> {
-  return ctx.step(makeStepId('agent', descriptor.name), async () => {
+  return ctx.step(stepId, async () => {
     const { stream, output } = invokeAgent(
       descriptor.agent,
       descriptor.input,
@@ -248,8 +265,9 @@ async function executeNestedWorkflowDescriptor(
   descriptor: Extract<StepDescriptor, { kind: 'nested-workflow' }>,
   ctx: CoreCtx<unknown, Record<string, unknown>>,
   runtime: CoreRuntime,
+  stepId: string,
 ): Promise<unknown> {
-  return ctx.step(makeStepId('nested-workflow', descriptor.name), async () => {
+  return ctx.step(stepId, async () => {
     let output: unknown
     const stream = runWorkflow({
       workflow: descriptor.workflow,
@@ -503,11 +521,26 @@ function mapCustomEvent(
   return [customEvent({ name: event.name, value: event.value })]
 }
 
+function createStepIdFactory(): StepIdFactory {
+  const counts = new Map<string, number>()
+
+  return (stepType, name) => {
+    const key = `${stepType}:${name}`
+    const occurrence = counts.get(key) ?? 0
+    counts.set(key, occurrence + 1)
+    return makeStepId(stepType, name, occurrence)
+  }
+}
+
 function makeStepId(
-  stepType: 'agent' | 'nested-workflow' | 'patched' | 'step',
+  stepType: CoreStepKind,
   name: string,
+  occurrence = 0,
 ): string {
-  return `${stepType}:${name}`
+  const encodedName = encodeURIComponent(name)
+  return occurrence === 0
+    ? `${stepType}:${encodedName}`
+    : `${stepType}:${encodedName}#${occurrence}`
 }
 
 function makeApprovalStepId(approvalId: string): string {
@@ -526,12 +559,30 @@ function parseStepId(stepId: string): {
   if (separator === -1) return { name: stepId, stepType: undefined }
 
   const prefix = stepId.slice(0, separator)
-  const name = stepId.slice(separator + 1)
-  if (prefix === 'agent' || prefix === 'nested-workflow' || prefix === 'step') {
-    return { name, stepType: prefix }
+  const rest = stepId.slice(separator + 1)
+  if (
+    prefix === 'agent' ||
+    prefix === 'nested-workflow' ||
+    prefix === 'patched' ||
+    prefix === 'step'
+  ) {
+    return {
+      name: parseStepName(rest),
+      stepType: prefix === 'patched' ? undefined : prefix,
+    }
   }
 
-  return { name, stepType: undefined }
+  return { name: stepId, stepType: undefined }
+}
+
+function parseStepName(rest: string): string {
+  const encodedName = rest.replace(/#\d+$/, '')
+
+  try {
+    return decodeURIComponent(encodedName)
+  } catch {
+    return encodedName
+  }
 }
 
 function isStreamChunk(value: unknown): value is StreamChunk {
