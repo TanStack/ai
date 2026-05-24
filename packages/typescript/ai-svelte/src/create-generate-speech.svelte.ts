@@ -95,9 +95,14 @@ export function createGenerateSpeech<
     onResult?: TOnResult
   },
 ): CreateGenerateSpeechReturn<InferGenerationOutput<TTSResult, TOnResult>> {
-  const gen = createGeneration<SpeechGenerateInput, TTSResult, TOnResult>(
-    options,
-  )
+  const gen = createGeneration<SpeechGenerateInput, TTSResult, TOnResult>({
+    ...options,
+    devtools: {
+      framework: 'svelte',
+      hookName: 'createGenerateSpeech',
+      outputKind: 'audio',
+    },
+  })
 
   return {
     get result() {

@@ -105,9 +105,14 @@ export function useTranscription<
   InferGenerationOutput<TranscriptionResult, TOnResult>
 > {
   const { generate, result, isLoading, error, status, stop, reset } =
-    useGeneration<TranscriptionGenerateInput, TranscriptionResult, TOnResult>(
-      options,
-    )
+    useGeneration<TranscriptionGenerateInput, TranscriptionResult, TOnResult>({
+      ...options,
+      devtools: {
+        framework: 'react',
+        hookName: 'useTranscription',
+        outputKind: 'text',
+      },
+    })
 
   return {
     generate: generate as (input: TranscriptionGenerateInput) => Promise<void>,

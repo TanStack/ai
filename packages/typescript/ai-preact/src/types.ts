@@ -1,4 +1,4 @@
-import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
+import type { AnyClientTool, ModelMessage, SchemaInput } from '@tanstack/ai'
 import type {
   ChatClientOptions,
   ChatClientState,
@@ -39,6 +39,13 @@ export type UseChatOptions<TTools extends ReadonlyArray<AnyClientTool> = any> =
     | 'onSessionGeneratingChange'
   > & {
     live?: boolean
+    /**
+     * Standard-schema-compatible schema used to identify structured-output chat
+     * hooks in devtools. Preact currently exposes structured-output parts via
+     * `messages`; typed `partial` / `final` sugar is implemented in the other
+     * framework adapters.
+     */
+    outputSchema?: SchemaInput
   }
 
 export interface UseChatReturn<

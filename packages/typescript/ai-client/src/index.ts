@@ -40,6 +40,14 @@ export type {
 } from './generation-types'
 export { GENERATION_EVENTS } from './generation-types'
 export { clientTools, createChatClientOptions } from './types'
+export {
+  createAIDevtoolsGenerationPreview,
+  type AIDevtoolsClientMetadata,
+  type AIDevtoolsGenerationMediaItem,
+  type AIDevtoolsGenerationPreview,
+  type AIDevtoolsGenerationProgress,
+  type AIDevtoolsGenerationVideoJob,
+} from './devtools'
 export type {
   ExtractToolNames,
   ExtractToolInput,

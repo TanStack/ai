@@ -111,7 +111,14 @@ export function createTranscription<
     TranscriptionGenerateInput,
     TranscriptionResult,
     TOnResult
-  >(options)
+  >({
+    ...options,
+    devtools: {
+      framework: 'svelte',
+      hookName: 'createTranscription',
+      outputKind: 'text',
+    },
+  })
 
   return {
     get result() {

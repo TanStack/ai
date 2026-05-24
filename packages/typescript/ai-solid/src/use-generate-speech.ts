@@ -95,7 +95,14 @@ export function useGenerateSpeech<
   },
 ): UseGenerateSpeechReturn<InferGenerationOutput<TTSResult, TOnResult>> {
   const { generate, result, isLoading, error, status, stop, reset } =
-    useGeneration<SpeechGenerateInput, TTSResult, TOnResult>(options)
+    useGeneration<SpeechGenerateInput, TTSResult, TOnResult>({
+      ...options,
+      devtools: {
+        framework: 'solid',
+        hookName: 'useGenerateSpeech',
+        outputKind: 'audio',
+      },
+    })
 
   return {
     generate: generate as (input: SpeechGenerateInput) => Promise<void>,

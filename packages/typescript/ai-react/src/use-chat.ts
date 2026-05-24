@@ -76,6 +76,12 @@ export function useChat<
       ...(initialOptions.forwardedProps !== undefined && {
         forwardedProps: initialOptions.forwardedProps,
       }),
+      devtools: {
+        framework: 'react',
+        hookName: 'useChat',
+        outputKind: initialOptions.outputSchema ? 'structured' : 'chat',
+        ...initialOptions.devtools,
+      },
       onResponse: (response) => {
         void optionsRef.current.onResponse?.(response)
       },
@@ -149,12 +155,15 @@ export function useChat<
   }, [client, options.live])
 
   useEffect(() => {
+    client.mountDevtools()
+
     return () => {
       if (options.live) {
         client.unsubscribe()
       } else {
         client.stop()
       }
+      client.dispose()
     }
   }, [client, options.live])
 

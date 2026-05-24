@@ -68,6 +68,8 @@ export interface CreateGenerateVideoReturn<TOutput = VideoGenerateResult> {
   stop: () => void
   /** Clear all state and return to idle */
   reset: () => void
+  /** Stop in-flight work and unregister devtools listeners */
+  dispose: () => void
   /** Update additional body parameters */
   updateBody: (body: Record<string, any>) => void
 }
@@ -132,6 +134,11 @@ export function createGenerateVideo<
   const baseOptions = {
     id: clientId,
     body: options.body,
+    devtools: {
+      framework: 'svelte',
+      hookName: 'createGenerateVideo',
+      outputKind: 'video' as const,
+    },
     onResult: (r: VideoGenerateResult) => options.onResult?.(r),
     onError: (e: Error) => options.onError?.(e),
     onProgress: (p: number, m?: string) => options.onProgress?.(p, m),
@@ -176,10 +183,12 @@ export function createGenerateVideo<
     )
   }
 
-  // Note: Cleanup is handled by calling stop() directly when needed.
+  client.mountDevtools()
+
+  // Note: Cleanup is handled by calling dispose() directly when needed.
   // Unlike React/Vue/Solid, Svelte 5 runes like $effect can only be used
   // during component initialization, so we don't add automatic cleanup here.
-  // Users should call video.stop() in their component's cleanup if needed.
+  // Users should call video.dispose() in their component's cleanup if needed.
 
   const generate = async (input: VideoGenerateInput) => {
     await client.generate(input)
@@ -191,6 +200,10 @@ export function createGenerateVideo<
 
   const reset = () => {
     client.reset()
+  }
+
+  const dispose = () => {
+    client.dispose()
   }
 
   const updateBody = (newBody: Record<string, any>) => {
@@ -219,6 +232,7 @@ export function createGenerateVideo<
     generate,
     stop,
     reset,
+    dispose,
     updateBody,
   }
 }

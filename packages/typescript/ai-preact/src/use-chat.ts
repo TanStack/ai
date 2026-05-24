@@ -68,6 +68,12 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       ...(initialOptions.forwardedProps !== undefined && {
         forwardedProps: initialOptions.forwardedProps,
       }),
+      devtools: {
+        framework: 'preact',
+        hookName: 'useChat',
+        outputKind: initialOptions.outputSchema ? 'structured' : 'chat',
+        ...initialOptions.devtools,
+      },
       // Wrap every callback so the latest options are read at call time.
       // Capturing the function reference directly would freeze it to whatever
       // the parent passed on the first render.
@@ -151,12 +157,15 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   // DO NOT include isLoading in dependencies - that would cause the cleanup
   // to run when isLoading changes, aborting continuation requests.
   useEffect(() => {
+    client.mountDevtools()
+
     return () => {
       if (options.live) {
         client.unsubscribe()
       } else {
         client.stop()
       }
+      client.dispose()
     }
   }, [client, options.live])
 

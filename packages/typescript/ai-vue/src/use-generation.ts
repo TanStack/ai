@@ -1,7 +1,15 @@
 import { GenerationClient } from '@tanstack/ai-client'
-import { onScopeDispose, readonly, shallowRef, useId, watch } from 'vue'
+import {
+  onMounted,
+  onScopeDispose,
+  readonly,
+  shallowRef,
+  useId,
+  watch,
+} from 'vue'
 import type { StreamChunk } from '@tanstack/ai'
 import type {
+  AIDevtoolsClientMetadata,
   ConnectConnectionAdapter,
   GenerationClientOptions,
   GenerationClientState,
@@ -28,6 +36,8 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Metadata used to register this generation hook with TanStack AI Devtools */
+  devtools?: Partial<AIDevtoolsClientMetadata>
   /**
    * Callback when a result is received. Can optionally return a transformed value.
    *
@@ -112,6 +122,11 @@ export function useGeneration<
   const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
     id: clientId,
     body: options.body,
+    devtools: {
+      framework: 'vue',
+      hookName: 'useGeneration',
+      ...options.devtools,
+    },
     onResult: (r: TResult) => options.onResult?.(r),
     onError: (e: Error) => options.onError?.(e),
     onProgress: (p: number, m?: string) => options.onProgress?.(p, m),
@@ -160,9 +175,13 @@ export function useGeneration<
     },
   )
 
-  // Cleanup on scope dispose: stop any in-flight requests
+  onMounted(() => {
+    client.mountDevtools()
+  })
+
+  // Cleanup on scope dispose: stop any in-flight requests and unregister devtools
   onScopeDispose(() => {
-    client.stop()
+    client.dispose()
   })
 
   const generate = async (input: TInput) => {

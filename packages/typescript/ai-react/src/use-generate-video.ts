@@ -135,6 +135,11 @@ export function useGenerateVideo<
     const baseOptions = {
       id: clientId,
       body: opts.body,
+      devtools: {
+        framework: 'react',
+        hookName: 'useGenerateVideo',
+        outputKind: 'video' as const,
+      },
       onResult: (r: VideoGenerateResult) => optionsRef.current.onResult?.(r),
       onError: (e: Error) => {
         optionsRef.current.onError?.(e)
@@ -188,8 +193,10 @@ export function useGenerateVideo<
 
   // Cleanup on unmount
   useEffect(() => {
+    client.mountDevtools()
+
     return () => {
-      client.stop()
+      client.dispose()
     }
   }, [client])
 

@@ -1,6 +1,7 @@
 import { GenerationClient } from '@tanstack/ai-client'
 import type { StreamChunk } from '@tanstack/ai'
 import type {
+  AIDevtoolsClientMetadata,
   ConnectConnectionAdapter,
   GenerationClientOptions,
   GenerationClientState,
@@ -26,6 +27,8 @@ export interface CreateGenerationOptions<TInput, TResult, TOutput = TResult> {
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Metadata used to register this generation instance with TanStack AI Devtools */
+  devtools?: Partial<AIDevtoolsClientMetadata>
   /**
    * Callback when a result is received. Can optionally return a transformed value.
    *
@@ -62,6 +65,8 @@ export interface CreateGenerationReturn<TOutput> {
   stop: () => void
   /** Clear result, error, and return to idle */
   reset: () => void
+  /** Stop in-flight work and unregister devtools listeners */
+  dispose: () => void
   /** Update additional body parameters */
   updateBody: (body: Record<string, any>) => void
 }
@@ -124,6 +129,11 @@ export function createGeneration<
   const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
     id: clientId,
     body: options.body,
+    devtools: {
+      framework: 'svelte',
+      hookName: 'createGeneration',
+      ...options.devtools,
+    },
     onResult: (r: TResult) => options.onResult?.(r),
     onError: (e: Error) => options.onError?.(e),
     onProgress: (p: number, m?: string) => options.onProgress?.(p, m),
@@ -160,10 +170,12 @@ export function createGeneration<
     )
   }
 
-  // Note: Cleanup is handled by calling stop() directly when needed.
+  client.mountDevtools()
+
+  // Note: Cleanup is handled by calling dispose() directly when needed.
   // Unlike React/Vue/Solid, Svelte 5 runes like $effect can only be used
   // during component initialization, so we don't add automatic cleanup here.
-  // Users should call gen.stop() in their component's cleanup if needed.
+  // Users should call gen.dispose() in their component's cleanup if needed.
 
   const generate = async (input: TInput) => {
     await client.generate(input)
@@ -175,6 +187,10 @@ export function createGeneration<
 
   const reset = () => {
     client.reset()
+  }
+
+  const dispose = () => {
+    client.dispose()
   }
 
   const updateBody = (newBody: Record<string, any>) => {
@@ -197,6 +213,7 @@ export function createGeneration<
     generate: generate as (input: Record<string, any>) => Promise<void>,
     stop,
     reset,
+    dispose,
     updateBody,
   }
 }

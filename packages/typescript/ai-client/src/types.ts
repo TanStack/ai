@@ -13,6 +13,7 @@ import type {
   VideoPart,
 } from '@tanstack/ai'
 import type { ConnectionAdapter } from './connection-adapters'
+import type { AIDevtoolsClientMetadata } from './devtools'
 
 export type { StructuredOutputPart } from '@tanstack/ai'
 
@@ -204,6 +205,7 @@ export interface UIMessage<
 
 export interface ChatClientOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
+  TContext = unknown,
 > {
   /**
    * Connection adapter for streaming.
@@ -329,6 +331,16 @@ export interface ChatClientOptions<
   tools?: TTools
 
   /**
+   * Client-local context passed to client-side tool execution.
+   */
+  context?: TContext
+
+  /**
+   * Devtools hook metadata for this client instance.
+   */
+  devtools?: Partial<AIDevtoolsClientMetadata>
+
+  /**
    * Stream processing options (optional)
    * Configure chunking strategy
    */
@@ -385,7 +397,10 @@ export function clientTools<const T extends Array<AnyClientTool>>(
  */
 export function createChatClientOptions<
   const TTools extends ReadonlyArray<AnyClientTool>,
->(options: ChatClientOptions<TTools>): ChatClientOptions<TTools> {
+  TContext = unknown,
+>(
+  options: ChatClientOptions<TTools, TContext>,
+): ChatClientOptions<TTools, TContext> {
   return options
 }
 
@@ -404,4 +419,6 @@ export function createChatClientOptions<
  * ```
  */
 export type InferChatMessages<T> =
-  T extends ChatClientOptions<infer TTools> ? Array<UIMessage<TTools>> : never
+  T extends ChatClientOptions<infer TTools, any>
+    ? Array<UIMessage<TTools>>
+    : never

@@ -102,7 +102,14 @@ export function createGenerateAudio<
     AudioGenerateInput,
     AudioGenerationResult,
     TOnResult
-  >(options)
+  >({
+    ...options,
+    devtools: {
+      framework: 'svelte',
+      hookName: 'createGenerateAudio',
+      outputKind: 'audio',
+    },
+  })
 
   return {
     get result() {

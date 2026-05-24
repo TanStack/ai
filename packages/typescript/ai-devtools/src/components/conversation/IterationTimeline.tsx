@@ -1,8 +1,14 @@
 import { For, Index, Show, createMemo, createSignal } from 'solid-js'
 import { JsonTree } from '@tanstack/devtools-ui'
 import { useStyles } from '../../styles/use-styles'
+import {
+  createHoverTarget,
+  getHoverDataAttributes,
+  isMessageHighlighted,
+} from '../hooks/preview-model'
 import { formatDuration } from '../utils'
 import { IterationCard } from './IterationCard'
+import type { HoverTarget } from '../hooks/preview-model'
 import type { Iteration, Message } from '../../store/ai-store'
 import type { Component } from 'solid-js'
 
@@ -15,6 +21,8 @@ interface UserMessageGroup {
 interface IterationTimelineProps {
   iterations: Array<Iteration>
   messages: Array<Message>
+  hoverTarget?: HoverTarget | null
+  onHoverTarget?: (target: HoverTarget | null) => void
 }
 
 export const IterationTimeline: Component<IterationTimelineProps> = (props) => {
@@ -79,6 +87,8 @@ export const IterationTimeline: Component<IterationTimelineProps> = (props) => {
               <UserMessageGroupCard
                 group={group()}
                 allMessages={props.messages}
+                hoverTarget={props.hoverTarget ?? null}
+                onHoverTarget={props.onHoverTarget}
               />
             )}
           </Index>
@@ -127,6 +137,8 @@ export const SystemPromptItem: Component<{ prompt: string; index: number }> = (
 const UserMessageGroupCard: Component<{
   group: UserMessageGroup
   allMessages: Array<Message>
+  hoverTarget: HoverTarget | null
+  onHoverTarget?: (target: HoverTarget | null) => void
 }> = (props) => {
   const styles = useStyles()
   const s = () => styles().iterationTimeline
@@ -135,6 +147,7 @@ const UserMessageGroupCard: Component<{
 
   const group = () => props.group
   const userMsg = () => group().userMessage
+  const userMessageId = () => userMsg()?.id
   const iters = () => group().iterations
 
   const totalDuration = createMemo(() => {
@@ -228,6 +241,29 @@ const UserMessageGroupCard: Component<{
     return text.length > 120 ? text.slice(0, 120) + '...' : text
   }
 
+  const handleUserMouseEnter = () => {
+    const messageId = userMessageId()
+    if (messageId) {
+      props.onHoverTarget?.(
+        createHoverTarget({
+          messageIds: [messageId],
+          origin: 'timeline',
+        }),
+      )
+    }
+  }
+
+  const handleUserMouseLeave = () => {
+    props.onHoverTarget?.(null)
+  }
+
+  const isUserMessageHighlighted = () => {
+    const messageId = userMessageId()
+    return messageId
+      ? isMessageHighlighted(messageId, props.hoverTarget)
+      : false
+  }
+
   // Config from the first iteration of this group
   const firstIter = createMemo(() => iters()[0])
 
@@ -262,9 +298,21 @@ const UserMessageGroupCard: Component<{
     toolNames().length > 0 || systemPrompts().length > 0 || hasModelOptions()
 
   return (
-    <div class={`${s().card} ${groupAccentClass()}`}>
+    <div
+      {...getHoverDataAttributes({
+        messageIds: userMessageId() ? [userMessageId() ?? ''] : [],
+      })}
+      class={`${s().card} ${groupAccentClass()} ${
+        isUserMessageHighlighted() ? s().cardHighlighted : ''
+      }`}
+    >
       {/* User message header */}
-      <div class={s().cardHeader} onClick={() => setIsOpen(!isOpen())}>
+      <div
+        class={s().cardHeader}
+        onClick={() => setIsOpen(!isOpen())}
+        onMouseEnter={handleUserMouseEnter}
+        onMouseLeave={handleUserMouseLeave}
+      >
         <div class={s().userBubble}>U</div>
         <div class={s().cardHeaderContent}>
           <span class={s().cardHeaderLabel}>{userContent()}</span>
@@ -415,6 +463,8 @@ const UserMessageGroupCard: Component<{
                   messages={props.allMessages}
                   index={index()}
                   isLast={index() === iters().length - 1}
+                  hoverTarget={props.hoverTarget}
+                  onHoverTarget={props.onHoverTarget}
                 />
               )}
             </For>

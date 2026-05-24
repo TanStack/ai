@@ -1,5 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import {
+  chat,
+  chatParamsFromRequestBody,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
 import { openaiChatCompletions, openaiText } from '@tanstack/ai-openai'
 import { grokText } from '@tanstack/ai-grok'
 import { groqText } from '@tanstack/ai-groq'
@@ -45,19 +49,35 @@ async function* withTrailingPhaseCounts(
   snapshot: () => Record<string, number>,
   model: string,
 ): AsyncIterable<StreamChunk> {
+  let yieldedCounts = false
   for await (const chunk of stream) {
+    if (
+      chunk.type === EventType.RUN_FINISHED ||
+      chunk.type === EventType.RUN_ERROR
+    ) {
+      yieldedCounts = true
+      yield {
+        type: EventType.CUSTOM,
+        name: 'phase-counts',
+        value: snapshot(),
+        model,
+        timestamp: Date.now(),
+      }
+    }
     yield chunk
   }
-  yield {
-    type: EventType.CUSTOM,
-    name: 'phase-counts',
-    value: snapshot(),
-    model,
-    timestamp: Date.now(),
+  if (!yieldedCounts) {
+    yield {
+      type: EventType.CUSTOM,
+      name: 'phase-counts',
+      value: snapshot(),
+      model,
+      timestamp: Date.now(),
+    }
   }
 }
 
-const GuitarRecommendationSchema = z.object({
+export const GuitarRecommendationSchema = z.object({
   title: z.string().describe('Short headline for the recommendation'),
   summary: z.string().describe('One paragraph summary'),
   recommendations: z
@@ -75,29 +95,22 @@ const GuitarRecommendationSchema = z.object({
   nextSteps: z.array(z.string()).describe('Practical follow-up actions'),
 })
 
-type Provider =
-  | 'openai'
-  | 'openai-chat'
-  | 'grok'
-  | 'groq'
-  | 'openrouter'
-  | 'openrouter-responses'
+export type GuitarRecommendation = z.infer<typeof GuitarRecommendationSchema>
 
-const StructuredOutputRequestSchema = z.object({
-  prompt: z.string().min(1),
-  provider: z
-    .enum([
-      'openai',
-      'openai-chat',
-      'grok',
-      'groq',
-      'openrouter',
-      'openrouter-responses',
-    ])
-    .optional(),
-  model: z.string().optional(),
-  stream: z.boolean().optional(),
-})
+const PROVIDERS = [
+  'openai',
+  'openai-chat',
+  'grok',
+  'groq',
+  'openrouter',
+  'openrouter-responses',
+] as const
+
+type Provider = (typeof PROVIDERS)[number]
+
+function isProvider(value: unknown): value is Provider {
+  return typeof value === 'string' && PROVIDERS.includes(value as Provider)
+}
 
 function adapterFor(provider: Provider, model?: string): AnyTextAdapter {
   switch (provider) {
@@ -181,42 +194,104 @@ function reasoningOptionsFor(
   }
 }
 
+async function* structuredOutputResultStream(args: {
+  result: GuitarRecommendation
+  phaseCounts: Record<string, number>
+  threadId: string
+  runId: string
+  model: string
+}): AsyncIterable<StreamChunk> {
+  const messageId = `structured-output-${args.runId}`
+  const raw = JSON.stringify(args.result)
+  const timestamp = Date.now()
+
+  yield {
+    type: EventType.RUN_STARTED,
+    threadId: args.threadId,
+    runId: args.runId,
+    model: args.model,
+    timestamp,
+  }
+  yield {
+    type: EventType.CUSTOM,
+    name: 'structured-output.start',
+    value: { messageId },
+    model: args.model,
+    timestamp: Date.now(),
+  }
+  yield {
+    type: EventType.CUSTOM,
+    name: 'structured-output.complete',
+    value: { object: args.result, raw },
+    model: args.model,
+    timestamp: Date.now(),
+  }
+  yield {
+    type: EventType.CUSTOM,
+    name: 'phase-counts',
+    value: args.phaseCounts,
+    model: args.model,
+    timestamp: Date.now(),
+  }
+  yield {
+    type: EventType.RUN_FINISHED,
+    threadId: args.threadId,
+    runId: args.runId,
+    model: args.model,
+    timestamp: Date.now(),
+    finishReason: 'stop',
+  }
+}
+
 export const Route = createFileRoute('/api/structured-output')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        try {
-          const parsed = StructuredOutputRequestSchema.safeParse(
-            await request.json(),
-          )
-          if (!parsed.success) {
-            return new Response(
-              JSON.stringify({ error: 'Invalid request body' }),
-              {
-                status: 400,
-                headers: { 'Content-Type': 'application/json' },
-              },
-            )
-          }
-          const { prompt, provider, model, stream } = parsed.data
-          const resolvedProvider: Provider = provider || 'openrouter'
-          const modelOptions = reasoningOptionsFor(resolvedProvider, model)
+        if (request.signal.aborted) {
+          return new Response(null, { status: 499 })
+        }
 
+        const abortController = new AbortController()
+        const onAbort = () => abortController.abort()
+        request.signal.addEventListener('abort', onAbort, { once: true })
+        if (request.signal.aborted) {
+          onAbort()
+        }
+
+        let params: Awaited<ReturnType<typeof chatParamsFromRequestBody>>
+        try {
+          params = await chatParamsFromRequestBody(await request.json())
+        } catch (error) {
+          return new Response(
+            error instanceof Error ? error.message : 'Bad request',
+            { status: 400 },
+          )
+        }
+
+        try {
+          const providerValue = params.forwardedProps.provider
+          const resolvedProvider: Provider = isProvider(providerValue)
+            ? providerValue
+            : 'openrouter'
+          const model =
+            typeof params.forwardedProps.model === 'string'
+              ? params.forwardedProps.model
+              : undefined
+          const stream = params.forwardedProps.stream !== false
+          const adapter = adapterFor(resolvedProvider, model)
+          const modelOptions = reasoningOptionsFor(resolvedProvider, model)
           const counter = phaseCounterMiddleware()
 
           if (stream) {
-            const abortController = new AbortController()
-            request.signal.addEventListener('abort', () =>
-              abortController.abort(),
-            )
-            const adapter = adapterFor(resolvedProvider, model)
             const streamIterable = chat({
               adapter,
               modelOptions: modelOptions as never,
-              messages: [{ role: 'user', content: prompt }],
+              messages: params.messages,
               outputSchema: GuitarRecommendationSchema,
               stream: true,
               middleware: [counter.middleware],
+              threadId: params.threadId,
+              runId: params.runId,
               abortController,
             }) as AsyncIterable<StreamChunk>
             const withCounts = withTrailingPhaseCounts(
@@ -229,28 +304,26 @@ export const Route = createFileRoute('/api/structured-output')({
             })
           }
 
-          const abortController = new AbortController()
-          request.signal.addEventListener('abort', () =>
-            abortController.abort(),
-          )
           const result = await chat({
-            adapter: adapterFor(resolvedProvider, model),
+            adapter,
             modelOptions: modelOptions as never,
-            messages: [{ role: 'user', content: prompt }],
+            messages: params.messages,
             outputSchema: GuitarRecommendationSchema,
             middleware: [counter.middleware],
+            threadId: params.threadId,
+            runId: params.runId,
             abortController,
           })
 
-          return new Response(
-            JSON.stringify({
-              data: result,
-              _diagnostics: { phaseCounts: counter.snapshot() },
-            }),
-            {
-              headers: { 'Content-Type': 'application/json' },
-            },
-          )
+          const responseStream = structuredOutputResultStream({
+            result,
+            phaseCounts: counter.snapshot(),
+            threadId: params.threadId,
+            runId: params.runId,
+            model: adapter.model,
+          })
+
+          return toServerSentEventsResponse(responseStream, { abortController })
         } catch (error: unknown) {
           const message =
             error instanceof Error ? error.message : 'An error occurred'
@@ -259,6 +332,8 @@ export const Route = createFileRoute('/api/structured-output')({
             status: 500,
             headers: { 'Content-Type': 'application/json' },
           })
+        } finally {
+          request.signal.removeEventListener('abort', onAbort)
         }
       },
     },

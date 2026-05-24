@@ -2,6 +2,7 @@ import { GenerationClient } from '@tanstack/ai-client'
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { StreamChunk } from '@tanstack/ai'
 import type {
+  AIDevtoolsClientMetadata,
   ConnectConnectionAdapter,
   GenerationClientOptions,
   GenerationClientState,
@@ -27,6 +28,8 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Metadata used to register this generation hook with TanStack AI Devtools */
+  devtools?: Partial<AIDevtoolsClientMetadata>
   /**
    * Callback when a result is received. Can optionally return a transformed value.
    *
@@ -115,6 +118,11 @@ export function useGeneration<
     const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
       id: clientId,
       body: opts.body,
+      devtools: {
+        framework: 'react',
+        hookName: 'useGeneration',
+        ...opts.devtools,
+      },
       onResult: (r: TResult) => optionsRef.current.onResult?.(r),
       onError: (e: Error) => {
         optionsRef.current.onError?.(e)
@@ -160,8 +168,10 @@ export function useGeneration<
 
   // Cleanup on unmount
   useEffect(() => {
+    client.mountDevtools()
+
     return () => {
-      client.stop()
+      client.dispose()
     }
   }, [client])
 

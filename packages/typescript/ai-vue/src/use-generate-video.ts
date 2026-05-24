@@ -1,5 +1,12 @@
 import { VideoGenerationClient } from '@tanstack/ai-client'
-import { onScopeDispose, readonly, shallowRef, useId, watch } from 'vue'
+import {
+  onMounted,
+  onScopeDispose,
+  readonly,
+  shallowRef,
+  useId,
+  watch,
+} from 'vue'
 import type { StreamChunk } from '@tanstack/ai'
 import type {
   ConnectConnectionAdapter,
@@ -130,6 +137,11 @@ export function useGenerateVideo<
   const baseOptions = {
     id: clientId,
     body: options.body,
+    devtools: {
+      framework: 'vue',
+      hookName: 'useGenerateVideo',
+      outputKind: 'video' as const,
+    },
     onResult: (r: VideoGenerateResult) => options.onResult?.(r),
     onError: (e: Error) => options.onError?.(e),
     onProgress: (p: number, m?: string) => options.onProgress?.(p, m),
@@ -186,9 +198,13 @@ export function useGenerateVideo<
     },
   )
 
-  // Cleanup on scope dispose: stop any in-flight requests or polling
+  onMounted(() => {
+    client.mountDevtools()
+  })
+
+  // Cleanup on scope dispose: stop any in-flight requests and unregister devtools
   onScopeDispose(() => {
-    client.stop()
+    client.dispose()
   })
 
   const generate = async (input: VideoGenerateInput) => {

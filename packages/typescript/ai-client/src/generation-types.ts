@@ -1,5 +1,6 @@
 import type { StreamChunk } from '@tanstack/ai'
 import type { ConnectConnectionAdapter } from './connection-adapters'
+import type { AIDevtoolsClientMetadata } from './devtools'
 
 // ===========================
 // Inference Utilities
@@ -105,6 +106,9 @@ export interface GenerationClientOptions<_TInput, TResult, TOutput = TResult> {
 
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+
+  /** Metadata used to register this generation hook with TanStack AI Devtools */
+  devtools?: Partial<AIDevtoolsClientMetadata>
 
   /**
    * Callback when a result is received. Can optionally return a transformed value

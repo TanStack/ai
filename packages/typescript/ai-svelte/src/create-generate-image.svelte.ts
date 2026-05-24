@@ -111,7 +111,14 @@ export function createGenerateImage<
     ImageGenerateInput,
     ImageGenerationResult,
     TOnResult
-  >(options)
+  >({
+    ...options,
+    devtools: {
+      framework: 'svelte',
+      hookName: 'createGenerateImage',
+      outputKind: 'image',
+    },
+  })
 
   return {
     get result() {

@@ -76,7 +76,10 @@ describe('GenerationClient', () => {
 
     it('should pass abort signal to fetcher', async () => {
       const fetcherSpy = vi.fn(
-        async (_input: any, options?: { signal: AbortSignal }) => {
+        async (
+          _input: { prompt: string },
+          options?: { signal: AbortSignal },
+        ) => {
           expect(options).toBeDefined()
           expect(options!.signal).toBeInstanceOf(AbortSignal)
           expect(options!.signal.aborted).toBe(false)
@@ -98,13 +101,13 @@ describe('GenerationClient', () => {
     })
 
     it('should not allow concurrent requests', async () => {
-      let resolveFirst: (value: any) => void
+      let resolveFirst: (value: { id: string }) => void
       let callCount = 0
 
       const client = new GenerationClient({
         fetcher: async () => {
           callCount++
-          return new Promise((resolve) => {
+          return new Promise<{ id: string }>((resolve) => {
             resolveFirst = resolve
           })
         },
@@ -304,17 +307,21 @@ describe('GenerationClient', () => {
         [],
         { model: 'dall-e-3', prompt: 'sunset', size: '1024x1024' },
         expect.any(AbortSignal),
+        expect.objectContaining({
+          threadId: expect.stringMatching(/^generation-/),
+          runId: expect.stringMatching(/^run-/),
+        }),
       )
     })
   })
 
   describe('stop()', () => {
     it('should abort in-flight request and reset to idle', async () => {
-      let resolvePromise: (value: any) => void
+      let resolvePromise: (value: { id: string }) => void
 
       const client = new GenerationClient({
         fetcher: async () => {
-          return new Promise((resolve) => {
+          return new Promise<{ id: string }>((resolve) => {
             resolvePromise = resolve
           })
         },
@@ -375,6 +382,10 @@ describe('GenerationClient', () => {
         [],
         { model: 'new', prompt: 'test' },
         expect.any(AbortSignal),
+        expect.objectContaining({
+          threadId: expect.stringMatching(/^generation-/),
+          runId: expect.stringMatching(/^run-/),
+        }),
       )
     })
   })
@@ -423,12 +434,12 @@ describe('GenerationClient', () => {
     })
 
     it('should not set result if fetcher resolves after stop()', async () => {
-      let resolvePromise: (value: any) => void
+      let resolvePromise: (value: { id: string }) => void
       const onResult = vi.fn()
 
       const client = new GenerationClient({
         fetcher: async () => {
-          return new Promise((resolve) => {
+          return new Promise<{ id: string }>((resolve) => {
             resolvePromise = resolve
           })
         },
@@ -466,9 +477,10 @@ describe('GenerationClient', () => {
     it('should throw if neither connection nor fetcher is provided', async () => {
       const onError = vi.fn()
 
+      // @ts-expect-error verifying the runtime guard for JavaScript callers
       const client = new GenerationClient({
         onError,
-      } as any)
+      })
 
       await client.generate({ prompt: 'test' })
 
@@ -576,7 +588,7 @@ describe('GenerationClient', () => {
       const onResultChange = vi.fn()
 
       const client = new GenerationClient<
-        Record<string, any>,
+        { prompt: string },
         { id: string },
         { transformed: boolean }
       >({
@@ -648,8 +660,8 @@ describe('GenerationClient', () => {
       ])
 
       const client = new GenerationClient<
-        Record<string, any>,
-        { id: string; images: Array<any> },
+        { prompt: string },
+        { id: string; images: Array<{ url?: string }> },
         { imageCount: number }
       >({
         connection,
@@ -663,7 +675,7 @@ describe('GenerationClient', () => {
 
     it('should reset transformed result to null on reset()', async () => {
       const client = new GenerationClient<
-        Record<string, any>,
+        { prompt: string },
         { id: string },
         { transformed: boolean }
       >({
@@ -681,7 +693,7 @@ describe('GenerationClient', () => {
     it('should keep previous transformed result on second generation when onResult returns null', async () => {
       let callCount = 0
       const client = new GenerationClient<
-        Record<string, any>,
+        { prompt: string },
         { id: string },
         { transformed: string }
       >({

@@ -1,6 +1,7 @@
 import { ChatClient } from '@tanstack/ai-client'
 import {
   computed,
+  onMounted,
   onScopeDispose,
   readonly,
   shallowRef,
@@ -80,6 +81,12 @@ export function useChat<
     ...(options.forwardedProps !== undefined && {
       forwardedProps: options.forwardedProps,
     }),
+    devtools: {
+      framework: 'vue',
+      hookName: 'useChat',
+      outputKind: options.outputSchema ? 'structured' : 'chat',
+      ...options.devtools,
+    },
     onResponse: (response) => options.onResponse?.(response),
     onChunk: (chunk: StreamChunk) => {
       options.onChunk?.(chunk)
@@ -148,6 +155,10 @@ export function useChat<
     { immediate: true },
   )
 
+  onMounted(() => {
+    client.mountDevtools()
+  })
+
   // Cleanup on unmount: stop any in-flight requests
   // Note: client.stop() is safe to call even if nothing is in progress
   onScopeDispose(() => {
@@ -156,6 +167,7 @@ export function useChat<
     } else {
       client.stop()
     }
+    client.dispose()
   })
 
   // Callback options are read through `options.xxx` at call time, so reactive

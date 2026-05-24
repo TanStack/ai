@@ -5,10 +5,14 @@ import {
   MainPanel,
   ThemeContextProvider,
 } from '@tanstack/devtools-ui'
+import {
+  aiEventClient,
+  createAIDevtoolsEventEnvelope,
+  dispatchAIDevtoolsEvent,
+} from '@tanstack/ai-event-client'
 import { useStyles } from '../styles/use-styles'
 import { AIProvider } from '../store/ai-context'
-import { ConversationsList } from './ConversationsList'
-import { ConversationDetails } from './ConversationDetails'
+import { HookDashboard, HookDetails } from './hooks'
 
 import type { TanStackDevtoolsTheme } from '@tanstack/devtools-ui'
 
@@ -62,43 +66,70 @@ function DevtoolsContent() {
   onMount(() => {
     document.addEventListener('mousemove', handleMouseMove)
     document.addEventListener('mouseup', handleMouseUp)
+
+    const openedAt = Date.now()
+    dispatchAIDevtoolsEvent('devtools:opened', {
+      ...createAIDevtoolsEventEnvelope({
+        eventType: 'devtools:opened',
+        source: 'devtools',
+        visibility: 'devtools-action',
+        timestamp: openedAt,
+      }),
+    })
+    dispatchAIDevtoolsEvent('devtools:request-state', {
+      ...createAIDevtoolsEventEnvelope({
+        eventType: 'devtools:request-state',
+        source: 'devtools',
+        visibility: 'devtools-action',
+        timestamp: openedAt + 1,
+      }),
+    })
   })
 
   onCleanup(() => {
     document.removeEventListener('mousemove', handleMouseMove)
     document.removeEventListener('mouseup', handleMouseUp)
+    aiEventClient.emit('devtools:closed', {
+      ...createAIDevtoolsEventEnvelope({
+        eventType: 'devtools:closed',
+        source: 'devtools',
+        visibility: 'devtools-action',
+        timestamp: Date.now(),
+      }),
+    })
   })
 
   return (
     <MainPanel>
-      <Header>
-        <HeaderLogo flavor={{ light: '#ec4899', dark: '#ec4899' }}>
-          TanStack AI
-        </HeaderLogo>
-      </Header>
+      <div class={styles().shellRoot}>
+        <Header>
+          <HeaderLogo flavor={{ light: '#ec4899', dark: '#ec4899' }}>
+            TanStack AI
+          </HeaderLogo>
+        </Header>
 
-      <div class={styles().mainContainer}>
-        <div
-          class={styles().leftPanel}
-          style={{
-            width: `${leftPanelWidth()}px`,
-            'min-width': '150px',
-            'max-width': '800px',
-          }}
-        >
-          {/* Section header */}
-          <div class={styles().shell.sectionHeader}>Active Conversations</div>
+        <div class={styles().mainContainer}>
+          <div
+            class={styles().leftPanel}
+            style={{
+              width: `${leftPanelWidth()}px`,
+              'min-width': '150px',
+              'max-width': '800px',
+            }}
+          >
+            <div class={styles().shell.sectionHeader}>AI Hooks</div>
 
-          <ConversationsList />
-        </div>
+            <HookDashboard />
+          </div>
 
-        <div
-          class={`${styles().dragHandle} ${isDragging() ? 'dragging' : ''}`}
-          onMouseDown={handleMouseDown}
-        />
+          <div
+            class={`${styles().dragHandle} ${isDragging() ? 'dragging' : ''}`}
+            onMouseDown={handleMouseDown}
+          />
 
-        <div class={styles().rightPanel} style={{ flex: 1 }}>
-          <ConversationDetails />
+          <div class={styles().rightPanel} style={{ flex: 1 }}>
+            <HookDetails />
+          </div>
         </div>
       </div>
     </MainPanel>

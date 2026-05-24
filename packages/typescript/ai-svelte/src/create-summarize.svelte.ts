@@ -106,7 +106,14 @@ export function createSummarize<
     SummarizeGenerateInput,
     SummarizationResult,
     TOnResult
-  >(options)
+  >({
+    ...options,
+    devtools: {
+      framework: 'svelte',
+      hookName: 'createSummarize',
+      outputKind: 'text',
+    },
+  })
 
   return {
     get result() {

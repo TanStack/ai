@@ -5,6 +5,7 @@ import {
   normalizeToUIMessage,
 } from '@tanstack/ai'
 import { DefaultChatClientEventEmitter } from './events'
+import { ClientDevtoolsBridge } from './devtools'
 import { normalizeConnectionAdapter } from './connection-adapters'
 import type {
   AnyClientTool,
@@ -16,7 +17,11 @@ import type {
   ConnectionAdapter,
   SubscribeConnectionAdapter,
 } from './connection-adapters'
-import type { ChatClientEventEmitter } from './events'
+import type {
+  ChatClientEventEmitter,
+  ChatClientRunEventContext,
+} from './events'
+import type { AIDevtoolsChatSnapshot, AIDevtoolsToolFixture } from './devtools'
 import type {
   ChatClientOptions,
   ChatClientState,
@@ -47,8 +52,13 @@ export class ChatClient {
   private abortController: AbortController | null = null
   private readonly events: ChatClientEventEmitter
   private readonly clientToolsRef: { current: Map<string, AnyClientTool> }
+  private readonly devtoolsBridge: ClientDevtoolsBridge<AIDevtoolsChatSnapshot>
   private currentStreamId: string | null = null
   private currentMessageId: string | null = null
+  private currentRunId: string | null = null
+  private currentRunThreadId: string | null = null
+  private lastStreamId: string | null = null
+  private lastRunEventContext: ChatClientRunEventContext | undefined
   private readonly postStreamActions: Array<() => Promise<void>> = []
   // Track pending client tool executions to await them before stream finalization
   private readonly pendingToolExecutions: Map<string, Promise<void>> = new Map()
@@ -64,6 +74,7 @@ export class ChatClient {
   private draining = false
   private sessionGenerating = false
   private readonly activeRunIds = new Set<string>()
+  private devtoolsMounted = false
 
   private readonly callbacksRef: {
     current: {
@@ -107,6 +118,24 @@ export class ChatClient {
       }
     }
 
+    this.devtoolsBridge = new ClientDevtoolsBridge({
+      hookId: this.uniqueId,
+      clientId: this.uniqueId,
+      threadId: this.threadId,
+      metadata: {
+        hookName: options.devtools?.hookName ?? 'useChat',
+        outputKind: options.devtools?.outputKind ?? 'chat',
+        ...(options.devtools?.framework
+          ? { framework: options.devtools.framework }
+          : {}),
+      },
+      getSnapshot: () => this.getDevtoolsSnapshot(),
+      getTools: () => this.clientToolsRef.current.values(),
+      applyToolFixture: (fixture) => {
+        return this.applyToolFixture(fixture)
+      },
+    })
+
     this.callbacksRef = {
       current: {
         onResponse: options.onResponse || (() => {}),
@@ -137,8 +166,10 @@ export class ChatClient {
         ? { initialMessages: options.initialMessages }
         : {}),
       events: {
-        onMessagesChange: (messages: Array<UIMessage>) => {
-          this.callbacksRef.current.onMessagesChange(messages)
+        onMessagesChange: (messages) => {
+          this.callbacksRef.current.onMessagesChange(
+            messages as Array<UIMessage>,
+          )
         },
         onStreamStart: () => {
           this.setStatus('streaming')
@@ -147,20 +178,21 @@ export class ChatClient {
           if (!assistantMessageId) {
             return
           }
-          const messages = this.processor.getMessages()
+          const messages = this.processor.getMessages() as Array<UIMessage>
           const assistantMessage = messages.find(
-            (m: UIMessage) => m.id === assistantMessageId,
+            (m) => m.id === assistantMessageId,
           )
           if (assistantMessage) {
             this.currentMessageId = assistantMessage.id
             this.events.messageAppended(
               assistantMessage,
               this.currentStreamId || undefined,
+              this.getCurrentRunEventContext(),
             )
           }
         },
-        onStreamEnd: (message: UIMessage) => {
-          this.callbacksRef.current.onFinish(message)
+        onStreamEnd: (message) => {
+          this.callbacksRef.current.onFinish(message as UIMessage)
           this.setStatus('ready')
           // Resolve the processing-complete promise so streamResponse can continue
           this.resolveProcessing()
@@ -171,7 +203,12 @@ export class ChatClient {
         onTextUpdate: (messageId: string, content: string) => {
           // Emit text update to devtools
           if (this.currentStreamId) {
-            this.events.textUpdated(this.currentStreamId, messageId, content)
+            this.events.textUpdated(
+              this.currentStreamId,
+              messageId,
+              content,
+              this.getCurrentRunEventContext(),
+            )
           }
         },
         onThinkingUpdate: (messageId: string, content: string) => {
@@ -181,8 +218,46 @@ export class ChatClient {
               this.currentStreamId,
               messageId,
               content,
+              undefined,
+              this.getCurrentRunEventContext(),
             )
           }
+        },
+        onStructuredOutputChange: (args) => {
+          const streamId =
+            this.currentStreamId ??
+            this.lastStreamId ??
+            this.generateUniqueId('stream')
+          const eventName =
+            args.phase === 'start'
+              ? 'structured-output:started'
+              : args.phase === 'complete'
+                ? 'structured-output:completed'
+                : args.phase === 'error'
+                  ? 'structured-output:errored'
+                  : 'structured-output:updated'
+
+          this.currentMessageId = args.messageId
+          this.events.structuredOutputChanged(
+            eventName,
+            streamId,
+            args.messageId,
+            {
+              status: args.status,
+              raw: args.raw,
+              ...(args.partial !== undefined ? { partial: args.partial } : {}),
+              ...(args.data !== undefined ? { data: args.data } : {}),
+              ...(args.reasoning !== undefined
+                ? { reasoning: args.reasoning }
+                : {}),
+              ...(args.errorMessage !== undefined
+                ? { errorMessage: args.errorMessage }
+                : {}),
+              ...(args.delta !== undefined ? { delta: args.delta } : {}),
+            },
+            this.getCurrentOrLastRunEventContext(),
+          )
+          this.emitDevtoolsSnapshot()
         },
         onToolCallStateChange: (
           messageId: string,
@@ -191,8 +266,8 @@ export class ChatClient {
           args: string,
         ) => {
           // Get the tool name from the messages
-          const messages = this.processor.getMessages()
-          const message = messages.find((m: UIMessage) => m.id === messageId)
+          const messages = this.processor.getMessages() as Array<UIMessage>
+          const message = messages.find((m) => m.id === messageId)
           const toolCallPart = message?.parts.find(
             (p: MessagePart): p is ToolCallPart =>
               p.type === 'tool-call' && p.id === toolCallId,
@@ -208,6 +283,7 @@ export class ChatClient {
               toolName,
               state,
               args,
+              this.getCurrentRunEventContext(),
             )
           }
         },
@@ -220,24 +296,31 @@ export class ChatClient {
           const clientTool = this.clientToolsRef.current.get(args.toolName)
           const executeFunc = clientTool?.execute
           if (executeFunc) {
+            const runEventContext = this.getCurrentRunEventContext()
             // Create and track the execution promise
             const executionPromise = (async () => {
               try {
                 const output = await executeFunc(args.input)
-                await this.addToolResult({
-                  toolCallId: args.toolCallId,
-                  tool: args.toolName,
-                  output,
-                  state: 'output-available',
-                })
+                await this.addToolResultInternal(
+                  {
+                    toolCallId: args.toolCallId,
+                    tool: args.toolName,
+                    output,
+                    state: 'output-available',
+                  },
+                  runEventContext,
+                )
               } catch (error: any) {
-                await this.addToolResult({
-                  toolCallId: args.toolCallId,
-                  tool: args.toolName,
-                  output: null,
-                  state: 'output-error',
-                  errorText: error.message,
-                })
+                await this.addToolResultInternal(
+                  {
+                    toolCallId: args.toolCallId,
+                    tool: args.toolName,
+                    output: null,
+                    state: 'output-error',
+                    errorText: error.message,
+                  },
+                  runEventContext,
+                )
               } finally {
                 // Remove from pending when complete
                 this.pendingToolExecutions.delete(args.toolCallId)
@@ -254,16 +337,22 @@ export class ChatClient {
           input: any
           approvalId: string
         }) => {
-          if (this.currentStreamId) {
-            this.events.approvalRequested(
-              this.currentStreamId,
-              this.currentMessageId || '',
-              args.toolCallId,
-              args.toolName,
-              args.input,
-              args.approvalId,
-            )
-          }
+          const toolCallContext = this.findToolCallContext(args.toolCallId)
+          const streamId =
+            this.currentStreamId ??
+            this.lastStreamId ??
+            this.generateUniqueId('stream')
+
+          this.events.approvalRequested(
+            streamId,
+            toolCallContext?.messageId ?? this.currentMessageId ?? '',
+            args.toolCallId,
+            args.toolName,
+            args.input,
+            args.approvalId,
+            this.getCurrentOrLastRunEventContext(),
+          )
+          this.emitDevtoolsSnapshot()
         },
         onCustomEvent: (
           eventType: string,
@@ -274,8 +363,18 @@ export class ChatClient {
         },
       },
     })
+  }
 
+  mountDevtools(): void {
+    if (this.devtoolsMounted) {
+      return
+    }
+
+    this.devtoolsMounted = true
     this.events.clientCreated(this.processor.getMessages().length)
+    this.devtoolsBridge.emitRegistered()
+    this.devtoolsBridge.emitToolsRegistered()
+    this.devtoolsBridge.emitSnapshot()
   }
 
   private generateUniqueId(prefix: string): string {
@@ -286,27 +385,32 @@ export class ChatClient {
     this.isLoading = isLoading
     this.callbacksRef.current.onLoadingChange(isLoading)
     this.events.loadingChanged(isLoading)
+    this.emitDevtoolsSnapshot()
   }
 
   private setStatus(status: ChatClientState): void {
     this.status = status
     this.callbacksRef.current.onStatusChange(status)
+    this.emitDevtoolsSnapshot()
   }
 
   private setIsSubscribed(isSubscribed: boolean): void {
     this.isSubscribed = isSubscribed
     this.callbacksRef.current.onSubscriptionChange(isSubscribed)
+    this.emitDevtoolsSnapshot()
   }
 
   private setConnectionStatus(status: ConnectionStatus): void {
     this.connectionStatus = status
     this.callbacksRef.current.onConnectionStatusChange(status)
+    this.emitDevtoolsSnapshot()
   }
 
   private setSessionGenerating(isGenerating: boolean): void {
     if (this.sessionGenerating === isGenerating) return
     this.sessionGenerating = isGenerating
     this.callbacksRef.current.onSessionGeneratingChange(isGenerating)
+    this.emitDevtoolsSnapshot()
   }
 
   private resetSessionGenerating(): void {
@@ -318,6 +422,455 @@ export class ChatClient {
     this.error = error
     this.callbacksRef.current.onErrorChange(error)
     this.events.errorChanged(error?.message || null)
+    this.emitDevtoolsSnapshot()
+  }
+
+  private getDevtoolsSnapshot(): AIDevtoolsChatSnapshot {
+    return {
+      messages: this.processor.getMessages() as Array<UIMessage>,
+      status: this.status,
+      isLoading: this.isLoading,
+      isSubscribed: this.isSubscribed,
+      connectionStatus: this.connectionStatus,
+      sessionGenerating: this.sessionGenerating,
+      activeRunIds: Array.from(this.activeRunIds),
+      ...(this.error ? { error: this.error.message } : {}),
+    }
+  }
+
+  private emitDevtoolsSnapshot(): void {
+    this.devtoolsBridge.emitSnapshot()
+  }
+
+  private getCurrentRunEventContext(): ChatClientRunEventContext | undefined {
+    if (!this.currentRunId) {
+      return undefined
+    }
+
+    return {
+      threadId: this.currentRunThreadId ?? this.threadId,
+      runId: this.currentRunId,
+    }
+  }
+
+  private getCurrentOrLastRunEventContext():
+    | ChatClientRunEventContext
+    | undefined {
+    return this.getCurrentRunEventContext() ?? this.lastRunEventContext
+  }
+
+  private findToolCallContext(
+    toolCallId: string,
+  ): { messageId: string; part: ToolCallPart } | undefined {
+    const messages = this.processor.getMessages() as Array<UIMessage>
+    for (const message of messages) {
+      const part = message.parts.find(
+        (candidate): candidate is ToolCallPart =>
+          candidate.type === 'tool-call' && candidate.id === toolCallId,
+      )
+      if (part) {
+        return { messageId: message.id, part }
+      }
+    }
+    return undefined
+  }
+
+  private prepareRunContextForChunk(chunk: StreamChunk): void {
+    if (chunk.type !== 'RUN_STARTED') {
+      return
+    }
+
+    this.currentRunId = chunk.runId
+    this.currentRunThreadId =
+      typeof chunk.threadId === 'string' ? chunk.threadId : this.threadId
+    this.lastRunEventContext = {
+      threadId: this.currentRunThreadId,
+      runId: this.currentRunId,
+    }
+  }
+
+  private clearRunContextAfterChunk(chunk: StreamChunk): void {
+    if (chunk.type !== 'RUN_FINISHED' && chunk.type !== 'RUN_ERROR') {
+      return
+    }
+
+    const runId =
+      'runId' in chunk && typeof chunk.runId === 'string'
+        ? chunk.runId
+        : undefined
+
+    if (!runId || runId === this.currentRunId) {
+      this.currentRunId = null
+      this.currentRunThreadId = null
+    }
+  }
+
+  private async applyToolFixture(
+    _fixture: AIDevtoolsToolFixture,
+  ): Promise<void> {
+    const fixture = _fixture
+    const messages = this.processor.getMessages() as Array<UIMessage>
+    const threadId = fixture.threadId ?? this.threadId
+    if (fixture.execute) {
+      await this.executeToolFixture(fixture, messages, threadId)
+      return
+    }
+
+    const replay = this.createReplayMessageFromFixture(fixture, messages)
+    const message = replay.message
+    const toolCallId = replay.toolCallId
+    const messageId = message.id
+
+    this.events.messageAppended(message, undefined, {
+      threadId,
+      toolCallId,
+      ...(fixture.runId ? { runId: fixture.runId } : {}),
+    })
+
+    this.processor.setMessages([...messages, message])
+    this.events.toolFixtureApplied({
+      hookId: this.uniqueId,
+      threadId,
+      ...(fixture.runId ? { runId: fixture.runId } : {}),
+      toolName: fixture.toolName,
+      input: fixture.input,
+      output: fixture.output,
+      messageId,
+      toolCallId,
+      ...(fixture.execute !== undefined ? { execute: fixture.execute } : {}),
+      ...(fixture.message ? { message: fixture.message } : {}),
+      ...(fixture.errorText ? { errorText: fixture.errorText } : {}),
+    })
+    this.emitDevtoolsSnapshot()
+  }
+
+  private async executeToolFixture(
+    fixture: AIDevtoolsToolFixture,
+    messages: Array<UIMessage>,
+    threadId: string,
+  ): Promise<void> {
+    const toolCallId = this.resolveFixtureToolCallId(
+      fixture.toolCallId,
+      messages,
+    )
+    const messageId = this.resolveFixtureMessageId(fixture.messageId, messages)
+    const message: UIMessage = {
+      id: messageId,
+      role: 'assistant',
+      parts: [
+        {
+          type: 'tool-call',
+          id: toolCallId,
+          name: fixture.toolName,
+          arguments: this.stringifyFixtureValue(fixture.input),
+          input: fixture.input,
+          state: 'input-complete',
+        },
+      ],
+      createdAt: new Date(),
+    }
+
+    this.events.messageAppended(message, undefined, {
+      threadId,
+      toolCallId,
+      ...(fixture.runId ? { runId: fixture.runId } : {}),
+    })
+    this.processor.setMessages([...messages, message])
+    this.emitDevtoolsSnapshot()
+
+    const clientTool = this.clientToolsRef.current.get(fixture.toolName)
+    const executeFunc = clientTool?.execute
+    if (!executeFunc) {
+      this.addToolResultForFixture({
+        fixture,
+        messageId,
+        toolCallId,
+        threadId,
+        output: fixture.output,
+        errorText: fixture.errorText,
+      })
+      return
+    }
+
+    try {
+      const output = await executeFunc(fixture.input)
+      this.addToolResultForFixture({
+        fixture,
+        messageId,
+        toolCallId,
+        threadId,
+        output,
+      })
+    } catch (error) {
+      this.addToolResultForFixture({
+        fixture,
+        messageId,
+        toolCallId,
+        threadId,
+        output: null,
+        errorText:
+          error instanceof Error ? error.message : 'Tool execution failed.',
+      })
+    }
+  }
+
+  private addToolResultForFixture(options: {
+    fixture: AIDevtoolsToolFixture
+    messageId: string
+    toolCallId: string
+    threadId: string
+    output: unknown
+    errorText?: string
+  }): void {
+    const state = options.errorText ? 'output-error' : 'output-available'
+    this.events.toolResultAdded(
+      options.toolCallId,
+      options.fixture.toolName,
+      options.output,
+      state,
+      {
+        threadId: options.threadId,
+        ...(options.fixture.runId ? { runId: options.fixture.runId } : {}),
+        toolCallId: options.toolCallId,
+      },
+    )
+    this.processor.addToolResult(
+      options.toolCallId,
+      options.output,
+      options.errorText,
+    )
+    this.events.toolFixtureApplied({
+      hookId: this.uniqueId,
+      threadId: options.threadId,
+      ...(options.fixture.runId ? { runId: options.fixture.runId } : {}),
+      toolName: options.fixture.toolName,
+      input: options.fixture.input,
+      output: options.output,
+      execute: true,
+      messageId: options.messageId,
+      toolCallId: options.toolCallId,
+      ...(options.errorText ? { errorText: options.errorText } : {}),
+    })
+    this.emitDevtoolsSnapshot()
+  }
+
+  private createReplayMessageFromFixture(
+    fixture: AIDevtoolsToolFixture,
+    messages: Array<UIMessage>,
+  ): { message: UIMessage; toolCallId: string } {
+    const clonedMessage = this.cloneFixtureSourceMessage(fixture, messages)
+    if (clonedMessage) return clonedMessage
+
+    const toolCallId = this.resolveFixtureToolCallId(
+      fixture.toolCallId,
+      messages,
+    )
+    const messageId = this.resolveFixtureMessageId(fixture.messageId, messages)
+    const state = fixture.errorText ? 'error' : 'complete'
+
+    return {
+      toolCallId,
+      message: {
+        id: messageId,
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            id: toolCallId,
+            name: fixture.toolName,
+            arguments: this.stringifyFixtureValue(fixture.input),
+            input: fixture.input,
+            state: 'input-complete',
+            output: fixture.output,
+          },
+          {
+            type: 'tool-result',
+            toolCallId,
+            content: this.stringifyFixtureValue(fixture.output),
+            state,
+            ...(fixture.errorText ? { error: fixture.errorText } : {}),
+          },
+        ],
+        createdAt: new Date(),
+      },
+    }
+  }
+
+  private cloneFixtureSourceMessage(
+    fixture: AIDevtoolsToolFixture,
+    messages: Array<UIMessage>,
+  ): { message: UIMessage; toolCallId: string } | undefined {
+    const sourceMessage = fixture.message
+    if (!sourceMessage || !Array.isArray(sourceMessage.parts)) {
+      return undefined
+    }
+
+    const toolCallIds = this.createFixtureToolCallIdMap(
+      sourceMessage.parts,
+      messages,
+    )
+    const parts = sourceMessage.parts
+      .map((part) => this.cloneFixtureMessagePart(part, toolCallIds))
+      .filter((part): part is MessagePart => Boolean(part))
+    const mappedFixtureToolCallId = fixture.toolCallId
+      ? toolCallIds.get(fixture.toolCallId)
+      : undefined
+    this.hydrateToolCallOutputs(parts, {
+      ...(mappedFixtureToolCallId
+        ? { mappedToolCallId: mappedFixtureToolCallId }
+        : {}),
+      output: fixture.output,
+    })
+
+    if (parts.length === 0) return undefined
+
+    const toolCallId =
+      (fixture.toolCallId ? toolCallIds.get(fixture.toolCallId) : undefined) ??
+      this.firstToolCallId(parts)
+    if (!toolCallId) return undefined
+
+    return {
+      toolCallId,
+      message: {
+        id: this.resolveFixtureMessageId(sourceMessage.id, messages),
+        role: sourceMessage.role,
+        parts,
+        createdAt: new Date(),
+      },
+    }
+  }
+
+  private createFixtureToolCallIdMap(
+    parts: Array<unknown>,
+    messages: Array<UIMessage>,
+  ): Map<string, string> {
+    const ids = new Map<string, string>()
+    for (const part of parts) {
+      if (!isRecord(part) || part.type !== 'tool-call') continue
+      if (typeof part.id !== 'string') continue
+      ids.set(part.id, this.resolveFixtureToolCallId(part.id, messages))
+    }
+    return ids
+  }
+
+  private cloneFixtureMessagePart(
+    part: unknown,
+    toolCallIds: Map<string, string>,
+  ): MessagePart | undefined {
+    if (!isRecord(part) || typeof part.type !== 'string') return undefined
+    const cloned: Record<string, unknown> = { ...part }
+
+    if (part.type === 'tool-call' && typeof part.id === 'string') {
+      cloned.id = toolCallIds.get(part.id) ?? part.id
+    }
+
+    if (part.type === 'tool-result' && typeof part.toolCallId === 'string') {
+      cloned.toolCallId = toolCallIds.get(part.toolCallId) ?? part.toolCallId
+    }
+
+    return cloned as MessagePart
+  }
+
+  private firstToolCallId(parts: Array<MessagePart>): string | undefined {
+    const toolCall = parts.find((part) => part.type === 'tool-call')
+    return toolCall?.type === 'tool-call' ? toolCall.id : undefined
+  }
+
+  private hydrateToolCallOutputs(
+    parts: Array<MessagePart>,
+    fixtureOutput: {
+      mappedToolCallId?: string
+      output: unknown
+    },
+  ): void {
+    for (const part of parts) {
+      if (part.type !== 'tool-result') continue
+      const toolCall = parts.find(
+        (candidate): candidate is ToolCallPart =>
+          candidate.type === 'tool-call' &&
+          candidate.id === part.toolCallId &&
+          candidate.output === undefined,
+      )
+      if (toolCall) {
+        toolCall.output = this.parseFixtureResultContent(part.content)
+      }
+    }
+
+    if (fixtureOutput.mappedToolCallId && fixtureOutput.output !== undefined) {
+      const toolCall = parts.find(
+        (candidate): candidate is ToolCallPart =>
+          candidate.type === 'tool-call' &&
+          candidate.id === fixtureOutput.mappedToolCallId &&
+          candidate.output === undefined,
+      )
+      if (toolCall) {
+        toolCall.output = fixtureOutput.output
+      }
+    }
+  }
+
+  private parseFixtureResultContent(content: string): unknown {
+    try {
+      return JSON.parse(content)
+    } catch {
+      return content
+    }
+  }
+
+  private resolveFixtureMessageId(
+    messageId: string | undefined,
+    messages: Array<UIMessage>,
+  ): string {
+    if (messageId && !messages.some((message) => message.id === messageId)) {
+      return messageId
+    }
+    return this.generateUniqueId('fixture-msg')
+  }
+
+  private resolveFixtureToolCallId(
+    toolCallId: string | undefined,
+    messages: Array<UIMessage>,
+  ): string {
+    if (toolCallId && !this.hasToolCallId(messages, toolCallId)) {
+      return toolCallId
+    }
+    return this.generateUniqueId('fixture-tool-call')
+  }
+
+  private hasToolCallId(
+    messages: Array<UIMessage>,
+    toolCallId: string,
+  ): boolean {
+    return messages.some((message) =>
+      message.parts.some((part) => {
+        if (part.type === 'tool-call') {
+          return part.id === toolCallId
+        }
+        if (part.type === 'tool-result') {
+          return part.toolCallId === toolCallId
+        }
+        return false
+      }),
+    )
+  }
+
+  private stringifyFixtureValue(value: unknown): string {
+    if (typeof value === 'string') {
+      return value
+    }
+    if (
+      value === undefined ||
+      typeof value === 'function' ||
+      typeof value === 'symbol'
+    ) {
+      return String(value)
+    }
+
+    try {
+      return JSON.stringify(value)
+    } catch {
+      return String(value)
+    }
   }
 
   private abortSubscriptionLoop(): void {
@@ -409,11 +962,12 @@ export class ChatClient {
         this.setConnectionStatus('connected')
       }
       this.callbacksRef.current.onChunk(chunk)
-      this.processor.processChunk(chunk)
       if (chunk.type === 'RUN_STARTED') {
         this.activeRunIds.add(chunk.runId)
         this.setSessionGenerating(true)
       }
+      this.prepareRunContextForChunk(chunk)
+      this.processor.processChunk(chunk)
       // RUN_FINISHED / RUN_ERROR signal run completion — resolve processing
       // (redundant if onStreamEnd already resolved it, harmless)
       if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
@@ -434,6 +988,7 @@ export class ChatClient {
         this.setSessionGenerating(this.activeRunIds.size > 0)
         this.resolveProcessing()
       }
+      this.clearRunContextAfterChunk(chunk)
       // Yield control back to event loop for UI updates
       await new Promise((resolve) => setTimeout(resolve, 0))
     }
@@ -510,6 +1065,7 @@ export class ChatClient {
     content: string | MultimodalContent,
     body?: Record<string, any>,
   ): Promise<void> {
+    this.mountDevtools()
     const emptyMessage = typeof content === 'string' && !content.trim()
     if (emptyMessage || this.isLoading) {
       return
@@ -526,6 +1082,7 @@ export class ChatClient {
       normalizedContent.id,
     )
     this.events.messageSent(userMessage.id, normalizedContent.content)
+    this.emitDevtoolsSnapshot()
 
     await this.streamResponse()
   }
@@ -548,6 +1105,7 @@ export class ChatClient {
    * Append a message and stream the response
    */
   async append(message: UIMessage | ModelMessage): Promise<void> {
+    this.mountDevtools()
     // Normalize the message to ensure it has id and createdAt
     const normalizedMessage = normalizeToUIMessage(message, generateMessageId)
 
@@ -563,8 +1121,9 @@ export class ChatClient {
     this.events.messageAppended(uiMessage)
 
     // Add to messages
-    const messages = this.processor.getMessages()
+    const messages = this.processor.getMessages() as Array<UIMessage>
     this.processor.setMessages([...messages, uiMessage])
+    this.emitDevtoolsSnapshot()
 
     // If stream is in progress, queue the response for after it ends
     if (this.isLoading) {
@@ -602,10 +1161,12 @@ export class ChatClient {
     // Reset pending tool executions for the new stream
     this.pendingToolExecutions.clear()
     let streamCompletedSuccessfully = false
+    let activeDevtoolsRunId: string | null = null
+    let runTerminalEventEmitted = false
 
     try {
       // Get UIMessages with parts (preserves approval state and client tool results)
-      const messages = this.processor.getMessages()
+      const messages = this.processor.getMessages() as Array<UIMessage>
 
       // Call onResponse callback
       await this.callbacksRef.current.onResponse()
@@ -639,6 +1200,7 @@ export class ChatClient {
 
       // Generate stream ID — assistant message will be created by stream events
       this.currentStreamId = this.generateUniqueId('stream')
+      this.lastStreamId = this.currentStreamId
       this.currentMessageId = null
 
       // Reset processor stream state for new response — prevents stale
@@ -674,6 +1236,23 @@ export class ChatClient {
         ),
         forwardedProps: { ...mergedBody },
       }
+      this.currentRunId = runContext.runId
+      this.lastRunEventContext = {
+        threadId: this.threadId,
+        runId: runContext.runId,
+      }
+      activeDevtoolsRunId = runContext.runId
+      this.devtoolsBridge.emitRunLifecycle(
+        'run:created',
+        runContext.runId,
+        'created',
+      )
+      this.devtoolsBridge.emitRunLifecycle(
+        'run:started',
+        runContext.runId,
+        'started',
+      )
+      this.emitDevtoolsSnapshot()
 
       // Send through normalized connection (pushes chunks to subscription queue)
       await this.connection.send(messages, mergedBody, signal, runContext)
@@ -690,6 +1269,15 @@ export class ChatClient {
       // A RUN_ERROR from the stream transitions status to error.
       // Do not treat this stream as a successful completion.
       if (this.status === 'error') {
+        if (activeDevtoolsRunId) {
+          this.devtoolsBridge.emitRunLifecycle(
+            'run:errored',
+            activeDevtoolsRunId,
+            'errored',
+            this.error ? { error: this.error.message } : {},
+          )
+          runTerminalEventEmitted = true
+        }
         return false
       }
 
@@ -704,10 +1292,27 @@ export class ChatClient {
     } catch (err) {
       if (err instanceof Error) {
         if (err.name === 'AbortError') {
+          if (activeDevtoolsRunId) {
+            this.devtoolsBridge.emitRunLifecycle(
+              'run:cancelled',
+              activeDevtoolsRunId,
+              'cancelled',
+            )
+            runTerminalEventEmitted = true
+          }
           return false
         }
         if (generation === this.streamGeneration) {
           this.reportStreamError(err)
+          if (activeDevtoolsRunId) {
+            this.devtoolsBridge.emitRunLifecycle(
+              'run:errored',
+              activeDevtoolsRunId,
+              'errored',
+              { error: err.message },
+            )
+            runTerminalEventEmitted = true
+          }
         }
       }
     } finally {
@@ -717,9 +1322,27 @@ export class ChatClient {
       if (generation === this.streamGeneration) {
         this.currentStreamId = null
         this.currentMessageId = null
+        this.currentRunId = null
+        this.currentRunThreadId = null
         this.abortController = null
         this.setIsLoading(false)
         this.pendingMessageBody = undefined // Ensure it's cleared even on error
+
+        if (activeDevtoolsRunId && !runTerminalEventEmitted) {
+          if (streamCompletedSuccessfully) {
+            this.devtoolsBridge.emitRunLifecycle(
+              'run:completed',
+              activeDevtoolsRunId,
+              'completed',
+            )
+          } else if (signal.aborted) {
+            this.devtoolsBridge.emitRunLifecycle(
+              'run:cancelled',
+              activeDevtoolsRunId,
+              'cancelled',
+            )
+          }
+        }
 
         // Drain any actions that were queued while the stream was in progress
         await this.drainPostStreamActions()
@@ -728,7 +1351,7 @@ export class ChatClient {
         // but ONLY if the model indicated it wants to continue (finishReason !== 'stop').
         // When finishReason is 'stop', the model is done — don't re-send.
         if (streamCompletedSuccessfully) {
-          const messages = this.processor.getMessages()
+          const messages = this.processor.getMessages() as Array<UIMessage>
           const lastPart = messages.at(-1)?.parts.at(-1)
           const { finishReason } = this.processor.getState()
 
@@ -787,12 +1410,12 @@ export class ChatClient {
    * Reload the last assistant message
    */
   async reload(): Promise<void> {
-    const messages = this.processor.getMessages()
+    const messages = this.processor.getMessages() as Array<UIMessage>
     if (messages.length === 0) return
 
     // Find the last user message
     const lastUserMessageIndex = messages.findLastIndex(
-      (m: UIMessage) => m.role === 'user',
+      (m) => m.role === 'user',
     )
 
     if (lastUserMessageIndex === -1) return
@@ -806,6 +1429,7 @@ export class ChatClient {
 
     // Remove all messages after the last user message
     this.processor.removeMessagesAfter(lastUserMessageIndex)
+    this.emitDevtoolsSnapshot()
 
     // Resend
     await this.streamResponse()
@@ -826,6 +1450,7 @@ export class ChatClient {
     this.processor.clearMessages()
     this.setError(undefined)
     this.events.messagesCleared()
+    this.emitDevtoolsSnapshot()
   }
 
   /**
@@ -838,11 +1463,25 @@ export class ChatClient {
     state?: 'output-available' | 'output-error'
     errorText?: string
   }): Promise<void> {
+    await this.addToolResultInternal(result, this.getCurrentRunEventContext())
+  }
+
+  private async addToolResultInternal(
+    result: {
+      toolCallId: string
+      tool: string
+      output: any
+      state?: 'output-available' | 'output-error'
+      errorText?: string
+    },
+    context?: ChatClientRunEventContext,
+  ): Promise<void> {
     this.events.toolResultAdded(
       result.toolCallId,
       result.tool,
       result.output,
       result.state || 'output-available',
+      context,
     )
 
     // Add result via processor
@@ -869,7 +1508,7 @@ export class ChatClient {
     approved: boolean
   }): Promise<void> {
     // Find the tool call ID from the approval ID
-    const messages = this.processor.getMessages()
+    const messages = this.processor.getMessages() as Array<UIMessage>
     let foundToolCallId: string | undefined
 
     for (const msg of messages) {
@@ -888,11 +1527,13 @@ export class ChatClient {
         response.id,
         foundToolCallId,
         response.approved,
+        this.getCurrentOrLastRunEventContext(),
       )
     }
 
     // Add response via processor
     this.processor.addToolApprovalResponse(response.id, response.approved)
+    this.emitDevtoolsSnapshot()
 
     // If stream is in progress, queue continuation check for after it ends
     if (this.isLoading) {
@@ -963,7 +1604,7 @@ export class ChatClient {
    * a text-only response has nothing to auto-send.
    */
   private shouldAutoSend(): boolean {
-    const messages = this.processor.getMessages()
+    const messages = this.processor.getMessages() as Array<UIMessage>
     const lastAssistant = messages.findLast((m) => m.role === 'assistant')
     if (!lastAssistant) return false
     const hasToolCalls = lastAssistant.parts.some((p) => p.type === 'tool-call')
@@ -975,7 +1616,7 @@ export class ChatClient {
    * Get current messages
    */
   getMessages(): Array<UIMessage> {
-    return this.processor.getMessages()
+    return this.processor.getMessages() as Array<UIMessage>
   }
 
   /**
@@ -1028,6 +1669,7 @@ export class ChatClient {
    */
   setMessagesManually(messages: Array<UIMessage>): void {
     this.processor.setMessages(messages)
+    this.emitDevtoolsSnapshot()
   }
 
   /**
@@ -1075,7 +1717,7 @@ export class ChatClient {
     }
     // Replace each slot independently so callers can update one without
     // wiping the other. (Passing `undefined` for either field is a "leave
-    // unchanged" signal — to clear a slot, pass an empty object `{}`.)
+    // unchanged" signal - to clear a slot, pass an empty object `{}`.)
     if (options.body !== undefined) {
       this.bodyOption = options.body
     }
@@ -1087,6 +1729,8 @@ export class ChatClient {
       for (const tool of options.tools) {
         this.clientToolsRef.current.set(tool.name, tool)
       }
+      this.devtoolsBridge.emitToolsRegistered()
+      this.emitDevtoolsSnapshot()
     }
     if (options.onResponse !== undefined) {
       this.callbacksRef.current.onResponse = options.onResponse
@@ -1116,4 +1760,14 @@ export class ChatClient {
       this.callbacksRef.current.onCustomEvent = options.onCustomEvent
     }
   }
+
+  dispose(): void {
+    this.unsubscribe()
+    this.devtoolsBridge.dispose()
+    this.devtoolsMounted = false
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
 }

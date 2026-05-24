@@ -99,9 +99,14 @@ export function useSummarize<
   },
 ): UseSummarizeReturn<InferGenerationOutput<SummarizationResult, TOnResult>> {
   const { generate, result, isLoading, error, status, stop, reset } =
-    useGeneration<SummarizeGenerateInput, SummarizationResult, TOnResult>(
-      options,
-    )
+    useGeneration<SummarizeGenerateInput, SummarizationResult, TOnResult>({
+      ...options,
+      devtools: {
+        framework: 'vue',
+        hookName: 'useSummarize',
+        outputKind: 'text',
+      },
+    })
 
   return {
     generate: generate as (input: SummarizeGenerateInput) => Promise<void>,

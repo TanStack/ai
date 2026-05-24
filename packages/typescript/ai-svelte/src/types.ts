@@ -151,6 +151,11 @@ interface BaseCreateChatReturn<
   stop: () => void
 
   /**
+   * Dispose the chat client and unregister it from devtools.
+   */
+  dispose: () => void
+
+  /**
    * Whether a response is currently being generated (reactive getter)
    */
   readonly isLoading: boolean

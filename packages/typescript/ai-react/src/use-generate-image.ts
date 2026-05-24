@@ -103,7 +103,14 @@ export function useGenerateImage<
   InferGenerationOutput<ImageGenerationResult, TOnResult>
 > {
   const { generate, result, isLoading, error, status, stop, reset } =
-    useGeneration<ImageGenerateInput, ImageGenerationResult, TOnResult>(options)
+    useGeneration<ImageGenerateInput, ImageGenerationResult, TOnResult>({
+      ...options,
+      devtools: {
+        framework: 'react',
+        hookName: 'useGenerateImage',
+        outputKind: 'image',
+      },
+    })
 
   return {
     generate: generate as (input: ImageGenerateInput) => Promise<void>,

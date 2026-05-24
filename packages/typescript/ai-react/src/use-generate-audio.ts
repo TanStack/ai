@@ -101,7 +101,14 @@ export function useGenerateAudio<
   InferGenerationOutput<AudioGenerationResult, TOnResult>
 > {
   const { generate, result, isLoading, error, status, stop, reset } =
-    useGeneration<AudioGenerateInput, AudioGenerationResult, TOnResult>(options)
+    useGeneration<AudioGenerateInput, AudioGenerationResult, TOnResult>({
+      ...options,
+      devtools: {
+        framework: 'react',
+        hookName: 'useGenerateAudio',
+        outputKind: 'audio',
+      },
+    })
 
   return {
     generate: generate as (input: AudioGenerateInput) => Promise<void>,

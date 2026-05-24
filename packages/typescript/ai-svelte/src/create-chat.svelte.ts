@@ -96,6 +96,12 @@ export function createChat<
     ...(options.forwardedProps !== undefined && {
       forwardedProps: options.forwardedProps,
     }),
+    devtools: {
+      framework: 'svelte',
+      hookName: 'useChat',
+      outputKind: options.outputSchema ? 'structured' : 'chat',
+      ...options.devtools,
+    },
     ...(options.onResponse !== undefined && { onResponse: options.onResponse }),
     onChunk: (chunk: StreamChunk) => {
       options.onChunk?.(chunk)
@@ -140,6 +146,8 @@ export function createChat<
     client.subscribe()
   }
 
+  client.mountDevtools()
+
   // Note: Cleanup is handled by calling stop() directly when needed.
   // Unlike React/Vue/Solid, Svelte 5 runes like $effect can only be used
   // during component initialization, so we don't add automatic cleanup here.
@@ -160,6 +168,10 @@ export function createChat<
 
   const stop = () => {
     client.stop()
+  }
+
+  const dispose = () => {
+    client.dispose()
   }
 
   const clear = () => {
@@ -272,6 +284,7 @@ export function createChat<
     append,
     reload,
     stop,
+    dispose,
     setMessages,
     clear,
     addToolResult,

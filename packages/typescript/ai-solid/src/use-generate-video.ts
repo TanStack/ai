@@ -4,6 +4,8 @@ import {
   createMemo,
   createSignal,
   createUniqueId,
+  onCleanup,
+  onMount,
 } from 'solid-js'
 import type { StreamChunk } from '@tanstack/ai'
 import type {
@@ -137,6 +139,11 @@ export function useGenerateVideo<
     const baseOptions = {
       id: clientId,
       body: options.body,
+      devtools: {
+        framework: 'solid',
+        hookName: 'useGenerateVideo',
+        outputKind: 'video' as const,
+      },
       onResult: (r: VideoGenerateResult) => options.onResult?.(r),
       onError: (e: Error) => options.onError?.(e),
       onProgress: (p: number, m?: string) => options.onProgress?.(p, m),
@@ -178,11 +185,13 @@ export function useGenerateVideo<
     })
   })
 
-  // Cleanup on unmount: stop any in-flight requests
-  createEffect(() => {
-    return () => {
-      client().stop()
-    }
+  onMount(() => {
+    client().mountDevtools()
+  })
+
+  // Cleanup on unmount: stop any in-flight requests and unregister devtools
+  onCleanup(() => {
+    client().dispose()
   })
 
   const generate = async (input: VideoGenerateInput) => {

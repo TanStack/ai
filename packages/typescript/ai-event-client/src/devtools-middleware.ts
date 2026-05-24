@@ -22,6 +22,8 @@ type DevtoolsSystemPrompt = string | { content: string; metadata?: unknown }
 interface DevtoolsMiddlewareContext {
   requestId: string
   streamId: string
+  runId: string
+  threadId: string
   conversationId?: string
   provider: string
   model: string
@@ -107,6 +109,8 @@ function buildEventContext(ctx: DevtoolsMiddlewareContext) {
   return {
     requestId: ctx.requestId,
     streamId: ctx.streamId,
+    runId: ctx.runId,
+    threadId: ctx.threadId,
     provider: ctx.provider,
     model: ctx.model,
     clientId: ctx.conversationId,

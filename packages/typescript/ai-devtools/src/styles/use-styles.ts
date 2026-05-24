@@ -10,10 +10,20 @@ const stylesFactory = (theme: 'light' | 'dark') => {
   const t = (light: string, dark: string) => (theme === 'light' ? light : dark)
 
   return {
+    shellRoot: css`
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      height: calc(var(--tsd-main-panel-height, 100%) - 1px);
+      max-height: calc(var(--tsd-main-panel-height, 100%) - 1px);
+      min-height: 0;
+      overflow: hidden;
+    `,
     mainContainer: css`
       display: flex;
       flex: 1;
-      min-height: 80%;
+      height: auto;
+      min-height: 0;
       overflow: hidden;
       padding: ${size[2]};
     `,
@@ -62,6 +72,7 @@ const stylesFactory = (theme: 'light' | 'dark') => {
       border: 1px solid ${t(colors.gray[200], colors.darkGray[700])};
       display: flex;
       flex-direction: column;
+      height: 100%;
       overflow: hidden;
       min-height: 0;
       flex-shrink: 0;
@@ -72,6 +83,7 @@ const stylesFactory = (theme: 'light' | 'dark') => {
       border: 1px solid ${t(colors.gray[200], colors.darkGray[700])};
       display: flex;
       flex-direction: column;
+      height: 100%;
       overflow: hidden;
       min-height: 0;
       flex: 1;
@@ -509,6 +521,1372 @@ const stylesFactory = (theme: 'light' | 'dark') => {
             transform: rotate(360deg);
           }
         }
+      `,
+    },
+    hookDashboard: {
+      container: css`
+        display: flex;
+        flex: 1;
+        min-height: 0;
+        flex-direction: column;
+      `,
+      summary: css`
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr auto;
+        gap: ${size[2]};
+        padding: ${size[3]};
+        border-bottom: 1px solid ${t(colors.gray[200], colors.darkGray[700])};
+        background: ${t(colors.gray[50], colors.darkGray[800])};
+      `,
+      summaryItem: css`
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+        gap: 1px;
+      `,
+      summaryValue: css`
+        color: ${t(colors.gray[900], colors.gray[50])};
+        font-family: ${fontFamily.mono};
+        font-size: ${fontSize.md};
+        font-weight: ${font.weight.bold};
+        line-height: 1;
+      `,
+      summaryLabel: css`
+        color: ${t(colors.gray[500], colors.gray[400])};
+        font-size: 10px;
+        font-weight: ${font.weight.semibold};
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+      `,
+      clearButton: css`
+        align-self: center;
+        border: 1px solid ${t(colors.gray[300], colors.darkGray[600])};
+        border-radius: ${border.radius.sm};
+        background: ${t(colors.white, colors.darkGray[700])};
+        color: ${t(colors.gray[700], colors.gray[200])};
+        cursor: pointer;
+        font-size: ${fontSize.xs};
+        padding: ${size[1]} ${size[2]};
+        &:hover:not(:disabled) {
+          border-color: ${t(colors.red[300], colors.red[600])};
+          color: ${t(colors.red[700], colors.red[300])};
+        }
+        &:disabled {
+          cursor: not-allowed;
+          opacity: 0.45;
+        }
+      `,
+      empty: css`
+        color: ${t(colors.gray[500], colors.gray[500])};
+        font-size: ${fontSize.sm};
+        padding: ${size[4]};
+        text-align: center;
+      `,
+      list: css`
+        display: flex;
+        flex: 1;
+        min-height: 0;
+        flex-direction: column;
+        gap: ${size[2]};
+        overflow-y: auto;
+        padding: ${size[2]};
+      `,
+      categorySection: css`
+        display: flex;
+        flex-direction: column;
+        gap: ${size[1.5]};
+      `,
+      categoryHeader: css`
+        align-items: center;
+        color: ${t(colors.gray[600], colors.gray[400])};
+        display: flex;
+        font-size: 10px;
+        font-weight: ${font.weight.semibold};
+        justify-content: space-between;
+        padding: ${size[1]} ${size[1]};
+        text-transform: uppercase;
+      `,
+      categoryLabel: css`
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      `,
+      categoryCount: css`
+        border-radius: ${border.radius.sm};
+        background: ${t(colors.gray[200], colors.darkGray[700])};
+        color: ${t(colors.gray[600], colors.gray[300])};
+        font-family: ${fontFamily.mono};
+        font-size: 10px;
+        padding: 1px ${size[1.5]};
+      `,
+      categoryRows: css`
+        display: flex;
+        flex-direction: column;
+        gap: ${size[2]};
+      `,
+      row: css`
+        display: flex;
+        width: 100%;
+        min-width: 0;
+        cursor: pointer;
+        flex-direction: column;
+        gap: ${size[2]};
+        border: 1px solid ${t(colors.gray[200], colors.darkGray[700])};
+        border-radius: ${border.radius.md};
+        background: ${t(colors.white, colors.darkGray[700])};
+        color: inherit;
+        padding: ${size[3]};
+        text-align: left;
+        transition:
+          background 0.15s ease,
+          border-color 0.15s ease,
+          box-shadow 0.15s ease;
+        &:hover {
+          border-color: ${t(colors.blue[300], colors.blue[700])};
+          background: ${t(colors.blue[50], colors.blue[900] + '20')};
+        }
+      `,
+      rowLive: css`
+        border-color: ${t(colors.green[300], colors.green[700])};
+        box-shadow: inset 3px 0 0 ${t(colors.green[500], colors.green[400])};
+      `,
+      rowUpdating: css`
+        border-color: ${t(colors.blue[400], colors.blue[500])};
+        background: ${t(colors.blue[50], colors.blue[900] + '30')};
+        box-shadow: inset 3px 0 0 ${t(colors.blue[500], colors.blue[400])};
+      `,
+      rowSelected: css`
+        border-color: ${t(colors.blue[500], colors.blue[500])};
+        background: ${t(colors.blue[50], colors.blue[900] + '35')};
+        box-shadow: none;
+      `,
+      rowMain: css`
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+        gap: 3px;
+      `,
+      rowTitleLine: css`
+        align-items: center;
+        display: flex;
+        gap: ${size[1]};
+        min-width: 0;
+      `,
+      rowTitle: css`
+        color: ${t(colors.gray[900], colors.gray[100])};
+        font-size: ${fontSize.sm};
+        font-weight: ${font.weight.semibold};
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      `,
+      rowId: css`
+        color: ${t(colors.gray[500], colors.gray[400])};
+        font-family: ${fontFamily.mono};
+        font-size: 10px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      `,
+      rowMeta: css`
+        display: flex;
+        flex-wrap: wrap;
+        gap: ${size[1]};
+      `,
+      lifecycleBadge: css`
+        border-radius: ${border.radius.sm};
+        background: ${t(colors.green[50], colors.green[900] + '30')};
+        color: ${t(colors.green[700], colors.green[300])};
+        font-family: ${fontFamily.mono};
+        font-size: 10px;
+        font-weight: ${font.weight.semibold};
+        padding: 1px ${size[1.5]};
+      `,
+      lifecycleStreaming: css`
+        background: ${t(colors.blue[50], colors.blue[900] + '35')};
+        color: ${t(colors.blue[700], colors.blue[300])};
+      `,
+      lifecycleErrored: css`
+        background: ${t(colors.red[50], colors.red[900] + '35')};
+        color: ${t(colors.red[700], colors.red[300])};
+      `,
+      lifecycleUnmounted: css`
+        background: ${t(colors.gray[100], colors.darkGray[600])};
+        color: ${t(colors.gray[500], colors.gray[400])};
+      `,
+      kindBadge: css`
+        border-radius: ${border.radius.sm};
+        background: ${t(colors.purple[50], colors.purple[900] + '30')};
+        color: ${t(colors.purple[700], colors.purple[300])};
+        font-family: ${fontFamily.mono};
+        font-size: 10px;
+        padding: 1px ${size[1.5]};
+      `,
+      countBadge: css`
+        border-radius: ${border.radius.sm};
+        background: ${t(colors.gray[100], colors.darkGray[600])};
+        color: ${t(colors.gray[600], colors.gray[300])};
+        font-family: ${fontFamily.mono};
+        font-size: 10px;
+        padding: 1px ${size[1.5]};
+      `,
+      liveIndicator: css`
+        width: 7px;
+        height: 7px;
+        border-radius: 999px;
+        background: ${t(colors.green[500], colors.green[400])};
+        box-shadow: 0 0 0 0 ${t(colors.green[400], colors.green[500])};
+        flex-shrink: 0;
+        animation: hookLivePulse 1.2s ease-out infinite;
+        @keyframes hookLivePulse {
+          0% {
+            box-shadow: 0 0 0 0 ${t(colors.green[400], colors.green[500])};
+          }
+          70% {
+            box-shadow: 0 0 0 6px transparent;
+          }
+          100% {
+            box-shadow: 0 0 0 0 transparent;
+          }
+        }
+      `,
+      updateBadge: css`
+        border-radius: 999px;
+        background: ${t(colors.blue[600], colors.blue[500])};
+        color: ${colors.white};
+        flex-shrink: 0;
+        font-family: ${fontFamily.mono};
+        font-size: 10px;
+        font-weight: ${font.weight.semibold};
+        padding: 1px ${size[1.5]};
+        white-space: nowrap;
+      `,
+    },
+    hookDetails: {
+      empty: css`
+        align-items: center;
+        color: ${t(colors.gray[500], colors.gray[500])};
+        display: flex;
+        flex: 1;
+        font-size: ${fontSize.sm};
+        justify-content: center;
+        padding: ${size[4]};
+        text-align: center;
+      `,
+      overview: css`
+        display: flex;
+        flex: 1;
+        min-height: 0;
+        flex-direction: column;
+        gap: ${size[4]};
+        overflow-y: auto;
+        padding: ${size[4]};
+      `,
+      overviewHeader: css`
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: ${size[3]};
+      `,
+      overviewTitle: css`
+        color: ${t(colors.gray[900], colors.gray[100])};
+        font-size: ${fontSize.lg};
+        font-weight: ${font.weight.bold};
+      `,
+      overviewSubtitle: css`
+        color: ${t(colors.gray[500], colors.gray[400])};
+        font-size: ${fontSize.sm};
+        margin-top: ${size[1]};
+      `,
+      overviewMetricGrid: css`
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: ${size[3]};
+        @media (max-width: 900px) {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      `,
+      overviewMetricCard: css`
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+        gap: ${size[1]};
+        border: 1px solid ${t(colors.gray[200], colors.darkGray[700])};
+        border-radius: ${border.radius.md};
+        background: ${t(colors.white, colors.darkGray[800])};
+        padding: ${size[3]};
+      `,
+      overviewGroups: css`
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: ${size[3]};
+        @media (max-width: 960px) {
+          grid-template-columns: 1fr;
+        }
+      `,
+      overviewGroupCard: css`
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+        gap: ${size[2]};
+        border: 1px solid ${t(colors.gray[200], colors.darkGray[700])};
+        border-radius: ${border.radius.md};
+        background: ${t(colors.white, colors.darkGray[800])};
+        padding: ${size[3]};
+      `,
+      overviewGroupHeader: css`
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        color: ${t(colors.gray[700], colors.gray[200])};
+        font-size: ${fontSize.sm};
+        font-weight: ${font.weight.semibold};
+      `,
+      overviewHookButton: css`
+        display: flex;
+        width: 100%;
+        min-width: 0;
+        align-items: center;
+        justify-content: space-between;
+        gap: ${size[3]};
+        border: 1px solid ${t(colors.gray[200], colors.darkGray[700])};
+        border-radius: ${border.radius.sm};
+        background: ${t(colors.gray[50], colors.darkGray[700])};
+        color: inherit;
+        cursor: pointer;
+        padding: ${size[2]} ${size[3]};
+        text-align: left;
+        transition:
+          background 0.15s ease,
+          border-color 0.15s ease;
+        &:hover {
+          border-color: ${t(colors.blue[300], colors.blue[700])};
+          background: ${t(colors.blue[50], colors.blue[900] + '20')};
+        }
+      `,
+      overviewHookMain: css`
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+        gap: 2px;
+      `,
+      overviewHookTitle: css`
+        color: ${t(colors.gray[900], colors.gray[100])};
+        font-size: ${fontSize.sm};
+        font-weight: ${font.weight.semibold};
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      `,
+      overviewHookId: css`
+        color: ${t(colors.gray[500], colors.gray[400])};
+        font-family: ${fontFamily.mono};
+        font-size: 10px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      `,
+      overviewHookMeta: css`
+        display: flex;
+        flex-shrink: 0;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: ${size[1]};
+      `,
+      container: css`
+        display: flex;
+        flex: 1;
+        min-height: 0;
+        flex-direction: column;
+      `,
+      header: css`
+        display: flex;
+        align-items: center;
+        flex-shrink: 0;
+        gap: ${size[3]};
+        justify-content: space-between;
+        padding: ${size[3]} ${size[4]};
+        border-bottom: 1px solid ${t(colors.gray[200], colors.darkGray[700])};
+        background: ${t(colors.gray[50], colors.darkGray[800])};
+      `,
+      headerMain: css`
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+        gap: ${size[1]};
+      `,
+      titleRow: css`
+        align-items: center;
+        display: flex;
+        flex-wrap: wrap;
+        gap: ${size[2]};
+        min-width: 0;
+      `,
+      title: css`
+        color: ${t(colors.gray[900], colors.gray[100])};
+        font-size: ${fontSize.md};
+        font-weight: ${font.weight.bold};
+      `,
+      lifecycle: css`
+        border-radius: ${border.radius.sm};
+        background: ${t(colors.green[50], colors.green[900] + '30')};
+        color: ${t(colors.green[700], colors.green[300])};
+        font-family: ${fontFamily.mono};
+        font-size: 10px;
+        font-weight: ${font.weight.semibold};
+        padding: 1px ${size[1.5]};
+      `,
+      kind: css`
+        border-radius: ${border.radius.sm};
+        background: ${t(colors.blue[50], colors.blue[900] + '30')};
+        color: ${t(colors.blue[700], colors.blue[300])};
+        font-family: ${fontFamily.mono};
+        font-size: 10px;
+        padding: 1px ${size[1.5]};
+      `,
+      identity: css`
+        color: ${t(colors.gray[500], colors.gray[400])};
+        display: flex;
+        flex-wrap: wrap;
+        gap: ${size[2]};
+        font-family: ${fontFamily.mono};
+        font-size: ${fontSize.xs};
+      `,
+      metrics: css`
+        display: grid;
+        align-items: stretch;
+        flex-shrink: 0;
+        grid-template-columns: repeat(4, minmax(58px, auto));
+        gap: ${size[2]};
+      `,
+      metric: css`
+        display: flex;
+        min-height: 38px;
+        flex-direction: column;
+        justify-content: center;
+        border-left: 1px solid ${t(colors.gray[200], colors.darkGray[600])};
+        padding-left: ${size[2]};
+      `,
+      metricValue: css`
+        color: ${t(colors.gray[900], colors.gray[50])};
+        display: block;
+        font-family: ${fontFamily.mono};
+        font-size: ${fontSize.md};
+        font-weight: ${font.weight.bold};
+        line-height: 1;
+      `,
+      metricLabel: css`
+        color: ${t(colors.gray[500], colors.gray[400])};
+        display: block;
+        font-size: 10px;
+        font-weight: ${font.weight.semibold};
+        letter-spacing: 0.03em;
+        margin-top: 2px;
+        text-transform: uppercase;
+      `,
+      tabs: css`
+        display: flex;
+        flex-shrink: 0;
+        gap: ${size[1]};
+        overflow-x: auto;
+        padding: ${size[3]} ${size[4]};
+        border-bottom: 1px solid ${t(colors.gray[200], colors.darkGray[700])};
+      `,
+      tab: css`
+        border: 1px solid transparent;
+        border-radius: ${border.radius.sm};
+        background: transparent;
+        color: ${t(colors.gray[600], colors.gray[400])};
+        cursor: pointer;
+        font-size: ${fontSize.xs};
+        font-weight: ${font.weight.semibold};
+        padding: ${size[1]} ${size[2]};
+        white-space: nowrap;
+        &:hover {
+          background: ${t(colors.gray[200], colors.darkGray[700])};
+          color: ${t(colors.gray[900], colors.gray[100])};
+        }
+      `,
+      tabActive: css`
+        background: ${t(colors.blue[50], colors.blue[900] + '35')};
+        border-color: ${t(colors.blue[300], colors.blue[700])};
+        color: ${t(colors.blue[700], colors.blue[300])};
+      `,
+      body: css`
+        display: grid;
+        flex: 1;
+        grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+        height: 100%;
+        min-height: 0;
+        overflow: hidden;
+        @media (max-width: 900px) {
+          grid-template-columns: 1fr;
+        }
+      `,
+      bodySinglePane: css`
+        grid-template-columns: minmax(0, 1fr);
+      `,
+      primary: css`
+        height: 100%;
+        min-height: 0;
+        overflow: auto;
+        padding: ${size[3]};
+      `,
+      previewPane: css`
+        border-left: 1px solid ${t(colors.gray[200], colors.darkGray[700])};
+        background: ${t(colors.white, colors.darkGray[900])};
+        display: flex;
+        height: 100%;
+        max-height: 100%;
+        min-height: 0;
+        flex-direction: column;
+        overflow: hidden;
+        @media (max-width: 900px) {
+          border-left: 0;
+          border-top: 1px solid ${t(colors.gray[200], colors.darkGray[700])};
+          max-height: 360px;
+        }
+      `,
+      previewHeader: css`
+        border-bottom: 1px solid ${t(colors.gray[200], colors.darkGray[700])};
+        color: ${t(colors.gray[700], colors.gray[300])};
+        flex-shrink: 0;
+        font-size: ${fontSize.xs};
+        font-weight: ${font.weight.bold};
+        letter-spacing: 0.04em;
+        padding: ${size[2]} ${size[3]};
+        text-transform: uppercase;
+      `,
+      stack: css`
+        display: flex;
+        flex-direction: column;
+        gap: ${size[3]};
+      `,
+      section: css`
+        border: 1px solid ${t(colors.gray[200], colors.darkGray[700])};
+        border-radius: ${border.radius.md};
+        background: ${t(colors.white, colors.darkGray[700])};
+        overflow: hidden;
+      `,
+      sectionTitle: css`
+        color: ${t(colors.gray[700], colors.gray[300])};
+        font-size: ${fontSize.xs};
+        font-weight: ${font.weight.bold};
+        letter-spacing: 0.04em;
+        padding: ${size[2]} ${size[3]};
+        text-transform: uppercase;
+      `,
+      conversationFallback: css`
+        display: flex;
+        flex-direction: column;
+        gap: ${size[3]};
+      `,
+      generationRuns: css`
+        display: flex;
+        flex-direction: column;
+        gap: ${size[2]};
+      `,
+      generationMetaGrid: css`
+        display: grid;
+        gap: ${size[2]};
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        padding: 0 ${size[3]} ${size[3]};
+      `,
+      generationMetaItem: css`
+        border: 1px solid ${t(colors.gray[200], colors.darkGray[700])};
+        border-radius: ${border.radius.sm};
+        background: ${t(colors.gray[50], colors.darkGray[800])};
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+        gap: 2px;
+        padding: ${size[2]};
+      `,
+      generationMetaLabel: css`
+        color: ${t(colors.gray[500], colors.gray[400])};
+        font-size: 10px;
+        font-weight: ${font.weight.bold};
+        letter-spacing: 0;
+        text-transform: uppercase;
+      `,
+      generationMetaValue: css`
+        color: ${t(colors.gray[900], colors.gray[100])};
+        font-family: ${fontFamily.mono};
+        font-size: ${fontSize.xs};
+        line-height: 1.35;
+        overflow-wrap: anywhere;
+      `,
+      progressBlock: css`
+        display: flex;
+        flex-direction: column;
+        gap: ${size[1]};
+        padding: 0 ${size[3]} ${size[3]};
+      `,
+      progressText: css`
+        color: ${t(colors.gray[600], colors.gray[300])};
+        display: flex;
+        font-family: ${fontFamily.mono};
+        font-size: ${fontSize.xs};
+        justify-content: space-between;
+        gap: ${size[2]};
+      `,
+      progressTrack: css`
+        background: ${t(colors.gray[200], colors.darkGray[700])};
+        border-radius: ${border.radius.sm};
+        height: 8px;
+        overflow: hidden;
+      `,
+      progressFill: css`
+        background: ${t(colors.blue[500], colors.blue[400])};
+        height: 100%;
+        transition: width 0.18s ease;
+      `,
+      generationPreview: css`
+        display: flex;
+        min-height: 0;
+        flex-direction: column;
+        gap: ${size[3]};
+        padding: ${size[3]};
+      `,
+      generationPreviewCompact: css`
+        flex: 1;
+        overflow: auto;
+      `,
+      generationText: css`
+        color: ${t(colors.gray[900], colors.gray[100])};
+        font-size: ${fontSize.sm};
+        line-height: 1.55;
+        white-space: pre-wrap;
+        word-break: break-word;
+      `,
+      mediaGrid: css`
+        display: grid;
+        gap: ${size[2]};
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      `,
+      audioList: css`
+        display: flex;
+        flex-direction: column;
+        gap: ${size[2]};
+      `,
+      mediaFrame: css`
+        border: 1px solid ${t(colors.gray[200], colors.darkGray[700])};
+        border-radius: ${border.radius.md};
+        background: ${t(colors.gray[50], colors.darkGray[800])};
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+        gap: ${size[2]};
+        overflow: hidden;
+        padding: ${size[2]};
+        audio,
+        video {
+          width: 100%;
+        }
+      `,
+      imagePreview: css`
+        aspect-ratio: 1 / 1;
+        background: ${t(colors.white, colors.darkGray[900])};
+        border-radius: ${border.radius.sm};
+        max-height: 360px;
+        object-fit: contain;
+        width: 100%;
+      `,
+      videoPreview: css`
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+        gap: ${size[3]};
+        video {
+          background: ${t(colors.black, colors.black)};
+          border-radius: ${border.radius.sm};
+          max-height: 360px;
+        }
+      `,
+      mediaMeta: css`
+        display: flex;
+        flex-wrap: wrap;
+        gap: ${size[1]};
+        span {
+          border-radius: ${border.radius.sm};
+          background: ${t(colors.gray[100], colors.darkGray[700])};
+          color: ${t(colors.gray[600], colors.gray[300])};
+          font-family: ${fontFamily.mono};
+          font-size: 10px;
+          padding: 1px ${size[1.5]};
+        }
+      `,
+      messageTimeline: css`
+        display: flex;
+        min-height: 0;
+        flex-direction: column;
+        gap: ${size[2]};
+      `,
+      timelineMessage: css`
+        border: 1px solid ${t(colors.gray[200], colors.darkGray[700])};
+        border-radius: ${border.radius.md};
+        background: ${t(colors.white, colors.darkGray[700])};
+        display: flex;
+        flex-direction: column;
+        gap: ${size[1.5]};
+        padding: ${size[3]};
+        transition:
+          border-color 0.15s ease,
+          background 0.15s ease;
+        &:hover {
+          border-color: ${t(colors.blue[300], colors.blue[700])};
+          background: ${t(colors.blue[50], colors.blue[900] + '20')};
+        }
+      `,
+      timelineMessageHighlighted: css`
+        border-color: ${t(colors.blue[500], colors.blue[500])};
+        background: ${t(colors.blue[50], colors.blue[900] + '30')};
+      `,
+      jsonPanel: css`
+        background: ${t(colors.gray[50], colors.darkGray[900])};
+        border: 1px solid ${t(colors.gray[200], colors.darkGray[700])};
+        border-radius: ${border.radius.md};
+        overflow: auto;
+        padding: ${size[2]};
+      `,
+      jsonPanelCompact: css`
+        max-height: 180px;
+      `,
+      runCard: css`
+        border: 1px solid ${t(colors.gray[200], colors.darkGray[700])};
+        border-radius: ${border.radius.md};
+        background: ${t(colors.white, colors.darkGray[700])};
+        overflow: hidden;
+        transition:
+          border-color 0.15s ease,
+          background 0.15s ease,
+          box-shadow 0.15s ease;
+        &:hover {
+          border-color: ${t(colors.blue[300], colors.blue[700])};
+          background: ${t(colors.blue[50], colors.blue[900] + '18')};
+        }
+      `,
+      runCardHighlighted: css`
+        border-color: ${t(colors.blue[500], colors.blue[500])};
+        background: ${t(colors.blue[50], colors.blue[900] + '30')};
+        box-shadow: inset 0 0 0 1px ${t(colors.blue[300], colors.blue[700])};
+      `,
+      runHeader: css`
+        align-items: flex-start;
+        display: flex;
+        gap: ${size[2]};
+        justify-content: space-between;
+        padding: ${size[2.5]} ${size[3]};
+        border-bottom: 1px solid ${t(colors.gray[200], colors.darkGray[700])};
+      `,
+      runHeading: css`
+        min-width: 0;
+      `,
+      runTitle: css`
+        color: ${t(colors.gray[900], colors.gray[100])};
+        font-size: ${fontSize.sm};
+        font-weight: ${font.weight.semibold};
+        word-break: break-all;
+      `,
+      runMeta: css`
+        color: ${t(colors.gray[500], colors.gray[400])};
+        font-family: ${fontFamily.mono};
+        font-size: 10px;
+        margin-top: ${size[1]};
+      `,
+      runStatusGroup: css`
+        align-items: flex-end;
+        display: flex;
+        flex-direction: column;
+        gap: ${size[1]};
+      `,
+      runStatus: css`
+        border-radius: ${border.radius.sm};
+        background: ${t(colors.blue[50], colors.blue[900] + '30')};
+        color: ${t(colors.blue[700], colors.blue[300])};
+        flex-shrink: 0;
+        font-family: ${fontFamily.mono};
+        font-size: 10px;
+        padding: 1px ${size[1.5]};
+      `,
+      runStatusMuted: css`
+        border-radius: ${border.radius.sm};
+        background: ${t(colors.gray[100], colors.darkGray[800])};
+        color: ${t(colors.gray[600], colors.gray[300])};
+        flex-shrink: 0;
+        font-family: ${fontFamily.mono};
+        font-size: 10px;
+        padding: 1px ${size[1.5]};
+      `,
+      runCardBody: css`
+        display: flex;
+        flex-direction: column;
+        gap: ${size[2.5]};
+        padding: ${size[3]};
+      `,
+      runSummaryGrid: css`
+        display: grid;
+        gap: ${size[2]};
+        grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+      `,
+      runDetailsGrid: css`
+        display: grid;
+        gap: ${size[2]};
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      `,
+      runField: css`
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+        gap: ${size[1]};
+      `,
+      generationOutputGrid: css`
+        display: grid;
+        gap: ${size[2]};
+        grid-template-columns: repeat(auto-fill, minmax(116px, 1fr));
+        overflow-y: auto;
+        padding: ${size[3]};
+      `,
+      outputTile: css`
+        appearance: none;
+        border: 1px solid ${t(colors.gray[200], colors.darkGray[700])};
+        border-radius: ${border.radius.md};
+        background: ${t(colors.gray[50], colors.darkGray[800])};
+        color: inherit;
+        cursor: pointer;
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+        overflow: hidden;
+        padding: 0;
+        text-align: left;
+        transition:
+          border-color 0.15s ease,
+          background 0.15s ease,
+          transform 0.15s ease;
+        &:hover {
+          border-color: ${t(colors.blue[300], colors.blue[700])};
+          background: ${t(colors.blue[50], colors.blue[900] + '20')};
+          transform: translateY(-1px);
+        }
+      `,
+      outputTileHighlighted: css`
+        border-color: ${t(colors.blue[500], colors.blue[500])};
+        background: ${t(colors.blue[50], colors.blue[900] + '30')};
+        box-shadow: inset 0 0 0 1px ${t(colors.blue[300], colors.blue[700])};
+        transform: translateY(-1px);
+      `,
+      outputTileBody: css`
+        align-items: center;
+        aspect-ratio: 1 / 1;
+        background: ${t(colors.white, colors.darkGray[900])};
+        display: flex;
+        justify-content: center;
+        min-height: 0;
+        overflow: hidden;
+        padding: ${size[1]};
+        audio,
+        video {
+          max-height: 100%;
+          width: 100%;
+        }
+        video {
+          background: ${colors.black};
+        }
+      `,
+      outputTileImage: css`
+        height: 100%;
+        object-fit: contain;
+        width: 100%;
+      `,
+      outputTileText: css`
+        color: ${t(colors.gray[800], colors.gray[100])};
+        display: -webkit-box;
+        font-size: ${fontSize.xs};
+        line-height: 1.4;
+        overflow: hidden;
+        padding: ${size[2]};
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 6;
+        word-break: break-word;
+      `,
+      outputTileFooter: css`
+        border-top: 1px solid ${t(colors.gray[200], colors.darkGray[700])};
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        padding: ${size[1.5]} ${size[2]};
+        span:first-child {
+          color: ${t(colors.gray[500], colors.gray[400])};
+          font-family: ${fontFamily.mono};
+          font-size: 10px;
+        }
+        span:last-child {
+          color: ${t(colors.gray[800], colors.gray[100])};
+          font-size: ${fontSize.xs};
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+      `,
+      outputModalBackdrop: css`
+        --tsrd-font-size: 12px;
+        align-items: center;
+        background: rgb(0 0 0 / 0.82);
+        display: flex;
+        inset: 0;
+        justify-content: center;
+        padding: ${size[6]};
+        position: fixed;
+        z-index: 2147483647;
+      `,
+      outputModalDialog: css`
+        background: ${t(colors.white, colors.darkGray[900])};
+        border: 1px solid ${t(colors.gray[200], colors.darkGray[700])};
+        border-radius: ${border.radius.md};
+        box-shadow: 0 24px 80px rgb(0 0 0 / 0.45);
+        display: flex;
+        max-height: min(900px, 92vh);
+        max-width: min(1120px, 92vw);
+        min-width: min(720px, 92vw);
+        overflow: hidden;
+        flex-direction: column;
+      `,
+      outputModalHeader: css`
+        align-items: center;
+        border-bottom: 1px solid ${t(colors.gray[200], colors.darkGray[700])};
+        display: flex;
+        justify-content: space-between;
+        gap: ${size[4]};
+        padding: ${size[4]} ${size[5]};
+      `,
+      outputModalTitle: css`
+        color: ${t(colors.gray[900], colors.gray[100])};
+        font-size: ${fontSize.md};
+        font-weight: ${font.weight.semibold};
+      `,
+      outputModalClose: css`
+        align-items: center;
+        background: ${t(colors.gray[100], colors.darkGray[800])};
+        border: 1px solid ${t(colors.gray[200], colors.darkGray[700])};
+        border-radius: ${border.radius.sm};
+        color: ${t(colors.gray[700], colors.gray[200])};
+        cursor: pointer;
+        display: flex;
+        font-size: ${fontSize.lg};
+        height: 32px;
+        justify-content: center;
+        line-height: 1;
+        width: 32px;
+        &:hover {
+          background: ${t(colors.gray[200], colors.darkGray[700])};
+        }
+      `,
+      outputModalBody: css`
+        align-items: center;
+        display: flex;
+        justify-content: center;
+        min-height: 0;
+        overflow: auto;
+        padding: ${size[4]};
+        img,
+        video {
+          max-height: 76vh;
+          max-width: 100%;
+        }
+        audio {
+          width: min(720px, 84vw);
+        }
+      `,
+      outputModalMedia: css`
+        object-fit: contain;
+      `,
+      outputModalText: css`
+        color: ${t(colors.gray[900], colors.gray[100])};
+        font-size: ${fontSize.sm};
+        line-height: 1.6;
+        max-width: 760px;
+        white-space: pre-wrap;
+        word-break: break-word;
+      `,
+      errorText: css`
+        color: ${t(colors.red[700], colors.red[300])};
+        font-family: ${fontFamily.mono};
+        font-size: ${fontSize.xs};
+        padding: ${size[2]} ${size[3]};
+        white-space: pre-wrap;
+      `,
+      emptySmall: css`
+        color: ${t(colors.gray[500], colors.gray[500])};
+        font-size: ${fontSize.xs};
+        padding: ${size[3]};
+        text-align: center;
+      `,
+      eventList: css`
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+      `,
+      eventRow: css`
+        align-items: center;
+        background: ${t(colors.gray[50], colors.darkGray[800])};
+        display: flex;
+        gap: ${size[2]};
+        min-width: 0;
+        padding: ${size[2]} ${size[3]};
+        &:hover {
+          background: ${t(colors.blue[50], colors.blue[900] + '25')};
+        }
+      `,
+      eventTime: css`
+        color: ${t(colors.gray[500], colors.gray[400])};
+        flex-shrink: 0;
+        font-family: ${fontFamily.mono};
+        font-size: 10px;
+      `,
+      eventName: css`
+        color: ${t(colors.gray[800], colors.gray[200])};
+        flex: 1;
+        font-family: ${fontFamily.mono};
+        font-size: ${fontSize.xs};
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      `,
+      eventBadge: css`
+        border-radius: ${border.radius.sm};
+        background: ${t(colors.gray[100], colors.darkGray[600])};
+        color: ${t(colors.gray[600], colors.gray[300])};
+        flex-shrink: 0;
+        font-family: ${fontFamily.mono};
+        font-size: 10px;
+        padding: 1px ${size[1.5]};
+      `,
+      messages: css`
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        gap: ${size[2]};
+        min-height: 0;
+        overflow-y: auto;
+        padding: ${size[3]};
+      `,
+      message: css`
+        border: 1px solid ${t(colors.gray[200], colors.darkGray[700])};
+        border-radius: ${border.radius.md};
+        background: ${t(colors.gray[50], colors.darkGray[800])};
+        display: flex;
+        flex-direction: column;
+        gap: ${size[1]};
+        padding: ${size[2]};
+        transition:
+          border-color 0.15s ease,
+          background 0.15s ease;
+      `,
+      messageHighlighted: css`
+        border-color: ${t(colors.blue[500], colors.blue[500])};
+        background: ${t(colors.blue[50], colors.blue[900] + '30')};
+        box-shadow: inset 0 0 0 1px ${t(colors.blue[300], colors.blue[700])};
+      `,
+      messageRole: css`
+        color: ${t(colors.gray[500], colors.gray[400])};
+        font-size: 10px;
+        font-weight: ${font.weight.bold};
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      `,
+      messageContent: css`
+        color: ${t(colors.gray[800], colors.gray[100])};
+        font-size: ${fontSize.sm};
+        line-height: 1.45;
+        white-space: pre-wrap;
+        word-break: break-word;
+      `,
+      previewPart: css`
+        border-left: 2px solid ${t(colors.gray[300], colors.darkGray[500])};
+        border-radius: ${border.radius.sm};
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        margin-top: ${size[1]};
+        padding: ${size[1]} ${size[2]};
+        transition:
+          border-color 0.15s ease,
+          background 0.15s ease;
+      `,
+      previewPartThinking: css`
+        border-left-color: ${t(colors.pink[400], colors.pink[500])};
+      `,
+      previewPartToolCall: css`
+        border-left-color: ${t(colors.yellow[500], colors.yellow[500])};
+      `,
+      previewPartToolResult: css`
+        border-left-color: ${t(colors.cyan[500], colors.cyan[500])};
+      `,
+      previewPartStructuredOutput: css`
+        border-left-color: ${t(colors.green[500], colors.green[500])};
+      `,
+      previewPartMedia: css`
+        border-left-color: ${t(colors.purple[500], colors.purple[500])};
+      `,
+      previewPartHighlighted: css`
+        background: ${t(colors.blue[50], colors.blue[900] + '30')};
+        border-left-color: ${t(colors.blue[500], colors.blue[400])};
+        box-shadow: inset 0 0 0 1px ${t(colors.blue[300], colors.blue[700])};
+      `,
+      previewPartLabel: css`
+        color: ${t(colors.gray[500], colors.gray[400])};
+        font-size: 10px;
+        font-weight: ${font.weight.bold};
+      `,
+      previewPartActions: css`
+        display: flex;
+        gap: ${size[1]};
+        margin: 1px 0 ${size[1]};
+      `,
+      previewPartActionButton: css`
+        border: 1px solid ${t(colors.gray[300], colors.darkGray[500])};
+        border-radius: ${border.radius.sm};
+        background: ${t(colors.white, colors.darkGray[700])};
+        color: ${t(colors.gray[700], colors.gray[200])};
+        cursor: pointer;
+        font-size: 10px;
+        font-weight: ${font.weight.semibold};
+        line-height: 1;
+        padding: ${size[1]} ${size[1.5]};
+        &:hover {
+          border-color: ${t(colors.blue[400], colors.blue[500])};
+          color: ${t(colors.blue[600], colors.blue[300])};
+        }
+      `,
+      previewPartContent: css`
+        color: ${t(colors.gray[700], colors.gray[200])};
+        font-family: ${fontFamily.mono};
+        font-size: 10px;
+        line-height: 1.45;
+        white-space: pre-wrap;
+        word-break: break-word;
+      `,
+      previewJsonItems: css`
+        display: flex;
+        flex-direction: column;
+        gap: ${size[1.5]};
+      `,
+      previewJsonItemsCompare: css`
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: start;
+        @media (max-width: 760px) {
+          grid-template-columns: 1fr;
+        }
+      `,
+      previewJsonItem: css`
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      `,
+      previewJsonItemLabel: css`
+        color: ${t(colors.gray[500], colors.gray[400])};
+        font-family: ${fontFamily.mono};
+        font-size: 10px;
+        font-weight: ${font.weight.semibold};
+      `,
+      previewJsonPanel: css`
+        border: 1px solid ${t(colors.gray[200], colors.darkGray[600])};
+        border-radius: ${border.radius.sm};
+        background: ${t(colors.white, colors.darkGray[900])};
+        min-height: 260px;
+        max-height: 420px;
+        overflow: auto;
+        padding: ${size[2]} ${size[2]} ${size[2]} ${size[5]};
+      `,
+      toolsGrid: css`
+        display: grid;
+        gap: ${size[3]};
+        grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+        @media (max-width: 760px) {
+          grid-template-columns: 1fr;
+        }
+      `,
+      toolsList: css`
+        display: flex;
+        flex-direction: column;
+        gap: ${size[1]};
+      `,
+      toolRow: css`
+        align-items: center;
+        border: 1px solid ${t(colors.gray[200], colors.darkGray[700])};
+        border-radius: ${border.radius.md};
+        background: ${t(colors.white, colors.darkGray[700])};
+        color: inherit;
+        cursor: pointer;
+        display: flex;
+        gap: ${size[2]};
+        justify-content: space-between;
+        padding: ${size[2]};
+        text-align: left;
+        &:hover {
+          border-color: ${t(colors.yellow[300], colors.yellow[700])};
+          background: ${t(colors.yellow[50], colors.yellow[900] + '20')};
+        }
+      `,
+      toolRowSelected: css`
+        border-color: ${t(colors.yellow[500], colors.yellow[500])};
+        background: ${t(colors.yellow[50], colors.yellow[900] + '30')};
+      `,
+      toolName: css`
+        color: ${t(colors.gray[900], colors.gray[100])};
+        font-family: ${fontFamily.mono};
+        font-size: ${fontSize.xs};
+        font-weight: ${font.weight.semibold};
+      `,
+      toolDetail: css`
+        display: flex;
+        flex-direction: column;
+        gap: ${size[3]};
+        min-width: 0;
+      `,
+      fixtureRow: css`
+        align-items: center;
+        border: 0;
+        background: ${t(colors.gray[50], colors.darkGray[800])};
+        color: ${t(colors.gray[700], colors.gray[200])};
+        display: flex;
+        font-family: ${fontFamily.mono};
+        font-size: ${fontSize.xs};
+        gap: ${size[2]};
+        justify-content: space-between;
+        padding: ${size[2]} ${size[3]};
+        text-align: left;
+        &:hover {
+          background: ${t(colors.blue[50], colors.blue[900] + '25')};
+        }
+      `,
+      fixtureInfo: css`
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+      `,
+      fixtureName: css`
+        color: ${t(colors.gray[900], colors.gray[100])};
+        font-weight: ${font.weight.semibold};
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      `,
+      fixtureMeta: css`
+        color: ${t(colors.gray[500], colors.gray[400])};
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      `,
+      fixtureRowActions: css`
+        display: flex;
+        flex-shrink: 0;
+        gap: ${size[1]};
+      `,
+      fixtureRowButton: css`
+        border: 1px solid ${t(colors.blue[300], colors.blue[700])};
+        border-radius: ${border.radius.sm};
+        background: ${t(colors.white, colors.darkGray[700])};
+        color: ${t(colors.blue[700], colors.blue[300])};
+        cursor: pointer;
+        font-size: ${fontSize.xs};
+        font-weight: ${font.weight.semibold};
+        padding: 2px ${size[2]};
+        &:hover {
+          background: ${t(colors.blue[50], colors.blue[900] + '25')};
+        }
+      `,
+      fixtureDangerButton: css`
+        border-color: ${t(colors.red[300], colors.red[800])};
+        color: ${t(colors.red[700], colors.red[300])};
+        &:hover {
+          background: ${t(colors.red[50], colors.red[900] + '25')};
+        }
+      `,
+      fixtureForm: css`
+        border: 1px solid ${t(colors.gray[200], colors.darkGray[700])};
+        border-radius: ${border.radius.md};
+        background: ${t(colors.white, colors.darkGray[700])};
+        display: flex;
+        flex-direction: column;
+        gap: ${size[2]};
+        padding-bottom: ${size[3]};
+      `,
+      fixtureField: css`
+        display: flex;
+        flex-direction: column;
+        gap: ${size[1]};
+        padding: 0 ${size[3]};
+      `,
+      fixtureLabel: css`
+        color: ${t(colors.gray[700], colors.gray[300])};
+        font-size: ${fontSize.xs};
+        font-weight: ${font.weight.semibold};
+      `,
+      requiredMark: css`
+        color: ${t(colors.red[600], colors.red[400])};
+        margin-left: 2px;
+      `,
+      fixtureInput: css`
+        border: 1px solid ${t(colors.gray[300], colors.darkGray[600])};
+        border-radius: ${border.radius.sm};
+        background: ${t(colors.white, colors.darkGray[900])};
+        color: ${t(colors.gray[900], colors.gray[100])};
+        font-size: ${fontSize.sm};
+        min-height: 28px;
+        padding: ${size[1]} ${size[2]};
+      `,
+      fixtureTextarea: css`
+        border: 1px solid ${t(colors.gray[300], colors.darkGray[600])};
+        border-radius: ${border.radius.sm};
+        background: ${t(colors.white, colors.darkGray[900])};
+        color: ${t(colors.gray[900], colors.gray[100])};
+        font-family: ${fontFamily.mono};
+        font-size: ${fontSize.xs};
+        min-height: 72px;
+        padding: ${size[2]};
+        resize: vertical;
+      `,
+      fixtureActions: css`
+        display: flex;
+        gap: ${size[2]};
+        padding: 0 ${size[3]};
+      `,
+      fixtureButton: css`
+        border: 1px solid ${t(colors.blue[500], colors.blue[600])};
+        border-radius: ${border.radius.sm};
+        background: ${t(colors.blue[600], colors.blue[600])};
+        color: ${colors.white};
+        cursor: pointer;
+        font-size: ${fontSize.xs};
+        font-weight: ${font.weight.semibold};
+        padding: ${size[1]} ${size[2]};
+        &:hover {
+          background: ${t(colors.blue[700], colors.blue[500])};
+        }
+      `,
+      fixtureButtonSecondary: css`
+        background: transparent;
+        color: ${t(colors.blue[700], colors.blue[300])};
+        &:hover {
+          background: ${t(colors.blue[50], colors.blue[900] + '25')};
+        }
+      `,
+      fixtureError: css`
+        color: ${t(colors.red[700], colors.red[300])};
+        font-size: ${fontSize.xs};
+        padding: 0 ${size[3]};
+      `,
+      fixtureHelp: css`
+        color: ${t(colors.gray[500], colors.gray[400])};
+        font-size: ${fontSize.xs};
+        line-height: 1.4;
+        padding: 0 ${size[3]};
       `,
     },
     // ConversationDetails component styles
@@ -1065,6 +2443,23 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         border-top: 1px solid oklch(0.28 0.03 260);
         padding-top: ${size[2]};
       `,
+      structuredOutputComparison: css`
+        display: grid;
+        grid-template-columns: repeat(2, minmax(320px, 1fr));
+        gap: ${size[3]};
+        align-items: start;
+        & > * {
+          min-height: 280px;
+          border: 1px solid oklch(0.28 0.03 260);
+          border-radius: 6px;
+          background: oklch(0.18 0.02 260);
+          padding: ${size[3]};
+          overflow: auto;
+        }
+        @media (max-width: 760px) {
+          grid-template-columns: 1fr;
+        }
+      `,
       toolSectionLabel: css`
         font-size: 10px;
         font-weight: ${font.weight.semibold};
@@ -1079,8 +2474,7 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         color: oklch(0.8 0.05 260);
         background: oklch(0.18 0.02 260);
         border-radius: 4px;
-        padding: ${size[4]};
-        padding-left: ${size[8]};
+        padding: ${size[3]};
       `,
       chunksDetails: css`
         margin-top: ${size[3]};
@@ -1152,6 +2546,10 @@ const stylesFactory = (theme: 'light' | 'dark') => {
       chunkBadgeApproval: css`
         background: oklch(0.3 0.15 50);
         color: oklch(0.75 0.2 50);
+      `,
+      chunkBadgeStructured: css`
+        background: oklch(0.3 0.12 155);
+        color: oklch(0.78 0.16 155);
       `,
       chunkBadgeCount: css`
         background: oklch(0.3 0.08 260);
@@ -1614,6 +3012,10 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         background: ${t(colors.gray[50], colors.darkGray[700])};
         border: 1px solid ${t(colors.gray[200], colors.darkGray[500])};
         overflow: hidden;
+        transition:
+          background 0.15s ease,
+          border-color 0.15s ease,
+          box-shadow 0.15s ease;
       `,
       cardCompleted: css`
         border-color: ${t(colors.green[200], colors.green[900] + '60')};
@@ -1623,6 +3025,15 @@ const stylesFactory = (theme: 'light' | 'dark') => {
       `,
       cardActive: css`
         border-color: ${t(colors.blue[300], colors.blue[700])};
+      `,
+      cardHighlighted: css`
+        border-color: ${t(colors.blue[500], colors.blue[500])};
+        background: ${t(colors.blue[50], colors.blue[900] + '30')};
+        box-shadow: inset 0 0 0 1px ${t(colors.blue[300], colors.blue[700])};
+      `,
+      timelineHighlighted: css`
+        background: ${t(colors.blue[50], colors.blue[900] + '30')};
+        box-shadow: inset 0 0 0 1px ${t(colors.blue[300], colors.blue[700])};
       `,
       cardHeader: css`
         display: flex;
@@ -1885,6 +3296,9 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         overflow: hidden;
         animation: iterStaggerIn 0.3s ease-out both;
         width: 100%;
+        transition:
+          background 0.15s ease,
+          box-shadow 0.15s ease;
 
         @keyframes iterStaggerIn {
           from {
@@ -1896,6 +3310,12 @@ const stylesFactory = (theme: 'light' | 'dark') => {
             transform: translateY(0);
           }
         }
+      `,
+      iterCardHighlighted: css`
+        background: ${t(colors.blue[50], colors.blue[900] + '30')};
+        box-shadow:
+          inset 3px 0 0 ${t(colors.blue[500], colors.blue[500])},
+          inset 0 0 0 1px ${t(colors.blue[300], colors.blue[700])};
       `,
       iterCardHeader: css`
         display: flex;
@@ -2097,10 +3517,35 @@ const stylesFactory = (theme: 'light' | 'dark') => {
       `,
       stepJsonPanel: css`
         margin: ${size[1.5]} ${size[3]};
-        padding: ${size[1.5]} ${size[2]} ${size[1.5]} ${size[5]};
+        min-height: 280px;
+        max-height: 520px;
+        overflow: auto;
+        padding: ${size[2]} ${size[2]} ${size[2]} ${size[5]};
         border-radius: ${border.radius.sm};
         border: 1px solid ${t(colors.gray[200], colors.darkGray[500])};
         background: ${t(colors.gray[50], colors.darkGray[800])};
+      `,
+      stepJsonItem: css`
+        display: flex;
+        flex-direction: column;
+        gap: ${size[1]};
+      `,
+      stepJsonItemsCompare: css`
+        display: grid;
+        grid-template-columns: repeat(2, minmax(320px, 1fr));
+        gap: ${size[3]};
+        align-items: start;
+        padding-right: ${size[3]};
+        @media (max-width: 760px) {
+          grid-template-columns: 1fr;
+        }
+      `,
+      stepJsonItemLabel: css`
+        margin: ${size[2]} ${size[3]} 0;
+        color: ${t(colors.gray[500], colors.gray[400])};
+        font-family: ${fontFamily.mono};
+        font-size: 10px;
+        font-weight: ${font.weight.semibold};
       `,
       stepDetail: css`
         padding: ${size[2]};
@@ -2178,6 +3623,18 @@ const stylesFactory = (theme: 'light' | 'dark') => {
       mwBadgeToolResult: css`
         background: ${t(colors.cyan[900] + '15', colors.cyan[900] + '30')};
         color: ${t(colors.cyan[700], colors.cyan[300])};
+      `,
+      mwBadgeApproval: css`
+        background: ${t(colors.yellow[50], colors.yellow[900] + '30')};
+        color: ${t(colors.yellow[800], colors.yellow[300])};
+      `,
+      mwBadgeApproved: css`
+        background: ${t(colors.green[50], colors.green[900] + '30')};
+        color: ${t(colors.green[700], colors.green[300])};
+      `,
+      mwBadgeDenied: css`
+        background: ${t(colors.red[50], colors.red[900] + '30')};
+        color: ${t(colors.red[700], colors.red[300])};
       `,
       mwHook: css`
         font-size: 10px;
