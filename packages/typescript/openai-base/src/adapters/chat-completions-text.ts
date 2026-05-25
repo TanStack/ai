@@ -1123,6 +1123,34 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
 
     const modelOptions = options.modelOptions
 
+    // Native combined mode (issue #605): when the engine threads
+    // `outputSchema` through TextOptions, the adapter declared
+    // `supportsCombinedToolsAndSchema` and the schema is already JSON Schema
+    // (pre-converted at the activity boundary). Wire it into
+    // `response_format` alongside any `tools`. Modern OpenAI-compatible
+    // Chat Completions accepts both together and emits the schema-
+    // constrained text on the natural final turn.
+    const combinedSchema = options.outputSchema as
+      | Record<string, unknown>
+      | undefined
+    const responseFormat = combinedSchema
+      ? {
+          response_format: {
+            type: 'json_schema' as const,
+            json_schema: {
+              name: 'structured_output',
+              schema: this.makeStructuredOutputCompatible(
+                combinedSchema,
+                Array.isArray(combinedSchema.required)
+                  ? (combinedSchema.required as Array<string>)
+                  : undefined,
+              ),
+              strict: true,
+            },
+          },
+        }
+      : undefined
+
     // Build the request so explicit top-level options win over modelOptions
     // when set, but `undefined` top-level options do NOT clobber values the
     // caller put in modelOptions. Keeping the merge nullish-aware fixes the
@@ -1145,8 +1173,20 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         tools.length > 0 && {
           tools,
         }),
+      ...(responseFormat ?? {}),
       stream: true,
     }
+  }
+
+  /**
+   * Modern OpenAI-compatible Chat Completions APIs support `tools` and
+   * `response_format: json_schema` together in a single streaming request
+   * (per issue #605). Subclasses can override — Groq, for instance, must
+   * return `false` because its API rejects schema + tools + stream with a
+   * 400.
+   */
+  supportsCombinedToolsAndSchema(): boolean {
+    return true
   }
 
   /**

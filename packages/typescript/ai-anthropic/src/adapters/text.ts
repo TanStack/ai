@@ -7,6 +7,7 @@ import {
   generateId,
   getAnthropicApiKeyFromEnv,
 } from '../utils'
+import { ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS } from '../model-meta'
 import type {
   ANTHROPIC_MODELS,
   AnthropicChatModelProviderOptionsByName,
@@ -140,9 +141,9 @@ export class AnthropicTextAdapter<
         { provider: 'anthropic', model: this.model },
       )
 
-      // Interleaved thinking is only supported on the beta messages endpoint,
-      // so the `betas` flag is attached here rather than in the shared mapper
-      // (structuredOutput uses the non-beta endpoint which rejects `betas`).
+      // `betas` is attached at the call site rather than in the shared mapper
+      // because the `interleaved-thinking-2025-05-14` header is only useful for
+      // the streaming path.
       const modelOptions = options.modelOptions as
         | InternalTextProviderOptions
         | undefined
@@ -154,8 +155,18 @@ export class AnthropicTextAdapter<
         ? ['interleaved-thinking-2025-05-14']
         : undefined
 
+      // `client.beta.messages` is Anthropic's permanent staging surface, not a
+      // sunset path: it's a superset of `client.messages` that additionally
+      // accepts the `betas: AnthropicBeta[]` header (e.g. interleaved
+      // thinking) plus richer `container` (skills) and `context_management`
+      // shapes that `InternalTextProviderOptions` carries. We route every
+      // Messages call through it so the request mapper stays single-shape.
       const stream = await this.client.beta.messages.create(
-        { ...requestParams, stream: true, ...(betas && { betas }) },
+        {
+          ...requestParams,
+          stream: true,
+          ...(betas && { betas }),
+        },
         {
           signal: options.request?.signal,
           headers: options.request?.headers,
@@ -221,7 +232,7 @@ export class AnthropicTextAdapter<
         { provider: 'anthropic', model: this.model },
       )
       // Make non-streaming request with tool_choice forced to our structured output tool
-      const response = await this.client.messages.create(
+      const response = await this.client.beta.messages.create(
         {
           ...requestParams,
           stream: false,
@@ -300,6 +311,7 @@ export class AnthropicTextAdapter<
         'context_management',
         'effort',
         'mcp_servers',
+        'output_config',
         'service_tier',
         'stop_sequences',
         'thinking',
@@ -370,6 +382,26 @@ export class AnthropicTextAdapter<
         }),
       )
     })()
+    // Wire engine-threaded outputSchema into Messages `output_config.format`
+    // alongside any `tools` so the model emits tool calls during the agent
+    // loop and a single schema-constrained JSON message on its final turn.
+    // Merge into any existing `output_config` so callers can keep tuning
+    // `output_config.effort` alongside the schema.
+    const combinedSchema = options.outputSchema as
+      | Record<string, unknown>
+      | undefined
+    const outputConfig = combinedSchema
+      ? {
+          output_config: {
+            ...(validProviderOptions.output_config ?? {}),
+            format: {
+              type: 'json_schema' as const,
+              schema: combinedSchema,
+            },
+          },
+        }
+      : undefined
+
     // `InternalTextProviderOptions` declares `temperature`, `top_p`,
     // and `tools` as `T?: ...` (no `| undefined`), so spread them
     // conditionally rather than passing explicit `undefined` from the
@@ -386,9 +418,20 @@ export class AnthropicTextAdapter<
       ...(systemBlocks !== undefined && { system: systemBlocks }),
       ...(tools !== undefined && { tools }),
       ...validProviderOptions,
+      ...(outputConfig ?? {}),
     }
     validateTextProviderOptions(requestParams)
     return requestParams
+  }
+
+  /**
+   * Anthropic supports `output_config.format` + `tools` in a single streaming
+   * Messages request only for Claude 4.5+ (GA 2026-01-29). For 4.4 and
+   * earlier we keep the forced-tool-use workaround in
+   * {@link structuredOutput} via the engine's finalization path.
+   */
+  supportsCombinedToolsAndSchema(): boolean {
+    return ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(this.model)
   }
 
   private convertContentPartToAnthropic(
@@ -1078,6 +1121,7 @@ export class AnthropicTextAdapter<
               case 'pause_turn':
               case 'refusal':
               case 'model_context_window_exceeded':
+              case 'compaction':
               default: {
                 // All remaining Anthropic stop_reason variants map to the
                 // generic "stop" finish reason — they describe *why* the

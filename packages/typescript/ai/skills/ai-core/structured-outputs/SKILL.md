@@ -181,15 +181,27 @@ The terminal event is a `CUSTOM` chunk: `{ type: 'CUSTOM', name: 'structured-out
 
 **Adapter coverage for streaming:**
 
-| Adapter                                           | `outputSchema` + `stream: true`                                                               |
-| ------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `@tanstack/ai-openai`                             | Native single-request stream (Responses API)                                                  |
-| `@tanstack/ai-openrouter`                         | Native single-request stream                                                                  |
-| `@tanstack/ai-grok`                               | Native single-request stream (Chat Completions)                                               |
-| `@tanstack/ai-groq`                               | Native single-request stream (Chat Completions)                                               |
-| All other adapters (anthropic, gemini, ollama, …) | Fallback: runs non-streaming `structuredOutput`, emits one `structured-output.complete` event |
+| Adapter                                                         | `outputSchema` + `stream: true`                                                                                                                       |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@tanstack/ai-openai` (Responses + Chat Completions)            | **Native combined mode (#605)** — schema wired into the regular `chatStream` call alongside `tools`; engine harvests JSON, no finalization round-trip |
+| `@tanstack/ai-anthropic` (Claude 4.5+ only)                     | **Native combined mode (#605)** — `output_config.format` + `tools` in one beta Messages call. Older Claude models fall back                           |
+| `@tanstack/ai-gemini` (Gemini 3.x only)                         | **Native combined mode (#605)** — `responseSchema` + `tools` in one `generateContentStream`. Gemini 2.x falls back                                    |
+| `@tanstack/ai-grok` (Grok 4 family only)                        | **Native combined mode (#605)** — `response_format: json_schema` + `tools`. Grok 2 / 3 fall back                                                      |
+| `@tanstack/ai-openrouter`                                       | Native single-request stream (legacy `structuredOutputStream` path; per-call combined-mode lookup is a follow-up)                                     |
+| `@tanstack/ai-groq`                                             | Legacy `structuredOutputStream` only (no tools — Groq's API rejects schema + tools + stream)                                                          |
+| All other adapters (ollama, older Claude, Gemini 2.x, Grok 2/3) | Fallback: runs non-streaming `structuredOutput`, emits one `structured-output.complete` event                                                         |
 
-Consumer code is identical across providers — always read the final object off `structured-output.complete`. You only see incremental `TEXT_MESSAGE_CONTENT` deltas when the adapter implements `structuredOutputStream` natively.
+**Native combined mode vs fallback** is signaled by the adapter's
+optional `supportsCombinedToolsAndSchema(modelOptions)` method. When
+it returns `true`, the engine wires the JSON Schema into the regular
+`chatStream` call and harvests the final-turn text — middleware sees
+the run through `beforeModel` / `modelStream` as usual, and the
+`'structuredOutput'` middleware phase does **not** fire. When it
+returns `false` (or is omitted), the engine takes the legacy
+finalization path: agent loop, then a separate `structuredOutput` /
+`structuredOutputStream` call with `'structuredOutput'` phase tagging.
+
+Consumer code is identical across providers — always read the final object off `structured-output.complete`.
 
 ### Pattern 4: useChat with outputSchema (progressive UI)
 

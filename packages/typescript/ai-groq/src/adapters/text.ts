@@ -104,6 +104,17 @@ export class GroqTextAdapter<
     }
     return undefined
   }
+
+  /**
+   * Groq's API rejects `response_format: json_schema` together with `tools`
+   * + `stream` (returns 400 — see Groq Structured Outputs docs:
+   * "Streaming and tool use are not currently supported with Structured
+   * Outputs."). Force the engine onto the legacy finalization path even
+   * though the OpenAI Chat Completions base would otherwise opt in.
+   */
+  override supportsCombinedToolsAndSchema(): boolean {
+    return false
+  }
 }
 
 /**

@@ -62,7 +62,10 @@ export {
 } from './adapters/audio'
 
 // Re-export models from model-meta for convenience
-export { GEMINI_MODELS } from './model-meta'
+export {
+  GEMINI_MODELS,
+  GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS,
+} from './model-meta'
 export { GEMINI_MODELS as GeminiTextModels } from './model-meta'
 export { GEMINI_IMAGE_MODELS as GeminiImageModels } from './model-meta'
 export { GEMINI_TTS_MODELS as GeminiTTSModels } from './model-meta'

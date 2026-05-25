@@ -800,10 +800,26 @@ export interface TextOptions<
 
   /**
    * Schema for structured output.
-   * When provided, the adapter should use the provider's native structured output API
-   * to ensure the response conforms to this schema.
-   * The schema will be converted to JSON Schema format before being sent to the provider.
-   * Supports any Standard JSON Schema compliant library (Zod, ArkType, Valibot, etc.).
+   *
+   * **Two distinct use sites:**
+   *
+   * 1. **User-facing (activity layer):** accepts any
+   *    {@link SchemaInput} — Zod, ArkType, Valibot, or a raw JSON Schema.
+   *    The activity layer converts to JSON Schema before handing off.
+   *
+   * 2. **Adapter-facing (`chatStream` call):** the engine populates this with
+   *    a pre-converted JSON Schema **only** when the adapter declared
+   *    `supportsCombinedToolsAndSchema(modelOptions) === true`. The adapter
+   *    should then wire the schema into the upstream request (e.g.
+   *    `response_format: { type: 'json_schema', ... }`, `text.format`,
+   *    `output_format`) alongside any `tools`. The model's natural final
+   *    turn carries the schema-constrained JSON text and the engine
+   *    harvests it from the agent loop without a separate finalization
+   *    round-trip.
+   *
+   *    Adapters that did NOT declare the capability never see this field
+   *    populated — the engine instead invokes `structuredOutput` /
+   *    `structuredOutputStream` after the agent loop.
    */
   outputSchema?: SchemaInput
   /**

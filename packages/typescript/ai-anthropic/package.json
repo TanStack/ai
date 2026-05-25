@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-anthropic",
-  "version": "0.10.3",
+  "version": "0.11.0",
   "description": "Anthropic Claude adapter for TanStack AI chat, tool calling, thinking, and structured outputs.",
   "author": "",
   "license": "MIT",
@@ -50,7 +50,7 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.71.2",
+    "@anthropic-ai/sdk": "^0.97.1",
     "@tanstack/ai-utils": "workspace:*"
   },
   "peerDependencies": {

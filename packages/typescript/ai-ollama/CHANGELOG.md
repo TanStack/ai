@@ -1,5 +1,12 @@
 # @tanstack/ai-ollama
 
+## 0.6.22
+
+### Patch Changes
+
+- Updated dependencies [[`02f7d04`](https://github.com/TanStack/ai/commit/02f7d0427a406bd2dda6f5a51d1ef1d2600d5ac9)]:
+  - @tanstack/ai@0.22.0
+
 ## 0.6.21
 
 ### Patch Changes

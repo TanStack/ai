@@ -369,6 +369,79 @@ describe('Anthropic adapter option mapping', () => {
     })
   })
 
+  it('native combined mode (#605): wires outputSchema into output_format alongside tools on Claude 4.5+', async () => {
+    // Final-turn JSON the model emits when output_format is in play.
+    const finalJson = JSON.stringify({ city: 'Berlin', temp: 18 })
+
+    mocks.betaMessagesCreate.mockResolvedValueOnce(
+      (async function* () {
+        yield {
+          type: 'content_block_start',
+          index: 0,
+          content_block: { type: 'text', text: '' },
+        }
+        yield {
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: finalJson },
+        }
+        yield { type: 'content_block_stop', index: 0 }
+        yield {
+          type: 'message_delta',
+          delta: { stop_reason: 'end_turn' },
+          usage: { output_tokens: 8 },
+        }
+        yield { type: 'message_stop' }
+      })(),
+    )
+
+    const adapter = new AnthropicTextAdapter(
+      { apiKey: 'test-key' },
+      'claude-sonnet-4-5',
+    )
+    expect(adapter.supportsCombinedToolsAndSchema()).toBe(true)
+
+    const ForecastSchema = z.object({
+      city: z.string(),
+      temp: z.number(),
+    })
+
+    const result = await chat({
+      adapter,
+      messages: [{ role: 'user', content: 'forecast for Berlin' }],
+      tools: [weatherTool],
+      outputSchema: ForecastSchema,
+    })
+
+    expect(result).toEqual({ city: 'Berlin', temp: 18 })
+
+    expect(mocks.betaMessagesCreate).toHaveBeenCalledTimes(1)
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+    expect(payload).toMatchObject({
+      model: 'claude-sonnet-4-5',
+      output_config: {
+        format: {
+          type: 'json_schema',
+          schema: expect.objectContaining({ type: 'object' }),
+        },
+      },
+    })
+    expect(payload.tools?.[0]).toMatchObject({
+      name: 'lookup_weather',
+    })
+    // No second beta.messages.create — the engine harvested from the agent
+    // loop and did NOT issue a separate finalization call.
+    expect(mocks.messagesCreate).not.toHaveBeenCalled()
+  })
+
+  it('native combined mode (#605): pre-4.5 models keep the forced-tool finalization path', async () => {
+    const adapter = new AnthropicTextAdapter(
+      { apiKey: 'test-key' },
+      'claude-3-7-sonnet',
+    )
+    expect(adapter.supportsCombinedToolsAndSchema()).toBe(false)
+  })
+
   it('merges consecutive user messages when tool results precede a follow-up user message', async () => {
     // This is the core multi-turn bug: after a tool call + result, the next user message
     // creates consecutive role:'user' messages (tool_result as user + new user message).
