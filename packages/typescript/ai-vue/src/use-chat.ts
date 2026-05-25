@@ -1,4 +1,5 @@
 import { ChatClient } from '@tanstack/ai-client'
+import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import {
   computed,
   onMounted,
@@ -72,6 +73,7 @@ export function useChat<
   // (`field?: T`), so under `exactOptionalPropertyTypes` we omit the key when
   // the source value is `undefined` instead of assigning `undefined`.
   const client = new ChatClient({
+    devtoolsBridgeFactory: createChatDevtoolsBridge,
     connection: options.connection,
     id: clientId,
     ...(options.initialMessages !== undefined && {
@@ -82,10 +84,10 @@ export function useChat<
       forwardedProps: options.forwardedProps,
     }),
     devtools: {
+      ...options.devtools,
       framework: 'vue',
       hookName: 'useChat',
       outputKind: options.outputSchema ? 'structured' : 'chat',
-      ...options.devtools,
     },
     onResponse: (response) => options.onResponse?.(response),
     onChunk: (chunk: StreamChunk) => {

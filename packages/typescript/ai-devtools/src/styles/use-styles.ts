@@ -532,7 +532,7 @@ const stylesFactory = (theme: 'light' | 'dark') => {
       `,
       summary: css`
         display: grid;
-        grid-template-columns: 1fr 1fr 1fr auto;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: ${size[2]};
         padding: ${size[3]};
         border-bottom: 1px solid ${t(colors.gray[200], colors.darkGray[700])};
@@ -555,7 +555,7 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         color: ${t(colors.gray[500], colors.gray[400])};
         font-size: 10px;
         font-weight: ${font.weight.semibold};
-        letter-spacing: 0.03em;
+        letter-spacing: 0;
         text-transform: uppercase;
       `,
       clearButton: css`
@@ -565,8 +565,10 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         background: ${t(colors.white, colors.darkGray[700])};
         color: ${t(colors.gray[700], colors.gray[200])};
         cursor: pointer;
+        grid-column: 1 / -1;
         font-size: ${fontSize.xs};
         padding: ${size[1]} ${size[2]};
+        width: 100%;
         &:hover:not(:disabled) {
           border-color: ${t(colors.red[300], colors.red[600])};
           color: ${t(colors.red[700], colors.red[300])};
@@ -1816,6 +1818,17 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         flex-direction: column;
         gap: ${size[2]};
         padding-bottom: ${size[3]};
+      `,
+      fixturePopover: css`
+        border: 1px solid ${t(colors.blue[300], colors.blue[700])};
+        border-radius: ${border.radius.md};
+        background: ${t(colors.blue[50], colors.darkGray[800])};
+        box-shadow: 0 12px 30px rgb(0 0 0 / 0.16);
+        display: flex;
+        flex-direction: column;
+        gap: ${size[2]};
+        margin: 0 ${size[3]} ${size[3]};
+        padding: ${size[3]} 0;
       `,
       fixtureField: css`
         display: flex;

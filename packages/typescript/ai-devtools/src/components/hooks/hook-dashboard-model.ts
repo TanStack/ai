@@ -1,10 +1,16 @@
-import type {
-  HookOutputKind,
-  HookRecord,
-  RunRecord,
-} from '../../store/hook-registry'
+import type { HookRecord, RunRecord } from '../../store/hook-registry'
 
-export type HookCategoryId = HookOutputKind | 'other'
+export type HookCategoryId =
+  | 'chat'
+  | 'structured'
+  | 'image'
+  | 'audio'
+  | 'video'
+  | 'speech'
+  | 'transcription'
+  | 'summarize'
+  | 'text'
+  | 'other'
 
 export interface HookCategoryGroup {
   id: HookCategoryId
@@ -17,6 +23,8 @@ export interface HookDashboardSummary {
   active: number
   running: number
   categories: number
+  tools: number
+  runs: number
 }
 
 const hookCategoryOrder: Array<HookCategoryId> = [
@@ -25,6 +33,9 @@ const hookCategoryOrder: Array<HookCategoryId> = [
   'image',
   'audio',
   'video',
+  'speech',
+  'transcription',
+  'summarize',
   'text',
   'other',
 ]
@@ -35,6 +46,9 @@ const hookCategoryLabels: Record<HookCategoryId, string> = {
   image: 'Image',
   audio: 'Audio',
   video: 'Video',
+  speech: 'Speech',
+  transcription: 'Transcription',
+  summarize: 'Summarize',
   text: 'Text',
   other: 'Other',
 }
@@ -43,13 +57,17 @@ export function visibleHooks(hooks: Array<HookRecord>): Array<HookRecord> {
   return hooks.filter((hook) => hook.lifecycle !== 'unmounted')
 }
 
+export function getHookDisplayName(hook: HookRecord): string {
+  return hook.displayName ?? hook.hookName
+}
+
 export function groupHooksByCategory(
   hooks: Array<HookRecord>,
 ): Array<HookCategoryGroup> {
   const groups = new Map<HookCategoryId, Array<HookRecord>>()
 
   for (const hook of hooks) {
-    const category = hook.outputKind ?? 'other'
+    const category = inferHookCategory(hook)
     groups.set(category, [...(groups.get(category) ?? []), hook])
   }
 
@@ -61,7 +79,9 @@ export function groupHooksByCategory(
       {
         id,
         label: hookCategoryLabels[id],
-        hooks: [...categoryHooks].sort((a, b) => b.updatedAt - a.updatedAt),
+        hooks: [...categoryHooks].sort(
+          (a, b) => a.registeredAt - b.registeredAt,
+        ),
       },
     ]
   })
@@ -76,6 +96,8 @@ export function createHookDashboardSummary(
     active: hooks.filter((hook) => hook.lifecycle !== 'unmounted').length,
     running: hooks.filter((hook) => isHookRunning(hook, runs)).length,
     categories: groupHooksByCategory(hooks).length,
+    tools: hooks.reduce((count, hook) => count + hook.tools.length, 0),
+    runs: Object.keys(runs).length,
   }
 }
 
@@ -99,4 +121,14 @@ function isRunActive(run: RunRecord): boolean {
     run.status === 'started' ||
     run.status === 'updated'
   )
+}
+
+function inferHookCategory(hook: HookRecord): HookCategoryId {
+  const hookName = hook.hookName.toLowerCase()
+
+  if (hookName.includes('speech')) return 'speech'
+  if (hookName.includes('transcription')) return 'transcription'
+  if (hookName.includes('summarize')) return 'summarize'
+
+  return hook.outputKind ?? 'other'
 }

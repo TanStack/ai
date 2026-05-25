@@ -52,6 +52,22 @@ describe('hook registry', () => {
     expect(Object.keys(state.events)).toEqual(['evt-registered'])
   })
 
+  it('stores hook display names from devtools metadata', () => {
+    const state = createHookRegistryState()
+
+    applyHookEvent(state, 'hook:registered', {
+      ...createRegisteredEvent(),
+      displayName: 'Recipe Assistant',
+    })
+    applyHookEvent(state, 'hook:state-snapshot', {
+      ...createSnapshotEvent(),
+      eventId: 'evt-snapshot-display-name',
+      displayName: 'Updated Recipe Assistant',
+    })
+
+    expect(state.hooks['chat-1']?.displayName).toBe('Updated Recipe Assistant')
+  })
+
   it('removes hooks and their runs when they unregister', () => {
     const state = createHookRegistryState()
 

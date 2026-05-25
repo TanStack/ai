@@ -14,6 +14,7 @@ import type {
 } from '@tanstack/ai'
 import type { ConnectionAdapter } from './connection-adapters'
 import type { AIDevtoolsClientMetadata } from './devtools'
+import type { ChatDevtoolsBridgeFactory } from './devtools-noop'
 
 export type { StructuredOutputPart } from '@tanstack/ai'
 
@@ -339,6 +340,15 @@ export interface ChatClientOptions<
    * Devtools hook metadata for this client instance.
    */
   devtools?: Partial<AIDevtoolsClientMetadata>
+
+  /**
+   * Factory that constructs the devtools bridge. Default is a no-op
+   * factory, which keeps `@tanstack/ai-client/devtools` (the heavy
+   * bridge implementation) out of the main entry's bundle. Frameworks
+   * that need live devtools should pass the real factory from
+   * `@tanstack/ai-client/devtools`.
+   */
+  devtoolsBridgeFactory?: ChatDevtoolsBridgeFactory
 
   /**
    * Stream processing options (optional)

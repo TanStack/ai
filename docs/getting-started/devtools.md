@@ -30,6 +30,44 @@ The AI devtools panel listens for active TanStack AI clients and shows them in t
 
 Each hook entry includes its type, lifecycle, message count, run count, and the latest linked `threadId`. Selecting a hook opens the full timeline for that hook. Chat hooks keep the current turn-based view: a user message wraps every run and event that happened while answering that turn. The details view also includes lightweight client/server state snapshots between runs so you can see exactly what changed.
 
+### Naming Hooks
+
+When a page has more than one AI hook, pass `devtools.name` to give each hook a user-facing label in the dashboard. The configured name is display-only; hook type, framework, thread id, and run correlation still come from the TanStack AI client.
+
+```tsx
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+
+export function SupportChat() {
+  const chat = useChat({
+    id: 'support-chat',
+    connection: fetchServerSentEvents('/api/chat'),
+    devtools: {
+      name: 'Support Chat',
+    },
+  })
+
+  // render your chat UI with `chat.messages`, `chat.sendMessage`, etc.
+}
+```
+
+The same display option works for specialized generation hooks:
+
+```tsx
+import { fetchServerSentEvents, useGenerateImage } from '@tanstack/ai-react'
+
+export function ImageStudio() {
+  const image = useGenerateImage({
+    id: 'generation-hooks:useGenerateImage',
+    connection: fetchServerSentEvents('/api/image'),
+    devtools: {
+      name: 'Image Studio',
+    },
+  })
+
+  // render your image generation UI with `image.generate` and `image.result`
+}
+```
+
 ## Tool Fixtures
 
 When a `useChat` hook receives tools, the devtools panel lists those tools and their schemas. For standard-schema-compatible inputs, the panel renders a small form from the input schema so you can create a tool call payload without hand-writing JSON.

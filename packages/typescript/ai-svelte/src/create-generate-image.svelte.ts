@@ -1,6 +1,7 @@
 import { createGeneration } from './create-generation.svelte'
 import type { ImageGenerationResult, StreamChunk } from '@tanstack/ai'
 import type {
+  AIDevtoolsDisplayOptions,
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
@@ -22,6 +23,8 @@ export interface CreateGenerateImageOptions<TOutput = ImageGenerationResult> {
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
   /**
    * Callback when images are generated. Can optionally return a transformed value.
    *
@@ -107,17 +110,19 @@ export function createGenerateImage<
 ): CreateGenerateImageReturn<
   InferGenerationOutput<ImageGenerationResult, TOnResult>
 > {
+  const devtools = {
+    ...options.devtools,
+    framework: 'svelte',
+    hookName: 'createGenerateImage',
+    outputKind: 'image' as const,
+  }
   const gen = createGeneration<
     ImageGenerateInput,
     ImageGenerationResult,
     TOnResult
   >({
     ...options,
-    devtools: {
-      framework: 'svelte',
-      hookName: 'createGenerateImage',
-      outputKind: 'image',
-    },
+    devtools,
   })
 
   return {

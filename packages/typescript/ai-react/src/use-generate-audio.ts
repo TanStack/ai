@@ -1,6 +1,7 @@
 import { useGeneration } from './use-generation'
 import type { AudioGenerationResult, StreamChunk } from '@tanstack/ai'
 import type {
+  AIDevtoolsDisplayOptions,
   AudioGenerateInput,
   ConnectConnectionAdapter,
   GenerationClientState,
@@ -22,6 +23,8 @@ export interface UseGenerateAudioOptions<TOutput = AudioGenerationResult> {
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
   /**
    * Callback when audio is generated. Can optionally return a transformed value.
    *
@@ -100,14 +103,16 @@ export function useGenerateAudio<
 ): UseGenerateAudioReturn<
   InferGenerationOutput<AudioGenerationResult, TOnResult>
 > {
+  const devtools = {
+    ...options.devtools,
+    framework: 'react',
+    hookName: 'useGenerateAudio',
+    outputKind: 'audio' as const,
+  }
   const { generate, result, isLoading, error, status, stop, reset } =
     useGeneration<AudioGenerateInput, AudioGenerationResult, TOnResult>({
       ...options,
-      devtools: {
-        framework: 'react',
-        hookName: 'useGenerateAudio',
-        outputKind: 'audio',
-      },
+      devtools,
     })
 
   return {

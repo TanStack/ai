@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   createHookDashboardSummary,
+  getHookDisplayName,
   groupHooksByCategory,
   isHookRunning,
   visibleHooks,
@@ -17,6 +18,9 @@ describe('hook dashboard model', () => {
       createHook('image-1', 'useGenerateImage', 'image', 10),
       createHook('chat-1', 'useChat', 'chat', 20),
       createHook('audio-1', 'useGenerateAudio', 'audio', 30),
+      createHook('speech-1', 'useGenerateSpeech', 'audio', 50),
+      createHook('transcription-1', 'useTranscription', 'text', 60),
+      createHook('summarize-1', 'useSummarize', 'text', 70),
       createHook('unknown-1', 'useUnknown', undefined, 40),
     ])
 
@@ -24,12 +28,18 @@ describe('hook dashboard model', () => {
       'chat',
       'image',
       'audio',
+      'speech',
+      'transcription',
+      'summarize',
       'other',
     ])
     expect(groups.map((group) => group.label)).toEqual([
       'Chat',
       'Image',
       'Audio',
+      'Speech',
+      'Transcription',
+      'Summarize',
       'Other',
     ])
     expect(groups[0]?.hooks.map((hook) => hook.id)).toEqual(['chat-1'])
@@ -62,7 +72,21 @@ describe('hook dashboard model', () => {
       active: 2,
       running: 1,
       categories: 3,
+      tools: 0,
+      runs: 1,
     })
+  })
+
+  it('uses a custom display name when provided', () => {
+    const hook = {
+      ...createHook('chat-1', 'useChat', 'chat', 20),
+      displayName: 'Recipe Assistant',
+    }
+
+    expect(getHookDisplayName(hook)).toBe('Recipe Assistant')
+    expect(
+      getHookDisplayName(createHook('chat-2', 'useChat', 'chat', 21)),
+    ).toBe('useChat')
   })
 
   it('filters unmounted hooks from visible dashboard lists', () => {

@@ -1,4 +1,5 @@
 import { VideoGenerationClient } from '@tanstack/ai-client'
+import { createVideoDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import {
   onMounted,
   onScopeDispose,
@@ -9,6 +10,7 @@ import {
 } from 'vue'
 import type { StreamChunk } from '@tanstack/ai'
 import type {
+  AIDevtoolsDisplayOptions,
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
@@ -33,6 +35,8 @@ export interface UseGenerateVideoOptions<TOutput = VideoGenerateResult> {
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
   /**
    * Callback when video generation completes. Can optionally return a transformed value.
    *
@@ -137,7 +141,9 @@ export function useGenerateVideo<
   const baseOptions = {
     id: clientId,
     body: options.body,
+    devtoolsBridgeFactory: createVideoDevtoolsBridge,
     devtools: {
+      ...options.devtools,
       framework: 'vue',
       hookName: 'useGenerateVideo',
       outputKind: 'video' as const,

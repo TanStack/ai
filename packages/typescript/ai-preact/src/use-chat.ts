@@ -1,4 +1,5 @@
 import { ChatClient } from '@tanstack/ai-client'
+import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import {
   useCallback,
   useEffect,
@@ -61,6 +62,7 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     // assigning `undefined` to those, so we omit the key when absent.
     const initialOptions = optionsRef.current
     return new ChatClient({
+      devtoolsBridgeFactory: createChatDevtoolsBridge,
       connection: initialOptions.connection,
       id: clientId,
       initialMessages: messagesToUse,
@@ -69,10 +71,10 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
         forwardedProps: initialOptions.forwardedProps,
       }),
       devtools: {
+        ...initialOptions.devtools,
         framework: 'preact',
         hookName: 'useChat',
         outputKind: initialOptions.outputSchema ? 'structured' : 'chat',
-        ...initialOptions.devtools,
       },
       // Wrap every callback so the latest options are read at call time.
       // Capturing the function reference directly would freeze it to whatever
@@ -160,14 +162,18 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     client.mountDevtools()
 
     return () => {
-      if (options.live) {
+      // Subscribe/unsubscribe on `options.live` is owned by the dedicated
+      // effect above. This cleanup only fires on unmount or client swap,
+      // so read `live` through the ref to avoid disposing the client every
+      // time `live` toggles.
+      if (optionsRef.current.live) {
         client.unsubscribe()
       } else {
         client.stop()
       }
       client.dispose()
     }
-  }, [client, options.live])
+  }, [client])
 
   // All callback options are read through optionsRef at call time, so fresh
   // closures from each render are picked up without recreating the client.

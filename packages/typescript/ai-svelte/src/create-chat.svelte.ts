@@ -1,4 +1,5 @@
 import { ChatClient } from '@tanstack/ai-client'
+import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import type {
   ChatClientState,
   ConnectionStatus,
@@ -87,6 +88,7 @@ export function createChat<
   // passing an explicit `undefined` for an absent-only optional is a type
   // error, so we omit the key when the caller's value is undefined.
   const client = new ChatClient({
+    devtoolsBridgeFactory: createChatDevtoolsBridge,
     connection: options.connection,
     id: clientId,
     ...(options.initialMessages !== undefined && {
@@ -97,10 +99,10 @@ export function createChat<
       forwardedProps: options.forwardedProps,
     }),
     devtools: {
+      ...options.devtools,
       framework: 'svelte',
       hookName: 'useChat',
       outputKind: options.outputSchema ? 'structured' : 'chat',
-      ...options.devtools,
     },
     ...(options.onResponse !== undefined && { onResponse: options.onResponse }),
     onChunk: (chunk: StreamChunk) => {

@@ -3,6 +3,7 @@ import { useAIStore } from '../../store/ai-context'
 import { useStyles } from '../../styles/use-styles'
 import { getHookUnseenEventCount } from '../../store/hook-registry'
 import {
+  getHookDisplayName,
   groupHooksByCategory,
   isHookRunning,
   visibleHooks,
@@ -16,12 +17,28 @@ export const HookDashboard: Component = () => {
 
   const hooks = createMemo(() =>
     visibleHooks(Object.values(state.hooks.hooks)).sort(
-      (a, b) => b.updatedAt - a.updatedAt,
+      (a, b) => a.registeredAt - b.registeredAt,
     ),
   )
   const hookGroups = createMemo(() => groupHooksByCategory(hooks()))
 
   const activeCount = createMemo(() => hooks().length)
+  const toolCount = createMemo(() =>
+    hooks().reduce((count, hook) => count + hook.tools.length, 0),
+  )
+  const messageCount = createMemo(() =>
+    Object.values(state.conversations).reduce(
+      (count, conversation) => count + conversation.messages.length,
+      0,
+    ),
+  )
+  const runCount = createMemo(() => Object.keys(state.hooks.runs).length)
+  const totalTokens = createMemo(() =>
+    Object.values(state.conversations).reduce(
+      (count, conversation) => count + (conversation.usage?.totalTokens ?? 0),
+      0,
+    ),
+  )
   const runningCount = createMemo(
     () =>
       Object.values(state.hooks.runs).filter(
@@ -43,15 +60,56 @@ export const HookDashboard: Component = () => {
   }
 
   return (
-    <div class={styles().hookDashboard.container}>
+    <div
+      class={styles().hookDashboard.container}
+      data-testid="ai-devtools-hook-sidebar"
+    >
       <div class={styles().hookDashboard.summary}>
-        <div class={styles().hookDashboard.summaryItem}>
+        <div
+          class={styles().hookDashboard.summaryItem}
+          data-testid="ai-devtools-sidebar-active-hooks"
+        >
           <span class={styles().hookDashboard.summaryValue}>
             {activeCount()}
           </span>
           <span class={styles().hookDashboard.summaryLabel}>active</span>
         </div>
-        <div class={styles().hookDashboard.summaryItem}>
+        <div
+          class={styles().hookDashboard.summaryItem}
+          data-testid="ai-devtools-sidebar-tools"
+        >
+          <span class={styles().hookDashboard.summaryValue}>{toolCount()}</span>
+          <span class={styles().hookDashboard.summaryLabel}>tools</span>
+        </div>
+        <div
+          class={styles().hookDashboard.summaryItem}
+          data-testid="ai-devtools-sidebar-runs"
+        >
+          <span class={styles().hookDashboard.summaryValue}>{runCount()}</span>
+          <span class={styles().hookDashboard.summaryLabel}>runs</span>
+        </div>
+        <div
+          class={styles().hookDashboard.summaryItem}
+          data-testid="ai-devtools-sidebar-messages"
+        >
+          <span class={styles().hookDashboard.summaryValue}>
+            {messageCount()}
+          </span>
+          <span class={styles().hookDashboard.summaryLabel}>messages</span>
+        </div>
+        <div
+          class={styles().hookDashboard.summaryItem}
+          data-testid="ai-devtools-sidebar-tokens"
+        >
+          <span class={styles().hookDashboard.summaryValue}>
+            {totalTokens()}
+          </span>
+          <span class={styles().hookDashboard.summaryLabel}>tokens</span>
+        </div>
+        <div
+          class={styles().hookDashboard.summaryItem}
+          data-testid="ai-devtools-sidebar-running-hooks"
+        >
           <span class={styles().hookDashboard.summaryValue}>
             {runningCount()}
           </span>
@@ -84,6 +142,7 @@ export const HookDashboard: Component = () => {
         <div class={styles().hookDashboard.list}>
           <button
             type="button"
+            data-testid="ai-devtools-dashboard-row"
             class={`${styles().hookDashboard.row} ${
               state.hooks.activeHookId === null
                 ? styles().hookDashboard.rowSelected
@@ -108,7 +167,11 @@ export const HookDashboard: Component = () => {
           </button>
           <For each={hookGroups()}>
             {(group) => (
-              <section class={styles().hookDashboard.categorySection}>
+              <section
+                class={styles().hookDashboard.categorySection}
+                data-testid="ai-devtools-hook-category"
+                data-category={group.id}
+              >
                 <div class={styles().hookDashboard.categoryHeader}>
                   <span class={styles().hookDashboard.categoryLabel}>
                     {group.label}
@@ -139,6 +202,10 @@ export const HookDashboard: Component = () => {
                       return (
                         <button
                           type="button"
+                          data-testid="ai-devtools-hook-row"
+                          data-hook-id={hook.id}
+                          data-hook-name={hook.hookName}
+                          data-display-name={getHookDisplayName(hook)}
                           class={`${styles().hookDashboard.row} ${
                             isSelected()
                               ? styles().hookDashboard.rowSelected
@@ -156,8 +223,11 @@ export const HookDashboard: Component = () => {
                         >
                           <div class={styles().hookDashboard.rowMain}>
                             <div class={styles().hookDashboard.rowTitleLine}>
-                              <span class={styles().hookDashboard.rowTitle}>
-                                {hook.hookName}
+                              <span
+                                class={styles().hookDashboard.rowTitle}
+                                data-testid="ai-devtools-hook-display-name"
+                              >
+                                {getHookDisplayName(hook)}
                               </span>
                               <Show when={hasBackgroundActivity()}>
                                 <span
@@ -174,7 +244,9 @@ export const HookDashboard: Component = () => {
                               </Show>
                             </div>
                             <span class={styles().hookDashboard.rowId}>
-                              {hook.id}
+                              <Show when={hook.displayName} fallback={hook.id}>
+                                {hook.hookName} - {hook.id}
+                              </Show>
                             </span>
                           </div>
                           <div class={styles().hookDashboard.rowMeta}>

@@ -109,6 +109,7 @@ describe('ChatClient devtools bridge', () => {
     tools?: ReadonlyArray<AnyClientTool>
     initialMessages?: Array<UIMessage>
     mountDevtools?: boolean
+    devtoolsName?: string
   }) {
     const client = new ChatClient({
       id: options?.id ?? 'chat-1',
@@ -119,6 +120,7 @@ describe('ChatClient devtools bridge', () => {
         ? { initialMessages: options.initialMessages }
         : {}),
       devtools: {
+        ...(options?.devtoolsName ? { name: options.devtoolsName } : {}),
         framework: 'react',
         hookName: 'useChat',
       },
@@ -311,6 +313,29 @@ describe('ChatClient devtools bridge', () => {
           isLoading: false,
           activeRunIds: [],
         }),
+      }),
+    )
+
+    client.dispose()
+  })
+
+  it('emits the configured devtools display name', () => {
+    const client = createClient({ devtoolsName: 'Recipe Assistant' })
+
+    expect(aiEventClient.emit).toHaveBeenCalledWith(
+      'hook:registered',
+      expect.objectContaining({
+        hookId: 'chat-1',
+        hookName: 'useChat',
+        displayName: 'Recipe Assistant',
+      }),
+    )
+    expect(aiEventClient.emit).toHaveBeenCalledWith(
+      'hook:state-snapshot',
+      expect.objectContaining({
+        hookId: 'chat-1',
+        hookName: 'useChat',
+        displayName: 'Recipe Assistant',
       }),
     )
 

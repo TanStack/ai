@@ -43,6 +43,7 @@ export { clientTools, createChatClientOptions } from './types'
 export {
   createAIDevtoolsGenerationPreview,
   type AIDevtoolsClientMetadata,
+  type AIDevtoolsDisplayOptions,
   type AIDevtoolsGenerationMediaItem,
   type AIDevtoolsGenerationPreview,
   type AIDevtoolsGenerationProgress,

@@ -5,6 +5,7 @@ import type {
   SchemaInput,
 } from '@tanstack/ai'
 import type {
+  AIDevtoolsDisplayOptions,
   ChatClientOptions,
   ChatClientState,
   ChatRequestBody,
@@ -61,8 +62,11 @@ export type CreateChatOptions<
   | 'onSubscriptionChange'
   | 'onConnectionStatusChange'
   | 'onSessionGeneratingChange'
+  | 'devtools'
 > & {
   live?: boolean
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
   /**
    * Standard-schema-compatible schema (Zod, Valibot, ArkType, or plain JSON
    * Schema). Used to infer the shape of `partial` and `final`.

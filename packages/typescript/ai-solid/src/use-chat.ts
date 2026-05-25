@@ -8,6 +8,7 @@ import {
 } from 'solid-js'
 
 import { ChatClient } from '@tanstack/ai-client'
+import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import type {
   ChatClientState,
   ConnectionStatus,
@@ -70,6 +71,7 @@ export function useChat<
     // optional (`field?: T`) — `exactOptionalPropertyTypes` rejects
     // assigning `undefined` to those, so we omit the key when absent.
     return new ChatClient({
+      devtoolsBridgeFactory: createChatDevtoolsBridge,
       connection: options.connection,
       id: clientId,
       ...(options.initialMessages !== undefined && {
@@ -80,10 +82,10 @@ export function useChat<
         forwardedProps: options.forwardedProps,
       }),
       devtools: {
+        ...options.devtools,
         framework: 'solid',
         hookName: 'useChat',
         outputKind: options.outputSchema ? 'structured' : 'chat',
-        ...options.devtools,
       },
       onResponse: (response) => options.onResponse?.(response),
       onChunk: (chunk: StreamChunk) => {

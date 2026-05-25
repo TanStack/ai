@@ -8,7 +8,7 @@ import {
 import {
   aiEventClient,
   createAIDevtoolsEventEnvelope,
-  dispatchAIDevtoolsEvent,
+  emitAIDevtoolsEvent,
 } from '@tanstack/ai-event-client'
 import { useStyles } from '../styles/use-styles'
 import { AIProvider } from '../store/ai-context'
@@ -68,7 +68,7 @@ function DevtoolsContent() {
     document.addEventListener('mouseup', handleMouseUp)
 
     const openedAt = Date.now()
-    dispatchAIDevtoolsEvent('devtools:opened', {
+    emitAIDevtoolsEvent('devtools:opened', {
       ...createAIDevtoolsEventEnvelope({
         eventType: 'devtools:opened',
         source: 'devtools',
@@ -76,7 +76,7 @@ function DevtoolsContent() {
         timestamp: openedAt,
       }),
     })
-    dispatchAIDevtoolsEvent('devtools:request-state', {
+    emitAIDevtoolsEvent('devtools:request-state', {
       ...createAIDevtoolsEventEnvelope({
         eventType: 'devtools:request-state',
         source: 'devtools',
@@ -89,6 +89,14 @@ function DevtoolsContent() {
   onCleanup(() => {
     document.removeEventListener('mousemove', handleMouseMove)
     document.removeEventListener('mouseup', handleMouseUp)
+    // If the panel unmounts mid-drag, the mouseup handler never fires;
+    // reset the global drag styles so the host page isn't stuck with
+    // col-resize cursor / unselectable body.
+    if (isDragging()) {
+      setIsDragging(false)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
     aiEventClient.emit('devtools:closed', {
       ...createAIDevtoolsEventEnvelope({
         eventType: 'devtools:closed',
@@ -101,7 +109,7 @@ function DevtoolsContent() {
 
   return (
     <MainPanel>
-      <div class={styles().shellRoot}>
+      <div class={styles().shellRoot} data-testid="ai-devtools-panel">
         <Header>
           <HeaderLogo flavor={{ light: '#ec4899', dark: '#ec4899' }}>
             TanStack AI
@@ -111,6 +119,7 @@ function DevtoolsContent() {
         <div class={styles().mainContainer}>
           <div
             class={styles().leftPanel}
+            data-testid="ai-devtools-left-panel"
             style={{
               width: `${leftPanelWidth()}px`,
               'min-width': '150px',
@@ -127,7 +136,11 @@ function DevtoolsContent() {
             onMouseDown={handleMouseDown}
           />
 
-          <div class={styles().rightPanel} style={{ flex: 1 }}>
+          <div
+            class={styles().rightPanel}
+            data-testid="ai-devtools-right-panel"
+            style={{ flex: 1 }}
+          >
             <HookDetails />
           </div>
         </div>

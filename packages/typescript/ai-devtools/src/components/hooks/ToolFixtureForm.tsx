@@ -1,6 +1,7 @@
 import { For, Show, createEffect, createMemo, createSignal } from 'solid-js'
 import { useAIStore } from '../../store/ai-context'
 import { useStyles } from '../../styles/use-styles'
+import { FixtureNamePopover } from './FixtureNamePopover'
 import type {
   HookRecord,
   RegisteredTool,
@@ -31,6 +32,9 @@ export const ToolFixtureForm: Component<ToolFixtureFormProps> = (props) => {
   const [rawInput, setRawInput] = createSignal('{}')
   const [output, setOutput] = createSignal('null')
   const [error, setError] = createSignal<string | null>(null)
+  const [pendingSaveName, setPendingSaveName] = createSignal<string | null>(
+    null,
+  )
 
   createEffect(() => {
     const currentFields = fields()
@@ -39,6 +43,7 @@ export const ToolFixtureForm: Component<ToolFixtureFormProps> = (props) => {
     setRawInput(rawInputDefault)
     setOutput('null')
     setError(null)
+    setPendingSaveName(null)
   })
 
   const setFieldValue = (name: string, value: string) => {
@@ -84,15 +89,22 @@ export const ToolFixtureForm: Component<ToolFixtureFormProps> = (props) => {
   }
 
   const handleSave = () => {
-    const name = promptFixtureName(`${props.tool.name} fixture`)
-    if (!name) return
+    setPendingSaveName(`${props.tool.name} fixture`)
+  }
+
+  const handleConfirmSave = (name: string) => {
     const fixture = createFixture(name)
     if (!fixture) return
     saveToolFixture(fixture)
+    setPendingSaveName(null)
   }
 
   return (
-    <div class={styles().hookDetails.fixtureForm}>
+    <div
+      class={styles().hookDetails.fixtureForm}
+      data-testid="ai-devtools-tool-fixture-form"
+      data-tool-name={props.tool.name}
+    >
       <div class={styles().hookDetails.sectionTitle}>Tool Fixture</div>
       <div class={styles().hookDetails.fixtureHelp}>
         {props.tool.description || props.tool.name}
@@ -155,6 +167,7 @@ export const ToolFixtureForm: Component<ToolFixtureFormProps> = (props) => {
       <div class={styles().hookDetails.fixtureActions}>
         <button
           class={styles().hookDetails.fixtureButton}
+          data-testid="ai-devtools-tool-fire"
           type="button"
           onClick={handleFire}
         >
@@ -162,12 +175,22 @@ export const ToolFixtureForm: Component<ToolFixtureFormProps> = (props) => {
         </button>
         <button
           class={`${styles().hookDetails.fixtureButton} ${styles().hookDetails.fixtureButtonSecondary}`}
+          data-testid="ai-devtools-tool-save"
           type="button"
           onClick={handleSave}
         >
           Save
         </button>
       </div>
+      <Show when={pendingSaveName()}>
+        {(defaultName) => (
+          <FixtureNamePopover
+            defaultName={defaultName()}
+            onCancel={() => setPendingSaveName(null)}
+            onSave={handleConfirmSave}
+          />
+        )}
+      </Show>
     </div>
   )
 }
@@ -274,12 +297,19 @@ function parseObjectInput(
 
 function parseFieldValue(field: SchemaField, rawValue: string): unknown {
   if (field.type === 'boolean') return rawValue === 'true'
-  if (field.type === 'number' || field.type === 'integer') {
+  if (field.type === 'number') {
     const value = Number(rawValue)
-    if (Number.isNaN(value)) {
+    if (!Number.isFinite(value)) {
       throw new Error(`${field.name} must be a number.`)
     }
-    return field.type === 'integer' ? Math.trunc(value) : value
+    return value
+  }
+  if (field.type === 'integer') {
+    const value = Number(rawValue)
+    if (!Number.isInteger(value)) {
+      throw new Error(`${field.name} must be an integer.`)
+    }
+    return value
   }
   if (field.type === 'object' || field.type === 'array') {
     return parseJson(rawValue, field.name)
@@ -315,10 +345,4 @@ function isJsonSchemaObject(value: unknown): value is {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
-}
-
-function promptFixtureName(defaultName: string): string | undefined {
-  if (typeof window === 'undefined') return undefined
-  const name = window.prompt('Fixture name', defaultName)?.trim()
-  return name ? name : undefined
 }

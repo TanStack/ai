@@ -228,7 +228,7 @@ function StructuredOutputPage() {
     setIsStreaming(stream)
     await chat.sendMessage(prompt.trim())
     setIsStreaming(false)
-    if (stream && !sawCompleteRef.current && chat.status !== 'ready') {
+    if (stream && !sawCompleteRef.current && chat.status === 'ready') {
       setError('Stream ended before structured-output.complete')
     }
   }

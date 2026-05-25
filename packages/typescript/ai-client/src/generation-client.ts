@@ -1,8 +1,5 @@
 import { GENERATION_EVENTS } from './generation-types'
-import {
-  ClientDevtoolsBridge,
-  createAIDevtoolsGenerationPreview,
-} from './devtools'
+import { createNoOpGenerationDevtoolsBridge } from './devtools-noop'
 import { parseSSEResponse } from './sse-parser'
 import type { StreamChunk } from '@tanstack/ai'
 import type {
@@ -11,9 +8,9 @@ import type {
 } from './connection-adapters'
 import type {
   AIDevtoolsClientMetadata,
-  AIDevtoolsGenerationPreview,
   AIDevtoolsGenerationProgress,
-  AIDevtoolsGenerationRunSnapshot,
+  GenerationDevtoolsBridge,
+  GenerationDevtoolsBridgeOptions,
 } from './devtools'
 import type {
   GenerationClientOptions,
@@ -38,32 +35,6 @@ interface GenerationCallbacks<TResult, TOutput> {
   onStatusChange?: ((status: GenerationClientState) => void) | undefined
 }
 
-interface AIDevtoolsGenerationSnapshot<TOutput> extends Record<
-  string,
-  unknown
-> {
-  input: unknown | null
-  result: TOutput | null
-  preview: AIDevtoolsGenerationPreview
-  progress: AIDevtoolsGenerationProgress | null
-  status: GenerationClientState
-  isLoading: boolean
-  activeRunId: string | null
-  runs: Array<AIDevtoolsGenerationRunSnapshot<TOutput>>
-  error?: string
-}
-
-interface GenerationRunPatch<TOutput> {
-  input?: unknown | null
-  result?: TOutput | null
-  preview?: AIDevtoolsGenerationPreview
-  progress?: AIDevtoolsGenerationProgress | null
-  status?: string
-  isLoading?: boolean
-  completedAt?: number
-  error?: string
-  clearError?: boolean
-}
 
 /**
  * A lightweight, generic client for one-shot generation tasks
@@ -109,9 +80,7 @@ export class GenerationClient<
   private readonly fetcher: GenerationFetcher<TInput, TResult> | undefined
   private readonly uniqueId: string
   private readonly devtoolsMetadata: AIDevtoolsClientMetadata
-  private readonly devtoolsBridge: ClientDevtoolsBridge<
-    AIDevtoolsGenerationSnapshot<TOutput>
-  >
+  private readonly devtoolsBridge: GenerationDevtoolsBridge<TOutput>
   private readonly threadId: string
   private body: Record<string, any>
   private result: TOutput | null = null
@@ -120,10 +89,6 @@ export class GenerationClient<
   private isLoading = false
   private error: Error | undefined = undefined
   private status: GenerationClientState = 'idle'
-  private activeRunId: string | null = null
-  private activeRunStarted = false
-  private devtoolsRuns: Array<AIDevtoolsGenerationRunSnapshot<TOutput>> = []
-  private readonly maxDevtoolsRuns = 20
   private abortController: AbortController | null = null
   private readonly callbacksRef: GenerationCallbacks<TResult, TOutput>
   private devtoolsMounted = false
@@ -156,13 +121,26 @@ export class GenerationClient<
     }
 
     this.devtoolsMetadata = this.createDevtoolsMetadata(options.devtools)
-    this.devtoolsBridge = new ClientDevtoolsBridge({
+    this.devtoolsBridge = (
+      options.devtoolsBridgeFactory ?? createNoOpGenerationDevtoolsBridge
+    )<TOutput>(this.buildDevtoolsBridgeOptions())
+  }
+
+  private buildDevtoolsBridgeOptions(): GenerationDevtoolsBridgeOptions<TOutput> {
+    return {
       hookId: this.uniqueId,
       clientId: this.uniqueId,
       threadId: this.threadId,
       metadata: this.devtoolsMetadata,
-      getSnapshot: () => this.getDevtoolsSnapshot(),
-    })
+      getCoreState: () => ({
+        input: this.input,
+        result: this.result,
+        progress: this.progress,
+        status: this.status,
+        isLoading: this.isLoading,
+        ...(this.error ? { error: this.error.message } : {}),
+      }),
+    }
   }
 
   mountDevtools(): void {
@@ -186,7 +164,7 @@ export class GenerationClient<
 
     this.input = input
     this.progress = null
-    const runId = this.beginDevtoolsRun(input)
+    const runId = this.devtoolsBridge.beginRun(input)
     this.setIsLoading(true)
     this.setStatus('generating')
     this.setError(undefined)
@@ -204,7 +182,7 @@ export class GenerationClient<
           // Server function returned SSE Response — parse stream
           await this.processStream(parseSSEResponse(result, signal), runId)
         } else {
-          this.ensureDevtoolsRunStarted(runId)
+          this.devtoolsBridge.ensureRunStarted(runId)
           this.setResult(result)
           this.setStatus('success')
         }
@@ -224,8 +202,13 @@ export class GenerationClient<
         )
       }
       if (!signal.aborted && this.status === 'success') {
-        this.finishDevtoolsRun(
-          this.activeRunId ?? runId,
+        // Bump progress to 100 on successful completion so devtools
+        // snapshots reflect the final state. The bridge mirrors this in
+        // the run's recorded progress, but the snapshot reads `progress`
+        // from the client's core state.
+        this.progress = completeProgressValue(this.progress)
+        this.devtoolsBridge.finishRun(
+          this.devtoolsBridge.getActiveRunId() ?? runId,
           'run:completed',
           'completed',
         )
@@ -235,8 +218,8 @@ export class GenerationClient<
       const error = err instanceof Error ? err : new Error(String(err))
       this.setError(error)
       this.setStatus('error')
-      this.finishDevtoolsRun(
-        this.activeRunId ?? runId,
+      this.devtoolsBridge.finishRun(
+        this.devtoolsBridge.getActiveRunId() ?? runId,
         'run:errored',
         'errored',
         error.message,
@@ -270,11 +253,11 @@ export class GenerationClient<
       switch (chunk.type) {
         case 'RUN_STARTED': {
           streamRunId = chunk.runId
-          this.ensureDevtoolsRunStarted(chunk.runId)
+          this.devtoolsBridge.ensureRunStarted(chunk.runId)
           break
         }
         case 'CUSTOM': {
-          this.ensureDevtoolsRunStarted(streamRunId ?? fallbackRunId)
+          this.devtoolsBridge.ensureRunStarted(streamRunId ?? fallbackRunId)
           if (chunk.name === GENERATION_EVENTS.RESULT) {
             this.setResult(chunk.value as TResult)
           } else if (chunk.name === GENERATION_EVENTS.PROGRESS) {
@@ -288,12 +271,12 @@ export class GenerationClient<
         }
         case 'RUN_FINISHED': {
           streamRunId = chunk.runId
-          this.ensureDevtoolsRunStarted(chunk.runId)
+          this.devtoolsBridge.ensureRunStarted(chunk.runId)
           this.setStatus('success')
           break
         }
         case 'RUN_ERROR': {
-          this.ensureDevtoolsRunStarted(
+          this.devtoolsBridge.ensureRunStarted(
             chunkRunId ?? streamRunId ?? fallbackRunId,
           )
           // Prefer spec `message`; fall back to deprecated `error.message`
@@ -313,7 +296,7 @@ export class GenerationClient<
    * Abort any in-flight generation request.
    */
   stop(): void {
-    const runId = this.activeRunId
+    const runId = this.devtoolsBridge.getActiveRunId()
     if (this.abortController) {
       this.abortController.abort()
       this.abortController = null
@@ -322,7 +305,7 @@ export class GenerationClient<
     if (this.status === 'generating') {
       this.setStatus('idle')
       if (runId) {
-        this.finishDevtoolsRun(runId, 'run:cancelled', 'cancelled')
+        this.devtoolsBridge.finishRun(runId, 'run:cancelled', 'cancelled')
       }
     }
   }
@@ -335,8 +318,10 @@ export class GenerationClient<
     this.setResult(null)
     this.input = null
     this.progress = null
+    this.devtoolsBridge.resetRuns()
     this.setError(undefined)
     this.setStatus('idle')
+    this.devtoolsBridge.emitState()
   }
 
   /**
@@ -400,68 +385,51 @@ export class GenerationClient<
   private setResult(rawResult: TResult | null): void {
     if (rawResult === null) {
       this.result = null
-      this.updateActiveDevtoolsRun({
-        result: null,
-        preview: this.createDevtoolsPreview(null),
-      })
       this.callbacksRef.onResultChange?.(null)
-      this.emitDevtoolsState()
+      this.devtoolsBridge.recordResultChange()
       return
     }
 
     if (this.callbacksRef.onResult) {
       const transformed = this.callbacksRef.onResult(rawResult)
       if (transformed === null) {
-        this.emitDevtoolsState()
-        // null return → keep previous result unchanged
+        // null return → keep previous result unchanged, just re-emit
+        this.devtoolsBridge.emitState()
         return
       }
       if (transformed !== undefined) {
         // Non-null, non-undefined → use transformed value
         this.result = transformed
-        this.updateActiveDevtoolsRun({
-          result: this.result,
-          preview: this.createDevtoolsPreview(this.result),
-          clearError: true,
-        })
         this.callbacksRef.onResultChange?.(this.result)
-        this.emitDevtoolsState()
+        this.devtoolsBridge.recordResultChange()
         return
       }
     }
 
-    // No onResult callback, or callback returned void → use raw value
-    this.result = rawResult as TOutput
-    this.updateActiveDevtoolsRun({
-      result: this.result,
-      preview: this.createDevtoolsPreview(this.result),
-      clearError: true,
-    })
+    // No onResult callback, or callback returned void → use raw value as
+    // TOutput. When the caller did not supply an onResult transform,
+    // `TOutput` defaults to `TResult`, so the runtime cast is sound.
+    this.result = rawResult as unknown as TOutput
     this.callbacksRef.onResultChange?.(this.result)
-    this.emitDevtoolsState()
+    this.devtoolsBridge.recordResultChange()
   }
 
   private setIsLoading(isLoading: boolean): void {
     this.isLoading = isLoading
-    this.updateActiveDevtoolsRun({ isLoading })
     this.callbacksRef.onLoadingChange?.(isLoading)
-    this.emitDevtoolsState()
+    this.devtoolsBridge.recordLoadingChange()
   }
 
   private setError(error: Error | undefined): void {
     this.error = error
-    this.updateActiveDevtoolsRun(
-      error ? { error: error.message } : { clearError: true },
-    )
     this.callbacksRef.onErrorChange?.(error)
-    this.emitDevtoolsState()
+    this.devtoolsBridge.recordErrorChange(error)
   }
 
   private setStatus(status: GenerationClientState): void {
     this.status = status
-    this.updateActiveDevtoolsRun({ status })
     this.callbacksRef.onStatusChange?.(status)
-    this.emitDevtoolsState()
+    this.devtoolsBridge.recordStatusChange(status)
   }
 
   private setProgress(value: number, message?: string): void {
@@ -474,206 +442,9 @@ export class GenerationClient<
     } else {
       this.callbacksRef.onProgress?.(value, message)
     }
-    this.updateActiveDevtoolsRun({ progress: this.progress })
-    this.emitDevtoolsState()
+    this.devtoolsBridge.recordProgressChange()
   }
 
-  private beginDevtoolsRun(input: TInput): string {
-    const runId = this.generateUniqueId('run')
-    this.activeRunId = runId
-    this.activeRunStarted = false
-    this.upsertDevtoolsRun(runId, {
-      input,
-      result: null,
-      preview: this.createDevtoolsPreview(null),
-      progress: null,
-      status: 'generating',
-      isLoading: true,
-      clearError: true,
-    })
-    return runId
-  }
-
-  private ensureDevtoolsRunStarted(runId: string): void {
-    if (this.activeRunStarted && this.activeRunId === runId) {
-      return
-    }
-
-    if (
-      !this.activeRunStarted &&
-      this.activeRunId &&
-      this.activeRunId !== runId
-    ) {
-      this.renameDevtoolsRun(this.activeRunId, runId)
-    }
-
-    this.activeRunId = runId
-    this.activeRunStarted = true
-    this.upsertDevtoolsRun(runId, {
-      status: 'generating',
-      isLoading: true,
-      clearError: true,
-    })
-    this.devtoolsBridge.emitRunLifecycle('run:started', runId, 'started')
-    this.emitDevtoolsState()
-  }
-
-  private finishDevtoolsRun(
-    runId: string,
-    eventType: 'run:completed' | 'run:errored' | 'run:cancelled',
-    status: 'completed' | 'errored' | 'cancelled',
-    error?: string,
-  ): void {
-    this.ensureDevtoolsRunStarted(runId)
-    const completedAt = Date.now()
-    const completedProgress =
-      status === 'completed' ? this.completeDevtoolsProgress() : this.progress
-    const runStatus =
-      status === 'completed'
-        ? 'success'
-        : status === 'errored'
-          ? 'error'
-          : 'cancelled'
-
-    this.upsertDevtoolsRun(runId, {
-      status: runStatus,
-      isLoading: false,
-      progress: completedProgress,
-      completedAt,
-      ...(error ? { error } : { clearError: true }),
-    })
-
-    if (this.activeRunId === runId) {
-      this.activeRunId = null
-    }
-    this.activeRunStarted = false
-    this.devtoolsBridge.emitRunLifecycle(eventType, runId, status, {
-      ...(error ? { error } : {}),
-    })
-    this.emitDevtoolsState()
-  }
-
-  private getDevtoolsSnapshot(): AIDevtoolsGenerationSnapshot<TOutput> {
-    return {
-      input: this.input,
-      result: this.result,
-      preview: this.createDevtoolsPreview(this.result),
-      progress: this.progress,
-      status: this.status,
-      isLoading: this.isLoading,
-      activeRunId: this.activeRunId,
-      runs: this.devtoolsRuns,
-      ...(this.error ? { error: this.error.message } : {}),
-    }
-  }
-
-  private updateActiveDevtoolsRun(patch: GenerationRunPatch<TOutput>): void {
-    if (!this.activeRunId) return
-    this.upsertDevtoolsRun(this.activeRunId, patch)
-  }
-
-  private upsertDevtoolsRun(
-    runId: string,
-    patch: GenerationRunPatch<TOutput>,
-  ): void {
-    const now = Date.now()
-    const index = this.devtoolsRuns.findIndex((run) => run.id === runId)
-    const existing = index >= 0 ? this.devtoolsRuns[index] : undefined
-    const next: AIDevtoolsGenerationRunSnapshot<TOutput> = existing
-      ? { ...existing }
-      : {
-          id: runId,
-          input: this.input,
-          result: null,
-          preview: this.createDevtoolsPreview(null),
-          progress: null,
-          status: 'idle',
-          isLoading: false,
-          startedAt: now,
-          updatedAt: now,
-        }
-
-    if ('input' in patch) {
-      next.input = patch.input ?? null
-    }
-    if ('result' in patch) {
-      next.result = patch.result ?? null
-    }
-    if (patch.preview) {
-      next.preview = patch.preview
-    }
-    if ('progress' in patch) {
-      next.progress = patch.progress ?? null
-    }
-    if (patch.status) {
-      next.status = patch.status
-    }
-    if ('isLoading' in patch) {
-      next.isLoading = patch.isLoading === true
-    }
-    if (patch.completedAt !== undefined) {
-      next.completedAt = patch.completedAt
-    }
-    if (patch.clearError) {
-      delete next.error
-    }
-    if (patch.error !== undefined) {
-      next.error = patch.error
-    }
-    next.updatedAt = now
-
-    if (index >= 0) {
-      this.devtoolsRuns = this.devtoolsRuns.map((run) =>
-        run.id === runId ? next : run,
-      )
-    } else {
-      this.devtoolsRuns = [...this.devtoolsRuns, next]
-    }
-
-    if (this.devtoolsRuns.length > this.maxDevtoolsRuns) {
-      this.devtoolsRuns = this.devtoolsRuns.slice(-this.maxDevtoolsRuns)
-    }
-  }
-
-  private renameDevtoolsRun(previousRunId: string, nextRunId: string): void {
-    if (previousRunId === nextRunId) return
-
-    const existing = this.devtoolsRuns.find((run) => run.id === previousRunId)
-    if (!existing) return
-
-    const renamed = {
-      ...existing,
-      id: nextRunId,
-      updatedAt: Date.now(),
-    }
-    this.devtoolsRuns = this.devtoolsRuns
-      .filter((run) => run.id !== nextRunId)
-      .map((run) => (run.id === previousRunId ? renamed : run))
-  }
-
-  private completeDevtoolsProgress(): AIDevtoolsGenerationProgress | null {
-    if (!this.progress) return null
-
-    this.progress = {
-      value: 100,
-      ...(this.progress.message ? { message: this.progress.message } : {}),
-    }
-    return this.progress
-  }
-
-  private createDevtoolsPreview(
-    result: TOutput | null,
-  ): AIDevtoolsGenerationPreview {
-    return createAIDevtoolsGenerationPreview({
-      outputKind: this.devtoolsMetadata.outputKind,
-      result,
-    })
-  }
-
-  private emitDevtoolsState(): void {
-    this.devtoolsBridge.emitUpdated()
-    this.devtoolsBridge.emitSnapshot()
-  }
 
   private createDevtoolsMetadata(
     metadata?: Partial<AIDevtoolsClientMetadata>,
@@ -682,6 +453,7 @@ export class GenerationClient<
       hookName: metadata?.hookName ?? 'useGeneration',
       ...(metadata?.framework ? { framework: metadata.framework } : {}),
       ...(metadata?.outputKind ? { outputKind: metadata.outputKind } : {}),
+      ...(metadata?.name ? { name: metadata.name } : {}),
     }
   }
 
@@ -694,5 +466,16 @@ export class GenerationClient<
       threadId: this.threadId,
       runId,
     }
+  }
+}
+
+function completeProgressValue(
+  progress: AIDevtoolsGenerationProgress | null,
+): AIDevtoolsGenerationProgress | null {
+  if (!progress) return null
+  const message = progress.message
+  return {
+    value: 100,
+    ...(message ? { message } : {}),
   }
 }

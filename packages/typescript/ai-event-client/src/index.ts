@@ -753,6 +753,7 @@ export interface DevtoolsRequestStateEvent extends BaseEventContext {
 export interface HookRegisteredEvent extends BaseEventContext {
   hookId: string
   hookName: string
+  displayName?: string
   framework?: string
   outputKind?: 'chat' | 'text' | 'structured' | 'image' | 'video' | 'audio'
   lifecycle: 'mounted' | 'active' | 'streaming' | 'errored' | 'stale'
@@ -763,6 +764,7 @@ export interface HookUpdatedEvent extends HookRegisteredEvent {}
 export interface HookUnregisteredEvent extends BaseEventContext {
   hookId: string
   hookName?: string
+  displayName?: string
   framework?: string
   outputKind?: 'chat' | 'text' | 'structured' | 'image' | 'video' | 'audio'
   reason?: 'disposed' | 'unmounted'
@@ -771,6 +773,7 @@ export interface HookUnregisteredEvent extends BaseEventContext {
 export interface HookStateSnapshotEvent extends BaseEventContext {
   hookId: string
   hookName: string
+  displayName?: string
   framework?: string
   outputKind?: 'chat' | 'text' | 'structured' | 'image' | 'video' | 'audio'
   state: Record<string, unknown>
@@ -793,6 +796,7 @@ export interface RunLifecycleEvent extends BaseEventContext {
 export interface ToolsRegisteredEvent extends BaseEventContext {
   hookId: string
   hookName?: string
+  displayName?: string
   framework?: string
   outputKind?: 'chat' | 'text' | 'structured' | 'image' | 'video' | 'audio'
   tools: Array<{
@@ -940,7 +944,21 @@ class AiEventClient extends EventClient<AIDevtoolsEventMap> {
   }
 }
 
-const aiEventClient = new AiEventClient()
+const aiEventClientKey = Symbol.for('tanstack.ai.devtools.eventClient')
+
+function getAiEventClient(): AiEventClient {
+  const global = globalThis as typeof globalThis & {
+    [aiEventClientKey]?: AiEventClient
+  }
+  const existing = global[aiEventClientKey]
+  if (existing) return existing
+
+  const eventClient = new AiEventClient()
+  global[aiEventClientKey] = eventClient
+  return eventClient
+}
+
+const aiEventClient = getAiEventClient()
 
 export { aiEventClient }
 
@@ -948,7 +966,6 @@ export function emitAIDevtoolsEvent<
   TEvent extends keyof AIDevtoolsEventMap & string,
 >(eventName: TEvent, payload: AIDevtoolsEventMap[TEvent]): void {
   aiEventClient.emit(eventName, payload)
-  dispatchAIDevtoolsEvent(eventName, payload)
 }
 
 export function dispatchAIDevtoolsEvent<

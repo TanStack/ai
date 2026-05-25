@@ -10,6 +10,7 @@ import { Portal } from 'solid-js/web'
 import { JsonTree } from '@tanstack/devtools-ui'
 import { useStyles } from '../../styles/use-styles'
 import { getHoverDataAttributes, isMessageHighlighted } from './preview-model'
+import { getHookDisplayName } from './hook-dashboard-model'
 import type { HookRecord, RunRecord } from '../../store/hook-registry'
 import type { HoverTarget } from './preview-model'
 import type { Component, JSX } from 'solid-js'
@@ -97,9 +98,21 @@ type GenerationPreviewState =
 
 export const GenerationPanel: Component<GenerationPanelProps> = (props) => {
   const styles = useStyles()
+  let runsContainer: HTMLDivElement | undefined
   const generationRuns = createMemo(() =>
-    generationRunsFromUnknown(props.hook.state.runs, props.hook.state),
+    sortGenerationRuns(
+      generationRunsFromUnknown(props.hook.state.runs, props.hook.state),
+    ),
   )
+
+  createEffect(() => {
+    generationRuns().length
+    queueMicrotask(() => {
+      if (runsContainer) {
+        runsContainer.scrollTop = runsContainer.scrollHeight
+      }
+    })
+  })
 
   return (
     <Show
@@ -113,7 +126,12 @@ export const GenerationPanel: Component<GenerationPanelProps> = (props) => {
         </section>
       }
     >
-      <div class={styles().hookDetails.generationRuns}>
+      <div
+        class={styles().hookDetails.generationRuns}
+        ref={(element) => {
+          runsContainer = element
+        }}
+      >
         <For each={generationRuns()}>
           {(run, index) => (
             <GenerationRunCard
@@ -138,7 +156,9 @@ export const GenerationPreview: Component<{
   const [expandedOutput, setExpandedOutput] =
     createSignal<GenerationOutputView | null>(null)
   const generationRuns = createMemo(() =>
-    generationRunsFromUnknown(props.hook.state.runs, props.hook.state),
+    sortGenerationRuns(
+      generationRunsFromUnknown(props.hook.state.runs, props.hook.state),
+    ),
   )
   const outputs = createMemo(() =>
     generationRuns().flatMap((run, index) =>
@@ -210,6 +230,9 @@ const GenerationRunCard: Component<{
   return (
     <article
       {...getHoverDataAttributes({ messageIds: [props.run.id] })}
+      data-testid="ai-devtools-generation-run"
+      data-run-id={props.run.id}
+      data-run-label={runLabel(props.index - 1, props.totalRuns)}
       class={`${styles().hookDetails.runCard} ${
         props.highlighted ? styles().hookDetails.runCardHighlighted : ''
       }`}
@@ -233,7 +256,7 @@ const GenerationRunCard: Component<{
 
       <div class={styles().hookDetails.runCardBody}>
         <div class={styles().hookDetails.runSummaryGrid}>
-          <GenerationMeta label="hook" value={props.hook.hookName} />
+          <GenerationMeta label="hook" value={getHookDisplayName(props.hook)} />
           <GenerationMeta
             label="updated"
             value={
@@ -292,6 +315,10 @@ const GenerationOutputTile: Component<{
     <div
       role="button"
       tabIndex={0}
+      data-testid="ai-devtools-generation-output"
+      data-output-id={props.output.id}
+      data-run-id={props.output.runId}
+      data-output-kind={props.output.kind}
       {...getHoverDataAttributes({
         messageIds: [props.output.runId],
         partIds: [props.output.id],
@@ -326,6 +353,7 @@ const GenerationOutputModal: Component<{
   return (
     <div
       class={styles().hookDetails.outputModalBackdrop}
+      data-testid="ai-devtools-output-modal-backdrop"
       role="presentation"
       onClick={(event) => {
         if (event.currentTarget === event.target) {
@@ -335,6 +363,9 @@ const GenerationOutputModal: Component<{
     >
       <section
         class={styles().hookDetails.outputModalDialog}
+        data-testid="ai-devtools-output-modal"
+        data-output-id={props.output.id}
+        data-output-kind={props.output.kind}
         role="dialog"
         aria-modal="true"
         aria-label={`${props.output.runLabel} ${props.output.title}`}
@@ -354,6 +385,7 @@ const GenerationOutputModal: Component<{
           <button
             type="button"
             class={styles().hookDetails.outputModalClose}
+            data-testid="ai-devtools-output-modal-close"
             aria-label="Close output preview"
             onClick={props.onClose}
           >
@@ -416,6 +448,7 @@ const OutputContent: Component<{
               when={props.output.kind === 'video'}
               fallback={
                 <audio
+                  data-testid="ai-devtools-audio-output"
                   src={media().src}
                   controls
                   preload="metadata"
@@ -424,6 +457,7 @@ const OutputContent: Component<{
               }
             >
               <video
+                data-testid="ai-devtools-video-output"
                 src={media().src}
                 controls={!props.compact}
                 muted={props.compact}
@@ -433,6 +467,7 @@ const OutputContent: Component<{
           }
         >
           <img
+            data-testid="ai-devtools-image-output"
             src={media().src}
             alt={props.output.title}
             loading="lazy"
@@ -455,6 +490,7 @@ const GenerationMeta: Component<{ label: string; value: string }> = (props) => {
       <span class={styles().hookDetails.generationMetaLabel}>
         {props.label}
       </span>
+      {' '}
       <span class={styles().hookDetails.generationMetaValue}>
         {props.value}
       </span>
@@ -487,6 +523,7 @@ const ProgressMeter: Component<{ progress: GenerationProgress }> = (props) => {
       </div>
       <div
         class={styles().hookDetails.progressTrack}
+        data-testid="ai-devtools-generation-progress"
         role="progressbar"
         aria-valuemin="0"
         aria-valuemax="100"
@@ -531,6 +568,16 @@ function generationRunsFromUnknown(
 
   const currentRun = runFromCurrentSnapshot(currentState)
   return currentRun ? [currentRun] : []
+}
+
+function sortGenerationRuns(
+  runs: Array<GenerationRunView>,
+): Array<GenerationRunView> {
+  return [...runs].sort((a, b) => runSortTime(a) - runSortTime(b))
+}
+
+function runSortTime(run: GenerationRunView): number {
+  return run.startedAt ?? run.updatedAt ?? run.completedAt ?? 0
 }
 
 function runFromUnknown(value: unknown): GenerationRunView | undefined {

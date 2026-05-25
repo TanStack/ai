@@ -52,26 +52,20 @@ describe('AI devtools event emission', () => {
     }
   })
 
-  it('dispatches directly to the devtools bus as well as the event client', () => {
+  it('shares the event client through a global symbol singleton', () => {
+    expect(
+      Reflect.get(globalThis, Symbol.for('tanstack.ai.devtools.eventClient')),
+    ).toBe(aiEventClient)
+  })
+
+  it('routes events through the shared event client (single path, no duplicate DOM dispatch)', () => {
     const eventClientEmit = vi
       .spyOn(aiEventClient, 'emit')
       .mockImplementation(() => undefined)
-    const dispatchedEvents: Array<
-      CustomEvent<{
-        type: string
-        pluginId: string
-        payload: AIDevtoolsEventMap['hook:registered']
-      }>
-    > = []
+    const dispatchedEvents: Array<Event> = []
 
     window.addEventListener('tanstack-dispatch-event', (event) => {
-      dispatchedEvents.push(
-        event as CustomEvent<{
-          type: string
-          pluginId: string
-          payload: AIDevtoolsEventMap['hook:registered']
-        }>,
-      )
+      dispatchedEvents.push(event)
     })
 
     const payload = {
@@ -85,12 +79,11 @@ describe('AI devtools event emission', () => {
     emitAIDevtoolsEvent('hook:registered', payload)
 
     expect(eventClientEmit).toHaveBeenCalledWith('hook:registered', payload)
-    expect(dispatchedEvents).toHaveLength(1)
-    expect(dispatchedEvents[0]?.detail).toEqual({
-      type: 'tanstack-ai-devtools:hook:registered',
-      pluginId: 'tanstack-ai-devtools',
-      payload,
-    })
+    expect(eventClientEmit).toHaveBeenCalledTimes(1)
+    // emitAIDevtoolsEvent must not double-dispatch to the bus directly; the
+    // event client owns transport so on() listeners fire exactly once when a
+    // ClientEventBus is running.
+    expect(dispatchedEvents).toHaveLength(0)
   })
 
   it('can dispatch directly to the devtools bus without using the event client', () => {

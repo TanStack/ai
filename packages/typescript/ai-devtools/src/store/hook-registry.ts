@@ -109,6 +109,7 @@ export interface RunRecord {
 export interface HookRecord {
   id: string
   hookName: string
+  displayName?: string
   framework?: string
   outputKind?: HookOutputKind
   lifecycle: HookLifecycle
@@ -164,6 +165,7 @@ interface HookUpsertEvent extends Partial<
   Pick<
     HookRegisteredEvent,
     | 'clientId'
+    | 'displayName'
     | 'framework'
     | 'outputKind'
     | 'source'
@@ -286,6 +288,11 @@ export function applyHookEvent(
         hook.updatedAt = snapshot.timestamp
       }
       attachEventToHook(state, snapshot.hookId, timelineEvent.id)
+      // Generation hooks ship their run history inside the snapshot. When
+      // devtools is opened after a run has already completed, the run
+      // lifecycle events fired before mount are lost, so backfill the
+      // global runs map and the hook's runIds from the snapshot itself.
+      syncRunsFromSnapshot(state, snapshot, timelineEvent.id)
       break
     }
     case 'tools:registered': {
@@ -496,6 +503,7 @@ function upsertHook(state: HookRegistryState, event: HookUpsertEvent): void {
     state.hooks[event.hookId] = {
       id: event.hookId,
       hookName: event.hookName,
+      ...(event.displayName ? { displayName: event.displayName } : {}),
       ...(event.framework ? { framework: event.framework } : {}),
       ...(event.outputKind ? { outputKind: event.outputKind } : {}),
       lifecycle: event.lifecycle,
@@ -514,6 +522,7 @@ function upsertHook(state: HookRegistryState, event: HookUpsertEvent): void {
   }
 
   existing.hookName = event.hookName
+  if (event.displayName) existing.displayName = event.displayName
   if (event.framework) existing.framework = event.framework
   if (event.outputKind) existing.outputKind = event.outputKind
   if (event.clientId) existing.clientId = event.clientId
@@ -626,6 +635,85 @@ function attachRunToHook(
   const hook = state.hooks[hookId]
   if (!hook || hook.runIds.includes(runId)) return
   hook.runIds.push(runId)
+}
+
+function syncRunsFromSnapshot(
+  state: HookRegistryState,
+  snapshot: HookStateSnapshotEvent,
+  eventId: string,
+): void {
+  const rawRuns = (snapshot.state as { runs?: unknown }).runs
+  if (!Array.isArray(rawRuns)) return
+  for (const candidate of rawRuns) {
+    if (!candidate || typeof candidate !== 'object') continue
+    const run = candidate as {
+      id?: unknown
+      status?: unknown
+      startedAt?: unknown
+      updatedAt?: unknown
+      completedAt?: unknown
+      error?: unknown
+    }
+    if (typeof run.id !== 'string') continue
+    const status = normalizeRunStatusFromSnapshot(run.status)
+    const startedAt =
+      typeof run.startedAt === 'number' ? run.startedAt : snapshot.timestamp
+    const updatedAt =
+      typeof run.updatedAt === 'number' ? run.updatedAt : startedAt
+    const existing = state.runs[run.id]
+    if (!existing) {
+      state.runs[run.id] = {
+        id: run.id,
+        hookId: snapshot.hookId,
+        status,
+        startedAt,
+        updatedAt,
+        ...(typeof run.completedAt === 'number'
+          ? { completedAt: run.completedAt }
+          : isTerminalRunStatus(status)
+            ? { completedAt: updatedAt }
+            : {}),
+        ...(typeof run.error === 'string' ? { error: run.error } : {}),
+        eventIds: [eventId],
+      }
+    } else {
+      existing.hookId = snapshot.hookId
+      existing.status = status
+      existing.updatedAt = updatedAt
+      if (typeof run.completedAt === 'number') {
+        existing.completedAt = run.completedAt
+      } else if (isTerminalRunStatus(status) && !existing.completedAt) {
+        existing.completedAt = updatedAt
+      }
+      if (typeof run.error === 'string') existing.error = run.error
+      if (!existing.eventIds.includes(eventId)) {
+        existing.eventIds.push(eventId)
+      }
+    }
+    attachRunToHook(state, snapshot.hookId, run.id)
+  }
+}
+
+function normalizeRunStatusFromSnapshot(
+  value: unknown,
+): RunLifecycleEvent['status'] {
+  switch (value) {
+    case 'created':
+    case 'started':
+    case 'updated':
+    case 'completed':
+    case 'errored':
+    case 'cancelled':
+      return value
+    case 'success':
+      return 'completed'
+    case 'error':
+      return 'errored'
+    case 'idle':
+      return 'created'
+    default:
+      return 'updated'
+  }
 }
 
 function attachActivityRunToHook(

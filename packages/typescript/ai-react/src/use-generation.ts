@@ -1,8 +1,9 @@
 import { GenerationClient } from '@tanstack/ai-client'
+import { createGenerationDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { StreamChunk } from '@tanstack/ai'
 import type {
-  AIDevtoolsClientMetadata,
+  AIDevtoolsDisplayOptions,
   ConnectConnectionAdapter,
   GenerationClientOptions,
   GenerationClientState,
@@ -28,8 +29,8 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
-  /** Metadata used to register this generation hook with TanStack AI Devtools */
-  devtools?: Partial<AIDevtoolsClientMetadata>
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
   /**
    * Callback when a result is received. Can optionally return a transformed value.
    *
@@ -118,9 +119,10 @@ export function useGeneration<
     const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
       id: clientId,
       body: opts.body,
+      devtoolsBridgeFactory: createGenerationDevtoolsBridge,
       devtools: {
-        framework: 'react',
         hookName: 'useGeneration',
+        framework: 'react',
         ...opts.devtools,
       },
       onResult: (r: TResult) => optionsRef.current.onResult?.(r),

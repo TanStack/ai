@@ -1,6 +1,7 @@
 import { createGeneration } from './create-generation.svelte'
 import type { AudioGenerationResult, StreamChunk } from '@tanstack/ai'
 import type {
+  AIDevtoolsDisplayOptions,
   AudioGenerateInput,
   ConnectConnectionAdapter,
   GenerationClientState,
@@ -22,6 +23,8 @@ export interface CreateGenerateAudioOptions<TOutput = AudioGenerationResult> {
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
   /**
    * Callback when audio is generated. Can optionally return a transformed value.
    *
@@ -98,17 +101,19 @@ export function createGenerateAudio<
 ): CreateGenerateAudioReturn<
   InferGenerationOutput<AudioGenerationResult, TOnResult>
 > {
+  const devtools = {
+    ...options.devtools,
+    framework: 'svelte',
+    hookName: 'createGenerateAudio',
+    outputKind: 'audio' as const,
+  }
   const gen = createGeneration<
     AudioGenerateInput,
     AudioGenerationResult,
     TOnResult
   >({
     ...options,
-    devtools: {
-      framework: 'svelte',
-      hookName: 'createGenerateAudio',
-      outputKind: 'audio',
-    },
+    devtools,
   })
 
   return {

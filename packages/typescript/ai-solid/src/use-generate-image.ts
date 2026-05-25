@@ -1,6 +1,7 @@
 import { useGeneration } from './use-generation'
 import type { ImageGenerationResult, StreamChunk } from '@tanstack/ai'
 import type {
+  AIDevtoolsDisplayOptions,
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
@@ -23,6 +24,8 @@ export interface UseGenerateImageOptions<TOutput = ImageGenerationResult> {
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
   /**
    * Callback when images are generated. Can optionally return a transformed value.
    *
@@ -103,14 +106,16 @@ export function useGenerateImage<
 ): UseGenerateImageReturn<
   InferGenerationOutput<ImageGenerationResult, TOnResult>
 > {
+  const devtools = {
+    ...options.devtools,
+    framework: 'solid',
+    hookName: 'useGenerateImage',
+    outputKind: 'image' as const,
+  }
   const { generate, result, isLoading, error, status, stop, reset } =
     useGeneration<ImageGenerateInput, ImageGenerationResult, TOnResult>({
       ...options,
-      devtools: {
-        framework: 'solid',
-        hookName: 'useGenerateImage',
-        outputKind: 'image',
-      },
+      devtools,
     })
 
   return {

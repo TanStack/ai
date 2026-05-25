@@ -7,9 +7,11 @@ import {
   getHookUnseenEventCount,
 } from '../../store/hook-registry'
 import { IterationTimeline } from '../conversation'
+import { FixtureNamePopover } from './FixtureNamePopover'
 import { ToolFixtureForm } from './ToolFixtureForm'
 import {
   createHookDashboardSummary,
+  getHookDisplayName,
   groupHooksByCategory,
   isHookRunning,
   visibleHooks,
@@ -38,6 +40,7 @@ import type { HoverOrigin, HoverTarget, PreviewJsonItem } from './preview-model'
 import type {
   HookRecord,
   RunRecord,
+  ToolFixtureRecord,
   ToolFixtureMessage,
 } from '../../store/hook-registry'
 import type { Conversation, Message, ToolCall } from '../../store/ai-store'
@@ -129,12 +132,16 @@ export const HookDetails: Component = () => {
     return activeHook.runIds
       .map((id) => state.hooks.runs[id])
       .filter((run): run is RunRecord => Boolean(run))
-      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .sort((a, b) => a.updatedAt - b.updatedAt)
   })
 
   const isGenerationHook = createMemo(() => {
     const outputKind = hook()?.outputKind
-    return Boolean(outputKind && outputKind !== 'chat')
+    // 'structured' is a chat hook variant (useChat with outputSchema), not a
+    // generation hook — it still has a conversation timeline and tool calls.
+    return Boolean(
+      outputKind && outputKind !== 'chat' && outputKind !== 'structured',
+    )
   })
 
   createEffect(() => {
@@ -157,9 +164,13 @@ export const HookDetails: Component = () => {
     if (snapshotMessages.length > 0) return snapshotMessages
     return []
   })
-  const showSecondaryPane = createMemo(
-    () => isGenerationHook() || !hasStructuredOutputPreview(previewMessages()),
-  )
+  const showSecondaryPane = createMemo(() => {
+    // Tools tab owns its own form/saved-fixtures layout that fills the
+    // primary pane; the secondary "User View" preview squeezes the tool
+    // detail column to zero width on narrower hookDetails widths.
+    if (activeTab() === 'tools' && !isGenerationHook()) return false
+    return isGenerationHook() || !hasStructuredOutputPreview(previewMessages())
+  })
 
   createEffect(() => {
     const target = hoverTarget()
@@ -194,7 +205,10 @@ export const HookDetails: Component = () => {
       }
     >
       {(activeHook) => (
-        <div class={styles().hookDetails.container}>
+        <div
+          class={styles().hookDetails.container}
+          data-testid="ai-devtools-hook-detail"
+        >
           <HookHeader
             hook={activeHook()}
             runs={runs().length}
@@ -203,7 +217,10 @@ export const HookDetails: Component = () => {
             isGenerationHook={isGenerationHook()}
           />
 
-          <nav class={styles().hookDetails.tabs}>
+          <nav
+            class={styles().hookDetails.tabs}
+            data-testid="ai-devtools-hook-tabs"
+          >
             <TabButton
               label={isGenerationHook() ? 'Generation' : 'Conversation'}
               tab="conversation"
@@ -233,6 +250,7 @@ export const HookDetails: Component = () => {
           >
             <main
               class={styles().hookDetails.primary}
+              data-testid="ai-devtools-primary-pane"
               ref={(el) => {
                 timelinePane = el
               }}
@@ -272,6 +290,7 @@ export const HookDetails: Component = () => {
             <Show when={showSecondaryPane()}>
               <aside
                 class={styles().hookDetails.previewPane}
+                data-testid="ai-devtools-preview-pane"
                 ref={(el) => {
                   previewPane = el
                 }}
@@ -315,12 +334,24 @@ const HookOverview: Component<{
   const styles = useStyles()
   const hooks = createMemo(() =>
     visibleHooks(Object.values(state.hooks.hooks)).sort(
-      (a, b) => b.updatedAt - a.updatedAt,
+      (a, b) => a.registeredAt - b.registeredAt,
     ),
   )
   const groups = createMemo(() => groupHooksByCategory(hooks()))
   const summary = createMemo(() =>
     createHookDashboardSummary(hooks(), state.hooks.runs),
+  )
+  const totalMessages = createMemo(() =>
+    Object.values(state.conversations).reduce(
+      (count, conversation) => count + conversation.messages.length,
+      0,
+    ),
+  )
+  const totalTokens = createMemo(() =>
+    Object.values(state.conversations).reduce(
+      (count, conversation) => count + (conversation.usage?.totalTokens ?? 0),
+      0,
+    ),
   )
 
   return (
@@ -332,7 +363,10 @@ const HookOverview: Component<{
         </div>
       }
     >
-      <div class={styles().hookDetails.overview}>
+      <div
+        class={styles().hookDetails.overview}
+        data-testid="ai-devtools-dashboard-overview"
+      >
         <header class={styles().hookDetails.overviewHeader}>
           <div>
             <div class={styles().hookDetails.overviewTitle}>
@@ -345,6 +379,16 @@ const HookOverview: Component<{
         </header>
 
         <div class={styles().hookDetails.overviewMetricGrid}>
+          <OverviewMetric label="active hooks" value={summary().active} />
+          <OverviewMetric label="tools" value={summary().tools} />
+          <OverviewMetric
+            label="messages / runs"
+            value={`${totalMessages()} / ${summary().runs}`}
+          />
+          <OverviewMetric
+            label="tokens"
+            value={formatMetricValue(totalTokens())}
+          />
           <OverviewMetric label="hooks" value={summary().total} />
           <OverviewMetric label="active" value={summary().active} />
           <OverviewMetric label="running" value={summary().running} />
@@ -354,7 +398,11 @@ const HookOverview: Component<{
         <div class={styles().hookDetails.overviewGroups}>
           <For each={groups()}>
             {(group) => (
-              <section class={styles().hookDetails.overviewGroupCard}>
+              <section
+                class={styles().hookDetails.overviewGroupCard}
+                data-testid="ai-devtools-overview-category"
+                data-category={group.id}
+              >
                 <div class={styles().hookDetails.overviewGroupHeader}>
                   <span>{group.label}</span>
                   <span>{group.hooks.length}</span>
@@ -371,15 +419,21 @@ const HookOverview: Component<{
                     return (
                       <button
                         type="button"
+                        data-testid="ai-devtools-overview-hook"
+                        data-hook-id={hook.id}
+                        data-hook-name={hook.hookName}
+                        data-display-name={getHookDisplayName(hook)}
                         class={styles().hookDetails.overviewHookButton}
                         onClick={() => props.onSelectHook(hook)}
                       >
                         <div class={styles().hookDetails.overviewHookMain}>
                           <span class={styles().hookDetails.overviewHookTitle}>
-                            {hook.hookName}
+                            {getHookDisplayName(hook)}
                           </span>
                           <span class={styles().hookDetails.overviewHookId}>
-                            {hook.id}
+                            <Show when={hook.displayName} fallback={hook.id}>
+                              {hook.hookName} - {hook.id}
+                            </Show>
                           </span>
                         </div>
                         <div class={styles().hookDetails.overviewHookMeta}>
@@ -410,7 +464,9 @@ const HookOverview: Component<{
   )
 }
 
-const OverviewMetric: Component<{ label: string; value: number }> = (props) => {
+const OverviewMetric: Component<{ label: string; value: number | string }> = (
+  props,
+) => {
   const styles = useStyles()
   return (
     <div class={styles().hookDetails.overviewMetricCard}>
@@ -429,10 +485,21 @@ const HookHeader: Component<{
 }> = (props) => {
   const styles = useStyles()
   return (
-    <header class={styles().hookDetails.header}>
+    <header
+      class={styles().hookDetails.header}
+      data-testid="ai-devtools-hook-header"
+      data-hook-id={props.hook.id}
+      data-hook-name={props.hook.hookName}
+      data-display-name={getHookDisplayName(props.hook)}
+    >
       <div class={styles().hookDetails.headerMain}>
         <div class={styles().hookDetails.titleRow}>
-          <span class={styles().hookDetails.title}>{props.hook.hookName}</span>
+          <span
+            class={styles().hookDetails.title}
+            data-testid="ai-devtools-hook-title"
+          >
+            {getHookDisplayName(props.hook)}
+          </span>
           <span class={styles().hookDetails.lifecycle}>
             {props.hook.lifecycle}
           </span>
@@ -443,6 +510,11 @@ const HookHeader: Component<{
           </Show>
         </div>
         <div class={styles().hookDetails.identity}>
+          <Show when={props.hook.displayName}>
+            <span data-testid="ai-devtools-hook-technical-name">
+              {props.hook.hookName}
+            </span>
+          </Show>
           <span>{props.hook.id}</span>
           <Show when={props.hook.threadId}>
             <span>thread {props.hook.threadId}</span>
@@ -453,23 +525,38 @@ const HookHeader: Component<{
         </div>
       </div>
       <div class={styles().hookDetails.metrics}>
-        <Metric label="runs" value={props.runs} />
+        <Metric label="runs" value={props.runs} testId="runs" />
         <Show when={!props.isGenerationHook}>
-          <Metric label="tools" value={props.hook.tools.length} />
-          <Metric label="messages" value={props.messages} />
-          <Metric label="tokens" value={formatMetricValue(props.totalTokens)} />
+          <Metric
+            label="tools"
+            value={props.hook.tools.length}
+            testId="tools"
+          />
+          <Metric label="messages" value={props.messages} testId="messages" />
+          <Metric
+            label="tokens"
+            value={formatMetricValue(props.totalTokens)}
+            testId="tokens"
+          />
         </Show>
       </div>
     </header>
   )
 }
 
-const Metric: Component<{ label: string; value: number | string }> = (
-  props,
-) => {
+const Metric: Component<{
+  label: string
+  value: number | string
+  testId?: string
+}> = (props) => {
   const styles = useStyles()
   return (
-    <div class={styles().hookDetails.metric}>
+    <div
+      class={styles().hookDetails.metric}
+      data-testid={
+        props.testId ? `ai-devtools-hook-metric-${props.testId}` : undefined
+      }
+    >
       <span class={styles().hookDetails.metricValue}>{props.value}</span>
       <span class={styles().hookDetails.metricLabel}>{props.label}</span>
     </div>
@@ -490,6 +577,8 @@ const TabButton: Component<{
   return (
     <button
       type="button"
+      data-testid="ai-devtools-hook-tab"
+      data-tab={props.label}
       class={`${styles().hookDetails.tab} ${
         props.activeTab === props.tab ? styles().hookDetails.tabActive : ''
       }`}
@@ -564,6 +653,8 @@ const MessagesPreview: Component<{
 }> = (props) => {
   const { saveToolFixture, applyToolFixture } = useAIStore()
   const styles = useStyles()
+  const [pendingFixture, setPendingFixture] =
+    createSignal<ToolFixtureRecord | null>(null)
   const partClass = (kind: PreviewPart['kind']) => {
     const hookDetails = styles().hookDetails
     if (kind === 'thinking') return hookDetails.previewPartThinking
@@ -577,9 +668,13 @@ const MessagesPreview: Component<{
   const saveObservedToolCall = (message: PreviewMessage, part: PreviewPart) => {
     const fixture = createFixtureFromPreviewPart(props.hook, message, part)
     if (!fixture) return
-    const name = promptFixtureName(`${fixture.toolName} fixture`)
-    if (!name) return
+    setPendingFixture(fixture)
+  }
+  const confirmSaveObservedToolCall = (name: string) => {
+    const fixture = pendingFixture()
+    if (!fixture) return
     saveToolFixture({ ...fixture, name })
+    setPendingFixture(null)
   }
   const replayObservedToolCall = (
     message: PreviewMessage,
@@ -596,6 +691,15 @@ const MessagesPreview: Component<{
       fallback={<div class={styles().hookDetails.emptySmall}>No messages.</div>}
     >
       <div class={styles().hookDetails.messages}>
+        <Show when={pendingFixture()}>
+          {(fixture) => (
+            <FixtureNamePopover
+              defaultName={`${fixture().toolName} fixture`}
+              onCancel={() => setPendingFixture(null)}
+              onSave={confirmSaveObservedToolCall}
+            />
+          )}
+        </Show>
         <For each={props.messages}>
           {(message) => {
             const visibleParts = () => visiblePreviewPartsForMessage(message)
@@ -614,6 +718,9 @@ const MessagesPreview: Component<{
                     ? styles().hookDetails.messageHighlighted
                     : ''
                 }`}
+                data-testid="ai-devtools-preview-message"
+                data-message-id={message.id}
+                data-role={message.role}
                 onMouseEnter={() =>
                   props.onHoverTarget(
                     createHoverTarget({
@@ -644,6 +751,9 @@ const MessagesPreview: Component<{
                           ? styles().hookDetails.previewPartHighlighted
                           : ''
                       }`}
+                      data-testid="ai-devtools-preview-part"
+                      data-part-id={part.id}
+                      data-part-kind={part.kind}
                       onMouseEnter={() =>
                         props.onHoverTarget(
                           createHoverTarget({
@@ -670,6 +780,7 @@ const MessagesPreview: Component<{
                           <button
                             type="button"
                             class={styles().hookDetails.previewPartActionButton}
+                            data-testid="ai-devtools-preview-save-tool-call"
                             onClick={(event) => {
                               event.stopPropagation()
                               saveObservedToolCall(message, part)
@@ -680,6 +791,7 @@ const MessagesPreview: Component<{
                           <button
                             type="button"
                             class={styles().hookDetails.previewPartActionButton}
+                            data-testid="ai-devtools-preview-replay-tool-call"
                             onClick={(event) => {
                               event.stopPropagation()
                               replayObservedToolCall(message, part)
@@ -761,6 +873,9 @@ const HookMessageTimeline: Component<{
           {(message) => (
             <div
               {...getHoverDataAttributes({ messageIds: [message.id] })}
+              data-testid="ai-devtools-timeline-message"
+              data-message-id={message.id}
+              data-role={message.role}
               class={`${styles().hookDetails.timelineMessage} ${
                 isMessageHighlighted(message.id, props.hoverTarget)
                   ? styles().hookDetails.timelineMessageHighlighted
@@ -784,7 +899,16 @@ const HookMessageTimeline: Component<{
               </Show>
               <For each={visiblePreviewPartsForMessage(message)}>
                 {(part) => (
-                  <div class={styles().hookDetails.previewPart}>
+                  <div
+                    {...getHoverDataAttributes({
+                      messageIds: [message.id],
+                      partIds: [part.id],
+                    })}
+                    class={styles().hookDetails.previewPart}
+                    data-testid="ai-devtools-timeline-part"
+                    data-part-id={part.id}
+                    data-part-kind={part.kind}
+                  >
                     <span class={styles().hookDetails.previewPartLabel}>
                       {part.label}
                     </span>
@@ -850,15 +974,17 @@ const ToolsView: Component<{ hook: HookRecord }> = (props) => {
   )
 
   const savedFixtures = createMemo(() =>
-    state.hooks.fixtures.filter(
-      (fixture) =>
-        fixture.hookId === props.hook.id ||
-        (!!props.hook.threadId && fixture.threadId === props.hook.threadId),
-    ),
+    state.hooks.fixtures
+      .filter(
+        (fixture) =>
+          fixture.hookId === props.hook.id ||
+          (!!props.hook.threadId && fixture.threadId === props.hook.threadId),
+      )
+      .sort((a, b) => b.createdAt - a.createdAt),
   )
 
   return (
-    <div class={styles().hookDetails.toolsGrid}>
+    <div class={styles().hookDetails.toolsGrid} data-testid="ai-devtools-tools">
       <div class={styles().hookDetails.toolsList}>
         <Show
           when={props.hook.tools.length > 0}
@@ -870,6 +996,8 @@ const ToolsView: Component<{ hook: HookRecord }> = (props) => {
             {(tool) => (
               <button
                 type="button"
+                data-testid="ai-devtools-tool-row"
+                data-tool-name={tool.name}
                 class={`${styles().hookDetails.toolRow} ${
                   selectedToolName() === tool.name
                     ? styles().hookDetails.toolRowSelected
@@ -914,7 +1042,12 @@ const ToolsView: Component<{ hook: HookRecord }> = (props) => {
                 <div class={styles().hookDetails.eventList}>
                   <For each={savedFixtures()}>
                     {(fixture) => (
-                      <div class={styles().hookDetails.fixtureRow}>
+                      <div
+                        class={styles().hookDetails.fixtureRow}
+                        data-testid="ai-devtools-fixture-row"
+                        data-fixture-name={fixture.name ?? fixture.toolName}
+                        data-tool-name={fixture.toolName}
+                      >
                         <div class={styles().hookDetails.fixtureInfo}>
                           <span class={styles().hookDetails.fixtureName}>
                             {fixture.name ?? fixture.toolName}
@@ -927,6 +1060,7 @@ const ToolsView: Component<{ hook: HookRecord }> = (props) => {
                           <button
                             type="button"
                             class={styles().hookDetails.fixtureRowButton}
+                            data-testid="ai-devtools-fixture-replay"
                             onClick={() => applyToolFixture(fixture)}
                           >
                             Replay
@@ -934,6 +1068,7 @@ const ToolsView: Component<{ hook: HookRecord }> = (props) => {
                           <button
                             type="button"
                             class={`${styles().hookDetails.fixtureRowButton} ${styles().hookDetails.fixtureDangerButton}`}
+                            data-testid="ai-devtools-fixture-delete"
                             onClick={() => deleteToolFixture(fixture.id)}
                           >
                             Delete
@@ -1605,12 +1740,6 @@ function jsonSafeValue(value: unknown): unknown {
   } catch {
     return value
   }
-}
-
-function promptFixtureName(defaultName: string): string | undefined {
-  if (typeof window === 'undefined') return undefined
-  const name = window.prompt('Fixture name', defaultName)?.trim()
-  return name ? name : undefined
 }
 
 function formatTime(timestamp: number): string {

@@ -9,6 +9,7 @@ import type {
   ChatClientState,
   ChatRequestBody,
   ConnectionStatus,
+  AIDevtoolsDisplayOptions,
   MultimodalContent,
   UIMessage,
 } from '@tanstack/ai-client'
@@ -63,7 +64,10 @@ export type UseChatOptions<
   | 'onSubscriptionChange'
   | 'onConnectionStatusChange'
   | 'onSessionGeneratingChange'
+  | 'devtools'
 > & {
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
   /**
    * Opt into mount-time live subscription behavior.
    * When enabled, the hook subscribes on mount and unsubscribes on unmount.

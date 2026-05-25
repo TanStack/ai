@@ -30,6 +30,10 @@
     ".": {
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
+    },
+    "./devtools": {
+      "types": "./dist/esm/devtools.d.ts",
+      "import": "./dist/esm/devtools.js"
     }
   },
   "files": [
