@@ -594,6 +594,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             promptTokens: usage.input_tokens,
             completionTokens: usage.output_tokens,
             totalTokens: usage.total_tokens,
+            ...(usage.input_tokens_details?.cached_tokens != null && {
+              cachedTokens: usage.input_tokens_details.cached_tokens,
+            }),
           },
         }),
       }
@@ -1505,6 +1508,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               promptTokens: chunk.response.usage?.input_tokens || 0,
               completionTokens: chunk.response.usage?.output_tokens || 0,
               totalTokens: chunk.response.usage?.total_tokens || 0,
+              ...(chunk.response.usage?.input_tokens_details?.cached_tokens !=
+                null && {
+                cachedTokens:
+                  chunk.response.usage.input_tokens_details.cached_tokens,
+              }),
             },
             finishReason,
           }

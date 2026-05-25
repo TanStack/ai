@@ -267,6 +267,8 @@ export interface UsageInfo {
   promptTokens: number
   completionTokens: number
   totalTokens: number
+  /** Number of prompt tokens served from cache (provider-dependent) */
+  cachedTokens?: number
 }
 
 // ===========================
@@ -289,6 +291,8 @@ export interface FinishInfo {
         promptTokens: number
         completionTokens: number
         totalTokens: number
+        /** Number of prompt tokens served from cache (provider-dependent) */
+        cachedTokens?: number
       }
     | undefined
 }

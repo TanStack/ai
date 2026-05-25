@@ -549,6 +549,9 @@ export class OpenRouterTextAdapter<
             promptTokens: lastUsage.promptTokens,
             completionTokens: lastUsage.completionTokens,
             totalTokens: lastUsage.totalTokens,
+            ...(lastUsage.promptTokensDetails?.cachedTokens != null && {
+              cachedTokens: lastUsage.promptTokensDetails.cachedTokens,
+            }),
           },
         }),
       }
@@ -1076,6 +1079,9 @@ export class OpenRouterTextAdapter<
               promptTokens: lastUsage.promptTokens || 0,
               completionTokens: lastUsage.completionTokens || 0,
               totalTokens: lastUsage.totalTokens || 0,
+              ...(lastUsage.promptTokensDetails?.cachedTokens != null && {
+                cachedTokens: lastUsage.promptTokensDetails.cachedTokens,
+              }),
             },
           }),
           finishReason,

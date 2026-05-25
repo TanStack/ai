@@ -502,6 +502,9 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             promptTokens: lastUsage.prompt_tokens,
             completionTokens: lastUsage.completion_tokens,
             totalTokens: lastUsage.total_tokens,
+            ...(lastUsage.prompt_tokens_details?.cached_tokens != null && {
+              cachedTokens: lastUsage.prompt_tokens_details.cached_tokens,
+            }),
           },
         }),
       }
@@ -1057,6 +1060,9 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
               promptTokens: lastUsage.prompt_tokens || 0,
               completionTokens: lastUsage.completion_tokens || 0,
               totalTokens: lastUsage.total_tokens || 0,
+              ...(lastUsage.prompt_tokens_details?.cached_tokens != null && {
+                cachedTokens: lastUsage.prompt_tokens_details.cached_tokens,
+              }),
             },
           }),
           finishReason,

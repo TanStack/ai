@@ -1053,6 +1053,9 @@ export class AnthropicTextAdapter<
                     totalTokens:
                       (event.usage.input_tokens || 0) +
                       (event.usage.output_tokens || 0),
+                    ...(event.usage.cache_read_input_tokens != null && {
+                      cachedTokens: event.usage.cache_read_input_tokens,
+                    }),
                   },
                 }
                 break
@@ -1096,6 +1099,9 @@ export class AnthropicTextAdapter<
                     totalTokens:
                       (event.usage.input_tokens || 0) +
                       (event.usage.output_tokens || 0),
+                    ...(event.usage.cache_read_input_tokens != null && {
+                      cachedTokens: event.usage.cache_read_input_tokens,
+                    }),
                   },
                 }
               }

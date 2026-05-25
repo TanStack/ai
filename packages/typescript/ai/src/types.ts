@@ -925,6 +925,8 @@ export interface RunFinishedEvent extends AGUIRunFinishedEvent {
     promptTokens: number
     completionTokens: number
     totalTokens: number
+    /** Number of prompt tokens served from cache (provider-dependent) */
+    cachedTokens?: number
   }
 }
 
@@ -1375,6 +1377,7 @@ export interface TextCompletionChunk {
     promptTokens: number
     completionTokens: number
     totalTokens: number
+    cachedTokens?: number
   }
 }
 
@@ -1403,6 +1406,7 @@ export interface SummarizationResult {
     promptTokens: number
     completionTokens: number
     totalTokens: number
+    cachedTokens?: number
   }
 }
 

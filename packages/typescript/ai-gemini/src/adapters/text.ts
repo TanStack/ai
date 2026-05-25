@@ -631,6 +631,9 @@ export class GeminiTextAdapter<
               promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
               completionTokens: chunk.usageMetadata.candidatesTokenCount ?? 0,
               totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
+              ...(chunk.usageMetadata.cachedContentTokenCount != null && {
+                cachedTokens: chunk.usageMetadata.cachedContentTokenCount,
+              }),
             },
           }),
         }
