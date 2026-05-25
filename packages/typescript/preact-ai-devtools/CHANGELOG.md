@@ -1,5 +1,12 @@
 # @tanstack/preact-ai-devtools
 
+## 0.1.42
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-devtools-core@0.3.38
+
 ## 0.1.41
 
 ### Patch Changes
