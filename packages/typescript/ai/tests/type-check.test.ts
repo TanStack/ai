@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { chat, createChatOptions, toolDefinition } from '../src'
 import type {
   JSONSchema,
+  ProviderTool,
   StreamChunk,
   Tool,
   ToolCallArgsEvent,
@@ -102,6 +103,16 @@ const jsonSchemaTool: Tool<JSONSchema, JSONSchema, 'json_tool'> = {
     type: 'object',
     properties: { key: { type: 'string' } },
   },
+}
+
+// Provider tools carry opaque metadata and intentionally have a generic
+// `string` name — used here to assert `NonProviderTools` correctly partitions
+// them out so they don't widen the typed tool-call discriminated union.
+const fakeProviderTool: ProviderTool<'fake-provider', 'web_search'> = {
+  name: 'web_search',
+  description: 'Provider-native web search',
+  '~provider': 'fake-provider',
+  '~toolKind': 'web_search',
 }
 
 // ===========================
@@ -550,6 +561,28 @@ describe('TypedStreamChunk fallback behavior', () => {
     expectTypeOf<E['start']['toolName']>().toEqualTypeOf<
       'get_weather' | 'search'
     >()
+  })
+
+  it('should fall back to untyped events when the array contains ONLY ProviderTools', () => {
+    // ProviderTool has `name: string` (generic), so HasTypedTools must report
+    // false for arrays containing only ProviderTools — otherwise the
+    // discriminated union would widen `toolName` back to `string` and defeat
+    // the entire typing exercise. Regression guard for NonProviderTools.
+    type E = ToolEventsOf<[typeof fakeProviderTool]>
+
+    expectTypeOf<E['start']['toolName']>().toEqualTypeOf<string>()
+    expectTypeOf<E['end']['toolName']>().toEqualTypeOf<string>()
+    expectTypeOf<Exclude<E['end']['input'], undefined>>().toBeUnknown()
+  })
+
+  it('should keep narrowing on user tools when mixed with ProviderTools', () => {
+    // The motivating mixed case: a user passes `[webSearchTool, myTypedTool]`
+    // — they should still get typed narrowing for `myTypedTool`. Partition
+    // strips the ProviderTool, leaving the typed tool's literal name.
+    type E = ToolEventsOf<[typeof fakeProviderTool, typeof weatherTool]>
+
+    expectTypeOf<E['start']['toolName']>().toEqualTypeOf<'get_weather'>()
+    expectTypeOf<E['end']['toolName']>().toEqualTypeOf<'get_weather'>()
   })
 })
 

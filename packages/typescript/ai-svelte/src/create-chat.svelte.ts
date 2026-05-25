@@ -103,11 +103,7 @@ export function createChat<
     ...(options.forwardedProps !== undefined && {
       forwardedProps: options.forwardedProps,
     }),
-    onResponse: (response) => {
-      // Forward the call but ignore any Promise the caller returns —
-      // ChatClient's onResponse contract is fire-and-forget.
-      void options.onResponse?.(response)
-    },
+    onResponse: (response) => options.onResponse?.(response),
     onChunk: (chunk: StreamChunk) => {
       options.onChunk?.(chunk)
     },

@@ -1296,11 +1296,7 @@ export interface ToolInputAvailableEvent extends CustomEvent {
  * outside the literal-`name` narrows or cast explicitly.
  */
 export type StructuredOutputStream<T = unknown> = AsyncIterable<
-  | Exclude<StreamChunk, CustomEvent>
-  | StructuredOutputStartEvent
-  | StructuredOutputCompleteEvent<T>
-  | ApprovalRequestedEvent
-  | ToolInputAvailableEvent
+  Exclude<StreamChunk, CustomEvent> | TaggedCustomEvent<T>
 >
 
 // ============================================================================
