@@ -301,9 +301,7 @@ export function skillsToTools({
   storage,
   timeout = 30000,
   memoryLimit = 128,
-}: SkillsToToolsOptions): Array<
-  ServerTool<SchemaInput, SchemaInput, string>
-> {
+}: SkillsToToolsOptions): Array<ServerTool<SchemaInput, SchemaInput, string>> {
   // Pre-compute bindings from tools (these are shared across all skill executions)
   console.log(
     '[SkillsToTools] Creating bindings from tools:',
