@@ -103,10 +103,10 @@ function createId(prefix: string): string {
  * @example Generate speech from text
  * ```ts
  * import { generateSpeech } from '@tanstack/ai'
- * import { openaiTTS } from '@tanstack/ai-openai'
+ * import { openaiSpeech } from '@tanstack/ai-openai'
  *
  * const result = await generateSpeech({
- *   adapter: openaiTTS('tts-1-hd'),
+ *   adapter: openaiSpeech('tts-1-hd'),
  *   text: 'Hello, welcome to TanStack AI!',
  *   voice: 'nova'
  * })
@@ -117,7 +117,7 @@ function createId(prefix: string): string {
  * @example With format and speed options
  * ```ts
  * const result = await generateSpeech({
- *   adapter: openaiTTS('tts-1'),
+ *   adapter: openaiSpeech('tts-1'),
  *   text: 'This is slower speech.',
  *   voice: 'alloy',
  *   format: 'wav',

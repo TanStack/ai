@@ -468,7 +468,8 @@ const stream = chat({
 Caches tool call results based on tool name and arguments. When a tool is called with the same name and arguments as a previous call, the cached result is returned immediately without re-executing the tool.
 
 ```typescript
-import { chat, toolCacheMiddleware } from "@tanstack/ai";
+import { chat } from "@tanstack/ai";
+import { toolCacheMiddleware } from "@tanstack/ai/middlewares";
 
 const stream = chat({
   adapter: openaiText("gpt-4o"),
@@ -520,7 +521,7 @@ By default the cache lives in-memory and is scoped to a single `toolCacheMiddlew
 The storage interface:
 
 ```typescript
-import type { ToolCacheStorage, ToolCacheEntry } from "@tanstack/ai";
+import type { ToolCacheStorage, ToolCacheEntry } from "@tanstack/ai/middlewares";
 
 interface ToolCacheStorage {
   getItem: (key: string) => ToolCacheEntry | undefined | Promise<ToolCacheEntry | undefined>;
@@ -537,7 +538,7 @@ All methods may return a `Promise` for async backends. The middleware handles TT
 
 ```typescript
 import { createClient } from "redis";
-import { toolCacheMiddleware, type ToolCacheStorage } from "@tanstack/ai";
+import { toolCacheMiddleware, type ToolCacheStorage } from "@tanstack/ai/middlewares";
 
 const redis = createClient();
 

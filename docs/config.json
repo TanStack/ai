@@ -223,6 +223,10 @@
         {
           "label": "Extend Adapter",
           "to": "advanced/extend-adapter"
+        },
+        {
+          "label": "Typed Pre-Configured Options",
+          "to": "advanced/typed-options"
         }
       ]
     },

@@ -42,12 +42,12 @@ const stream = chat({
 import { chat } from "@tanstack/ai";
 import { createGeminiChat } from "@tanstack/ai-gemini";
 
-const adapter = createGeminiChat(process.env.GEMINI_API_KEY!, {
+const adapter = createGeminiChat("gemini-2.5-pro", process.env.GEMINI_API_KEY!, {
   // ... your config options
 });
 
 const stream = chat({
-  adapter: adapter("gemini-2.5-pro"),
+  adapter,
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
@@ -55,13 +55,13 @@ const stream = chat({
 ## Configuration
 
 ```typescript
-import { createGeminiChat, type GeminiChatConfig } from "@tanstack/ai-gemini";
+import { createGeminiChat, type GeminiTextConfig } from "@tanstack/ai-gemini";
 
-const config: Omit<GeminiChatConfig, 'apiKey'> = {
+const config: Omit<GeminiTextConfig, "apiKey"> = {
   baseURL: "https://generativelanguage.googleapis.com/v1beta", // Optional
 };
 
-const adapter = createGeminiChat(process.env.GEMINI_API_KEY!, config);
+const adapter = createGeminiChat("gemini-2.5-pro", process.env.GEMINI_API_KEY!, config);
 ```
   
 
@@ -324,69 +324,32 @@ These models use the dedicated `generateImages` API.
 
 ## API Reference
 
-### `geminiText(config?)`
+Every factory pair follows the same shape: the short factory (`geminiText`, `geminiImage`, …) reads `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) from the environment, while the `create*` variant takes an explicit API key. Both take `model` as the first argument.
 
-Creates a Gemini text/chat adapter using environment variables.
+### `geminiText(model, config?)` / `createGeminiChat(model, apiKey, config?)`
 
-**Returns:** A Gemini text adapter instance.
-
-### `createGeminiText(apiKey, config?)`
-
-Creates a Gemini text/chat adapter with an explicit API key.
+Creates a Gemini text/chat adapter.
 
 **Parameters:**
 
-- `apiKey` - Your Gemini API key
-- `config.baseURL?` - Custom base URL (optional)
+- `model` - Gemini chat model id (e.g. `"gemini-2.5-pro"`)
+- `config?.baseURL` - Custom base URL (optional)
 
-**Returns:** A Gemini text adapter instance.
+### `geminiSummarize(model, config?)` / `createGeminiSummarize(model, apiKey, config?)`
 
-### `geminiSummarize(config?)`
+Creates a Gemini summarization adapter.
 
-Creates a Gemini summarization adapter using environment variables.
+### `geminiImage(model, config?)` / `createGeminiImage(model, apiKey, config?)`
 
-**Returns:** A Gemini summarize adapter instance.
+Creates a Gemini image adapter. Automatically routes to the correct API based on the model name — `gemini-*` models use `generateContent`, `imagen-*` models use `generateImages`.
 
-### `createGeminiSummarize(apiKey, config?)`
+### `geminiSpeech(model, config?)` / `createGeminiSpeech(model, apiKey, config?)`
 
-Creates a Gemini summarization adapter with an explicit API key.
+Creates a Gemini text-to-speech adapter. _Experimental._
 
-**Returns:** A Gemini summarize adapter instance.
+### `geminiAudio(model, config?)` / `createGeminiAudio(model, apiKey, config?)`
 
-### `geminiImage(model, config?)`
-
-Creates a Gemini image adapter using environment variables. Automatically routes to the correct API based on model name — `gemini-*` models use `generateContent`, `imagen-*` models use `generateImages`.
-
-**Parameters:**
-
-- `model` - The model name (e.g., `"gemini-3.1-flash-image-preview"` or `"imagen-4.0-generate-001"`)
-- `config.baseURL?` - Custom base URL (optional)
-
-**Returns:** A Gemini image adapter instance.
-
-### `createGeminiImage(model, apiKey, config?)`
-
-Creates a Gemini image adapter with an explicit API key.
-
-**Parameters:**
-
-- `model` - The model name
-- `apiKey` - Your Google API key
-- `config.baseURL?` - Custom base URL (optional)
-
-**Returns:** A Gemini image adapter instance.
-
-### `geminiTTS(config?)`
-
-Creates a Gemini TTS adapter using environment variables.
-
-**Returns:** A Gemini TTS adapter instance.
-
-### `createGeminiTTS(apiKey, config?)`
-
-Creates a Gemini TTS adapter with an explicit API key.
-
-**Returns:** A Gemini TTS adapter instance.
+Creates a Gemini Lyria music generation adapter. _Experimental._
 
 ## Next Steps
 
