@@ -2,16 +2,15 @@
 // survives DistributedOmit. These assertions exercise type errors at
 // compile time; the test file body is empty.
 import { describe, it, expectTypeOf } from 'vitest'
-import type {
-  ChatFetcher,
-  ConnectionAdapter,
-} from '@tanstack/ai-client'
+import type { ChatFetcher, ConnectionAdapter } from '@tanstack/ai-client'
 import type { UseChatOptions } from '../src/types'
 
 describe('UseChatOptions XOR', () => {
   it('rejects neither / both, accepts exactly one', () => {
     // Accept connection only
-    expectTypeOf<{ connection: ConnectionAdapter }>().toMatchTypeOf<UseChatOptions>()
+    expectTypeOf<{
+      connection: ConnectionAdapter
+    }>().toMatchTypeOf<UseChatOptions>()
     // Accept fetcher only
     expectTypeOf<{ fetcher: ChatFetcher }>().toMatchTypeOf<UseChatOptions>()
     // Reject empty
