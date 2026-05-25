@@ -94,7 +94,9 @@ async function* readStreamLines(
     // A non-empty trailing buffer means the connection was cut mid-line.
     // Surface this as an error so the chat client transitions to 'error'
     // state instead of silently presenting a partial stream as success.
-    if (buffer.trim()) {
+    // Skip when the consumer aborted — a user-initiated stop() interrupting
+    // mid-line is expected, not a truncation bug.
+    if (buffer.trim() && !abortSignal?.aborted) {
       throw new StreamTruncatedError()
     }
   } finally {

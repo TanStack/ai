@@ -15,7 +15,7 @@ describe('ChatClient — fetcher transport', () => {
       for (const chunk of chunks) {
         yield chunk
       }
-    } as unknown as ChatFetcher)
+    })
 
     let finalMessages: Array<UIMessage> = []
     const client = new ChatClient({
@@ -169,7 +169,7 @@ describe('ChatClient — fetcher transport', () => {
         timestamp: Date.now(),
         finishReason: 'stop',
       } as StreamChunk
-    } as unknown as ChatFetcher)
+    })
 
     const client = new ChatClient({
       fetcher,
@@ -244,7 +244,7 @@ describe('ChatClient — fetcher transport', () => {
         content: 'partial',
       } as StreamChunk
       throw new Error('mid-stream boom')
-    } as unknown as ChatFetcher)
+    })
 
     let observedError: Error | undefined
     const client = new ChatClient({
@@ -271,7 +271,7 @@ describe('ChatClient — fetcher transport', () => {
         delta: 'Hello',
         content: 'Hello',
       } as StreamChunk
-    } as unknown as ChatFetcher)
+    })
 
     let finalMessages: Array<UIMessage> = []
     const client = new ChatClient({

@@ -29,7 +29,7 @@ function ServerFnChat() {
         <p className="text-xs text-gray-400 mt-1">
           <code className="text-cyan-400">
             useChat(&#123; fetcher: ({'{'}messages{'}'}, {'{'}signal{'}'}) =&gt;
-            chatFn({'{'} data, signal {'}'}) &#125;)
+            chatFn({'{'} data: {'{'} messages {'}'}, signal {'}'}) &#125;)
           </code>{' '}
           — the server function returns an SSE{' '}
           <code className="text-cyan-400">Response</code>; the chat client

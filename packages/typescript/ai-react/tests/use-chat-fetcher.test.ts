@@ -12,7 +12,7 @@ describe('useChat — fetcher transport', () => {
       for (const chunk of chunks) {
         yield chunk
       }
-    } as unknown as ChatFetcher
+    }
 
     const { result } = renderHook(() => useChat({ fetcher }))
 
@@ -94,7 +94,7 @@ describe('useChat — fetcher transport', () => {
         timestamp: Date.now(),
         finishReason: 'stop',
       } as StreamChunk
-    } as unknown as ChatFetcher)
+    })
 
     const { result } = renderHook(() =>
       useChat({ fetcher, body: { provider: 'openai' } }),

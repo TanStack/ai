@@ -15,6 +15,8 @@ import { TTSUI } from '@/components/TTSUI'
 import { TranscriptionUI } from '@/components/TranscriptionUI'
 import { VideoGenUI } from '@/components/VideoGenUI'
 
+const VALID_MODES = new Set<Mode>(['sse', 'http-stream', 'fetcher'])
+
 export const Route = createFileRoute('/$provider/$feature')({
   component: FeaturePage,
   validateSearch: (search: Record<string, unknown>) => {
@@ -22,10 +24,14 @@ export const Route = createFileRoute('/$provider/$feature')({
       typeof search.aimockPort === 'string'
         ? parseInt(search.aimockPort, 10)
         : undefined
+    const rawMode = typeof search.mode === 'string' ? search.mode : undefined
     return {
       testId: typeof search.testId === 'string' ? search.testId : undefined,
       aimockPort: port != null && !isNaN(port) ? port : undefined,
-      mode: typeof search.mode === 'string' ? (search.mode as Mode) : undefined,
+      mode:
+        rawMode && VALID_MODES.has(rawMode as Mode)
+          ? (rawMode as Mode)
+          : undefined,
     }
   },
 })
@@ -176,7 +182,13 @@ function ChatFeature({
             // `forwardedProps`.
             fetch('/api/chat', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: {
+                'Content-Type': 'application/json',
+                // Sentinel header so e2e tests can positively assert the
+                // fetcher path executed (and didn't silently fall back to
+                // the connection adapter).
+                'x-tanstack-ai-transport': 'fetcher',
+              },
               body: JSON.stringify({
                 threadId: input.threadId,
                 runId: input.runId,

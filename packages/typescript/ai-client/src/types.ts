@@ -36,9 +36,11 @@ export interface ChatFetcherOptions {
 }
 
 /**
- * Direct async function that performs a chat request. Mirrors
+ * Direct function that performs a chat request. Mirrors
  * `GenerationFetcher`. Returns either a `Response` (SSE body parsed by the
- * chat client) or an `AsyncIterable<StreamChunk>` (yielded directly).
+ * chat client) or an `AsyncIterable<StreamChunk>` (yielded directly). May
+ * return the value synchronously, as a `Promise`, or as an async generator
+ * (`async function*`) — the chat client awaits whichever shape is returned.
  *
  * @example
  * ```ts
@@ -51,7 +53,10 @@ export interface ChatFetcherOptions {
 export type ChatFetcher = (
   input: ChatFetcherInput,
   options: ChatFetcherOptions,
-) => Promise<Response | AsyncIterable<StreamChunk>>
+) =>
+  | Response
+  | AsyncIterable<StreamChunk>
+  | Promise<Response | AsyncIterable<StreamChunk>>
 
 /**
  * Distributive `Omit` — applies `Omit<O, K>` per branch of a union so
@@ -60,9 +65,10 @@ export type ChatFetcher = (
  * when framework hooks omit React-managed callbacks from
  * `ChatClientOptions`.
  */
-export type DistributedOmit<O, K extends keyof any> = O extends unknown
-  ? Omit<O, K>
-  : never
+export type DistributedOmit<
+  TObject,
+  TKeys extends keyof any,
+> = TObject extends unknown ? Omit<TObject, TKeys> : never
 
 /**
  * Discriminated union enforcing that exactly one of `connection` or
