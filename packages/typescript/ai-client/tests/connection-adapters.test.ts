@@ -911,7 +911,12 @@ describe('connection-adapters', () => {
         return received
       })()
 
-      await adapter.send([{ role: 'user', content: 'Hello' }])
+      await adapter.send(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        { threadId: 'thread-test', runId: 'run-test' },
+      )
       const received = await receivedPromise
 
       expect(received).toHaveLength(2)
@@ -938,7 +943,12 @@ describe('connection-adapters', () => {
       })()
 
       await expect(
-        adapter.send([{ role: 'user', content: 'Hello' }]),
+        adapter.send(
+          [{ role: 'user', content: 'Hello' }],
+          undefined,
+          undefined,
+          { threadId: 'thread-test', runId: 'run-test' },
+        ),
       ).rejects.toThrow('connect exploded')
       const received = await receivedPromise
 

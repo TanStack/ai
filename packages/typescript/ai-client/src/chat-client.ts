@@ -441,9 +441,9 @@ export class ChatClient {
         // both so a RUN_ERROR with a runId only clears that run, not every
         // active run in the session.
         const runId =
-          chunk.type === 'RUN_FINISHED'
+          'runId' in chunk && typeof chunk.runId === 'string'
             ? chunk.runId
-            : (chunk as { runId?: string }).runId
+            : undefined
         if (runId) {
           this.activeRunIds.delete(runId)
         } else if (chunk.type === 'RUN_ERROR') {

@@ -72,7 +72,7 @@ export function useChat<
   // the source value is `undefined` instead of assigning `undefined`.
   const transport = options.connection
     ? { connection: options.connection }
-    : { fetcher: options.fetcher! }
+    : { fetcher: options.fetcher }
 
   const client = new ChatClient({
     ...transport,

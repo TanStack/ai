@@ -70,7 +70,7 @@ export function useChat<
     const initialOptions = optionsRef.current
     const transport = initialOptions.connection
       ? { connection: initialOptions.connection }
-      : { fetcher: initialOptions.fetcher! }
+      : { fetcher: initialOptions.fetcher }
 
     return new ChatClient({
       ...transport,

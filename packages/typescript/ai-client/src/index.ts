@@ -21,6 +21,7 @@ export type {
   ChatFetcherInput,
   ChatFetcherOptions,
   ChatTransport,
+  DistributedOmit,
   MultimodalContent,
 } from './types'
 // Generation client types

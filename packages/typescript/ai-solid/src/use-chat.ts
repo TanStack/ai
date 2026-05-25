@@ -70,7 +70,7 @@ export function useChat<
     // assigning `undefined` to those, so we omit the key when absent.
     const transport = options.connection
       ? { connection: options.connection }
-      : { fetcher: options.fetcher! }
+      : { fetcher: options.fetcher }
     return new ChatClient({
       ...transport,
       id: clientId,

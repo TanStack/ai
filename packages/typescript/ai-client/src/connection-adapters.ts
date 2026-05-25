@@ -27,6 +27,24 @@ function generateRunId(prefix: string): string {
 }
 
 /**
+ * Asserts an id is present when synthesizing a terminal event. The chat
+ * client always supplies `runContext.threadId` / `runContext.runId`, so an
+ * absent id at this layer indicates the adapter was wired up by a caller
+ * that bypassed that contract — surface it rather than fabricating one.
+ */
+function requireSyntheticId(
+  value: string | undefined,
+  field: 'threadId' | 'runId',
+): string {
+  if (!value) {
+    throw new Error(
+      `Cannot synthesize terminal event: ${field} not supplied via runContext and not observed in the upstream stream.`,
+    )
+  }
+  return value
+}
+
+/**
  * Merge custom headers into request headers
  */
 function mergeHeaders(
@@ -311,11 +329,14 @@ export function normalizeConnectionAdapter(
         if (!abortSignal?.aborted && !hasTerminalEvent) {
           const synthetic: RunFinishedEvent = {
             type: EventType.RUN_FINISHED,
-            threadId:
-              upstreamThreadId ??
-              runContext?.threadId ??
-              `thread-${Date.now()}`,
-            runId: upstreamRunId ?? runContext?.runId ?? `run-${Date.now()}`,
+            threadId: requireSyntheticId(
+              upstreamThreadId ?? runContext?.threadId,
+              'threadId',
+            ),
+            runId: requireSyntheticId(
+              upstreamRunId ?? runContext?.runId,
+              'runId',
+            ),
             model: 'connect-wrapper',
             timestamp: Date.now(),
             finishReason: 'stop',
@@ -328,14 +349,16 @@ export function normalizeConnectionAdapter(
             err instanceof Error ? err.message : 'Unknown error in connect()'
           const synthetic: RunErrorEvent = {
             type: EventType.RUN_ERROR,
-            threadId:
-              upstreamThreadId ??
-              runContext?.threadId ??
-              `thread-${Date.now()}`,
-            runId: upstreamRunId ?? runContext?.runId ?? `run-${Date.now()}`,
+            threadId: requireSyntheticId(
+              upstreamThreadId ?? runContext?.threadId,
+              'threadId',
+            ),
+            runId: requireSyntheticId(
+              upstreamRunId ?? runContext?.runId,
+              'runId',
+            ),
             timestamp: Date.now(),
             message,
-            error: { message },
           }
           push(synthetic)
         }

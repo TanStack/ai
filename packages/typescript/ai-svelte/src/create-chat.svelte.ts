@@ -88,7 +88,7 @@ export function createChat<
   // error, so we omit the key when the caller's value is undefined.
   const transport = options.connection
     ? { connection: options.connection }
-    : { fetcher: options.fetcher! }
+    : { fetcher: options.fetcher }
 
   const client = new ChatClient({
     ...transport,

@@ -54,6 +54,17 @@ export type ChatFetcher = (
 ) => Promise<Response | AsyncIterable<StreamChunk>>
 
 /**
+ * Distributive `Omit` — applies `Omit<O, K>` per branch of a union so
+ * discriminated unions survive omission. Plain `Omit` collapses unions
+ * into a single object shape, which would erase the `ChatTransport` XOR
+ * when framework hooks omit React-managed callbacks from
+ * `ChatClientOptions`.
+ */
+export type DistributedOmit<O, K extends keyof any> = O extends unknown
+  ? Omit<O, K>
+  : never
+
+/**
  * Discriminated union enforcing that exactly one of `connection` or
  * `fetcher` is provided. Mirrors `GenerationTransport`.
  */
