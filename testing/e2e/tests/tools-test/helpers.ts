@@ -85,13 +85,32 @@ export async function selectScenario(
 
 /**
  * Click #run-test-button and wait for loading to start.
+ *
+ * Uses the pre-click message count as a baseline so that a fixture which is
+ * already populated (non-empty messages JSON) does not register as a started
+ * run on its own. A run is considered started when either:
+ *   1. data-is-loading === "true", OR
+ *   2. the parsed message count has grown beyond the pre-click baseline.
  */
 export async function runTest(page: Page): Promise<void> {
+  const readMessageCount = () =>
+    page.evaluate(() => {
+      const text =
+        document.getElementById('messages-json-content')?.textContent || '[]'
+      try {
+        const parsed = JSON.parse(text)
+        return Array.isArray(parsed) ? parsed.length : 0
+      } catch {
+        return 0
+      }
+    })
+
   for (let attempt = 0; attempt < 5; attempt++) {
+    const baselineMessageCount = await readMessageCount()
     await page.click('#run-test-button')
     await page.waitForTimeout(300)
 
-    const started = await page.evaluate(() => {
+    const started = await page.evaluate((baseline) => {
       const metadata = document.getElementById('test-metadata')
       if (metadata?.getAttribute('data-is-loading') === 'true') {
         return true
@@ -100,11 +119,12 @@ export async function runTest(page: Page): Promise<void> {
       const text =
         document.getElementById('messages-json-content')?.textContent || '[]'
       try {
-        return Array.isArray(JSON.parse(text)) && JSON.parse(text).length > 0
+        const parsed = JSON.parse(text)
+        return Array.isArray(parsed) && parsed.length > baseline
       } catch {
         return false
       }
-    })
+    }, baselineMessageCount)
 
     if (started) {
       return

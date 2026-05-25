@@ -43,29 +43,17 @@ export function toolToBinding(
     ? convertSchemaToJsonSchema(tool.outputSchema)
     : undefined
 
-  // Get execute function
-  // ServerTool has execute, ToolDefinition (without .server()) does not
-  let execute: (
-    args: unknown,
-    context?: ToolExecutionContext,
-  ) => Promise<unknown>
-
-  if ('execute' in tool && typeof tool.execute === 'function') {
-    const toolExecute = tool.execute
-    execute = (args: unknown, context?: ToolExecutionContext) => {
-      // Pass context to the underlying tool so it can emit custom events
-      return Promise.resolve(toolExecute(args, context))
-    }
-  } else if ('__toolSide' in tool && tool.__toolSide === 'definition') {
-    throw new Error(
-      `Tool "${tool.name}" is a ToolDefinition without an execute function. ` +
-        `Call .server(fn) to provide an implementation before using with Code Mode.`,
-    )
-  } else {
+  if (typeof tool.execute !== 'function') {
     throw new Error(
       `Tool "${tool.name}" does not have an execute function. ` +
-        `Code Mode requires tools with implementations.`,
+        `Code Mode requires server tools with implementations.`,
     )
+  }
+
+  const toolExecute = tool.execute
+  const execute = (args: unknown, context?: ToolExecutionContext) => {
+    // Pass context to the underlying tool so it can emit custom events
+    return Promise.resolve(toolExecute(args, context))
   }
 
   return {
@@ -86,7 +74,7 @@ export function toolToBinding(
  */
 export function createEventAwareBindings(
   bindings: Record<string, ToolBinding>,
-  emitCustomEvent: (eventName: string, data: Record<string, any>) => void,
+  emitCustomEvent: ToolExecutionContext['emitCustomEvent'],
 ): Record<string, ToolBinding> {
   const wrapped: Record<string, ToolBinding> = {}
 

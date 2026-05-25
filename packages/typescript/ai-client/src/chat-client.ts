@@ -2,7 +2,9 @@ import {
   StreamProcessor,
   convertSchemaToJsonSchema,
   generateMessageId,
+  isStandardSchema,
   normalizeToUIMessage,
+  parseWithStandardSchema,
 } from '@tanstack/ai'
 import { DefaultChatClientEventEmitter } from './events'
 import { normalizeConnectionAdapter } from './connection-adapters'
@@ -26,6 +28,36 @@ import type {
   ToolCallPart,
   UIMessage,
 } from './types'
+
+type ChatClientUpdateOptionsWithoutContext<
+  TTools extends ReadonlyArray<AnyClientTool>,
+> = {
+  connection?: ConnectionAdapter
+  /** @deprecated Use `forwardedProps` instead. */
+  body?: Record<string, any>
+  forwardedProps?: Record<string, any>
+  tools?: TTools
+  onResponse?: (response?: Response) => void | Promise<void>
+  onChunk?: (chunk: StreamChunk) => void
+  onFinish?: (message: UIMessage) => void
+  onError?: (error: Error) => void
+  onSubscriptionChange?: (isSubscribed: boolean) => void
+  onConnectionStatusChange?: (status: ConnectionStatus) => void
+  onSessionGeneratingChange?: (isGenerating: boolean) => void
+  onCustomEvent?: (
+    eventType: string,
+    data: unknown,
+    context: { toolCallId?: string },
+  ) => void
+}
+
+type ClientToolResult = {
+  toolCallId: string
+  tool: string
+  output: any
+  state?: 'output-available' | 'output-error'
+  errorText?: string
+}
 
 export class ChatClient<
   TTools extends ReadonlyArray<AnyClientTool> = any,
@@ -56,6 +88,8 @@ export class ChatClient<
   private readonly postStreamActions: Array<() => Promise<void>> = []
   // Track pending client tool executions to await them before stream finalization
   private readonly pendingToolExecutions: Map<string, Promise<void>> = new Map()
+  private activeClientTools: Map<string, AnyClientTool> | null = null
+  private activeContext: TContext | undefined = undefined
   // Flag to deduplicate continuation checks during action draining
   private continuationPending = false
   private subscriptionAbortController: AbortController | null = null
@@ -222,31 +256,43 @@ export class ChatClient<
           input: any
         }) => {
           // Handle client-side tool execution automatically
-          const clientTool = this.clientToolsRef.current.get(args.toolName)
+          const clientTools =
+            this.activeClientTools ?? this.clientToolsRef.current
+          const clientTool = clientTools.get(args.toolName)
           const executeFunc = clientTool?.execute
           if (executeFunc) {
             // Create and track the execution promise
             const executionPromise = (async () => {
               try {
+                const context =
+                  this.activeClientTools === null
+                    ? this.context
+                    : this.activeContext
                 const output = await executeFunc(args.input, {
                   toolCallId: args.toolCallId,
-                  context: this.context as TContext,
+                  context: context as TContext,
                   emitCustomEvent: () => {},
                 })
-                await this.addToolResult({
-                  toolCallId: args.toolCallId,
-                  tool: args.toolName,
-                  output,
-                  state: 'output-available',
-                })
+                await this.addToolResultForClientTool(
+                  {
+                    toolCallId: args.toolCallId,
+                    tool: args.toolName,
+                    output,
+                    state: 'output-available',
+                  },
+                  clientTool,
+                )
               } catch (error: any) {
-                await this.addToolResult({
-                  toolCallId: args.toolCallId,
-                  tool: args.toolName,
-                  output: null,
-                  state: 'output-error',
-                  errorText: error.message,
-                })
+                await this.addToolResultForClientTool(
+                  {
+                    toolCallId: args.toolCallId,
+                    tool: args.toolName,
+                    output: null,
+                    state: 'output-error',
+                    errorText: error.message,
+                  },
+                  clientTool,
+                )
               } finally {
                 // Remove from pending when complete
                 this.pendingToolExecutions.delete(args.toolCallId)
@@ -615,6 +661,8 @@ export class ChatClient<
     try {
       // Get UIMessages with parts (preserves approval state and client tool results)
       const messages = this.processor.getMessages()
+      const clientTools = new Map(this.clientToolsRef.current)
+      const runtimeContext = this.context
 
       // Call onResponse callback
       await this.callbacksRef.current.onResponse()
@@ -649,6 +697,8 @@ export class ChatClient<
       // Generate stream ID — assistant message will be created by stream events
       this.currentStreamId = this.generateUniqueId('stream')
       this.currentMessageId = null
+      this.activeClientTools = clientTools
+      this.activeContext = runtimeContext
 
       // Reset processor stream state for new response — prevents stale
       // messageStates entries (from a previous stream) from blocking
@@ -672,15 +722,13 @@ export class ChatClient<
       const runContext = {
         threadId: this.threadId,
         runId: `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        clientTools: Array.from(this.clientToolsRef.current.values()).map(
-          (t) => ({
-            name: t.name,
-            description: t.description,
-            parameters: t.inputSchema
-              ? convertSchemaToJsonSchema(t.inputSchema)
-              : { type: 'object' },
-          }),
-        ),
+        clientTools: Array.from(clientTools.values()).map((t) => ({
+          name: t.name,
+          description: t.description,
+          parameters: t.inputSchema
+            ? convertSchemaToJsonSchema(t.inputSchema)
+            : { type: 'object' },
+        })),
         forwardedProps: { ...mergedBody },
       }
 
@@ -726,6 +774,8 @@ export class ChatClient<
       if (generation === this.streamGeneration) {
         this.currentStreamId = null
         this.currentMessageId = null
+        this.activeClientTools = null
+        this.activeContext = undefined
         this.abortController = null
         this.setIsLoading(false)
         this.pendingMessageBody = undefined // Ensure it's cleared even on error
@@ -840,13 +890,31 @@ export class ChatClient<
   /**
    * Add the result of a client-side tool execution
    */
-  async addToolResult(result: {
-    toolCallId: string
-    tool: string
-    output: any
-    state?: 'output-available' | 'output-error'
-    errorText?: string
-  }): Promise<void> {
+  async addToolResult(result: ClientToolResult): Promise<void> {
+    const clientTool = this.clientToolsRef.current.get(result.tool)
+    await this.addToolResultForClientTool(result, clientTool)
+  }
+
+  private async addToolResultForClientTool(
+    result: ClientToolResult,
+    clientTool: AnyClientTool | undefined,
+  ): Promise<void> {
+    if (clientTool && result.state !== 'output-error') {
+      try {
+        result = {
+          ...result,
+          output: this.validateClientToolOutput(clientTool, result.output),
+        }
+      } catch (error: any) {
+        result = {
+          ...result,
+          output: null,
+          state: 'output-error',
+          errorText: error.message,
+        }
+      }
+    }
+
     this.events.toolResultAdded(
       result.toolCallId,
       result.tool,
@@ -868,6 +936,17 @@ export class ChatClient<
     }
 
     await this.checkForContinuation()
+  }
+
+  private validateClientToolOutput(
+    clientTool: AnyClientTool,
+    output: any,
+  ): any {
+    if (clientTool.outputSchema && isStandardSchema(clientTool.outputSchema)) {
+      return parseWithStandardSchema(clientTool.outputSchema, output)
+    }
+
+    return output
   }
 
   /**
@@ -983,8 +1062,8 @@ export class ChatClient<
   /**
    * Get current messages
    */
-  getMessages(): Array<UIMessage> {
-    return this.processor.getMessages()
+  getMessages(): Array<UIMessage<TTools>> {
+    return this.processor.getMessages() as Array<UIMessage<TTools>>
   }
 
   /**
@@ -1035,33 +1114,23 @@ export class ChatClient<
   /**
    * Manually set messages
    */
-  setMessagesManually(messages: Array<UIMessage>): void {
+  setMessagesManually(messages: Array<UIMessage<TTools>>): void {
     this.processor.setMessages(messages)
   }
 
   /**
    * Update options refs (for use in React hooks to avoid recreating client)
    */
-  updateOptions(options: {
-    connection?: ConnectionAdapter
-    /** @deprecated Use `forwardedProps` instead. */
-    body?: Record<string, any>
-    forwardedProps?: Record<string, any>
-    tools?: ReadonlyArray<AnyClientTool>
-    context?: TContext | undefined
-    onResponse?: (response?: Response) => void | Promise<void>
-    onChunk?: (chunk: StreamChunk) => void
-    onFinish?: (message: UIMessage) => void
-    onError?: (error: Error) => void
-    onSubscriptionChange?: (isSubscribed: boolean) => void
-    onConnectionStatusChange?: (status: ConnectionStatus) => void
-    onSessionGeneratingChange?: (isGenerating: boolean) => void
-    onCustomEvent?: (
-      eventType: string,
-      data: unknown,
-      context: { toolCallId?: string },
-    ) => void
-  }): void {
+  updateOptions(options: ChatClientUpdateOptionsWithoutContext<TTools>): void
+  updateOptions(
+    options: ChatClientUpdateOptionsWithoutContext<TTools> &
+      Pick<ChatClientOptions<TTools, TContext>, 'context'>,
+  ): void
+  updateOptions(
+    options: ChatClientUpdateOptionsWithoutContext<TTools> & {
+      context?: TContext | undefined
+    },
+  ): void {
     if (options.connection !== undefined) {
       const wasSubscribed = this.isSubscribed
 

@@ -1154,19 +1154,36 @@ export class StreamProcessor {
         this.messages,
         chunk.toolCallId,
         output,
+        chunk.state === 'output-error' ? 'input-complete' : undefined,
       )
 
       // Step 2: Create/update the tool-result part (for LLM conversation history)
-      const resultState: ToolResultState = 'complete'
+      const resultState: ToolResultState =
+        chunk.state === 'output-error' ? 'error' : 'complete'
       this.messages = updateToolResultPart(
         this.messages,
         messageId,
         chunk.toolCallId,
         chunk.result,
         resultState,
+        resultState === 'error'
+          ? this.extractToolResultError(output)
+          : undefined,
       )
       this.emitMessagesChange()
     }
+  }
+
+  private extractToolResultError(output: unknown): string {
+    if (
+      output &&
+      typeof output === 'object' &&
+      'error' in output &&
+      typeof output.error === 'string'
+    ) {
+      return output.error
+    }
+    return typeof output === 'string' ? output : 'Tool execution failed'
   }
 
   /**
@@ -1193,16 +1210,19 @@ export class StreamProcessor {
       this.messages,
       chunk.toolCallId,
       output,
+      chunk.state === 'output-error' ? 'input-complete' : undefined,
     )
 
     // Step 2: Create/update the tool-result part
-    const resultState: ToolResultState = 'complete'
+    const resultState: ToolResultState =
+      chunk.state === 'output-error' ? 'error' : 'complete'
     this.messages = updateToolResultPart(
       this.messages,
       messageId,
       chunk.toolCallId,
       chunk.content,
       resultState,
+      resultState === 'error' ? this.extractToolResultError(output) : undefined,
     )
     this.emitMessagesChange()
   }

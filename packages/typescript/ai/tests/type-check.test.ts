@@ -4,7 +4,13 @@
  */
 
 import { describe, it, expectTypeOf } from 'vitest'
-import { createChatOptions, mergeAgentTools, toolDefinition } from '../src'
+import {
+  createChatOptions,
+  createToolRegistry,
+  mergeAgentTools,
+  toolDefinition,
+} from '../src'
+import { ToolCallManager } from '../src/activities/chat/tools/tool-calls'
 import type { TextAdapter } from '../src/activities/chat/adapter'
 import type { ChatMiddleware } from '../src'
 
@@ -126,6 +132,18 @@ describe('TextActivityOptions type checking', () => {
       // @ts-expect-error - db is required by AppContext
       context: { userId: 'u-1' },
     })
+
+    // @ts-expect-error - direct execution also requires runtime context
+    tool.execute?.({})
+
+    tool.execute?.(
+      {},
+      {
+        toolCallId: 'call-1',
+        context: { userId: 'u-1', db: { name: 'primary' } },
+        emitCustomEvent: () => {},
+      },
+    )
   })
 
   it('allows context omission when typed consumers accept undefined', () => {
@@ -134,8 +152,8 @@ describe('TextActivityOptions type checking', () => {
       name: 'optionalContext',
       description: 'Accepts optional context',
     }).server<OptionalContext>((_input, ctx) => {
-      expectTypeOf(ctx.context).toEqualTypeOf<OptionalContext>()
-      return { userId: ctx.context?.userId ?? null }
+      expectTypeOf(ctx?.context).toEqualTypeOf<OptionalContext>()
+      return { userId: ctx?.context?.userId ?? null }
     })
 
     createChatOptions({
@@ -236,8 +254,8 @@ describe('TextActivityOptions type checking', () => {
       name: 'widenedOptionalContextTool',
       description: 'Accepts optional tenant context',
     }).server<OptionalTenantContext>((_input, ctx) => {
-      expectTypeOf(ctx.context).toEqualTypeOf<OptionalTenantContext>()
-      return { tenantId: ctx.context?.tenantId ?? null }
+      expectTypeOf(ctx?.context).toEqualTypeOf<OptionalTenantContext>()
+      return { tenantId: ctx?.context?.tenantId ?? null }
     })
 
     const requiredMiddleware: ChatMiddleware<UserContext> = {}
@@ -344,6 +362,78 @@ describe('TextActivityOptions type checking', () => {
       messages: [{ role: 'user', content: 'Hello' }],
       tools: mergedTools,
       // @ts-expect-error - merged server tools still require AppContext
+      context: {},
+    })
+  })
+
+  it('requires inferred context for ToolCallManager execution', () => {
+    type AppContext = { userId: string }
+
+    const tool = toolDefinition({
+      name: 'managerRequiresContext',
+      description: 'Requires runtime context',
+    }).server<AppContext>((_input, ctx) => {
+      expectTypeOf(ctx.context.userId).toEqualTypeOf<string>()
+      return { ok: true }
+    })
+
+    const manager = new ToolCallManager([tool])
+
+    // @ts-expect-error - required-context tools cannot execute without context
+    manager.executeTools({} as never)
+
+    manager.executeTools({} as never, { userId: 'u-1' })
+
+    // @ts-expect-error - provided context must satisfy the managed tools
+    manager.executeTools({} as never, {})
+  })
+
+  it('allows ToolCallManager context omission for optional-context tools', () => {
+    type OptionalContext = { userId: string } | undefined
+
+    const tool = toolDefinition({
+      name: 'managerOptionalContext',
+      description: 'Accepts optional runtime context',
+    }).server<OptionalContext>((_input, ctx) => {
+      expectTypeOf(ctx?.context).toEqualTypeOf<OptionalContext>()
+      return { ok: true }
+    })
+
+    const manager = new ToolCallManager([tool])
+
+    manager.executeTools({} as never)
+    manager.executeTools({} as never, { userId: 'u-1' })
+  })
+
+  it('preserves context-required tools in tool registries', () => {
+    type AppContext = { userId: string }
+
+    const tool = toolDefinition({
+      name: 'registryRequiresContext',
+      description: 'Requires runtime context',
+    }).server<AppContext>((_input, ctx) => {
+      expectTypeOf(ctx.context.userId).toEqualTypeOf<string>()
+      return { ok: true }
+    })
+
+    const registry = createToolRegistry([tool])
+    registry.add(tool)
+
+    const [registeredTool] = registry.getTools()
+    expectTypeOf(registeredTool).toMatchTypeOf<typeof tool | undefined>()
+
+    createChatOptions({
+      adapter: mockAdapter,
+      messages: [{ role: 'user', content: 'Hello' }],
+      tools: registry.getTools(),
+      context: { userId: 'u-1' },
+    })
+
+    createChatOptions({
+      adapter: mockAdapter,
+      messages: [{ role: 'user', content: 'Hello' }],
+      tools: registry.getTools(),
+      // @ts-expect-error - registry tools still require AppContext
       context: {},
     })
   })

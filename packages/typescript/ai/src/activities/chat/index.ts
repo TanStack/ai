@@ -95,11 +95,15 @@ type UnionToIntersection<T> = [T] extends [never]
 
 type DefinedContext<T> = Exclude<T, undefined>
 
+type ContextFromExecute<T> = T extends (...args: any) => any
+  ? NonNullable<Parameters<T>[1]> extends { context: infer TUserContext }
+    ? KnownContext<TUserContext>
+    : never
+  : never
+
 type ContextFromTool<T> = T extends AnyRuntimeTool
-  ? T extends { execute?: (args: any, context?: infer TContext) => any }
-    ? TContext extends { context: infer TUserContext }
-      ? KnownContext<TUserContext>
-      : never
+  ? T extends { execute?: infer TExecute }
+    ? ContextFromExecute<TExecute>
     : never
   : never
 
@@ -467,7 +471,7 @@ class TextEngine<
   private systemPrompts: Array<SystemPrompt>
   private tools: Array<AnyRuntimeTool>
   private readonly loopStrategy: AgentLoopStrategy
-  private toolCallManager: ToolCallManager<TContext>
+  private toolCallManager: ToolCallManager<ReadonlyArray<AnyTool>, TContext>
   private readonly lazyToolManager: LazyToolManager
   private readonly initialMessageCount: number
   private readonly requestId: string
@@ -562,7 +566,10 @@ class TextEngine<
       this.messages,
     )
     this.tools = this.lazyToolManager.getActiveTools()
-    this.toolCallManager = new ToolCallManager<TContext>(this.tools)
+    this.toolCallManager = new ToolCallManager<
+      ReadonlyArray<AnyTool>,
+      TContext
+    >(this.tools)
     this.requestId = this.createId('chat')
     this.streamId = this.createId('stream')
     this.effectiveRequest = config.params.abortController
@@ -583,13 +590,10 @@ class TextEngine<
     // handleStreamChunk processes raw chunks BEFORE middleware, so internal
     // state management sees extended fields (finishReason, delta, toolCallName, etc.).
     // The strip middleware ensures the yielded public stream is AG-UI spec-compliant.
-    // `devtoolsMiddleware()` returns a structurally compatible
-    // `DevtoolsChatMiddleware` (defined in `@tanstack/ai-event-client` to
-    // avoid a circular dep). Cast it to `ChatMiddleware` for the runner.
     const allMiddleware: Array<ChatMiddleware<TContext>> = [
-      devtoolsMiddleware() as ChatMiddleware<TContext>,
+      devtoolsMiddleware(),
       ...(config.middleware || []),
-      stripToSpecMiddleware() as ChatMiddleware<TContext>,
+      stripToSpecMiddleware(),
     ]
     this.middlewareRunner = new MiddlewareRunner(allMiddleware, logger)
     this.middlewareAbortController = new AbortController()
@@ -1393,7 +1397,10 @@ class TextEngine<
     // Refresh tools if lazy tools were discovered in this batch
     if (this.lazyToolManager.hasNewlyDiscoveredTools()) {
       this.tools = this.lazyToolManager.getActiveTools()
-      this.toolCallManager = new ToolCallManager<TContext>(this.tools)
+      this.toolCallManager = new ToolCallManager<
+        ReadonlyArray<AnyTool>,
+        TContext
+      >(this.tools)
       this.setToolPhase('continue')
       return
     }
@@ -1596,6 +1603,7 @@ class TextEngine<
         toolCallName: result.toolName,
         toolName: result.toolName,
         result: content,
+        ...(result.state !== undefined && { state: result.state }),
       } as StreamChunk)
 
       // AG-UI spec TOOL_CALL_RESULT event
@@ -1607,6 +1615,7 @@ class TextEngine<
         toolCallId: result.toolCallId,
         content,
         role: 'tool',
+        ...(result.state !== undefined && { state: result.state }),
       } as StreamChunk)
 
       // If a placeholder tool message exists for this toolCallId (created by

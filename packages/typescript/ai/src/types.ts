@@ -50,6 +50,8 @@ export type ToolResultState =
   | 'complete' // Result is complete
   | 'error' // Error occurred
 
+export type ToolOutputState = 'output-available' | 'output-error'
+
 /**
  * JSON Schema type for defining tool input/output schemas as raw JSON Schema objects.
  * This allows tools to be defined without schema libraries when you have JSON Schema definitions available.
@@ -499,6 +501,20 @@ export type ToolExecutionContext<TContext = unknown> =
     emitCustomEvent: (eventName: string, value: Record<string, any>) => void
   }
 
+export type ToolExecuteFunction<
+  TInput extends SchemaInput = SchemaInput,
+  TOutput extends SchemaInput = SchemaInput,
+  TContext = unknown,
+> = undefined extends TContext
+  ? (
+      args: InferSchemaType<TInput>,
+      context?: ToolExecutionContext<TContext>,
+    ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>
+  : (
+      args: InferSchemaType<TInput>,
+      context: ToolExecutionContext<TContext>,
+    ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>
+
 /**
  * Tool/Function definition for function calling.
  *
@@ -616,12 +632,7 @@ export interface Tool<
    *   return weather; // Can return object or string
    * }
    */
-  execute?:
-    | ((
-        args: InferSchemaType<TInput>,
-        context?: ToolExecutionContext<TContext>,
-      ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>)
-    | undefined
+  execute?: ToolExecuteFunction<TInput, TOutput, TContext> | undefined
 
   /** If true, tool execution requires user approval before running. Works with both server and client tools. */
   needsApproval?: boolean
@@ -1082,6 +1093,8 @@ export interface ToolCallEndEvent extends AGUIToolCallEndEvent {
   input?: unknown
   /** Tool execution result (TanStack AI internal) */
   result?: string
+  /** Tool execution output state (TanStack AI internal) */
+  state?: ToolOutputState
 }
 
 /**
@@ -1093,6 +1106,8 @@ export interface ToolCallEndEvent extends AGUIToolCallEndEvent {
 export interface ToolCallResultEvent extends AGUIToolCallResultEvent {
   /** Model identifier for multi-model support */
   model?: string
+  /** Tool execution output state (TanStack AI internal) */
+  state?: ToolOutputState
 }
 
 /**

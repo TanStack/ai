@@ -113,7 +113,7 @@ export class MiddlewareRunner<TContext = unknown> {
    * same boundary (which receives a ChatMiddlewareConfig view, no outputSchema).
    */
   async runOnStructuredOutputConfig(
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     config: StructuredOutputMiddlewareConfig,
   ): Promise<StructuredOutputMiddlewareConfig> {
     let current = config

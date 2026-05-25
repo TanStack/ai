@@ -7,6 +7,7 @@ title: chatParamsFromRequestBody
 
 ```ts
 function chatParamsFromRequestBody(body): Promise<{
+  aguiContext: object[];
   context: object[];
   forwardedProps: Record<string, unknown>;
   messages: (
@@ -32,6 +33,9 @@ passing directly to `chat({ messages })`. The existing
 `convertMessagesToModelMessages` handles AG-UI fan-out dedup and
 reasoning/activity/developer-role normalization internally.
 
+`context` is a deprecated alias of `aguiContext` kept for backward
+compatibility.
+
 ## Parameters
 
 ### body
@@ -41,6 +45,7 @@ reasoning/activity/developer-role normalization internally.
 ## Returns
 
 `Promise`\<\{
+  `aguiContext`: `object`[];
   `context`: `object`[];
   `forwardedProps`: `Record`\<`string`, `unknown`\>;
   `messages`: (

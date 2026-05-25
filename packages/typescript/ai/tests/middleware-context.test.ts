@@ -44,6 +44,40 @@ describe('middleware runtime context', () => {
       }),
     )
 
-    expect(seen).toEqual([context, context])
+    expect(seen[0]).toBe(context)
+    expect(seen[1]).toBe(context)
+  })
+
+  it('allows server tools with optional context to run without runtime context', async () => {
+    const seen: Array<unknown> = []
+
+    const tool = toolDefinition({
+      name: 'optional_context',
+      description: 'Read optional context',
+    }).server<{ userId: string } | undefined>((_input, ctx) => {
+      seen.push(ctx?.context)
+      return { ok: true }
+    })
+
+    const { adapter } = createMockAdapter({
+      iterations: [
+        [
+          ev.toolStart('tc-1', 'optional_context'),
+          ev.toolArgs('tc-1', '{}'),
+          ev.runFinished('tool_calls'),
+        ],
+        [ev.textContent('done'), ev.runFinished('stop')],
+      ],
+    })
+
+    await collectChunks(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'hello' }],
+        tools: [tool],
+      }),
+    )
+
+    expect(seen).toEqual([undefined])
   })
 })

@@ -158,11 +158,17 @@ const loggingMiddleware: ChatMiddleware = {
   },
 }
 
+function maskIdentifier(value: string): string {
+  if (!value) return '<empty>'
+  if (value.length <= 4) return '***'
+  return `${value.slice(0, 2)}***${value.slice(-2)}`
+}
+
 const runtimeContextMiddleware: ChatMiddleware<ServerRuntimeContext> = {
   name: 'runtime-context',
   onStart(ctx) {
     console.log(
-      `[runtime-context] onStart user=${ctx.context.userId} tenant=${ctx.context.tenantId} tier=${ctx.context.loyaltyTier}`,
+      `[runtime-context] onStart user=${maskIdentifier(ctx.context.userId)} tenant=${maskIdentifier(ctx.context.tenantId)} tier=${ctx.context.loyaltyTier}`,
     )
   },
   onBeforeToolCall(ctx, toolCtx) {

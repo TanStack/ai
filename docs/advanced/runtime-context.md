@@ -266,7 +266,7 @@ Treat `forwardedProps` as client-controlled input. Validate and allowlist every 
 
 AG-UI also defines `RunAgentInput.context`, usually as protocol-level context entries for interoperable agents. TanStack AI surfaces that field through `chatParamsFromRequest`, but it is separate from `chat({ context })`.
 
-TanStack AI does not automatically copy AG-UI `params.context` into runtime context. If you want to use AG-UI context values, validate and map them yourself:
+TanStack AI does not automatically copy AG-UI `params.aguiContext` into runtime context. If you want to use AG-UI context values, validate and map them yourself. `params.context` is a deprecated alias of `params.aguiContext` kept for backward compatibility.
 
 ```typescript
 const params = await chatParamsFromRequest(request);
@@ -275,6 +275,6 @@ const stream = chat({
   adapter,
   messages: params.messages,
   tools,
-  context: buildRuntimeContextFrom(params.context),
+  context: buildRuntimeContextFrom(params.aguiContext),
 });
 ```

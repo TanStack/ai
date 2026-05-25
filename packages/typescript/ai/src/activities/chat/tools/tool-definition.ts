@@ -1,10 +1,9 @@
 import type { StandardJSONSchemaV1 } from '@standard-schema/spec'
 import type {
-  InferSchemaType,
   JSONSchema,
   SchemaInput,
   Tool,
-  ToolExecutionContext,
+  ToolExecuteFunction,
 } from '../../../types'
 
 /**
@@ -41,10 +40,7 @@ export interface ClientTool<
   needsApproval?: boolean
   lazy?: boolean
   metadata?: Record<string, unknown>
-  execute?: (
-    args: InferSchemaType<TInput>,
-    context?: ToolExecutionContext<TContext>,
-  ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>
+  execute?: ToolExecuteFunction<TInput, TOutput, TContext>
 }
 
 /**
@@ -126,20 +122,14 @@ export interface ToolDefinition<
    * Create a server-side tool with execute function
    */
   server: <TContext = unknown>(
-    execute: (
-      args: InferSchemaType<TInput>,
-      context: ToolExecutionContext<TContext>,
-    ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>,
+    execute: ToolExecuteFunction<TInput, TOutput, TContext>,
   ) => ServerTool<TInput, TOutput, TName, TContext>
 
   /**
    * Create a client-side tool with optional execute function
    */
   client: <TContext = unknown>(
-    execute?: (
-      args: InferSchemaType<TInput>,
-      context: ToolExecutionContext<TContext>,
-    ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>,
+    execute?: ToolExecuteFunction<TInput, TOutput, TContext>,
   ) => ClientTool<TInput, TOutput, TName, TContext>
 }
 
@@ -209,32 +199,22 @@ export function toolDefinition<
     __toolSide: 'definition',
     ...config,
     server<TContext = unknown>(
-      execute: (
-        args: InferSchemaType<TInput>,
-        context: ToolExecutionContext<TContext>,
-      ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>,
+      execute: ToolExecuteFunction<TInput, TOutput, TContext>,
     ): ServerTool<TInput, TOutput, TName, TContext> {
       return {
         __toolSide: 'server',
         ...config,
-        execute: (args, context) =>
-          execute(args, context as ToolExecutionContext<TContext>),
+        execute,
       }
     },
 
     client<TContext = unknown>(
-      execute?: (
-        args: InferSchemaType<TInput>,
-        context: ToolExecutionContext<TContext>,
-      ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>,
+      execute?: ToolExecuteFunction<TInput, TOutput, TContext>,
     ): ClientTool<TInput, TOutput, TName, TContext> {
       return {
         __toolSide: 'client',
         ...config,
-        ...(execute !== undefined && {
-          execute: (args, context) =>
-            execute(args, context as ToolExecutionContext<TContext>),
-        }),
+        ...(execute !== undefined && { execute }),
       }
     },
   }

@@ -7,6 +7,7 @@ title: chatParamsFromRequest
 
 ```ts
 function chatParamsFromRequest(req): Promise<{
+  aguiContext: object[];
   context: object[];
   forwardedProps: Record<string, unknown>;
   messages: (
@@ -47,6 +48,9 @@ In frameworks that do not auto-handle thrown `Response` objects
 with try/catch and return the caught Response yourself, or use
 `chatParamsFromRequestBody` directly with your own JSON-parsing.
 
+`context` is a deprecated alias of `aguiContext` kept for backward
+compatibility.
+
 ## Parameters
 
 ### req
@@ -56,6 +60,7 @@ with try/catch and return the caught Response yourself, or use
 ## Returns
 
 `Promise`\<\{
+  `aguiContext`: `object`[];
   `context`: `object`[];
   `forwardedProps`: `Record`\<`string`, `unknown`\>;
   `messages`: (

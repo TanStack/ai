@@ -226,13 +226,15 @@ type UnionToIntersection<T> = [T] extends [never]
 
 type DefinedContext<T> = Exclude<T, undefined>
 
+type ContextFromExecute<T> = T extends (...args: any) => any
+  ? NonNullable<Parameters<T>[1]> extends { context: infer TContext }
+    ? KnownContext<TContext>
+    : never
+  : never
+
 type ContextFromClientTool<T> = T extends AnyClientTool
-  ? T extends {
-      execute?: (args: any, context?: infer TExecutionContext) => any
-    }
-    ? TExecutionContext extends { context: infer TContext }
-      ? KnownContext<TContext>
-      : never
+  ? T extends { execute?: infer TExecute }
+    ? ContextFromExecute<TExecute>
     : never
   : never
 

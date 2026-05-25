@@ -3339,6 +3339,41 @@ describe('StreamProcessor', () => {
       expect(toolResultPart.content).toBe('{"temp": 72}')
       expect(toolResultPart.state).toBe('complete')
     })
+
+    it('should mark output-error tool results as errored message parts', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.textStart())
+      processor.processChunk(ev.toolStart('tc-1', 'get_weather'))
+      processor.processChunk(
+        ev.toolEnd('tc-1', 'get_weather', {
+          input: { city: 'NYC' },
+        }),
+      )
+      processor.processChunk(
+        chunk(EventType.TOOL_CALL_RESULT, {
+          messageId: 'tool-result-1',
+          toolCallId: 'tc-1',
+          content: '{"error":"boom"}',
+          role: 'tool',
+          state: 'output-error',
+        }),
+      )
+
+      const messages = processor.getMessages()
+      const toolCallPart = messages[0]?.parts.find(
+        (p) => p.type === 'tool-call',
+      ) as ToolCallPart
+      expect(toolCallPart.output).toEqual({ error: 'boom' })
+      expect(toolCallPart.state).toBe('input-complete')
+
+      const toolResultPart = messages[0]?.parts.find(
+        (p) => p.type === 'tool-result',
+      ) as ToolResultPart
+      expect(toolResultPart.state).toBe('error')
+      expect(toolResultPart.error).toBe('boom')
+    })
   })
 
   describe('Structured output parts', () => {

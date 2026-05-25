@@ -10,6 +10,7 @@ import type {
   ToolCallEndEvent,
   ToolCallStartEvent,
   ToolExecutionContext,
+  ToolOutputState,
 } from '../../../types'
 import type {
   AfterToolCallInfo,
@@ -47,6 +48,61 @@ export class MiddlewareAbortError extends Error {
   }
 }
 
+type IsUnknown<T> = unknown extends T
+  ? [T] extends [unknown]
+    ? true
+    : false
+  : false
+
+type KnownContext<T> = IsUnknown<T> extends true ? never : T
+
+type UnionToIntersection<T> = [T] extends [never]
+  ? never
+  : (T extends unknown ? (value: T) => void : never) extends (
+        value: infer TIntersection,
+      ) => void
+    ? TIntersection
+    : never
+
+type DefinedContext<T> = Exclude<T, undefined>
+
+type ContextFromExecute<T> = T extends (...args: any) => any
+  ? NonNullable<Parameters<T>[1]> extends { context: infer TUserContext }
+    ? KnownContext<TUserContext>
+    : never
+  : never
+
+type ContextFromTool<T> = T extends { execute?: infer TExecute }
+  ? ContextFromExecute<TExecute>
+  : never
+
+type RequiredContextFromToolUnion<T> = T extends unknown
+  ? undefined extends ContextFromTool<T>
+    ? never
+    : ContextFromTool<T>
+  : never
+
+type ContextFromToolUnion<T> = [
+  UnionToIntersection<DefinedContext<ContextFromTool<T>>>,
+] extends [never]
+  ? unknown
+  : [RequiredContextFromToolUnion<T>] extends [never]
+    ? UnionToIntersection<DefinedContext<ContextFromTool<T>>> | undefined
+    : UnionToIntersection<DefinedContext<ContextFromTool<T>>>
+
+type ContextFromTools<TTools> = TTools extends readonly [
+  infer THead,
+  ...infer TTail,
+]
+  ? ContextFromTool<THead> & ContextFromTools<TTail>
+  : TTools extends ReadonlyArray<infer TTool>
+    ? ContextFromToolUnion<TTool>
+    : unknown
+
+type ExecuteToolsContextArgs<TContext> = undefined extends TContext
+  ? [userContext?: TContext]
+  : [userContext: TContext]
+
 /**
  * Manages tool call accumulation and execution for the chat() method's automatic tool execution loop.
  *
@@ -81,11 +137,22 @@ export class MiddlewareAbortError extends Error {
  * }
  * ```
  */
-export class ToolCallManager<TContext = unknown> {
+export class ToolCallManager<
+  TToolsOrContext = ReadonlyArray<AnyTool>,
+  TContext = TToolsOrContext extends ReadonlyArray<AnyTool>
+    ? ContextFromTools<TToolsOrContext>
+    : TToolsOrContext,
+> {
   private readonly toolCallsMap = new Map<number, ToolCall>()
-  private readonly tools: ReadonlyArray<AnyTool>
+  private readonly tools: TToolsOrContext extends ReadonlyArray<AnyTool>
+    ? TToolsOrContext
+    : ReadonlyArray<AnyTool>
 
-  constructor(tools: ReadonlyArray<AnyTool>) {
+  constructor(
+    tools: TToolsOrContext extends ReadonlyArray<AnyTool>
+      ? TToolsOrContext
+      : ReadonlyArray<AnyTool>,
+  ) {
     this.tools = tools
   }
 
@@ -162,16 +229,18 @@ export class ToolCallManager<TContext = unknown> {
    */
   async *executeTools(
     finishEvent: RunFinishedEvent,
-    userContext?: TContext,
+    ...contextArgs: ExecuteToolsContextArgs<TContext>
   ): AsyncGenerator<ToolCallEndEvent, Array<ModelMessage>, void> {
     const toolCallsArray = this.getToolCalls()
     const toolResults: Array<ModelMessage> = []
-    const hasRuntimeContext = arguments.length > 1
+    const hasRuntimeContext = contextArgs.length > 0
+    const userContext = contextArgs[0]
 
     for (const toolCall of toolCallsArray) {
       const tool = this.tools.find((t) => t.name === toolCall.function.name)
 
       let toolResultContent: string
+      let toolResultState: ToolOutputState | undefined
       if (tool?.execute) {
         try {
           // Parse arguments (normalize null/non-object to {} for empty tool_use blocks)
@@ -202,22 +271,17 @@ export class ToolCallManager<TContext = unknown> {
           }
 
           // Execute the tool
-          const executionContext: ToolExecutionContext<TContext> = {
+          const executionContext = {
             toolCallId: toolCall.id,
-            context: userContext as TContext,
+            context: userContext,
             emitCustomEvent: () => {},
-          }
+          } as ToolExecutionContext<TContext>
           let result = hasRuntimeContext
             ? await tool.execute(args, executionContext)
             : await tool.execute(args)
 
           // Validate output against outputSchema if provided (for Standard Schema compliant schemas)
-          if (
-            tool.outputSchema &&
-            isStandardSchema(tool.outputSchema) &&
-            result !== undefined &&
-            result !== null
-          ) {
+          if (tool.outputSchema && isStandardSchema(tool.outputSchema)) {
             try {
               result = parseWithStandardSchema(tool.outputSchema, result)
             } catch (validationError: unknown) {
@@ -238,6 +302,7 @@ export class ToolCallManager<TContext = unknown> {
           const message =
             error instanceof Error ? error.message : 'Unknown error'
           toolResultContent = `Error executing tool: ${message}`
+          toolResultState = 'output-error'
         }
       } else {
         // Tool doesn't have execute function, add placeholder
@@ -253,6 +318,7 @@ export class ToolCallManager<TContext = unknown> {
         model: finishEvent.model,
         timestamp: Date.now(),
         result: toolResultContent,
+        ...(toolResultState !== undefined && { state: toolResultState }),
       } as ToolCallEndEvent
 
       // Add tool result message
@@ -380,7 +446,7 @@ async function applyBeforeToolCallDecision(
       result:
         typeof skipResult === 'string'
           ? safeJsonParse(skipResult)
-          : skipResult || null,
+          : (skipResult ?? null),
       duration: 0,
     })
     if (middlewareHooks.onAfterToolCall) {
@@ -430,17 +496,12 @@ async function* executeServerTool<TContext = unknown>(
     }
 
     // Validate output against outputSchema if provided
-    if (
-      tool.outputSchema &&
-      isStandardSchema(tool.outputSchema) &&
-      result !== undefined &&
-      result !== null
-    ) {
+    if (tool.outputSchema && isStandardSchema(tool.outputSchema)) {
       result = parseWithStandardSchema(tool.outputSchema, result)
     }
 
     const finalResult =
-      typeof result === 'string' ? safeJsonParse(result) : result || null
+      typeof result === 'string' ? safeJsonParse(result) : (result ?? null)
 
     results.push({
       toolCallId: toolCall.id,
@@ -492,6 +553,35 @@ async function* executeServerTool<TContext = unknown>(
         duration,
         error,
       })
+    }
+  }
+}
+
+function buildClientToolResult(
+  toolCallId: string,
+  toolName: string,
+  tool: AnyTool,
+  rawResult: unknown,
+): ToolResult {
+  try {
+    let result = rawResult
+    if (tool.outputSchema && isStandardSchema(tool.outputSchema)) {
+      result = parseWithStandardSchema(tool.outputSchema, result)
+    }
+
+    return {
+      toolCallId,
+      toolName,
+      result:
+        typeof result === 'string' ? safeJsonParse(result) : (result ?? null),
+    }
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Validation failed'
+    return {
+      toolCallId,
+      toolName,
+      result: { error: message },
+      state: 'output-error',
     }
   }
 }
@@ -599,9 +689,9 @@ export async function* executeToolCalls<TContext = unknown>(
 
     // Create a ToolExecutionContext for this tool call with event emission
     const pendingEvents: Array<CustomEvent> = []
-    const context: ToolExecutionContext<TContext> = {
+    const context = {
       toolCallId: toolCall.id,
-      context: userContext as TContext,
+      context: userContext,
       emitCustomEvent: (eventName: string, value: Record<string, any>) => {
         if (createCustomEventChunk) {
           pendingEvents.push(
@@ -612,7 +702,7 @@ export async function* executeToolCalls<TContext = unknown>(
           )
         }
       },
-    }
+    } as ToolExecutionContext<TContext>
 
     // CASE 1: Client-side tool (no execute function)
     if (!tool.execute) {
@@ -627,11 +717,14 @@ export async function* executeToolCalls<TContext = unknown>(
           if (approved) {
             // Approved - check if client has executed
             if (clientResults.has(toolCall.id)) {
-              results.push({
-                toolCallId: toolCall.id,
-                toolName,
-                result: clientResults.get(toolCall.id),
-              })
+              results.push(
+                buildClientToolResult(
+                  toolCall.id,
+                  toolName,
+                  tool,
+                  clientResults.get(toolCall.id),
+                ),
+              )
             } else {
               // Approved but not executed yet - request client execution
               needsClientExecution.push({
@@ -661,11 +754,14 @@ export async function* executeToolCalls<TContext = unknown>(
       } else {
         // No approval needed - check if client has executed
         if (clientResults.has(toolCall.id)) {
-          results.push({
-            toolCallId: toolCall.id,
-            toolName,
-            result: clientResults.get(toolCall.id),
-          })
+          results.push(
+            buildClientToolResult(
+              toolCall.id,
+              toolName,
+              tool,
+              clientResults.get(toolCall.id),
+            ),
+          )
         } else {
           // Request client execution
           needsClientExecution.push({

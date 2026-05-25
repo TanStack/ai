@@ -195,11 +195,11 @@ function RuntimeMessages({
                       className="prose max-w-none text-white dark:prose-invert"
                     >
                       <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
                         rehypePlugins={[
                           rehypeRaw,
                           rehypeSanitize,
                           rehypeHighlight,
-                          remarkGfm,
                         ]}
                       >
                         {part.content}

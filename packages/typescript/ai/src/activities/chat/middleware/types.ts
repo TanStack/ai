@@ -382,7 +382,7 @@ export interface ChatMiddleware<TContext = unknown> {
    * outputSchema or apply structured-output-specific behavior.
    */
   onStructuredOutputConfig?: (
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     config: StructuredOutputMiddlewareConfig,
   ) =>
     | void

@@ -55,6 +55,8 @@ export {
 // Schema conversion (Standard JSON Schema compliant)
 export {
   convertSchemaToJsonSchema,
+  isStandardSchema,
+  parseWithStandardSchema,
   StandardSchemaValidationError,
 } from './activities/chat/tools/schema-converter'
 

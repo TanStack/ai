@@ -5,7 +5,11 @@ import {
   toolsToBindings,
 } from '@tanstack/ai-code-mode'
 import { z } from 'zod'
-import type { ServerTool, ToolExecutionContext } from '@tanstack/ai'
+import type {
+  SchemaInput,
+  ServerTool,
+  ToolExecutionContext,
+} from '@tanstack/ai'
 import type {
   CodeModeTool,
   IsolateDriver,
@@ -155,7 +159,7 @@ export function skillToTool({
   storage,
   timeout = 30000,
   memoryLimit = 128,
-}: SkillToToolOptions): ServerTool<any, any, any> {
+}: SkillToToolOptions): ServerTool<SchemaInput, SchemaInput, string> {
   // Generate input and output schemas from JSON Schema
   const inputSchema = jsonSchemaToZod(skill.inputSchema)
   const outputSchema = jsonSchemaToZod(skill.outputSchema)
@@ -297,7 +301,9 @@ export function skillsToTools({
   storage,
   timeout = 30000,
   memoryLimit = 128,
-}: SkillsToToolsOptions): Array<ServerTool<any, any, any>> {
+}: SkillsToToolsOptions): Array<
+  ServerTool<SchemaInput, SchemaInput, string>
+> {
   // Pre-compute bindings from tools (these are shared across all skill executions)
   console.log(
     '[SkillsToTools] Creating bindings from tools:',

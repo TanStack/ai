@@ -49,7 +49,12 @@ export function chatParamsFromRequestBody(body: unknown): Promise<{
   tools: Array<{ name: string; description: string; parameters: JSONSchema }>
   forwardedProps: Record<string, unknown>
   state: unknown
+  /**
+   * @deprecated Use `aguiContext` instead. This alias will be removed in a
+   * future release.
+   */
   context: Array<AGUIContext>
+  aguiContext: Array<AGUIContext>
 }> {
   const parseResult = RunAgentInputSchema.safeParse(body)
   if (!parseResult.success) {
@@ -64,6 +69,7 @@ export function chatParamsFromRequestBody(body: unknown): Promise<{
   }
 
   const parsed = parseResult.data
+  const aguiContext = parsed.context
 
   // AG-UI Zod uses `.strip()` so extra fields like `parts` on messages are
   // dropped during parse. We re-attach them from the original body so the
@@ -95,7 +101,8 @@ export function chatParamsFromRequestBody(body: unknown): Promise<{
     }>,
     forwardedProps: (parsed.forwardedProps ?? {}) as Record<string, unknown>,
     state: parsed.state,
-    context: parsed.context,
+    context: aguiContext,
+    aguiContext,
   })
 }
 

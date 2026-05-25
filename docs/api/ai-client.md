@@ -26,17 +26,19 @@ npm install @tanstack/ai-client
 The main client class for managing chat state.
 
 ```typescript
-import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-client";
+import {
+  ChatClient,
+  clientTools,
+  fetchServerSentEvents,
+} from "@tanstack/ai-client";
+import { myClientTool } from "./tools";
 
 const client = new ChatClient({
   connection: fetchServerSentEvents("/api/chat"),
   initialMessages: [],
+  tools: clientTools(myClientTool),
   onMessagesChange: (messages) => {
     console.log("Messages updated:", messages);
-  },
-  onToolCall: async ({ toolName, input }) => {
-    // Handle client tool execution
-    return { result: "..." };
   },
 });
 ```
@@ -50,6 +52,7 @@ const client = new ChatClient({
 - `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field
 - `body?` - **Deprecated.** Use `forwardedProps` instead. Still works — values are merged into `forwardedProps` on the wire and mirrored under the legacy `data` field for backward compatibility
 - `context?` - Typed client-local runtime context passed to client tool implementations. This value is not serialized to the server
+- `tools?` - Registered `.client()` tool implementations. The client automatically executes matching tools when the model calls them
 - `onResponse?` - Callback when response is received
 - `onChunk?` - Callback when stream chunk is received
 - `onFinish?` - Callback when response finishes
@@ -57,7 +60,6 @@ const client = new ChatClient({
 - `onMessagesChange?` - Callback when messages change
 - `onLoadingChange?` - Callback when loading state changes
 - `onErrorChange?` - Callback when error state changes
-- `onToolCall?` - Callback for client-side tool execution
 - `streamProcessor?` - Stream processing configuration
 
 ### Methods
@@ -334,12 +336,10 @@ When using typed tools with `clientTools()` and `createChatClientOptions()`, the
 ```typescript
 interface ToolResultPart {
   type: "tool-result";
-  id: string;
   toolCallId: string;
-  tool: string;
-  output: any;
+  content: string;
   state: ToolResultState;
-  errorText?: string;
+  error?: string;
 }
 ```
 
@@ -347,22 +347,21 @@ interface ToolResultPart {
 
 ```typescript
 type ToolCallState =
-  | "pending"
+  | "awaiting-input"
+  | "input-streaming"
+  | "input-complete"
   | "approval-requested"
-  | "executing"
-  | "output-available"
-  | "output-error"
-  | "cancelled";
+  | "approval-responded"
+  | "complete";
 ```
 
 ### `ToolResultState`
 
 ```typescript
 type ToolResultState =
-  | "pending"
-  | "executing"
-  | "output-available"
-  | "output-error";
+  | "streaming"
+  | "complete"
+  | "error";
 ```
 
 ## Stream Processing

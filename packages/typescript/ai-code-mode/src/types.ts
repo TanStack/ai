@@ -1,6 +1,6 @@
 import type {
-  AnyTool,
-  ToolDefinition,
+  SchemaInput,
+  ServerTool,
   ToolExecutionContext,
 } from '@tanstack/ai'
 
@@ -147,9 +147,13 @@ export type { ToolExecutionContext }
 // ============================================================================
 
 /**
- * Tool types that can be passed to Code Mode
+ * Server-side tool types that can be passed to Code Mode.
+ *
+ * Code Mode executes tools inside a server-managed sandbox. Client tools and
+ * bare tool definitions are intentionally excluded because they do not provide
+ * a server execution implementation for the sandbox binding.
  */
-export type CodeModeTool = AnyTool | ToolDefinition<any, any, any>
+export type CodeModeTool = ServerTool<SchemaInput, SchemaInput, string, unknown>
 
 /**
  * Configuration for createCodeModeTool
