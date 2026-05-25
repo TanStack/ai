@@ -154,6 +154,7 @@ One JSON object. No commentary.
 Collect every agent's JSON line. If an agent returned prose instead of JSON (rare), extract what you can or mark `priority: "P3", reason: "agent parse failed"`.
 
 Sort:
+
 1. PRs by priority (P0→P3), then by `ageDays` ascending within each tier (newer first for P0/P1 to capture momentum; for P3 by oldest first — those are stalest).
 2. Issues by priority, then by `reactions + comments` desc within each tier.
 3. Discussions by priority, then by `upvotes * 2 + comments + reactions` desc within each tier. Inside the same tier, surface Q&A above Ideas above other categories (response latency matters most for Q&A).
@@ -172,49 +173,63 @@ Scanned **N PRs**, **M issues**, and **D discussions**. Skipped K items over the
 ## PRs to review first
 
 ### P0 — merge/fix today
+
 - [#NUM Title](url) — <reason>. _Action: <recommendedAction>_
 
 ### P1 — review this week
+
 - [#NUM Title](url) — <reason>. _Action: <recommendedAction>_
 
 ### P2 — when time permits
+
 <one-line per item>
 
 ### P3 — needs author input or close
+
 <one-line per item>
 
 ## Issues to address first
 
 ### P0 — fix now
+
 - [#NUM Title](url) — <reason>. _Action: <recommendedAction>_
 
 ### P1 — schedule this sprint
+
 - [#NUM Title](url) — <reason>. _Action: <recommendedAction>_
 
 ### P2 — backlog
+
 <one-line per item>
 
 ### P3 — close or ask for info
+
 <one-line per item>
 
 ## Discussions to engage with
 
 ### P0 — respond today
+
 - [#NUM Title](url) _(<category>)_ — <reason>. _Action: <recommendedAction>_
 
 ### P1 — respond this week
+
 - [#NUM Title](url) _(<category>)_ — <reason>. _Action: <recommendedAction>_
 
 ### P2 — when time permits
+
 <one-line per item, prefix with category>
 
 ### P3 — close, mark answered, or let community drive
+
 <one-line per item, prefix with category>
 
 ## Skipped (over budget)
+
 <list any items not triaged>
 
 ## How this was generated
+
 N parallel triage agents ran via the `triage-github` skill on <date>. Each agent independently scored its item; this report aggregates and ranks them. Priorities are heuristic — sanity-check P0s before acting, especially `convert-to-issue` and `close` recommendations on discussions.
 ```
 
