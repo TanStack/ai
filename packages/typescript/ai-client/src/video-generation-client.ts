@@ -44,7 +44,6 @@ interface VideoCallbacks<TOutput> {
   onVideoStatusChange?: ((status: VideoStatusInfo | null) => void) | undefined
 }
 
-
 /**
  * A specialized client for job-based video generation.
  *
@@ -534,7 +533,6 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
       url: result.url,
     }
   }
-
 
   private createDevtoolsMetadata(
     metadata?: Partial<AIDevtoolsClientMetadata>,

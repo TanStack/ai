@@ -35,7 +35,6 @@ interface GenerationCallbacks<TResult, TOutput> {
   onStatusChange?: ((status: GenerationClientState) => void) | undefined
 }
 
-
 /**
  * A lightweight, generic client for one-shot generation tasks
  * (image, speech, transcription, summarize).
@@ -444,7 +443,6 @@ export class GenerationClient<
     }
     this.devtoolsBridge.recordProgressChange()
   }
-
 
   private createDevtoolsMetadata(
     metadata?: Partial<AIDevtoolsClientMetadata>,

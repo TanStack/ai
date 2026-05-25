@@ -191,11 +191,7 @@ export class ChatClient {
         onTextUpdate: (messageId: string, content: string) => {
           // Emit text update to devtools
           if (this.currentStreamId) {
-            this.events.textUpdated(
-              this.currentStreamId,
-              messageId,
-              content,
-            )
+            this.events.textUpdated(this.currentStreamId, messageId, content)
           }
         },
         onThinkingUpdate: (messageId: string, content: string) => {

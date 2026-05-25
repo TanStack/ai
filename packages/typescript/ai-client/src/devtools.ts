@@ -718,8 +718,7 @@ function createBridgeId(hookId: string): string {
 // production no-op bridge can replace it without affecting chat behavior.
 // ===========================================================================
 
-export interface ChatDevtoolsBridgeOptions
-  extends AIDevtoolsBridgeOptions<AIDevtoolsChatSnapshot> {
+export interface ChatDevtoolsBridgeOptions extends AIDevtoolsBridgeOptions<AIDevtoolsChatSnapshot> {
   getMessages: () => Array<UIMessage>
   setMessages: (messages: Array<UIMessage>) => void
   addToolResult: (
@@ -857,8 +856,7 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
   getCurrentRunEventContext(): ChatClientRunEventContext | undefined {
     if (!this.currentRunId) return undefined
     return {
-      threadId:
-        this.currentRunThreadId ?? this.chatOptions.threadId ?? '',
+      threadId: this.currentRunThreadId ?? this.chatOptions.threadId ?? '',
       runId: this.currentRunId,
     }
   }
@@ -1266,8 +1264,10 @@ function hasToolCallId(
 // status, error, input) and pushes it into the bridge via `record*` methods.
 // ===========================================================================
 
-export interface AIDevtoolsGenerationSnapshotBase<TOutput>
-  extends Record<string, unknown> {
+export interface AIDevtoolsGenerationSnapshotBase<TOutput> extends Record<
+  string,
+  unknown
+> {
   input: unknown | null
   result: TOutput | null
   preview: AIDevtoolsGenerationPreview
@@ -1279,11 +1279,10 @@ export interface AIDevtoolsGenerationSnapshotBase<TOutput>
   error?: string
 }
 
-export interface GenerationDevtoolsBridgeOptions<TOutput>
-  extends Omit<
-    AIDevtoolsBridgeOptions<AIDevtoolsGenerationSnapshotBase<TOutput>>,
-    'getSnapshot'
-  > {
+export interface GenerationDevtoolsBridgeOptions<TOutput> extends Omit<
+  AIDevtoolsBridgeOptions<AIDevtoolsGenerationSnapshotBase<TOutput>>,
+  'getSnapshot'
+> {
   getCoreState: () => GenerationDevtoolsCoreState<TOutput>
   maxRuns?: number
 }
@@ -1561,20 +1560,24 @@ export class GenerationDevtoolsBridge<TOutput> extends ClientDevtoolsBridge<
 // streaming progress before the final URL lands.
 // ===========================================================================
 
-export interface AIDevtoolsVideoSnapshotBase<TOutput>
-  extends AIDevtoolsGenerationSnapshotBase<TOutput> {
+export interface AIDevtoolsVideoSnapshotBase<
+  TOutput,
+> extends AIDevtoolsGenerationSnapshotBase<TOutput> {
   jobId: string | null
   videoStatus: unknown | null
 }
 
-export interface VideoDevtoolsCoreState<TOutput>
-  extends GenerationDevtoolsCoreState<TOutput> {
+export interface VideoDevtoolsCoreState<
+  TOutput,
+> extends GenerationDevtoolsCoreState<TOutput> {
   jobId: string | null
   videoStatus: unknown | null
 }
 
-export interface VideoDevtoolsBridgeOptions<TOutput>
-  extends Omit<GenerationDevtoolsBridgeOptions<TOutput>, 'getCoreState'> {
+export interface VideoDevtoolsBridgeOptions<TOutput> extends Omit<
+  GenerationDevtoolsBridgeOptions<TOutput>,
+  'getCoreState'
+> {
   getCoreState: () => VideoDevtoolsCoreState<TOutput>
 }
 
@@ -1882,9 +1885,7 @@ class ChatDevtoolsAwareEventEmitter extends DefaultChatClientEventEmitter {
     this.afterEmit()
   }
   override toolFixtureApplied(
-    fixture: Parameters<
-      DefaultChatClientEventEmitter['toolFixtureApplied']
-    >[0],
+    fixture: Parameters<DefaultChatClientEventEmitter['toolFixtureApplied']>[0],
   ): void {
     super.toolFixtureApplied(fixture)
     this.afterEmit()

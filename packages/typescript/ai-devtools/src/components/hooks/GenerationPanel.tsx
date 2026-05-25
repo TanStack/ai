@@ -489,8 +489,7 @@ const GenerationMeta: Component<{ label: string; value: string }> = (props) => {
     <div class={styles().hookDetails.generationMetaItem}>
       <span class={styles().hookDetails.generationMetaLabel}>
         {props.label}
-      </span>
-      {' '}
+      </span>{' '}
       <span class={styles().hookDetails.generationMetaValue}>
         {props.value}
       </span>

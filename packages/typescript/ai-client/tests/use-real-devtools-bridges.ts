@@ -9,9 +9,8 @@
 import { vi } from 'vitest'
 
 vi.mock('../src/devtools-noop', async () => {
-  const real = await vi.importActual<typeof import('../src/devtools')>(
-    '../src/devtools',
-  )
+  const real =
+    await vi.importActual<typeof import('../src/devtools')>('../src/devtools')
   return {
     createNoOpChatDevtoolsBridge: real.createChatDevtoolsBridge,
     createNoOpGenerationDevtoolsBridge: real.createGenerationDevtoolsBridge,

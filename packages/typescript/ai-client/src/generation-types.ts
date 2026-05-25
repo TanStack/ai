@@ -187,9 +187,9 @@ export interface VideoGenerateResult {
 export interface VideoGenerationClientOptions<
   TOutput = VideoGenerateResult,
 > extends Omit<
-    GenerationClientOptions<VideoGenerateInput, VideoGenerateResult, TOutput>,
-    'devtoolsBridgeFactory'
-  > {
+  GenerationClientOptions<VideoGenerateInput, VideoGenerateResult, TOutput>,
+  'devtoolsBridgeFactory'
+> {
   /**
    * Factory that constructs the video devtools bridge. Default is a no-op
    * factory; the real implementation lives in `@tanstack/ai-client/devtools`.
