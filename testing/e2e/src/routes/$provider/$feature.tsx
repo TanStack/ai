@@ -1,7 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
+import { uiMessagesToWire } from '@tanstack/ai'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { clientTools } from '@tanstack/ai-client'
+import type { UIMessage } from '@tanstack/ai-client'
 import type { Feature, Mode, Provider } from '@/lib/types'
 import { ALL_PROVIDERS } from '@/lib/types'
 import { isSupported } from '@/lib/feature-support'
@@ -43,10 +45,7 @@ const addToCartClient = addToCartToolDef.client((args) => ({
 }))
 
 function FeaturePage() {
-  const { provider, feature } = Route.useParams() as {
-    provider: Provider
-    feature: Feature
-  }
+  const { provider, feature } = Route.useParams()
   const { testId, aimockPort, mode } = Route.useSearch()
 
   if (!ALL_PROVIDERS.includes(provider) || !isSupported(provider, feature)) {
@@ -153,25 +152,30 @@ function ChatFeature({
       ? {
           fetcher: async (
             input: {
-              messages: unknown
+              messages: Array<UIMessage>
               data?: unknown
               threadId: string
               runId: string
             },
             options: { signal: AbortSignal },
           ) =>
+            // Mirror what `fetchServerSentEvents` posts: full AG-UI
+            // `RunAgentInput` envelope with messages converted to wire
+            // format (UIMessage parts get flattened to string content).
+            // `useChat({ body })` already flowed provider/feature/testId/
+            // aimockPort into `input.data`, so it forwards as
+            // `forwardedProps`.
             fetch('/api/chat', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                messages: input.messages,
-                data: input.data,
                 threadId: input.threadId,
                 runId: input.runId,
-                provider,
-                feature,
-                testId,
-                aimockPort,
+                state: {},
+                messages: uiMessagesToWire(input.messages),
+                tools: [],
+                context: [],
+                forwardedProps: input.data,
               }),
               signal: options.signal,
             }),
