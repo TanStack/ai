@@ -5,7 +5,7 @@ import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { clientTools } from '@tanstack/ai-client'
 import type { UIMessage } from '@tanstack/ai-client'
 import type { Feature, Mode, Provider } from '@/lib/types'
-import { ALL_PROVIDERS } from '@/lib/types'
+import { ALL_FEATURES, ALL_PROVIDERS } from '@/lib/types'
 import { isSupported } from '@/lib/feature-support'
 import { addToCartToolDef } from '@/lib/tools'
 import { NotSupported } from '@/components/NotSupported'
@@ -44,11 +44,20 @@ const addToCartClient = addToCartToolDef.client((args) => ({
   quantity: args.quantity,
 }))
 
+const isProvider = (s: string): s is Provider =>
+  (ALL_PROVIDERS as ReadonlyArray<string>).includes(s)
+const isFeature = (s: string): s is Feature =>
+  (ALL_FEATURES as ReadonlyArray<string>).includes(s)
+
 function FeaturePage() {
   const { provider, feature } = Route.useParams()
   const { testId, aimockPort, mode } = Route.useSearch()
 
-  if (!ALL_PROVIDERS.includes(provider) || !isSupported(provider, feature)) {
+  if (
+    !isProvider(provider) ||
+    !isFeature(feature) ||
+    !isSupported(provider, feature)
+  ) {
     return <NotSupported provider={provider} feature={feature} />
   }
 
