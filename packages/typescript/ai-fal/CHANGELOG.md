@@ -1,5 +1,12 @@
 # @tanstack/ai-fal
 
+## 0.7.13
+
+### Patch Changes
+
+- Updated dependencies [[`e144a53`](https://github.com/TanStack/ai/commit/e144a53e4348bb0bc365dbe342c8538544242227)]:
+  - @tanstack/ai@0.21.3
+
 ## 0.7.12
 
 ### Patch Changes

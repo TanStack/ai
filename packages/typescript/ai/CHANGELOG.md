@@ -1,5 +1,14 @@
 # @tanstack/ai
 
+## 0.21.3
+
+### Patch Changes
+
+- Populate server-executed tool results on the matching `tool-call` part and mark successful tool calls as `complete`. ([#596](https://github.com/TanStack/ai/pull/596))
+
+- Updated dependencies [[`e144a53`](https://github.com/TanStack/ai/commit/e144a53e4348bb0bc365dbe342c8538544242227)]:
+  - @tanstack/ai-event-client@0.3.10
+
 ## 0.21.2
 
 ### Patch Changes

@@ -5,7 +5,7 @@ title: ModelMessage
 
 # Interface: ModelMessage\<TContent\>
 
-Defined in: [packages/typescript/ai/src/types.ts:312](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L312)
+Defined in: [packages/typescript/ai/src/types.ts:313](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L313)
 
 ## Type Parameters
 
@@ -21,7 +21,7 @@ Defined in: [packages/typescript/ai/src/types.ts:312](https://github.com/TanStac
 content: TContent;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:319](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L319)
+Defined in: [packages/typescript/ai/src/types.ts:320](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L320)
 
 ***
 
@@ -31,7 +31,7 @@ Defined in: [packages/typescript/ai/src/types.ts:319](https://github.com/TanStac
 optional name: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:320](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L320)
+Defined in: [packages/typescript/ai/src/types.ts:321](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L321)
 
 ***
 
@@ -41,7 +41,7 @@ Defined in: [packages/typescript/ai/src/types.ts:320](https://github.com/TanStac
 role: "user" | "assistant" | "tool";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:318](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L318)
+Defined in: [packages/typescript/ai/src/types.ts:319](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L319)
 
 ***
 
@@ -51,7 +51,7 @@ Defined in: [packages/typescript/ai/src/types.ts:318](https://github.com/TanStac
 optional thinking: object[];
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:323](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L323)
+Defined in: [packages/typescript/ai/src/types.ts:324](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L324)
 
 #### content
 
@@ -73,7 +73,7 @@ optional signature: string;
 optional toolCallId: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:322](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L322)
+Defined in: [packages/typescript/ai/src/types.ts:323](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L323)
 
 ***
 
@@ -83,4 +83,4 @@ Defined in: [packages/typescript/ai/src/types.ts:322](https://github.com/TanStac
 optional toolCalls: ToolCall<unknown>[];
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:321](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L321)
+Defined in: [packages/typescript/ai/src/types.ts:322](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L322)

@@ -12,7 +12,7 @@ type ConstrainedContent<TInputModalitiesTypes> =
   | ContentPartForInputModalitiesTypes<TInputModalitiesTypes>[];
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:305](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L305)
+Defined in: [packages/typescript/ai/src/types.ts:306](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L306)
 
 Type for message content constrained by supported modalities.
 When modalities is ['text', 'image'], only TextPart and ImagePart are allowed in the array.

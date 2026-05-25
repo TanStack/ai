@@ -5,7 +5,7 @@ title: TranscriptionResult
 
 # Interface: TranscriptionResult
 
-Defined in: [packages/typescript/ai/src/types.ts:1720](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1720)
+Defined in: [packages/typescript/ai/src/types.ts:1721](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1721)
 
 Result of audio transcription.
 
@@ -17,7 +17,7 @@ Result of audio transcription.
 optional duration: number;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1730](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1730)
+Defined in: [packages/typescript/ai/src/types.ts:1731](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1731)
 
 Duration of the audio in seconds
 
@@ -29,7 +29,7 @@ Duration of the audio in seconds
 id: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1722](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1722)
+Defined in: [packages/typescript/ai/src/types.ts:1723](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1723)
 
 Unique identifier for the transcription
 
@@ -41,7 +41,7 @@ Unique identifier for the transcription
 optional language: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1728](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1728)
+Defined in: [packages/typescript/ai/src/types.ts:1729](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1729)
 
 Language detected or specified
 
@@ -53,7 +53,7 @@ Language detected or specified
 model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1724](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1724)
+Defined in: [packages/typescript/ai/src/types.ts:1725](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1725)
 
 Model used for transcription
 
@@ -65,7 +65,7 @@ Model used for transcription
 optional segments: TranscriptionSegment[];
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1732](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1732)
+Defined in: [packages/typescript/ai/src/types.ts:1733](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1733)
 
 Detailed segments with timing, if available
 
@@ -77,7 +77,7 @@ Detailed segments with timing, if available
 text: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1726](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1726)
+Defined in: [packages/typescript/ai/src/types.ts:1727](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1727)
 
 The full transcribed text
 
@@ -89,6 +89,6 @@ The full transcribed text
 optional words: TranscriptionWord[];
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1734](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1734)
+Defined in: [packages/typescript/ai/src/types.ts:1735](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1735)
 
 Word-level timestamps, if available
