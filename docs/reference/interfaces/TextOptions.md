@@ -27,7 +27,7 @@ Options passed into the SDK and further piped to the AI provider.
 optional abortController: AbortController;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:833](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L833)
+Defined in: [packages/typescript/ai/src/types.ts:849](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L849)
 
 AbortController for request cancellation.
 
@@ -64,7 +64,7 @@ Defined in: [packages/typescript/ai/src/types.ts:751](https://github.com/TanStac
 optional conversationId: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:819](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L819)
+Defined in: [packages/typescript/ai/src/types.ts:835](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L835)
 
 #### Deprecated
 
@@ -85,7 +85,7 @@ Will be removed in a future major release.
 logger: InternalLogger;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:840](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L840)
+Defined in: [packages/typescript/ai/src/types.ts:856](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L856)
 
 Internal logger threaded from the chat entry point. Adapter implementations
 must call `logger.request()` before SDK calls, `logger.provider()` for each
@@ -168,13 +168,29 @@ Defined in: [packages/typescript/ai/src/types.ts:798](https://github.com/TanStac
 optional outputSchema: SchemaInput;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:808](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L808)
+Defined in: [packages/typescript/ai/src/types.ts:824](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L824)
 
 Schema for structured output.
-When provided, the adapter should use the provider's native structured output API
-to ensure the response conforms to this schema.
-The schema will be converted to JSON Schema format before being sent to the provider.
-Supports any Standard JSON Schema compliant library (Zod, ArkType, Valibot, etc.).
+
+**Two distinct use sites:**
+
+1. **User-facing (activity layer):** accepts any
+   [SchemaInput](../type-aliases/SchemaInput.md) — Zod, ArkType, Valibot, or a raw JSON Schema.
+   The activity layer converts to JSON Schema before handing off.
+
+2. **Adapter-facing (`chatStream` call):** the engine populates this with
+   a pre-converted JSON Schema **only** when the adapter declared
+   `supportsCombinedToolsAndSchema(modelOptions) === true`. The adapter
+   should then wire the schema into the upstream request (e.g.
+   `response_format: { type: 'json_schema', ... }`, `text.format`,
+   `output_format`) alongside any `tools`. The model's natural final
+   turn carries the schema-constrained JSON text and the engine
+   harvests it from the agent loop without a separate finalization
+   round-trip.
+
+   Adapters that did NOT declare the capability never see this field
+   populated — the engine instead invokes `structuredOutput` /
+   `structuredOutputStream` after the agent loop.
 
 ***
 
@@ -184,7 +200,7 @@ Supports any Standard JSON Schema compliant library (Zod, ArkType, Valibot, etc.
 optional parentRunId: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:857](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L857)
+Defined in: [packages/typescript/ai/src/types.ts:873](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L873)
 
 Parent run ID for AG-UI protocol nested run correlation.
 Surfaced for observability/middleware; not consumed by the LLM call.
@@ -207,7 +223,7 @@ Defined in: [packages/typescript/ai/src/types.ts:799](https://github.com/TanStac
 optional runId: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:852](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L852)
+Defined in: [packages/typescript/ai/src/types.ts:868](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L868)
 
 Run ID for AG-UI protocol run correlation.
 When provided, this will be used in RunStartedEvent and RunFinishedEvent.
@@ -267,7 +283,7 @@ Provider usage:
 optional threadId: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:846](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L846)
+Defined in: [packages/typescript/ai/src/types.ts:862](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L862)
 
 Thread ID for AG-UI protocol run correlation.
 When provided, this will be used in RunStartedEvent and RunFinishedEvent.
