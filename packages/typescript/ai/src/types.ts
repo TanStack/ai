@@ -1564,9 +1564,11 @@ export type TaggedCustomEvent<T = unknown> =
  * but are excluded from the type to avoid `any` poisoning the union; cast to
  * `StreamChunk` if you need to read those.
  *
- * When tools are untyped or absent, tool-call events stay generic
- * (`toolName: string`, `input: unknown`) but tagged custom events still
- * narrow.
+ * When tools are untyped or absent, `TypedStreamChunk` falls back to plain
+ * `StreamChunk` — tagged custom events are NOT narrowed in that branch.
+ * This preserves back-compat with consumers that pass `chat()`'s stream as
+ * `AsyncIterable<StreamChunk>` (e.g. `toServerSentEventsResponse`). To get
+ * tagged narrowing, pass typed tools via `toolDefinition()`.
  */
 export type TypedStreamChunk<
   TTools extends ReadonlyArray<Tool<any, any, any>> = ReadonlyArray<
