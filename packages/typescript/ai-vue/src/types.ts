@@ -5,11 +5,11 @@ import type {
   SchemaInput,
 } from '@tanstack/ai'
 import type {
+  AIDevtoolsDisplayOptions,
   ChatClientOptions,
   ChatClientState,
   ChatRequestBody,
   ConnectionStatus,
-  AIDevtoolsDisplayOptions,
   MultimodalContent,
   UIMessage,
 } from '@tanstack/ai-client'

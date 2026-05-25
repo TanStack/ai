@@ -15,13 +15,13 @@
  */
 import { ChatClientEventEmitter } from './events'
 import type {
+  AIDevtoolsToolFixture,
   ChatDevtoolsBridge,
   ChatDevtoolsBridgeOptions,
   GenerationDevtoolsBridge,
   GenerationDevtoolsBridgeOptions,
   VideoDevtoolsBridge,
   VideoDevtoolsBridgeOptions,
-  AIDevtoolsToolFixture,
 } from './devtools'
 import type { StreamChunk } from '@tanstack/ai'
 import type {
@@ -106,8 +106,8 @@ export class NoOpChatDevtoolsBridge {
   }
 }
 
-export class NoOpGenerationDevtoolsBridge<_TOutput> {
-  constructor(_options: GenerationDevtoolsBridgeOptions<_TOutput>) {}
+export class NoOpGenerationDevtoolsBridge<TOutput> {
+  constructor(_options: GenerationDevtoolsBridgeOptions<TOutput>) {}
 
   // base bridge surface
   emitRegistered(): void {}
@@ -149,7 +149,7 @@ export class NoOpVideoDevtoolsBridge<
   TOutput,
 > extends NoOpGenerationDevtoolsBridge<TOutput> {
   constructor(options: VideoDevtoolsBridgeOptions<TOutput>) {
-    super(options as GenerationDevtoolsBridgeOptions<TOutput>)
+    super(options)
   }
 
   recordJobIdChange(): void {}
@@ -167,11 +167,13 @@ export const createNoOpChatDevtoolsBridge: ChatDevtoolsBridgeFactory = (
   // Cast through `unknown`: the no-op class is structurally compatible
   // with the real class's public surface but does not extend it (so the
   // real class stays out of the main-entry import graph).
+  // eslint-disable-next-line no-restricted-syntax -- no-op bridge is structurally compatible with the real bridge but intentionally does not extend it
   return new NoOpChatDevtoolsBridge(options) as unknown as ChatDevtoolsBridge
 }
 
 export const createNoOpGenerationDevtoolsBridge: GenerationDevtoolsBridgeFactory =
   <TOutput>(options: GenerationDevtoolsBridgeOptions<TOutput>) =>
+    // eslint-disable-next-line no-restricted-syntax -- no-op bridge is structurally compatible with the real bridge but intentionally does not extend it
     new NoOpGenerationDevtoolsBridge<TOutput>(
       options,
     ) as unknown as GenerationDevtoolsBridge<TOutput>
@@ -181,6 +183,7 @@ export const createNoOpVideoDevtoolsBridge: VideoDevtoolsBridgeFactory = <
 >(
   options: VideoDevtoolsBridgeOptions<TOutput>,
 ) =>
+  // eslint-disable-next-line no-restricted-syntax -- no-op bridge is structurally compatible with the real bridge but intentionally does not extend it
   new NoOpVideoDevtoolsBridge<TOutput>(
     options,
   ) as unknown as VideoDevtoolsBridge<TOutput>

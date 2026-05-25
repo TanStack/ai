@@ -40,8 +40,8 @@ import type { HoverOrigin, HoverTarget, PreviewJsonItem } from './preview-model'
 import type {
   HookRecord,
   RunRecord,
-  ToolFixtureRecord,
   ToolFixtureMessage,
+  ToolFixtureRecord,
 } from '../../store/hook-registry'
 import type { Conversation, Message, ToolCall } from '../../store/ai-store'
 import type { Component, Setter } from 'solid-js'

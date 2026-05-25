@@ -1590,7 +1590,7 @@ export class VideoDevtoolsBridge<
   TOutput,
 > extends GenerationDevtoolsBridge<TOutput> {
   constructor(options: VideoDevtoolsBridgeOptions<TOutput>) {
-    super(options as GenerationDevtoolsBridgeOptions<TOutput>)
+    super(options)
   }
 
   /** Record changes to `jobId` from the core video client. */
