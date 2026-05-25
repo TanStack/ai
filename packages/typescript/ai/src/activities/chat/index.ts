@@ -2158,7 +2158,7 @@ export function chat<
       ...options,
       outputSchema,
       stream,
-    }) as TextActivityResult<TSchema, TStream>
+    }) as TextActivityResult<TSchema, TStream, TTools>
   }
 
   // If outputSchema is provided, run agentic structured output (Promise<T>)
