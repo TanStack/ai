@@ -13,13 +13,14 @@ keywords:
   - human-in-the-loop
 ---
 
-The tool approval flow allows you to require user approval before executing sensitive tools, giving users control over actions like sending emails, making purchases, or deleting data. Tools go through these states during approval:
+The tool approval flow allows you to require user approval before executing sensitive tools, giving users control over actions like sending emails, making purchases, or deleting data. A tool call moves through the `ToolCallState` lifecycle:
 
-1. **`approval-requested`** - Waiting for user approval
-2. **`executing`** - Approved, now executing
-3. **`output-available`** - Execution completed
-4. **`output-error`** - Execution failed
-5. **`cancelled`** - User denied approval
+1. **`awaiting-input`** — Tool call started, no arguments yet
+2. **`input-streaming`** — Arguments arriving incrementally
+3. **`input-complete`** — All arguments received
+4. **`approval-requested`** — Waiting for user approval (only if `needsApproval: true`)
+5. **`approval-responded`** — User approved or denied
+6. **`complete`** — Tool finished executing (result available, or denial recorded)
 
 When a tool requires approval, the typical flow is:
 
@@ -109,7 +110,7 @@ function ChatComponent() {
               return (
                 <div key={part.id} className="approval-prompt">
                   <p>Approve: {part.name}</p>
-                  <pre>{JSON.stringify(part.arguments, null, 2)}</pre>
+                  <pre>{JSON.stringify(part.input, null, 2)}</pre>
                   <button
                     onClick={() =>
                       addToolApprovalResponse({
@@ -148,7 +149,9 @@ Here's a more complete approval UI component:
 
 ```typescript
 function ApprovalPrompt({ part, onApprove, onDeny }) {
-  const args = JSON.parse(part.arguments);
+  // When tools are passed via `clientTools(...)`, `part.input` is the
+  // parsed, fully-typed argument object. Otherwise parse `part.arguments`.
+  const args = part.input ?? JSON.parse(part.arguments);
 
   return (
     <div className="border border-yellow-500 rounded-lg p-4 bg-yellow-50">

@@ -9,7 +9,7 @@ title: mergeAgentTools
 function mergeAgentTools(serverTools, clientTools): Tool<SchemaInput, SchemaInput, string>[];
 ```
 
-Defined in: [packages/typescript/ai/src/utilities/chat-params.ts:174](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/utilities/chat-params.ts#L174)
+Defined in: [packages/ai/src/utilities/chat-params.ts:174](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/chat-params.ts#L174)
 
 Merge a server-side tool array with the AG-UI client-declared tools
 received in the request body.

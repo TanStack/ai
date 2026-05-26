@@ -65,12 +65,19 @@ export const Route = createFileRoute('/middleware-test')({
     return {
       testId: typeof search.testId === 'string' ? search.testId : undefined,
       aimockPort: port != null && !isNaN(port) ? port : undefined,
+      // `provider` / `model` are forwarded to the server route so the
+      // structured-output × middleware spec can exercise both the
+      // native-combined-mode path (modern openai / claude 4.5+) and the
+      // legacy finalization path (claude 3.7, etc.) — see #605.
+      provider:
+        typeof search.provider === 'string' ? search.provider : undefined,
+      model: typeof search.model === 'string' ? search.model : undefined,
     }
   },
 })
 
 function MiddlewareTestPage() {
-  const { testId, aimockPort } = Route.useSearch()
+  const { testId, aimockPort, provider, model } = Route.useSearch()
   const [scenario, setScenario] = useState('basic-text')
   const [middlewareMode, setMiddlewareMode] = useState('none')
   const [testComplete, setTestComplete] = useState(false)
@@ -78,9 +85,9 @@ function MiddlewareTestPage() {
     useState<PhaseCaptureSnapshot>(EMPTY_PHASE_CAPTURE)
 
   const { messages, sendMessage, isLoading } = useChat({
-    id: `mw-test-${scenario}-${middlewareMode}`,
+    id: `mw-test-${scenario}-${middlewareMode}-${provider ?? 'openai'}-${model ?? 'default'}`,
     connection: fetchServerSentEvents('/api/middleware-test'),
-    body: { scenario, middlewareMode, testId, aimockPort },
+    body: { scenario, middlewareMode, testId, aimockPort, provider, model },
     onFinish: () => {
       // For phase-recorder mode the spec reads `#mw-phases-json` /
       // `#mw-onfinish-count` / `#mw-yielded-chunks-json` AFTER

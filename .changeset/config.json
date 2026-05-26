@@ -15,8 +15,6 @@
     "@tanstack/ai-code-mode-models-eval",
     "@tanstack/ai-e2e",
     "stream-processor-panel",
-    "php-slim",
-    "python-fastapi",
     "ts-*",
     "vanilla-chat"
   ],
