@@ -13,6 +13,7 @@ import {
   Mic,
   Music,
   Network,
+  Server,
   Video,
   X,
 } from 'lucide-react'
@@ -243,6 +244,19 @@ export default function Header() {
           >
             <Network size={20} />
             <span className="font-medium">Feature Orchestrator</span>
+          </Link>
+
+          <Link
+            to="/server-fn-chat"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
+            }}
+          >
+            <Server size={20} />
+            <span className="font-medium">Server Function Chat</span>
           </Link>
         </nav>
       </aside>

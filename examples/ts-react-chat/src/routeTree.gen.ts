@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WorkflowRouteImport } from './routes/workflow'
+import { Route as ServerFnChatRouteImport } from './routes/server-fn-chat'
 import { Route as RealtimeRouteImport } from './routes/realtime'
 import { Route as OrchestrationRouteImport } from './routes/orchestration'
 import { Route as Issue176ToolResultRouteImport } from './routes/issue-176-tool-result'
@@ -41,6 +42,11 @@ import { Route as ApiGenerateAudioRouteImport } from './routes/api.generate.audi
 const WorkflowRoute = WorkflowRouteImport.update({
   id: '/workflow',
   path: '/workflow',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ServerFnChatRoute = ServerFnChatRouteImport.update({
+  id: '/server-fn-chat',
+  path: '/server-fn-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RealtimeRoute = RealtimeRouteImport.update({
@@ -188,6 +194,7 @@ export interface FileRoutesByFullPath {
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/orchestration': typeof OrchestrationRoute
   '/realtime': typeof RealtimeRoute
+  '/server-fn-chat': typeof ServerFnChatRoute
   '/workflow': typeof WorkflowRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/orchestration': typeof ApiOrchestrationRoute
@@ -218,6 +225,7 @@ export interface FileRoutesByTo {
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/orchestration': typeof OrchestrationRoute
   '/realtime': typeof RealtimeRoute
+  '/server-fn-chat': typeof ServerFnChatRoute
   '/workflow': typeof WorkflowRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/orchestration': typeof ApiOrchestrationRoute
@@ -249,6 +257,7 @@ export interface FileRoutesById {
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/orchestration': typeof OrchestrationRoute
   '/realtime': typeof RealtimeRoute
+  '/server-fn-chat': typeof ServerFnChatRoute
   '/workflow': typeof WorkflowRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/orchestration': typeof ApiOrchestrationRoute
@@ -281,6 +290,7 @@ export interface FileRouteTypes {
     | '/issue-176-tool-result'
     | '/orchestration'
     | '/realtime'
+    | '/server-fn-chat'
     | '/workflow'
     | '/api/image-gen'
     | '/api/orchestration'
@@ -311,6 +321,7 @@ export interface FileRouteTypes {
     | '/issue-176-tool-result'
     | '/orchestration'
     | '/realtime'
+    | '/server-fn-chat'
     | '/workflow'
     | '/api/image-gen'
     | '/api/orchestration'
@@ -341,6 +352,7 @@ export interface FileRouteTypes {
     | '/issue-176-tool-result'
     | '/orchestration'
     | '/realtime'
+    | '/server-fn-chat'
     | '/workflow'
     | '/api/image-gen'
     | '/api/orchestration'
@@ -372,6 +384,7 @@ export interface RootRouteChildren {
   Issue176ToolResultRoute: typeof Issue176ToolResultRoute
   OrchestrationRoute: typeof OrchestrationRoute
   RealtimeRoute: typeof RealtimeRoute
+  ServerFnChatRoute: typeof ServerFnChatRoute
   WorkflowRoute: typeof WorkflowRoute
   ApiImageGenRoute: typeof ApiImageGenRoute
   ApiOrchestrationRoute: typeof ApiOrchestrationRoute
@@ -404,6 +417,13 @@ declare module '@tanstack/react-router' {
       path: '/workflow'
       fullPath: '/workflow'
       preLoaderRoute: typeof WorkflowRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/server-fn-chat': {
+      id: '/server-fn-chat'
+      path: '/server-fn-chat'
+      fullPath: '/server-fn-chat'
+      preLoaderRoute: typeof ServerFnChatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/realtime': {
@@ -604,6 +624,7 @@ const rootRouteChildren: RootRouteChildren = {
   Issue176ToolResultRoute: Issue176ToolResultRoute,
   OrchestrationRoute: OrchestrationRoute,
   RealtimeRoute: RealtimeRoute,
+  ServerFnChatRoute: ServerFnChatRoute,
   WorkflowRoute: WorkflowRoute,
   ApiImageGenRoute: ApiImageGenRoute,
   ApiOrchestrationRoute: ApiOrchestrationRoute,

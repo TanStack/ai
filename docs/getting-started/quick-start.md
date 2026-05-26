@@ -250,9 +250,9 @@ You now have a working chat application. The `useChat` hook handles:
 Since TanStack AI is framework-agnostic, you can define and use tools in any environment. Here's a quick example of defining a tool and using it in a chat:
 
 ```typescript
-import { chat } from '@tanstack/ai'
-import { toolDefinition } from '@tanstack/ai'
+import { chat, toolDefinition } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
+import { z } from 'zod'
 
 const getProductsDef = toolDefinition({
   name: 'getProducts',
@@ -263,10 +263,10 @@ const getProducts = getProductsDef.server(async ({ query }) => {
   return await db.products.search(query)
 })
 
-chat({
+const stream = chat({
   adapter: openaiText('gpt-5.2'),
   messages: [{ role: 'user', content: 'Find products' }],
-  tools: [getProducts]
+  tools: [getProducts],
 })
 ```
 

@@ -293,40 +293,40 @@ import type { AnthropicImageMetadata } from '@tanstack/ai-anthropic'
 import type { GeminiMediaMetadata } from '@tanstack/ai-gemini'
 ```
 
-### Handling Dynamic Messages
+### Validating Dynamic Messages
 
-When receiving messages from external sources (like `request.json()`), the data is typed as `any`, which can bypass TypeScript's type checking. Use `assertMessages` to restore type safety:
+When receiving messages from external sources (like `request.json()`), the data is typed as `any`. TanStack AI does not ship a runtime message validator — define a schema with your preferred Standard-Schema library (Zod, Valibot, ArkType, …) and parse the body before handing it to `chat()`.
 
 ```typescript
-import { chat, assertMessages } from '@tanstack/ai'
+import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
+import { z } from 'zod'
+
+const ContentPartSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('text'), content: z.string() }),
+  z.object({
+    type: z.literal('image'),
+    source: z.object({ type: z.enum(['url', 'data']), value: z.string() }),
+  }),
+])
+
+const MessageSchema = z.object({
+  role: z.enum(['user', 'assistant', 'system']),
+  content: z.union([z.string(), z.array(ContentPartSchema)]),
+})
+
+const BodySchema = z.object({ messages: z.array(MessageSchema) })
 
 // In an API route handler
-const { messages: incomingMessages } = await request.json()
+const { messages } = BodySchema.parse(await request.json())
 
-const adapter = openaiText('gpt-5.2')
-
-// Assert incoming messages are compatible with gpt-5.2 (text + image only)
-const typedMessages = assertMessages({ adapter }, incomingMessages)
-
-// Now TypeScript will properly check any additional messages you add
 const stream = chat({
-  adapter,
-  messages: [
-    ...typedMessages,
-    // This will error if you try to add unsupported content types
-    {
-      role: 'user',
-      content: [
-        { type: 'text', content: 'What do you see?' },
-        { type: 'image', source: { type: 'url', value: '...' } }
-      ]
-    }
-  ]
+  adapter: openaiText('gpt-5.2'),
+  messages,
 })
 ```
 
-> **Note:** `assertMessages` is a type-level assertion only. It does not perform runtime validation. For runtime validation of message content, use a schema validation library like Zod.
+The TypeScript types on `chat()` still constrain anything you append at the call site to the modalities supported by the selected model.
 
 ## Best Practices
 
