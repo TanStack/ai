@@ -6,6 +6,25 @@ import type {
 } from '../../types'
 
 /**
+ * Structured description of the durations a video model accepts.
+ *
+ * Tagged union so the same shape can express discrete enums (OpenAI Sora,
+ * Kling), continuous ranges, mixed shapes, and models with no duration field
+ * (Minimax). Consumed by `VideoAdapter.availableDurations()`.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export type DurationOptions<T extends string | number | undefined> =
+  | { kind: 'discrete'; values: ReadonlyArray<NonNullable<T>> }
+  | { kind: 'range'; min: number; max: number; step?: number; unit: 'seconds' }
+  | {
+      kind: 'mixed'
+      values: ReadonlyArray<NonNullable<T>>
+      range?: { min: number; max: number; step?: number }
+    }
+  | { kind: 'none' }
+
+/**
  * Configuration for video adapter instances
  *
  * @experimental Video generation is an experimental feature and may change.
@@ -40,6 +59,10 @@ export interface VideoAdapter<
     string,
     string
   >,
+  TModelDurationByName extends Record<
+    string,
+    string | number | undefined
+  > = Record<string, string | number | undefined>,
 > {
   /** Discriminator for adapter kind - used to determine API shape */
   readonly kind: 'video'
@@ -55,6 +78,7 @@ export interface VideoAdapter<
     providerOptions: TProviderOptions
     modelProviderOptionsByName: TModelProviderOptionsByName
     modelSizeByName: TModelSizeByName
+    modelDurationByName: TModelDurationByName
   }
 
   /**
@@ -62,7 +86,11 @@ export interface VideoAdapter<
    * Returns a job ID that can be used to poll for status and retrieve the video.
    */
   createVideoJob: (
-    options: VideoGenerationOptions<TProviderOptions, TModelSizeByName[TModel]>,
+    options: VideoGenerationOptions<
+      TProviderOptions,
+      TModelSizeByName[TModel],
+      TModelDurationByName[TModel]
+    >,
   ) => Promise<VideoJobResult>
 
   /**
@@ -75,13 +103,26 @@ export interface VideoAdapter<
    * Should only be called after status is 'completed'.
    */
   getVideoUrl: (jobId: string) => Promise<VideoUrlResult>
+
+  /**
+   * Describe the durations this adapter's model accepts. Returns a tagged
+   * union so consumers can render UI / coerce input without provider-specific
+   * knowledge.
+   */
+  availableDurations: () => DurationOptions<TModelDurationByName[TModel]>
+
+  /**
+   * Coerce a raw seconds value to the closest valid duration for this model.
+   * Returns `undefined` for models with no duration field.
+   */
+  snapDuration: (seconds: number) => TModelDurationByName[TModel] | undefined
 }
 
 /**
  * A VideoAdapter with any/unknown type parameters.
  * Useful as a constraint in generic functions and interfaces.
  */
-export type AnyVideoAdapter = VideoAdapter<any, any, any, any>
+export type AnyVideoAdapter = VideoAdapter<any, any, any, any, any>
 
 /**
  * Abstract base class for video generation adapters.
@@ -99,11 +140,16 @@ export abstract class BaseVideoAdapter<
     string,
     string
   >,
+  TModelDurationByName extends Record<
+    string,
+    string | number | undefined
+  > = Record<string, string | number | undefined>,
 > implements VideoAdapter<
   TModel,
   TProviderOptions,
   TModelProviderOptionsByName,
-  TModelSizeByName
+  TModelSizeByName,
+  TModelDurationByName
 > {
   readonly kind = 'video' as const
   abstract readonly name: string
@@ -114,6 +160,7 @@ export abstract class BaseVideoAdapter<
     providerOptions: TProviderOptions
     modelProviderOptionsByName: TModelProviderOptionsByName
     modelSizeByName: TModelSizeByName
+    modelDurationByName: TModelDurationByName
   }
 
   protected config: VideoAdapterConfig
@@ -124,12 +171,32 @@ export abstract class BaseVideoAdapter<
   }
 
   abstract createVideoJob(
-    options: VideoGenerationOptions<TProviderOptions, TModelSizeByName[TModel]>,
+    options: VideoGenerationOptions<
+      TProviderOptions,
+      TModelSizeByName[TModel],
+      TModelDurationByName[TModel]
+    >,
   ): Promise<VideoJobResult>
 
   abstract getVideoStatus(jobId: string): Promise<VideoStatusResult>
 
   abstract getVideoUrl(jobId: string): Promise<VideoUrlResult>
+
+  /**
+   * Default implementation returns `{ kind: 'none' }`. Adapters that have
+   * declared their per-model duration map should override this.
+   */
+  availableDurations(): DurationOptions<TModelDurationByName[TModel]> {
+    return { kind: 'none' }
+  }
+
+  /**
+   * Default implementation returns `undefined`. Adapters that have declared
+   * their per-model duration map should override.
+   */
+  snapDuration(_seconds: number): TModelDurationByName[TModel] | undefined {
+    return undefined
+  }
 
   protected generateId(): string {
     return `${this.name}-${Date.now()}-${Math.random().toString(36).substring(7)}`

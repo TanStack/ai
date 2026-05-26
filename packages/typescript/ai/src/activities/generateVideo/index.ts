@@ -43,11 +43,29 @@ export type VideoProviderOptions<TAdapter> =
  * Extract the size type for a VideoAdapter's model via ~types.
  */
 export type VideoSizeForAdapter<TAdapter> =
-  TAdapter extends VideoAdapter<infer TModel, any, any, infer TSizeMap>
+  TAdapter extends VideoAdapter<infer TModel, any, any, infer TSizeMap, any>
     ? TModel extends keyof TSizeMap
       ? TSizeMap[TModel]
       : string
     : string
+
+/**
+ * Extract the duration type for a VideoAdapter's model via ~types.
+ * Mirrors `VideoSizeForAdapter`. Falls back to `number | string | undefined`
+ * for adapters that haven't declared per-model duration constraints.
+ */
+export type VideoDurationForAdapter<TAdapter> =
+  TAdapter extends VideoAdapter<
+    infer TModel,
+    any,
+    any,
+    any,
+    infer TDurationMap
+  >
+    ? TModel extends keyof TDurationMap
+      ? TDurationMap[TModel]
+      : string | number | undefined
+    : string | number | undefined
 
 // ===========================
 // Activity Options Types
@@ -62,7 +80,7 @@ function createId(prefix: string): string {
  * The model is extracted from the adapter's model property.
  */
 interface VideoActivityBaseOptions<
-  TAdapter extends VideoAdapter<string, any, any, any>,
+  TAdapter extends VideoAdapter<string, any, any, any, any>,
 > {
   /** The video adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
@@ -78,7 +96,7 @@ interface VideoActivityBaseOptions<
  * @experimental Video generation is an experimental feature and may change.
  */
 export type VideoCreateOptions<
-  TAdapter extends VideoAdapter<string, any, any, any>,
+  TAdapter extends VideoAdapter<string, any, any, any, any>,
   TStream extends boolean = false,
 > = VideoActivityBaseOptions<TAdapter> & {
   /** Request type - create a new job (default if not specified) */
@@ -87,8 +105,12 @@ export type VideoCreateOptions<
   prompt: string
   /** Video size — format depends on the provider (e.g., "16:9", "1280x720") */
   size?: VideoSizeForAdapter<TAdapter>
-  /** Video duration in seconds */
-  duration?: number
+  /**
+   * Video duration — exact shape is per-model and may be a number, a string
+   * enum like '4' | '8' | '12' (Sora), or a keyword like '8s' (Veo via FAL).
+   * Pass `adapter.snapDuration(seconds)` to coerce raw seconds to a valid value.
+   */
+  duration?: VideoDurationForAdapter<TAdapter>
   /**
    * Whether to stream the video generation lifecycle.
    * When true, returns an AsyncIterable<StreamChunk> that handles the full
@@ -124,7 +146,7 @@ export type VideoCreateOptions<
  * @experimental Video generation is an experimental feature and may change.
  */
 export interface VideoStatusOptions<
-  TAdapter extends VideoAdapter<string, any, any, any>,
+  TAdapter extends VideoAdapter<string, any, any, any, any>,
 > extends VideoActivityBaseOptions<TAdapter> {
   /** Request type - get job status */
   request: 'status'
@@ -138,7 +160,7 @@ export interface VideoStatusOptions<
  * @experimental Video generation is an experimental feature and may change.
  */
 export interface VideoUrlOptions<
-  TAdapter extends VideoAdapter<string, any, any, any>,
+  TAdapter extends VideoAdapter<string, any, any, any, any>,
 > extends VideoActivityBaseOptions<TAdapter> {
   /** Request type - get video URL */
   request: 'url'
@@ -153,7 +175,7 @@ export interface VideoUrlOptions<
  * @experimental Video generation is an experimental feature and may change.
  */
 export type VideoActivityOptions<
-  TAdapter extends VideoAdapter<string, any, any, any>,
+  TAdapter extends VideoAdapter<string, any, any, any, any>,
   TRequest extends 'create' | 'status' | 'url' = 'create',
   TStream extends boolean = false,
 > = TRequest extends 'status'
@@ -229,7 +251,7 @@ export type VideoActivityResult<
  * ```
  */
 export function generateVideo<
-  TAdapter extends VideoAdapter<string, any, any, any>,
+  TAdapter extends VideoAdapter<string, any, any, any, any>,
   TStream extends boolean = false,
 >(
   options: VideoCreateOptions<TAdapter, TStream>,
@@ -247,7 +269,7 @@ export function generateVideo<
  * Internal implementation of non-streaming video job creation.
  */
 async function runCreateVideoJob<
-  TAdapter extends VideoAdapter<string, any, any, any>,
+  TAdapter extends VideoAdapter<string, any, any, any, any>,
 >(options: VideoCreateOptions<TAdapter, boolean>): Promise<VideoJobResult> {
   const { adapter, prompt, size, duration, modelOptions } = options
   const model = adapter.model
@@ -294,7 +316,7 @@ function sleep(ms: number): Promise<void> {
  * Handles the full job lifecycle: create job → poll for status → stream updates → yield final result.
  */
 async function* runStreamingVideoGeneration<
-  TAdapter extends VideoAdapter<string, any, any, any>,
+  TAdapter extends VideoAdapter<string, any, any, any, any>,
 >(options: VideoCreateOptions<TAdapter, true>): AsyncIterable<StreamChunk> {
   const { adapter, prompt, size, duration, modelOptions } = options
   const model = adapter.model
@@ -445,7 +467,7 @@ async function* runStreamingVideoGeneration<
  * ```
  */
 export async function getVideoJobStatus<
-  TAdapter extends VideoAdapter<string, any, any, any>,
+  TAdapter extends VideoAdapter<string, any, any, any, any>,
 >(options: {
   adapter: TAdapter & { kind: typeof kind }
   jobId: string
@@ -545,7 +567,7 @@ export async function getVideoJobStatus<
  * Create typed options for the generateVideo() function without executing.
  */
 export function createVideoOptions<
-  TAdapter extends VideoAdapter<string, any, any, any>,
+  TAdapter extends VideoAdapter<string, any, any, any, any>,
   TStream extends boolean = false,
 >(
   options: VideoCreateOptions<TAdapter, TStream>,
@@ -558,5 +580,7 @@ export type {
   VideoAdapter,
   VideoAdapterConfig,
   AnyVideoAdapter,
+  DurationOptions,
 } from './adapter'
 export { BaseVideoAdapter } from './adapter'
+export { snapToDurationOption } from './snap'
