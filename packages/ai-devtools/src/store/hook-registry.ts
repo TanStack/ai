@@ -126,6 +126,14 @@ export interface HookRecord {
   activityRunIds: Array<string>
 }
 
+/**
+ * Cap on the number of recently-seen event IDs we retain for dedupe. Once
+ * exceeded, the oldest entries are evicted FIFO so the structure stays
+ * bounded for the life of the session. Events older than this window may
+ * dedupe-miss; consumers should not rely on perfect global dedupe.
+ */
+export const SEEN_EVENT_IDS_CAP = 10_000
+
 export interface HookRegistryState {
   hooks: Record<string, HookRecord>
   runs: Record<string, RunRecord>
@@ -133,6 +141,7 @@ export interface HookRegistryState {
   fixtures: Array<ToolFixtureRecord>
   activeHookId: string | null
   seenEventIds: Record<string, true>
+  seenEventIdOrder: Array<string>
   seenHookActivityCounts: Record<string, number>
   unregisteredHookIds: Record<string, true>
 }
@@ -145,6 +154,7 @@ export function createHookRegistryState(): HookRegistryState {
     fixtures: [],
     activeHookId: null,
     seenEventIds: {},
+    seenEventIdOrder: [],
     seenHookActivityCounts: {},
     unregisteredHookIds: {},
   }
@@ -207,6 +217,13 @@ export function markEventSeen(
     return false
   }
   state.seenEventIds[key] = true
+  state.seenEventIdOrder.push(key)
+  if (state.seenEventIdOrder.length > SEEN_EVENT_IDS_CAP) {
+    const evicted = state.seenEventIdOrder.shift()
+    if (evicted !== undefined) {
+      delete state.seenEventIds[evicted]
+    }
+  }
   return true
 }
 
@@ -375,6 +392,7 @@ export function clearHookRegistry(state: HookRegistryState): void {
   state.events = {}
   state.activeHookId = null
   state.seenEventIds = {}
+  state.seenEventIdOrder = []
   state.seenHookActivityCounts = {}
   state.unregisteredHookIds = {}
 }

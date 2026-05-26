@@ -743,19 +743,32 @@ export const AIProvider: ParentComponent = (props) => {
     const raw = localStorage.getItem(fixturesStorageKey)
     if (!raw) return
 
+    let parsed: unknown
     try {
-      const parsed: unknown = JSON.parse(raw)
-      if (!Array.isArray(parsed)) return
-      const fixtures = parsed.filter(isToolFixtureRecord)
-      setState(
-        'hooks',
-        produce((hooks: HookRegistryState) => {
-          replaceSavedFixtures(hooks, fixtures)
-        }),
+      parsed = JSON.parse(raw)
+    } catch (err) {
+      // Surface the bad payload instead of silently nuking it — keep the raw
+      // value in storage so the user can recover it manually if needed.
+      console.error(
+        '[ai-devtools] failed to parse saved tool fixtures; keeping raw payload for inspection',
+        err,
       )
-    } catch {
-      localStorage.removeItem(fixturesStorageKey)
+      return
     }
+    if (!Array.isArray(parsed)) {
+      console.error(
+        '[ai-devtools] saved tool fixtures payload is not an array; ignoring',
+        parsed,
+      )
+      return
+    }
+    const fixtures = parsed.filter(isToolFixtureRecord)
+    setState(
+      'hooks',
+      produce((hooks: HookRegistryState) => {
+        replaceSavedFixtures(hooks, fixtures)
+      }),
+    )
   }
 
   function isToolFixtureRecord(value: unknown): value is ToolFixtureRecord {

@@ -970,16 +970,14 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
       return
     }
 
+    let output: unknown
     try {
-      const output = await executeFunc(fixture.input)
-      this.addToolResultForFixture({
-        fixture,
-        messageId,
-        toolCallId,
-        threadId,
-        output,
-      })
+      output = await executeFunc(fixture.input)
     } catch (error) {
+      console.error(
+        `[ai-devtools] tool fixture "${fixture.toolName}" execute threw`,
+        error,
+      )
       this.addToolResultForFixture({
         fixture,
         messageId,
@@ -987,9 +985,19 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
         threadId,
         output: null,
         errorText:
-          error instanceof Error ? error.message : 'Tool execution failed.',
+          error instanceof Error
+            ? `${error.name}: ${error.message}`
+            : `Tool execution failed: ${String(error)}`,
       })
+      return
     }
+    this.addToolResultForFixture({
+      fixture,
+      messageId,
+      toolCallId,
+      threadId,
+      output,
+    })
   }
 
   private addToolResultForFixture(input: {
