@@ -6,6 +6,13 @@ interface FeatureConfig {
   modelOptions: Record<string, any>
   modelOverrides?: Partial<Record<Provider, string>>
   dedicatedRoute?: string
+  /**
+   * Optional system prompt override. Defaults (in `api.chat.ts`) to the
+   * guitar-store assistant prompt that covers most features; only set this
+   * when the feature genuinely needs a different persona (e.g. the
+   * `multi-turn-structured` chef recipe-builder).
+   */
+  systemPrompt?: string
 }
 
 export const featureConfigs: Record<Feature, FeatureConfig> = {
@@ -53,9 +60,28 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
     tools: [],
     modelOptions: {},
   },
+  'multi-turn-structured': {
+    tools: [],
+    modelOptions: {},
+    systemPrompt:
+      'You are a chef assistant that always responds with a single recipe matching the provided JSON schema. When the user asks for modifications, produce a new recipe in the same shape that reflects the change. Stay terse — short titles, short steps.',
+  },
   'agentic-structured': {
     tools: [getGuitars],
     modelOptions: {},
+  },
+  // Pins #605 native-combined-mode: `outputSchema` + `tools` + `stream: true`
+  // in a single chat call. Default openai (gpt-4o) and anthropic
+  // (claude-sonnet-4-5) are already in their combined-mode-capable sets;
+  // gemini and grok need overrides to gated models so the engine takes the
+  // native path instead of the legacy `runStructuredFinalization` round-trip.
+  'agentic-structured-stream': {
+    tools: [getGuitars],
+    modelOptions: {},
+    modelOverrides: {
+      gemini: 'gemini-3-flash-preview',
+      grok: 'grok-4-1-fast-non-reasoning',
+    },
   },
   'multimodal-image': {
     tools: [],
@@ -77,6 +103,14 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
     tools: [],
     modelOptions: {},
   },
+  'audio-gen': {
+    tools: [],
+    modelOptions: {},
+  },
+  'sound-effects': {
+    tools: [],
+    modelOptions: {},
+  },
   tts: {
     tools: [],
     modelOptions: {},
@@ -86,6 +120,10 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
     modelOptions: {},
   },
   'video-gen': {
+    tools: [],
+    modelOptions: {},
+  },
+  'stateful-interactions': {
     tools: [],
     modelOptions: {},
   },

@@ -1,4 +1,66 @@
 {
   "$schema": "./coupling.schema.json",
-  "couplings": []
+  "couplings": [
+    {
+      "id": "ai-source-touches-agent-skills",
+      "trigger": "packages/ai*/src/**/*.ts",
+      "impacts": [
+        {
+          "target": [
+            "packages/ai/skills/ai-core/structured-outputs/SKILL.md",
+            "packages/ai/skills/ai-core/chat-experience/SKILL.md",
+            "packages/ai/skills/ai-core/tool-calling/SKILL.md",
+            "packages/ai/skills/ai-core/adapter-configuration/SKILL.md",
+            "packages/ai/skills/ai-core/middleware/SKILL.md",
+            "packages/ai/skills/ai-core/media-generation/SKILL.md",
+            "packages/ai/skills/ai-core/ag-ui-protocol/SKILL.md",
+            "packages/ai/skills/ai-core/debug-logging/SKILL.md",
+            "packages/ai/skills/ai-core/custom-backend-integration/SKILL.md",
+            "packages/ai-code-mode/skills/ai-code-mode/SKILL.md"
+          ],
+          "kind": "change-required",
+          "why": "Agent skills are a contract with downstream coding agents. When the source surface they cover changes (new public API, changed type, new pattern, removed pattern, deprecation), the skill must be updated in the same PR — otherwise agents reading the skill keep generating obsolete or wrong code targeting a surface that no longer exists. Use this list to decide which skill(s) cover the file you're touching: `activities/chat/**` → chat-experience / structured-outputs / tool-calling; `activities/generateImage|generateAudio|generateVideo|generateSpeech|generateTranscription|summarize/**` → media-generation; `middleware/**` → middleware; `protocol/**` → ag-ui-protocol; `adapters/**` or anything that affects the adapter contract → adapter-configuration. Skip only for pure refactors / perf / internal-only changes that don't surface a new pattern or change observable behavior."
+        }
+      ]
+    },
+    {
+      "id": "ai-source-touches-public-docs",
+      "trigger": "packages/ai*/src/**/*.ts",
+      "impacts": [
+        {
+          "target": [
+            "docs/structured-outputs/**/*.md",
+            "docs/chat/**/*.md",
+            "docs/tools/**/*.md",
+            "docs/adapters/**/*.md",
+            "docs/advanced/**/*.md",
+            "docs/api/**/*.md",
+            "docs/getting-started/**/*.md",
+            "docs/protocol/**/*.md",
+            "docs/media/**/*.md",
+            "docs/code-mode/**/*.md",
+            "docs/migration/**/*.md"
+          ],
+          "kind": "change-required",
+          "why": "Public docs are the canonical source for users. When the source surface they describe changes — new capability, behavior change, deprecation — the docs must be updated in the same PR. Cases to watch for: (1) the new behavior contradicts existing doc advice (e.g. removing a hack the doc still recommends); (2) the new capability opens a use case no existing page covers (consider whether a new page is needed, plus nav config and cross-links); (3) a public type / function gains or loses generic parameters, optional fields, etc. Run `pnpm test:docs` after editing to catch cross-link rot. Skip only for pure refactors / perf / internal-only changes."
+        }
+      ]
+    },
+    {
+      "id": "ai-source-touches-e2e-coverage",
+      "trigger": "packages/ai*/src/**/*.ts",
+      "impacts": [
+        {
+          "target": [
+            "testing/e2e/tests/**/*.spec.ts",
+            "testing/e2e/fixtures/**",
+            "testing/e2e/src/lib/feature-support.ts",
+            "testing/e2e/src/lib/types.ts"
+          ],
+          "kind": "new-code-required",
+          "why": "Per CLAUDE.md, every feature / bug fix / behavior change MUST include E2E test coverage. When a new public capability is added, a corresponding spec under testing/e2e/tests/ plus a fixture under testing/e2e/fixtures/ are required — often plus a new entry in feature-support.ts and types.ts. The full pattern is: add the Feature flag, decide provider support, optionally add a per-feature config (system prompt, schema, tools), wire it through src/routes/api.chat.ts (or the relevant route), write the fixture(s), write the spec iterating `providersFor(feature)`. Spec must run against every supported provider so non-native-streaming providers exercise the fallback path. Skip only for refactors that don't change observable behavior."
+        }
+      ]
+    }
+  ]
 }

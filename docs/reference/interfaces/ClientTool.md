@@ -5,7 +5,7 @@ title: ClientTool
 
 # Interface: ClientTool\<TInput, TOutput, TName\>
 
-Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts:24](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L24)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:24](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L24)
 
 Marker type for client-side tools
 
@@ -31,7 +31,7 @@ Marker type for client-side tools
 __toolSide: "client";
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts:29](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L29)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:29](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L29)
 
 ***
 
@@ -41,7 +41,7 @@ Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts
 description: string;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts:31](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L31)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:31](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L31)
 
 ***
 
@@ -53,7 +53,7 @@ optional execute: (args) =>
 | Promise<InferSchemaType<TOutput>>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts:37](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L37)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:42](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L42)
 
 #### Parameters
 
@@ -74,7 +74,7 @@ Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts
 optional inputSchema: TInput;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts:32](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L32)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:37](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L37)
 
 ***
 
@@ -84,7 +84,7 @@ Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts
 optional lazy: boolean;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts:35](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L35)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:40](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L40)
 
 ***
 
@@ -94,7 +94,7 @@ Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts
 optional metadata: Record<string, unknown>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts:36](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L36)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:41](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L41)
 
 ***
 
@@ -104,7 +104,7 @@ Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts
 name: TName;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts:30](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L30)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:30](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L30)
 
 ***
 
@@ -114,7 +114,7 @@ Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts
 optional needsApproval: boolean;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts:34](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L34)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:39](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L39)
 
 ***
 
@@ -124,4 +124,4 @@ Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts
 optional outputSchema: TOutput;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts:33](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L33)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:38](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L38)

@@ -5,7 +5,7 @@ title: ToolExecutionContext
 
 # Interface: ToolExecutionContext
 
-Defined in: [packages/typescript/ai/src/types.ts:408](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L408)
+Defined in: [packages/ai/src/types.ts:450](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L450)
 
 Context passed to tool execute functions, providing capabilities like
 emitting custom events during execution.
@@ -18,7 +18,7 @@ emitting custom events during execution.
 emitCustomEvent: (eventName, value) => void;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:429](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L429)
+Defined in: [packages/ai/src/types.ts:471](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L471)
 
 Emit a custom event during tool execution.
 Events are streamed to the client in real-time as AG-UI CUSTOM events.
@@ -61,6 +61,6 @@ const tool = toolDefinition({ ... }).server(async (args, context) => {
 optional toolCallId: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:410](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L410)
+Defined in: [packages/ai/src/types.ts:452](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L452)
 
 The ID of the tool call being executed

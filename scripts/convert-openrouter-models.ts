@@ -64,6 +64,19 @@ function generateChatModelsArray(): string {
     .join('\n')}\n] as const`
 }
 
+/**
+ * OpenRouter's web_search plugin works across all chat models via the gateway,
+ * so the tool-capability map is structural and identical for every chat model.
+ * Emitted as a mapped type to stay in sync with OPENROUTER_CHAT_MODELS without
+ * touching each model constant.
+ */
+function generateChatToolCapabilitiesType(): string {
+  if (chatModels.size === 0) {
+    return ''
+  }
+  return `export type OpenRouterChatModelToolCapabilitiesByName = {\n  [K in (typeof OPENROUTER_CHAT_MODELS)[number]]: readonly ['web_search']\n}`
+}
+
 function generateImageModelsArray(): string {
   const modelIds = Array.from(imageModels)
   if (modelIds.length === 0) {
@@ -130,12 +143,30 @@ function generateModelMetaString(model: OpenRouterModel): string {
   const outputModalities = model.architecture.output_modalities
     .map(mapInputModality)
     .filter((m): m is InputModality => m !== null)
+  // OpenRouter uses `~prefix/name` to denote routing aliases (e.g.
+  // `~anthropic/claude-haiku-latest`). The model ID itself is preserved as a
+  // string literal so users can pass it to `chat({ model: ... })`. The leading
+  // `~` is mapped to `_` only for the derived constant name so it's a valid
+  // JavaScript identifier.
   const constName = model.id
+    .replaceAll('~', '_')
     .replaceAll('/', '-')
     .replaceAll('-', '_')
     .replaceAll('.', '_')
     .replaceAll(':', '_')
     .toUpperCase()
+  // Safety net: if a future OpenRouter ID quirk produces a non-identifier
+  // constant name, fail loudly here instead of letting prettier choke on the
+  // generated file later in the pipeline.
+  if (!/^[A-Z_][A-Z0-9_]*$/.test(constName)) {
+    throw new Error(
+      `Generated constant name is not a valid JS identifier: ${JSON.stringify(
+        constName,
+      )} (from OpenRouter model.id ${JSON.stringify(
+        model.id,
+      )}). Extend the constName sanitiser to handle this case.`,
+    )
+  }
   // Ensure at least 'text' is present
   if (!inputModalities.includes('text')) {
     inputModalities.unshift('text')
@@ -288,14 +319,14 @@ ${createPerModelModelOptions()}
 ${createPerModelInputModalities()}
 
 ${generateChatModelsArray()}
+
+${generateChatToolCapabilitiesType()}
 ${generateVideoModelsArray()}
 ${generateImageModelsArray()}
 `
 console.log(file)
-writeFile('packages/typescript/ai-openrouter/src/model-meta.ts', file).then(
-  () => {
-    console.log(
-      'Model meta file written to packages/typescript/ai-openrouter/src/model-meta.ts',
-    )
-  },
-)
+writeFile('packages/ai-openrouter/src/model-meta.ts', file).then(() => {
+  console.log(
+    'Model meta file written to packages/ai-openrouter/src/model-meta.ts',
+  )
+})

@@ -39,12 +39,12 @@ const stream = chat({
 import { chat } from "@tanstack/ai";
 import { createAnthropicChat } from "@tanstack/ai-anthropic";
 
-const adapter = createAnthropicChat(process.env.ANTHROPIC_API_KEY!, {
+const adapter = createAnthropicChat("claude-sonnet-4-5", process.env.ANTHROPIC_API_KEY!, {
   // ... your config options
 });
 
 const stream = chat({
-  adapter: adapter("claude-sonnet-4-5"),
+  adapter,
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
@@ -52,13 +52,13 @@ const stream = chat({
 ## Configuration
 
 ```typescript
-import { createAnthropicChat, type AnthropicChatConfig } from "@tanstack/ai-anthropic";
+import { createAnthropicChat, type AnthropicTextConfig } from "@tanstack/ai-anthropic";
 
-const config: Omit<AnthropicChatConfig, 'apiKey'> = {
+const config: Omit<AnthropicTextConfig, "apiKey"> = {
   baseURL: "https://api.anthropic.com", // Optional, for custom endpoints
 };
 
-const adapter = createAnthropicChat(process.env.ANTHROPIC_API_KEY!, config);
+const adapter = createAnthropicChat("claude-sonnet-4-5", process.env.ANTHROPIC_API_KEY!, config);
 ```
  
 
@@ -194,39 +194,20 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 ## API Reference
 
-### `anthropicText(config?)`
+Every factory pair follows the same shape: the short factory (`anthropicText`, `anthropicSummarize`) reads `ANTHROPIC_API_KEY` from the environment, while `createAnthropicChat` / `createAnthropicSummarize` take an explicit API key. Both take `model` as the first argument.
 
-Creates an Anthropic chat adapter using environment variables.
+### `anthropicText(model, config?)` / `createAnthropicChat(model, apiKey, config?)`
 
-**Returns:** An Anthropic chat adapter instance.
-
-### `createAnthropicChat(apiKey, config?)`
-
-Creates an Anthropic chat adapter with an explicit API key.
+Creates an Anthropic chat adapter.
 
 **Parameters:**
 
-- `apiKey` - Your Anthropic API key
-- `config.baseURL?` - Custom base URL (optional)
+- `model` - Claude model id (e.g. `"claude-sonnet-4-5"`, `"claude-opus-4-6"`)
+- `config?.baseURL` - Custom base URL (optional)
 
-**Returns:** An Anthropic chat adapter instance.
+### `anthropicSummarize(model, config?)` / `createAnthropicSummarize(model, apiKey, config?)`
 
-### `anthropicSummarize(config?)`
-
-Creates an Anthropic summarization adapter using environment variables.
-
-**Returns:** An Anthropic summarize adapter instance.
-
-### `createAnthropicSummarize(apiKey, config?)`
-
-Creates an Anthropic summarization adapter with an explicit API key.
-
-**Parameters:**
-
-- `apiKey` - Your Anthropic API key
-- `config.baseURL?` - Custom base URL (optional)
-
-**Returns:** An Anthropic summarize adapter instance.
+Creates an Anthropic summarization adapter.
 
 ## Limitations
 

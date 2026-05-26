@@ -244,7 +244,8 @@ Client tools go through a small set of observable lifecycle states you can surfa
 - `awaiting-input` — the model intends to call the tool but arguments haven't arrived yet.
 - `input-streaming` — the model is streaming the tool arguments (partial input may be available).
 - `input-complete` — all arguments have been received and the tool is executing.
-- `completed` — the tool finished; part.output contains the result (or error details).
+- `approval-requested` / `approval-responded` — only seen for tools with `needsApproval: true`.
+- `complete` — the tool finished; `part.output` contains the result (or error details).
 
 Use these states to show loading indicators, streaming progress, and final success/error feedback. The example below maps each state to a simple UI message.
 
@@ -261,8 +262,8 @@ function ToolCallDisplay({ part }: { part: ToolCallPart }) {
   if (part.state === "input-complete") {
     return <div>✓ Arguments received, executing...</div>;
   }
-  
-  if (part.output) {
+
+  if (part.state === "complete") {
     return <div>✅ Tool completed successfully</div>;
   }
   

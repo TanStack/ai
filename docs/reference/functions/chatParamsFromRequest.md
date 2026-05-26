@@ -10,11 +10,11 @@ function chatParamsFromRequest(req): Promise<{
   context: object[];
   forwardedProps: Record<string, unknown>;
   messages: (
-     | UIMessage
      | ModelMessage<
      | string
      | ContentPart<unknown, unknown, unknown, unknown, unknown>[]
-    | null>)[];
+     | null>
+    | UIMessage<unknown>)[];
   parentRunId?: string;
   runId: string;
   state: unknown;
@@ -23,7 +23,7 @@ function chatParamsFromRequest(req): Promise<{
 }>;
 ```
 
-Defined in: [packages/typescript/ai/src/utilities/chat-params.ts:121](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/utilities/chat-params.ts#L121)
+Defined in: [packages/ai/src/utilities/chat-params.ts:121](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/chat-params.ts#L121)
 
 Read an HTTP `Request`, parse its JSON body, and validate it as an
 AG-UI `RunAgentInput` — collapsing the standard `req.json()` +
@@ -59,11 +59,11 @@ with try/catch and return the caught Response yourself, or use
   `context`: `object`[];
   `forwardedProps`: `Record`\<`string`, `unknown`\>;
   `messages`: (
-     \| [`UIMessage`](../interfaces/UIMessage.md)
      \| [`ModelMessage`](../interfaces/ModelMessage.md)\<
      \| `string`
      \| [`ContentPart`](../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`, `unknown`\>[]
-    \| `null`\>)[];
+     \| `null`\>
+    \| [`UIMessage`](../interfaces/UIMessage.md)\<`unknown`\>)[];
   `parentRunId?`: `string`;
   `runId`: `string`;
   `state`: `unknown`;

@@ -5,10 +5,13 @@ import {
   maxIterations,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
+import type { StreamChunk } from '@tanstack/ai'
 import type { Feature, Provider } from '@/lib/types'
 import { createTextAdapter } from '@/lib/providers'
 import { featureConfigs } from '@/lib/features'
-import { guitarRecommendationSchema } from '@/lib/schemas'
+import { guitarRecommendationSchema, recipeSchema } from '@/lib/schemas'
+
+const DEFAULT_SYSTEM_PROMPT = 'You are a helpful assistant for a guitar store.'
 
 export const Route = createFileRoute('/api/chat')({
   server: {
@@ -41,6 +44,10 @@ export const Route = createFileRoute('/api/chat')({
         const testId = typeof fp.testId === 'string' ? fp.testId : undefined
         const aimockPort =
           fp.aimockPort != null ? Number(fp.aimockPort) : undefined
+        const previousInteractionId: string | undefined =
+          typeof fp.previousInteractionId === 'string'
+            ? fp.previousInteractionId
+            : undefined
 
         const config = featureConfigs[feature]
         const modelOverride = config.modelOverrides?.[provider]
@@ -49,17 +56,49 @@ export const Route = createFileRoute('/api/chat')({
           modelOverride,
           aimockPort,
           testId,
+          feature,
         )
 
+        const modelOptions = previousInteractionId
+          ? {
+              ...config.modelOptions,
+              previous_interaction_id: previousInteractionId,
+            }
+          : config.modelOptions
+
         try {
+          const systemPrompt = config.systemPrompt ?? DEFAULT_SYSTEM_PROMPT
+
+          // Test-only flag — when truthy, the route promotes the system
+          // prompt to object-form and attaches Anthropic `cache_control`
+          // metadata. Enables system-prompt-metadata.spec.ts to verify
+          // cache_control reaches the wire via the aimock journal.
+          const systemPromptCacheControl =
+            fp.systemPromptCacheControl === true
+              ? ({ type: 'ephemeral' as const } as const)
+              : undefined
+          const systemPrompts = systemPromptCacheControl
+            ? [
+                {
+                  content: systemPrompt,
+                  metadata: { cache_control: systemPromptCacheControl },
+                  // The route is provider-generic; the metadata type is
+                  // adapter-narrowed and only meaningful for Anthropic, so
+                  // a single bridge cast lives here at the test entry.
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                } as any,
+              ]
+            : [systemPrompt]
+
+          // Two structured-output-streaming features differ only in which
+          // schema they bind to. Branched per-feature so TS can pick the
+          // right `chat<TSchema>()` overload without a `never` cast.
           const stream =
             feature === 'structured-output-stream'
               ? chat({
                   ...adapterOptions,
-                  modelOptions: config.modelOptions,
-                  systemPrompts: [
-                    'You are a helpful assistant for a guitar store.',
-                  ],
+                  modelOptions,
+                  systemPrompts,
                   messages: params.messages,
                   threadId: params.threadId,
                   runId: params.runId,
@@ -67,33 +106,68 @@ export const Route = createFileRoute('/api/chat')({
                   stream: true,
                   abortController,
                 })
-              : chat({
-                  ...adapterOptions,
-                  tools: config.tools,
-                  modelOptions: config.modelOptions,
-                  systemPrompts: [
-                    'You are a helpful assistant for a guitar store.',
-                  ],
-                  agentLoopStrategy: maxIterations(5),
-                  messages: params.messages,
-                  threadId: params.threadId,
-                  runId: params.runId,
-                  abortController,
-                })
+              : feature === 'multi-turn-structured'
+                ? chat({
+                    ...adapterOptions,
+                    modelOptions,
+                    systemPrompts,
+                    messages: params.messages,
+                    threadId: params.threadId,
+                    runId: params.runId,
+                    outputSchema: recipeSchema,
+                    stream: true,
+                    abortController,
+                  })
+                : feature === 'agentic-structured-stream'
+                  ? chat({
+                      ...adapterOptions,
+                      tools: config.tools,
+                      modelOptions,
+                      systemPrompts,
+                      agentLoopStrategy: maxIterations(5),
+                      messages: params.messages,
+                      threadId: params.threadId,
+                      runId: params.runId,
+                      outputSchema: guitarRecommendationSchema,
+                      stream: true,
+                      abortController,
+                    })
+                  : chat({
+                      ...adapterOptions,
+                      tools: config.tools,
+                      modelOptions,
+                      systemPrompts,
+                      agentLoopStrategy: maxIterations(5),
+                      messages: params.messages,
+                      threadId: params.threadId,
+                      runId: params.runId,
+                      abortController,
+                    })
 
-          return toServerSentEventsResponse(stream, { abortController })
-        } catch (error: any) {
-          console.error(`[api.chat] Error:`, error.message)
-          if (error.name === 'AbortError' || abortController.signal.aborted) {
+          // Cast: `chat()` returns `AsyncIterable<StreamChunk> |
+          // StructuredOutputStream<T>`. Both yield AG-UI events at runtime
+          // but the typed-CUSTOM-events variants on `StructuredOutputStream`
+          // aren't structurally assignable to the bare `StreamChunk` union
+          // (zod-passthrough index-signature variance). The runtime is fine
+          // either way.
+          return toServerSentEventsResponse(
+            stream as AsyncIterable<StreamChunk>,
+            { abortController },
+          )
+        } catch (error) {
+          console.error('[api.chat] Error:', error)
+          if (
+            (error instanceof Error && error.name === 'AbortError') ||
+            abortController.signal.aborted
+          ) {
             return new Response(null, { status: 499 })
           }
-          return new Response(
-            JSON.stringify({ error: error.message || 'An error occurred' }),
-            {
-              status: 500,
-              headers: { 'Content-Type': 'application/json' },
-            },
-          )
+          const message =
+            error instanceof Error ? error.message : 'An error occurred'
+          return new Response(JSON.stringify({ error: message }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          })
         }
       },
     },

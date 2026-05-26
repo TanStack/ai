@@ -3,9 +3,9 @@ id: TextAdapter
 title: TextAdapter
 ---
 
-# Interface: TextAdapter\<TModel, TProviderOptions, TInputModalities, TMessageMetadataByModality, TToolCapabilities, TToolCallMetadata\>
+# Interface: TextAdapter\<TModel, TProviderOptions, TInputModalities, TMessageMetadataByModality, TToolCapabilities, TToolCallMetadata, TSystemPromptMetadata\>
 
-Defined in: [packages/typescript/ai/src/activities/chat/adapter.ts:59](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/adapter.ts#L59)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:63](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L63)
 
 Text adapter interface with pre-resolved generics.
 
@@ -19,6 +19,10 @@ Generic parameters:
 - TMessageMetadata: Metadata types for content parts (already resolved)
 - TToolCapabilities: Tuple of tool-kind strings supported by this model, resolved from `supports.tools`
 - TToolCallMetadata: Metadata type that round-trips with tool calls (e.g. Gemini's `thoughtSignature`)
+- TSystemPromptMetadata: Provider-typed metadata accepted on each
+  `systemPrompts[i]` entry (e.g. Anthropic `cache_control`). Defaults to
+  `never` — adapters without per-prompt metadata reject the `metadata`
+  field at the call site.
 
 ## Type Parameters
 
@@ -46,6 +50,10 @@ Generic parameters:
 
 `TToolCallMetadata` = `unknown`
 
+### TSystemPromptMetadata
+
+`TSystemPromptMetadata` = `never`
+
 ## Properties
 
 ### ~types
@@ -54,7 +62,7 @@ Generic parameters:
 ~types: object;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/adapter.ts:77](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/adapter.ts#L77)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:82](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L82)
 
 **`Internal`**
 
@@ -78,6 +86,12 @@ messageMetadataByModality: TMessageMetadataByModality;
 providerOptions: TProviderOptions;
 ```
 
+#### systemPromptMetadata
+
+```ts
+systemPromptMetadata: TSystemPromptMetadata;
+```
+
 #### toolCallMetadata
 
 ```ts
@@ -98,7 +112,7 @@ toolCapabilities: TToolCapabilities;
 chatStream: (options) => AsyncIterable<AGUIEvent>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/adapter.ts:88](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/adapter.ts#L88)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:94](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L94)
 
 Stream text completions from the model
 
@@ -120,7 +134,7 @@ Stream text completions from the model
 readonly kind: "text";
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/adapter.ts:68](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/adapter.ts#L68)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:73](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L73)
 
 Discriminator for adapter kind
 
@@ -132,7 +146,7 @@ Discriminator for adapter kind
 readonly model: TModel;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/adapter.ts:72](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/adapter.ts#L72)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:77](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L77)
 
 The model this adapter is configured for
 
@@ -144,7 +158,7 @@ The model this adapter is configured for
 readonly name: string;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/adapter.ts:70](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/adapter.ts#L70)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:75](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L75)
 
 Provider name identifier (e.g., 'openai', 'anthropic')
 
@@ -156,7 +170,7 @@ Provider name identifier (e.g., 'openai', 'anthropic')
 structuredOutput: (options) => Promise<StructuredOutputResult<unknown>>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/adapter.ts:100](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/adapter.ts#L100)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:106](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L106)
 
 Generate structured output using the provider's native structured output API.
 This method uses stream: false and sends the JSON schema to the provider
@@ -184,7 +198,7 @@ Promise with the raw data (validation is done in the chat function)
 optional structuredOutputStream: (options) => AsyncIterable<AGUIEvent>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/adapter.ts:117](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/adapter.ts#L117)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:123](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L123)
 
 Stream structured output using the provider's native streaming structured
 output API (stream + response_format json_schema in a single request).
@@ -207,3 +221,41 @@ TEXT_MESSAGE_*, RUN_FINISHED) carrying raw JSON text deltas, plus a final
 #### Returns
 
 `AsyncIterable`\<[`AGUIEvent`](../type-aliases/AGUIEvent.md)\>
+
+***
+
+### supportsCombinedToolsAndSchema()?
+
+```ts
+optional supportsCombinedToolsAndSchema: (modelOptions?) => boolean;
+```
+
+Defined in: [packages/ai/src/activities/chat/adapter.ts:146](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L146)
+
+Declares whether the adapter supports combining `tools` and a
+schema-constrained final answer in a single streaming request.
+
+When `true`, the engine wires `outputSchema` into the regular
+`chatStream()` call and skips the separate `runStructuredFinalization`
+round-trip. The model's natural final turn carries the
+schema-constrained JSON text and the engine harvests it from the agent
+loop's accumulated content.
+
+When `false`, `undefined`, or the method is omitted, the engine runs
+the agent loop without `outputSchema` and then issues a separate
+`structuredOutput` / `structuredOutputStream` call against the JSON
+schema for finalization (the legacy path).
+
+The method receives the per-call `modelOptions` so providers whose
+support depends on the resolved upstream model (e.g. OpenRouter) can
+answer per-request. Most adapters can return a constant.
+
+#### Parameters
+
+##### modelOptions?
+
+`TProviderOptions`
+
+#### Returns
+
+`boolean`

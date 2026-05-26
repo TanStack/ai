@@ -1,0 +1,395 @@
+import { describe, expect, it } from 'vitest'
+import { generateToolWrappers, wrapCode } from '../src/worker/wrap-code'
+import type {
+  ExecuteResponse,
+  ToolResultPayload,
+  ToolSchema,
+} from '../src/types'
+import workerModule from '../src/worker/index'
+
+/**
+ * Error envelope returned by the outer worker for invalid requests (e.g.
+ * non-POST methods or missing `code`). Not part of `ExecuteResponse` — these
+ * are short-circuit responses produced before `executeCode` is called.
+ */
+interface SimpleErrorResponse {
+  error: string
+}
+
+/**
+ * Single trust-boundary cast: the Fetch API types `Response.json()` as
+ * `Promise<unknown>`, but tests know the worker's response shape from the
+ * source. This helper is the ONLY place where we assert that shape; all
+ * callers get a properly typed value back without sprinkling `as` casts at
+ * each call site.
+ */
+async function readJson<T>(response: Response): Promise<T> {
+  // Trust boundary: Response.json() returns unknown; tests own the shape.
+  return (await response.json()) as T
+}
+
+const worker = workerModule as {
+  fetch: (
+    request: Request,
+    env: {
+      LOADER?: {
+        load: (options: {
+          compatibilityDate: string
+          mainModule: string
+          modules: Record<string, string>
+          globalOutbound?: unknown
+          env?: Record<string, unknown>
+        }) => {
+          getEntrypoint: (name?: string) => {
+            fetch: (request: Request) => Promise<Response>
+          }
+        }
+      }
+    },
+    ctx: ExecutionContext,
+  ) => Promise<Response>
+}
+
+const mockExecutionContext = {
+  waitUntil: () => {},
+  passThroughOnException: () => {},
+} as unknown as ExecutionContext
+
+describe('generateToolWrappers', () => {
+  const tools: Array<ToolSchema> = [
+    {
+      name: 'add',
+      description: 'Add numbers',
+      inputSchema: { type: 'object' },
+    },
+    { name: 'fetchData', description: 'Fetch data', inputSchema: {} },
+  ]
+
+  it('generates first-pass wrappers that collect tool calls when toolResults is undefined', () => {
+    const code = generateToolWrappers(tools)
+    expect(code).toContain('async function add(input)')
+    expect(code).toContain('__pendingToolCalls.push')
+    expect(code).toContain('__ToolCallNeeded')
+    expect(code).toContain('async function fetchData(input)')
+    expect(code).not.toContain('__toolResults')
+  })
+
+  it('generates second-pass wrappers that return cached results when toolResults is provided', () => {
+    const toolResults: Record<string, ToolResultPayload> = {
+      add_1: { success: true, value: 5 },
+      fetchData_1: { success: false, error: 'Failed' },
+    }
+    const code = generateToolWrappers(tools, toolResults)
+    expect(code).toContain('async function add(input)')
+    expect(code).toContain('__toolResults[callId]')
+    expect(code).toContain('result.success')
+    expect(code).toContain('result.error')
+    expect(code).toContain('return result.value')
+  })
+
+  it('rejects tool names that would break out of the function identifier', () => {
+    const malicious: ToolSchema = {
+      name: "foo'); process.exit(1); (function bar() {",
+      description: '',
+      inputSchema: {},
+    }
+    expect(() => generateToolWrappers([malicious])).toThrow(/Invalid tool name/)
+  })
+
+  it('rejects tool names containing whitespace, quotes, or backticks', () => {
+    const cases = [
+      'has space',
+      'with`backtick',
+      "with'quote",
+      'with"quote',
+      'with;semi',
+      'with\nnewline',
+    ]
+    for (const name of cases) {
+      expect(() =>
+        generateToolWrappers([{ name, description: '', inputSchema: {} }]),
+      ).toThrow(/Invalid tool name/)
+    }
+  })
+
+  it('rejects tool names that start with a digit', () => {
+    expect(() =>
+      generateToolWrappers([
+        { name: '123tool', description: '', inputSchema: {} },
+      ]),
+    ).toThrow(/Invalid tool name/)
+  })
+
+  it('rejects reserved JS keywords that would pass the regex but break eval', () => {
+    const reserved = ['return', 'class', 'function', 'if', 'await', 'import']
+    for (const name of reserved) {
+      expect(
+        () =>
+          generateToolWrappers([{ name, description: '', inputSchema: {} }]),
+        `should reject reserved: ${name}`,
+      ).toThrow(/reserved JavaScript keyword/)
+    }
+  })
+
+  it('accepts conventional identifiers (camelCase, snake_case, $_)', () => {
+    const valid = ['camelCase', 'snake_case', '_leading_underscore', '$dollar']
+    for (const name of valid) {
+      expect(() =>
+        generateToolWrappers([{ name, description: '', inputSchema: {} }]),
+      ).not.toThrow()
+    }
+  })
+})
+
+describe('wrapCode', () => {
+  const tools: Array<ToolSchema> = [
+    { name: 'greet', description: 'Greet', inputSchema: {} },
+  ]
+
+  it('wraps user code in async IIFE with __pendingToolCalls and __toolResults when no toolResults', () => {
+    const wrapped = wrapCode('return 1 + 1', tools)
+    expect(wrapped).toContain('(async function()')
+    expect(wrapped).toContain('const __pendingToolCalls = []')
+    expect(wrapped).toContain('const __toolResults = {}')
+    expect(wrapped).toContain('return 1 + 1')
+    expect(wrapped).toContain("status: 'done'")
+    expect(wrapped).toContain("status: 'need_tools'")
+    expect(wrapped).toContain('async function greet(input)')
+  })
+
+  it('includes toolResults JSON when toolResults provided', () => {
+    const toolResults: Record<string, ToolResultPayload> = {
+      greet_1: { success: true, value: 'Hi' },
+    }
+    const wrapped = wrapCode('return await greet({})', tools, toolResults)
+    expect(wrapped).toContain('"greet_1"')
+    expect(wrapped).toContain('"success":true')
+    expect(wrapped).toContain('"value":"Hi"')
+  })
+
+  it('includes console capture and __logs', () => {
+    const wrapped = wrapCode('console.log("x")', [])
+    expect(wrapped).toContain('const console =')
+    expect(wrapped).toContain('__logs.push')
+    expect(wrapped).toContain('logs: __logs')
+  })
+})
+
+describe('Worker fetch handler', () => {
+  it('returns CORS headers for OPTIONS preflight', async () => {
+    const request = new Request('https://worker.test/', { method: 'OPTIONS' })
+    const response = await worker.fetch(request, {}, mockExecutionContext)
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*')
+    expect(response.headers.get('Access-Control-Allow-Methods')).toContain(
+      'POST',
+    )
+    expect(response.headers.get('Access-Control-Allow-Headers')).toContain(
+      'Content-Type',
+    )
+  })
+
+  it('returns 405 for non-POST methods', async () => {
+    const request = new Request('https://worker.test/', { method: 'GET' })
+    const response = await worker.fetch(request, {}, mockExecutionContext)
+
+    expect(response.status).toBe(405)
+    const json = await readJson<SimpleErrorResponse>(response)
+    expect(json).toHaveProperty('error', 'Method not allowed')
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*')
+  })
+
+  it('returns 400 when body has no code', async () => {
+    const request = new Request('https://worker.test/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tools: [] }),
+    })
+    const response = await worker.fetch(request, {}, mockExecutionContext)
+
+    expect(response.status).toBe(400)
+    const json = await readJson<SimpleErrorResponse>(response)
+    expect(json).toHaveProperty('error', 'Code is required')
+  })
+
+  it('returns 200 with WorkerLoaderNotAvailable when env has no LOADER', async () => {
+    const request = new Request('https://worker.test/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        code: 'return 1',
+        tools: [],
+      }),
+    })
+    const response = await worker.fetch(request, {}, mockExecutionContext)
+
+    expect(response.status).toBe(200)
+    const json =
+      await readJson<Extract<ExecuteResponse, { status: 'error' }>>(response)
+    expect(json.status).toBe('error')
+    expect(json.error.name).toBe('WorkerLoaderNotAvailable')
+    expect(json.error.message).toContain('LOADER')
+    expect(json.error.message).toContain('worker_loaders')
+    expect(json.error.message).toContain('wrangler.toml')
+  })
+
+  it('exercises the LOADER.load → getEntrypoint → fetch chain on the happy path', async () => {
+    // Capture mock state for post-fetch assertions. Asserting inside the
+    // synchronous `load()` mock would be swallowed by the outer worker's
+    // try/catch and surface as a generic 500, masking the real failure.
+    let loadCalled = false
+    type LoadOptions = {
+      compatibilityDate: string
+      mainModule: string
+      modules: Record<string, string>
+      globalOutbound?: unknown
+      env?: Record<string, unknown>
+    }
+    let capturedOptions: LoadOptions | null = null
+    const env = {
+      LOADER: {
+        load: (options: LoadOptions) => {
+          loadCalled = true
+          capturedOptions = options
+          return {
+            getEntrypoint: () => ({
+              fetch: (_req: Request) =>
+                Promise.resolve(
+                  new Response(
+                    JSON.stringify({
+                      status: 'done',
+                      success: true,
+                      value: 42,
+                      logs: ['hello from sandbox'],
+                    }),
+                    { headers: { 'Content-Type': 'application/json' } },
+                  ),
+                ),
+            }),
+          }
+        },
+      },
+    }
+
+    const request = new Request('https://worker.test/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: 'return 42', tools: [], timeout: 5000 }),
+    })
+    const response = await worker.fetch(request, env, mockExecutionContext)
+
+    expect(loadCalled).toBe(true)
+    expect(capturedOptions).not.toBeNull()
+    expect(capturedOptions!.mainModule).toBe('main.js')
+    expect(capturedOptions!.modules).toHaveProperty('main.js')
+    expect(capturedOptions!.modules['main.js']).toContain('export default')
+    expect(capturedOptions!.globalOutbound).toBeNull()
+    expect(response.status).toBe(200)
+    const json =
+      await readJson<Extract<ExecuteResponse, { status: 'done' }>>(response)
+    expect(json.status).toBe('done')
+    expect(json.success).toBe(true)
+    expect(json.value).toBe(42)
+    expect(json.logs).toEqual(['hello from sandbox'])
+  })
+
+  it('forwards need_tools status from the loaded Worker back to the driver', async () => {
+    const env = {
+      LOADER: {
+        load: () => ({
+          getEntrypoint: () => ({
+            fetch: async () =>
+              new Response(
+                JSON.stringify({
+                  status: 'need_tools',
+                  toolCalls: [{ id: 'tc_0', name: 'fetchData', args: {} }],
+                  logs: [],
+                }),
+                { headers: { 'Content-Type': 'application/json' } },
+              ),
+          }),
+        }),
+      },
+    }
+
+    const request = new Request('https://worker.test/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        code: 'return await fetchData({})',
+        tools: [{ name: 'fetchData', description: 'd', inputSchema: {} }],
+      }),
+    })
+    const response = await worker.fetch(request, env, mockExecutionContext)
+
+    expect(response.status).toBe(200)
+    const json =
+      await readJson<Extract<ExecuteResponse, { status: 'need_tools' }>>(
+        response,
+      )
+    expect(json.status).toBe('need_tools')
+    expect(json.toolCalls).toHaveLength(1)
+    expect(json.toolCalls[0]!.name).toBe('fetchData')
+    expect(typeof json.continuationId).toBe('string')
+  })
+
+  it('returns TimeoutError when entrypoint.fetch exceeds timeout', async () => {
+    // Capture the AbortSignal seen by the loaded Worker so we can assert that
+    // the outer worker's AbortController actually fires `abort` on timeout.
+    // (Request.signal is always non-null per spec, so `not.toBeNull()` would
+    // be trivially true and prove nothing.)
+    let receivedSignal: AbortSignal | null = null
+    const env = {
+      LOADER: {
+        load: () => ({
+          getEntrypoint: () => ({
+            fetch: (req: Request) =>
+              new Promise<Response>((_resolve, reject) => {
+                receivedSignal = req.signal
+                req.signal.addEventListener('abort', () => {
+                  reject(new Error('aborted'))
+                })
+                // Never resolves on its own; relies on AbortSignal.
+              }),
+          }),
+        }),
+      },
+    }
+
+    const request = new Request('https://worker.test/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        code: 'while(true){}',
+        tools: [],
+        timeout: 50,
+      }),
+    })
+    const response = await worker.fetch(request, env, mockExecutionContext)
+    expect(receivedSignal).not.toBeNull()
+    expect(receivedSignal!.aborted).toBe(true)
+
+    expect(response.status).toBe(200)
+    const json =
+      await readJson<Extract<ExecuteResponse, { status: 'error' }>>(response)
+    expect(json.status).toBe('error')
+    expect(json.error.name).toBe('TimeoutError')
+    expect(json.error.message).toContain('50ms')
+  })
+
+  it('returns 500 with RequestError when body is invalid JSON', async () => {
+    const request = new Request('https://worker.test/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: 'not json',
+    })
+    const response = await worker.fetch(request, {}, mockExecutionContext)
+
+    expect(response.status).toBe(500)
+    const json =
+      await readJson<Extract<ExecuteResponse, { status: 'error' }>>(response)
+    expect(json.status).toBe('error')
+    expect(json.error.name).toBe('RequestError')
+  })
+})

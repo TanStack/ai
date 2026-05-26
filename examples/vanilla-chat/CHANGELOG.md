@@ -1,5 +1,12 @@
 # vanilla-chat
 
+## 0.0.40
+
+### Patch Changes
+
+- Updated dependencies [[`2e0e2eb`](https://github.com/TanStack/ai/commit/2e0e2eb72684aac82e570d57767656e218289b49)]:
+  - @tanstack/ai-client@0.11.0
+
 ## 0.0.39
 
 ### Patch Changes

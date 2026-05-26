@@ -5,7 +5,7 @@ title: TTSResult
 
 # Interface: TTSResult
 
-Defined in: [packages/typescript/ai/src/types.ts:1574](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1574)
+Defined in: [packages/ai/src/types.ts:1658](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1658)
 
 Result of text-to-speech generation.
 
@@ -17,7 +17,7 @@ Result of text-to-speech generation.
 audio: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1580](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1580)
+Defined in: [packages/ai/src/types.ts:1664](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1664)
 
 Base64-encoded audio data
 
@@ -29,7 +29,7 @@ Base64-encoded audio data
 optional contentType: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1586](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1586)
+Defined in: [packages/ai/src/types.ts:1670](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1670)
 
 Content type of the audio (e.g., 'audio/mp3')
 
@@ -41,7 +41,7 @@ Content type of the audio (e.g., 'audio/mp3')
 optional duration: number;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1584](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1584)
+Defined in: [packages/ai/src/types.ts:1668](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1668)
 
 Duration of the audio in seconds, if available
 
@@ -53,7 +53,7 @@ Duration of the audio in seconds, if available
 format: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1582](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1582)
+Defined in: [packages/ai/src/types.ts:1666](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1666)
 
 Audio format of the generated audio
 
@@ -65,7 +65,7 @@ Audio format of the generated audio
 id: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1576](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1576)
+Defined in: [packages/ai/src/types.ts:1660](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1660)
 
 Unique identifier for the generation
 
@@ -77,6 +77,6 @@ Unique identifier for the generation
 model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1578](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1578)
+Defined in: [packages/ai/src/types.ts:1662](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1662)
 
 Model used for generation

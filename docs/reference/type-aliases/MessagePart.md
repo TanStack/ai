@@ -3,10 +3,10 @@ id: MessagePart
 title: MessagePart
 ---
 
-# Type Alias: MessagePart
+# Type Alias: MessagePart\<TData\>
 
 ```ts
-type MessagePart = 
+type MessagePart<TData> = 
   | TextPart
   | ImagePart
   | AudioPart
@@ -14,7 +14,14 @@ type MessagePart =
   | DocumentPart
   | ToolCallPart
   | ToolResultPart
-  | ThinkingPart;
+  | ThinkingPart
+| StructuredOutputPart<TData>;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:368](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L368)
+Defined in: [packages/ai/src/types.ts:406](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L406)
+
+## Type Parameters
+
+### TData
+
+`TData` = `unknown`

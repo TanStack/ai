@@ -23,6 +23,7 @@ import { clientTools } from '@tanstack/ai-client'
 import { ThinkingPart } from '@tanstack/ai-react-ui'
 import type { UIMessage } from '@tanstack/ai-react'
 import type { ContentPart } from '@tanstack/ai'
+import type { GeminiInteractionsCustomEventValue } from '@tanstack/ai-gemini/experimental'
 import type { ModelOption } from '@/lib/model-selection'
 import GuitarRecommendation from '@/components/example-GuitarRecommendation'
 import {
@@ -184,6 +185,13 @@ function Messages({
             >
               <Braces size={24} className="text-orange-400" />
               <span className="text-sm text-gray-300">Structured</span>
+            </Link>
+            <Link
+              to="/generations/structured-chat"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <Braces size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">Structured Chat</span>
             </Link>
           </div>
         </div>
@@ -354,17 +362,39 @@ function ChatPage() {
     Array<{ id: string; base64: string; mimeType: string; preview: string }>
   >([])
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // Session-scoped Gemini Interactions id — the server surfaces it via a
+  // `gemini.interactionId` CUSTOM event, and we send it back as
+  // `previous_interaction_id` on the next turn. State (not ref) so a body
+  // change triggers `useChat` to re-sync the updated body to the client.
+  const [interactionId, setInteractionId] = useState<string | undefined>(
+    undefined,
+  )
+
+  // Reset the interaction id whenever the user switches model/provider so
+  // we don't chain against a stale or wrong-model interaction. Messages
+  // are cleared too: the Gemini Interactions API can't replay history
+  // statelessly, so carrying messages from a different provider/model
+  // into a fresh interaction would surface as
+  // "cannot send prior conversation history on a fresh interaction".
+  useEffect(() => {
+    setInteractionId(undefined)
+    setMessages([])
+  }, [selectedModel.provider, selectedModel.model])
 
   const body = useMemo(
     () => ({
       provider: selectedModel.provider,
       model: selectedModel.model,
+      ...(selectedModel.provider === 'gemini-interactions' && interactionId
+        ? { previousInteractionId: interactionId }
+        : {}),
     }),
-    [selectedModel.provider, selectedModel.model],
+    [selectedModel.provider, selectedModel.model, interactionId],
   )
 
   const {
     messages,
+    setMessages,
     sendMessage,
     isLoading,
     error,
@@ -380,6 +410,12 @@ function ChatPage() {
         data,
         context.toolCallId ? `(tool call: ${context.toolCallId})` : '',
       )
+      if (eventType === 'gemini.interactionId') {
+        const value = data as
+          | GeminiInteractionsCustomEventValue<'gemini.interactionId'>
+          | undefined
+        if (value?.interactionId) setInteractionId(value.interactionId)
+      }
     },
   })
   const [input, setInput] = useState('')

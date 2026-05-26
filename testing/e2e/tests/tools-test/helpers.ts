@@ -181,6 +181,21 @@ export async function getToolCalls(
 }
 
 /**
+ * Parse the full UIMessage array from #messages-json-content.
+ */
+export async function getMessages(page: Page): Promise<Array<any>> {
+  return page.evaluate(() => {
+    const el = document.getElementById('messages-json-content')
+    if (!el) return []
+    try {
+      return JSON.parse(el.textContent || '[]')
+    } catch {
+      return []
+    }
+  })
+}
+
+/**
  * Extract tool-call parts with parsed arguments from #messages-json-content.
  */
 export async function getToolCallParts(

@@ -8,6 +8,8 @@ const SAMPLE_PROMPT =
 type Provider =
   | 'openai'
   | 'openai-chat'
+  | 'anthropic'
+  | 'gemini'
   | 'grok'
   | 'groq'
   | 'openrouter'
@@ -36,14 +38,78 @@ const PROVIDER_MODELS: Record<
     { value: 'gpt-5.1', label: 'GPT-5.1' },
     { value: 'gpt-5.2', label: 'GPT-5.2 (frontier)' },
   ],
+  // Anthropic: Claude 4.5+ models stream the schema-constrained JSON
+  // natively via the #605 combined-mode path
+  // (`output_config.format` + `tools` in one beta Messages call). Older
+  // models fall back to the forced-tool-use workaround in
+  // `structuredOutput` (no real streaming), so they're omitted here.
+  //
+  // Default entries do NOT enable thinking — most demo flows just want
+  // the structured output. The `:thinking-max` synthetic suffix is a
+  // dropdown-only marker (stripped before the model id reaches the
+  // adapter) that opts into adaptive thinking with `effort: 'max'` plus
+  // a bumped `maxTokens` budget so the reasoning + JSON both fit.
+  //
+  // The `*-fast` variants in `ai-anthropic/model-meta` (e.g.
+  // `claude-opus-4-7-fast`) currently 404 against the Messages API —
+  // that ~6× pricing in the meta entries looks like priority-tier
+  // pricing (selected via `service_tier: 'priority'` on the request),
+  // not a distinct model id. Omitted until the real ids are confirmed.
+  anthropic: [
+    { value: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
+    { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
+    { value: 'claude-opus-4-5', label: 'Claude Opus 4.5' },
+    { value: 'claude-opus-4-6', label: 'Claude Opus 4.6' },
+    { value: 'claude-opus-4-7', label: 'Claude Opus 4.7' },
+    {
+      value: 'claude-opus-4-7:thinking-max',
+      label: 'Claude Opus 4.7 (Max Thinking)',
+    },
+    { value: 'claude-haiku-4-5', label: 'Claude Haiku 4.5' },
+  ],
+  // Gemini 3.x stream the schema-constrained JSON natively via the #605
+  // combined-mode path (`responseSchema` + `tools` in one
+  // `generateContentStream`). Gemini 2.x is omitted because the docs
+  // mark the tools-with-schema combination as brittle and the demo would
+  // hit the engine's legacy finalization path instead.
+  //
+  // Naming gotcha: Google uses a dash separator for the major version
+  // (`gemini-3-pro-preview`) but a dot separator for the minor version
+  // (`gemini-3.1-pro-preview`). The dropdown values mirror the canonical
+  // ids from `ai-gemini/model-meta` — `GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS`
+  // keys on the exact string, so any drift here silently breaks
+  // combined-mode routing.
+  gemini: [
+    { value: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash' },
+    { value: 'gemini-3-pro-preview', label: 'Gemini 3 Pro (Preview)' },
+    { value: 'gemini-3-flash-preview', label: 'Gemini 3 Flash (Preview)' },
+    { value: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro (Preview)' },
+    {
+      value: 'gemini-3.1-flash-lite-preview',
+      label: 'Gemini 3.1 Flash Lite (Preview)',
+    },
+  ],
+  // Grok 4 family supports the #605 combined-mode path (`tools` +
+  // `response_format: json_schema` in one streaming Chat Completions
+  // request). Grok 2 / 3 reject the combination per xAI docs, so they're
+  // omitted — they'd hit the engine's legacy finalization path instead
+  // and silently lose streaming. Values must match `GROK_COMBINED_TOOLS_AND_SCHEMA_MODELS`
+  // in `ai-grok/model-meta` exactly.
   grok: [
+    { value: 'grok-4.3', label: 'Grok 4.3' },
+    { value: 'grok-4.20', label: 'Grok 4.20' },
     { value: 'grok-4-1-fast-reasoning', label: 'Grok 4.1 Fast (reasoning)' },
     {
       value: 'grok-4-1-fast-non-reasoning',
       label: 'Grok 4.1 Fast (non-reasoning)',
     },
+    { value: 'grok-4-fast-reasoning', label: 'Grok 4 Fast (reasoning)' },
+    {
+      value: 'grok-4-fast-non-reasoning',
+      label: 'Grok 4 Fast (non-reasoning)',
+    },
+    { value: 'grok-code-fast-1', label: 'Grok Code Fast 1' },
     { value: 'grok-4', label: 'Grok 4' },
-    { value: 'grok-3', label: 'Grok 3' },
   ],
   groq: [
     {
@@ -132,6 +198,9 @@ function StructuredOutputPage() {
   const [reasoningFull, setReasoningFull] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [phaseCounts, setPhaseCounts] = useState<Record<string, number> | null>(
+    null,
+  )
   const abortRef = useRef<AbortController | null>(null)
 
   const onProviderChange = (next: Provider) => {
@@ -147,6 +216,7 @@ function StructuredOutputPage() {
     setReasoningLine('')
     setReasoningFull('')
     setError(null)
+    setPhaseCounts(null)
   }
 
   const handleGenerate = async () => {
@@ -182,6 +252,14 @@ function StructuredOutputPage() {
         const payload = await response.json()
         setResult(payload.data as PartialResult)
         setHasFinalResult(true)
+        const diag = (
+          payload as {
+            _diagnostics?: { phaseCounts?: Record<string, number> }
+          }
+        )._diagnostics
+        if (diag?.phaseCounts) {
+          setPhaseCounts(diag.phaseCounts)
+        }
         return
       }
 
@@ -236,6 +314,12 @@ function StructuredOutputPage() {
               // One-liner: take the last non-empty line/sentence so consumers
               // see "what it's thinking right now" without a wall of text.
               setReasoningLine(latestThought(reasoning))
+            } else if (
+              chunk.type === 'CUSTOM' &&
+              chunk.name === 'phase-counts' &&
+              chunk.value
+            ) {
+              setPhaseCounts(chunk.value as unknown as Record<string, number>)
             } else if (
               chunk.type === 'CUSTOM' &&
               chunk.name === 'structured-output.complete' &&
@@ -332,6 +416,8 @@ function StructuredOutputPage() {
               >
                 <option value="openai">OpenAI (Responses)</option>
                 <option value="openai-chat">OpenAI (Chat Completions)</option>
+                <option value="anthropic">Anthropic (Claude 4.5+)</option>
+                <option value="gemini">Gemini (3.x)</option>
                 <option value="grok">Grok (xAI)</option>
                 <option value="groq">Groq</option>
                 <option value="openrouter">
@@ -573,6 +659,39 @@ function StructuredOutputPage() {
                     {rawJson}
                   </pre>
                 </details>
+              )}
+
+              {phaseCounts && (
+                <div
+                  className={`p-4 border rounded-lg ${
+                    phaseCounts.structuredOutput
+                      ? 'bg-emerald-900/20 border-emerald-700/50'
+                      : 'bg-amber-900/20 border-amber-700/50'
+                  }`}
+                >
+                  <p className="text-sm font-semibold mb-2">
+                    Middleware phase counts{' '}
+                    <span className="font-normal text-gray-400">
+                      (PR #600 verification)
+                    </span>
+                  </p>
+                  <ul className="text-xs font-mono space-y-1">
+                    {Object.entries(phaseCounts).map(([phase, count]) => (
+                      <li key={phase}>
+                        <span className="text-cyan-300">{phase}</span>
+                        {': '}
+                        <span className="text-gray-300">
+                          {count} chunk{count === 1 ? '' : 's'}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-xs text-gray-400 mt-2">
+                    {phaseCounts.structuredOutput
+                      ? 'PR #600 verified: middleware observed chunks during the structured-output adapter call.'
+                      : 'No `structuredOutput` phase observed. Either the provider response was empty, or the bug is still present.'}
+                  </p>
+                </div>
               )}
             </div>
           )}

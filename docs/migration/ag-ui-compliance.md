@@ -292,4 +292,3 @@ Pure AG-UI `RunAgentInput` payloads (no TanStack `parts` field) work end-to-end:
 
 - **Reasoning replay to LLM providers.** TanStack still drops `ThinkingPart` at the `UIMessage`→`ModelMessage` boundary (pre-existing behavior). Providers like Anthropic that require thinking blocks to be replayed for extended thinking continuation remain a separate concern, tracked outside this migration.
 - **AG-UI `state` and `context` fields.** Surfaced on `chatParamsFromRequestBody`'s return value but not yet wired into `chat()`. They're available for your endpoint to inspect/forward, but the runtime ignores them.
-- **PHP and Python server packages.** No `chatParamsFromRequestBody` parity yet. Their examples temporarily lag on the old shape until the matching helpers ship.

@@ -47,6 +47,6 @@
     "@vitejs/plugin-react": "^5.1.2",
     "dotenv": "^17.2.3",
     "typescript": "5.9.3",
-    "vite": "^7.2.7"
+    "vite": "^7.3.3"
   }
 }
