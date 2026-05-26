@@ -21,13 +21,13 @@ Isolate drivers provide the secure sandbox runtimes that [Code Mode](./code-mode
 
 | | Node (`isolated-vm`) | QuickJS (WASM) | Cloudflare Workers | Daytona |
 |---|---|---|---|---|
-| **Best for** | Server-side Node.js apps | Browsers, edge, portability | Edge deployments on Cloudflare | Remote Daytona sandboxes |
-| **Performance** | Fast (V8 JIT) | Slower (interpreted) | Fast (V8 on Cloudflare edge) | Depends on sandbox runtime |
-| **Native deps** | Yes (C++ addon) | None | None | None in the driver |
-| **Browser support** | No | Yes | N/A | N/A |
-| **Memory limit** | Configurable | Configurable | N/A | Sandbox policy |
-| **Stack size limit** | N/A | Configurable | N/A | Sandbox policy |
-| **Setup** | `pnpm add` | `pnpm add` | Deploy a Worker first | Provide a Daytona sandbox |
+| **Best for** | Server-side Node.js apps | Browsers, edge, portability | Edge deployments on Cloudflare | Full remote Linux sandboxes |
+| **Performance** | Fast (V8 JIT) | Slower (interpreted) | Fast (V8 on Cloudflare edge) | Fast (native runtime; remote call) |
+| **Native deps** | Yes (C++ addon) | None | None | None |
+| **Browser support** | No | Yes | N/A | Yes |
+| **Memory limit** | Configurable | Configurable | N/A | Configurable |
+| **Stack size limit** | N/A | Configurable | N/A | N/A |
+| **Setup** | `pnpm add` | `pnpm add` | Deploy a Worker first | Create or pass a Daytona sandbox |
 
 ---
 

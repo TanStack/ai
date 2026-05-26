@@ -35,7 +35,7 @@ Tools you pass to Code Mode are converted to typed function stubs that appear in
 
 ### Secure sandboxing
 
-Generated code runs in an isolated environment (V8 isolate, QuickJS WASM, Cloudflare Worker, or Daytona sandbox) with no direct access to your application host. The available filesystem, network, process, timeout, and memory boundaries depend on the isolate driver you choose.
+Generated code runs in an isolated environment (V8 isolate, QuickJS WASM, Cloudflare Worker, or Daytona sandbox) with no access to the host file system, network, or process. The sandbox has configurable timeouts and memory limits.
 
 ## Getting Started
 
@@ -227,7 +227,7 @@ These utilities are used internally and are exported for custom pipelines:
 
 For a full comparison of drivers with all configuration options, see [Isolate Drivers](./code-mode-isolates.md).
 
-In brief: use the **Node driver** for server-side Node.js (fastest, V8 JIT), **QuickJS** for browsers or portable edge deployments (no native deps), the **Cloudflare driver** when you deploy to Cloudflare Workers, and the **Daytona driver** when you want execution inside a Daytona sandbox while your application keeps ownership of server tool implementations.
+In brief: use the **Node driver** for server-side Node.js (fastest, V8 JIT), **QuickJS** for browsers or portable edge deployments (no native deps), the **Cloudflare driver** when you deploy to Cloudflare Workers, and the **Daytona driver** when you want execution inside a full remote Linux sandbox.
 
 ## Custom Events
 

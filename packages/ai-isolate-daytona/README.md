@@ -52,7 +52,6 @@ Creates an isolate driver that delegates Code Mode execution to a Daytona sandbo
 
 ## Requirements
 
-- The sandbox must support `process.codeRun`.
 - Use a sandbox language/runtime that can execute the JavaScript emitted by Code Mode.
 - Tool inputs and outputs must be JSON-serializable.
 - Sandbox lifecycle, network access, filesystem contents, secrets, and cleanup are owned by your application. Creating a Code Mode context does not create or delete a Daytona sandbox.
@@ -69,7 +68,7 @@ replay with toolResults  --------->  continue execution
 final result/logs        <---------  done or error envelope
 ```
 
-Unlike the Cloudflare driver, Daytona does not need a parent Worker / Dynamic Worker split. The host process talks directly to a Daytona sandbox through `process.codeRun`, while tool execution stays host-owned.
+The host process talks directly to a Daytona sandbox through `process.codeRun`, while tool execution stays host-owned.
 
 ## Validation
 
