@@ -37,9 +37,9 @@ Follow the steps below to build a well-structured, type-safe adapter.
 
 ### 1. Set up your project
 
-Start by reviewing the [existing internal adapter implementations in the TanStack AI GitHub repository](https://github.com/tanstack/ai/tree/main/packages/typescript). These define the expected structure, conventions, and integration patterns.
+Start by reviewing the [existing internal adapter implementations in the TanStack AI GitHub repository](https://github.com/tanstack/ai/tree/main/packages). These define the expected structure, conventions, and integration patterns.
 
-For a complete, detailed reference, use the [OpenAI adapter](https://github.com/tanstack/ai/tree/main/packages/typescript/ai-openai), which is the most fully featured implementation.
+For a complete, detailed reference, use the [OpenAI adapter](https://github.com/tanstack/ai/tree/main/packages/ai-openai), which is the most fully featured implementation.
 
 ### 2. Define model metadata
 
@@ -53,7 +53,7 @@ Your metadata should define, at a minimum:
 - Pricing or cost information (if available)
 - Any provider-specific notes or limitations
 
-Refer to the [OpenAI adapter’s model metadata](https://github.com/TanStack/ai/blob/main/packages/typescript/ai-openai/src/model-meta.ts) for a concrete example.
+Refer to the [OpenAI adapter’s model metadata](https://github.com/TanStack/ai/blob/main/packages/ai-openai/src/model-meta.ts) for a concrete example.
 
 ### 3. Define model capability arrays 
 
@@ -133,7 +133,7 @@ A common pattern is:
 - Base options shared by all models
 - Feature fragments that are stitched together per model
 
-Example (based on [OpenAI models](https://github.com/TanStack/ai/blob/main/packages/typescript/ai-openai/src/text/text-provider-options.ts)):
+Example (based on [OpenAI models](https://github.com/TanStack/ai/blob/main/packages/ai-openai/src/text/text-provider-options.ts)):
 ```typescript
 export interface OpenAIBaseOptions {
   // base options that every chat model supports
@@ -190,7 +190,7 @@ Adapters are implemented per capability, so only implement what your provider su
 - Embeddings adapter
 - Video adapter
 
-Refer to the [OpenAI adapter](https://github.com/TanStack/ai/blob/main/packages/typescript/ai-openai/src/adapters/text.ts) for a complete, end-to-end implementation example.
+Refer to the [OpenAI adapter](https://github.com/TanStack/ai/blob/main/packages/ai-openai/src/adapters/text.ts) for a complete, end-to-end implementation example.
 
 ### 8. Publish and submit a PR
 
