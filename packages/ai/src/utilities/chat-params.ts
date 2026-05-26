@@ -204,5 +204,6 @@ export function mergeAgentTools<
   // the existing `ClientToolRequest` path — TypedStreamChunk just doesn't
   // surface their names as typed literals (they appear as the bare
   // `ToolCallStartEvent<string>` shape after narrowing).
+  // eslint-disable-next-line no-restricted-syntax -- intentional narrowing (see above)
   return merged as unknown as TServerTools
 }

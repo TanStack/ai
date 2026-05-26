@@ -952,12 +952,12 @@ export interface BaseAGUIEvent {
  * @ag-ui/core releases a new version.
  * @internal
  */
-type AssertSatisfiesAGUI<TanStack, AGUIShape> = TanStack extends AGUIShape
+type AssertSatisfiesAGUI<TTanStack, TAGUIShape> = TTanStack extends TAGUIShape
   ? true
   : [
       'DRIFT: TanStack event no longer satisfies AGUI shape',
-      TanStack,
-      AGUIShape,
+      TTanStack,
+      TAGUIShape,
     ]
 
 // ============================================================================

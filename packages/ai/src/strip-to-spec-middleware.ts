@@ -11,12 +11,17 @@ import type { StreamChunk } from './types'
  * spec validation or verifyEvents.
  */
 export function stripToSpec(chunk: StreamChunk): StreamChunk {
-  // Only strip the deprecated nested error object from RUN_ERROR
+  // Only strip the deprecated nested error object from RUN_ERROR.
+  // StreamChunk is a closed discriminated union with no index signature,
+  // so we need to bypass the overlap check to destructure into a record
+  // and drop the legacy field.
   if (chunk.type === 'RUN_ERROR' && 'error' in chunk) {
+    // eslint-disable-next-line no-restricted-syntax -- structural narrowing into a record (see comment above)
     const { error: _deprecated, ...rest } = chunk as unknown as Record<
       string,
       unknown
     >
+    // eslint-disable-next-line no-restricted-syntax -- inverse cast; `rest` is structurally a subset of RunErrorEvent
     return rest as unknown as StreamChunk
   }
   return chunk

@@ -253,7 +253,7 @@ export class ToolCallManager {
         // Typed parsed output (undefined for failed exec / client-only tools).
         ...(toolOutput !== undefined ? { output: toolOutput } : {}),
         result: toolResultContent,
-      } as ToolCallEndEvent
+      }
 
       // Add tool result message
       toolResults.push({

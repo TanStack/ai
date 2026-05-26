@@ -1498,7 +1498,7 @@ class TextEngine<
             needsApproval: true,
           },
         },
-      } as StreamChunk)
+      })
     }
 
     return chunks
@@ -1521,7 +1521,7 @@ class TextEngine<
           toolName: clientTool.toolName,
           input: clientTool.input,
         },
-      } as StreamChunk)
+      })
     }
 
     return chunks
@@ -1547,7 +1547,7 @@ class TextEngine<
           toolCallId: result.toolCallId,
           toolCallName: result.toolName,
           toolName: result.toolName,
-        } as StreamChunk)
+        })
 
         const args = argsMap.get(result.toolCallId) ?? '{}'
         chunks.push({
@@ -1557,7 +1557,7 @@ class TextEngine<
           toolCallId: result.toolCallId,
           delta: args,
           args,
-        } as StreamChunk)
+        })
       }
 
       chunks.push({
@@ -1568,7 +1568,7 @@ class TextEngine<
         toolCallName: result.toolName,
         toolName: result.toolName,
         result: content,
-      } as StreamChunk)
+      })
 
       // AG-UI spec TOOL_CALL_RESULT event
       chunks.push({
@@ -1579,7 +1579,7 @@ class TextEngine<
         toolCallId: result.toolCallId,
         content,
         role: 'tool',
-      } as StreamChunk)
+      })
 
       // If a placeholder tool message exists for this toolCallId (created by
       // uiMessageToModelMessages for an approval-responded part with no
@@ -1669,7 +1669,7 @@ class TextEngine<
       model: this.params.model,
       timestamp: Date.now(),
       finishReason: 'tool_calls',
-    } as RunFinishedEvent
+    }
   }
 
   private shouldContinue(): boolean {
@@ -2326,7 +2326,7 @@ class TextEngine<
       model: this.params.model,
       name: eventName,
       value,
-    } as CustomEvent
+    }
   }
 
   private createId(prefix: string): string {
