@@ -9,7 +9,7 @@ title: createAudioOptions
 function createAudioOptions<TAdapter, TStream>(options): AudioActivityOptions<TAdapter, TStream>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateAudio/index.ts:210](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateAudio/index.ts#L210)
+Defined in: [packages/ai/src/activities/generateAudio/index.ts:210](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateAudio/index.ts#L210)
 
 Create typed options for the generateAudio() function without executing.
 
