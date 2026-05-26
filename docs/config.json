@@ -318,6 +318,10 @@
         {
           "label": "OpenRouter Adapter",
           "to": "adapters/openrouter"
+        },
+        {
+          "label": "Perplexity",
+          "to": "adapters/perplexity"
         }
       ]
     },
