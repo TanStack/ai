@@ -1,5 +1,21 @@
 # @tanstack/ai-code-mode
 
+## 0.1.20
+
+### Patch Changes
+
+- Updated dependencies [[`e144a53`](https://github.com/TanStack/ai/commit/e144a53e4348bb0bc365dbe342c8538544242227)]:
+  - @tanstack/ai@0.21.3
+
+## 0.1.19
+
+### Patch Changes
+
+- Refresh package README content and npm metadata for better discoverability. ([#626](https://github.com/TanStack/ai/pull/626))
+
+- Updated dependencies [[`ebeb22e`](https://github.com/TanStack/ai/commit/ebeb22ec68f456b09e0181ac6f5d1ac25a0affd2)]:
+  - @tanstack/ai@0.21.2
+
 ## 0.1.18
 
 ### Patch Changes

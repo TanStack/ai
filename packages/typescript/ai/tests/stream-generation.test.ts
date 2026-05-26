@@ -203,6 +203,9 @@ describe('generateVideo({ stream: true })', () => {
         url: 'https://example.com/video.mp4',
         expiresAt: new Date('2030-01-01'),
       })),
+
+      availableDurations: () => ({ kind: 'none' as const }),
+      snapDuration: (_seconds: number) => undefined,
     }
   }
 

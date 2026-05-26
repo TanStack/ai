@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as RealtimeRouteImport } from './routes/realtime'
+import { Route as Issue176ToolResultRouteImport } from './routes/issue-176-tool-result'
 import { Route as ImageGenRouteImport } from './routes/image-gen'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GenerationsVideoRouteImport } from './routes/generations.video'
@@ -36,6 +37,11 @@ import { Route as ApiGenerateAudioRouteImport } from './routes/api.generate.audi
 const RealtimeRoute = RealtimeRouteImport.update({
   id: '/realtime',
   path: '/realtime',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const Issue176ToolResultRoute = Issue176ToolResultRouteImport.update({
+  id: '/issue-176-tool-result',
+  path: '/issue-176-tool-result',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ImageGenRoute = ImageGenRouteImport.update({
@@ -155,6 +161,7 @@ const ApiGenerateAudioRoute = ApiGenerateAudioRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/image-gen': typeof ImageGenRoute
+  '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/realtime': typeof RealtimeRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
@@ -180,6 +187,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/image-gen': typeof ImageGenRoute
+  '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/realtime': typeof RealtimeRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
@@ -206,6 +214,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/image-gen': typeof ImageGenRoute
+  '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/realtime': typeof RealtimeRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
@@ -233,6 +242,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/image-gen'
+    | '/issue-176-tool-result'
     | '/realtime'
     | '/api/image-gen'
     | '/api/structured-chat'
@@ -258,6 +268,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/image-gen'
+    | '/issue-176-tool-result'
     | '/realtime'
     | '/api/image-gen'
     | '/api/structured-chat'
@@ -283,6 +294,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/image-gen'
+    | '/issue-176-tool-result'
     | '/realtime'
     | '/api/image-gen'
     | '/api/structured-chat'
@@ -309,6 +321,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ImageGenRoute: typeof ImageGenRoute
+  Issue176ToolResultRoute: typeof Issue176ToolResultRoute
   RealtimeRoute: typeof RealtimeRoute
   ApiImageGenRoute: typeof ApiImageGenRoute
   ApiStructuredChatRoute: typeof ApiStructuredChatRoute
@@ -339,6 +352,13 @@ declare module '@tanstack/react-router' {
       path: '/realtime'
       fullPath: '/realtime'
       preLoaderRoute: typeof RealtimeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/issue-176-tool-result': {
+      id: '/issue-176-tool-result'
+      path: '/issue-176-tool-result'
+      fullPath: '/issue-176-tool-result'
+      preLoaderRoute: typeof Issue176ToolResultRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/image-gen': {
@@ -501,6 +521,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ImageGenRoute: ImageGenRoute,
+  Issue176ToolResultRoute: Issue176ToolResultRoute,
   RealtimeRoute: RealtimeRoute,
   ApiImageGenRoute: ApiImageGenRoute,
   ApiStructuredChatRoute: ApiStructuredChatRoute,

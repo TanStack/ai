@@ -11,7 +11,8 @@ type ToolCallState =
   | "input-streaming"
   | "input-complete"
   | "approval-requested"
-  | "approval-responded";
+  | "approval-responded"
+  | "complete";
 ```
 
 Defined in: [packages/typescript/ai/src/types.ts:37](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L37)

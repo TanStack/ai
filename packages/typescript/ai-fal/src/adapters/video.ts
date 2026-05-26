@@ -1,7 +1,11 @@
 import { fal } from '@fal-ai/client'
-import { BaseVideoAdapter } from '@tanstack/ai/adapters'
+import { BaseVideoAdapter, snapToDurationOption } from '@tanstack/ai/adapters'
 import { configureFalClient, generateId as utilGenerateId } from '../utils'
-import { mapVideoSizeToFalFormat } from '../video/video-provider-options'
+import {
+  getFalVideoDurationOptions,
+  mapVideoSizeToFalFormat,
+} from '../video/video-provider-options'
+import type { DurationOptions } from '@tanstack/ai/adapters'
 import type {
   VideoGenerationOptions,
   VideoJobResult,
@@ -11,6 +15,7 @@ import type {
 import type {
   FalModel,
   FalModelInput,
+  FalModelVideoDuration,
   FalModelVideoSize,
   FalVideoProviderOptions,
 } from '../model-meta'
@@ -64,7 +69,8 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
   TModel,
   FalVideoProviderOptions<TModel>,
   Record<TModel, FalVideoProviderOptions<TModel>>,
-  Record<TModel, FalModelVideoSize<TModel>>
+  Record<TModel, FalModelVideoSize<TModel>>,
+  Record<TModel, FalModelVideoDuration<TModel>>
 > {
   override readonly kind = 'video' as const
   readonly name = 'fal' as const
@@ -77,7 +83,8 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
   async createVideoJob(
     options: VideoGenerationOptions<
       FalVideoProviderOptions<TModel>,
-      FalModelVideoSize<TModel>
+      FalModelVideoSize<TModel>,
+      FalModelVideoDuration<TModel>
     >,
   ): Promise<VideoJobResult> {
     const { prompt, size, duration, modelOptions, logger } = options
@@ -90,11 +97,17 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
     try {
       const sizeParams = mapVideoSizeToFalFormat(size)
 
+      // Omit `duration` for models whose API doesn't accept it (kind: 'none').
+      // For models with discrete/range constraints, duration was already typed
+      // to a valid value via VideoDurationForAdapter, so pass through as-is.
+      const supportsDuration =
+        getFalVideoDurationOptions(this.model).kind !== 'none'
+
       const input = {
         ...modelOptions,
         ...sizeParams,
         prompt,
-        ...(duration ? { duration } : {}),
+        ...(supportsDuration && duration !== undefined ? { duration } : {}),
       } as FalModelInput<TModel>
 
       // Submit to queue and get request ID
@@ -113,6 +126,22 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
       })
       throw error
     }
+  }
+
+  override availableDurations(): DurationOptions<
+    FalModelVideoDuration<TModel>
+  > {
+    return getFalVideoDurationOptions(this.model) as DurationOptions<
+      FalModelVideoDuration<TModel>
+    >
+  }
+
+  override snapDuration(
+    seconds: number,
+  ): FalModelVideoDuration<TModel> | undefined {
+    return snapToDurationOption(seconds, this.availableDurations()) as
+      | FalModelVideoDuration<TModel>
+      | undefined
   }
 
   async getVideoStatus(jobId: string): Promise<VideoStatusResult> {

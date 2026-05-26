@@ -40,6 +40,7 @@ export type ToolCallState =
   | 'input-complete' // All arguments received
   | 'approval-requested' // Waiting for user approval
   | 'approval-responded' // User has approved/denied
+  | 'complete' // Result is complete
 
 /**
  * Tool result states - track the lifecycle of a tool result
@@ -1546,6 +1547,7 @@ export interface AudioGenerationResult {
 export interface VideoGenerationOptions<
   TProviderOptions extends object = object,
   TSize extends string | undefined = string,
+  TDuration extends string | number | undefined = string | number | undefined,
 > {
   /** The model to use for video generation */
   model: string
@@ -1553,8 +1555,13 @@ export interface VideoGenerationOptions<
   prompt: string
   /** Video size — format depends on the provider (e.g., "16:9", "1280x720") */
   size?: TSize
-  /** Video duration in seconds */
-  duration?: number
+  /**
+   * Video duration — exact shape is per-model and may be a number of seconds,
+   * a string enum like '4' | '8' | '12', or a keyword like '8s' depending on
+   * the adapter. Use `adapter.snapDuration(seconds)` to coerce raw seconds to
+   * a valid value.
+   */
+  duration?: TDuration
   /** Model-specific options for video generation */
   modelOptions?: TProviderOptions
   /**

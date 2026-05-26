@@ -181,6 +181,7 @@ export type OpenAIImageProviderOptions =
  * Used by the core AI types to narrow providerOptions based on the selected model.
  */
 export type OpenAIImageModelProviderOptionsByName = {
+  'gpt-image-2': GptImage1ProviderOptions
   'gpt-image-1': GptImage1ProviderOptions
   'gpt-image-1-mini': GptImage1MiniProviderOptions
   'dall-e-3': DallE3ProviderOptions
@@ -191,6 +192,7 @@ export type OpenAIImageModelProviderOptionsByName = {
  * Type-only map from model name to its supported sizes.
  */
 export type OpenAIImageModelSizeByName = {
+  'gpt-image-2': GptImageSize
   'gpt-image-1': GptImageSize
   'gpt-image-1-mini': GptImageSize
   'dall-e-3': DallE3Size
@@ -217,6 +219,7 @@ export function validateImageSize(
   if (!size || size === 'auto') return
 
   const validSizes: Record<string, Array<string>> = {
+    'gpt-image-2': ['1024x1024', '1536x1024', '1024x1536', 'auto'],
     'gpt-image-1': ['1024x1024', '1536x1024', '1024x1536', 'auto'],
     'gpt-image-1-mini': ['1024x1024', '1536x1024', '1024x1536', 'auto'],
     'dall-e-3': ['1024x1024', '1792x1024', '1024x1792'],
@@ -263,7 +266,7 @@ export function validateNumberOfImages(
 
 export const validateBackground = (options: ImageValidationOptions) => {
   if (options.background) {
-    const supportedModels = ['gpt-image-1', 'gpt-image-1-mini']
+    const supportedModels = ['gpt-image-2', 'gpt-image-1', 'gpt-image-1-mini']
     if (!supportedModels.includes(options.model)) {
       throw new Error(
         `The model ${options.model} does not support background option.`,
@@ -277,11 +280,13 @@ export const validatePrompt = (options: ImageValidationOptions) => {
     throw new Error('Prompt cannot be empty.')
   }
   if (
-    (options.model === 'gpt-image-1' || options.model === 'gpt-image-1-mini') &&
+    (options.model === 'gpt-image-2' ||
+      options.model === 'gpt-image-1' ||
+      options.model === 'gpt-image-1-mini') &&
     options.prompt.length > 32000
   ) {
     throw new Error(
-      'For gpt-image-1/gpt-image-1-mini, prompt length must be less than or equal to 32000 characters.',
+      'For gpt-image-2/gpt-image-1/gpt-image-1-mini, prompt length must be less than or equal to 32000 characters.',
     )
   }
   if (options.model === 'dall-e-2' && options.prompt.length > 1000) {

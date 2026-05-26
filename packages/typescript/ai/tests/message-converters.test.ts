@@ -919,7 +919,8 @@ describe('Message Converters', () => {
           id: 'tc-1',
           name: 'getWeather',
           arguments: '{"city":"NYC"}',
-          state: 'input-complete',
+          state: 'complete',
+          output: { temp: 72 },
         },
         {
           type: 'tool-result',
@@ -978,7 +979,8 @@ describe('Message Converters', () => {
           id: 'tc-1',
           name: 'getGuitars',
           arguments: '',
-          state: 'input-complete',
+          state: 'complete',
+          output: [{ id: 7 }],
         },
         {
           type: 'tool-result',
@@ -995,7 +997,8 @@ describe('Message Converters', () => {
           id: 'tc-2',
           name: 'recommend',
           arguments: '{"id":7}',
-          state: 'input-complete',
+          state: 'complete',
+          output: { recommended: true },
         },
         {
           type: 'tool-result',
@@ -1083,7 +1086,8 @@ describe('Message Converters', () => {
         id: 'tc-1',
         name: 'getWeather',
         arguments: '{"city":"NYC"}',
-        state: 'input-complete',
+        state: 'complete',
+        output: { temp: 72 },
       })
       expect(assistantParts).toContainEqual({
         type: 'tool-result',
@@ -1222,7 +1226,8 @@ describe('Message Converters', () => {
             id: 'tc-1',
             name: 'getWeather',
             arguments: '{"city":"NYC"}',
-            state: 'input-complete',
+            state: 'complete',
+            output: { temp: 72 },
           },
           {
             type: 'tool-result',
@@ -1314,7 +1319,8 @@ describe('Message Converters', () => {
           id: 'tc-1',
           name: 'getGuitars',
           arguments: '',
-          state: 'input-complete',
+          state: 'complete',
+          output: [{ id: 7 }],
         },
         {
           type: 'tool-result',
@@ -1332,7 +1338,8 @@ describe('Message Converters', () => {
           id: 'tc-2',
           name: 'recommend',
           arguments: '{"id":7}',
-          state: 'input-complete',
+          state: 'complete',
+          output: { recommended: true },
         },
         {
           type: 'tool-result',

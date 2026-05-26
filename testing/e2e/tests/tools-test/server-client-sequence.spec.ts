@@ -6,6 +6,7 @@ import {
   getMetadata,
   getEventLog,
   getToolCalls,
+  getMessages,
 } from './helpers'
 
 /**
@@ -56,6 +57,73 @@ test.describe('Server-Client Sequence E2E Tests', () => {
       (e) => e.toolName === 'display_chart' && e.type === 'execution-complete',
     )
     expect(chartExecution).toBeTruthy()
+  })
+
+  test('server and client tool results populate tool-call output and complete state', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await selectScenario(page, 'sequence-server-client', testId, aimockPort)
+    await runTest(page)
+
+    await waitForTestComplete(page, 15000, 2)
+
+    await page.waitForFunction(
+      () => {
+        const messagesEl = document.getElementById('messages-json-content')
+        const messages = JSON.parse(messagesEl?.textContent || '[]')
+        const toolCalls = messages.flatMap((msg: any) =>
+          (msg.parts || []).filter((part: any) => part.type === 'tool-call'),
+        )
+
+        const fetchData = toolCalls.find(
+          (part: any) => part.name === 'fetch_data',
+        )
+        const displayChart = toolCalls.find(
+          (part: any) => part.name === 'display_chart',
+        )
+
+        return (
+          fetchData?.state === 'complete' &&
+          fetchData.output !== undefined &&
+          displayChart?.state === 'complete' &&
+          displayChart.output !== undefined
+        )
+      },
+      { timeout: 10000 },
+    )
+
+    const messages = await getMessages(page)
+    const toolCalls = messages.flatMap((msg) =>
+      (msg.parts || []).filter((part: any) => part.type === 'tool-call'),
+    )
+    const toolResults = messages.flatMap((msg) =>
+      (msg.parts || []).filter((part: any) => part.type === 'tool-result'),
+    )
+
+    const fetchData = toolCalls.find((part) => part.name === 'fetch_data')
+    expect(fetchData).toMatchObject({
+      state: 'complete',
+      output: {
+        source: 'api',
+        data: [1, 2, 3, 4, 5],
+      },
+    })
+
+    const displayChart = toolCalls.find((part) => part.name === 'display_chart')
+    expect(displayChart?.state).toBe('complete')
+    expect(displayChart?.output).toMatchObject({ rendered: true })
+    expect(typeof displayChart?.output?.chartId).toBe('string')
+
+    expect(
+      toolResults.some(
+        (part) =>
+          part.toolCallId === fetchData?.id &&
+          part.state === 'complete' &&
+          JSON.parse(part.content).source === 'api',
+      ),
+    ).toBe(true)
   })
 
   test('server then two client tools in sequence', async ({
@@ -162,10 +230,7 @@ test.describe('Server-Client Sequence E2E Tests', () => {
     const toolCalls = await getToolCalls(page)
     const weatherTool = toolCalls.find((tc) => tc.name === 'get_weather')
     expect(weatherTool).toBeTruthy()
-    // Server tools stay at 'input-complete' state but are tracked as complete via tool-result parts
-    expect(['complete', 'input-complete', 'output-available']).toContain(
-      weatherTool?.state,
-    )
+    expect(weatherTool?.state).toBe('complete')
   })
 
   test('text only scenario has no tool calls', async ({

@@ -1,5 +1,21 @@
 # @tanstack/ai-openrouter
 
+## 0.9.7
+
+### Patch Changes
+
+- Restore `web_fetch` in `OpenRouterChatModelToolCapabilitiesByName` so `webFetchTool()` is assignable to OpenRouter text adapters again. The recent model-metadata sync (#623) regenerated this map with `web_search` only, breaking the per-model type-safety tests added in #611. ([#625](https://github.com/TanStack/ai/pull/625))
+
+- Fix OpenRouter provider tool type metadata to include `webFetchTool`. ([#626](https://github.com/TanStack/ai/pull/626))
+
+- Refresh package README content and npm metadata for better discoverability. ([#626](https://github.com/TanStack/ai/pull/626))
+
+- Update model metadata from OpenRouter API ([#623](https://github.com/TanStack/ai/pull/623))
+
+- Updated dependencies [[`ebeb22e`](https://github.com/TanStack/ai/commit/ebeb22ec68f456b09e0181ac6f5d1ac25a0affd2)]:
+  - @tanstack/ai@0.21.2
+  - @tanstack/ai-utils@0.2.1
+
 ## 0.9.6
 
 ### Patch Changes

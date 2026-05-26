@@ -1,5 +1,15 @@
 # @tanstack/ai-react-ui
 
+## 0.8.1
+
+### Patch Changes
+
+- Refresh package README content and npm metadata for better discoverability. ([#626](https://github.com/TanStack/ai/pull/626))
+
+- Updated dependencies [[`ebeb22e`](https://github.com/TanStack/ai/commit/ebeb22ec68f456b09e0181ac6f5d1ac25a0affd2)]:
+  - @tanstack/ai-client@0.11.6
+  - @tanstack/ai-react@0.11.6
+
 ## 0.8.0
 
 ### Minor Changes

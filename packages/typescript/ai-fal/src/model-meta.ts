@@ -128,6 +128,31 @@ export type FalVideoProviderOptions<TModel extends string> =
     : Record<string, unknown>
 
 /**
+ * Extract the `duration` field type from a fal video model's input.
+ * Falls back to `string | number | undefined` for unknown models.
+ *
+ * Shapes seen in the wild:
+ *  - `'5' | '10'` (Kling, Pika): discrete numeric strings
+ *  - `'5s' | '9s'` (Luma): keyword strings with unit
+ *  - `'4s' | '6s' | '8s'` (Veo3 via FAL): keyword strings
+ *  - `'2' | … | '15'` (WAN-25): discrete-range numeric strings
+ *  - never (Minimax, Hunyuan): no duration field
+ */
+export type FalModelVideoDuration<TModel extends string> =
+  TModel extends keyof EndpointTypeMap
+    ? 'duration' extends keyof EndpointTypeMap[TModel]['input']
+      ? Extract<
+          NonNullable<
+            EndpointTypeMap[TModel]['input'] extends { duration?: infer D }
+              ? D
+              : never
+          >,
+          string | number
+        >
+      : undefined
+    : string | number | undefined
+
+/**
  * Provider options for TTS, excluding fields TanStack AI handles.
  * Use this for the `modelOptions` parameter in speech generation.
  */

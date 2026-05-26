@@ -1,5 +1,16 @@
 # @tanstack/ai-groq
 
+## 0.2.6
+
+### Patch Changes
+
+- Refresh package README content and npm metadata for better discoverability. ([#626](https://github.com/TanStack/ai/pull/626))
+
+- Updated dependencies [[`ebeb22e`](https://github.com/TanStack/ai/commit/ebeb22ec68f456b09e0181ac6f5d1ac25a0affd2)]:
+  - @tanstack/ai@0.21.2
+  - @tanstack/ai-utils@0.2.1
+  - @tanstack/openai-base@0.3.6
+
 ## 0.2.5
 
 ### Patch Changes

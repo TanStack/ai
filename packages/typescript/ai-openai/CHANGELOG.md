@@ -1,5 +1,38 @@
 # @tanstack/ai-openai
 
+## 0.10.0
+
+### Minor Changes
+
+- Add `gpt-image-2` to the OpenAI image model list. The new model is exposed ([#625](https://github.com/TanStack/ai/pull/625))
+  through the same tree-shakeable `openaiImage` adapter as `gpt-image-1` and
+  shares its provider options (`quality`, `background`, `output_format`,
+  `output_compression`, `moderation`, `partial_images`) and size set
+  (`1024x1024`, `1536x1024`, `1024x1536`, `auto`).
+
+  ```ts
+  import { openaiImage } from '@tanstack/ai-openai/adapters'
+  import { generate } from '@tanstack/ai'
+
+  const adapter = openaiImage({ apiKey: process.env.OPENAI_API_KEY! })
+
+  const result = await generate({
+    adapter,
+    model: 'gpt-image-2',
+    prompt: 'A watercolor fox in a snowy forest',
+  })
+  ```
+
+### Patch Changes
+
+- Refresh package README content and npm metadata for better discoverability. ([#626](https://github.com/TanStack/ai/pull/626))
+
+- Updated dependencies [[`ebeb22e`](https://github.com/TanStack/ai/commit/ebeb22ec68f456b09e0181ac6f5d1ac25a0affd2)]:
+  - @tanstack/ai@0.21.2
+  - @tanstack/ai-client@0.11.6
+  - @tanstack/ai-utils@0.2.1
+  - @tanstack/openai-base@0.3.6
+
 ## 0.9.6
 
 ### Patch Changes
