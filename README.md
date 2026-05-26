@@ -302,3 +302,90 @@ on.
   virtualized rendering
 
 ...and more at <a href="https://tanstack.com"><b>TanStack.com</b></a>.
+
+## ❓ FAQ
+
+### What is TanStack AI?
+
+TanStack AI is a type-safe, provider-agnostic TypeScript SDK for building streaming chat, tool-calling agents, structured outputs, realtime voice, media generation, and framework-native AI apps.
+
+### Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **Type-Safe** | TypeScript-first with full type inference |
+| **Provider-Agnostic** | Switch between OpenAI, Anthropic, Groq, etc. |
+| **Streaming Chat** | Real-time message streaming |
+| **Tool Calling** | Type-safe tool definitions |
+| **Structured Outputs** | Zod, ArkType, Valibot, JSON Schema support |
+| **Realtime Voice** | Voice chat with provider adapters |
+| **Code Mode** | LLM writes and executes TypeScript in sandbox |
+| **Framework Bindings** | React, Vue, Svelte, Solid, Preact |
+
+### Getting Started
+
+```bash
+# Install core + OpenAI provider
+pnpm add @tanstack/ai @tanstack/ai-openai
+
+# Or with Anthropic
+pnpm add @tanstack/ai @tanstack/ai-anthropic
+
+# Framework bindings
+pnpm add @tanstack/ai-react
+pnpm add @tanstack/ai-vue
+pnpm add @tanstack/ai-svelte
+```
+
+### Supported Providers
+
+| Provider | Package | Features |
+|----------|---------|----------|
+| **OpenAI** | `@tanstack/ai-openai` | Chat, Tools, Images, Audio |
+| **Anthropic** | `@tanstack/ai-anthropic` | Claude models |
+| **Groq** | Custom endpoint | Fast inference |
+| **Ollama** | Custom endpoint | Local models |
+
+### Framework Support
+
+| Framework | Package | Features |
+|-----------|---------|----------|
+| **React** | `@tanstack/ai-react` | Hooks, Components |
+| **Vue** | `@tanstack/ai-vue` | Composables |
+| **Svelte** | `@tanstack/ai-svelte` | Runes |
+| **Solid** | `@tanstack/ai-solid` | Reactive primitives |
+| **Preact** | `@tanstack/ai-preact` | Hooks |
+
+### What Can You Build?
+
+- Streaming chat with typed messages and tool calls
+- Type-safe tools running on server or client
+- Structured output flows with validation
+- Multimodal prompts (text, images, audio, video)
+- Realtime voice chat sessions
+- Code Mode agents for TypeScript execution
+- Devtools for inspecting streams and traces
+
+### TanStack AI vs Vercel AI SDK
+
+| Feature | TanStack AI | Vercel AI SDK |
+|---------|-------------|---------------|
+| Architecture | Composable activities | Monolithic helpers |
+| Type Safety | Full inference | Partial types |
+| Provider Support | Multiple adapters | Limited providers |
+| Framework Support | 5 frameworks | React-focused |
+| Devtools | Built-in | External |
+
+### Requirements
+
+- Node.js 18+ or Bun
+- TypeScript 5.0+ (recommended)
+- API key for chosen provider
+
+### License & Resources
+
+- **License**: MIT
+- **Documentation**: [tanstack.com/ai](https://tanstack.com/ai)
+- **Examples**: [GitHub Examples](https://github.com/TanStack/ai/tree/main/examples)
+- **Discord**: [TanStack Community](https://discord.gg/tanstack)
+- **Twitter**: [@TanStack](https://twitter.com/tan_stack)
