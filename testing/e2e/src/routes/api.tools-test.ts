@@ -3,17 +3,15 @@ import {
   EventType,
   chat,
   chatParamsFromRequestBody,
-  EventType,
   maxIterations,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import type { StreamChunk } from '@tanstack/ai'
+import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
 import { createTextAdapter } from '@/lib/providers'
 import {
   getToolsForScenario,
   type TestRuntimeContext,
 } from '@/lib/tools-test-tools'
-import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
 
 const runtimeContextScenarios = new Set([
   'server-context',
