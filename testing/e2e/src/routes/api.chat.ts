@@ -118,17 +118,31 @@ export const Route = createFileRoute('/api/chat')({
                     stream: true,
                     abortController,
                   })
-                : chat({
-                    ...adapterOptions,
-                    tools: config.tools,
-                    modelOptions,
-                    systemPrompts,
-                    agentLoopStrategy: maxIterations(5),
-                    messages: params.messages,
-                    threadId: params.threadId,
-                    runId: params.runId,
-                    abortController,
-                  })
+                : feature === 'agentic-structured-stream'
+                  ? chat({
+                      ...adapterOptions,
+                      tools: config.tools,
+                      modelOptions,
+                      systemPrompts,
+                      agentLoopStrategy: maxIterations(5),
+                      messages: params.messages,
+                      threadId: params.threadId,
+                      runId: params.runId,
+                      outputSchema: guitarRecommendationSchema,
+                      stream: true,
+                      abortController,
+                    })
+                  : chat({
+                      ...adapterOptions,
+                      tools: config.tools,
+                      modelOptions,
+                      systemPrompts,
+                      agentLoopStrategy: maxIterations(5),
+                      messages: params.messages,
+                      threadId: params.threadId,
+                      runId: params.runId,
+                      abortController,
+                    })
 
           // Cast: `chat()` returns `AsyncIterable<StreamChunk> |
           // StructuredOutputStream<T>`. Both yield AG-UI events at runtime

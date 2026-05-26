@@ -1,5 +1,4 @@
 import OpenAI from 'openai'
-import { normalizeSystemPrompts } from '@tanstack/ai'
 import { OpenAIBaseResponsesTextAdapter } from '@tanstack/openai-base'
 import { validateTextProviderOptions } from '../text/text-provider-options'
 import { convertToolsToProviderFormat } from '../tools'
@@ -112,45 +111,32 @@ export class OpenAITextAdapter<
     const modelOptions = options.modelOptions as
       | InternalTextProviderOptions
       | undefined
-    const input = this.convertMessagesToInput(options.messages)
     if (modelOptions) {
       validateTextProviderOptions({
         ...modelOptions,
-        input,
+        input: this.convertMessagesToInput(options.messages),
         model: options.model,
       })
     }
+
+    // Delegate to the base for input mapping, system prompts, modelOptions
+    // precedence, and native combined-mode `text.format` wiring (#605). We
+    // hand it a tools-less view of `options` so the base doesn't run its
+    // narrower tool converter — we re-run them through OpenAI's full
+    // converter (file_search, web_search, etc.) and layer the result on top.
+    const { tools: _baseTools, ...baseRequest } = super.mapOptionsToRequest({
+      ...options,
+      tools: undefined,
+    })
 
     const tools = options.tools
       ? convertToolsToProviderFormat(options.tools)
       : undefined
 
-    // Mirror the base adapter's precedence: spread `modelOptions` first, then
-    // conditionally add explicit top-level options only when defined. The
-    // previous override spread `...modelOptions` LAST and wrote
-    // `temperature: options.temperature` unconditionally — re-introducing the
-    // exact regression the base class's nullish-aware merge fixes.
-    const requestParams: Omit<ResponseCreateParams, 'stream'> = {
-      ...modelOptions,
-      model: options.model,
-      ...(options.temperature !== undefined && {
-        temperature: options.temperature,
-      }),
-      ...(options.maxTokens !== undefined && {
-        max_output_tokens: options.maxTokens,
-      }),
-      ...(options.topP !== undefined && { top_p: options.topP }),
-      ...(options.metadata !== undefined && { metadata: options.metadata }),
-      ...(() => {
-        const prompts = normalizeSystemPrompts(options.systemPrompts)
-        if (prompts.length === 0) return {}
-        return { instructions: prompts.map((p) => p.content).join('\n') }
-      })(),
-      input,
+    return {
+      ...baseRequest,
       ...(tools && tools.length > 0 && { tools }),
     }
-
-    return requestParams
   }
 }
 

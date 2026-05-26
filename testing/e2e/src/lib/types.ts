@@ -24,6 +24,7 @@ export type Feature =
   | 'structured-output-stream'
   | 'multi-turn-structured'
   | 'agentic-structured'
+  | 'agentic-structured-stream'
   | 'multimodal-image'
   | 'multimodal-structured'
   | 'summarize'
@@ -61,6 +62,7 @@ export const ALL_FEATURES: Feature[] = [
   'structured-output-stream',
   'multi-turn-structured',
   'agentic-structured',
+  'agentic-structured-stream',
   'multimodal-image',
   'multimodal-structured',
   'summarize',

@@ -4,6 +4,7 @@ import type {
   ChatClientState,
   ChatRequestBody,
   ConnectionStatus,
+  DistributedOmit,
   MultimodalContent,
   UIMessage,
 } from '@tanstack/ai-client'
@@ -28,7 +29,7 @@ export type { ChatRequestBody, MultimodalContent, UIMessage }
  * To update these options, remount the component or use a key prop.
  */
 export type UseChatOptions<TTools extends ReadonlyArray<AnyClientTool> = any> =
-  Omit<
+  DistributedOmit<
     ChatClientOptions<TTools>,
     | 'onMessagesChange'
     | 'onLoadingChange'

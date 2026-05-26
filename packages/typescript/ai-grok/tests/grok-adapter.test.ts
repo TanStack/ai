@@ -106,6 +106,24 @@ describe('Grok adapters', () => {
 
       expect(adapter).toBeDefined()
     })
+
+    it('native combined tools+schema mode is gated per Grok model family (#605)', () => {
+      // Grok 4 family supports `response_format: json_schema` + `tools`
+      // + `stream` together; Grok 2 / 3 reject the combination per xAI's
+      // structured-output docs.
+      const grok4 = createGrokText('grok-4', 'test-api-key')
+      const grok4FastReasoning = createGrokText(
+        'grok-4-1-fast-reasoning',
+        'test-api-key',
+      )
+      const grok3 = createGrokText('grok-3', 'test-api-key')
+      const grok3Mini = createGrokText('grok-3-mini', 'test-api-key')
+
+      expect(grok4.supportsCombinedToolsAndSchema()).toBe(true)
+      expect(grok4FastReasoning.supportsCombinedToolsAndSchema()).toBe(true)
+      expect(grok3.supportsCombinedToolsAndSchema()).toBe(false)
+      expect(grok3Mini.supportsCombinedToolsAndSchema()).toBe(false)
+    })
   })
 
   describe('Image adapter', () => {

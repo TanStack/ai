@@ -9,6 +9,7 @@ import type {
   ChatClientState,
   ChatRequestBody,
   ConnectionStatus,
+  DistributedOmit,
   MultimodalContent,
   UIMessage,
 } from '@tanstack/ai-client'
@@ -30,6 +31,9 @@ export type DeepPartial<T> =
 
 /**
  * Options for the useChat hook.
+ *
+ * Pass either `connection` or `fetcher` — the XOR is enforced at the type
+ * level via `ChatTransport`.
  *
  * This extends ChatClientOptions but omits the state change callbacks that are
  * managed internally by React state:
@@ -54,7 +58,7 @@ export type DeepPartial<T> =
 export type UseChatOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
-> = Omit<
+> = DistributedOmit<
   ChatClientOptions<TTools>,
   | 'onMessagesChange'
   | 'onLoadingChange'

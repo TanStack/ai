@@ -68,8 +68,12 @@ export function useChat<
     // optional (`field?: T`) — `exactOptionalPropertyTypes` rejects
     // assigning `undefined` to those, so we omit the key when absent.
     const initialOptions = optionsRef.current
+    const transport = initialOptions.connection
+      ? { connection: initialOptions.connection }
+      : { fetcher: initialOptions.fetcher }
+
     return new ChatClient({
-      connection: initialOptions.connection,
+      ...transport,
       id: clientId,
       initialMessages: messagesToUse,
       ...(initialOptions.body !== undefined && { body: initialOptions.body }),

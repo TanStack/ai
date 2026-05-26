@@ -5,7 +5,10 @@ import {
   normalizeToUIMessage,
 } from '@tanstack/ai'
 import { DefaultChatClientEventEmitter } from './events'
-import { normalizeConnectionAdapter } from './connection-adapters'
+import {
+  fetcherToConnectionAdapter,
+  normalizeConnectionAdapter,
+} from './connection-adapters'
 import type {
   AnyClientTool,
   ContentPart,
@@ -20,12 +23,28 @@ import type { ChatClientEventEmitter } from './events'
 import type {
   ChatClientOptions,
   ChatClientState,
+  ChatFetcher,
   ConnectionStatus,
   MessagePart,
   MultimodalContent,
   ToolCallPart,
   UIMessage,
 } from './types'
+
+function resolveTransport(transport: {
+  connection?: ConnectionAdapter
+  fetcher?: ChatFetcher
+}): ConnectionAdapter {
+  const { connection, fetcher } = transport
+  if (connection && fetcher) {
+    throw new Error(
+      'ChatClient: pass either `connection` or `fetcher`, not both.',
+    )
+  }
+  if (connection) return connection
+  if (fetcher) return fetcherToConnectionAdapter(fetcher)
+  throw new Error('ChatClient: either `connection` or `fetcher` is required.')
+}
 
 export class ChatClient {
   private readonly processor: StreamProcessor
@@ -96,7 +115,7 @@ export class ChatClient {
     // winning on key collision.
     this.bodyOption = options.body || {}
     this.forwardedPropsOption = options.forwardedProps || {}
-    this.connection = normalizeConnectionAdapter(options.connection)
+    this.connection = normalizeConnectionAdapter(resolveTransport(options))
     this.events = new DefaultChatClientEventEmitter(this.uniqueId)
 
     // Build client tools map
@@ -422,9 +441,9 @@ export class ChatClient {
         // both so a RUN_ERROR with a runId only clears that run, not every
         // active run in the session.
         const runId =
-          chunk.type === 'RUN_FINISHED'
+          'runId' in chunk && typeof chunk.runId === 'string'
             ? chunk.runId
-            : (chunk as { runId?: string }).runId
+            : undefined
         if (runId) {
           this.activeRunIds.delete(runId)
         } else if (chunk.type === 'RUN_ERROR') {
@@ -964,9 +983,13 @@ export class ChatClient {
    */
   private shouldAutoSend(): boolean {
     const messages = this.processor.getMessages()
-    const lastAssistant = messages.findLast((m) => m.role === 'assistant')
+    const lastAssistant = messages.findLast(
+      (m: UIMessage) => m.role === 'assistant',
+    )
     if (!lastAssistant) return false
-    const hasToolCalls = lastAssistant.parts.some((p) => p.type === 'tool-call')
+    const hasToolCalls = lastAssistant.parts.some(
+      (p: MessagePart) => p.type === 'tool-call',
+    )
     if (!hasToolCalls) return false
     return this.processor.areAllToolsComplete()
   }
@@ -1035,6 +1058,7 @@ export class ChatClient {
    */
   updateOptions(options: {
     connection?: ConnectionAdapter
+    fetcher?: ChatFetcher
     /** @deprecated Use `forwardedProps` instead. */
     body?: Record<string, any>
     forwardedProps?: Record<string, any>
@@ -1052,7 +1076,7 @@ export class ChatClient {
       context: { toolCallId?: string },
     ) => void
   }): void {
-    if (options.connection !== undefined) {
+    if (options.connection !== undefined || options.fetcher !== undefined) {
       const wasSubscribed = this.isSubscribed
 
       if (this.isLoading) {
@@ -1067,7 +1091,12 @@ export class ChatClient {
       this.resetSessionGenerating()
       this.setIsSubscribed(false)
       this.setConnectionStatus('disconnected')
-      this.connection = normalizeConnectionAdapter(options.connection)
+      this.connection = normalizeConnectionAdapter(
+        resolveTransport({
+          connection: options.connection,
+          fetcher: options.fetcher,
+        }),
+      )
 
       if (wasSubscribed) {
         this.subscribe()

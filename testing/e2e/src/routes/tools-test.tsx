@@ -1,7 +1,11 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
-import { toolDefinition } from '@tanstack/ai'
+import {
+  modelMessagesToUIMessages,
+  toolDefinition,
+  type ModelMessage,
+} from '@tanstack/ai'
 import { z } from 'zod'
 import { SCENARIO_LIST } from '@/lib/tools-test-tools'
 
@@ -98,8 +102,38 @@ function createTrackedTools(
   return [showNotificationTool, displayChartTool]
 }
 
+function createHistoryFixtureMessages(historyFixture?: string) {
+  if (historyFixture !== 'server-tool-result') {
+    return []
+  }
+
+  const modelMessages: Array<ModelMessage> = [
+    {
+      role: 'assistant',
+      content: 'Let me check the weather.',
+      toolCalls: [
+        {
+          id: 'history-tc-1',
+          type: 'function',
+          function: {
+            name: 'getWeather',
+            arguments: '{"city":"NYC"}',
+          },
+        },
+      ],
+    },
+    {
+      role: 'tool',
+      content: '{"temp":72,"condition":"sunny"}',
+      toolCallId: 'history-tc-1',
+    },
+  ]
+
+  return modelMessagesToUIMessages(modelMessages)
+}
+
 function ToolsTestPage() {
-  const { testId, aimockPort } = Route.useSearch()
+  const { testId, aimockPort, historyFixture } = Route.useSearch()
   const [scenario, setScenario] = useState('text-only')
   const [toolEvents, setToolEvents] = useState<Array<ToolEvent>>([])
   const [testStartTime, setTestStartTime] = useState<number | null>(null)
@@ -115,6 +149,10 @@ function ToolsTestPage() {
 
   // Create tracked tools (memoized since addEvent is stable)
   const clientTools = useRef(createTrackedTools(addEvent)).current
+  const initialMessages = useMemo(
+    () => createHistoryFixtureMessages(historyFixture),
+    [historyFixture],
+  )
 
   const {
     messages,
@@ -125,8 +163,9 @@ function ToolsTestPage() {
     error,
   } = useChat({
     // Include scenario in ID so client is recreated when scenario changes
-    id: `tools-test-${scenario}`,
+    id: `tools-test-${scenario}-${historyFixture || 'empty'}`,
     connection: fetchServerSentEvents('/api/tools-test'),
+    initialMessages,
     body: { scenario, testId, aimockPort },
     tools: clientTools,
     onFinish: () => {
@@ -565,6 +604,7 @@ function ToolsTestPage() {
         id="test-metadata"
         style={{ display: 'none' }}
         data-scenario={scenario}
+        data-history-fixture={historyFixture || ''}
         data-is-loading={isLoading.toString()}
         data-test-complete={testComplete.toString()}
         data-tool-call-count={toolCalls.length}
@@ -633,6 +673,10 @@ export const Route = createFileRoute('/tools-test')({
     return {
       testId: typeof search.testId === 'string' ? search.testId : undefined,
       aimockPort: port != null && !isNaN(port) ? port : undefined,
+      historyFixture:
+        typeof search.historyFixture === 'string'
+          ? search.historyFixture
+          : undefined,
     }
   },
 })

@@ -965,6 +965,90 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       expect(callArgs.stream_options).toBeUndefined()
     })
 
+    it('wires outputSchema into response_format alongside tools for native combined mode (#605)', async () => {
+      const streamChunks = [
+        {
+          id: 'chatcmpl-1',
+          model: 'test-model',
+          choices: [
+            { delta: { content: '{"city":"NYC"}' }, finish_reason: null },
+          ],
+        },
+        {
+          id: 'chatcmpl-1',
+          model: 'test-model',
+          choices: [{ delta: {}, finish_reason: 'stop' }],
+        },
+      ]
+
+      setupMockSdkClient(streamChunks)
+      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
+      // Sanity-check the capability advertisement.
+      expect(adapter.supportsCombinedToolsAndSchema()).toBe(true)
+
+      for await (const _ of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Hello' }],
+        tools: [weatherTool],
+        outputSchema: {
+          type: 'object',
+          properties: { city: { type: 'string' } },
+          required: ['city'],
+        },
+      })) {
+        // drain
+      }
+
+      expect(mockCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          stream: true,
+          tools: expect.any(Array),
+          response_format: expect.objectContaining({
+            type: 'json_schema',
+            json_schema: expect.objectContaining({
+              name: 'structured_output',
+              strict: true,
+              schema: expect.objectContaining({ type: 'object' }),
+            }),
+          }),
+        }),
+        expect.anything(),
+      )
+    })
+
+    it('omits response_format when outputSchema is not set', async () => {
+      const streamChunks = [
+        {
+          id: 'chatcmpl-1',
+          model: 'test-model',
+          choices: [{ delta: { content: 'Hi' }, finish_reason: null }],
+        },
+        {
+          id: 'chatcmpl-1',
+          model: 'test-model',
+          choices: [{ delta: {}, finish_reason: 'stop' }],
+        },
+      ]
+
+      setupMockSdkClient(streamChunks)
+      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
+
+      for await (const _ of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Hello' }],
+      })) {
+        // drain
+      }
+
+      const callArgs = mockCreate.mock.calls[0]![0] as unknown as Record<
+        string,
+        unknown
+      >
+      expect(callArgs.response_format).toBeUndefined()
+    })
+
     it('forwards request headers and signal to SDK create calls', async () => {
       const streamChunks = [
         {

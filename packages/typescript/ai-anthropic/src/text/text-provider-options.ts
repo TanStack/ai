@@ -134,6 +134,19 @@ export interface AnthropicAdaptiveThinkingOptions {
   thinking?:
     | {
         type: 'adaptive'
+        /**
+         * Controls what (if any) thinking content is streamed back.
+         *
+         * - `'summarized'`: stream summarized thinking via `thinking_delta`
+         *   events (the user-visible reasoning text).
+         * - `'omitted'`: stream the thinking block's `signature_delta` only
+         *   (no reasoning text reaches the client).
+         *
+         * On Claude Opus 4.6 the default is `'summarized'`. On
+         * Claude Opus 4.7 the default flipped to `'omitted'` — callers
+         * must set `'summarized'` explicitly to get the reasoning text.
+         */
+        display?: 'summarized' | 'omitted'
       }
     | {
         /**
@@ -157,6 +170,26 @@ export interface AnthropicEffortOptions {
    * - `low`: May skip thinking for simpler problems
    */
   effort?: 'max' | 'high' | 'medium' | 'low'
+}
+
+export interface AnthropicOutputConfigOptions {
+  /**
+   * Output configuration for the model's response.
+   *
+   * On Claude 4.7+ the top-level `effort` field was relocated under
+   * `output_config.effort`, and `thinking: { type: 'enabled', budget_tokens }`
+   * was replaced by `thinking: { type: 'adaptive' }` paired with
+   * `output_config.effort`. Earlier models continue to accept the legacy
+   * top-level `effort` / `thinking.type: 'enabled'` shape.
+   *
+   * The engine also writes `output_config.format` here when the caller
+   * passes `outputSchema` to a Claude 4.5+ adapter (issue #605 native
+   * combined mode). Both fields coexist: user-supplied `effort` is
+   * preserved when the engine adds `format`.
+   */
+  output_config?: {
+    effort?: 'low' | 'medium' | 'high' | 'max' | null
+  }
 }
 
 export interface AnthropicToolChoiceOptions {
@@ -184,7 +217,8 @@ export type ExternalTextProviderOptions = AnthropicContainerOptions &
   AnthropicToolChoiceOptions &
   AnthropicSamplingOptions &
   Partial<AnthropicAdaptiveThinkingOptions> &
-  Partial<AnthropicEffortOptions>
+  Partial<AnthropicEffortOptions> &
+  Partial<AnthropicOutputConfigOptions>
 
 export interface InternalTextProviderOptions extends ExternalTextProviderOptions {
   model: string
@@ -219,6 +253,29 @@ export interface InternalTextProviderOptions extends ExternalTextProviderOptions
   temperature?: number
 
   tools?: Array<AnthropicTool>
+
+  /**
+   * Schema-constrained final answer in a single Messages request (issue
+   * #605). Set by the engine when the adapter declared
+   * `supportsCombinedToolsAndSchema` and a caller passed `outputSchema`
+   * to `chat()`. The model emits tool calls during the agent loop and a
+   * schema-matching JSON message on the natural final turn — no separate
+   * finalization round-trip needed.
+   *
+   * The SDK type (`BetaOutputConfig`) currently exposes only `effort`;
+   * `format` is accepted at runtime per the deprecation notice on the
+   * older `output_format` field
+   * (https://platform.claude.com/docs/en/build-with-claude/structured-outputs).
+   * We type it explicitly here so the adapter call site doesn't need a
+   * cast.
+   */
+  output_config?: {
+    effort?: 'low' | 'medium' | 'high' | 'max' | null
+    format?: {
+      type: 'json_schema'
+      schema: Record<string, unknown>
+    }
+  }
 
   /**
    * Use nucleus sampling.

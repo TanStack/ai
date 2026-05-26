@@ -86,8 +86,12 @@ export function createChat<
   // rather than `field?: T | undefined`. Under `exactOptionalPropertyTypes`,
   // passing an explicit `undefined` for an absent-only optional is a type
   // error, so we omit the key when the caller's value is undefined.
+  const transport = options.connection
+    ? { connection: options.connection }
+    : { fetcher: options.fetcher }
+
   const client = new ChatClient({
-    connection: options.connection,
+    ...transport,
     id: clientId,
     ...(options.initialMessages !== undefined && {
       initialMessages: options.initialMessages,

@@ -140,6 +140,14 @@ describe('Groq adapters', () => {
 
       expect(adapter).toBeDefined()
     })
+
+    it('opts out of native combined tools+schema mode (#605) — Groq API rejects the combination', () => {
+      const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
+      // The OpenAI Chat Completions base defaults to `true`; Groq must
+      // override to `false` because the upstream API returns 400 on
+      // `response_format` + `tools` + `stream`.
+      expect(adapter.supportsCombinedToolsAndSchema()).toBe(false)
+    })
   })
 })
 

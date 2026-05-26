@@ -323,6 +323,30 @@ export const GROK_CHAT_MODELS = [
 ] as const
 
 /**
+ * Grok models that support combining `tools` + `response_format: json_schema`
+ * in a single streaming Chat Completions request (per issue #605). xAI
+ * docs gate this to the Grok 4 family — Grok 2 / 3 reject the
+ * combination. Grok 2 image generation is not a chat model, omitted.
+ *
+ * Note: Grok streams tool-call arguments atomically (not token-streamed)
+ * per the issue's source matrix; partial-JSON tool-arg parsing should be
+ * skipped for Grok specifically. That's a separate adapter concern from
+ * this set — the set only gates whether the engine takes the native
+ * combined path vs the legacy finalization path.
+ */
+export const GROK_COMBINED_TOOLS_AND_SCHEMA_MODELS = new Set<string>([
+  GROK_4_1_FAST_REASONING.name,
+  GROK_4_1_FAST_NON_REASONING.name,
+  GROK_CODE_FAST_1.name,
+  GROK_4_FAST_REASONING.name,
+  GROK_4_FAST_NON_REASONING.name,
+  GROK_4.name,
+  GROK_4_20.name,
+  GROK_4_20_MULTI_AGENT.name,
+  GROK_4_3.name,
+])
+
+/**
  * Grok Image Generation Models
  */
 export const GROK_IMAGE_MODELS = [GROK_2_IMAGE.name] as const

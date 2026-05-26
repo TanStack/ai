@@ -17,6 +17,68 @@ import type { ConnectionAdapter } from './connection-adapters'
 export type { StructuredOutputPart } from '@tanstack/ai'
 
 /**
+ * `messages` is the full UIMessage history (not a delta). `data` is the
+ * merged body — `ChatClientOptions.body` plus any per-call data passed to
+ * `sendMessage(...)`. `threadId` / `runId` are the AG-UI correlation ids
+ * the chat client uses to track this turn — forward them to your server
+ * if it needs to correlate requests.
+ */
+export interface ChatFetcherInput {
+  messages: Array<UIMessage>
+  data?: Record<string, unknown>
+  threadId: string
+  runId: string
+}
+
+export interface ChatFetcherOptions {
+  /** Fires when `stop()` is called or the request is superseded. */
+  signal: AbortSignal
+}
+
+/**
+ * Direct function that performs a chat request. Mirrors
+ * `GenerationFetcher`. Returns either a `Response` (SSE body parsed by the
+ * chat client) or an `AsyncIterable<StreamChunk>` (yielded directly). May
+ * return the value synchronously, as a `Promise`, or as an async generator
+ * (`async function*`) — the chat client awaits whichever shape is returned.
+ *
+ * @example
+ * ```ts
+ * useChat({
+ *   fetcher: ({ messages }, { signal }) =>
+ *     chatFn({ data: { messages }, signal }),
+ * })
+ * ```
+ */
+export type ChatFetcher = (
+  input: ChatFetcherInput,
+  options: ChatFetcherOptions,
+) =>
+  | Response
+  | AsyncIterable<StreamChunk>
+  | Promise<Response | AsyncIterable<StreamChunk>>
+
+/**
+ * Distributive `Omit` — applies `Omit<O, K>` per branch of a union so
+ * discriminated unions survive omission. Plain `Omit` collapses unions
+ * into a single object shape, which would erase the `ChatTransport` XOR
+ * when framework hooks omit React-managed callbacks from
+ * `ChatClientOptions`.
+ */
+export type DistributedOmit<
+  TObject,
+  TKeys extends keyof any,
+> = TObject extends unknown ? Omit<TObject, TKeys> : never
+
+/**
+ * Discriminated union enforcing that exactly one of `connection` or
+ * `fetcher` is provided. Mirrors `GenerationTransport`.
+ */
+export type ChatTransport =
+  | { connection: ConnectionAdapter; fetcher?: never }
+  | { fetcher: ChatFetcher; connection?: never }
+
+/**
  * Tool call states - track the lifecycle of a tool call
  */
 export type ToolCallState =
@@ -25,6 +87,7 @@ export type ToolCallState =
   | 'input-complete' // All arguments received
   | 'approval-requested' // Waiting for user approval
   | 'approval-responded' // User has approved/denied
+  | 'complete' // Result is complete
 
 /**
  * Tool result states - track the lifecycle of a tool result
@@ -201,16 +264,13 @@ export interface UIMessage<
   createdAt?: Date
 }
 
-export interface ChatClientOptions<
+/**
+ * Options for `ChatClient`. Exactly one of `connection` or `fetcher` must be
+ * provided — the type-level XOR is enforced via `ChatTransport`.
+ */
+export type ChatClientOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
-> {
-  /**
-   * Connection adapter for streaming.
-   * Supports mutually exclusive modes: request-response via `connect()`, or
-   * subscribe/send mode via `subscribe()` + `send()`.
-   */
-  connection: ConnectionAdapter
-
+> = {
   /**
    * Initial messages to populate the chat
    */
@@ -338,7 +398,7 @@ export interface ChatClientOptions<
      */
     chunkStrategy?: ChunkStrategy
   }
-}
+} & ChatTransport
 
 export interface ChatRequestBody {
   messages: Array<ModelMessage>

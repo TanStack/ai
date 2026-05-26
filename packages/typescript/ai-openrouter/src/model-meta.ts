@@ -1122,28 +1122,6 @@ const ARCEE_AI_SPOTLIGHT = {
     image: 0,
   },
 } as const
-const ARCEE_AI_TRINITY_LARGE_PREVIEW = {
-  id: 'arcee-ai/trinity-large-preview',
-  name: 'Arcee AI: Trinity Large Preview',
-  supports: {
-    input: ['text'],
-    output: ['text'],
-    supports: ['maxCompletionTokens', 'responseFormat', 'temperature', 'topP'],
-  },
-  context_window: 131000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.15,
-        cached: 0,
-      },
-      output: {
-        normal: 0.45,
-      },
-    },
-    image: 0,
-  },
-} as const
 const ARCEE_AI_TRINITY_LARGE_THINKING = {
   id: 'arcee-ai/trinity-large-thinking',
   name: 'Arcee AI: Trinity Large Thinking',
@@ -9509,7 +9487,7 @@ const QWEN_QWEN3_5_122B_A10B = {
     ],
   },
   context_window: 262144,
-  max_output_tokens: 65536,
+  max_output_tokens: 262144,
   pricing: {
     text: {
       input: {
@@ -9789,11 +9767,11 @@ const QWEN_QWEN3_6_27B = {
     ],
   },
   context_window: 262144,
-  max_output_tokens: 81920,
+  max_output_tokens: 262144,
   pricing: {
     text: {
       input: {
-        normal: 0.32,
+        normal: 0.3,
         cached: 0,
       },
       output: {
@@ -9826,11 +9804,12 @@ const QWEN_QWEN3_6_35B_A3B = {
     ],
   },
   context_window: 262144,
+  max_output_tokens: 262144,
   pricing: {
     text: {
       input: {
-        normal: 0.149,
-        cached: 0,
+        normal: 0.15,
+        cached: 0.05,
       },
       output: {
         normal: 1,
@@ -9861,11 +9840,11 @@ const QWEN_QWEN3_6_FLASH = {
   pricing: {
     text: {
       input: {
-        normal: 0.1875,
-        cached: 0.234375,
+        normal: 0.12375,
+        cached: 0.1545,
       },
       output: {
-        normal: 1.125,
+        normal: 0.7425,
       },
     },
     image: 0,
@@ -9927,11 +9906,45 @@ const QWEN_QWEN3_6_PLUS = {
   pricing: {
     text: {
       input: {
-        normal: 0.325,
-        cached: 0.40625,
+        normal: 0.1794,
+        cached: 0.2236,
       },
       output: {
-        normal: 1.95,
+        normal: 1.07315,
+      },
+    },
+    image: 0,
+  },
+} as const
+const QWEN_QWEN3_7_MAX = {
+  id: 'qwen/qwen3.7-max',
+  name: 'Qwen: Qwen3.7 Max',
+  supports: {
+    input: ['text'],
+    output: ['text'],
+    supports: [
+      'logprobs',
+      'maxCompletionTokens',
+      'presencePenalty',
+      'reasoning',
+      'responseFormat',
+      'seed',
+      'temperature',
+      'toolChoice',
+      'topLogprobs',
+      'topP',
+    ],
+  },
+  context_window: 1000000,
+  max_output_tokens: 65536,
+  pricing: {
+    text: {
+      input: {
+        normal: 2.5,
+        cached: 3.125,
+      },
+      output: {
+        normal: 7.5,
       },
     },
     image: 0,
@@ -11251,16 +11264,15 @@ const Z_AI_GLM_5_1 = {
       'topP',
     ],
   },
-  context_window: 202800,
-  max_output_tokens: 202800,
+  context_window: 202752,
   pricing: {
     text: {
       input: {
-        normal: 0,
-        cached: 0,
+        normal: 0.98,
+        cached: 0.182,
       },
       output: {
-        normal: 0,
+        normal: 3.08,
       },
     },
     image: 0,
@@ -11662,11 +11674,6 @@ export type OpenRouterModelOptionsByName = {
       | 'stop'
       | 'temperature'
       | 'topP'
-    >
-  [ARCEE_AI_TRINITY_LARGE_PREVIEW.id]: OpenRouterCommonOptions &
-    Pick<
-      OpenRouterBaseOptions,
-      'maxCompletionTokens' | 'responseFormat' | 'temperature' | 'topP'
     >
   [ARCEE_AI_TRINITY_LARGE_THINKING.id]: OpenRouterCommonOptions &
     Pick<
@@ -15045,6 +15052,20 @@ export type OpenRouterModelOptionsByName = {
       | 'toolChoice'
       | 'topP'
     >
+  [QWEN_QWEN3_7_MAX.id]: OpenRouterCommonOptions &
+    Pick<
+      OpenRouterBaseOptions,
+      | 'logprobs'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'reasoning'
+      | 'responseFormat'
+      | 'seed'
+      | 'temperature'
+      | 'toolChoice'
+      | 'topLogprobs'
+      | 'topP'
+    >
   [REKAAI_REKA_EDGE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
@@ -15634,7 +15655,6 @@ export type OpenRouterModelInputModalitiesByName = {
   [ARCEE_AI_CODER_LARGE.id]: ReadonlyArray<'text'>
   [ARCEE_AI_MAESTRO_REASONING.id]: ReadonlyArray<'text'>
   [ARCEE_AI_SPOTLIGHT.id]: ReadonlyArray<'image' | 'text'>
-  [ARCEE_AI_TRINITY_LARGE_PREVIEW.id]: ReadonlyArray<'text'>
   [ARCEE_AI_TRINITY_LARGE_THINKING.id]: ReadonlyArray<'text'>
   [ARCEE_AI_TRINITY_LARGE_THINKING_FREE.id]: ReadonlyArray<'text'>
   [ARCEE_AI_TRINITY_MINI.id]: ReadonlyArray<'text'>
@@ -15954,6 +15974,7 @@ export type OpenRouterModelInputModalitiesByName = {
   [QWEN_QWEN3_6_FLASH.id]: ReadonlyArray<'text' | 'image' | 'video'>
   [QWEN_QWEN3_6_MAX_PREVIEW.id]: ReadonlyArray<'text'>
   [QWEN_QWEN3_6_PLUS.id]: ReadonlyArray<'text' | 'image' | 'video'>
+  [QWEN_QWEN3_7_MAX.id]: ReadonlyArray<'text'>
   [REKAAI_REKA_EDGE.id]: ReadonlyArray<'image' | 'text' | 'video'>
   [REKAAI_REKA_FLASH_3.id]: ReadonlyArray<'text'>
   [RELACE_RELACE_APPLY_3.id]: ReadonlyArray<'text'>
@@ -16040,7 +16061,6 @@ export const OPENROUTER_CHAT_MODELS = [
   ARCEE_AI_CODER_LARGE.id,
   ARCEE_AI_MAESTRO_REASONING.id,
   ARCEE_AI_SPOTLIGHT.id,
-  ARCEE_AI_TRINITY_LARGE_PREVIEW.id,
   ARCEE_AI_TRINITY_LARGE_THINKING.id,
   ARCEE_AI_TRINITY_LARGE_THINKING_FREE.id,
   ARCEE_AI_TRINITY_MINI.id,
@@ -16312,6 +16332,7 @@ export const OPENROUTER_CHAT_MODELS = [
   QWEN_QWEN3_6_FLASH.id,
   QWEN_QWEN3_6_MAX_PREVIEW.id,
   QWEN_QWEN3_6_PLUS.id,
+  QWEN_QWEN3_7_MAX.id,
   REKAAI_REKA_EDGE.id,
   REKAAI_REKA_FLASH_3.id,
   RELACE_RELACE_APPLY_3.id,

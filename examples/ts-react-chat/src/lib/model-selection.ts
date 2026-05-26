@@ -191,6 +191,11 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   // Grok
   {
     provider: 'grok',
+    model: 'grok-4.3',
+    label: 'Grok - Grok 4.3',
+  },
+  {
+    provider: 'grok',
     model: 'grok-4.20',
     label: 'Grok - Grok 4.20',
   },
@@ -206,8 +211,23 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   },
   {
     provider: 'grok',
+    model: 'grok-4-fast-reasoning',
+    label: 'Grok - Grok 4 Fast (reasoning)',
+  },
+  {
+    provider: 'grok',
     model: 'grok-code-fast-1',
     label: 'Grok - Grok Code Fast 1',
+  },
+  {
+    provider: 'grok',
+    model: 'grok-4',
+    label: 'Grok - Grok 4',
+  },
+  {
+    provider: 'grok',
+    model: 'grok-3',
+    label: 'Grok - Grok 3',
   },
 ]
 

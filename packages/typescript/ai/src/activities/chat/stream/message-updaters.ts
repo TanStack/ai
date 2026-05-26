@@ -217,11 +217,7 @@ export function updateToolCallWithOutput(
 
     if (toolCallPart) {
       toolCallPart.output = errorText ? { error: errorText } : output
-      if (state) {
-        toolCallPart.state = state
-      } else {
-        toolCallPart.state = 'input-complete'
-      }
+      toolCallPart.state = state ?? (errorText ? 'input-complete' : 'complete')
     }
 
     return { ...msg, parts }

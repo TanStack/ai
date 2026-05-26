@@ -117,6 +117,105 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
     })
   })
 
+  describe('native combined tools + outputSchema mode (#605)', () => {
+    it('wires outputSchema into text.format alongside tools on the regular chatStream call', async () => {
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-1',
+            model: 'test-model',
+            output: [],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-1',
+            model: 'test-model',
+            output: [],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      expect(adapter.supportsCombinedToolsAndSchema()).toBe(true)
+
+      for await (const _ of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Hello' }],
+        tools: [weatherTool],
+        outputSchema: {
+          type: 'object',
+          properties: { city: { type: 'string' } },
+          required: ['city'],
+        },
+      })) {
+        // drain
+      }
+
+      expect(mockResponsesCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          stream: true,
+          tools: expect.any(Array),
+          text: expect.objectContaining({
+            format: expect.objectContaining({
+              type: 'json_schema',
+              name: 'structured_output',
+              strict: true,
+              schema: expect.objectContaining({ type: 'object' }),
+            }),
+          }),
+        }),
+        expect.anything(),
+      )
+    })
+
+    it('omits text.format when outputSchema is not set', async () => {
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-2',
+            model: 'test-model',
+            output: [],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-2',
+            model: 'test-model',
+            output: [],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+
+      for await (const _ of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Hello' }],
+      })) {
+        // drain
+      }
+
+      const callArgs = mockResponsesCreate.mock.calls[0]![0] as Record<
+        string,
+        unknown
+      >
+      expect(callArgs.text).toBeUndefined()
+    })
+  })
+
   describe('streaming event sequence', () => {
     it('emits RUN_STARTED as the first event', async () => {
       const streamChunks = [

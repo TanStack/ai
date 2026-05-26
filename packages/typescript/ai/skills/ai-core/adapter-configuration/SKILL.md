@@ -221,6 +221,37 @@ const custom = myOpenai('ft:gpt-5.2:my-org:custom-model:abc123')
 At runtime, `extendAdapter` simply passes through to the original factory.
 The `_customModels` parameter is only used for type inference.
 
+### 5. Capability Flag: `supportsCombinedToolsAndSchema`
+
+Adapters can declare an optional capability method:
+
+```ts
+supportsCombinedToolsAndSchema?(modelOptions?: TProviderOptions): boolean
+```
+
+When `true`, the engine wires `outputSchema` into the regular
+`chatStream` call alongside `tools` and harvests the schema-constrained
+JSON from the agent loop's final-turn text — skipping the separate
+`structuredOutput` / `structuredOutputStream` finalization round-trip.
+When `false` (or the method is omitted), the legacy finalization path
+runs.
+
+Current per-adapter status (#605):
+
+| Adapter                                      | Returns                                                                                           |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `openaiText` / `openaiChatCompletions`       | `true` (all supported models)                                                                     |
+| `anthropicText`                              | `true` for Claude 4.5+ (gated by `ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS`), `false` otherwise |
+| `geminiText`                                 | `true` for Gemini 3.x (gated by `GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS`), `false` otherwise     |
+| `grokText`                                   | `true` for Grok 4 family (gated by `GROK_COMBINED_TOOLS_AND_SCHEMA_MODELS`), `false` otherwise    |
+| `groqText`                                   | `false` (Groq API rejects schema + tools + stream)                                                |
+| `openRouterText` / `openRouterResponsesText` | `false` (per-call resolution is a follow-up)                                                      |
+| `ollamaText`                                 | `false` (constrained-decoding vs tool-call grammar conflict)                                      |
+
+Subclasses can override to narrow the capability. When extending an
+adapter for a custom model that doesn't support the combination, return
+`false` explicitly.
+
 ## Common Mistakes
 
 ### a. HIGH: Confusing legacy monolithic with tree-shakeable adapter

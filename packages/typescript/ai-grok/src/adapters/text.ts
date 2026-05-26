@@ -1,6 +1,7 @@
 import OpenAI from 'openai'
 import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
 import { getGrokApiKeyFromEnv, withGrokDefaults } from '../utils/client'
+import { GROK_COMBINED_TOOLS_AND_SCHEMA_MODELS } from '../model-meta'
 import type {
   GROK_CHAT_MODELS,
   GrokChatModelToolCapabilitiesByName,
@@ -78,6 +79,18 @@ export class GrokTextAdapter<
       return { text: raw }
     }
     return undefined
+  }
+
+  /**
+   * Grok's combined tools + schema support is gated to the Grok 4 family
+   * per xAI's structured-output docs; Grok 2 / 3 reject the combination.
+   * The wiring on the wire is already correct (inherits the OpenAI Chat
+   * Completions `response_format: json_schema` attach from the base
+   * adapter); this override just narrows the capability claim to the
+   * supported model family.
+   */
+  override supportsCombinedToolsAndSchema(): boolean {
+    return GROK_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(this.model)
   }
 }
 

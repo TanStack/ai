@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
+import { uiMessagesToWire } from '@tanstack/ai'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { clientTools } from '@tanstack/ai-client'
+import type { UIMessage } from '@tanstack/ai-client'
 import type { GeminiInteractionsCustomEventValue } from '@tanstack/ai-gemini/experimental'
 import type { Feature, Mode, Provider } from '@/lib/types'
-import { ALL_PROVIDERS } from '@/lib/types'
+import { ALL_FEATURES, ALL_PROVIDERS } from '@/lib/types'
 import { isSupported } from '@/lib/feature-support'
 import { addToCartToolDef } from '@/lib/tools'
 import { NotSupported } from '@/components/NotSupported'
@@ -15,6 +17,8 @@ import { TranscriptionUI } from '@/components/TranscriptionUI'
 import { VideoGenUI } from '@/components/VideoGenUI'
 import { AudioGenUI } from '@/components/AudioGenUI'
 
+const VALID_MODES = new Set<Mode>(['sse', 'http-stream', 'fetcher'])
+
 export const Route = createFileRoute('/$provider/$feature')({
   component: FeaturePage,
   validateSearch: (search: Record<string, unknown>) => {
@@ -22,10 +26,14 @@ export const Route = createFileRoute('/$provider/$feature')({
       typeof search.aimockPort === 'string'
         ? parseInt(search.aimockPort, 10)
         : undefined
+    const rawMode = typeof search.mode === 'string' ? search.mode : undefined
     return {
       testId: typeof search.testId === 'string' ? search.testId : undefined,
       aimockPort: port != null && !isNaN(port) ? port : undefined,
-      mode: typeof search.mode === 'string' ? (search.mode as Mode) : undefined,
+      mode:
+        rawMode && VALID_MODES.has(rawMode as Mode)
+          ? (rawMode as Mode)
+          : undefined,
     }
   },
 })
@@ -46,14 +54,20 @@ const addToCartClient = addToCartToolDef.client((args) => ({
   quantity: args.quantity,
 }))
 
+const isProvider = (s: string): s is Provider =>
+  (ALL_PROVIDERS as ReadonlyArray<string>).includes(s)
+const isFeature = (s: string): s is Feature =>
+  (ALL_FEATURES as ReadonlyArray<string>).includes(s)
+
 function FeaturePage() {
-  const { provider, feature } = Route.useParams() as {
-    provider: Provider
-    feature: Feature
-  }
+  const { provider, feature } = Route.useParams()
   const { testId, aimockPort, mode } = Route.useSearch()
 
-  if (!ALL_PROVIDERS.includes(provider) || !isSupported(provider, feature)) {
+  if (
+    !isProvider(provider) ||
+    !isFeature(feature) ||
+    !isSupported(provider, feature)
+  ) {
     return <NotSupported provider={provider} feature={feature} />
   }
 
@@ -69,7 +83,7 @@ function FeaturePage() {
     )
   }
 
-  return <ChatFeature provider={provider} feature={feature} />
+  return <ChatFeature provider={provider} feature={feature} mode={mode} />
 }
 
 function MediaFeature({
@@ -141,9 +155,11 @@ function MediaFeature({
 function ChatFeature({
   provider,
   feature,
+  mode,
 }: {
   provider: Provider
   feature: Feature
+  mode?: Mode
 }) {
   const needsApproval = feature === 'tool-approval'
   const showImageInput =
@@ -159,9 +175,50 @@ function ChatFeature({
     undefined,
   )
 
+  const transport =
+    mode === 'fetcher'
+      ? {
+          fetcher: async (
+            input: {
+              messages: Array<UIMessage>
+              data?: unknown
+              threadId: string
+              runId: string
+            },
+            options: { signal: AbortSignal },
+          ) =>
+            // Mirror what `fetchServerSentEvents` posts: full AG-UI
+            // `RunAgentInput` envelope with messages converted to wire
+            // format (UIMessage parts get flattened to string content).
+            // `useChat({ body })` already flowed provider/feature/testId/
+            // aimockPort into `input.data`, so it forwards as
+            // `forwardedProps`.
+            fetch('/api/chat', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                // Sentinel header so e2e tests can positively assert the
+                // fetcher path executed (and didn't silently fall back to
+                // the connection adapter).
+                'x-tanstack-ai-transport': 'fetcher',
+              },
+              body: JSON.stringify({
+                threadId: input.threadId,
+                runId: input.runId,
+                state: {},
+                messages: uiMessagesToWire(input.messages),
+                tools: [],
+                context: [],
+                forwardedProps: input.data,
+              }),
+              signal: options.signal,
+            }),
+        }
+      : { connection: fetchServerSentEvents('/api/chat') }
+
   const { messages, sendMessage, isLoading, addToolApprovalResponse, stop } =
     useChat({
-      connection: fetchServerSentEvents('/api/chat'),
+      ...transport,
       tools,
       body: {
         provider,

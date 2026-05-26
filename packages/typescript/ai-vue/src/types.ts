@@ -9,6 +9,7 @@ import type {
   ChatClientState,
   ChatRequestBody,
   ConnectionStatus,
+  DistributedOmit,
   MultimodalContent,
   UIMessage,
 } from '@tanstack/ai-client'
@@ -54,7 +55,7 @@ export type DeepPartial<T> =
 export type UseChatOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
-> = Omit<
+> = DistributedOmit<
   ChatClientOptions<TTools>,
   | 'onMessagesChange'
   | 'onLoadingChange'

@@ -70,8 +70,12 @@ export function useChat<
   // `tools`: the ChatClient target declares those as strict-optional
   // (`field?: T`), so under `exactOptionalPropertyTypes` we omit the key when
   // the source value is `undefined` instead of assigning `undefined`.
+  const transport = options.connection
+    ? { connection: options.connection }
+    : { fetcher: options.fetcher }
+
   const client = new ChatClient({
-    connection: options.connection,
+    ...transport,
     id: clientId,
     ...(options.initialMessages !== undefined && {
       initialMessages: options.initialMessages,

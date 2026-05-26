@@ -1,5 +1,28 @@
 # @tanstack/react-ai-devtools
 
+## 0.2.42
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-devtools-core@0.3.38
+
+## 0.2.41
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-devtools-core@0.3.37
+
+## 0.2.40
+
+### Patch Changes
+
+- Refresh package README content and npm metadata for better discoverability. ([#626](https://github.com/TanStack/ai/pull/626))
+
+- Updated dependencies [[`ebeb22e`](https://github.com/TanStack/ai/commit/ebeb22ec68f456b09e0181ac6f5d1ac25a0affd2)]:
+  - @tanstack/ai-devtools-core@0.3.36
+
 ## 0.2.39
 
 ### Patch Changes

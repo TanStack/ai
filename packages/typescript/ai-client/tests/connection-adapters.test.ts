@@ -101,9 +101,7 @@ describe('connection-adapters', () => {
       expect(chunks).toHaveLength(1)
     })
 
-    it('should skip [DONE] markers and warn about deprecation', async () => {
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-
+    it('should synthesize RUN_FINISHED on [DONE] and stop reading', async () => {
       const mockReader = {
         read: vi
           .fn()
@@ -133,19 +131,11 @@ describe('connection-adapters', () => {
         chunks.push(chunk)
       }
 
-      expect(chunks).toHaveLength(0)
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[DONE] sentinel'),
-      )
-
-      warnSpy.mockRestore()
+      expect(chunks).toHaveLength(1)
+      expect(chunks[0]!.type).toBe('RUN_FINISHED')
     })
 
-    it('should handle malformed JSON gracefully', async () => {
-      const consoleWarnSpy = vi
-        .spyOn(console, 'warn')
-        .mockImplementation(() => {})
-
+    it('should throw a SyntaxError on malformed JSON', async () => {
       const mockReader = {
         read: vi
           .fn()
@@ -167,17 +157,16 @@ describe('connection-adapters', () => {
       fetchMock.mockResolvedValue(mockResponse as any)
 
       const adapter = fetchServerSentEvents('/api/chat')
-      const chunks: Array<StreamChunk> = []
 
-      for await (const chunk of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
-        chunks.push(chunk)
-      }
-
-      expect(chunks).toHaveLength(0)
-      expect(consoleWarnSpy).toHaveBeenCalled()
-      consoleWarnSpy.mockRestore()
+      await expect(
+        (async () => {
+          for await (const _ of adapter.connect([
+            { role: 'user', content: 'Hello' },
+          ])) {
+            // Consume
+          }
+        })(),
+      ).rejects.toThrow(SyntaxError)
     })
 
     it('should handle HTTP errors', async () => {
@@ -514,7 +503,7 @@ describe('connection-adapters', () => {
           .mockResolvedValueOnce({
             done: false,
             value: new TextEncoder().encode(
-              'data: {"type":"RUN_FINISHED","runId":"run-1","finishReason":"stop","timestamp":300}\n\ndata: [DONE]\n\n',
+              'data: {"type":"RUN_FINISHED","runId":"run-1","finishReason":"stop","timestamp":300}\n\n',
             ),
           })
           .mockResolvedValueOnce({ done: true, value: undefined }),
@@ -578,11 +567,7 @@ describe('connection-adapters', () => {
       expect(chunks).toHaveLength(1)
     })
 
-    it('should handle malformed JSON gracefully', async () => {
-      const consoleWarnSpy = vi
-        .spyOn(console, 'warn')
-        .mockImplementation(() => {})
-
+    it('should throw a SyntaxError on malformed JSON', async () => {
       const mockReader = {
         read: vi
           .fn()
@@ -604,17 +589,16 @@ describe('connection-adapters', () => {
       fetchMock.mockResolvedValue(mockResponse as any)
 
       const adapter = fetchHttpStream('/api/chat')
-      const chunks: Array<StreamChunk> = []
 
-      for await (const chunk of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
-        chunks.push(chunk)
-      }
-
-      expect(chunks).toHaveLength(0)
-      expect(consoleWarnSpy).toHaveBeenCalled()
-      consoleWarnSpy.mockRestore()
+      await expect(
+        (async () => {
+          for await (const _ of adapter.connect([
+            { role: 'user', content: 'Hello' },
+          ])) {
+            // Consume
+          }
+        })(),
+      ).rejects.toThrow(SyntaxError)
     })
 
     it('should handle HTTP errors', async () => {
@@ -865,6 +849,7 @@ describe('connection-adapters', () => {
       expect(streamFactory).toHaveBeenCalledWith(
         expect.arrayContaining([expect.objectContaining({ role: 'user' })]),
         data,
+        undefined,
       )
     })
   })
@@ -926,7 +911,12 @@ describe('connection-adapters', () => {
         return received
       })()
 
-      await adapter.send([{ role: 'user', content: 'Hello' }])
+      await adapter.send(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        { threadId: 'thread-test', runId: 'run-test' },
+      )
       const received = await receivedPromise
 
       expect(received).toHaveLength(2)
@@ -953,7 +943,12 @@ describe('connection-adapters', () => {
       })()
 
       await expect(
-        adapter.send([{ role: 'user', content: 'Hello' }]),
+        adapter.send(
+          [{ role: 'user', content: 'Hello' }],
+          undefined,
+          undefined,
+          { threadId: 'thread-test', runId: 'run-test' },
+        ),
       ).rejects.toThrow('connect exploded')
       const received = await receivedPromise
 
@@ -1055,6 +1050,7 @@ describe('connection-adapters', () => {
       expect(rpcCall).toHaveBeenCalledWith(
         expect.arrayContaining([expect.objectContaining({ role: 'user' })]),
         data,
+        undefined,
       )
     })
   })

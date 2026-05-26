@@ -538,7 +538,7 @@ describe('message-updaters', () => {
   })
 
   describe('updateToolCallWithOutput', () => {
-    it('should update tool call with output', () => {
+    it('should update tool call with output and complete state', () => {
       const messages = [
         createMessage('msg-1', 'assistant', [
           {
@@ -558,7 +558,7 @@ describe('message-updaters', () => {
         id: 'call-1',
         name: 'getWeather',
         arguments: '{}',
-        state: 'input-complete',
+        state: 'complete',
         output,
       })
     })
@@ -588,7 +588,7 @@ describe('message-updaters', () => {
       expect(part?.output).toEqual(output)
     })
 
-    it('should default to input-complete state when not provided', () => {
+    it('should default to complete state when not provided', () => {
       const messages = [
         createMessage('msg-1', 'assistant', [
           {
@@ -604,7 +604,7 @@ describe('message-updaters', () => {
       const result = updateToolCallWithOutput(messages, 'call-1', output)
 
       const part = result[0]?.parts[0] as ToolCallPart | undefined
-      expect(part?.state).toBe('input-complete')
+      expect(part?.state).toBe('complete')
     })
 
     it('should handle error output', () => {
@@ -629,6 +629,7 @@ describe('message-updaters', () => {
 
       const part = result[0]?.parts[0] as ToolCallPart | undefined
       expect(part?.output).toEqual({ error: 'Tool execution failed' })
+      expect(part?.state).toBe('input-complete')
     })
 
     it('should search across all messages', () => {
