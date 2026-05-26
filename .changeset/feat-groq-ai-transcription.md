@@ -1,5 +1,5 @@
 ---
-'@tanstack/ai-groq': patch
+'@tanstack/ai-groq': minor
 ---
 
 Adds Groq as a transcription provider. Groq's API is mostly OpenAI SDK-compatible,
