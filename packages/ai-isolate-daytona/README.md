@@ -59,7 +59,7 @@ Creates an isolate driver that delegates Code Mode execution to a Daytona sandbo
 
 ## How It Works
 
-```
+```text
 Host process                         Daytona sandbox
 ------------                         ---------------
 createCodeMode + tools

@@ -127,10 +127,22 @@ function toolCallIdFor(index: number): string {
   return `tc_${index}`
 }
 
-function timeoutAfter(milliseconds: number): Promise<undefined> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, milliseconds)
+async function withTimeout<T>(
+  promise: Promise<T>,
+  milliseconds: number,
+): Promise<T | undefined> {
+  let timer: number | undefined
+  const timeout = new Promise<undefined>((resolve) => {
+    timer = setTimeout(resolve, milliseconds)
   })
+
+  try {
+    return await Promise.race([promise, timeout])
+  } finally {
+    if (timer !== undefined) {
+      clearTimeout(timer)
+    }
+  }
 }
 
 function readStringArray(value: unknown, fieldName: string): Array<string> {
@@ -400,14 +412,14 @@ class DaytonaIsolateContext implements IsolateContext {
 
         const resultMarker = createResultMarker()
         const wrappedCode = wrapCode(code, tools, toolResults, resultMarker)
-        const response = await Promise.race([
+        const response = await withTimeout(
           this.sandbox.process.codeRun(
             wrappedCode,
             undefined,
             timeoutMsToSeconds(remainingCodeRunMs),
           ),
-          timeoutAfter(remainingCodeRunMs),
-        ] as const)
+          remainingCodeRunMs,
+        )
         if (response === undefined) {
           return this.timeoutResult(allLogs)
         }
@@ -475,14 +487,14 @@ class DaytonaIsolateContext implements IsolateContext {
         if (remainingToolMs === undefined) {
           return this.timeoutResult(allLogs)
         }
-        const batchEntries = await Promise.race([
+        const batchEntries = await withTimeout(
           Promise.all(
             result.toolCalls.map((toolCall) =>
               executeToolCall(this.bindings, toolCall),
             ),
           ),
-          timeoutAfter(remainingToolMs),
-        ] as const)
+          remainingToolMs,
+        )
         if (batchEntries === undefined) {
           return this.timeoutResult(allLogs)
         }

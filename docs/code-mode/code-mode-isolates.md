@@ -227,7 +227,7 @@ const driver = createDaytonaIsolateDriver({
 
 The driver uses the same host-owned tool replay shape as the Cloudflare driver without Cloudflare's parent Worker / Dynamic Worker split:
 
-```
+```text
 Driver (your server)              Daytona sandbox
 ─────────────────────             ───────────────
 Send: wrapped code        ──────▶  Execute with process.codeRun
