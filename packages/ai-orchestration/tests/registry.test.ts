@@ -20,7 +20,12 @@ import {
   runWorkflow,
   selectWorkflowVersion,
 } from '../src'
-import { collect, findApprovalId, findRunId, simulateRestart } from './test-utils'
+import {
+  collect,
+  findApprovalId,
+  findRunId,
+  simulateRestart,
+} from './test-utils'
 
 describe('selectWorkflowVersion', () => {
   it('returns the version matching the run`s persisted workflowVersion', async () => {

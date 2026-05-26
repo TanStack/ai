@@ -52,9 +52,7 @@ export function findApprovalId(events: ReadonlyArray<StreamChunk>): string {
     (e): e is Extract<StreamChunk, { type: 'CUSTOM' }> =>
       e.type === 'CUSTOM' &&
       (e as { name?: string }).name === 'approval-requested',
-  ) as
-    | { value?: { approvalId?: string } }
-    | undefined
+  ) as { value?: { approvalId?: string } } | undefined
   const approvalId = requested?.value?.approvalId
   if (!approvalId) {
     throw new Error('findApprovalId: no approval-requested chunk in events')

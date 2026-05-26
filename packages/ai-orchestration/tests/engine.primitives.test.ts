@@ -20,7 +20,12 @@ import {
   step,
   uuid,
 } from '../src'
-import { collect, findApprovalId, findRunId, simulateRestart } from './test-utils'
+import {
+  collect,
+  findApprovalId,
+  findRunId,
+  simulateRestart,
+} from './test-utils'
 
 describe('step()', () => {
   it('runs fn once and persists the result to the log', async () => {

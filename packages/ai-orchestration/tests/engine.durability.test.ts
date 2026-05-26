@@ -20,7 +20,12 @@ import {
   inMemoryRunStore,
   runWorkflow,
 } from '../src'
-import { collect, findApprovalId, findRunId, simulateRestart } from './test-utils'
+import {
+  collect,
+  findApprovalId,
+  findRunId,
+  simulateRestart,
+} from './test-utils'
 
 describe('engine durability — step log', () => {
   it('appends one StepRecord per completed agent invocation', async () => {

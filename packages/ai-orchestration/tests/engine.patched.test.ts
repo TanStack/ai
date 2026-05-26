@@ -19,7 +19,12 @@ import {
   patched,
   runWorkflow,
 } from '../src'
-import { collect, findApprovalId, findRunId, simulateRestart } from './test-utils'
+import {
+  collect,
+  findApprovalId,
+  findRunId,
+  simulateRestart,
+} from './test-utils'
 
 describe('patched()', () => {
   it('returns true when the workflow declares the patch', async () => {
