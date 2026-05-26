@@ -20,7 +20,7 @@ import {
   step,
   uuid,
 } from '../src'
-import { collect, findRunId, simulateRestart } from './test-utils'
+import { collect, findApprovalId, findRunId, simulateRestart } from './test-utils'
 
 describe('step()', () => {
   it('runs fn once and persists the result to the log', async () => {
@@ -126,6 +126,7 @@ describe('step()', () => {
       }),
     )
     const runId = findRunId(phase1)
+    const approvalId = findApprovalId(phase1)
     expect(callCount).toBe(1)
 
     // Force replay.
@@ -135,7 +136,7 @@ describe('step()', () => {
       runWorkflow({
         workflow: wf,
         runId,
-        approval: { approvalId: 'a1', approved: true },
+        approval: { approvalId, approved: true },
         runStore: store,
       }),
     )
@@ -179,6 +180,7 @@ describe('step()', () => {
       }),
     )
     const runId = findRunId(phase1)
+    const approvalId = findApprovalId(phase1)
     expect(callCount).toBe(1)
 
     const log = await store.getSteps(runId)
@@ -189,7 +191,7 @@ describe('step()', () => {
       runWorkflow({
         workflow: wf,
         runId,
-        approval: { approvalId: 'a1', approved: true },
+        approval: { approvalId, approved: true },
         runStore: store,
       }),
     )
@@ -223,6 +225,7 @@ describe('now()', () => {
       runWorkflow({ workflow: wf, input: {}, runStore: store }),
     )
     const runId = findRunId(phase1)
+    const approvalId = findApprovalId(phase1)
     const log = await store.getSteps(runId)
     const recordedTs = log[0]?.result as number
     expect(typeof recordedTs).toBe('number')
@@ -236,7 +239,7 @@ describe('now()', () => {
       runWorkflow({
         workflow: wf,
         runId,
-        approval: { approvalId: 'a1', approved: true },
+        approval: { approvalId, approved: true },
         runStore: store,
       }),
     )
@@ -267,6 +270,7 @@ describe('uuid()', () => {
       runWorkflow({ workflow: wf, input: {}, runStore: store }),
     )
     const runId = findRunId(phase1)
+    const approvalId = findApprovalId(phase1)
     const log = await store.getSteps(runId)
     const recordedId = log[0]?.result as string
     expect(typeof recordedId).toBe('string')
@@ -279,7 +283,7 @@ describe('uuid()', () => {
       runWorkflow({
         workflow: wf,
         runId,
-        approval: { approvalId: 'a1', approved: true },
+        approval: { approvalId, approved: true },
         runStore: store,
       }),
     )

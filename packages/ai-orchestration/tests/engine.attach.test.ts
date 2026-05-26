@@ -134,11 +134,10 @@ describe('attach — finished run', () => {
       }),
     )
 
-    // After RUN_FINISHED the engine deletes the run, so attach should
-    // emit run_lost. This pins the deletion-after-finish contract:
-    // hosts that want post-mortem attach must keep their own copy
-    // (e.g., wire the publisher hook to archive the run before it's
-    // deleted) — the engine's hot store is for live operations only.
+    // workflow-core@0.0.2 retains terminal run logs, so attach replays
+    // the final RUN_FINISHED with the persisted output. Hosts get
+    // post-mortem attach for free; no archive hook is needed for the
+    // common case.
     const attached = await collect(
       runWorkflow({
         workflow: wf,
@@ -148,10 +147,10 @@ describe('attach — finished run', () => {
       }),
     )
 
-    const err = attached.find((e) => e.type === 'RUN_ERROR') as
-      | { code?: string }
-      | undefined
-    expect(err?.code).toBe('run_lost')
+    expect(attached.find((e) => e.type === 'RUN_ERROR')).toBeUndefined()
+    expect(attached.find((e) => e.type === 'RUN_FINISHED')).toMatchObject({
+      output: { done: true },
+    })
   })
 })
 

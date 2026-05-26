@@ -40,6 +40,29 @@ export function findRunId(events: ReadonlyArray<StreamChunk>): string {
 }
 
 /**
+ * Pull the approvalId off the approval-requested CUSTOM chunk a paused
+ * workflow emits. workflow-core@0.0.2 strictly matches approval deliveries
+ * against the persisted `pendingApproval.approvalId`, so tests resuming an
+ * approval run must use the same id that workflow-core generated rather
+ * than hard-coding one. Throws if the stream didn't emit an approval
+ * request — that indicates a bug in the calling test.
+ */
+export function findApprovalId(events: ReadonlyArray<StreamChunk>): string {
+  const requested = events.find(
+    (e): e is Extract<StreamChunk, { type: 'CUSTOM' }> =>
+      e.type === 'CUSTOM' &&
+      (e as { name?: string }).name === 'approval-requested',
+  ) as
+    | { value?: { approvalId?: string } }
+    | undefined
+  const approvalId = requested?.value?.approvalId
+  if (!approvalId) {
+    throw new Error('findApprovalId: no approval-requested chunk in events')
+  }
+  return approvalId
+}
+
+/**
  * Drop the in-memory store's live generator handle so the engine takes the
  * replay-from-log path on the next resume. Simulates a process restart
  * (in production durable stores can't surface the live generator anyway —

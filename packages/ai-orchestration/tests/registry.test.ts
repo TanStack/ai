@@ -20,7 +20,7 @@ import {
   runWorkflow,
   selectWorkflowVersion,
 } from '../src'
-import { collect, findRunId, simulateRestart } from './test-utils'
+import { collect, findApprovalId, findRunId, simulateRestart } from './test-utils'
 
 describe('selectWorkflowVersion', () => {
   it('returns the version matching the run`s persisted workflowVersion', async () => {
@@ -290,6 +290,7 @@ describe('createWorkflowRegistry', () => {
       }),
     )
     const runId = findRunId(phase1)
+    const approvalId = findApprovalId(phase1)
 
     // Simulate the deploy that drops the live handle.
     simulateRestart(store)
@@ -303,7 +304,7 @@ describe('createWorkflowRegistry', () => {
       runWorkflow({
         workflow: routed,
         runId,
-        approval: { approvalId: 'a1', approved: true },
+        approval: { approvalId, approved: true },
         runStore: store,
       }),
     )

@@ -20,7 +20,7 @@ import {
   inMemoryRunStore,
   runWorkflow,
 } from '../src'
-import { collect, findRunId, simulateRestart } from './test-utils'
+import { collect, findApprovalId, findRunId, simulateRestart } from './test-utils'
 
 describe('engine durability — step log', () => {
   it('appends one StepRecord per completed agent invocation', async () => {
@@ -154,6 +154,7 @@ describe('engine durability — resume after restart (replay)', () => {
       }),
     )
     const runId = findRunId(phase1)
+    const approvalId = findApprovalId(phase1)
     expect(phase1.map((e) => e.type)).not.toContain('RUN_FINISHED')
 
     // Sanity: the persisted log has no entries yet (approval is the
@@ -171,7 +172,7 @@ describe('engine durability — resume after restart (replay)', () => {
       runWorkflow({
         workflow: wf,
         runId,
-        approval: { approvalId: 'a1', approved: true },
+        approval: { approvalId, approved: true },
         runStore: store,
       }),
     )
@@ -221,6 +222,7 @@ describe('engine durability — resume after restart (replay)', () => {
       }),
     )
     const runId = findRunId(phase1)
+    const approvalId = findApprovalId(phase1)
     expect(echoCallCount).toBe(1)
     expect(await store.getSteps(runId)).toHaveLength(1)
 
@@ -233,7 +235,7 @@ describe('engine durability — resume after restart (replay)', () => {
       runWorkflow({
         workflow: wf,
         runId,
-        approval: { approvalId: 'a1', approved: true },
+        approval: { approvalId, approved: true },
         runStore: store,
       }),
     )
@@ -293,6 +295,7 @@ describe('engine durability — resume after restart (replay)', () => {
       }),
     )
     const runId = findRunId(phase1)
+    const approvalId = findApprovalId(phase1)
 
     // Force replay path.
     simulateRestart(store)
@@ -301,7 +304,7 @@ describe('engine durability — resume after restart (replay)', () => {
       runWorkflow({
         workflow: v2,
         runId,
-        approval: { approvalId: 'a1', approved: true },
+        approval: { approvalId, approved: true },
         runStore: store,
       }),
     )
@@ -344,13 +347,14 @@ describe('engine durability — resume after restart (replay)', () => {
       }),
     )
     const runId = findRunId(phase1)
+    const approvalId = findApprovalId(phase1)
     simulateRestart(store)
 
     const phase2 = await collect(
       runWorkflow({
         workflow: wf,
         runId,
-        approval: { approvalId: 'a1', approved: true },
+        approval: { approvalId, approved: true },
         runStore: store,
       }),
     )

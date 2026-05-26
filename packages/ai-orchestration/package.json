@@ -56,6 +56,6 @@
     "zod": "^4.2.0"
   },
   "dependencies": {
-    "@tanstack/workflow-core": "0.0.1"
+    "@tanstack/workflow-core": "0.0.2"
   }
 }

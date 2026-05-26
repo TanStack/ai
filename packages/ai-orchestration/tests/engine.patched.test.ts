@@ -19,7 +19,7 @@ import {
   patched,
   runWorkflow,
 } from '../src'
-import { collect, findRunId, simulateRestart } from './test-utils'
+import { collect, findApprovalId, findRunId, simulateRestart } from './test-utils'
 
 describe('patched()', () => {
   it('returns true when the workflow declares the patch', async () => {
@@ -121,6 +121,7 @@ describe('patched()', () => {
       }),
     )
     const runId = findRunId(phase1)
+    const approvalId = findApprovalId(phase1)
 
     // Force replay path (simulate deploy across the pause).
     simulateRestart(store)
@@ -131,7 +132,7 @@ describe('patched()', () => {
       runWorkflow({
         workflow: v2,
         runId,
-        approval: { approvalId: 'a1', approved: true },
+        approval: { approvalId, approved: true },
         runStore: store,
       }),
     )
@@ -176,13 +177,14 @@ describe('patched()', () => {
       }),
     )
     const runId = findRunId(phase1)
+    const approvalId = findApprovalId(phase1)
     simulateRestart(store)
 
     const phase2 = await collect(
       runWorkflow({
         workflow: newWf,
         runId,
-        approval: { approvalId: 'a1', approved: true },
+        approval: { approvalId, approved: true },
         runStore: store,
       }),
     )
@@ -230,13 +232,14 @@ describe('patched()', () => {
       }),
     )
     const runId = findRunId(phase1)
+    const approvalId = findApprovalId(phase1)
     simulateRestart(store)
 
     const phase2 = await collect(
       runWorkflow({
         workflow: v2,
         runId,
-        approval: { approvalId: 'a1', approved: true },
+        approval: { approvalId, approved: true },
         runStore: store,
       }),
     )

@@ -1384,8 +1384,8 @@ importers:
   packages/ai-orchestration:
     dependencies:
       '@tanstack/workflow-core':
-        specifier: 0.0.1
-        version: 0.0.1
+        specifier: 0.0.2
+        version: 0.0.2
     devDependencies:
       '@standard-schema/spec':
         specifier: ^1.1.0
@@ -6454,8 +6454,8 @@ packages:
     resolution: {integrity: sha512-FOl8EF6SAcljanKSm5aBeJaflFcxQAytTbxtNW8HC6D4x+UBW68IC4tBcrlrsI0wXHBmC/Gz4Ovvv8qCtiXSgQ==}
     engines: {node: '>=18'}
 
-  '@tanstack/workflow-core@0.0.1':
-    resolution: {integrity: sha512-Js6NF16ACbN2lm9GX2S2+NpPvpBo6NvYME5mEEccesWmlQlrqKUSp9Z4kS57HiXXa1eYCnqFa2KMXoeH8tbM2w==}
+  '@tanstack/workflow-core@0.0.2':
+    resolution: {integrity: sha512-da3gB+uxXFU1S6dPB8vHx3Fdc/W7TVABZVZNJoML1N3LCFfSuEy9fR+7ntUhYeLxuvIwER7l/O3F1w+//04eBA==}
     engines: {node: '>=18'}
 
   '@tanstack/zod-adapter@1.166.9':
@@ -17191,7 +17191,7 @@ snapshots:
       - typescript
       - vite
 
-  '@tanstack/workflow-core@0.0.1':
+  '@tanstack/workflow-core@0.0.2':
     dependencies:
       '@standard-schema/spec': 1.1.0
 
