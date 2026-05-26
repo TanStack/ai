@@ -89,10 +89,7 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
   },
   'anthropic/': {
     packageName: '@tanstack/ai-anthropic',
-    metaFile: resolve(
-      ROOT,
-      'packages/ai-anthropic/src/model-meta.ts',
-    ),
+    metaFile: resolve(ROOT, 'packages/ai-anthropic/src/model-meta.ts'),
     arrayRef: '.id',
     contextField: 'context_window',
     chatArrayName: 'ANTHROPIC_MODELS',

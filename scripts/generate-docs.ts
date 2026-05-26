@@ -9,10 +9,7 @@ const packages = [
   {
     name: 'ai',
     entryPoints: [
-      resolve(__dirname, '../packages/ai/src/index.ts').replaceAll(
-        '\\',
-        '/',
-      ),
+      resolve(__dirname, '../packages/ai/src/index.ts').replaceAll('\\', '/'),
     ],
     tsconfig: resolve(
       __dirname,

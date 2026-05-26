@@ -325,10 +325,8 @@ ${generateVideoModelsArray()}
 ${generateImageModelsArray()}
 `
 console.log(file)
-writeFile('packages/ai-openrouter/src/model-meta.ts', file).then(
-  () => {
-    console.log(
-      'Model meta file written to packages/ai-openrouter/src/model-meta.ts',
-    )
-  },
-)
+writeFile('packages/ai-openrouter/src/model-meta.ts', file).then(() => {
+  console.log(
+    'Model meta file written to packages/ai-openrouter/src/model-meta.ts',
+  )
+})
