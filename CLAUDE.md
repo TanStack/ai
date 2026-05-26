@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Overview
 
-TanStack AI is a type-safe, provider-agnostic AI SDK for building AI-powered applications. The repository is a **pnpm monorepo** managed with **Nx** that includes TypeScript, PHP, and Python packages, plus multiple framework examples.
+TanStack AI is a type-safe, provider-agnostic AI SDK for building AI-powered applications. The repository is a **pnpm monorepo** managed with **Nx** that includes TypeScript packages, plus multiple framework examples.
 
 ## Package Manager & Tooling
 
@@ -87,7 +87,7 @@ pnpm changeset:publish     # Publish to npm
 
 ```
 packages/
-├── typescript/           # TypeScript packages (main implementation)
+└── typescript/           # TypeScript packages (main implementation)
 │   ├── ai/              # Core AI library (@tanstack/ai)
 │   ├── ai-client/       # Framework-agnostic chat client
 │   ├── ai-react/        # React hooks (useChat)
@@ -101,8 +101,6 @@ packages/
 │   ├── ai-devtools/     # DevTools integration
 │   ├── react-ai-devtools/ # React DevTools component
 │   └── solid-ai-devtools/ # Solid DevTools component
-├── php/                 # PHP packages (future)
-└── python/              # Python packages (future)
 
 testing/
 ├── e2e/                 # E2E tests (Playwright + aimock) — MANDATORY for all changes
@@ -114,9 +112,7 @@ examples/                # Example applications
 ├── ts-vue-chat/         # Vue chat example
 ├── ts-svelte-chat/      # Svelte chat example
 ├── ts-group-chat/       # Multi-user group chat
-├── vanilla-chat/        # Vanilla JS example
-├── php-slim/            # PHP Slim framework example
-└── python-fastapi/      # Python FastAPI example
+└── vanilla-chat/        # Vanilla JS example
 ```
 
 ### Core Architecture Concepts

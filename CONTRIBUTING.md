@@ -26,7 +26,7 @@ packages/typescript/    # Public, published packages (@tanstack/ai, @tanstack/ai
 testing/                # Internal test harnesses — NOT published
   e2e/                  # Playwright + aimock E2E suite (mandatory coverage for all changes)
   panel/                # Stream processor visualisation panel
-examples/               # Example apps (React, Solid, Vue, Svelte, PHP, Python, vanilla)
+examples/               # Example apps (React, Solid, Vue, Svelte, vanilla)
 codemods/               # Internal codemods (not published)
 docs/                   # Documentation source
 scripts/                # Repo-level scripts (doc generation, model sync, link verification)

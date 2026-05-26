@@ -102,18 +102,6 @@ importers:
         specifier: ^4.0.14
         version: 4.1.4(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jsdom@27.3.0(postcss@8.5.9))(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
 
-  examples/php-slim:
-    devDependencies:
-      concurrently:
-        specifier: ^9.1.2
-        version: 9.2.1
-
-  examples/python-fastapi:
-    devDependencies:
-      concurrently:
-        specifier: ^9.1.2
-        version: 9.2.1
-
   examples/ts-code-mode-web:
     dependencies:
       '@radix-ui/react-collapsible':
