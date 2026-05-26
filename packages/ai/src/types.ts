@@ -1272,7 +1272,13 @@ export interface ToolCallEndEvent<
 type _ToolCallEndDriftCheck = AssertSatisfiesAGUI<
   Omit<
     ToolCallEndEvent,
-    'type' | 'model' | 'toolCallName' | 'toolName' | 'input' | 'output' | 'result'
+    | 'type'
+    | 'model'
+    | 'toolCallName'
+    | 'toolName'
+    | 'input'
+    | 'output'
+    | 'result'
   >,
   Pick<AGUIToolCallEndEvent, 'toolCallId' | 'timestamp' | 'rawEvent'>
 >
