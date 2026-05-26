@@ -20,6 +20,7 @@ export interface HookCategoryGroup {
 
 export interface HookDashboardSummary {
   total: number
+  active: number
   running: number
   categories: number
   tools: number
@@ -50,6 +51,10 @@ const hookCategoryLabels: Record<HookCategoryId, string> = {
   summarize: 'Summarize',
   text: 'Text',
   other: 'Other',
+}
+
+export function visibleHooks(hooks: Array<HookRecord>): Array<HookRecord> {
+  return hooks
 }
 
 export function getHookDisplayName(hook: HookRecord): string {
@@ -88,6 +93,7 @@ export function createHookDashboardSummary(
 ): HookDashboardSummary {
   return {
     total: hooks.length,
+    active: hooks.length,
     running: hooks.filter((hook) => isHookRunning(hook, runs)).length,
     categories: groupHooksByCategory(hooks).length,
     tools: hooks.reduce((count, hook) => count + hook.tools.length, 0),

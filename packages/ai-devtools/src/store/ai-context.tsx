@@ -483,6 +483,7 @@ export const AIProvider: ParentComponent = (props) => {
         queueMessageChunk(conversationId, messageIndex, chunk)
         return
       } else {
+        // Create new message with the chunk
         const newMessage: Message = {
           id: chunk.messageId,
           role: 'assistant',
@@ -535,6 +536,7 @@ export const AIProvider: ParentComponent = (props) => {
         (msg) => msg.id === messageId,
       )
     } else {
+      // Find last assistant message
       for (let i = conv.messages.length - 1; i >= 0; i--) {
         if (conv.messages[i]?.role === 'assistant') {
           targetMessageIndex = i
@@ -802,9 +804,7 @@ export const AIProvider: ParentComponent = (props) => {
         '[ai-devtools] failed to JSON.stringify tool call arguments; saved fixture replay will be malformed.',
         { error, value },
       )
-      return `[ai-devtools] unserializable tool arguments: ${
-        error instanceof Error ? error.message : String(error)
-      }`
+      return String(value)
     }
   }
 
@@ -1433,9 +1433,11 @@ export const AIProvider: ParentComponent = (props) => {
           addMessage(conversationId, messagePayload)
         }
 
+        // Track messageId in the correct iteration (scoped by requestId)
         if (conv.iterations.length > 0) {
           let iterIndex = -1
           if (requestId) {
+            // Find the latest iteration for this specific request
             for (let i = conv.iterations.length - 1; i >= 0; i--) {
               if (conv.iterations[i]?.requestId === requestId) {
                 iterIndex = i
@@ -1443,6 +1445,7 @@ export const AIProvider: ParentComponent = (props) => {
               }
             }
           } else {
+            // Fallback: use latest iteration
             iterIndex = conv.iterations.length - 1
           }
           if (iterIndex >= 0) {
@@ -1578,6 +1581,7 @@ export const AIProvider: ParentComponent = (props) => {
 
         const conv = state.conversations[clientId]
 
+        // Always create a chunk for the tool result
         const chunk: Chunk = {
           id: `chunk-tool-result-${toolCallId}-${Date.now()}`,
           type: 'tool_result',
@@ -1589,6 +1593,7 @@ export const AIProvider: ParentComponent = (props) => {
           isClientTool: true,
         }
 
+        // Find the message with the tool call and update it
         for (
           let messageIndex = conv.messages.length - 1;
           messageIndex >= 0;
@@ -1601,11 +1606,13 @@ export const AIProvider: ParentComponent = (props) => {
             (t: ToolCall) => t.id === toolCallId,
           )
           if (toolCallIndex >= 0) {
+            // Update the tool call state
             updateToolCall(clientId, messageIndex, toolCallIndex, {
               result: output,
               state: resultState === 'output-error' ? 'error' : 'complete',
             })
 
+            // Add chunk with message ID
             chunk.messageId = message.id
             addChunkToMessage(clientId, chunk)
             return
@@ -2141,6 +2148,7 @@ export const AIProvider: ParentComponent = (props) => {
           addChunk(conversationId, chunk)
         }
 
+        // Also update the toolCalls array with the result
         if (conv && e.payload.toolCallId) {
           for (let i = conv.messages.length - 1; i >= 0; i--) {
             const message = conv.messages[i]
@@ -2193,6 +2201,7 @@ export const AIProvider: ParentComponent = (props) => {
           addChunk(conversationId, chunk)
         }
 
+        // Update thinkingContent on the message for all conversation types
         if (e.payload.messageId && conv) {
           const messageIndex = conv.messages.findIndex(
             (msg) => msg.id === e.payload.messageId,
@@ -2324,6 +2333,7 @@ export const AIProvider: ParentComponent = (props) => {
           addChunk(conversationId, chunk)
         }
 
+        // Mark any active iterations as completed with error
         const convForError = state.conversations[conversationId]
         if (convForError) {
           const errorRequestId = e.payload.requestId
@@ -2891,8 +2901,10 @@ export const AIProvider: ParentComponent = (props) => {
       aiEventClient.on('summarize:request:started', (e) => {
         const { requestId, model, inputLength, timestamp, clientId } = e.payload
 
+        // Try to find an active conversation to attach to, or create a new one
         let conversationId = clientId
         if (!conversationId || !state.conversations[conversationId]) {
+          // Find most recent active client conversation
           const activeClients = Object.values(state.conversations)
             .filter((c) => c.type === 'client' && c.status === 'active')
             .sort((a, b) => b.startedAt - a.startedAt)
@@ -2900,6 +2912,7 @@ export const AIProvider: ParentComponent = (props) => {
           if (activeClients.length > 0 && activeClients[0]) {
             conversationId = activeClients[0].id
           } else {
+            // Create a new conversation for summaries
             conversationId = `summarize-${requestId}`
             getOrCreateConversation(
               conversationId,

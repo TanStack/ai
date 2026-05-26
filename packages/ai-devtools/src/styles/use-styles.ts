@@ -306,6 +306,7 @@ const stylesFactory = (theme: 'light' | 'dark') => {
       text-align: center;
       padding: ${size[4]};
     `,
+    // Keep existing styles for backward compatibility
     sectionContainer: css`
       display: flex;
       flex-wrap: wrap;
@@ -360,6 +361,7 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         box-shadow 0.3s,
         background 0.3s;
     `,
+    // Shell component styles
     shell: {
       sectionHeader: css`
         padding: ${size[3]} ${size[4]};
@@ -422,6 +424,7 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         font-size: ${fontSize.xs};
       `,
     },
+    // ConversationsList component styles
     conversationsList: {
       rowMain: css`
         display: flex;
@@ -1895,6 +1898,7 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         padding: 0 ${size[3]};
       `,
     },
+    // ConversationDetails component styles
     conversationDetails: {
       emptyState: css`
         display: flex;
@@ -2913,6 +2917,7 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         color: oklch(0.6 0.05 260);
         font-weight: ${font.weight.normal};
       `,
+      // Embedding and Summarize operation styles
       operationCard: css`
         padding: ${size[4]};
         border-radius: ${border.radius.lg};
@@ -2980,6 +2985,7 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         color: oklch(0.8 0.05 200);
         font-family: ${fontFamily.mono};
       `,
+      // Iteration badge
       iterationBadge: css`
         font-size: ${fontSize.xs};
         padding: 2px ${size[2]};

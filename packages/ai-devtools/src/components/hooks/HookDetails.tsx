@@ -14,6 +14,7 @@ import {
   getHookDisplayName,
   groupHooksByCategory,
   isHookRunning,
+  visibleHooks,
 } from './hook-dashboard-model'
 import {
   createHoverTarget,
@@ -330,7 +331,7 @@ const HookOverview: Component<{
   const { state } = useAIStore()
   const styles = useStyles()
   const hooks = createMemo(() =>
-    Object.values(state.hooks.hooks).sort(
+    visibleHooks(Object.values(state.hooks.hooks)).sort(
       (a, b) => a.registeredAt - b.registeredAt,
     ),
   )
@@ -376,7 +377,7 @@ const HookOverview: Component<{
         </header>
 
         <div class={styles().hookDetails.overviewMetricGrid}>
-          <OverviewMetric label="hooks" value={summary().total} />
+          <OverviewMetric label="active hooks" value={summary().active} />
           <OverviewMetric label="tools" value={summary().tools} />
           <OverviewMetric
             label="messages / runs"
@@ -386,6 +387,8 @@ const HookOverview: Component<{
             label="tokens"
             value={formatMetricValue(totalTokens())}
           />
+          <OverviewMetric label="hooks" value={summary().total} />
+          <OverviewMetric label="active" value={summary().active} />
           <OverviewMetric label="running" value={summary().running} />
           <OverviewMetric label="categories" value={summary().categories} />
         </div>
@@ -1704,14 +1707,8 @@ function formatUnknown(value: unknown): string {
   if (typeof value === 'string') return value
   try {
     return JSON.stringify(value, null, 2)
-  } catch (error) {
-    console.warn(
-      '[ai-devtools] formatUnknown failed to JSON.stringify a value (likely a circular reference or BigInt); using a string placeholder instead.',
-      { error },
-    )
-    return `[ai-devtools] unserializable value: ${
-      error instanceof Error ? error.message : String(error)
-    }`
+  } catch {
+    return String(value)
   }
 }
 

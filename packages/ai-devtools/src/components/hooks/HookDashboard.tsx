@@ -6,6 +6,7 @@ import {
   getHookDisplayName,
   groupHooksByCategory,
   isHookRunning,
+  visibleHooks,
 } from './hook-dashboard-model'
 import type { HookRecord } from '../../store/hook-registry'
 import type { Component } from 'solid-js'
@@ -15,7 +16,7 @@ export const HookDashboard: Component = () => {
   const styles = useStyles()
 
   const hooks = createMemo(() =>
-    Object.values(state.hooks.hooks).sort(
+    visibleHooks(Object.values(state.hooks.hooks)).sort(
       (a, b) => a.registeredAt - b.registeredAt,
     ),
   )
