@@ -25,7 +25,6 @@ export type HookLifecycle =
   | 'streaming'
   | 'errored'
   | 'stale'
-  | 'unmounted'
 
 export interface RegisteredTool {
   name: string
@@ -198,9 +197,11 @@ export function markEventSeen(
     timestamp?: number
   },
 ): boolean {
-  const key =
-    event.eventId ??
-    [
+  let key: string
+  if (event.eventId) {
+    key = event.eventId
+  } else {
+    key = [
       eventName,
       event.source ?? 'unknown',
       event.visibility ?? 'unknown',
@@ -212,6 +213,27 @@ export function markEventSeen(
       event.toolCallId ?? 'no-tool-call',
       event.timestamp ?? 'no-time',
     ].join(':')
+    // If every identifying field fell back to its literal sentinel the synthesised
+    // key is just `eventName:unknown:unknown:no-runtime:...` — useful for very
+    // little. Warn so it's obvious in the console why deduplication may be
+    // collapsing distinct events together.
+    if (
+      !event.source &&
+      !event.visibility &&
+      !event.runtimeId &&
+      !event.hookId &&
+      !event.clientId &&
+      !event.threadId &&
+      !event.runId &&
+      !event.messageId &&
+      !event.toolCallId &&
+      !event.timestamp
+    ) {
+      console.warn(
+        `[ai-devtools] dedupe key for "${eventName}" has no identifying fields; events may collide.`,
+      )
+    }
+  }
 
   if (state.seenEventIds[key]) {
     return false
@@ -319,6 +341,11 @@ export function applyHookEvent(
       }
       if (isStaleHookInstanceEvent(state, toolsEvent.hookId, toolsEvent)) {
         break
+      }
+      if (!toolsEvent.hookName) {
+        console.warn(
+          `[ai-devtools] tools:registered event for hook "${toolsEvent.hookId}" had no hookName; displaying raw hookId in the UI.`,
+        )
       }
       upsertHook(state, {
         ...toolsEvent,
@@ -588,11 +615,19 @@ function upsertUnknownHook(
 function removeHookRecord(state: HookRegistryState, hookId: string): void {
   const hook = state.hooks[hookId]
   const hookRunIds = new Set(hook?.runIds ?? [])
+  const hookEventIds = new Set(hook?.eventIds ?? [])
 
   for (const [runId, run] of Object.entries(state.runs)) {
     if (run.hookId === hookId || hookRunIds.has(runId)) {
       delete state.runs[runId]
     }
+  }
+
+  // Only remove events that were attached to the hook via attachEventToHook;
+  // the unregister event itself is intentionally not attached so it survives
+  // and can still be inspected on the global timeline.
+  for (const eventId of hookEventIds) {
+    delete state.events[eventId]
   }
 
   delete state.hooks[hookId]
@@ -674,6 +709,12 @@ function syncRunsFromSnapshot(
     }
     if (typeof run.id !== 'string') continue
     const status = normalizeRunStatusFromSnapshot(run.status)
+    if (status === null) {
+      console.warn(
+        `[ai-devtools] unknown run.status in snapshot for hook "${snapshot.hookId}": ${String(run.status)}; skipping run "${run.id}"`,
+      )
+      continue
+    }
     const startedAt =
       typeof run.startedAt === 'number' ? run.startedAt : snapshot.timestamp
     const updatedAt =
@@ -714,7 +755,7 @@ function syncRunsFromSnapshot(
 
 function normalizeRunStatusFromSnapshot(
   value: unknown,
-): RunLifecycleEvent['status'] {
+): RunLifecycleEvent['status'] | null {
   switch (value) {
     case 'created':
     case 'started':
@@ -730,7 +771,7 @@ function normalizeRunStatusFromSnapshot(
     case 'idle':
       return 'created'
     default:
-      return 'updated'
+      return null
   }
 }
 

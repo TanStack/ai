@@ -54,7 +54,7 @@ const hookCategoryLabels: Record<HookCategoryId, string> = {
 }
 
 export function visibleHooks(hooks: Array<HookRecord>): Array<HookRecord> {
-  return hooks.filter((hook) => hook.lifecycle !== 'unmounted')
+  return hooks
 }
 
 export function getHookDisplayName(hook: HookRecord): string {
@@ -93,7 +93,7 @@ export function createHookDashboardSummary(
 ): HookDashboardSummary {
   return {
     total: hooks.length,
-    active: hooks.filter((hook) => hook.lifecycle !== 'unmounted').length,
+    active: hooks.length,
     running: hooks.filter((hook) => isHookRunning(hook, runs)).length,
     categories: groupHooksByCategory(hooks).length,
     tools: hooks.reduce((count, hook) => count + hook.tools.length, 0),

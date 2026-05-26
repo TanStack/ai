@@ -76,22 +76,27 @@ export type AIDevtoolsGenerationPreview =
       kind: 'empty'
     }
 
-export interface AIDevtoolsGenerationRunSnapshot<
-  TOutput = unknown,
-> extends Record<string, unknown> {
+export type AIDevtoolsGenerationRunStatus =
+  | 'idle'
+  | 'generating'
+  | 'success'
+  | 'error'
+  | 'cancelled'
+
+export interface AIDevtoolsGenerationRunSnapshot<TOutput = unknown> {
   id: string
-  input: unknown | null
+  input: unknown
   result: TOutput | null
   preview: AIDevtoolsGenerationPreview
   progress: AIDevtoolsGenerationProgress | null
-  status: string
+  status: AIDevtoolsGenerationRunStatus
   isLoading: boolean
   startedAt: number
   updatedAt: number
   completedAt?: number
   error?: string
   jobId?: string | null
-  videoStatus?: unknown | null
+  videoStatus?: unknown
 }
 
 export interface AIDevtoolsGenerationPreviewInput {
@@ -373,9 +378,7 @@ type AIDevtoolsRunStatus =
   | 'errored'
   | 'cancelled'
 
-export interface AIDevtoolsBridgeOptions<
-  TSnapshot extends Record<string, unknown>,
-> {
+export interface AIDevtoolsBridgeOptions<TSnapshot extends object> {
   hookId: string
   threadId?: string
   clientId: string
@@ -413,7 +416,7 @@ function getActiveBridgeRegistry(): Map<string, ActiveDevtoolsBridge> {
   return registry
 }
 
-export class ClientDevtoolsBridge<TSnapshot extends Record<string, unknown>> {
+export class ClientDevtoolsBridge<TSnapshot extends object> {
   protected readonly options: AIDevtoolsBridgeOptions<TSnapshot>
   private readonly bridgeId: string
   private readonly unsubscribers: Array<Unsubscribe> = []
@@ -456,7 +459,10 @@ export class ClientDevtoolsBridge<TSnapshot extends Record<string, unknown>> {
     emitAIDevtoolsEvent('hook:state-snapshot', {
       ...this.createEnvelope('hook:state-snapshot'),
       ...this.createMetadataPayload(),
-      state: this.options.getSnapshot(),
+      // Wire envelope uses Record<string, unknown>; widen the typed snapshot
+      // here so the typed-snapshot constraint above can stay narrow.
+      // eslint-disable-next-line no-restricted-syntax -- TSnapshot extends object is structurally compatible but TS can't see the missing index signature
+      state: this.options.getSnapshot() as unknown as Record<string, unknown>,
     })
   }
 
@@ -709,14 +715,9 @@ function createBridgeId(hookId: string): string {
   return `bridge:${hookId}:${bridgeIdSequence}`
 }
 
-// ===========================================================================
-// ChatDevtoolsBridge
-// ---------------------------------------------------------------------------
-// Owns the chat-client side of the devtools contract so the client itself
-// stays a pure transport. Everything devtools-only — fixture replay,
-// per-run / per-stream event context, snapshot emission — lives here so a
-// production no-op bridge can replace it without affecting chat behavior.
-// ===========================================================================
+// Owns the chat-client devtools surface so the chat client itself stays a
+// pure transport. Fixture replay, per-run / per-stream event context, and
+// snapshot emission all live here; a no-op bridge can drop in for prod.
 
 export interface ChatDevtoolsBridgeOptions extends AIDevtoolsBridgeOptions<AIDevtoolsChatSnapshot> {
   getMessages: () => Array<UIMessage>
@@ -730,11 +731,6 @@ export interface ChatDevtoolsBridgeOptions extends AIDevtoolsBridgeOptions<AIDev
 }
 
 export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnapshot> {
-  /**
-   * Public event emitter consumed by the chat client. Owned here so that
-   * a no-op bridge in production swaps the emitter out wholesale and no
-   * client-side event work happens.
-   */
   readonly events: ChatClientEventEmitter
   private readonly chatOptions: ChatDevtoolsBridgeOptions
   private currentRunId: string | null = null
@@ -746,17 +742,12 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
   constructor(options: ChatDevtoolsBridgeOptions) {
     super({
       ...options,
-      // Route the base bridge's fixture subscription back through this
-      // subclass. We can't reference `this.applyFixture` directly in the
-      // super call, so use a thunk that defers the lookup.
+      // Thunk defers `this.applyFixture` lookup until after `super` returns.
       applyToolFixture: (fixture) => this.applyFixture(fixture),
     })
     this.chatOptions = options
-    // Replace the plain emitter with one that auto-attaches the current
-    // run/thread context and auto-emits a snapshot after every event so
-    // the chat client only ever calls `this.events.X(...)` exactly as it
-    // did before the devtools work landed — no context arg, no manual
-    // `emitSnapshot()` calls.
+    // Auto-attaches run/thread context and auto-emits a snapshot after each
+    // event so callers can keep using `this.events.X(...)` with no context arg.
     this.events = new ChatDevtoolsAwareEventEmitter(options.clientId, this)
   }
 
@@ -778,12 +769,6 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
     if (streamId) this.lastStreamId = streamId
   }
 
-  /**
-   * One-call helper for the chat client's `mountDevtools()`: registers
-   * the hook, publishes the initial tool list, and emits the first
-   * snapshot. Wraps three lower-level emits so the client doesn't need
-   * to know the order.
-   */
   mountWithTools(initialMessageCount: number): void {
     this.events.clientCreated(initialMessageCount)
     this.emitRegistered()
@@ -791,7 +776,6 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
     this.emitSnapshot()
   }
 
-  /** Re-publish the tool list (e.g. after `updateOptions({ tools })`). */
   notifyToolsChanged(): void {
     this.emitToolsRegistered()
     this.emitSnapshot()
@@ -805,7 +789,6 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
     return this.lastStreamId
   }
 
-  /** Resolve a usable stream id without mutating tracking state. */
   resolveStreamId(): string {
     return (
       this.currentStreamId ??
@@ -814,23 +797,15 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
     )
   }
 
-  /**
-   * Mark a run as starting before any chunks arrive. The chat client
-   * calls this when it has just generated a runId for outbound emit
-   * events; the matching `RUN_STARTED` chunk from the adapter will land
-   * later and `observeChunk` keeps the same context.
-   */
+  // Called when the chat client has just generated a runId for outbound emits;
+  // the matching RUN_STARTED chunk from the adapter lands later and
+  // observeChunk keeps the same context.
   beginRun(runId: string, threadId: string): void {
     this.currentRunId = runId
     this.currentRunThreadId = threadId
     this.lastRunEventContext = { runId, threadId }
   }
 
-  /**
-   * Update run-context tracking based on a streaming chunk. Called from
-   * the chat client's subscription loop so the bridge knows which run is
-   * currently active without the chat client owning any of this state.
-   */
   observeChunk(chunk: StreamChunk): void {
     if (chunk.type === 'RUN_STARTED') {
       this.beginRun(chunk.runId, chunk.threadId)
@@ -959,6 +934,9 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
     const clientTool = this.findClientTool(fixture.toolName)
     const executeFunc = clientTool?.execute
     if (!executeFunc) {
+      console.warn(
+        `[ai-devtools] tool fixture "${fixture.toolName}" requested execute=true but no client tool implementation is registered; replaying saved output instead.`,
+      )
       this.addToolResultForFixture({
         fixture,
         messageId,
@@ -1186,7 +1164,11 @@ function stringifyFixtureValue(value: unknown): string {
   }
   try {
     return JSON.stringify(value)
-  } catch {
+  } catch (error) {
+    console.error(
+      '[ai-devtools] failed to JSON.stringify fixture value; falling back to String(). Tool call arguments may be malformed.',
+      { error, value },
+    )
     return String(value)
   }
 }
@@ -1194,7 +1176,11 @@ function stringifyFixtureValue(value: unknown): string {
 function parseFixtureResultContent(content: string): unknown {
   try {
     return JSON.parse(content)
-  } catch {
+  } catch (error) {
+    console.error(
+      '[ai-devtools] failed to JSON.parse fixture result content; replaying as raw string. Fixture payload may be corrupted.',
+      { error, content },
+    )
     return content
   }
 }
@@ -1263,24 +1249,16 @@ function hasToolCallId(
   )
 }
 
-// ===========================================================================
-// GenerationDevtoolsBridge
-// ---------------------------------------------------------------------------
-// Owns the devtools side of `GenerationClient` / `VideoGenerationClient`:
-// per-run history, active-run lifecycle, and snapshot emission. The
-// generation client keeps its own core state (result, progress, loading,
-// status, error, input) and pushes it into the bridge via `record*` methods.
-// ===========================================================================
+// Devtools surface for GenerationClient / VideoGenerationClient. Owns per-run
+// history, active-run lifecycle, and snapshot emission; the generation client
+// pushes its core state in via the record* methods.
 
-export interface AIDevtoolsGenerationSnapshotBase<TOutput> extends Record<
-  string,
-  unknown
-> {
-  input: unknown | null
+export interface AIDevtoolsGenerationSnapshotBase<TOutput> {
+  input: unknown
   result: TOutput | null
   preview: AIDevtoolsGenerationPreview
   progress: AIDevtoolsGenerationProgress | null
-  status: string
+  status: AIDevtoolsGenerationRunStatus
   isLoading: boolean
   activeRunId: string | null
   runs: Array<AIDevtoolsGenerationRunSnapshot<TOutput>>
@@ -1296,20 +1274,20 @@ export interface GenerationDevtoolsBridgeOptions<TOutput> extends Omit<
 }
 
 export interface GenerationDevtoolsCoreState<TOutput> {
-  input: unknown | null
+  input: unknown
   result: TOutput | null
   progress: AIDevtoolsGenerationProgress | null
-  status: string
+  status: AIDevtoolsGenerationRunStatus
   isLoading: boolean
-  error?: string | undefined
+  error?: string
 }
 
 export interface GenerationRunPatch<TOutput> {
-  input?: unknown | null
+  input?: unknown
   result?: TOutput | null
   preview?: AIDevtoolsGenerationPreview
   progress?: AIDevtoolsGenerationProgress | null
-  status?: string
+  status?: AIDevtoolsGenerationRunStatus
   isLoading?: boolean
   completedAt?: number
   error?: string
@@ -1442,7 +1420,7 @@ export class GenerationDevtoolsBridge<TOutput> extends ClientDevtoolsBridge<
     this.emitState()
   }
 
-  recordStatusChange(status: string): void {
+  recordStatusChange(status: AIDevtoolsGenerationRunStatus): void {
     this.updateActiveRun({ status })
     this.emitState()
   }
@@ -1559,27 +1537,22 @@ export class GenerationDevtoolsBridge<TOutput> extends ClientDevtoolsBridge<
   }
 }
 
-// ===========================================================================
-// VideoDevtoolsBridge
-// ---------------------------------------------------------------------------
-// Specialization of GenerationDevtoolsBridge for video jobs: snapshots also
-// carry the job id and the latest provider-reported status, and the preview
-// pipeline knows how to consume that status so the devtools panel can show
-// streaming progress before the final URL lands.
-// ===========================================================================
+// Video-job specialization: snapshots also carry the job id and the latest
+// provider-reported video status so the panel can show streaming progress
+// before the final URL lands.
 
 export interface AIDevtoolsVideoSnapshotBase<
   TOutput,
 > extends AIDevtoolsGenerationSnapshotBase<TOutput> {
   jobId: string | null
-  videoStatus: unknown | null
+  videoStatus: unknown
 }
 
 export interface VideoDevtoolsCoreState<
   TOutput,
 > extends GenerationDevtoolsCoreState<TOutput> {
   jobId: string | null
-  videoStatus: unknown | null
+  videoStatus: unknown
 }
 
 export interface VideoDevtoolsBridgeOptions<TOutput> extends Omit<
@@ -1591,7 +1564,7 @@ export interface VideoDevtoolsBridgeOptions<TOutput> extends Omit<
 
 export interface VideoRunPatch<TOutput> extends GenerationRunPatch<TOutput> {
   jobId?: string | null
-  videoStatus?: unknown | null
+  videoStatus?: unknown
 }
 
 export class VideoDevtoolsBridge<
@@ -1601,7 +1574,6 @@ export class VideoDevtoolsBridge<
     super(options)
   }
 
-  /** Record changes to `jobId` from the core video client. */
   recordJobIdChange(): void {
     this.updateActiveRun({
       jobId: (this.getCoreState() as VideoDevtoolsCoreState<TOutput>).jobId,
@@ -1609,7 +1581,6 @@ export class VideoDevtoolsBridge<
     this.emitState()
   }
 
-  /** Record changes to the provider's `videoStatus` payload. */
   recordVideoStatusChange(): void {
     const core = this.getCoreState() as VideoDevtoolsCoreState<TOutput>
     this.updateActiveRun({
@@ -1640,8 +1611,6 @@ export class VideoDevtoolsBridge<
     runId: string,
     patch: VideoRunPatch<TOutput>,
   ): void {
-    // Reuse the base run-upsert machinery, then layer on the video-only
-    // patch fields so devtools sees jobId / videoStatus history per run.
     super.upsertRun(runId, patch)
     if (!('jobId' in patch || 'videoStatus' in patch)) return
 
@@ -1657,11 +1626,8 @@ export class VideoDevtoolsBridge<
     )
   }
 
-  /**
-   * Override the base `createPreview` so any record* method inherited
-   * from `GenerationDevtoolsBridge` (e.g. `recordResultChange`) also
-   * threads the latest videoStatus through the preview pipeline.
-   */
+  // Override so record* methods inherited from GenerationDevtoolsBridge
+  // (e.g. recordResultChange) thread the latest videoStatus into the preview.
   protected override createPreview(
     result: TOutput | null,
   ): AIDevtoolsGenerationPreview {
@@ -1671,7 +1637,7 @@ export class VideoDevtoolsBridge<
 
   private createVideoPreview(
     result: TOutput | null,
-    videoStatus: unknown | null,
+    videoStatus: unknown,
   ): AIDevtoolsGenerationPreview {
     return createAIDevtoolsGenerationPreview({
       outputKind: this.options.metadata.outputKind,
@@ -1681,29 +1647,10 @@ export class VideoDevtoolsBridge<
   }
 }
 
-// ===========================================================================
-// Real factories — re-exported from `@tanstack/ai-client/devtools` so that
-// consumers can opt into the heavy bridge implementations without dragging
-// them into the main entry's bundle. Match the factory signatures defined
-// in `./devtools-noop` so the clients can swap factories at runtime.
-// ===========================================================================
-
-// ===========================================================================
-// ChatDevtoolsAwareEventEmitter
-// ---------------------------------------------------------------------------
-// Replaces the plain event emitter on `ChatDevtoolsBridge` so the chat
-// client can call `this.events.X(...)` exactly like it did before the
-// devtools work landed:
-//   - auto-attach the current run/thread context to every event that
-//     accepts one (textUpdated, messageAppended, tool*, structuredOutput,
-//     approval*, etc.)
-//   - auto-emit a snapshot after every event so chat-client no longer
-//     has to sprinkle explicit `emitSnapshot()` calls after every state
-//     change
-//   - passively learn the latest streamId from outgoing events so
-//     `resolveStreamId()` works without the chat client telling it
-// ===========================================================================
-
+// Wraps the plain emitter so callers can do `this.events.X(...)` and get:
+// auto-attached run/thread context on every event that accepts one,
+// an auto-emitted snapshot after each event, and passive streamId tracking
+// so resolveStreamId() works without the chat client telling it.
 class ChatDevtoolsAwareEventEmitter extends DefaultChatClientEventEmitter {
   constructor(
     clientId: string,

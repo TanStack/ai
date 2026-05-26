@@ -58,10 +58,7 @@ describe('hook dashboard model', () => {
     const hooks = [
       createHook('chat-1', 'useChat', 'chat', 20, ['run-1']),
       createHook('image-1', 'useGenerateImage', 'image', 10),
-      {
-        ...createHook('audio-1', 'useGenerateAudio', 'audio', 8),
-        lifecycle: 'unmounted' as const,
-      },
+      createHook('audio-1', 'useGenerateAudio', 'audio', 8),
     ]
     const summary = createHookDashboardSummary(hooks, {
       'run-1': createRun('run-1', 'started'),
@@ -69,7 +66,7 @@ describe('hook dashboard model', () => {
 
     expect(summary).toEqual({
       total: 3,
-      active: 2,
+      active: 3,
       running: 1,
       categories: 3,
       tools: 0,
@@ -89,15 +86,13 @@ describe('hook dashboard model', () => {
     ).toBe('useChat')
   })
 
-  it('filters unmounted hooks from visible dashboard lists', () => {
-    const mounted = createHook('chat-1', 'useChat', 'chat', 20)
-    const unmounted = {
-      ...createHook('image-1', 'useGenerateImage', 'image', 10),
-      lifecycle: 'unmounted' as const,
-    }
+  it('returns all hooks from visible dashboard lists', () => {
+    const a = createHook('chat-1', 'useChat', 'chat', 20)
+    const b = createHook('image-1', 'useGenerateImage', 'image', 10)
 
-    expect(visibleHooks([mounted, unmounted]).map((hook) => hook.id)).toEqual([
+    expect(visibleHooks([a, b]).map((hook) => hook.id)).toEqual([
       'chat-1',
+      'image-1',
     ])
   })
 })

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   addSavedFixture,
   applyHookEvent,
@@ -267,6 +267,99 @@ describe('hook registry', () => {
     })
 
     expect(getHookUnseenEventCount(state, 'image-1')).toBe(1)
+  })
+
+  it('backfills run history from a state snapshot when devtools mounts after run completion', () => {
+    const state = createHookRegistryState()
+    applyHookEvent(state, 'hook:registered', createRegisteredEvent())
+
+    // Snapshot ships an embedded `runs` array with a fully-completed run —
+    // simulating the case where devtools opens after the run has already
+    // finished, so the run lifecycle events fired before mount are lost.
+    applyHookEvent(state, 'hook:state-snapshot', {
+      ...createSnapshotEvent(),
+      eventId: 'evt-snapshot-backfill',
+      timestamp: 100,
+      state: {
+        status: 'success',
+        runs: [
+          {
+            id: 'run-historical-1',
+            status: 'completed',
+            startedAt: 80,
+            updatedAt: 95,
+            completedAt: 95,
+          },
+        ],
+      },
+    })
+
+    expect(state.runs['run-historical-1']?.status).toBe('completed')
+    expect(state.runs['run-historical-1']?.completedAt).toBe(95)
+    expect(state.hooks['chat-1']?.runIds).toContain('run-historical-1')
+  })
+
+  it('maps non-canonical snapshot run statuses and skips unknown statuses', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const state = createHookRegistryState()
+    applyHookEvent(state, 'hook:registered', createRegisteredEvent())
+
+    applyHookEvent(state, 'hook:state-snapshot', {
+      ...createSnapshotEvent(),
+      eventId: 'evt-snapshot-mixed-statuses',
+      timestamp: 200,
+      state: {
+        runs: [
+          { id: 'run-success', status: 'success', startedAt: 1, updatedAt: 2 },
+          { id: 'run-error', status: 'error', startedAt: 3, updatedAt: 4 },
+          { id: 'run-idle', status: 'idle', startedAt: 5, updatedAt: 6 },
+          {
+            id: 'run-bogus',
+            status: 'not-a-real-status',
+            startedAt: 7,
+            updatedAt: 8,
+          },
+        ],
+      },
+    })
+
+    expect(state.runs['run-success']?.status).toBe('completed')
+    expect(state.runs['run-error']?.status).toBe('errored')
+    expect(state.runs['run-idle']?.status).toBe('created')
+    expect(state.runs['run-bogus']).toBeUndefined()
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('unknown run.status in snapshot'),
+    )
+    warnSpy.mockRestore()
+  })
+
+  it('infers hook lifecycle from snapshot state shape', () => {
+    const state = createHookRegistryState()
+    applyHookEvent(state, 'hook:registered', createRegisteredEvent())
+
+    applyHookEvent(state, 'hook:state-snapshot', {
+      ...createSnapshotEvent(),
+      eventId: 'evt-snapshot-streaming',
+      timestamp: 10,
+      state: { status: 'generating' },
+    })
+    expect(state.hooks['chat-1']?.lifecycle).toBe('streaming')
+
+    applyHookEvent(state, 'hook:state-snapshot', {
+      ...createSnapshotEvent(),
+      eventId: 'evt-snapshot-errored',
+      timestamp: 11,
+      state: { status: 'error' },
+    })
+    expect(state.hooks['chat-1']?.lifecycle).toBe('errored')
+
+    applyHookEvent(state, 'hook:state-snapshot', {
+      ...createSnapshotEvent(),
+      eventId: 'evt-snapshot-active',
+      timestamp: 12,
+      state: { status: 'ready' },
+    })
+    expect(state.hooks['chat-1']?.lifecycle).toBe('active')
   })
 
   it('stores tool metadata without saving replayed devtools fixtures', () => {

@@ -37,10 +37,9 @@ export const ToolFixtureForm: Component<ToolFixtureFormProps> = (props) => {
   )
 
   createEffect(() => {
-    const currentFields = fields()
-    const rawInputDefault = props.tool.name.length > 0 ? '{}' : '{}'
-    setInputValues(defaultValues(currentFields))
-    setRawInput(rawInputDefault)
+    void props.tool.name
+    setInputValues(defaultValues(fields()))
+    setRawInput('{}')
     setOutput('null')
     setError(null)
     setPendingSaveName(null)

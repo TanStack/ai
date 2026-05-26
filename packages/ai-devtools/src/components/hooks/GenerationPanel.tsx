@@ -11,13 +11,12 @@ import { JsonTree } from '@tanstack/devtools-ui'
 import { useStyles } from '../../styles/use-styles'
 import { getHoverDataAttributes, isMessageHighlighted } from './preview-model'
 import { getHookDisplayName } from './hook-dashboard-model'
-import type { HookRecord, RunRecord } from '../../store/hook-registry'
+import type { HookRecord } from '../../store/hook-registry'
 import type { HoverTarget } from './preview-model'
 import type { Component, JSX } from 'solid-js'
 
 interface GenerationPanelProps {
   hook: HookRecord
-  runs: Array<RunRecord>
   hoverTarget: HoverTarget | null
 }
 

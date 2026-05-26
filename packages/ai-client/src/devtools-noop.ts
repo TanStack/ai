@@ -1,18 +1,10 @@
-/**
- * No-op devtools bridge implementations + factories.
- *
- * The chat / generation / video clients depend on the *types* of the
- * real bridge classes (via `import type`) and accept a factory in
- * options. When no factory is supplied, the client falls back to the
- * no-op factories exported from this file, which never touch
- * `aiEventClient` or any of the heavy preview/fixture machinery in
- * `./devtools`.
- *
- * This keeps `./devtools` (the real implementations) outside the
- * dependency graph of the main entry — consumers who want functional
- * devtools must opt in by importing from `@tanstack/ai-client/devtools`
- * (see `package.json#exports`) and passing the resulting factory.
- */
+// No-op devtools bridge implementations + factories. The chat / generation /
+// video clients import the real bridge classes as types only and accept a
+// factory in options; when no factory is supplied they fall back to the
+// no-op factories here, which never touch `aiEventClient` or any of the
+// heavy preview/fixture machinery in `./devtools`. This keeps `./devtools`
+// outside the main-entry import graph — consumers opt into functional
+// devtools via `@tanstack/ai-client/devtools` (see `package.json#exports`).
 import { ChatClientEventEmitter } from './events'
 import type {
   AIDevtoolsToolFixture,
@@ -140,7 +132,7 @@ export class NoOpGenerationDevtoolsBridge<TOutput> {
   recordResultChange(): void {}
   recordLoadingChange(): void {}
   recordErrorChange(_error: Error | undefined): void {}
-  recordStatusChange(_status: string): void {}
+  recordStatusChange(): void {}
   recordProgressChange(): void {}
   emitState(): void {}
 }
@@ -156,24 +148,48 @@ export class NoOpVideoDevtoolsBridge<
   recordVideoStatusChange(): void {}
 }
 
+// Compile-time parity checks. If a public method is added to the real
+// bridge class without a matching stub on the no-op, the corresponding
+// `Exclude<...>` will resolve to a non-`never` union and the `as never`
+// assignment below will fail to typecheck — surfacing the drift at build
+// time instead of as a runtime TypeError later.
+type _ChatBridgeMissing = Exclude<
+  keyof ChatDevtoolsBridge,
+  keyof NoOpChatDevtoolsBridge
+>
+type _GenerationBridgeMissing = Exclude<
+  keyof GenerationDevtoolsBridge<unknown>,
+  keyof NoOpGenerationDevtoolsBridge<unknown>
+>
+type _VideoBridgeMissing = Exclude<
+  keyof VideoDevtoolsBridge<unknown>,
+  keyof NoOpVideoDevtoolsBridge<unknown>
+>
+const _chatBridgeParity: _ChatBridgeMissing = undefined as never
+const _generationBridgeParity: _GenerationBridgeMissing = undefined as never
+const _videoBridgeParity: _VideoBridgeMissing = undefined as never
+void _chatBridgeParity
+void _generationBridgeParity
+void _videoBridgeParity
+
 // ===========================================================================
 // Factories — these are what the clients call when no real factory was
 // supplied in options.
 // ===========================================================================
 
+// Casts use `unknown` because the no-op classes don't `extend` the real bridge
+// (that would pull the real implementation into the main-entry import graph).
+// Structural parity is enforced by the `_*BridgeMissing` checks above.
+
 export const createNoOpChatDevtoolsBridge: ChatDevtoolsBridgeFactory = (
   options,
-) => {
-  // Cast through `unknown`: the no-op class is structurally compatible
-  // with the real class's public surface but does not extend it (so the
-  // real class stays out of the main-entry import graph).
-  // eslint-disable-next-line no-restricted-syntax -- no-op bridge is structurally compatible with the real bridge but intentionally does not extend it
-  return new NoOpChatDevtoolsBridge(options) as unknown as ChatDevtoolsBridge
-}
+) =>
+  // eslint-disable-next-line no-restricted-syntax -- see comment above
+  new NoOpChatDevtoolsBridge(options) as unknown as ChatDevtoolsBridge
 
 export const createNoOpGenerationDevtoolsBridge: GenerationDevtoolsBridgeFactory =
   <TOutput>(options: GenerationDevtoolsBridgeOptions<TOutput>) =>
-    // eslint-disable-next-line no-restricted-syntax -- no-op bridge is structurally compatible with the real bridge but intentionally does not extend it
+    // eslint-disable-next-line no-restricted-syntax -- see comment above
     new NoOpGenerationDevtoolsBridge<TOutput>(
       options,
     ) as unknown as GenerationDevtoolsBridge<TOutput>
@@ -183,7 +199,7 @@ export const createNoOpVideoDevtoolsBridge: VideoDevtoolsBridgeFactory = <
 >(
   options: VideoDevtoolsBridgeOptions<TOutput>,
 ) =>
-  // eslint-disable-next-line no-restricted-syntax -- no-op bridge is structurally compatible with the real bridge but intentionally does not extend it
+  // eslint-disable-next-line no-restricted-syntax -- see comment above
   new NoOpVideoDevtoolsBridge<TOutput>(
     options,
   ) as unknown as VideoDevtoolsBridge<TOutput>

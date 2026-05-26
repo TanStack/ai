@@ -116,8 +116,7 @@ export const HookDetails: Component = () => {
 
   const hook = createMemo((): HookRecord | undefined => {
     const id = state.hooks.activeHookId
-    const activeHook = id ? state.hooks.hooks[id] : undefined
-    return activeHook?.lifecycle === 'unmounted' ? undefined : activeHook
+    return id ? state.hooks.hooks[id] : undefined
   })
 
   const conversation = createMemo(() => {
@@ -274,7 +273,6 @@ export const HookDetails: Component = () => {
                 >
                   <GenerationPanel
                     hook={activeHook()}
-                    runs={runs()}
                     hoverTarget={hoverTarget()}
                   />
                 </Show>
@@ -1737,8 +1735,14 @@ function isToolFixtureMessageRole(
 function jsonSafeValue(value: unknown): unknown {
   try {
     return JSON.parse(JSON.stringify(value))
-  } catch {
-    return value
+  } catch (error) {
+    console.warn(
+      '[ai-devtools] jsonSafeValue failed to round-trip a fixture part (likely a circular reference or BigInt); using a string placeholder instead of the original value.',
+      { error },
+    )
+    return `[ai-devtools] unserializable value: ${
+      error instanceof Error ? error.message : String(error)
+    }`
   }
 }
 

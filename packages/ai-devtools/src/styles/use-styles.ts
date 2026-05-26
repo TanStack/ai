@@ -713,10 +713,6 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         background: ${t(colors.red[50], colors.red[900] + '35')};
         color: ${t(colors.red[700], colors.red[300])};
       `,
-      lifecycleUnmounted: css`
-        background: ${t(colors.gray[100], colors.darkGray[600])};
-        color: ${t(colors.gray[500], colors.gray[400])};
-      `,
       kindBadge: css`
         border-radius: ${border.radius.sm};
         background: ${t(colors.purple[50], colors.purple[900] + '30')};
@@ -3018,7 +3014,6 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         flex-direction: column;
         gap: 0;
       `,
-      // --- User message group card ---
       card: css`
         position: relative;
         border-radius: ${border.radius.md};
@@ -3301,7 +3296,6 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         margin-top: 1px;
       `,
 
-      // --- Iteration card (inside user group) ---
       iterCard: css`
         position: relative;
         background: ${t(colors.gray[50], colors.darkGray[700])};
@@ -3368,7 +3362,6 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         color: ${t(colors.gray[700], colors.gray[300])};
       `,
 
-      // --- Config row ---
       configRow: css`
         display: flex;
         align-items: center;
@@ -3446,7 +3439,6 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         max-height: 120px;
         overflow-y: auto;
       `,
-      // --- Step row ---
       step: css`
         display: flex;
         align-items: center;
@@ -3605,7 +3597,6 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         padding: ${size[1]} ${size[3]} ${size[2]};
       `,
 
-      // --- Middleware badge styles ---
       mwBadge: css`
         display: inline-flex;
         align-items: center;
@@ -3670,7 +3661,6 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         padding: ${size[1]} ${size[3]} ${size[2]};
       `,
 
-      // --- JSON Viewer ---
       jsonViewer: css`
         border: 1px solid ${t(colors.gray[200], colors.darkGray[500])};
         border-radius: ${border.radius.sm};
@@ -3730,7 +3720,6 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         padding: ${size[1]} ${size[3]} ${size[2]};
       `,
 
-      // --- Standalone middleware display (MiddlewareEventsSection) ---
       middlewareContainer: css`
         display: flex;
         flex-wrap: wrap;

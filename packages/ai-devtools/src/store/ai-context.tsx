@@ -266,13 +266,10 @@ export const AIProvider: ParentComponent = (props) => {
   const requestUsageByConversation = new Map<string, Map<string, TokenUsage>>()
   const fixturesStorageKey = 'tanstack-ai-devtools:tool-fixtures'
 
-  // Batching system for high-frequency chunk updates with consolidated chunk merging
-  // Stores: conversationId -> { chunks to merge, totalNewChunks count }
   const pendingConversationChunks = new Map<
     string,
     { chunks: Array<Chunk>; newChunkCount: number }
   >()
-  // Stores: conversationId -> messageIndex -> { chunks to merge, totalNewChunks count }
   const pendingMessageChunks = new Map<
     string,
     Map<number, { chunks: Array<Chunk>; newChunkCount: number }>
@@ -285,29 +282,24 @@ export const AIProvider: ParentComponent = (props) => {
     queueMicrotask(flushPendingChunks)
   }
 
-  /** Check if a chunk type can be merged with consecutive same-type chunks */
   function isMergeableChunkType(type: Chunk['type']): boolean {
     return type === 'content' || type === 'thinking'
   }
 
-  /** Merge pending chunks into existing chunks array, consolidating consecutive same-type chunks */
   function mergeChunks(existing: Array<Chunk>, pending: Array<Chunk>): void {
     for (const chunk of pending) {
       const lastChunk = existing[existing.length - 1]
 
-      // If last chunk exists, is the same type, and both are mergeable types, merge them
       if (
         lastChunk &&
         lastChunk.type === chunk.type &&
         isMergeableChunkType(chunk.type) &&
         lastChunk.messageId === chunk.messageId
       ) {
-        // Merge: use the new chunk's content (it's already accumulated), update delta, increment count
         lastChunk.content = chunk.content || lastChunk.content
         lastChunk.delta = chunk.delta
         lastChunk.chunkCount += chunk.chunkCount
       } else {
-        // Different type or not mergeable - add as new entry
         existing.push(chunk)
       }
     }
@@ -317,7 +309,6 @@ export const AIProvider: ParentComponent = (props) => {
     batchScheduled = false
 
     batch(() => {
-      // Flush conversation-level chunks
       for (const [
         conversationId,
         { chunks, newChunkCount },
@@ -336,7 +327,6 @@ export const AIProvider: ParentComponent = (props) => {
       }
       pendingConversationChunks.clear()
 
-      // Flush message-level chunks
       for (const [conversationId, messageMap] of pendingMessageChunks) {
         const conv = state.conversations[conversationId]
         if (!conv) continue
@@ -344,7 +334,6 @@ export const AIProvider: ParentComponent = (props) => {
         for (const [messageIndex, { chunks, newChunkCount }] of messageMap) {
           const message = conv.messages[messageIndex]
           if (message) {
-            // Update chunks array with merging
             setState(
               'conversations',
               conversationId,
@@ -352,15 +341,11 @@ export const AIProvider: ParentComponent = (props) => {
               messageIndex,
               'chunks',
               produce((arr: Array<Chunk> | undefined) => {
-                if (!arr) {
-                  // First time - just set the chunks (they're already consolidated in pending)
-                  return chunks
-                }
+                if (!arr) return chunks
                 mergeChunks(arr, chunks)
                 return arr
               }),
             )
-            // Update total chunk count
             const currentTotal = message.totalChunkCount || 0
             setState(
               'conversations',
@@ -384,7 +369,6 @@ export const AIProvider: ParentComponent = (props) => {
       pendingConversationChunks.set(conversationId, pending)
     }
 
-    // Pre-merge in pending buffer to reduce array operations during flush
     const lastPending = pending.chunks[pending.chunks.length - 1]
     if (
       lastPending &&
@@ -392,8 +376,6 @@ export const AIProvider: ParentComponent = (props) => {
       isMergeableChunkType(chunk.type) &&
       lastPending.messageId === chunk.messageId
     ) {
-      // Merge into pending buffer - only append delta (incremental content)
-      // Use the new chunk's content as the accumulated content (it's already accumulated)
       lastPending.content = chunk.content || lastPending.content
       lastPending.delta = chunk.delta
       lastPending.chunkCount += chunk.chunkCount
@@ -420,7 +402,6 @@ export const AIProvider: ParentComponent = (props) => {
       messageMap.set(messageIndex, pending)
     }
 
-    // Pre-merge in pending buffer
     const lastPending = pending.chunks[pending.chunks.length - 1]
     if (
       lastPending &&
@@ -428,8 +409,6 @@ export const AIProvider: ParentComponent = (props) => {
       isMergeableChunkType(chunk.type) &&
       lastPending.messageId === chunk.messageId
     ) {
-      // Merge into pending buffer - only append delta (incremental content)
-      // Use the new chunk's content as the accumulated content (it's already accumulated)
       lastPending.content = chunk.content || lastPending.content
       lastPending.delta = chunk.delta
       lastPending.chunkCount += chunk.chunkCount
@@ -440,7 +419,6 @@ export const AIProvider: ParentComponent = (props) => {
     scheduleBatchFlush()
   }
 
-  // Optimized helper functions using path-based updates
   function getOrCreateConversation(
     id: string,
     type: 'client' | 'server',
@@ -821,7 +799,11 @@ export const AIProvider: ParentComponent = (props) => {
     if (typeof value === 'string') return value
     try {
       return JSON.stringify(value ?? {})
-    } catch {
+    } catch (error) {
+      console.error(
+        '[ai-devtools] failed to JSON.stringify tool call arguments; saved fixture replay will be malformed.',
+        { error, value },
+      )
       return String(value)
     }
   }
@@ -1163,8 +1145,6 @@ export const AIProvider: ParentComponent = (props) => {
     const cleanupFns: Array<() => void> = []
     loadFixtures()
 
-    // ============= Hook Registry Events =============
-
     cleanupFns.push(
       aiEventClient.on('hook:registered', (e) => {
         setState(
@@ -1270,8 +1250,6 @@ export const AIProvider: ParentComponent = (props) => {
       }),
     )
 
-    // ============= Client Events =============
-
     cleanupFns.push(
       aiEventClient.on('client:created', (e) => {
         const clientId = e.payload.clientId
@@ -1283,8 +1261,6 @@ export const AIProvider: ParentComponent = (props) => {
         updateConversation(clientId, { model: undefined, provider: 'Client' })
       }),
     )
-
-    // ============= Message Events =============
 
     cleanupFns.push(
       aiEventClient.on('text:message:created', (e) => {
@@ -1589,8 +1565,6 @@ export const AIProvider: ParentComponent = (props) => {
       }),
     )
 
-    // ============= Tool Events =============
-
     cleanupFns.push(
       aiEventClient.on('tools:result:added', (e) => {
         const {
@@ -1894,8 +1868,6 @@ export const AIProvider: ParentComponent = (props) => {
         }
       }),
     )
-
-    // ============= Stream Events =============
 
     const recordStructuredOutput = (payload: {
       clientId?: string
@@ -2541,8 +2513,6 @@ export const AIProvider: ParentComponent = (props) => {
       }),
     )
 
-    // ============= Chat Events (for usage tracking) =============
-
     cleanupFns.push(
       aiEventClient.on('text:request:started', (e) => {
         const streamId = e.payload.streamId
@@ -2695,8 +2665,6 @@ export const AIProvider: ParentComponent = (props) => {
       }),
     )
 
-    // ============= Iteration Events =============
-
     cleanupFns.push(
       aiEventClient.on('text:iteration:started', (e) => {
         const { requestId, streamId, clientId, iteration, messageId } =
@@ -2805,8 +2773,6 @@ export const AIProvider: ParentComponent = (props) => {
         )
       }),
     )
-
-    // ============= Middleware Events =============
 
     /** Find the latest iteration for a given requestId, or the very latest iteration as fallback */
     function findLatestIterationIndex(
@@ -2931,8 +2897,6 @@ export const AIProvider: ParentComponent = (props) => {
       }),
     )
 
-    // ============= Summarize Events =============
-
     cleanupFns.push(
       aiEventClient.on('summarize:request:started', (e) => {
         const { requestId, model, inputLength, timestamp, clientId } = e.payload
@@ -3010,8 +2974,6 @@ export const AIProvider: ParentComponent = (props) => {
       }),
     )
 
-    // ============= Image Events =============
-
     cleanupFns.push(
       aiEventClient.on('image:request:started', (e) => {
         const { requestId, clientId, timestamp } = e.payload
@@ -3080,8 +3042,6 @@ export const AIProvider: ParentComponent = (props) => {
         })
       }),
     )
-
-    // ============= Audio Events =============
 
     cleanupFns.push(
       aiEventClient.on('audio:request:started', (e) => {
@@ -3175,8 +3135,6 @@ export const AIProvider: ParentComponent = (props) => {
       }),
     )
 
-    // ============= Speech Events =============
-
     cleanupFns.push(
       aiEventClient.on('speech:request:started', (e) => {
         const { requestId, clientId, timestamp } = e.payload
@@ -3269,8 +3227,6 @@ export const AIProvider: ParentComponent = (props) => {
       }),
     )
 
-    // ============= Transcription Events =============
-
     cleanupFns.push(
       aiEventClient.on('transcription:request:started', (e) => {
         const { requestId, clientId, timestamp } = e.payload
@@ -3362,8 +3318,6 @@ export const AIProvider: ParentComponent = (props) => {
         })
       }),
     )
-
-    // ============= Video Events =============
 
     cleanupFns.push(
       aiEventClient.on('video:request:started', (e) => {

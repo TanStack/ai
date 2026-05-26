@@ -183,42 +183,42 @@ const UserMessageGroupCard: Component<{
     return count
   })
 
-  /**
-   * Total usage across this group.
-   * Iterations store CUMULATIVE usage per request, so we take the MAX
-   * cumulative from each request group (the last iteration's value
-   * represents the total for that request).
-   */
+  // Iterations store CUMULATIVE usage per request, so keep the MAX totalTokens
+  // reading per requestId. Comparing on totalTokens directly (not prompt +
+  // completion) is necessary because some providers — Anthropic, OpenAI o-series
+  // — bundle reasoning tokens into totalTokens that are not summed into
+  // prompt + completion, and a later reading with fewer reasoning tokens would
+  // otherwise overwrite a larger earlier one.
   const totalUsage = createMemo(() => {
     const maxByRequest = new Map<
       string,
-      { prompt: number; completion: number }
+      { prompt: number; completion: number; total: number }
     >()
     for (const it of iters()) {
       if (!it.usage) continue
       const key = it.requestId || '__default__'
       const existing = maxByRequest.get(key)
-      if (
-        !existing ||
-        it.usage.totalTokens > existing.prompt + existing.completion
-      ) {
+      if (!existing || it.usage.totalTokens > existing.total) {
         maxByRequest.set(key, {
           prompt: it.usage.promptTokens,
           completion: it.usage.completionTokens,
+          total: it.usage.totalTokens,
         })
       }
     }
     let prompt = 0
     let completion = 0
+    let total = 0
     for (const v of maxByRequest.values()) {
       prompt += v.prompt
       completion += v.completion
+      total += v.total
     }
-    if (prompt + completion === 0) return undefined
+    if (total === 0) return undefined
     return {
       promptTokens: prompt,
       completionTokens: completion,
-      totalTokens: prompt + completion,
+      totalTokens: total,
     }
   })
 
@@ -438,7 +438,7 @@ const UserMessageGroupCard: Component<{
                 <span class={s().configPanelLabel}>Model Options</span>
                 <div class={s().configJsonTreeContainer}>
                   <JsonTree
-                    value={modelOptions() as Record<string, unknown>}
+                    value={modelOptions()}
                     defaultExpansionDepth={2}
                     copyable
                   />

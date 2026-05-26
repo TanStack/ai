@@ -207,7 +207,7 @@ const MiddlewareStep: Component<{
       <Show when={expanded() && hasChanges()}>
         <div class={s().mwChangesContainer}>
           <JsonTree
-            value={ev().configChanges as Record<string, unknown>}
+            value={ev().configChanges}
             defaultExpansionDepth={2}
             copyable
           />
@@ -319,7 +319,7 @@ const StructuredOutputStep: Component<{
                 <div class={s().stepJsonItemLabel}>{item.label}</div>
                 <div class={s().stepJsonPanel}>
                   <JsonTree
-                    value={item.value as Record<string, unknown>}
+                    value={item.value}
                     defaultExpansionDepth={1}
                     copyable
                   />
@@ -465,11 +465,7 @@ const ToolCallStep: Component<{
       <div class={`${s().cardBody} ${argsOpen() ? s().cardBodyOpen : ''}`}>
         <div class={s().cardBodyInner}>
           <div class={s().stepJsonPanel}>
-            <JsonTree
-              value={parsedArgs() as Record<string, unknown>}
-              defaultExpansionDepth={0}
-              copyable
-            />
+            <JsonTree value={parsedArgs()} defaultExpansionDepth={0} copyable />
           </div>
         </div>
       </div>
@@ -510,7 +506,7 @@ const ToolCallStep: Component<{
           <div class={s().cardBodyInner}>
             <div class={s().stepJsonPanel}>
               <JsonTree
-                value={parsedResult() as Record<string, unknown>}
+                value={parsedResult()}
                 defaultExpansionDepth={0}
                 copyable
               />
@@ -564,7 +560,7 @@ const ToolResultStep: Component<{
         <div class={s().cardBodyInner}>
           <div class={s().stepJsonPanel}>
             <JsonTree
-              value={parsedContent() as Record<string, unknown>}
+              value={parsedContent()}
               defaultExpansionDepth={0}
               copyable
             />
@@ -928,7 +924,7 @@ export const IterationCard: Component<IterationCardProps> = (props) => {
                 <span class={s().configPanelLabel}>Model Options</span>
                 <div class={s().configJsonTreeContainer}>
                   <JsonTree
-                    value={modelOptions() as Record<string, unknown>}
+                    value={modelOptions()}
                     defaultExpansionDepth={2}
                     copyable
                   />

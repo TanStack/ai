@@ -1,11 +1,7 @@
-/**
- * Test-only hook: replace the no-op devtools factories with the real
- * ones so the existing test suite (which asserts on emitted devtools
- * events) keeps working under the new "no-op by default" architecture.
- *
- * Production consumers must explicitly opt in via
- * `@tanstack/ai-client/devtools`; the tests do that here once per file.
- */
+// Test-only: replace the no-op devtools factories with the real ones so
+// the existing test suite (which asserts on emitted devtools events) keeps
+// working under the no-op-by-default architecture. Production consumers
+// opt in via `@tanstack/ai-client/devtools`.
 import { vi } from 'vitest'
 
 vi.mock('../src/devtools-noop', async () => {

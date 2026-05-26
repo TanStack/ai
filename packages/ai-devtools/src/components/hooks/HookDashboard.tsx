@@ -256,10 +256,7 @@ export const HookDashboard: Component = () => {
                                   ? styles().hookDashboard.lifecycleStreaming
                                   : hook.lifecycle === 'errored'
                                     ? styles().hookDashboard.lifecycleErrored
-                                    : hook.lifecycle === 'unmounted'
-                                      ? styles().hookDashboard
-                                          .lifecycleUnmounted
-                                      : ''
+                                    : ''
                               }`}
                             >
                               {hook.lifecycle}
