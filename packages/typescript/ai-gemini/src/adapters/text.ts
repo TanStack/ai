@@ -196,9 +196,17 @@ export class GeminiTextAdapter<
         )
       }
 
+      const usageMetadata = result.usageMetadata
       return {
         data: parsed,
         rawText,
+        ...(usageMetadata && {
+          usage: {
+            promptTokens: usageMetadata.promptTokenCount ?? 0,
+            completionTokens: usageMetadata.candidatesTokenCount ?? 0,
+            totalTokens: usageMetadata.totalTokenCount ?? 0,
+          },
+        }),
       }
     } catch (error) {
       logger.errors('gemini.structuredOutput fatal', {

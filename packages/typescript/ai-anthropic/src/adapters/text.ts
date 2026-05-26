@@ -276,9 +276,16 @@ export class AnthropicTextAdapter<
         }
       }
 
+      const inputTokens = response.usage?.input_tokens ?? 0
+      const outputTokens = response.usage?.output_tokens ?? 0
       return {
         data: parsed,
         rawText,
+        usage: {
+          promptTokens: inputTokens,
+          completionTokens: outputTokens,
+          totalTokens: inputTokens + outputTokens,
+        },
       }
     } catch (error: unknown) {
       const err = error as Error

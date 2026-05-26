@@ -201,9 +201,16 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
         )
       }
 
+      const promptTokens = response.prompt_eval_count ?? 0
+      const completionTokens = response.eval_count ?? 0
       return {
         data: parsed,
         rawText,
+        usage: {
+          promptTokens,
+          completionTokens,
+          totalTokens: promptTokens + completionTokens,
+        },
       }
     } catch (error: unknown) {
       const err = error as Error

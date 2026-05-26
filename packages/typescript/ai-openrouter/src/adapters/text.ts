@@ -260,9 +260,17 @@ export class OpenRouterTextAdapter<
       // this).
       const transformed = this.transformStructuredOutput(parsed)
 
+      const usage = response.usage
       return {
         data: transformed,
         rawText,
+        ...(usage && {
+          usage: {
+            promptTokens: usage.promptTokens,
+            completionTokens: usage.completionTokens,
+            totalTokens: usage.totalTokens,
+          },
+        }),
       }
     } catch (error: unknown) {
       // Narrow before logging: raw SDK errors can carry request metadata
