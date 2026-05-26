@@ -102,18 +102,6 @@ importers:
         specifier: ^4.0.14
         version: 4.1.4(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jsdom@27.3.0(postcss@8.5.9))(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
 
-  examples/php-slim:
-    devDependencies:
-      concurrently:
-        specifier: ^9.1.2
-        version: 9.2.1
-
-  examples/python-fastapi:
-    devDependencies:
-      concurrently:
-        specifier: ^9.1.2
-        version: 9.2.1
-
   examples/ts-code-mode-web:
     dependencies:
       '@radix-ui/react-collapsible':
@@ -124,40 +112,40 @@ importers:
         version: 4.1.18(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
       '@tanstack/ai':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai
+        version: link:../../packages/ai
       '@tanstack/ai-anthropic':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-anthropic
+        version: link:../../packages/ai-anthropic
       '@tanstack/ai-client':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-client
+        version: link:../../packages/ai-client
       '@tanstack/ai-code-mode':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-code-mode
+        version: link:../../packages/ai-code-mode
       '@tanstack/ai-code-mode-skills':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-code-mode-skills
+        version: link:../../packages/ai-code-mode-skills
       '@tanstack/ai-gemini':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-gemini
+        version: link:../../packages/ai-gemini
       '@tanstack/ai-isolate-cloudflare':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-isolate-cloudflare
+        version: link:../../packages/ai-isolate-cloudflare
       '@tanstack/ai-isolate-node':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-isolate-node
+        version: link:../../packages/ai-isolate-node
       '@tanstack/ai-isolate-quickjs':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-isolate-quickjs
+        version: link:../../packages/ai-isolate-quickjs
       '@tanstack/ai-ollama':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-ollama
+        version: link:../../packages/ai-ollama
       '@tanstack/ai-openai':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-openai
+        version: link:../../packages/ai-openai
       '@tanstack/ai-react':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-react
+        version: link:../../packages/ai-react
       '@tanstack/nitro-v2-vite-plugin':
         specifier: ^1.154.7
         version: 1.154.7(rolldown@1.0.0-rc.17)(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
@@ -251,16 +239,16 @@ importers:
         version: 4.1.18(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
       '@tanstack/ai':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai
+        version: link:../../packages/ai
       '@tanstack/ai-anthropic':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-anthropic
+        version: link:../../packages/ai-anthropic
       '@tanstack/ai-client':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-client
+        version: link:../../packages/ai-client
       '@tanstack/ai-react':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-react
+        version: link:../../packages/ai-react
       '@tanstack/react-devtools':
         specifier: ^0.9.10
         version: 0.9.10(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(csstype@3.2.3)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(solid-js@1.9.10)
@@ -345,43 +333,43 @@ importers:
         version: 4.1.18(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
       '@tanstack/ai':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai
+        version: link:../../packages/ai
       '@tanstack/ai-anthropic':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-anthropic
+        version: link:../../packages/ai-anthropic
       '@tanstack/ai-client':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-client
+        version: link:../../packages/ai-client
       '@tanstack/ai-elevenlabs':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-elevenlabs
+        version: link:../../packages/ai-elevenlabs
       '@tanstack/ai-fal':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-fal
+        version: link:../../packages/ai-fal
       '@tanstack/ai-gemini':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-gemini
+        version: link:../../packages/ai-gemini
       '@tanstack/ai-grok':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-grok
+        version: link:../../packages/ai-grok
       '@tanstack/ai-groq':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-groq
+        version: link:../../packages/ai-groq
       '@tanstack/ai-ollama':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-ollama
+        version: link:../../packages/ai-ollama
       '@tanstack/ai-openai':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-openai
+        version: link:../../packages/ai-openai
       '@tanstack/ai-openrouter':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-openrouter
+        version: link:../../packages/ai-openrouter
       '@tanstack/ai-react':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-react
+        version: link:../../packages/ai-react
       '@tanstack/ai-react-ui':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-react-ui
+        version: link:../../packages/ai-react-ui
       '@tanstack/nitro-v2-vite-plugin':
         specifier: ^1.154.7
         version: 1.154.7(rolldown@1.0.0-rc.17)(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
@@ -451,7 +439,7 @@ importers:
         version: 0.5.3(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
       '@tanstack/react-ai-devtools':
         specifier: workspace:*
-        version: link:../../packages/typescript/react-ai-devtools
+        version: link:../../packages/react-ai-devtools
       '@testing-library/dom':
         specifier: ^10.4.1
         version: 10.4.1
@@ -493,13 +481,13 @@ importers:
         version: 4.1.18(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
       '@tanstack/ai':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai
+        version: link:../../packages/ai
       '@tanstack/ai-fal':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-fal
+        version: link:../../packages/ai-fal
       '@tanstack/ai-gemini':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-gemini
+        version: link:../../packages/ai-gemini
       '@tanstack/react-router':
         specifier: ^1.158.4
         version: 1.159.5(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -557,13 +545,13 @@ importers:
         version: 4.1.18(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
       '@tanstack/ai':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai
+        version: link:../../packages/ai
       '@tanstack/ai-groq':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-groq
+        version: link:../../packages/ai-groq
       '@tanstack/ai-react':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-react
+        version: link:../../packages/ai-react
       '@tanstack/query-db-collection':
         specifier: ^1.0.6
         version: 1.0.36(@tanstack/query-core@5.90.12)(typescript@5.9.3)
@@ -678,31 +666,31 @@ importers:
         version: 4.1.18(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
       '@tanstack/ai':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai
+        version: link:../../packages/ai
       '@tanstack/ai-anthropic':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-anthropic
+        version: link:../../packages/ai-anthropic
       '@tanstack/ai-client':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-client
+        version: link:../../packages/ai-client
       '@tanstack/ai-devtools-core':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-devtools
+        version: link:../../packages/ai-devtools
       '@tanstack/ai-gemini':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-gemini
+        version: link:../../packages/ai-gemini
       '@tanstack/ai-ollama':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-ollama
+        version: link:../../packages/ai-ollama
       '@tanstack/ai-openai':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-openai
+        version: link:../../packages/ai-openai
       '@tanstack/ai-solid':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-solid
+        version: link:../../packages/ai-solid
       '@tanstack/ai-solid-ui':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-solid-ui
+        version: link:../../packages/ai-solid-ui
       '@tanstack/nitro-v2-vite-plugin':
         specifier: ^1.154.7
         version: 1.154.7(rolldown@1.0.0-rc.17)(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
@@ -711,7 +699,7 @@ importers:
         version: 1.159.5(@tanstack/react-router@1.159.5(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(vite-plugin-solid@2.11.10(solid-js@1.9.10)(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)))(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
       '@tanstack/solid-ai-devtools':
         specifier: workspace:*
-        version: link:../../packages/typescript/solid-ai-devtools
+        version: link:../../packages/solid-ai-devtools
       '@tanstack/solid-devtools':
         specifier: ^0.7.15
         version: 0.7.17(csstype@3.2.3)(solid-js@1.9.10)
@@ -793,25 +781,25 @@ importers:
     dependencies:
       '@tanstack/ai':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai
+        version: link:../../packages/ai
       '@tanstack/ai-anthropic':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-anthropic
+        version: link:../../packages/ai-anthropic
       '@tanstack/ai-client':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-client
+        version: link:../../packages/ai-client
       '@tanstack/ai-gemini':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-gemini
+        version: link:../../packages/ai-gemini
       '@tanstack/ai-ollama':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-ollama
+        version: link:../../packages/ai-ollama
       '@tanstack/ai-openai':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-openai
+        version: link:../../packages/ai-openai
       '@tanstack/ai-svelte':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-svelte
+        version: link:../../packages/ai-svelte
       highlight.js:
         specifier: ^11.11.1
         version: 11.11.1
@@ -866,28 +854,28 @@ importers:
     dependencies:
       '@tanstack/ai':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai
+        version: link:../../packages/ai
       '@tanstack/ai-anthropic':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-anthropic
+        version: link:../../packages/ai-anthropic
       '@tanstack/ai-client':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-client
+        version: link:../../packages/ai-client
       '@tanstack/ai-gemini':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-gemini
+        version: link:../../packages/ai-gemini
       '@tanstack/ai-ollama':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-ollama
+        version: link:../../packages/ai-ollama
       '@tanstack/ai-openai':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-openai
+        version: link:../../packages/ai-openai
       '@tanstack/ai-vue':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-vue
+        version: link:../../packages/ai-vue
       '@tanstack/ai-vue-ui':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-vue-ui
+        version: link:../../packages/ai-vue-ui
       marked:
         specifier: ^15.0.6
         version: 15.0.12
@@ -942,13 +930,13 @@ importers:
     dependencies:
       '@tanstack/ai-client':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-client
+        version: link:../../packages/ai-client
     devDependencies:
       vite:
         specifier: ^7.3.3
         version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
-  packages/typescript/ai:
+  packages/ai:
     dependencies:
       '@ag-ui/core':
         specifier: ^0.0.52
@@ -973,11 +961,11 @@ importers:
         specifier: ^4.2.0
         version: 4.2.1
 
-  packages/typescript/ai-anthropic:
+  packages/ai-anthropic:
     dependencies:
       '@anthropic-ai/sdk':
-        specifier: ^0.71.2
-        version: 0.71.2(zod@4.2.1)
+        specifier: ^0.97.1
+        version: 0.97.1(zod@4.2.1)
       '@tanstack/ai-utils':
         specifier: workspace:*
         version: link:../ai-utils
@@ -992,7 +980,7 @@ importers:
         specifier: ^4.2.0
         version: 4.2.1
 
-  packages/typescript/ai-client:
+  packages/ai-client:
     dependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -1014,7 +1002,7 @@ importers:
         specifier: ^4.2.0
         version: 4.2.1
 
-  packages/typescript/ai-code-mode:
+  packages/ai-code-mode:
     dependencies:
       esbuild:
         specifier: ^0.25.12
@@ -1030,7 +1018,7 @@ importers:
         specifier: ^4.2.0
         version: 4.3.6
 
-  packages/typescript/ai-code-mode-skills:
+  packages/ai-code-mode-skills:
     dependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -1067,7 +1055,7 @@ importers:
         specifier: ^4.2.0
         version: 4.3.6
 
-  packages/typescript/ai-code-mode/models-eval:
+  packages/ai-code-mode/models-eval:
     dependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -1107,7 +1095,7 @@ importers:
         specifier: ^4.21.0
         version: 4.21.0
 
-  packages/typescript/ai-devtools:
+  packages/ai-devtools:
     dependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -1147,7 +1135,7 @@ importers:
         specifier: ^2.11.10
         version: 2.11.10(solid-js@1.9.10)(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
 
-  packages/typescript/ai-elevenlabs:
+  packages/ai-elevenlabs:
     dependencies:
       '@elevenlabs/client':
         specifier: ^1.3.1
@@ -1169,7 +1157,7 @@ importers:
         specifier: 4.0.14
         version: 4.0.14(vitest@4.0.14(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.9))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
 
-  packages/typescript/ai-event-client:
+  packages/ai-event-client:
     dependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -1182,7 +1170,7 @@ importers:
         specifier: 4.0.14
         version: 4.0.14(vitest@4.0.14(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.9))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
 
-  packages/typescript/ai-fal:
+  packages/ai-fal:
     dependencies:
       '@fal-ai/client':
         specifier: ^1.10.1
@@ -1201,7 +1189,7 @@ importers:
         specifier: ^7.3.3
         version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
-  packages/typescript/ai-gemini:
+  packages/ai-gemini:
     dependencies:
       '@google/genai':
         specifier: ^1.43.0
@@ -1223,7 +1211,7 @@ importers:
         specifier: ^4.2.0
         version: 4.3.6
 
-  packages/typescript/ai-grok:
+  packages/ai-grok:
     dependencies:
       '@tanstack/ai-utils':
         specifier: workspace:*
@@ -1251,7 +1239,7 @@ importers:
         specifier: ^7.3.3
         version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
-  packages/typescript/ai-groq:
+  packages/ai-groq:
     dependencies:
       '@tanstack/ai':
         specifier: workspace:^
@@ -1276,7 +1264,7 @@ importers:
         specifier: ^7.3.3
         version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
-  packages/typescript/ai-isolate-cloudflare:
+  packages/ai-isolate-cloudflare:
     dependencies:
       '@tanstack/ai-code-mode':
         specifier: workspace:*
@@ -1292,7 +1280,7 @@ importers:
         specifier: ^4.88.0
         version: 4.88.0(@cloudflare/workers-types@4.20260317.1)
 
-  packages/typescript/ai-isolate-node:
+  packages/ai-isolate-node:
     dependencies:
       '@tanstack/ai-code-mode':
         specifier: workspace:*
@@ -1305,7 +1293,7 @@ importers:
         specifier: 4.0.14
         version: 4.0.14(vitest@4.0.14(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.9))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
 
-  packages/typescript/ai-isolate-quickjs:
+  packages/ai-isolate-quickjs:
     dependencies:
       '@tanstack/ai-code-mode':
         specifier: workspace:*
@@ -1318,7 +1306,7 @@ importers:
         specifier: 4.0.14
         version: 4.0.14(vitest@4.0.14(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.9))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
 
-  packages/typescript/ai-ollama:
+  packages/ai-ollama:
     dependencies:
       '@tanstack/ai-utils':
         specifier: workspace:*
@@ -1337,7 +1325,7 @@ importers:
         specifier: ^7.3.3
         version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
-  packages/typescript/ai-openai:
+  packages/ai-openai:
     dependencies:
       '@tanstack/ai-utils':
         specifier: workspace:*
@@ -1365,7 +1353,7 @@ importers:
         specifier: ^4.2.0
         version: 4.3.6
 
-  packages/typescript/ai-openrouter:
+  packages/ai-openrouter:
     dependencies:
       '@openrouter/sdk':
         specifier: 0.12.35
@@ -1387,7 +1375,7 @@ importers:
         specifier: ^4.2.0
         version: 4.3.6
 
-  packages/typescript/ai-preact:
+  packages/ai-preact:
     dependencies:
       '@tanstack/ai':
         specifier: workspace:^
@@ -1412,7 +1400,7 @@ importers:
         specifier: ^7.3.3
         version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
-  packages/typescript/ai-react:
+  packages/ai-react:
     dependencies:
       '@tanstack/ai-client':
         specifier: workspace:*
@@ -1443,7 +1431,7 @@ importers:
         specifier: ^7.3.3
         version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
-  packages/typescript/ai-react-ui:
+  packages/ai-react-ui:
     dependencies:
       react-markdown:
         specifier: ^10.1.0
@@ -1483,7 +1471,7 @@ importers:
         specifier: ^7.3.3
         version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
-  packages/typescript/ai-solid:
+  packages/ai-solid:
     dependencies:
       '@tanstack/ai-client':
         specifier: workspace:*
@@ -1520,7 +1508,7 @@ importers:
         specifier: ^4.0.14
         version: 4.0.15(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.9))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
-  packages/typescript/ai-solid-ui:
+  packages/ai-solid-ui:
     dependencies:
       rehype-highlight:
         specifier: ^7.0.2
@@ -1554,7 +1542,7 @@ importers:
         specifier: ^7.3.3
         version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
-  packages/typescript/ai-svelte:
+  packages/ai-svelte:
     dependencies:
       '@tanstack/ai-client':
         specifier: workspace:*
@@ -1594,7 +1582,7 @@ importers:
         specifier: ^7.3.3
         version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
-  packages/typescript/ai-utils:
+  packages/ai-utils:
     devDependencies:
       '@types/node':
         specifier: ^24.10.1
@@ -1606,7 +1594,7 @@ importers:
         specifier: ^7.3.3
         version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
-  packages/typescript/ai-vue:
+  packages/ai-vue:
     dependencies:
       '@tanstack/ai-client':
         specifier: workspace:*
@@ -1643,7 +1631,7 @@ importers:
         specifier: ^3.5.25
         version: 3.5.25(typescript@5.9.3)
 
-  packages/typescript/ai-vue-ui:
+  packages/ai-vue-ui:
     dependencies:
       '@crazydos/vue-markdown':
         specifier: ^1.1.4
@@ -1677,7 +1665,7 @@ importers:
         specifier: ^2.2.10
         version: 2.2.12(typescript@5.9.3)
 
-  packages/typescript/openai-base:
+  packages/openai-base:
     dependencies:
       '@tanstack/ai-utils':
         specifier: workspace:*
@@ -1699,7 +1687,7 @@ importers:
         specifier: ^4.2.0
         version: 4.3.6
 
-  packages/typescript/preact-ai-devtools:
+  packages/preact-ai-devtools:
     dependencies:
       '@tanstack/ai-devtools-core':
         specifier: workspace:*
@@ -1718,7 +1706,7 @@ importers:
         specifier: ^7.3.3
         version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
-  packages/typescript/react-ai-devtools:
+  packages/react-ai-devtools:
     dependencies:
       '@tanstack/ai-devtools-core':
         specifier: workspace:*
@@ -1740,7 +1728,7 @@ importers:
         specifier: ^7.3.3
         version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
-  packages/typescript/solid-ai-devtools:
+  packages/solid-ai-devtools:
     dependencies:
       '@tanstack/ai-devtools-core':
         specifier: workspace:*
@@ -1765,8 +1753,8 @@ importers:
   testing/e2e:
     dependencies:
       '@copilotkit/aimock':
-        specifier: ^1.18.0
-        version: 1.18.0(vitest@4.1.4(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jsdom@27.3.0(postcss@8.5.9))(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)))
+        specifier: ^1.27.0
+        version: 1.27.0(vitest@4.1.4(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jsdom@27.3.0(postcss@8.5.9))(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)))
       '@openrouter/sdk':
         specifier: 0.12.35
         version: 0.12.35
@@ -1778,40 +1766,40 @@ importers:
         version: 4.1.18(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
       '@tanstack/ai':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai
+        version: link:../../packages/ai
       '@tanstack/ai-anthropic':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-anthropic
+        version: link:../../packages/ai-anthropic
       '@tanstack/ai-client':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-client
+        version: link:../../packages/ai-client
       '@tanstack/ai-elevenlabs':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-elevenlabs
+        version: link:../../packages/ai-elevenlabs
       '@tanstack/ai-gemini':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-gemini
+        version: link:../../packages/ai-gemini
       '@tanstack/ai-grok':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-grok
+        version: link:../../packages/ai-grok
       '@tanstack/ai-groq':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-groq
+        version: link:../../packages/ai-groq
       '@tanstack/ai-ollama':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-ollama
+        version: link:../../packages/ai-ollama
       '@tanstack/ai-openai':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-openai
+        version: link:../../packages/ai-openai
       '@tanstack/ai-openrouter':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-openrouter
+        version: link:../../packages/ai-openrouter
       '@tanstack/ai-react':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-react
+        version: link:../../packages/ai-react
       '@tanstack/ai-react-ui':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-react-ui
+        version: link:../../packages/ai-react-ui
       '@tanstack/nitro-v2-vite-plugin':
         specifier: ^1.154.7
         version: 1.154.7(rolldown@1.0.0-rc.17)(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
@@ -1884,37 +1872,37 @@ importers:
         version: 4.1.18(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
       '@tanstack/ai':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai
+        version: link:../../packages/ai
       '@tanstack/ai-anthropic':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-anthropic
+        version: link:../../packages/ai-anthropic
       '@tanstack/ai-client':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-client
+        version: link:../../packages/ai-client
       '@tanstack/ai-event-client':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-event-client
+        version: link:../../packages/ai-event-client
       '@tanstack/ai-gemini':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-gemini
+        version: link:../../packages/ai-gemini
       '@tanstack/ai-grok':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-grok
+        version: link:../../packages/ai-grok
       '@tanstack/ai-ollama':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-ollama
+        version: link:../../packages/ai-ollama
       '@tanstack/ai-openai':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-openai
+        version: link:../../packages/ai-openai
       '@tanstack/ai-openrouter':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-openrouter
+        version: link:../../packages/ai-openrouter
       '@tanstack/ai-react':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-react
+        version: link:../../packages/ai-react
       '@tanstack/ai-react-ui':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-react-ui
+        version: link:../../packages/ai-react-ui
       '@tanstack/nitro-v2-vite-plugin':
         specifier: ^1.154.7
         version: 1.154.7(rolldown@1.0.0-rc.17)(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
@@ -1997,8 +1985,8 @@ packages:
   '@ag-ui/core@0.0.52':
     resolution: {integrity: sha512-Xo0bUaNV56EqylzcrAuhUkQX7et7+SZIrqZZtEByGwEq/I1EHny6ZMkWHLkKR7UNi0FJZwJyhKYmKJS3B2SEgA==}
 
-  '@anthropic-ai/sdk@0.71.2':
-    resolution: {integrity: sha512-TGNDEUuEstk/DKu0/TflXAEt+p+p/WhTlFzEnoosvbaDU2LTjm42igSdlL0VijrKpWejtOKxX0b8A7uc+XiSAQ==}
+  '@anthropic-ai/sdk@0.97.1':
+    resolution: {integrity: sha512-wOf7AUeJPitcVpvKO4UMu63mWH5SaVipkGd7OOQJt/G6VYGlV8D2Gp9dLxOrttDJh/9gqPqdaBwDGcBevumeAg==}
     hasBin: true
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
@@ -2233,6 +2221,10 @@ packages:
     resolution: {integrity: sha512-Q/N6JNWvIvPnLDvjlE1OUBLPQHH6l3CltCEsHIujp45zQUSSh8K+gHnaEX45yAT1nyngnINhvWtzN+Nb9D8RAQ==}
     engines: {node: '>=6.9.0'}
 
+  '@babel/runtime@7.29.2':
+    resolution: {integrity: sha512-JiDShH45zKHWyGe4ZNVRrCjBz8Nh9TMmZG1kh4QTK8hCBTWBi8Da+i7s1fJw7/lYpM4ccepSNfqzZ/QvABBi5g==}
+    engines: {node: '>=6.9.0'}
+
   '@babel/template@7.27.2':
     resolution: {integrity: sha512-LPDZ85aEJyYSd18/DkjNh4/y1ntkE5KwUHWTiqgRxruuZL2F1yuHligVHLvcHY2vMHXttKFpJn6LwfI7cw7ODw==}
     engines: {node: '>=6.9.0'}
@@ -2372,8 +2364,8 @@ packages:
   '@cloudflare/workers-types@4.20260317.1':
     resolution: {integrity: sha512-+G4eVwyCpm8Au1ex8vQBCuA9wnwqetz4tPNRoB/53qvktERWBRMQnrtvC1k584yRE3emMThtuY0gWshvSJ++PQ==}
 
-  '@copilotkit/aimock@1.18.0':
-    resolution: {integrity: sha512-VQ4nBsAWHmzeCN/Yb+QaeA3kIKnjHzkywQ6KhIfbF2J7NHkRGnagZ1eIFr2aAOJDIIVMMhWiuEV55HsQjyaLnw==}
+  '@copilotkit/aimock@1.27.0':
+    resolution: {integrity: sha512-8NNDhKCc9FBK+tD9bTufZl/v4EOXUZ6OBin4YlJUegHFKLTIIgHemyVqlzUYl4r2XjslAr8ilPwFf4p2O8ksAQ==}
     engines: {node: '>=24.0.0'}
     hasBin: true
     peerDependencies:
@@ -3332,8 +3324,20 @@ packages:
     resolution: {integrity: sha512-5DyQ4+1JEUzejeK1JGICcideyfUbGixgS9jNgex5nqkW+cY7WZhxBigmieN5Qnw9ZosSNVC9KQKyb+GUaGyKUA==}
     engines: {node: '>=18.18.0'}
 
+  '@humanfs/core@0.19.2':
+    resolution: {integrity: sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA==}
+    engines: {node: '>=18.18.0'}
+
   '@humanfs/node@0.16.7':
     resolution: {integrity: sha512-/zUx+yOsIrG4Y43Eh2peDeKCxlRt/gET6aHfaKpuq267qXdYDFViVHfMaLyygZOnl0kGWxFIgsBy8QFuTLUXEQ==}
+    engines: {node: '>=18.18.0'}
+
+  '@humanfs/node@0.16.8':
+    resolution: {integrity: sha512-gE1eQNZ3R++kTzFUpdGlpmy8kDZD/MLyHqDwqjkVQI0JMdI1D51sy1H958PNXYkM2rAac7e5/CnIKZrHtPh3BQ==}
+    engines: {node: '>=18.18.0'}
+
+  '@humanfs/types@0.15.0':
+    resolution: {integrity: sha512-ZZ1w0aoQkwuUuC7Yf+7sdeaNfqQiiLcSRbfI08oAxqLtpXQr9AIVX7Ay7HLDuiLYAaFPu8oBYNq/QIi9URHJ3Q==}
     engines: {node: '>=18.18.0'}
 
   '@humanwhocodes/module-importer@1.0.1':
@@ -5660,6 +5664,9 @@ packages:
   '@speed-highlight/core@1.2.12':
     resolution: {integrity: sha512-uilwrK0Ygyri5dToHYdZSjcvpS2ZwX0w5aSt3GCEN9hrjxWCoeV4Z2DTXuxjwbntaLQIEEAlCeNQss5SoHvAEA==}
 
+  '@stablelib/base64@1.0.1':
+    resolution: {integrity: sha512-1bnPQqSxSuc3Ii6MhBysoWCg58j97aUjuCSZrGSmDxNqtytIi0k8utUenAwTZN4V5mXXYGsVUI9zeBqy+jBOSQ==}
+
   '@standard-schema/spec@1.0.0':
     resolution: {integrity: sha512-m2bOd0f2RT9k8QJx1JN85cZYyH1RqFBdlwtkSlf4tBDYLCiiZnv1fIIwacK6cqwXavOydf0NPToMQgpKq+dVlA==}
 
@@ -6508,6 +6515,9 @@ packages:
   '@types/estree@1.0.8':
     resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
 
+  '@types/estree@1.0.9':
+    resolution: {integrity: sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==}
+
   '@types/hast@3.0.4':
     resolution: {integrity: sha512-WPs+bbQw5aCj+x6laNGWLH3wviHtoCv/P3+otBhbOhJgG8qtpdAMlTCxLtsTWA7LH1Oh/bFCHsBn0TPS5m30EQ==}
 
@@ -7029,8 +7039,8 @@ packages:
   ajv@6.12.6:
     resolution: {integrity: sha512-j3fVLgvTo527anyYyJOGTYJbG+vnnQYvE0m5mmkc1TK+nxAppkCLMIL0aZ4dblVCNoGShhm+kzE4ZUykBoMg4g==}
 
-  ajv@6.14.0:
-    resolution: {integrity: sha512-IWrosm/yrn43eiKqkfkHis7QioDleaXQHdDVPKg0FSwwd/DuvyX79TZnFOnYpB7dcsFAMmtFztZuXPDvSePkFw==}
+  ajv@6.15.0:
+    resolution: {integrity: sha512-fgFx7Hfoq60ytK2c7DhnF8jIvzYgOMxfugjLOSMHjLIPgenqa7S7oaagATUq99mV6IYvN2tRmC0wnTYX6iPbMw==}
 
   ajv@8.12.0:
     resolution: {integrity: sha512-sRu1kpcO9yLtYxBKvqfTeh9KzZEwO3STyX1HT+4CaDzC6HpTGYhIhPIzj9XuKU7KYDwnaeh5hcOwjy1QuJzBPA==}
@@ -8299,6 +8309,9 @@ packages:
 
   fast-levenshtein@2.0.6:
     resolution: {integrity: sha512-DCXu6Ifhqcks7TZKY3Hxp3y6qphY5SJZmrWMDrKcERSOXWQdMhU9Ig/PYrzyw/ul9jOIyh0N4M0tbC5hodg8dw==}
+
+  fast-sha256@1.3.0:
+    resolution: {integrity: sha512-n11RGP/lrWEFI/bWdygLxhI+pVeo1ZYIVwvvPkW7azl/rOy+F3HYRZ2K5zeE9mmkhQppyv9sQFx0JM9UabnpPQ==}
 
   fastq@1.19.1:
     resolution: {integrity: sha512-GwLTyxkCXjXbxqIhTsMI2Nui8huMPtnxg7krajPJAjnEG/iiOS7i+zCtWGZR9G0NBKbXKh6X9m9UIsYX/N6vvQ==}
@@ -11035,6 +11048,9 @@ packages:
   standard-as-callback@2.1.0:
     resolution: {integrity: sha512-qoRRSyROncaz1z0mvYqIE4lCd9p2R90i6GxW3uZv5ucSu8tU7B5HXUP1gG8pVZsYNVaXjk8ClXHPttLyxAL48A==}
 
+  standardwebhooks@1.0.0:
+    resolution: {integrity: sha512-BbHGOQK9olHPMvQNHWul6MYlrRTAOKn03rOe4A8O3CLWhNf4YHBqq2HJKKC+sfqpxiBY52pNeesD6jIiLDz8jg==}
+
   statuses@2.0.1:
     resolution: {integrity: sha512-RwNA9Z/7PrK06rYLIzFMlaF+l73iwpzsqRIFgbMLbTcLD6cOao82TaWefPXQvB2fOC4AjuYSEndS7N/mTCbkdQ==}
     engines: {node: '>= 0.8'}
@@ -12406,9 +12422,10 @@ snapshots:
     dependencies:
       zod: 3.25.76
 
-  '@anthropic-ai/sdk@0.71.2(zod@4.2.1)':
+  '@anthropic-ai/sdk@0.97.1(zod@4.2.1)':
     dependencies:
       json-schema-to-ts: 3.1.1
+      standardwebhooks: 1.0.0
     optionalDependencies:
       zod: 4.2.1
 
@@ -12713,6 +12730,8 @@ snapshots:
 
   '@babel/runtime@7.28.4': {}
 
+  '@babel/runtime@7.29.2': {}
+
   '@babel/template@7.27.2':
     dependencies:
       '@babel/code-frame': 7.27.1
@@ -12940,7 +12959,7 @@ snapshots:
 
   '@cloudflare/workers-types@4.20260317.1': {}
 
-  '@copilotkit/aimock@1.18.0(vitest@4.1.4(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jsdom@27.3.0(postcss@8.5.9))(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)))':
+  '@copilotkit/aimock@1.27.0(vitest@4.1.4(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jsdom@27.3.0(postcss@8.5.9))(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)))':
     optionalDependencies:
       vitest: 4.1.4(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jsdom@27.3.0(postcss@8.5.9))(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
 
@@ -13484,7 +13503,7 @@ snapshots:
 
   '@eslint/eslintrc@3.3.5':
     dependencies:
-      ajv: 6.14.0
+      ajv: 6.15.0
       debug: 4.4.3
       espree: 10.4.0
       globals: 14.0.0
@@ -13557,10 +13576,22 @@ snapshots:
 
   '@humanfs/core@0.19.1': {}
 
+  '@humanfs/core@0.19.2':
+    dependencies:
+      '@humanfs/types': 0.15.0
+
   '@humanfs/node@0.16.7':
     dependencies:
       '@humanfs/core': 0.19.1
       '@humanwhocodes/retry': 0.4.3
+
+  '@humanfs/node@0.16.8':
+    dependencies:
+      '@humanfs/core': 0.19.2
+      '@humanfs/types': 0.15.0
+      '@humanwhocodes/retry': 0.4.3
+
+  '@humanfs/types@0.15.0': {}
 
   '@humanwhocodes/module-importer@1.0.1': {}
 
@@ -15562,6 +15593,8 @@ snapshots:
 
   '@speed-highlight/core@1.2.12': {}
 
+  '@stablelib/base64@1.0.1': {}
+
   '@standard-schema/spec@1.0.0': {}
 
   '@standard-schema/spec@1.1.0': {}
@@ -17165,6 +17198,8 @@ snapshots:
 
   '@types/estree@1.0.8': {}
 
+  '@types/estree@1.0.9': {}
+
   '@types/hast@3.0.4':
     dependencies:
       '@types/unist': 3.0.3
@@ -17832,7 +17867,7 @@ snapshots:
       json-schema-traverse: 0.4.1
       uri-js: 4.4.1
 
-  ajv@6.14.0:
+  ajv@6.15.0:
     dependencies:
       fast-deep-equal: 3.1.3
       fast-json-stable-stringify: 2.1.0
@@ -18668,7 +18703,7 @@ snapshots:
 
   dom-helpers@5.2.1:
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       csstype: 3.2.3
 
   dom-serializer@2.0.0:
@@ -19119,11 +19154,11 @@ snapshots:
       '@eslint/eslintrc': 3.3.5
       '@eslint/js': 9.39.4
       '@eslint/plugin-kit': 0.4.1
-      '@humanfs/node': 0.16.7
+      '@humanfs/node': 0.16.8
       '@humanwhocodes/module-importer': 1.0.1
       '@humanwhocodes/retry': 0.4.3
-      '@types/estree': 1.0.8
-      ajv: 6.14.0
+      '@types/estree': 1.0.9
+      ajv: 6.15.0
       chalk: 4.1.2
       cross-spawn: 7.0.6
       debug: 4.4.3
@@ -19284,6 +19319,8 @@ snapshots:
   fast-json-stable-stringify@2.1.0: {}
 
   fast-levenshtein@2.0.6: {}
+
+  fast-sha256@1.3.0: {}
 
   fastq@1.19.1:
     dependencies:
@@ -20249,7 +20286,7 @@ snapshots:
 
   json-schema-to-ts@3.1.1:
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       ts-algebra: 2.0.0
 
   json-schema-traverse@0.4.1: {}
@@ -22155,7 +22192,7 @@ snapshots:
 
   react-transition-group@4.4.5(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       dom-helpers: 5.2.1
       loose-envify: 1.4.0
       prop-types: 15.8.1
@@ -22865,6 +22902,11 @@ snapshots:
   stackback@0.0.2: {}
 
   standard-as-callback@2.1.0: {}
+
+  standardwebhooks@1.0.0:
+    dependencies:
+      '@stablelib/base64': 1.0.1
+      fast-sha256: 1.3.0
 
   statuses@2.0.1: {}
 

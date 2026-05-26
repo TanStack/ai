@@ -5,6 +5,7 @@ import {
 } from '@tanstack/ai-react'
 import { generateTranscriptionFn } from '@/lib/server-functions'
 import type { TranscriptionResult } from '@tanstack/ai'
+import type { TranscriptionGenerateInput } from '@tanstack/ai-client'
 import type { Mode, Provider } from '@/lib/types'
 
 interface TranscriptionUIProps {
@@ -34,10 +35,10 @@ export function TranscriptionUI({
       return { connection: fetchHttpStream('/api/transcription/stream'), body }
     }
     return {
-      fetcher: async (input: { audio: string; language?: string }) => {
+      fetcher: async (input: TranscriptionGenerateInput) => {
         return generateTranscriptionFn({
           data: {
-            audio: input.audio,
+            audio: input.audio as string,
             language: input.language,
             provider,
             aimockPort,

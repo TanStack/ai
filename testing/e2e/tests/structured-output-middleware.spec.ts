@@ -27,15 +27,22 @@ import { test, expect } from './fixtures'
  * `structured-output` and `structured-output-stream` modes. The first test
  * exercises the structured-output phase coverage via the SSE harness; the
  * true non-streaming `Promise<T>` path is covered by unit tests in
- * `packages/typescript/ai/tests/structured-output-middleware.test.ts`.
+ * `packages/ai/tests/structured-output-middleware.test.ts`.
  * Adding a real non-streaming E2E scenario would require page-side rewiring
  * to await `Promise<T>` instead of iterating SSE and is out of scope here.
  */
 
-function buildHarnessUrl(testId?: string, aimockPort?: number): string {
+function buildHarnessUrl(
+  testId?: string,
+  aimockPort?: number,
+  provider?: string,
+  model?: string,
+): string {
   const params = new URLSearchParams()
   if (testId) params.set('testId', testId)
   if (aimockPort) params.set('aimockPort', String(aimockPort))
+  if (provider) params.set('provider', provider)
+  if (model) params.set('model', model)
   const qs = params.toString()
   return `/middleware-test${qs ? '?' + qs : ''}`
 }
@@ -73,12 +80,20 @@ function parseChunkSummaries(raw: string | null): Array<{ type: string }> {
 }
 
 test.describe('Structured Output × Middleware Coverage', () => {
-  test('structured output with stream:true: middleware observes finalization phase chunks', async ({
+  test('legacy finalization path: middleware observes structuredOutput phase chunks (claude-3-7-sonnet)', async ({
     page,
     testId,
     aimockPort,
   }) => {
-    await page.goto(buildHarnessUrl(testId, aimockPort))
+    // Pinned to claude-3-7-sonnet because Claude 4.5+ adapters take the
+    // #605 native-combined-mode path (no separate finalization → no
+    // `structuredOutput` phase). The 3.7-sonnet adapter still uses the
+    // forced-tool finalization workaround, which is what this contract
+    // covers: any non-native-combined adapter must keep firing the
+    // `structuredOutput` phase so middleware can observe it.
+    await page.goto(
+      buildHarnessUrl(testId, aimockPort, 'anthropic', 'claude-3-7-sonnet'),
+    )
     await page.waitForTimeout(2000)
 
     await page.locator('#mw-scenario-select').selectOption('structured-output')
@@ -96,6 +111,48 @@ test.describe('Structured Output × Middleware Coverage', () => {
     const phasesJson = await page.locator('#mw-phases-json').textContent()
     const phases = parseStringArray(phasesJson)
     expect(phases).toContain('structuredOutput')
+
+    const finishCountRaw = await page
+      .locator('#mw-onfinish-count')
+      .textContent()
+    const finishCount = Number(finishCountRaw ?? '0')
+    expect(finishCount).toBe(1)
+  })
+
+  test('native combined mode (#605): structuredOutput phase does NOT fire — single combined call observed via beforeModel only (openai)', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    // Default openai adapter (gpt-4o) declares supportsCombinedToolsAndSchema,
+    // so the engine forwards outputSchema into the regular chatStream call
+    // and harvests the JSON from accumulated content — no second adapter
+    // request, no `structuredOutput` phase. This pins the new contract
+    // introduced in #605.
+    await page.goto(buildHarnessUrl(testId, aimockPort, 'openai'))
+    await page.waitForTimeout(2000)
+
+    await page.locator('#mw-scenario-select').selectOption('structured-output')
+    await page.locator('#mw-mode-select').selectOption('phase-recorder')
+    await page.locator('#mw-run-button').click()
+
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector('#mw-metadata')
+          ?.getAttribute('data-test-complete') === 'true',
+      { timeout: 15000 },
+    )
+
+    const phasesJson = await page.locator('#mw-phases-json').textContent()
+    const phases = parseStringArray(phasesJson)
+    // Combined-mode contract: middleware sees the run through the regular
+    // chat phases, not `structuredOutput`. The phase-recorder records
+    // `ctx.phase` per `onChunk`, and the engine tags streaming chunks
+    // with `'modelStream'` (the `'beforeModel'` phase tag is set only for
+    // the `onConfig` hook boundary, not for chunks).
+    expect(phases).not.toContain('structuredOutput')
+    expect(phases).toContain('modelStream')
 
     const finishCountRaw = await page
       .locator('#mw-onfinish-count')

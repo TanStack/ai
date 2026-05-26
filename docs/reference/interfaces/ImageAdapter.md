@@ -5,7 +5,7 @@ title: ImageAdapter
 
 # Interface: ImageAdapter\<TModel, TProviderOptions, TModelProviderOptionsByName, TModelSizeByName\>
 
-Defined in: [packages/typescript/ai/src/activities/generateImage/adapter.ts:33](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateImage/adapter.ts#L33)
+Defined in: [packages/ai/src/activities/generateImage/adapter.ts:33](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateImage/adapter.ts#L33)
 
 Image adapter interface with pre-resolved generics.
 
@@ -44,7 +44,7 @@ Generic parameters:
 ~types: object;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateImage/adapter.ts:52](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateImage/adapter.ts#L52)
+Defined in: [packages/ai/src/activities/generateImage/adapter.ts:52](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateImage/adapter.ts#L52)
 
 **`Internal`**
 
@@ -76,7 +76,7 @@ providerOptions: TProviderOptions;
 generateImages: (options) => Promise<ImageGenerationResult>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateImage/adapter.ts:61](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateImage/adapter.ts#L61)
+Defined in: [packages/ai/src/activities/generateImage/adapter.ts:61](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateImage/adapter.ts#L61)
 
 Generate images from a prompt
 
@@ -98,7 +98,7 @@ Generate images from a prompt
 readonly kind: "image";
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateImage/adapter.ts:43](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateImage/adapter.ts#L43)
+Defined in: [packages/ai/src/activities/generateImage/adapter.ts:43](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateImage/adapter.ts#L43)
 
 Discriminator for adapter kind - used by generate() to determine API shape
 
@@ -110,7 +110,7 @@ Discriminator for adapter kind - used by generate() to determine API shape
 readonly model: TModel;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateImage/adapter.ts:47](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateImage/adapter.ts#L47)
+Defined in: [packages/ai/src/activities/generateImage/adapter.ts:47](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateImage/adapter.ts#L47)
 
 The model this adapter is configured for
 
@@ -122,6 +122,6 @@ The model this adapter is configured for
 readonly name: string;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateImage/adapter.ts:45](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateImage/adapter.ts#L45)
+Defined in: [packages/ai/src/activities/generateImage/adapter.ts:45](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateImage/adapter.ts#L45)
 
 Adapter name identifier

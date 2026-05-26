@@ -22,17 +22,17 @@ pnpm run build:all   # build all public packages once so workspace deps resolve
 ## Repository layout
 
 ```
-packages/typescript/    # Public, published packages (@tanstack/ai, @tanstack/ai-openai, etc.)
+packages/    # Public, published packages (@tanstack/ai, @tanstack/ai-openai, etc.)
 testing/                # Internal test harnesses — NOT published
   e2e/                  # Playwright + aimock E2E suite (mandatory coverage for all changes)
   panel/                # Stream processor visualisation panel
-examples/               # Example apps (React, Solid, Vue, Svelte, PHP, Python, vanilla)
+examples/               # Example apps (React, Solid, Vue, Svelte, vanilla)
 codemods/               # Internal codemods (not published)
 docs/                   # Documentation source
 scripts/                # Repo-level scripts (doc generation, model sync, link verification)
 ```
 
-- Direct children of `packages/typescript/` are public packages (published to npm).
+- Direct children of `packages/` are public packages (published to npm).
 - Everything under `examples/`, `testing/`, and `codemods/` is `"private": true` and excluded from build/publish.
 - The build system is **Nx** with affected-target detection.
 - The package manager is **pnpm** with workspace + catalog protocols.
@@ -58,7 +58,7 @@ All commands are run from the repo root. Nx handles affected detection and cachi
 | E2E suite                     | `pnpm test:e2e`     |
 | E2E with Playwright UI        | `pnpm test:e2e:ui`  |
 
-Working on a single package? `cd packages/typescript/<pkg>` and use its scripts directly (`pnpm test:lib`, `pnpm test:types`, etc.).
+Working on a single package? `cd packages/<pkg>` and use its scripts directly (`pnpm test:lib`, `pnpm test:types`, etc.).
 
 ## TypeScript configuration
 
@@ -82,7 +82,7 @@ Tests are included in typecheck. `vite.config.ts` / `vitest.config.ts` are not �
 
 ## Adding a unit test
 
-- Place tests under `packages/typescript/<pkg>/tests/` with the suffix `.test.ts` (or `.test.tsx` for JSX).
+- Place tests under `packages/<pkg>/tests/` with the suffix `.test.ts` (or `.test.tsx` for JSX).
 - Vitest's defaults discover anything matching `**/*.{test,spec}.?(c|m)[jt]s?(x)` — no per-package config is needed.
 - Tests are typechecked by `tsc` and linted by ESLint.
 
@@ -134,9 +134,9 @@ The PR template lists the steps. The `Test plan` section is required — describ
 
 ## Adding a new provider adapter
 
-The pattern lives in `packages/typescript/ai-openai/`, `packages/typescript/ai-anthropic/`, `packages/typescript/ai-gemini/`, etc. New core adapters typically:
+The pattern lives in `packages/ai-openai/`, `packages/ai-anthropic/`, `packages/ai-gemini/`, etc. New core adapters typically:
 
-1. Create `packages/typescript/ai-<provider>/` with `package.json`, `tsconfig.json`, `src/`, `tests/`, `README.md`. Copy structure from an existing adapter.
+1. Create `packages/ai-<provider>/` with `package.json`, `tsconfig.json`, `src/`, `tests/`, `README.md`. Copy structure from an existing adapter.
 2. Implement tree-shakeable adapter exports under `src/adapters/` (`text.ts`, `embed.ts`, `summarize.ts`, etc.).
 3. Add `model-meta.ts` so per-model type safety works.
 4. Wire the provider into `testing/e2e/feature-support.ts` and `testing/e2e/test-matrix.ts`. Existing provider-coverage tests pick it up automatically.

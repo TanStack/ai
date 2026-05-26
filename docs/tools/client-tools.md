@@ -280,7 +280,7 @@ Client tools go through a small set of observable lifecycle states you can surfa
 - `input-complete` — all arguments have been received and the tool can run.
 - `approval-requested` — the tool is waiting for user approval before it can run.
 - `approval-responded` — the user has approved or denied the tool call.
-- `complete` — the tool finished; `part.output` contains the result.
+- `complete` — the tool finished; `part.output` contains the result (or error details).
 
 Use these states to show loading indicators, streaming progress, and final success/error feedback. The example below maps each state to a simple UI message.
 
@@ -297,8 +297,8 @@ function ToolCallDisplay({ part }: { part: ToolCallPart }) {
   if (part.state === "input-complete") {
     return <div>✓ Arguments received, running tool...</div>;
   }
-  
-  if (part.output) {
+
+  if (part.state === "complete") {
     return <div>✅ Tool complete</div>;
   }
   

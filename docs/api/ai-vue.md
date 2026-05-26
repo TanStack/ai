@@ -106,7 +106,7 @@ interface UseChatReturn {
 }
 ```
 
-**Note:** Reactive state (`messages`, `isLoading`, `error`, `status`, `isSubscribed`, `connectionStatus`, `sessionGenerating`) is wrapped in `DeepReadonly<ShallowRef<T>>`. Access values with `.value` (e.g., `messages.value`). Cleanup is automatic via `onScopeDispose`.
+**Note:** Reactive state (`messages`, `isLoading`, `error`, `status`, `isSubscribed`, `connectionStatus`, `sessionGenerating`) is wrapped in `DeepReadonly<ShallowRef<T>>`. In `<script setup>` read the underlying value with `.value` (e.g., `messages.value`); in `<template>` Vue auto-unwraps the ref, so use the bare name (e.g., `v-for="m in messages"`). Cleanup is automatic via `onScopeDispose`.
 
 ## Connection Adapters
 
@@ -145,7 +145,7 @@ const handleSubmit = () => {
 <template>
   <div>
     <div>
-      <div v-for="message in messages.value" :key="message.id">
+      <div v-for="message in messages" :key="message.id">
         <strong>{{ message.role }}:</strong>
         <template v-for="(part, idx) in message.parts" :key="idx">
           <div
@@ -159,8 +159,8 @@ const handleSubmit = () => {
       </div>
     </div>
     <form @submit.prevent="handleSubmit">
-      <input v-model="input" :disabled="isLoading.value" />
-      <button type="submit" :disabled="isLoading.value">Send</button>
+      <input v-model="input" :disabled="isLoading" />
+      <button type="submit" :disabled="isLoading">Send</button>
     </form>
   </div>
 </template>
@@ -179,7 +179,7 @@ const { messages, sendMessage, addToolApprovalResponse } = useChat({
 
 <template>
   <div>
-    <template v-for="message in messages.value" :key="message.id">
+    <template v-for="message in messages" :key="message.id">
       <template v-for="part in message.parts" :key="part.id">
         <div
           v-if="
@@ -254,7 +254,7 @@ const { messages, sendMessage } = useChat({
 
 <template>
   <div>
-    <template v-for="message in messages.value" :key="message.id">
+    <template v-for="message in messages" :key="message.id">
       <template v-for="(part, idx) in message.parts" :key="idx">
         <div v-if="part.type === 'tool-call' && part.name === 'updateUI'">
           Tool executed: {{ part.name }}

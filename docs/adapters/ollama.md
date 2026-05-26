@@ -40,10 +40,10 @@ const stream = chat({
 import { chat } from "@tanstack/ai";
 import { createOllamaChat } from "@tanstack/ai-ollama";
 
-const adapter = createOllamaChat("http://your-server:11434");
+const adapter = createOllamaChat("llama3", "http://your-server:11434");
 
 const stream = chat({
-  adapter: adapter("llama3"),
+  adapter,
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
@@ -53,11 +53,14 @@ const stream = chat({
 ```typescript
 import { createOllamaChat } from "@tanstack/ai-ollama";
 
-// Default localhost
-const adapter = createOllamaChat();
+// Custom host (URL string)
+const adapter = createOllamaChat("llama3", "http://your-server:11434");
 
-// Custom host
-const adapter = createOllamaChat("http://your-server:11434");
+// Custom client config (e.g., custom headers, fetch)
+const adapter2 = createOllamaChat("llama3", {
+  host: "http://your-server:11434",
+  headers: { Authorization: "Bearer ..." },
+});
 ```
 
 ## Available Models
@@ -230,7 +233,7 @@ The server runs on `http://localhost:11434` by default.
 ## Running on a Remote Server
 
 ```typescript
-const adapter = createOllamaChat("http://your-server:11434");
+const adapter = createOllamaChat("llama3", "http://your-server:11434");
 ```
 
 To expose Ollama on a network interface:
@@ -249,38 +252,26 @@ OLLAMA_HOST=http://localhost:11434
 
 ## API Reference
 
-### `ollamaText(options?)`
+### `ollamaText(model)`
 
-Creates an Ollama text/chat adapter.
-
-**Parameters:**
-
-- `options.model?` - Default model (optional)
-
-**Returns:** An Ollama text adapter instance.
-
-### `createOllamaText(host?, options?)`
-
-Creates an Ollama text/chat adapter with a custom host.
+Creates an Ollama text/chat adapter using `OLLAMA_HOST` from the environment (defaults to `http://localhost:11434`).
 
 **Parameters:**
 
-- `host` - Ollama server URL (default: `http://localhost:11434`)
-- `options.model?` - Default model (optional)
+- `model` - Model name (e.g. `"llama3"`, `"mistral:7b"`)
 
-**Returns:** An Ollama text adapter instance.
+### `createOllamaChat(model, hostOrConfig?)`
 
-### `ollamaSummarize(options?)`
+Creates an Ollama text/chat adapter with an explicit host or client config.
 
-Creates an Ollama summarization adapter.
+**Parameters:**
 
-**Returns:** An Ollama summarize adapter instance.
+- `model` - Model name
+- `hostOrConfig?` - Either an `OLLAMA_HOST`-style URL string, or an `OllamaClientConfig` object (e.g. `{ host, headers, fetch }`).
 
-### `createOllamaSummarize(host?, options?)`
+### `ollamaSummarize(model)` / `createOllamaSummarize(model, hostOrConfig?)`
 
-Creates an Ollama summarization adapter with a custom host.
-
-**Returns:** An Ollama summarize adapter instance.
+Creates an Ollama summarization adapter — same signature shape as the chat adapter.
 
 ## Benefits of Ollama
 

@@ -18,12 +18,12 @@ const config = [
   {
     // Typed-linting rules scoped to library source — issue #564.
     //
-    // Restricted to `packages/typescript/*/src/**` so streaming + agent-loop
+    // Restricted to `packages/*/src/**` so streaming + agent-loop
     // bugs that violate `no-floating-promises`, exhaustive-switch checks, or
     // async-misuse guarantees fail in CI without dragging tests, examples,
     // or build artefacts under the typed-linting cost.
     name: 'tanstack/ai/typed',
-    files: ['packages/typescript/*/src/**/*.{ts,tsx}'],
+    files: ['packages/*/src/**/*.{ts,tsx}'],
     rules: {
       '@typescript-eslint/no-floating-promises': 'error',
       '@typescript-eslint/no-misused-promises': 'error',
@@ -59,8 +59,8 @@ const config = [
     // Why separate from the typed-linting block: a few packages still ship a
     // local `eslint.config.js` that re-exports root. Flat-config evaluates
     // `files` globs relative to the *config-file's* directory, so the typed
-    // block's `packages/typescript/*/src/**` glob fails to match anything
-    // when re-exported from inside `packages/typescript/<pkg>/`. The dual
+    // block's `packages/*/src/**` glob fails to match anything
+    // when re-exported from inside `packages/<pkg>/`. The dual
     // glob below works in both contexts.
     //
     // Why ban `as unknown as T`: it bypasses TS's structural-overlap check
@@ -70,7 +70,7 @@ const config = [
     // limitations, conditional-return narrowing failures) can opt out via
     // `// eslint-disable-next-line no-restricted-syntax -- <reason>`.
     name: 'tanstack/ai/no-double-as',
-    files: ['packages/typescript/*/src/**/*.{ts,tsx}', 'src/**/*.{ts,tsx}'],
+    files: ['packages/*/src/**/*.{ts,tsx}', 'src/**/*.{ts,tsx}'],
     rules: {
       'no-restricted-syntax': [
         'error',

@@ -11,6 +11,7 @@ import { openaiText } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
+import { geminiTextInteractions } from '@tanstack/ai-gemini/experimental'
 import { openRouterText } from '@tanstack/ai-openrouter'
 import { grokText } from '@tanstack/ai-grok'
 import { groqText } from '@tanstack/ai-groq'
@@ -34,6 +35,7 @@ type Provider =
   | 'openai'
   | 'anthropic'
   | 'gemini'
+  | 'gemini-interactions'
   | 'ollama'
   | 'grok'
   | 'groq'
@@ -239,6 +241,10 @@ export const Route = createFileRoute('/api/tanchat')({
           requestSource: 'react-chat',
           serverRegion: 'local-dev',
         }
+        const previousInteractionId: string | undefined =
+          typeof params.forwardedProps.previousInteractionId === 'string'
+            ? params.forwardedProps.previousInteractionId
+            : undefined
 
         // Pre-define typed adapter configurations with full type inference
         // Model is passed to the adapter factory function for type-safe autocomplete
@@ -249,7 +255,7 @@ export const Route = createFileRoute('/api/tanchat')({
           anthropic: () =>
             createChatOptions({
               adapter: anthropicText(
-                (model || 'claude-sonnet-4-5') as 'claude-sonnet-4-5',
+                (model || 'claude-sonnet-4-6') as 'claude-sonnet-4-6',
               ),
             }),
           openrouter: () =>
@@ -266,7 +272,7 @@ export const Route = createFileRoute('/api/tanchat')({
           gemini: () =>
             createChatOptions({
               adapter: geminiText(
-                (model || 'gemini-2.5-flash') as 'gemini-2.5-flash',
+                (model || 'gemini-3.1-pro-preview') as 'gemini-3.1-pro-preview',
               ),
               modelOptions: {
                 thinkingConfig: {
@@ -275,26 +281,35 @@ export const Route = createFileRoute('/api/tanchat')({
                 },
               },
             }),
+          'gemini-interactions': () =>
+            createChatOptions({
+              adapter: geminiTextInteractions(
+                (model || 'gemini-3.1-pro-preview') as 'gemini-3.1-pro-preview',
+              ),
+              modelOptions: {
+                previous_interaction_id: previousInteractionId,
+                store: true,
+              },
+            }),
           grok: () =>
             createChatOptions({
-              adapter: grokText((model || 'grok-3') as 'grok-3'),
+              adapter: grokText((model || 'grok-4.20') as 'grok-4.20'),
               modelOptions: {},
             }),
           groq: () =>
             createChatOptions({
               adapter: groqText(
-                (model ||
-                  'llama-3.3-70b-versatile') as 'llama-3.3-70b-versatile',
+                (model || 'openai/gpt-oss-120b') as 'openai/gpt-oss-120b',
               ),
             }),
           ollama: () =>
             createChatOptions({
-              adapter: ollamaText((model || 'gpt-oss:120b') as 'gpt-oss:120b'),
+              adapter: ollamaText((model || 'gpt-oss:20b') as 'gpt-oss:20b'),
               modelOptions: { think: 'low', options: { top_k: 1 } },
             }),
           openai: () =>
             createChatOptions({
-              adapter: openaiText((model || 'gpt-4o') as 'gpt-4o'),
+              adapter: openaiText((model || 'gpt-5.2') as 'gpt-5.2'),
               modelOptions: {},
             }),
         }
@@ -308,6 +323,13 @@ export const Route = createFileRoute('/api/tanchat')({
           // Get typed adapter options using createChatOptions pattern
           const options = adapterConfig[provider]()
 
+          // All providers (including gemini-interactions) get the full
+          // server-tool set merged with whatever client-side tools the
+          // request brought. Historical note: gemini-interactions used
+          // to be excluded because of an assumed `anyOf` incompatibility
+          // and an empty-`required: []` rejection. The first turned out
+          // to be a non-issue against the live API and the second is now
+          // sanitized inside `@tanstack/ai-gemini/experimental`.
           const mergedTools = mergeAgentTools(serverTools, params.tools)
 
           const stream = chat({

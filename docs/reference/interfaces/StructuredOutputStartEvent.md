@@ -5,7 +5,7 @@ title: StructuredOutputStartEvent
 
 # Interface: StructuredOutputStartEvent
 
-Defined in: [packages/typescript/ai/src/types.ts:1184](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1184)
+Defined in: [packages/ai/src/types.ts:1200](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1200)
 
 Emitted at the start of a streaming structured-output run, before the JSON
 deltas. Tells consumers that the upcoming `TEXT_MESSAGE_CONTENT` deltas
@@ -32,7 +32,7 @@ made per-message rather than globally.
 optional model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1148](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1148)
+Defined in: [packages/ai/src/types.ts:1164](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1164)
 
 Model identifier for multi-model support
 
@@ -48,7 +48,7 @@ Model identifier for multi-model support
 name: "structured-output.start";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1185](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1185)
+Defined in: [packages/ai/src/types.ts:1201](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1201)
 
 #### Overrides
 
@@ -64,7 +64,7 @@ CustomEvent.name
 value: object;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1186](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1186)
+Defined in: [packages/ai/src/types.ts:1202](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1202)
 
 #### messageId
 
