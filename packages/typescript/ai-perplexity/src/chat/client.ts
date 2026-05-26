@@ -1,5 +1,6 @@
 import OpenAI from 'openai'
 import { getPerplexityApiKeyFromEnv } from '../utils/api-key'
+import { getPerplexityIntegrationHeaders } from '../utils/attribution'
 import type { ClientOptions } from 'openai'
 
 export interface PerplexityChatClientConfig extends ClientOptions {
@@ -33,7 +34,7 @@ const DEFAULT_BASE_URL = 'https://api.perplexity.ai'
 export function createPerplexityChatClient(
   config: PerplexityChatClientConfig = {},
 ): OpenAI {
-  const { apiKey, baseURL, ...rest } = config
+  const { apiKey, baseURL, defaultHeaders, ...rest } = config
   const resolvedApiKey =
     typeof apiKey === 'string' && apiKey.trim().length > 0
       ? apiKey
@@ -43,5 +44,9 @@ export function createPerplexityChatClient(
     ...rest,
     apiKey: resolvedApiKey,
     baseURL: baseURL ?? DEFAULT_BASE_URL,
+    defaultHeaders: {
+      ...defaultHeaders,
+      ...getPerplexityIntegrationHeaders(),
+    },
   })
 }

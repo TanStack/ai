@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { perplexitySearchTool } from '../src/search/tool'
 
+const INTEGRATION_HEADER = 'X-Pplx-Integration'
+
 describe('perplexitySearchTool', () => {
   const ORIGINAL_PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY
 
@@ -75,6 +77,9 @@ describe('perplexitySearchTool', () => {
     const body = JSON.parse(fetchMock.mock.calls[0]![1].body as string)
     expect(body.max_results).toBe(7)
     expect(body.query).toBe('foo')
+
+    const headers = fetchMock.mock.calls[0]![1].headers as Record<string, string>
+    expect(headers[INTEGRATION_HEADER]).toMatch(/^tanstack\//)
   })
 
   it('passes through filter args from the model', async () => {

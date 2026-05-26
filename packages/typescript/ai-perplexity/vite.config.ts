@@ -3,6 +3,9 @@ import { tanstackViteConfig } from '@tanstack/vite-config'
 import packageJson from './package.json'
 
 const config = defineConfig({
+  define: {
+    __PACKAGE_VERSION__: JSON.stringify(packageJson.version),
+  },
   test: {
     name: packageJson.name,
     dir: './',

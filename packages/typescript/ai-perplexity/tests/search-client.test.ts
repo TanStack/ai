@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PerplexitySearchClient } from '../src/search/client'
 
+const INTEGRATION_HEADER = 'X-Pplx-Integration'
+
 describe('PerplexitySearchClient', () => {
   const ORIGINAL_ENV = { ...process.env }
 
@@ -47,6 +49,7 @@ describe('PerplexitySearchClient', () => {
     const headers = (init as RequestInit).headers as Record<string, string>
     expect(headers.Authorization).toBe('Bearer test-key')
     expect(headers['Content-Type']).toBe('application/json')
+    expect(headers[INTEGRATION_HEADER]).toMatch(/^tanstack\//)
 
     expect(JSON.parse((init as RequestInit).body as string)).toEqual({
       query: 'mars rover',

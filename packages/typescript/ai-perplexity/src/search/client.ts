@@ -1,4 +1,5 @@
 import { getPerplexityApiKeyFromEnv } from '../utils/api-key'
+import { getPerplexityIntegrationHeaders } from '../utils/attribution'
 
 export interface PerplexitySearchClientConfig {
   /** Perplexity API key. Falls back to `PERPLEXITY_API_KEY` / `PPLX_API_KEY` env vars. */
@@ -98,6 +99,7 @@ export class PerplexitySearchClient {
         Authorization: `Bearer ${this.apiKey}`,
         'Content-Type': 'application/json',
         Accept: 'application/json',
+        ...getPerplexityIntegrationHeaders(),
       },
       body: JSON.stringify(body),
       signal: init.signal,

@@ -1,5 +1,21 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPerplexityChatClient } from '../src/chat/client'
+
+const INTEGRATION_HEADER = 'X-Pplx-Integration'
+
+function getHeader(headers: HeadersInit | undefined, name: string): string | null {
+  if (!headers) return null
+  if (headers instanceof Headers) return headers.get(name)
+
+  const record = Array.isArray(headers)
+    ? Object.fromEntries(headers)
+    : headers
+
+  const matchingKey = Object.keys(record).find(
+    (key) => key.toLowerCase() === name.toLowerCase(),
+  )
+  return matchingKey ? record[matchingKey] ?? null : null
+}
 
 describe('createPerplexityChatClient', () => {
   const ORIGINAL_ENV = { ...process.env }
@@ -11,12 +27,38 @@ describe('createPerplexityChatClient', () => {
 
   afterEach(() => {
     process.env = { ...ORIGINAL_ENV }
+    vi.restoreAllMocks()
   })
 
   it('constructs an OpenAI-compatible client pointed at api.perplexity.ai by default', () => {
     const client = createPerplexityChatClient()
     expect(String(client.baseURL)).toContain('api.perplexity.ai')
     expect(client.apiKey).toBe('test-key')
+  })
+
+  it('sends the attribution header on chat requests', async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            id: 'chatcmpl-test',
+            object: 'chat.completion',
+            created: 0,
+            model: 'sonar',
+            choices: [],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+    )
+    const client = createPerplexityChatClient({ fetch: fetchMock as any })
+
+    await client.chat.completions.create({
+      model: 'sonar',
+      messages: [{ role: 'user', content: 'hello' }],
+    })
+
+    const init = fetchMock.mock.calls[0]![1] as RequestInit
+    expect(getHeader(init.headers, INTEGRATION_HEADER)).toMatch(/^tanstack\//)
   })
 
   it('uses an explicit apiKey over the env var', () => {
