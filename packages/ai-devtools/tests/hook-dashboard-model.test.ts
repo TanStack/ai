@@ -4,7 +4,6 @@ import {
   getHookDisplayName,
   groupHooksByCategory,
   isHookRunning,
-  visibleHooks,
 } from '../src/components/hooks/hook-dashboard-model'
 import type {
   HookOutputKind,
@@ -66,7 +65,6 @@ describe('hook dashboard model', () => {
 
     expect(summary).toEqual({
       total: 3,
-      active: 3,
       running: 1,
       categories: 3,
       tools: 0,
@@ -86,15 +84,6 @@ describe('hook dashboard model', () => {
     ).toBe('useChat')
   })
 
-  it('returns all hooks from visible dashboard lists', () => {
-    const a = createHook('chat-1', 'useChat', 'chat', 20)
-    const b = createHook('image-1', 'useGenerateImage', 'image', 10)
-
-    expect(visibleHooks([a, b]).map((hook) => hook.id)).toEqual([
-      'chat-1',
-      'image-1',
-    ])
-  })
 })
 
 function createHook(
