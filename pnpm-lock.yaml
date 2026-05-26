@@ -102,18 +102,6 @@ importers:
         specifier: ^4.0.14
         version: 4.1.4(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jsdom@27.3.0(postcss@8.5.9))(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
 
-  examples/php-slim:
-    devDependencies:
-      concurrently:
-        specifier: ^9.1.2
-        version: 9.2.1
-
-  examples/python-fastapi:
-    devDependencies:
-      concurrently:
-        specifier: ^9.1.2
-        version: 9.2.1
-
   examples/ts-code-mode-web:
     dependencies:
       '@radix-ui/react-collapsible':
@@ -124,40 +112,40 @@ importers:
         version: 4.1.18(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
       '@tanstack/ai':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai
+        version: link:../../packages/ai
       '@tanstack/ai-anthropic':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-anthropic
+        version: link:../../packages/ai-anthropic
       '@tanstack/ai-client':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-client
+        version: link:../../packages/ai-client
       '@tanstack/ai-code-mode':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-code-mode
+        version: link:../../packages/ai-code-mode
       '@tanstack/ai-code-mode-skills':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-code-mode-skills
+        version: link:../../packages/ai-code-mode-skills
       '@tanstack/ai-gemini':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-gemini
+        version: link:../../packages/ai-gemini
       '@tanstack/ai-isolate-cloudflare':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-isolate-cloudflare
+        version: link:../../packages/ai-isolate-cloudflare
       '@tanstack/ai-isolate-node':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-isolate-node
+        version: link:../../packages/ai-isolate-node
       '@tanstack/ai-isolate-quickjs':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-isolate-quickjs
+        version: link:../../packages/ai-isolate-quickjs
       '@tanstack/ai-ollama':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-ollama
+        version: link:../../packages/ai-ollama
       '@tanstack/ai-openai':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-openai
+        version: link:../../packages/ai-openai
       '@tanstack/ai-react':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-react
+        version: link:../../packages/ai-react
       '@tanstack/nitro-v2-vite-plugin':
         specifier: ^1.154.7
         version: 1.154.7(rolldown@1.0.0-rc.17)(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
@@ -251,16 +239,16 @@ importers:
         version: 4.1.18(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
       '@tanstack/ai':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai
+        version: link:../../packages/ai
       '@tanstack/ai-anthropic':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-anthropic
+        version: link:../../packages/ai-anthropic
       '@tanstack/ai-client':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-client
+        version: link:../../packages/ai-client
       '@tanstack/ai-react':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-react
+        version: link:../../packages/ai-react
       '@tanstack/react-devtools':
         specifier: ^0.9.10
         version: 0.9.10(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(csstype@3.2.3)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(solid-js@1.9.10)
@@ -345,43 +333,43 @@ importers:
         version: 4.1.18(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
       '@tanstack/ai':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai
+        version: link:../../packages/ai
       '@tanstack/ai-anthropic':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-anthropic
+        version: link:../../packages/ai-anthropic
       '@tanstack/ai-client':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-client
+        version: link:../../packages/ai-client
       '@tanstack/ai-elevenlabs':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-elevenlabs
+        version: link:../../packages/ai-elevenlabs
       '@tanstack/ai-fal':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-fal
+        version: link:../../packages/ai-fal
       '@tanstack/ai-gemini':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-gemini
+        version: link:../../packages/ai-gemini
       '@tanstack/ai-grok':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-grok
+        version: link:../../packages/ai-grok
       '@tanstack/ai-groq':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-groq
+        version: link:../../packages/ai-groq
       '@tanstack/ai-ollama':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-ollama
+        version: link:../../packages/ai-ollama
       '@tanstack/ai-openai':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-openai
+        version: link:../../packages/ai-openai
       '@tanstack/ai-openrouter':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-openrouter
+        version: link:../../packages/ai-openrouter
       '@tanstack/ai-react':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-react
+        version: link:../../packages/ai-react
       '@tanstack/ai-react-ui':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-react-ui
+        version: link:../../packages/ai-react-ui
       '@tanstack/nitro-v2-vite-plugin':
         specifier: ^1.154.7
         version: 1.154.7(rolldown@1.0.0-rc.17)(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
@@ -451,7 +439,7 @@ importers:
         version: 0.5.3(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
       '@tanstack/react-ai-devtools':
         specifier: workspace:*
-        version: link:../../packages/typescript/react-ai-devtools
+        version: link:../../packages/react-ai-devtools
       '@testing-library/dom':
         specifier: ^10.4.1
         version: 10.4.1
@@ -493,13 +481,13 @@ importers:
         version: 4.1.18(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
       '@tanstack/ai':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai
+        version: link:../../packages/ai
       '@tanstack/ai-fal':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-fal
+        version: link:../../packages/ai-fal
       '@tanstack/ai-gemini':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-gemini
+        version: link:../../packages/ai-gemini
       '@tanstack/react-router':
         specifier: ^1.158.4
         version: 1.159.5(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -557,13 +545,13 @@ importers:
         version: 4.1.18(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
       '@tanstack/ai':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai
+        version: link:../../packages/ai
       '@tanstack/ai-groq':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-groq
+        version: link:../../packages/ai-groq
       '@tanstack/ai-react':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-react
+        version: link:../../packages/ai-react
       '@tanstack/query-db-collection':
         specifier: ^1.0.6
         version: 1.0.36(@tanstack/query-core@5.90.12)(typescript@5.9.3)
@@ -678,31 +666,31 @@ importers:
         version: 4.1.18(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
       '@tanstack/ai':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai
+        version: link:../../packages/ai
       '@tanstack/ai-anthropic':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-anthropic
+        version: link:../../packages/ai-anthropic
       '@tanstack/ai-client':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-client
+        version: link:../../packages/ai-client
       '@tanstack/ai-devtools-core':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-devtools
+        version: link:../../packages/ai-devtools
       '@tanstack/ai-gemini':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-gemini
+        version: link:../../packages/ai-gemini
       '@tanstack/ai-ollama':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-ollama
+        version: link:../../packages/ai-ollama
       '@tanstack/ai-openai':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-openai
+        version: link:../../packages/ai-openai
       '@tanstack/ai-solid':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-solid
+        version: link:../../packages/ai-solid
       '@tanstack/ai-solid-ui':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-solid-ui
+        version: link:../../packages/ai-solid-ui
       '@tanstack/nitro-v2-vite-plugin':
         specifier: ^1.154.7
         version: 1.154.7(rolldown@1.0.0-rc.17)(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
@@ -711,7 +699,7 @@ importers:
         version: 1.159.5(@tanstack/react-router@1.159.5(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(vite-plugin-solid@2.11.10(solid-js@1.9.10)(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)))(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
       '@tanstack/solid-ai-devtools':
         specifier: workspace:*
-        version: link:../../packages/typescript/solid-ai-devtools
+        version: link:../../packages/solid-ai-devtools
       '@tanstack/solid-devtools':
         specifier: ^0.7.15
         version: 0.7.17(csstype@3.2.3)(solid-js@1.9.10)
@@ -793,25 +781,25 @@ importers:
     dependencies:
       '@tanstack/ai':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai
+        version: link:../../packages/ai
       '@tanstack/ai-anthropic':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-anthropic
+        version: link:../../packages/ai-anthropic
       '@tanstack/ai-client':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-client
+        version: link:../../packages/ai-client
       '@tanstack/ai-gemini':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-gemini
+        version: link:../../packages/ai-gemini
       '@tanstack/ai-ollama':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-ollama
+        version: link:../../packages/ai-ollama
       '@tanstack/ai-openai':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-openai
+        version: link:../../packages/ai-openai
       '@tanstack/ai-svelte':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-svelte
+        version: link:../../packages/ai-svelte
       highlight.js:
         specifier: ^11.11.1
         version: 11.11.1
@@ -866,28 +854,28 @@ importers:
     dependencies:
       '@tanstack/ai':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai
+        version: link:../../packages/ai
       '@tanstack/ai-anthropic':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-anthropic
+        version: link:../../packages/ai-anthropic
       '@tanstack/ai-client':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-client
+        version: link:../../packages/ai-client
       '@tanstack/ai-gemini':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-gemini
+        version: link:../../packages/ai-gemini
       '@tanstack/ai-ollama':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-ollama
+        version: link:../../packages/ai-ollama
       '@tanstack/ai-openai':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-openai
+        version: link:../../packages/ai-openai
       '@tanstack/ai-vue':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-vue
+        version: link:../../packages/ai-vue
       '@tanstack/ai-vue-ui':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-vue-ui
+        version: link:../../packages/ai-vue-ui
       marked:
         specifier: ^15.0.6
         version: 15.0.12
@@ -942,13 +930,13 @@ importers:
     dependencies:
       '@tanstack/ai-client':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-client
+        version: link:../../packages/ai-client
     devDependencies:
       vite:
         specifier: ^7.3.3
         version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
-  packages/typescript/ai:
+  packages/ai:
     dependencies:
       '@ag-ui/core':
         specifier: ^0.0.52
@@ -973,7 +961,7 @@ importers:
         specifier: ^4.2.0
         version: 4.2.1
 
-  packages/typescript/ai-anthropic:
+  packages/ai-anthropic:
     dependencies:
       '@anthropic-ai/sdk':
         specifier: ^0.97.1
@@ -992,7 +980,7 @@ importers:
         specifier: ^4.2.0
         version: 4.2.1
 
-  packages/typescript/ai-client:
+  packages/ai-client:
     dependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -1014,7 +1002,7 @@ importers:
         specifier: ^4.2.0
         version: 4.2.1
 
-  packages/typescript/ai-code-mode:
+  packages/ai-code-mode:
     dependencies:
       esbuild:
         specifier: ^0.25.12
@@ -1030,7 +1018,7 @@ importers:
         specifier: ^4.2.0
         version: 4.3.6
 
-  packages/typescript/ai-code-mode-skills:
+  packages/ai-code-mode-skills:
     dependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -1067,7 +1055,7 @@ importers:
         specifier: ^4.2.0
         version: 4.3.6
 
-  packages/typescript/ai-code-mode/models-eval:
+  packages/ai-code-mode/models-eval:
     dependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -1107,7 +1095,7 @@ importers:
         specifier: ^4.21.0
         version: 4.21.0
 
-  packages/typescript/ai-devtools:
+  packages/ai-devtools:
     dependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -1147,7 +1135,7 @@ importers:
         specifier: ^2.11.10
         version: 2.11.10(solid-js@1.9.10)(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
 
-  packages/typescript/ai-elevenlabs:
+  packages/ai-elevenlabs:
     dependencies:
       '@elevenlabs/client':
         specifier: ^1.3.1
@@ -1169,7 +1157,7 @@ importers:
         specifier: 4.0.14
         version: 4.0.14(vitest@4.0.14(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.9))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
 
-  packages/typescript/ai-event-client:
+  packages/ai-event-client:
     dependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -1182,7 +1170,7 @@ importers:
         specifier: 4.0.14
         version: 4.0.14(vitest@4.0.14(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.9))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
 
-  packages/typescript/ai-fal:
+  packages/ai-fal:
     dependencies:
       '@fal-ai/client':
         specifier: ^1.10.1
@@ -1201,7 +1189,7 @@ importers:
         specifier: ^7.3.3
         version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
-  packages/typescript/ai-gemini:
+  packages/ai-gemini:
     dependencies:
       '@google/genai':
         specifier: ^1.43.0
@@ -1223,7 +1211,7 @@ importers:
         specifier: ^4.2.0
         version: 4.3.6
 
-  packages/typescript/ai-grok:
+  packages/ai-grok:
     dependencies:
       '@tanstack/ai-utils':
         specifier: workspace:*
@@ -1251,7 +1239,7 @@ importers:
         specifier: ^7.3.3
         version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
-  packages/typescript/ai-groq:
+  packages/ai-groq:
     dependencies:
       '@tanstack/ai':
         specifier: workspace:^
@@ -1276,7 +1264,7 @@ importers:
         specifier: ^7.3.3
         version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
-  packages/typescript/ai-isolate-cloudflare:
+  packages/ai-isolate-cloudflare:
     dependencies:
       '@tanstack/ai-code-mode':
         specifier: workspace:*
@@ -1292,7 +1280,7 @@ importers:
         specifier: ^4.88.0
         version: 4.88.0(@cloudflare/workers-types@4.20260317.1)
 
-  packages/typescript/ai-isolate-node:
+  packages/ai-isolate-node:
     dependencies:
       '@tanstack/ai-code-mode':
         specifier: workspace:*
@@ -1305,7 +1293,7 @@ importers:
         specifier: 4.0.14
         version: 4.0.14(vitest@4.0.14(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.9))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
 
-  packages/typescript/ai-isolate-quickjs:
+  packages/ai-isolate-quickjs:
     dependencies:
       '@tanstack/ai-code-mode':
         specifier: workspace:*
@@ -1318,7 +1306,7 @@ importers:
         specifier: 4.0.14
         version: 4.0.14(vitest@4.0.14(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.9))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
 
-  packages/typescript/ai-ollama:
+  packages/ai-ollama:
     dependencies:
       '@tanstack/ai-utils':
         specifier: workspace:*
@@ -1337,7 +1325,7 @@ importers:
         specifier: ^7.3.3
         version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
-  packages/typescript/ai-openai:
+  packages/ai-openai:
     dependencies:
       '@tanstack/ai-utils':
         specifier: workspace:*
@@ -1365,7 +1353,7 @@ importers:
         specifier: ^4.2.0
         version: 4.3.6
 
-  packages/typescript/ai-openrouter:
+  packages/ai-openrouter:
     dependencies:
       '@openrouter/sdk':
         specifier: 0.12.35
@@ -1387,7 +1375,7 @@ importers:
         specifier: ^4.2.0
         version: 4.3.6
 
-  packages/typescript/ai-preact:
+  packages/ai-preact:
     dependencies:
       '@tanstack/ai':
         specifier: workspace:^
@@ -1412,7 +1400,7 @@ importers:
         specifier: ^7.3.3
         version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
-  packages/typescript/ai-react:
+  packages/ai-react:
     dependencies:
       '@tanstack/ai-client':
         specifier: workspace:*
@@ -1443,7 +1431,7 @@ importers:
         specifier: ^7.3.3
         version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
-  packages/typescript/ai-react-ui:
+  packages/ai-react-ui:
     dependencies:
       react-markdown:
         specifier: ^10.1.0
@@ -1483,7 +1471,7 @@ importers:
         specifier: ^7.3.3
         version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
-  packages/typescript/ai-solid:
+  packages/ai-solid:
     dependencies:
       '@tanstack/ai-client':
         specifier: workspace:*
@@ -1520,7 +1508,7 @@ importers:
         specifier: ^4.0.14
         version: 4.0.15(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.9))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
-  packages/typescript/ai-solid-ui:
+  packages/ai-solid-ui:
     dependencies:
       rehype-highlight:
         specifier: ^7.0.2
@@ -1554,7 +1542,7 @@ importers:
         specifier: ^7.3.3
         version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
-  packages/typescript/ai-svelte:
+  packages/ai-svelte:
     dependencies:
       '@tanstack/ai-client':
         specifier: workspace:*
@@ -1594,7 +1582,7 @@ importers:
         specifier: ^7.3.3
         version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
-  packages/typescript/ai-utils:
+  packages/ai-utils:
     devDependencies:
       '@types/node':
         specifier: ^24.10.1
@@ -1606,7 +1594,7 @@ importers:
         specifier: ^7.3.3
         version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
-  packages/typescript/ai-vue:
+  packages/ai-vue:
     dependencies:
       '@tanstack/ai-client':
         specifier: workspace:*
@@ -1643,7 +1631,7 @@ importers:
         specifier: ^3.5.25
         version: 3.5.25(typescript@5.9.3)
 
-  packages/typescript/ai-vue-ui:
+  packages/ai-vue-ui:
     dependencies:
       '@crazydos/vue-markdown':
         specifier: ^1.1.4
@@ -1677,7 +1665,7 @@ importers:
         specifier: ^2.2.10
         version: 2.2.12(typescript@5.9.3)
 
-  packages/typescript/openai-base:
+  packages/openai-base:
     dependencies:
       '@tanstack/ai-utils':
         specifier: workspace:*
@@ -1699,7 +1687,7 @@ importers:
         specifier: ^4.2.0
         version: 4.3.6
 
-  packages/typescript/preact-ai-devtools:
+  packages/preact-ai-devtools:
     dependencies:
       '@tanstack/ai-devtools-core':
         specifier: workspace:*
@@ -1718,7 +1706,7 @@ importers:
         specifier: ^7.3.3
         version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
-  packages/typescript/react-ai-devtools:
+  packages/react-ai-devtools:
     dependencies:
       '@tanstack/ai-devtools-core':
         specifier: workspace:*
@@ -1740,7 +1728,7 @@ importers:
         specifier: ^7.3.3
         version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
-  packages/typescript/solid-ai-devtools:
+  packages/solid-ai-devtools:
     dependencies:
       '@tanstack/ai-devtools-core':
         specifier: workspace:*
@@ -1778,40 +1766,40 @@ importers:
         version: 4.1.18(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
       '@tanstack/ai':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai
+        version: link:../../packages/ai
       '@tanstack/ai-anthropic':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-anthropic
+        version: link:../../packages/ai-anthropic
       '@tanstack/ai-client':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-client
+        version: link:../../packages/ai-client
       '@tanstack/ai-elevenlabs':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-elevenlabs
+        version: link:../../packages/ai-elevenlabs
       '@tanstack/ai-gemini':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-gemini
+        version: link:../../packages/ai-gemini
       '@tanstack/ai-grok':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-grok
+        version: link:../../packages/ai-grok
       '@tanstack/ai-groq':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-groq
+        version: link:../../packages/ai-groq
       '@tanstack/ai-ollama':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-ollama
+        version: link:../../packages/ai-ollama
       '@tanstack/ai-openai':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-openai
+        version: link:../../packages/ai-openai
       '@tanstack/ai-openrouter':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-openrouter
+        version: link:../../packages/ai-openrouter
       '@tanstack/ai-react':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-react
+        version: link:../../packages/ai-react
       '@tanstack/ai-react-ui':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-react-ui
+        version: link:../../packages/ai-react-ui
       '@tanstack/devtools-event-bus':
         specifier: ^0.4.1
         version: 0.4.1
@@ -1820,7 +1808,7 @@ importers:
         version: 1.154.7(rolldown@1.0.0-rc.17)(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
       '@tanstack/react-ai-devtools':
         specifier: workspace:*
-        version: link:../../packages/typescript/react-ai-devtools
+        version: link:../../packages/react-ai-devtools
       '@tanstack/react-router':
         specifier: ^1.158.4
         version: 1.159.5(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -1890,37 +1878,37 @@ importers:
         version: 4.1.18(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
       '@tanstack/ai':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai
+        version: link:../../packages/ai
       '@tanstack/ai-anthropic':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-anthropic
+        version: link:../../packages/ai-anthropic
       '@tanstack/ai-client':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-client
+        version: link:../../packages/ai-client
       '@tanstack/ai-event-client':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-event-client
+        version: link:../../packages/ai-event-client
       '@tanstack/ai-gemini':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-gemini
+        version: link:../../packages/ai-gemini
       '@tanstack/ai-grok':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-grok
+        version: link:../../packages/ai-grok
       '@tanstack/ai-ollama':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-ollama
+        version: link:../../packages/ai-ollama
       '@tanstack/ai-openai':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-openai
+        version: link:../../packages/ai-openai
       '@tanstack/ai-openrouter':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-openrouter
+        version: link:../../packages/ai-openrouter
       '@tanstack/ai-react':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-react
+        version: link:../../packages/ai-react
       '@tanstack/ai-react-ui':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-react-ui
+        version: link:../../packages/ai-react-ui
       '@tanstack/nitro-v2-vite-plugin':
         specifier: ^1.154.7
         version: 1.154.7(rolldown@1.0.0-rc.17)(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))

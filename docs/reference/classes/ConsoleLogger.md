@@ -5,7 +5,7 @@ title: ConsoleLogger
 
 # Class: ConsoleLogger
 
-Defined in: [packages/typescript/ai/src/logger/console-logger.ts:25](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/logger/console-logger.ts#L25)
+Defined in: [packages/ai/src/logger/console-logger.ts:25](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/console-logger.ts#L25)
 
 Pluggable logger interface consumed by every `@tanstack/ai` activity when `debug` is enabled. Supply a custom implementation via `debug: { logger }` on `chat()`, `summarize()`, `generateImage()`, etc. The four methods correspond to log levels: use `debug` for chunk-level diagnostic output, `info`/`warn` for notable events, `error` for caught exceptions.
 
@@ -33,7 +33,7 @@ new ConsoleLogger(): ConsoleLogger;
 debug(message, meta?): void;
 ```
 
-Defined in: [packages/typescript/ai/src/logger/console-logger.ts:27](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/logger/console-logger.ts#L27)
+Defined in: [packages/ai/src/logger/console-logger.ts:27](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/console-logger.ts#L27)
 
 Log a debug-level message; forwards to `console.debug`.
 
@@ -63,7 +63,7 @@ Log a debug-level message; forwards to `console.debug`.
 error(message, meta?): void;
 ```
 
-Defined in: [packages/typescript/ai/src/logger/console-logger.ts:45](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/logger/console-logger.ts#L45)
+Defined in: [packages/ai/src/logger/console-logger.ts:45](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/console-logger.ts#L45)
 
 Log an error-level message; forwards to `console.error`.
 
@@ -93,7 +93,7 @@ Log an error-level message; forwards to `console.error`.
 info(message, meta?): void;
 ```
 
-Defined in: [packages/typescript/ai/src/logger/console-logger.ts:33](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/logger/console-logger.ts#L33)
+Defined in: [packages/ai/src/logger/console-logger.ts:33](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/console-logger.ts#L33)
 
 Log an info-level message; forwards to `console.info`.
 
@@ -123,7 +123,7 @@ Log an info-level message; forwards to `console.info`.
 warn(message, meta?): void;
 ```
 
-Defined in: [packages/typescript/ai/src/logger/console-logger.ts:39](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/logger/console-logger.ts#L39)
+Defined in: [packages/ai/src/logger/console-logger.ts:39](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/console-logger.ts#L39)
 
 Log a warning-level message; forwards to `console.warn`.
 

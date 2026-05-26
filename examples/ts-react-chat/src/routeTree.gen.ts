@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as ServerFnChatRouteImport } from './routes/server-fn-chat'
 import { Route as RealtimeRouteImport } from './routes/realtime'
 import { Route as Issue176ToolResultRouteImport } from './routes/issue-176-tool-result'
 import { Route as ImageGenRouteImport } from './routes/image-gen'
@@ -35,6 +36,11 @@ import { Route as ApiGenerateSpeechRouteImport } from './routes/api.generate.spe
 import { Route as ApiGenerateImageRouteImport } from './routes/api.generate.image'
 import { Route as ApiGenerateAudioRouteImport } from './routes/api.generate.audio'
 
+const ServerFnChatRoute = ServerFnChatRouteImport.update({
+  id: '/server-fn-chat',
+  path: '/server-fn-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RealtimeRoute = RealtimeRouteImport.update({
   id: '/realtime',
   path: '/realtime',
@@ -170,6 +176,7 @@ export interface FileRoutesByFullPath {
   '/image-gen': typeof ImageGenRoute
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/realtime': typeof RealtimeRoute
+  '/server-fn-chat': typeof ServerFnChatRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
@@ -197,6 +204,7 @@ export interface FileRoutesByTo {
   '/image-gen': typeof ImageGenRoute
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/realtime': typeof RealtimeRoute
+  '/server-fn-chat': typeof ServerFnChatRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
@@ -225,6 +233,7 @@ export interface FileRoutesById {
   '/image-gen': typeof ImageGenRoute
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/realtime': typeof RealtimeRoute
+  '/server-fn-chat': typeof ServerFnChatRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
@@ -254,6 +263,7 @@ export interface FileRouteTypes {
     | '/image-gen'
     | '/issue-176-tool-result'
     | '/realtime'
+    | '/server-fn-chat'
     | '/api/image-gen'
     | '/api/structured-chat'
     | '/api/structured-output'
@@ -281,6 +291,7 @@ export interface FileRouteTypes {
     | '/image-gen'
     | '/issue-176-tool-result'
     | '/realtime'
+    | '/server-fn-chat'
     | '/api/image-gen'
     | '/api/structured-chat'
     | '/api/structured-output'
@@ -308,6 +319,7 @@ export interface FileRouteTypes {
     | '/image-gen'
     | '/issue-176-tool-result'
     | '/realtime'
+    | '/server-fn-chat'
     | '/api/image-gen'
     | '/api/structured-chat'
     | '/api/structured-output'
@@ -336,6 +348,7 @@ export interface RootRouteChildren {
   ImageGenRoute: typeof ImageGenRoute
   Issue176ToolResultRoute: typeof Issue176ToolResultRoute
   RealtimeRoute: typeof RealtimeRoute
+  ServerFnChatRoute: typeof ServerFnChatRoute
   ApiImageGenRoute: typeof ApiImageGenRoute
   ApiStructuredChatRoute: typeof ApiStructuredChatRoute
   ApiStructuredOutputRoute: typeof ApiStructuredOutputRoute
@@ -360,6 +373,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/server-fn-chat': {
+      id: '/server-fn-chat'
+      path: '/server-fn-chat'
+      fullPath: '/server-fn-chat'
+      preLoaderRoute: typeof ServerFnChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/realtime': {
       id: '/realtime'
       path: '/realtime'
@@ -544,6 +564,7 @@ const rootRouteChildren: RootRouteChildren = {
   ImageGenRoute: ImageGenRoute,
   Issue176ToolResultRoute: Issue176ToolResultRoute,
   RealtimeRoute: RealtimeRoute,
+  ServerFnChatRoute: ServerFnChatRoute,
   ApiImageGenRoute: ApiImageGenRoute,
   ApiStructuredChatRoute: ApiStructuredChatRoute,
   ApiStructuredOutputRoute: ApiStructuredOutputRoute,

@@ -8,7 +8,7 @@ final report. Skip dimensions that don't apply to the scope (e.g.,
 
 ## 1. New models
 
-**Input:** `packages/typescript/ai-<provider>/src/model-meta.ts`
+**Input:** `packages/ai-<provider>/src/model-meta.ts`
 **Upstream:** the provider's models page (see provider-doc-urls.md).
 
 Steps:
@@ -116,7 +116,7 @@ Steps:
    - Computer use / browser tools
    - Memory / sessions
 3. Cross-check by grep'ing the adapter source:
-   - `Grep "<capability-keyword>" packages/typescript/ai-<provider>/src/`
+   - `Grep "<capability-keyword>" packages/ai-<provider>/src/`
    - If zero matches → likely untracked.
 4. For each untracked feature, note:
    - Upstream URL
@@ -166,7 +166,7 @@ Steps:
 ## 5. Telemetry / observability parity
 
 **Input:** every adapter's stream-emit and final-response paths in
-`packages/typescript/ai-<provider>/src/adapters/*.ts`.
+`packages/ai-<provider>/src/adapters/*.ts`.
 **Upstream:** the provider's API reference for the response envelope (usage,
 cost, cache, reasoning, request-id, safety/moderation fields).
 
@@ -180,7 +180,7 @@ Steps:
 
 1. For each adapter, grep the streaming and non-streaming paths for the
    fields it forwards into `StreamChunk` / final response usage:
-   - `Grep "usage|promptTokens|completionTokens|cached|reasoning|cache_creation|cache_read" packages/typescript/ai-<provider>/src/adapters/`
+   - `Grep "usage|promptTokens|completionTokens|cached|reasoning|cache_creation|cache_read" packages/ai-<provider>/src/adapters/`
 2. Build a cross-adapter table of which fields each adapter emits. Rows
    below are examples — extend per provider:
 
@@ -222,7 +222,7 @@ Steps:
 When fan-out is needed, launch one `Explore` subagent per provider with a
 prompt of this shape:
 
-> Audit the `<provider>` adapter at `packages/typescript/ai-<provider>/`
+> Audit the `<provider>` adapter at `packages/ai-<provider>/`
 > against upstream docs at the URLs in
 > `.claude/skills/gap-analysis/references/provider-doc-urls.md`. Walk
 > dimensions 1, 3, 4, and 5 from `audit-checklist.md`. Skip dimension 2
