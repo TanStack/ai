@@ -162,9 +162,14 @@ export const matrix: Record<Feature, Set<Provider>> = {
   ]),
   // Gemini excluded: aimock doesn't mock Gemini's Imagen predict endpoint format
   'image-gen': new Set(['openai', 'grok']),
-  tts: new Set(['openai', 'grok']),
-  transcription: new Set(['openai', 'grok']),
+  'audio-gen': new Set(['gemini', 'elevenlabs']),
+  'sound-effects': new Set(['elevenlabs']),
+  tts: new Set(['openai', 'grok', 'elevenlabs']),
+  transcription: new Set(['openai', 'grok', 'elevenlabs']),
   'video-gen': new Set(['openai']),
+  // Only Gemini currently surfaces a first-class stateful conversation API via
+  // the adapter (geminiTextInteractions, behind @tanstack/ai-gemini/experimental).
+  'stateful-interactions': new Set(['gemini']),
 }
 
 export function isSupported(provider: Provider, feature: Feature): boolean {
