@@ -32,7 +32,7 @@ import { providersFor } from './test-matrix'
 // The route's translation of `forwardedProps.previousInteractionId` into
 // `modelOptions.previous_interaction_id`, and the adapter's wire-format
 // translation of that into the Interactions API payload, are covered by unit
-// tests in `packages/typescript/ai-gemini/tests/text-interactions-adapter.test.ts`.
+// tests in `packages/ai-gemini/tests/text-interactions-adapter.test.ts`.
 for (const provider of providersFor('stateful-interactions')) {
   test.describe(`${provider} — stateful-interactions`, () => {
     test('two-turn conversation chained via previous_interaction_id', async ({
