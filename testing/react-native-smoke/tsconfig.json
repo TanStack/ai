@@ -11,6 +11,9 @@
       "@tanstack/ai": ["../../packages/ai/src/index.ts"],
       "@tanstack/ai/client": ["../../packages/ai/src/client.ts"],
       "@tanstack/ai-client": ["../../packages/ai-client/src/index.ts"],
+      "@tanstack/ai-event-client": [
+        "../../packages/ai-event-client/src/index.ts"
+      ],
       "@tanstack/ai-react": ["../../packages/ai-react/src/index.ts"]
     }
   },
