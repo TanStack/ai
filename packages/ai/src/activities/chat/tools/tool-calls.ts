@@ -169,6 +169,13 @@ export class ToolCallManager {
       const tool = this.tools.find((t) => t.name === toolCall.function.name)
 
       let toolResultContent: string
+      // Holds the parsed/validated execution output before JSON-stringify.
+      // Surfaced on the emitted `TOOL_CALL_END` event as `output` so
+      // consumers can read it typed (via `TypedStreamChunk` distribution
+      // over the tools array) without re-parsing `result`.
+      // Stays `undefined` when the tool has no `.execute` (pure client
+      // tools) or when execution throws.
+      let toolOutput: unknown
       if (tool?.execute) {
         try {
           // Parse arguments (normalize null/non-object to {} for empty tool_use blocks)
@@ -221,6 +228,7 @@ export class ToolCallManager {
             }
           }
 
+          toolOutput = result
           toolResultContent =
             typeof result === 'string' ? result : JSON.stringify(result)
         } catch (error: unknown) {
@@ -242,6 +250,8 @@ export class ToolCallManager {
         toolName: toolCall.function.name,
         model: finishEvent.model,
         timestamp: Date.now(),
+        // Typed parsed output (undefined for failed exec / client-only tools).
+        ...(toolOutput !== undefined ? { output: toolOutput } : {}),
         result: toolResultContent,
       } as ToolCallEndEvent
 

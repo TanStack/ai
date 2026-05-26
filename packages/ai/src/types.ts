@@ -1218,16 +1218,19 @@ void _toolCallArgsDriftCheck
  * Emitted when a tool call completes.
  *
  * @ag-ui/core provides: `toolCallId`
- * TanStack AI adds: `model?`, `toolCallName?`, `toolName?` (deprecated), `input?`, `result?`
+ * TanStack AI adds: `model?`, `toolCallName?`, `toolName?` (deprecated), `input?`, `output?`, `result?`
  *
  * @typeParam TToolName - Constrained tool name type. Defaults to `string` (untyped).
  * @typeParam TInput - Constrained input arguments type. Defaults to `unknown` (untyped).
+ * @typeParam TOutput - Constrained output type, inferred from the tool's
+ *   `outputSchema`. Defaults to `unknown` (untyped).
  *   When the stream is returned from `chat()` with typed tools, these narrow to
- *   the union of tool name literals and the union of tool input types respectively.
+ *   the union of tool name literals, input types, and output types respectively.
  */
 export interface ToolCallEndEvent<
   TToolName extends string = string,
   TInput = unknown,
+  TOutput = unknown,
 > extends Pick<AGUIToolCallEndEvent, 'toolCallId' | 'timestamp' | 'rawEvent'> {
   type: 'TOOL_CALL_END'
   /** Model identifier for multi-model support */
@@ -1251,13 +1254,25 @@ export interface ToolCallEndEvent<
   toolName: TToolName
   /** Final parsed input arguments (TanStack AI internal) */
   input?: TInput
-  /** Tool execution result (TanStack AI internal) */
+  /**
+   * Tool execution output, validated against the tool's `outputSchema` when
+   * one is declared. Set by the engine before JSON-stringifying into
+   * `result`. Undefined for tools without a `.server(...)` implementation
+   * (pure client tools — their results arrive via the chat client's tool
+   * approval path instead).
+   */
+  output?: TOutput
+  /**
+   * Wire-level JSON-stringified result. The AG-UI spec carries the result
+   * as text; consumers that need the typed object should read `output`
+   * instead (it carries the parsed value before serialization).
+   */
   result?: string
 }
 type _ToolCallEndDriftCheck = AssertSatisfiesAGUI<
   Omit<
     ToolCallEndEvent,
-    'type' | 'model' | 'toolCallName' | 'toolName' | 'input' | 'result'
+    'type' | 'model' | 'toolCallName' | 'toolName' | 'input' | 'output' | 'result'
   >,
   Pick<AGUIToolCallEndEvent, 'toolCallId' | 'timestamp' | 'rawEvent'>
 >
@@ -1793,6 +1808,20 @@ type SafeToolInput<T> = T extends {
   : unknown
 
 /**
+ * Safely infer output type for a single tool. Mirrors `SafeToolInput`,
+ * picking `outputSchema` instead. Returns `unknown` when the tool has no
+ * `outputSchema` declared or when `InferSchemaType` produces `any`.
+ * @internal
+ */
+type SafeToolOutput<T> = T extends {
+  outputSchema?: infer TOutput
+}
+  ? IsAny<InferSchemaType<NonNullable<TOutput>>> extends true
+    ? unknown
+    : InferSchemaType<NonNullable<TOutput>>
+  : unknown
+
+/**
  * Distribute over each non-provider tool to create a per-tool
  * `ToolCallStartEvent`.
  *
@@ -1841,7 +1870,7 @@ type DistributedToolCallStart<
 type DistributedToolCallEnd<TTools extends ReadonlyArray<Tool<any, any, any>>> =
   NonProviderTools<TTools> extends infer T
     ? T extends { name: infer TName extends string }
-      ? ToolCallEndEvent<TName, SafeToolInput<T>> & {
+      ? ToolCallEndEvent<TName, SafeToolInput<T>, SafeToolOutput<T>> & {
           toolCallName: TName
           toolName: TName
         }
