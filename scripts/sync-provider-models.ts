@@ -62,7 +62,7 @@ interface ProviderConfig {
 const PROVIDER_MAP: Record<string, ProviderConfig> = {
   'openai/': {
     packageName: '@tanstack/ai-openai',
-    metaFile: resolve(ROOT, 'packages/typescript/ai-openai/src/model-meta.ts'),
+    metaFile: resolve(ROOT, 'packages/ai-openai/src/model-meta.ts'),
     arrayRef: '.name',
     contextField: 'context_window',
     chatArrayName: 'OPENAI_CHAT_MODELS',
@@ -91,7 +91,7 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     packageName: '@tanstack/ai-anthropic',
     metaFile: resolve(
       ROOT,
-      'packages/typescript/ai-anthropic/src/model-meta.ts',
+      'packages/ai-anthropic/src/model-meta.ts',
     ),
     arrayRef: '.id',
     contextField: 'context_window',
@@ -112,7 +112,7 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
   },
   'google/': {
     packageName: '@tanstack/ai-gemini',
-    metaFile: resolve(ROOT, 'packages/typescript/ai-gemini/src/model-meta.ts'),
+    metaFile: resolve(ROOT, 'packages/ai-gemini/src/model-meta.ts'),
     arrayRef: '.name',
     contextField: 'max_input_tokens',
     chatArrayName: 'GEMINI_MODELS',
@@ -134,7 +134,7 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
   },
   'x-ai/': {
     packageName: '@tanstack/ai-grok',
-    metaFile: resolve(ROOT, 'packages/typescript/ai-grok/src/model-meta.ts'),
+    metaFile: resolve(ROOT, 'packages/ai-grok/src/model-meta.ts'),
     arrayRef: '.name',
     contextField: 'context_window',
     chatArrayName: 'GROK_CHAT_MODELS',
@@ -520,7 +520,7 @@ function detectChangedPackages(): Set<string> {
     if (!diff) return changed
 
     for (const line of diff.split('\n')) {
-      // packages/typescript/ai-openrouter/... → @tanstack/ai-openrouter
+      // packages/ai-openrouter/... → @tanstack/ai-openrouter
       const match = line.match(/^packages\/typescript\/([\w-]+)\//)
       if (match) {
         changed.add(`@tanstack/${match[1]}`)

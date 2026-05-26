@@ -46,7 +46,7 @@ pnpm --filter @tanstack/ai-e2e test:e2e:ui # Run with Playwright UI
 
 ```bash
 # Navigate to package directory and run tests
-cd packages/typescript/ai
+cd packages/ai
 pnpm test:lib              # Run tests for this package
 pnpm test:lib:dev          # Watch mode
 pnpm test:types            # Type check
@@ -86,21 +86,20 @@ pnpm changeset:publish     # Publish to npm
 ### Monorepo Structure
 
 ```
-packages/
-└── typescript/           # TypeScript packages (main implementation)
-│   ├── ai/              # Core AI library (@tanstack/ai)
-│   ├── ai-client/       # Framework-agnostic chat client
-│   ├── ai-react/        # React hooks (useChat)
-│   ├── ai-solid/        # Solid hooks
-│   ├── ai-svelte/       # Svelte integration
-│   ├── ai-vue/          # Vue integration
-│   ├── ai-openai/       # OpenAI adapter
-│   ├── ai-anthropic/    # Anthropic/Claude adapter
-│   ├── ai-gemini/       # Google Gemini adapter
-│   ├── ai-ollama/       # Ollama adapter
-│   ├── ai-devtools/     # DevTools integration
-│   ├── react-ai-devtools/ # React DevTools component
-│   └── solid-ai-devtools/ # Solid DevTools component
+packages/                # TypeScript packages (main implementation)
+├── ai/                  # Core AI library (@tanstack/ai)
+├── ai-client/           # Framework-agnostic chat client
+├── ai-react/            # React hooks (useChat)
+├── ai-solid/            # Solid hooks
+├── ai-svelte/           # Svelte integration
+├── ai-vue/              # Vue integration
+├── ai-openai/           # OpenAI adapter
+├── ai-anthropic/        # Anthropic/Claude adapter
+├── ai-gemini/           # Google Gemini adapter
+├── ai-ollama/           # Ollama adapter
+├── ai-devtools/         # DevTools integration
+├── react-ai-devtools/   # React DevTools component
+└── solid-ai-devtools/   # Solid DevTools component
 
 testing/
 ├── e2e/                 # E2E tests (Playwright + aimock) — MANDATORY for all changes
@@ -185,7 +184,7 @@ Each framework integration uses the headless `ai-client` under the hood.
 
 ### Key Files & Directories
 
-#### Core Package (`packages/typescript/ai/src/`)
+#### Core Package (`packages/ai/src/`)
 
 - **`index.ts`** - Main exports (chat, embedding, summarize, toolDefinition, etc.)
 - **`types.ts`** - Core type definitions (ModelMessage, ContentPart, StreamChunk, etc.)
@@ -195,7 +194,7 @@ Each framework integration uses the headless `ai-client` under the hood.
 - **`stream/`** - Stream processing (StreamProcessor, chunking strategies, partial JSON parsing)
 - **`utilities/`** - Helpers (message converters, agent loop strategies, SSE utilities)
 
-#### Provider Adapters (e.g., `packages/typescript/ai-openai/src/`)
+#### Provider Adapters (e.g., `packages/ai-openai/src/`)
 
 - **`index.ts`** - Exports tree-shakeable adapters (openaiText, openaiEmbed, etc.)
 - **`adapters/`** - Individual adapter implementations (text.ts, embed.ts, summarize.ts, image.ts)

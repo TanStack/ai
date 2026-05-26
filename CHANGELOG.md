@@ -41,7 +41,7 @@ npm install @tanstack/ai-client
 - ✅ Stream processing with smart chunking strategies
 - ✅ Automatic tool call handling
 
-**See:** [Package Documentation](packages/typescript/ai-client/README.md)
+**See:** [Package Documentation](packages/ai-client/README.md)
 
 #### @tanstack/ai-react-ui
 
@@ -100,7 +100,7 @@ const client = new ChatClient({
 })
 ```
 
-**See:** [Stream Processing Quick Start](packages/typescript/ai-client/docs/STREAM_QUICKSTART.md)
+**See:** [Stream Processing Quick Start](packages/ai-client/docs/STREAM_QUICKSTART.md)
 
 ### Connection Adapters Added
 

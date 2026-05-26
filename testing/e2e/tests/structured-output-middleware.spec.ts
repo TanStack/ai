@@ -27,7 +27,7 @@ import { test, expect } from './fixtures'
  * `structured-output` and `structured-output-stream` modes. The first test
  * exercises the structured-output phase coverage via the SSE harness; the
  * true non-streaming `Promise<T>` path is covered by unit tests in
- * `packages/typescript/ai/tests/structured-output-middleware.test.ts`.
+ * `packages/ai/tests/structured-output-middleware.test.ts`.
  * Adding a real non-streaming E2E scenario would require page-side rewiring
  * to await `Promise<T>` instead of iterating SSE and is out of scope here.
  */

@@ -254,7 +254,7 @@ When adding new examples:
 
 - 📖 [Main README](../README.md) - Project overview
 - 📖 [Documentation](../docs/) - Comprehensive guides
-- 📖 [TypeScript Packages](../packages/typescript/) - Core libraries
+- 📖 [TypeScript Packages](../packages/) - Core libraries
 
 ---
 
