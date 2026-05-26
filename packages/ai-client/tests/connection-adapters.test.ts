@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { EventType } from '@tanstack/ai'
+import { EventType } from '@tanstack/ai/client'
 import {
   fetchHttpStream,
   fetchServerSentEvents,
@@ -7,7 +7,8 @@ import {
   rpcStream,
   stream,
 } from '../src/connection-adapters'
-import type { StreamChunk } from '@tanstack/ai'
+import { UnsupportedResponseStreamError } from '../src'
+import type { StreamChunk } from '@tanstack/ai/client'
 
 describe('connection-adapters', () => {
   let originalFetch: typeof fetch
@@ -34,6 +35,46 @@ describe('connection-adapters', () => {
             done: false,
             value: new TextEncoder().encode(
               'data: {"type":"TEXT_MESSAGE_CONTENT","messageId":"msg-1","model":"test","timestamp":123,"delta":"Hello","content":"Hello"}\n\n',
+            ),
+          })
+          .mockResolvedValueOnce({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+
+      const mockResponse = {
+        ok: true,
+        body: {
+          getReader: () => mockReader,
+        },
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchServerSentEvents('/api/chat')
+      const chunks: Array<StreamChunk> = []
+
+      for await (const chunk of adapter.connect([
+        { role: 'user', content: 'Hello' },
+      ])) {
+        chunks.push(chunk)
+      }
+
+      expect(chunks).toHaveLength(1)
+      expect(chunks[0]).toMatchObject({
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: 'msg-1',
+        delta: 'Hello',
+      })
+    })
+
+    it('should handle SSE format with data: prefix and no space', async () => {
+      const mockReader = {
+        read: vi
+          .fn()
+          .mockResolvedValueOnce({
+            done: false,
+            value: new TextEncoder().encode(
+              'data:{"type":"TEXT_MESSAGE_CONTENT","messageId":"msg-1","model":"test","timestamp":123,"delta":"Hello","content":"Hello"}\n\n',
             ),
           })
           .mockResolvedValueOnce({ done: true, value: undefined }),
@@ -209,7 +250,62 @@ describe('connection-adapters', () => {
             // Consume
           }
         })(),
-      ).rejects.toThrow('Response body is not readable')
+      ).rejects.toMatchObject({
+        name: 'UnsupportedResponseStreamError',
+        missingFeature: 'Response.body',
+      })
+    })
+
+    it('should throw an actionable unsupported-stream error when getReader is missing', async () => {
+      const mockResponse = {
+        ok: true,
+        body: {},
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchServerSentEvents('/api/chat')
+
+      await expect(
+        (async () => {
+          for await (const _ of adapter.connect([
+            { role: 'user', content: 'Hello' },
+          ])) {
+            // Consume
+          }
+        })(),
+      ).rejects.toMatchObject({
+        name: 'UnsupportedResponseStreamError',
+        missingFeature: 'Response.body.getReader',
+        message: expect.stringContaining('compatible fetch'),
+      })
+    })
+
+    it('should preserve HTTP errors before stream capability checks', async () => {
+      const mockResponse = {
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error',
+        body: null,
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchServerSentEvents('/api/chat')
+      const consume = async () => {
+        for await (const _ of adapter.connect([
+          { role: 'user', content: 'Hello' },
+        ])) {
+          // Consume
+        }
+      }
+
+      await expect(consume()).rejects.toThrow(
+        'HTTP error! status: 500 Internal Server Error',
+      )
+      await expect(consume()).rejects.not.toBeInstanceOf(
+        UnsupportedResponseStreamError,
+      )
     })
 
     it('should merge custom headers', async () => {
@@ -667,7 +763,48 @@ describe('connection-adapters', () => {
             // Consume
           }
         })(),
-      ).rejects.toThrow('Response body is not readable')
+      ).rejects.toMatchObject({
+        name: 'UnsupportedResponseStreamError',
+        missingFeature: 'Response.body',
+      })
+    })
+
+    it('should throw an actionable unsupported-stream error when TextDecoder is missing', async () => {
+      const originalTextDecoder = globalThis.TextDecoder
+      // @ts-expect-error - simulate React Native runtimes without TextDecoder.
+      globalThis.TextDecoder = undefined
+      const mockReader = {
+        read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+      const mockResponse = {
+        ok: true,
+        body: {
+          getReader: () => mockReader,
+        },
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchHttpStream('/api/chat')
+
+      try {
+        await expect(
+          (async () => {
+            for await (const _ of adapter.connect([
+              { role: 'user', content: 'Hello' },
+            ])) {
+              // Consume
+            }
+          })(),
+        ).rejects.toMatchObject({
+          name: 'UnsupportedResponseStreamError',
+          missingFeature: 'TextDecoder',
+          message: expect.stringContaining('TextDecoder'),
+        })
+      } finally {
+        globalThis.TextDecoder = originalTextDecoder
+      }
     })
 
     it('should merge custom headers', async () => {

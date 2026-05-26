@@ -3,7 +3,7 @@ import type {
   InferSchemaType,
   ModelMessage,
   SchemaInput,
-} from '@tanstack/ai'
+} from '@tanstack/ai/client'
 import type {
   ChatClientOptions,
   ChatClientState,

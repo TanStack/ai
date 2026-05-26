@@ -1,4 +1,4 @@
-import type { StreamChunk } from '@tanstack/ai'
+import type { StreamChunk } from '@tanstack/ai/client'
 import type { ConnectConnectionAdapter } from './connection-adapters'
 
 // ===========================

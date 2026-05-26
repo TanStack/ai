@@ -13,6 +13,12 @@ keywords:
 ---
 
 React hooks for TanStack AI, providing convenient React bindings for the headless client.
+For React Native, the documented support surface is narrow: `useChat` with chat
+connection adapters. React DOM-specific UI packages and TanStack AI devtools UI
+are not part of the React Native support surface.
+
+For a complete native journey, see
+[Quick Start: React Native](../getting-started/quick-start-react-native).
 
 ## Installation
 
@@ -111,10 +117,29 @@ Re-exported from `@tanstack/ai-client` for convenience:
 import {
   fetchServerSentEvents,
   fetchHttpStream,
+  xhrServerSentEvents,
+  xhrHttpStream,
   stream,
   type ConnectionAdapter,
+  type FetchConnectionOptions,
+  type XhrConnectionOptions,
 } from "@tanstack/ai-react";
 ```
+
+For React Native or Expo chat screens, use an absolute server URL and prefer
+`xhrHttpStream()` with a server route that returns `toHttpResponse()`. Use
+`xhrServerSentEvents()` with `toServerSentEventsResponse()` when you want SSE.
+Use `fetchHttpStream()` only when the runtime supports streaming `fetch`,
+`Response.body.getReader()`, and `TextDecoder`; otherwise it throws
+`UnsupportedResponseStreamError`.
+
+XHR adapter options include `headers`, `withCredentials`, `signal`, `body`, and
+`xhrFactory`. Fetch adapter options include `headers`, `credentials`, `signal`,
+`body`, and `fetchClient`. Both option objects may be provided directly or as a
+function that resolves per request.
+
+For error narrowing, import `UnsupportedResponseStreamError` and
+`StreamTruncatedError` from `@tanstack/ai-client`.
 
 ## Example: Basic Chat
 

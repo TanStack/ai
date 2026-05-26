@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { EventType } from '@tanstack/ai'
+import { EventType } from '@tanstack/ai/client'
 import { ChatClient } from '../src/chat-client'
 import {
   createApprovalToolCallChunks,
@@ -13,7 +13,7 @@ import type {
   ConnectConnectionAdapter,
   ConnectionAdapter,
 } from '../src/connection-adapters'
-import type { StreamChunk } from '@tanstack/ai'
+import type { StreamChunk } from '@tanstack/ai/client'
 import type { UIMessage } from '../src/types'
 
 describe('ChatClient', () => {

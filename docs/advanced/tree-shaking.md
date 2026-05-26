@@ -252,6 +252,11 @@ Modern bundlers (Vite, Webpack, Rollup, esbuild) can easily eliminate unused cod
 2. **Use specific adapter functions** - Import `openaiText` not `openai`
 3. **Separate activities by route** - Different API routes can use different activities
 4. **Lazy load when possible** - Use dynamic imports for code-split routes
+5. **Keep mobile chat bundles client-only** - React Native and Expo chat screens
+   should import `useChat` and chat connection adapters, not provider SDKs,
+   server response helpers, React DOM UI, devtools UI, or other framework
+   packages. See [Quick Start: React Native](../getting-started/quick-start-react-native)
+   for the server-only provider boundary and mobile transport setup.
 
 ```ts
 // ✅ Good - Only imports chat
@@ -295,4 +300,3 @@ TanStack AI's tree-shakeable design means:
 - ✅ **Flexibility** - Mix and match activities and adapters as needed
 
 The functional, modular architecture ensures that modern bundlers can eliminate unused code effectively, resulting in optimal bundle sizes for your application.
-

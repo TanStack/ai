@@ -26,7 +26,8 @@ This page covers every supported transport, when to pick which, and how to build
 | You have… | Use |
 | --- | --- |
 | A normal HTTP server and want the default | [`fetchServerSentEvents`](#server-sent-events-sse) |
-| An environment that blocks SSE (some edge runtimes, RN, strict proxies) | [`fetchHttpStream`](#http-streaming-ndjson) |
+| An environment that blocks SSE (some edge runtimes, strict proxies) | [`fetchHttpStream`](#http-streaming-ndjson) |
+| React Native or Expo | [`xhrHttpStream`](#react-native-and-expo) by default, [`xhrServerSentEvents`](#react-native-and-expo) for SSE, or [`fetchHttpStream`](#http-streaming-ndjson) only when streaming `fetch` is available |
 | A TanStack Start (or other) server function that already returns an async iterable | [`stream`](#server-functions-and-direct-async-iterables) |
 | An RPC framework like Cap'n Web, gRPC-Web, or tRPC | [`rpcStream`](#rpc-streams) |
 | A single long-lived WebSocket (or BroadcastChannel, postMessage, shared worker) serving many runs | [Custom `subscribe` / `send` adapter](#persistent-transports-websockets-and-friends) |
@@ -89,6 +90,71 @@ const { messages } = useChat({
 ```
 
 Server-side, write each chunk as `JSON.stringify(chunk) + "\n"` to the response body. Options (`url`, `headers`, `body`, `fetchClient`, dynamic functions) match `fetchServerSentEvents` exactly.
+
+## React Native and Expo
+
+You have a native app that needs to call your own backend rather than a
+same-origin browser route. Use `useChat` from `@tanstack/ai-react` with an
+explicit chat transport and an absolute URL. By the end of this section, the
+client adapter and server response helper will be paired correctly for React
+Native or Expo.
+
+```typescript
+const baseUrl =
+  process.env.EXPO_PUBLIC_TANSTACK_AI_BASE_URL ??
+  'http://127.0.0.1:8787'
+const httpUrl = `${baseUrl}/chat/http`
+const sseUrl = `${baseUrl}/chat/sse`
+```
+
+Use the URL your runtime can reach. iOS simulators can often use `localhost` or
+`127.0.0.1`, Android emulators commonly use `10.0.2.2` to reach the host
+machine, and physical devices need a LAN or tunneled URL.
+
+Prefer `xhrHttpStream()` for Expo and React Native. It pairs with
+`toHttpResponse()` and reads newline-delimited JSON through incremental XHR
+progress events:
+
+```typescript
+import { useChat, xhrHttpStream } from "@tanstack/ai-react";
+
+const chat = useChat({
+  connection: xhrHttpStream(httpUrl),
+});
+```
+
+Use `xhrServerSentEvents()` when your server returns `text/event-stream` via
+`toServerSentEventsResponse()`:
+
+```typescript
+import { useChat, xhrServerSentEvents } from "@tanstack/ai-react";
+
+const chat = useChat({
+  connection: xhrServerSentEvents(sseUrl),
+});
+```
+
+Only use `fetchHttpStream()` if your exact React Native runtime exposes
+streaming `fetch` responses, `Response.body.getReader()`, and `TextDecoder`.
+The server still returns newline-delimited JSON with `toHttpResponse()`:
+
+```typescript
+import { useChat, fetchHttpStream } from "@tanstack/ai-react";
+
+const chat = useChat({
+  connection: fetchHttpStream(httpUrl),
+});
+```
+
+If one of those fetch-streaming APIs is missing, `fetchHttpStream()` throws
+`UnsupportedResponseStreamError`. A polyfill that buffers the response does not
+make fetch streaming compatible; the adapter needs incremental bytes. Switch to
+`xhrHttpStream()` or `xhrServerSentEvents()` instead.
+
+Keep provider SDKs and server helpers on your backend. The React Native bundle
+should import hooks and connection adapters, not OpenAI/Anthropic/Gemini SDKs,
+React DOM UI, devtools UI, or other framework packages. For a complete mobile
+walkthrough, see [Quick Start: React Native](../getting-started/quick-start-react-native).
 
 ## Server Functions and Direct Async Iterables
 

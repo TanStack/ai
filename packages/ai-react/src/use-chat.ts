@@ -6,7 +6,7 @@ import type {
   ModelMessage,
   SchemaInput,
   StreamChunk,
-} from '@tanstack/ai'
+} from '@tanstack/ai/client'
 import type {
   ChatClientState,
   ConnectionStatus,

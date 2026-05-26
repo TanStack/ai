@@ -1,6 +1,6 @@
 import { GENERATION_EVENTS } from './generation-types'
 import { parseSSEResponse } from './sse-parser'
-import type { StreamChunk } from '@tanstack/ai'
+import type { StreamChunk } from '@tanstack/ai/client'
 import type { ConnectConnectionAdapter } from './connection-adapters'
 import type {
   GenerationClientState,

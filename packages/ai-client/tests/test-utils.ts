@@ -1,5 +1,5 @@
 import type { ConnectConnectionAdapter } from '../src/connection-adapters'
-import type { ModelMessage, StreamChunk } from '@tanstack/ai'
+import type { ModelMessage, StreamChunk } from '@tanstack/ai/client'
 import type { UIMessage } from '../src/types'
 /**
  * Options for creating a mock connection adapter

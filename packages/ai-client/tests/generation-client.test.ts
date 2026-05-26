@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import { EventType } from '@tanstack/ai'
-import { GenerationClient } from '../src/generation-client'
-import type { StreamChunk } from '@tanstack/ai'
+import { EventType } from '@tanstack/ai/client'
+import { GenerationClient, UnsupportedResponseStreamError } from '../src'
+import type { StreamChunk } from '@tanstack/ai/client'
 import type { ConnectConnectionAdapter } from '../src/connection-adapters'
 
 // Helper to create a mock connect-based adapter from StreamChunks
@@ -706,8 +706,12 @@ describe('GenerationClient', () => {
   })
 
   describe('fetcher returning Response (SSE stream)', () => {
-    function createSSEResponse(lines: Array<string>): Response {
-      const sseData = lines.map((l) => `data: ${l}`).join('\n\n') + '\n\n'
+    function createSSEResponse(
+      lines: Array<string>,
+      options: { spaceAfterDataColon?: boolean } = {},
+    ): Response {
+      const prefix = options.spaceAfterDataColon === false ? 'data:' : 'data: '
+      const sseData = lines.map((l) => `${prefix}${l}`).join('\n\n') + '\n\n'
       const mockReader = {
         _callCount: 0,
         _chunks: [new TextEncoder().encode(sseData)],
@@ -754,6 +758,41 @@ describe('GenerationClient', () => {
           timestamp: 300,
         }),
       ])
+
+      const client = new GenerationClient({
+        fetcher: async () => response,
+        onResult,
+      })
+
+      await client.generate({ prompt: 'test' })
+
+      expect(onResult).toHaveBeenCalledWith(mockResult)
+      expect(client.getResult()).toEqual(mockResult)
+      expect(client.getStatus()).toBe('success')
+    })
+
+    it('should parse SSE Response data frames without a space after the colon', async () => {
+      const mockResult = { id: '1', images: [{ url: 'http://example.com' }] }
+      const onResult = vi.fn()
+
+      const response = createSSEResponse(
+        [
+          JSON.stringify({
+            type: EventType.CUSTOM,
+            name: 'generation:result',
+            value: mockResult,
+            timestamp: 200,
+          }),
+          JSON.stringify({
+            type: EventType.RUN_FINISHED,
+            runId: 'run-1',
+            threadId: 'thread-1',
+            finishReason: 'stop',
+            timestamp: 300,
+          }),
+        ],
+        { spaceAfterDataColon: false },
+      )
 
       const client = new GenerationClient({
         fetcher: async () => response,
@@ -892,6 +931,29 @@ describe('GenerationClient', () => {
       expect(onError).toHaveBeenCalledWith(expect.any(Error))
       expect(client.getStatus()).toBe('error')
       expect(client.getError()?.message).toContain('500')
+    })
+
+    it('should surface unsupported streaming from a fetcher-returned Response', async () => {
+      const onError = vi.fn()
+      const response = new Response(null, { status: 200 })
+      Object.defineProperty(response, 'body', {
+        value: null,
+      })
+
+      const client = new GenerationClient({
+        fetcher: async () => response,
+        onError,
+      })
+
+      await client.generate({ prompt: 'test' })
+
+      expect(onError).toHaveBeenCalledWith(
+        expect.any(UnsupportedResponseStreamError),
+      )
+      expect(client.getError()).toMatchObject({
+        missingFeature: 'Response.body',
+      })
+      expect(client.getStatus()).toBe('error')
     })
 
     it('should pass input type-safely (fetcher receives typed input)', async () => {

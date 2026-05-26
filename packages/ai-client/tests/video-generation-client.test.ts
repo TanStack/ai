@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
-import { EventType } from '@tanstack/ai'
+import { EventType } from '@tanstack/ai/client'
 import { VideoGenerationClient } from '../src/video-generation-client'
-import type { StreamChunk } from '@tanstack/ai'
+import type { StreamChunk } from '@tanstack/ai/client'
 import type { ConnectConnectionAdapter } from '../src/connection-adapters'
 
 // Helper to create a mock connect-based adapter from StreamChunks

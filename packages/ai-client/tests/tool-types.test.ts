@@ -2,7 +2,7 @@ import { describe, it, expectTypeOf } from 'vitest'
 import { z } from 'zod'
 import type { UIMessage, ToolCallPart, InferChatMessages } from '../src/types'
 import { createChatClientOptions } from '../src/types'
-import { toolDefinition } from '@tanstack/ai'
+import { toolDefinition } from '@tanstack/ai/client'
 
 // Define some test tools
 const guitarTool = toolDefinition({

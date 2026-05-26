@@ -3,6 +3,8 @@ linkWorkspacePackages: true
 preferWorkspacePackages: true
 blockExoticSubdeps: true
 trustPolicy: 'no-downgrade'
+trustPolicyExclude:
+  - 'semver@5.7.2 || 6.3.1'
 
 # pnpm v11 dropped support for these fields in package.json — they must live
 # here. See https://github.com/pnpm/pnpm/releases/tag/v11.0.0.
@@ -32,6 +34,7 @@ allowBuilds:
   '@openrouter/sdk': false
   '@parcel/watcher': false
   isolated-vm: false
+  msgpackr-extract: false
   nx: false
   puppeteer: false
   sharp: false

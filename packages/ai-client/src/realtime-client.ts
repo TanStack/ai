@@ -1,4 +1,4 @@
-import { convertSchemaToJsonSchema } from '@tanstack/ai'
+import { convertSchemaToJsonSchema } from '@tanstack/ai/client'
 import type {
   AnyClientTool,
   AudioVisualization,
@@ -6,7 +6,7 @@ import type {
   RealtimeMode,
   RealtimeStatus,
   RealtimeToken,
-} from '@tanstack/ai'
+} from '@tanstack/ai/client'
 import type {
   RealtimeClientOptions,
   RealtimeClientState,

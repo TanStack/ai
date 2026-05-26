@@ -11,10 +11,10 @@ import type {
   StreamChunk,
   StructuredOutputPart,
   VideoPart,
-} from '@tanstack/ai'
+} from '@tanstack/ai/client'
 import type { ConnectionAdapter } from './connection-adapters'
 
-export type { StructuredOutputPart } from '@tanstack/ai'
+export type { StructuredOutputPart } from '@tanstack/ai/client'
 
 /**
  * `messages` is the full UIMessage history (not a delta). `data` is the

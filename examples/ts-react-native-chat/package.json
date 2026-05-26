@@ -1,0 +1,44 @@
+{
+  "name": "ts-react-native-chat",
+  "private": true,
+  "type": "module",
+  "main": "index.ts",
+  "expo": {
+    "install": {
+      "exclude": [
+        "@types/react",
+        "react",
+        "typescript"
+      ]
+    }
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:server": "tsx src/server/index.ts",
+    "dev:app": "node -e \"const { spawnSync } = require('node:child_process'); const env = { ...process.env, EXPO_NO_DOTENV: '1' }; delete env.OPENAI_API_KEY; delete env.OPENAI_MODEL; const args = ['exec', 'expo', 'start', '--lan', '--clear']; const result = process.platform === 'win32' ? spawnSync(env.ComSpec ?? 'cmd.exe', ['/d', '/s', '/c', 'pnpm.cmd', ...args], { stdio: 'inherit', env }) : spawnSync('pnpm', args, { stdio: 'inherit', env }); process.exit(result.status ?? 1)\"",
+    "test:dev-script": "node --test scripts/dev.test.mjs",
+    "typecheck": "tsc --noEmit",
+    "smoke:server": "tsx scripts/smoke-server.ts",
+    "smoke:expo": "node -e \"const { spawnSync } = require('node:child_process'); const env = { ...process.env, EXPO_NO_DOTENV: '1' }; delete env.OPENAI_API_KEY; delete env.OPENAI_MODEL; const args = ['exec', 'expo', 'export', '--platform', 'ios', '--no-bytecode', '--output-dir', '.expo-example-dist', '--max-workers', '0']; const result = process.platform === 'win32' ? spawnSync(env.ComSpec ?? 'cmd.exe', ['/d', '/s', '/c', 'pnpm.cmd', ...args], { stdio: 'inherit', env }) : spawnSync('pnpm', args, { stdio: 'inherit', env }); process.exit(result.status ?? 1)\"",
+    "verify:react-resolution": "node scripts/verify-react-resolution.mjs",
+    "smoke": "pnpm smoke:server && pnpm smoke:expo"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.6",
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-openai": "workspace:*",
+    "@tanstack/ai-react": "workspace:*",
+    "concurrently": "^9.1.2",
+    "dotenv": "^17.2.3",
+    "expo": "~54.0.34",
+    "hono": "^4.10.6",
+    "react": "19.1.0",
+    "react-native": "0.81.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@types/react": "19.1.17",
+    "tsx": "^4.21.0",
+    "typescript": "5.9.3"
+  }
+}

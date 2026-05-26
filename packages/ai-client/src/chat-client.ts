@@ -3,7 +3,7 @@ import {
   convertSchemaToJsonSchema,
   generateMessageId,
   normalizeToUIMessage,
-} from '@tanstack/ai'
+} from '@tanstack/ai/client'
 import { DefaultChatClientEventEmitter } from './events'
 import {
   fetcherToConnectionAdapter,
@@ -14,7 +14,7 @@ import type {
   ContentPart,
   ModelMessage,
   StreamChunk,
-} from '@tanstack/ai'
+} from '@tanstack/ai/client'
 import type {
   ConnectionAdapter,
   SubscribeConnectionAdapter,
