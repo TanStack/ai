@@ -804,7 +804,9 @@ export const AIProvider: ParentComponent = (props) => {
         '[ai-devtools] failed to JSON.stringify tool call arguments; saved fixture replay will be malformed.',
         { error, value },
       )
-      return String(value)
+      return `[ai-devtools] unserializable tool arguments: ${
+        error instanceof Error ? error.message : String(error)
+      }`
     }
   }
 

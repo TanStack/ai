@@ -1707,8 +1707,14 @@ function formatUnknown(value: unknown): string {
   if (typeof value === 'string') return value
   try {
     return JSON.stringify(value, null, 2)
-  } catch {
-    return String(value)
+  } catch (error) {
+    console.warn(
+      '[ai-devtools] formatUnknown failed to JSON.stringify a value (likely a circular reference or BigInt); using a string placeholder instead.',
+      { error },
+    )
+    return `[ai-devtools] unserializable value: ${
+      error instanceof Error ? error.message : String(error)
+    }`
   }
 }
 
