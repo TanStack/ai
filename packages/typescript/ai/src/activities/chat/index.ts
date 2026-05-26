@@ -2630,7 +2630,15 @@ async function* fallbackStructuredOutputStream(
     timestamp,
   }
 
-  let result: { data: unknown; rawText: string }
+  let result: {
+    data: unknown
+    rawText: string
+    usage?: {
+      promptTokens: number
+      completionTokens: number
+      totalTokens: number
+    }
+  }
   try {
     result = await adapter.structuredOutput(options)
   } catch (error) {
@@ -2686,6 +2694,7 @@ async function* fallbackStructuredOutputStream(
     model,
     timestamp,
     finishReason: 'stop',
+    ...(result.usage ? { usage: result.usage } : {}),
   }
 }
 

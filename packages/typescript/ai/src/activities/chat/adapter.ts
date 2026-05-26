@@ -40,6 +40,17 @@ export interface StructuredOutputResult<T = unknown> {
   data: T
   /** The raw text response from the model before parsing */
   rawText: string
+  /**
+   * Token usage reported by the provider for this call, when available.
+   * Forwarded by `fallbackStructuredOutputStream` onto the synthesized
+   * RUN_FINISHED so middleware `onUsage` hooks can account for the
+   * finalization round-trip.
+   */
+  usage?: {
+    promptTokens: number
+    completionTokens: number
+    totalTokens: number
+  }
 }
 
 /**
