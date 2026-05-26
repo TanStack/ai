@@ -10,6 +10,7 @@ import {
   createGrokSpeech,
   createGrokTranscription,
 } from '@tanstack/ai-grok'
+import { createGroqTranscription } from '@tanstack/ai-groq'
 import {
   createElevenLabsAudio,
   createElevenLabsSpeech,
@@ -106,6 +107,11 @@ export function createTranscriptionAdapter(
       }),
     grok: () =>
       createGrokTranscription('grok-stt', DUMMY_KEY, {
+        baseURL: openaiUrl(aimockPort),
+        defaultHeaders: headers,
+      }),
+    groq: () =>
+      createGroqTranscription('whisper-large-v3-turbo', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),

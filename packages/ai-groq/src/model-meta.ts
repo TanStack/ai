@@ -402,3 +402,16 @@ export type ResolveInputModalities<TModel extends string> =
   TModel extends keyof GroqModelInputModalitiesByName
     ? GroqModelInputModalitiesByName[TModel]
     : readonly ['text']
+
+/**
+ * All supported Groq transcription model identifiers.
+ */
+export const GROQ_TRANSCRIPTION_MODELS = [
+  'whisper-large-v3-turbo',
+  'whisper-large-v3',
+] as const
+
+/**
+ * Union type of all supported Groq transcription model names.
+ */
+export type GroqTranscriptionModel = (typeof GROQ_TRANSCRIPTION_MODELS)[number]

@@ -14,6 +14,15 @@ export {
   type GroqTextProviderOptions,
 } from './adapters/text'
 
+// Transcription adapter
+export {
+  GroqTranscriptionAdapter,
+  createGroqTranscription,
+  groqTranscription,
+  type GroqTranscriptionConfig,
+} from './adapters/transcription'
+export type { GroqTranscriptionProviderOptions } from './audio/transcription-provider-options'
+
 // Types
 export type {
   GroqChatModelProviderOptionsByName,
@@ -22,8 +31,9 @@ export type {
   ResolveProviderOptions,
   ResolveInputModalities,
   GroqChatModels,
+  GroqTranscriptionModel,
 } from './model-meta'
-export { GROQ_CHAT_MODELS } from './model-meta'
+export { GROQ_CHAT_MODELS, GROQ_TRANSCRIPTION_MODELS } from './model-meta'
 export type {
   GroqTextMetadata,
   GroqImageMetadata,

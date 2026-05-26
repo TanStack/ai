@@ -165,7 +165,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
   'audio-gen': new Set(['gemini', 'elevenlabs']),
   'sound-effects': new Set(['elevenlabs']),
   tts: new Set(['openai', 'grok', 'elevenlabs']),
-  transcription: new Set(['openai', 'grok', 'elevenlabs']),
+  transcription: new Set(['openai', 'grok', 'groq', 'elevenlabs']),
   'video-gen': new Set(['openai']),
   // Only Gemini currently surfaces a first-class stateful conversation API via
   // the adapter (geminiTextInteractions, behind @tanstack/ai-gemini/experimental).
