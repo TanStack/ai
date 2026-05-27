@@ -95,7 +95,7 @@ An optional prompt to guide the transcription
 ### responseFormat?
 
 ```ts
-optional responseFormat: "text" | "json" | "srt" | "verbose_json" | "vtt";
+optional responseFormat: "text" | "json" | "srt" | "verbose_json" | "vtt" | "diarized_json";
 ```
 
 Defined in: [packages/ai/src/types.ts:1724](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1724)
