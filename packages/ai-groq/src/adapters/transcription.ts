@@ -77,6 +77,16 @@ export class GroqTranscriptionAdapter<
     const { model, audio, language, prompt, responseFormat, modelOptions } =
       options
 
+    // Groq's transcription endpoint only accepts 'json', 'text', and
+    // 'verbose_json'. Reject 'srt'/'vtt' up front so callers get a clear
+    // message instead of an opaque Groq HTTP error.
+    if (responseFormat === 'srt' || responseFormat === 'vtt') {
+      throw new Error(
+        `Groq transcription does not support responseFormat='${responseFormat}'. ` +
+          `Supported values: 'json', 'text', 'verbose_json'.`,
+      )
+    }
+
     // Default to verbose_json so callers get language, duration, and timestamps
     // without having to opt in explicitly. Both Groq whisper models support it.
     const useVerbose = !responseFormat || responseFormat === 'verbose_json'
