@@ -2,7 +2,7 @@
 title: Transcription
 id: transcription
 order: 4
-description: "Transcribe audio to text with OpenAI Whisper and GPT-4o-transcribe via TanStack AI's generateTranscription() API."
+description: "Transcribe audio to text with OpenAI Whisper, GPT-4o-transcribe, Groq Whisper, and fal.ai STT models via TanStack AI's generateTranscription() API."
 keywords:
   - tanstack ai
   - transcription
@@ -11,11 +11,13 @@ keywords:
   - whisper
   - generateTranscription
   - openai
+  - groq
+  - fal
 ---
 
 # Audio Transcription
 
-TanStack AI provides support for audio transcription (speech-to-text) through dedicated transcription adapters. This guide covers how to convert spoken audio into text using OpenAI's Whisper and GPT-4o transcription models.
+TanStack AI provides support for audio transcription (speech-to-text) through dedicated transcription adapters. This guide covers how to convert spoken audio into text using OpenAI's Whisper and GPT-4o transcription models, Groq's hosted Whisper models, and fal.ai STT models.
 
 ## Overview
 
@@ -23,6 +25,7 @@ Audio transcription is handled by transcription adapters that follow the same tr
 
 Currently supported:
 - **OpenAI**: Whisper-1, GPT-4o-transcribe, GPT-4o-mini-transcribe
+- **Groq**: whisper-large-v3-turbo, whisper-large-v3
 - **fal.ai**: Whisper, Wizper, speech-to-text turbo, ElevenLabs speech-to-text
 
 ## Basic Usage
@@ -75,6 +78,31 @@ const result = await generateTranscription({
   audio: dataUrl,
 })
 ```
+
+### Groq Transcription
+
+Groq hosts Whisper large-v3 and large-v3-turbo on its fast inference stack. The `audio` input accepts a `File`, `Blob`, `ArrayBuffer`, base64 string, data URL, or an `https://` URL (which is forwarded to Groq without re-uploading).
+
+```typescript
+import { generateTranscription } from '@tanstack/ai'
+import { groqTranscription } from '@tanstack/ai-groq'
+
+const result = await generateTranscription({
+  adapter: groqTranscription('whisper-large-v3-turbo'),
+  audio: 'https://example.com/recording.mp3',
+  language: 'en',
+})
+
+console.log(result.text)
+console.log(result.language)
+
+// verbose_json is the default — segments include word-level timing when requested
+for (const segment of result.segments ?? []) {
+  console.log(`[${segment.start}s → ${segment.end}s] ${segment.text}`)
+}
+```
+
+> **Note:** Groq supports `responseFormat` values `json`, `text`, and `verbose_json` (default). `srt` and `vtt` are not supported — passing them throws. Provider-specific `modelOptions` are `temperature` and `timestamp_granularities` (`['word']`, `['segment']`, or both).
 
 ### fal.ai Transcription
 
