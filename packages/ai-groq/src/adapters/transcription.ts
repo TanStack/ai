@@ -89,8 +89,8 @@ export class GroqTranscriptionAdapter<
 
     // Default to verbose_json so callers get language, duration, and timestamps
     // without having to opt in explicitly. Both Groq whisper models support it.
-    const useVerbose = !responseFormat || responseFormat === 'verbose_json'
     const effectiveFormat = responseFormat ?? 'verbose_json'
+    const useVerbose = effectiveFormat === 'verbose_json'
 
     const form = new FormData()
     form.append('model', model)
