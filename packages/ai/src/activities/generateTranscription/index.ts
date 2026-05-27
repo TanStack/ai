@@ -67,7 +67,13 @@ export interface TranscriptionActivityOptions<
   /** An optional prompt to guide the transcription */
   prompt?: string
   /** The format of the transcription output */
-  responseFormat?: 'json' | 'text' | 'srt' | 'verbose_json' | 'vtt'
+  responseFormat?:
+    | 'json'
+    | 'text'
+    | 'srt'
+    | 'verbose_json'
+    | 'vtt'
+    | 'diarized_json'
   /** Provider-specific options for transcription */
   modelOptions?: TranscriptionProviderOptions<TAdapter>
   /**

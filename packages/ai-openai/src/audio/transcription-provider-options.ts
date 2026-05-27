@@ -38,4 +38,14 @@ export interface OpenAITranscriptionProviderOptions {
    * Optional list of audio samples (as data URLs) that contain known speaker references matching known_speaker_names[]. Each sample must be between 2 and 10 seconds, and can use any of the same input audio formats supported by file.
    */
   known_speaker_references?: Array<string>
+  /**
+   * Controls how the audio is cut into chunks. Required by OpenAI when
+   * `gpt-4o-transcribe-diarize` input is longer than 30 seconds. Use `"auto"`
+   * for the service-managed VAD strategy, or pass a `server_vad` config to tune
+   * segmentation.
+   */
+  chunking_strategy?:
+    | 'auto'
+    | OpenAI.Audio.TranscriptionCreateParams.VadConfig
+    | null
 }
