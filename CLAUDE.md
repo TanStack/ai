@@ -217,7 +217,9 @@ Each framework integration uses the headless `ai-client` under the hood.
 
 ### Pre-PR Quality Gate (MANDATORY)
 
-**Before opening a PR or pushing changes intended for review, you MUST run the same checks CI runs and confirm they pass locally.** Pushing without running these is not acceptable — CI will fail and waste review cycles.
+**Before committing, run the narrowest meaningful quality checks for your changes and confirm they pass locally. Before opening a PR or pushing changes intended for review, run the same checks CI runs.** If you make post-commit changes, rebase, or merge before pushing to a PR, rerun the relevant checks first.
+
+Use the repo-preferred package manager, scripts, and Nx targets where applicable. Do **not** commit or push while quality checks are failing unless the user explicitly instructs otherwise; report the exact failing command and failure instead.
 
 The single canonical command is:
 
