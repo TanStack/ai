@@ -15,6 +15,9 @@ TanStack AI is a type-safe, provider-agnostic AI SDK for building AI-powered app
 - **Linting**: ESLint with custom TanStack config
 - **Formatting**: Prettier
 
+Run `pnpm install` before starting any task and again after every merge with
+`main`.
+
 ## Common Commands
 
 ### Testing

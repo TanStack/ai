@@ -4,6 +4,11 @@ Cross-agent guidance for this repository. See `CLAUDE.md` for the full project
 overview, architecture, and conventions — this file mirrors the rules that
 apply to every coding agent regardless of tool.
 
+## Dependency Install
+
+Run `pnpm install` before starting any task and again after every merge with
+`main`.
+
 ## Pre-PR Quality Gate (MANDATORY)
 
 **Before committing, run the narrowest meaningful quality checks for your
