@@ -30,14 +30,14 @@
     "@tanstack/ai-react": "workspace:*",
     "concurrently": "^9.1.2",
     "dotenv": "^17.2.3",
-    "expo": "~54.0.34",
+    "expo": "~56.0.5",
     "hono": "^4.10.6",
-    "react": "19.1.0",
-    "react-native": "0.81.5"
+    "react": "^19.2.3",
+    "react-native": "0.85.3"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
-    "@types/react": "19.1.17",
+    "@types/react": "^19.2.7",
     "tsx": "^4.21.0",
     "typescript": "5.9.3"
   }
