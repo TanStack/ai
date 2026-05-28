@@ -1846,9 +1846,15 @@ importers:
       '@tanstack/ai-react-ui':
         specifier: workspace:*
         version: link:../../packages/ai-react-ui
+      '@tanstack/devtools-event-bus':
+        specifier: ^0.4.1
+        version: 0.4.1
       '@tanstack/nitro-v2-vite-plugin':
         specifier: ^1.154.7
         version: 1.154.7(rolldown@1.0.0-rc.17)(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+      '@tanstack/react-ai-devtools':
+        specifier: workspace:*
+        version: link:../../packages/react-ai-devtools
       '@tanstack/react-router':
         specifier: ^1.158.4
         version: 1.159.5(react-dom@19.2.3(react@19.2.3))(react@19.2.3)

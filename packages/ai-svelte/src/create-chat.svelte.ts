@@ -1,4 +1,5 @@
 import { ChatClient } from '@tanstack/ai-client'
+import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import type {
   ChatClientState,
   ConnectionStatus,
@@ -91,6 +92,7 @@ export function createChat<
     : { fetcher: options.fetcher }
 
   const client = new ChatClient({
+    devtoolsBridgeFactory: createChatDevtoolsBridge,
     ...transport,
     id: clientId,
     ...(options.initialMessages !== undefined && {
@@ -100,6 +102,12 @@ export function createChat<
     ...(options.forwardedProps !== undefined && {
       forwardedProps: options.forwardedProps,
     }),
+    devtools: {
+      ...options.devtools,
+      framework: 'svelte',
+      hookName: 'useChat',
+      outputKind: options.outputSchema ? 'structured' : 'chat',
+    },
     ...(options.onResponse !== undefined && { onResponse: options.onResponse }),
     onChunk: (chunk: StreamChunk) => {
       options.onChunk?.(chunk)
@@ -144,6 +152,8 @@ export function createChat<
     client.subscribe()
   }
 
+  client.mountDevtools()
+
   // Note: Cleanup is handled by calling stop() directly when needed.
   // Unlike React/Vue/Solid, Svelte 5 runes like $effect can only be used
   // during component initialization, so we don't add automatic cleanup here.
@@ -164,6 +174,10 @@ export function createChat<
 
   const stop = () => {
     client.stop()
+  }
+
+  const dispose = () => {
+    client.dispose()
   }
 
   const clear = () => {
@@ -276,6 +290,7 @@ export function createChat<
     append,
     reload,
     stop,
+    dispose,
     setMessages,
     clear,
     addToolResult,

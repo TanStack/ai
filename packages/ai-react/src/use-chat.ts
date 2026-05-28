@@ -1,4 +1,5 @@
 import { ChatClient } from '@tanstack/ai-client'
+import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type {
   AnyClientTool,
@@ -73,6 +74,7 @@ export function useChat<
       : { fetcher: initialOptions.fetcher }
 
     return new ChatClient({
+      devtoolsBridgeFactory: createChatDevtoolsBridge,
       ...transport,
       id: clientId,
       initialMessages: messagesToUse,
@@ -80,6 +82,12 @@ export function useChat<
       ...(initialOptions.forwardedProps !== undefined && {
         forwardedProps: initialOptions.forwardedProps,
       }),
+      devtools: {
+        ...initialOptions.devtools,
+        framework: 'react',
+        hookName: 'useChat',
+        outputKind: initialOptions.outputSchema ? 'structured' : 'chat',
+      },
       onResponse: (response) => {
         void optionsRef.current.onResponse?.(response)
       },
@@ -153,14 +161,21 @@ export function useChat<
   }, [client, options.live])
 
   useEffect(() => {
+    client.mountDevtools()
+
     return () => {
-      if (options.live) {
+      // Subscribe/unsubscribe on `options.live` is owned by the dedicated
+      // effect above. This cleanup only fires on unmount or client swap,
+      // so read `live` through the ref to avoid disposing the client every
+      // time `live` toggles.
+      if (optionsRef.current.live) {
         client.unsubscribe()
       } else {
         client.stop()
       }
+      client.dispose()
     }
-  }, [client, options.live])
+  }, [client])
 
   const sendMessage = useCallback(
     async (content: string | MultimodalContent) => {

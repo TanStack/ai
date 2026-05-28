@@ -5,6 +5,7 @@ import type {
   SchemaInput,
 } from '@tanstack/ai'
 import type {
+  AIDevtoolsDisplayOptions,
   ChatClientOptions,
   ChatClientState,
   ChatRequestBody,
@@ -64,7 +65,10 @@ export type UseChatOptions<
   | 'onSubscriptionChange'
   | 'onConnectionStatusChange'
   | 'onSessionGeneratingChange'
+  | 'devtools'
 > & {
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
   live?: boolean
   /**
    * Standard-schema-compatible schema (Zod, Valibot, ArkType, or plain JSON

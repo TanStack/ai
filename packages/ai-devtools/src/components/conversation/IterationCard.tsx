@@ -9,8 +9,18 @@ import {
 } from 'solid-js'
 import { JsonTree } from '@tanstack/devtools-ui'
 import { useStyles } from '../../styles/use-styles'
+import {
+  createHoverTarget,
+  getHoverDataAttributes,
+  isMessageHighlighted,
+  structuredOutputJsonItems,
+  structuredOutputPartId,
+  toolCallPartId,
+  toolResultPartId,
+} from '../hooks/preview-model'
 import { formatDuration } from '../utils'
 import { SystemPromptItem } from './IterationTimeline'
+import type { HoverTarget } from '../hooks/preview-model'
 import type {
   Iteration,
   Message,
@@ -25,6 +35,12 @@ interface IterationCardProps {
   messages: Array<Message>
   index: number
   isLast: boolean
+  hoverTarget?: HoverTarget | null
+  onHoverTarget?: (target: HoverTarget | null) => void
+}
+
+type StructuredOutputMessagePart = NonNullable<Message['parts']>[number] & {
+  type: 'structured-output'
 }
 
 // --- Step types ---
@@ -32,11 +48,36 @@ interface IterationCardProps {
 type IterationStep =
   | { kind: 'middleware'; event: MiddlewareEvent }
   | { kind: 'thinking'; message: Message }
+  | {
+      kind: 'structured_output'
+      message: Message
+      part: StructuredOutputMessagePart
+    }
   | { kind: 'assistant'; message: Message }
   | { kind: 'tool_call'; toolCall: ToolCall; message: Message }
   | { kind: 'tool_result'; message: Message }
 
 // --- Helpers ---
+
+function getApprovalStatus(toolCall: ToolCall): string | undefined {
+  if (toolCall.approvalApproved === true || toolCall.state === 'approved') {
+    return 'approved'
+  }
+  if (toolCall.approvalApproved === false || toolCall.state === 'denied') {
+    return 'denied'
+  }
+  if (
+    toolCall.approvalRequired ||
+    toolCall.approvalId ||
+    toolCall.state === 'approval-requested'
+  ) {
+    return 'approval requested'
+  }
+  if (toolCall.state === 'approval-responded') {
+    return 'responded'
+  }
+  return undefined
+}
 
 function getIterationLabel(iter: Iteration, displayIndex: number): string {
   if (!iter.completedAt) return `Iteration ${displayIndex} — Generating...`
@@ -69,6 +110,15 @@ function buildSteps(
       // Show thinking/reasoning as its own step before text content
       if (msg.thinkingContent) {
         steps.push({ kind: 'thinking', message: msg })
+      }
+      for (const part of msg.parts ?? []) {
+        if (part.type === 'structured-output') {
+          steps.push({
+            kind: 'structured_output',
+            message: msg,
+            part: part as StructuredOutputMessagePart,
+          })
+        }
       }
       if (msg.toolCalls && msg.toolCalls.length > 0) {
         for (const tc of msg.toolCalls) {
@@ -157,7 +207,7 @@ const MiddlewareStep: Component<{
       <Show when={expanded() && hasChanges()}>
         <div class={s().mwChangesContainer}>
           <JsonTree
-            value={ev().configChanges as Record<string, unknown>}
+            value={ev().configChanges}
             defaultExpansionDepth={2}
             copyable
           />
@@ -169,6 +219,7 @@ const MiddlewareStep: Component<{
 
 const ThinkingStep: Component<{
   step: Extract<IterationStep, { kind: 'thinking' }>
+  onHoverTarget?: (target: HoverTarget | null) => void
 }> = (props) => {
   const styles = useStyles()
   const s = () => styles().iterationTimeline
@@ -180,7 +231,19 @@ const ThinkingStep: Component<{
 
   return (
     <>
-      <div class={s().step}>
+      <div
+        {...getHoverDataAttributes({ messageIds: [msg().id] })}
+        class={s().step}
+        onMouseEnter={() =>
+          props.onHoverTarget?.(
+            createHoverTarget({
+              messageIds: [msg().id],
+              origin: 'timeline',
+            }),
+          )
+        }
+        onMouseLeave={() => props.onHoverTarget?.(null)}
+      >
         <span class={`${s().stepPrefix} ${s().stepPrefixThinking}`}>
           Thinking
         </span>
@@ -201,8 +264,78 @@ const ThinkingStep: Component<{
   )
 }
 
+const StructuredOutputStep: Component<{
+  step: Extract<IterationStep, { kind: 'structured_output' }>
+  onHoverTarget?: (target: HoverTarget | null) => void
+}> = (props) => {
+  const styles = useStyles()
+  const s = () => styles().iterationTimeline
+  const [expanded, setExpanded] = createSignal(true)
+  const msg = () => props.step.message
+  const part = () => props.step.part
+  const partId = () => structuredOutputPartId(msg().id)
+  const jsonItems = createMemo(() => structuredOutputJsonItems(part()))
+
+  const badgeClass = () => {
+    if (part().status === 'complete') return s().mwBadgeApproved
+    if (part().status === 'error') return s().mwBadgeError
+    return s().mwBadgeDefault
+  }
+
+  return (
+    <>
+      <div
+        {...getHoverDataAttributes({
+          messageIds: [msg().id],
+          partIds: [partId()],
+        })}
+        class={s().step}
+        onClick={() => setExpanded(!expanded())}
+        onMouseEnter={() =>
+          props.onHoverTarget?.(
+            createHoverTarget({
+              messageIds: [msg().id],
+              partIds: [partId()],
+              origin: 'timeline',
+            }),
+          )
+        }
+        onMouseLeave={() => props.onHoverTarget?.(null)}
+        style={{ cursor: 'pointer' }}
+      >
+        <span class={`${s().stepPrefix} ${s().stepPrefixAssistant}`}>
+          Structured
+        </span>
+        <span class={`${s().mwBadge} ${badgeClass()}`}>{part().status}</span>
+        <span class={`${s().chevron} ${expanded() ? s().chevronOpen : ''}`}>
+          {'\u25B6'}
+        </span>
+      </div>
+      <div class={`${s().cardBody} ${expanded() ? s().cardBodyOpen : ''}`}>
+        <div class={`${s().cardBodyInner} ${s().stepJsonItemsCompare}`}>
+          <For each={jsonItems()}>
+            {(item) => (
+              <div class={s().stepJsonItem}>
+                <div class={s().stepJsonItemLabel}>{item.label}</div>
+                <div class={s().stepJsonPanel}>
+                  <JsonTree
+                    value={item.value}
+                    defaultExpansionDepth={1}
+                    copyable
+                  />
+                </div>
+              </div>
+            )}
+          </For>
+        </div>
+      </div>
+    </>
+  )
+}
+
 const AssistantStep: Component<{
   step: Extract<IterationStep, { kind: 'assistant' }>
+  onHoverTarget?: (target: HoverTarget | null) => void
 }> = (props) => {
   const styles = useStyles()
   const s = () => styles().iterationTimeline
@@ -220,7 +353,19 @@ const AssistantStep: Component<{
 
   return (
     <>
-      <div class={`${s().step} ${isLong() ? s().stepResponseLong : ''}`}>
+      <div
+        {...getHoverDataAttributes({ messageIds: [msg().id] })}
+        class={`${s().step} ${isLong() ? s().stepResponseLong : ''}`}
+        onMouseEnter={() =>
+          props.onHoverTarget?.(
+            createHoverTarget({
+              messageIds: [msg().id],
+              origin: 'timeline',
+            }),
+          )
+        }
+        onMouseLeave={() => props.onHoverTarget?.(null)}
+      >
         <span class={`${s().stepPrefix} ${s().stepPrefixAssistant}`}>
           Response
         </span>
@@ -245,12 +390,16 @@ const AssistantStep: Component<{
 
 const ToolCallStep: Component<{
   step: Extract<IterationStep, { kind: 'tool_call' }>
+  onHoverTarget?: (target: HoverTarget | null) => void
 }> = (props) => {
   const styles = useStyles()
   const s = () => styles().iterationTimeline
   const [argsOpen, setArgsOpen] = createSignal(false)
   const [resultOpen, setResultOpen] = createSignal(false)
   const tc = () => props.step.toolCall
+  const callPartId = () => toolCallPartId(tc().id)
+  const resultPartId = () => toolResultPartId(tc().id)
+  const messageId = () => props.step.message.id
 
   const parsedArgs = () => {
     const raw = tc().arguments || '{}'
@@ -258,6 +407,13 @@ const ToolCallStep: Component<{
   }
 
   const hasResult = () => tc().result !== undefined
+  const approvalStatus = () => getApprovalStatus(tc())
+  const approvalBadgeClass = () => {
+    const status = approvalStatus()
+    if (status === 'approved') return s().mwBadgeApproved
+    if (status === 'denied') return s().mwBadgeDenied
+    return s().mwBadgeApproval
+  }
 
   const parsedResult = () => {
     if (!hasResult()) return null
@@ -270,14 +426,35 @@ const ToolCallStep: Component<{
   return (
     <>
       <div
+        {...getHoverDataAttributes({
+          messageIds: [messageId()],
+          partIds: [callPartId()],
+        })}
         class={s().step}
         onClick={() => setArgsOpen(!argsOpen())}
+        onMouseEnter={() =>
+          props.onHoverTarget?.(
+            createHoverTarget({
+              messageIds: [messageId()],
+              partIds: [callPartId()],
+              origin: 'timeline',
+            }),
+          )
+        }
+        onMouseLeave={() => props.onHoverTarget?.(null)}
         style={{ cursor: 'pointer' }}
       >
         <span class={`${s().stepPrefix} ${s().stepPrefixToolCall}`}>
           Tool Call
         </span>
         <span class={`${s().mwBadge} ${s().mwBadgeToolCall}`}>{tc().name}</span>
+        <Show when={approvalStatus()}>
+          {(status) => (
+            <span class={`${s().mwBadge} ${approvalBadgeClass()}`}>
+              {status()}
+            </span>
+          )}
+        </Show>
         <Show when={tc().duration !== undefined}>
           <span class={s().stepDuration}>{tc().duration}ms</span>
         </Show>
@@ -288,18 +465,28 @@ const ToolCallStep: Component<{
       <div class={`${s().cardBody} ${argsOpen() ? s().cardBodyOpen : ''}`}>
         <div class={s().cardBodyInner}>
           <div class={s().stepJsonPanel}>
-            <JsonTree
-              value={parsedArgs() as Record<string, unknown>}
-              defaultExpansionDepth={0}
-              copyable
-            />
+            <JsonTree value={parsedArgs()} defaultExpansionDepth={0} copyable />
           </div>
         </div>
       </div>
       <Show when={hasResult()}>
         <div
+          {...getHoverDataAttributes({
+            messageIds: [messageId()],
+            partIds: [callPartId(), resultPartId()],
+          })}
           class={s().step}
           onClick={() => setResultOpen(!resultOpen())}
+          onMouseEnter={() =>
+            props.onHoverTarget?.(
+              createHoverTarget({
+                messageIds: [messageId()],
+                partIds: [callPartId(), resultPartId()],
+                origin: 'timeline',
+              }),
+            )
+          }
+          onMouseLeave={() => props.onHoverTarget?.(null)}
           style={{ cursor: 'pointer' }}
         >
           <span class={`${s().stepPrefix} ${s().stepPrefixToolResult}`}>
@@ -319,7 +506,7 @@ const ToolCallStep: Component<{
           <div class={s().cardBodyInner}>
             <div class={s().stepJsonPanel}>
               <JsonTree
-                value={parsedResult() as Record<string, unknown>}
+                value={parsedResult()}
                 defaultExpansionDepth={0}
                 copyable
               />
@@ -333,6 +520,7 @@ const ToolCallStep: Component<{
 
 const ToolResultStep: Component<{
   step: Extract<IterationStep, { kind: 'tool_result' }>
+  onHoverTarget?: (target: HoverTarget | null) => void
 }> = (props) => {
   const styles = useStyles()
   const s = () => styles().iterationTimeline
@@ -347,8 +535,18 @@ const ToolResultStep: Component<{
   return (
     <>
       <div
+        {...getHoverDataAttributes({ messageIds: [msg().id] })}
         class={s().step}
         onClick={() => setIsOpen(!isOpen())}
+        onMouseEnter={() =>
+          props.onHoverTarget?.(
+            createHoverTarget({
+              messageIds: [msg().id],
+              origin: 'timeline',
+            }),
+          )
+        }
+        onMouseLeave={() => props.onHoverTarget?.(null)}
         style={{ cursor: 'pointer' }}
       >
         <span class={`${s().stepPrefix} ${s().stepPrefixToolResult}`}>
@@ -362,7 +560,7 @@ const ToolResultStep: Component<{
         <div class={s().cardBodyInner}>
           <div class={s().stepJsonPanel}>
             <JsonTree
-              value={parsedContent() as Record<string, unknown>}
+              value={parsedContent()}
               defaultExpansionDepth={0}
               copyable
             />
@@ -395,6 +593,18 @@ export const IterationCard: Component<IterationCardProps> = (props) => {
 
   const label = () => getIterationLabel(iter(), props.index)
   const steps = createMemo(() => buildSteps(iter(), props.messages))
+  const iterationPartIds = createMemo(() =>
+    steps().flatMap((step) => {
+      if (step.kind === 'structured_output') {
+        return [structuredOutputPartId(step.message.id)]
+      }
+      if (step.kind !== 'tool_call') return []
+      const callId = step.toolCall.id
+      return step.toolCall.result === undefined
+        ? [toolCallPartId(callId)]
+        : [toolCallPartId(callId), toolResultPartId(callId)]
+    }),
+  )
 
   /**
    * Compute delta usage for display.
@@ -442,6 +652,14 @@ export const IterationCard: Component<IterationCardProps> = (props) => {
     if (isCompleted()) return s().iterHeaderCompleted
     return ''
   }
+
+  const isIterationHighlighted = () =>
+    iter().messageIds.some((messageId) =>
+      isMessageHighlighted(messageId, props.hoverTarget ?? null),
+    ) ||
+    iterationPartIds().some((partId) =>
+      (props.hoverTarget?.partIds ?? []).includes(partId),
+    )
 
   // Config data from this iteration
   const configSubtitle = () => {
@@ -531,13 +749,29 @@ export const IterationCard: Component<IterationCardProps> = (props) => {
 
   return (
     <div
-      class={s().iterCard}
+      {...getHoverDataAttributes({
+        messageIds: iter().messageIds,
+        partIds: iterationPartIds(),
+      })}
+      class={`${s().iterCard} ${
+        isIterationHighlighted() ? s().iterCardHighlighted : ''
+      }`}
       style={{ 'animation-delay': `${props.index * 60}ms` }}
     >
       {/* Header */}
       <div
+        {...getHoverDataAttributes({ messageIds: iter().messageIds })}
         class={`${s().iterCardHeader} ${headerAccent()}`}
         onClick={() => setIsOpen(!isOpen())}
+        onMouseEnter={() =>
+          props.onHoverTarget?.(
+            createHoverTarget({
+              messageIds: iter().messageIds,
+              origin: 'timeline',
+            }),
+          )
+        }
+        onMouseLeave={() => props.onHoverTarget?.(null)}
       >
         <div class={s().cardHeaderContent}>
           <span class={s().iterCardTitle}>{label()}</span>
@@ -690,7 +924,7 @@ export const IterationCard: Component<IterationCardProps> = (props) => {
                 <span class={s().configPanelLabel}>Model Options</span>
                 <div class={s().configJsonTreeContainer}>
                   <JsonTree
-                    value={modelOptions() as Record<string, unknown>}
+                    value={modelOptions()}
                     defaultExpansionDepth={2}
                     copyable
                   />
@@ -719,6 +953,18 @@ export const IterationCard: Component<IterationCardProps> = (props) => {
                     step={
                       step() as Extract<IterationStep, { kind: 'thinking' }>
                     }
+                    onHoverTarget={props.onHoverTarget}
+                  />
+                </Match>
+                <Match when={step().kind === 'structured_output'}>
+                  <StructuredOutputStep
+                    step={
+                      step() as Extract<
+                        IterationStep,
+                        { kind: 'structured_output' }
+                      >
+                    }
+                    onHoverTarget={props.onHoverTarget}
                   />
                 </Match>
                 <Match when={step().kind === 'assistant'}>
@@ -726,6 +972,7 @@ export const IterationCard: Component<IterationCardProps> = (props) => {
                     step={
                       step() as Extract<IterationStep, { kind: 'assistant' }>
                     }
+                    onHoverTarget={props.onHoverTarget}
                   />
                 </Match>
                 <Match when={step().kind === 'tool_call'}>
@@ -733,6 +980,7 @@ export const IterationCard: Component<IterationCardProps> = (props) => {
                     step={
                       step() as Extract<IterationStep, { kind: 'tool_call' }>
                     }
+                    onHoverTarget={props.onHoverTarget}
                   />
                 </Match>
                 <Match when={step().kind === 'tool_result'}>
@@ -740,6 +988,7 @@ export const IterationCard: Component<IterationCardProps> = (props) => {
                     step={
                       step() as Extract<IterationStep, { kind: 'tool_result' }>
                     }
+                    onHoverTarget={props.onHoverTarget}
                   />
                 </Match>
               </Switch>

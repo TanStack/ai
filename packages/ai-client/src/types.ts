@@ -13,6 +13,8 @@ import type {
   VideoPart,
 } from '@tanstack/ai/client'
 import type { ConnectionAdapter } from './connection-adapters'
+import type { AIDevtoolsClientMetadata } from './devtools'
+import type { ChatDevtoolsBridgeFactory } from './devtools-noop'
 
 export type { StructuredOutputPart } from '@tanstack/ai/client'
 
@@ -270,6 +272,7 @@ export interface UIMessage<
  */
 export type ChatClientOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
+  TContext = unknown,
 > = {
   /**
    * Initial messages to populate the chat
@@ -388,6 +391,25 @@ export type ChatClientOptions<
   tools?: TTools
 
   /**
+   * Client-local context passed to client-side tool execution.
+   */
+  context?: TContext
+
+  /**
+   * Devtools hook metadata for this client instance.
+   */
+  devtools?: Partial<AIDevtoolsClientMetadata>
+
+  /**
+   * Factory that constructs the devtools bridge. Default is a no-op
+   * factory, which keeps `@tanstack/ai-client/devtools` (the heavy
+   * bridge implementation) out of the main entry's bundle. Frameworks
+   * that need live devtools should pass the real factory from
+   * `@tanstack/ai-client/devtools`.
+   */
+  devtoolsBridgeFactory?: ChatDevtoolsBridgeFactory
+
+  /**
    * Stream processing options (optional)
    * Configure chunking strategy
    */
@@ -444,7 +466,10 @@ export function clientTools<const T extends Array<AnyClientTool>>(
  */
 export function createChatClientOptions<
   const TTools extends ReadonlyArray<AnyClientTool>,
->(options: ChatClientOptions<TTools>): ChatClientOptions<TTools> {
+  TContext = unknown,
+>(
+  options: ChatClientOptions<TTools, TContext>,
+): ChatClientOptions<TTools, TContext> {
   return options
 }
 
@@ -463,4 +488,6 @@ export function createChatClientOptions<
  * ```
  */
 export type InferChatMessages<T> =
-  T extends ChatClientOptions<infer TTools> ? Array<UIMessage<TTools>> : never
+  T extends ChatClientOptions<infer TTools, any>
+    ? Array<UIMessage<TTools>>
+    : never

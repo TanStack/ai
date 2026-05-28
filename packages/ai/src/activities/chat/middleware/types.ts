@@ -38,6 +38,8 @@ export interface ChatMiddlewareContext {
   requestId: string
   /** Unique identifier for this stream */
   streamId: string
+  /** AG-UI run identifier for correlating client and server events */
+  runId: string
   /**
    * AG-UI thread identifier — a stable per-conversation ID used to
    * correlate client and server devtools events. Resolves to the

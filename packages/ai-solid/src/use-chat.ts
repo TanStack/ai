@@ -4,9 +4,11 @@ import {
   createSignal,
   createUniqueId,
   onCleanup,
+  onMount,
 } from 'solid-js'
 
 import { ChatClient } from '@tanstack/ai-client'
+import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import type {
   ChatClientState,
   ConnectionStatus,
@@ -72,6 +74,7 @@ export function useChat<
       ? { connection: options.connection }
       : { fetcher: options.fetcher }
     return new ChatClient({
+      devtoolsBridgeFactory: createChatDevtoolsBridge,
       ...transport,
       id: clientId,
       ...(options.initialMessages !== undefined && {
@@ -81,6 +84,12 @@ export function useChat<
       ...(options.forwardedProps !== undefined && {
         forwardedProps: options.forwardedProps,
       }),
+      devtools: {
+        ...options.devtools,
+        framework: 'solid',
+        hookName: 'useChat',
+        outputKind: options.outputSchema ? 'structured' : 'chat',
+      },
       onResponse: (response) => options.onResponse?.(response),
       onChunk: (chunk: StreamChunk) => {
         options.onChunk?.(chunk)
@@ -164,6 +173,10 @@ export function useChat<
     }
   })
 
+  onMount(() => {
+    client().mountDevtools()
+  })
+
   // Cleanup on unmount: stop any in-flight requests.
   onCleanup(() => {
     if (options.live) {
@@ -171,6 +184,7 @@ export function useChat<
     } else {
       client().stop()
     }
+    client().dispose()
   })
 
   // Callback options are read through `options.xxx` at call time, so reactive

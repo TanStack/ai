@@ -1,6 +1,7 @@
 import { useGeneration } from './use-generation'
 import type { StreamChunk, TTSResult } from '@tanstack/ai'
 import type {
+  AIDevtoolsDisplayOptions,
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
@@ -23,6 +24,8 @@ export interface UseGenerateSpeechOptions<TOutput = TTSResult> {
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
   /**
    * Callback when speech is generated. Can optionally return a transformed value.
    *
@@ -94,8 +97,17 @@ export function useGenerateSpeech<
     onResult?: TOnResult
   },
 ): UseGenerateSpeechReturn<InferGenerationOutput<TTSResult, TOnResult>> {
+  const devtools = {
+    ...options.devtools,
+    framework: 'solid',
+    hookName: 'useGenerateSpeech',
+    outputKind: 'audio' as const,
+  }
   const { generate, result, isLoading, error, status, stop, reset } =
-    useGeneration<SpeechGenerateInput, TTSResult, TOnResult>(options)
+    useGeneration<SpeechGenerateInput, TTSResult, TOnResult>({
+      ...options,
+      devtools,
+    })
 
   return {
     generate: generate as (input: SpeechGenerateInput) => Promise<void>,

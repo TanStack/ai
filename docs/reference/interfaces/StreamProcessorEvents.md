@@ -149,6 +149,60 @@ Defined in: [packages/ai/src/activities/chat/stream/processor.ts:64](https://git
 
 ***
 
+### onStructuredOutputChange()?
+
+```ts
+optional onStructuredOutputChange: (args) => void;
+```
+
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:101](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L101)
+
+#### Parameters
+
+##### args
+
+###### data?
+
+`unknown`
+
+###### delta?
+
+`string`
+
+###### errorMessage?
+
+`string`
+
+###### messageId
+
+`string`
+
+###### partial?
+
+`unknown`
+
+###### phase
+
+`"error"` \| `"complete"` \| `"start"` \| `"update"`
+
+###### raw
+
+`string`
+
+###### reasoning?
+
+`string`
+
+###### status
+
+`"error"` \| `"complete"` \| `"streaming"`
+
+#### Returns
+
+`void`
+
+***
+
 ### onTextUpdate()?
 
 ```ts

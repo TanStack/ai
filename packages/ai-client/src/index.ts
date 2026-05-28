@@ -45,6 +45,15 @@ export type {
 export { GENERATION_EVENTS } from './generation-types'
 export { UnsupportedResponseStreamError } from './response-stream'
 export { clientTools, createChatClientOptions } from './types'
+export {
+  createAIDevtoolsGenerationPreview,
+  type AIDevtoolsClientMetadata,
+  type AIDevtoolsDisplayOptions,
+  type AIDevtoolsGenerationMediaItem,
+  type AIDevtoolsGenerationPreview,
+  type AIDevtoolsGenerationProgress,
+  type AIDevtoolsGenerationVideoJob,
+} from './devtools'
 export type {
   ExtractToolNames,
   ExtractToolInput,
