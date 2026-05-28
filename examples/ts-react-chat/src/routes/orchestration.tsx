@@ -927,9 +927,7 @@ function isSpecOutput(
   )
 }
 
-function isPatchOutput(
-  v: unknown,
-): v is { filename: string; patch: string } {
+function isPatchOutput(v: unknown): v is { filename: string; patch: string } {
   return (
     typeof v === 'object' &&
     v !== null &&
@@ -953,9 +951,7 @@ function isPlannerOutput(
   )
 }
 
-function isTriageOutput(
-  v: unknown,
-): v is { next: string; reason: string } {
+function isTriageOutput(v: unknown): v is { next: string; reason: string } {
   return (
     typeof v === 'object' &&
     v !== null &&

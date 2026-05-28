@@ -48,14 +48,11 @@ describe('workflow hook schema inference', () => {
     )
 
     expectTypeOf(result.current.start).parameters.toEqualTypeOf<
-      [
-        z.infer<typeof InputSchema>,
-        ({ runId?: string } | undefined)?,
-      ]
+      [z.infer<typeof InputSchema>, ({ runId?: string } | undefined)?]
     >()
-    expectTypeOf(result.current.output).toEqualTypeOf<
-      z.infer<typeof OutputSchema> | null
-    >()
+    expectTypeOf(result.current.output).toEqualTypeOf<z.infer<
+      typeof OutputSchema
+    > | null>()
 
     await act(async () => {
       await result.current.start({
@@ -80,14 +77,11 @@ describe('workflow hook schema inference', () => {
     )
 
     expectTypeOf(result.current.start).parameters.toEqualTypeOf<
-      [
-        z.infer<typeof InputSchema>,
-        ({ runId?: string } | undefined)?,
-      ]
+      [z.infer<typeof InputSchema>, ({ runId?: string } | undefined)?]
     >()
-    expectTypeOf(result.current.output).toEqualTypeOf<
-      z.infer<typeof OutputSchema> | null
-    >()
+    expectTypeOf(result.current.output).toEqualTypeOf<z.infer<
+      typeof OutputSchema
+    > | null>()
   })
 
   it('infers workflow state from a zod schema when provided', () => {
@@ -100,9 +94,9 @@ describe('workflow hook schema inference', () => {
       }),
     )
 
-    expectTypeOf(result.current.state).toEqualTypeOf<
-      z.infer<typeof StateSchema> | null
-    >()
+    expectTypeOf(result.current.state).toEqualTypeOf<z.infer<
+      typeof StateSchema
+    > | null>()
   })
 
   it('preserves the legacy explicit generic workflow signature', () => {

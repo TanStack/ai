@@ -67,11 +67,7 @@ export function useWorkflow<
   TStateSchema extends SchemaInput | undefined = undefined,
   TState = unknown,
 >(
-  opts: UseWorkflowSchemaOptions<
-    TInputSchema,
-    TOutputSchema,
-    TStateSchema
-  >,
+  opts: UseWorkflowSchemaOptions<TInputSchema, TOutputSchema, TStateSchema>,
 ): UseWorkflowReturn<
   InferWorkflowSchema<TInputSchema>,
   InferWorkflowSchema<TOutputSchema>,
