@@ -15,8 +15,12 @@ import type { OpenAITranscriptionProviderOptions } from '../audio/transcription-
 import type { OpenAIClientConfig } from '../utils/client'
 
 const DIARIZE_MODELS = ['gpt-4o-transcribe-diarize'] as const
+const DIARIZE_RESPONSE_FORMATS = ['json', 'text', 'diarized_json'] as const
 
 type DiarizeModel = (typeof DIARIZE_MODELS)[number]
+type OpenAITranscriptionResponseFormat = NonNullable<
+  TranscriptionOptions<OpenAITranscriptionProviderOptions>['responseFormat']
+>
 
 function isDiarizeModel(model: string): model is DiarizeModel {
   return DIARIZE_MODELS.includes(model as DiarizeModel)
@@ -168,9 +172,7 @@ export class OpenAITranscriptionAdapter<
     ) {
       request.chunking_strategy = 'auto'
     }
-    if (responseFormatValue !== undefined) {
-      request.response_format = responseFormatValue
-    }
+    request.response_format = responseFormatValue
 
     // Only Whisper supports verbose_json. The gpt-4o-* transcribe models
     // accept only json/text and reject verbose_json with HTTP 400.
@@ -347,6 +349,29 @@ export class OpenAITranscriptionAdapter<
 
     if (!isDiarizeTranscriptionModel) return
 
+    const modelOptionsResponseFormat = (
+      modelOptions as
+        | { responseFormat?: OpenAITranscriptionResponseFormat }
+        | undefined
+    )?.responseFormat
+    const requestedResponseFormats = [
+      this.mapResponseFormat(responseFormat),
+      ...(modelOptionsResponseFormat !== undefined
+        ? [this.mapResponseFormat(modelOptionsResponseFormat)]
+        : []),
+    ]
+    const unsupportedResponseFormat = requestedResponseFormats.find(
+      (format) =>
+        !DIARIZE_RESPONSE_FORMATS.includes(
+          format as (typeof DIARIZE_RESPONSE_FORMATS)[number],
+        ),
+    )
+    if (unsupportedResponseFormat !== undefined) {
+      throw new Error(
+        'OpenAI diarization transcription models only support json, text, and diarized_json response formats.',
+      )
+    }
+
     if (prompt !== undefined) {
       throw new Error(
         'OpenAI diarization transcription models do not support prompts.',
@@ -397,8 +422,8 @@ export class OpenAITranscriptionAdapter<
   }
 
   protected mapResponseFormat(
-    format?: 'json' | 'text' | 'srt' | 'verbose_json' | 'vtt' | 'diarized_json',
-  ): OpenAI_SDK.Audio.TranscriptionCreateParams['response_format'] {
+    format?: OpenAITranscriptionResponseFormat,
+  ): OpenAITranscriptionResponseFormat {
     if (!format) return 'json'
     return format
   }
