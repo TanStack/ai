@@ -96,7 +96,7 @@ const result = await generateTranscription({
 console.log(result.text)
 console.log(result.language)
 
-// verbose_json is the default — segments include word-level timing when requested
+// verbose_json is the default — segments carry segment-level start/end timestamps
 for (const segment of result.segments ?? []) {
   console.log(`[${segment.start}s → ${segment.end}s] ${segment.text}`)
 }
@@ -199,16 +199,18 @@ interface TranscriptionResult {
   text: string         // Full transcribed text
   language?: string    // Detected/specified language
   duration?: number    // Audio duration in seconds
-  segments?: Array<{   // Timestamped segments
+  segments?: Array<{   // Segment-level timestamps
+    id: number         // Segment identifier
     start: number      // Start time in seconds
     end: number        // End time in seconds
     text: string       // Segment text
-    words?: Array<{    // Word-level timestamps
-      word: string
-      start: number
-      end: number
-      confidence?: number
-    }>
+    confidence?: number // Confidence score (0-1)
+    speaker?: string   // Speaker identifier, if diarization is enabled
+  }>
+  words?: Array<{      // Word-level timestamps
+    word: string
+    start: number
+    end: number
   }>
 }
 ```
