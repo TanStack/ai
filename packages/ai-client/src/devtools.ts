@@ -3,9 +3,9 @@ import {
   createAIDevtoolsEventEnvelope,
   emitAIDevtoolsEvent,
 } from '@tanstack/ai-event-client'
-import { convertSchemaToJsonSchema } from '@tanstack/ai'
+import { convertSchemaToJsonSchema } from '@tanstack/ai/client'
 import { DefaultChatClientEventEmitter } from './events'
-import type { AnyClientTool, StreamChunk } from '@tanstack/ai'
+import type { AnyClientTool, StreamChunk } from '@tanstack/ai/client'
 import type { AIDevtoolsEventVisibility } from '@tanstack/ai-event-client'
 import type {
   ChatClientEventContext,

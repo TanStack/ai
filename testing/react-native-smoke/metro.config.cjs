@@ -9,6 +9,10 @@ const packageEntryPoints = new Map([
   ['@tanstack/ai/client', resolve(repoRoot, 'packages/ai/src/client.ts')],
   ['@tanstack/ai-client', resolve(repoRoot, 'packages/ai-client/src/index.ts')],
   [
+    '@tanstack/ai-client/devtools',
+    resolve(repoRoot, 'packages/ai-client/src/devtools.ts'),
+  ],
+  [
     '@tanstack/ai-event-client',
     resolve(repoRoot, 'packages/ai-event-client/src/index.ts'),
   ],

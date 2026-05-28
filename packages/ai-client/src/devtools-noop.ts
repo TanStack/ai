@@ -15,7 +15,7 @@ import type {
   VideoDevtoolsBridge,
   VideoDevtoolsBridgeOptions,
 } from './devtools'
-import type { StreamChunk } from '@tanstack/ai'
+import type { StreamChunk } from '@tanstack/ai/client'
 import type {
   ChatClientEventContext,
   ChatClientRunEventContext,
