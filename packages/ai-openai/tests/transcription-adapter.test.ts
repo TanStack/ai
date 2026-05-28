@@ -211,6 +211,26 @@ describe('OpenAI transcription adapter', () => {
     })
   })
 
+  it('rejects unsupported response formats for the diarization model', async () => {
+    const adapter = new TestOpenAITranscriptionAdapter(
+      { apiKey: 'test-api-key' },
+      'gpt-4o-transcribe-diarize',
+    )
+
+    for (const responseFormat of ['srt', 'vtt', 'verbose_json'] as const) {
+      await expect(
+        adapter.transcribe({
+          model: 'gpt-4o-transcribe-diarize',
+          audio: new File([], 'audio.wav', { type: 'audio/wav' }),
+          responseFormat,
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(
+        'diarization transcription models only support json, text, and diarized_json',
+      )
+    }
+  })
+
   it('rejects diarized_json with non-diarization models', async () => {
     const adapter = new TestOpenAITranscriptionAdapter(
       { apiKey: 'test-api-key' },
