@@ -26,6 +26,12 @@ keep `OPENAI_API_KEY` / `OPENAI_MODEL` on the server.
 
 ## 1. Install packages
 
+If you are starting from scratch, create an Expo app first:
+
+```bash
+npx create-expo-app@latest my-ai-chat
+```
+
 Install TanStack AI, the React hook package, the OpenAI adapter for your
 server, and Hono for the example backend:
 
