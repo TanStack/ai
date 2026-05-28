@@ -7,7 +7,7 @@ import { config as loadDotenv } from 'dotenv'
 const BACKEND_PORT = 8787
 const EXAMPLE_DIR = path.resolve(fileURLToPath(new URL('..', import.meta.url)))
 const DEFAULT_ENV_FILE = path.join(EXAMPLE_DIR, '.env')
-const loadedEnvKeysSymbol = Symbol('loadedEnvKeys')
+const loadedEnvKeysByEnv = new WeakMap()
 
 export function loadEnvFileIntoEnv(
   envFile = DEFAULT_ENV_FILE,
@@ -19,11 +19,7 @@ export function loadEnvFileIntoEnv(
     quiet: true,
   })
 
-  Object.defineProperty(env, loadedEnvKeysSymbol, {
-    configurable: true,
-    enumerable: false,
-    value: Object.keys(result.parsed ?? {}),
-  })
+  loadedEnvKeysByEnv.set(env, Object.keys(result.parsed ?? {}))
 
   return Boolean(result.parsed)
 }
@@ -121,7 +117,7 @@ function createExpoEnv({
   hasProvidedPackagerHostname,
   packagerHostname,
 }) {
-  const loadedEnvKeys = new Set(env[loadedEnvKeysSymbol] ?? [])
+  const loadedEnvKeys = new Set(loadedEnvKeysByEnv.get(env) ?? [])
   const expoEnv = { ...env }
 
   for (const key of Object.keys(expoEnv)) {
