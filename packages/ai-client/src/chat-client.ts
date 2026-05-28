@@ -4,7 +4,6 @@ import {
   generateMessageId,
   normalizeToUIMessage,
 } from '@tanstack/ai/client'
-import { DefaultChatClientEventEmitter } from './events'
 import { createNoOpChatDevtoolsBridge } from './devtools-noop'
 import {
   fetcherToConnectionAdapter,
