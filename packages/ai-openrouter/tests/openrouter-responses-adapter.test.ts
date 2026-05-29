@@ -1048,9 +1048,9 @@ describe('OpenRouter responses adapter — cost tracking', () => {
         totalTokens: 7,
         cost: 0.0042,
         costDetails: {
-          upstreamInferenceCost: 0.0038,
-          upstreamInferenceInputCost: 0.0012,
-          upstreamInferenceOutputCost: 0.0026,
+          upstreamCost: 0.0038,
+          upstreamInputCost: 0.0012,
+          upstreamOutputCost: 0.0026,
         },
       },
     })
@@ -1070,9 +1070,9 @@ describe('OpenRouter responses adapter — cost tracking', () => {
   })
 
   // The SDK surfaces wire shapes it can't parse as { isUnknown, raw } events,
-  // where usage stays in raw snake_case. costDetails keys must still land in
-  // camelCase so this fallback path matches the SDK-parsed path.
-  it('camelCases cost details from a raw (UNKNOWN) response.completed event', async () => {
+  // where usage stays in raw snake_case. costDetails keys must still normalize
+  // to canonical camelCase so this fallback path matches the SDK-parsed path.
+  it('normalizes cost details from a raw (UNKNOWN) response.completed event', async () => {
     setupMockSdkClient([
       {
         isUnknown: true,
@@ -1115,9 +1115,9 @@ describe('OpenRouter responses adapter — cost tracking', () => {
         totalTokens: 14,
         cost: 0.0042,
         costDetails: {
-          upstreamInferenceCost: 0.0038,
-          upstreamInferenceInputCost: 0.0012,
-          upstreamInferenceOutputCost: 0.0026,
+          upstreamCost: 0.0038,
+          upstreamInputCost: 0.0012,
+          upstreamOutputCost: 0.0026,
         },
       },
     })

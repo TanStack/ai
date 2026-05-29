@@ -27,25 +27,25 @@ describe('extractUsageCost', () => {
     expect(extractUsageCost(42)).toEqual({})
   })
 
-  it('reads costDetails (camelCase) alongside a valid cost', () => {
+  it('reads costDetails (camelCase) and normalizes to canonical keys', () => {
     expect(
       extractUsageCost({
         cost: 0.01,
         costDetails: { upstreamInferenceCost: 0.008 },
       }),
-    ).toEqual({ cost: 0.01, costDetails: { upstreamInferenceCost: 0.008 } })
+    ).toEqual({ cost: 0.01, costDetails: { upstreamCost: 0.008 } })
   })
 
-  it('reads cost_details (snake_case) alongside a valid cost, camelCasing keys', () => {
+  it('reads cost_details (snake_case) and normalizes to canonical keys', () => {
     expect(
       extractUsageCost({
         cost: 0.01,
         cost_details: { upstream_inference_cost: 0.008 },
       }),
-    ).toEqual({ cost: 0.01, costDetails: { upstreamInferenceCost: 0.008 } })
+    ).toEqual({ cost: 0.01, costDetails: { upstreamCost: 0.008 } })
   })
 
-  it('normalizes the full snake_case breakdown to camelCase (raw/UNKNOWN fallback path)', () => {
+  it('collapses Chat Completions prompt/completions onto canonical input/output', () => {
     expect(
       extractUsageCost({
         cost: 0.0042,
@@ -58,9 +58,29 @@ describe('extractUsageCost', () => {
     ).toEqual({
       cost: 0.0042,
       costDetails: {
-        upstreamInferenceCompletionsCost: 0.0026,
-        upstreamInferenceCost: 0.0038,
-        upstreamInferencePromptCost: 0.0012,
+        upstreamOutputCost: 0.0026,
+        upstreamCost: 0.0038,
+        upstreamInputCost: 0.0012,
+      },
+    })
+  })
+
+  it('collapses Responses input/output onto the same canonical input/output', () => {
+    expect(
+      extractUsageCost({
+        cost: 0.0042,
+        cost_details: {
+          upstream_inference_cost: 0.0038,
+          upstream_inference_input_cost: 0.0012,
+          upstream_inference_output_cost: 0.0026,
+        },
+      }),
+    ).toEqual({
+      cost: 0.0042,
+      costDetails: {
+        upstreamCost: 0.0038,
+        upstreamInputCost: 0.0012,
+        upstreamOutputCost: 0.0026,
       },
     })
   })
@@ -72,7 +92,7 @@ describe('extractUsageCost', () => {
         costDetails: { upstreamInferenceCost: 1 },
         cost_details: { upstream_inference_cost: 2 },
       }),
-    ).toEqual({ cost: 0.01, costDetails: { upstreamInferenceCost: 1 } })
+    ).toEqual({ cost: 0.01, costDetails: { upstreamCost: 1 } })
   })
 
   it('preserves negative detail values (e.g. cache discount)', () => {
@@ -81,7 +101,7 @@ describe('extractUsageCost', () => {
         cost: 0.01,
         costDetails: { upstreamInferenceCost: -0.002 },
       }),
-    ).toEqual({ cost: 0.01, costDetails: { upstreamInferenceCost: -0.002 } })
+    ).toEqual({ cost: 0.01, costDetails: { upstreamCost: -0.002 } })
   })
 
   it('drops null, non-finite, and non-numeric detail entries', () => {
@@ -96,7 +116,7 @@ describe('extractUsageCost', () => {
           upstreamInferenceCompletionsCost: 'x',
         },
       }),
-    ).toEqual({ cost: 0.01, costDetails: { upstreamInferenceCost: 0.5 } })
+    ).toEqual({ cost: 0.01, costDetails: { upstreamCost: 0.5 } })
   })
 
   it('drops unknown breakdown keys', () => {
@@ -108,7 +128,7 @@ describe('extractUsageCost', () => {
           futureUnknownField: 0.001,
         },
       }),
-    ).toEqual({ cost: 0.01, costDetails: { upstreamInferenceCost: 0.008 } })
+    ).toEqual({ cost: 0.01, costDetails: { upstreamCost: 0.008 } })
   })
 
   it('omits costDetails entirely when no known entries remain', () => {

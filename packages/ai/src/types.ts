@@ -926,21 +926,19 @@ export interface RunStartedEvent extends AGUIRunStartedEvent {
 }
 
 /**
- * Provider-reported cost breakdown for a single request. All fields are optional;
- * an adapter only sets the keys its provider actually reports. Unknown breakdown
- * keys are dropped at extraction time so the consumer surface stays closed.
+ * Provider-reported cost breakdown for a single request, normalized onto a
+ * canonical shape so consumer code is portable across gateways. Each adapter's
+ * extractor maps its provider-specific wire keys (e.g. OpenRouter's
+ * `upstream_inference_prompt_cost`, `upstream_inference_input_cost`) onto these
+ * fields at runtime.
  */
-export interface UsageCostDetails {
+export interface UsageCostBreakdown {
   /** Total cost the gateway paid the upstream provider. */
-  upstreamInferenceCost?: number
-  /** Upstream cost for prompt tokens (Chat Completions naming). */
-  upstreamInferencePromptCost?: number
-  /** Upstream cost for completion tokens (Chat Completions naming). */
-  upstreamInferenceCompletionsCost?: number
-  /** Upstream cost for input tokens (Responses naming). */
-  upstreamInferenceInputCost?: number
-  /** Upstream cost for output tokens (Responses naming). */
-  upstreamInferenceOutputCost?: number
+  upstreamCost?: number
+  /** Upstream cost for input (prompt) tokens. */
+  upstreamInputCost?: number
+  /** Upstream cost for output (completion) tokens. */
+  upstreamOutputCost?: number
 }
 
 /**
@@ -957,7 +955,7 @@ export interface UsageTotals {
   /** Provider-reported cost for the request, when available. */
   cost?: number
   /** Provider-reported cost breakdown, when available. */
-  costDetails?: UsageCostDetails
+  costDetails?: UsageCostBreakdown
 }
 
 /**

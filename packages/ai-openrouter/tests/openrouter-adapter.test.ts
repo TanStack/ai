@@ -2335,9 +2335,9 @@ describe('OpenRouter cost tracking', () => {
         totalTokens: 7,
         cost: 0.0042,
         costDetails: {
-          upstreamInferenceCompletionsCost: 0.0026,
-          upstreamInferenceCost: 0.0038,
-          upstreamInferencePromptCost: 0.0012,
+          upstreamCost: 0.0038,
+          upstreamInputCost: 0.0012,
+          upstreamOutputCost: 0.0026,
         },
       },
     })

@@ -3,10 +3,13 @@
  * SDK usage object and shaping it for `RUN_FINISHED.usage`.
  *
  * OpenRouter returns an authoritative per-request `cost` plus an optional
- * `cost_details` breakdown. We forward the known breakdown fields verbatim — no
- * local token-times-price math, which would drift across routing/fallback/BYOK
- * /caching. Unknown breakdown keys are dropped so the public `UsageCostDetails`
- * shape stays closed.
+ * `cost_details` breakdown. We forward `cost` verbatim and normalize the
+ * breakdown onto `@tanstack/ai`'s canonical `UsageCostBreakdown` shape — so
+ * consumer code reads the same three fields regardless of which adapter (or
+ * which OpenRouter endpoint) produced them. OpenRouter exposes the breakdown
+ * under two naming families (Chat Completions: `prompt`/`completions`,
+ * Responses: `input`/`output`); both map onto the same canonical input/output
+ * split, because they bill against the same tokens.
  *
  * Input is intentionally typed `unknown`: callers pass usage objects whose static
  * types are narrowed to token-only fields (notably the Responses adapter), and the
@@ -14,25 +17,31 @@
  * `costDetails` and `cost_details` and narrowing here keeps every call site simple.
  */
 
-import type { UsageCostDetails } from '@tanstack/ai'
+import type { UsageCostBreakdown } from '@tanstack/ai'
 
 export interface ExtractedCost {
   cost?: number
-  costDetails?: UsageCostDetails
+  costDetails?: UsageCostBreakdown
 }
 
-/** Keys recognized in `cost_details` / `costDetails`, snake_case ↔ camelCase. */
-const KNOWN_DETAIL_KEYS: Record<string, keyof UsageCostDetails> = {
-  upstream_inference_cost: 'upstreamInferenceCost',
-  upstreamInferenceCost: 'upstreamInferenceCost',
-  upstream_inference_prompt_cost: 'upstreamInferencePromptCost',
-  upstreamInferencePromptCost: 'upstreamInferencePromptCost',
-  upstream_inference_completions_cost: 'upstreamInferenceCompletionsCost',
-  upstreamInferenceCompletionsCost: 'upstreamInferenceCompletionsCost',
-  upstream_inference_input_cost: 'upstreamInferenceInputCost',
-  upstreamInferenceInputCost: 'upstreamInferenceInputCost',
-  upstream_inference_output_cost: 'upstreamInferenceOutputCost',
-  upstreamInferenceOutputCost: 'upstreamInferenceOutputCost',
+/**
+ * Wire-key → canonical-key mapping. Snake_case keys come from the raw/UNKNOWN
+ * `response.completed` fallback in the Responses adapter; camelCase keys come
+ * from the SDK-parsed path. Both Chat Completions' prompt/completions naming
+ * and Responses' input/output naming collapse onto `upstreamInputCost` /
+ * `upstreamOutputCost`.
+ */
+const KNOWN_DETAIL_KEYS: Record<string, keyof UsageCostBreakdown> = {
+  upstream_inference_cost: 'upstreamCost',
+  upstreamInferenceCost: 'upstreamCost',
+  upstream_inference_prompt_cost: 'upstreamInputCost',
+  upstreamInferencePromptCost: 'upstreamInputCost',
+  upstream_inference_input_cost: 'upstreamInputCost',
+  upstreamInferenceInputCost: 'upstreamInputCost',
+  upstream_inference_completions_cost: 'upstreamOutputCost',
+  upstreamInferenceCompletionsCost: 'upstreamOutputCost',
+  upstream_inference_output_cost: 'upstreamOutputCost',
+  upstreamInferenceOutputCost: 'upstreamOutputCost',
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
@@ -42,15 +51,15 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
 }
 
 /**
- * Narrow a raw `cost_details`/`costDetails` map to the known fields of
- * `UsageCostDetails`. Negative values (e.g. discounts) are preserved; `null`,
+ * Narrow a raw `cost_details`/`costDetails` map to the canonical fields of
+ * `UsageCostBreakdown`. Negative values (e.g. discounts) are preserved; `null`,
  * non-finite numbers, non-numeric values, and unknown keys are dropped.
  */
-function extractCostDetails(details: unknown): UsageCostDetails | undefined {
+function extractCostDetails(details: unknown): UsageCostBreakdown | undefined {
   const record = asRecord(details)
   if (!record) return undefined
 
-  const out: UsageCostDetails = {}
+  const out: UsageCostBreakdown = {}
   for (const [rawKey, value] of Object.entries(record)) {
     const key = KNOWN_DETAIL_KEYS[rawKey]
     if (!key) continue

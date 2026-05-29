@@ -1,4 +1,4 @@
-import type { UsageCostDetails } from '@tanstack/ai'
+import type { UsageCostBreakdown } from '@tanstack/ai'
 import { test, expect } from './fixtures'
 
 /**
@@ -22,7 +22,7 @@ test.describe('openrouter — per-request cost', () => {
         completionTokens?: number
         totalTokens?: number
         cost?: number
-        costDetails?: UsageCostDetails
+        costDetails?: UsageCostBreakdown
       }
     }
 
@@ -34,9 +34,9 @@ test.describe('openrouter — per-request cost', () => {
       totalTokens: 14,
       cost: 0.0042,
       costDetails: {
-        upstreamInferenceCompletionsCost: 0.0026,
-        upstreamInferenceCost: 0.0038,
-        upstreamInferencePromptCost: 0.0012,
+        upstreamCost: 0.0038,
+        upstreamInputCost: 0.0012,
+        upstreamOutputCost: 0.0026,
       },
     })
   })
