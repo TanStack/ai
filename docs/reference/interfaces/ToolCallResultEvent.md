@@ -5,7 +5,7 @@ title: ToolCallResultEvent
 
 # Interface: ToolCallResultEvent
 
-Defined in: [packages/ai/src/types.ts:1067](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1067)
+Defined in: [packages/ai/src/types.ts:1096](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1096)
 
 Emitted when a tool call result is available.
 
@@ -30,6 +30,6 @@ TanStack AI adds: `model?`
 optional model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1069](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1069)
+Defined in: [packages/ai/src/types.ts:1098](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1098)
 
 Model identifier for multi-model support

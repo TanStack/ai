@@ -5,7 +5,7 @@ title: ToolCallEndEvent
 
 # Interface: ToolCallEndEvent
 
-Defined in: [packages/ai/src/types.ts:1045](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1045)
+Defined in: [packages/ai/src/types.ts:1074](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1074)
 
 Emitted when a tool call completes.
 
@@ -30,7 +30,7 @@ TanStack AI adds: `model?`, `toolCallName?`, `toolName?` (deprecated), `input?`,
 optional input: unknown;
 ```
 
-Defined in: [packages/ai/src/types.ts:1056](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1056)
+Defined in: [packages/ai/src/types.ts:1085](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1085)
 
 Final parsed input arguments (TanStack AI internal)
 
@@ -42,7 +42,7 @@ Final parsed input arguments (TanStack AI internal)
 optional model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1047](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1047)
+Defined in: [packages/ai/src/types.ts:1076](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1076)
 
 Model identifier for multi-model support
 
@@ -54,7 +54,7 @@ Model identifier for multi-model support
 optional result: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1058](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1058)
+Defined in: [packages/ai/src/types.ts:1087](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1087)
 
 Tool execution result (TanStack AI internal)
 
@@ -66,7 +66,7 @@ Tool execution result (TanStack AI internal)
 optional toolCallName: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1049](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1049)
+Defined in: [packages/ai/src/types.ts:1078](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1078)
 
 Name of the tool that completed
 
@@ -78,7 +78,7 @@ Name of the tool that completed
 optional toolName: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1054](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1054)
+Defined in: [packages/ai/src/types.ts:1083](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1083)
 
 #### Deprecated
 
