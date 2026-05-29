@@ -1,6 +1,6 @@
 ---
 '@tanstack/ai-openrouter': minor
-'@tanstack/ai': minor
+'@tanstack/ai': patch
 ---
 
 Surface OpenRouter's per-request cost on `RUN_FINISHED.usage`.
