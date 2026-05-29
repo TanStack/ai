@@ -3,10 +3,10 @@
  * SDK usage object and shaping it for `RUN_FINISHED.usage`.
  *
  * OpenRouter returns an authoritative per-request `cost` plus an optional
- * `cost_details` breakdown on the usage object of chat/responses completions.
- * The `@openrouter/sdk` parser surfaces these (camelCased to `costDetails` on the
- * Chat Completions path), so we only need to read and forward them — no local
- * token-times-price math, which would drift across routing/fallback/BYOK/caching.
+ * `cost_details` breakdown. We forward the known breakdown fields verbatim — no
+ * local token-times-price math, which would drift across routing/fallback/BYOK
+ * /caching. Unknown breakdown keys are dropped so the public `UsageCostDetails`
+ * shape stays closed.
  *
  * Input is intentionally typed `unknown`: callers pass usage objects whose static
  * types are narrowed to token-only fields (notably the Responses adapter), and the
@@ -14,10 +14,25 @@
  * `costDetails` and `cost_details` and narrowing here keeps every call site simple.
  */
 
-/** Extracted cost shaped for `UsageTotals` (camelCased). */
+import type { UsageCostDetails } from '@tanstack/ai'
+
 export interface ExtractedCost {
   cost?: number
-  costDetails?: Record<string, number | null>
+  costDetails?: UsageCostDetails
+}
+
+/** Keys recognized in `cost_details` / `costDetails`, snake_case ↔ camelCase. */
+const KNOWN_DETAIL_KEYS: Record<string, keyof UsageCostDetails> = {
+  upstream_inference_cost: 'upstreamInferenceCost',
+  upstreamInferenceCost: 'upstreamInferenceCost',
+  upstream_inference_prompt_cost: 'upstreamInferencePromptCost',
+  upstreamInferencePromptCost: 'upstreamInferencePromptCost',
+  upstream_inference_completions_cost: 'upstreamInferenceCompletionsCost',
+  upstreamInferenceCompletionsCost: 'upstreamInferenceCompletionsCost',
+  upstream_inference_input_cost: 'upstreamInferenceInputCost',
+  upstreamInferenceInputCost: 'upstreamInferenceInputCost',
+  upstream_inference_output_cost: 'upstreamInferenceOutputCost',
+  upstreamInferenceOutputCost: 'upstreamInferenceOutputCost',
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
@@ -26,34 +41,22 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
     : undefined
 }
 
-/** Convert a snake_case key to camelCase, leaving already-camelCase keys intact. */
-function toCamelCase(key: string): string {
-  return key.replace(/_([a-z0-9])/g, (_, char: string) => char.toUpperCase())
-}
-
 /**
- * Narrow a raw `cost_details`/`costDetails` map to numeric (or explicitly null)
- * entries. Negative values (e.g. cache discounts) and `null` are preserved; only
- * non-finite numbers and non-numeric/non-null values are dropped.
- *
- * Keys are normalized to camelCase so the breakdown is identical regardless of
- * whether it arrived already camelCased (the SDK-parsed path) or raw snake_case
- * (the Responses adapter's UNKNOWN/raw `response.completed` fallback).
+ * Narrow a raw `cost_details`/`costDetails` map to the known fields of
+ * `UsageCostDetails`. Negative values (e.g. discounts) are preserved; `null`,
+ * non-finite numbers, non-numeric values, and unknown keys are dropped.
  */
-function extractCostDetails(
-  details: unknown,
-): Record<string, number | null> | undefined {
+function extractCostDetails(details: unknown): UsageCostDetails | undefined {
   const record = asRecord(details)
   if (!record) return undefined
 
-  const out: Record<string, number | null> = {}
-  for (const [key, value] of Object.entries(record)) {
-    if (value === null) {
-      out[toCamelCase(key)] = null
-    } else if (typeof value === 'number' && Number.isFinite(value)) {
-      out[toCamelCase(key)] = value
+  const out: UsageCostDetails = {}
+  for (const [rawKey, value] of Object.entries(record)) {
+    const key = KNOWN_DETAIL_KEYS[rawKey]
+    if (!key) continue
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      out[key] = value
     }
-    // Anything else (undefined, strings, nested objects, NaN/Infinity) is skipped.
   }
 
   return Object.keys(out).length > 0 ? out : undefined

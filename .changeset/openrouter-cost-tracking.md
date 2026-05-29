@@ -13,7 +13,10 @@ itself reports — it is not computed locally from token counts, so it accounts
 for routing, fallback providers, BYOK, and cached-token pricing.
 
 `@tanstack/ai` adds a shared `UsageTotals` type with optional `cost` and
-`costDetails` fields. `RunFinishedEvent.usage`, the middleware `UsageInfo`
-(`onUsage`), and `FinishInfo.usage` (`onFinish`) all use it, so cost can be read
-without casts. The fields are optional and additive — adapters that do not
-report cost are unaffected.
+`costDetails` fields, plus a `UsageCostDetails` type enumerating the known
+breakdown fields (`upstreamInferenceCost`, `upstreamInferencePromptCost`,
+`upstreamInferenceCompletionsCost`, `upstreamInferenceInputCost`,
+`upstreamInferenceOutputCost`). `RunFinishedEvent.usage`, the middleware
+`UsageInfo` (`onUsage`), and `FinishInfo.usage` (`onFinish`) all use it, so cost
+can be read without casts and with autocomplete on the breakdown. The fields
+are optional and additive — adapters that do not report cost are unaffected.

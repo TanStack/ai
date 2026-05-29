@@ -926,15 +926,29 @@ export interface RunStartedEvent extends AGUIRunStartedEvent {
 }
 
 /**
+ * Provider-reported cost breakdown for a single request. All fields are optional;
+ * an adapter only sets the keys its provider actually reports. Unknown breakdown
+ * keys are dropped at extraction time so the consumer surface stays closed.
+ */
+export interface UsageCostDetails {
+  /** Total cost the gateway paid the upstream provider. */
+  upstreamInferenceCost?: number
+  /** Upstream cost for prompt tokens (Chat Completions naming). */
+  upstreamInferencePromptCost?: number
+  /** Upstream cost for completion tokens (Chat Completions naming). */
+  upstreamInferenceCompletionsCost?: number
+  /** Upstream cost for input tokens (Responses naming). */
+  upstreamInferenceInputCost?: number
+  /** Upstream cost for output tokens (Responses naming). */
+  upstreamInferenceOutputCost?: number
+}
+
+/**
  * Token usage totals for a run, optionally including provider-reported cost.
  *
  * `cost` and `costDetails` are populated only by adapters whose provider returns
  * authoritative per-request cost (e.g. OpenRouter). They are absent for adapters
  * that do not report cost, so consumers must treat them as optional.
- *
- * `costDetails` is intentionally a generic numeric map rather than a fixed shape,
- * so provider-specific breakdown keys (e.g. `upstreamInferenceCost`, `cacheDiscount`)
- * can be surfaced without baking provider-specific fields into this shared type.
  */
 export interface UsageTotals {
   promptTokens: number
@@ -942,8 +956,8 @@ export interface UsageTotals {
   totalTokens: number
   /** Provider-reported cost for the request, when available. */
   cost?: number
-  /** Provider-specific cost breakdown, when available. */
-  costDetails?: Record<string, number | null | undefined>
+  /** Provider-reported cost breakdown, when available. */
+  costDetails?: UsageCostDetails
 }
 
 /**

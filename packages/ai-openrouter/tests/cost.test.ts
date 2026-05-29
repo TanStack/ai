@@ -45,7 +45,7 @@ describe('extractUsageCost', () => {
     ).toEqual({ cost: 0.01, costDetails: { upstreamInferenceCost: 0.008 } })
   })
 
-  it('normalizes snake_case detail keys to camelCase (stable across paths)', () => {
+  it('normalizes the full snake_case breakdown to camelCase (raw/UNKNOWN fallback path)', () => {
     expect(
       extractUsageCost({
         cost: 0.0042,
@@ -69,42 +69,51 @@ describe('extractUsageCost', () => {
     expect(
       extractUsageCost({
         cost: 0.01,
-        costDetails: { a: 1 },
-        cost_details: { b: 2 },
+        costDetails: { upstreamInferenceCost: 1 },
+        cost_details: { upstream_inference_cost: 2 },
       }),
-    ).toEqual({ cost: 0.01, costDetails: { a: 1 } })
-  })
-
-  it('preserves null detail entries', () => {
-    expect(
-      extractUsageCost({ cost: 0.01, costDetails: { cacheDiscount: null } }),
-    ).toEqual({ cost: 0.01, costDetails: { cacheDiscount: null } })
+    ).toEqual({ cost: 0.01, costDetails: { upstreamInferenceCost: 1 } })
   })
 
   it('preserves negative detail values (e.g. cache discount)', () => {
     expect(
-      extractUsageCost({ cost: 0.01, costDetails: { cacheDiscount: -0.002 } }),
-    ).toEqual({ cost: 0.01, costDetails: { cacheDiscount: -0.002 } })
+      extractUsageCost({
+        cost: 0.01,
+        costDetails: { upstreamInferenceCost: -0.002 },
+      }),
+    ).toEqual({ cost: 0.01, costDetails: { upstreamInferenceCost: -0.002 } })
   })
 
-  it('drops non-finite / non-numeric detail entries but keeps valid ones', () => {
+  it('drops null, non-finite, and non-numeric detail entries', () => {
     expect(
       extractUsageCost({
         cost: 0.01,
         costDetails: {
-          good: 0.5,
-          bad: 'x',
-          infinite: Infinity,
-          nan: NaN,
-          nested: { x: 1 },
+          upstreamInferenceCost: 0.5,
+          upstreamInferenceInputCost: null,
+          upstreamInferenceOutputCost: Infinity,
+          upstreamInferencePromptCost: NaN,
+          upstreamInferenceCompletionsCost: 'x',
         },
       }),
-    ).toEqual({ cost: 0.01, costDetails: { good: 0.5 } })
+    ).toEqual({ cost: 0.01, costDetails: { upstreamInferenceCost: 0.5 } })
   })
 
-  it('omits costDetails entirely when no valid entries remain', () => {
+  it('drops unknown breakdown keys', () => {
     expect(
-      extractUsageCost({ cost: 0.01, costDetails: { bad: 'x' } }),
+      extractUsageCost({
+        cost: 0.01,
+        costDetails: {
+          upstreamInferenceCost: 0.008,
+          futureUnknownField: 0.001,
+        },
+      }),
+    ).toEqual({ cost: 0.01, costDetails: { upstreamInferenceCost: 0.008 } })
+  })
+
+  it('omits costDetails entirely when no known entries remain', () => {
+    expect(
+      extractUsageCost({ cost: 0.01, costDetails: { unknownKey: 1 } }),
     ).toEqual({ cost: 0.01 })
   })
 

@@ -1,3 +1,4 @@
+import type { UsageCostDetails } from '@tanstack/ai'
 import { test, expect } from './fixtures'
 
 /**
@@ -21,7 +22,7 @@ test.describe('openrouter — per-request cost', () => {
         completionTokens?: number
         totalTokens?: number
         cost?: number
-        costDetails?: Record<string, number | null>
+        costDetails?: UsageCostDetails
       }
     }
 
