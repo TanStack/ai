@@ -324,6 +324,7 @@ function openRouterCostMount(): Mountable {
       if (req.method !== 'POST' || !pathname.startsWith('/v1/chat/completions')) {
         return false
       }
+      await drainBody(req)
 
       const base = {
         id: 'chatcmpl-cost-e2e',
