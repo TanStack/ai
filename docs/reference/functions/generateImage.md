@@ -9,7 +9,7 @@ title: generateImage
 function generateImage<TAdapter, TStream>(options): ImageActivityResult<TStream>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateImage/index.ts:176](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateImage/index.ts#L176)
+Defined in: [packages/ai/src/activities/generateImage/index.ts:176](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateImage/index.ts#L176)
 
 Image activity - generates images from text prompts.
 

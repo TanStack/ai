@@ -1,0 +1,98 @@
+{
+  "name": "@tanstack/ai",
+  "version": "0.22.1",
+  "description": "Type-safe TypeScript AI SDK for streaming chat, tool calling, agents, structured outputs, and multimodal generation.",
+  "author": "Tanner Linsley",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai"
+  },
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    },
+    "./client": {
+      "types": "./dist/esm/client.d.ts",
+      "import": "./dist/esm/client.js"
+    },
+    "./adapters": {
+      "types": "./dist/esm/activities/index.d.ts",
+      "import": "./dist/esm/activities/index.js"
+    },
+    "./middlewares": {
+      "types": "./dist/esm/middlewares/index.d.ts",
+      "import": "./dist/esm/middlewares/index.js"
+    },
+    "./middlewares/otel": {
+      "types": "./dist/esm/middlewares/otel.d.ts",
+      "import": "./dist/esm/middlewares/otel.js"
+    },
+    "./adapter-internals": {
+      "types": "./dist/esm/adapter-internals.d.ts",
+      "import": "./dist/esm/adapter-internals.js"
+    }
+  },
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist",
+    "src",
+    "skills"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:build": "publint --strict",
+    "test:coverage": "vitest run --coverage",
+    "test:coverage:watch": "vitest --coverage --watch",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "llm",
+    "generative-ai",
+    "chat",
+    "streaming",
+    "tool-calling",
+    "function-calling",
+    "agents",
+    "structured-outputs",
+    "multimodal",
+    "zod",
+    "tanstack-intent"
+  ],
+  "dependencies": {
+    "@ag-ui/core": "^0.0.52",
+    "@standard-schema/spec": "^1.1.0",
+    "@tanstack/ai-event-client": "workspace:*",
+    "partial-json": "^0.1.7"
+  },
+  "peerDependencies": {
+    "@opentelemetry/api": ">=1.9.0"
+  },
+  "peerDependenciesMeta": {
+    "@opentelemetry/api": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@opentelemetry/api": "^1.9.0",
+    "@vitest/coverage-v8": "4.0.14",
+    "zod": "^4.2.0"
+  }
+}

@@ -1,14 +1,17 @@
 import { createFileRoute } from '@tanstack/react-router'
 import {
   chat,
+  chatParamsFromRequestBody,
   createChatOptions,
   maxIterations,
+  mergeAgentTools,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
+import { geminiTextInteractions } from '@tanstack/ai-gemini/experimental'
 import { openRouterText } from '@tanstack/ai-openrouter'
 import { grokText } from '@tanstack/ai-grok'
 import { groqText } from '@tanstack/ai-groq'
@@ -28,6 +31,7 @@ type Provider =
   | 'openai'
   | 'anthropic'
   | 'gemini'
+  | 'gemini-interactions'
   | 'ollama'
   | 'grok'
   | 'groq'
@@ -75,6 +79,18 @@ const addToCartToolServer = addToCartToolDef.server((args, context) => {
   }
 })
 
+const serverTools = [
+  getGuitars, // Server tool
+  recommendGuitarToolDef, // No server execute - client will handle
+  addToCartToolServer,
+  addToWishListToolDef,
+  getPersonalGuitarPreferenceToolDef,
+  // Lazy tools - discovered on demand
+  compareGuitars,
+  calculateFinancing,
+  searchGuitars,
+]
+
 const loggingMiddleware: ChatMiddleware = {
   name: 'logging',
   onConfig(ctx, config) {
@@ -85,13 +101,13 @@ const loggingMiddleware: ChatMiddleware = {
   onStart(ctx) {
     console.log(`[logging] onStart requestId=${ctx.requestId}`)
   },
-  onIteration(ctx, info) {
+  onIteration(_ctx, info) {
     console.log(`[logging] onIteration iteration=${info.iteration}`)
   },
-  onBeforeToolCall(ctx, toolCtx) {
+  onBeforeToolCall(_ctx, toolCtx) {
     console.log(`[logging] onBeforeToolCall tool=${toolCtx.toolName}`)
   },
-  onAfterToolCall(ctx, info) {
+  onAfterToolCall(_ctx, info) {
     console.log(
       `[logging] onAfterToolCall tool=${info.toolName} result=${JSON.stringify(info.result).slice(0, 100)}`,
     )
@@ -101,7 +117,7 @@ const loggingMiddleware: ChatMiddleware = {
       `[logging] onFinish reason=${info.finishReason} iterations=${ctx.iteration}`,
     )
   },
-  onUsage(ctx, usage) {
+  onUsage(_ctx, usage) {
     console.log(
       `[logging] onUsage tokens=${usage.totalTokens} input=${usage.promptTokens} output=${usage.completionTokens}, total: ${usage.totalTokens}`,
     )
@@ -122,13 +138,31 @@ export const Route = createFileRoute('/api/tanchat')({
 
         const abortController = new AbortController()
 
-        const body = await request.json()
-        const { messages, data } = body
+        let params
+        try {
+          params = await chatParamsFromRequestBody(await request.json())
+        } catch (error) {
+          return new Response(
+            error instanceof Error ? error.message : 'Bad request',
+            { status: 400 },
+          )
+        }
 
-        // Extract provider and model from data
-        const provider: Provider = data?.provider || 'openai'
-        const model: string = data?.model || 'gpt-4o'
-        const conversationId: string | undefined = data?.conversationId
+        // Extract provider and model from forwardedProps (sent by the client).
+        // Provider must be allowlisted against adapterConfig (validated below)
+        // to avoid SSRF/runtime crashes from arbitrary client-supplied strings.
+        const requestedProvider =
+          typeof params.forwardedProps.provider === 'string'
+            ? params.forwardedProps.provider
+            : 'openai'
+        const model: string =
+          typeof params.forwardedProps.model === 'string'
+            ? params.forwardedProps.model
+            : 'gpt-4o'
+        const previousInteractionId: string | undefined =
+          typeof params.forwardedProps.previousInteractionId === 'string'
+            ? params.forwardedProps.previousInteractionId
+            : undefined
 
         // Pre-define typed adapter configurations with full type inference
         // Model is passed to the adapter factory function for type-safe autocomplete
@@ -139,12 +173,14 @@ export const Route = createFileRoute('/api/tanchat')({
           anthropic: () =>
             createChatOptions({
               adapter: anthropicText(
-                (model || 'claude-sonnet-4-5') as 'claude-sonnet-4-5',
+                (model || 'claude-sonnet-4-6') as 'claude-sonnet-4-6',
               ),
             }),
           openrouter: () =>
             createChatOptions({
-              adapter: openRouterText('openai/gpt-5.1'),
+              adapter: openRouterText(
+                (model || 'openai/gpt-5.1') as 'openai/gpt-5.1',
+              ),
               modelOptions: {
                 reasoning: {
                   effort: 'medium',
@@ -154,7 +190,7 @@ export const Route = createFileRoute('/api/tanchat')({
           gemini: () =>
             createChatOptions({
               adapter: geminiText(
-                (model || 'gemini-2.5-flash') as 'gemini-2.5-flash',
+                (model || 'gemini-3.1-pro-preview') as 'gemini-3.1-pro-preview',
               ),
               modelOptions: {
                 thinkingConfig: {
@@ -163,26 +199,35 @@ export const Route = createFileRoute('/api/tanchat')({
                 },
               },
             }),
+          'gemini-interactions': () =>
+            createChatOptions({
+              adapter: geminiTextInteractions(
+                (model || 'gemini-3.1-pro-preview') as 'gemini-3.1-pro-preview',
+              ),
+              modelOptions: {
+                previous_interaction_id: previousInteractionId,
+                store: true,
+              },
+            }),
           grok: () =>
             createChatOptions({
-              adapter: grokText((model || 'grok-3') as 'grok-3'),
+              adapter: grokText((model || 'grok-4.20') as 'grok-4.20'),
               modelOptions: {},
             }),
           groq: () =>
             createChatOptions({
               adapter: groqText(
-                (model ||
-                  'llama-3.3-70b-versatile') as 'llama-3.3-70b-versatile',
+                (model || 'openai/gpt-oss-120b') as 'openai/gpt-oss-120b',
               ),
             }),
           ollama: () =>
             createChatOptions({
-              adapter: ollamaText((model || 'gpt-oss:120b') as 'gpt-oss:120b'),
+              adapter: ollamaText((model || 'gpt-oss:20b') as 'gpt-oss:20b'),
               modelOptions: { think: 'low', options: { top_k: 1 } },
             }),
           openai: () =>
             createChatOptions({
-              adapter: openaiText((model || 'gpt-4o') as 'gpt-4o'),
+              adapter: openaiText((model || 'gpt-5.2') as 'gpt-5.2'),
               modelOptions: {
                 prompt_cache_key: 'user-session-12345',
                 prompt_cache_retention: '24h',
@@ -191,31 +236,33 @@ export const Route = createFileRoute('/api/tanchat')({
         }
 
         try {
+          // Allowlist provider against adapterConfig keys; fall back to openai.
+          const provider: Provider =
+            requestedProvider in adapterConfig
+              ? (requestedProvider as Provider)
+              : 'openai'
           // Get typed adapter options using createChatOptions pattern
           const options = adapterConfig[provider]()
 
-          // Note: We cast to AsyncIterable<StreamChunk> because all chat adapters
-          // return streams, but TypeScript sees a union of all possible return types
+          // All providers (including gemini-interactions) get the full
+          // server-tool set merged with whatever client-side tools the
+          // request brought. Historical note: gemini-interactions used
+          // to be excluded because of an assumed `anyOf` incompatibility
+          // and an empty-`required: []` rejection. The first turned out
+          // to be a non-issue against the live API and the second is now
+          // sanitized inside `@tanstack/ai-gemini/experimental`.
+          const mergedTools = mergeAgentTools(serverTools, params.tools)
+
           const stream = chat({
             ...options,
-
-            tools: [
-              getGuitars, // Server tool
-              recommendGuitarToolDef, // No server execute - client will handle
-              addToCartToolServer,
-              addToWishListToolDef,
-              getPersonalGuitarPreferenceToolDef,
-              // Lazy tools - discovered on demand
-              compareGuitars,
-              calculateFinancing,
-              searchGuitars,
-            ],
+            tools: Object.values(mergedTools),
             middleware: [loggingMiddleware],
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
-            messages,
+            messages: params.messages,
+            threadId: params.threadId,
+            runId: params.runId,
             abortController,
-            conversationId,
           })
           return toServerSentEventsResponse(stream, { abortController })
         } catch (error: any) {

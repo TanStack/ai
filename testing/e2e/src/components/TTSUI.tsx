@@ -15,8 +15,14 @@ interface TTSUIProps {
   aimockPort?: number
 }
 
+// ElevenLabs requires a voice on every TTS call. The other providers infer
+// one from their adapter config, so we only attach this when needed.
+const ELEVENLABS_DEFAULT_VOICE = '21m00Tcm4TlvDq8ikWAM'
+
 export function TTSUI({ provider, mode, testId, aimockPort }: TTSUIProps) {
   const [text, setText] = useState('')
+  const defaultVoice =
+    provider === 'elevenlabs' ? ELEVENLABS_DEFAULT_VOICE : undefined
 
   const connectionOptions = () => {
     const body = { provider, testId, aimockPort }
@@ -58,7 +64,7 @@ export function TTSUI({ provider, mode, testId, aimockPort }: TTSUIProps) {
         />
         <button
           data-testid="generate-button"
-          onClick={() => generate({ text })}
+          onClick={() => generate({ text, voice: defaultVoice })}
           disabled={!text.trim() || isLoading}
           className="px-4 py-2 bg-orange-500 text-white rounded text-sm font-medium disabled:opacity-50"
         >

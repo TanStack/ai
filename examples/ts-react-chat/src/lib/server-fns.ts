@@ -1,6 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import {
+  chat,
   generateAudio,
   generateImage,
   generateSpeech,
@@ -10,19 +11,84 @@ import {
   summarize,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { openaiImage, openaiSummarize, openaiVideo } from '@tanstack/ai-openai'
 import {
+  openaiImage,
+  openaiSummarize,
+  openaiText,
+  openaiVideo,
+} from '@tanstack/ai-openai'
+import type { UIMessage } from '@tanstack/ai'
+import {
+  InvalidModelOverrideError,
+  UnknownProviderError,
   buildAudioAdapter,
   buildSpeechAdapter,
   buildTranscriptionAdapter,
 } from './server-audio-adapters'
 
-const SPEECH_PROVIDER_SCHEMA = z.enum(['openai', 'gemini', 'fal']).optional()
+/**
+ * Server-fn error with a stable `code` property clients can switch on.
+ *
+ * TanStack Start's `createServerFn` surfaces thrown errors as a generic 500
+ * without a structured payload. We can't influence the status code from here,
+ * so we attach a `code` field the client can read to distinguish well-known
+ * failure modes (invalid_model_override, unknown_provider) from truly
+ * unexpected errors.
+ */
+class ServerFnError extends Error {
+  readonly code: string
+  readonly details?: Record<string, unknown>
 
-const TRANSCRIPTION_PROVIDER_SCHEMA = z.enum(['openai', 'fal']).optional()
+  constructor(
+    code: string,
+    message: string,
+    details?: Record<string, unknown>,
+  ) {
+    super(message)
+    this.name = 'ServerFnError'
+    this.code = code
+    this.details = details
+  }
+}
+
+/**
+ * Translate the typed audio-adapter errors into a `ServerFnError` with a stable
+ * `code`. Any other error is re-thrown untouched so the framework's default
+ * 500 path handles it.
+ */
+function rethrowAudioAdapterError(err: unknown): never {
+  if (err instanceof InvalidModelOverrideError) {
+    throw new ServerFnError('invalid_model_override', err.message, {
+      providerId: err.providerId,
+      requestedModel: err.requestedModel,
+      allowedModels: err.allowedModels,
+    })
+  }
+  if (err instanceof UnknownProviderError) {
+    throw new ServerFnError('unknown_provider', err.message, {
+      providerId: err.providerId,
+      allowedProviders: err.allowedProviders,
+    })
+  }
+  throw err
+}
+
+const SPEECH_PROVIDER_SCHEMA = z
+  .enum(['openai', 'gemini', 'fal', 'grok', 'elevenlabs'])
+  .optional()
+
+const TRANSCRIPTION_PROVIDER_SCHEMA = z
+  .enum(['openai', 'fal', 'grok', 'elevenlabs'])
+  .optional()
 
 const AUDIO_PROVIDER_SCHEMA = z
-  .enum(['gemini-lyria', 'fal-audio', 'fal-sfx'])
+  .enum([
+    'gemini-lyria',
+    'fal-audio',
+    'fal-sfx',
+    'elevenlabs-music',
+    'elevenlabs-sfx',
+  ])
   .optional()
 
 // =============================================================================
@@ -56,8 +122,17 @@ export const generateSpeechFn = createServerFn({ method: 'POST' })
     }),
   )
   .handler(async ({ data }) => {
+    // `buildSpeechAdapter` can throw `UnknownProviderError` (defense-in-depth;
+    // Zod should catch this first). Translate into a `ServerFnError` so
+    // clients can distinguish it from a generic failure via the stable `code`.
+    let adapter
+    try {
+      adapter = buildSpeechAdapter(data.provider ?? 'openai')
+    } catch (err) {
+      rethrowAudioAdapterError(err)
+    }
     return generateSpeech({
-      adapter: buildSpeechAdapter(data.provider ?? 'openai'),
+      adapter,
       text: data.text,
       voice: data.voice,
       format: data.format,
@@ -73,8 +148,18 @@ export const transcribeFn = createServerFn({ method: 'POST' })
     }),
   )
   .handler(async ({ data }) => {
+    // `buildTranscriptionAdapter` can throw `UnknownProviderError`
+    // (defense-in-depth; Zod should catch this first). Translate into a
+    // `ServerFnError` so clients can distinguish it from a generic failure
+    // via the stable `code`.
+    let adapter
+    try {
+      adapter = buildTranscriptionAdapter(data.provider ?? 'openai')
+    } catch (err) {
+      rethrowAudioAdapterError(err)
+    }
     return generateTranscription({
-      adapter: buildTranscriptionAdapter(data.provider ?? 'openai'),
+      adapter,
       audio: data.audio,
       language: data.language,
     })
@@ -90,8 +175,18 @@ export const generateAudioFn = createServerFn({ method: 'POST' })
     }),
   )
   .handler(async ({ data }) => {
+    // `buildAudioAdapter` can throw `InvalidModelOverrideError` (unknown
+    // model id) or `UnknownProviderError` (defense-in-depth; Zod should
+    // catch this first). Translate both into a `ServerFnError` so clients
+    // can distinguish them from a generic failure via the stable `code`.
+    let adapter
+    try {
+      adapter = buildAudioAdapter(data.provider ?? 'gemini-lyria', data.model)
+    } catch (err) {
+      rethrowAudioAdapterError(err)
+    }
     return generateAudio({
-      adapter: buildAudioAdapter(data.provider ?? 'gemini-lyria', data.model),
+      adapter,
       prompt: data.prompt,
       duration: data.duration,
     })
@@ -103,11 +198,12 @@ export const summarizeFn = createServerFn({ method: 'POST' })
       text: z.string(),
       maxLength: z.number().optional(),
       style: z.enum(['bullet-points', 'paragraph', 'concise']).optional(),
+      model: z.string().optional(),
     }),
   )
   .handler(async ({ data }) => {
     return summarize({
-      adapter: openaiSummarize('gpt-4o-mini'),
+      adapter: openaiSummarize((data.model ?? 'gpt-4o-mini') as 'gpt-4o-mini'),
       text: data.text,
       maxLength: data.maxLength,
       style: data.style,
@@ -195,9 +291,18 @@ export const generateSpeechStreamFn = createServerFn({ method: 'POST' })
     }),
   )
   .handler(({ data }) => {
+    // `buildSpeechAdapter` can throw `UnknownProviderError` (defense-in-depth;
+    // Zod should catch this first). Translate into a `ServerFnError` so
+    // clients can distinguish it from a generic failure via the stable `code`.
+    let adapter
+    try {
+      adapter = buildSpeechAdapter(data.provider ?? 'openai')
+    } catch (err) {
+      rethrowAudioAdapterError(err)
+    }
     return toServerSentEventsResponse(
       generateSpeech({
-        adapter: buildSpeechAdapter(data.provider ?? 'openai'),
+        adapter,
         text: data.text,
         voice: data.voice,
         format: data.format,
@@ -215,9 +320,19 @@ export const transcribeStreamFn = createServerFn({ method: 'POST' })
     }),
   )
   .handler(({ data }) => {
+    // `buildTranscriptionAdapter` can throw `UnknownProviderError`
+    // (defense-in-depth; Zod should catch this first). Translate into a
+    // `ServerFnError` so clients can distinguish it from a generic failure
+    // via the stable `code`.
+    let adapter
+    try {
+      adapter = buildTranscriptionAdapter(data.provider ?? 'openai')
+    } catch (err) {
+      rethrowAudioAdapterError(err)
+    }
     return toServerSentEventsResponse(
       generateTranscription({
-        adapter: buildTranscriptionAdapter(data.provider ?? 'openai'),
+        adapter,
         audio: data.audio,
         language: data.language,
         stream: true,
@@ -231,12 +346,15 @@ export const summarizeStreamFn = createServerFn({ method: 'POST' })
       text: z.string(),
       maxLength: z.number().optional(),
       style: z.enum(['bullet-points', 'paragraph', 'concise']).optional(),
+      model: z.string().optional(),
     }),
   )
   .handler(({ data }) => {
     return toServerSentEventsResponse(
       summarize({
-        adapter: openaiSummarize('gpt-4o-mini'),
+        adapter: openaiSummarize(
+          (data.model ?? 'gpt-4o-mini') as 'gpt-4o-mini',
+        ),
         text: data.text,
         maxLength: data.maxLength,
         style: data.style,
@@ -264,3 +382,23 @@ export const generateVideoStreamFn = createServerFn({ method: 'POST' })
       }),
     )
   })
+
+// =============================================================================
+// Chat server function — pairs with useChat({ fetcher })
+// =============================================================================
+
+export const chatFn = createServerFn({ method: 'POST' })
+  .inputValidator(
+    (data: { messages: Array<UIMessage>; data?: Record<string, any> }) => data,
+  )
+  .handler(({ data }) =>
+    toServerSentEventsResponse(
+      chat({
+        adapter: openaiText('gpt-5.2'),
+        messages: data.messages as any,
+        systemPrompts: [
+          'You are a helpful assistant. Keep replies short and friendly.',
+        ],
+      }),
+    ),
+  )

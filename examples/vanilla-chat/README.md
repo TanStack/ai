@@ -1,12 +1,11 @@
 # Vanilla Chat Example
 
-A simple vanilla JavaScript chat interface using `@tanstack/ai-client` and the Python FastAPI server.
+A simple vanilla JavaScript chat interface using `@tanstack/ai-client`.
 
 ## Features
 
 - ✅ Pure vanilla JavaScript (no frameworks)
 - ✅ Uses `@tanstack/ai-client` for chat functionality
-- ✅ Connects to API servers on port 8000
 - ✅ Real-time streaming messages
 - ✅ Beautiful, responsive UI :)
 
@@ -21,14 +20,9 @@ npm install
 pnpm install
 ```
 
-2. **Make sure the FastAPI server is running:**
+2. **Point the client at your chat backend:**
 
-```bash
-cd ../python-fastapi
-python main.py
-```
-
-The FastAPI server should be running on `http://localhost:8080`
+Configure your own backend that streams Server-Sent Events to the URL referenced in `src/main.js`.
 
 3. **Start the Vite dev server:**
 
@@ -60,7 +54,7 @@ vanilla-chat/
 
 ## How It Works
 
-The app uses `ChatClient` from `@tanstack/ai-client` with the `fetchServerSentEvents` connection adapter to connect to the FastAPI server:
+The app uses `ChatClient` from `@tanstack/ai-client` with the `fetchServerSentEvents` connection adapter to connect to a chat backend:
 
 ```javascript
 import { ChatClient, fetchServerSentEvents } from '@tanstack/ai-client'
@@ -76,4 +70,4 @@ const client = new ChatClient({
 })
 ```
 
-The FastAPI server streams responses in Server-Sent Events (SSE) format, which the client automatically parses and displays.
+The backend streams responses in Server-Sent Events (SSE) format, which the client automatically parses and displays.

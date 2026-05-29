@@ -188,7 +188,7 @@ function instrumentAdapter(adapter: AnyTextAdapter): {
 }
 
 function wrapWithTimingEvents(
-  stream: AsyncGenerator<StreamChunk>,
+  stream: AsyncIterable<StreamChunk>,
   adapter: AnyTextAdapter,
 ): AsyncGenerator<StreamChunk> {
   const requestStartTimeMs = Date.now()

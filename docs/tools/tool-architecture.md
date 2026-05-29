@@ -261,7 +261,7 @@ const { messages, addToolApprovalResponse } = useChat({
 // In your render:
 {part.state === "approval-requested" && (
   <div>
-    <p>Approve sending email to {part.arguments.to}?</p>
+    <p>Approve sending email to {part.input.to}?</p>
     <button
       onClick={() =>
         addToolApprovalResponse({

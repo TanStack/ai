@@ -14,7 +14,12 @@ type JobState =
   | { status: 'idle' }
   | { status: 'submitting' }
   | { status: 'pending'; jobId: string; model: string }
-  | { status: 'processing'; jobId: string; model: string; progress?: number }
+  | {
+      status: 'processing'
+      jobId: string
+      model: string
+      progress?: number | undefined
+    }
   | { status: 'completed'; url: string }
   | { status: 'error'; message: string }
 
@@ -131,12 +136,13 @@ export default function VideoGenerator({
     }))
 
     try {
+      const imageUrl =
+        mode === 'image-to-video' ? (imagePreview ?? undefined) : undefined
       const result = await createVideoJobFn({
         data: {
           prompt,
           model: modelId,
-          imageUrl:
-            mode === 'image-to-video' ? (imagePreview ?? undefined) : undefined,
+          ...(imageUrl !== undefined && { imageUrl }),
         },
       })
 

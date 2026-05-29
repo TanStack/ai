@@ -11,6 +11,13 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ToolsTestRouteImport } from './routes/tools-test'
 import { Route as MiddlewareTestRouteImport } from './routes/middleware-test'
+import { Route as MarkdownCjkRouteImport } from './routes/markdown-cjk'
+import { Route as DevtoolsToolsRouteImport } from './routes/devtools-tools'
+import { Route as DevtoolsStructuredRouteImport } from './routes/devtools-structured'
+import { Route as DevtoolsRouteBRouteImport } from './routes/devtools-route-b'
+import { Route as DevtoolsRouteARouteImport } from './routes/devtools-route-a'
+import { Route as DevtoolsGenerationHooksRouteImport } from './routes/devtools-generation-hooks'
+import { Route as DevtoolsChatRouteImport } from './routes/devtools-chat'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProviderIndexRouteImport } from './routes/$provider/index'
 import { Route as ApiVideoRouteImport } from './routes/api.video'
@@ -18,14 +25,19 @@ import { Route as ApiTtsRouteImport } from './routes/api.tts'
 import { Route as ApiTranscriptionRouteImport } from './routes/api.transcription'
 import { Route as ApiToolsTestRouteImport } from './routes/api.tools-test'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
+import { Route as ApiOpenrouterWebToolsWireRouteImport } from './routes/api.openrouter-web-tools-wire'
+import { Route as ApiOpenrouterCostRouteImport } from './routes/api.openrouter-cost'
 import { Route as ApiMiddlewareTestRouteImport } from './routes/api.middleware-test'
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
+import { Route as ApiAudioRouteImport } from './routes/api.audio'
+import { Route as ApiAnthropicBugTestRouteImport } from './routes/api.anthropic-bug-test'
 import { Route as ProviderFeatureRouteImport } from './routes/$provider/$feature'
 import { Route as ApiVideoStreamRouteImport } from './routes/api.video.stream'
 import { Route as ApiTtsStreamRouteImport } from './routes/api.tts.stream'
 import { Route as ApiTranscriptionStreamRouteImport } from './routes/api.transcription.stream'
 import { Route as ApiImageStreamRouteImport } from './routes/api.image.stream'
+import { Route as ApiAudioStreamRouteImport } from './routes/api.audio.stream'
 
 const ToolsTestRoute = ToolsTestRouteImport.update({
   id: '/tools-test',
@@ -35,6 +47,41 @@ const ToolsTestRoute = ToolsTestRouteImport.update({
 const MiddlewareTestRoute = MiddlewareTestRouteImport.update({
   id: '/middleware-test',
   path: '/middleware-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MarkdownCjkRoute = MarkdownCjkRouteImport.update({
+  id: '/markdown-cjk',
+  path: '/markdown-cjk',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevtoolsToolsRoute = DevtoolsToolsRouteImport.update({
+  id: '/devtools-tools',
+  path: '/devtools-tools',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevtoolsStructuredRoute = DevtoolsStructuredRouteImport.update({
+  id: '/devtools-structured',
+  path: '/devtools-structured',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevtoolsRouteBRoute = DevtoolsRouteBRouteImport.update({
+  id: '/devtools-route-b',
+  path: '/devtools-route-b',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevtoolsRouteARoute = DevtoolsRouteARouteImport.update({
+  id: '/devtools-route-a',
+  path: '/devtools-route-a',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevtoolsGenerationHooksRoute = DevtoolsGenerationHooksRouteImport.update({
+  id: '/devtools-generation-hooks',
+  path: '/devtools-generation-hooks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevtoolsChatRoute = DevtoolsChatRouteImport.update({
+  id: '/devtools-chat',
+  path: '/devtools-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -72,6 +119,17 @@ const ApiSummarizeRoute = ApiSummarizeRouteImport.update({
   path: '/api/summarize',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOpenrouterWebToolsWireRoute =
+  ApiOpenrouterWebToolsWireRouteImport.update({
+    id: '/api/openrouter-web-tools-wire',
+    path: '/api/openrouter-web-tools-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiOpenrouterCostRoute = ApiOpenrouterCostRouteImport.update({
+  id: '/api/openrouter-cost',
+  path: '/api/openrouter-cost',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMiddlewareTestRoute = ApiMiddlewareTestRouteImport.update({
   id: '/api/middleware-test',
   path: '/api/middleware-test',
@@ -85,6 +143,16 @@ const ApiImageRoute = ApiImageRouteImport.update({
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAudioRoute = ApiAudioRouteImport.update({
+  id: '/api/audio',
+  path: '/api/audio',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAnthropicBugTestRoute = ApiAnthropicBugTestRouteImport.update({
+  id: '/api/anthropic-bug-test',
+  path: '/api/anthropic-bug-test',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProviderFeatureRoute = ProviderFeatureRouteImport.update({
@@ -112,21 +180,38 @@ const ApiImageStreamRoute = ApiImageStreamRouteImport.update({
   path: '/stream',
   getParentRoute: () => ApiImageRoute,
 } as any)
+const ApiAudioStreamRoute = ApiAudioStreamRouteImport.update({
+  id: '/stream',
+  path: '/stream',
+  getParentRoute: () => ApiAudioRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/devtools-chat': typeof DevtoolsChatRoute
+  '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
+  '/devtools-route-a': typeof DevtoolsRouteARoute
+  '/devtools-route-b': typeof DevtoolsRouteBRoute
+  '/devtools-structured': typeof DevtoolsStructuredRoute
+  '/devtools-tools': typeof DevtoolsToolsRoute
+  '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
+  '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
+  '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
+  '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
   '/api/video': typeof ApiVideoRouteWithChildren
   '/$provider/': typeof ProviderIndexRoute
+  '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
   '/api/tts/stream': typeof ApiTtsStreamRoute
@@ -134,18 +219,30 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/devtools-chat': typeof DevtoolsChatRoute
+  '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
+  '/devtools-route-a': typeof DevtoolsRouteARoute
+  '/devtools-route-b': typeof DevtoolsRouteBRoute
+  '/devtools-structured': typeof DevtoolsStructuredRoute
+  '/devtools-tools': typeof DevtoolsToolsRoute
+  '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
+  '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
+  '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
+  '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
   '/api/video': typeof ApiVideoRouteWithChildren
   '/$provider': typeof ProviderIndexRoute
+  '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
   '/api/tts/stream': typeof ApiTtsStreamRoute
@@ -154,18 +251,30 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/devtools-chat': typeof DevtoolsChatRoute
+  '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
+  '/devtools-route-a': typeof DevtoolsRouteARoute
+  '/devtools-route-b': typeof DevtoolsRouteBRoute
+  '/devtools-structured': typeof DevtoolsStructuredRoute
+  '/devtools-tools': typeof DevtoolsToolsRoute
+  '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
+  '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
+  '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
+  '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
   '/api/video': typeof ApiVideoRouteWithChildren
   '/$provider/': typeof ProviderIndexRoute
+  '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
   '/api/tts/stream': typeof ApiTtsStreamRoute
@@ -175,18 +284,30 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/devtools-chat'
+    | '/devtools-generation-hooks'
+    | '/devtools-route-a'
+    | '/devtools-route-b'
+    | '/devtools-structured'
+    | '/devtools-tools'
+    | '/markdown-cjk'
     | '/middleware-test'
     | '/tools-test'
     | '/$provider/$feature'
+    | '/api/anthropic-bug-test'
+    | '/api/audio'
     | '/api/chat'
     | '/api/image'
     | '/api/middleware-test'
+    | '/api/openrouter-cost'
+    | '/api/openrouter-web-tools-wire'
     | '/api/summarize'
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
     | '/api/video'
     | '/$provider/'
+    | '/api/audio/stream'
     | '/api/image/stream'
     | '/api/transcription/stream'
     | '/api/tts/stream'
@@ -194,18 +315,30 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/devtools-chat'
+    | '/devtools-generation-hooks'
+    | '/devtools-route-a'
+    | '/devtools-route-b'
+    | '/devtools-structured'
+    | '/devtools-tools'
+    | '/markdown-cjk'
     | '/middleware-test'
     | '/tools-test'
     | '/$provider/$feature'
+    | '/api/anthropic-bug-test'
+    | '/api/audio'
     | '/api/chat'
     | '/api/image'
     | '/api/middleware-test'
+    | '/api/openrouter-cost'
+    | '/api/openrouter-web-tools-wire'
     | '/api/summarize'
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
     | '/api/video'
     | '/$provider'
+    | '/api/audio/stream'
     | '/api/image/stream'
     | '/api/transcription/stream'
     | '/api/tts/stream'
@@ -213,18 +346,30 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/devtools-chat'
+    | '/devtools-generation-hooks'
+    | '/devtools-route-a'
+    | '/devtools-route-b'
+    | '/devtools-structured'
+    | '/devtools-tools'
+    | '/markdown-cjk'
     | '/middleware-test'
     | '/tools-test'
     | '/$provider/$feature'
+    | '/api/anthropic-bug-test'
+    | '/api/audio'
     | '/api/chat'
     | '/api/image'
     | '/api/middleware-test'
+    | '/api/openrouter-cost'
+    | '/api/openrouter-web-tools-wire'
     | '/api/summarize'
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
     | '/api/video'
     | '/$provider/'
+    | '/api/audio/stream'
     | '/api/image/stream'
     | '/api/transcription/stream'
     | '/api/tts/stream'
@@ -233,12 +378,23 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DevtoolsChatRoute: typeof DevtoolsChatRoute
+  DevtoolsGenerationHooksRoute: typeof DevtoolsGenerationHooksRoute
+  DevtoolsRouteARoute: typeof DevtoolsRouteARoute
+  DevtoolsRouteBRoute: typeof DevtoolsRouteBRoute
+  DevtoolsStructuredRoute: typeof DevtoolsStructuredRoute
+  DevtoolsToolsRoute: typeof DevtoolsToolsRoute
+  MarkdownCjkRoute: typeof MarkdownCjkRoute
   MiddlewareTestRoute: typeof MiddlewareTestRoute
   ToolsTestRoute: typeof ToolsTestRoute
   ProviderFeatureRoute: typeof ProviderFeatureRoute
+  ApiAnthropicBugTestRoute: typeof ApiAnthropicBugTestRoute
+  ApiAudioRoute: typeof ApiAudioRouteWithChildren
   ApiChatRoute: typeof ApiChatRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
   ApiMiddlewareTestRoute: typeof ApiMiddlewareTestRoute
+  ApiOpenrouterCostRoute: typeof ApiOpenrouterCostRoute
+  ApiOpenrouterWebToolsWireRoute: typeof ApiOpenrouterWebToolsWireRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
   ApiToolsTestRoute: typeof ApiToolsTestRoute
   ApiTranscriptionRoute: typeof ApiTranscriptionRouteWithChildren
@@ -261,6 +417,55 @@ declare module '@tanstack/react-router' {
       path: '/middleware-test'
       fullPath: '/middleware-test'
       preLoaderRoute: typeof MiddlewareTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/markdown-cjk': {
+      id: '/markdown-cjk'
+      path: '/markdown-cjk'
+      fullPath: '/markdown-cjk'
+      preLoaderRoute: typeof MarkdownCjkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/devtools-tools': {
+      id: '/devtools-tools'
+      path: '/devtools-tools'
+      fullPath: '/devtools-tools'
+      preLoaderRoute: typeof DevtoolsToolsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/devtools-structured': {
+      id: '/devtools-structured'
+      path: '/devtools-structured'
+      fullPath: '/devtools-structured'
+      preLoaderRoute: typeof DevtoolsStructuredRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/devtools-route-b': {
+      id: '/devtools-route-b'
+      path: '/devtools-route-b'
+      fullPath: '/devtools-route-b'
+      preLoaderRoute: typeof DevtoolsRouteBRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/devtools-route-a': {
+      id: '/devtools-route-a'
+      path: '/devtools-route-a'
+      fullPath: '/devtools-route-a'
+      preLoaderRoute: typeof DevtoolsRouteARouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/devtools-generation-hooks': {
+      id: '/devtools-generation-hooks'
+      path: '/devtools-generation-hooks'
+      fullPath: '/devtools-generation-hooks'
+      preLoaderRoute: typeof DevtoolsGenerationHooksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/devtools-chat': {
+      id: '/devtools-chat'
+      path: '/devtools-chat'
+      fullPath: '/devtools-chat'
+      preLoaderRoute: typeof DevtoolsChatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -312,6 +517,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSummarizeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/openrouter-web-tools-wire': {
+      id: '/api/openrouter-web-tools-wire'
+      path: '/api/openrouter-web-tools-wire'
+      fullPath: '/api/openrouter-web-tools-wire'
+      preLoaderRoute: typeof ApiOpenrouterWebToolsWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/openrouter-cost': {
+      id: '/api/openrouter-cost'
+      path: '/api/openrouter-cost'
+      fullPath: '/api/openrouter-cost'
+      preLoaderRoute: typeof ApiOpenrouterCostRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/middleware-test': {
       id: '/api/middleware-test'
       path: '/api/middleware-test'
@@ -331,6 +550,20 @@ declare module '@tanstack/react-router' {
       path: '/api/chat'
       fullPath: '/api/chat'
       preLoaderRoute: typeof ApiChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/audio': {
+      id: '/api/audio'
+      path: '/api/audio'
+      fullPath: '/api/audio'
+      preLoaderRoute: typeof ApiAudioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/anthropic-bug-test': {
+      id: '/api/anthropic-bug-test'
+      path: '/api/anthropic-bug-test'
+      fullPath: '/api/anthropic-bug-test'
+      preLoaderRoute: typeof ApiAnthropicBugTestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$provider/$feature': {
@@ -368,8 +601,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiImageStreamRouteImport
       parentRoute: typeof ApiImageRoute
     }
+    '/api/audio/stream': {
+      id: '/api/audio/stream'
+      path: '/stream'
+      fullPath: '/api/audio/stream'
+      preLoaderRoute: typeof ApiAudioStreamRouteImport
+      parentRoute: typeof ApiAudioRoute
+    }
   }
 }
+
+interface ApiAudioRouteChildren {
+  ApiAudioStreamRoute: typeof ApiAudioStreamRoute
+}
+
+const ApiAudioRouteChildren: ApiAudioRouteChildren = {
+  ApiAudioStreamRoute: ApiAudioStreamRoute,
+}
+
+const ApiAudioRouteWithChildren = ApiAudioRoute._addFileChildren(
+  ApiAudioRouteChildren,
+)
 
 interface ApiImageRouteChildren {
   ApiImageStreamRoute: typeof ApiImageStreamRoute
@@ -419,12 +671,23 @@ const ApiVideoRouteWithChildren = ApiVideoRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DevtoolsChatRoute: DevtoolsChatRoute,
+  DevtoolsGenerationHooksRoute: DevtoolsGenerationHooksRoute,
+  DevtoolsRouteARoute: DevtoolsRouteARoute,
+  DevtoolsRouteBRoute: DevtoolsRouteBRoute,
+  DevtoolsStructuredRoute: DevtoolsStructuredRoute,
+  DevtoolsToolsRoute: DevtoolsToolsRoute,
+  MarkdownCjkRoute: MarkdownCjkRoute,
   MiddlewareTestRoute: MiddlewareTestRoute,
   ToolsTestRoute: ToolsTestRoute,
   ProviderFeatureRoute: ProviderFeatureRoute,
+  ApiAnthropicBugTestRoute: ApiAnthropicBugTestRoute,
+  ApiAudioRoute: ApiAudioRouteWithChildren,
   ApiChatRoute: ApiChatRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
   ApiMiddlewareTestRoute: ApiMiddlewareTestRoute,
+  ApiOpenrouterCostRoute: ApiOpenrouterCostRoute,
+  ApiOpenrouterWebToolsWireRoute: ApiOpenrouterWebToolsWireRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
   ApiToolsTestRoute: ApiToolsTestRoute,
   ApiTranscriptionRoute: ApiTranscriptionRouteWithChildren,

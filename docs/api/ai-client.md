@@ -46,7 +46,9 @@ const client = new ChatClient({
 - `connection` - Connection adapter for streaming
 - `initialMessages?` - Initial messages array
 - `id?` - Unique identifier for this chat instance
-- `body?` - Additional body parameters to send
+- `threadId?` - Thread ID for AG-UI run correlation. Persists across sends; auto-generated if omitted
+- `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field
+- `body?` - **Deprecated.** Use `forwardedProps` instead. Still works — values are merged into `forwardedProps` on the wire and mirrored under the legacy `data` field for backward compatibility
 - `onResponse?` - Callback when response is received
 - `onChunk?` - Callback when stream chunk is received
 - `onFinish?` - Callback when response finishes
@@ -142,6 +144,10 @@ await client.addToolApprovalResponse({
 
 ## Connection Adapters
 
+For a complete transport walkthrough, see
+[Connection Adapters](../chat/connection-adapters). For React Native and Expo,
+see [Quick Start: React Native](../getting-started/quick-start-react-native).
+
 ### `fetchServerSentEvents(url, options?)`
 
 Creates an SSE connection adapter.
@@ -158,13 +164,76 @@ const adapter = fetchServerSentEvents("/api/chat", {
 
 ### `fetchHttpStream(url, options?)`
 
-Creates an HTTP stream connection adapter.
+Creates a newline-delimited JSON HTTP stream connection adapter. Pair it with
+`toHttpResponse()` on the server.
 
 ```typescript
 import { fetchHttpStream } from "@tanstack/ai-client";
 
 const adapter = fetchHttpStream("/api/chat");
 ```
+
+`fetchHttpStream()` requires a runtime with streaming `fetch`,
+`Response.body.getReader()`, and `TextDecoder`. If the runtime cannot expose an
+incremental response body, it throws `UnsupportedResponseStreamError`; use the
+XHR adapters in React Native or Expo.
+
+### `xhrHttpStream(url, options?)`
+
+Creates an `XMLHttpRequest`-backed newline-delimited JSON stream adapter. This
+is the recommended default for React Native and Expo chat screens. Pair it with
+`toHttpResponse()` on the server.
+
+```typescript
+import { xhrHttpStream } from "@tanstack/ai-client";
+
+const adapter = xhrHttpStream("http://192.168.1.10:8787/chat/http", {
+  headers: { Authorization: "Bearer token" },
+  withCredentials: true,
+});
+```
+
+### `xhrServerSentEvents(url, options?)`
+
+Creates an `XMLHttpRequest`-backed SSE adapter for runtimes where XHR progress
+events are more reliable than streaming `fetch`. Pair it with
+`toServerSentEventsResponse()` on the server.
+
+```typescript
+import { xhrServerSentEvents } from "@tanstack/ai-client";
+
+const adapter = xhrServerSentEvents("http://192.168.1.10:8787/chat/sse");
+```
+
+### Adapter options
+
+Fetch adapters accept:
+
+- `headers?: Record<string, string> | Headers`
+- `credentials?: RequestCredentials`
+- `signal?: AbortSignal`
+- `body?: Record<string, any>`
+- `fetchClient?: typeof globalThis.fetch`
+
+XHR adapters accept:
+
+- `headers?: Record<string, string> | Headers`
+- `withCredentials?: boolean`
+- `signal?: AbortSignal`
+- `body?: Record<string, any>`
+- `xhrFactory?: () => XMLHttpRequest`
+
+`body` is merged into the AG-UI `forwardedProps` payload. Values from
+`forwardedProps` on the client and per-message `sendMessage(..., data)` calls
+override static adapter `body` values.
+
+### Stream errors
+
+- `UnsupportedResponseStreamError` - thrown by fetch-based adapters when
+  `Response.body`, `Response.body.getReader()`, or `TextDecoder` is missing.
+- `StreamTruncatedError` - thrown when an SSE or NDJSON stream ends with
+  unterminated trailing data, usually because the server, proxy, or network cut
+  the connection mid-line.
 
 ### `stream(connectFn)`
 
@@ -174,10 +243,12 @@ Creates a custom connection adapter.
 import { stream } from "@tanstack/ai-client";
 
 const adapter = stream(async (messages, data, signal) => {
-  // Custom implementation
+  // `data` here carries the merged forwardedProps. The fetch-based
+  // adapters serialize it as the AG-UI `RunAgentInput.forwardedProps`
+  // field on the wire (with a backward-compat `data` mirror).
   const response = await fetch("/api/chat", {
     method: "POST",
-    body: JSON.stringify({ messages, ...data }),
+    body: JSON.stringify({ messages, forwardedProps: data }),
     signal,
   });
   return processStream(response);

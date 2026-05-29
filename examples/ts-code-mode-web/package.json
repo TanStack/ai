@@ -6,7 +6,8 @@
     "dev": "vite dev --port 3001",
     "build": "vite build",
     "serve": "vite preview",
-    "test": "exit 0"
+    "test": "exit 0",
+    "test:types": "tsc --noEmit"
   },
   "dependencies": {
     "@radix-ui/react-collapsible": "^1.1.2",
@@ -52,6 +53,6 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.2",
     "typescript": "5.9.3",
-    "vite": "^7.2.7"
+    "vite": "^7.3.3"
   }
 }

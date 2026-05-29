@@ -35,18 +35,62 @@ const stream = chat({
 });
 ```
 
+## Chat Completions API
+
+`@tanstack/ai-openai` ships two text adapters that hit different OpenAI endpoints. `openaiText` (default) calls the Responses API (`/v1/responses`). `openaiChatCompletions` calls the older Chat Completions API (`/v1/chat/completions`).
+
+Pick whichever fits your wire format and feature needs:
+
+| | `openaiText` (Responses) | `openaiChatCompletions` (Chat Completions) |
+|---|---|---|
+| Endpoint | `/v1/responses` | `/v1/chat/completions` |
+| Reasoning summaries | Yes — set `modelOptions.reasoning.summary: 'auto'` to surface reasoning text via `REASONING_*` events | No — reasoning tokens are still consumed but cannot be exposed |
+| Wire-format compatibility | OpenAI-only | Matches the older de-facto industry shape (Grok, Groq, OpenRouter, many local model servers) |
+| Structured output streaming | `text.format: { type: 'json_schema', strict: true }` + `stream: true` | `response_format: { type: 'json_schema', strict: true }` + `stream: true` |
+
+Use `openaiText` when you want reasoning-summary streaming or OpenAI-specific Responses features. Use `openaiChatCompletions` when you're migrating off a Chat-Completions-style provider, share request-building code with other Chat-Completions adapters in your stack, or want the more battle-tested wire format.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiChatCompletions } from "@tanstack/ai-openai";
+
+const stream = chat({
+  adapter: openaiChatCompletions("gpt-5.2"),
+  messages: [{ role: "user", content: "Hello!" }],
+});
+```
+
+With an explicit API key:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { createOpenaiChatCompletions } from "@tanstack/ai-openai";
+
+const adapter = createOpenaiChatCompletions("gpt-5.2", {
+  apiKey: process.env.OPENAI_API_KEY!,
+  // organization, baseURL, headers — all optional
+});
+
+const stream = chat({
+  adapter,
+  messages: [{ role: "user", content: "Hello!" }],
+});
+```
+
+Both adapters work identically with [Structured Outputs](../structured-outputs/overview) — including `stream: true` — and accept the same `modelOptions` (temperature, top_p, max_tokens, stop, …). The reasoning section below applies to `openaiText`; `openaiChatCompletions` accepts `modelOptions.reasoning.effort` but cannot stream summary text.
+
 ## Basic Usage - Custom API Key
 
 ```typescript
 import { chat } from "@tanstack/ai";
 import { createOpenaiChat } from "@tanstack/ai-openai";
 
-const adapter = createOpenaiChat(process.env.OPENAI_API_KEY!, {
+const adapter = createOpenaiChat("gpt-5.2", process.env.OPENAI_API_KEY!, {
   // ... your config options
 });
 
 const stream = chat({
-  adapter: adapter("gpt-5.2"),
+  adapter,
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
@@ -54,14 +98,14 @@ const stream = chat({
 ## Configuration
 
 ```typescript
-import { createOpenaiChat, type OpenAIChatConfig } from "@tanstack/ai-openai";
+import { createOpenaiChat, type OpenAITextConfig } from "@tanstack/ai-openai";
 
-const config: Omit<OpenAIChatConfig, 'apiKey'> = {
+const config: Omit<OpenAITextConfig, "apiKey"> = {
   organization: "org-...", // Optional
   baseURL: "https://api.openai.com/v1", // Optional, for custom endpoints
 };
 
-const adapter = createOpenaiChat(process.env.OPENAI_API_KEY!, config);
+const adapter = createOpenaiChat("gpt-5.2", process.env.OPENAI_API_KEY!, config);
 ```
  
 ## Example: Chat Completion
@@ -198,10 +242,10 @@ Generate speech from text:
 
 ```typescript
 import { generateSpeech } from "@tanstack/ai";
-import { openaiTTS } from "@tanstack/ai-openai";
+import { openaiSpeech } from "@tanstack/ai-openai";
 
 const result = await generateSpeech({
-  adapter: openaiTTS("tts-1"),
+  adapter: openaiSpeech("tts-1"),
   text: "Hello, welcome to TanStack AI!",
   voice: "alloy",
   format: "mp3",
@@ -219,7 +263,7 @@ Available voices: `alloy`, `echo`, `fable`, `onyx`, `nova`, `shimmer`, `ash`, `b
 
 ```typescript
 const result = await generateSpeech({
-  adapter: openaiTTS("tts-1-hd"),
+  adapter: openaiSpeech("tts-1-hd"),
   text: "High quality speech",
   modelOptions: {
     speed: 1.0, // 0.25 to 4.0
@@ -271,71 +315,53 @@ OPENAI_API_KEY=sk-...
 
 ## API Reference
 
-### `openaiText(config?)`
+Every factory pair follows the same shape: the short factory (`openaiText`, `openaiImage`, …) reads `OPENAI_API_KEY` from the environment, while the `create*` variant takes an explicit API key. Both take `model` as the first argument.
 
-Creates an OpenAI chat adapter using environment variables.
+### `openaiText(model, config?)`
 
-**Returns:** An OpenAI chat adapter instance.
-
-### `createOpenaiChat(apiKey, config?)`
-
-Creates an OpenAI chat adapter with an explicit API key.
+Creates an OpenAI text adapter against the Responses API (`/v1/responses`) using `OPENAI_API_KEY` from the environment.
 
 **Parameters:**
 
-- `apiKey` - Your OpenAI API key
-- `config.organization?` - Organization ID (optional)
-- `config.baseURL?` - Custom base URL (optional)
+- `model` - OpenAI chat model id (e.g. `"gpt-5.2"`, `"gpt-4o-mini"`)
+- `config?.organization` - Organization ID (optional)
+- `config?.baseURL` - Custom base URL (optional)
 
-**Returns:** An OpenAI chat adapter instance.
+### `createOpenaiChat(model, apiKey, config?)`
 
-### `openaiSummarize(config?)`
+Creates an OpenAI text adapter (Responses API) with an explicit API key.
 
-Creates an OpenAI summarization adapter using environment variables.
+### `openaiChatCompletions(model, config?)`
 
-**Returns:** An OpenAI summarize adapter instance.
+Creates an OpenAI text adapter that targets `/v1/chat/completions` instead of the Responses API. See [Chat Completions API](#chat-completions-api) for when to use this over `openaiText`.
 
-### `createOpenaiSummarize(apiKey, config?)`
+### `createOpenaiChatCompletions(model, apiKey, config?)`
 
-Creates an OpenAI summarization adapter with an explicit API key.
+Creates an OpenAI chat-completions adapter with an explicit API key.
 
-**Returns:** An OpenAI summarize adapter instance.
+### `openaiSummarize(model, config?)` / `createOpenaiSummarize(model, apiKey, config?)`
 
-### `openaiImage(config?)`
+Creates an OpenAI summarization adapter.
 
-Creates an OpenAI image generation adapter using environment variables.
+### `openaiImage(model, config?)` / `createOpenaiImage(model, apiKey, config?)`
 
-**Returns:** An OpenAI image adapter instance.
+Creates an OpenAI image generation adapter (DALL-E, gpt-image).
 
-### `createOpenaiImage(apiKey, config?)`
+### `openaiSpeech(model, config?)` / `createOpenaiSpeech(model, apiKey, config?)`
 
-Creates an OpenAI image generation adapter with an explicit API key.
+Creates an OpenAI text-to-speech adapter.
 
-**Returns:** An OpenAI image adapter instance.
+### `openaiTranscription(model, config?)` / `createOpenaiTranscription(model, apiKey, config?)`
 
-### `openaiTTS(config?)`
+Creates an OpenAI transcription adapter (Whisper).
 
-Creates an OpenAI TTS adapter using environment variables.
+### `openaiVideo(model, config?)` / `createOpenaiVideo(model, apiKey, config?)`
 
-**Returns:** An OpenAI TTS adapter instance.
+Creates an OpenAI video generation adapter (Sora). _Experimental._
 
-### `createOpenaiTTS(apiKey, config?)`
+### `openaiRealtime(...)` / `openaiRealtimeToken(...)`
 
-Creates an OpenAI TTS adapter with an explicit API key.
-
-**Returns:** An OpenAI TTS adapter instance.
-
-### `openaiTranscription(config?)`
-
-Creates an OpenAI transcription adapter using environment variables.
-
-**Returns:** An OpenAI transcription adapter instance.
-
-### `createOpenaiTranscription(apiKey, config?)`
-
-Creates an OpenAI transcription adapter with an explicit API key.
-
-**Returns:** An OpenAI transcription adapter instance.
+Realtime voice adapters. See [Realtime Voice Chat](../media/realtime-chat) for usage.
 
 ## Next Steps
 

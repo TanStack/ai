@@ -405,10 +405,6 @@ Creates a fal.ai image adapter using the `FAL_KEY` environment variable or an ex
 
 **Returns:** A `FalImageAdapter` instance for use with `generateImage()`.
 
-### `createFalImage(model, config?)`
-
-Alias for `falImage()`.
-
 ### `falVideo(model, config?)`
 
 Creates a fal.ai video adapter using the `FAL_KEY` environment variable or an explicit config.
@@ -420,10 +416,6 @@ Creates a fal.ai video adapter using the `FAL_KEY` environment variable or an ex
 - `config.proxyUrl?` - Proxy URL for client-side usage
 
 **Returns:** A `FalVideoAdapter` instance for use with `generateVideo()` and `getVideoJobStatus()`.
-
-### `createFalVideo(model, config?)`
-
-Alias for `falVideo()`.
 
 ### `falSpeech(model, config?)`
 
