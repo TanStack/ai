@@ -2275,3 +2275,110 @@ describe('OpenRouter convertMessage fail-loud guards', () => {
     expect(assistantMsg.content).toBeNull()
   })
 })
+
+describe('OpenRouter cost tracking', () => {
+  // OpenRouter sends final token usage (and cost) on a trailing chunk whose
+  // `choices` is empty, arriving AFTER the finishReason chunk. The adapter
+  // defers RUN_FINISHED until the stream drains so this chunk is captured.
+  const baseStream = (
+    usage: Record<string, unknown>,
+  ): Array<Record<string, unknown>> => [
+    {
+      id: 'chatcmpl-cost',
+      model: 'openai/gpt-4o-mini',
+      choices: [{ delta: { content: 'Hi' }, finishReason: null }],
+    },
+    {
+      id: 'chatcmpl-cost',
+      model: 'openai/gpt-4o-mini',
+      choices: [{ delta: {}, finishReason: 'stop' }],
+    },
+    {
+      id: 'chatcmpl-cost',
+      model: 'openai/gpt-4o-mini',
+      choices: [],
+      usage,
+    },
+  ]
+
+  const runFinished = async (usage: Record<string, unknown>) => {
+    setupMockSdkClient(baseStream(usage))
+    const chunks: Array<StreamChunk> = []
+    for await (const chunk of chat({
+      adapter: createAdapter(),
+      messages: [{ role: 'user', content: 'Hi' }],
+    })) {
+      chunks.push(chunk)
+    }
+    return chunks.find((c) => c.type === 'RUN_FINISHED')
+  }
+
+  it('forwards cost and costDetails from the trailing usage chunk', async () => {
+    // The cost details mirror the full shape the @openrouter/sdk parser emits
+    // (camelCased), not a partial one the real parser would reject.
+    const runFinishedChunk = await runFinished({
+      promptTokens: 5,
+      completionTokens: 2,
+      totalTokens: 7,
+      cost: 0.0042,
+      costDetails: {
+        upstreamInferenceCompletionsCost: 0.0026,
+        upstreamInferenceCost: 0.0038,
+        upstreamInferencePromptCost: 0.0012,
+      },
+    })
+    expect(runFinishedChunk).toMatchObject({
+      type: 'RUN_FINISHED',
+      usage: {
+        promptTokens: 5,
+        completionTokens: 2,
+        totalTokens: 7,
+        cost: 0.0042,
+        costDetails: {
+          upstreamInferenceCompletionsCost: 0.0026,
+          upstreamInferenceCost: 0.0038,
+          upstreamInferencePromptCost: 0.0012,
+        },
+      },
+    })
+  })
+
+  it('preserves cost === 0', async () => {
+    const runFinishedChunk = await runFinished({
+      promptTokens: 5,
+      completionTokens: 2,
+      totalTokens: 7,
+      cost: 0,
+    })
+    expect(
+      runFinishedChunk?.type === 'RUN_FINISHED' && runFinishedChunk.usage,
+    ).toMatchObject({ cost: 0 })
+  })
+
+  it('omits cost when the provider does not report it', async () => {
+    const runFinishedChunk = await runFinished({
+      promptTokens: 5,
+      completionTokens: 2,
+      totalTokens: 7,
+    })
+    expect(runFinishedChunk?.type).toBe('RUN_FINISHED')
+    if (runFinishedChunk?.type === 'RUN_FINISHED') {
+      expect(runFinishedChunk.usage).toMatchObject({ totalTokens: 7 })
+      expect(runFinishedChunk.usage).not.toHaveProperty('cost')
+      expect(runFinishedChunk.usage).not.toHaveProperty('costDetails')
+    }
+  })
+
+  it('does not break streaming on a malformed cost (cost omitted)', async () => {
+    const runFinishedChunk = await runFinished({
+      promptTokens: 5,
+      completionTokens: 2,
+      totalTokens: 7,
+      cost: 'not-a-number',
+    })
+    expect(runFinishedChunk?.type).toBe('RUN_FINISHED')
+    if (runFinishedChunk?.type === 'RUN_FINISHED') {
+      expect(runFinishedChunk.usage).not.toHaveProperty('cost')
+    }
+  })
+})

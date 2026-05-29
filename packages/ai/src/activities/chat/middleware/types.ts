@@ -4,6 +4,7 @@ import type {
   StreamChunk,
   Tool,
   ToolCall,
+  UsageTotals,
 } from '../../../types'
 import type { SystemPrompt } from '../../../system-prompts'
 
@@ -264,12 +265,12 @@ export interface ToolPhaseCompleteInfo {
 /**
  * Token usage statistics passed to the onUsage hook.
  * Extracted from the RUN_FINISHED chunk when usage data is present.
+ *
+ * Includes optional provider-reported `cost`/`costDetails` (see {@link UsageTotals}).
+ * Kept as an interface extending `UsageTotals` to preserve declaration merging for
+ * this publicly exported type.
  */
-export interface UsageInfo {
-  promptTokens: number
-  completionTokens: number
-  totalTokens: number
-}
+export interface UsageInfo extends UsageTotals {}
 
 // ===========================
 // Terminal Hook Info
@@ -285,14 +286,8 @@ export interface FinishInfo {
   duration: number
   /** Final accumulated text content */
   content: string
-  /** Final usage totals, if available */
-  usage?:
-    | {
-        promptTokens: number
-        completionTokens: number
-        totalTokens: number
-      }
-    | undefined
+  /** Final usage totals, if available (optionally including provider-reported cost) */
+  usage?: UsageTotals | undefined
 }
 
 /**

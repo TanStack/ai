@@ -51,6 +51,13 @@ export default async function globalSetup() {
   // the Anthropic adapter here.
   mock.mount('/anthropic-bug-test', anthropicServerToolBugMount())
 
+  // OpenRouter per-request cost capture. aimock's OpenAI-compatible chat
+  // helper doesn't synthesize OpenRouter's `usage.cost` / `usage.cost_details`,
+  // and crucially those land on a trailing usage-only chunk (choices: []) that
+  // arrives AFTER the finish_reason chunk. This mount hand-crafts that exact
+  // wire shape so the companion spec can assert cost reaches RUN_FINISHED.usage.
+  mock.mount('/openrouter-cost', openRouterCostMount())
+
   await mock.start()
   console.log(`[aimock] started on port 4010`)
   ;(globalThis as any).__aimock = mock
@@ -293,6 +300,76 @@ function anthropicServerToolBugMount(): Mountable {
       for (const event of events) {
         res.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`)
       }
+      res.end()
+      return true
+    },
+  }
+}
+
+/**
+ * Emits an OpenAI-compatible chat-completion SSE stream that ends with a
+ * usage-only trailing chunk carrying OpenRouter's `cost` / `cost_details`.
+ * Snake_case on the wire is camelCased by the `@openrouter/sdk` parser, so the
+ * adapter sees `usage.cost` and `usage.costDetails.upstreamInferenceCost`.
+ */
+function openRouterCostMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      // The mount prefix (/openrouter-cost) is stripped before dispatch; the
+      // SDK posts to <serverURL>/chat/completions where serverURL ends in /v1.
+      if (req.method !== 'POST' || !pathname.startsWith('/v1/chat/completions')) {
+        return false
+      }
+
+      const base = {
+        id: 'chatcmpl-cost-e2e',
+        object: 'chat.completion.chunk',
+        // The @openrouter/sdk chunk schema requires a numeric `created`.
+        created: 1700000000,
+        model: 'openai/gpt-4o',
+      }
+      const chunks: Array<Record<string, unknown>> = [
+        {
+          ...base,
+          choices: [
+            { index: 0, delta: { role: 'assistant', content: 'Hi' }, finish_reason: null },
+          ],
+        },
+        {
+          ...base,
+          choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+        },
+        // Trailing usage-only chunk — the whole point of the test. Field names
+        // mirror OpenRouter's CostDetails schema (camelCased by the SDK parser).
+        {
+          ...base,
+          choices: [],
+          usage: {
+            prompt_tokens: 11,
+            completion_tokens: 3,
+            total_tokens: 14,
+            cost: 0.0042,
+            cost_details: {
+              upstream_inference_completions_cost: 0.0026,
+              upstream_inference_cost: 0.0038,
+              upstream_inference_prompt_cost: 0.0012,
+            },
+          },
+        },
+      ]
+
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'text/event-stream')
+      res.setHeader('Cache-Control', 'no-cache')
+      res.setHeader('Connection', 'keep-alive')
+      for (const chunk of chunks) {
+        res.write(`data: ${JSON.stringify(chunk)}\n\n`)
+      }
+      res.write('data: [DONE]\n\n')
       res.end()
       return true
     },

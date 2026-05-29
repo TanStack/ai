@@ -26,6 +26,7 @@ import { Route as ApiTranscriptionRouteImport } from './routes/api.transcription
 import { Route as ApiToolsTestRouteImport } from './routes/api.tools-test'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiOpenrouterWebToolsWireRouteImport } from './routes/api.openrouter-web-tools-wire'
+import { Route as ApiOpenrouterCostRouteImport } from './routes/api.openrouter-cost'
 import { Route as ApiMiddlewareTestRouteImport } from './routes/api.middleware-test'
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
@@ -124,6 +125,11 @@ const ApiOpenrouterWebToolsWireRoute =
     path: '/api/openrouter-web-tools-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiOpenrouterCostRoute = ApiOpenrouterCostRouteImport.update({
+  id: '/api/openrouter-cost',
+  path: '/api/openrouter-cost',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMiddlewareTestRoute = ApiMiddlewareTestRouteImport.update({
   id: '/api/middleware-test',
   path: '/api/middleware-test',
@@ -197,6 +203,7 @@ export interface FileRoutesByFullPath {
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
+  '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tools-test': typeof ApiToolsTestRoute
@@ -227,6 +234,7 @@ export interface FileRoutesByTo {
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
+  '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tools-test': typeof ApiToolsTestRoute
@@ -258,6 +266,7 @@ export interface FileRoutesById {
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
+  '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tools-test': typeof ApiToolsTestRoute
@@ -290,6 +299,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/image'
     | '/api/middleware-test'
+    | '/api/openrouter-cost'
     | '/api/openrouter-web-tools-wire'
     | '/api/summarize'
     | '/api/tools-test'
@@ -320,6 +330,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/image'
     | '/api/middleware-test'
+    | '/api/openrouter-cost'
     | '/api/openrouter-web-tools-wire'
     | '/api/summarize'
     | '/api/tools-test'
@@ -350,6 +361,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/image'
     | '/api/middleware-test'
+    | '/api/openrouter-cost'
     | '/api/openrouter-web-tools-wire'
     | '/api/summarize'
     | '/api/tools-test'
@@ -381,6 +393,7 @@ export interface RootRouteChildren {
   ApiChatRoute: typeof ApiChatRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
   ApiMiddlewareTestRoute: typeof ApiMiddlewareTestRoute
+  ApiOpenrouterCostRoute: typeof ApiOpenrouterCostRoute
   ApiOpenrouterWebToolsWireRoute: typeof ApiOpenrouterWebToolsWireRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
   ApiToolsTestRoute: typeof ApiToolsTestRoute
@@ -509,6 +522,13 @@ declare module '@tanstack/react-router' {
       path: '/api/openrouter-web-tools-wire'
       fullPath: '/api/openrouter-web-tools-wire'
       preLoaderRoute: typeof ApiOpenrouterWebToolsWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/openrouter-cost': {
+      id: '/api/openrouter-cost'
+      path: '/api/openrouter-cost'
+      fullPath: '/api/openrouter-cost'
+      preLoaderRoute: typeof ApiOpenrouterCostRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/middleware-test': {
@@ -666,6 +686,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiChatRoute: ApiChatRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
   ApiMiddlewareTestRoute: ApiMiddlewareTestRoute,
+  ApiOpenrouterCostRoute: ApiOpenrouterCostRoute,
   ApiOpenrouterWebToolsWireRoute: ApiOpenrouterWebToolsWireRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
   ApiToolsTestRoute: ApiToolsTestRoute,

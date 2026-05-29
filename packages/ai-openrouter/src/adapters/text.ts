@@ -7,6 +7,7 @@ import { extractRequestOptions } from '../internal/request-options'
 import { makeStructuredOutputCompatible } from '../internal/schema-converter'
 import { convertToolsToProviderFormat } from '../tools'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
+import { extractUsageCost } from './cost'
 import type { SDKOptions } from '@openrouter/sdk'
 import type {
   ChatContentItems,
@@ -549,6 +550,7 @@ export class OpenRouterTextAdapter<
             promptTokens: lastUsage.promptTokens,
             completionTokens: lastUsage.completionTokens,
             totalTokens: lastUsage.totalTokens,
+            ...extractUsageCost(lastUsage),
           },
         }),
       }
@@ -1076,6 +1078,7 @@ export class OpenRouterTextAdapter<
               promptTokens: lastUsage.promptTokens || 0,
               completionTokens: lastUsage.completionTokens || 0,
               totalTokens: lastUsage.totalTokens || 0,
+              ...extractUsageCost(lastUsage),
             },
           }),
           finishReason,

@@ -9,6 +9,7 @@ import { convertFunctionToolToResponsesFormat } from '../internal/responses-tool
 import { isWebSearchTool } from '../tools/web-search-tool'
 import { isWebFetchTool } from '../tools/web-fetch-tool'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
+import { extractUsageCost } from './cost'
 import type { SDKOptions } from '@openrouter/sdk'
 import type { ResponsesFunctionTool } from '../internal/responses-tool-converter'
 import type {
@@ -623,6 +624,7 @@ export class OpenRouterResponsesTextAdapter<
             promptTokens: usage.inputTokens ?? 0,
             completionTokens: usage.outputTokens ?? 0,
             totalTokens: usage.totalTokens ?? 0,
+            ...extractUsageCost(usage),
           },
         }),
       }
@@ -1433,6 +1435,7 @@ export class OpenRouterResponsesTextAdapter<
               promptTokens: responseObj.usage?.inputTokens || 0,
               completionTokens: responseObj.usage?.outputTokens || 0,
               totalTokens: responseObj.usage?.totalTokens || 0,
+              ...extractUsageCost(responseObj.usage),
             },
             finishReason,
           }
