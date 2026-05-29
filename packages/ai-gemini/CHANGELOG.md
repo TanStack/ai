@@ -1,5 +1,16 @@
 # @tanstack/ai-gemini
 
+## 0.12.1
+
+### Patch Changes
+
+- [#655](https://github.com/TanStack/ai/pull/655) [`e6ff2b4`](https://github.com/TanStack/ai/commit/e6ff2b4b24f5363830d960f77a4139ad6bd00d08) - Surface token usage from the Gemini image adapter's `generateContent` path
+  (e.g. Nano Banana) by parsing `usageMetadata` from the response instead of
+  omitting `usage`. The Imagen (`generateImages`) path is unchanged — that SDK
+  response type does not expose `usageMetadata`. Fixes [#330](https://github.com/TanStack/ai/issues/330).
+- Updated dependencies [[`980ff9b`](https://github.com/TanStack/ai/commit/980ff9ba925f5dbae62a9318cc1e787d0ae24314), [`d5645cf`](https://github.com/TanStack/ai/commit/d5645cfd4d1b9cfc877f7d4d714517e166a99ce3)]:
+  - @tanstack/ai@0.23.0
+
 ## 0.12.0
 
 ### Minor Changes

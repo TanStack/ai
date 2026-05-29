@@ -1,5 +1,32 @@
 # @tanstack/ai-preact
 
+## 0.7.0
+
+### Minor Changes
+
+- [#647](https://github.com/TanStack/ai/pull/647) [`d5645cf`](https://github.com/TanStack/ai/commit/d5645cfd4d1b9cfc877f7d4d714517e166a99ce3) - Add React Native support for chat clients and framework hooks, including
+  client-safe streaming utilities and connection adapters that work in mobile
+  environments.
+
+  The `fetcher` option is now available on `ChatClient` and the framework chat
+  hooks (`useChat` / `createChat`), mirroring the generation hooks. Pass either
+  `connection` or `fetcher` -- the XOR is enforced at the type level via
+  `ChatTransport`. Fetchers may return either a `Response` (parsed as SSE) or an
+  `AsyncIterable<StreamChunk>` (yielded directly).
+
+  The client-safe `@tanstack/ai/client` subpath is now public for framework
+  packages and mobile bundles. `stream()`, `fetchServerSentEvents`,
+  `fetchHttpStream`, `rpcStream`, `xhrServerSentEvents`, and `xhrHttpStream` are
+  available from the client package and framework re-exports. React Native docs,
+  an Expo chat example, and smoke tests are included for the supported mobile
+  setup.
+
+### Patch Changes
+
+- Updated dependencies [[`980ff9b`](https://github.com/TanStack/ai/commit/980ff9ba925f5dbae62a9318cc1e787d0ae24314), [`d5645cf`](https://github.com/TanStack/ai/commit/d5645cfd4d1b9cfc877f7d4d714517e166a99ce3)]:
+  - @tanstack/ai@0.23.0
+  - @tanstack/ai-client@0.14.0
+
 ## 0.6.35
 
 ### Patch Changes
