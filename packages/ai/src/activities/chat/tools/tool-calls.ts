@@ -16,6 +16,12 @@ import type {
   AfterToolCallInfo,
   BeforeToolCallDecision,
 } from '../middleware/types'
+import type {
+  ContextFromTool,
+  DefinedContext,
+  MergeContext,
+  UnionToIntersection,
+} from '../runtime-context-types'
 
 function safeJsonParse(value: string): unknown {
   try {
@@ -48,34 +54,9 @@ export class MiddlewareAbortError extends Error {
   }
 }
 
-type IsUnknown<T> = unknown extends T
-  ? [T] extends [unknown]
-    ? true
-    : false
-  : false
-
-type KnownContext<T> = IsUnknown<T> extends true ? never : T
-
-type UnionToIntersection<T> = [T] extends [never]
-  ? never
-  : (T extends unknown ? (value: T) => void : never) extends (
-        value: infer TIntersection,
-      ) => void
-    ? TIntersection
-    : never
-
-type DefinedContext<T> = Exclude<T, undefined>
-
-type ContextFromExecute<T> = T extends (...args: any) => any
-  ? NonNullable<Parameters<T>[1]> extends { context: infer TUserContext }
-    ? KnownContext<TUserContext>
-    : never
-  : never
-
-type ContextFromTool<T> = T extends { execute?: infer TExecute }
-  ? ContextFromExecute<TExecute>
-  : never
-
+// The leaf context-inference primitives (ContextFromTool, MergeContext,
+// UnionToIntersection, DefinedContext) are shared with the chat activity
+// options layer — see ../runtime-context-types.
 type RequiredContextFromToolUnion<T> = T extends unknown
   ? undefined extends ContextFromTool<T>
     ? never
@@ -94,7 +75,7 @@ type ContextFromTools<TTools> = TTools extends readonly [
   infer THead,
   ...infer TTail,
 ]
-  ? ContextFromTool<THead> & ContextFromTools<TTail>
+  ? MergeContext<ContextFromTool<THead>, ContextFromTools<TTail>>
   : TTools extends ReadonlyArray<infer TTool>
     ? ContextFromToolUnion<TTool>
     : unknown
@@ -280,7 +261,11 @@ export class ToolCallManager<
             ? await tool.execute(args, executionContext)
             : await tool.execute(args)
 
-          // Validate output against outputSchema if provided (for Standard Schema compliant schemas)
+          // Validate output against outputSchema if provided (for Standard
+          // Schema compliant schemas). Unlike the previous implementation we
+          // intentionally validate `undefined`/`null` results too, so a tool
+          // whose schema forbids them surfaces a validation error instead of
+          // silently passing — the schema itself decides whether they're valid.
           if (tool.outputSchema && isStandardSchema(tool.outputSchema)) {
             try {
               result = parseWithStandardSchema(tool.outputSchema, result)
@@ -495,7 +480,8 @@ async function* executeServerTool<TContext = unknown>(
       yield pendingEvent
     }
 
-    // Validate output against outputSchema if provided
+    // Validate output against outputSchema if provided. Validates
+    // `undefined`/`null` too — the schema decides whether they're valid.
     if (tool.outputSchema && isStandardSchema(tool.outputSchema)) {
       result = parseWithStandardSchema(tool.outputSchema, result)
     }
