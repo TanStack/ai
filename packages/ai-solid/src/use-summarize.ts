@@ -1,6 +1,7 @@
 import { useGeneration } from './use-generation'
 import type { StreamChunk, SummarizationResult } from '@tanstack/ai'
 import type {
+  AIDevtoolsDisplayOptions,
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
@@ -23,6 +24,8 @@ export interface UseSummarizeOptions<TOutput = SummarizationResult> {
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
   /**
    * Callback when summarization is complete. Can optionally return a transformed value.
    *
@@ -98,10 +101,17 @@ export function useSummarize<
     onResult?: TOnResult
   },
 ): UseSummarizeReturn<InferGenerationOutput<SummarizationResult, TOnResult>> {
+  const devtools = {
+    ...options.devtools,
+    framework: 'solid',
+    hookName: 'useSummarize',
+    outputKind: 'text' as const,
+  }
   const { generate, result, isLoading, error, status, stop, reset } =
-    useGeneration<SummarizeGenerateInput, SummarizationResult, TOnResult>(
-      options,
-    )
+    useGeneration<SummarizeGenerateInput, SummarizationResult, TOnResult>({
+      ...options,
+      devtools,
+    })
 
   return {
     generate: generate as (input: SummarizeGenerateInput) => Promise<void>,

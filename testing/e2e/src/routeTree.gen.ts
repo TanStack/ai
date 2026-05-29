@@ -12,6 +12,12 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as ToolsTestRouteImport } from './routes/tools-test'
 import { Route as MiddlewareTestRouteImport } from './routes/middleware-test'
 import { Route as MarkdownCjkRouteImport } from './routes/markdown-cjk'
+import { Route as DevtoolsToolsRouteImport } from './routes/devtools-tools'
+import { Route as DevtoolsStructuredRouteImport } from './routes/devtools-structured'
+import { Route as DevtoolsRouteBRouteImport } from './routes/devtools-route-b'
+import { Route as DevtoolsRouteARouteImport } from './routes/devtools-route-a'
+import { Route as DevtoolsGenerationHooksRouteImport } from './routes/devtools-generation-hooks'
+import { Route as DevtoolsChatRouteImport } from './routes/devtools-chat'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProviderIndexRouteImport } from './routes/$provider/index'
 import { Route as ApiVideoRouteImport } from './routes/api.video'
@@ -45,6 +51,36 @@ const MiddlewareTestRoute = MiddlewareTestRouteImport.update({
 const MarkdownCjkRoute = MarkdownCjkRouteImport.update({
   id: '/markdown-cjk',
   path: '/markdown-cjk',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevtoolsToolsRoute = DevtoolsToolsRouteImport.update({
+  id: '/devtools-tools',
+  path: '/devtools-tools',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevtoolsStructuredRoute = DevtoolsStructuredRouteImport.update({
+  id: '/devtools-structured',
+  path: '/devtools-structured',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevtoolsRouteBRoute = DevtoolsRouteBRouteImport.update({
+  id: '/devtools-route-b',
+  path: '/devtools-route-b',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevtoolsRouteARoute = DevtoolsRouteARouteImport.update({
+  id: '/devtools-route-a',
+  path: '/devtools-route-a',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevtoolsGenerationHooksRoute = DevtoolsGenerationHooksRouteImport.update({
+  id: '/devtools-generation-hooks',
+  path: '/devtools-generation-hooks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevtoolsChatRoute = DevtoolsChatRouteImport.update({
+  id: '/devtools-chat',
+  path: '/devtools-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -146,6 +182,12 @@ const ApiAudioStreamRoute = ApiAudioStreamRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/devtools-chat': typeof DevtoolsChatRoute
+  '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
+  '/devtools-route-a': typeof DevtoolsRouteARoute
+  '/devtools-route-b': typeof DevtoolsRouteBRoute
+  '/devtools-structured': typeof DevtoolsStructuredRoute
+  '/devtools-tools': typeof DevtoolsToolsRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
@@ -170,6 +212,12 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/devtools-chat': typeof DevtoolsChatRoute
+  '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
+  '/devtools-route-a': typeof DevtoolsRouteARoute
+  '/devtools-route-b': typeof DevtoolsRouteBRoute
+  '/devtools-structured': typeof DevtoolsStructuredRoute
+  '/devtools-tools': typeof DevtoolsToolsRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
@@ -195,6 +243,12 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/devtools-chat': typeof DevtoolsChatRoute
+  '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
+  '/devtools-route-a': typeof DevtoolsRouteARoute
+  '/devtools-route-b': typeof DevtoolsRouteBRoute
+  '/devtools-structured': typeof DevtoolsStructuredRoute
+  '/devtools-tools': typeof DevtoolsToolsRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
@@ -221,6 +275,12 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/devtools-chat'
+    | '/devtools-generation-hooks'
+    | '/devtools-route-a'
+    | '/devtools-route-b'
+    | '/devtools-structured'
+    | '/devtools-tools'
     | '/markdown-cjk'
     | '/middleware-test'
     | '/tools-test'
@@ -245,6 +305,12 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/devtools-chat'
+    | '/devtools-generation-hooks'
+    | '/devtools-route-a'
+    | '/devtools-route-b'
+    | '/devtools-structured'
+    | '/devtools-tools'
     | '/markdown-cjk'
     | '/middleware-test'
     | '/tools-test'
@@ -269,6 +335,12 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/devtools-chat'
+    | '/devtools-generation-hooks'
+    | '/devtools-route-a'
+    | '/devtools-route-b'
+    | '/devtools-structured'
+    | '/devtools-tools'
     | '/markdown-cjk'
     | '/middleware-test'
     | '/tools-test'
@@ -294,6 +366,12 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DevtoolsChatRoute: typeof DevtoolsChatRoute
+  DevtoolsGenerationHooksRoute: typeof DevtoolsGenerationHooksRoute
+  DevtoolsRouteARoute: typeof DevtoolsRouteARoute
+  DevtoolsRouteBRoute: typeof DevtoolsRouteBRoute
+  DevtoolsStructuredRoute: typeof DevtoolsStructuredRoute
+  DevtoolsToolsRoute: typeof DevtoolsToolsRoute
   MarkdownCjkRoute: typeof MarkdownCjkRoute
   MiddlewareTestRoute: typeof MiddlewareTestRoute
   ToolsTestRoute: typeof ToolsTestRoute
@@ -333,6 +411,48 @@ declare module '@tanstack/react-router' {
       path: '/markdown-cjk'
       fullPath: '/markdown-cjk'
       preLoaderRoute: typeof MarkdownCjkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/devtools-tools': {
+      id: '/devtools-tools'
+      path: '/devtools-tools'
+      fullPath: '/devtools-tools'
+      preLoaderRoute: typeof DevtoolsToolsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/devtools-structured': {
+      id: '/devtools-structured'
+      path: '/devtools-structured'
+      fullPath: '/devtools-structured'
+      preLoaderRoute: typeof DevtoolsStructuredRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/devtools-route-b': {
+      id: '/devtools-route-b'
+      path: '/devtools-route-b'
+      fullPath: '/devtools-route-b'
+      preLoaderRoute: typeof DevtoolsRouteBRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/devtools-route-a': {
+      id: '/devtools-route-a'
+      path: '/devtools-route-a'
+      fullPath: '/devtools-route-a'
+      preLoaderRoute: typeof DevtoolsRouteARouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/devtools-generation-hooks': {
+      id: '/devtools-generation-hooks'
+      path: '/devtools-generation-hooks'
+      fullPath: '/devtools-generation-hooks'
+      preLoaderRoute: typeof DevtoolsGenerationHooksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/devtools-chat': {
+      id: '/devtools-chat'
+      path: '/devtools-chat'
+      fullPath: '/devtools-chat'
+      preLoaderRoute: typeof DevtoolsChatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -531,6 +651,12 @@ const ApiVideoRouteWithChildren = ApiVideoRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DevtoolsChatRoute: DevtoolsChatRoute,
+  DevtoolsGenerationHooksRoute: DevtoolsGenerationHooksRoute,
+  DevtoolsRouteARoute: DevtoolsRouteARoute,
+  DevtoolsRouteBRoute: DevtoolsRouteBRoute,
+  DevtoolsStructuredRoute: DevtoolsStructuredRoute,
+  DevtoolsToolsRoute: DevtoolsToolsRoute,
   MarkdownCjkRoute: MarkdownCjkRoute,
   MiddlewareTestRoute: MiddlewareTestRoute,
   ToolsTestRoute: ToolsTestRoute,

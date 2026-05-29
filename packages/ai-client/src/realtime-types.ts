@@ -8,7 +8,7 @@ import type {
   RealtimeSessionConfig,
   RealtimeStatus,
   RealtimeToken,
-} from '@tanstack/ai'
+} from '@tanstack/ai/client'
 
 // ============================================================================
 // Adapter Interface

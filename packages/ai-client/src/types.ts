@@ -11,10 +11,12 @@ import type {
   StreamChunk,
   StructuredOutputPart,
   VideoPart,
-} from '@tanstack/ai'
+} from '@tanstack/ai/client'
 import type { ConnectionAdapter } from './connection-adapters'
+import type { AIDevtoolsClientMetadata } from './devtools'
+import type { ChatDevtoolsBridgeFactory } from './devtools-noop'
 
-export type { StructuredOutputPart } from '@tanstack/ai'
+export type { StructuredOutputPart } from '@tanstack/ai/client'
 
 /**
  * `messages` is the full UIMessage history (not a delta). `data` is the
@@ -472,6 +474,20 @@ export interface ChatClientBaseOptions<
    * When provided, tools with execute functions will be called automatically
    */
   tools?: TTools
+
+  /**
+   * Devtools hook metadata for this client instance.
+   */
+  devtools?: Partial<AIDevtoolsClientMetadata>
+
+  /**
+   * Factory that constructs the devtools bridge. Default is a no-op
+   * factory, which keeps `@tanstack/ai-client/devtools` (the heavy
+   * bridge implementation) out of the main entry's bundle. Frameworks
+   * that need live devtools should pass the real factory from
+   * `@tanstack/ai-client/devtools`.
+   */
+  devtoolsBridgeFactory?: ChatDevtoolsBridgeFactory
 
   /**
    * Stream processing options (optional)

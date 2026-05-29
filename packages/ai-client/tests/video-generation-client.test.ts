@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
-import { EventType } from '@tanstack/ai'
+import { EventType } from '@tanstack/ai/client'
 import { VideoGenerationClient } from '../src/video-generation-client'
-import type { StreamChunk } from '@tanstack/ai'
+import type { StreamChunk } from '@tanstack/ai/client'
 import type { ConnectConnectionAdapter } from '../src/connection-adapters'
 
 // Helper to create a mock connect-based adapter from StreamChunks
@@ -82,7 +82,10 @@ describe('VideoGenerationClient', () => {
 
     it('should pass abort signal to fetcher', async () => {
       const fetcherSpy = vi.fn(
-        async (_input: any, options?: { signal: AbortSignal }) => {
+        async (
+          _input: { prompt: string },
+          options?: { signal: AbortSignal },
+        ) => {
           expect(options).toBeDefined()
           expect(options!.signal).toBeInstanceOf(AbortSignal)
           expect(options!.signal.aborted).toBe(false)
@@ -108,13 +111,21 @@ describe('VideoGenerationClient', () => {
     })
 
     it('should not allow concurrent requests', async () => {
-      let resolveFirst: (value: any) => void
+      let resolveFirst: (value: {
+        jobId: string
+        status: 'completed'
+        url: string
+      }) => void
       let callCount = 0
 
       const client = new VideoGenerationClient({
         fetcher: async () => {
           callCount++
-          return new Promise((resolve) => {
+          return new Promise<{
+            jobId: string
+            status: 'completed'
+            url: string
+          }>((resolve) => {
             resolveFirst = resolve
           })
         },
@@ -260,7 +271,6 @@ describe('VideoGenerationClient', () => {
 
       await client.generate({ prompt: 'test' })
 
-      // Called with null (reset), then the status, then null (would be if reset called)
       expect(onVideoStatusChange).toHaveBeenCalledWith({
         jobId: 'job-1',
         status: 'processing',
@@ -268,8 +278,9 @@ describe('VideoGenerationClient', () => {
       })
       expect(client.getVideoStatus()).toEqual({
         jobId: 'job-1',
-        status: 'processing',
-        progress: 25,
+        status: 'completed',
+        progress: 100,
+        url: 'https://example.com/video.mp4',
       })
     })
 
@@ -441,17 +452,29 @@ describe('VideoGenerationClient', () => {
         [],
         { model: 'runway-gen3', prompt: 'A sunset', size: '1280x720' },
         expect.any(AbortSignal),
+        expect.objectContaining({
+          threadId: expect.stringMatching(/^video-/),
+          runId: expect.stringMatching(/^run-/),
+        }),
       )
     })
   })
 
   describe('stop()', () => {
     it('should abort in-flight request and reset to idle', async () => {
-      let resolvePromise: (value: any) => void
+      let resolvePromise: (value: {
+        jobId: string
+        status: 'completed'
+        url: string
+      }) => void
 
       const client = new VideoGenerationClient({
         fetcher: async () => {
-          return new Promise((resolve) => {
+          return new Promise<{
+            jobId: string
+            status: 'completed'
+            url: string
+          }>((resolve) => {
             resolvePromise = resolve
           })
         },
@@ -566,6 +589,10 @@ describe('VideoGenerationClient', () => {
         [],
         { model: 'new', prompt: 'test' },
         expect.any(AbortSignal),
+        expect.objectContaining({
+          threadId: expect.stringMatching(/^video-/),
+          runId: expect.stringMatching(/^run-/),
+        }),
       )
     })
   })
@@ -647,9 +674,10 @@ describe('VideoGenerationClient', () => {
     it('should throw if neither connection nor fetcher is provided', async () => {
       const onError = vi.fn()
 
+      // @ts-expect-error verifying the runtime guard for JavaScript callers
       const client = new VideoGenerationClient({
         onError,
-      } as any)
+      })
 
       await client.generate({ prompt: 'test' })
 

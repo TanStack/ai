@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router'
 
 import { useState } from 'react'
 import {
+  Activity,
   BadgeCheck,
   Braces,
   FileAudio,
@@ -76,6 +77,19 @@ export default function Header() {
           <p className="text-xs text-gray-500 uppercase tracking-wider px-3 pt-2 pb-1">
             Generations
           </p>
+
+          <Link
+            to="/generation-hooks"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-1',
+            }}
+          >
+            <Activity size={20} />
+            <span className="font-medium">Generation Hooks</span>
+          </Link>
 
           <Link
             to="/generations/image"

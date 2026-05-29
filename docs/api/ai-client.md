@@ -147,6 +147,10 @@ await client.addToolApprovalResponse({
 
 ## Connection Adapters
 
+For a complete transport walkthrough, see
+[Connection Adapters](../chat/connection-adapters). For React Native and Expo,
+see [Quick Start: React Native](../getting-started/quick-start-react-native).
+
 ### `fetchServerSentEvents(url, options?)`
 
 Creates an SSE connection adapter.
@@ -163,13 +167,76 @@ const adapter = fetchServerSentEvents("/api/chat", {
 
 ### `fetchHttpStream(url, options?)`
 
-Creates an HTTP stream connection adapter.
+Creates a newline-delimited JSON HTTP stream connection adapter. Pair it with
+`toHttpResponse()` on the server.
 
 ```typescript
 import { fetchHttpStream } from "@tanstack/ai-client";
 
 const adapter = fetchHttpStream("/api/chat");
 ```
+
+`fetchHttpStream()` requires a runtime with streaming `fetch`,
+`Response.body.getReader()`, and `TextDecoder`. If the runtime cannot expose an
+incremental response body, it throws `UnsupportedResponseStreamError`; use the
+XHR adapters in React Native or Expo.
+
+### `xhrHttpStream(url, options?)`
+
+Creates an `XMLHttpRequest`-backed newline-delimited JSON stream adapter. This
+is the recommended default for React Native and Expo chat screens. Pair it with
+`toHttpResponse()` on the server.
+
+```typescript
+import { xhrHttpStream } from "@tanstack/ai-client";
+
+const adapter = xhrHttpStream("http://192.168.1.10:8787/chat/http", {
+  headers: { Authorization: "Bearer token" },
+  withCredentials: true,
+});
+```
+
+### `xhrServerSentEvents(url, options?)`
+
+Creates an `XMLHttpRequest`-backed SSE adapter for runtimes where XHR progress
+events are more reliable than streaming `fetch`. Pair it with
+`toServerSentEventsResponse()` on the server.
+
+```typescript
+import { xhrServerSentEvents } from "@tanstack/ai-client";
+
+const adapter = xhrServerSentEvents("http://192.168.1.10:8787/chat/sse");
+```
+
+### Adapter options
+
+Fetch adapters accept:
+
+- `headers?: Record<string, string> | Headers`
+- `credentials?: RequestCredentials`
+- `signal?: AbortSignal`
+- `body?: Record<string, any>`
+- `fetchClient?: typeof globalThis.fetch`
+
+XHR adapters accept:
+
+- `headers?: Record<string, string> | Headers`
+- `withCredentials?: boolean`
+- `signal?: AbortSignal`
+- `body?: Record<string, any>`
+- `xhrFactory?: () => XMLHttpRequest`
+
+`body` is merged into the AG-UI `forwardedProps` payload. Values from
+`forwardedProps` on the client and per-message `sendMessage(..., data)` calls
+override static adapter `body` values.
+
+### Stream errors
+
+- `UnsupportedResponseStreamError` - thrown by fetch-based adapters when
+  `Response.body`, `Response.body.getReader()`, or `TextDecoder` is missing.
+- `StreamTruncatedError` - thrown when an SSE or NDJSON stream ends with
+  unterminated trailing data, usually because the server, proxy, or network cut
+  the connection mid-line.
 
 ### `stream(connectFn)`
 

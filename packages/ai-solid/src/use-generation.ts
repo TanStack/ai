@@ -1,12 +1,16 @@
 import { GenerationClient } from '@tanstack/ai-client'
+import { createGenerationDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import {
   createEffect,
   createMemo,
   createSignal,
   createUniqueId,
+  onCleanup,
+  onMount,
 } from 'solid-js'
 import type { StreamChunk } from '@tanstack/ai'
 import type {
+  AIDevtoolsDisplayOptions,
   ConnectConnectionAdapter,
   GenerationClientOptions,
   GenerationClientState,
@@ -33,6 +37,8 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
   /**
    * Callback when a result is received. Can optionally return a transformed value.
    *
@@ -116,6 +122,12 @@ export function useGeneration<
     const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
       id: clientId,
       body: options.body,
+      devtoolsBridgeFactory: createGenerationDevtoolsBridge,
+      devtools: {
+        ...options.devtools,
+        framework: 'solid',
+        hookName: 'useGeneration',
+      },
       onResult: (r: TResult) => options.onResult?.(r),
       onError: (e: Error) => options.onError?.(e),
       onProgress: (p: number, m?: string) => options.onProgress?.(p, m),
@@ -153,11 +165,13 @@ export function useGeneration<
     })
   })
 
-  // Cleanup on unmount: stop any in-flight requests
-  createEffect(() => {
-    return () => {
-      client().stop()
-    }
+  onMount(() => {
+    client().mountDevtools()
+  })
+
+  // Cleanup on unmount: stop any in-flight requests and unregister devtools
+  onCleanup(() => {
+    client().dispose()
   })
 
   const generate = async (input: TInput) => {

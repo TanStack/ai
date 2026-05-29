@@ -1,5 +1,6 @@
-import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
+import type { AnyClientTool, ModelMessage, SchemaInput } from '@tanstack/ai'
 import type {
+  AIDevtoolsDisplayOptions,
   ChatClientOptions,
   ChatClientState,
   ChatRequestBody,
@@ -43,8 +44,18 @@ export type UseChatOptions<
   | 'onConnectionStatusChange'
   | 'onSessionGeneratingChange'
   | 'context'
+  | 'devtools'
 > & {
   live?: boolean
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
+  /**
+   * Standard-schema-compatible schema used to identify structured-output chat
+   * hooks in devtools. Preact currently exposes structured-output parts via
+   * `messages`; typed `partial` / `final` sugar is implemented in the other
+   * framework adapters.
+   */
+  outputSchema?: SchemaInput
 } & ClientContextOptionFromTools<TTools, TContext>
 
 export interface UseChatReturn<

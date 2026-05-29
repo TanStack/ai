@@ -3,7 +3,7 @@ import { z } from 'zod'
 import type { UIMessage, ToolCallPart, InferChatMessages } from '../src/types'
 import { clientTools, createChatClientOptions } from '../src/types'
 import { ChatClient } from '../src/chat-client'
-import { toolDefinition } from '@tanstack/ai'
+import { toolDefinition } from '@tanstack/ai/client'
 
 // Define some test tools
 const guitarTool = toolDefinition({

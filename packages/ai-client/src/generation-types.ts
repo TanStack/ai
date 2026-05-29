@@ -1,5 +1,10 @@
-import type { StreamChunk } from '@tanstack/ai'
+import type { StreamChunk } from '@tanstack/ai/client'
 import type { ConnectConnectionAdapter } from './connection-adapters'
+import type { AIDevtoolsClientMetadata } from './devtools'
+import type {
+  GenerationDevtoolsBridgeFactory,
+  VideoDevtoolsBridgeFactory,
+} from './devtools-noop'
 
 // ===========================
 // Inference Utilities
@@ -106,6 +111,15 @@ export interface GenerationClientOptions<_TInput, TResult, TOutput = TResult> {
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
 
+  /** Metadata used to register this generation hook with TanStack AI Devtools */
+  devtools?: Partial<AIDevtoolsClientMetadata>
+
+  /**
+   * Factory that constructs the devtools bridge. Default is a no-op
+   * factory; the real implementation lives in `@tanstack/ai-client/devtools`.
+   */
+  devtoolsBridgeFactory?: GenerationDevtoolsBridgeFactory
+
   /**
    * Callback when a result is received. Can optionally return a transformed value
    * that replaces the stored result.
@@ -172,11 +186,16 @@ export interface VideoGenerateResult {
  */
 export interface VideoGenerationClientOptions<
   TOutput = VideoGenerateResult,
-> extends GenerationClientOptions<
-  VideoGenerateInput,
-  VideoGenerateResult,
-  TOutput
+> extends Omit<
+  GenerationClientOptions<VideoGenerateInput, VideoGenerateResult, TOutput>,
+  'devtoolsBridgeFactory'
 > {
+  /**
+   * Factory that constructs the video devtools bridge. Default is a no-op
+   * factory; the real implementation lives in `@tanstack/ai-client/devtools`.
+   */
+  devtoolsBridgeFactory?: VideoDevtoolsBridgeFactory
+
   /** Callback when a video job is created */
   onJobCreated?: (jobId: string) => void
   /** Callback on each status update */

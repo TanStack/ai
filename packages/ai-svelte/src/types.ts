@@ -5,6 +5,7 @@ import type {
   SchemaInput,
 } from '@tanstack/ai'
 import type {
+  AIDevtoolsDisplayOptions,
   ChatClientOptions,
   ChatClientState,
   ChatRequestBody,
@@ -66,8 +67,11 @@ export type CreateChatOptions<
   | 'onConnectionStatusChange'
   | 'onSessionGeneratingChange'
   | 'context'
+  | 'devtools'
 > & {
   live?: boolean
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
   /**
    * Standard-schema-compatible schema (Zod, Valibot, ArkType, or plain JSON
    * Schema). Used to infer the shape of `partial` and `final`.
@@ -157,6 +161,11 @@ interface BaseCreateChatReturn<
    * Stop the current response generation
    */
   stop: () => void
+
+  /**
+   * Dispose the chat client and unregister it from devtools.
+   */
+  dispose: () => void
 
   /**
    * Whether a response is currently being generated (reactive getter)

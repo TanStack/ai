@@ -1,7 +1,16 @@
 import { GenerationClient } from '@tanstack/ai-client'
-import { onScopeDispose, readonly, shallowRef, useId, watch } from 'vue'
+import { createGenerationDevtoolsBridge } from '@tanstack/ai-client/devtools'
+import {
+  onMounted,
+  onScopeDispose,
+  readonly,
+  shallowRef,
+  useId,
+  watch,
+} from 'vue'
 import type { StreamChunk } from '@tanstack/ai'
 import type {
+  AIDevtoolsDisplayOptions,
   ConnectConnectionAdapter,
   GenerationClientOptions,
   GenerationClientState,
@@ -28,6 +37,8 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
   /**
    * Callback when a result is received. Can optionally return a transformed value.
    *
@@ -112,6 +123,12 @@ export function useGeneration<
   const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
     id: clientId,
     body: options.body,
+    devtoolsBridgeFactory: createGenerationDevtoolsBridge,
+    devtools: {
+      ...options.devtools,
+      framework: 'vue',
+      hookName: 'useGeneration',
+    },
     onResult: (r: TResult) => options.onResult?.(r),
     onError: (e: Error) => options.onError?.(e),
     onProgress: (p: number, m?: string) => options.onProgress?.(p, m),
@@ -160,9 +177,13 @@ export function useGeneration<
     },
   )
 
-  // Cleanup on scope dispose: stop any in-flight requests
+  onMounted(() => {
+    client.mountDevtools()
+  })
+
+  // Cleanup on scope dispose: stop any in-flight requests and unregister devtools
   onScopeDispose(() => {
-    client.stop()
+    client.dispose()
   })
 
   const generate = async (input: TInput) => {

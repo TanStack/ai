@@ -1,5 +1,12 @@
 # @tanstack/ai-fal
 
+## 0.7.15
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai@0.22.1
+
 ## 0.7.14
 
 ### Patch Changes

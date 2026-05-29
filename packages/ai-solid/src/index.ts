@@ -51,6 +51,8 @@ export type {
 export {
   fetchServerSentEvents,
   fetchHttpStream,
+  xhrServerSentEvents,
+  xhrHttpStream,
   stream,
   rpcStream,
   createChatClientOptions,
@@ -59,6 +61,7 @@ export {
   type SubscribeConnectionAdapter,
   type RunAgentInputContext,
   type FetchConnectionOptions,
+  type XhrConnectionOptions,
   type InferChatMessages,
   type GenerationClientState,
   type ImageGenerateInput,

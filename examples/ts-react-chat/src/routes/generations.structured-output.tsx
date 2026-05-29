@@ -1,6 +1,9 @@
 import { useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { parsePartialJSON } from '@tanstack/ai'
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import { GuitarRecommendationSchema } from './api.structured-output'
+import type { StreamChunk } from '@tanstack/ai'
 
 const SAMPLE_PROMPT =
   'I play indie rock and have a $1500 budget. Recommend two electric guitars and one acoustic to round out my rig.'
@@ -197,18 +200,17 @@ function StructuredOutputPage() {
   const [reasoningLine, setReasoningLine] = useState<string>('')
   const [reasoningFull, setReasoningFull] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
   const [phaseCounts, setPhaseCounts] = useState<Record<string, number> | null>(
     null,
   )
-  const abortRef = useRef<AbortController | null>(null)
+  const sawCompleteRef = useRef(false)
 
   const onProviderChange = (next: Provider) => {
     setProvider(next)
     setModel(PROVIDER_MODELS[next][0].value)
   }
 
-  const reset = () => {
+  const resetLocal = () => {
     setResult(null)
     setRawJson('')
     setDeltaCount(0)
@@ -219,160 +221,90 @@ function StructuredOutputPage() {
     setPhaseCounts(null)
   }
 
-  const handleGenerate = async () => {
-    if (!prompt.trim()) return
-    setIsLoading(true)
-    reset()
-    setIsStreaming(stream)
+  const handleChunk = (chunk: StreamChunk) => {
+    const payload = chunk as StreamChunkPayload
 
-    const controller = new AbortController()
-    abortRef.current = controller
-
-    try {
-      const response = await fetch('/api/structured-output', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: prompt.trim(),
-          provider,
-          model,
-          stream,
-        }),
-        signal: controller.signal,
+    if (payload.type === 'TEXT_MESSAGE_CONTENT' && payload.delta) {
+      setRawJson((current) => {
+        const next = current + payload.delta
+        const partial = parsePartialJSON(next) as PartialResult | undefined
+        if (partial && typeof partial === 'object') {
+          setResult(partial)
+        }
+        return next
       })
-
-      if (!response.ok) {
-        const errPayload = await response.json().catch(() => ({}))
-        throw new Error(
-          errPayload.error || `Request failed (${response.status})`,
-        )
+      setDeltaCount((current) => current + 1)
+    } else if (payload.type === 'REASONING_MESSAGE_CONTENT' && payload.delta) {
+      setReasoningFull((current) => {
+        const next = current + payload.delta
+        setReasoningLine(latestThought(next))
+        return next
+      })
+    } else if (
+      payload.type === 'CUSTOM' &&
+      payload.name === 'phase-counts' &&
+      payload.value
+    ) {
+      setPhaseCounts(payload.value as unknown as Record<string, number>)
+    } else if (
+      payload.type === 'CUSTOM' &&
+      payload.name === 'structured-output.complete' &&
+      payload.value?.object
+    ) {
+      sawCompleteRef.current = true
+      setResult(payload.value.object as PartialResult)
+      setHasFinalResult(true)
+      if (
+        typeof (payload.value as { reasoning?: string }).reasoning === 'string'
+      ) {
+        const finalReasoning = (payload.value as { reasoning: string })
+          .reasoning
+        setReasoningFull(finalReasoning)
+        setReasoningLine(latestThought(finalReasoning))
       }
-
-      if (!stream) {
-        const payload = await response.json()
-        setResult(payload.data as PartialResult)
-        setHasFinalResult(true)
-        const diag = (
-          payload as {
-            _diagnostics?: { phaseCounts?: Record<string, number> }
-          }
-        )._diagnostics
-        if (diag?.phaseCounts) {
-          setPhaseCounts(diag.phaseCounts)
-        }
-        return
-      }
-
-      // Streaming path — parse SSE, accumulate raw JSON, render the partially
-      // parsed object live, snap to the validated terminal payload.
-      const reader = response.body!.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-      let accumulated = ''
-      let reasoning = ''
-      let deltas = 0
-      let sawComplete = false
-
-      const processBuffer = () => {
-        let sepIdx = buffer.indexOf('\n\n')
-        while (sepIdx !== -1) {
-          const frame = buffer.slice(0, sepIdx)
-          buffer = buffer.slice(sepIdx + 2)
-          sepIdx = buffer.indexOf('\n\n')
-
-          for (const line of frame.split('\n')) {
-            if (!line.startsWith('data: ')) continue
-            const json = line.slice(6).trim()
-            if (!json) continue
-            let chunk: StreamChunkPayload
-            try {
-              chunk = JSON.parse(json) as StreamChunkPayload
-            } catch {
-              continue
-            }
-
-            if (chunk.type === 'TEXT_MESSAGE_CONTENT' && chunk.delta) {
-              accumulated += chunk.delta
-              deltas += 1
-              setRawJson(accumulated)
-              setDeltaCount(deltas)
-              // partial-json tolerates incomplete JSON — it returns whatever
-              // structure can be inferred. Render it directly so the UI fills
-              // in field by field as the model produces them.
-              const partial = parsePartialJSON(accumulated) as
-                | PartialResult
-                | undefined
-              if (partial && typeof partial === 'object') {
-                setResult(partial)
-              }
-            } else if (
-              chunk.type === 'REASONING_MESSAGE_CONTENT' &&
-              chunk.delta
-            ) {
-              reasoning += chunk.delta
-              setReasoningFull(reasoning)
-              // One-liner: take the last non-empty line/sentence so consumers
-              // see "what it's thinking right now" without a wall of text.
-              setReasoningLine(latestThought(reasoning))
-            } else if (
-              chunk.type === 'CUSTOM' &&
-              chunk.name === 'phase-counts' &&
-              chunk.value
-            ) {
-              setPhaseCounts(chunk.value as unknown as Record<string, number>)
-            } else if (
-              chunk.type === 'CUSTOM' &&
-              chunk.name === 'structured-output.complete' &&
-              chunk.value?.object
-            ) {
-              sawComplete = true
-              setResult(chunk.value.object as PartialResult)
-              setHasFinalResult(true)
-              if (
-                typeof (chunk.value as { reasoning?: string }).reasoning ===
-                'string'
-              ) {
-                const finalReasoning = (chunk.value as { reasoning: string })
-                  .reasoning
-                setReasoningFull(finalReasoning)
-                setReasoningLine(latestThought(finalReasoning))
-              }
-            } else if (chunk.type === 'RUN_ERROR') {
-              throw new Error(chunk.message || 'Stream failed')
-            }
-          }
-        }
-      }
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        processBuffer()
-      }
-
-      // Flush any buffered bytes from incomplete multi-byte UTF-8 sequences
-      // so the final SSE frame isn't dropped.
-      buffer += decoder.decode()
-      processBuffer()
-
-      if (!sawComplete) {
-        throw new Error('Stream ended before structured-output.complete')
-      }
-    } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') {
-        setError('Aborted')
-      } else {
-        setError(err instanceof Error ? err.message : 'Unknown error')
-      }
-    } finally {
-      setIsLoading(false)
-      setIsStreaming(false)
-      abortRef.current = null
     }
   }
 
-  const handleAbort = () => abortRef.current?.abort()
+  const chat = useChat({
+    id: 'structured-output:useChat',
+    outputSchema: GuitarRecommendationSchema,
+    connection: fetchServerSentEvents('/api/structured-output'),
+    forwardedProps: { provider, model, stream },
+    devtools: {
+      outputKind: 'structured',
+    },
+    onChunk: handleChunk,
+    onError: (err) => {
+      setError(err.message)
+    },
+  })
+
+  const isLoading = chat.isLoading
+
+  const reset = () => {
+    resetLocal()
+    chat.clear()
+  }
+
+  const handleGenerate = async () => {
+    if (!prompt.trim()) return
+    sawCompleteRef.current = false
+    resetLocal()
+    chat.clear()
+    setIsStreaming(stream)
+    await chat.sendMessage(prompt.trim())
+    setIsStreaming(false)
+    if (stream && !sawCompleteRef.current && chat.status === 'ready') {
+      setError('Stream ended before structured-output.complete')
+    }
+  }
+
+  const handleAbort = () => {
+    sawCompleteRef.current = true
+    chat.stop()
+    setIsStreaming(false)
+    setError('Aborted')
+  }
 
   const renderingPartial = isStreaming && !hasFinalResult
   const recommendations = result?.recommendations ?? []

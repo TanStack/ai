@@ -3,8 +3,9 @@ import type {
   InferSchemaType,
   ModelMessage,
   SchemaInput,
-} from '@tanstack/ai'
+} from '@tanstack/ai/client'
 import type {
+  AIDevtoolsDisplayOptions,
   ChatClientOptions,
   ChatClientState,
   ChatRequestBody,
@@ -71,7 +72,10 @@ export type UseChatOptions<
   | 'onConnectionStatusChange'
   | 'onSessionGeneratingChange'
   | 'context'
+  | 'devtools'
 > & {
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
   /**
    * Opt into mount-time live subscription behavior.
    * When enabled, the hook subscribes on mount and unsubscribes on unmount.

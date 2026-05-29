@@ -1,0 +1,31 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "types": ["node", "react"],
+    "paths": {
+      "@tanstack/ai": ["../../packages/ai/src/index.ts"],
+      "@tanstack/ai/adapters": ["../../packages/ai/src/activities/index.ts"],
+      "@tanstack/ai/adapter-internals": [
+        "../../packages/ai/src/adapter-internals.ts"
+      ],
+      "@tanstack/ai/client": ["../../packages/ai/src/client.ts"],
+      "@tanstack/ai-client": ["../../packages/ai-client/src/index.ts"],
+      "@tanstack/ai-utils": ["../../packages/ai-utils/src/index.ts"],
+      "@tanstack/ai-openai": ["../../packages/ai-openai/src/index.ts"],
+      "@tanstack/ai-react": ["../../packages/ai-react/src/index.ts"],
+      "@tanstack/openai-base": ["../../packages/openai-base/src/index.ts"]
+    }
+  },
+  "include": [
+    "index.ts",
+    "src/**/*.d.ts",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "scripts/**/*.ts"
+  ]
+}

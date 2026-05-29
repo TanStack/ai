@@ -620,6 +620,7 @@ class TextEngine<
     this.middlewareCtx = {
       requestId: this.requestId,
       streamId: this.streamId,
+      runId: this.runIdOverride ?? this.requestId,
       threadId: this.threadId,
       // Legacy alias kept on the ctx so middleware that reads
       // `ctx.conversationId` keeps working. Always equals `threadId`.
