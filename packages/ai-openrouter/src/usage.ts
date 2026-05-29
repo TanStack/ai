@@ -20,7 +20,9 @@ export interface OpenRouterProviderUsageDetails {
  * OpenRouter already has the detail fields structured correctly. Absent usage
  * collapses to zeroed totals so callers can spread the result unconditionally.
  */
-export function buildOpenRouterUsage(usage: ChatUsage | undefined): UsageTotals {
+export function buildOpenRouterUsage(
+  usage: ChatUsage | undefined,
+): UsageTotals {
   const result = buildBaseUsage({
     promptTokens: usage?.promptTokens || 0,
     completionTokens: usage?.completionTokens || 0,
