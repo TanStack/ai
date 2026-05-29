@@ -12,8 +12,11 @@ import type { ChatMiddleware } from './middleware/types'
  */
 
 /** True only when `T` is exactly `unknown`. */
-type IsUnknown<T> =
-  unknown extends T ? ([T] extends [unknown] ? true : false) : false
+type IsUnknown<T> = unknown extends T
+  ? [T] extends [unknown]
+    ? true
+    : false
+  : false
 
 /**
  * Drops an `unknown` context requirement to `never` so that untyped tools and

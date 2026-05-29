@@ -19,10 +19,11 @@ the merged requirement and type-check the `context` option you pass against it.
 ```typescript
 type AppContext = { userId: string; db: Db }
 
-const listNotes = toolDefinition({ name: 'list_notes', /* ... */ })
-  .server<AppContext>((_input, ctx) =>
-    ctx.context.db.notes.findMany({ userId: ctx.context.userId }),
-  )
+const listNotes = toolDefinition({
+  name: 'list_notes' /* ... */,
+}).server<AppContext>((_input, ctx) =>
+  ctx.context.db.notes.findMany({ userId: ctx.context.userId }),
+)
 
 chat({
   adapter,
