@@ -1219,7 +1219,9 @@ function hydrateToolCallOutputs(
         candidate.output === undefined,
     )
     if (toolCall) {
-      toolCall.output = parseFixtureResultContent(part.content)
+      toolCall.output = Array.isArray(part.content)
+        ? part.content
+        : parseFixtureResultContent(part.content)
     }
   }
 
