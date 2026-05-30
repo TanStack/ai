@@ -24,6 +24,82 @@ export interface ChatStreamCapable {
 }
 
 /**
+ * Provider-native max-output-tokens key per text-adapter `name`. summarize is
+ * provider-agnostic and forwards `modelOptions` opaquely to the wrapped text
+ * adapter, so `maxLength` must be written under the exact key the underlying
+ * provider reads — no adapter reads a generic `maxTokens`. A value of `null`
+ * marks a nested shape (handled specially below for Ollama).
+ *
+ * Keep in sync with each adapter's wire mapping:
+ * - OpenAI (Responses): `max_output_tokens`
+ * - Anthropic / Grok: `max_tokens`
+ * - Groq: `max_completion_tokens`
+ * - Gemini: `maxOutputTokens`
+ * - OpenRouter: `maxCompletionTokens`
+ * - Ollama: nested `options.num_predict`
+ */
+const MAX_TOKENS_KEY_BY_ADAPTER: Record<string, string> = {
+  openai: 'max_output_tokens',
+  anthropic: 'max_tokens',
+  grok: 'max_tokens',
+  groq: 'max_completion_tokens',
+  gemini: 'maxOutputTokens',
+  openrouter: 'maxCompletionTokens',
+}
+
+/**
+ * Every flat key any supported provider uses to cap output tokens, plus the
+ * camelCase variants. Used to detect a caller-supplied token limit so the
+ * summarize default never overrides an explicit caller value.
+ */
+const KNOWN_MAX_TOKENS_KEYS = [
+  'max_output_tokens',
+  'max_tokens',
+  'max_completion_tokens',
+  'maxOutputTokens',
+  'maxCompletionTokens',
+  'maxTokens',
+] as const
+
+/**
+ * Resolve `maxLength` to the provider-native max-output-tokens key for the
+ * given text-adapter `name` and merge it into a working copy of the caller's
+ * `modelOptions`. The caller always wins: if they already set any recognised
+ * token-limit key (flat or, for Ollama, nested `options.num_predict`), the
+ * default is left untouched. Unknown/unrecognised adapter names fall back to
+ * NOT setting a token key (the prompt hint still asks the model to stay under
+ * `maxLength`) rather than writing a dead key no provider reads.
+ */
+function applyMaxLength(
+  adapterName: string,
+  maxLength: number,
+  modelOptions: Record<string, unknown>,
+): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...modelOptions }
+
+  if (adapterName === 'ollama') {
+    const existing =
+      merged.options && typeof merged.options === 'object'
+        ? (merged.options as Record<string, unknown>)
+        : undefined
+    if (existing && typeof existing.num_predict === 'number') return merged
+    merged.options = { num_predict: maxLength, ...existing }
+    return merged
+  }
+
+  const key = MAX_TOKENS_KEY_BY_ADAPTER[adapterName]
+  if (key === undefined) return merged
+
+  const callerSetLimit = KNOWN_MAX_TOKENS_KEYS.some(
+    (k) => typeof merged[k] === 'number',
+  )
+  if (callerSetLimit) return merged
+
+  merged[key] = maxLength
+  return merged
+}
+
+/**
  * Extract the per-model `modelOptions` type a text adapter accepts. Used by
  * provider summarize factories so their `modelOptions` IntelliSense matches
  * what the underlying text adapter actually understands.
@@ -196,16 +272,20 @@ export class ChatStreamSummarizeAdapter<
     systemPrompt: string,
   ): TextOptions<TProviderOptions> {
     // Sampling knobs now live in provider-native `modelOptions`. Apply the
-    // summarize defaults (low temperature, optional max length) underneath any
-    // caller-supplied `modelOptions` so callers can still override them.
-    const samplingDefaults: Record<string, unknown> = { temperature: 0.3 }
-    if (options.maxLength !== undefined) {
-      samplingDefaults.maxTokens = options.maxLength
+    // low-temperature default underneath any caller-supplied `modelOptions` so
+    // callers can still override it.
+    let working: Record<string, unknown> = {
+      temperature: 0.3,
+      ...(options.modelOptions as Record<string, unknown> | undefined),
     }
-    const modelOptions = {
-      ...samplingDefaults,
-      ...options.modelOptions,
-    } as TProviderOptions
+    // `maxLength` must reach the wire under the wrapped adapter's provider-
+    // native token key (it differs per provider, and no adapter reads a
+    // generic `maxTokens`). Resolve it from the text adapter's `name`, never
+    // overriding a caller-supplied token limit.
+    if (options.maxLength !== undefined) {
+      working = applyMaxLength(this.name, options.maxLength, working)
+    }
+    const modelOptions = working as TProviderOptions
 
     return {
       model: options.model,

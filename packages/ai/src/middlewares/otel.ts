@@ -162,6 +162,17 @@ function messageEventName(role: string): string {
   }
 }
 
+/**
+ * Return the first candidate that is a finite `number`, or `undefined`. Used to
+ * pick a sampling attribute from among the several provider-native spellings.
+ */
+function firstNumber(...candidates: Array<unknown>): number | undefined {
+  for (const candidate of candidates) {
+    if (typeof candidate === 'number') return candidate
+  }
+  return undefined
+}
+
 function errorMessage(err: unknown): string | undefined {
   if (err instanceof Error) return err.message
   if (typeof err === 'string') return err
@@ -333,18 +344,38 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
           'gen_ai.request.model': ctx.model,
           'tanstack.ai.iteration': ctx.iteration,
         }
-        // Sampling options now live in provider-native `modelOptions`. Read
-        // the conventional names from there to populate gen_ai semantic
-        // attributes when present.
+        // Sampling options now live in provider-native `modelOptions`, and
+        // providers spell them differently (e.g. `max_output_tokens`,
+        // `max_completion_tokens`, `maxOutputTokens`, `num_predict`). Read the
+        // first numeric value among the known spellings — including Ollama's
+        // nested `options` — so gen_ai attributes populate across providers.
         const sampling = config.modelOptions ?? {}
-        const samplingTemperature = sampling['temperature']
-        const samplingTopP = sampling['topP']
-        const samplingMaxTokens = sampling['maxTokens']
-        if (typeof samplingTemperature === 'number')
+        const nestedOptions =
+          sampling['options'] && typeof sampling['options'] === 'object'
+            ? (sampling['options'] as Record<string, unknown>)
+            : undefined
+        const samplingTemperature = firstNumber(
+          sampling['temperature'],
+          nestedOptions?.['temperature'],
+        )
+        const samplingTopP = firstNumber(
+          sampling['top_p'],
+          sampling['topP'],
+          nestedOptions?.['top_p'],
+        )
+        const samplingMaxTokens = firstNumber(
+          sampling['max_tokens'],
+          sampling['max_output_tokens'],
+          sampling['maxOutputTokens'],
+          sampling['max_completion_tokens'],
+          sampling['maxCompletionTokens'],
+          nestedOptions?.['num_predict'],
+        )
+        if (samplingTemperature !== undefined)
           baseAttrs['gen_ai.request.temperature'] = samplingTemperature
-        if (typeof samplingTopP === 'number')
+        if (samplingTopP !== undefined)
           baseAttrs['gen_ai.request.top_p'] = samplingTopP
-        if (typeof samplingMaxTokens === 'number')
+        if (samplingMaxTokens !== undefined)
           baseAttrs['gen_ai.request.max_tokens'] = samplingMaxTokens
 
         const baseOptions: SpanOptions = {

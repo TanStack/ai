@@ -70,7 +70,9 @@ describe('otelMiddleware — iteration span lifecycle', () => {
 
     await runToIterationStart(mw, ctx, {
       messages: [{ role: 'user', content: 'hi' }],
-      modelOptions: { temperature: 0.7, topP: 0.9, maxTokens: 512 },
+      // Provider-native spellings: OpenAI Responses uses snake_case `top_p`
+      // and `max_output_tokens`, not the camelCase `topP` / `maxTokens`.
+      modelOptions: { temperature: 0.7, top_p: 0.9, max_output_tokens: 512 },
     })
 
     const [rootSpan, iterSpan] = spans
@@ -79,7 +81,9 @@ describe('otelMiddleware — iteration span lifecycle', () => {
     expect(iterSpan!.name).toBe('chat gpt-4o #0')
     expect(iterSpan!.kind).toBe(SpanKind.CLIENT)
     expect(iterSpan!.ended).toBe(false)
-    // Sampling options are sourced from provider-native modelOptions.
+    // Sampling options are sourced from provider-native modelOptions, whose
+    // key spellings vary per provider. The middleware reads a union of known
+    // spellings so the gen_ai semantic attributes populate regardless.
     expect(iterSpan!.attributes['gen_ai.request.temperature']).toBe(0.7)
     expect(iterSpan!.attributes['gen_ai.request.top_p']).toBe(0.9)
     expect(iterSpan!.attributes['gen_ai.request.max_tokens']).toBe(512)
@@ -100,6 +104,45 @@ describe('otelMiddleware — iteration span lifecycle', () => {
     })
     expect(iterSpan!.ended).toBe(true)
     expect(rootSpan!.ended).toBe(true)
+  })
+
+  it('reads sampling attributes from Ollama-nested modelOptions.options', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeCtx()
+    ctx.phase = 'init'
+
+    await runToIterationStart(mw, ctx, {
+      messages: [{ role: 'user', content: 'hi' }],
+      // Ollama nests sampling under `options` and caps output via `num_predict`.
+      modelOptions: {
+        options: { temperature: 0.2, top_p: 0.8, num_predict: 256 },
+      },
+    })
+
+    const iterSpan = spans[1]
+    expect(iterSpan!.attributes['gen_ai.request.temperature']).toBe(0.2)
+    expect(iterSpan!.attributes['gen_ai.request.top_p']).toBe(0.8)
+    expect(iterSpan!.attributes['gen_ai.request.max_tokens']).toBe(256)
+  })
+
+  it('reads camelCase sampling spellings (Gemini/OpenRouter)', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeCtx()
+    ctx.phase = 'init'
+
+    await runToIterationStart(mw, ctx, {
+      messages: [{ role: 'user', content: 'hi' }],
+      // Gemini uses `topP` / `maxOutputTokens`; OpenRouter uses
+      // `maxCompletionTokens`.
+      modelOptions: { temperature: 0.5, topP: 0.95, maxOutputTokens: 1024 },
+    })
+
+    const iterSpan = spans[1]
+    expect(iterSpan!.attributes['gen_ai.request.temperature']).toBe(0.5)
+    expect(iterSpan!.attributes['gen_ai.request.top_p']).toBe(0.95)
+    expect(iterSpan!.attributes['gen_ai.request.max_tokens']).toBe(1024)
   })
 
   it('opens a fresh iteration span for each onConfig(beforeModel) and closes the previous one', async () => {
