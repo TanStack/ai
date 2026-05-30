@@ -74,8 +74,8 @@ export function resolveBedrockAuth(
     const key = config.apiKey ?? readApiKeyFromEnv()
     if (key) return { apiKey: key }
     if (mode === 'apikey') {
-      // Reuse the canonical error.
-      getBedrockApiKeyFromEnv()
+      // No key and apikey mode forced — throw the canonical error (terminal).
+      return { apiKey: getBedrockApiKeyFromEnv() }
     }
   }
 

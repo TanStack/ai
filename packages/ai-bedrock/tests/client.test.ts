@@ -1,9 +1,8 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resolveBedrockAuth, withBedrockDefaults } from '../src/utils/client'
 
-const ORIGINAL_ENV = { ...process.env }
 afterEach(() => {
-  process.env = { ...ORIGINAL_ENV }
+  vi.unstubAllEnvs()
 })
 
 describe('withBedrockDefaults', () => {
@@ -38,6 +37,18 @@ describe('withBedrockDefaults', () => {
     expect('endpoint' in out).toBe(false)
     expect('auth' in out).toBe(false)
   })
+
+  it('explicit baseURL survives the SigV4 path and signer is attached', () => {
+    const out = withBedrockDefaults({ baseURL: 'http://127.0.0.1:4010/v1', auth: 'sigv4', region: 'us-east-1' })
+    expect(out.baseURL).toBe('http://127.0.0.1:4010/v1')
+    expect(typeof out.fetch).toBe('function')
+  })
+
+  it('user-supplied fetch wins over the SigV4 signer', () => {
+    const userFetch: NonNullable<import('openai').ClientOptions['fetch']> = async () => new Response()
+    const out = withBedrockDefaults({ auth: 'sigv4', region: 'us-east-1', fetch: userFetch })
+    expect(out.fetch).toBe(userFetch)
+  })
 })
 
 describe('resolveBedrockAuth', () => {
@@ -47,22 +58,20 @@ describe('resolveBedrockAuth', () => {
   })
 
   it('falls back to BEDROCK_API_KEY', () => {
-    delete process.env.AWS_BEARER_TOKEN_BEDROCK
-    process.env.BEDROCK_API_KEY = 'from-bedrock-env'
+    vi.stubEnv('BEDROCK_API_KEY', 'from-bedrock-env')
     const r = resolveBedrockAuth({}, 'runtime')
     expect(r).toEqual({ apiKey: 'from-bedrock-env' })
   })
 
   it('falls back to AWS_BEARER_TOKEN_BEDROCK', () => {
-    delete process.env.BEDROCK_API_KEY
-    process.env.AWS_BEARER_TOKEN_BEDROCK = 'from-aws-env'
+    vi.stubEnv('AWS_BEARER_TOKEN_BEDROCK', 'from-aws-env')
     const r = resolveBedrockAuth({}, 'runtime')
     expect(r).toEqual({ apiKey: 'from-aws-env' })
   })
 
   it("auth: 'apikey' with no key throws an actionable error", () => {
-    delete process.env.BEDROCK_API_KEY
-    delete process.env.AWS_BEARER_TOKEN_BEDROCK
+    vi.stubEnv('BEDROCK_API_KEY', '')
+    vi.stubEnv('AWS_BEARER_TOKEN_BEDROCK', '')
     expect(() => resolveBedrockAuth({ auth: 'apikey' }, 'runtime')).toThrowError(/BEDROCK_API_KEY/)
   })
 
@@ -73,8 +82,8 @@ describe('resolveBedrockAuth', () => {
   })
 
   it("'auto' with no key falls through to SigV4", () => {
-    delete process.env.BEDROCK_API_KEY
-    delete process.env.AWS_BEARER_TOKEN_BEDROCK
+    vi.stubEnv('BEDROCK_API_KEY', '')
+    vi.stubEnv('AWS_BEARER_TOKEN_BEDROCK', '')
     const r = resolveBedrockAuth({ region: 'us-east-1' }, 'runtime')
     expect(typeof r.fetch).toBe('function')
   })
