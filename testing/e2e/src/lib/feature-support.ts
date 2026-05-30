@@ -16,6 +16,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'bedrock',
+    'bedrock-responses',
     'openrouter',
   ]),
   'one-shot-text': new Set([
@@ -26,6 +27,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'bedrock',
+    'bedrock-responses',
     'openrouter',
   ]),
   reasoning: new Set(['openai', 'anthropic', 'gemini']),
@@ -37,6 +39,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'bedrock',
+    'bedrock-responses',
     'openrouter',
   ]),
   'tool-calling': new Set([
@@ -47,6 +50,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'bedrock',
+    'bedrock-responses',
     'openrouter',
   ]),
   'parallel-tool-calls': new Set([
@@ -56,6 +60,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'bedrock',
+    'bedrock-responses',
     'openrouter',
   ]),
   // Gemini excluded: approval flow timing issues with Gemini's streaming format
@@ -66,6 +71,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'bedrock',
+    'bedrock-responses',
     'openrouter',
   ]),
   // Ollama excluded: aimock doesn't support content+toolCalls for /api/chat format
@@ -76,6 +82,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'bedrock',
+    'bedrock-responses',
     'openrouter',
   ]),
   'structured-output': new Set([
@@ -86,6 +93,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'bedrock',
+    'bedrock-responses',
     'openrouter',
   ]),
   // Streaming structured output: only providers with native streaming JSON
@@ -97,6 +105,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'bedrock',
+    'bedrock-responses',
     'openrouter',
   ]),
   // Multi-turn structured output: every turn produces its own typed
@@ -124,6 +133,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'bedrock',
+    'bedrock-responses',
     'openrouter',
   ]),
   'agentic-structured': new Set([
@@ -134,6 +144,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'bedrock',
+    'bedrock-responses',
     'openrouter',
   ]),
   // Native-combined-mode adapters only. Each provider's default test model
@@ -171,6 +182,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'ollama',
     'grok',
     'bedrock',
+    'bedrock-responses',
     'openrouter',
   ]),
   'summarize-stream': new Set([
@@ -180,6 +192,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'ollama',
     'grok',
     'bedrock',
+    'bedrock-responses',
     'openrouter',
   ]),
   // Gemini excluded: aimock doesn't mock Gemini's Imagen predict endpoint format
