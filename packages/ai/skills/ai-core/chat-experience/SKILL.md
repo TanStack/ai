@@ -137,8 +137,10 @@ import { anthropicText } from '@tanstack/ai-anthropic'
 const stream = chat({
   adapter: anthropicText('claude-sonnet-4-5'),
   messages,
-  temperature: 0.7,
-  maxTokens: 2000,
+  modelOptions: {
+    temperature: 0.7,
+    max_tokens: 2000, // Anthropic-native key
+  },
   systemPrompts: ['You are a helpful assistant.'],
   abortController,
 })
@@ -377,17 +379,32 @@ chat({ adapter: openaiText('gpt-5.2'), messages })
 
 The model is passed to the adapter factory, not to `chat()`.
 
-### f. HIGH: Nesting temperature/maxTokens in options object
+### f. HIGH: Passing sampling options at the root of chat()
+
+Sampling options (`temperature`, token limits, `top_p`/`topP`) are **not**
+top-level fields on `chat()`. They live inside `modelOptions` using the
+provider's native key.
 
 ```typescript
-// WRONG
+// WRONG — temperature/maxTokens are not root options
+chat({ adapter, messages, temperature: 0.7, maxTokens: 1000 })
+
+// WRONG — there is no `options` field either
 chat({ adapter, messages, options: { temperature: 0.7, maxTokens: 1000 } })
 
-// CORRECT
-chat({ adapter, messages, temperature: 0.7, maxTokens: 1000 })
+// CORRECT — inside modelOptions, provider-native keys (OpenAI shown)
+chat({
+  adapter,
+  messages,
+  modelOptions: { temperature: 0.7, max_output_tokens: 1000 },
+})
 ```
 
-All parameters are top-level on the `chat()` options object.
+`temperature` is universal across providers; token limits use provider-native
+keys (`max_output_tokens` for OpenAI, `max_tokens` for Anthropic/Grok,
+`maxOutputTokens` for Gemini, `max_completion_tokens` for Groq,
+`maxCompletionTokens` for OpenRouter, and `num_predict` nested under
+`modelOptions.options` for Ollama). See ai-core/adapter-configuration/SKILL.md.
 
 ### g. HIGH: Using providerOptions instead of modelOptions
 

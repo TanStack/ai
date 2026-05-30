@@ -44,6 +44,10 @@ chat({
   adapter: openaiText('gpt-5.4'),
   messages,
   modelOptions: {
+    // Sampling
+    temperature: 0.7,
+    top_p: 0.9,
+    max_output_tokens: 1000,
     // Reasoning (effort levels: none, minimal, low, medium, high)
     reasoning: {
       effort: 'high',

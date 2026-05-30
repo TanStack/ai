@@ -42,8 +42,10 @@ import { openaiText } from '@tanstack/ai-openai'
 const stream = chat({
   adapter: openaiText('gpt-5.2'),
   messages,
-  temperature: 0.7,
-  maxTokens: 1000,
+  modelOptions: {
+    temperature: 0.7,
+    max_output_tokens: 1000,
+  },
 })
 
 return toServerSentEventsResponse(stream)
@@ -52,6 +54,11 @@ return toServerSentEventsResponse(stream)
 The adapter factory function takes the model name as a string literal and an
 optional config object (API key, base URL, etc.). The model name is passed
 into the factory, not into `chat()`.
+
+Sampling options (`temperature`, token limits, `top_p`/`topP`, etc.) live
+inside `modelOptions` using each provider's native key — they are **not**
+top-level options on `chat()`. See the per-provider table in
+[Configuring Sampling](#5-configuring-sampling) below.
 
 ## Core Patterns
 
@@ -155,11 +162,11 @@ const openaiStream = chat({
 const anthropicStream = chat({
   adapter: anthropicText('claude-sonnet-4-6'),
   messages,
-  maxTokens: 16000,
   modelOptions: {
+    max_tokens: 16000,
     thinking: {
       type: 'enabled',
-      budget_tokens: 8000, // must be >= 1024 and < maxTokens
+      budget_tokens: 8000, // must be >= 1024 and < max_tokens
     },
   },
 })
@@ -168,8 +175,8 @@ const anthropicStream = chat({
 const adaptiveStream = chat({
   adapter: anthropicText('claude-sonnet-4-6'),
   messages,
-  maxTokens: 16000,
   modelOptions: {
+    max_tokens: 16000,
     thinking: {
       type: 'adaptive',
     },
@@ -221,7 +228,59 @@ const custom = myOpenai('ft:gpt-5.2:my-org:custom-model:abc123')
 At runtime, `extendAdapter` simply passes through to the original factory.
 The `_customModels` parameter is only used for type inference.
 
-### 5. Capability Flag: `supportsCombinedToolsAndSchema`
+### 5. Configuring Sampling
+
+Sampling controls (`temperature`, token limits, nucleus sampling) are passed
+inside `modelOptions` using each provider's **native** key. They are not
+top-level fields on `chat()`/`ai()`/`generate()`.
+
+```typescript
+// OpenAI — native keys
+chat({
+  adapter: openaiText('gpt-5.2'),
+  messages,
+  modelOptions: { temperature: 0.7, top_p: 0.9, max_output_tokens: 1000 },
+})
+
+// Anthropic
+chat({
+  adapter: anthropicText('claude-sonnet-4-6'),
+  messages,
+  modelOptions: { temperature: 0.7, top_p: 0.9, max_tokens: 1000 },
+})
+
+// Gemini — camelCase
+chat({
+  adapter: geminiText('gemini-2.5-pro'),
+  messages,
+  modelOptions: { temperature: 0.7, topP: 0.9, maxOutputTokens: 1000 },
+})
+
+// Ollama — NESTED under modelOptions.options
+chat({
+  adapter: ollamaText('llama3.3'),
+  messages,
+  modelOptions: { options: { temperature: 0.7, top_p: 0.9, num_predict: 1000 } },
+})
+```
+
+Per-provider sampling keys (all live inside `modelOptions`):
+
+| Provider          | Temperature   | Nucleus | Max output tokens                    |
+| ----------------- | ------------- | ------- | ------------------------------------ |
+| OpenAI            | `temperature` | `top_p` | `max_output_tokens`                  |
+| Anthropic         | `temperature` | `top_p` | `max_tokens`                         |
+| Gemini            | `temperature` | `topP`  | `maxOutputTokens`                    |
+| Grok (xAI)        | `temperature` | `top_p` | `max_tokens`                         |
+| Groq              | `temperature` | `top_p` | `max_completion_tokens`              |
+| OpenRouter (chat) | `temperature` | `topP`  | `maxCompletionTokens`                |
+| Ollama            | `temperature` | `top_p` | `num_predict` (nested in `options`)  |
+
+`temperature` is the one key every provider names identically; token limits and
+some sampling options use provider-native names. Ollama nests all sampling under
+`modelOptions.options`.
+
+### 6. Capability Flag: `supportsCombinedToolsAndSchema`
 
 Adapters can declare an optional capability method:
 

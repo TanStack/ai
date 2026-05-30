@@ -72,6 +72,9 @@ chat({
     // Response modalities
     responseModalities: ['TEXT'],
     // Sampling
+    temperature: 0.7,
+    topP: 0.9,
+    maxOutputTokens: 1000,
     topK: 40,
     seed: 42,
     presencePenalty: 0.5,
