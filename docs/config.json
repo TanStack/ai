@@ -22,10 +22,6 @@
           "to": "getting-started/devtools"
         },
         {
-          "label": "Quick Start: React Native",
-          "to": "getting-started/quick-start-react-native"
-        },
-        {
           "label": "Quick Start: Vue",
           "to": "getting-started/quick-start-vue"
         },
@@ -40,6 +36,15 @@
         {
           "label": "Agent Skills (TanStack Intent)",
           "to": "getting-started/agent-skills"
+        }
+      ]
+    },
+    {
+      "label": "Comparison",
+      "children": [
+        {
+          "label": "TanStack AI vs Vercel AI SDK",
+          "to": "comparison/vercel-ai-sdk"
         }
       ]
     },
@@ -92,7 +97,7 @@
           "to": "chat/connection-adapters"
         },
         {
-          "label": "Structured Outputs (Moved)",
+          "label": "Structured Outputs",
           "to": "chat/structured-outputs"
         },
         {
@@ -142,6 +147,10 @@
           "to": "media/transcription"
         },
         {
+          "label": "Audio Generation",
+          "to": "media/audio-generation"
+        },
+        {
           "label": "Image Generation",
           "to": "media/image-generation"
         },
@@ -152,10 +161,6 @@
         {
           "label": "Generation Hooks",
           "to": "media/generation-hooks"
-        },
-        {
-          "label": "Audio Generation",
-          "to": "media/audio-generation"
         }
       ]
     },
@@ -167,20 +172,20 @@
           "to": "advanced/middleware"
         },
         {
-          "label": "Observability",
-          "to": "advanced/observability"
-        },
-        {
           "label": "Debug Logging",
           "to": "advanced/debug-logging"
         },
         {
-          "label": "Multimodal Content",
-          "to": "advanced/multimodal-content"
-        },
-        {
           "label": "OpenTelemetry",
           "to": "advanced/otel"
+        },
+        {
+          "label": "Observability",
+          "to": "advanced/observability"
+        },
+        {
+          "label": "Multimodal Content",
+          "to": "advanced/multimodal-content"
         },
         {
           "label": "Per-Model Type Safety",
@@ -197,10 +202,6 @@
         {
           "label": "Extend Adapter",
           "to": "advanced/extend-adapter"
-        },
-        {
-          "label": "Typed Pre-Configured Options",
-          "to": "advanced/typed-options"
         }
       ]
     },
@@ -212,11 +213,11 @@
           "to": "migration/migration"
         },
         {
-          "label": "Migration from Vercel AI SDK",
+          "label": "From Vercel AI SDK",
           "to": "migration/migration-from-vercel-ai"
         },
         {
-          "label": "Migrating to AG-UI Client-to-Server Compliance",
+          "label": "AG-UI Client Compliance",
           "to": "migration/ag-ui-compliance"
         }
       ]
@@ -282,10 +283,6 @@
           "to": "adapters/groq"
         },
         {
-          "label": "Amazon Bedrock",
-          "to": "adapters/bedrock"
-        },
-        {
           "label": "ElevenLabs",
           "to": "adapters/elevenlabs"
         },
@@ -296,6 +293,10 @@
         {
           "label": "OpenRouter Adapter",
           "to": "adapters/openrouter"
+        },
+        {
+          "label": "Amazon Bedrock",
+          "to": "adapters/bedrock"
         }
       ]
     },
@@ -325,40 +326,6 @@
         {
           "label": "Mynth",
           "to": "community-adapters/mynth"
-        }
-      ]
-    },
-    {
-      "label": "Comparison",
-      "children": [
-        {
-          "label": "TanStack AI vs Vercel AI SDK",
-          "to": "comparison/vercel-ai-sdk"
-        }
-      ]
-    },
-    {
-      "label": "Structured Outputs",
-      "children": [
-        {
-          "label": "Structured Outputs Overview",
-          "to": "structured-outputs/overview"
-        },
-        {
-          "label": "One-Shot Extraction",
-          "to": "structured-outputs/one-shot"
-        },
-        {
-          "label": "Streaming Structured Output UIs",
-          "to": "structured-outputs/streaming"
-        },
-        {
-          "label": "Multi-Turn Structured Chat",
-          "to": "structured-outputs/multi-turn"
-        },
-        {
-          "label": "Structured Outputs With Tools",
-          "to": "structured-outputs/with-tools"
         }
       ]
     },
