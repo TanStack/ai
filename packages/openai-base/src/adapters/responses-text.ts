@@ -1635,23 +1635,15 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         }
       : undefined
 
-    // Spread modelOptions first, then explicit top-level options when set.
-    // Mirrors the chat-completions base adapter's precedence so callers
-    // tuning either backend get identical behaviour. Leaving `modelOptions`
-    // last (its previous behavior) silently shadowed the canonical
-    // `options.temperature`/`maxTokens` fields, while spreading first
-    // without nullish-aware merge would clobber `modelOptions.temperature`
-    // with `undefined` whenever the caller didn't set the top-level option.
+    // `modelOptions` is the sole sampling surface: `temperature`, `top_p`, and
+    // `max_output_tokens` live there (typed via OpenAISamplingOptions) and are
+    // spread first. Engine-managed fields (`model`, `metadata`, `instructions`,
+    // `input`, `tools`, `textFormat`) are layered on top afterward so they
+    // always win over any same-named key a caller happened to put in
+    // `modelOptions`.
     return {
       ...modelOptions,
       model: options.model,
-      ...(options.temperature !== undefined && {
-        temperature: options.temperature,
-      }),
-      ...(options.maxTokens !== undefined && {
-        max_output_tokens: options.maxTokens,
-      }),
-      ...(options.topP !== undefined && { top_p: options.topP }),
       ...(options.metadata !== undefined && { metadata: options.metadata }),
       ...(() => {
         const prompts = normalizeSystemPrompts(options.systemPrompts)
