@@ -31,6 +31,7 @@ import { Route as ApiMiddlewareTestRouteImport } from './routes/api.middleware-t
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
+import { Route as ApiArktypeToolWireRouteImport } from './routes/api.arktype-tool-wire'
 import { Route as ApiAnthropicBugTestRouteImport } from './routes/api.anthropic-bug-test'
 import { Route as ProviderFeatureRouteImport } from './routes/$provider/$feature'
 import { Route as ApiVideoStreamRouteImport } from './routes/api.video.stream'
@@ -150,6 +151,11 @@ const ApiAudioRoute = ApiAudioRouteImport.update({
   path: '/api/audio',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiArktypeToolWireRoute = ApiArktypeToolWireRouteImport.update({
+  id: '/api/arktype-tool-wire',
+  path: '/api/arktype-tool-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAnthropicBugTestRoute = ApiAnthropicBugTestRouteImport.update({
   id: '/api/anthropic-bug-test',
   path: '/api/anthropic-bug-test',
@@ -199,6 +205,7 @@ export interface FileRoutesByFullPath {
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
@@ -230,6 +237,7 @@ export interface FileRoutesByTo {
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
@@ -262,6 +270,7 @@ export interface FileRoutesById {
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
@@ -295,6 +304,7 @@ export interface FileRouteTypes {
     | '/tools-test'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
+    | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/chat'
     | '/api/image'
@@ -326,6 +336,7 @@ export interface FileRouteTypes {
     | '/tools-test'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
+    | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/chat'
     | '/api/image'
@@ -357,6 +368,7 @@ export interface FileRouteTypes {
     | '/tools-test'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
+    | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/chat'
     | '/api/image'
@@ -389,6 +401,7 @@ export interface RootRouteChildren {
   ToolsTestRoute: typeof ToolsTestRoute
   ProviderFeatureRoute: typeof ProviderFeatureRoute
   ApiAnthropicBugTestRoute: typeof ApiAnthropicBugTestRoute
+  ApiArktypeToolWireRoute: typeof ApiArktypeToolWireRoute
   ApiAudioRoute: typeof ApiAudioRouteWithChildren
   ApiChatRoute: typeof ApiChatRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
@@ -559,6 +572,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAudioRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/arktype-tool-wire': {
+      id: '/api/arktype-tool-wire'
+      path: '/api/arktype-tool-wire'
+      fullPath: '/api/arktype-tool-wire'
+      preLoaderRoute: typeof ApiArktypeToolWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/anthropic-bug-test': {
       id: '/api/anthropic-bug-test'
       path: '/api/anthropic-bug-test'
@@ -682,6 +702,7 @@ const rootRouteChildren: RootRouteChildren = {
   ToolsTestRoute: ToolsTestRoute,
   ProviderFeatureRoute: ProviderFeatureRoute,
   ApiAnthropicBugTestRoute: ApiAnthropicBugTestRoute,
+  ApiArktypeToolWireRoute: ApiArktypeToolWireRoute,
   ApiAudioRoute: ApiAudioRouteWithChildren,
   ApiChatRoute: ApiChatRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
