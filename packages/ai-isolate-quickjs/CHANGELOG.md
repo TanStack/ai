@@ -1,5 +1,12 @@
 # @tanstack/ai-isolate-quickjs
 
+## 0.1.24
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-code-mode@0.1.24
+
 ## 0.1.23
 
 ### Patch Changes

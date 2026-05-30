@@ -1,5 +1,14 @@
 # @tanstack/ai
 
+## 0.23.1
+
+### Patch Changes
+
+- [#662](https://github.com/TanStack/ai/pull/662) [`94bb9c0`](https://github.com/TanStack/ai/commit/94bb9c0f3a3e56a0c6c8b7c78f44ae41288aecc3) - Fix `convertSchemaToJsonSchema` (and tool input/output validation) for ArkType schemas. ArkType's `type()` returns a callable function with `~standard` attached, but the Standard Schema detection guards required `typeof schema === 'object'`, so ArkType schemas were never recognized and the raw validator function was passed through instead of a JSON Schema object. The guards now also accept callable schemas. ([#276](https://github.com/TanStack/ai/issues/276))
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.4.2
+
 ## 0.23.0
 
 ### Minor Changes
