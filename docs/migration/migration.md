@@ -197,7 +197,7 @@ These options are now available at the top level:
 - `maxTokens` - Maximum tokens to generate
 - `metadata` - Additional metadata to attach
 
-> **Heads up — sampling has since moved.** In a later release, the sampling props (`temperature`, `topP`, `maxTokens`) moved off the root of `chat()` and into provider-native `modelOptions`. The root props still work for backward compatibility, but the recommended form is now `modelOptions`. See [Moving Sampling Options into modelOptions](./sampling-options-to-model-options) for the codemod and provider-native key names. `metadata` stays at the root.
+> **Heads up — sampling has since moved (breaking).** In a later release, the sampling props (`temperature`, `topP`, `maxTokens`) were removed from the root of `chat()` and now live in provider-native `modelOptions`. Passing them at the root no longer type-checks or takes effect. See [Moving Sampling Options into modelOptions](./sampling-options-to-model-options) for the codemod and provider-native key names. `metadata` stays at the root.
 
 ## 3. `providerOptions` → `modelOptions`
 

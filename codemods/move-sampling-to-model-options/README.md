@@ -6,8 +6,8 @@ calls (imported from `@tanstack/ai`) and into the provider-native
 `modelOptions` object, renaming each one to its provider's canonical option
 name.
 
-This is an **opt-in modernization** — the root-level props keep working, so
-you can run this codemod at your own pace.
+This is a **breaking change**: the root-level props have been removed, so run
+this codemod to migrate existing call sites onto the new `modelOptions` shape.
 
 ## What it changes
 

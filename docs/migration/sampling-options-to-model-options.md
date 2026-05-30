@@ -4,7 +4,7 @@ title: Moving Sampling Options into modelOptions
 
 # Moving Sampling Options into `modelOptions`
 
-> **TL;DR:** This release is fully backward compatible. The root-level convenience sampling props on `chat()` / `ai()` / `generate()` — `temperature`, `topP`, and `maxTokens` — are now expressed through provider-native `modelOptions` instead. The root props keep working, so existing code is unaffected. The recommended path is to move each one into `modelOptions` under its provider's canonical name (e.g. OpenAI's `max_output_tokens`, Anthropic's `max_tokens`, Gemini's `maxOutputTokens`, Ollama's nested `options.num_predict`). A provider-aware codemod does the rewrite for you. `metadata` is unaffected and stays at the root.
+> **TL;DR:** This is a **breaking change**. The root-level convenience sampling props on `chat()` / `ai()` / `generate()` — `temperature`, `topP`, and `maxTokens` — have been **removed** and now live inside provider-native `modelOptions` instead. Passing them at the root no longer type-checks and has no effect at runtime. Move each one into `modelOptions` under its provider's canonical name (e.g. OpenAI's `max_output_tokens`, Anthropic's `max_tokens`, Gemini's `maxOutputTokens`, Ollama's nested `options.num_predict`). A provider-aware codemod does the rewrite for you. `metadata` is unaffected and stays at the root.
 
 ## What changed
 

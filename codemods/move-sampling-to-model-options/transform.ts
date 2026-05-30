@@ -19,8 +19,8 @@
  *   ollama:     NESTED inside a `options` object —
  *               temperature → options.temperature, topP → options.top_p, maxTokens → options.num_predict
  *
- * This codemod is an opt-in modernization — the root props keep working, so
- * you can run it at your own pace.
+ * This is a breaking change: the root props have been removed, so this
+ * codemod migrates existing call sites onto the new `modelOptions` shape.
  *
  * Skip + report (via `api.report`) behavior, never partially transforming a
  * single call:
