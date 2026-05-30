@@ -1529,12 +1529,12 @@ export class OpenRouterResponsesTextAdapter<
       }
     }
 
-    const modelOptions = options.modelOptions as
-      | (Partial<ResponsesRequest> & { variant?: string })
-      | undefined
-    const variantSuffix = modelOptions?.variant
-      ? `:${modelOptions.variant}`
-      : ''
+    // `variant` is OpenRouter metadata used only to build the `:variant` model
+    // suffix — it is not part of the wire `ResponsesRequest`, so strip it out
+    // of the spread body (mirrors the chat-completions adapter).
+    const { variant, ...modelOptions } = (options.modelOptions ??
+      {}) as Partial<ResponsesRequest> & { variant?: string }
+    const variantSuffix = variant ? `:${variant}` : ''
 
     const input = this.convertMessagesToInput(options.messages)
 
@@ -1565,13 +1565,6 @@ export class OpenRouterResponsesTextAdapter<
     > = {
       ...modelOptions,
       model: options.model + variantSuffix,
-      ...(options.temperature !== undefined && {
-        temperature: options.temperature,
-      }),
-      ...(options.maxTokens !== undefined && {
-        maxOutputTokens: options.maxTokens,
-      }),
-      ...(options.topP !== undefined && { topP: options.topP }),
       ...(options.metadata !== undefined && { metadata: options.metadata }),
       ...(() => {
         const prompts = normalizeSystemPrompts(options.systemPrompts)
