@@ -40,14 +40,15 @@
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
-    "zod": "^4.0.0"
+    "zod": "^4.0.0",
+    "aws-sigv4-fetch": "^4.3.1"
+  },
+  "peerDependenciesMeta": {
+    "aws-sigv4-fetch": { "optional": true }
   },
   "dependencies": {
     "@tanstack/ai-utils": "workspace:*",
     "@tanstack/openai-base": "workspace:*",
     "openai": "^6.9.1"
-  },
-  "optionalDependencies": {
-    "aws-sigv4-fetch": "4.3.1"
   }
 }

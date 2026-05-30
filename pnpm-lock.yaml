@@ -1050,10 +1050,6 @@ importers:
       vite:
         specifier: ^7.3.3
         version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
-    optionalDependencies:
-      aws-sigv4-fetch:
-        specifier: 4.3.1
-        version: 4.3.1
 
   packages/ai-client:
     dependencies:
@@ -8017,14 +8013,6 @@ packages:
   available-typed-arrays@1.0.7:
     resolution: {integrity: sha512-wvUjBtSGN7+7SjNpq/9M2Tg350UZD3q62IFZLbRAR1bSMlCo1ZaeW+BJ+D090e4hIIZLBcTDWe4Mh4jvUDajzQ==}
     engines: {node: '>= 0.4'}
-
-  aws-sigv4-fetch@4.3.1:
-    resolution: {integrity: sha512-TqwVFsch0PAOYOFjpmE54cSSeGCLlUn72oBhEZWCgj7i2vWUo7ahbuJ0UVf9cLippSiXR3TJoA5bGQl3NXvfbA==}
-    engines: {node: '>=18'}
-
-  aws-sigv4-sign@1.1.0:
-    resolution: {integrity: sha512-yBCJu8LbcZTp6xq+pcdSKs91yoDdsr6xwv0hapw1u9RXJ2SJFhSP9iXLWMleh+snqXi0COl+DTbw6t9nUeyphQ==}
-    engines: {node: '>=18'}
 
   axios@1.13.2:
     resolution: {integrity: sha512-VPk9ebNqPcy5lRGuSlKx752IlDatOjT9paPlm8A7yOuW2Fbvp4X3JznJtT4f0GzGLLiWE9W8onz51SqLYwzGaA==}
@@ -20730,19 +20718,6 @@ snapshots:
   available-typed-arrays@1.0.7:
     dependencies:
       possible-typed-array-names: 1.1.0
-
-  aws-sigv4-fetch@4.3.1:
-    dependencies:
-      aws-sigv4-sign: 1.1.0
-    optional: true
-
-  aws-sigv4-sign@1.1.0:
-    dependencies:
-      '@aws-crypto/sha256-js': 5.2.0
-      '@aws-sdk/credential-provider-node': 3.972.46
-      '@smithy/protocol-http': 4.1.8
-      '@smithy/signature-v4': 3.1.2
-    optional: true
 
   axios@1.13.2:
     dependencies:
