@@ -512,14 +512,20 @@ export class AnthropicTextAdapter<
       const role = message.role
 
       if (role === 'tool' && message.toolCallId) {
+        const toolContent = message.content
         formattedMessages.push({
           role: 'user',
           content: [
             {
               type: 'tool_result',
               tool_use_id: message.toolCallId,
-              content:
-                typeof message.content === 'string' ? message.content : '',
+              content: Array.isArray(toolContent)
+                ? toolContent.map((part) =>
+                    this.convertContentPartToAnthropic(part),
+                  )
+                : typeof toolContent === 'string'
+                  ? toolContent
+                  : '',
             },
           ],
         })

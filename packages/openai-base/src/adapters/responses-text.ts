@@ -13,6 +13,7 @@ import type {
 import type {
   Response,
   ResponseCreateParams,
+  ResponseFunctionCallOutputItem,
   ResponseInput,
   ResponseInputContent,
   ResponseStreamEvent,
@@ -1693,13 +1694,17 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     for (const message of messages) {
       // Handle tool messages - convert to FunctionToolCallOutput
       if (message.role === 'tool') {
+        const toolContent = message.content
+        const output: string | Array<ResponseFunctionCallOutputItem> =
+          Array.isArray(toolContent)
+            ? toolContent.map((part) => this.convertContentPartToInput(part))
+            : typeof toolContent === 'string'
+              ? toolContent
+              : JSON.stringify(toolContent)
         result.push({
           type: 'function_call_output',
           call_id: message.toolCallId || '',
-          output:
-            typeof message.content === 'string'
-              ? message.content
-              : JSON.stringify(message.content),
+          output,
         })
         continue
       }
