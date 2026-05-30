@@ -2322,11 +2322,15 @@ describe('ChatClient', () => {
 
     it('should not abort an in-flight stream when persistence is omitted', async () => {
       let abortSignal: AbortSignal | undefined
+      // Gate the chunks on a deferred (instead of a fixed timer) so they are
+      // released strictly after clear() runs — otherwise the assertion races
+      // the stream and is flaky on faster machines/CI.
+      const releaseChunks = createDeferred<void>()
 
       const adapter: ConnectConnectionAdapter = {
         async *connect(_messages, _data, signal) {
           abortSignal = signal
-          await new Promise((resolve) => setTimeout(resolve, 10))
+          await releaseChunks.promise
           yield* createTextChunks('Delayed')
         },
       }
@@ -2340,6 +2344,9 @@ describe('ChatClient', () => {
       client.clear()
       expect(abortSignal?.aborted).toBe(false)
 
+      // Without persistence, clear() does not abort the in-flight stream, so
+      // its chunks still populate messages once they arrive.
+      releaseChunks.resolve()
       await sendPromise
 
       expect(client.getMessages()).toEqual(
