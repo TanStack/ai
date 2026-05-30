@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as ServerFnChatRouteImport } from './routes/server-fn-chat'
 import { Route as RealtimeRouteImport } from './routes/realtime'
 import { Route as Issue176ToolResultRouteImport } from './routes/issue-176-tool-result'
+import { Route as ImageToolReproRouteImport } from './routes/image-tool-repro'
 import { Route as ImageGenRouteImport } from './routes/image-gen'
 import { Route as GenerationHooksRouteImport } from './routes/generation-hooks'
 import { Route as IndexRouteImport } from './routes/index'
@@ -29,6 +30,7 @@ import { Route as ApiTanchatRouteImport } from './routes/api.tanchat'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiStructuredOutputRouteImport } from './routes/api.structured-output'
 import { Route as ApiStructuredChatRouteImport } from './routes/api.structured-chat'
+import { Route as ApiImageToolReproRouteImport } from './routes/api.image-tool-repro'
 import { Route as ApiImageGenRouteImport } from './routes/api.image-gen'
 import { Route as ExampleGuitarsIndexRouteImport } from './routes/example.guitars/index'
 import { Route as ExampleGuitarsGuitarIdRouteImport } from './routes/example.guitars/$guitarId'
@@ -50,6 +52,11 @@ const RealtimeRoute = RealtimeRouteImport.update({
 const Issue176ToolResultRoute = Issue176ToolResultRouteImport.update({
   id: '/issue-176-tool-result',
   path: '/issue-176-tool-result',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ImageToolReproRoute = ImageToolReproRouteImport.update({
+  id: '/image-tool-repro',
+  path: '/image-tool-repro',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ImageGenRoute = ImageGenRouteImport.update({
@@ -140,6 +147,11 @@ const ApiStructuredChatRoute = ApiStructuredChatRouteImport.update({
   path: '/api/structured-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiImageToolReproRoute = ApiImageToolReproRouteImport.update({
+  id: '/api/image-tool-repro',
+  path: '/api/image-tool-repro',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiImageGenRoute = ApiImageGenRouteImport.update({
   id: '/api/image-gen',
   path: '/api/image-gen',
@@ -180,10 +192,12 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/generation-hooks': typeof GenerationHooksRoute
   '/image-gen': typeof ImageGenRoute
+  '/image-tool-repro': typeof ImageToolReproRoute
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/realtime': typeof RealtimeRoute
   '/server-fn-chat': typeof ServerFnChatRoute
   '/api/image-gen': typeof ApiImageGenRoute
+  '/api/image-tool-repro': typeof ApiImageToolReproRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -209,10 +223,12 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/generation-hooks': typeof GenerationHooksRoute
   '/image-gen': typeof ImageGenRoute
+  '/image-tool-repro': typeof ImageToolReproRoute
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/realtime': typeof RealtimeRoute
   '/server-fn-chat': typeof ServerFnChatRoute
   '/api/image-gen': typeof ApiImageGenRoute
+  '/api/image-tool-repro': typeof ApiImageToolReproRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -239,10 +255,12 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/generation-hooks': typeof GenerationHooksRoute
   '/image-gen': typeof ImageGenRoute
+  '/image-tool-repro': typeof ImageToolReproRoute
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/realtime': typeof RealtimeRoute
   '/server-fn-chat': typeof ServerFnChatRoute
   '/api/image-gen': typeof ApiImageGenRoute
+  '/api/image-tool-repro': typeof ApiImageToolReproRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -270,10 +288,12 @@ export interface FileRouteTypes {
     | '/'
     | '/generation-hooks'
     | '/image-gen'
+    | '/image-tool-repro'
     | '/issue-176-tool-result'
     | '/realtime'
     | '/server-fn-chat'
     | '/api/image-gen'
+    | '/api/image-tool-repro'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
@@ -299,10 +319,12 @@ export interface FileRouteTypes {
     | '/'
     | '/generation-hooks'
     | '/image-gen'
+    | '/image-tool-repro'
     | '/issue-176-tool-result'
     | '/realtime'
     | '/server-fn-chat'
     | '/api/image-gen'
+    | '/api/image-tool-repro'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
@@ -328,10 +350,12 @@ export interface FileRouteTypes {
     | '/'
     | '/generation-hooks'
     | '/image-gen'
+    | '/image-tool-repro'
     | '/issue-176-tool-result'
     | '/realtime'
     | '/server-fn-chat'
     | '/api/image-gen'
+    | '/api/image-tool-repro'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
@@ -358,10 +382,12 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   GenerationHooksRoute: typeof GenerationHooksRoute
   ImageGenRoute: typeof ImageGenRoute
+  ImageToolReproRoute: typeof ImageToolReproRoute
   Issue176ToolResultRoute: typeof Issue176ToolResultRoute
   RealtimeRoute: typeof RealtimeRoute
   ServerFnChatRoute: typeof ServerFnChatRoute
   ApiImageGenRoute: typeof ApiImageGenRoute
+  ApiImageToolReproRoute: typeof ApiImageToolReproRoute
   ApiStructuredChatRoute: typeof ApiStructuredChatRoute
   ApiStructuredOutputRoute: typeof ApiStructuredOutputRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
@@ -405,6 +431,13 @@ declare module '@tanstack/react-router' {
       path: '/issue-176-tool-result'
       fullPath: '/issue-176-tool-result'
       preLoaderRoute: typeof Issue176ToolResultRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/image-tool-repro': {
+      id: '/image-tool-repro'
+      path: '/image-tool-repro'
+      fullPath: '/image-tool-repro'
+      preLoaderRoute: typeof ImageToolReproRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/image-gen': {
@@ -526,6 +559,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiStructuredChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/image-tool-repro': {
+      id: '/api/image-tool-repro'
+      path: '/api/image-tool-repro'
+      fullPath: '/api/image-tool-repro'
+      preLoaderRoute: typeof ApiImageToolReproRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/image-gen': {
       id: '/api/image-gen'
       path: '/api/image-gen'
@@ -582,10 +622,12 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   GenerationHooksRoute: GenerationHooksRoute,
   ImageGenRoute: ImageGenRoute,
+  ImageToolReproRoute: ImageToolReproRoute,
   Issue176ToolResultRoute: Issue176ToolResultRoute,
   RealtimeRoute: RealtimeRoute,
   ServerFnChatRoute: ServerFnChatRoute,
   ApiImageGenRoute: ApiImageGenRoute,
+  ApiImageToolReproRoute: ApiImageToolReproRoute,
   ApiStructuredChatRoute: ApiStructuredChatRoute,
   ApiStructuredOutputRoute: ApiStructuredOutputRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
