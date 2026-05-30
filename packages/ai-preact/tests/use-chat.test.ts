@@ -120,9 +120,7 @@ describe('useChat', () => {
       })
 
       await waitFor(() => {
-        expect(persistence.getItem).toHaveBeenCalledWith(
-          'persisted-empty-chat',
-        )
+        expect(persistence.getItem).toHaveBeenCalledWith('persisted-empty-chat')
       })
       expect(result.current.messages).toEqual([])
     })

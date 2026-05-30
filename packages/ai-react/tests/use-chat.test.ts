@@ -119,9 +119,7 @@ describe('useChat', () => {
       })
 
       await waitFor(() => {
-        expect(persistence.getItem).toHaveBeenCalledWith(
-          'persisted-empty-chat',
-        )
+        expect(persistence.getItem).toHaveBeenCalledWith('persisted-empty-chat')
       })
       expect(result.current.messages).toEqual([])
     })
@@ -935,7 +933,7 @@ describe('useChat', () => {
       expect(first).not.toHaveBeenCalled()
     })
 
-      it('should ignore user callbacks from an old client after id changes', async () => {
+    it('should ignore user callbacks from an old client after id changes', async () => {
       const releaseOldStream = createDeferred<void>()
       const oldOnChunk = vi.fn()
       const newOnChunk = vi.fn()
@@ -971,34 +969,34 @@ describe('useChat', () => {
       releaseOldStream.resolve()
       await sendPromise
 
-        expect(oldOnChunk).not.toHaveBeenCalled()
-        expect(newOnChunk).not.toHaveBeenCalled()
-      })
-
-      it('should keep callbacks live across StrictMode effect replay for the same client', async () => {
-        const onChunk = vi.fn()
-        const adapter = createMockConnectionAdapter({
-          chunks: createTextChunks('strict response'),
-        })
-
-        const { result } = renderHook(
-          () =>
-            useChat({
-              connection: adapter,
-              onChunk,
-            }),
-          { wrapper: StrictMode },
-        )
-
-        await act(async () => {
-          await result.current.sendMessage('Test')
-        })
-
-        expect(onChunk).toHaveBeenCalledWith(
-          expect.objectContaining({ type: EventType.TEXT_MESSAGE_CONTENT }),
-        )
-      })
+      expect(oldOnChunk).not.toHaveBeenCalled()
+      expect(newOnChunk).not.toHaveBeenCalled()
     })
+
+    it('should keep callbacks live across StrictMode effect replay for the same client', async () => {
+      const onChunk = vi.fn()
+      const adapter = createMockConnectionAdapter({
+        chunks: createTextChunks('strict response'),
+      })
+
+      const { result } = renderHook(
+        () =>
+          useChat({
+            connection: adapter,
+            onChunk,
+          }),
+        { wrapper: StrictMode },
+      )
+
+      await act(async () => {
+        await result.current.sendMessage('Test')
+      })
+
+      expect(onChunk).toHaveBeenCalledWith(
+        expect.objectContaining({ type: EventType.TEXT_MESSAGE_CONTENT }),
+      )
+    })
+  })
 
   describe('edge cases and error handling', () => {
     describe('options changes', () => {

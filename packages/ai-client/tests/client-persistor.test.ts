@@ -43,7 +43,10 @@ function runStarted(runId: string, threadId: string = 'thread-1'): StreamChunk {
   return { type: EventType.RUN_STARTED, threadId, runId }
 }
 
-function runFinished(runId: string, threadId: string = 'thread-1'): StreamChunk {
+function runFinished(
+  runId: string,
+  threadId: string = 'thread-1',
+): StreamChunk {
   return { type: EventType.RUN_FINISHED, threadId, runId }
 }
 
@@ -119,16 +122,19 @@ describe('ChatPersistor', () => {
     it.each([
       ['null', null],
       ['undefined', undefined],
-    ])('does not apply when the promise resolves to %s', async (_label, value) => {
-      const { persistor, applyMessages } = createPersistor(
-        createMockPersistence(),
-      )
+    ])(
+      'does not apply when the promise resolves to %s',
+      async (_label, value) => {
+        const { persistor, applyMessages } = createPersistor(
+          createMockPersistence(),
+        )
 
-      persistor.hydrateAsync(Promise.resolve(value))
-      await flushAsync()
+        persistor.hydrateAsync(Promise.resolve(value))
+        await flushAsync()
 
-      expect(applyMessages).not.toHaveBeenCalled()
-    })
+        expect(applyMessages).not.toHaveBeenCalled()
+      },
+    )
 
     it('does nothing for a synchronous (non-promise) value', async () => {
       const { persistor, applyMessages } = createPersistor(

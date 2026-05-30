@@ -330,8 +330,10 @@ describe('ChatClient', () => {
     it('should ignore native subscribe/send chunks from a cleared persisted request without runId', async () => {
       let storedMessages: Array<UIMessage> | undefined
       const releaseFirstResponse = createDeferred<void>()
-      const queuedChunks: Array<{ prompt: string; chunks: Array<StreamChunk> }> =
-        []
+      const queuedChunks: Array<{
+        prompt: string
+        chunks: Array<StreamChunk>
+      }> = []
       let wakeSubscriber: (() => void) | null = null
       const adapter: ConnectionAdapter = {
         subscribe: vi.fn((_signal?: AbortSignal) => {
@@ -455,39 +457,41 @@ describe('ChatClient', () => {
       let wakeSubscriber: (() => void) | null = null
       let queued = false
       const adapter: ConnectionAdapter = {
-        subscribe: vi.fn((_signal?: AbortSignal): AsyncIterable<StreamChunk> => {
-          return (async function* () {
-            while (true) {
-              if (!queued) {
-                await new Promise<void>((resolve) => {
-                  wakeSubscriber = resolve
-                })
+        subscribe: vi.fn(
+          (_signal?: AbortSignal): AsyncIterable<StreamChunk> => {
+            return (async function* () {
+              while (true) {
+                if (!queued) {
+                  await new Promise<void>((resolve) => {
+                    wakeSubscriber = resolve
+                  })
+                }
+                queued = false
+                yield {
+                  type: EventType.RUN_STARTED,
+                  threadId: 'thread-1',
+                  runId: 'run-cleared',
+                  timestamp: Date.now(),
+                } as StreamChunk
+                await releaseStaleChunks.promise
+                yield {
+                  type: EventType.TEXT_MESSAGE_CONTENT,
+                  messageId: 'stale-message',
+                  timestamp: Date.now(),
+                  delta: 'stale content',
+                  content: 'stale content',
+                } as StreamChunk
+                staleChunksAttempted.resolve()
+                yield {
+                  type: EventType.RUN_FINISHED,
+                  threadId: 'thread-1',
+                  runId: 'run-cleared',
+                  timestamp: Date.now(),
+                } as StreamChunk
               }
-              queued = false
-              yield {
-                type: EventType.RUN_STARTED,
-                threadId: 'thread-1',
-                runId: 'run-cleared',
-                timestamp: Date.now(),
-              } as StreamChunk
-              await releaseStaleChunks.promise
-              yield {
-                type: EventType.TEXT_MESSAGE_CONTENT,
-                messageId: 'stale-message',
-                timestamp: Date.now(),
-                delta: 'stale content',
-                content: 'stale content',
-              } as StreamChunk
-              staleChunksAttempted.resolve()
-              yield {
-                type: EventType.RUN_FINISHED,
-                threadId: 'thread-1',
-                runId: 'run-cleared',
-                timestamp: Date.now(),
-              } as StreamChunk
-            }
-          })()
-        }),
+            })()
+          },
+        ),
         send: vi.fn(async () => {
           queued = true
           wakeSubscriber?.()
@@ -529,8 +533,10 @@ describe('ChatClient', () => {
       let storedMessages: Array<UIMessage> | undefined
       const releaseStaleChunks = createDeferred<void>()
       const staleChunksAttempted = createDeferred<void>()
-      const queuedChunks: Array<{ prompt: string; chunks: Array<StreamChunk> }> =
-        []
+      const queuedChunks: Array<{
+        prompt: string
+        chunks: Array<StreamChunk>
+      }> = []
       let staleReleased = false
       let wakeSubscriber: (() => void) | null = null
       const wakeQueuedSubscriber = () => {
@@ -539,46 +545,48 @@ describe('ChatClient', () => {
         wake?.()
       }
       const adapter: ConnectionAdapter = {
-        subscribe: vi.fn((_signal?: AbortSignal): AsyncIterable<StreamChunk> => {
-          return (async function* () {
-            while (true) {
-              if (queuedChunks.length === 0) {
-                await new Promise<void>((resolve) => {
-                  wakeSubscriber = resolve
-                })
+        subscribe: vi.fn(
+          (_signal?: AbortSignal): AsyncIterable<StreamChunk> => {
+            return (async function* () {
+              while (true) {
+                if (queuedChunks.length === 0) {
+                  await new Promise<void>((resolve) => {
+                    wakeSubscriber = resolve
+                  })
+                }
+                const freshIndex = queuedChunks.findIndex(
+                  (queued) => queued.prompt === 'B',
+                )
+                const next =
+                  freshIndex >= 0
+                    ? queuedChunks.splice(freshIndex, 1)[0]
+                    : queuedChunks.shift()
+                if (!next) continue
+                yield next.chunks[0]!
+                if (next.prompt === 'A' && !staleReleased) {
+                  queuedChunks.push({
+                    prompt: 'A-after-start',
+                    chunks: next.chunks.slice(1),
+                  })
+                  continue
+                }
+                if (next.prompt === 'A-after-start' && !staleReleased) {
+                  queuedChunks.push(next)
+                  await new Promise<void>((resolve) => {
+                    wakeSubscriber = resolve
+                  })
+                  continue
+                }
+                for (const chunk of next.chunks.slice(1)) {
+                  yield chunk
+                }
+                if (next.prompt === 'A-after-start') {
+                  staleChunksAttempted.resolve()
+                }
               }
-              const freshIndex = queuedChunks.findIndex(
-                (queued) => queued.prompt === 'B',
-              )
-              const next =
-                freshIndex >= 0
-                  ? queuedChunks.splice(freshIndex, 1)[0]
-                  : queuedChunks.shift()
-              if (!next) continue
-              yield next.chunks[0]!
-              if (next.prompt === 'A' && !staleReleased) {
-                queuedChunks.push({
-                  prompt: 'A-after-start',
-                  chunks: next.chunks.slice(1),
-                })
-                continue
-              }
-              if (next.prompt === 'A-after-start' && !staleReleased) {
-                queuedChunks.push(next)
-                await new Promise<void>((resolve) => {
-                  wakeSubscriber = resolve
-                })
-                continue
-              }
-              for (const chunk of next.chunks.slice(1)) {
-                yield chunk
-              }
-              if (next.prompt === 'A-after-start') {
-                staleChunksAttempted.resolve()
-              }
-            }
-          })()
-        }),
+            })()
+          },
+        ),
         send: vi.fn(
           async (
             messages: Array<UIMessage> | Array<ModelMessage>,
@@ -791,8 +799,10 @@ describe('ChatClient', () => {
       let storedMessages: Array<UIMessage> | undefined
       const releaseStaleResponse = createDeferred<void>()
       let staleReleased = false
-      const queuedChunks: Array<{ prompt: string; chunks: Array<StreamChunk> }> =
-        []
+      const queuedChunks: Array<{
+        prompt: string
+        chunks: Array<StreamChunk>
+      }> = []
       let wakeSubscriber: (() => void) | null = null
       const adapter: ConnectionAdapter = {
         subscribe: vi.fn((_signal?: AbortSignal) => {
@@ -980,9 +990,9 @@ describe('ChatClient', () => {
 
       const sendPromise = client.sendMessage('A')
       await vi.waitFor(() => {
-        expect(client.getMessages().some((message) => message.id === 'assistant-a')).toBe(
-          true,
-        )
+        expect(
+          client.getMessages().some((message) => message.id === 'assistant-a'),
+        ).toBe(true)
       })
 
       client.clear()
@@ -1130,33 +1140,35 @@ describe('ChatClient', () => {
       let wakeSubscriber: (() => void) | null = null
       let queued = false
       const adapter: ConnectionAdapter = {
-        subscribe: vi.fn((_signal?: AbortSignal): AsyncIterable<StreamChunk> => {
-          return (async function* () {
-            while (true) {
-              if (!queued) {
-                await new Promise<void>((resolve) => {
-                  wakeSubscriber = resolve
-                })
+        subscribe: vi.fn(
+          (_signal?: AbortSignal): AsyncIterable<StreamChunk> => {
+            return (async function* () {
+              while (true) {
+                if (!queued) {
+                  await new Promise<void>((resolve) => {
+                    wakeSubscriber = resolve
+                  })
+                }
+                queued = false
+                yield {
+                  type: EventType.RUN_STARTED,
+                  threadId: 'thread-1',
+                  runId: 'run-1',
+                  timestamp: Date.now(),
+                } as StreamChunk
+                await releaseResponse.promise
+                yield {
+                  type: EventType.RUN_FINISHED,
+                  threadId: 'thread-1',
+                  runId: 'run-1',
+                  model: 'test',
+                  timestamp: Date.now(),
+                  finishReason: 'stop',
+                } as StreamChunk
               }
-              queued = false
-              yield {
-                type: EventType.RUN_STARTED,
-                threadId: 'thread-1',
-                runId: 'run-1',
-                timestamp: Date.now(),
-              } as StreamChunk
-              await releaseResponse.promise
-              yield {
-                type: EventType.RUN_FINISHED,
-                threadId: 'thread-1',
-                runId: 'run-1',
-                model: 'test',
-                timestamp: Date.now(),
-                finishReason: 'stop',
-              } as StreamChunk
-            }
-          })()
-        }),
+            })()
+          },
+        ),
         send: vi.fn(async () => {
           queued = true
           wakeSubscriber?.()
@@ -1186,38 +1198,40 @@ describe('ChatClient', () => {
       const releaseAfterClear = createDeferred<void>()
       const subscriberReady = createDeferred<() => void>()
       const adapter: ConnectionAdapter = {
-        subscribe: vi.fn((_signal?: AbortSignal): AsyncIterable<StreamChunk> => {
-          return (async function* () {
-            await new Promise<void>((resolve) => {
-              subscriberReady.resolve(resolve)
-            })
-            yield {
-              type: EventType.RUN_STARTED,
-              threadId: 'thread-1',
-              runId: 'live-run-1',
-              timestamp: Date.now(),
-            } as StreamChunk
-            await releaseAfterClear.promise
-            yield {
-              type: EventType.TEXT_MESSAGE_START,
-              messageId: 'live-message-1',
-              role: 'assistant',
-            } as StreamChunk
-            yield {
-              type: EventType.TEXT_MESSAGE_CONTENT,
-              messageId: 'live-message-1',
-              delta: 'stale live content',
-            } as StreamChunk
-            yield {
-              type: EventType.RUN_FINISHED,
-              threadId: 'thread-1',
-              runId: 'live-run-1',
-              model: 'test',
-              timestamp: Date.now(),
-              finishReason: 'stop',
-            } as StreamChunk
-          })()
-        }),
+        subscribe: vi.fn(
+          (_signal?: AbortSignal): AsyncIterable<StreamChunk> => {
+            return (async function* () {
+              await new Promise<void>((resolve) => {
+                subscriberReady.resolve(resolve)
+              })
+              yield {
+                type: EventType.RUN_STARTED,
+                threadId: 'thread-1',
+                runId: 'live-run-1',
+                timestamp: Date.now(),
+              } as StreamChunk
+              await releaseAfterClear.promise
+              yield {
+                type: EventType.TEXT_MESSAGE_START,
+                messageId: 'live-message-1',
+                role: 'assistant',
+              } as StreamChunk
+              yield {
+                type: EventType.TEXT_MESSAGE_CONTENT,
+                messageId: 'live-message-1',
+                delta: 'stale live content',
+              } as StreamChunk
+              yield {
+                type: EventType.RUN_FINISHED,
+                threadId: 'thread-1',
+                runId: 'live-run-1',
+                model: 'test',
+                timestamp: Date.now(),
+                finishReason: 'stop',
+              } as StreamChunk
+            })()
+          },
+        ),
         send: vi.fn(),
       }
       const persistence = {
