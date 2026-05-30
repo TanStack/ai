@@ -91,6 +91,15 @@ describe('createBedrockText (branching factory)', () => {
     const a = createBedrockText('openai.gpt-oss-120b', 'k', { api: 'chat' })
     expect(a).toBeInstanceOf(ChatAdapter)
   })
+
+  it('rejects a chat-only model with api:responses (compile-time) and throws at runtime', () => {
+    expect(() => {
+      // @ts-expect-error — a chat-only model is not assignable to the api:'responses' overload
+      // (BedrockResponsesModels). This line also locks the compile-time contract: if the
+      // overloads ever stop rejecting it, the @ts-expect-error becomes unused and tsc fails.
+      createBedrockText('us.anthropic.claude-3-5-haiku-20241022-v1:0', 'k', { api: 'responses' })
+    }).toThrowError(/Responses-capable models:/)
+  })
 })
 
 describe('bedrockText (env-key branching factory)', () => {

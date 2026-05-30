@@ -116,6 +116,7 @@ export {
   withBedrockDefaults,
   type BedrockClientConfig,
   type BedrockEndpoint,
+  type ResolvedBedrockAuth,
 } from './utils'
 export {
   BEDROCK_CHAT_MODELS,
