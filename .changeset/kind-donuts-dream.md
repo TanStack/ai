@@ -30,3 +30,22 @@ Detailed usage is extracted in one place per SDK surface: OpenAI-compatible
 providers (OpenAI, Grok, Groq) share the extractors in `@tanstack/openai-base`,
 while Anthropic, Gemini, Ollama, and OpenRouter normalize their own provider
 usage. The devtools surface cached and reasoning token badges per iteration.
+
+Usage is now unified across **every modality**, not just text/chat. Image, audio,
+and text-to-speech results report the same canonical `TokenUsage` (with
+per-modality breakdowns) instead of a minimal `inputTokens`/`outputTokens` shape:
+
+- `ImageGenerationResult.usage`, `AudioGenerationResult.usage`, and the new
+  `TTSResult.usage` are now typed as `TokenUsage`. **Breaking:** consumers of
+  these fields should read `promptTokens`/`completionTokens` instead of
+  `inputTokens`/`outputTokens`. `@tanstack/ai-event-client`'s `ImageUsage` is now
+  a `@deprecated` alias of `TokenUsage`.
+- OpenAI/Grok image generation surface the text-vs-image input token breakdown
+  (`promptTokensDetails`), Gemini image/audio/TTS now surface their full
+  `usageMetadata` (previously dropped), and OpenRouter image generation surfaces
+  the chat usage it already returns.
+- Bug fixes: Ollama no longer produces `NaN` totals or discards duration-only
+  usage; Anthropic defaults missing `output_tokens` and no longer emits empty
+  `promptTokensDetails`/`providerUsageDetails` objects; OpenAI GPT-4o
+  transcription reads the real audio/text input token breakdown and never falls
+  back to duration billing.

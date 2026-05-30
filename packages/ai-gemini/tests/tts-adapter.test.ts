@@ -80,6 +80,34 @@ describe('Gemini TTS Adapter', () => {
     expect(result.contentType).toBe('audio/wav')
   })
 
+  it('surfaces token usage from usageMetadata', async () => {
+    mockGenerateContent.mockResolvedValueOnce({
+      candidates: [
+        {
+          content: {
+            parts: [
+              { inlineData: { mimeType: 'audio/wav', data: 'BASE64AUDIO' } },
+            ],
+          },
+        },
+      ],
+      usageMetadata: {
+        promptTokenCount: 5,
+        candidatesTokenCount: 15,
+        totalTokenCount: 20,
+      },
+    })
+
+    const adapter = createGeminiSpeech('gemini-2.5-flash-preview-tts', 'key')
+    const result = await generateSpeech({ adapter, text: 'Hello friend' })
+
+    expect(result.usage).toEqual({
+      promptTokens: 5,
+      completionTokens: 15,
+      totalTokens: 20,
+    })
+  })
+
   it('forwards multi-speaker and system-instruction options', async () => {
     mockGenerateContent.mockResolvedValueOnce({
       candidates: [

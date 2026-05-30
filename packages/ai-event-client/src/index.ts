@@ -207,11 +207,12 @@ export type ToolResultState =
   | 'complete' // Result is complete
   | 'error' // Error occurred
 
-export interface ImageUsage {
-  inputTokens?: number
-  outputTokens?: number
-  totalTokens?: number
-}
+/**
+ * @deprecated Image and audio usage now use the canonical {@link TokenUsage}
+ * shape. Kept as an alias for backward compatibility; will be removed in a
+ * future release.
+ */
+export type ImageUsage = TokenUsage
 
 // All optional fields explicitly allow `| undefined` so that callers
 // can spread shared-context builders (which set every field to a
@@ -575,7 +576,7 @@ export interface ImageRequestCompletedEvent extends BaseEventContext {
 export interface ImageUsageEvent extends BaseEventContext {
   requestId: string
   model: string
-  usage: ImageUsage
+  usage: TokenUsage
 }
 
 // ===========================
@@ -715,7 +716,7 @@ export interface TranscriptionRequestErrorEvent extends BaseEventContext {
 export interface AudioUsageEvent extends BaseEventContext {
   requestId: string
   model: string
-  usage: ImageUsage
+  usage: TokenUsage
 }
 
 // ===========================

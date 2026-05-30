@@ -197,9 +197,11 @@ describe('OpenAI Image Adapter', () => {
       expect(result.images[0]!.b64Json).toBe('base64encodedimage')
       expect(result.images[0]!.revisedPrompt).toBe('A beautiful cat')
       expect(result.usage).toEqual({
-        inputTokens: 10,
-        outputTokens: 100,
+        promptTokens: 10,
+        completionTokens: 100,
         totalTokens: 110,
+        // image_tokens is 0 so it's omitted; only text_tokens is surfaced.
+        promptTokensDetails: { textTokens: 10 },
       })
     })
 

@@ -23,30 +23,45 @@ function buildTranscriptionUsage(
   duration?: number,
   response?: OpenAI_SDK.Audio.TranscriptionCreateResponse,
 ): TokenUsage | undefined {
-  // GPT-4o transcription models return usage with tokens
-  if (model.startsWith('gpt-4o')) {
-    // Check if response has usage field (GPT-4o models may include this)
-    const usage = response?.usage as
-      | {
-          prompt_tokens?: number
-          completion_tokens?: number
-          total_tokens?: number
-        }
-      | undefined
+  const usage = response?.usage
 
-    if (usage) {
-      return {
-        promptTokens: usage.prompt_tokens ?? 0,
-        completionTokens: usage.completion_tokens ?? 0,
-        totalTokens: usage.total_tokens ?? 0,
-        promptTokensDetails: {
-          audioTokens: usage.prompt_tokens,
-        },
-        completionTokensDetails: {
-          textTokens: usage.completion_tokens,
-        },
-      }
+  // GPT-4o transcription models are billed by token. Surface the token counts
+  // and the per-modality input breakdown when present. These models must never
+  // fall through to the duration path below — when usage is absent there is no
+  // billing data to report, so return undefined rather than fabricating a
+  // duration-based result for a token-billed model.
+  if (model.startsWith('gpt-4o')) {
+    if (!usage || usage.type !== 'tokens') {
+      return undefined
     }
+
+    const result: TokenUsage = {
+      promptTokens: usage.input_tokens || 0,
+      completionTokens: usage.output_tokens || 0,
+      totalTokens: usage.total_tokens || 0,
+    }
+
+    // Input can mix audio and text tokens (e.g. the optional `prompt`); read
+    // the real breakdown instead of attributing every input token to audio.
+    const inputDetails = usage.input_token_details
+    const promptTokensDetails = {
+      ...(inputDetails?.audio_tokens
+        ? { audioTokens: inputDetails.audio_tokens }
+        : {}),
+      ...(inputDetails?.text_tokens
+        ? { textTokens: inputDetails.text_tokens }
+        : {}),
+    }
+    if (Object.keys(promptTokensDetails).length > 0) {
+      result.promptTokensDetails = promptTokensDetails
+    }
+
+    // Transcription output is always text.
+    if (usage.output_tokens) {
+      result.completionTokensDetails = { textTokens: usage.output_tokens }
+    }
+
+    return result
   }
 
   // Whisper-1 uses duration-based billing

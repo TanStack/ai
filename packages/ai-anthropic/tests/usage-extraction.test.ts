@@ -283,7 +283,66 @@ describe('Anthropic usage extraction', () => {
 
     const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
-    // promptTokensDetails should be empty object when no cache tokens
-    expect(doneChunk?.usage?.promptTokensDetails).toEqual({})
+    // No cache tokens and no server tool use: the detail objects must be
+    // omitted entirely rather than emitted as empty `{}` (matches every other
+    // adapter's guarded behavior).
+    expect(doneChunk?.usage?.promptTokensDetails).toBeUndefined()
+    expect(doneChunk?.usage?.providerUsageDetails).toBeUndefined()
+  })
+
+  it('defaults missing output_tokens to 0 instead of NaN', async () => {
+    const mockStream = createMockStream([
+      {
+        type: 'message_start',
+        message: {
+          id: 'msg_123',
+          type: 'message',
+          role: 'assistant',
+          content: [],
+          model: 'claude-3-7-sonnet-20250219',
+          usage: {
+            input_tokens: 100,
+            output_tokens: 0,
+          },
+        },
+      },
+      {
+        type: 'content_block_start',
+        index: 0,
+        content_block: { type: 'text', text: '' },
+      },
+      {
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'text_delta', text: 'Hello world' },
+      },
+      {
+        type: 'message_delta',
+        delta: { stop_reason: 'end_turn' },
+        // output_tokens intentionally omitted to exercise the `?? 0` guard.
+        usage: {
+          input_tokens: 100,
+        },
+      },
+      {
+        type: 'message_stop',
+      },
+    ])
+
+    mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
+
+    const chunks: Array<StreamChunk> = []
+    for await (const chunk of chat({
+      adapter: createAdapter(),
+      messages: [{ role: 'user', content: 'Hello' }],
+    })) {
+      chunks.push(chunk)
+    }
+
+    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
+    expect(doneChunk).toBeDefined()
+    expect(doneChunk?.usage?.completionTokens).toBe(0)
+    expect(doneChunk?.usage?.totalTokens).toBe(100)
+    expect(Number.isNaN(doneChunk?.usage?.totalTokens)).toBe(false)
   })
 })

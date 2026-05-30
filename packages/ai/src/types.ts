@@ -1569,11 +1569,7 @@ export interface ImageGenerationResult {
   /** Array of generated images */
   images: Array<GeneratedImage>
   /** Token usage information (if available) */
-  usage?: {
-    inputTokens?: number
-    outputTokens?: number
-    totalTokens?: number
-  }
+  usage?: TokenUsage
 }
 
 // ============================================================================
@@ -1624,11 +1620,7 @@ export interface AudioGenerationResult {
   /** The generated audio */
   audio: GeneratedAudio
   /** Token usage information (if available) */
-  usage?: {
-    inputTokens?: number
-    outputTokens?: number
-    totalTokens?: number
-  }
+  usage?: TokenUsage
 }
 
 // ============================================================================
@@ -1749,6 +1741,8 @@ export interface TTSResult {
   duration?: number
   /** Content type of the audio (e.g., 'audio/mp3') */
   contentType?: string
+  /** Token usage information (if provided by the adapter) */
+  usage?: TokenUsage
 }
 
 // ============================================================================

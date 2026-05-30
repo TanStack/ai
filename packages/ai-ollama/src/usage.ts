@@ -30,14 +30,13 @@ export interface OllamaProviderUsageDetails {
 export function buildOllamaUsage(
   response: ChatResponse,
 ): TokenUsage | undefined {
-  // Ollama provides prompt_eval_count and eval_count
-  const promptTokens = response.prompt_eval_count
-  const completionTokens = response.eval_count
-
-  // If no token counts are available, return undefined
-  if (promptTokens === 0 && completionTokens === 0) {
-    return undefined
-  }
+  // Ollama can omit prompt_eval_count / eval_count at runtime even though the
+  // SDK types them as required. `|| 0` coalesces a missing count to 0 for
+  // arithmetic so totalTokens never becomes NaN, and stays lint-clean (matches
+  // the other provider builders).
+  const promptTokens = response.prompt_eval_count || 0
+  const completionTokens = response.eval_count || 0
+  const hasTokenCounts = promptTokens > 0 || completionTokens > 0
 
   const result = buildBaseUsage({
     promptTokens,
@@ -45,24 +44,29 @@ export function buildOllamaUsage(
     totalTokens: promptTokens + completionTokens,
   })
 
-  // Add provider-specific duration details
+  // Add provider-specific duration details. Durations are optional too; guard
+  // each before comparing so missing fields don't throw under strict mode.
   const providerDetails = {
-    ...(response.load_duration > 0
-      ? { loadDuration: response.load_duration }
-      : {}),
-    ...(response.prompt_eval_duration > 0
+    ...(response.load_duration ? { loadDuration: response.load_duration } : {}),
+    ...(response.prompt_eval_duration
       ? { promptEvalDuration: response.prompt_eval_duration }
       : {}),
-    ...(response.eval_duration > 0
+    ...(response.eval_duration
       ? { evalDuration: response.eval_duration }
       : {}),
-    ...(response.total_duration > 0
+    ...(response.total_duration
       ? { totalDuration: response.total_duration }
       : {}),
   } satisfies OllamaProviderUsageDetails
 
-  if (Object.keys(providerDetails).length > 0) {
+  const hasProviderDetails = Object.keys(providerDetails).length > 0
+  if (hasProviderDetails) {
     result.providerUsageDetails = providerDetails
+  }
+
+  // Nothing useful to report: no token counts and no duration metrics.
+  if (!hasTokenCounts && !hasProviderDetails) {
+    return undefined
   }
 
   return result

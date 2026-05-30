@@ -31,7 +31,10 @@ export function buildAnthropicUsage(
     | Anthropic_SDK.Beta.BetaMessageDeltaUsage,
 ): TokenUsage {
   const inputTokens = usage.input_tokens ?? 0
-  const outputTokens = usage.output_tokens
+  // `|| 0` (rather than `?? 0`) matches the sibling builders and stays defensive
+  // against a runtime-absent count without tripping no-unnecessary-condition
+  // (the SDK types output_tokens as a required number).
+  const outputTokens = usage.output_tokens || 0
 
   const result = buildBaseUsage({
     promptTokens: inputTokens,
@@ -39,28 +42,36 @@ export function buildAnthropicUsage(
     totalTokens: inputTokens + outputTokens,
   })
 
-  // Add prompt token details for cache tokens
+  // Add prompt token details for cache tokens. Only attach the details object
+  // when at least one field is present so we don't emit an empty `{}` (every
+  // other adapter guards with the same Object.keys check).
   const cacheCreation = usage.cache_creation_input_tokens
   const cacheRead = usage.cache_read_input_tokens
 
-  result.promptTokensDetails = {
+  const promptTokensDetails = {
     ...(cacheCreation ? { cacheWriteTokens: cacheCreation } : {}),
     ...(cacheRead ? { cachedTokens: cacheRead } : {}),
   }
+  if (Object.keys(promptTokensDetails).length > 0) {
+    result.promptTokensDetails = promptTokensDetails
+  }
 
-  // Add provider-specific usage details for server tool use
+  // Add provider-specific usage details for server tool use, again only when
+  // the provider actually reported any server tool requests.
   const serverToolUse = usage.server_tool_use
-
-  result.providerUsageDetails = {
-    serverToolUse: {
-      ...(serverToolUse?.web_search_requests
-        ? { webSearchRequests: serverToolUse.web_search_requests }
-        : {}),
-      ...(serverToolUse?.web_fetch_requests
-        ? { webFetchRequests: serverToolUse.web_fetch_requests }
-        : {}),
-    },
-  } satisfies AnthropicProviderUsageDetails
+  const serverToolUseDetails = {
+    ...(serverToolUse?.web_search_requests
+      ? { webSearchRequests: serverToolUse.web_search_requests }
+      : {}),
+    ...(serverToolUse?.web_fetch_requests
+      ? { webFetchRequests: serverToolUse.web_fetch_requests }
+      : {}),
+  }
+  if (Object.keys(serverToolUseDetails).length > 0) {
+    result.providerUsageDetails = {
+      serverToolUse: serverToolUseDetails,
+    } satisfies AnthropicProviderUsageDetails
+  }
 
   return result
 }

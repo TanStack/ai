@@ -1,5 +1,9 @@
 export { makeStructuredOutputCompatible } from './utils/schema-converter'
-export { buildChatCompletionsUsage, buildResponsesUsage } from './usage'
+export {
+  buildChatCompletionsUsage,
+  buildResponsesUsage,
+  buildImagesUsage,
+} from './usage'
 export * from './tools/index'
 export { OpenAIBaseChatCompletionsTextAdapter } from './adapters/chat-completions-text'
 export {

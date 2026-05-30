@@ -89,3 +89,44 @@ export function buildResponsesUsage(
 
   return result
 }
+
+/**
+ * Build normalized {@link TokenUsage} from an OpenAI Images API `usage` object.
+ *
+ * Shared by every provider that generates images through the OpenAI Images SDK
+ * (OpenAI, Grok). Token-billed image models (e.g. gpt-image-1) report an input
+ * breakdown of text vs image tokens, which is surfaced on `promptTokensDetails`.
+ * Models that don't return usage (e.g. DALL·E) yield `undefined` so callers can
+ * omit the field rather than emit zeroed totals.
+ */
+export function buildImagesUsage(
+  usage: OpenAI.Images.ImagesResponse['usage'] | undefined | null,
+): TokenUsage | undefined {
+  if (!usage) return undefined
+
+  const result = buildBaseUsage({
+    promptTokens: usage.input_tokens || 0,
+    completionTokens: usage.output_tokens || 0,
+    totalTokens: usage.total_tokens || 0,
+  })
+
+  // The SDK types input_tokens_details (and its numeric fields) as required, but
+  // real responses — e.g. from DALL·E or other non-token-billed models — can
+  // omit them, so treat the breakdown as optional.
+  const inputDetails = usage.input_tokens_details as
+    | { text_tokens?: number; image_tokens?: number }
+    | undefined
+  const promptTokensDetails = {
+    ...(inputDetails?.text_tokens
+      ? { textTokens: inputDetails.text_tokens }
+      : {}),
+    ...(inputDetails?.image_tokens
+      ? { imageTokens: inputDetails.image_tokens }
+      : {}),
+  }
+  if (Object.keys(promptTokensDetails).length > 0) {
+    result.promptTokensDetails = promptTokensDetails
+  }
+
+  return result
+}
