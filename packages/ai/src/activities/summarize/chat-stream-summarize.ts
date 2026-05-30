@@ -195,13 +195,23 @@ export class ChatStreamSummarizeAdapter<
     options: SummarizationOptions<TProviderOptions>,
     systemPrompt: string,
   ): TextOptions<TProviderOptions> {
+    // Sampling knobs now live in provider-native `modelOptions`. Apply the
+    // summarize defaults (low temperature, optional max length) underneath any
+    // caller-supplied `modelOptions` so callers can still override them.
+    const samplingDefaults: Record<string, unknown> = { temperature: 0.3 }
+    if (options.maxLength !== undefined) {
+      samplingDefaults.maxTokens = options.maxLength
+    }
+    const modelOptions = {
+      ...samplingDefaults,
+      ...options.modelOptions,
+    } as TProviderOptions
+
     return {
       model: options.model,
       messages: [{ role: 'user', content: options.text }],
       systemPrompts: [systemPrompt],
-      maxTokens: options.maxLength,
-      temperature: 0.3,
-      modelOptions: options.modelOptions,
+      modelOptions,
       logger: options.logger,
     }
   }

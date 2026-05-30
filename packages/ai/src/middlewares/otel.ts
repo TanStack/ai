@@ -333,12 +333,19 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
           'gen_ai.request.model': ctx.model,
           'tanstack.ai.iteration': ctx.iteration,
         }
-        if (config.temperature !== undefined)
-          baseAttrs['gen_ai.request.temperature'] = config.temperature
-        if (config.topP !== undefined)
-          baseAttrs['gen_ai.request.top_p'] = config.topP
-        if (config.maxTokens !== undefined)
-          baseAttrs['gen_ai.request.max_tokens'] = config.maxTokens
+        // Sampling options now live in provider-native `modelOptions`. Read
+        // the conventional names from there to populate gen_ai semantic
+        // attributes when present.
+        const sampling = config.modelOptions ?? {}
+        const samplingTemperature = sampling['temperature']
+        const samplingTopP = sampling['topP']
+        const samplingMaxTokens = sampling['maxTokens']
+        if (typeof samplingTemperature === 'number')
+          baseAttrs['gen_ai.request.temperature'] = samplingTemperature
+        if (typeof samplingTopP === 'number')
+          baseAttrs['gen_ai.request.top_p'] = samplingTopP
+        if (typeof samplingMaxTokens === 'number')
+          baseAttrs['gen_ai.request.max_tokens'] = samplingMaxTokens
 
         const baseOptions: SpanOptions = {
           kind: SpanKind.CLIENT,

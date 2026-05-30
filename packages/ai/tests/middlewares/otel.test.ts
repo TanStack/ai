@@ -70,9 +70,7 @@ describe('otelMiddleware — iteration span lifecycle', () => {
 
     await runToIterationStart(mw, ctx, {
       messages: [{ role: 'user', content: 'hi' }],
-      temperature: 0.7,
-      topP: 0.9,
-      maxTokens: 512,
+      modelOptions: { temperature: 0.7, topP: 0.9, maxTokens: 512 },
     })
 
     const [rootSpan, iterSpan] = spans
@@ -81,6 +79,10 @@ describe('otelMiddleware — iteration span lifecycle', () => {
     expect(iterSpan!.name).toBe('chat gpt-4o #0')
     expect(iterSpan!.kind).toBe(SpanKind.CLIENT)
     expect(iterSpan!.ended).toBe(false)
+    // Sampling options are sourced from provider-native modelOptions.
+    expect(iterSpan!.attributes['gen_ai.request.temperature']).toBe(0.7)
+    expect(iterSpan!.attributes['gen_ai.request.top_p']).toBe(0.9)
+    expect(iterSpan!.attributes['gen_ai.request.max_tokens']).toBe(512)
 
     await mw.onChunk?.(ctx, { ...ev.runFinished('stop'), model: 'gpt-4o' })
     // The iteration span stays open across RUN_FINISHED so tool spans can
