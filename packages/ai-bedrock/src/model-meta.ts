@@ -19,6 +19,8 @@ interface ModelMeta {
 }
 
 // --- OpenAI gpt-oss (text-only; chat + responses) ---
+// Note: `openai.gpt-oss-120b` has no version suffix while `openai.gpt-oss-20b-1:0` does;
+// this asymmetry is intentional (seed IDs as published) and will be reconciled by the refresh script.
 const GPT_OSS_120B = {
   name: 'openai.gpt-oss-120b',
   context_window: 128_000,
@@ -123,6 +125,21 @@ export type BedrockResponsesModels = (typeof BEDROCK_RESPONSES_MODELS)[number]
 // Mapped types keyed off the model-constant tuple union. The `as M['name']`
 // is mapped-type KEY REMAPPING (legal syntax), NOT a value cast.
 type ChatModelMeta = (typeof CHAT_MODELS)[number]
+
+// Compile-time guard: CHAT_MODELS (drives the per-model type maps) and
+// BEDROCK_CHAT_MODELS (the public runtime catalog) must list the same models.
+// If they diverge, the type argument to `_AssertTrue` stops satisfying
+// `extends true` and tsc fails with a readable message.
+// The `declare const` form has no runtime cost and avoids a `noUnusedLocals`
+// error on a `const` whose value is never read.
+type _AssertTrue<TResult extends true> = TResult
+declare const _chatModelsInSync: _AssertTrue<
+  ChatModelMeta['name'] extends BedrockChatModels
+    ? BedrockChatModels extends ChatModelMeta['name']
+      ? true
+      : ['BEDROCK_CHAT_MODELS has a name missing from CHAT_MODELS']
+    : ['CHAT_MODELS has a name missing from BEDROCK_CHAT_MODELS']
+>
 
 /** Per-model input modalities (drives type-safe multimodal content). */
 export type BedrockModelInputModalitiesByName = {
