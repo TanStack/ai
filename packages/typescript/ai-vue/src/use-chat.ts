@@ -76,6 +76,9 @@ export function useChat<
     ...(options.initialMessages !== undefined && {
       initialMessages: options.initialMessages,
     }),
+    ...(options.persistence !== undefined && {
+      persistence: options.persistence,
+    }),
     ...(options.body !== undefined && { body: options.body }),
     ...(options.forwardedProps !== undefined && {
       forwardedProps: options.forwardedProps,
@@ -118,6 +121,8 @@ export function useChat<
       sessionGenerating.value = isGenerating
     },
   })
+
+  messages.value = client.getMessages() as Array<UIMessage<TTools>>
 
   // Sync body / forwardedProps changes to the client.
   // Both populate the same wire payload; `forwardedProps` is preferred

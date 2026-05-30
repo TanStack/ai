@@ -201,6 +201,23 @@ export interface UIMessage<
   createdAt?: Date
 }
 
+export interface ChatClientPersistence<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+> {
+  getItem: (
+    id: string,
+  ) =>
+    | Array<UIMessage<TTools>>
+    | null
+    | undefined
+    | Promise<Array<UIMessage<TTools>> | null | undefined>
+  setItem: (
+    id: string,
+    messages: Array<UIMessage<TTools>>,
+  ) => void | Promise<void>
+  removeItem: (id: string) => void | Promise<void>
+}
+
 export interface ChatClientOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
 > {
@@ -215,6 +232,11 @@ export interface ChatClientOptions<
    * Initial messages to populate the chat
    */
   initialMessages?: Array<UIMessage<TTools>>
+
+  /**
+   * Optional persistence adapter for chat messages.
+   */
+  persistence?: ChatClientPersistence<TTools>
 
   /**
    * Unique identifier for this chat instance

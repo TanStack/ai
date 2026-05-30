@@ -39,6 +39,10 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     options.initialMessages || [],
   )
   const isFirstMountRef = useRef(true)
+  const activeClientRef = useRef<ChatClient | null>(null)
+  const cleanupInvalidationRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  )
   const optionsRef = useRef<UseChatOptions<TTools>>(options)
 
   optionsRef.current = options
@@ -48,11 +52,7 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   }, [messages])
 
   const client = useMemo(() => {
-    // On first mount, use initialMessages. On subsequent recreations, preserve existing messages.
-    const messagesToUse = isFirstMountRef.current
-      ? options.initialMessages || []
-      : messagesRef.current
-
+    const messagesToUse = options.initialMessages || []
     isFirstMountRef.current = false
 
     // Build options with conditional spreads for fields whose source
@@ -60,7 +60,7 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     // optional (`field?: T`) — `exactOptionalPropertyTypes` rejects
     // assigning `undefined` to those, so we omit the key when absent.
     const initialOptions = optionsRef.current
-    return new ChatClient({
+    const instance = new ChatClient({
       connection: initialOptions.connection,
       id: clientId,
       initialMessages: messagesToUse,
@@ -68,19 +68,32 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       ...(initialOptions.forwardedProps !== undefined && {
         forwardedProps: initialOptions.forwardedProps,
       }),
+      ...(initialOptions.persistence !== undefined && {
+        persistence: initialOptions.persistence,
+      }),
       // Wrap every callback so the latest options are read at call time.
       // Capturing the function reference directly would freeze it to whatever
       // the parent passed on the first render.
-      onResponse: (response) => optionsRef.current.onResponse?.(response),
-      onChunk: (chunk) => optionsRef.current.onChunk?.(chunk),
+      onResponse: (response) => {
+        if (activeClientRef.current !== instance) return
+        return optionsRef.current.onResponse?.(response)
+      },
+      onChunk: (chunk) => {
+        if (activeClientRef.current !== instance) return
+        optionsRef.current.onChunk?.(chunk)
+      },
       onFinish: (message) => {
+        if (activeClientRef.current !== instance) return
         optionsRef.current.onFinish?.(message)
       },
       onError: (err) => {
+        if (activeClientRef.current !== instance) return
         optionsRef.current.onError?.(err)
       },
-      onCustomEvent: (eventType, data, context) =>
-        optionsRef.current.onCustomEvent?.(eventType, data, context),
+      onCustomEvent: (eventType, data, context) => {
+        if (activeClientRef.current !== instance) return
+        optionsRef.current.onCustomEvent?.(eventType, data, context)
+      },
       ...(initialOptions.tools !== undefined && {
         tools: initialOptions.tools,
       }),
@@ -88,28 +101,44 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
         streamProcessor: options.streamProcessor,
       }),
       onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
+        if (activeClientRef.current !== instance) return
         setMessages(newMessages)
       },
       onLoadingChange: (newIsLoading: boolean) => {
+        if (activeClientRef.current !== instance) return
         setIsLoading(newIsLoading)
       },
       onStatusChange: (newStatus: ChatClientState) => {
+        if (activeClientRef.current !== instance) return
         setStatus(newStatus)
       },
       onErrorChange: (newError: Error | undefined) => {
+        if (activeClientRef.current !== instance) return
         setError(newError)
       },
       onSubscriptionChange: (nextIsSubscribed: boolean) => {
+        if (activeClientRef.current !== instance) return
         setIsSubscribed(nextIsSubscribed)
       },
       onConnectionStatusChange: (nextStatus: ConnectionStatus) => {
+        if (activeClientRef.current !== instance) return
         setConnectionStatus(nextStatus)
       },
       onSessionGeneratingChange: (isGenerating: boolean) => {
+        if (activeClientRef.current !== instance) return
         setSessionGenerating(isGenerating)
       },
     })
+    activeClientRef.current = instance
+    return instance
   }, [clientId])
+
+  useEffect(() => {
+    const clientMessages = client.getMessages() as Array<UIMessage<TTools>>
+    if (clientMessages !== messagesRef.current) {
+      setMessages(clientMessages)
+    }
+  }, [client])
 
   // Sync body / forwardedProps changes to the client.
   // Both populate the same wire payload; `forwardedProps` is preferred
@@ -125,19 +154,6 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     })
   }, [client, options.body, options.forwardedProps])
 
-  // Sync initial messages on mount only
-  // Note: initialMessages are passed to ChatClient constructor, but we also
-  // set them here to ensure Preact state is in sync
-  useEffect(() => {
-    if (
-      options.initialMessages &&
-      options.initialMessages.length &&
-      !messages.length
-    ) {
-      client.setMessagesManually(options.initialMessages)
-    }
-  }, [])
-
   useEffect(() => {
     if (options.live) {
       client.subscribe()
@@ -151,14 +167,26 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   // DO NOT include isLoading in dependencies - that would cause the cleanup
   // to run when isLoading changes, aborting continuation requests.
   useEffect(() => {
+    if (cleanupInvalidationRef.current) {
+      clearTimeout(cleanupInvalidationRef.current)
+      cleanupInvalidationRef.current = null
+    }
+    activeClientRef.current = client
+
     return () => {
-      if (options.live) {
+      cleanupInvalidationRef.current = setTimeout(() => {
+        if (activeClientRef.current === client) {
+          activeClientRef.current = null
+        }
+        cleanupInvalidationRef.current = null
+      }, 0)
+      if (optionsRef.current.live) {
         client.unsubscribe()
       } else {
         client.stop()
       }
     }
-  }, [client, options.live])
+  }, [client])
 
   // All callback options are read through optionsRef at call time, so fresh
   // closures from each render are picked up without recreating the client.
@@ -215,8 +243,10 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     [client],
   )
 
+  const renderedMessages = client.getMessages() as Array<UIMessage<TTools>>
+
   return {
-    messages,
+    messages: renderedMessages,
     sendMessage,
     append,
     reload,

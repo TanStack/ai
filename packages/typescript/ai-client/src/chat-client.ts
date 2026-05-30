@@ -5,7 +5,10 @@ import {
   normalizeToUIMessage,
 } from '@tanstack/ai'
 import { DefaultChatClientEventEmitter } from './events'
-import { normalizeConnectionAdapter } from './connection-adapters'
+import {
+  getInternalRunContextIds,
+  normalizeConnectionAdapter,
+} from './connection-adapters'
 import type {
   AnyClientTool,
   ContentPart,
@@ -19,6 +22,7 @@ import type {
 import type { ChatClientEventEmitter } from './events'
 import type {
   ChatClientOptions,
+  ChatClientPersistence,
   ChatClientState,
   ConnectionStatus,
   MessagePart,
@@ -32,6 +36,17 @@ export class ChatClient {
   private connection: SubscribeConnectionAdapter
   private readonly uniqueId: string
   private readonly threadId: string
+  private readonly persistence?: ChatClientPersistence
+  private skipNextPersist = false
+  private persistenceGeneration = 0
+  private persistenceQueue: Promise<void> = Promise.resolve()
+  private persistenceQueuePending = false
+  private currentRunId: string | null = null
+  private readonly clearedMessageIds = new Set<string>()
+  private readonly clearedRunIds = new Set<string>()
+  private readonly ignoredActiveRunIds = new Set<string>()
+  private readonly clearedToolCallIds = new Set<string>()
+  private currentRunlessRunId: string | null = null
   // Track the legacy `body` option and the canonical `forwardedProps`
   // option as separate slots so that `updateOptions({ forwardedProps })`
   // doesn't wipe a previously-set `body` (and vice versa). They are
@@ -58,6 +73,7 @@ export class ChatClient {
   private processingResolve: (() => void) | null = null
   private errorReportedGeneration: number | null = null
   private streamGeneration = 0
+  private messagesGeneration = 0
   // Tracks whether a queued checkForContinuation was skipped because
   // continuationPending was true (chained approval scenario)
   private continuationSkipped = false
@@ -89,6 +105,7 @@ export class ChatClient {
   constructor(options: ChatClientOptions) {
     this.uniqueId = options.id || this.generateUniqueId('chat')
     this.threadId = options.threadId || this.generateUniqueId('thread')
+    this.persistence = options.persistence
     // Both `body` (deprecated) and `forwardedProps` populate the AG-UI
     // `RunAgentInput.forwardedProps` wire field. They are stored
     // separately so `updateOptions` can replace one without touching the
@@ -129,15 +146,20 @@ export class ChatClient {
     // Create StreamProcessor with event handlers.
     // Use conditional spreads so we don't pass `undefined` into
     // `StreamProcessorOptions` fields under `exactOptionalPropertyTypes`.
+    const persistedMessages = this.getPersistedMessages()
+    const initialMessages = Array.isArray(persistedMessages)
+      ? persistedMessages
+      : options.initialMessages
+
     this.processor = new StreamProcessor({
       ...(options.streamProcessor?.chunkStrategy
         ? { chunkStrategy: options.streamProcessor.chunkStrategy }
         : {}),
-      ...(options.initialMessages
-        ? { initialMessages: options.initialMessages }
-        : {}),
+      ...(initialMessages ? { initialMessages } : {}),
       events: {
         onMessagesChange: (messages: Array<UIMessage>) => {
+          this.messagesGeneration++
+          this.persistMessages(messages)
           this.callbacksRef.current.onMessagesChange(messages)
         },
         onStreamStart: () => {
@@ -276,10 +298,264 @@ export class ChatClient {
     })
 
     this.events.clientCreated(this.processor.getMessages().length)
+    this.hydratePersistedMessagesAsync(persistedMessages)
+  }
+
+  private getPersistedMessages():
+    | Array<UIMessage>
+    | null
+    | undefined
+    | Promise<Array<UIMessage> | null | undefined> {
+    if (!this.persistence) {
+      return undefined
+    }
+    try {
+      return this.persistence.getItem(this.uniqueId)
+    } catch {
+      return undefined
+    }
+  }
+
+  private hydratePersistedMessagesAsync(
+    persistedMessages:
+      | Array<UIMessage>
+      | null
+      | undefined
+      | Promise<Array<UIMessage> | null | undefined>,
+  ): void {
+    if (!(persistedMessages instanceof Promise)) {
+      return
+    }
+
+    const hydrationGeneration = this.messagesGeneration
+    persistedMessages
+      .then((messages) => {
+        if (
+          Array.isArray(messages) &&
+          this.messagesGeneration === hydrationGeneration
+        ) {
+          this.processor.setMessages(messages)
+        }
+      })
+      .catch(() => {
+        // Persistence adapters are best-effort and must not break chat setup.
+      })
+  }
+
+  private persistMessages(messages: Array<UIMessage>): void {
+    if (this.skipNextPersist) {
+      this.skipNextPersist = false
+      return
+    }
+    if (!this.persistence) {
+      return
+    }
+    const persistence = this.persistence
+    const persistenceGeneration = this.persistenceGeneration
+    const messagesSnapshot = [...messages]
+    this.runPersistenceOperation(() => {
+      if (persistenceGeneration !== this.persistenceGeneration) {
+        return
+      }
+      return persistence.setItem(this.uniqueId, messagesSnapshot)
+    })
+  }
+
+  private runPersistenceOperation(operation: () => void | Promise<void>): void {
+    if (this.persistenceQueuePending) {
+      const queued = this.persistenceQueue.then(operation).catch(() => {
+        // Persistence adapters are best-effort and must not break chat updates.
+      })
+      this.persistenceQueue = queued
+      void queued.finally(() => {
+        if (this.persistenceQueue === queued) {
+          this.persistenceQueuePending = false
+        }
+      })
+      return
+    }
+
+    try {
+      const result = operation()
+      if (result instanceof Promise) {
+        this.persistenceQueuePending = true
+        const queued = result.catch(() => {
+          // Persistence adapters are best-effort and must not break chat updates.
+        })
+        this.persistenceQueue = queued
+        void queued.finally(() => {
+          if (this.persistenceQueue === queued) {
+            this.persistenceQueuePending = false
+          }
+        })
+      }
+    } catch {
+      // Persistence adapters are best-effort and must not break chat updates.
+    }
+  }
+
+  private removePersistedMessages(): void {
+    if (!this.persistence) {
+      return
+    }
+    const persistence = this.persistence
+    const persistenceGeneration = ++this.persistenceGeneration
+    this.runPersistenceOperation(() => {
+      if (persistenceGeneration !== this.persistenceGeneration) {
+        return
+      }
+      return persistence.removeItem(this.uniqueId)
+    })
+  }
+
+  private snapshotClearedStreamState(): void {
+    if (!this.persistence) return
+    for (const message of this.processor.getMessages()) {
+      this.clearedMessageIds.add(message.id)
+    }
+    for (const runId of this.activeRunIds) {
+      this.clearedRunIds.add(runId)
+      this.ignoredActiveRunIds.add(runId)
+    }
+    if (this.currentRunId) {
+      this.clearedRunIds.add(this.currentRunId)
+      this.ignoredActiveRunIds.add(this.currentRunId)
+    }
+  }
+
+  private shouldIgnoreChunk(chunk: StreamChunk): boolean {
+    if (!this.persistence) return false
+
+    const runId = this.getChunkRunId(chunk)
+    if (runId && this.clearedRunIds.has(runId)) {
+      if (chunk.type === 'RUN_STARTED') {
+        this.ignoredActiveRunIds.add(runId)
+        this.currentRunlessRunId = runId
+      }
+      this.markIgnoredChunkIds(chunk)
+      return true
+    }
+
+    if (runId && this.ignoredActiveRunIds.has(runId)) {
+      this.markIgnoredChunkIds(chunk)
+      return true
+    }
+
+    if (this.isRunlessChunkFromIgnoredRun(chunk)) {
+      this.markIgnoredChunkIds(chunk)
+      return true
+    }
+
+    const toolCallId = (chunk as { toolCallId?: string }).toolCallId
+    if (toolCallId && this.clearedToolCallIds.has(toolCallId)) {
+      return true
+    }
+
+    const parentMessageId = (chunk as { parentMessageId?: string })
+      .parentMessageId
+    if (parentMessageId && this.clearedMessageIds.has(parentMessageId)) {
+      if (toolCallId) {
+        this.clearedToolCallIds.add(toolCallId)
+      }
+      return true
+    }
+
+    const messageId = (chunk as { messageId?: string }).messageId
+    if (!messageId) {
+      return false
+    }
+    if (this.clearedMessageIds.has(messageId)) {
+      return true
+    }
+
+    return false
+  }
+
+  private markIgnoredChunkIds(chunk: StreamChunk): void {
+    const messageId = (chunk as { messageId?: string }).messageId
+    if (messageId) {
+      this.clearedMessageIds.add(messageId)
+    }
+    const toolCallId = (chunk as { toolCallId?: string }).toolCallId
+    if (toolCallId) {
+      this.clearedToolCallIds.add(toolCallId)
+    }
+  }
+
+  private isRunlessChunkFromIgnoredRun(chunk: StreamChunk): boolean {
+    const runId = this.getChunkRunId(chunk)
+    if (runId || !this.currentRunlessRunId) return false
+    if (
+      !this.ignoredActiveRunIds.has(this.currentRunlessRunId) &&
+      !this.clearedRunIds.has(this.currentRunlessRunId)
+    ) {
+      return false
+    }
+    return (
+      chunk.type === 'TEXT_MESSAGE_START' ||
+      chunk.type === 'TEXT_MESSAGE_CONTENT' ||
+      chunk.type === 'TOOL_CALL_START' ||
+      chunk.type === 'TOOL_CALL_ARGS' ||
+      chunk.type === 'TOOL_CALL_END' ||
+      chunk.type === 'TOOL_CALL_RESULT' ||
+      chunk.type === 'MESSAGES_SNAPSHOT' ||
+      chunk.type === 'RUN_ERROR'
+    )
+  }
+
+  private drainIgnoredRunlessChunk(chunk: StreamChunk): void {
+    if (!this.currentRunlessRunId || chunk.type !== 'RUN_ERROR') return
+    const runId = this.currentRunlessRunId
+    this.activeRunIds.delete(runId)
+    this.ignoredActiveRunIds.delete(runId)
+    this.clearedRunIds.delete(runId)
+    this.currentRunlessRunId = null
+    this.setSessionGenerating(this.activeRunIds.size > 0)
+    this.resolveProcessing()
+  }
+
+  private updateRunLifecycle(
+    chunk: StreamChunk,
+    options?: { resolveProcessing?: boolean },
+  ): void {
+    if (chunk.type === 'RUN_STARTED') {
+      const chunkRunId = this.getChunkRunId(chunk) ?? chunk.runId
+      this.activeRunIds.add(chunkRunId)
+      this.currentRunlessRunId = chunkRunId
+      this.setSessionGenerating(true)
+      return
+    }
+
+    if (chunk.type !== 'RUN_FINISHED' && chunk.type !== 'RUN_ERROR') {
+      return
+    }
+
+    const runId = this.getChunkRunId(chunk)
+    if (runId) {
+      this.activeRunIds.delete(runId)
+      this.ignoredActiveRunIds.delete(runId)
+      this.clearedRunIds.delete(runId)
+      if (this.currentRunlessRunId === runId) {
+        this.currentRunlessRunId =
+          this.ignoredActiveRunIds.values().next().value ?? null
+      }
+    } else if (chunk.type === 'RUN_ERROR') {
+      this.activeRunIds.clear()
+      this.ignoredActiveRunIds.clear()
+      this.currentRunlessRunId = null
+    }
+    this.setSessionGenerating(this.activeRunIds.size > 0)
+    if (options?.resolveProcessing !== false) {
+      this.resolveProcessing()
+    }
   }
 
   private generateUniqueId(prefix: string): string {
     return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(7)}`
+  }
+
+  private getChunkRunId(chunk: StreamChunk): string | undefined {
+    return (chunk as { runId?: string }).runId ?? getInternalRunContextIds(chunk)?.runId
   }
 
   private setIsLoading(isLoading: boolean): void {
@@ -311,6 +587,7 @@ export class ChatClient {
 
   private resetSessionGenerating(): void {
     this.activeRunIds.clear()
+    this.ignoredActiveRunIds.clear()
     this.setSessionGenerating(false)
   }
 
@@ -408,32 +685,26 @@ export class ChatClient {
       if (this.connectionStatus === 'connecting') {
         this.setConnectionStatus('connected')
       }
+      const shouldIgnore = this.shouldIgnoreChunk(chunk)
+      if (shouldIgnore) {
+        if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
+          if (this.getChunkRunId(chunk)) {
+            this.updateRunLifecycle(chunk, { resolveProcessing: false })
+          } else {
+            this.drainIgnoredRunlessChunk(chunk)
+          }
+        }
+        continue
+      }
       this.callbacksRef.current.onChunk(chunk)
       this.processor.processChunk(chunk)
-      if (chunk.type === 'RUN_STARTED') {
-        this.activeRunIds.add(chunk.runId)
-        this.setSessionGenerating(true)
-      }
-      // RUN_FINISHED / RUN_ERROR signal run completion — resolve processing
-      // (redundant if onStreamEnd already resolved it, harmless)
-      if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
-        // RUN_FINISHED has runId in its schema; RUN_ERROR carries it via the
-        // AG-UI passthrough so adapters can correlate per-run errors. Extract
-        // both so a RUN_ERROR with a runId only clears that run, not every
-        // active run in the session.
-        const runId =
-          chunk.type === 'RUN_FINISHED'
-            ? chunk.runId
-            : (chunk as { runId?: string }).runId
-        if (runId) {
-          this.activeRunIds.delete(runId)
-        } else if (chunk.type === 'RUN_ERROR') {
-          // RUN_ERROR without runId is a session-level error; clear all runs
-          this.activeRunIds.clear()
-        }
-        this.setSessionGenerating(this.activeRunIds.size > 0)
-        this.resolveProcessing()
-      }
+      // Run lifecycle (active-run tracking, session-generating state, and
+      // processing resolution for RUN_FINISHED / RUN_ERROR) is handled in a
+      // single place so the ignored-chunk path above and this path can't
+      // diverge. RUN_ERROR carries its runId via the AG-UI passthrough so a
+      // per-run error only clears that run, while a runId-less RUN_ERROR is
+      // treated as a session-level error that clears every active run.
+      this.updateRunLifecycle(chunk)
       // Yield control back to event loop for UI updates
       await new Promise((resolve) => setTimeout(resolve, 0))
     }
@@ -589,6 +860,8 @@ export class ChatClient {
 
     // Track generation so a superseded stream's cleanup doesn't clobber the new one
     const generation = ++this.streamGeneration
+    const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    this.currentRunId = runId
 
     this.setIsLoading(true)
     this.setStatus('submitted')
@@ -662,7 +935,7 @@ export class ChatClient {
       // serialize to an unusable shape.
       const runContext = {
         threadId: this.threadId,
-        runId: `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        runId,
         clientTools: Array.from(this.clientToolsRef.current.values()).map(
           (t) => ({
             name: t.name,
@@ -717,6 +990,7 @@ export class ChatClient {
       if (generation === this.streamGeneration) {
         this.currentStreamId = null
         this.currentMessageId = null
+        this.currentRunId = null
         this.abortController = null
         this.setIsLoading(false)
         this.pendingMessageBody = undefined // Ensure it's cleared even on error
@@ -815,7 +1089,11 @@ export class ChatClient {
    * Stop the current stream
    */
   stop(): void {
+    const hadLocalStream = this.abortController !== null
     this.cancelInFlightStream({ setReadyStatus: true })
+    if (hadLocalStream) {
+      this.resetSessionGenerating()
+    }
     this.events.stopped()
   }
 
@@ -823,7 +1101,18 @@ export class ChatClient {
    * Clear all messages
    */
   clear(): void {
+    if (this.persistence) {
+      this.snapshotClearedStreamState()
+    }
+    if (this.persistence && this.isLoading) {
+      this.cancelInFlightStream({ setReadyStatus: true })
+      this.resetSessionGenerating()
+    } else if (this.persistence && this.activeRunIds.size > 0) {
+      this.resetSessionGenerating()
+    }
+    this.skipNextPersist = true
     this.processor.clearMessages()
+    this.removePersistedMessages()
     this.setError(undefined)
     this.events.messagesCleared()
   }

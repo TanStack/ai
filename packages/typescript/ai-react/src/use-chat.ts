@@ -47,6 +47,10 @@ export function useChat<
     options.initialMessages || [],
   )
   const isFirstMountRef = useRef(true)
+  const activeClientRef = useRef<ChatClient | null>(null)
+  const cleanupInvalidationRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  )
 
   // Update ref synchronously during render so it's always current when useMemo runs.
   messagesRef.current = messages
@@ -57,10 +61,7 @@ export function useChat<
 
   // Create ChatClient instance with callbacks to sync state
   const client = useMemo(() => {
-    const messagesToUse = isFirstMountRef.current
-      ? options.initialMessages || []
-      : messagesRef.current
-
+    const messagesToUse = options.initialMessages || []
     isFirstMountRef.current = false
 
     // Build options with conditional spreads for fields whose source
@@ -68,7 +69,7 @@ export function useChat<
     // optional (`field?: T`) — `exactOptionalPropertyTypes` rejects
     // assigning `undefined` to those, so we omit the key when absent.
     const initialOptions = optionsRef.current
-    return new ChatClient({
+    const instance = new ChatClient({
       connection: initialOptions.connection,
       id: clientId,
       initialMessages: messagesToUse,
@@ -76,50 +77,74 @@ export function useChat<
       ...(initialOptions.forwardedProps !== undefined && {
         forwardedProps: initialOptions.forwardedProps,
       }),
+      ...(initialOptions.persistence !== undefined && {
+        persistence: initialOptions.persistence,
+      }),
       onResponse: (response) => {
+        if (activeClientRef.current !== instance) return
         void optionsRef.current.onResponse?.(response)
       },
       onChunk: (chunk: StreamChunk) => {
+        if (activeClientRef.current !== instance) return
         optionsRef.current.onChunk?.(chunk)
       },
       onFinish: (message: UIMessage<TTools>) => {
+        if (activeClientRef.current !== instance) return
         optionsRef.current.onFinish?.(message)
       },
       onError: (error: Error) => {
+        if (activeClientRef.current !== instance) return
         optionsRef.current.onError?.(error)
       },
       ...(initialOptions.tools !== undefined && {
         tools: initialOptions.tools,
       }),
       onCustomEvent: (eventType, data, context) => {
+        if (activeClientRef.current !== instance) return
         optionsRef.current.onCustomEvent?.(eventType, data, context)
       },
       ...(options.streamProcessor !== undefined && {
         streamProcessor: options.streamProcessor,
       }),
       onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
+        if (activeClientRef.current !== instance) return
         setMessages(newMessages)
       },
       onLoadingChange: (newIsLoading: boolean) => {
+        if (activeClientRef.current !== instance) return
         setIsLoading(newIsLoading)
       },
       onErrorChange: (newError: Error | undefined) => {
+        if (activeClientRef.current !== instance) return
         setError(newError)
       },
       onStatusChange: (status: ChatClientState) => {
+        if (activeClientRef.current !== instance) return
         setStatus(status)
       },
       onSubscriptionChange: (nextIsSubscribed: boolean) => {
+        if (activeClientRef.current !== instance) return
         setIsSubscribed(nextIsSubscribed)
       },
       onConnectionStatusChange: (nextStatus: ConnectionStatus) => {
+        if (activeClientRef.current !== instance) return
         setConnectionStatus(nextStatus)
       },
       onSessionGeneratingChange: (isGenerating: boolean) => {
+        if (activeClientRef.current !== instance) return
         setSessionGenerating(isGenerating)
       },
     })
+    activeClientRef.current = instance
+    return instance
   }, [clientId])
+
+  useEffect(() => {
+    const clientMessages = client.getMessages() as Array<UIMessage<TTools>>
+    if (clientMessages !== messagesRef.current) {
+      setMessages(clientMessages)
+    }
+  }, [client])
 
   useEffect(() => {
     // Conditional spread: `updateOptions` declares strict-optional
@@ -133,14 +158,6 @@ export function useChat<
   }, [client, options.body, options.forwardedProps])
 
   useEffect(() => {
-    if (options.initialMessages && options.initialMessages.length > 0) {
-      if (messages.length === 0) {
-        client.setMessagesManually(options.initialMessages)
-      }
-    }
-  }, [])
-
-  useEffect(() => {
     if (options.live) {
       client.subscribe()
     } else {
@@ -149,14 +166,26 @@ export function useChat<
   }, [client, options.live])
 
   useEffect(() => {
+    if (cleanupInvalidationRef.current) {
+      clearTimeout(cleanupInvalidationRef.current)
+      cleanupInvalidationRef.current = null
+    }
+    activeClientRef.current = client
+
     return () => {
-      if (options.live) {
+      cleanupInvalidationRef.current = setTimeout(() => {
+        if (activeClientRef.current === client) {
+          activeClientRef.current = null
+        }
+        cleanupInvalidationRef.current = null
+      }, 0)
+      if (optionsRef.current.live) {
         client.unsubscribe()
       } else {
         client.stop()
       }
     }
-  }, [client, options.live])
+  }, [client])
 
   const sendMessage = useCallback(
     async (content: string | MultimodalContent) => {
@@ -221,17 +250,19 @@ export function useChat<
   // a stale assistant turn or a system prompt) we deliberately return null
   // rather than scanning historical assistants — otherwise a `final` from a
   // previous session would leak into the hook value on first render.
+  const renderedMessages = client.getMessages() as Array<UIMessage<TTools>>
+
   const activeStructuredPart = useMemo<StructuredOutputPart | null>(() => {
     let lastUserIndex = -1
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i]?.role === 'user') {
+    for (let i = renderedMessages.length - 1; i >= 0; i--) {
+      if (renderedMessages[i]?.role === 'user') {
         lastUserIndex = i
         break
       }
     }
     if (lastUserIndex === -1) return null
-    for (let i = messages.length - 1; i > lastUserIndex; i--) {
-      const m = messages[i]
+    for (let i = renderedMessages.length - 1; i > lastUserIndex; i--) {
+      const m = renderedMessages[i]
       if (m?.role !== 'assistant') continue
       const part = m.parts.find(
         (p): p is StructuredOutputPart => p.type === 'structured-output',
@@ -239,7 +270,7 @@ export function useChat<
       if (part) return part
     }
     return null
-  }, [messages])
+  }, [renderedMessages])
 
   const partial = useMemo<Partial>(() => {
     if (!activeStructuredPart) return {} as Partial
@@ -259,7 +290,7 @@ export function useChat<
   // structurally narrow across that conditional, so the `as` is the seam.
   // eslint-disable-next-line no-restricted-syntax -- hook return shape diverges from generic UseChatReturn<TTools, TSchema> due to conditional type on TSchema; TS can't structurally narrow
   return {
-    messages,
+    messages: renderedMessages,
     sendMessage,
     append,
     reload,

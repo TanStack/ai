@@ -5,6 +5,17 @@ function generateRunId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
+const chunkRunContextIds = new WeakMap<
+  StreamChunk,
+  Pick<RunAgentInputContext, 'threadId' | 'runId'>
+>()
+
+export function getInternalRunContextIds(
+  chunk: StreamChunk,
+): Pick<RunAgentInputContext, 'threadId' | 'runId'> | undefined {
+  return chunkRunContextIds.get(chunk)
+}
+
 /**
  * Merge custom headers into request headers
  */
@@ -156,7 +167,13 @@ export function normalizeConnectionAdapter(
   let activeBuffer: Array<StreamChunk> = []
   let activeWaiters: Array<(chunk: StreamChunk | null) => void> = []
 
-  function push(chunk: StreamChunk): void {
+  function push(chunk: StreamChunk, runContext?: RunAgentInputContext): void {
+    if (runContext) {
+      chunkRunContextIds.set(chunk, {
+        threadId: runContext.threadId,
+        runId: runContext.runId,
+      })
+    }
     const waiter = activeWaiters.shift()
     if (waiter) {
       waiter(chunk)
@@ -207,7 +224,7 @@ export function normalizeConnectionAdapter(
           if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
             hasTerminalEvent = true
           }
-          push(chunk)
+          push(chunk, runContext)
         }
 
         // If the connect stream ended cleanly without a terminal event,

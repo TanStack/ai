@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { clientTools } from '@tanstack/ai-client'
+import type { ChatClientPersistence, UIMessage } from '@tanstack/ai-client'
 import type { Feature, Mode, Provider } from '@/lib/types'
 import { ALL_PROVIDERS } from '@/lib/types'
 import { isSupported } from '@/lib/feature-support'
@@ -24,6 +25,8 @@ export const Route = createFileRoute('/$provider/$feature')({
       testId: typeof search.testId === 'string' ? search.testId : undefined,
       aimockPort: port != null && !isNaN(port) ? port : undefined,
       mode: typeof search.mode === 'string' ? (search.mode as Mode) : undefined,
+      persistence:
+        search.persistence === 'localStorage' ? 'localStorage' : undefined,
     }
   },
 })
@@ -41,6 +44,27 @@ const addToCartClient = addToCartToolDef.client((args) => ({
   guitarId: args.guitarId,
   quantity: args.quantity,
 }))
+
+const localStoragePersistence: ChatClientPersistence = {
+  getItem: (id) => {
+    const item = window.localStorage.getItem(id)
+    return item
+      ? (JSON.parse(item) as Array<UIMessage>).map((message) => ({
+          ...message,
+          createdAt:
+            typeof message.createdAt === 'string'
+              ? new Date(message.createdAt)
+              : message.createdAt,
+        }))
+      : null
+  },
+  setItem: (id, messages) => {
+    window.localStorage.setItem(id, JSON.stringify(messages))
+  },
+  removeItem: (id) => {
+    window.localStorage.removeItem(id)
+  },
+}
 
 function FeaturePage() {
   const { provider, feature } = Route.useParams() as {
@@ -136,7 +160,8 @@ function ChatFeature({
 
   const tools = needsApproval ? clientTools(addToCartClient) : undefined
 
-  const { testId, aimockPort } = Route.useSearch()
+  const { testId, aimockPort, persistence } = Route.useSearch()
+  const chatId = `e2e-chat-${testId ?? `${provider}-${feature}`}`
 
   // Tracks streaming-structured-output observability for e2e tests:
   // - structuredObject: captured from the terminal CUSTOM event
@@ -148,9 +173,12 @@ function ChatFeature({
 
   const { messages, sendMessage, isLoading, addToolApprovalResponse, stop } =
     useChat({
+      id: chatId,
       connection: fetchServerSentEvents('/api/chat'),
       tools,
       body: { provider, feature, testId, aimockPort },
+      persistence:
+        persistence === 'localStorage' ? localStoragePersistence : undefined,
       onCustomEvent: (eventType, data) => {
         if (eventType === 'structured-output.complete') {
           const value = data as { object: unknown; raw: string } | undefined
