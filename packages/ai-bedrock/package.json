@@ -40,11 +40,7 @@
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
-    "zod": "^4.0.0",
-    "aws-sigv4-fetch": "^4.3.1"
-  },
-  "peerDependenciesMeta": {
-    "aws-sigv4-fetch": { "optional": true }
+    "zod": "^4.0.0"
   },
   "dependencies": {
     "@tanstack/ai-utils": "workspace:*",
