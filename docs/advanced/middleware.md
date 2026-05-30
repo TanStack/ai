@@ -127,14 +127,26 @@ const dynamicTemperature: ChatMiddleware = {
     }
 
     if (ctx.phase === "beforeModel" && ctx.iteration > 0) {
-      // Increase temperature on retries — other fields stay unchanged
+      // Increase temperature on retries. Sampling params live in the
+      // provider-native modelOptions object — `temperature` is universal,
+      // so it's the same key across providers. Spread the existing
+      // modelOptions so other model options stay unchanged.
+      const current =
+        typeof config.modelOptions?.temperature === "number"
+          ? config.modelOptions.temperature
+          : 0.7;
       return {
-        temperature: Math.min((config.temperature ?? 0.7) + 0.1, 1.0),
+        modelOptions: {
+          ...config.modelOptions,
+          temperature: Math.min(current + 0.1, 1.0),
+        },
       };
     }
   },
 };
 ```
+
+> Sampling parameters (`temperature`, `top_p` / `topP`, the various `max*Tokens` keys) live inside `modelOptions` under each provider's native name — they are no longer root config fields. `temperature` happens to be spelled the same across every provider, so the example above is provider-agnostic; if you mutate a token limit instead, use the provider-native key (e.g. `max_output_tokens` for OpenAI, `num_predict` nested under `modelOptions.options` for Ollama). See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
 
 **Config fields you can transform:**
 
@@ -143,11 +155,8 @@ const dynamicTemperature: ChatMiddleware = {
 | `messages` | `ModelMessage[]` | Conversation history |
 | `systemPrompts` | `string[]` | System prompts |
 | `tools` | `Tool[]` | Available tools |
-| `temperature` | `number` | Sampling temperature |
-| `topP` | `number` | Nucleus sampling |
-| `maxTokens` | `number` | Token limit |
 | `metadata` | `Record<string, unknown>` | Request metadata |
-| `modelOptions` | `Record<string, unknown>` | Provider-specific options |
+| `modelOptions` | `Record<string, unknown>` | Provider-native options — this is where sampling params (`temperature`, `top_p` / `topP`, the provider's `max*Tokens` key) now live, alongside every other model-specific knob. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options). |
 
 When multiple middleware define `onConfig`, the config is **piped** through them in order — each receives the merged config from the previous middleware.
 
@@ -180,11 +189,8 @@ const injectDefs: ChatMiddleware = {
 |-------|------|-------------|
 | `messages` | `ModelMessage[]` | Conversation history sent to the final call |
 | `systemPrompts` | `SystemPrompt[]` | System prompts on the final call |
-| `temperature` | `number` | Sampling temperature |
-| `topP` | `number` | Nucleus sampling |
-| `maxTokens` | `number` | Token limit |
 | `metadata` | `Record<string, unknown>` | Request metadata |
-| `modelOptions` | `Record<string, unknown>` | Provider-specific options |
+| `modelOptions` | `Record<string, unknown>` | Provider-native options — this is where sampling params (`temperature`, `top_p` / `topP`, the provider's `max*Tokens` key) now live, alongside every other model-specific knob. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options). |
 | `outputSchema` | `JSONSchema` | JSON Schema being sent to the provider for structured output |
 
 **Ordering at the structured-output boundary:**

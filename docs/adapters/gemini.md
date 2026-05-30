@@ -304,7 +304,7 @@ for await (const chunk of stream) {
 
 ## Model Options
 
-Gemini supports various model-specific options:
+Gemini supports various model-specific options. Sampling parameters live here too — `temperature`, `topP`, and `maxOutputTokens` — rather than as root-level props on `chat()`:
 
 ```typescript
 const stream = chat({
@@ -319,6 +319,8 @@ const stream = chat({
   },
 });
 ```
+
+> If you previously passed `temperature` / `topP` / `maxTokens` at the root of `chat()`, see [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
 
 ### Thinking
 

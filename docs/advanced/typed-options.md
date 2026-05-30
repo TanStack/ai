@@ -28,9 +28,12 @@ import { openaiText } from '@tanstack/ai-openai'
 
 const chatOptions = createChatOptions({
   adapter: openaiText('gpt-5.2'),
-  // modelOptions, temperature, systemPrompts, tools — all type-checked
-  // against the adapter+model pair above.
+  // modelOptions, systemPrompts, tools — all type-checked against the
+  // adapter+model pair above. Sampling params (temperature, top_p,
+  // max_output_tokens, …) live inside modelOptions, under each provider's
+  // native key.
   modelOptions: {
+    temperature: 0.3,
     reasoning: { effort: 'medium' },
   },
 })

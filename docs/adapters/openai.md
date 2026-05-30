@@ -155,7 +155,7 @@ const stream = chat({
 
 ## Model Options
 
-OpenAI supports various provider-specific options:
+OpenAI supports various provider-specific options. Sampling parameters live here too — `temperature`, `top_p`, and `max_output_tokens` (the Responses API token-limit key) — rather than as root-level props on `chat()`:
 
 ```typescript
 const stream = chat({
@@ -163,7 +163,7 @@ const stream = chat({
   messages,
   modelOptions: {
     temperature: 0.7,
-    max_tokens: 1000,
+    max_output_tokens: 1000,
     top_p: 0.9,
     frequency_penalty: 0.5,
     presence_penalty: 0.5,
@@ -171,6 +171,8 @@ const stream = chat({
   },
 });
 ```
+
+> The `openaiChatCompletions` adapter targets `/v1/chat/completions`, where the token-limit key is `max_tokens` (not `max_output_tokens`). If you previously passed `temperature` / `topP` / `maxTokens` at the root of `chat()`, see [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
 
 ### Reasoning
 

@@ -248,6 +248,10 @@
         {
           "label": "AG-UI Client Compliance",
           "to": "migration/ag-ui-compliance"
+        },
+        {
+          "label": "Sampling Options to modelOptions",
+          "to": "migration/sampling-options-to-model-options"
         }
       ]
     },
