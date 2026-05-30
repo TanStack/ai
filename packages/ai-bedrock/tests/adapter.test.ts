@@ -38,5 +38,11 @@ describe('BedrockTextAdapter', () => {
       expect(probe.read({})).toBeUndefined()
       expect(probe.read(null)).toBeUndefined()
     })
+    it('returns undefined for empty-string reasoning', () => {
+      expect(probe.read({ choices: [{ delta: { reasoning: '' } }] })).toBeUndefined()
+    })
+    it('returns undefined for non-array choices', () => {
+      expect(probe.read({ choices: 'not-an-array' })).toBeUndefined()
+    })
   })
 })
