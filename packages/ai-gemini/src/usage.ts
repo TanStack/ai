@@ -1,5 +1,5 @@
 import { buildBaseUsage } from '@tanstack/ai'
-import type { UsageTotals } from '@tanstack/ai'
+import type { TokenUsage } from '@tanstack/ai'
 import type {
   GenerateContentResponseUsageMetadata,
   ModalityTokenCount,
@@ -108,12 +108,12 @@ export interface GeminiProviderUsageDetails {
 }
 
 /**
- * Build normalized UsageTotals from Gemini's usageMetadata.
+ * Build normalized TokenUsage from Gemini's usageMetadata.
  * Handles modality breakdowns and thinking tokens.
  */
 export function buildGeminiUsage(
   usageMetadata: GenerateContentResponseUsageMetadata | undefined,
-): UsageTotals {
+): TokenUsage {
   const promptTokens = usageMetadata?.promptTokenCount ?? 0
   const completionTokens = usageMetadata?.candidatesTokenCount ?? 0
 

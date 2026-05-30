@@ -1,7 +1,7 @@
-import type { UsageTotals } from '../types'
+import type { TokenUsage } from '../types'
 
 /**
- * Input parameters for building base UsageTotals.
+ * Input parameters for building base TokenUsage.
  * Provider functions should extract these from their SDK's response.
  */
 export interface BaseUsageInput {
@@ -14,11 +14,11 @@ export interface BaseUsageInput {
 }
 
 /**
- * Builds the base UsageTotals object with core fields.
+ * Builds the base TokenUsage object with core fields.
  * Provider-specific functions should use this and then add their own details.
  *
  * @param input - The base token counts
- * @returns A UsageTotals object with promptTokens, completionTokens, totalTokens
+ * @returns A TokenUsage object with promptTokens, completionTokens, totalTokens
  *
  * @example
  * ```typescript
@@ -30,7 +30,7 @@ export interface BaseUsageInput {
  * // Returns: { promptTokens: 100, completionTokens: 50, totalTokens: 150 }
  * ```
  */
-export function buildBaseUsage(input: BaseUsageInput): UsageTotals {
+export function buildBaseUsage(input: BaseUsageInput): TokenUsage {
   return {
     promptTokens: input.promptTokens,
     completionTokens: input.completionTokens,

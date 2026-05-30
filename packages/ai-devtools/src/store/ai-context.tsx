@@ -14,7 +14,7 @@ import {
   createClientToolCallMessage,
   shouldSkipClientAssistantPlaceholder,
 } from './message-event-utils'
-import type { ContentPartSource, UsageTotals } from '@tanstack/ai'
+import type { ContentPartSource, TokenUsage } from '@tanstack/ai'
 import type {
   DevtoolsToolFixtureApplyEvent,
   RunLifecycleEvent,
@@ -69,8 +69,8 @@ export interface ToolCall {
   duration?: number
 }
 
-// Re-export UsageTotals from @tanstack/ai for external consumers
-export type { UsageTotals }
+// Re-export TokenUsage from @tanstack/ai for external consumers
+export type { TokenUsage }
 
 export interface Message {
   id: string
@@ -84,7 +84,7 @@ export interface Message {
   /** Total number of raw chunks received (before consolidation) */
   totalChunkCount?: number
   model?: string
-  usage?: UsageTotals
+  usage?: TokenUsage
   thinkingContent?: string
   /** Source of the message: 'client' for aggregated client-side data, 'server' for individual server chunks */
   source?: 'client' | 'server'
@@ -165,7 +165,7 @@ export interface Iteration {
   options?: Record<string, unknown> | undefined
   modelOptions?: Record<string, unknown> | undefined
   finishReason?: string
-  usage?: UsageTotals
+  usage?: TokenUsage
   middlewareEvents: Array<MiddlewareEvent>
   messageIds: Array<string>
 }
@@ -199,7 +199,7 @@ export interface Conversation {
   startedAt: number
   completedAt?: number
   runIds?: Array<string>
-  usage?: UsageTotals
+  usage?: TokenUsage
   iterations: Array<Iteration>
   iterationCount?: number
   toolNames?: Array<string>
@@ -260,7 +260,7 @@ export const AIProvider: ParentComponent = (props) => {
   const streamToConversation = new Map<string, string>()
   const requestToConversation = new Map<string, string>()
   /** Track max cumulative usage per requestId per conversation for correct totals */
-  const requestUsageByConversation = new Map<string, Map<string, UsageTotals>>()
+  const requestUsageByConversation = new Map<string, Map<string, TokenUsage>>()
   const fixturesStorageKey = 'tanstack-ai-devtools:tool-fixtures'
 
   const pendingConversationChunks = new Map<
@@ -516,7 +516,7 @@ export const AIProvider: ParentComponent = (props) => {
   function updateMessageUsage(
     conversationId: string,
     messageId: string | undefined,
-    cumulativeUsage: UsageTotals,
+    cumulativeUsage: TokenUsage,
     requestId?: string,
   ): void {
     const conv = state.conversations[conversationId]
@@ -556,7 +556,7 @@ export const AIProvider: ParentComponent = (props) => {
     }
 
     // Calculate delta usage for this message
-    const deltaUsage: UsageTotals = {
+    const deltaUsage: TokenUsage = {
       promptTokens: Math.max(
         0,
         cumulativeUsage.promptTokens - previousPromptTokens,
@@ -588,7 +588,7 @@ export const AIProvider: ParentComponent = (props) => {
   function updateConversationUsage(
     conversationId: string,
     requestId: string | undefined,
-    usage: UsageTotals,
+    usage: TokenUsage,
   ): void {
     if (!state.conversations[conversationId]) return
     const key = requestId || '__default__'

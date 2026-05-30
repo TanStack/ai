@@ -4,10 +4,10 @@ import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { base64ToArrayBuffer, generateId } from '@tanstack/ai-utils'
 import { getOpenAIApiKeyFromEnv } from '../utils/client'
 import type {
+  TokenUsage,
   TranscriptionOptions,
   TranscriptionResult,
   TranscriptionSegment,
-  UsageTotals,
 } from '@tanstack/ai'
 import type OpenAI_SDK from 'openai'
 import type { OpenAITranscriptionModel } from '../model-meta'
@@ -15,14 +15,14 @@ import type { OpenAITranscriptionProviderOptions } from '../audio/transcription-
 import type { OpenAIClientConfig } from '../utils/client'
 
 /**
- * Build UsageTotals from transcription response.
+ * Build TokenUsage from transcription response.
  * Whisper-1 uses duration-based billing, GPT-4o models use token-based billing.
  */
 function buildTranscriptionUsage(
   model: string,
   duration?: number,
   response?: OpenAI_SDK.Audio.TranscriptionCreateResponse,
-): UsageTotals | undefined {
+): TokenUsage | undefined {
   // GPT-4o transcription models return usage with tokens
   if (model.startsWith('gpt-4o')) {
     // Check if response has usage field (GPT-4o models may include this)

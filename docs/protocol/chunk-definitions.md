@@ -85,19 +85,21 @@ Emitted when a run completes successfully.
 > `threadId`, `runId`, and an optional `result`. The `finishReason` and `usage`
 > fields below are **TanStack AI extensions** — they ride along on the event
 > (AG-UI event schemas are `passthrough`) but are not part of the AG-UI protocol
-> itself. `usage` is typed as `UsageTotals`, defined and owned by `@tanstack/ai`;
-> `@tanstack/ai-event-client` mirrors the same shape for wire/devtools consumers.
+> itself. `usage` is typed as `TokenUsage`, defined by `@tanstack/ai` and
+> mirrored under the same name by `@tanstack/ai-event-client` for wire/devtools
+> consumers. (`@tanstack/ai` also exports `UsageTotals` as a deprecated alias of
+> `TokenUsage` for backward compatibility.)
 
 ```typescript
 interface RunFinishedEvent extends BaseAGUIEvent {
   type: 'RUN_FINISHED';
   runId: string;
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null; // TanStack AI addition
-  usage?: UsageTotals;                                                        // TanStack AI addition
+  usage?: TokenUsage;                                                         // TanStack AI addition
 }
 
 // TanStack AI extension — not an AG-UI primitive.
-interface UsageTotals {
+interface TokenUsage {
   // Core token counts (always present when usage is available)
   promptTokens: number;
   completionTokens: number;

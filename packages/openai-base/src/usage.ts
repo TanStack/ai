@@ -1,9 +1,9 @@
 import { buildBaseUsage } from '@tanstack/ai'
-import type { UsageTotals } from '@tanstack/ai'
+import type { TokenUsage } from '@tanstack/ai'
 import type OpenAI from 'openai'
 
 /**
- * Build normalized {@link UsageTotals} from an OpenAI-compatible Chat
+ * Build normalized {@link TokenUsage} from an OpenAI-compatible Chat
  * Completions `usage` object.
  *
  * Shared by every provider that routes through
@@ -14,7 +14,7 @@ import type OpenAI from 'openai'
  */
 export function buildChatCompletionsUsage(
   usage: OpenAI.Chat.Completions.ChatCompletion['usage'] | undefined | null,
-): UsageTotals {
+): TokenUsage {
   const result = buildBaseUsage({
     promptTokens: usage?.prompt_tokens || 0,
     completionTokens: usage?.completion_tokens || 0,
@@ -52,7 +52,7 @@ export function buildChatCompletionsUsage(
 }
 
 /**
- * Build normalized {@link UsageTotals} from an OpenAI Responses API
+ * Build normalized {@link TokenUsage} from an OpenAI Responses API
  * `ResponseUsage` object.
  *
  * Shared by every provider that routes through
@@ -61,7 +61,7 @@ export function buildChatCompletionsUsage(
  */
 export function buildResponsesUsage(
   usage: OpenAI.Responses.ResponseUsage | undefined | null,
-): UsageTotals {
+): TokenUsage {
   const result = buildBaseUsage({
     promptTokens: usage?.input_tokens || 0,
     completionTokens: usage?.output_tokens || 0,

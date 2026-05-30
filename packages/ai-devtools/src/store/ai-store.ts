@@ -5,5 +5,5 @@ export type {
   Conversation,
   Iteration,
   MiddlewareEvent,
-  UsageTotals,
+  TokenUsage,
 } from './ai-context'

@@ -990,7 +990,7 @@ export interface UsageCostBreakdown {
  * authoritative per-request cost (e.g. OpenRouter). All are absent for adapters
  * that do not report them, so consumers must treat them as optional.
  */
-export interface UsageTotals {
+export interface TokenUsage {
   /** Total input/prompt tokens */
   promptTokens: number
   /** Total output/completion tokens */
@@ -1012,6 +1012,13 @@ export interface UsageTotals {
 }
 
 /**
+ * @deprecated Renamed to {@link TokenUsage}. Kept as an alias for backward
+ * compatibility with `@tanstack/ai@0.23` and earlier; will be removed in a
+ * future release.
+ */
+export type UsageTotals = TokenUsage
+
+/**
  * Emitted when a run completes successfully.
  *
  * @ag-ui/core provides: `threadId`, `runId`, `result?`
@@ -1023,7 +1030,7 @@ export interface RunFinishedEvent extends AGUIRunFinishedEvent {
   /** Why the generation stopped */
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
   /** Token usage statistics with optional detailed breakdowns and provider-reported cost. */
-  usage?: UsageTotals
+  usage?: TokenUsage
 }
 
 /**
@@ -1469,7 +1476,7 @@ export interface TextCompletionChunk {
   content: string
   role?: 'assistant'
   finishReason?: 'stop' | 'length' | 'content_filter' | null
-  usage?: UsageTotals
+  usage?: TokenUsage
 }
 
 export interface SummarizationOptions<
@@ -1493,7 +1500,7 @@ export interface SummarizationResult {
   id: string
   model: string
   summary: string
-  usage: UsageTotals
+  usage: TokenUsage
 }
 
 // ============================================================================
@@ -1824,7 +1831,7 @@ export interface TranscriptionResult {
   /** Word-level timestamps, if available */
   words?: Array<TranscriptionWord>
   /** Token usage information (if provided by the adapter) */
-  usage?: UsageTotals
+  usage?: TokenUsage
 }
 
 /**

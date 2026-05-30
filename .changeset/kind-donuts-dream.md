@@ -14,13 +14,17 @@
 
 Enhanced token usage reporting for every provider.
 
-`UsageTotals` now carries optional detailed breakdowns alongside the core token
-counts: `promptTokensDetails` / `completionTokensDetails` (cached, reasoning,
-audio, and per-modality tokens), `durationSeconds` for duration-billed models
-(e.g. Whisper transcription), and `providerUsageDetails` for provider-specific
-metrics. These sit next to the existing `cost` / `costDetails` fields, so a
-single `usage` shape covers token counts, detailed breakdowns, and
-provider-reported cost.
+`TokenUsage` is now the single canonical run-usage type, exported by both
+`@tanstack/ai` and `@tanstack/ai-event-client`. It carries optional detailed
+breakdowns alongside the core token counts: `promptTokensDetails` /
+`completionTokensDetails` (cached, reasoning, audio, and per-modality tokens),
+`durationSeconds` for duration-billed models (e.g. Whisper transcription),
+`providerUsageDetails` for provider-specific metrics, and `cost` / `costDetails`
+for provider-reported cost — so a single `usage` shape covers counts, detailed
+breakdowns, and cost.
+
+`@tanstack/ai` still exports `UsageTotals` as a `@deprecated` alias of
+`TokenUsage` for backward compatibility; it will be removed in a future release.
 
 Detailed usage is extracted in one place per SDK surface: OpenAI-compatible
 providers (OpenAI, Grok, Groq) share the extractors in `@tanstack/openai-base`,

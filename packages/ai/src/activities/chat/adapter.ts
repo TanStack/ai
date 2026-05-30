@@ -4,7 +4,7 @@ import type {
   Modality,
   StreamChunk,
   TextOptions,
-  UsageTotals,
+  TokenUsage,
 } from '../../types'
 
 /**
@@ -42,7 +42,7 @@ export interface StructuredOutputResult<T = unknown> {
   /** The raw text response from the model before parsing */
   rawText: string
   /** Token usage information (if provided by the adapter) */
-  usage?: UsageTotals
+  usage?: TokenUsage
 }
 
 /**

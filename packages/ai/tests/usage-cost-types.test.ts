@@ -2,7 +2,7 @@ import { describe, expectTypeOf, it } from 'vitest'
 import type {
   RunFinishedEvent,
   UsageCostBreakdown,
-  UsageTotals,
+  TokenUsage,
 } from '../src/types'
 import type {
   FinishInfo,
@@ -15,9 +15,9 @@ import type {
 // is canonical (provider-neutral) — adapter extractors normalize their
 // wire-specific keys onto these three fields.
 describe('usage cost type surface', () => {
-  it('UsageTotals exposes optional cost and a UsageCostBreakdown', () => {
-    expectTypeOf<UsageTotals['cost']>().toEqualTypeOf<number | undefined>()
-    expectTypeOf<UsageTotals['costDetails']>().toEqualTypeOf<
+  it('TokenUsage exposes optional cost and a UsageCostBreakdown', () => {
+    expectTypeOf<TokenUsage['cost']>().toEqualTypeOf<number | undefined>()
+    expectTypeOf<TokenUsage['costDetails']>().toEqualTypeOf<
       UsageCostBreakdown | undefined
     >()
   })

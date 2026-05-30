@@ -1,5 +1,5 @@
 import { buildBaseUsage } from '@tanstack/ai'
-import type { UsageTotals } from '@tanstack/ai'
+import type { TokenUsage } from '@tanstack/ai'
 import type { ChatUsage } from '@openrouter/sdk/models'
 
 /**
@@ -16,13 +16,13 @@ export interface OpenRouterProviderUsageDetails {
 }
 
 /**
- * Build normalized UsageTotals from OpenRouter's ChatUsage object.
+ * Build normalized TokenUsage from OpenRouter's ChatUsage object.
  * OpenRouter already has the detail fields structured correctly. Absent usage
  * collapses to zeroed totals so callers can spread the result unconditionally.
  */
 export function buildOpenRouterUsage(
   usage: ChatUsage | undefined,
-): UsageTotals {
+): TokenUsage {
   const result = buildBaseUsage({
     promptTokens: usage?.promptTokens || 0,
     completionTokens: usage?.completionTokens || 0,

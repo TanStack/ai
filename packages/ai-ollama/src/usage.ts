@@ -1,5 +1,5 @@
 import { buildBaseUsage } from '@tanstack/ai'
-import type { UsageTotals } from '@tanstack/ai'
+import type { TokenUsage } from '@tanstack/ai'
 import type { ChatResponse } from 'ollama'
 
 /**
@@ -24,12 +24,12 @@ export interface OllamaProviderUsageDetails {
 }
 
 /**
- * Build normalized UsageTotals from Ollama's ChatResponse.
+ * Build normalized TokenUsage from Ollama's ChatResponse.
  * Handles duration metrics as provider-specific details.
  */
 export function buildOllamaUsage(
   response: ChatResponse,
-): UsageTotals | undefined {
+): TokenUsage | undefined {
   // Ollama provides prompt_eval_count and eval_count
   const promptTokens = response.prompt_eval_count
   const completionTokens = response.eval_count

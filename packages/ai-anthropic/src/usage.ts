@@ -1,5 +1,5 @@
 import { buildBaseUsage } from '@tanstack/ai'
-import type { UsageTotals } from '@tanstack/ai'
+import type { TokenUsage } from '@tanstack/ai'
 import type Anthropic_SDK from '@anthropic-ai/sdk'
 
 /**
@@ -22,14 +22,14 @@ export interface AnthropicProviderUsageDetails {
 }
 
 /**
- * Build normalized UsageTotals from Anthropic's usage object.
+ * Build normalized TokenUsage from Anthropic's usage object.
  * Handles cache tokens and server tool use metrics.
  */
 export function buildAnthropicUsage(
   usage:
     | Anthropic_SDK.Beta.BetaUsage
     | Anthropic_SDK.Beta.BetaMessageDeltaUsage,
-): UsageTotals {
+): TokenUsage {
   const inputTokens = usage.input_tokens ?? 0
   const outputTokens = usage.output_tokens
 
