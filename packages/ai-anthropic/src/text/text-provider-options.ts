@@ -206,6 +206,24 @@ Recommended for advanced use cases only. You usually only need to use temperatur
 Required range: x >= 0
    */
   top_k?: number
+  /**
+   * Amount of randomness injected into the response.
+   * Either use this or top_p, but not both.
+   * Defaults to 1.0. Ranges from 0.0 to 1.0. Use temperature closer to 0.0 for analytical / multiple choice, and closer to 1.0 for creative and generative tasks.
+   * @default 1.0
+   */
+  temperature?: number
+  /**
+   * Use nucleus sampling.
+   *
+   * In nucleus sampling, we compute the cumulative distribution over all the options for each subsequent token in decreasing probability order and cut it off once it reaches a particular probability specified by top_p. You should either alter temperature or top_p, but not both.
+   */
+  top_p?: number
+  /**
+   * The maximum number of tokens to generate before stopping. This parameter only specifies the absolute maximum number of tokens to generate. Required by the API; the adapter defaults to 1024 when omitted.
+   * Range x >= 1.
+   */
+  max_tokens?: number
 }
 
 export type ExternalTextProviderOptions = AnthropicContainerOptions &
@@ -244,13 +262,6 @@ export interface InternalTextProviderOptions extends ExternalTextProviderOptions
    * such as specifying a particular goal or role.
    */
   system?: string | Array<TextBlockParam>
-  /**
-   * Amount of randomness injected into the response.
-   * Either use this or top_p, but not both.
-   * Defaults to 1.0. Ranges from 0.0 to 1.0. Use temperature closer to 0.0 for analytical / multiple choice, and closer to 1.0 for creative and generative tasks.
-   * @default 1.0
-   */
-  temperature?: number
 
   tools?: Array<AnthropicTool>
 
@@ -276,13 +287,6 @@ export interface InternalTextProviderOptions extends ExternalTextProviderOptions
       schema: Record<string, unknown>
     }
   }
-
-  /**
-   * Use nucleus sampling.
-
-In nucleus sampling, we compute the cumulative distribution over all the options for each subsequent token in decreasing probability order and cut it off once it reaches a particular probability specified by top_p. You should either alter temperature or top_p, but not both.
-   */
-  top_p?: number
 }
 
 const validateTopPandTemperature = (options: InternalTextProviderOptions) => {
