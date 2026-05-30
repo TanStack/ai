@@ -318,9 +318,14 @@ export class AnthropicTextAdapter<
         'temperature',
         'top_p',
       ]
-      const validKeySet = new Set<string>(validKeys)
+      // `max_tokens` is a legitimate public modelOptions field, but it is read
+      // via a dedicated path (defaultMaxTokens below) rather than copied into
+      // validProviderOptions. Exempt it from the dropped-key warning here so a
+      // correct `modelOptions: { max_tokens }` call doesn't log a spurious
+      // "dropped unknown key" error, while keeping it out of the copy loop.
+      const droppedKeyExemptSet = new Set<string>([...validKeys, 'max_tokens'])
       const droppedKeys = Object.keys(modelOptions).filter(
-        (key) => !validKeySet.has(key),
+        (key) => !droppedKeyExemptSet.has(key),
       )
       if (droppedKeys.length > 0) {
         // Reachable when callers cast around the public type (e.g.

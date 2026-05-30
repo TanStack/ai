@@ -390,6 +390,40 @@ describe('Anthropic adapter option mapping', () => {
     expect(payload.max_tokens).toBe(2048)
   })
 
+  it('does not warn about dropped keys when max_tokens is passed via modelOptions', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
+
+    const adapter = createAdapter('claude-3-7-sonnet')
+
+    const logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+      modelOptions: {
+        max_tokens: 2048,
+      } satisfies AnthropicTextProviderOptions,
+      debug: { logger, errors: true },
+    })) {
+      // consume stream
+    }
+
+    // max_tokens is read via the dedicated defaultMaxTokens path; it must not
+    // be flagged as an unknown/dropped modelOptions key.
+    const droppedKeyError = logger.error.mock.calls.find((call) =>
+      String(call[0]).includes('dropped unknown modelOptions key'),
+    )
+    expect(droppedKeyError).toBeUndefined()
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+    expect(payload.max_tokens).toBe(2048)
+  })
+
   it('sources top_p from modelOptions', async () => {
     // top_p is mutually exclusive with temperature, so exercise it alone.
     mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
