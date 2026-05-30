@@ -9,7 +9,7 @@ export function run(messages: Array<unknown>) {
 
     modelOptions: {
       top_k: 40,
-      temperature: temperature
-    }
-  });
+      temperature: temperature,
+    },
+  })
 }

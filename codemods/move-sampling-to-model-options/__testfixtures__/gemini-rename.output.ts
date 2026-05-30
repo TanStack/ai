@@ -8,7 +8,7 @@ export function run(messages: Array<unknown>) {
 
     modelOptions: {
       topP: 0.9,
-      maxOutputTokens: 512
-    }
-  });
+      maxOutputTokens: 512,
+    },
+  })
 }

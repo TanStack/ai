@@ -7,7 +7,7 @@ export function run(messages: Array<unknown>) {
     messages,
 
     modelOptions: {
-      max_completion_tokens: 256
-    }
-  });
+      max_completion_tokens: 256,
+    },
+  })
 }

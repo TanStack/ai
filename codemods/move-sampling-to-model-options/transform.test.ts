@@ -106,8 +106,7 @@ describe('move-sampling-to-model-options codemod', () => {
     expect(
       reports.some(
         (r) =>
-          r.includes('a target key already exists') &&
-          r.includes('left alone'),
+          r.includes('a target key already exists') && r.includes('left alone'),
       ),
     ).toBe(true)
   })

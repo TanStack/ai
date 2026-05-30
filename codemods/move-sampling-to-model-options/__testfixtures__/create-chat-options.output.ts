@@ -6,6 +6,6 @@ export const options = createChatOptions({
 
   modelOptions: {
     temperature: 0.2,
-    top_p: 0.8
-  }
+    top_p: 0.8,
+  },
 })

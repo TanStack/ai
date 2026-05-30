@@ -47,12 +47,7 @@ import type {
 const CORE_PACKAGE = '@tanstack/ai'
 
 /** Helper names (imported from `@tanstack/ai`) we operate on. */
-const TARGET_CALLEES = new Set([
-  'chat',
-  'ai',
-  'generate',
-  'createChatOptions',
-])
+const TARGET_CALLEES = new Set(['chat', 'ai', 'generate', 'createChatOptions'])
 
 /** The three root sampling props we relocate. */
 const ROOT_SAMPLING_KEYS = ['temperature', 'topP', 'maxTokens'] as const
@@ -143,7 +138,10 @@ function collectImportFacts(j: JSCodeshift, root: Collection): ImportFacts {
     if (source !== CORE_PACKAGE) return
     const specifiers = path.node.specifiers ?? []
     for (const spec of specifiers) {
-      if (spec.type === 'ImportSpecifier' && TARGET_CALLEES.has(spec.imported.name)) {
+      if (
+        spec.type === 'ImportSpecifier' &&
+        TARGET_CALLEES.has(spec.imported.name)
+      ) {
         facts.hasCoreHelper = true
       }
     }
@@ -178,9 +176,7 @@ function valueOf(prop: Property): Property['value'] {
 }
 
 /** The first object-literal argument of a call, or undefined. */
-function firstObjectArg(
-  node: CallExpression,
-): ObjectExpression | undefined {
+function firstObjectArg(node: CallExpression): ObjectExpression | undefined {
   return node.arguments.find(
     (a): a is ObjectExpression => a.type === 'ObjectExpression',
   )
@@ -242,9 +238,7 @@ export default function transform(
 
       const line = path.node.loc?.start.line
       const calleeName =
-        path.node.callee.type === 'Identifier'
-          ? path.node.callee.name
-          : 'call'
+        path.node.callee.type === 'Identifier' ? path.node.callee.name : 'call'
 
       // Resolve the provider from the adapter. Skip + report if we can't.
       const provider = resolveProvider(obj)
@@ -352,7 +346,10 @@ export default function transform(
         }
         if ((prop as Property).computed) return true
         const key = (prop as Property).key
-        if (key.type === 'Identifier' && movedSet.has(key.name as RootSamplingKey)) {
+        if (
+          key.type === 'Identifier' &&
+          movedSet.has(key.name as RootSamplingKey)
+        ) {
           return false
         }
         return true

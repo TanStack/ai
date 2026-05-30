@@ -15,11 +15,11 @@ The provider is resolved from the `adapter:` property's factory call (e.g.
 `openaiText('gpt-4o')` → `openai`). Each present root prop is moved into
 `modelOptions` under its provider-specific name:
 
-| Root prop     | openai              | anthropic    | gemini            | grok         | groq                    | openrouter            | ollama (nested)        |
-| ------------- | ------------------- | ------------ | ----------------- | ------------ | ----------------------- | --------------------- | ---------------------- |
-| `temperature` | `temperature`       | `temperature`| `temperature`     | `temperature`| `temperature`           | `temperature`         | `options.temperature`  |
-| `topP`        | `top_p`             | `top_p`      | `topP`            | `top_p`      | `top_p`                 | `topP`                | `options.top_p`        |
-| `maxTokens`   | `max_output_tokens` | `max_tokens` | `maxOutputTokens` | `max_tokens` | `max_completion_tokens` | `maxCompletionTokens` | `options.num_predict`  |
+| Root prop     | openai              | anthropic     | gemini            | grok          | groq                    | openrouter            | ollama (nested)       |
+| ------------- | ------------------- | ------------- | ----------------- | ------------- | ----------------------- | --------------------- | --------------------- |
+| `temperature` | `temperature`       | `temperature` | `temperature`     | `temperature` | `temperature`           | `temperature`         | `options.temperature` |
+| `topP`        | `top_p`             | `top_p`       | `topP`            | `top_p`       | `top_p`                 | `topP`                | `options.top_p`       |
+| `maxTokens`   | `max_output_tokens` | `max_tokens`  | `maxOutputTokens` | `max_tokens`  | `max_completion_tokens` | `maxCompletionTokens` | `options.num_predict` |
 
 For **ollama**, the renamed keys are nested inside a `options` object **within**
 `modelOptions` (e.g. `modelOptions: { options: { temperature, num_predict } }`).

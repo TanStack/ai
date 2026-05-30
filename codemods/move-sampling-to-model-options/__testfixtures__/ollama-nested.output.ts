@@ -9,8 +9,8 @@ export function run(messages: Array<unknown>) {
     modelOptions: {
       options: {
         temperature: 0.7,
-        num_predict: 200
-      }
-    }
-  });
+        num_predict: 200,
+      },
+    },
+  })
 }

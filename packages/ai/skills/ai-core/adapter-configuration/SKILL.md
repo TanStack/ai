@@ -260,21 +260,23 @@ chat({
 chat({
   adapter: ollamaText('llama3.3'),
   messages,
-  modelOptions: { options: { temperature: 0.7, top_p: 0.9, num_predict: 1000 } },
+  modelOptions: {
+    options: { temperature: 0.7, top_p: 0.9, num_predict: 1000 },
+  },
 })
 ```
 
 Per-provider sampling keys (all live inside `modelOptions`):
 
-| Provider          | Temperature   | Nucleus | Max output tokens                    |
-| ----------------- | ------------- | ------- | ------------------------------------ |
-| OpenAI            | `temperature` | `top_p` | `max_output_tokens`                  |
-| Anthropic         | `temperature` | `top_p` | `max_tokens`                         |
-| Gemini            | `temperature` | `topP`  | `maxOutputTokens`                    |
-| Grok (xAI)        | `temperature` | `top_p` | `max_tokens`                         |
-| Groq              | `temperature` | `top_p` | `max_completion_tokens`              |
-| OpenRouter (chat) | `temperature` | `topP`  | `maxCompletionTokens`                |
-| Ollama            | `temperature` | `top_p` | `num_predict` (nested in `options`)  |
+| Provider          | Temperature   | Nucleus | Max output tokens                   |
+| ----------------- | ------------- | ------- | ----------------------------------- |
+| OpenAI            | `temperature` | `top_p` | `max_output_tokens`                 |
+| Anthropic         | `temperature` | `top_p` | `max_tokens`                        |
+| Gemini            | `temperature` | `topP`  | `maxOutputTokens`                   |
+| Grok (xAI)        | `temperature` | `top_p` | `max_tokens`                        |
+| Groq              | `temperature` | `top_p` | `max_completion_tokens`             |
+| OpenRouter (chat) | `temperature` | `topP`  | `maxCompletionTokens`               |
+| Ollama            | `temperature` | `top_p` | `num_predict` (nested in `options`) |
 
 `temperature` is the one key every provider names identically; token limits and
 some sampling options use provider-native names. Ollama nests all sampling under

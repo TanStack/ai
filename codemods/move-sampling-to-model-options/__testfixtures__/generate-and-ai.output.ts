@@ -7,9 +7,9 @@ export function viaAi(messages: Array<unknown>) {
     messages,
 
     modelOptions: {
-      max_tokens: 64
-    }
-  });
+      max_tokens: 64,
+    },
+  })
 }
 
 export function viaGenerate(messages: Array<unknown>) {
@@ -18,7 +18,7 @@ export function viaGenerate(messages: Array<unknown>) {
     messages,
 
     modelOptions: {
-      top_p: 0.95
-    }
-  });
+      top_p: 0.95,
+    },
+  })
 }

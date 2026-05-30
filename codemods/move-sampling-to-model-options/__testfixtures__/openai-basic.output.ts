@@ -8,7 +8,7 @@ export function run(messages: Array<unknown>) {
 
     modelOptions: {
       temperature: 0.3,
-      max_output_tokens: 100
-    }
-  });
+      max_output_tokens: 100,
+    },
+  })
 }
