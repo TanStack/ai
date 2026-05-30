@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Overview
 
-TanStack AI is a type-safe, provider-agnostic AI SDK for building AI-powered applications. The repository is a **pnpm monorepo** managed with **Nx** that includes TypeScript, PHP, and Python packages, plus multiple framework examples.
+TanStack AI is a type-safe, provider-agnostic AI SDK for building AI-powered applications. The repository is a **pnpm monorepo** managed with **Nx** that includes TypeScript packages, plus multiple framework examples.
 
 ## Package Manager & Tooling
 
@@ -14,6 +14,9 @@ TanStack AI is a type-safe, provider-agnostic AI SDK for building AI-powered app
 - **Testing**: Vitest for unit tests
 - **Linting**: ESLint with custom TanStack config
 - **Formatting**: Prettier
+
+Run `pnpm install` before starting any task and again after every merge with
+`main`.
 
 ## Common Commands
 
@@ -46,7 +49,7 @@ pnpm --filter @tanstack/ai-e2e test:e2e:ui # Run with Playwright UI
 
 ```bash
 # Navigate to package directory and run tests
-cd packages/typescript/ai
+cd packages/ai
 pnpm test:lib              # Run tests for this package
 pnpm test:lib:dev          # Watch mode
 pnpm test:types            # Type check
@@ -86,23 +89,20 @@ pnpm changeset:publish     # Publish to npm
 ### Monorepo Structure
 
 ```
-packages/
-├── typescript/           # TypeScript packages (main implementation)
-│   ├── ai/              # Core AI library (@tanstack/ai)
-│   ├── ai-client/       # Framework-agnostic chat client
-│   ├── ai-react/        # React hooks (useChat)
-│   ├── ai-solid/        # Solid hooks
-│   ├── ai-svelte/       # Svelte integration
-│   ├── ai-vue/          # Vue integration
-│   ├── ai-openai/       # OpenAI adapter
-│   ├── ai-anthropic/    # Anthropic/Claude adapter
-│   ├── ai-gemini/       # Google Gemini adapter
-│   ├── ai-ollama/       # Ollama adapter
-│   ├── ai-devtools/     # DevTools integration
-│   ├── react-ai-devtools/ # React DevTools component
-│   └── solid-ai-devtools/ # Solid DevTools component
-├── php/                 # PHP packages (future)
-└── python/              # Python packages (future)
+packages/                # TypeScript packages (main implementation)
+├── ai/                  # Core AI library (@tanstack/ai)
+├── ai-client/           # Framework-agnostic chat client
+├── ai-react/            # React hooks (useChat)
+├── ai-solid/            # Solid hooks
+├── ai-svelte/           # Svelte integration
+├── ai-vue/              # Vue integration
+├── ai-openai/           # OpenAI adapter
+├── ai-anthropic/        # Anthropic/Claude adapter
+├── ai-gemini/           # Google Gemini adapter
+├── ai-ollama/           # Ollama adapter
+├── ai-devtools/         # DevTools integration
+├── react-ai-devtools/   # React DevTools component
+└── solid-ai-devtools/   # Solid DevTools component
 
 testing/
 ├── e2e/                 # E2E tests (Playwright + aimock) — MANDATORY for all changes
@@ -114,9 +114,7 @@ examples/                # Example applications
 ├── ts-vue-chat/         # Vue chat example
 ├── ts-svelte-chat/      # Svelte chat example
 ├── ts-group-chat/       # Multi-user group chat
-├── vanilla-chat/        # Vanilla JS example
-├── php-slim/            # PHP Slim framework example
-└── python-fastapi/      # Python FastAPI example
+└── vanilla-chat/        # Vanilla JS example
 ```
 
 ### Core Architecture Concepts
@@ -189,7 +187,7 @@ Each framework integration uses the headless `ai-client` under the hood.
 
 ### Key Files & Directories
 
-#### Core Package (`packages/typescript/ai/src/`)
+#### Core Package (`packages/ai/src/`)
 
 - **`index.ts`** - Main exports (chat, embedding, summarize, toolDefinition, etc.)
 - **`types.ts`** - Core type definitions (ModelMessage, ContentPart, StreamChunk, etc.)
@@ -199,7 +197,7 @@ Each framework integration uses the headless `ai-client` under the hood.
 - **`stream/`** - Stream processing (StreamProcessor, chunking strategies, partial JSON parsing)
 - **`utilities/`** - Helpers (message converters, agent loop strategies, SSE utilities)
 
-#### Provider Adapters (e.g., `packages/typescript/ai-openai/src/`)
+#### Provider Adapters (e.g., `packages/ai-openai/src/`)
 
 - **`index.ts`** - Exports tree-shakeable adapters (openaiText, openaiEmbed, etc.)
 - **`adapters/`** - Individual adapter implementations (text.ts, embed.ts, summarize.ts, image.ts)
@@ -219,6 +217,34 @@ Each framework integration uses the headless `ai-client` under the hood.
 7. Run linter: `pnpm test:eslint`
 8. Format code: `pnpm format`
 9. Verify build: `pnpm test:build` or `pnpm build`
+
+### Pre-PR Quality Gate (MANDATORY)
+
+**Before committing, run the narrowest meaningful quality checks for your changes and confirm they pass locally. Before opening a PR or pushing changes intended for review, run the same checks CI runs.** If you make post-commit changes, rebase, or merge before pushing to a PR, rerun the relevant checks first.
+
+Use the repo-preferred package manager, scripts, and Nx targets where applicable. Do **not** commit or push while quality checks are failing unless the user explicitly instructs otherwise; report the exact failing command and failure instead.
+
+The single canonical command is:
+
+```bash
+pnpm test:pr
+```
+
+This runs the exact target set the `PR` workflow runs in CI (`nx affected --targets=test:sherif,test:knip,test:docs,test:eslint,test:lib,test:types,test:build,build --exclude=examples/**,testing/**`).
+
+If you can't run `test:pr` (e.g. it's too slow on your machine), at minimum run each of these and confirm they're green before pushing:
+
+- `pnpm test:sherif` — workspace consistency
+- `pnpm test:knip` — unused dependencies
+- `pnpm test:docs` — doc link verification
+- `pnpm test:eslint` — lint
+- `pnpm test:types` — typecheck
+- `pnpm test:lib` — unit tests
+- `pnpm test:build` — build artifact verification
+- `pnpm build` — build all affected packages
+- `pnpm --filter @tanstack/ai-e2e test:e2e` — E2E suite (mandatory for any behavior change; see E2E Testing)
+
+Do **not** rely on CI as your first signal. Run locally, fix, then push.
 
 ### Working with Examples
 

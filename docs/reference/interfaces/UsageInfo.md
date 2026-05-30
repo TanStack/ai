@@ -5,10 +5,18 @@ title: UsageInfo
 
 # Interface: UsageInfo
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:266](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L266)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:273](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L273)
 
 Token usage statistics passed to the onUsage hook.
 Extracted from the RUN_FINISHED chunk when usage data is present.
+
+Includes optional provider-reported `cost`/`costDetails` (see [UsageTotals](UsageTotals.md)).
+Kept as an interface extending `UsageTotals` to preserve declaration merging for
+this publicly exported type.
+
+## Extends
+
+- [`UsageTotals`](UsageTotals.md)
 
 ## Properties
 
@@ -18,7 +26,43 @@ Extracted from the RUN_FINISHED chunk when usage data is present.
 completionTokens: number;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:268](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L268)
+Defined in: [packages/ai/src/types.ts:953](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L953)
+
+#### Inherited from
+
+[`UsageTotals`](UsageTotals.md).[`completionTokens`](UsageTotals.md#completiontokens)
+
+***
+
+### cost?
+
+```ts
+optional cost: number;
+```
+
+Defined in: [packages/ai/src/types.ts:956](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L956)
+
+Provider-reported cost for the request, when available.
+
+#### Inherited from
+
+[`UsageTotals`](UsageTotals.md).[`cost`](UsageTotals.md#cost)
+
+***
+
+### costDetails?
+
+```ts
+optional costDetails: UsageCostBreakdown;
+```
+
+Defined in: [packages/ai/src/types.ts:958](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L958)
+
+Provider-reported cost breakdown, when available.
+
+#### Inherited from
+
+[`UsageTotals`](UsageTotals.md).[`costDetails`](UsageTotals.md#costdetails)
 
 ***
 
@@ -28,7 +72,11 @@ Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:268]
 promptTokens: number;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:267](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L267)
+Defined in: [packages/ai/src/types.ts:952](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L952)
+
+#### Inherited from
+
+[`UsageTotals`](UsageTotals.md).[`promptTokens`](UsageTotals.md#prompttokens)
 
 ***
 
@@ -38,4 +86,8 @@ Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:267]
 totalTokens: number;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:269](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L269)
+Defined in: [packages/ai/src/types.ts:954](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L954)
+
+#### Inherited from
+
+[`UsageTotals`](UsageTotals.md).[`totalTokens`](UsageTotals.md#totaltokens)

@@ -100,8 +100,7 @@ import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const result = await chat({
-  adapter: openaiText(),
-  model: "gpt-4o",
+  adapter: openaiText("gpt-4o"),
   systemPrompts: [
     "You are a helpful weather assistant.",
     systemPrompt,
@@ -242,7 +241,7 @@ To display these events in your React app, see [Showing Code Mode in the UI](./c
 
 ## Model Compatibility
 
-Code Mode asks the model to write valid TypeScript that calls your tools through the sandbox bridge. Not every model handles this equally — many small or older models mishandle the `external_*` calling conventions even when the system prompt is explicit. We track a single multi-step benchmark (joining three tables, filtering customers who bought from every product category, aggregating spend per category) against a gold reference. The full harness lives at `packages/typescript/ai-code-mode/models-eval/`.
+Code Mode asks the model to write valid TypeScript that calls your tools through the sandbox bridge. Not every model handles this equally — many small or older models mishandle the `external_*` calling conventions even when the system prompt is explicit. We track a single multi-step benchmark (joining three tables, filtering customers who bought from every product category, aggregating spend per category) against a gold reference. The full harness lives at `packages/ai-code-mode/models-eval/`.
 
 | Rank | Model | Stars | Acc | Comp | TS | CME | Latency | Tokens |
 |------|-------|:-----:|:---:|:----:|:--:|:---:|--------:|-------:|
@@ -271,7 +270,7 @@ Code Mode asks the model to write valid TypeScript that calls your tools through
 Reproduce locally:
 
 ```bash
-cd packages/typescript/ai-code-mode/models-eval
+cd packages/ai-code-mode/models-eval
 pnpm install
 pnpm eval                    # full suite (needs cloud API keys + Anthropic for judging)
 pnpm eval -- --ollama-only   # local models only

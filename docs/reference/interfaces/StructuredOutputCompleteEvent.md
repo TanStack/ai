@@ -5,7 +5,7 @@ title: StructuredOutputCompleteEvent
 
 # Interface: StructuredOutputCompleteEvent\<T\>
 
-Defined in: [packages/typescript/ai/src/types.ts:1168](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1168)
+Defined in: [packages/ai/src/types.ts:1214](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1214)
 
 Final event of a streaming structured-output run. Carries the validated
 `object` (typed as `T` after the orchestrator runs Standard Schema parsing),
@@ -48,7 +48,7 @@ if (chunk.type === 'CUSTOM' && chunk.name === 'structured-output.complete') {
 optional model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1147](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1147)
+Defined in: [packages/ai/src/types.ts:1193](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1193)
 
 Model identifier for multi-model support
 
@@ -64,7 +64,7 @@ Model identifier for multi-model support
 name: "structured-output.complete";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1171](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1171)
+Defined in: [packages/ai/src/types.ts:1217](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1217)
 
 #### Overrides
 
@@ -80,7 +80,7 @@ CustomEvent.name
 value: object;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1172](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1172)
+Defined in: [packages/ai/src/types.ts:1218](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1218)
 
 #### object
 

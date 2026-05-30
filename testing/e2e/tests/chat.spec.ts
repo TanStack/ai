@@ -22,6 +22,34 @@ for (const provider of providersFor('chat')) {
       const response = await getLastAssistantMessage(page)
       expect(response).toContain('Fender Stratocaster')
     })
+
+    test('fetcher mode — streams an SSE Response through useChat({ fetcher })', async ({
+      page,
+      testId,
+      aimockPort,
+    }) => {
+      await page.goto(
+        featureUrl(provider, 'chat', testId, aimockPort, 'fetcher'),
+      )
+
+      // Positively assert the fetcher path executed by waiting for the
+      // POST that carries our sentinel header. Without this, a silent
+      // fallback to the connection adapter would still make the response
+      // assertion pass (both paths return the same SSE).
+      const fetcherRequest = page.waitForRequest(
+        (req) =>
+          req.url().endsWith('/api/chat') &&
+          req.method() === 'POST' &&
+          req.headers()['x-tanstack-ai-transport'] === 'fetcher',
+      )
+
+      await sendMessage(page, '[chat] recommend a guitar')
+      await fetcherRequest
+      await waitForResponse(page)
+
+      const response = await getLastAssistantMessage(page)
+      expect(response).toContain('Fender Stratocaster')
+    })
   })
 }
 

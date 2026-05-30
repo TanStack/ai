@@ -18,6 +18,10 @@ Get started with TanStack AI in minutes. This guide will walk you through creati
 
 > **Using a different framework?** See quick-starts for [Vue](./quick-start-vue), [Svelte](./quick-start-svelte), or [server-only Node.js](./quick-start-server).
 
+> **React Native or Expo app?** Use the headless React hooks with an absolute
+> server URL and a mobile-compatible transport. See
+> [Quick Start: React Native](./quick-start-react-native).
+
 > **Tip:** If you'd prefer not to sign up with individual AI providers, [OpenRouter](../adapters/openrouter) gives you access to 300+ models with a single API key and is the easiest way to get started.
 
 ## Installation
@@ -250,9 +254,9 @@ You now have a working chat application. The `useChat` hook handles:
 Since TanStack AI is framework-agnostic, you can define and use tools in any environment. Here's a quick example of defining a tool and using it in a chat:
 
 ```typescript
-import { chat } from '@tanstack/ai'
-import { toolDefinition } from '@tanstack/ai'
+import { chat, toolDefinition } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
+import { z } from 'zod'
 
 const getProductsDef = toolDefinition({
   name: 'getProducts',
@@ -263,10 +267,10 @@ const getProducts = getProductsDef.server(async ({ query }) => {
   return await db.products.search(query)
 })
 
-chat({
+const stream = chat({
   adapter: openaiText('gpt-5.2'),
   messages: [{ role: 'user', content: 'Find products' }],
-  tools: [getProducts]
+  tools: [getProducts],
 })
 ```
 

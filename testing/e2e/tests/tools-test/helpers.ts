@@ -109,6 +109,41 @@ export async function waitForTestComplete(
 }
 
 /**
+ * Wait for client-side execution events to be reflected in the event log.
+ *
+ * Tool call completion can be visible in message state before React has flushed
+ * the separate event-log state update used by these assertions.
+ */
+export async function waitForExecutionComplete(
+  page: Page,
+  toolName: string,
+  timeout = 10000,
+): Promise<void> {
+  await page.waitForFunction(
+    (expectedToolName) => {
+      const el = document.getElementById('event-log-json')
+      if (!el) return false
+
+      try {
+        const events = JSON.parse(el.textContent || '[]') as Array<{
+          type?: string
+          toolName?: string
+        }>
+        return events.some(
+          (event) =>
+            event.type === 'execution-complete' &&
+            event.toolName === expectedToolName,
+        )
+      } catch {
+        return false
+      }
+    },
+    toolName,
+    { timeout },
+  )
+}
+
+/**
  * Wait for the #approval-section element to become visible.
  */
 export async function waitForApproval(
@@ -171,6 +206,21 @@ export async function getToolCalls(
 ): Promise<Array<{ id: string; name: string; state: string }>> {
   return page.evaluate(() => {
     const el = document.getElementById('tool-calls-json')
+    if (!el) return []
+    try {
+      return JSON.parse(el.textContent || '[]')
+    } catch {
+      return []
+    }
+  })
+}
+
+/**
+ * Parse the full UIMessage array from #messages-json-content.
+ */
+export async function getMessages(page: Page): Promise<Array<any>> {
+  return page.evaluate(() => {
+    const el = document.getElementById('messages-json-content')
     if (!el) return []
     try {
       return JSON.parse(el.textContent || '[]')

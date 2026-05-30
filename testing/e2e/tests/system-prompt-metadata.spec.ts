@@ -5,7 +5,7 @@ import { test, expect } from './fixtures'
  * on the Anthropic adapter.
  *
  * Wire-shape coverage lives in the unit test
- * `packages/typescript/ai-anthropic/tests/anthropic-adapter.test.ts` —
+ * `packages/ai-anthropic/tests/anthropic-adapter.test.ts` —
  * `it('attaches cache_control to system TextBlockParams via systemPrompts
  * metadata')` directly inspects the body passed to the Anthropic SDK and
  * asserts the structured `system: [{ type: 'text', text, cache_control }]`

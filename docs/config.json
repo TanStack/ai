@@ -18,6 +18,10 @@
           "to": "getting-started/quick-start"
         },
         {
+          "label": "Quick Start: React Native",
+          "to": "getting-started/quick-start-react-native"
+        },
+        {
           "label": "Devtools",
           "to": "getting-started/devtools"
         },
@@ -227,6 +231,10 @@
         {
           "label": "Extend Adapter",
           "to": "advanced/extend-adapter"
+        },
+        {
+          "label": "Typed Pre-Configured Options",
+          "to": "advanced/typed-options"
         }
       ]
     },

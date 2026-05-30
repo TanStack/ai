@@ -5,7 +5,7 @@ title: RunErrorEvent
 
 # Interface: RunErrorEvent
 
-Defined in: [packages/typescript/ai/src/types.ts:936](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L936)
+Defined in: [packages/ai/src/types.ts:982](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L982)
 
 Emitted when an error occurs during a run.
 
@@ -30,7 +30,7 @@ TanStack AI adds: `model?`, `error?` (deprecated nested form)
 optional error: object;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:943](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L943)
+Defined in: [packages/ai/src/types.ts:989](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L989)
 
 #### ~~code?~~
 
@@ -57,6 +57,6 @@ Kept for backward compatibility.
 optional model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:938](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L938)
+Defined in: [packages/ai/src/types.ts:984](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L984)
 
 Model identifier for multi-model support

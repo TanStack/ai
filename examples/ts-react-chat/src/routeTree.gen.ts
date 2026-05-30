@@ -9,8 +9,11 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as ServerFnChatRouteImport } from './routes/server-fn-chat'
 import { Route as RealtimeRouteImport } from './routes/realtime'
+import { Route as Issue176ToolResultRouteImport } from './routes/issue-176-tool-result'
 import { Route as ImageGenRouteImport } from './routes/image-gen'
+import { Route as GenerationHooksRouteImport } from './routes/generation-hooks'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GenerationsVideoRouteImport } from './routes/generations.video'
 import { Route as GenerationsTranscriptionRouteImport } from './routes/generations.transcription'
@@ -33,14 +36,29 @@ import { Route as ApiGenerateSpeechRouteImport } from './routes/api.generate.spe
 import { Route as ApiGenerateImageRouteImport } from './routes/api.generate.image'
 import { Route as ApiGenerateAudioRouteImport } from './routes/api.generate.audio'
 
+const ServerFnChatRoute = ServerFnChatRouteImport.update({
+  id: '/server-fn-chat',
+  path: '/server-fn-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RealtimeRoute = RealtimeRouteImport.update({
   id: '/realtime',
   path: '/realtime',
   getParentRoute: () => rootRouteImport,
 } as any)
+const Issue176ToolResultRoute = Issue176ToolResultRouteImport.update({
+  id: '/issue-176-tool-result',
+  path: '/issue-176-tool-result',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ImageGenRoute = ImageGenRouteImport.update({
   id: '/image-gen',
   path: '/image-gen',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GenerationHooksRoute = GenerationHooksRouteImport.update({
+  id: '/generation-hooks',
+  path: '/generation-hooks',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -154,8 +172,11 @@ const ApiGenerateAudioRoute = ApiGenerateAudioRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/generation-hooks': typeof GenerationHooksRoute
   '/image-gen': typeof ImageGenRoute
+  '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/realtime': typeof RealtimeRoute
+  '/server-fn-chat': typeof ServerFnChatRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
@@ -179,8 +200,11 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/generation-hooks': typeof GenerationHooksRoute
   '/image-gen': typeof ImageGenRoute
+  '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/realtime': typeof RealtimeRoute
+  '/server-fn-chat': typeof ServerFnChatRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
@@ -205,8 +229,11 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/generation-hooks': typeof GenerationHooksRoute
   '/image-gen': typeof ImageGenRoute
+  '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/realtime': typeof RealtimeRoute
+  '/server-fn-chat': typeof ServerFnChatRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
@@ -232,8 +259,11 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/generation-hooks'
     | '/image-gen'
+    | '/issue-176-tool-result'
     | '/realtime'
+    | '/server-fn-chat'
     | '/api/image-gen'
     | '/api/structured-chat'
     | '/api/structured-output'
@@ -257,8 +287,11 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/generation-hooks'
     | '/image-gen'
+    | '/issue-176-tool-result'
     | '/realtime'
+    | '/server-fn-chat'
     | '/api/image-gen'
     | '/api/structured-chat'
     | '/api/structured-output'
@@ -282,8 +315,11 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/generation-hooks'
     | '/image-gen'
+    | '/issue-176-tool-result'
     | '/realtime'
+    | '/server-fn-chat'
     | '/api/image-gen'
     | '/api/structured-chat'
     | '/api/structured-output'
@@ -308,8 +344,11 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  GenerationHooksRoute: typeof GenerationHooksRoute
   ImageGenRoute: typeof ImageGenRoute
+  Issue176ToolResultRoute: typeof Issue176ToolResultRoute
   RealtimeRoute: typeof RealtimeRoute
+  ServerFnChatRoute: typeof ServerFnChatRoute
   ApiImageGenRoute: typeof ApiImageGenRoute
   ApiStructuredChatRoute: typeof ApiStructuredChatRoute
   ApiStructuredOutputRoute: typeof ApiStructuredOutputRoute
@@ -334,6 +373,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/server-fn-chat': {
+      id: '/server-fn-chat'
+      path: '/server-fn-chat'
+      fullPath: '/server-fn-chat'
+      preLoaderRoute: typeof ServerFnChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/realtime': {
       id: '/realtime'
       path: '/realtime'
@@ -341,11 +387,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RealtimeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/issue-176-tool-result': {
+      id: '/issue-176-tool-result'
+      path: '/issue-176-tool-result'
+      fullPath: '/issue-176-tool-result'
+      preLoaderRoute: typeof Issue176ToolResultRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/image-gen': {
       id: '/image-gen'
       path: '/image-gen'
       fullPath: '/image-gen'
       preLoaderRoute: typeof ImageGenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/generation-hooks': {
+      id: '/generation-hooks'
+      path: '/generation-hooks'
+      fullPath: '/generation-hooks'
+      preLoaderRoute: typeof GenerationHooksRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -500,8 +560,11 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  GenerationHooksRoute: GenerationHooksRoute,
   ImageGenRoute: ImageGenRoute,
+  Issue176ToolResultRoute: Issue176ToolResultRoute,
   RealtimeRoute: RealtimeRoute,
+  ServerFnChatRoute: ServerFnChatRoute,
   ApiImageGenRoute: ApiImageGenRoute,
   ApiStructuredChatRoute: ApiStructuredChatRoute,
   ApiStructuredOutputRoute: ApiStructuredOutputRoute,

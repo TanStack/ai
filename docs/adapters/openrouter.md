@@ -169,6 +169,38 @@ Caveats while the Responses adapter is in beta:
 - If in doubt, prefer `openRouterText`. The Chat Completions endpoint has
   broader provider coverage and feature parity today.
 
+## Cost Tracking
+
+OpenRouter reports the actual cost of each request inline on the streamed
+response. When present, the adapter forwards it on the terminal `RUN_FINISHED`
+event under `usage.cost`, with OpenRouter's per-request breakdown under
+`usage.costDetails`. This is the cost OpenRouter itself reports for the
+request — it is **not** computed locally from token counts, so it already
+accounts for routing, fallback providers, BYOK, and cached-token pricing. See
+OpenRouter's [Usage Accounting](https://openrouter.ai/docs/use-cases/usage-accounting)
+docs for the meaning and units of these fields.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openRouterText } from "@tanstack/ai-openrouter";
+
+for await (const chunk of chat({
+  adapter: openRouterText("openai/gpt-5"),
+  messages: [{ role: "user", content: "Hello!" }],
+})) {
+  if (chunk.type === "RUN_FINISHED") {
+    console.log("cost:", chunk.usage?.cost);
+    console.log("breakdown:", chunk.usage?.costDetails);
+  }
+}
+```
+
+The same `usage` (including `cost` / `costDetails`) is passed to middleware via
+the `onUsage` and `onFinish` hooks. When OpenRouter does not report a cost, the
+fields are simply absent and the stream completes normally. Both
+`openRouterText` and `openRouterResponsesText` populate cost when OpenRouter
+returns it.
+
 ## Next Steps
 
 - [Getting Started](../getting-started/quick-start) - Learn the basics

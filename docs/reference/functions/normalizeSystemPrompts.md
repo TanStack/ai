@@ -9,7 +9,7 @@ title: normalizeSystemPrompts
 function normalizeSystemPrompts<TMetadata>(prompts): NormalizedSystemPrompt<TMetadata>[];
 ```
 
-Defined in: [packages/typescript/ai/src/system-prompts.ts:70](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/system-prompts.ts#L70)
+Defined in: [packages/ai/src/system-prompts.ts:70](https://github.com/TanStack/ai/blob/main/packages/ai/src/system-prompts.ts#L70)
 
 Normalise the public `systemPrompts` shape (`Array<string | { content, metadata? }>`)
 to a homogenous `Array<{ content, metadata? }>`. Adapters use this so they

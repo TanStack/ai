@@ -1,0 +1,292 @@
+import { ChatClient } from '@tanstack/ai-client'
+import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
+import {
+  computed,
+  onMounted,
+  onScopeDispose,
+  readonly,
+  shallowRef,
+  useId,
+  watch,
+} from 'vue'
+import type {
+  AnyClientTool,
+  InferSchemaType,
+  ModelMessage,
+  SchemaInput,
+  StreamChunk,
+} from '@tanstack/ai'
+import type {
+  ChatClientState,
+  ConnectionStatus,
+  StructuredOutputPart,
+} from '@tanstack/ai-client'
+import type {
+  DeepPartial,
+  MultimodalContent,
+  UIMessage,
+  UseChatOptions,
+  UseChatReturn,
+} from './types'
+
+export function useChat<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TSchema extends SchemaInput | undefined = undefined,
+>(
+  options: UseChatOptions<TTools, TSchema> = {} as UseChatOptions<
+    TTools,
+    TSchema
+  >,
+): UseChatReturn<TTools, TSchema> {
+  const hookId = useId() // Available in Vue 3.5+
+  const clientId = options.id || hookId
+
+  const messages = shallowRef<Array<UIMessage<TTools>>>(
+    options.initialMessages || [],
+  )
+  const isLoading = shallowRef(false)
+  const error = shallowRef<Error | undefined>(undefined)
+  const status = shallowRef<ChatClientState>('ready')
+  const isSubscribed = shallowRef(false)
+  const connectionStatus = shallowRef<ConnectionStatus>('disconnected')
+  const sessionGenerating = shallowRef(false)
+
+  // Structured-output `partial` / `final` are derived from `messages` —
+  // specifically from the structured-output part on the latest assistant
+  // message (the one after the most recent user message). This keeps
+  // history coherent: every assistant turn carries its own typed
+  // structured-output part, and the hook-level sugar always reflects the
+  // freshest turn without a separate reset signal.
+  type Partial = DeepPartial<InferSchemaType<NonNullable<TSchema>>>
+  type Final = InferSchemaType<NonNullable<TSchema>>
+
+  // Create ChatClient instance with callbacks to sync state.
+  // Every user-provided callback is wrapped so the LATEST `options.xxx` value
+  // is read at call time. Direct assignment would freeze the callback to the
+  // reference we saw at setup time; the wrapper lets reactive `options` or
+  // in-place mutations propagate. When the user clears a callback (sets it to
+  // undefined), `?.` no-ops — unlike `client.updateOptions`, which silently
+  // skips undefined and leaves the old callback installed.
+  //
+  // Conditional spreads for `initialMessages`, `body`, `forwardedProps`, and
+  // `tools`: the ChatClient target declares those as strict-optional
+  // (`field?: T`), so under `exactOptionalPropertyTypes` we omit the key when
+  // the source value is `undefined` instead of assigning `undefined`.
+  const transport = options.connection
+    ? { connection: options.connection }
+    : { fetcher: options.fetcher }
+
+  const client = new ChatClient({
+    devtoolsBridgeFactory: createChatDevtoolsBridge,
+    ...transport,
+    id: clientId,
+    ...(options.initialMessages !== undefined && {
+      initialMessages: options.initialMessages,
+    }),
+    ...(options.persistence !== undefined && {
+      persistence: options.persistence,
+    }),
+    ...(options.body !== undefined && { body: options.body }),
+    ...(options.forwardedProps !== undefined && {
+      forwardedProps: options.forwardedProps,
+    }),
+    devtools: {
+      ...options.devtools,
+      framework: 'vue',
+      hookName: 'useChat',
+      outputKind: options.outputSchema ? 'structured' : 'chat',
+    },
+    onResponse: (response) => options.onResponse?.(response),
+    onChunk: (chunk: StreamChunk) => {
+      options.onChunk?.(chunk)
+    },
+    onFinish: (message) => {
+      options.onFinish?.(message)
+    },
+    onError: (err) => {
+      options.onError?.(err)
+    },
+    tools: options.tools,
+    onCustomEvent: (eventType, data, context) =>
+      options.onCustomEvent?.(eventType, data, context),
+    ...(options.streamProcessor !== undefined && {
+      streamProcessor: options.streamProcessor,
+    }),
+    onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
+      messages.value = newMessages
+    },
+    onLoadingChange: (newIsLoading: boolean) => {
+      isLoading.value = newIsLoading
+    },
+    onStatusChange: (newStatus: ChatClientState) => {
+      status.value = newStatus
+    },
+    onErrorChange: (newError: Error | undefined) => {
+      error.value = newError
+    },
+    onSubscriptionChange: (nextIsSubscribed: boolean) => {
+      isSubscribed.value = nextIsSubscribed
+    },
+    onConnectionStatusChange: (nextStatus: ConnectionStatus) => {
+      connectionStatus.value = nextStatus
+    },
+    onSessionGeneratingChange: (isGenerating: boolean) => {
+      sessionGenerating.value = isGenerating
+    },
+  })
+
+  messages.value = client.getMessages() as Array<UIMessage<TTools>>
+
+  // Sync body / forwardedProps changes to the client.
+  // Both populate the same wire payload; `forwardedProps` is preferred
+  // and `body` is deprecated but still supported.
+  // Conditional spread: `updateOptions` declares strict-optional fields and
+  // rejects explicit `undefined` under EOPT.
+  watch(
+    () => [options.body, options.forwardedProps] as const,
+    ([newBody, newForwardedProps]) => {
+      client.updateOptions({
+        body: newBody,
+        ...(newForwardedProps !== undefined && {
+          forwardedProps: newForwardedProps,
+        }),
+      })
+    },
+  )
+
+  watch(
+    () => options.live,
+    (live) => {
+      if (live) {
+        client.subscribe()
+      } else {
+        client.unsubscribe()
+      }
+    },
+    { immediate: true },
+  )
+
+  onMounted(() => {
+    client.mountDevtools()
+  })
+
+  // Cleanup on unmount: stop any in-flight requests
+  // Note: client.stop() is safe to call even if nothing is in progress
+  onScopeDispose(() => {
+    if (options.live) {
+      client.unsubscribe()
+    } else {
+      client.stop()
+    }
+    client.dispose()
+  })
+
+  // Callback options are read through `options.xxx` at call time, so reactive
+  // or mutated options propagate without recreating the client.
+
+  const sendMessage = async (content: string | MultimodalContent) => {
+    await client.sendMessage(content)
+  }
+
+  const append = async (message: ModelMessage | UIMessage<TTools>) => {
+    await client.append(message)
+  }
+
+  const reload = async () => {
+    await client.reload()
+  }
+
+  const stop = () => {
+    client.stop()
+  }
+
+  const clear = () => {
+    client.clear()
+  }
+
+  const setMessagesManually = (newMessages: Array<UIMessage<TTools>>) => {
+    client.setMessagesManually(newMessages)
+  }
+
+  const addToolResult = async (result: {
+    toolCallId: string
+    tool: string
+    output: any
+    state?: 'output-available' | 'output-error'
+    errorText?: string
+  }) => {
+    await client.addToolResult(result)
+  }
+
+  const addToolApprovalResponse = async (response: {
+    id: string
+    approved: boolean
+  }) => {
+    await client.addToolApprovalResponse(response)
+  }
+
+  // The "active" structured-output part is the one on the assistant message
+  // that follows the latest user message. No such message exists between
+  // sendMessage() and the first chunk, so partial/final naturally read as
+  // cleared. If there is no user message yet (e.g. initialMessages only has
+  // a stale assistant turn), we return null rather than scanning history —
+  // otherwise a `final` from a previous session would leak into the value
+  // on first render.
+  const activeStructuredPart = computed<StructuredOutputPart | null>(() => {
+    const list = messages.value
+    let lastUserIndex = -1
+    for (let i = list.length - 1; i >= 0; i--) {
+      if (list[i]?.role === 'user') {
+        lastUserIndex = i
+        break
+      }
+    }
+    if (lastUserIndex === -1) return null
+    for (let i = list.length - 1; i > lastUserIndex; i--) {
+      const m = list[i]
+      if (m?.role !== 'assistant') continue
+      const part = m.parts.find(
+        (p): p is StructuredOutputPart => p.type === 'structured-output',
+      )
+      if (part) return part
+    }
+    return null
+  })
+
+  const partial = computed<Partial>(() => {
+    const part = activeStructuredPart.value
+    if (!part) return {} as Partial
+    const v = part.partial ?? part.data
+    return (v ?? {}) as Partial
+  })
+
+  const final = computed<Final | null>(() => {
+    const part = activeStructuredPart.value
+    if (!part || part.status !== 'complete') return null
+    return part.data as Final
+  })
+
+  // partial / final are runtime-tracked unconditionally; the conditional
+  // return type (UseChatReturn<TTools, TSchema>) hides them from callers that
+  // didn't supply `outputSchema`.
+  // eslint-disable-next-line no-restricted-syntax -- composable return shape diverges from conditional UseChatReturn<TTools, TSchema>; TS can't structurally narrow the TSchema-gated partial/final refs
+  return {
+    messages: readonly(messages),
+    sendMessage,
+    append,
+    reload,
+    stop,
+    isLoading: readonly(isLoading),
+    error: readonly(error),
+    status: readonly(status),
+    isSubscribed: readonly(isSubscribed),
+    connectionStatus: readonly(connectionStatus),
+    sessionGenerating: readonly(sessionGenerating),
+    setMessages: setMessagesManually,
+    clear,
+    addToolResult,
+    addToolApprovalResponse,
+    partial: readonly(partial),
+    final: readonly(final),
+  } as unknown as UseChatReturn<TTools, TSchema>
+}

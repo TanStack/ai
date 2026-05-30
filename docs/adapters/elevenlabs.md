@@ -13,9 +13,16 @@ keywords:
   - adapter
 ---
 
-The ElevenLabs adapter provides realtime conversational voice AI for TanStack AI. Unlike text-focused adapters, the ElevenLabs adapter is **voice-focused** -- it integrates with TanStack AI's realtime system to enable voice-to-voice conversations. It does not support `chat()`, `embedding()`, or `summarize()`.
+The ElevenLabs adapter is **voice-focused**. It exposes four capabilities:
 
-ElevenLabs uses an **agent-based architecture** where you configure your conversational AI agent in the [ElevenLabs dashboard](https://elevenlabs.io/) (voice, personality, knowledge base, tools) and then connect to it at runtime. The adapter wraps the `@11labs/client` SDK for seamless integration with `useRealtimeChat` and `RealtimeClient`.
+- **Realtime voice agents** (`elevenlabsRealtime` / `elevenlabsRealtimeToken`) — full-duplex voice-to-voice conversations powered by ElevenLabs Conversational AI agents.
+- **Text-to-speech** (`elevenlabsSpeech`) — one-shot speech generation via `generateSpeech()`.
+- **Music & sound effects** (`elevenlabsAudio`) — one-shot audio generation via `generateAudio()`.
+- **Transcription** (`elevenlabsTranscription`) — speech-to-text via `generateTranscription()`.
+
+It does not support text `chat()` or `summarize()` — use OpenAI, Anthropic, or Gemini for those.
+
+The realtime adapter uses an **agent-based architecture** where you configure your conversational AI agent in the [ElevenLabs dashboard](https://elevenlabs.io/) (voice, personality, knowledge base, tools) and then connect to it at runtime. The adapter wraps the `@11labs/client` SDK for seamless integration with `useRealtimeChat` and `RealtimeClient`.
 
 ## Installation
 
@@ -252,6 +259,61 @@ ELEVENLABS_AGENT_ID=your-agent-id
 
 Get your API key from the [ElevenLabs dashboard](https://elevenlabs.io/). Create and configure agents in the **Conversational AI** section of the dashboard.
 
+## Text-to-Speech
+
+For one-shot speech generation (not realtime), use `elevenlabsSpeech` with `generateSpeech()`:
+
+```typescript
+import { generateSpeech } from "@tanstack/ai";
+import { elevenlabsSpeech } from "@tanstack/ai-elevenlabs";
+
+const result = await generateSpeech({
+  adapter: elevenlabsSpeech("eleven_v3"),
+  text: "Hello from ElevenLabs!",
+  voice: "Rachel",
+  format: "mp3",
+});
+
+console.log(result.audio); // Base64-encoded audio
+```
+
+## Music & Sound Effects
+
+`elevenlabsAudio` covers both music generation and sound effects depending on the model:
+
+```typescript
+import { generateAudio } from "@tanstack/ai";
+import { elevenlabsAudio } from "@tanstack/ai-elevenlabs";
+
+// Music generation
+const music = await generateAudio({
+  adapter: elevenlabsAudio("music_v1"),
+  prompt: "An upbeat synthwave track for a product launch",
+});
+
+// Sound effects
+const sfx = await generateAudio({
+  adapter: elevenlabsAudio("sound_effects_v1"),
+  prompt: "A glass shattering on concrete",
+});
+```
+
+## Transcription
+
+Transcribe audio with `elevenlabsTranscription`:
+
+```typescript
+import { generateTranscription } from "@tanstack/ai";
+import { elevenlabsTranscription } from "@tanstack/ai-elevenlabs";
+
+const result = await generateTranscription({
+  adapter: elevenlabsTranscription("scribe_v1"),
+  audio: audioFile,
+});
+
+console.log(result.text);
+```
+
 ## API Reference
 
 ### `elevenlabsRealtimeToken(options)`
@@ -279,14 +341,26 @@ Creates an ElevenLabs realtime client adapter for use with `useRealtimeChat` or 
 
 **Returns:** A `RealtimeAdapter` for use with `useRealtimeChat()` or `RealtimeClient`.
 
+### `elevenlabsSpeech(model, config?)` / `createElevenLabsSpeech(model, apiKey, config?)`
+
+Creates an ElevenLabs text-to-speech adapter for use with `generateSpeech()`.
+
+### `elevenlabsAudio(model, config?)` / `createElevenLabsAudio(model, apiKey, config?)`
+
+Creates an ElevenLabs audio adapter that covers both music generation and sound effects (selected via the model id) for use with `generateAudio()`.
+
+### `elevenlabsTranscription(model, config?)` / `createElevenLabsTranscription(model, apiKey, config?)`
+
+Creates an ElevenLabs transcription adapter for use with `generateTranscription()`.
+
 ## Limitations
 
-- **No text chat support** -- Use OpenAI, Anthropic, Gemini, or another text adapter for `chat()`
-- **No embeddings or summarization** -- Use a text adapter for `embedding()` or `summarize()`
-- **No image input** -- ElevenLabs realtime does not support sending images during a conversation
-- **No runtime session updates** -- Session configuration is fixed at connection time
-- **No time-domain audio data** -- Frequency data and volume levels are available, but waveform data is not
-- **Agent required** -- You must create and configure an agent in the ElevenLabs dashboard before using this adapter
+- **No text chat support** -- Use OpenAI, Anthropic, Gemini, or another text adapter for `chat()`.
+- **No summarization** -- Use a text adapter for `summarize()`.
+- **No image input** (realtime) -- ElevenLabs realtime does not support sending images during a conversation.
+- **No runtime session updates** (realtime) -- Session configuration is fixed at connection time.
+- **No time-domain audio data** (realtime) -- Frequency data and volume levels are available, but waveform data is not.
+- **Agent required** (realtime) -- You must create and configure an agent in the ElevenLabs dashboard before using the realtime adapter.
 
 ## Next Steps
 

@@ -8,6 +8,8 @@ export type Provider =
   | 'grok'
   | 'groq'
   | 'openrouter'
+  | 'openrouter-responses'
+  | 'elevenlabs'
 
 export type Feature =
   | 'chat'
@@ -22,14 +24,18 @@ export type Feature =
   | 'structured-output-stream'
   | 'multi-turn-structured'
   | 'agentic-structured'
+  | 'agentic-structured-stream'
   | 'multimodal-image'
   | 'multimodal-structured'
   | 'summarize'
   | 'summarize-stream'
   | 'image-gen'
+  | 'audio-gen'
+  | 'sound-effects'
   | 'tts'
   | 'transcription'
   | 'video-gen'
+  | 'stateful-interactions'
 
 export const ALL_PROVIDERS: Provider[] = [
   'openai',
@@ -39,6 +45,8 @@ export const ALL_PROVIDERS: Provider[] = [
   'grok',
   'groq',
   'openrouter',
+  'openrouter-responses',
+  'elevenlabs',
 ]
 
 export const ALL_FEATURES: Feature[] = [
@@ -54,12 +62,16 @@ export const ALL_FEATURES: Feature[] = [
   'structured-output-stream',
   'multi-turn-structured',
   'agentic-structured',
+  'agentic-structured-stream',
   'multimodal-image',
   'multimodal-structured',
   'summarize',
   'summarize-stream',
   'image-gen',
+  'audio-gen',
+  'sound-effects',
   'tts',
   'transcription',
   'video-gen',
+  'stateful-interactions',
 ]
