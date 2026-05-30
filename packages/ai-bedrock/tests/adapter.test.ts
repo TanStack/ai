@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { BedrockTextAdapter, createBedrockChat } from '../src/adapters/text'
+import {
+  BedrockResponsesTextAdapter,
+  createBedrockResponsesText,
+} from '../src/adapters/responses-text'
 
 describe('BedrockTextAdapter', () => {
   it('constructs with name "bedrock" and kind "text"', () => {
@@ -39,10 +43,23 @@ describe('BedrockTextAdapter', () => {
       expect(probe.read(null)).toBeUndefined()
     })
     it('returns undefined for empty-string reasoning', () => {
-      expect(probe.read({ choices: [{ delta: { reasoning: '' } }] })).toBeUndefined()
+      expect(
+        probe.read({ choices: [{ delta: { reasoning: '' } }] }),
+      ).toBeUndefined()
     })
     it('returns undefined for non-array choices', () => {
       expect(probe.read({ choices: 'not-an-array' })).toBeUndefined()
     })
+  })
+})
+
+describe('BedrockResponsesTextAdapter', () => {
+  it('constructs with name "bedrock-responses", forces mantle baseURL', () => {
+    const a = createBedrockResponsesText('openai.gpt-oss-120b', 'test-key', {
+      region: 'us-east-1',
+    })
+    expect(a).toBeInstanceOf(BedrockResponsesTextAdapter)
+    expect(a.name).toBe('bedrock-responses')
+    expect(a.kind).toBe('text')
   })
 })
