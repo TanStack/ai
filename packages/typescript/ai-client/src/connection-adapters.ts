@@ -17,6 +17,18 @@ export function getInternalRunContextIds(
 }
 
 /**
+ * Resolve a chunk's run id, preferring the value on the chunk itself and
+ * falling back to the internal run-context map populated by the connection
+ * adapter for events whose wire schema omits `runId`.
+ */
+export function getChunkRunId(chunk: StreamChunk): string | undefined {
+  return (
+    (chunk as { runId?: string }).runId ??
+    getInternalRunContextIds(chunk)?.runId
+  )
+}
+
+/**
  * Merge custom headers into request headers
  */
 function mergeHeaders(
