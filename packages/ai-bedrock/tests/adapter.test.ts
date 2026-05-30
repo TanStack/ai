@@ -1,9 +1,14 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { BedrockTextAdapter, createBedrockChat } from '../src/adapters/text'
 import {
   BedrockResponsesTextAdapter,
   createBedrockResponsesText,
 } from '../src/adapters/responses-text'
+import { bedrockText, createBedrockText } from '../src/index'
+import { BedrockTextAdapter as ChatAdapter } from '../src/adapters/text'
+import { BedrockResponsesTextAdapter as RespAdapter } from '../src/adapters/responses-text'
+
+afterEach(() => vi.unstubAllEnvs())
 
 describe('BedrockTextAdapter', () => {
   it('constructs with name "bedrock" and kind "text"', () => {
@@ -61,5 +66,44 @@ describe('BedrockResponsesTextAdapter', () => {
     expect(a).toBeInstanceOf(BedrockResponsesTextAdapter)
     expect(a.name).toBe('bedrock-responses')
     expect(a.kind).toBe('text')
+  })
+})
+
+describe('createBedrockText (branching factory)', () => {
+  it('defaults to the chat adapter', () => {
+    const a = createBedrockText('openai.gpt-oss-120b', 'k', {
+      region: 'us-east-1',
+    })
+    expect(a).toBeInstanceOf(ChatAdapter)
+    expect(a.name).toBe('bedrock')
+  })
+
+  it("returns the responses adapter when api: 'responses'", () => {
+    const a = createBedrockText('openai.gpt-oss-120b', 'k', {
+      region: 'us-east-1',
+      api: 'responses',
+    })
+    expect(a).toBeInstanceOf(RespAdapter)
+    expect(a.name).toBe('bedrock-responses')
+  })
+
+  it("explicit api: 'chat' returns the chat adapter", () => {
+    const a = createBedrockText('openai.gpt-oss-120b', 'k', { api: 'chat' })
+    expect(a).toBeInstanceOf(ChatAdapter)
+  })
+})
+
+describe('bedrockText (env-key branching factory)', () => {
+  it('reads the key from BEDROCK_API_KEY and branches on api', () => {
+    vi.stubEnv('BEDROCK_API_KEY', 'env-key')
+    expect(
+      bedrockText('openai.gpt-oss-120b', { region: 'us-east-1' }),
+    ).toBeInstanceOf(ChatAdapter)
+    expect(
+      bedrockText('openai.gpt-oss-120b', {
+        region: 'us-east-1',
+        api: 'responses',
+      }),
+    ).toBeInstanceOf(RespAdapter)
   })
 })
