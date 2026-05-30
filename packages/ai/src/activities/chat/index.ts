@@ -10,6 +10,7 @@ import { stripToSpecMiddleware } from '../../strip-to-spec-middleware'
 import { streamToText } from '../../stream-to-response.js'
 import { resolveDebugOption } from '../../logger/resolve'
 import { EventType } from '../../types'
+import { normalizeToolResult } from '../../utilities/tool-result'
 import { LazyToolManager } from './tools/lazy-tool-manager'
 import {
   MiddlewareAbortError,
@@ -1550,12 +1551,18 @@ class TextEngine<
       // Check for ModelMessage format (role: 'tool' messages contain tool results)
       // This handles results sent back from the client after executing client-side tools
       if (message.role === 'tool' && message.toolCallId) {
-        // Parse content back to original output (was stringified by uiMessageToModelMessages)
+        // Parse content back to original output (was stringified by
+        // uiMessageToModelMessages). Multimodal results carry an
+        // Array<ContentPart> directly — pass it through without parsing.
         let output: unknown
-        try {
-          output = JSON.parse(message.content as string)
-        } catch {
+        if (Array.isArray(message.content)) {
           output = message.content
+        } else {
+          try {
+            output = JSON.parse(message.content as string)
+          } catch {
+            output = message.content
+          }
         }
         // Skip approval response messages (they have pendingExecution marker)
         // These are NOT real client tool results — they are synthetic tool messages
@@ -1634,7 +1641,15 @@ class TextEngine<
     const chunks: Array<StreamChunk> = []
 
     for (const result of results) {
-      const content = JSON.stringify(result.result)
+      // `content` is the canonical value for the tool `ModelMessage` — it may
+      // be an `Array<ContentPart>` (multimodal) which the adapters convert to
+      // structured provider output on the next iteration. `wireContent` is the
+      // string form emitted on the AG-UI stream events (TOOL_CALL_END.result /
+      // TOOL_CALL_RESULT.content are string-only per the AG-UI spec); the
+      // multimodal array travels via the message itself, not the wire event.
+      const content = normalizeToolResult(result.result)
+      const wireContent =
+        typeof content === 'string' ? content : JSON.stringify(content)
 
       // Emit TOOL_CALL_START + TOOL_CALL_ARGS before TOOL_CALL_END so that
       // the client can reconstruct the full tool call during continuations.
@@ -1666,18 +1681,18 @@ class TextEngine<
         toolCallId: result.toolCallId,
         toolCallName: result.toolName,
         toolName: result.toolName,
-        result: content,
+        result: wireContent,
         ...(result.state !== undefined && { state: result.state }),
       } as StreamChunk)
 
-      // AG-UI spec TOOL_CALL_RESULT event
+      // AG-UI spec TOOL_CALL_RESULT event (content is string-only per spec)
       chunks.push({
         type: 'TOOL_CALL_RESULT',
         timestamp: Date.now(),
         model: finishEvent.model,
         messageId: this.createId('tool-result'),
         toolCallId: result.toolCallId,
-        content,
+        content: wireContent,
         role: 'tool',
         ...(result.state !== undefined && { state: result.state }),
       } as StreamChunk)
