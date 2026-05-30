@@ -282,6 +282,10 @@
           "to": "adapters/groq"
         },
         {
+          "label": "Amazon Bedrock",
+          "to": "adapters/bedrock"
+        },
+        {
           "label": "ElevenLabs",
           "to": "adapters/elevenlabs"
         },
@@ -317,10 +321,6 @@
         {
           "label": "Soniox",
           "to": "community-adapters/soniox"
-        },
-        {
-          "label": "Amazon Bedrock",
-          "to": "community-adapters/bedrock"
         },
         {
           "label": "Mynth",

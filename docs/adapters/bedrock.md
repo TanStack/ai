@@ -1,7 +1,7 @@
 ---
 title: Amazon Bedrock
 id: bedrock-adapter
-order: 4
+order: 7
 description: "Use Amazon Bedrock's OpenAI-compatible Chat Completions and Responses APIs with TanStack AI — streaming, tools, reasoning, API-key or SigV4 auth, and configurable runtime/mantle endpoints."
 keywords:
   - tanstack ai
@@ -15,7 +15,7 @@ keywords:
   - claude
   - nova
   - llama
-  - community adapter
+  - adapter
 ---
 
 The Bedrock adapter connects TanStack AI to [Amazon Bedrock](https://aws.amazon.com/bedrock/) via Bedrock's OpenAI-compatible Chat Completions and Responses APIs. It is built on top of the `openai` SDK and supports streaming, client-side tool calling, and reasoning.

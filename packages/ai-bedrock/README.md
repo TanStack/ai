@@ -87,7 +87,7 @@ const adapter = bedrockText('us.anthropic.claude-3-7-sonnet-20250219-v1:0', {
 
 ## Documentation
 
-Full documentation: [TanStack AI — Amazon Bedrock adapter](https://tanstack.com/ai/latest/docs/community-adapters/bedrock)
+Full documentation: [TanStack AI — Amazon Bedrock adapter](https://tanstack.com/ai/latest/docs/adapters/bedrock)
 
 ## License
 
