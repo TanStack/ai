@@ -19,10 +19,10 @@ interface ModelMeta {
 }
 
 // --- OpenAI gpt-oss (text-only; chat + responses) ---
-// Note: `openai.gpt-oss-120b` has no version suffix while `openai.gpt-oss-20b-1:0` does;
-// this asymmetry is intentional (seed IDs as published) and will be reconciled by the refresh script.
+// Both IDs use AWS's canonical versioned Model IDs (`-1:0`). The mantle/Responses
+// endpoint may also accept an unversioned alias; that is reconciled by the refresh script.
 const GPT_OSS_120B = {
-  name: 'openai.gpt-oss-120b',
+  name: 'openai.gpt-oss-120b-1:0',
   context_window: 128_000,
   supports: { input: ['text'], output: ['text'], endpoints: ['chat', 'responses'], features: ['streaming', 'tools', 'reasoning'], tools: [] as const },
 } as const satisfies ModelMeta

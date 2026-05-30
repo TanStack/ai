@@ -21,7 +21,7 @@ describe('bedrock model-meta', () => {
   })
 
   it('includes the confirmed gpt-oss ids', () => {
-    expect(BEDROCK_CHAT_MODELS).toContain('openai.gpt-oss-120b')
-    expect(BEDROCK_RESPONSES_MODELS).toContain('openai.gpt-oss-120b')
+    expect(BEDROCK_CHAT_MODELS).toContain('openai.gpt-oss-120b-1:0')
+    expect(BEDROCK_RESPONSES_MODELS).toContain('openai.gpt-oss-120b-1:0')
   })
 })

@@ -45,7 +45,7 @@ for await (const chunk of chat({
 ```typescript
 import { bedrockText } from '@tanstack/ai-bedrock'
 
-const adapter = bedrockText('openai.gpt-oss-120b', {
+const adapter = bedrockText('openai.gpt-oss-120b-1:0', {
   region: 'us-east-1',
   api: 'responses',
 })

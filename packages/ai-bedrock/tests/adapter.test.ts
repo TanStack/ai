@@ -12,23 +12,23 @@ afterEach(() => vi.unstubAllEnvs())
 
 describe('BedrockTextAdapter', () => {
   it('constructs with name "bedrock" and kind "text"', () => {
-    const a = createBedrockChat('openai.gpt-oss-120b', 'test-key', {
+    const a = createBedrockChat('openai.gpt-oss-120b-1:0', 'test-key', {
       region: 'us-east-1',
     })
     expect(a).toBeInstanceOf(BedrockTextAdapter)
     expect(a.name).toBe('bedrock')
     expect(a.kind).toBe('text')
-    expect(a.model).toBe('openai.gpt-oss-120b')
+    expect(a.model).toBe('openai.gpt-oss-120b-1:0')
   })
 
   describe('extractReasoning (cast-free)', () => {
     // Access the protected hook through a tiny typed subclass — no `as` casts.
-    class Probe extends BedrockTextAdapter<'openai.gpt-oss-120b'> {
+    class Probe extends BedrockTextAdapter<'openai.gpt-oss-120b-1:0'> {
       read(chunk: unknown) {
         return this.extractReasoning(chunk)
       }
     }
-    const probe = new Probe({ apiKey: 'k' }, 'openai.gpt-oss-120b')
+    const probe = new Probe({ apiKey: 'k' }, 'openai.gpt-oss-120b-1:0')
 
     it('reads delta.reasoning', () => {
       expect(
@@ -60,7 +60,7 @@ describe('BedrockTextAdapter', () => {
 
 describe('BedrockResponsesTextAdapter', () => {
   it('constructs with name "bedrock-responses", forces mantle baseURL', () => {
-    const a = createBedrockResponsesText('openai.gpt-oss-120b', 'test-key', {
+    const a = createBedrockResponsesText('openai.gpt-oss-120b-1:0', 'test-key', {
       region: 'us-east-1',
     })
     expect(a).toBeInstanceOf(BedrockResponsesTextAdapter)
@@ -71,7 +71,7 @@ describe('BedrockResponsesTextAdapter', () => {
 
 describe('createBedrockText (branching factory)', () => {
   it('defaults to the chat adapter', () => {
-    const a = createBedrockText('openai.gpt-oss-120b', 'k', {
+    const a = createBedrockText('openai.gpt-oss-120b-1:0', 'k', {
       region: 'us-east-1',
     })
     expect(a).toBeInstanceOf(ChatAdapter)
@@ -79,7 +79,7 @@ describe('createBedrockText (branching factory)', () => {
   })
 
   it("returns the responses adapter when api: 'responses'", () => {
-    const a = createBedrockText('openai.gpt-oss-120b', 'k', {
+    const a = createBedrockText('openai.gpt-oss-120b-1:0', 'k', {
       region: 'us-east-1',
       api: 'responses',
     })
@@ -88,7 +88,7 @@ describe('createBedrockText (branching factory)', () => {
   })
 
   it("explicit api: 'chat' returns the chat adapter", () => {
-    const a = createBedrockText('openai.gpt-oss-120b', 'k', { api: 'chat' })
+    const a = createBedrockText('openai.gpt-oss-120b-1:0', 'k', { api: 'chat' })
     expect(a).toBeInstanceOf(ChatAdapter)
   })
 
@@ -106,10 +106,10 @@ describe('bedrockText (env-key branching factory)', () => {
   it('reads the key from BEDROCK_API_KEY and branches on api', () => {
     vi.stubEnv('BEDROCK_API_KEY', 'env-key')
     expect(
-      bedrockText('openai.gpt-oss-120b', { region: 'us-east-1' }),
+      bedrockText('openai.gpt-oss-120b-1:0', { region: 'us-east-1' }),
     ).toBeInstanceOf(ChatAdapter)
     expect(
-      bedrockText('openai.gpt-oss-120b', {
+      bedrockText('openai.gpt-oss-120b-1:0', {
         region: 'us-east-1',
         api: 'responses',
       }),

@@ -9,9 +9,9 @@ describe('resolveSigV4Params', () => {
     })
   })
 
-  it('keeps service "bedrock" for the mantle endpoint', () => {
+  it('uses service "bedrock-mantle" for the mantle endpoint', () => {
     expect(resolveSigV4Params({ region: 'eu-west-1', endpoint: 'mantle' })).toEqual({
-      service: 'bedrock',
+      service: 'bedrock-mantle',
       region: 'eu-west-1',
     })
   })

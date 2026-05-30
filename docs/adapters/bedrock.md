@@ -121,7 +121,7 @@ Set `api: 'responses'` to use Bedrock's Responses API. This API is mantle-only, 
 import { bedrockText } from '@tanstack/ai-bedrock'
 import { chat } from '@tanstack/ai'
 
-const adapter = bedrockText('openai.gpt-oss-120b', {
+const adapter = bedrockText('openai.gpt-oss-120b-1:0', {
   region: 'us-east-1',
   api: 'responses',
 })

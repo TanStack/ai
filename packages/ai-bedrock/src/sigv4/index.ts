@@ -28,7 +28,9 @@ type CreateSignedFetcher = (opts: {
 
 /** Pure resolver — testable without network or credentials. */
 export function resolveSigV4Params(options: BedrockSigV4Options): SigV4Params {
-  return { service: options.service ?? 'bedrock', region: options.region }
+  const defaultService =
+    options.endpoint === 'mantle' ? 'bedrock-mantle' : 'bedrock'
+  return { service: options.service ?? defaultService, region: options.region }
 }
 
 /**

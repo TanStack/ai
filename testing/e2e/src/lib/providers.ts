@@ -25,8 +25,8 @@ const defaultModels: Record<Provider, string> = {
   ollama: 'mistral',
   groq: 'llama-3.3-70b-versatile',
   grok: 'grok-3',
-  bedrock: 'openai.gpt-oss-120b',
-  'bedrock-responses': 'openai.gpt-oss-120b',
+  bedrock: 'openai.gpt-oss-120b-1:0',
+  'bedrock-responses': 'openai.gpt-oss-120b-1:0',
   openrouter: 'openai/gpt-4o',
   'openrouter-responses': 'openai/gpt-4o',
   // ElevenLabs has no chat/text model — the support matrix already filters
@@ -117,14 +117,14 @@ export function createTextAdapter(
       }),
     bedrock: () =>
       createChatOptions({
-        adapter: createBedrockText(model as 'openai.gpt-oss-120b', DUMMY_KEY, {
+        adapter: createBedrockText(model as 'openai.gpt-oss-120b-1:0', DUMMY_KEY, {
           baseURL: openaiUrl,
           defaultHeaders: testHeaders,
         }),
       }),
     'bedrock-responses': () =>
       createChatOptions({
-        adapter: createBedrockText(model as 'openai.gpt-oss-120b', DUMMY_KEY, {
+        adapter: createBedrockText(model as 'openai.gpt-oss-120b-1:0', DUMMY_KEY, {
           baseURL: openaiUrl,
           defaultHeaders: testHeaders,
           api: 'responses',
