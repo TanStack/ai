@@ -7,7 +7,8 @@
   "scripts": {
     "test": "vitest run",
     "test:dev": "vitest",
-    "ag-ui-compliance": "node ./run.mjs ag-ui-compliance"
+    "ag-ui-compliance": "node ./run.mjs ag-ui-compliance",
+    "move-sampling-to-model-options": "node ./run.mjs move-sampling-to-model-options"
   },
   "devDependencies": {
     "@types/jscodeshift": "^17.1.1",
