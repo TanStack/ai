@@ -49,16 +49,31 @@ export function bedrockSigV4Fetch(
 
   const fn: NonNullable<ClientOptions['fetch']> = async (url, init) => {
     if (!signedFetch) {
-      let createSignedFetcher: CreateSignedFetcher
+      let mod: { createSignedFetcher: CreateSignedFetcher }
       try {
-        const mod = await import('aws-sigv4-fetch')
-        createSignedFetcher = mod.createSignedFetcher
-      } catch {
+        mod = await import('aws-sigv4-fetch')
+      } catch (err) {
+        const code =
+          typeof err === 'object' &&
+          err !== null &&
+          'code' in err &&
+          typeof err.code === 'string'
+            ? err.code
+            : undefined
+        const message = err instanceof Error ? err.message : ''
+        const isMissing =
+          code === 'ERR_MODULE_NOT_FOUND' ||
+          code === 'MODULE_NOT_FOUND' ||
+          /cannot find (module|package)|failed to resolve/i.test(message)
+        // Only remap the genuine module-not-found case; surface real errors
+        // (e.g. an installed package that throws on evaluation) untouched.
+        if (!isMissing) throw err
         throw new Error(
           'SigV4 auth for @tanstack/ai-bedrock requires the optional "aws-sigv4-fetch" ' +
             'package. Install it (`pnpm add aws-sigv4-fetch`) or use API-key auth via BEDROCK_API_KEY.',
         )
       }
+      const createSignedFetcher = mod.createSignedFetcher
       signedFetch = createSignedFetcher({ service, region })
     }
     const fetcher = signedFetch

@@ -121,4 +121,16 @@ describe('bedrockText (env-key branching factory)', () => {
       }),
     ).toBeInstanceOf(RespAdapter)
   })
+
+  it('does not require an API key when auth is sigv4', () => {
+    vi.stubEnv('BEDROCK_API_KEY', '')
+    vi.stubEnv('AWS_BEARER_TOKEN_BEDROCK', '')
+    // Must NOT throw — SigV4 path resolves lazily.
+    expect(() =>
+      bedrockText('openai.gpt-oss-120b-1:0', {
+        region: 'us-east-1',
+        auth: 'sigv4',
+      }),
+    ).not.toThrow()
+  })
 })

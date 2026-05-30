@@ -6,7 +6,8 @@ description: >
   Per-model type safety with modelOptions, reasoning/thinking configuration,
   runtime adapter switching, extendAdapter() for custom models, createModel().
   API key env vars: OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_API_KEY/GEMINI_API_KEY,
-  XAI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY, OLLAMA_HOST, BEDROCK_API_KEY.
+  XAI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY, OLLAMA_HOST,
+  BEDROCK_API_KEY (or AWS_BEARER_TOKEN_BEDROCK).
 type: sub-skill
 library: tanstack-ai
 library_version: '0.10.0'

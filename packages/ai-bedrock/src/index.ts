@@ -5,15 +5,12 @@
  * The public `bedrockText` / `createBedrockText` factory branches between the
  * Chat Completions adapter (default) and the Responses adapter via `api`.
  */
-import { createBedrockChat } from './adapters/text'
-import { createBedrockResponsesText } from './adapters/responses-text'
-import { getBedrockApiKeyFromEnv } from './utils'
+import { BedrockTextAdapter } from './adapters/text'
+import { BedrockResponsesTextAdapter } from './adapters/responses-text'
 import { BEDROCK_RESPONSES_MODELS } from './model-meta'
-import type { BedrockTextAdapter, BedrockTextConfig } from './adapters/text'
-import type {
-  BedrockResponsesConfig,
-  BedrockResponsesTextAdapter,
-} from './adapters/responses-text'
+import type { BedrockTextConfig } from './adapters/text'
+import type { BedrockResponsesConfig } from './adapters/responses-text'
+import type { BedrockClientConfig } from './utils'
 import type { BedrockChatModels, BedrockResponsesModels } from './model-meta'
 
 /** Config for the branching factory's chat mode (api omitted or 'chat'). */
@@ -42,11 +39,15 @@ function stripApi<T extends { api?: unknown }>(config: T): Omit<T, 'api'> {
   return rest
 }
 
-/** Shared branching used by both public factories. */
+/**
+ * Shared branching used by both public factories. Constructs the adapter
+ * classes directly so their constructors run the full auth cascade lazily
+ * (config.apiKey → BEDROCK_API_KEY → AWS_BEARER_TOKEN_BEDROCK → SigV4). No
+ * eager env-key fetch here, so `auth: 'sigv4'` never throws for a missing key.
+ */
 function build(
   model: BedrockChatModels,
-  apiKey: string,
-  config?: BedrockChatApiConfig | BedrockResponsesApiConfig,
+  config?: BedrockClientConfig & { api?: 'chat' | 'responses' },
 ): AnyBedrockAdapter {
   if (config?.api === 'responses') {
     const rest = stripApi(config)
@@ -56,10 +57,10 @@ function build(
           `Responses-capable models: ${BEDROCK_RESPONSES_MODELS.join(', ')}.`,
       )
     }
-    return createBedrockResponsesText(model, apiKey, rest)
+    return new BedrockResponsesTextAdapter(rest, model)
   }
-  const rest = config ? stripApi(config) : undefined
-  return createBedrockChat(model, apiKey, rest)
+  const rest = config ? stripApi(config) : {}
+  return new BedrockTextAdapter(rest, model)
 }
 
 // --- createBedrockText: explicit key, overloaded on `api` ---
@@ -78,7 +79,8 @@ export function createBedrockText(
   apiKey: string,
   config?: BedrockChatApiConfig | BedrockResponsesApiConfig,
 ): AnyBedrockAdapter {
-  return build(model, apiKey, config)
+  // Explicit apiKey is authoritative — spread config first so it can't override.
+  return build(model, { ...config, apiKey })
 }
 
 // --- bedrockText: env-key counterpart, same overloads ---
@@ -94,7 +96,9 @@ export function bedrockText(
   model: BedrockChatModels,
   config?: BedrockChatApiConfig | BedrockResponsesApiConfig,
 ): AnyBedrockAdapter {
-  return build(model, getBedrockApiKeyFromEnv(), config)
+  // No eager env-key fetch: the adapter constructor resolves auth lazily so
+  // SigV4 (and the env-key fallback) work without a forced API key here.
+  return build(model, config)
 }
 
 // --- Re-exports ---

@@ -94,5 +94,5 @@ export function createBedrockChat<TModel extends BedrockChatModels>(
   apiKey: string,
   config?: Omit<BedrockTextConfig, 'apiKey'>,
 ): BedrockTextAdapter<TModel> {
-  return new BedrockTextAdapter({ apiKey, ...config }, model)
+  return new BedrockTextAdapter({ ...config, apiKey }, model)
 }

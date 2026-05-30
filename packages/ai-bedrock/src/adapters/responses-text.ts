@@ -70,5 +70,5 @@ export function createBedrockResponsesText<
   apiKey: string,
   config?: Omit<BedrockResponsesConfig, 'apiKey'>,
 ): BedrockResponsesTextAdapter<TModel> {
-  return new BedrockResponsesTextAdapter({ apiKey, ...config }, model)
+  return new BedrockResponsesTextAdapter({ ...config, apiKey }, model)
 }

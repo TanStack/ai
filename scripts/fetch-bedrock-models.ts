@@ -24,12 +24,35 @@ async function main() {
   const region = process.env['AWS_REGION'] ?? 'us-east-1'
   const client = new BedrockClient({ region })
 
-  const models = await client.send(
-    new ListFoundationModelsCommand({ byOutputModality: 'TEXT' }),
-  )
-  const profiles = await client.send(new ListInferenceProfilesCommand({}))
+  // ListFoundationModels typically returns no nextToken, but loop on it anyway
+  // so we stay correct if it ever paginates.
+  const modelSummaries = []
+  let modelsToken: string | undefined
+  do {
+    const page = await client.send(
+      new ListFoundationModelsCommand({
+        byOutputModality: 'TEXT',
+        ...(modelsToken ? { nextToken: modelsToken } : {}),
+      }),
+    )
+    modelSummaries.push(...(page.modelSummaries ?? []))
+    modelsToken = page.nextToken
+  } while (modelsToken)
 
-  const textModels = (models.modelSummaries ?? [])
+  // ListInferenceProfiles is paginated — collect every page via nextToken.
+  const inferenceProfileSummaries = []
+  let profilesToken: string | undefined
+  do {
+    const page = await client.send(
+      new ListInferenceProfilesCommand(
+        profilesToken ? { nextToken: profilesToken } : {},
+      ),
+    )
+    inferenceProfileSummaries.push(...(page.inferenceProfileSummaries ?? []))
+    profilesToken = page.nextToken
+  } while (profilesToken)
+
+  const textModels = modelSummaries
     .filter((m) => (m.outputModalities ?? []).includes('TEXT'))
     .map((m) => ({
       id: m.modelId ?? '',
@@ -37,7 +60,7 @@ async function main() {
     }))
     .filter((m) => m.id.length > 0)
 
-  const inferenceProfileIds = (profiles.inferenceProfileSummaries ?? [])
+  const inferenceProfileIds = inferenceProfileSummaries
     .map((p) => p.inferenceProfileId ?? '')
     .filter((id) => id.length > 0)
 
