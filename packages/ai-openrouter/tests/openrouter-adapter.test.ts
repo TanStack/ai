@@ -1471,18 +1471,15 @@ describe('OpenRouter modelOptions pass-through', () => {
     expect(params.sessionId).toBe('session-abc')
   })
 
-  it('ignores root temperature/topP/maxTokens; modelOptions is the sole sampling source', async () => {
+  it('reads sampling from modelOptions; modelOptions is the sole sampling source', async () => {
     setupMockSdkClient(minimalStreamChunks)
     const adapter = createAdapter()
 
     for await (const _ of chat({
       adapter,
       messages: [{ role: 'user', content: 'test' }],
-      // Root sampling fields are no longer read by the adapter — only the
+      // Root sampling fields no longer exist on TextOptions — only the
       // provider-native modelOptions values reach the request.
-      temperature: 0.5,
-      topP: 0.8,
-      maxTokens: 500,
       modelOptions: {
         temperature: 0.9,
         topP: 0.1,

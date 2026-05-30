@@ -210,6 +210,31 @@ function getTextAdapter(
   }
 }
 
+/**
+ * The max-output-tokens cap lives in provider-native `modelOptions` keys (the
+ * root `maxTokens` field was removed from core `TextOptions`). The key name
+ * differs per provider. Ollama also keeps its larger context window via
+ * `num_ctx`.
+ */
+function maxTokensModelOptions(
+  provider: EvalProvider,
+  maxTokens: number,
+): Record<string, unknown> {
+  switch (provider) {
+    case 'ollama':
+      return { num_predict: maxTokens, num_ctx: 32768 }
+    case 'openai':
+      return { max_output_tokens: maxTokens }
+    case 'anthropic':
+    case 'grok':
+      return { max_tokens: maxTokens }
+    case 'gemini':
+      return { maxOutputTokens: maxTokens }
+    case 'groq':
+      return { max_completion_tokens: maxTokens }
+  }
+}
+
 interface EvalRow {
   name: string
   /** Full `provider:model` id */
@@ -787,14 +812,10 @@ async function main() {
         tools,
         systemPrompts,
         agentLoopStrategy: maxIterations(15),
-        maxTokens: 8192,
-        ...(provider === 'ollama'
-          ? {
-              modelOptions: {
-                num_ctx: 32768,
-              },
-            }
-          : {}),
+        // Sampling now lives in provider-native `modelOptions` keys rather
+        // than the removed root `maxTokens`. The max-output-tokens key name
+        // differs per provider.
+        modelOptions: maxTokensModelOptions(provider, 8192),
       })
       await processor.process(
         teeStream(stream, (chunk) => {

@@ -371,8 +371,8 @@ describe('GeminiAdapter through AI', () => {
       messages: [{ role: 'user', content: 'Tell me a joke' }],
       modelOptions: {
         topK: 3,
+        temperature: 0.2,
       },
-      temperature: 0.2,
     })) {
       received.push(chunk)
     }
