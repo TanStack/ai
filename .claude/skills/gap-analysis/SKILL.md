@@ -73,9 +73,12 @@ markdown report under `.agent/gap-analysis/`. **Do not edit source files.**
 
 ## Known providers
 
-`openai`, `anthropic`, `gemini`, `ollama`, `grok`, `groq`, `openrouter`, `fal`
-(media-only), `elevenlabs` (TTS-only). The feature matrix tracks the first
-seven; `fal` and `elevenlabs` only appear in model/media audits.
+`openai`, `anthropic`, `gemini`, `ollama`, `grok`, `groq`, `openrouter`,
+`bedrock` (`@tanstack/ai-bedrock`; adapter names `bedrock` /
+`bedrock-responses`), `fal` (media-only), `elevenlabs` (TTS-only). The
+feature matrix tracks `openai`, `anthropic`, `gemini`, `ollama`, `grok`,
+`groq`, `openrouter`, `bedrock`, and `bedrock-responses`; `fal` and
+`elevenlabs` only appear in model/media audits.
 
 ## Known features (19)
 

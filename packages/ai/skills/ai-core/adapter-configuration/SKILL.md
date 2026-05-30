@@ -2,11 +2,11 @@
 name: ai-core/adapter-configuration
 description: >
   Provider adapter selection and configuration: openaiText, anthropicText,
-  geminiText, ollamaText, grokText, groqText, openRouterText. Per-model
-  type safety with modelOptions, reasoning/thinking configuration,
+  geminiText, ollamaText, grokText, groqText, openRouterText, bedrockText.
+  Per-model type safety with modelOptions, reasoning/thinking configuration,
   runtime adapter switching, extendAdapter() for custom models, createModel().
   API key env vars: OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_API_KEY/GEMINI_API_KEY,
-  XAI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY, OLLAMA_HOST.
+  XAI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY, OLLAMA_HOST, BEDROCK_API_KEY.
 type: sub-skill
 library: tanstack-ai
 library_version: '0.10.0'
@@ -69,6 +69,7 @@ The text adapter is the primary one for chat/completions:
 | Groq       | `@tanstack/ai-groq`       | `groqText`       | `GROQ_API_KEY`                                    |
 | OpenRouter | `@tanstack/ai-openrouter` | `openRouterText` | `OPENROUTER_API_KEY`                              |
 | Ollama     | `@tanstack/ai-ollama`     | `ollamaText`     | `OLLAMA_HOST` (default: `http://localhost:11434`) |
+| Bedrock    | `@tanstack/ai-bedrock`    | `bedrockText`    | `BEDROCK_API_KEY` or `AWS_BEARER_TOKEN_BEDROCK`   |
 
 ```typescript
 // Each factory takes model as first arg, optional config as second
@@ -79,6 +80,7 @@ import { grokText } from '@tanstack/ai-grok'
 import { groqText } from '@tanstack/ai-groq'
 import { openRouterText } from '@tanstack/ai-openrouter'
 import { ollamaText } from '@tanstack/ai-ollama'
+import { bedrockText } from '@tanstack/ai-bedrock'
 
 // Model string is passed to the factory, NOT to chat()
 const adapter = openaiText('gpt-5.2')
@@ -88,12 +90,21 @@ const adapter4 = grokText('grok-4')
 const adapter5 = groqText('llama-3.3-70b-versatile')
 const adapter6 = openRouterText('anthropic/claude-sonnet-4')
 const adapter7 = ollamaText('llama3.3')
+const adapter8 = bedrockText('us.anthropic.claude-3-7-sonnet-20250219-v1:0')
 
 // Optional: pass explicit API key
 const adapterWithKey = openaiText('gpt-5.2', {
   apiKey: 'sk-...',
 })
 ```
+
+`@tanstack/ai-bedrock` (Amazon Bedrock, via Bedrock's OpenAI-compatible
+APIs) branches on `config.api`: `bedrockText(model, { api: 'chat' })` (the
+default) targets the Chat Completions endpoint (adapter name `bedrock`),
+while `bedrockText(model, { api: 'responses' })` targets the Responses API
+(adapter name `bedrock-responses`). Use `createBedrockText(model, apiKey,
+config?)` to pass the key explicitly. Auth resolves from `BEDROCK_API_KEY`
+/ `AWS_BEARER_TOKEN_BEDROCK`, or SigV4 credentials.
 
 ### 2. Runtime Adapter Switching
 
@@ -285,6 +296,7 @@ runtime error:
 | Groq       | `GROQ_API_KEY`                       |                                                                          |
 | OpenRouter | `OPENROUTER_API_KEY`                 |                                                                          |
 | Ollama     | `OLLAMA_HOST`                        | No API key needed, just the host URL (default: `http://localhost:11434`) |
+| Bedrock    | `BEDROCK_API_KEY` / `AWS_BEARER_TOKEN_BEDROCK` | Falls back to SigV4 credentials when no API key is set        |
 
 Source: adapter source code (`utils/client.ts` in each adapter package).
 
