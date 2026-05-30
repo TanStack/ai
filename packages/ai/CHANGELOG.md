@@ -1,5 +1,54 @@
 # @tanstack/ai
 
+## 0.23.0
+
+### Minor Changes
+
+- [#654](https://github.com/TanStack/ai/pull/654) [`980ff9b`](https://github.com/TanStack/ai/commit/980ff9ba925f5dbae62a9318cc1e787d0ae24314) - Surface OpenRouter's per-request cost on `RUN_FINISHED.usage`.
+
+  OpenRouter reports the actual cost of each request inline on the chat response.
+  The `openRouterText` and `openRouterResponsesText` adapters now forward that
+  value on the terminal `RUN_FINISHED` event as `usage.cost`, with OpenRouter's
+  per-request breakdown under `usage.costDetails`. This is the cost OpenRouter
+  itself reports — it is not computed locally from token counts, so it accounts
+  for routing, fallback providers, BYOK, and cached-token pricing.
+
+  `@tanstack/ai` adds a shared `UsageTotals` type with optional `cost` and
+  `costDetails` fields, plus a provider-neutral `UsageCostBreakdown` interface
+  with three canonical fields (`upstreamCost`, `upstreamInputCost`,
+  `upstreamOutputCost`). Each adapter's extractor normalizes its provider's
+  wire-shape onto this canonical form, so consumer code reads the same fields
+  regardless of which gateway populated them — swapping adapters is a one-line
+  change with no consumer rewrites. The OpenRouter adapter collapses its two
+  endpoint naming styles (Chat Completions' `prompt`/`completions` and
+  Responses' `input`/`output`) onto the same canonical input/output split, since
+  they bill against the same tokens. `RunFinishedEvent.usage`, the middleware
+  `UsageInfo` (`onUsage`), and `FinishInfo.usage` (`onFinish`) all use
+  `UsageTotals`. The fields are optional and additive — adapters that do not
+  report cost are unaffected.
+
+- [#647](https://github.com/TanStack/ai/pull/647) [`d5645cf`](https://github.com/TanStack/ai/commit/d5645cfd4d1b9cfc877f7d4d714517e166a99ce3) - Add React Native support for chat clients and framework hooks, including
+  client-safe streaming utilities and connection adapters that work in mobile
+  environments.
+
+  The `fetcher` option is now available on `ChatClient` and the framework chat
+  hooks (`useChat` / `createChat`), mirroring the generation hooks. Pass either
+  `connection` or `fetcher` -- the XOR is enforced at the type level via
+  `ChatTransport`. Fetchers may return either a `Response` (parsed as SSE) or an
+  `AsyncIterable<StreamChunk>` (yielded directly).
+
+  The client-safe `@tanstack/ai/client` subpath is now public for framework
+  packages and mobile bundles. `stream()`, `fetchServerSentEvents`,
+  `fetchHttpStream`, `rpcStream`, `xhrServerSentEvents`, and `xhrHttpStream` are
+  available from the client package and framework re-exports. React Native docs,
+  an Expo chat example, and smoke tests are included for the supported mobile
+  setup.
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.4.1
+
 ## 0.22.1
 
 ### Patch Changes

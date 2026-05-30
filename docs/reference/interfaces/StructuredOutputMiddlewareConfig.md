@@ -5,7 +5,7 @@ title: StructuredOutputMiddlewareConfig
 
 # Interface: StructuredOutputMiddlewareConfig
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:149](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L149)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:150](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L150)
 
 Config passed to onStructuredOutputConfig.
 
@@ -28,7 +28,7 @@ vendor-incompatible keywords) by returning a partial that includes
 optional maxTokens: number;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:134](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L134)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:135](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L135)
 
 #### Inherited from
 
@@ -45,7 +45,7 @@ messages: ModelMessage<
   | null>[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:129](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L129)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:130](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L130)
 
 #### Inherited from
 
@@ -59,7 +59,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:129](https://gi
 optional metadata: Record<string, unknown>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:135](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L135)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:136](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L136)
 
 #### Inherited from
 
@@ -73,7 +73,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:135](https://gi
 optional modelOptions: Record<string, unknown>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:136](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L136)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:137](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L137)
 
 #### Inherited from
 
@@ -87,7 +87,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:136](https://gi
 outputSchema: JSONSchema;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:154](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L154)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:155](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L155)
 
 JSON Schema being sent to the provider for structured output.
 
@@ -99,7 +99,7 @@ JSON Schema being sent to the provider for structured output.
 systemPrompts: SystemPrompt[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:130](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L130)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:131](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L131)
 
 #### Inherited from
 
@@ -113,7 +113,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:130](https://gi
 optional temperature: number;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:132](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L132)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:133](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L133)
 
 #### Inherited from
 
@@ -127,7 +127,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:132](https://gi
 optional topP: number;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:133](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L133)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:134](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L134)
 
 #### Inherited from
 

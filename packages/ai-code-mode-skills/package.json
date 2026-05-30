@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-code-mode-skills",
-  "version": "0.1.22",
+  "version": "0.1.23",
   "description": "Persistent runtime skill library for TanStack AI Code Mode agents and sandboxed tool orchestration.",
   "author": "",
   "license": "MIT",

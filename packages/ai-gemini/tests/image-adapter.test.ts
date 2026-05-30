@@ -302,6 +302,52 @@ describe('Gemini Image Adapter', () => {
       expect(result.images[0]!.b64Json).toBe('gemini-base64-image')
     })
 
+    it('surfaces token usage from usageMetadata (#330)', async () => {
+      const mockResponse = {
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  inlineData: { mimeType: 'image/png', data: 'img' },
+                },
+              ],
+            },
+          },
+        ],
+        usageMetadata: {
+          promptTokenCount: 12,
+          candidatesTokenCount: 34,
+          totalTokenCount: 46,
+        },
+      }
+
+      const adapter = createGeminiImage(
+        'gemini-3.1-flash-image-preview',
+        'test-api-key',
+      )
+      ;(
+        adapter as unknown as {
+          client: { models: { generateContent: unknown } }
+        }
+      ).client = {
+        models: {
+          generateContent: vi.fn().mockResolvedValueOnce(mockResponse),
+        },
+      }
+
+      const result = await generateImage({
+        adapter,
+        prompt: 'A futuristic city',
+      })
+
+      expect(result.usage).toEqual({
+        inputTokens: 12,
+        outputTokens: 34,
+        totalTokens: 46,
+      })
+    })
+
     it('calls generateContent without imageConfig when no size provided', async () => {
       const mockResponse = {
         candidates: [

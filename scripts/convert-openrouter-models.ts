@@ -65,16 +65,16 @@ function generateChatModelsArray(): string {
 }
 
 /**
- * OpenRouter's web_search plugin works across all chat models via the gateway,
- * so the tool-capability map is structural and identical for every chat model.
- * Emitted as a mapped type to stay in sync with OPENROUTER_CHAT_MODELS without
- * touching each model constant.
+ * OpenRouter's web_search and web_fetch plugins work across all chat models via
+ * the gateway, so the tool-capability map is structural and identical for every
+ * chat model. Emitted as a mapped type to stay in sync with
+ * OPENROUTER_CHAT_MODELS without touching each model constant.
  */
 function generateChatToolCapabilitiesType(): string {
   if (chatModels.size === 0) {
     return ''
   }
-  return `export type OpenRouterChatModelToolCapabilitiesByName = {\n  [K in (typeof OPENROUTER_CHAT_MODELS)[number]]: readonly ['web_search']\n}`
+  return `export type OpenRouterChatModelToolCapabilitiesByName = {\n  [K in (typeof OPENROUTER_CHAT_MODELS)[number]]: readonly ['web_search', 'web_fetch']\n}`
 }
 
 function generateImageModelsArray(): string {
