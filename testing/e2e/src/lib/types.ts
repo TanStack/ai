@@ -7,6 +7,8 @@ export type Provider =
   | 'ollama'
   | 'grok'
   | 'groq'
+  | 'bedrock'
+  | 'bedrock-responses'
   | 'openrouter'
   | 'openrouter-responses'
   | 'elevenlabs'
@@ -44,6 +46,8 @@ export const ALL_PROVIDERS: Provider[] = [
   'ollama',
   'grok',
   'groq',
+  'bedrock',
+  'bedrock-responses',
   'openrouter',
   'openrouter-responses',
   'elevenlabs',

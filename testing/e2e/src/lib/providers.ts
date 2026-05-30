@@ -7,6 +7,7 @@ import { createGeminiTextInteractions } from '@tanstack/ai-gemini/experimental'
 import { createOllamaChat } from '@tanstack/ai-ollama'
 import { createGroqText } from '@tanstack/ai-groq'
 import { createGrokText } from '@tanstack/ai-grok'
+import { createBedrockText } from '@tanstack/ai-bedrock'
 import {
   createOpenRouterResponsesText,
   createOpenRouterText,
@@ -24,6 +25,8 @@ const defaultModels: Record<Provider, string> = {
   ollama: 'mistral',
   groq: 'llama-3.3-70b-versatile',
   grok: 'grok-3',
+  bedrock: 'openai.gpt-oss-120b',
+  'bedrock-responses': 'openai.gpt-oss-120b',
   openrouter: 'openai/gpt-4o',
   'openrouter-responses': 'openai/gpt-4o',
   // ElevenLabs has no chat/text model — the support matrix already filters
@@ -110,6 +113,21 @@ export function createTextAdapter(
         adapter: createGrokText(model as 'grok-3', DUMMY_KEY, {
           baseURL: openaiUrl,
           defaultHeaders: testHeaders,
+        }),
+      }),
+    bedrock: () =>
+      createChatOptions({
+        adapter: createBedrockText(model as 'openai.gpt-oss-120b', DUMMY_KEY, {
+          baseURL: openaiUrl,
+          defaultHeaders: testHeaders,
+        }),
+      }),
+    'bedrock-responses': () =>
+      createChatOptions({
+        adapter: createBedrockText(model as 'openai.gpt-oss-120b', DUMMY_KEY, {
+          baseURL: openaiUrl,
+          defaultHeaders: testHeaders,
+          api: 'responses',
         }),
       }),
     openrouter: () => {

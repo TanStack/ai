@@ -15,6 +15,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'ollama',
     'groq',
     'grok',
+    'bedrock',
     'openrouter',
   ]),
   'one-shot-text': new Set([
@@ -24,6 +25,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'ollama',
     'groq',
     'grok',
+    'bedrock',
     'openrouter',
   ]),
   reasoning: new Set(['openai', 'anthropic', 'gemini']),
@@ -34,6 +36,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'ollama',
     'groq',
     'grok',
+    'bedrock',
     'openrouter',
   ]),
   'tool-calling': new Set([
@@ -43,6 +46,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'ollama',
     'groq',
     'grok',
+    'bedrock',
     'openrouter',
   ]),
   'parallel-tool-calls': new Set([
@@ -51,6 +55,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'gemini',
     'groq',
     'grok',
+    'bedrock',
     'openrouter',
   ]),
   // Gemini excluded: approval flow timing issues with Gemini's streaming format
@@ -60,6 +65,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'ollama',
     'groq',
     'grok',
+    'bedrock',
     'openrouter',
   ]),
   // Ollama excluded: aimock doesn't support content+toolCalls for /api/chat format
@@ -69,6 +75,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'gemini',
     'groq',
     'grok',
+    'bedrock',
     'openrouter',
   ]),
   'structured-output': new Set([
@@ -78,13 +85,20 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'ollama',
     'groq',
     'grok',
+    'bedrock',
     'openrouter',
   ]),
   // Streaming structured output: only providers with native streaming JSON
   // schema support are listed here. Other providers fall back to the
   // activity-layer `fallbackStructuredOutputStream` (which wraps the
   // non-streaming `structuredOutput`) but aren't exercised by E2E yet.
-  'structured-output-stream': new Set(['openai', 'groq', 'grok', 'openrouter']),
+  'structured-output-stream': new Set([
+    'openai',
+    'groq',
+    'grok',
+    'bedrock',
+    'openrouter',
+  ]),
   // Multi-turn structured output: every turn produces its own typed
   // `structured-output` part on the assistant message, and historical
   // turns stay renderable. Works for every provider that supports both
@@ -109,6 +123,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'ollama',
     'groq',
     'grok',
+    'bedrock',
     'openrouter',
   ]),
   'agentic-structured': new Set([
@@ -118,6 +133,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'ollama',
     'groq',
     'grok',
+    'bedrock',
     'openrouter',
   ]),
   // Native-combined-mode adapters only. Each provider's default test model
@@ -130,6 +146,9 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'gemini',
     'grok',
   ]),
+  // Bedrock excluded: the default e2e model (openai.gpt-oss-120b) is text-only
+  // (input: ['text'], no vision) — image input isn't supported, so the
+  // multimodal request never carries the image and the description comes back empty.
   'multimodal-image': new Set([
     'openai',
     'anthropic',
@@ -137,6 +156,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'grok',
     'openrouter',
   ]),
+  // Bedrock excluded: same text-only default e2e model as multimodal-image above.
   'multimodal-structured': new Set([
     'openai',
     'anthropic',
@@ -150,6 +170,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'gemini',
     'ollama',
     'grok',
+    'bedrock',
     'openrouter',
   ]),
   'summarize-stream': new Set([
@@ -158,6 +179,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'gemini',
     'ollama',
     'grok',
+    'bedrock',
     'openrouter',
   ]),
   // Gemini excluded: aimock doesn't mock Gemini's Imagen predict endpoint format
