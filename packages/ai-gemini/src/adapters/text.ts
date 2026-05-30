@@ -885,13 +885,6 @@ export class GeminiTextAdapter<
       contents: this.formatMessages(options.messages),
       config: {
         ...modelOpts,
-        ...(options.temperature !== undefined && {
-          temperature: options.temperature,
-        }),
-        ...(options.topP !== undefined && { topP: options.topP }),
-        ...(options.maxTokens !== undefined && {
-          maxOutputTokens: options.maxTokens,
-        }),
         ...(mappedThinkingConfig !== undefined && {
           thinkingConfig: mappedThinkingConfig,
         }),

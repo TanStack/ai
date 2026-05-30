@@ -103,10 +103,10 @@ describe('GeminiAdapter through AI', () => {
       messages: [{ role: 'user', content: 'How is the weather in Madrid?' }],
       modelOptions: {
         topK: 9,
+        temperature: 0.4,
+        topP: 0.8,
+        maxOutputTokens: 256,
       },
-      temperature: 0.4,
-      topP: 0.8,
-      maxTokens: 256,
       tools: [weatherTool],
     })) {
       /* consume stream */
@@ -130,6 +130,42 @@ describe('GeminiAdapter through AI', () => {
         parts: [{ text: 'How is the weather in Madrid?' }],
       },
     ])
+  })
+
+  it('reads sampling options (temperature, topP, maxOutputTokens) from modelOptions', async () => {
+    const streamChunks = [
+      {
+        candidates: [
+          {
+            content: { parts: [{ text: 'ok' }] },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: { totalTokenCount: 1 },
+      },
+    ]
+
+    mocks.generateContentStreamSpy.mockResolvedValue(createStream(streamChunks))
+
+    const adapter = createTextAdapter()
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'hi' }],
+      modelOptions: {
+        temperature: 0.6,
+        topP: 0.95,
+        maxOutputTokens: 512,
+      },
+    })) {
+      /* consume stream */
+    }
+
+    expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
+    const [payload] = mocks.generateContentStreamSpy.mock.calls[0]!
+    expect(payload.config.temperature).toBe(0.6)
+    expect(payload.config.topP).toBe(0.95)
+    expect(payload.config.maxOutputTokens).toBe(512)
   })
 
   it('joins object-form systemPrompts into systemInstruction and drops foreign metadata', async () => {
@@ -220,6 +256,9 @@ describe('GeminiAdapter through AI', () => {
 
     const providerOptions: GeminiTextProviderOptions = {
       safetySettings,
+      temperature: 0.61,
+      topP: 0.37,
+      maxOutputTokens: 512,
       stopSequences: ['<done>', '###'],
       responseMimeType: 'application/json',
       responseSchema,
@@ -256,9 +295,6 @@ describe('GeminiAdapter through AI', () => {
     for await (const _ of chat({
       adapter,
       messages: [{ role: 'user', content: 'Provide structured response' }],
-      temperature: 0.61,
-      topP: 0.37,
-      maxTokens: 512,
       systemPrompts: ['Stay concise', 'Return JSON'],
       modelOptions: providerOptions,
     })) {
