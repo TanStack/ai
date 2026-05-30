@@ -37,10 +37,10 @@ export class BedrockTextAdapter<
   // This `any` is confined to the generic constraint (the established ai-groq
   // pattern) — no value/shape `as` cast is introduced.
   TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
-  TInputModalities extends
-    ReadonlyArray<Modality> = ResolveInputModalities<TModel>,
-  TToolCapabilities extends
-    ReadonlyArray<string> = ResolveToolCapabilities<TModel>,
+  TInputModalities extends ReadonlyArray<Modality> =
+    ResolveInputModalities<TModel>,
+  TToolCapabilities extends ReadonlyArray<string> =
+    ResolveToolCapabilities<TModel>,
 > extends OpenAIBaseChatCompletionsTextAdapter<
   TModel,
   TProviderOptions,

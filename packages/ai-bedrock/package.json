@@ -22,7 +22,10 @@
       "import": "./dist/esm/sigv4/index.js"
     }
   },
-  "files": ["dist", "src"],
+  "files": [
+    "dist",
+    "src"
+  ],
   "scripts": {
     "build": "vite build",
     "clean": "premove ./build ./dist",
@@ -33,7 +36,18 @@
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
   },
-  "keywords": ["ai", "ai-sdk", "typescript", "tanstack", "bedrock", "aws", "adapter", "llm", "chat", "tool-calling"],
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "bedrock",
+    "aws",
+    "adapter",
+    "llm",
+    "chat",
+    "tool-calling"
+  ],
   "devDependencies": {
     "@vitest/coverage-v8": "4.0.14",
     "vite": "^7.3.3"

@@ -3,8 +3,10 @@ import type { ClientOptions } from 'openai'
 
 export type BedrockEndpoint = 'runtime' | 'mantle'
 
-export interface BedrockClientConfig
-  extends Omit<ClientOptions, 'apiKey' | 'baseURL'> {
+export interface BedrockClientConfig extends Omit<
+  ClientOptions,
+  'apiKey' | 'baseURL'
+> {
   /** Bedrock API key (bearer). Optional — falls back to env, then SigV4. */
   apiKey?: string
   /** Full AWS region (e.g. 'us-east-1'). Default 'us-east-1'. */

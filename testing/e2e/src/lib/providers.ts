@@ -117,18 +117,26 @@ export function createTextAdapter(
       }),
     bedrock: () =>
       createChatOptions({
-        adapter: createBedrockText(model as 'openai.gpt-oss-120b-1:0', DUMMY_KEY, {
-          baseURL: openaiUrl,
-          defaultHeaders: testHeaders,
-        }),
+        adapter: createBedrockText(
+          model as 'openai.gpt-oss-120b-1:0',
+          DUMMY_KEY,
+          {
+            baseURL: openaiUrl,
+            defaultHeaders: testHeaders,
+          },
+        ),
       }),
     'bedrock-responses': () =>
       createChatOptions({
-        adapter: createBedrockText(model as 'openai.gpt-oss-120b-1:0', DUMMY_KEY, {
-          baseURL: openaiUrl,
-          defaultHeaders: testHeaders,
-          api: 'responses',
-        }),
+        adapter: createBedrockText(
+          model as 'openai.gpt-oss-120b-1:0',
+          DUMMY_KEY,
+          {
+            baseURL: openaiUrl,
+            defaultHeaders: testHeaders,
+            api: 'responses',
+          },
+        ),
       }),
     openrouter: () => {
       // OpenRouter SDK exposes an HTTPClient with beforeRequest hooks. Use

@@ -14,7 +14,12 @@ export interface BedrockResponsesProviderOptions {
   temperature?: number | null
   top_p?: number | null
   parallel_tool_calls?: boolean | null
-  tool_choice?: 'none' | 'auto' | 'required' | { type: 'function'; name: string } | null
+  tool_choice?:
+    | 'none'
+    | 'auto'
+    | 'required'
+    | { type: 'function'; name: string }
+    | null
   /** Reasoning controls for reasoning-capable models. */
   reasoning?: { effort?: 'low' | 'medium' | 'high' } | null
   user?: string | null

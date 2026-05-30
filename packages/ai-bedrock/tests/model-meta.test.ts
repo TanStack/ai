@@ -12,7 +12,9 @@ describe('bedrock model-meta', () => {
 
   it('responses catalog is non-empty and unique', () => {
     expect(BEDROCK_RESPONSES_MODELS.length).toBeGreaterThan(0)
-    expect(new Set(BEDROCK_RESPONSES_MODELS).size).toBe(BEDROCK_RESPONSES_MODELS.length)
+    expect(new Set(BEDROCK_RESPONSES_MODELS).size).toBe(
+      BEDROCK_RESPONSES_MODELS.length,
+    )
   })
 
   it('every responses model is also a chat model (Responses subset of Chat reach)', () => {

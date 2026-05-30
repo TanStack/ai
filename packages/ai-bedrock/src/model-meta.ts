@@ -13,7 +13,9 @@ interface ModelMeta {
     input: Array<'text' | 'image' | 'document'>
     output: Array<'text'>
     endpoints: Array<'chat' | 'responses'>
-    features: Array<'streaming' | 'tools' | 'reasoning' | 'json_schema' | 'vision'>
+    features: Array<
+      'streaming' | 'tools' | 'reasoning' | 'json_schema' | 'vision'
+    >
     tools: ReadonlyArray<never>
   }
 }
@@ -24,100 +26,204 @@ interface ModelMeta {
 const GPT_OSS_120B = {
   name: 'openai.gpt-oss-120b-1:0',
   context_window: 128_000,
-  supports: { input: ['text'], output: ['text'], endpoints: ['chat', 'responses'], features: ['streaming', 'tools', 'reasoning'], tools: [] as const },
+  supports: {
+    input: ['text'],
+    output: ['text'],
+    endpoints: ['chat', 'responses'],
+    features: ['streaming', 'tools', 'reasoning'],
+    tools: [] as const,
+  },
 } as const satisfies ModelMeta
 const GPT_OSS_20B = {
   name: 'openai.gpt-oss-20b-1:0',
   context_window: 128_000,
-  supports: { input: ['text'], output: ['text'], endpoints: ['chat', 'responses'], features: ['streaming', 'tools', 'reasoning'], tools: [] as const },
+  supports: {
+    input: ['text'],
+    output: ['text'],
+    endpoints: ['chat', 'responses'],
+    features: ['streaming', 'tools', 'reasoning'],
+    tools: [] as const,
+  },
 } as const satisfies ModelMeta
 
 // --- Anthropic Claude (US cross-region inference profiles; chat) ---
 const CLAUDE_SONNET_4_5 = {
   name: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
   context_window: 200_000,
-  supports: { input: ['text', 'image', 'document'], output: ['text'], endpoints: ['chat'], features: ['streaming', 'tools', 'vision', 'reasoning'], tools: [] as const },
+  supports: {
+    input: ['text', 'image', 'document'],
+    output: ['text'],
+    endpoints: ['chat'],
+    features: ['streaming', 'tools', 'vision', 'reasoning'],
+    tools: [] as const,
+  },
 } as const satisfies ModelMeta
 const CLAUDE_HAIKU_4_5 = {
   name: 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
   context_window: 200_000,
-  supports: { input: ['text', 'image', 'document'], output: ['text'], endpoints: ['chat'], features: ['streaming', 'tools', 'vision'], tools: [] as const },
+  supports: {
+    input: ['text', 'image', 'document'],
+    output: ['text'],
+    endpoints: ['chat'],
+    features: ['streaming', 'tools', 'vision'],
+    tools: [] as const,
+  },
 } as const satisfies ModelMeta
 const CLAUDE_3_7_SONNET = {
   name: 'us.anthropic.claude-3-7-sonnet-20250219-v1:0',
   context_window: 200_000,
-  supports: { input: ['text', 'image', 'document'], output: ['text'], endpoints: ['chat'], features: ['streaming', 'tools', 'vision', 'reasoning'], tools: [] as const },
+  supports: {
+    input: ['text', 'image', 'document'],
+    output: ['text'],
+    endpoints: ['chat'],
+    features: ['streaming', 'tools', 'vision', 'reasoning'],
+    tools: [] as const,
+  },
 } as const satisfies ModelMeta
 const CLAUDE_3_5_SONNET_V2 = {
   name: 'us.anthropic.claude-3-5-sonnet-20241022-v2:0',
   context_window: 200_000,
-  supports: { input: ['text', 'image', 'document'], output: ['text'], endpoints: ['chat'], features: ['streaming', 'tools', 'vision'], tools: [] as const },
+  supports: {
+    input: ['text', 'image', 'document'],
+    output: ['text'],
+    endpoints: ['chat'],
+    features: ['streaming', 'tools', 'vision'],
+    tools: [] as const,
+  },
 } as const satisfies ModelMeta
 const CLAUDE_3_5_HAIKU = {
   name: 'us.anthropic.claude-3-5-haiku-20241022-v1:0',
   context_window: 200_000,
-  supports: { input: ['text'], output: ['text'], endpoints: ['chat'], features: ['streaming', 'tools'], tools: [] as const },
+  supports: {
+    input: ['text'],
+    output: ['text'],
+    endpoints: ['chat'],
+    features: ['streaming', 'tools'],
+    tools: [] as const,
+  },
 } as const satisfies ModelMeta
 
 // --- Amazon Nova (US profiles; chat) ---
 const NOVA_PRO = {
   name: 'us.amazon.nova-pro-v1:0',
   context_window: 300_000,
-  supports: { input: ['text', 'image', 'document'], output: ['text'], endpoints: ['chat'], features: ['streaming', 'tools', 'vision'], tools: [] as const },
+  supports: {
+    input: ['text', 'image', 'document'],
+    output: ['text'],
+    endpoints: ['chat'],
+    features: ['streaming', 'tools', 'vision'],
+    tools: [] as const,
+  },
 } as const satisfies ModelMeta
 const NOVA_LITE = {
   name: 'us.amazon.nova-lite-v1:0',
   context_window: 300_000,
-  supports: { input: ['text', 'image', 'document'], output: ['text'], endpoints: ['chat'], features: ['streaming', 'tools', 'vision'], tools: [] as const },
+  supports: {
+    input: ['text', 'image', 'document'],
+    output: ['text'],
+    endpoints: ['chat'],
+    features: ['streaming', 'tools', 'vision'],
+    tools: [] as const,
+  },
 } as const satisfies ModelMeta
 const NOVA_MICRO = {
   name: 'us.amazon.nova-micro-v1:0',
   context_window: 128_000,
-  supports: { input: ['text'], output: ['text'], endpoints: ['chat'], features: ['streaming', 'tools'], tools: [] as const },
+  supports: {
+    input: ['text'],
+    output: ['text'],
+    endpoints: ['chat'],
+    features: ['streaming', 'tools'],
+    tools: [] as const,
+  },
 } as const satisfies ModelMeta
 
 // --- Meta Llama (US profiles; chat) ---
 const LLAMA_3_3_70B = {
   name: 'us.meta.llama3-3-70b-instruct-v1:0',
   context_window: 128_000,
-  supports: { input: ['text'], output: ['text'], endpoints: ['chat'], features: ['streaming', 'tools'], tools: [] as const },
+  supports: {
+    input: ['text'],
+    output: ['text'],
+    endpoints: ['chat'],
+    features: ['streaming', 'tools'],
+    tools: [] as const,
+  },
 } as const satisfies ModelMeta
 const LLAMA_4_MAVERICK = {
   name: 'us.meta.llama4-maverick-17b-instruct-v1:0',
   context_window: 128_000,
-  supports: { input: ['text', 'image'], output: ['text'], endpoints: ['chat'], features: ['streaming', 'tools', 'vision'], tools: [] as const },
+  supports: {
+    input: ['text', 'image'],
+    output: ['text'],
+    endpoints: ['chat'],
+    features: ['streaming', 'tools', 'vision'],
+    tools: [] as const,
+  },
 } as const satisfies ModelMeta
 
 // --- Mistral / DeepSeek (US profiles; chat) ---
 const MISTRAL_PIXTRAL_LARGE = {
   name: 'us.mistral.pixtral-large-2502-v1:0',
   context_window: 128_000,
-  supports: { input: ['text', 'image'], output: ['text'], endpoints: ['chat'], features: ['streaming', 'tools', 'vision'], tools: [] as const },
+  supports: {
+    input: ['text', 'image'],
+    output: ['text'],
+    endpoints: ['chat'],
+    features: ['streaming', 'tools', 'vision'],
+    tools: [] as const,
+  },
 } as const satisfies ModelMeta
 const DEEPSEEK_R1 = {
   name: 'us.deepseek.r1-v1:0',
   context_window: 128_000,
-  supports: { input: ['text'], output: ['text'], endpoints: ['chat'], features: ['streaming', 'reasoning'], tools: [] as const },
+  supports: {
+    input: ['text'],
+    output: ['text'],
+    endpoints: ['chat'],
+    features: ['streaming', 'reasoning'],
+    tools: [] as const,
+  },
 } as const satisfies ModelMeta
 
 const CHAT_MODELS = [
-  GPT_OSS_20B, GPT_OSS_120B,
-  CLAUDE_SONNET_4_5, CLAUDE_HAIKU_4_5, CLAUDE_3_7_SONNET, CLAUDE_3_5_SONNET_V2, CLAUDE_3_5_HAIKU,
-  NOVA_PRO, NOVA_LITE, NOVA_MICRO,
-  LLAMA_3_3_70B, LLAMA_4_MAVERICK,
-  MISTRAL_PIXTRAL_LARGE, DEEPSEEK_R1,
+  GPT_OSS_20B,
+  GPT_OSS_120B,
+  CLAUDE_SONNET_4_5,
+  CLAUDE_HAIKU_4_5,
+  CLAUDE_3_7_SONNET,
+  CLAUDE_3_5_SONNET_V2,
+  CLAUDE_3_5_HAIKU,
+  NOVA_PRO,
+  NOVA_LITE,
+  NOVA_MICRO,
+  LLAMA_3_3_70B,
+  LLAMA_4_MAVERICK,
+  MISTRAL_PIXTRAL_LARGE,
+  DEEPSEEK_R1,
 ] as const
 
 // Cast-free: explicit `.name` lists with `as const` (the ai-groq pattern).
 export const BEDROCK_CHAT_MODELS = [
-  GPT_OSS_20B.name, GPT_OSS_120B.name,
-  CLAUDE_SONNET_4_5.name, CLAUDE_HAIKU_4_5.name, CLAUDE_3_7_SONNET.name,
-  CLAUDE_3_5_SONNET_V2.name, CLAUDE_3_5_HAIKU.name,
-  NOVA_PRO.name, NOVA_LITE.name, NOVA_MICRO.name,
-  LLAMA_3_3_70B.name, LLAMA_4_MAVERICK.name,
-  MISTRAL_PIXTRAL_LARGE.name, DEEPSEEK_R1.name,
+  GPT_OSS_20B.name,
+  GPT_OSS_120B.name,
+  CLAUDE_SONNET_4_5.name,
+  CLAUDE_HAIKU_4_5.name,
+  CLAUDE_3_7_SONNET.name,
+  CLAUDE_3_5_SONNET_V2.name,
+  CLAUDE_3_5_HAIKU.name,
+  NOVA_PRO.name,
+  NOVA_LITE.name,
+  NOVA_MICRO.name,
+  LLAMA_3_3_70B.name,
+  LLAMA_4_MAVERICK.name,
+  MISTRAL_PIXTRAL_LARGE.name,
+  DEEPSEEK_R1.name,
 ] as const
-export const BEDROCK_RESPONSES_MODELS = [GPT_OSS_20B.name, GPT_OSS_120B.name] as const
+export const BEDROCK_RESPONSES_MODELS = [
+  GPT_OSS_20B.name,
+  GPT_OSS_120B.name,
+] as const
 
 export type BedrockChatModels = (typeof BEDROCK_CHAT_MODELS)[number]
 export type BedrockResponsesModels = (typeof BEDROCK_RESPONSES_MODELS)[number]

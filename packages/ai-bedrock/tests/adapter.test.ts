@@ -60,9 +60,13 @@ describe('BedrockTextAdapter', () => {
 
 describe('BedrockResponsesTextAdapter', () => {
   it('constructs with name "bedrock-responses", forces mantle baseURL', () => {
-    const a = createBedrockResponsesText('openai.gpt-oss-120b-1:0', 'test-key', {
-      region: 'us-east-1',
-    })
+    const a = createBedrockResponsesText(
+      'openai.gpt-oss-120b-1:0',
+      'test-key',
+      {
+        region: 'us-east-1',
+      },
+    )
     expect(a).toBeInstanceOf(BedrockResponsesTextAdapter)
     expect(a.name).toBe('bedrock-responses')
     expect(a.kind).toBe('text')
@@ -97,7 +101,9 @@ describe('createBedrockText (branching factory)', () => {
       // @ts-expect-error — a chat-only model is not assignable to the api:'responses' overload
       // (BedrockResponsesModels). This line also locks the compile-time contract: if the
       // overloads ever stop rejecting it, the @ts-expect-error becomes unused and tsc fails.
-      createBedrockText('us.anthropic.claude-3-5-haiku-20241022-v1:0', 'k', { api: 'responses' })
+      createBedrockText('us.anthropic.claude-3-5-haiku-20241022-v1:0', 'k', {
+        api: 'responses',
+      })
     }).toThrowError(/Responses-capable models:/)
   })
 })
