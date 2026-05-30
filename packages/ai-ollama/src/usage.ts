@@ -51,9 +51,7 @@ export function buildOllamaUsage(
     ...(response.prompt_eval_duration
       ? { promptEvalDuration: response.prompt_eval_duration }
       : {}),
-    ...(response.eval_duration
-      ? { evalDuration: response.eval_duration }
-      : {}),
+    ...(response.eval_duration ? { evalDuration: response.eval_duration } : {}),
     ...(response.total_duration
       ? { totalDuration: response.total_duration }
       : {}),
