@@ -43,6 +43,9 @@
     },
     "packages/ai-vue-ui": {
       "ignore": ["src/use-chat-context.ts"]
+    },
+    "packages/ai-bedrock": {
+      "ignoreDependencies": ["aws-sigv4-fetch"]
     }
   }
 }
