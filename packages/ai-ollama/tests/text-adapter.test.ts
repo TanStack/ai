@@ -328,6 +328,139 @@ describe('OllamaTextAdapter.structuredOutput', () => {
   })
 })
 
+describe('OllamaTextAdapter modelOptions (nested options contract)', () => {
+  it('reads sampling params from nested modelOptions.options and forwards them under ChatRequest.options', async () => {
+    chatMock.mockResolvedValueOnce(
+      asyncIterable([
+        {
+          message: { role: 'assistant', content: 'ok' },
+          done: true,
+          done_reason: 'stop',
+        },
+      ]),
+    )
+
+    const adapter = createOllamaChat('llama3.2')
+    await collectStream(
+      adapter.chatStream({
+        logger: testLogger,
+        model: 'llama3.2',
+        messages: [{ role: 'user', content: 'hi' }],
+        modelOptions: {
+          options: { temperature: 0.2, top_p: 0.6, num_predict: 200 },
+        },
+        // The nested modelOptions surface is resolved per-model; the test
+        // exercises the runtime mapping rather than the per-model type, so a
+        // narrow cast keeps the harness model-agnostic.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any),
+    )
+
+    const call = chatMock.mock.calls[0]![0] as {
+      options?: Record<string, unknown>
+    }
+    expect(call.options).toMatchObject({
+      temperature: 0.2,
+      top_p: 0.6,
+      num_predict: 200,
+    })
+  })
+
+  it('does not double-nest options (request.options.options is undefined)', async () => {
+    chatMock.mockResolvedValueOnce(
+      asyncIterable([
+        {
+          message: { role: 'assistant', content: 'ok' },
+          done: true,
+          done_reason: 'stop',
+        },
+      ]),
+    )
+
+    const adapter = createOllamaChat('llama3.2')
+    await collectStream(
+      adapter.chatStream({
+        logger: testLogger,
+        model: 'llama3.2',
+        messages: [{ role: 'user', content: 'hi' }],
+        modelOptions: {
+          options: { temperature: 0.5 },
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any),
+    )
+
+    const call = chatMock.mock.calls[0]![0] as {
+      options?: Record<string, unknown>
+    }
+    expect(call.options).toBeDefined()
+    expect((call.options as { options?: unknown }).options).toBeUndefined()
+  })
+
+  it('emits an empty options object when no modelOptions are provided', async () => {
+    chatMock.mockResolvedValueOnce(
+      asyncIterable([
+        {
+          message: { role: 'assistant', content: 'ok' },
+          done: true,
+          done_reason: 'stop',
+        },
+      ]),
+    )
+
+    const adapter = createOllamaChat('llama3.2')
+    await collectStream(
+      adapter.chatStream({
+        logger: testLogger,
+        model: 'llama3.2',
+        messages: [{ role: 'user', content: 'hi' }],
+      }),
+    )
+
+    const call = chatMock.mock.calls[0]![0] as {
+      options?: Record<string, unknown>
+    }
+    expect(call.options).toEqual({})
+  })
+
+  it('forwards request-level fields (format, keep_alive, think) outside of options', async () => {
+    chatMock.mockResolvedValueOnce(
+      asyncIterable([
+        {
+          message: { role: 'assistant', content: 'ok' },
+          done: true,
+          done_reason: 'stop',
+        },
+      ]),
+    )
+
+    const adapter = createOllamaChat('llama3.2')
+    await collectStream(
+      adapter.chatStream({
+        logger: testLogger,
+        model: 'llama3.2',
+        messages: [{ role: 'user', content: 'hi' }],
+        modelOptions: {
+          options: { temperature: 0.3 },
+          keep_alive: '10m',
+          think: true,
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any),
+    )
+
+    const call = chatMock.mock.calls[0]![0] as {
+      options?: Record<string, unknown>
+      keep_alive?: unknown
+      think?: unknown
+    }
+    expect(call.keep_alive).toBe('10m')
+    expect(call.think).toBe(true)
+    // Request-level fields must not leak into the sampling options bag.
+    expect(call.options).toEqual({ temperature: 0.3 })
+  })
+})
+
 describe('OllamaTextAdapter system prompts', () => {
   it('prepends mixed string + object-form systemPrompts as a single role:system message and drops foreign metadata', async () => {
     chatMock.mockResolvedValueOnce(
