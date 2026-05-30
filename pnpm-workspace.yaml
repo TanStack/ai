@@ -39,3 +39,5 @@ allowBuilds:
   sharp: false
   unrs-resolver: false
   workerd: false
+
+trustPolicyExclude: aws-sigv4-fetch
