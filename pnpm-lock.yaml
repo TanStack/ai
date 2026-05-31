@@ -14,6 +14,9 @@ importers:
 
   .:
     devDependencies:
+      '@aws-sdk/client-bedrock':
+        specifier: ^3.1057.0
+        version: 3.1057.0
       '@changesets/changelog-github':
         specifier: ^0.7.0
         version: 0.7.0
@@ -2151,6 +2154,10 @@ packages:
 
   '@aws-sdk/client-bedrock-runtime@3.1057.0':
     resolution: {integrity: sha512-TqnYAhAEk45+w3JmS5uHc05AAxfQ7NDyfuARzBv/Y5WuDftRPJMm6FBHCEH7dqcDCcAHmI+XyCYaBI7g7EgweQ==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws-sdk/client-bedrock@3.1057.0':
+    resolution: {integrity: sha512-3Vn/bXD6Ohcx8HO8awru4IKxKITEFR3/xRDmkX5StdU4wT1ZTQGLpDjzisJbPy1UmcGwo/Zp9EzeGzZu4xLDkw==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/client-cognito-identity@3.1057.0':
@@ -14056,6 +14063,20 @@ snapshots:
       '@aws-sdk/eventstream-handler-node': 3.972.18
       '@aws-sdk/middleware-eventstream': 3.972.14
       '@aws-sdk/middleware-websocket': 3.972.23
+      '@aws-sdk/token-providers': 3.1057.0
+      '@aws-sdk/types': 3.973.9
+      '@smithy/core': 3.24.5
+      '@smithy/fetch-http-handler': 5.4.5
+      '@smithy/node-http-handler': 4.7.5
+      '@smithy/types': 4.14.2
+      tslib: 2.8.1
+
+  '@aws-sdk/client-bedrock@3.1057.0':
+    dependencies:
+      '@aws-crypto/sha256-browser': 5.2.0
+      '@aws-crypto/sha256-js': 5.2.0
+      '@aws-sdk/core': 3.974.15
+      '@aws-sdk/credential-provider-node': 3.972.47
       '@aws-sdk/token-providers': 3.1057.0
       '@aws-sdk/types': 3.973.9
       '@smithy/core': 3.24.5

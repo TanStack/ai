@@ -3,7 +3,10 @@ import { resolveBedrockAuth } from '../src/utils/auth'
 
 describe('resolveBedrockAuth', () => {
   it('returns bearer when an explicit apiKey is given', () => {
-    const r = resolveBedrockAuth({ apiKey: 'k', region: 'us-east-1' }, 'runtime')
+    const r = resolveBedrockAuth(
+      { apiKey: 'k', region: 'us-east-1' },
+      'runtime',
+    )
     expect(r).toEqual({ kind: 'bearer', token: 'k' })
   })
 
@@ -18,7 +21,10 @@ describe('resolveBedrockAuth', () => {
   })
 
   it('returns sigv4 with service+region when auth forced sigv4', () => {
-    const r = resolveBedrockAuth({ auth: 'sigv4', region: 'us-west-2' }, 'mantle')
+    const r = resolveBedrockAuth(
+      { auth: 'sigv4', region: 'us-west-2' },
+      'mantle',
+    )
     expect(r.kind).toBe('sigv4')
     if (r.kind === 'sigv4') {
       expect(r.region).toBe('us-west-2')

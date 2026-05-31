@@ -20,11 +20,14 @@ describe('createSigV4Fetch', () => {
       },
       fakeFetch,
     )
-    await signed('https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1/chat/completions', {
-      method: 'POST',
-      body: '{}',
-      headers: { 'content-type': 'application/json' },
-    })
+    await signed(
+      'https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1/chat/completions',
+      {
+        method: 'POST',
+        body: '{}',
+        headers: { 'content-type': 'application/json' },
+      },
+    )
     expect(seen?.get('authorization')).toMatch(/AWS4-HMAC-SHA256/)
   })
 })
