@@ -21,13 +21,19 @@ export function createSigV4Fetch(
   })
 
   return async (input, init) => {
-    const url = new URL(typeof input === 'string' ? input : input.toString())
+    // Request.toString() returns '[object Request]', not the URL — use .url instead.
+    const href =
+      typeof input === 'string'
+        ? input
+        : input instanceof Request
+          ? input.url
+          : input.toString()
+    const url = new URL(href)
     const headers: Record<string, string> = {}
     new Headers(init?.headers).forEach((v, k) => (headers[k] = v))
     headers['host'] = url.host
 
-    const body =
-      typeof init?.body === 'string' ? init.body : init?.body ?? undefined
+    const body = init?.body ?? undefined
 
     // Construct a plain object satisfying the @smithy/types HttpRequest interface —
     // no @smithy/protocol-http needed.
