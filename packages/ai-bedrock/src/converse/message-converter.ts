@@ -99,7 +99,7 @@ function isDataSource(
   return source.type === 'data'
 }
 
-function contentPartToBlock(part: ContentPart): ContentBlock {
+function contentPartToBlock(part: ContentPart, docIndex: number): ContentBlock {
   if (isTextPart(part)) {
     return { text: part.content }
   }
@@ -129,7 +129,7 @@ function contentPartToBlock(part: ContentPart): ContentBlock {
     return {
       document: {
         format: documentFormat(source.mimeType),
-        name: 'document',
+        name: `document-${docIndex}`,
         source: { bytes: base64ToBytes(source.value) },
       },
     }
@@ -142,7 +142,10 @@ function contentPartToBlock(part: ContentPart): ContentBlock {
   )
 }
 
-function messageToBlocks(msg: ModelMessage): Array<ContentBlock> {
+function messageToBlocks(
+  msg: ModelMessage,
+  docCounter: { value: number },
+): Array<ContentBlock> {
   const blocks: Array<ContentBlock> = []
 
   if (msg.role === 'tool') {
@@ -170,7 +173,8 @@ function messageToBlocks(msg: ModelMessage): Array<ContentBlock> {
     }
   } else if (Array.isArray(msg.content)) {
     for (const part of msg.content) {
-      blocks.push(contentPartToBlock(part))
+      const docIndex = isDocumentPart(part) ? ++docCounter.value : 0
+      blocks.push(contentPartToBlock(part, docIndex))
     }
   }
   // null → no text blocks
@@ -229,13 +233,16 @@ export function toConverseMessages(
 
   // Convert each ModelMessage to a Converse Message, merging same-role pairs
   const converseMessages: Array<Message> = []
+  // Global document counter: ensures every document block across all messages
+  // gets a unique name, preventing Bedrock ValidationException for duplicate names.
+  const docCounter = { value: 0 }
 
   for (const msg of messages) {
     // Map TanStack roles to Converse roles
     const converseRole: 'user' | 'assistant' =
       msg.role === 'assistant' ? 'assistant' : 'user'
 
-    const blocks = messageToBlocks(msg)
+    const blocks = messageToBlocks(msg, docCounter)
 
     // Skip messages that produce no content blocks (e.g. assistant with
     // null content and no toolCalls). Pushing an empty-content message to

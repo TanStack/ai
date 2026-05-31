@@ -106,4 +106,78 @@ describe('toConverseMessages', () => {
       ]),
     ).toThrow(/inline|bytes|URL/i)
   })
+
+  it('gives distinct names to multiple document parts in one message', () => {
+    const { messages } = toConverseMessages([
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'document',
+            source: {
+              type: 'data',
+              value: btoa('doc1'),
+              mimeType: 'application/pdf',
+            },
+          },
+          {
+            type: 'document',
+            source: {
+              type: 'data',
+              value: btoa('doc2'),
+              mimeType: 'text/plain',
+            },
+          },
+        ],
+      },
+    ])
+    const content = messages[0]!.content!
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const name0 = (content[0] as any).document.name as string
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const name1 = (content[1] as any).document.name as string
+    expect(name0).not.toBe(name1)
+    expect(name0).toMatch(/document-\d+/)
+    expect(name1).toMatch(/document-\d+/)
+  })
+
+  it('gives distinct names to document parts across multiple messages', () => {
+    const { messages } = toConverseMessages([
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'document',
+            source: {
+              type: 'data',
+              value: btoa('doc1'),
+              mimeType: 'application/pdf',
+            },
+          },
+        ],
+      },
+      {
+        role: 'assistant',
+        content: 'noted',
+      },
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'document',
+            source: {
+              type: 'data',
+              value: btoa('doc2'),
+              mimeType: 'text/plain',
+            },
+          },
+        ],
+      },
+    ])
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const name0 = (messages[0]!.content![0] as any).document.name as string
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const name1 = (messages[2]!.content![0] as any).document.name as string
+    expect(name0).not.toBe(name1)
+  })
 })
