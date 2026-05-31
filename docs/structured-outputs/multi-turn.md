@@ -20,7 +20,7 @@ This is the shape of a structured-output chat: every assistant turn produces its
 
 By the end of this guide you'll have a chat UI that walks `messages` directly, renders one typed card per assistant turn, and keeps history across `sendMessage()` calls.
 
-> **Note:** If you only need a single round-trip (one prompt → one object), use [One-Shot Extraction](./one-shot). If you have one turn that streams progressively but no history, use [Streaming UIs](./streaming) — its `partial` / `final` sugar is the right surface. This page is for the case where history matters.
+> **Note:** If you only need a single round-trip (one prompt → one object), use [One-Shot Extraction](./one-shot). If you have one turn that streams progressively but no history, use [Streaming UIs](./streaming) — its `partial` / `final` sugar is the right surface. If you need typed iteration across **multiple LLM steps** (not just turns of one chat — e.g. spec → implement → review), see [Workflows & Orchestration](../orchestration/overview). This page is for the case where chat-turn history matters.
 
 > **React Native recipe app:** The Expo example streams this same multi-turn
 > recipe pattern into native cards with an XHR transport selector. See

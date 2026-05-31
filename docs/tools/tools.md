@@ -341,6 +341,8 @@ Tools go through different states during execution:
 
 > **Tip:** If your use case involves calling multiple tools with complex logic (filtering, aggregation, parallel calls), consider [Code Mode](../code-mode/code-mode) — it lets the LLM write a TypeScript program that orchestrates tools in a single execution instead of one tool call at a time.
 
+> **Tip:** If you need to coordinate **multiple distinct LLM steps** (not just tool calls inside one LLM call) — each with its own input/output schema, possibly gated by user approval — that's the job of [Workflows & Orchestration](../orchestration/overview).
+
 ## Next Steps
 
 - [Server Tools](./server-tools) - Learn about server-side tool execution

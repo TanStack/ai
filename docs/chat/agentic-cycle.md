@@ -16,6 +16,8 @@ The agentic cycle is the pattern where the LLM repeatedly calls tools, receives 
 
 > **Tip:** Code Mode can reduce agent loop iterations by letting the LLM write a program that calls multiple tools in a single execution. See [Code Mode](../code-mode/code-mode).
 
+> **Note:** The agent loop's routing is implicit — the model picks the next tool inside one `chat()` call. If you need the routing to be **explicit** (e.g. a triage agent decides between distinct LLM steps, each with its own typed input/output) and the steps must surface to the client as separate events, reach for an [Orchestrator](../orchestration/orchestrators) instead.
+
 ```mermaid
 graph TD
     A[User sends message] --> B[LLM analyzes request]

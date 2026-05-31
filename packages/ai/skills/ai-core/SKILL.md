@@ -5,10 +5,12 @@ description: >
   media-generation, structured-outputs, adapter-configuration, ag-ui-protocol,
   middleware, custom-backend-integration, and debug-logging. Use chat() not
   streamText(), openaiText() not createOpenAI(), toServerSentEventsResponse()
-  not manual SSE, middleware hooks not onEnd callbacks.
+  not manual SSE, middleware hooks not onEnd callbacks. For multi-step LLM
+  pipelines and dynamic orchestrators see @tanstack/ai-orchestration; for
+  sandboxed LLM code execution see @tanstack/ai-code-mode.
 type: core
 library: tanstack-ai
-library_version: '0.10.0'
+library_version: '0.20.0'
 ---
 
 # TanStack AI — Core Concepts
@@ -21,18 +23,19 @@ Always import from the framework package on the client — never from
 
 ## Sub-Skills
 
-| Need to...                                        | Read                                        |
-| ------------------------------------------------- | ------------------------------------------- |
-| Build a chat UI with streaming                    | ai-core/chat-experience/SKILL.md            |
-| Add tool calling (server, client, or both)        | ai-core/tool-calling/SKILL.md               |
-| Generate images, video, speech, or transcriptions | ai-core/media-generation/SKILL.md           |
-| Get typed JSON responses from the LLM             | ai-core/structured-outputs/SKILL.md         |
-| Choose and configure a provider adapter           | ai-core/adapter-configuration/SKILL.md      |
-| Implement AG-UI streaming protocol server-side    | ai-core/ag-ui-protocol/SKILL.md             |
-| Add analytics, logging, or lifecycle hooks        | ai-core/middleware/SKILL.md                 |
-| Connect to a non-TanStack-AI backend              | ai-core/custom-backend-integration/SKILL.md |
-| Turn on/off debug logging, pipe into pino/winston | ai-core/debug-logging/SKILL.md              |
-| Set up Code Mode (LLM code execution)             | See `@tanstack/ai-code-mode` package skills |
+| Need to...                                        | Read                                            |
+| ------------------------------------------------- | ----------------------------------------------- |
+| Build a chat UI with streaming                    | ai-core/chat-experience/SKILL.md                |
+| Add tool calling (server, client, or both)        | ai-core/tool-calling/SKILL.md                   |
+| Generate images, video, speech, or transcriptions | ai-core/media-generation/SKILL.md               |
+| Get typed JSON responses from the LLM             | ai-core/structured-outputs/SKILL.md             |
+| Choose and configure a provider adapter           | ai-core/adapter-configuration/SKILL.md          |
+| Implement AG-UI streaming protocol server-side    | ai-core/ag-ui-protocol/SKILL.md                 |
+| Add analytics, logging, or lifecycle hooks        | ai-core/middleware/SKILL.md                     |
+| Connect to a non-TanStack-AI backend              | ai-core/custom-backend-integration/SKILL.md     |
+| Turn on/off debug logging, pipe into pino/winston | ai-core/debug-logging/SKILL.md                  |
+| Set up Code Mode (LLM code execution)             | See `@tanstack/ai-code-mode` package skills     |
+| Compose multi-step LLM runs / orchestrators       | See `@tanstack/ai-orchestration` package skills |
 
 ## Quick Decision Tree
 
@@ -45,6 +48,7 @@ Always import from the framework package on the client — never from
 - Adding analytics or post-stream events? → ai-core/middleware
 - Connecting to a custom backend? → ai-core/custom-backend-integration
 - Turning on debug logging to trace chunks/tools/middleware? → ai-core/debug-logging
+- Composing more than one LLM step (workflow, orchestrator, approvals)? → `@tanstack/ai-orchestration` package skills
 - Debugging mistakes? → Check Common Mistakes in the relevant sub-skill
 
 ## Critical Rules
@@ -54,8 +58,8 @@ Always import from the framework package on the client — never from
 3. **Use `toServerSentEventsResponse()`** to convert streams to HTTP responses. Never implement SSE manually.
 4. **Use middleware for lifecycle events.** No `onEnd`/`onFinish` callbacks on `chat()` — use `middleware: [{ onFinish: ... }]`.
 5. **Ask the user which adapter and model** they want. Suggest the latest model. Also ask if they want Code Mode.
-6. **Tools must be passed to both server and client.** Server gets the tool in `chat({ tools })`, client gets the definition in `useChat({ clientTools })`.
+6. **Tools must be passed to both server and client.** Server gets the tool in `chat({ tools })`. Client uses the `clientTools()` helper to build a typed array which is passed to `createChatClientOptions({ tools })` (or directly to `useChat({ tools })`).
 
 ## Version
 
-Targets TanStack AI v0.10.0.
+Targets TanStack AI v0.20.0.

@@ -40,6 +40,10 @@
         {
           "label": "Agent Skills (TanStack Intent)",
           "to": "getting-started/agent-skills"
+        },
+        {
+          "label": "Workflows & Orchestrators",
+          "to": "getting-started/workflows"
         }
       ]
     },
@@ -128,6 +132,39 @@
         {
           "label": "With Tools",
           "to": "structured-outputs/with-tools"
+        }
+      ]
+    },
+    {
+      "label": "Workflows & Orchestration",
+      "children": [
+        {
+          "label": "Overview",
+          "to": "orchestration/overview"
+        },
+        {
+          "label": "Workflows",
+          "to": "orchestration/workflows"
+        },
+        {
+          "label": "Orchestrators",
+          "to": "orchestration/orchestrators"
+        },
+        {
+          "label": "Approvals",
+          "to": "orchestration/approvals"
+        },
+        {
+          "label": "Refining Across Runs",
+          "to": "orchestration/refining-across-runs"
+        },
+        {
+          "label": "Retries & Errors",
+          "to": "orchestration/retries-and-errors"
+        },
+        {
+          "label": "Run Persistence",
+          "to": "orchestration/run-persistence"
         }
       ]
     },
@@ -281,6 +318,10 @@
         {
           "label": "@tanstack/ai-svelte",
           "to": "api/ai-svelte"
+        },
+        {
+          "label": "@tanstack/ai-orchestration",
+          "to": "api/ai-orchestration"
         }
       ]
     },

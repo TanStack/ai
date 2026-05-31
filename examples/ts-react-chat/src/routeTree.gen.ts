@@ -9,8 +9,10 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WorkflowRouteImport } from './routes/workflow'
 import { Route as ServerFnChatRouteImport } from './routes/server-fn-chat'
 import { Route as RealtimeRouteImport } from './routes/realtime'
+import { Route as OrchestrationRouteImport } from './routes/orchestration'
 import { Route as Issue176ToolResultRouteImport } from './routes/issue-176-tool-result'
 import { Route as ImageGenRouteImport } from './routes/image-gen'
 import { Route as GenerationHooksRouteImport } from './routes/generation-hooks'
@@ -23,11 +25,13 @@ import { Route as GenerationsStructuredChatRouteImport } from './routes/generati
 import { Route as GenerationsSpeechRouteImport } from './routes/generations.speech'
 import { Route as GenerationsImageRouteImport } from './routes/generations.image'
 import { Route as GenerationsAudioRouteImport } from './routes/generations.audio'
+import { Route as ApiWorkflowRouteImport } from './routes/api.workflow'
 import { Route as ApiTranscribeRouteImport } from './routes/api.transcribe'
 import { Route as ApiTanchatRouteImport } from './routes/api.tanchat'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiStructuredOutputRouteImport } from './routes/api.structured-output'
 import { Route as ApiStructuredChatRouteImport } from './routes/api.structured-chat'
+import { Route as ApiOrchestrationRouteImport } from './routes/api.orchestration'
 import { Route as ApiImageGenRouteImport } from './routes/api.image-gen'
 import { Route as ExampleGuitarsIndexRouteImport } from './routes/example.guitars/index'
 import { Route as ExampleGuitarsGuitarIdRouteImport } from './routes/example.guitars/$guitarId'
@@ -36,6 +40,11 @@ import { Route as ApiGenerateSpeechRouteImport } from './routes/api.generate.spe
 import { Route as ApiGenerateImageRouteImport } from './routes/api.generate.image'
 import { Route as ApiGenerateAudioRouteImport } from './routes/api.generate.audio'
 
+const WorkflowRoute = WorkflowRouteImport.update({
+  id: '/workflow',
+  path: '/workflow',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ServerFnChatRoute = ServerFnChatRouteImport.update({
   id: '/server-fn-chat',
   path: '/server-fn-chat',
@@ -44,6 +53,11 @@ const ServerFnChatRoute = ServerFnChatRouteImport.update({
 const RealtimeRoute = RealtimeRouteImport.update({
   id: '/realtime',
   path: '/realtime',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OrchestrationRoute = OrchestrationRouteImport.update({
+  id: '/orchestration',
+  path: '/orchestration',
   getParentRoute: () => rootRouteImport,
 } as any)
 const Issue176ToolResultRoute = Issue176ToolResultRouteImport.update({
@@ -109,6 +123,11 @@ const GenerationsAudioRoute = GenerationsAudioRouteImport.update({
   path: '/generations/audio',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWorkflowRoute = ApiWorkflowRouteImport.update({
+  id: '/api/workflow',
+  path: '/api/workflow',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiTranscribeRoute = ApiTranscribeRouteImport.update({
   id: '/api/transcribe',
   path: '/api/transcribe',
@@ -132,6 +151,11 @@ const ApiStructuredOutputRoute = ApiStructuredOutputRouteImport.update({
 const ApiStructuredChatRoute = ApiStructuredChatRouteImport.update({
   id: '/api/structured-chat',
   path: '/api/structured-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOrchestrationRoute = ApiOrchestrationRouteImport.update({
+  id: '/api/orchestration',
+  path: '/api/orchestration',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiImageGenRoute = ApiImageGenRouteImport.update({
@@ -175,14 +199,18 @@ export interface FileRoutesByFullPath {
   '/generation-hooks': typeof GenerationHooksRoute
   '/image-gen': typeof ImageGenRoute
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
+  '/orchestration': typeof OrchestrationRoute
   '/realtime': typeof RealtimeRoute
   '/server-fn-chat': typeof ServerFnChatRoute
+  '/workflow': typeof WorkflowRoute
   '/api/image-gen': typeof ApiImageGenRoute
+  '/api/orchestration': typeof ApiOrchestrationRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tanchat': typeof ApiTanchatRoute
   '/api/transcribe': typeof ApiTranscribeRoute
+  '/api/workflow': typeof ApiWorkflowRoute
   '/generations/audio': typeof GenerationsAudioRoute
   '/generations/image': typeof GenerationsImageRoute
   '/generations/speech': typeof GenerationsSpeechRoute
@@ -203,14 +231,18 @@ export interface FileRoutesByTo {
   '/generation-hooks': typeof GenerationHooksRoute
   '/image-gen': typeof ImageGenRoute
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
+  '/orchestration': typeof OrchestrationRoute
   '/realtime': typeof RealtimeRoute
   '/server-fn-chat': typeof ServerFnChatRoute
+  '/workflow': typeof WorkflowRoute
   '/api/image-gen': typeof ApiImageGenRoute
+  '/api/orchestration': typeof ApiOrchestrationRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tanchat': typeof ApiTanchatRoute
   '/api/transcribe': typeof ApiTranscribeRoute
+  '/api/workflow': typeof ApiWorkflowRoute
   '/generations/audio': typeof GenerationsAudioRoute
   '/generations/image': typeof GenerationsImageRoute
   '/generations/speech': typeof GenerationsSpeechRoute
@@ -232,14 +264,18 @@ export interface FileRoutesById {
   '/generation-hooks': typeof GenerationHooksRoute
   '/image-gen': typeof ImageGenRoute
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
+  '/orchestration': typeof OrchestrationRoute
   '/realtime': typeof RealtimeRoute
   '/server-fn-chat': typeof ServerFnChatRoute
+  '/workflow': typeof WorkflowRoute
   '/api/image-gen': typeof ApiImageGenRoute
+  '/api/orchestration': typeof ApiOrchestrationRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tanchat': typeof ApiTanchatRoute
   '/api/transcribe': typeof ApiTranscribeRoute
+  '/api/workflow': typeof ApiWorkflowRoute
   '/generations/audio': typeof GenerationsAudioRoute
   '/generations/image': typeof GenerationsImageRoute
   '/generations/speech': typeof GenerationsSpeechRoute
@@ -262,14 +298,18 @@ export interface FileRouteTypes {
     | '/generation-hooks'
     | '/image-gen'
     | '/issue-176-tool-result'
+    | '/orchestration'
     | '/realtime'
     | '/server-fn-chat'
+    | '/workflow'
     | '/api/image-gen'
+    | '/api/orchestration'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
     | '/api/tanchat'
     | '/api/transcribe'
+    | '/api/workflow'
     | '/generations/audio'
     | '/generations/image'
     | '/generations/speech'
@@ -290,14 +330,18 @@ export interface FileRouteTypes {
     | '/generation-hooks'
     | '/image-gen'
     | '/issue-176-tool-result'
+    | '/orchestration'
     | '/realtime'
     | '/server-fn-chat'
+    | '/workflow'
     | '/api/image-gen'
+    | '/api/orchestration'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
     | '/api/tanchat'
     | '/api/transcribe'
+    | '/api/workflow'
     | '/generations/audio'
     | '/generations/image'
     | '/generations/speech'
@@ -318,14 +362,18 @@ export interface FileRouteTypes {
     | '/generation-hooks'
     | '/image-gen'
     | '/issue-176-tool-result'
+    | '/orchestration'
     | '/realtime'
     | '/server-fn-chat'
+    | '/workflow'
     | '/api/image-gen'
+    | '/api/orchestration'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
     | '/api/tanchat'
     | '/api/transcribe'
+    | '/api/workflow'
     | '/generations/audio'
     | '/generations/image'
     | '/generations/speech'
@@ -347,14 +395,18 @@ export interface RootRouteChildren {
   GenerationHooksRoute: typeof GenerationHooksRoute
   ImageGenRoute: typeof ImageGenRoute
   Issue176ToolResultRoute: typeof Issue176ToolResultRoute
+  OrchestrationRoute: typeof OrchestrationRoute
   RealtimeRoute: typeof RealtimeRoute
   ServerFnChatRoute: typeof ServerFnChatRoute
+  WorkflowRoute: typeof WorkflowRoute
   ApiImageGenRoute: typeof ApiImageGenRoute
+  ApiOrchestrationRoute: typeof ApiOrchestrationRoute
   ApiStructuredChatRoute: typeof ApiStructuredChatRoute
   ApiStructuredOutputRoute: typeof ApiStructuredOutputRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
   ApiTanchatRoute: typeof ApiTanchatRoute
   ApiTranscribeRoute: typeof ApiTranscribeRoute
+  ApiWorkflowRoute: typeof ApiWorkflowRoute
   GenerationsAudioRoute: typeof GenerationsAudioRoute
   GenerationsImageRoute: typeof GenerationsImageRoute
   GenerationsSpeechRoute: typeof GenerationsSpeechRoute
@@ -373,6 +425,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/workflow': {
+      id: '/workflow'
+      path: '/workflow'
+      fullPath: '/workflow'
+      preLoaderRoute: typeof WorkflowRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/server-fn-chat': {
       id: '/server-fn-chat'
       path: '/server-fn-chat'
@@ -392,6 +451,13 @@ declare module '@tanstack/react-router' {
       path: '/issue-176-tool-result'
       fullPath: '/issue-176-tool-result'
       preLoaderRoute: typeof Issue176ToolResultRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/orchestration': {
+      id: '/orchestration'
+      path: '/orchestration'
+      fullPath: '/orchestration'
+      preLoaderRoute: typeof OrchestrationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/image-gen': {
@@ -471,6 +537,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GenerationsAudioRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/workflow': {
+      id: '/api/workflow'
+      path: '/api/workflow'
+      fullPath: '/api/workflow'
+      preLoaderRoute: typeof ApiWorkflowRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/transcribe': {
       id: '/api/transcribe'
       path: '/api/transcribe'
@@ -504,6 +577,13 @@ declare module '@tanstack/react-router' {
       path: '/api/structured-chat'
       fullPath: '/api/structured-chat'
       preLoaderRoute: typeof ApiStructuredChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/orchestration': {
+      id: '/api/orchestration'
+      path: '/api/orchestration'
+      fullPath: '/api/orchestration'
+      preLoaderRoute: typeof ApiOrchestrationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/image-gen': {
@@ -563,14 +643,18 @@ const rootRouteChildren: RootRouteChildren = {
   GenerationHooksRoute: GenerationHooksRoute,
   ImageGenRoute: ImageGenRoute,
   Issue176ToolResultRoute: Issue176ToolResultRoute,
+  OrchestrationRoute: OrchestrationRoute,
   RealtimeRoute: RealtimeRoute,
   ServerFnChatRoute: ServerFnChatRoute,
+  WorkflowRoute: WorkflowRoute,
   ApiImageGenRoute: ApiImageGenRoute,
+  ApiOrchestrationRoute: ApiOrchestrationRoute,
   ApiStructuredChatRoute: ApiStructuredChatRoute,
   ApiStructuredOutputRoute: ApiStructuredOutputRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
   ApiTanchatRoute: ApiTanchatRoute,
   ApiTranscribeRoute: ApiTranscribeRoute,
+  ApiWorkflowRoute: ApiWorkflowRoute,
   GenerationsAudioRoute: GenerationsAudioRoute,
   GenerationsImageRoute: GenerationsImageRoute,
   GenerationsSpeechRoute: GenerationsSpeechRoute,

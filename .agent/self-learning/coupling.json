@@ -1,5 +1,4 @@
 {
-  "$schema": "./coupling.schema.json",
   "couplings": [
     {
       "id": "ai-source-touches-agent-skills",
@@ -16,10 +15,11 @@
             "packages/ai/skills/ai-core/ag-ui-protocol/SKILL.md",
             "packages/ai/skills/ai-core/debug-logging/SKILL.md",
             "packages/ai/skills/ai-core/custom-backend-integration/SKILL.md",
-            "packages/ai-code-mode/skills/ai-code-mode/SKILL.md"
+            "packages/ai-code-mode/skills/ai-code-mode/SKILL.md",
+            "packages/ai-orchestration/skills/ai-orchestration/SKILL.md"
           ],
           "kind": "change-required",
-          "why": "Agent skills are a contract with downstream coding agents. When the source surface they cover changes (new public API, changed type, new pattern, removed pattern, deprecation), the skill must be updated in the same PR — otherwise agents reading the skill keep generating obsolete or wrong code targeting a surface that no longer exists. Use this list to decide which skill(s) cover the file you're touching: `activities/chat/**` → chat-experience / structured-outputs / tool-calling; `activities/generateImage|generateAudio|generateVideo|generateSpeech|generateTranscription|summarize/**` → media-generation; `middleware/**` → middleware; `protocol/**` → ag-ui-protocol; `adapters/**` or anything that affects the adapter contract → adapter-configuration. Skip only for pure refactors / perf / internal-only changes that don't surface a new pattern or change observable behavior."
+          "why": "Agent skills are a contract with downstream coding agents. When the source surface they cover changes (new public API, changed type, new pattern, removed pattern, deprecation), the skill must be updated in the same PR — otherwise agents reading the skill keep generating obsolete or wrong code targeting a surface that no longer exists. Use this list to decide which skill(s) cover the file you're touching: `activities/chat/**` → chat-experience / structured-outputs / tool-calling; `activities/generateImage|generateAudio|generateVideo|generateSpeech|generateTranscription|summarize/**` → media-generation; `middleware/**` → middleware; `protocol/**` → ag-ui-protocol; `adapters/**` or anything that affects the adapter contract → adapter-configuration; `packages/ai-orchestration/src/**` → ai-orchestration. Skip only for pure refactors / perf / internal-only changes that don't surface a new pattern or change observable behavior."
         }
       ]
     },
@@ -39,7 +39,8 @@
             "docs/protocol/**/*.md",
             "docs/media/**/*.md",
             "docs/code-mode/**/*.md",
-            "docs/migration/**/*.md"
+            "docs/migration/**/*.md",
+            "docs/orchestration/**/*.md"
           ],
           "kind": "change-required",
           "why": "Public docs are the canonical source for users. When the source surface they describe changes — new capability, behavior change, deprecation — the docs must be updated in the same PR. Cases to watch for: (1) the new behavior contradicts existing doc advice (e.g. removing a hack the doc still recommends); (2) the new capability opens a use case no existing page covers (consider whether a new page is needed, plus nav config and cross-links); (3) a public type / function gains or loses generic parameters, optional fields, etc. Run `pnpm test:docs` after editing to catch cross-link rot. Skip only for pure refactors / perf / internal-only changes."
