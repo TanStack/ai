@@ -16,10 +16,6 @@
     ".": {
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
-    },
-    "./sigv4": {
-      "types": "./dist/esm/sigv4/index.d.ts",
-      "import": "./dist/esm/sigv4/index.js"
     }
   },
   "files": [
@@ -57,6 +53,8 @@
     "zod": "^4.0.0"
   },
   "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.1057.0",
+    "@aws-sdk/credential-providers": "^3.1057.0",
     "@tanstack/ai-utils": "workspace:*",
     "@tanstack/openai-base": "workspace:*",
     "openai": "^6.9.1"
