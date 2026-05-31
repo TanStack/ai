@@ -657,51 +657,6 @@
     }
   },
   {
-    "id": "alfredpros/codellama-7b-instruct-solidity",
-    "canonical_slug": "alfredpros/codellama-7b-instruct-solidity",
-    "hugging_face_id": "AlfredPros/CodeLlama-7b-Instruct-Solidity",
-    "name": "AlfredPros: CodeLLaMa 7B Instruct Solidity",
-    "created": 1744641874,
-    "description": "A finetuned 7 billion parameters Code LLaMA - Instruct model to generate Solidity smart contract using 4-bit QLoRA finetuning provided by PEFT library.",
-    "context_length": 4096,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
-      "output_modalities": ["text"],
-      "tokenizer": "Other",
-      "instruct_type": "alpaca"
-    },
-    "pricing": {
-      "prompt": "0.0000008",
-      "completion": "0.0000012"
-    },
-    "top_provider": {
-      "context_length": 4096,
-      "max_completion_tokens": 4096,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "frequency_penalty",
-      "max_tokens",
-      "min_p",
-      "presence_penalty",
-      "repetition_penalty",
-      "seed",
-      "stop",
-      "temperature",
-      "top_k",
-      "top_p"
-    ],
-    "default_parameters": {},
-    "supported_voices": null,
-    "knowledge_cutoff": "2023-06-30",
-    "expiration_date": null,
-    "links": {
-      "details": "/api/v1/models/alfredpros/codellama-7b-instruct-solidity/endpoints"
-    }
-  },
-  {
     "id": "allenai/olmo-3-32b-think",
     "canonical_slug": "allenai/olmo-3-32b-think-20251121",
     "hugging_face_id": "allenai/Olmo-3-32B-Think",
@@ -2123,106 +2078,6 @@
     "expiration_date": null,
     "links": {
       "details": "/api/v1/models/arcee-ai/virtuoso-large/endpoints"
-    }
-  },
-  {
-    "id": "baidu/ernie-4.5-21b-a3b",
-    "canonical_slug": "baidu/ernie-4.5-21b-a3b",
-    "hugging_face_id": "baidu/ERNIE-4.5-21B-A3B-PT",
-    "name": "Baidu: ERNIE 4.5 21B A3B",
-    "created": 1755034167,
-    "description": "A sophisticated text-based Mixture-of-Experts (MoE) model featuring 21B total parameters with 3B activated per token, delivering exceptional multimodal understanding and generation through heterogeneous MoE structures and modality-isolated routing. Supporting an...",
-    "context_length": 131072,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
-      "output_modalities": ["text"],
-      "tokenizer": "Other",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.00000007",
-      "completion": "0.00000028"
-    },
-    "top_provider": {
-      "context_length": 120000,
-      "max_completion_tokens": 8000,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "frequency_penalty",
-      "max_tokens",
-      "presence_penalty",
-      "repetition_penalty",
-      "seed",
-      "stop",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_k",
-      "top_p"
-    ],
-    "default_parameters": {
-      "temperature": 0.8,
-      "top_p": 0.8,
-      "frequency_penalty": null
-    },
-    "supported_voices": null,
-    "knowledge_cutoff": "2025-03-31",
-    "expiration_date": null,
-    "links": {
-      "details": "/api/v1/models/baidu/ernie-4.5-21b-a3b/endpoints"
-    }
-  },
-  {
-    "id": "baidu/ernie-4.5-21b-a3b-thinking",
-    "canonical_slug": "baidu/ernie-4.5-21b-a3b-thinking",
-    "hugging_face_id": "baidu/ERNIE-4.5-21B-A3B-Thinking",
-    "name": "Baidu: ERNIE 4.5 21B A3B Thinking",
-    "created": 1760048887,
-    "description": "ERNIE-4.5-21B-A3B-Thinking is Baidu's upgraded lightweight MoE model, refined to boost reasoning depth and quality for top-tier performance in logical puzzles, math, science, coding, text generation, and expert-level academic benchmarks.",
-    "context_length": 131072,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
-      "output_modalities": ["text"],
-      "tokenizer": "Other",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.00000007",
-      "completion": "0.00000028"
-    },
-    "top_provider": {
-      "context_length": 131072,
-      "max_completion_tokens": 65536,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "frequency_penalty",
-      "include_reasoning",
-      "max_tokens",
-      "presence_penalty",
-      "reasoning",
-      "repetition_penalty",
-      "seed",
-      "stop",
-      "temperature",
-      "top_k",
-      "top_p"
-    ],
-    "default_parameters": {
-      "temperature": 0.6,
-      "top_p": 0.95,
-      "frequency_penalty": null
-    },
-    "supported_voices": null,
-    "knowledge_cutoff": "2025-03-31",
-    "expiration_date": null,
-    "links": {
-      "details": "/api/v1/models/baidu/ernie-4.5-21b-a3b-thinking/endpoints"
     }
   },
   {
@@ -6372,6 +6227,8 @@
       "stop",
       "structured_outputs",
       "temperature",
+      "tool_choice",
+      "tools",
       "top_k",
       "top_p"
     ],
@@ -6975,56 +6832,6 @@
     }
   },
   {
-    "id": "minimax/minimax-m2.5:free",
-    "canonical_slug": "minimax/minimax-m2.5-20260211",
-    "hugging_face_id": "MiniMaxAI/MiniMax-M2.5",
-    "name": "MiniMax: MiniMax M2.5 (free)",
-    "created": 1770908502,
-    "description": "MiniMax-M2.5 is a SOTA large language model designed for real-world productivity. Trained in a diverse range of complex real-world digital working environments, M2.5 builds upon the coding expertise of M2.1...",
-    "context_length": 204800,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
-      "output_modalities": ["text"],
-      "tokenizer": "Other",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0",
-      "completion": "0"
-    },
-    "top_provider": {
-      "context_length": 196608,
-      "max_completion_tokens": 8192,
-      "is_moderated": true
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "include_reasoning",
-      "max_tokens",
-      "reasoning",
-      "response_format",
-      "seed",
-      "stop",
-      "temperature",
-      "tools"
-    ],
-    "default_parameters": {
-      "temperature": 1,
-      "top_p": 0.95,
-      "top_k": null,
-      "frequency_penalty": null,
-      "presence_penalty": null,
-      "repetition_penalty": null
-    },
-    "supported_voices": null,
-    "knowledge_cutoff": null,
-    "expiration_date": null,
-    "links": {
-      "details": "/api/v1/models/minimax/minimax-m2.5-20260211/endpoints"
-    }
-  },
-  {
     "id": "minimax/minimax-m2.7",
     "canonical_slug": "minimax/minimax-m2.7-20260318",
     "hugging_face_id": "MiniMaxAI/MiniMax-M2.7",
@@ -7040,12 +6847,12 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.000000279",
+      "prompt": "0.00000026",
       "completion": "0.0000012"
     },
     "top_provider": {
       "context_length": 196608,
-      "max_completion_tokens": 131072,
+      "max_completion_tokens": null,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -7443,54 +7250,6 @@
     "expiration_date": null,
     "links": {
       "details": "/api/v1/models/mistralai/ministral-8b-2512/endpoints"
-    }
-  },
-  {
-    "id": "mistralai/mistral-7b-instruct-v0.1",
-    "canonical_slug": "mistralai/mistral-7b-instruct-v0.1",
-    "hugging_face_id": "mistralai/Mistral-7B-Instruct-v0.1",
-    "name": "Mistral: Mistral 7B Instruct v0.1",
-    "created": 1695859200,
-    "description": "A 7.3B parameter model that outperforms Llama 2 13B on all benchmarks, with optimizations for speed and context length.",
-    "context_length": 4096,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
-      "output_modalities": ["text"],
-      "tokenizer": "Mistral",
-      "instruct_type": "mistral"
-    },
-    "pricing": {
-      "prompt": "0.00000011",
-      "completion": "0.00000019"
-    },
-    "top_provider": {
-      "context_length": 2824,
-      "max_completion_tokens": 2824,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "frequency_penalty",
-      "logit_bias",
-      "max_tokens",
-      "min_p",
-      "presence_penalty",
-      "repetition_penalty",
-      "seed",
-      "stop",
-      "temperature",
-      "top_k",
-      "top_p"
-    ],
-    "default_parameters": {
-      "temperature": 0.3
-    },
-    "supported_voices": null,
-    "knowledge_cutoff": "2023-09-30",
-    "expiration_date": "2026-05-30",
-    "links": {
-      "details": "/api/v1/models/mistralai/mistral-7b-instruct-v0.1/endpoints"
     }
   },
   {
@@ -13287,12 +13046,9 @@
       "min_p",
       "presence_penalty",
       "repetition_penalty",
-      "response_format",
       "seed",
       "stop",
       "temperature",
-      "tool_choice",
-      "tools",
       "top_k",
       "top_p"
     ],
@@ -13710,12 +13466,13 @@
       "instruct_type": "qwen3"
     },
     "pricing": {
-      "prompt": "0.0000001495",
-      "completion": "0.000001495"
+      "prompt": "0.0000001",
+      "completion": "0.0000001",
+      "input_cache_read": "0.0000001"
     },
     "top_provider": {
-      "context_length": 131072,
-      "max_completion_tokens": null,
+      "context_length": 262144,
+      "max_completion_tokens": 262144,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -16655,57 +16412,6 @@
     "expiration_date": null,
     "links": {
       "details": "/api/v1/models/undi95/remm-slerp-l2-13b/endpoints"
-    }
-  },
-  {
-    "id": "upstage/solar-pro-3",
-    "canonical_slug": "upstage/solar-pro-3",
-    "hugging_face_id": "",
-    "name": "Upstage: Solar Pro 3",
-    "created": 1769481200,
-    "description": "Solar Pro 3 is Upstage's powerful Mixture-of-Experts (MoE) language model. With 102B total parameters and 12B active parameters per forward pass, it delivers exceptional performance while maintaining computational efficiency. Optimized...",
-    "context_length": 128000,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
-      "output_modalities": ["text"],
-      "tokenizer": "Other",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.00000015",
-      "completion": "0.0000006",
-      "input_cache_read": "0.000000015"
-    },
-    "top_provider": {
-      "context_length": 128000,
-      "max_completion_tokens": null,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "include_reasoning",
-      "max_tokens",
-      "reasoning",
-      "response_format",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools"
-    ],
-    "default_parameters": {
-      "temperature": null,
-      "top_p": null,
-      "top_k": null,
-      "frequency_penalty": null,
-      "presence_penalty": null,
-      "repetition_penalty": null
-    },
-    "supported_voices": null,
-    "knowledge_cutoff": null,
-    "expiration_date": null,
-    "links": {
-      "details": "/api/v1/models/upstage/solar-pro-3/endpoints"
     }
   },
   {
