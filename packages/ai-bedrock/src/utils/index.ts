@@ -1,5 +1,4 @@
 export {
-  getBedrockApiKeyFromEnv,
   resolveBedrockAuth,
   withBedrockDefaults,
   type BedrockClientConfig,

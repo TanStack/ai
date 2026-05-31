@@ -115,7 +115,6 @@ export {
   type BedrockResponsesProviderOptions,
 } from './adapters/responses-text'
 export {
-  getBedrockApiKeyFromEnv,
   resolveBedrockAuth,
   withBedrockDefaults,
   type BedrockClientConfig,

@@ -81,21 +81,21 @@ describe('withBedrockDefaults', () => {
 })
 
 describe('resolveBedrockAuth', () => {
-  it('uses an explicit apiKey', () => {
+  it('uses an explicit apiKey — returns bearer', () => {
     const r = resolveBedrockAuth({ apiKey: 'explicit' }, 'runtime')
-    expect(r).toEqual({ apiKey: 'explicit' })
+    expect(r).toEqual({ kind: 'bearer', token: 'explicit' })
   })
 
-  it('falls back to BEDROCK_API_KEY', () => {
+  it('falls back to BEDROCK_API_KEY — returns bearer', () => {
     vi.stubEnv('BEDROCK_API_KEY', 'from-bedrock-env')
     const r = resolveBedrockAuth({}, 'runtime')
-    expect(r).toEqual({ apiKey: 'from-bedrock-env' })
+    expect(r).toEqual({ kind: 'bearer', token: 'from-bedrock-env' })
   })
 
-  it('falls back to AWS_BEARER_TOKEN_BEDROCK', () => {
+  it('falls back to AWS_BEARER_TOKEN_BEDROCK — returns bearer', () => {
     vi.stubEnv('AWS_BEARER_TOKEN_BEDROCK', 'from-aws-env')
     const r = resolveBedrockAuth({}, 'runtime')
-    expect(r).toEqual({ apiKey: 'from-aws-env' })
+    expect(r).toEqual({ kind: 'bearer', token: 'from-aws-env' })
   })
 
   it("auth: 'apikey' with no key throws an actionable error", () => {
@@ -103,22 +103,25 @@ describe('resolveBedrockAuth', () => {
     vi.stubEnv('AWS_BEARER_TOKEN_BEDROCK', '')
     expect(() =>
       resolveBedrockAuth({ auth: 'apikey' }, 'runtime'),
-    ).toThrowError(/BEDROCK_API_KEY/)
+    ).toThrowError(/No Bedrock API key/)
   })
 
-  it("auth: 'sigv4' returns a signing fetch and a placeholder apiKey", () => {
+  it("auth: 'sigv4' returns kind:'sigv4' with region and service", () => {
     const r = resolveBedrockAuth(
       { auth: 'sigv4', region: 'us-east-1' },
       'runtime',
     )
-    expect(typeof r.fetch).toBe('function')
-    expect(r.apiKey.length).toBeGreaterThan(0)
+    expect(r.kind).toBe('sigv4')
+    if (r.kind === 'sigv4') {
+      expect(r.region).toBe('us-east-1')
+      expect(r.service).toBe('bedrock')
+    }
   })
 
-  it("'auto' with no key falls through to SigV4", () => {
+  it("'auto' with no key falls through to SigV4 — returns kind:'sigv4'", () => {
     vi.stubEnv('BEDROCK_API_KEY', '')
     vi.stubEnv('AWS_BEARER_TOKEN_BEDROCK', '')
     const r = resolveBedrockAuth({ region: 'us-east-1' }, 'runtime')
-    expect(typeof r.fetch).toBe('function')
+    expect(r.kind).toBe('sigv4')
   })
 })

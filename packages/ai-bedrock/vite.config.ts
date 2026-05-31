@@ -29,15 +29,8 @@ const config = defineConfig({
 export default mergeConfig(
   config,
   tanstackViteConfig({
-    entry: ['./src/index.ts', './src/sigv4/index.ts'],
+    entry: ['./src/index.ts'],
     srcDir: './src',
     cjs: false,
-    // `aws-sigv4-fetch` is an optional, user-installed dependency that the
-    // `/sigv4` subpath dynamically imports. It is intentionally NOT declared in
-    // package.json (pnpm v11 autoInstallPeers + trust-policy interaction), so
-    // externalizeDeps (which reads the manifest) does not pick it up. Externalize
-    // it explicitly so Rollup leaves the dynamic import in place instead of
-    // trying — and failing — to bundle it.
-    externalDeps: ['aws-sigv4-fetch'],
   }),
 )

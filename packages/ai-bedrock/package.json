@@ -53,8 +53,11 @@
     "zod": "^4.0.0"
   },
   "dependencies": {
+    "@aws-crypto/sha256-js": "^5.2.0",
     "@aws-sdk/client-bedrock-runtime": "^3.1057.0",
     "@aws-sdk/credential-providers": "^3.1057.0",
+    "@smithy/signature-v4": "^5.4.5",
+    "@smithy/types": "^4.14.2",
     "@tanstack/ai-utils": "workspace:*",
     "@tanstack/openai-base": "workspace:*",
     "openai": "^6.9.1"

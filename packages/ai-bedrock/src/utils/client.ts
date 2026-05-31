@@ -1,7 +1,11 @@
-import { getApiKeyFromEnv } from '@tanstack/ai-utils'
 import type { ClientOptions } from 'openai'
+import { resolveBedrockAuth } from './auth'
+import { createSigV4Fetch } from './openai-sigv4-fetch'
+import type { BedrockEndpoint } from './auth'
 
-export type BedrockEndpoint = 'runtime' | 'mantle'
+export type { BedrockEndpoint } from './auth'
+export { resolveBedrockAuth } from './auth'
+export type { ResolvedBedrockAuth } from './auth'
 
 export interface BedrockClientConfig extends Omit<
   ClientOptions,
@@ -29,85 +33,6 @@ function buildBaseURL(region: string, endpoint: BedrockEndpoint): string {
     : `https://bedrock-runtime.${region}.amazonaws.com/openai/v1`
 }
 
-/** Reads BEDROCK_API_KEY, then AWS_BEARER_TOKEN_BEDROCK. Returns undefined if neither is set. */
-function readApiKeyFromEnv(): string | undefined {
-  try {
-    return getApiKeyFromEnv('BEDROCK_API_KEY')
-  } catch {
-    try {
-      return getApiKeyFromEnv('AWS_BEARER_TOKEN_BEDROCK')
-    } catch {
-      return undefined
-    }
-  }
-}
-
-/** Throws if no Bedrock API key is available via config or env. */
-export function getBedrockApiKeyFromEnv(): string {
-  const key = readApiKeyFromEnv()
-  if (!key) {
-    throw new Error(
-      'No Bedrock API key found. Set BEDROCK_API_KEY (or AWS_BEARER_TOKEN_BEDROCK) in your ' +
-        'environment, pass `apiKey` to the factory, or use SigV4 auth (set auth: "sigv4" with ' +
-        'AWS credentials configured).',
-    )
-  }
-  return key
-}
-
-export interface ResolvedBedrockAuth {
-  apiKey: string
-  /** Present only for the SigV4 path — a signing fetch for the OpenAI SDK. */
-  fetch?: ClientOptions['fetch']
-}
-
-/**
- * Resolves auth per the cascade: explicit apiKey → BEDROCK_API_KEY →
- * AWS_BEARER_TOKEN_BEDROCK → SigV4. `auth: 'apikey'` forces the bearer path
- * (throws with no key); `auth: 'sigv4'` forces signing.
- */
-export function resolveBedrockAuth(
-  config: BedrockClientConfig,
-  endpoint: BedrockEndpoint,
-): ResolvedBedrockAuth {
-  const mode = config.auth ?? 'auto'
-
-  if (mode !== 'sigv4') {
-    const key = config.apiKey ?? readApiKeyFromEnv()
-    if (key) return { apiKey: key }
-    if (mode === 'apikey') {
-      // No key and apikey mode forced — throw the canonical error (terminal).
-      return { apiKey: getBedrockApiKeyFromEnv() }
-    }
-  }
-
-  // SigV4 path — build a lazily-imported signing fetch.
-  const region = config.region ?? DEFAULT_REGION
-  return {
-    apiKey: SIGV4_PLACEHOLDER_KEY,
-    fetch: createLazySigV4Fetch(region, endpoint),
-  }
-}
-
-/**
- * Returns a fetch that, on first call, dynamically imports the SigV4 signer
- * from the `./sigv4` subpath (which holds the optional `aws-sigv4-fetch` dep)
- * and delegates to it. Keeps the AWS signing code out of the default bundle.
- */
-function createLazySigV4Fetch(
-  region: string,
-  endpoint: BedrockEndpoint,
-): NonNullable<ClientOptions['fetch']> {
-  let signed: NonNullable<ClientOptions['fetch']> | undefined
-  return async (url, init) => {
-    if (!signed) {
-      const { bedrockSigV4Fetch } = await import('../sigv4/index')
-      signed = bedrockSigV4Fetch({ region, endpoint })
-    }
-    return signed(url, init)
-  }
-}
-
 /** Builds OpenAI ClientOptions for the requested endpoint. `forced` pins the endpoint (responses → 'mantle'). */
 export function withBedrockDefaults(
   config: BedrockClientConfig,
@@ -116,16 +41,22 @@ export function withBedrockDefaults(
   const { region, endpoint, auth, apiKey, baseURL, fetch, ...rest } = config
   const resolvedRegion = region ?? DEFAULT_REGION
   const resolvedEndpoint = forced ?? endpoint ?? 'runtime'
-  const resolvedAuth = resolveBedrockAuth(config, resolvedEndpoint)
+  const resolved = resolveBedrockAuth(
+    { apiKey, region: resolvedRegion, auth },
+    resolvedEndpoint,
+  )
+  if (resolved.kind === 'bearer') {
+    return {
+      ...rest,
+      baseURL: baseURL ?? buildBaseURL(resolvedRegion, resolvedEndpoint),
+      apiKey: resolved.token,
+      ...(fetch ? { fetch } : {}),
+    }
+  }
   return {
     ...rest,
     baseURL: baseURL ?? buildBaseURL(resolvedRegion, resolvedEndpoint),
-    apiKey: resolvedAuth.apiKey,
-    // A user-supplied fetch wins over the SigV4 signer.
-    ...(fetch
-      ? { fetch }
-      : resolvedAuth.fetch
-        ? { fetch: resolvedAuth.fetch }
-        : {}),
+    apiKey: SIGV4_PLACEHOLDER_KEY,
+    fetch: fetch ?? createSigV4Fetch(resolved),
   }
 }
