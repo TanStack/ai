@@ -16,8 +16,8 @@ import type { BedrockConverseConfig } from './adapters/converse-text'
 import type { BedrockClientConfig } from './utils'
 import type {
   BedrockChatModels,
-  BedrockResponsesModels,
   BedrockConverseModels,
+  BedrockResponsesModels,
 } from './model-meta'
 
 /** Config for the branching factory's converse mode (default, or api: 'converse'). */
@@ -98,7 +98,10 @@ export function createBedrockText<TModel extends BedrockResponsesModels>(
 export function createBedrockText(
   model: BedrockConverseModels,
   apiKey: string,
-  config?: BedrockConverseApiConfig | BedrockChatApiConfig | BedrockResponsesApiConfig,
+  config?:
+    | BedrockConverseApiConfig
+    | BedrockChatApiConfig
+    | BedrockResponsesApiConfig,
 ): AnyBedrockAdapter {
   // Explicit apiKey is authoritative — spread config first so it can't override.
   return build(model, { ...config, apiKey })
@@ -119,7 +122,10 @@ export function bedrockText<TModel extends BedrockResponsesModels>(
 ): BedrockResponsesTextAdapter<TModel>
 export function bedrockText(
   model: BedrockConverseModels,
-  config?: BedrockConverseApiConfig | BedrockChatApiConfig | BedrockResponsesApiConfig,
+  config?:
+    | BedrockConverseApiConfig
+    | BedrockChatApiConfig
+    | BedrockResponsesApiConfig,
 ): AnyBedrockAdapter {
   // No eager env-key fetch: the adapter constructor resolves auth lazily so
   // SigV4 (and the env-key fallback) work without a forced API key here.

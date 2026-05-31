@@ -13,11 +13,10 @@ import type { StreamChunk, TextOptions } from '@tanstack/ai'
  * The adapter's translation logic (buildInput, lifecycle wiring) is exercised
  * end-to-end against canned Converse SDK shapes.
  */
-class StubAdapter extends BedrockConverseTextAdapter<
-  'us.amazon.nova-pro-v1:0'
-> {
+class StubAdapter extends BedrockConverseTextAdapter<'us.amazon.nova-pro-v1:0'> {
   streamEvents: Array<ConverseStreamOutput> = []
-  nonStreamOutput: ConverseCommandOutput = {} as unknown as ConverseCommandOutput
+  nonStreamOutput: ConverseCommandOutput =
+    {} as unknown as ConverseCommandOutput
 
   protected override async sendStream(): Promise<
     AsyncIterable<ConverseStreamOutput>
@@ -78,9 +77,7 @@ describe('BedrockConverseTextAdapter', () => {
   })
 
   it('emits RUN_ERROR when the stream seam throws', async () => {
-    class ThrowingAdapter extends BedrockConverseTextAdapter<
-      'us.amazon.nova-pro-v1:0'
-    > {
+    class ThrowingAdapter extends BedrockConverseTextAdapter<'us.amazon.nova-pro-v1:0'> {
       protected override async sendStream(): Promise<
         AsyncIterable<ConverseStreamOutput>
       > {

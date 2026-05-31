@@ -1,4 +1,7 @@
-import type { ToolConfiguration, ToolChoice } from '@aws-sdk/client-bedrock-runtime'
+import type {
+  ToolChoice,
+  ToolConfiguration,
+} from '@aws-sdk/client-bedrock-runtime'
 import type { DocumentType } from '@smithy/types'
 
 export interface ConverseToolInput {
@@ -14,7 +17,7 @@ export type ToolChoiceInput =
   | { type: 'tool'; name: string }
 
 export function toToolConfig(
-  tools: ConverseToolInput[],
+  tools: Array<ConverseToolInput>,
   choice: ToolChoiceInput | undefined,
 ): ToolConfiguration | undefined {
   if (!tools.length) return undefined
@@ -31,7 +34,9 @@ export function toToolConfig(
   }
 }
 
-function mapChoice(choice: ToolChoiceInput | undefined): ToolChoice | undefined {
+function mapChoice(
+  choice: ToolChoiceInput | undefined,
+): ToolChoice | undefined {
   if (!choice || choice === 'auto') return { auto: {} }
   if (choice === 'required') return { any: {} }
   if (choice === 'none') return undefined

@@ -36,7 +36,11 @@ describe('toConverseMessages', () => {
         role: 'assistant',
         content: '',
         toolCalls: [
-          { id: 't1', type: 'function', function: { name: 'getX', arguments: '{"a":1}' } },
+          {
+            id: 't1',
+            type: 'function',
+            function: { name: 'getX', arguments: '{"a":1}' },
+          },
         ],
       },
       { role: 'tool', content: '{"ok":true}', toolCallId: 't1' },
@@ -44,12 +48,20 @@ describe('toConverseMessages', () => {
     const { messages } = toConverseMessages(msgs)
     expect(messages[0]).toEqual({
       role: 'assistant',
-      content: [{ toolUse: { toolUseId: 't1', name: 'getX', input: { a: 1 } } }],
+      content: [
+        { toolUse: { toolUseId: 't1', name: 'getX', input: { a: 1 } } },
+      ],
     })
     expect(messages[1]).toEqual({
       role: 'user',
       content: [
-        { toolResult: { toolUseId: 't1', content: [{ text: '{"ok":true}' }], status: 'success' } },
+        {
+          toolResult: {
+            toolUseId: 't1',
+            content: [{ text: '{"ok":true}' }],
+            status: 'success',
+          },
+        },
       ],
     })
   })
@@ -60,7 +72,10 @@ describe('toConverseMessages', () => {
         role: 'user',
         content: [
           { type: 'text', content: 'look' },
-          { type: 'image', source: { type: 'data', value: btoa('xy'), mimeType: 'image/png' } },
+          {
+            type: 'image',
+            source: { type: 'data', value: btoa('xy'), mimeType: 'image/png' },
+          },
         ],
       },
     ])
@@ -71,13 +86,23 @@ describe('toConverseMessages', () => {
     expect(imageBlock).toMatchObject({ image: { format: 'png' } })
     // bytes decoded from base64
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect((imageBlock as any).image.source.bytes).toEqual(new Uint8Array([120, 121]))
+    expect((imageBlock as any).image.source.bytes).toEqual(
+      new Uint8Array([120, 121]),
+    )
   })
 
   it('throws on a URL image source (Converse needs inline bytes)', () => {
     expect(() =>
       toConverseMessages([
-        { role: 'user', content: [{ type: 'image', source: { type: 'url', value: 'https://x/y.png' } }] },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: { type: 'url', value: 'https://x/y.png' },
+            },
+          ],
+        },
       ]),
     ).toThrow(/inline|bytes|URL/i)
   })

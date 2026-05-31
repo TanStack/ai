@@ -1,6 +1,6 @@
-import type { ClientOptions } from 'openai'
 import { resolveBedrockAuth } from './auth'
 import { createSigV4Fetch } from './openai-sigv4-fetch'
+import type { ClientOptions } from 'openai'
 import type { BedrockEndpoint } from './auth'
 
 export type { BedrockEndpoint } from './auth'

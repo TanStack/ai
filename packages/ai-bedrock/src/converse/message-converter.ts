@@ -1,12 +1,12 @@
 import { normalizeSystemPrompts } from '@tanstack/ai'
 import type {
   ContentPart,
+  ContentPartDataSource,
+  DocumentPart,
+  ImagePart,
   ModelMessage,
   SystemPrompt,
   TextPart,
-  ImagePart,
-  DocumentPart,
-  ContentPartDataSource,
 } from '@tanstack/ai'
 import type {
   ContentBlock,
@@ -24,9 +24,7 @@ function base64ToBytes(b64: string): Uint8Array {
   return new Uint8Array(Buffer.from(b64, 'base64'))
 }
 
-function imageFormat(
-  mime: string,
-): 'png' | 'jpeg' | 'gif' | 'webp' {
+function imageFormat(mime: string): 'png' | 'jpeg' | 'gif' | 'webp' {
   switch (mime) {
     case 'image/png':
       return 'png'
@@ -74,9 +72,7 @@ function documentFormat(
   }
 }
 
-function stringContent(
-  content: string | null | ContentPart[],
-): string {
+function stringContent(content: string | null | Array<ContentPart>): string {
   if (content === null) return ''
   if (typeof content === 'string') return content
   return content
@@ -146,8 +142,8 @@ function contentPartToBlock(part: ContentPart): ContentBlock {
   )
 }
 
-function messageToBlocks(msg: ModelMessage): ContentBlock[] {
-  const blocks: ContentBlock[] = []
+function messageToBlocks(msg: ModelMessage): Array<ContentBlock> {
+  const blocks: Array<ContentBlock> = []
 
   if (msg.role === 'tool') {
     if (!msg.toolCallId) {
@@ -185,7 +181,11 @@ function messageToBlocks(msg: ModelMessage): ContentBlock[] {
       let input: DocumentType = {}
       try {
         const parsed = JSON.parse(call.function.arguments || '{}') as unknown
-        if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        if (
+          parsed !== null &&
+          typeof parsed === 'object' &&
+          !Array.isArray(parsed)
+        ) {
           input = parsed as DocumentType
         }
       } catch {
@@ -219,16 +219,16 @@ function messageToBlocks(msg: ModelMessage): ContentBlock[] {
  *   requires strict user/assistant alternation).
  */
 export function toConverseMessages(
-  messages: ModelMessage[],
+  messages: Array<ModelMessage>,
   systemPrompts?: Array<SystemPrompt>,
-): { system: SystemContentBlock[]; messages: Message[] } {
+): { system: Array<SystemContentBlock>; messages: Array<Message> } {
   // Build system blocks (uses normalizeSystemPrompts for runtime validation)
-  const system: SystemContentBlock[] = normalizeSystemPrompts(systemPrompts).map(
-    (p) => ({ text: p.content }),
-  )
+  const system: Array<SystemContentBlock> = normalizeSystemPrompts(
+    systemPrompts,
+  ).map((p) => ({ text: p.content }))
 
   // Convert each ModelMessage to a Converse Message, merging same-role pairs
-  const converseMessages: Message[] = []
+  const converseMessages: Array<Message> = []
 
   for (const msg of messages) {
     // Map TanStack roles to Converse roles

@@ -4,7 +4,13 @@ import { toToolConfig } from '../../src/converse/tool-converter'
 describe('toToolConfig', () => {
   it('maps JSON-schema tools to Converse toolSpec', () => {
     const cfg = toToolConfig(
-      [{ name: 'getX', description: 'd', inputSchema: { type: 'object', properties: {} } }],
+      [
+        {
+          name: 'getX',
+          description: 'd',
+          inputSchema: { type: 'object', properties: {} },
+        },
+      ],
       'auto',
     )
     expect(cfg?.tools?.[0]).toEqual({
@@ -18,9 +24,14 @@ describe('toToolConfig', () => {
   })
 
   it('maps required -> any and a named tool -> tool', () => {
-    expect(toToolConfig([{ name: 'a', inputSchema: {} }], 'required')?.toolChoice).toEqual({ any: {} })
     expect(
-      toToolConfig([{ name: 'a', inputSchema: {} }], { type: 'tool', name: 'a' })?.toolChoice,
+      toToolConfig([{ name: 'a', inputSchema: {} }], 'required')?.toolChoice,
+    ).toEqual({ any: {} })
+    expect(
+      toToolConfig([{ name: 'a', inputSchema: {} }], {
+        type: 'tool',
+        name: 'a',
+      })?.toolChoice,
     ).toEqual({ tool: { name: 'a' } })
   })
 

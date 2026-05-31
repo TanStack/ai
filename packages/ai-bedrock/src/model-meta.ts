@@ -17,10 +17,10 @@ export type BedrockChatModels = IdsWhere<'chat'>
 export type BedrockResponsesModels = IdsWhere<'responses'>
 
 /** Runtime catalogs. Cast-free narrowing via a type predicate (the ai-bedrock pattern). */
+// Every catalog entry advertises `converse: true` (Converse is the universal
+// Bedrock surface), so the id list is the full catalog — no runtime filter needed.
 export const BEDROCK_CONVERSE_MODELS: ReadonlyArray<BedrockConverseModels> =
-  GENERATED_BEDROCK_MODELS.filter(
-    (m): m is Extract<Entry, { apis: { converse: true } }> => m.apis.converse,
-  ).map((m) => m.id)
+  GENERATED_BEDROCK_MODELS.map((m) => m.id)
 
 export const BEDROCK_CHAT_MODELS: ReadonlyArray<BedrockChatModels> =
   GENERATED_BEDROCK_MODELS.filter(
