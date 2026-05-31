@@ -184,6 +184,16 @@ await waitForAssistantText(page, 'Fender Stratocaster')
 3. **Add to `tests/test-matrix.ts`** — mirror the support matrix
 4. **No fixture changes needed** — aimock translates to correct wire format
 
+### Bedrock Converse coverage gap
+
+The `bedrock` and `bedrock-responses` providers in this matrix use `createBedrockText` with a `baseURL` pointing at aimock — they speak Bedrock's **OpenAI-compatible** endpoint, which aimock's OpenAI replay handles fine.
+
+The default `bedrock-converse` adapter (introduced later) uses `@aws-sdk/client-bedrock-runtime` and speaks AWS's **binary event-stream (`vnd.amazon.eventstream`) Converse protocol**, which `@copilotkit/aimock` does not currently mock. Adding `bedrock-converse` to the live matrix would fail without a Converse-capable aimock provider.
+
+**Coverage today:** the Converse translation layer (message converter, tool converter, stream processor, structured output, adapter) is covered by unit tests in `packages/ai-bedrock/tests/converse/` (64 tests). The OpenAI-compatible `bedrock` and `bedrock-responses` entries remain in the E2E matrix as-is.
+
+**Follow-up:** a Bedrock/Converse provider will be added to aimock to close this gap and enable full E2E coverage of the Converse path.
+
 **SDK baseURL notes:**
 
 - OpenAI, Grok: `LLMOCK_OPENAI` (with `/v1`) + `defaultHeaders`

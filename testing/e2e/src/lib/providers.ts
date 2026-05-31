@@ -115,6 +115,11 @@ export function createTextAdapter(
           defaultHeaders: testHeaders,
         }),
       }),
+    // NOTE: Only the OpenAI-compatible Bedrock paths are E2E-covered here.
+    // The default `bedrock-converse` adapter uses the AWS binary event-stream
+    // (vnd.amazon.eventstream) Converse protocol, which aimock cannot replay —
+    // that path is covered by unit tests in packages/ai-bedrock/tests/converse/
+    // instead. See testing/e2e/README.md § "Bedrock Converse coverage gap".
     bedrock: () =>
       createChatOptions({
         adapter: createBedrockText(
