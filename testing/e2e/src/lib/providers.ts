@@ -128,6 +128,9 @@ export function createTextAdapter(
           {
             baseURL: openaiUrl,
             defaultHeaders: testHeaders,
+            // Converse is now the default; this matrix entry exercises the
+            // OpenAI-compatible Chat Completions path, so pin api: 'chat'.
+            api: 'chat',
           },
         ),
       }),
