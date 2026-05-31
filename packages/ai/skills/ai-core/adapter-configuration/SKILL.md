@@ -99,13 +99,13 @@ const adapterWithKey = openaiText('gpt-5.2', {
 })
 ```
 
-`@tanstack/ai-bedrock` (Amazon Bedrock, via Bedrock's OpenAI-compatible
-APIs) branches on `config.api`: `bedrockText(model, { api: 'chat' })` (the
-default) targets the Chat Completions endpoint (adapter name `bedrock`),
-while `bedrockText(model, { api: 'responses' })` targets the Responses API
-(adapter name `bedrock-responses`). Use `createBedrockText(model, apiKey,
-config?)` to pass the key explicitly. Auth resolves from `BEDROCK_API_KEY`
-/ `AWS_BEARER_TOKEN_BEDROCK`, or SigV4 credentials.
+`@tanstack/ai-bedrock` (Amazon Bedrock) branches on `config.api`:
+
+- `bedrockText(model)` or `bedrockText(model, { api: 'converse' })` (the default) — Bedrock's native Converse API via `@aws-sdk/client-bedrock-runtime` (adapter name `bedrock-converse`). Reaches the broad catalog: Claude, Nova, Llama, Mistral, DeepSeek, and more.
+- `bedrockText(model, { api: 'chat' })` — OpenAI-compatible Chat Completions endpoint (adapter name `bedrock`). Open-weight models only (gpt-oss, DeepSeek V3.x, Gemma, Qwen, etc.). Does NOT reach Claude, Nova, or Llama.
+- `bedrockText(model, { api: 'responses' })` — OpenAI-compatible Responses API, mantle-only (adapter name `bedrock-responses`). Currently gpt-oss family.
+
+Use `createBedrockText(model, apiKey, config?)` to pass the key explicitly. Auth resolves from `BEDROCK_API_KEY` / `AWS_BEARER_TOKEN_BEDROCK`, or SigV4 via the standard AWS credential chain (no extra packages needed — handled by `@aws-sdk/client-bedrock-runtime`).
 
 ### 2. Runtime Adapter Switching
 
