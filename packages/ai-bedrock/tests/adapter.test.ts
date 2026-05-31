@@ -7,6 +7,7 @@ import {
 import { bedrockText, createBedrockText } from '../src/index'
 import { BedrockTextAdapter as ChatAdapter } from '../src/adapters/text'
 import { BedrockResponsesTextAdapter as RespAdapter } from '../src/adapters/responses-text'
+import { BedrockConverseTextAdapter as ConverseAdapter } from '../src/adapters/converse-text'
 
 afterEach(() => vi.unstubAllEnvs())
 
@@ -74,12 +75,21 @@ describe('BedrockResponsesTextAdapter', () => {
 })
 
 describe('createBedrockText (branching factory)', () => {
-  it('defaults to the chat adapter', () => {
-    const a = createBedrockText('openai.gpt-oss-120b-1:0', 'k', {
+  it('defaults to the Converse adapter', () => {
+    const a = createBedrockText('us.amazon.nova-pro-v1:0', 'k', {
       region: 'us-east-1',
     })
-    expect(a).toBeInstanceOf(ChatAdapter)
-    expect(a.name).toBe('bedrock')
+    expect(a).toBeInstanceOf(ConverseAdapter)
+    expect(a.name).toBe('bedrock-converse')
+  })
+
+  it("explicit api: 'converse' returns the Converse adapter", () => {
+    const a = createBedrockText('us.amazon.nova-pro-v1:0', 'k', {
+      region: 'us-east-1',
+      api: 'converse',
+    })
+    expect(a).toBeInstanceOf(ConverseAdapter)
+    expect(a.name).toBe('bedrock-converse')
   })
 
   it("returns the responses adapter when api: 'responses'", () => {
@@ -109,17 +119,23 @@ describe('createBedrockText (branching factory)', () => {
 })
 
 describe('bedrockText (env-key branching factory)', () => {
-  it('reads the key from BEDROCK_API_KEY and branches on api', () => {
+  it('reads the key from BEDROCK_API_KEY and defaults to Converse', () => {
     vi.stubEnv('BEDROCK_API_KEY', 'env-key')
     expect(
-      bedrockText('openai.gpt-oss-120b-1:0', { region: 'us-east-1' }),
-    ).toBeInstanceOf(ChatAdapter)
+      bedrockText('us.amazon.nova-pro-v1:0', { region: 'us-east-1' }),
+    ).toBeInstanceOf(ConverseAdapter)
     expect(
       bedrockText('openai.gpt-oss-120b-1:0', {
         region: 'us-east-1',
         api: 'responses',
       }),
     ).toBeInstanceOf(RespAdapter)
+    expect(
+      bedrockText('openai.gpt-oss-120b-1:0', {
+        region: 'us-east-1',
+        api: 'chat',
+      }),
+    ).toBeInstanceOf(ChatAdapter)
   })
 
   it('does not require an API key when auth is sigv4', () => {
