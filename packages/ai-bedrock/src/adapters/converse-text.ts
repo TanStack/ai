@@ -1,8 +1,3 @@
-import {
-  BedrockRuntimeClient,
-  ConverseCommand,
-  ConverseStreamCommand,
-} from '@aws-sdk/client-bedrock-runtime'
 import { EventType, convertSchemaToJsonSchema } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
@@ -15,7 +10,9 @@ import {
   buildStructuredToolConfig,
 } from '../converse/structured-output'
 import type { ConverseToolInput } from '../converse/tool-converter'
+import type * as BedrockRuntime from '@aws-sdk/client-bedrock-runtime'
 import type {
+  BedrockRuntimeClient,
   ContentBlock,
   ConverseCommandInput,
   ConverseCommandOutput,
@@ -77,32 +74,70 @@ export class BedrockConverseTextAdapter<
 > {
   override readonly kind = 'text' as const
   override readonly name = 'bedrock-converse' as const
-  protected client: BedrockRuntimeClient
+  private clientPromise?: Promise<BedrockRuntimeClient>
+  private readonly clientConfig: BedrockConverseConfig
 
   constructor(config: BedrockConverseConfig, model: TModel) {
     super({}, model)
-    const region = config.region ?? 'us-east-1'
-    const resolved = resolveBedrockAuth(
-      { apiKey: config.apiKey, region, auth: config.auth },
-      'runtime',
-    )
-    // The installed @aws-sdk/client-bedrock-runtime (v3.1057) exposes a
-    // first-class `token: TokenIdentity | TokenIdentityProvider` config field
-    // (HttpAuthSchemeInputConfig) for Bedrock API-key bearer auth — no custom
-    // requestHandler/middleware needed. SigV4 uses the credential provider.
-    if (resolved.kind === 'bearer') {
-      this.client = new BedrockRuntimeClient({
-        region,
-        token: { token: resolved.token },
-        ...(config.baseURL ? { endpoint: config.baseURL } : {}),
-      })
-    } else {
-      this.client = new BedrockRuntimeClient({
-        region: resolved.region,
-        credentials: resolved.credentials,
-        ...(config.baseURL ? { endpoint: config.baseURL } : {}),
-      })
+    // Defer client construction and auth resolution: the AWS SDK is Node/
+    // server-only, so we must not pull it into the static graph here. The
+    // client (and its dynamic import) is built lazily on first SDK call.
+    this.clientConfig = config
+  }
+
+  /**
+   * Dynamically import `@aws-sdk/client-bedrock-runtime`. The specifier is held
+   * in a variable (not a string literal) so bundler dep scanners (e.g. Vite/
+   * esbuild optimizeDeps) cannot statically discover the AWS SDK and try to
+   * pre-bundle it for the browser — it would fail on the SDK's Node-only
+   * `fromTokenFile` export chain. The SDK is Node/server-only and is only
+   * reached on a real request. `typeof import(...)` is a type-only reference
+   * (erased at emit) so the imported members keep full typing.
+   */
+  protected importBedrockRuntime(): Promise<typeof BedrockRuntime> {
+    const mod = '@aws-sdk/client-bedrock-runtime'
+    return import(/* @vite-ignore */ mod) as Promise<typeof BedrockRuntime>
+  }
+
+  /**
+   * Lazily construct the `BedrockRuntimeClient`. The dynamic import keeps
+   * `@aws-sdk/client-bedrock-runtime` out of the static/browser graph and
+   * defers `resolveBedrockAuth` until a real request is made.
+   */
+  protected async getClient(): Promise<BedrockRuntimeClient> {
+    if (!this.clientPromise) {
+      this.clientPromise = (async () => {
+        const { BedrockRuntimeClient } = await this.importBedrockRuntime()
+        const region = this.clientConfig.region ?? 'us-east-1'
+        const resolved = resolveBedrockAuth(
+          {
+            apiKey: this.clientConfig.apiKey,
+            region,
+            auth: this.clientConfig.auth,
+          },
+          'runtime',
+        )
+        const endpoint = this.clientConfig.baseURL
+        // The installed @aws-sdk/client-bedrock-runtime (v3.1057) exposes a
+        // first-class `token: TokenIdentity | TokenIdentityProvider` config
+        // field (HttpAuthSchemeInputConfig) for Bedrock API-key bearer auth —
+        // no custom requestHandler/middleware needed. SigV4 uses the credential
+        // provider.
+        if (resolved.kind === 'bearer') {
+          return new BedrockRuntimeClient({
+            region,
+            token: { token: resolved.token },
+            ...(endpoint ? { endpoint } : {}),
+          })
+        }
+        return new BedrockRuntimeClient({
+          region: resolved.region,
+          credentials: resolved.credentials,
+          ...(endpoint ? { endpoint } : {}),
+        })
+      })()
     }
+    return this.clientPromise
   }
 
   // ---------------------------------------------------------------------------
@@ -112,7 +147,9 @@ export class BedrockConverseTextAdapter<
   protected async sendStream(
     input: ConverseStreamCommandInput,
   ): Promise<AsyncIterable<ConverseStreamOutput>> {
-    const res = await this.client.send(new ConverseStreamCommand(input))
+    const { ConverseStreamCommand } = await this.importBedrockRuntime()
+    const client = await this.getClient()
+    const res = await client.send(new ConverseStreamCommand(input))
     if (!res.stream) {
       throw new Error('Bedrock Converse: empty stream response')
     }
@@ -122,7 +159,9 @@ export class BedrockConverseTextAdapter<
   protected async send(
     input: ConverseCommandInput,
   ): Promise<ConverseCommandOutput> {
-    return this.client.send(new ConverseCommand(input))
+    const { ConverseCommand } = await this.importBedrockRuntime()
+    const client = await this.getClient()
+    return client.send(new ConverseCommand(input))
   }
 
   // ---------------------------------------------------------------------------

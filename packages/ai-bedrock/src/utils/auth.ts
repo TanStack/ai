@@ -1,5 +1,6 @@
 import { getApiKeyFromEnv } from '@tanstack/ai-utils'
-import { fromNodeProviderChain } from '@aws-sdk/credential-providers'
+import type { AwsCredentialIdentityProvider } from '@smithy/types'
+import type * as CredentialProviders from '@aws-sdk/credential-providers'
 
 export type BedrockEndpoint = 'runtime' | 'mantle'
 
@@ -14,7 +15,7 @@ export type ResolvedBedrockAuth =
       kind: 'sigv4'
       region: string
       service: string
-      credentials: ReturnType<typeof fromNodeProviderChain>
+      credentials: AwsCredentialIdentityProvider
     }
 
 const DEFAULT_REGION = 'us-east-1'
@@ -60,6 +61,19 @@ export function resolveBedrockAuth(
     kind: 'sigv4',
     region,
     service: sigv4Service(endpoint),
-    credentials: fromNodeProviderChain(),
+    // Lazy credential provider: the AWS SDK is Node/server-only, so we defer the
+    // dynamic import until SigV4 actually needs to resolve credentials. The
+    // specifier is held in a variable (not a string literal) so bundler dep
+    // scanners (e.g. Vite/esbuild optimizeDeps) cannot statically discover the
+    // AWS SDK and try to pre-bundle it for the browser — it would fail on the
+    // SDK's Node-only `fromTokenFile` export chain. `typeof import(...)` is a
+    // type-only reference (erased at emit) so we keep full typing.
+    credentials: async (...args) => {
+      const mod = '@aws-sdk/credential-providers'
+      const { fromNodeProviderChain } = (await import(
+        /* @vite-ignore */ mod
+      )) as typeof CredentialProviders
+      return fromNodeProviderChain()(...args)
+    },
   }
 }

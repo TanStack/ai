@@ -1047,7 +1047,7 @@ importers:
         specifier: ^4.14.2
         version: 4.14.2
       '@tanstack/ai':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai
       '@tanstack/ai-utils':
         specifier: workspace:*
