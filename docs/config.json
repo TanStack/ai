@@ -18,6 +18,10 @@
           "to": "getting-started/quick-start"
         },
         {
+          "label": "Quick Start: React Native",
+          "to": "getting-started/quick-start-react-native"
+        },
+        {
           "label": "Devtools",
           "to": "getting-started/devtools"
         },
@@ -97,12 +101,33 @@
           "to": "chat/connection-adapters"
         },
         {
-          "label": "Structured Outputs",
-          "to": "chat/structured-outputs"
-        },
-        {
           "label": "Thinking & Reasoning",
           "to": "chat/thinking-content"
+        }
+      ]
+    },
+    {
+      "label": "Structured Outputs",
+      "children": [
+        {
+          "label": "Overview",
+          "to": "structured-outputs/overview"
+        },
+        {
+          "label": "One-Shot Extraction",
+          "to": "structured-outputs/one-shot"
+        },
+        {
+          "label": "Streaming UIs",
+          "to": "structured-outputs/streaming"
+        },
+        {
+          "label": "Multi-Turn Chat",
+          "to": "structured-outputs/multi-turn"
+        },
+        {
+          "label": "With Tools",
+          "to": "structured-outputs/with-tools"
         }
       ]
     },
@@ -202,6 +227,10 @@
         {
           "label": "Extend Adapter",
           "to": "advanced/extend-adapter"
+        },
+        {
+          "label": "Typed Pre-Configured Options",
+          "to": "advanced/typed-options"
         }
       ]
     },
