@@ -1,8 +1,60 @@
 import { useEffect, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import { MessageSquare, Plus, Trash2 } from 'lucide-react'
+import { clientTools } from '@tanstack/ai-client'
+import { ThinkingPart } from '@tanstack/ai-react-ui'
+import ReactMarkdown from 'react-markdown'
+import rehypeRaw from 'rehype-raw'
+import rehypeSanitize from 'rehype-sanitize'
+import rehypeHighlight from 'rehype-highlight'
+import remarkGfm from 'remark-gfm'
+import { MessageSquare, Plus, Square, Trash2 } from 'lucide-react'
 import type { ChatClientPersistence, UIMessage } from '@tanstack/ai-client'
+import GuitarRecommendation from '@/components/example-GuitarRecommendation'
+import {
+  addToCartToolDef,
+  addToWishListToolDef,
+  getPersonalGuitarPreferenceToolDef,
+  recommendGuitarToolDef,
+} from '@/lib/guitar-tools'
+
+// ---------------------------------------------------------------------------
+// Client tool implementations (same set the index route uses). The
+// /api/tanchat endpoint always merges the guitar *server* tools, and its
+// system prompt forces a `recommendGuitar` call — a *client* tool — so the
+// agent loop only completes if we provide these client implementations.
+// Reasoning + tool-call parts both live on the persisted UIMessage, so they
+// round-trip through the persistence adapter for free.
+// ---------------------------------------------------------------------------
+
+const getPersonalGuitarPreferenceToolClient =
+  getPersonalGuitarPreferenceToolDef.client(() => ({ preference: 'acoustic' }))
+
+const addToWishListToolClient = addToWishListToolDef.client((args) => {
+  const wishList = JSON.parse(localStorage.getItem('wishList') || '[]')
+  wishList.push(args.guitarId)
+  localStorage.setItem('wishList', JSON.stringify(wishList))
+  return { success: true, guitarId: args.guitarId, totalItems: wishList.length }
+})
+
+const addToCartToolClient = addToCartToolDef.client((args) => ({
+  success: true,
+  cartId: 'CART_CLIENT_' + Date.now(),
+  guitarId: args.guitarId,
+  quantity: args.quantity,
+  totalItems: args.quantity,
+}))
+
+const recommendGuitarToolClient = recommendGuitarToolDef.client(({ id }) => ({
+  id: +id,
+}))
+
+const tools = clientTools(
+  getPersonalGuitarPreferenceToolClient,
+  addToWishListToolClient,
+  addToCartToolClient,
+  recommendGuitarToolClient,
+)
 
 export const Route = createFileRoute('/threads')({
   component: ThreadsRoute,
@@ -195,7 +247,6 @@ function ThreadsRoute() {
     setActiveId(createThread().id)
     // `threads`/`createThread` are derived from the same state; depending on
     // `activeId` + `loaded` is enough to re-run when the active thread vanishes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded, activeId, threads.length])
 
   const handleNewChat = () => {
@@ -292,8 +343,104 @@ function ThreadsRoute() {
 // ---------------------------------------------------------------------------
 // Chat panel — one ChatClient per thread, hydrated from + saved to the adapter.
 // Remounted via `key={threadId}` on the parent so switching threads is a clean
-// swap; useChat then hydrates the newly-keyed thread's history.
+// swap; useChat then hydrates the newly-keyed thread's history. Reasoning
+// (`thinking`) and `tool-call` parts live on the persisted UIMessage, so they
+// are restored on reload / thread-switch alongside the text. Hardcoded to
+// OpenRouter GPT-5.1 because the /api/tanchat endpoint enables a reasoning
+// summary for the openrouter provider, so reasoning parts actually stream.
 // ---------------------------------------------------------------------------
+
+const CHAT_BODY = { provider: 'openrouter', model: 'openai/gpt-5.1' } as const
+
+const MARKDOWN_PLUGINS = [rehypeRaw, rehypeSanitize, rehypeHighlight, remarkGfm]
+
+/** Render a single UIMessage part: reasoning, text, approval prompt, or guitar card. */
+function MessagePart({
+  part,
+  index,
+  message,
+  addToolApprovalResponse,
+}: {
+  part: UIMessage['parts'][number]
+  index: number
+  message: UIMessage
+  addToolApprovalResponse: (response: {
+    id: string
+    approved: boolean
+  }) => Promise<void>
+}) {
+  if (part.type === 'thinking') {
+    // "Complete" once any text part follows it in the same message.
+    const isComplete = message.parts
+      .slice(index + 1)
+      .some((p) => p.type === 'text')
+    return (
+      <ThinkingPart
+        content={part.content}
+        isComplete={isComplete}
+        className="rounded-lg border border-gray-700/50 bg-gray-800/50 p-4"
+      />
+    )
+  }
+
+  if (part.type === 'text' && part.content) {
+    return (
+      <div className="prose prose-invert max-w-none text-white">
+        <ReactMarkdown rehypePlugins={MARKDOWN_PLUGINS}>
+          {part.content}
+        </ReactMarkdown>
+      </div>
+    )
+  }
+
+  if (
+    part.type === 'tool-call' &&
+    part.state === 'approval-requested' &&
+    part.approval
+  ) {
+    return (
+      <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-4">
+        <p className="mb-2 font-medium text-white">
+          🔒 Approval required: {part.name}
+        </p>
+        <pre className="mb-3 overflow-x-auto rounded bg-gray-800 p-2 text-xs text-gray-300">
+          {JSON.stringify(JSON.parse(part.arguments), null, 2)}
+        </pre>
+        <div className="flex gap-2">
+          <button
+            onClick={() =>
+              addToolApprovalResponse({ id: part.approval!.id, approved: true })
+            }
+            className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700"
+          >
+            ✓ Approve
+          </button>
+          <button
+            onClick={() =>
+              addToolApprovalResponse({
+                id: part.approval!.id,
+                approved: false,
+              })
+            }
+            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700"
+          >
+            ✗ Deny
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (
+    part.type === 'tool-call' &&
+    part.name === 'recommendGuitar' &&
+    part.output
+  ) {
+    return <GuitarRecommendation id={part.output.id} />
+  }
+
+  return null
+}
 
 function ThreadChat({
   threadId,
@@ -304,11 +451,19 @@ function ThreadChat({
   onFirstMessage: (text: string) => void
   onActivity: () => void
 }) {
-  const { messages, sendMessage, isLoading, error } = useChat({
+  const {
+    messages,
+    sendMessage,
+    isLoading,
+    error,
+    addToolApprovalResponse,
+    stop,
+  } = useChat({
     id: threadId,
     connection: fetchServerSentEvents('/api/tanchat'),
     persistence: threadPersistence,
-    body: { provider: 'openai', model: 'gpt-4o-mini' },
+    tools,
+    body: CHAT_BODY,
     onFinish: () => onActivity(),
   })
   const [input, setInput] = useState('')
@@ -332,7 +487,8 @@ function ThreadChat({
               <MessageSquare size={32} className="mx-auto mb-3 text-gray-700" />
               <p>Send a message to start this chat.</p>
               <p className="mt-1 text-sm">
-                Reload the page or switch threads — it's restored from
+                Try “Recommend me an acoustic guitar” to see reasoning + tool
+                calls — then reload or switch threads and they're restored from
                 localStorage.
               </p>
             </div>
@@ -340,29 +496,37 @@ function ThreadChat({
           {messages.map((message) => (
             <div
               key={message.id}
-              className={message.role === 'user' ? 'text-right' : 'text-left'}
+              className={
+                message.role === 'user'
+                  ? 'flex justify-end'
+                  : 'flex justify-start'
+              }
             >
-              <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                {message.role}
-              </div>
               <div
-                className={`inline-block max-w-full whitespace-pre-wrap rounded-2xl px-4 py-2 text-left ${
+                className={`min-w-0 max-w-full space-y-2 rounded-2xl px-4 py-3 ${
                   message.role === 'user'
                     ? 'bg-orange-500/20 text-orange-50'
-                    : 'bg-gray-800 text-gray-100'
+                    : 'bg-gray-800/60 text-gray-100'
                 }`}
               >
-                {message.parts.map((part, i) =>
-                  part.type === 'text' ? (
-                    <span key={i}>{part.content}</span>
-                  ) : null,
-                )}
+                <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  {message.role}
+                </div>
+                {message.parts.map((part, index) => (
+                  <MessagePart
+                    key={`${message.id}-${index}`}
+                    part={part}
+                    index={index}
+                    message={message}
+                    addToolApprovalResponse={addToolApprovalResponse}
+                  />
+                ))}
               </div>
             </div>
           ))}
           {error && (
             <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-300">
-              {String(error.message ?? error)}
+              {error.message}
             </div>
           )}
         </div>
@@ -373,16 +537,26 @@ function ThreadChat({
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Type a message…"
+            placeholder="Try “Recommend me an acoustic guitar”…"
             className="flex-1 rounded-lg border border-gray-700 bg-gray-800 px-4 py-2 text-white placeholder-gray-500 focus:border-orange-500/50 focus:outline-none"
           />
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="rounded-lg bg-orange-500 px-5 py-2 font-medium text-white transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isLoading ? 'Sending…' : 'Send'}
-          </button>
+          {isLoading ? (
+            <button
+              type="button"
+              onClick={() => void stop()}
+              className="flex items-center gap-2 rounded-lg bg-gray-700 px-5 py-2 font-medium text-white transition-colors hover:bg-gray-600"
+            >
+              <Square size={16} />
+              Stop
+            </button>
+          ) : (
+            <button
+              type="submit"
+              className="rounded-lg bg-orange-500 px-5 py-2 font-medium text-white transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Send
+            </button>
+          )}
         </form>
       </div>
     </>
