@@ -4,7 +4,6 @@ import { useTranscription } from '@tanstack/ai-react'
 import type { UseTranscriptionReturn } from '@tanstack/ai-react'
 import type { TranscriptionGenerateInput } from '@tanstack/ai-client'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
-import type { TranscriptionGenerateInput } from '@tanstack/ai-client'
 import { transcribeFn, transcribeStreamFn } from '../lib/server-fns'
 import {
   TRANSCRIPTION_PROVIDERS,
