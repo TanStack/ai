@@ -15,8 +15,11 @@ vi.mock('openai', () => ({
 import {
   OpenAICompatibleChatAdapter,
   OpenAICompatibleResponsesAdapter,
-} from './adapter'
-import { openaiCompatible, openaiCompatibleText } from './index'
+} from '../src/compatible/adapter'
+import {
+  openaiCompatible,
+  openaiCompatibleText,
+} from '../src/compatible/index'
 /* eslint-enable import/first */
 
 describe('openaiCompatible', () => {

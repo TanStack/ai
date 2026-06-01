@@ -1,7 +1,10 @@
 import { expectTypeOf, test } from 'vitest'
 import { createModel } from '@tanstack/ai'
-import { openaiCompatible } from './index'
-import type { ModelNameOf, ResolveCompatInput } from './types'
+import { openaiCompatible } from '../src/compatible/index'
+import type {
+  ModelNameOf,
+  ResolveCompatInput,
+} from '../src/compatible/types'
 
 const models = [
   'plain-model',

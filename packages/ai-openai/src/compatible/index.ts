@@ -44,17 +44,15 @@ const DEFAULT_NAME = 'openai-compatible'
 export function openaiCompatible<
   const TModels extends ReadonlyArray<CompatibleModelInput>,
 >(config: OpenAICompatibleConfig<TModels>) {
+  // `name`, `models`, and `api` are TanStack-level config; everything else
+  // (incl. the required `apiKey` / `baseURL`) is OpenAI SDK ClientOptions.
   const {
     name = DEFAULT_NAME,
     models: _models,
     api = 'chat-completions',
     ...clientOptions
   } = config
-  const client = new OpenAI({
-    ...clientOptions,
-    apiKey: config.apiKey,
-    baseURL: config.baseURL,
-  })
+  const client = new OpenAI(clientOptions)
 
   return <TModelName extends ModelNameOf<TModels>>(model: TModelName) => {
     if (api === 'responses') {
@@ -97,11 +95,7 @@ export function openaiCompatibleText<const TModelName extends string>(
     api = 'chat-completions',
     ...clientOptions
   } = config
-  const client = new OpenAI({
-    ...clientOptions,
-    apiKey: config.apiKey,
-    baseURL: config.baseURL,
-  })
+  const client = new OpenAI(clientOptions)
   if (api === 'responses') {
     return new OpenAICompatibleResponsesAdapter<TModelName>(client, model, name)
   }
