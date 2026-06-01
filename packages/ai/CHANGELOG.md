@@ -1,5 +1,16 @@
 # @tanstack/ai
 
+## 0.26.0
+
+### Minor Changes
+
+- [#676](https://github.com/TanStack/ai/pull/676) [`5d6cd28`](https://github.com/TanStack/ai/commit/5d6cd2834ba7ac1d7c7c1bd24ede202bf3e78010) - `createModel` now accepts a capabilities object — `createModel(name, { input, features, tools, modelOptions })` — in addition to the existing `createModel(name, input)` form. `ExtendedModelDef` gains optional `features` and `tools` fields.
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.5.1
+
 ## 0.25.0
 
 ### Minor Changes

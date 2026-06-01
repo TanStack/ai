@@ -1,5 +1,12 @@
 # @tanstack/ai-vue-ui
 
+## 0.2.11
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-vue@0.12.2
+
 ## 0.2.10
 
 ### Patch Changes

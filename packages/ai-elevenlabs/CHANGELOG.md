@@ -1,5 +1,13 @@
 # @tanstack/ai-elevenlabs
 
+## 0.2.17
+
+### Patch Changes
+
+- Updated dependencies [[`5d6cd28`](https://github.com/TanStack/ai/commit/5d6cd2834ba7ac1d7c7c1bd24ede202bf3e78010)]:
+  - @tanstack/ai@0.26.0
+  - @tanstack/ai-client@0.15.2
+
 ## 0.2.16
 
 ### Patch Changes
