@@ -22,6 +22,8 @@ export interface ExtendedModelDef<
   TName extends string = string,
   TInput extends ReadonlyArray<Modality> = ReadonlyArray<Modality>,
   TOptions = unknown,
+  TFeatures extends ReadonlyArray<string> = ReadonlyArray<string>,
+  TTools extends ReadonlyArray<string> = ReadonlyArray<string>,
 > {
   /** The model name identifier */
   name: TName
@@ -29,6 +31,23 @@ export interface ExtendedModelDef<
   input: TInput
   /** Type brand for provider options - use `{} as YourOptionsType` */
   modelOptions: TOptions
+  /** Optional declared features (e.g. 'reasoning', 'structured_outputs') */
+  features?: TFeatures
+  /** Optional declared provider tools (e.g. 'web_search') */
+  tools?: TTools
+}
+
+/** Capability bag accepted by the object form of `createModel`. */
+export interface ModelCapabilities<
+  TInput extends ReadonlyArray<Modality> = ReadonlyArray<Modality>,
+  TFeatures extends ReadonlyArray<string> = ReadonlyArray<string>,
+  TTools extends ReadonlyArray<string> = ReadonlyArray<string>,
+  TOptions = unknown,
+> {
+  input?: TInput
+  features?: TFeatures
+  tools?: TTools
+  providerOptions?: TOptions
 }
 
 /**
@@ -57,15 +76,57 @@ export interface ExtendedModelDef<
  *
  * const myOpenai = extendAdapter(openaiText, customModels)
  * ```
+ *
+ * @example
+ * ```typescript
+ * // Capabilities object form - declare features and provider tools
+ * const reasoner = createModel('reasoner', {
+ *   input: ['text'],
+ *   features: ['reasoning', 'structured_outputs'],
+ *   tools: ['web_search'],
+ * })
+ * ```
  */
+// Overload 1 — legacy positional input array (unchanged behavior)
 export function createModel<
   const TName extends string,
   const TInput extends ReadonlyArray<Modality>,
->(name: TName, input: TInput): ExtendedModelDef<TName, TInput> {
+>(name: TName, input: TInput): ExtendedModelDef<TName, TInput>
+// Overload 2 — capabilities object
+export function createModel<
+  const TName extends string,
+  const TCaps extends ModelCapabilities,
+>(
+  name: TName,
+  capabilities: TCaps,
+): ExtendedModelDef<
+  TName,
+  TCaps['input'] extends ReadonlyArray<Modality>
+    ? TCaps['input']
+    : ReadonlyArray<Modality>,
+  TCaps['providerOptions'],
+  TCaps['features'] extends ReadonlyArray<string>
+    ? TCaps['features']
+    : ReadonlyArray<string>,
+  TCaps['tools'] extends ReadonlyArray<string>
+    ? TCaps['tools']
+    : ReadonlyArray<string>
+>
+// Implementation
+export function createModel(
+  name: string,
+  second: ReadonlyArray<Modality> | ModelCapabilities,
+): ExtendedModelDef {
+  if (Array.isArray(second)) {
+    return { name, input: second, modelOptions: {} }
+  }
+  const caps = second as ModelCapabilities
   return {
     name,
-    input,
-    modelOptions: {},
+    input: caps.input ?? (['text'] as ReadonlyArray<Modality>),
+    modelOptions: caps.providerOptions ?? {},
+    features: caps.features,
+    tools: caps.tools,
   }
 }
 
