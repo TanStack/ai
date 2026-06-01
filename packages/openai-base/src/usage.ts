@@ -48,6 +48,21 @@ export function buildChatCompletionsUsage(
     result.promptTokensDetails = promptTokensDetails
   }
 
+  // Predicted Outputs accepted/rejected counts have no canonical TokenUsage
+  // slot but are still billed (rejected tokens included), so surface them under
+  // providerUsageDetails — matching how the OpenRouter adapter exposes them.
+  const providerUsageDetails = {
+    ...(completionDetails?.accepted_prediction_tokens
+      ? { acceptedPredictionTokens: completionDetails.accepted_prediction_tokens }
+      : {}),
+    ...(completionDetails?.rejected_prediction_tokens
+      ? { rejectedPredictionTokens: completionDetails.rejected_prediction_tokens }
+      : {}),
+  }
+  if (Object.keys(providerUsageDetails).length > 0) {
+    result.providerUsageDetails = providerUsageDetails
+  }
+
   return result
 }
 

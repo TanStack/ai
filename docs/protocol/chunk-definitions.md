@@ -113,6 +113,7 @@ interface TokenUsage {
     videoTokens?: number;        // Video input tokens
     imageTokens?: number;        // Image input tokens
     textTokens?: number;         // Text input tokens
+    documentTokens?: number;     // Document input tokens (e.g. PDF inputs on Gemini)
   };
 
   // Detailed completion token breakdown (provider-dependent)
@@ -122,6 +123,7 @@ interface TokenUsage {
     videoTokens?: number;        // Video output tokens
     imageTokens?: number;        // Image output tokens
     textTokens?: number;         // Text output tokens
+    documentTokens?: number;     // Document output tokens
   };
 
   // Duration in seconds for duration-billed models (e.g. Whisper transcription)

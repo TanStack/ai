@@ -146,6 +146,8 @@ export interface PromptTokensDetails {
   imageTokens?: number
   /** Text input tokens */
   textTokens?: number
+  /** Document input tokens (e.g. PDF inputs on Gemini) */
+  documentTokens?: number
 }
 
 /**
@@ -163,6 +165,8 @@ export interface CompletionTokensDetails {
   imageTokens?: number
   /** Text output tokens */
   textTokens?: number
+  /** Document output tokens */
+  documentTokens?: number
 }
 
 /**

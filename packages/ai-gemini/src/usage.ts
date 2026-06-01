@@ -18,11 +18,14 @@ export interface FlattenedModalityTokens {
   audioTokens?: number
   /** Video tokens */
   videoTokens?: number
+  /** Document tokens (e.g. PDF inputs) */
+  documentTokens?: number
 }
 
 /**
  * Flattens Gemini's ModalityTokenCount array into individual token fields.
- * Extracts TEXT, IMAGE, AUDIO, VIDEO modality counts into a normalized structure.
+ * Extracts TEXT, IMAGE, AUDIO, VIDEO, DOCUMENT modality counts into a
+ * normalized structure.
  */
 export function flattenModalityTokenCounts(
   modalities?: Array<ModalityTokenCount>,
@@ -54,6 +57,9 @@ export function flattenModalityTokenCounts(
       case 'VIDEO':
         result.videoTokens = (result.videoTokens ?? 0) + count
         break
+      case 'DOCUMENT':
+        result.documentTokens = (result.documentTokens ?? 0) + count
+        break
     }
   }
 
@@ -68,7 +74,8 @@ export function hasModalityTokens(tokens: FlattenedModalityTokens): boolean {
     tokens.textTokens !== undefined ||
     tokens.imageTokens !== undefined ||
     tokens.audioTokens !== undefined ||
-    tokens.videoTokens !== undefined
+    tokens.videoTokens !== undefined ||
+    tokens.documentTokens !== undefined
   )
 }
 

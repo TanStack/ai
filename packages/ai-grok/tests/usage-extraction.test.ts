@@ -196,6 +196,47 @@ describe('Grok usage extraction', () => {
     }
   })
 
+  it('surfaces predicted-output tokens in providerUsageDetails', async () => {
+    const mockStream = createMockStream([
+      {
+        id: 'chatcmpl-123',
+        choices: [{ delta: { content: 'Hello world' }, finish_reason: null }],
+      },
+      {
+        id: 'chatcmpl-123',
+        choices: [{ delta: {}, finish_reason: 'stop' }],
+        usage: {
+          prompt_tokens: 100,
+          completion_tokens: 50,
+          total_tokens: 150,
+          completion_tokens_details: {
+            accepted_prediction_tokens: 20,
+            rejected_prediction_tokens: 5,
+          },
+        },
+      },
+    ])
+
+    mocks.chatCompletionsCreate.mockResolvedValueOnce(mockStream)
+
+    const chunks: Array<StreamChunk> = []
+    for await (const chunk of chat({
+      adapter: createAdapter(),
+      messages: [{ role: 'user', content: 'Hello' }],
+    })) {
+      chunks.push(chunk)
+    }
+
+    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
+    expect(doneChunk).toBeDefined()
+    if (doneChunk?.type === 'RUN_FINISHED') {
+      expect(doneChunk.usage?.providerUsageDetails).toEqual({
+        acceptedPredictionTokens: 20,
+        rejectedPredictionTokens: 5,
+      })
+    }
+  })
+
   it('extracts audio tokens in prompt details', async () => {
     const mockStream = createMockStream([
       {

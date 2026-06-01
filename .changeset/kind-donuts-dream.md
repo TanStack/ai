@@ -49,3 +49,15 @@ per-modality breakdowns) instead of a minimal `inputTokens`/`outputTokens` shape
   `promptTokensDetails`/`providerUsageDetails` objects; OpenAI GPT-4o
   transcription reads the real audio/text input token breakdown and never falls
   back to duration billing.
+
+Cross-adapter usage parity fixes:
+
+- `PromptTokensDetails`/`CompletionTokensDetails` gain a `documentTokens` field,
+  and Gemini now surfaces `DOCUMENT` modality token counts (e.g. PDF inputs)
+  instead of silently dropping them.
+- OpenAI-compatible chat (OpenAI/Grok/Groq via `@tanstack/openai-base`) now
+  surfaces Predicted-Outputs `acceptedPredictionTokens`/`rejectedPredictionTokens`
+  under `providerUsageDetails`, matching the OpenRouter adapter (rejected
+  prediction tokens are billed).
+- Grok transcription (`/v1/stt`) now reports `durationSeconds`, mirroring the
+  Whisper-1 path in the OpenAI transcription adapter.

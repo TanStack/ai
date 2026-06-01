@@ -39,6 +39,13 @@ describe('flattenModalityTokenCounts', () => {
     expect(result).toEqual({ videoTokens: 150 })
   })
 
+  it('extracts DOCUMENT modality tokens (e.g. PDF inputs)', () => {
+    const result = flattenModalityTokenCounts([
+      { modality: MediaModality.DOCUMENT, tokenCount: 200 },
+    ])
+    expect(result).toEqual({ documentTokens: 200 })
+  })
+
   it('handles multiple modalities', () => {
     const result = flattenModalityTokenCounts([
       { modality: MediaModality.TEXT, tokenCount: 100 },
@@ -115,6 +122,10 @@ describe('hasModalityTokens', () => {
 
   it('returns true when videoTokens is defined', () => {
     expect(hasModalityTokens({ videoTokens: 75 })).toBe(true)
+  })
+
+  it('returns true when documentTokens is defined', () => {
+    expect(hasModalityTokens({ documentTokens: 200 })).toBe(true)
   })
 
   it('returns true when multiple tokens are defined', () => {
