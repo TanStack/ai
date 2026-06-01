@@ -53,10 +53,16 @@ export function buildChatCompletionsUsage(
   // providerUsageDetails — matching how the OpenRouter adapter exposes them.
   const providerUsageDetails = {
     ...(completionDetails?.accepted_prediction_tokens
-      ? { acceptedPredictionTokens: completionDetails.accepted_prediction_tokens }
+      ? {
+          acceptedPredictionTokens:
+            completionDetails.accepted_prediction_tokens,
+        }
       : {}),
     ...(completionDetails?.rejected_prediction_tokens
-      ? { rejectedPredictionTokens: completionDetails.rejected_prediction_tokens }
+      ? {
+          rejectedPredictionTokens:
+            completionDetails.rejected_prediction_tokens,
+        }
       : {}),
   }
   if (Object.keys(providerUsageDetails).length > 0) {
