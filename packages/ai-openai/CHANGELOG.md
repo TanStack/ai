@@ -1,5 +1,18 @@
 # @tanstack/ai-openai
 
+## 0.12.0
+
+### Minor Changes
+
+- [#676](https://github.com/TanStack/ai/pull/676) [`5d6cd28`](https://github.com/TanStack/ai/commit/5d6cd2834ba7ac1d7c7c1bd24ede202bf3e78010) - Add `openaiCompatible({ baseURL, apiKey, models })` provider-factory and `openaiCompatibleText` one-shot helper (exported from `@tanstack/ai-openai/compatible`) for any OpenAI-Chat-Completions-compatible endpoint — DeepSeek, Moonshot/Kimi, Together, Fireworks, Cerebras, Qwen, Perplexity, local servers, and more. Per-model type safety via a hybrid `models` array (bare strings get optimistic defaults; `createModel()` defs declare precise capabilities), with an optional `api: 'responses'` toggle.
+
+### Patch Changes
+
+- Updated dependencies [[`5d6cd28`](https://github.com/TanStack/ai/commit/5d6cd2834ba7ac1d7c7c1bd24ede202bf3e78010)]:
+  - @tanstack/ai@0.26.0
+  - @tanstack/ai-client@0.15.2
+  - @tanstack/openai-base@0.6.1
+
 ## 0.11.0
 
 ### Minor Changes
