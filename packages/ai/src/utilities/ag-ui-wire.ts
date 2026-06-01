@@ -103,7 +103,10 @@ export function uiMessagesToWire(
           role: 'tool',
           id: deriveToolMessageId(part.toolCallId),
           toolCallId: part.toolCallId,
-          content: part.content,
+          content:
+            typeof part.content === 'string'
+              ? part.content
+              : JSON.stringify(part.content),
           ...(part.error !== undefined && { error: part.error }),
         })
       }

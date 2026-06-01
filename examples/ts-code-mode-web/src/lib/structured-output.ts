@@ -4,7 +4,7 @@ import {
   createSkillsSystemPrompt,
   skillsToTools,
 } from '@tanstack/ai-code-mode-skills'
-import type { AnyTextAdapter, SchemaInput, Tool } from '@tanstack/ai'
+import type { AnyTextAdapter, AnyTool, SchemaInput } from '@tanstack/ai'
 import type { CodeModeTool, IsolateDriver } from '@tanstack/ai-code-mode'
 import type { SkillStorage, TrustStrategy } from '@tanstack/ai-code-mode-skills'
 
@@ -13,7 +13,7 @@ export interface StructuredOutputOptions<TSchema extends SchemaInput> {
   prompt: string
   outputSchema: TSchema
   codeMode: {
-    tool: Tool<any, any, any>
+    tool: AnyTool
     systemPrompt: string
     driver: IsolateDriver
     codeTools: Array<CodeModeTool>
@@ -24,7 +24,7 @@ export interface StructuredOutputOptions<TSchema extends SchemaInput> {
     timeout?: number
     memoryLimit?: number
   }
-  tools?: Array<Tool<any, any, any>>
+  tools?: Array<AnyTool>
   maxIterations?: number
   maxTokens?: number
 }
@@ -66,7 +66,7 @@ RULES:
 - Do NOT produce conversational text. No greetings, no narration. Only tool calls and the final structured response.
 ${skillGuidance}`
 
-  let allTools: Array<Tool<any, any, any>> = [codeMode.tool, ...tools]
+  let allTools: Array<AnyTool> = [codeMode.tool, ...tools]
   const systemPrompts = [systemPrompt, codeMode.systemPrompt]
 
   if (skills) {

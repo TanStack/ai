@@ -12,6 +12,7 @@ import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import type {
   ChatClientState,
   ConnectionStatus,
+  InferredClientContext,
   StructuredOutputPart,
 } from '@tanstack/ai-client'
 import type {
@@ -32,10 +33,12 @@ import type {
 export function useChat<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
+  TContext = InferredClientContext<TTools>,
 >(
-  options: UseChatOptions<TTools, TSchema> = {} as UseChatOptions<
+  options: UseChatOptions<TTools, TSchema, TContext> = {} as UseChatOptions<
     TTools,
-    TSchema
+    TSchema,
+    TContext
   >,
 ): UseChatReturn<TTools, TSchema> {
   const hookId = createUniqueId()
@@ -73,7 +76,7 @@ export function useChat<
     const transport = options.connection
       ? { connection: options.connection }
       : { fetcher: options.fetcher }
-    return new ChatClient({
+    return new ChatClient<TTools, TContext>({
       devtoolsBridgeFactory: createChatDevtoolsBridge,
       ...transport,
       id: clientId,
@@ -87,6 +90,7 @@ export function useChat<
       ...(options.forwardedProps !== undefined && {
         forwardedProps: options.forwardedProps,
       }),
+      ...(options.context !== undefined && { context: options.context }),
       devtools: {
         ...options.devtools,
         framework: 'solid',
@@ -135,7 +139,7 @@ export function useChat<
     // Connection and other options are captured at creation time
   }, [clientId])
 
-  setMessages(client().getMessages() as Array<UIMessage<TTools>>)
+  setMessages(client().getMessages())
 
   // Sync body / forwardedProps changes to the client.
   // Both populate the same wire payload; `forwardedProps` is preferred
@@ -148,6 +152,7 @@ export function useChat<
       ...(options.forwardedProps !== undefined && {
         forwardedProps: options.forwardedProps,
       }),
+      context: options.context,
     })
   })
 

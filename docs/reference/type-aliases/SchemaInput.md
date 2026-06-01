@@ -12,7 +12,7 @@ type SchemaInput =
   | JSONSchema;
 ```
 
-Defined in: [packages/ai/src/types.ts:116](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L116)
+Defined in: [packages/ai/src/types.ts:128](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L128)
 
 Union type for schema input - can be any Standard Schema compliant validator,
 any Standard JSON Schema compliant schema, or a plain JSONSchema object.

@@ -8,7 +8,11 @@ import {
   useRef,
   useState,
 } from 'preact/hooks'
-import type { ChatClientState, ConnectionStatus } from '@tanstack/ai-client'
+import type {
+  ChatClientState,
+  ConnectionStatus,
+  InferredClientContext,
+} from '@tanstack/ai-client'
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
 
 import type {
@@ -18,9 +22,10 @@ import type {
   UseChatReturn,
 } from './types'
 
-export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
-  options: UseChatOptions<TTools>,
-): UseChatReturn<TTools> {
+export function useChat<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TContext = InferredClientContext<TTools>,
+>(options: UseChatOptions<TTools, TContext>): UseChatReturn<TTools> {
   const hookId = useId()
   const clientId = options.id || hookId
 
@@ -44,7 +49,7 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   const cleanupInvalidationRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   )
-  const optionsRef = useRef<UseChatOptions<TTools>>(options)
+  const optionsRef = useRef<UseChatOptions<TTools, TContext>>(options)
 
   optionsRef.current = options
 
@@ -65,7 +70,7 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       ? { connection: initialOptions.connection }
       : { fetcher: initialOptions.fetcher }
 
-    const instance = new ChatClient({
+    const instance = new ChatClient<TTools, TContext>({
       devtoolsBridgeFactory: createChatDevtoolsBridge,
       ...transport,
       id: clientId,
@@ -76,6 +81,9 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       }),
       ...(initialOptions.persistence !== undefined && {
         persistence: initialOptions.persistence,
+      }),
+      ...(initialOptions.context !== undefined && {
+        context: initialOptions.context,
       }),
       devtools: {
         ...initialOptions.devtools,
@@ -146,7 +154,7 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   }, [clientId])
 
   useEffect(() => {
-    const clientMessages = client.getMessages() as Array<UIMessage<TTools>>
+    const clientMessages = client.getMessages()
     if (clientMessages !== messagesRef.current) {
       setMessages(clientMessages)
     }
@@ -163,8 +171,9 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       ...(options.forwardedProps !== undefined && {
         forwardedProps: options.forwardedProps,
       }),
+      context: options.context,
     })
-  }, [client, options.body, options.forwardedProps])
+  }, [client, options.body, options.forwardedProps, options.context])
 
   useEffect(() => {
     if (options.live) {
@@ -261,7 +270,7 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     [client],
   )
 
-  const renderedMessages = client.getMessages() as Array<UIMessage<TTools>>
+  const renderedMessages = client.getMessages()
 
   return {
     messages: renderedMessages,

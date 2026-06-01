@@ -1,12 +1,16 @@
 import { OpenRouter } from '@openrouter/sdk'
 import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
-import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
+import {
+  toRunErrorPayload,
+  toRunErrorRawEvent,
+} from '@tanstack/ai/adapter-internals'
 import { generateId, transformNullsToUndefined } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../internal/request-options'
 import { makeStructuredOutputCompatible } from '../internal/schema-converter'
 import { convertToolsToProviderFormat } from '../tools'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
+import { buildOpenRouterUsage } from '../usage'
 import { extractUsageCost } from './cost'
 import type { SDKOptions } from '@openrouter/sdk'
 import type {
@@ -150,6 +154,7 @@ export class OpenRouterTextAdapter<
         error,
         `${this.name}.chatStream failed`,
       )
+      const rawEvent = toRunErrorRawEvent(error)
 
       // Emit RUN_STARTED if not yet emitted
       if (!aguiState.hasEmittedRunStarted) {
@@ -164,13 +169,16 @@ export class OpenRouterTextAdapter<
         }
       }
 
-      // Emit AG-UI RUN_ERROR
+      // Emit AG-UI RUN_ERROR. `rawEvent` carries the provider's structured
+      // error body (e.g. a pre-stream typed error's `.error` with provider
+      // metadata) when present; omitted otherwise.
       yield {
         type: EventType.RUN_ERROR,
         model: options.model,
         timestamp: Date.now(),
         message: errorPayload.message,
         code: errorPayload.code,
+        ...(rawEvent !== undefined && { rawEvent }),
         error: {
           message: errorPayload.message,
           code: errorPayload.code,
@@ -538,6 +546,8 @@ export class OpenRouterTextAdapter<
         timestamp,
       }
 
+      const finalUsage = buildOpenRouterUsage(lastUsage)
+
       yield {
         type: EventType.RUN_FINISHED,
         runId: aguiState.runId,
@@ -545,13 +555,8 @@ export class OpenRouterTextAdapter<
         model: lastModel || chatOptions.model,
         timestamp,
         finishReason: 'stop',
-        ...(lastUsage && {
-          usage: {
-            promptTokens: lastUsage.promptTokens,
-            completionTokens: lastUsage.completionTokens,
-            totalTokens: lastUsage.totalTokens,
-            ...extractUsageCost(lastUsage),
-          },
+        ...(finalUsage && {
+          usage: { ...finalUsage, ...extractUsageCost(lastUsage) },
         }),
       }
     } catch (error: unknown) {
@@ -583,6 +588,7 @@ export class OpenRouterTextAdapter<
       )
 
       const resolvedCode = isAbort ? 'aborted' : errorPayload.code
+      const rawEvent = isAbort ? undefined : toRunErrorRawEvent(error)
       yield {
         type: EventType.RUN_ERROR,
         runId: aguiState.runId,
@@ -590,6 +596,7 @@ export class OpenRouterTextAdapter<
         timestamp,
         message: errorPayload.message,
         ...(resolvedCode !== undefined && { code: resolvedCode }),
+        ...(rawEvent !== undefined && { rawEvent }),
         error: {
           message: errorPayload.message,
           ...(resolvedCode !== undefined && { code: resolvedCode }),
@@ -695,9 +702,16 @@ export class OpenRouterTextAdapter<
         // chunks may carry an `error` field (provider-side failures that
         // happen mid-stream rather than as an SDK throw).
         if (chunk.error) {
+          // Preserve the provider's structured error body on the thrown error
+          // so the RUN_ERROR catch can forward it as `rawEvent`. NOTE: the
+          // OpenRouter SDK parses each stream chunk's `error` through a strict
+          // schema (`{ code, message }`), so any `error.metadata` the gateway
+          // sent in-band is already stripped here — only pre-stream HTTP errors
+          // (caught in the outer catch) retain `error.metadata` via their typed
+          // error class's `.error` body.
           throw Object.assign(
             new Error(chunk.error.message || 'OpenRouter stream error'),
-            { code: chunk.error.code },
+            { code: chunk.error.code, rawEvent: chunk.error },
           )
         }
 
@@ -1067,19 +1081,16 @@ export class OpenRouterTextAdapter<
                 ? 'content_filter'
                 : 'stop'
 
+        const finalUsage = buildOpenRouterUsage(lastUsage)
+
         yield {
           type: EventType.RUN_FINISHED,
           runId: aguiState.runId,
           threadId: aguiState.threadId,
           model: lastModel || options.model,
           timestamp: Date.now(),
-          ...(lastUsage && {
-            usage: {
-              promptTokens: lastUsage.promptTokens || 0,
-              completionTokens: lastUsage.completionTokens || 0,
-              totalTokens: lastUsage.totalTokens || 0,
-              ...extractUsageCost(lastUsage),
-            },
+          ...(finalUsage && {
+            usage: { ...finalUsage, ...extractUsageCost(lastUsage) },
           }),
           finishReason,
         }
@@ -1091,18 +1102,22 @@ export class OpenRouterTextAdapter<
         error,
         `${this.name}.processStreamChunks failed`,
       )
+      const rawEvent = toRunErrorRawEvent(error)
       options.logger.errors(`${this.name}.processStreamChunks fatal`, {
         error: errorPayload,
         source: `${this.name}.processStreamChunks`,
       })
 
-      // Emit AG-UI RUN_ERROR
+      // Emit AG-UI RUN_ERROR. `rawEvent` carries the provider's structured
+      // error body (e.g. the mid-stream `chunk.error` rethrown above) when
+      // present.
       yield {
         type: EventType.RUN_ERROR,
         model: options.model,
         timestamp: Date.now(),
         message: errorPayload.message,
         ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+        ...(rawEvent !== undefined && { rawEvent }),
         error: {
           message: errorPayload.message,
           ...(errorPayload.code !== undefined && { code: errorPayload.code }),

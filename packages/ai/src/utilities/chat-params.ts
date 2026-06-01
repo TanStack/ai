@@ -1,6 +1,12 @@
 import { AGUIError, RunAgentInputSchema } from '@ag-ui/core'
 import type { Context as AGUIContext } from '@ag-ui/core'
-import type { JSONSchema, ModelMessage, Tool, UIMessage } from '../types'
+import type {
+  JSONSchema,
+  ModelMessage,
+  SchemaInput,
+  Tool,
+  UIMessage,
+} from '../types'
 
 const KNOWN_PART_TYPES = new Set([
   'text',
@@ -43,7 +49,12 @@ export function chatParamsFromRequestBody(body: unknown): Promise<{
   tools: Array<{ name: string; description: string; parameters: JSONSchema }>
   forwardedProps: Record<string, unknown>
   state: unknown
+  /**
+   * @deprecated Use `aguiContext` instead. This alias will be removed in a
+   * future release.
+   */
   context: Array<AGUIContext>
+  aguiContext: Array<AGUIContext>
 }> {
   const parseResult = RunAgentInputSchema.safeParse(body)
   if (!parseResult.success) {
@@ -58,6 +69,7 @@ export function chatParamsFromRequestBody(body: unknown): Promise<{
   }
 
   const parsed = parseResult.data
+  const aguiContext = parsed.context
 
   // AG-UI Zod uses `.strip()` so extra fields like `parts` on messages are
   // dropped during parse. We re-attach them from the original body so the
@@ -89,7 +101,8 @@ export function chatParamsFromRequestBody(body: unknown): Promise<{
     }>,
     forwardedProps: (parsed.forwardedProps ?? {}) as Record<string, unknown>,
     state: parsed.state,
-    context: parsed.context,
+    context: aguiContext,
+    aguiContext,
   })
 }
 
@@ -171,16 +184,18 @@ export async function chatParamsFromRequest(
  *   `chatParamsFromRequest(...)` / `chatParamsFromRequestBody(...)`.
  * @returns A merged array suitable for `chat({ tools })`.
  */
-export function mergeAgentTools(
-  serverTools: ReadonlyArray<Tool>,
+export function mergeAgentTools<TContext = unknown>(
+  serverTools: ReadonlyArray<Tool<SchemaInput, SchemaInput, string, TContext>>,
   clientTools: ReadonlyArray<{
     name: string
     description: string
     parameters: JSONSchema
   }>,
-): Array<Tool> {
+): Array<Tool<SchemaInput, SchemaInput, string, TContext>> {
   const seen = new Set(serverTools.map((t) => t.name))
-  const merged: Array<Tool> = [...serverTools]
+  const merged: Array<Tool<SchemaInput, SchemaInput, string, TContext>> = [
+    ...serverTools,
+  ]
   for (const ct of clientTools) {
     if (seen.has(ct.name)) {
       // Server wins on name collision.
@@ -193,7 +208,7 @@ export function mergeAgentTools(
       inputSchema: ct.parameters,
       // No `execute` — runtime treats this as a client-side tool and
       // emits ClientToolRequest events.
-    } as Tool)
+    } as Tool<SchemaInput, SchemaInput, string, TContext>)
   }
   return merged
 }

@@ -7,8 +7,8 @@ title: AnyClientTool
 
 ```ts
 type AnyClientTool = 
-  | ClientTool<SchemaInput, SchemaInput>
-| ToolDefinitionInstance<SchemaInput, SchemaInput>;
+  | Omit<ClientTool<any, any, string, any>, "execute"> & object
+  | Omit<ToolDefinitionInstance<any, any, string, any>, "execute"> & object;
 ```
 
 Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:61](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L61)

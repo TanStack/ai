@@ -23,8 +23,12 @@ import {
   compareGuitars,
   getGuitars,
   getPersonalGuitarPreferenceToolDef,
+  inspectServerRuntimeContextToolDef,
   recommendGuitarToolDef,
+  runtimeLoyaltyTiers,
+  runtimePreferredStyles,
   searchGuitars,
+  type ServerRuntimeContext,
 } from '@/lib/guitar-tools'
 
 type Provider =
@@ -52,6 +56,8 @@ IMPORTANT:
 - ONLY recommend guitars from our inventory (use getGuitars first)
 - The recommendGuitar tool has a buy button - this is how customers purchase
 - Do NOT describe the guitar yourself - let the recommendGuitar tool do it
+- When the user asks about runtime context, call the inspectClientRuntimeContext
+  and/or inspectServerRuntimeContext tool named in the request.
 
 Example workflow:
 User: "I want an acoustic guitar"
@@ -60,6 +66,20 @@ Step 2: Call recommendGuitar(id: "6")
 Step 3: Done - do NOT add any text after calling recommendGuitar
 
 `
+function isAllowedValue<T extends string>(
+  value: unknown,
+  allowedValues: ReadonlyArray<T>,
+): value is T {
+  return (
+    typeof value === 'string' &&
+    allowedValues.some((allowedValue) => allowedValue === value)
+  )
+}
+
+function readForwardedString(value: unknown, fallback: string) {
+  return typeof value === 'string' ? value : fallback
+}
+
 const addToCartToolServer = addToCartToolDef.server((args, context) => {
   context?.emitCustomEvent('tool:progress', {
     tool: 'addToCart',
@@ -79,12 +99,28 @@ const addToCartToolServer = addToCartToolDef.server((args, context) => {
   }
 })
 
+const inspectServerRuntimeContextToolServer =
+  inspectServerRuntimeContextToolDef.server<ServerRuntimeContext>(
+    (_, executionContext) => {
+      executionContext.emitCustomEvent('runtime-context:server', {
+        userId: executionContext.context.userId,
+        tenantId: executionContext.context.tenantId,
+      })
+
+      return {
+        ...executionContext.context,
+        source: 'server' as const,
+      }
+    },
+  )
+
 const serverTools = [
   getGuitars, // Server tool
   recommendGuitarToolDef, // No server execute - client will handle
   addToCartToolServer,
   addToWishListToolDef,
   getPersonalGuitarPreferenceToolDef,
+  inspectServerRuntimeContextToolServer,
   // Lazy tools - discovered on demand
   compareGuitars,
   calculateFinancing,
@@ -124,6 +160,28 @@ const loggingMiddleware: ChatMiddleware = {
   },
 }
 
+function maskIdentifier(value: string): string {
+  if (!value) return '<empty>'
+  if (value.length <= 4) return '***'
+  return `${value.slice(0, 2)}***${value.slice(-2)}`
+}
+
+const runtimeContextMiddleware: ChatMiddleware<ServerRuntimeContext> = {
+  name: 'runtime-context',
+  onStart(ctx) {
+    console.log(
+      `[runtime-context] onStart user=${maskIdentifier(ctx.context.userId)} tenant=${maskIdentifier(ctx.context.tenantId)} tier=${ctx.context.loyaltyTier}`,
+    )
+  },
+  onBeforeToolCall(ctx, toolCtx) {
+    if (toolCtx.toolName.includes('RuntimeContext')) {
+      console.log(
+        `[runtime-context] onBeforeToolCall tool=${toolCtx.toolName} source=${ctx.context.requestSource}`,
+      )
+    }
+  },
+}
+
 export const Route = createFileRoute('/api/tanchat')({
   server: {
     handlers: {
@@ -159,6 +217,30 @@ export const Route = createFileRoute('/api/tanchat')({
           typeof params.forwardedProps.model === 'string'
             ? params.forwardedProps.model
             : 'gpt-4o'
+        const runtimeContext: ServerRuntimeContext = {
+          userId: readForwardedString(
+            params.forwardedProps.runtimeUserId,
+            'user_guest',
+          ),
+          tenantId: readForwardedString(
+            params.forwardedProps.runtimeTenantId,
+            'public-store',
+          ),
+          loyaltyTier: isAllowedValue(
+            params.forwardedProps.runtimeLoyaltyTier,
+            runtimeLoyaltyTiers,
+          )
+            ? params.forwardedProps.runtimeLoyaltyTier
+            : 'standard',
+          preferredStyle: isAllowedValue(
+            params.forwardedProps.runtimePreferredStyle,
+            runtimePreferredStyles,
+          )
+            ? params.forwardedProps.runtimePreferredStyle
+            : 'acoustic',
+          requestSource: 'react-chat',
+          serverRegion: 'local-dev',
+        }
         const previousInteractionId: string | undefined =
           typeof params.forwardedProps.previousInteractionId === 'string'
             ? params.forwardedProps.previousInteractionId
@@ -228,7 +310,10 @@ export const Route = createFileRoute('/api/tanchat')({
           openai: () =>
             createChatOptions({
               adapter: openaiText((model || 'gpt-5.2') as 'gpt-5.2'),
-              modelOptions: {},
+              modelOptions: {
+                prompt_cache_key: 'user-session-12345',
+                prompt_cache_retention: '24h',
+              },
             }),
         }
 
@@ -253,7 +338,8 @@ export const Route = createFileRoute('/api/tanchat')({
           const stream = chat({
             ...options,
             tools: Object.values(mergedTools),
-            middleware: [loggingMiddleware],
+            middleware: [loggingMiddleware, runtimeContextMiddleware],
+            context: runtimeContext,
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
             messages: params.messages,

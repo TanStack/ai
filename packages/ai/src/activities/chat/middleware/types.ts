@@ -2,9 +2,9 @@ import type {
   JSONSchema,
   ModelMessage,
   StreamChunk,
+  TokenUsage,
   Tool,
   ToolCall,
-  UsageTotals,
 } from '../../../types'
 import type { SystemPrompt } from '../../../system-prompts'
 
@@ -34,7 +34,7 @@ export type ChatMiddlewarePhase =
  * Stable context object passed to all middleware hooks.
  * Created once per chat() invocation and shared across all hooks.
  */
-export interface ChatMiddlewareContext {
+export interface ChatMiddlewareContext<TContext = unknown> {
   /** Unique identifier for this chat request */
   requestId: string
   /** Unique identifier for this stream */
@@ -64,8 +64,8 @@ export interface ChatMiddlewareContext {
   signal?: AbortSignal
   /** Abort the chat run with a reason */
   abort: (reason?: string) => void
-  /** Opaque user-provided value from chat() options */
-  context: unknown
+  /** Runtime context provided by chat() options */
+  context: TContext
   /**
    * Defer a non-blocking side-effect promise.
    * Deferred promises do not block streaming and are awaited
@@ -266,11 +266,11 @@ export interface ToolPhaseCompleteInfo {
  * Token usage statistics passed to the onUsage hook.
  * Extracted from the RUN_FINISHED chunk when usage data is present.
  *
- * Includes optional provider-reported `cost`/`costDetails` (see {@link UsageTotals}).
- * Kept as an interface extending `UsageTotals` to preserve declaration merging for
+ * Includes optional provider-reported `cost`/`costDetails` (see {@link TokenUsage}).
+ * Kept as an interface extending `TokenUsage` to preserve declaration merging for
  * this publicly exported type.
  */
-export interface UsageInfo extends UsageTotals {}
+export interface UsageInfo extends TokenUsage {}
 
 // ===========================
 // Terminal Hook Info
@@ -287,7 +287,7 @@ export interface FinishInfo {
   /** Final accumulated text content */
   content: string
   /** Final usage totals, if available (optionally including provider-reported cost) */
-  usage?: UsageTotals | undefined
+  usage?: TokenUsage | undefined
 }
 
 /**
@@ -343,7 +343,7 @@ export interface ErrorInfo {
  * }
  * ```
  */
-export interface ChatMiddleware {
+export interface ChatMiddleware<TContext = unknown> {
   /** Optional name for debugging and identification */
   name?: string
 
@@ -355,7 +355,7 @@ export interface ChatMiddleware {
    * Only the fields you return are overwritten — everything else is preserved.
    */
   onConfig?: (
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     config: ChatMiddlewareConfig,
   ) =>
     | void
@@ -379,7 +379,7 @@ export interface ChatMiddleware {
    * outputSchema or apply structured-output-specific behavior.
    */
   onStructuredOutputConfig?: (
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     config: StructuredOutputMiddlewareConfig,
   ) =>
     | void
@@ -390,14 +390,14 @@ export interface ChatMiddleware {
   /**
    * Called when the chat run starts (after initial onConfig).
    */
-  onStart?: (ctx: ChatMiddlewareContext) => void | Promise<void>
+  onStart?: (ctx: ChatMiddlewareContext<TContext>) => void | Promise<void>
 
   /**
    * Called at the start of each agent loop iteration, after a new assistant message ID
    * is created. Use this to observe iteration boundaries.
    */
   onIteration?: (
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     info: IterationInfo,
   ) => void | Promise<void>
 
@@ -408,7 +408,7 @@ export interface ChatMiddleware {
    * @returns void (pass through), chunk (replace), chunk[] (expand), null (drop)
    */
   onChunk?: (
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     chunk: StreamChunk,
   ) =>
     | void
@@ -422,7 +422,7 @@ export interface ChatMiddleware {
    * Can observe, transform args, skip execution, or abort the run.
    */
   onBeforeToolCall?: (
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     hookCtx: ToolCallHookContext,
   ) => BeforeToolCallDecision | Promise<BeforeToolCallDecision>
 
@@ -430,7 +430,7 @@ export interface ChatMiddleware {
    * Called after a tool execution completes (success or failure).
    */
   onAfterToolCall?: (
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     info: AfterToolCallInfo,
   ) => void | Promise<void>
 
@@ -439,7 +439,7 @@ export interface ChatMiddleware {
    * Provides aggregate data about tool execution results, approvals, and client tools.
    */
   onToolPhaseComplete?: (
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     info: ToolPhaseCompleteInfo,
   ) => void | Promise<void>
 
@@ -448,7 +448,7 @@ export interface ChatMiddleware {
    * Called once per model iteration that reports usage.
    */
   onUsage?: (
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     usage: UsageInfo,
   ) => void | Promise<void>
 
@@ -457,7 +457,7 @@ export interface ChatMiddleware {
    * Exactly one of onFinish/onAbort/onError will be called per run.
    */
   onFinish?: (
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     info: FinishInfo,
   ) => void | Promise<void>
 
@@ -466,7 +466,7 @@ export interface ChatMiddleware {
    * Exactly one of onFinish/onAbort/onError will be called per run.
    */
   onAbort?: (
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     info: AbortInfo,
   ) => void | Promise<void>
 
@@ -475,7 +475,7 @@ export interface ChatMiddleware {
    * Exactly one of onFinish/onAbort/onError will be called per run.
    */
   onError?: (
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     info: ErrorInfo,
   ) => void | Promise<void>
 }

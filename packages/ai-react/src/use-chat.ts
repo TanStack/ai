@@ -11,6 +11,7 @@ import type {
 import type {
   ChatClientState,
   ConnectionStatus,
+  InferredClientContext,
   StructuredOutputPart,
 } from '@tanstack/ai-client'
 
@@ -25,7 +26,10 @@ import type {
 export function useChat<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
->(options: UseChatOptions<TTools, TSchema>): UseChatReturn<TTools, TSchema> {
+  TContext = InferredClientContext<TTools>,
+>(
+  options: UseChatOptions<TTools, TSchema, TContext>,
+): UseChatReturn<TTools, TSchema> {
   const hookId = useId()
   const clientId = options.id || hookId
 
@@ -57,7 +61,7 @@ export function useChat<
   messagesRef.current = messages
 
   // Track current options in a ref to avoid recreating client when options change
-  const optionsRef = useRef<UseChatOptions<TTools, TSchema>>(options)
+  const optionsRef = useRef<UseChatOptions<TTools, TSchema, TContext>>(options)
   optionsRef.current = options
 
   // Create ChatClient instance with callbacks to sync state
@@ -74,7 +78,7 @@ export function useChat<
       ? { connection: initialOptions.connection }
       : { fetcher: initialOptions.fetcher }
 
-    const instance = new ChatClient({
+    const instance = new ChatClient<TTools, TContext>({
       devtoolsBridgeFactory: createChatDevtoolsBridge,
       ...transport,
       id: clientId,
@@ -85,6 +89,9 @@ export function useChat<
       }),
       ...(initialOptions.persistence !== undefined && {
         persistence: initialOptions.persistence,
+      }),
+      ...(initialOptions.context !== undefined && {
+        context: initialOptions.context,
       }),
       devtools: {
         ...initialOptions.devtools,
@@ -152,7 +159,7 @@ export function useChat<
   }, [clientId])
 
   useEffect(() => {
-    const clientMessages = client.getMessages() as Array<UIMessage<TTools>>
+    const clientMessages = client.getMessages()
     if (clientMessages !== messagesRef.current) {
       setMessages(clientMessages)
     }
@@ -166,8 +173,9 @@ export function useChat<
       ...(options.forwardedProps !== undefined && {
         forwardedProps: options.forwardedProps,
       }),
+      context: options.context,
     })
-  }, [client, options.body, options.forwardedProps])
+  }, [client, options.body, options.forwardedProps, options.context])
 
   useEffect(() => {
     if (options.live) {
@@ -268,7 +276,7 @@ export function useChat<
   // a stale assistant turn or a system prompt) we deliberately return null
   // rather than scanning historical assistants — otherwise a `final` from a
   // previous session would leak into the hook value on first render.
-  const renderedMessages = client.getMessages() as Array<UIMessage<TTools>>
+  const renderedMessages = client.getMessages()
 
   const activeStructuredPart = useMemo<StructuredOutputPart | null>(() => {
     let lastUserIndex = -1

@@ -14,8 +14,10 @@ export type {
   // Client configuration types
   ChatClientPersistence,
   ChatClientOptions,
+  ClientContextOptionFromTools,
   ChatRequestBody,
   InferChatMessages,
+  InferredClientContext,
   ChatClientState,
   ConnectionStatus,
   ChatFetcher,

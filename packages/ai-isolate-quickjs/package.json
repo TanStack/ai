@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-isolate-quickjs",
-  "version": "0.1.23",
+  "version": "0.1.27",
   "description": "QuickJS WASM sandbox driver for TanStack AI Code Mode TypeScript execution across runtimes.",
   "author": "",
   "license": "MIT",

@@ -3,7 +3,7 @@ id: ChatMiddleware
 title: ChatMiddleware
 ---
 
-# Interface: ChatMiddleware
+# Interface: ChatMiddleware\<TContext\>
 
 Defined in: [packages/ai/src/activities/chat/middleware/types.ts:346](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L346)
 
@@ -35,6 +35,12 @@ const redactionMiddleware: ChatMiddleware = {
 }
 ```
 
+## Type Parameters
+
+### TContext
+
+`TContext` = `unknown`
+
 ## Properties
 
 ### name?
@@ -64,7 +70,7 @@ Exactly one of onFinish/onAbort/onError will be called per run.
 
 ##### ctx
 
-[`ChatMiddlewareContext`](ChatMiddlewareContext.md)
+[`ChatMiddlewareContext`](ChatMiddlewareContext.md)\<`TContext`\>
 
 ##### info
 
@@ -90,7 +96,7 @@ Called after a tool execution completes (success or failure).
 
 ##### ctx
 
-[`ChatMiddlewareContext`](ChatMiddlewareContext.md)
+[`ChatMiddlewareContext`](ChatMiddlewareContext.md)\<`TContext`\>
 
 ##### info
 
@@ -119,7 +125,7 @@ Can observe, transform args, skip execution, or abort the run.
 
 ##### ctx
 
-[`ChatMiddlewareContext`](ChatMiddlewareContext.md)
+[`ChatMiddlewareContext`](ChatMiddlewareContext.md)\<`TContext`\>
 
 ##### hookCtx
 
@@ -152,7 +158,7 @@ Can observe, transform, expand, or drop chunks.
 
 ##### ctx
 
-[`ChatMiddlewareContext`](ChatMiddlewareContext.md)
+[`ChatMiddlewareContext`](ChatMiddlewareContext.md)\<`TContext`\>
 
 ##### chunk
 
@@ -195,7 +201,7 @@ Only the fields you return are overwritten — everything else is preserved.
 
 ##### ctx
 
-[`ChatMiddlewareContext`](ChatMiddlewareContext.md)
+[`ChatMiddlewareContext`](ChatMiddlewareContext.md)\<`TContext`\>
 
 ##### config
 
@@ -228,7 +234,7 @@ Exactly one of onFinish/onAbort/onError will be called per run.
 
 ##### ctx
 
-[`ChatMiddlewareContext`](ChatMiddlewareContext.md)
+[`ChatMiddlewareContext`](ChatMiddlewareContext.md)\<`TContext`\>
 
 ##### info
 
@@ -255,7 +261,7 @@ Exactly one of onFinish/onAbort/onError will be called per run.
 
 ##### ctx
 
-[`ChatMiddlewareContext`](ChatMiddlewareContext.md)
+[`ChatMiddlewareContext`](ChatMiddlewareContext.md)\<`TContext`\>
 
 ##### info
 
@@ -282,7 +288,7 @@ is created. Use this to observe iteration boundaries.
 
 ##### ctx
 
-[`ChatMiddlewareContext`](ChatMiddlewareContext.md)
+[`ChatMiddlewareContext`](ChatMiddlewareContext.md)\<`TContext`\>
 
 ##### info
 
@@ -308,7 +314,7 @@ Called when the chat run starts (after initial onConfig).
 
 ##### ctx
 
-[`ChatMiddlewareContext`](ChatMiddlewareContext.md)
+[`ChatMiddlewareContext`](ChatMiddlewareContext.md)\<`TContext`\>
 
 #### Returns
 
@@ -349,7 +355,7 @@ outputSchema or apply structured-output-specific behavior.
 
 ##### ctx
 
-[`ChatMiddlewareContext`](ChatMiddlewareContext.md)
+[`ChatMiddlewareContext`](ChatMiddlewareContext.md)\<`TContext`\>
 
 ##### config
 
@@ -382,7 +388,7 @@ Provides aggregate data about tool execution results, approvals, and client tool
 
 ##### ctx
 
-[`ChatMiddlewareContext`](ChatMiddlewareContext.md)
+[`ChatMiddlewareContext`](ChatMiddlewareContext.md)\<`TContext`\>
 
 ##### info
 
@@ -409,7 +415,7 @@ Called once per model iteration that reports usage.
 
 ##### ctx
 
-[`ChatMiddlewareContext`](ChatMiddlewareContext.md)
+[`ChatMiddlewareContext`](ChatMiddlewareContext.md)\<`TContext`\>
 
 ##### usage
 

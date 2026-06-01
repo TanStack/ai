@@ -187,6 +187,16 @@ async function runGenerateSpeech<
       timestamp: Date.now(),
     })
 
+    if (result.usage) {
+      aiEventClient.emit('speech:usage', {
+        requestId,
+        model,
+        usage: result.usage,
+        modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
+        timestamp: Date.now(),
+      })
+    }
+
     logger.output(`activity=generateSpeech bytes=${result.audio.length}`, {
       bytes: result.audio.length,
       contentType: result.contentType,

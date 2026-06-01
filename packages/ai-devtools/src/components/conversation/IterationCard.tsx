@@ -858,6 +858,26 @@ export const IterationCard: Component<IterationCardProps> = (props) => {
               </span>
             )}
           </Show>
+          <Show when={iter().usage?.promptTokensDetails?.cachedTokens}>
+            {(cached) => (
+              <span
+                class={`${s().badge} ${s().badgeUsage}`}
+                title="Cached prompt tokens"
+              >
+                💾 {cached().toLocaleString()}
+              </span>
+            )}
+          </Show>
+          <Show when={iter().usage?.completionTokensDetails?.reasoningTokens}>
+            {(reasoning) => (
+              <span
+                class={`${s().badge} ${s().badgeUsage}`}
+                title="Reasoning tokens"
+              >
+                🧠 {reasoning().toLocaleString()}
+              </span>
+            )}
+          </Show>
           <Show when={isActive()}>
             <span class={`${s().badge} ${s().badgeDuration}`}>⟳ streaming</span>
           </Show>

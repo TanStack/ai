@@ -32,12 +32,30 @@ export async function selectScenario(
   const params = new URLSearchParams()
   if (testId) params.set('testId', testId)
   if (aimockPort) params.set('aimockPort', String(aimockPort))
+  params.set('scenario', scenario)
   const qs = params.toString()
   await page.goto(`/tools-test${qs ? '?' + qs : ''}`)
   await page.waitForSelector('#run-test-button')
 
-  // Wait for hydration
+  // Give React time to attach delegated event handlers before clicking.
   await page.waitForTimeout(500)
+
+  const isScenarioSelected = async (timeout: number) =>
+    page
+      .waitForFunction(
+        (expected) => {
+          const metadata = document.getElementById('test-metadata')
+          return metadata?.getAttribute('data-scenario') === expected
+        },
+        scenario,
+        { timeout },
+      )
+      .then(() => true)
+      .catch(() => false)
+
+  if (await isScenarioSelected(5000)) {
+    return
+  }
 
   // Try selecting multiple times
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -53,10 +71,10 @@ export async function selectScenario(
 
   // Verify scenario is selected
   await page.waitForFunction(
-    (expected) =>
-      document
-        .getElementById('test-metadata')
-        ?.getAttribute('data-scenario') === expected,
+    (expected) => {
+      const metadata = document.getElementById('test-metadata')
+      return metadata?.getAttribute('data-scenario') === expected
+    },
     scenario,
     { timeout: 10000 },
   )
@@ -67,9 +85,53 @@ export async function selectScenario(
 
 /**
  * Click #run-test-button and wait for loading to start.
+ *
+ * Uses the pre-click message count as a baseline so that a fixture which is
+ * already populated (non-empty messages JSON) does not register as a started
+ * run on its own. A run is considered started when either:
+ *   1. data-is-loading === "true", OR
+ *   2. the parsed message count has grown beyond the pre-click baseline.
  */
 export async function runTest(page: Page): Promise<void> {
-  await page.click('#run-test-button')
+  const readMessageCount = () =>
+    page.evaluate(() => {
+      const text =
+        document.getElementById('messages-json-content')?.textContent || '[]'
+      try {
+        const parsed = JSON.parse(text)
+        return Array.isArray(parsed) ? parsed.length : 0
+      } catch {
+        return 0
+      }
+    })
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const baselineMessageCount = await readMessageCount()
+    await page.click('#run-test-button')
+    await page.waitForTimeout(300)
+
+    const started = await page.evaluate((baseline) => {
+      const metadata = document.getElementById('test-metadata')
+      if (metadata?.getAttribute('data-is-loading') === 'true') {
+        return true
+      }
+
+      const text =
+        document.getElementById('messages-json-content')?.textContent || '[]'
+      try {
+        const parsed = JSON.parse(text)
+        return Array.isArray(parsed) && parsed.length > baseline
+      } catch {
+        return false
+      }
+    }, baselineMessageCount)
+
+    if (started) {
+      return
+    }
+  }
+
+  throw new Error('Run test button did not start a chat run')
 }
 
 /**
@@ -177,6 +239,7 @@ export async function getMetadata(page: Page): Promise<Record<string, string>> {
       approvalDeniedCount: el.getAttribute('data-approval-denied-count') || '',
       hasError: el.getAttribute('data-has-error') || '',
       errorMessage: el.getAttribute('data-error-message') || '',
+      errorRawEvent: el.getAttribute('data-error-raw-event') || '',
     }
   })
 }

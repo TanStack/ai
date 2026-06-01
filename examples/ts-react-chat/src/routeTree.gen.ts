@@ -13,6 +13,7 @@ import { Route as ThreadsRouteImport } from './routes/threads'
 import { Route as ServerFnChatRouteImport } from './routes/server-fn-chat'
 import { Route as RealtimeRouteImport } from './routes/realtime'
 import { Route as Issue176ToolResultRouteImport } from './routes/issue-176-tool-result'
+import { Route as ImageToolReproRouteImport } from './routes/image-tool-repro'
 import { Route as ImageGenRouteImport } from './routes/image-gen'
 import { Route as GenerationHooksRouteImport } from './routes/generation-hooks'
 import { Route as IndexRouteImport } from './routes/index'
@@ -24,11 +25,13 @@ import { Route as GenerationsStructuredChatRouteImport } from './routes/generati
 import { Route as GenerationsSpeechRouteImport } from './routes/generations.speech'
 import { Route as GenerationsImageRouteImport } from './routes/generations.image'
 import { Route as GenerationsAudioRouteImport } from './routes/generations.audio'
+import { Route as ExampleRuntimeContextRouteImport } from './routes/example.runtime-context'
 import { Route as ApiTranscribeRouteImport } from './routes/api.transcribe'
 import { Route as ApiTanchatRouteImport } from './routes/api.tanchat'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiStructuredOutputRouteImport } from './routes/api.structured-output'
 import { Route as ApiStructuredChatRouteImport } from './routes/api.structured-chat'
+import { Route as ApiImageToolReproRouteImport } from './routes/api.image-tool-repro'
 import { Route as ApiImageGenRouteImport } from './routes/api.image-gen'
 import { Route as ExampleGuitarsIndexRouteImport } from './routes/example.guitars/index'
 import { Route as ExampleGuitarsGuitarIdRouteImport } from './routes/example.guitars/$guitarId'
@@ -55,6 +58,11 @@ const RealtimeRoute = RealtimeRouteImport.update({
 const Issue176ToolResultRoute = Issue176ToolResultRouteImport.update({
   id: '/issue-176-tool-result',
   path: '/issue-176-tool-result',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ImageToolReproRoute = ImageToolReproRouteImport.update({
+  id: '/image-tool-repro',
+  path: '/image-tool-repro',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ImageGenRoute = ImageGenRouteImport.update({
@@ -115,6 +123,11 @@ const GenerationsAudioRoute = GenerationsAudioRouteImport.update({
   path: '/generations/audio',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ExampleRuntimeContextRoute = ExampleRuntimeContextRouteImport.update({
+  id: '/example/runtime-context',
+  path: '/example/runtime-context',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiTranscribeRoute = ApiTranscribeRouteImport.update({
   id: '/api/transcribe',
   path: '/api/transcribe',
@@ -138,6 +151,11 @@ const ApiStructuredOutputRoute = ApiStructuredOutputRouteImport.update({
 const ApiStructuredChatRoute = ApiStructuredChatRouteImport.update({
   id: '/api/structured-chat',
   path: '/api/structured-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiImageToolReproRoute = ApiImageToolReproRouteImport.update({
+  id: '/api/image-tool-repro',
+  path: '/api/image-tool-repro',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiImageGenRoute = ApiImageGenRouteImport.update({
@@ -180,16 +198,19 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/generation-hooks': typeof GenerationHooksRoute
   '/image-gen': typeof ImageGenRoute
+  '/image-tool-repro': typeof ImageToolReproRoute
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/realtime': typeof RealtimeRoute
   '/server-fn-chat': typeof ServerFnChatRoute
   '/threads': typeof ThreadsRoute
   '/api/image-gen': typeof ApiImageGenRoute
+  '/api/image-tool-repro': typeof ApiImageToolReproRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tanchat': typeof ApiTanchatRoute
   '/api/transcribe': typeof ApiTranscribeRoute
+  '/example/runtime-context': typeof ExampleRuntimeContextRoute
   '/generations/audio': typeof GenerationsAudioRoute
   '/generations/image': typeof GenerationsImageRoute
   '/generations/speech': typeof GenerationsSpeechRoute
@@ -209,16 +230,19 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/generation-hooks': typeof GenerationHooksRoute
   '/image-gen': typeof ImageGenRoute
+  '/image-tool-repro': typeof ImageToolReproRoute
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/realtime': typeof RealtimeRoute
   '/server-fn-chat': typeof ServerFnChatRoute
   '/threads': typeof ThreadsRoute
   '/api/image-gen': typeof ApiImageGenRoute
+  '/api/image-tool-repro': typeof ApiImageToolReproRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tanchat': typeof ApiTanchatRoute
   '/api/transcribe': typeof ApiTranscribeRoute
+  '/example/runtime-context': typeof ExampleRuntimeContextRoute
   '/generations/audio': typeof GenerationsAudioRoute
   '/generations/image': typeof GenerationsImageRoute
   '/generations/speech': typeof GenerationsSpeechRoute
@@ -239,16 +263,19 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/generation-hooks': typeof GenerationHooksRoute
   '/image-gen': typeof ImageGenRoute
+  '/image-tool-repro': typeof ImageToolReproRoute
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/realtime': typeof RealtimeRoute
   '/server-fn-chat': typeof ServerFnChatRoute
   '/threads': typeof ThreadsRoute
   '/api/image-gen': typeof ApiImageGenRoute
+  '/api/image-tool-repro': typeof ApiImageToolReproRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tanchat': typeof ApiTanchatRoute
   '/api/transcribe': typeof ApiTranscribeRoute
+  '/example/runtime-context': typeof ExampleRuntimeContextRoute
   '/generations/audio': typeof GenerationsAudioRoute
   '/generations/image': typeof GenerationsImageRoute
   '/generations/speech': typeof GenerationsSpeechRoute
@@ -270,16 +297,19 @@ export interface FileRouteTypes {
     | '/'
     | '/generation-hooks'
     | '/image-gen'
+    | '/image-tool-repro'
     | '/issue-176-tool-result'
     | '/realtime'
     | '/server-fn-chat'
     | '/threads'
     | '/api/image-gen'
+    | '/api/image-tool-repro'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
     | '/api/tanchat'
     | '/api/transcribe'
+    | '/example/runtime-context'
     | '/generations/audio'
     | '/generations/image'
     | '/generations/speech'
@@ -299,16 +329,19 @@ export interface FileRouteTypes {
     | '/'
     | '/generation-hooks'
     | '/image-gen'
+    | '/image-tool-repro'
     | '/issue-176-tool-result'
     | '/realtime'
     | '/server-fn-chat'
     | '/threads'
     | '/api/image-gen'
+    | '/api/image-tool-repro'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
     | '/api/tanchat'
     | '/api/transcribe'
+    | '/example/runtime-context'
     | '/generations/audio'
     | '/generations/image'
     | '/generations/speech'
@@ -328,16 +361,19 @@ export interface FileRouteTypes {
     | '/'
     | '/generation-hooks'
     | '/image-gen'
+    | '/image-tool-repro'
     | '/issue-176-tool-result'
     | '/realtime'
     | '/server-fn-chat'
     | '/threads'
     | '/api/image-gen'
+    | '/api/image-tool-repro'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
     | '/api/tanchat'
     | '/api/transcribe'
+    | '/example/runtime-context'
     | '/generations/audio'
     | '/generations/image'
     | '/generations/speech'
@@ -358,16 +394,19 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   GenerationHooksRoute: typeof GenerationHooksRoute
   ImageGenRoute: typeof ImageGenRoute
+  ImageToolReproRoute: typeof ImageToolReproRoute
   Issue176ToolResultRoute: typeof Issue176ToolResultRoute
   RealtimeRoute: typeof RealtimeRoute
   ServerFnChatRoute: typeof ServerFnChatRoute
   ThreadsRoute: typeof ThreadsRoute
   ApiImageGenRoute: typeof ApiImageGenRoute
+  ApiImageToolReproRoute: typeof ApiImageToolReproRoute
   ApiStructuredChatRoute: typeof ApiStructuredChatRoute
   ApiStructuredOutputRoute: typeof ApiStructuredOutputRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
   ApiTanchatRoute: typeof ApiTanchatRoute
   ApiTranscribeRoute: typeof ApiTranscribeRoute
+  ExampleRuntimeContextRoute: typeof ExampleRuntimeContextRoute
   GenerationsAudioRoute: typeof GenerationsAudioRoute
   GenerationsImageRoute: typeof GenerationsImageRoute
   GenerationsSpeechRoute: typeof GenerationsSpeechRoute
@@ -412,6 +451,13 @@ declare module '@tanstack/react-router' {
       path: '/issue-176-tool-result'
       fullPath: '/issue-176-tool-result'
       preLoaderRoute: typeof Issue176ToolResultRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/image-tool-repro': {
+      id: '/image-tool-repro'
+      path: '/image-tool-repro'
+      fullPath: '/image-tool-repro'
+      preLoaderRoute: typeof ImageToolReproRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/image-gen': {
@@ -491,6 +537,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GenerationsAudioRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/example/runtime-context': {
+      id: '/example/runtime-context'
+      path: '/example/runtime-context'
+      fullPath: '/example/runtime-context'
+      preLoaderRoute: typeof ExampleRuntimeContextRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/transcribe': {
       id: '/api/transcribe'
       path: '/api/transcribe'
@@ -524,6 +577,13 @@ declare module '@tanstack/react-router' {
       path: '/api/structured-chat'
       fullPath: '/api/structured-chat'
       preLoaderRoute: typeof ApiStructuredChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/image-tool-repro': {
+      id: '/api/image-tool-repro'
+      path: '/api/image-tool-repro'
+      fullPath: '/api/image-tool-repro'
+      preLoaderRoute: typeof ApiImageToolReproRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/image-gen': {
@@ -582,16 +642,19 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   GenerationHooksRoute: GenerationHooksRoute,
   ImageGenRoute: ImageGenRoute,
+  ImageToolReproRoute: ImageToolReproRoute,
   Issue176ToolResultRoute: Issue176ToolResultRoute,
   RealtimeRoute: RealtimeRoute,
   ServerFnChatRoute: ServerFnChatRoute,
   ThreadsRoute: ThreadsRoute,
   ApiImageGenRoute: ApiImageGenRoute,
+  ApiImageToolReproRoute: ApiImageToolReproRoute,
   ApiStructuredChatRoute: ApiStructuredChatRoute,
   ApiStructuredOutputRoute: ApiStructuredOutputRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
   ApiTanchatRoute: ApiTanchatRoute,
   ApiTranscribeRoute: ApiTranscribeRoute,
+  ExampleRuntimeContextRoute: ExampleRuntimeContextRoute,
   GenerationsAudioRoute: GenerationsAudioRoute,
   GenerationsImageRoute: GenerationsImageRoute,
   GenerationsSpeechRoute: GenerationsSpeechRoute,

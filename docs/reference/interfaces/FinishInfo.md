@@ -50,7 +50,7 @@ The finish reason from the last model response
 ### usage?
 
 ```ts
-optional usage: UsageTotals;
+optional usage: TokenUsage<ProviderUsageDetails>;
 ```
 
 Defined in: [packages/ai/src/activities/chat/middleware/types.ts:290](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L290)
