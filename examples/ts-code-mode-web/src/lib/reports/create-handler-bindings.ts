@@ -74,8 +74,8 @@ function createBinding(
 
 export function createHandlerBindings(
   context?: HandlerBindingContext,
-  reportId?: string,
-  canvasId: string = 'diagram',
+  _reportId?: string,
+  _canvasId: string = 'diagram',
 ): Record<string, ToolBinding> {
   // Helper to track binding calls
   const track = (name: string) => context?.onBindingCall?.(name)

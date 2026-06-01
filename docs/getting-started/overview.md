@@ -32,15 +32,16 @@ The framework-agnostic core of TanStack AI provides the building blocks for crea
 
 - **Next.js** - API routes and App Router
 - **TanStack Start** - React Start or Solid Start (recommended!)
+- **React Native / Expo** - Native chat screens with `useChat`, absolute server URLs, and XHR streaming transports
 - **Express** - Node.js server
 - **React Router v7** - Loaders and actions
 
 TanStack AI lets you define a tool once and provide environment-specific implementations. Using `toolDefinition()` to declare the tool's input/output types and the server behavior with `.server()` (or a client implementation with `.client()`). These isomorphic tools can be invoked from the AI runtime regardless of framework.
 
 ```typescript
-import { chat } from '@tanstack/ai'
-import { toolDefinition } from '@tanstack/ai'
+import { chat, toolDefinition } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
+import { z } from 'zod'
 
 // Define a tool
 const getProductsDef = toolDefinition({
@@ -114,5 +115,6 @@ With the help of adapters, TanStack AI can connect to various LLM providers. Ava
 ## Next Steps
 
 - [Quick Start Guide](./quick-start) - Get up and running in minutes
+- [Quick Start: React Native](./quick-start-react-native) - Add mobile chat with Expo and a server-owned provider boundary
 - [Tools Guide](../tools/tools) - Learn about the isomorphic tool system
 - [API Reference](../api/ai) - Explore the full API

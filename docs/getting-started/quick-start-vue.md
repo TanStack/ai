@@ -41,7 +41,7 @@ const app = express()
 app.use(express.json())
 
 app.post('/api/chat', async (req, res) => {
-  const { messages, conversationId } = req.body
+  const { messages } = req.body
 
   if (!process.env.OPENAI_API_KEY) {
     res.status(500).json({ error: 'OPENAI_API_KEY not configured' })
@@ -49,10 +49,11 @@ app.post('/api/chat', async (req, res) => {
   }
 
   try {
+    // `chat()` uses the AG-UI `threadId` for devtools correlation
+    // when available — no need to plumb `conversationId` manually.
     const stream = chat({
       adapter: openaiText('gpt-4o'),
       messages,
-      conversationId,
     })
 
     const response = toServerSentEventsResponse(stream)
@@ -111,7 +112,7 @@ function handleSubmit() {
   <div class="chat">
     <div class="messages">
       <div
-        v-for="message in messages.value"
+        v-for="message in messages"
         :key="message.id"
         :class="message.role"
       >
@@ -126,9 +127,9 @@ function handleSubmit() {
       <input
         v-model="input"
         placeholder="Type a message..."
-        :disabled="isLoading.value"
+        :disabled="isLoading"
       />
-      <button type="submit" :disabled="!input.trim() || isLoading.value">
+      <button type="submit" :disabled="!input.trim() || isLoading">
         Send
       </button>
     </form>
@@ -152,7 +153,7 @@ Your server reads this key at runtime. Never expose it to the browser.
 
 ## Vue-Specific Notes
 
-**Reactive state uses `ShallowRef`.** The `useChat` composable returns state wrapped in `DeepReadonly<ShallowRef<>>`. Access values with `.value` in both `<script>` and `<template>`:
+**Reactive state uses `ShallowRef`.** The `useChat` composable returns state wrapped in `DeepReadonly<ShallowRef<>>`. In `<script setup>` you must read the underlying value with `.value`. In `<template>` Vue auto-unwraps the ref, so use the bare name:
 
 ```vue
 <script setup lang="ts">
@@ -162,9 +163,9 @@ const count = messages.value.length
 </script>
 
 <template>
-  <!-- In template, also use .value (these are ShallowRefs, not regular refs) -->
-  <span v-if="isLoading.value">Loading...</span>
-  <span>{{ messages.value.length }} messages</span>
+  <!-- In template, Vue unwraps the ref automatically — no .value -->
+  <span v-if="isLoading">Loading...</span>
+  <span>{{ messages.length }} messages</span>
 </template>
 ```
 

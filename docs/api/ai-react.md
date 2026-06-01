@@ -13,6 +13,12 @@ keywords:
 ---
 
 React hooks for TanStack AI, providing convenient React bindings for the headless client.
+For React Native, the documented support surface is narrow: `useChat` with chat
+connection adapters. React DOM-specific UI packages and TanStack AI devtools UI
+are not part of the React Native support surface.
+
+For a complete native journey, see
+[Quick Start: React Native](../getting-started/quick-start-react-native).
 
 ## Installation
 
@@ -65,7 +71,10 @@ Extends `ChatClientOptions` from `@tanstack/ai-client`:
 - `tools?` - Array of client tool implementations (with `.client()` method)
 - `initialMessages?` - Initial messages array
 - `id?` - Unique identifier for this chat instance
-- `body?` - Additional body parameters to send
+- `threadId?` - Thread ID for AG-UI run correlation. Persists across sends; auto-generated if omitted
+- `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field (e.g., `{ provider: 'openai', model: 'gpt-4o' }`)
+- `body?` - **Deprecated.** Use `forwardedProps` instead. Still works for backward compatibility; values are merged into `forwardedProps` on the wire
+- `context?` - Typed client-local runtime context passed to client tool implementations. This value is not serialized to the server
 - `onResponse?` - Callback when response is received
 - `onChunk?` - Callback when stream chunk is received
 - `onFinish?` - Callback when response finishes
@@ -109,10 +118,29 @@ Re-exported from `@tanstack/ai-client` for convenience:
 import {
   fetchServerSentEvents,
   fetchHttpStream,
+  xhrServerSentEvents,
+  xhrHttpStream,
   stream,
   type ConnectionAdapter,
+  type FetchConnectionOptions,
+  type XhrConnectionOptions,
 } from "@tanstack/ai-react";
 ```
+
+For React Native or Expo chat screens, use an absolute server URL and prefer
+`xhrHttpStream()` with a server route that returns `toHttpResponse()`. Use
+`xhrServerSentEvents()` with `toServerSentEventsResponse()` when you want SSE.
+Use `fetchHttpStream()` only when the runtime supports streaming `fetch`,
+`Response.body.getReader()`, and `TextDecoder`; otherwise it throws
+`UnsupportedResponseStreamError`.
+
+XHR adapter options include `headers`, `withCredentials`, `signal`, `body`, and
+`xhrFactory`. Fetch adapter options include `headers`, `credentials`, `signal`,
+`body`, and `fetchClient`. Both option objects may be provided directly or as a
+function that resolves per request.
+
+For error narrowing, import `UnsupportedResponseStreamError` and
+`StreamTruncatedError` from `@tanstack/ai-client`.
 
 ## Example: Basic Chat
 
@@ -307,7 +335,7 @@ Re-exported from `@tanstack/ai-client`:
 - `ThinkingPart` - Thinking content part
 - `ToolCallPart<TTools>` - Tool call part (discriminated union)
 - `ToolResultPart` - Tool result part
-- `ChatClientOptions<TTools>` - Chat client options
+- `ChatClientOptions<TTools, TContext>` - Chat client options with typed client runtime context
 - `ConnectionAdapter` - Connection adapter interface
 - `InferChatMessages<T>` - Extract message type from options
 

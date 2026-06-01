@@ -2,13 +2,13 @@
 title: Client Tools
 id: client-tools
 order: 4
-description: "Client tools in TanStack AI run in the browser for UI updates, localStorage, and browser API access with type-safe onToolCall handling."
+description: "Client tools in TanStack AI run in the browser for UI updates, localStorage, and browser API access with automatic execution."
 keywords:
   - tanstack ai
   - client tools
   - browser tools
   - ui tools
-  - onToolCall
+  - automatic execution
   - clientTools
   - localStorage
 ---
@@ -28,7 +28,7 @@ sequenceDiagram
     Note over Server: No execute function<br/>= client tool
     
     Server->>Browser: Forward tool-input-available<br/>chunk via SSE/HTTP
-    Browser->>Browser: onToolCall callback<br/>triggered
+    Browser->>Browser: Find registered<br/>client tool
     Browser->>ClientTool: execute(args)
     ClientTool->>ClientTool: Update UI,<br/>localStorage, etc.
     ClientTool-->>Browser: Return result
@@ -54,9 +54,7 @@ sequenceDiagram
 1. **Tool Call from LLM**: LLM decides to call a client tool
 2. **Server Detection**: Server sees the tool has no `execute` function
 3. **Client Notification**: Server sends a `tool-input-available` chunk to the browser
-4. **Client Execution**: Browser's `onToolCall` callback is triggered with:
-   - `toolName`: Name of the tool to execute
-   - `input`: Parsed arguments
+4. **Client Execution**: The browser finds the registered `.client()` implementation by tool name and runs it with the parsed input
 5. **Result Return**: Client executes the tool and returns the result
 6. **Server Update**: Result is sent back to the server and added to the conversation
 7. **LLM Continuation**: LLM receives the result and continues the conversation
@@ -208,13 +206,49 @@ function MessageComponent({ message }: { message: ChatMessages[number] }) {
 
 ## Automatic Execution
 
-Client tools are **automatically executed** when the model calls them. No manual `onToolCall` callback needed! The flow is:
+Client tools are **automatically executed** when the model calls them. The flow is:
 
 1. LLM calls a client tool
 2. Server sends `tool-input-available` chunk to browser
 3. Client automatically executes the matching tool implementation
 4. Result is sent back to server
 5. Conversation continues with the result
+
+## Client Runtime Context
+
+Client tools can receive typed runtime context as their second argument. This context is local to the `ChatClient` or framework hook instance and is not serialized to the server.
+
+```typescript
+import { createChatClientOptions, clientTools } from "@tanstack/ai-client";
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { toolDefinition } from "@tanstack/ai";
+
+type ClientContext = {
+  activeProjectId: string;
+  toast(message: string): void;
+};
+
+const showToast = toolDefinition({
+  name: "show_toast",
+  description: "Show a browser notification",
+}).client<ClientContext>((_input, ctx) => {
+  ctx.context.toast(`Project ${ctx.context.activeProjectId} updated`);
+  return { ok: true };
+});
+
+const chatOptions = createChatClientOptions({
+  connection: fetchServerSentEvents("/api/chat"),
+  tools: clientTools(showToast),
+  context: {
+    activeProjectId,
+    toast: (message) => toast(message),
+  },
+});
+
+const chat = useChat(chatOptions);
+```
+
+Use `context` for local browser dependencies. If the server also needs a value from the client, send it with `forwardedProps`, validate it in your route, and map it into server `chat({ context })` explicitly. See [Runtime Context](../advanced/runtime-context) for the full pattern.
 
 ## Type Safety Benefits
 
@@ -243,8 +277,10 @@ Client tools go through a small set of observable lifecycle states you can surfa
 
 - `awaiting-input` — the model intends to call the tool but arguments haven't arrived yet.
 - `input-streaming` — the model is streaming the tool arguments (partial input may be available).
-- `input-complete` — all arguments have been received and the tool is executing.
-- `completed` — the tool finished; part.output contains the result (or error details).
+- `input-complete` — all arguments have been received and the tool can run.
+- `approval-requested` — the tool is waiting for user approval before it can run.
+- `approval-responded` — the user has approved or denied the tool call.
+- `complete` — the tool finished; `part.output` contains the result (or error details).
 
 Use these states to show loading indicators, streaming progress, and final success/error feedback. The example below maps each state to a simple UI message.
 
@@ -259,11 +295,11 @@ function ToolCallDisplay({ part }: { part: ToolCallPart }) {
   }
   
   if (part.state === "input-complete") {
-    return <div>✓ Arguments received, executing...</div>;
+    return <div>✓ Arguments received, running tool...</div>;
   }
-  
-  if (part.output) {
-    return <div>✅ Tool completed successfully</div>;
+
+  if (part.state === "complete") {
+    return <div>✅ Tool complete</div>;
   }
   
   return null;
@@ -335,4 +371,3 @@ chat({ adapter: openaiText('gpt-5.2'), messages: [], tools: [addToCartServer] })
 - [How Tools Work](./tools) - Deep dive into the tool architecture
 - [Server Tools](./server-tools) - Learn about server-side tool execution
 - [Tool Approval Flow](./tool-approval) - Add approval workflows for sensitive operations
-

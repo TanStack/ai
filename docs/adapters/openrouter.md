@@ -35,16 +35,17 @@ const stream = chat({
 ## Configuration
 
 ```typescript
-import { createOpenRouter, type OpenRouterConfig } from "@tanstack/ai-openrouter";
+import { createOpenRouterText } from "@tanstack/ai-openrouter";
 
-const config: OpenRouterConfig = {
-  apiKey: process.env.OPENROUTER_API_KEY!,
-  baseURL: "https://openrouter.ai/api/v1", // Optional
-  httpReferer: "https://your-app.com", // Optional, for rankings
-  xTitle: "Your App Name", // Optional, for rankings
-};
-
-const adapter = createOpenRouter(config.apiKey, config);
+const adapter = createOpenRouterText(
+  "openai/gpt-5",
+  process.env.OPENROUTER_API_KEY!,
+  {
+    serverURL: "https://openrouter.ai/api/v1", // Optional
+    httpReferer: "https://your-app.com", // Optional, for rankings
+    appTitle: "Your App Name", // Optional, for rankings
+  },
+);
 ```
 
 ## Available Models
@@ -122,18 +123,84 @@ OpenRouter can automatically route requests to the best available provider:
 ```typescript
 const stream = chat({
   adapter: openRouterText("openrouter/auto"),
-  messages, 
-  providerOptions: {
+  messages,
+  modelOptions: {
     models: [
       "openai/gpt-4o",
       "anthropic/claude-3.5-sonnet",
       "google/gemini-pro",
     ],
-    route: "fallback", // Use fallback if primary fails
   },
 });
 ```
- 
+
+## Chat Completions vs Responses (beta)
+
+OpenRouter exposes two OpenAI-compatible wire formats, and the adapter
+package ships one of each:
+
+| Adapter                    | Endpoint                  | Status   | When to use                                                                  |
+| -------------------------- | ------------------------- | -------- | ---------------------------------------------------------------------------- |
+| `openRouterText`           | `/v1/chat/completions`    | Stable   | Default for almost everything. Broadest model + tool support.                |
+| `openRouterResponsesText`  | `/v1/responses`           | Beta     | OpenAI Responses-shaped request/response; richer multi-turn state on OpenAI-style models. |
+
+Both adapters route to any underlying model OpenRouter supports
+(`anthropic/...`, `google/...`, `meta-llama/...`, etc.) — the wire format
+describes how your client talks to OpenRouter, not which provider answers.
+`/v1/responses` is OpenAI's newer API surface; OpenRouter implements it so
+clients that prefer that wire format can use it across the same 300+
+model catalogue.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openRouterResponsesText } from "@tanstack/ai-openrouter";
+
+const stream = chat({
+  adapter: openRouterResponsesText("anthropic/claude-sonnet-4.5"),
+  messages: [{ role: "user", content: "Hello!" }],
+});
+```
+
+Caveats while the Responses adapter is in beta:
+
+- Function tools are supported; OpenRouter's branded server-tools (web
+  search, file search, …) are not yet wired through this path — use
+  `openRouterText` if you need those.
+- If in doubt, prefer `openRouterText`. The Chat Completions endpoint has
+  broader provider coverage and feature parity today.
+
+## Cost Tracking
+
+OpenRouter reports the actual cost of each request inline on the streamed
+response. When present, the adapter forwards it on the terminal `RUN_FINISHED`
+event under `usage.cost`, with OpenRouter's per-request breakdown under
+`usage.costDetails`. This is the cost OpenRouter itself reports for the
+request — it is **not** computed locally from token counts, so it already
+accounts for routing, fallback providers, BYOK, and cached-token pricing. See
+OpenRouter's [Usage Accounting](https://openrouter.ai/docs/use-cases/usage-accounting)
+docs for the meaning and units of these fields.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openRouterText } from "@tanstack/ai-openrouter";
+
+for await (const chunk of chat({
+  adapter: openRouterText("openai/gpt-5"),
+  messages: [{ role: "user", content: "Hello!" }],
+})) {
+  if (chunk.type === "RUN_FINISHED") {
+    console.log("cost:", chunk.usage?.cost);
+    console.log("breakdown:", chunk.usage?.costDetails);
+  }
+}
+```
+
+The same `usage` (including `cost` / `costDetails`) is passed to middleware via
+the `onUsage` and `onFinish` hooks. When OpenRouter does not report a cost, the
+fields are simply absent and the stream completes normally. Both
+`openRouterText` and `openRouterResponsesText` populate cost when OpenRouter
+returns it.
+
 ## Next Steps
 
 - [Getting Started](../getting-started/quick-start) - Learn the basics
@@ -154,9 +221,12 @@ any proxied chat model. Import it from `@tanstack/ai-openrouter/tools`.
 
 ### `webSearchTool`
 
-Adds web search capability to any OpenRouter-proxied chat model. Choose the
-search `engine` (`native` or `exa`), cap results with `maxResults`, and
-optionally provide a `searchPrompt` to guide query formation.
+Adds web search capability to any OpenRouter-proxied chat model. The factory
+accepts OpenRouter's `WebSearchConfig` directly — pick the `engine`
+(`auto`, `native`, `exa`, `firecrawl`, or `parallel`), cap results with
+`maxResults` / `maxTotalResults`, restrict which sites can appear in results
+with `allowedDomains` / `excludedDomains`, and optionally pass
+`searchContextSize` or `userLocation` for finer control.
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -170,7 +240,45 @@ const stream = chat({
     webSearchTool({
       engine: "exa",
       maxResults: 5,
-      searchPrompt: "Recent AI news and research papers",
+      allowedDomains: ["arxiv.org", "openai.com"],
+    }),
+  ],
+});
+```
+
+**Supported models:** all OpenRouter chat models. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+
+### `webFetchTool`
+
+Lets any OpenRouter-proxied chat model fetch the full contents of a URL the
+model chooses, instead of running a search. The factory accepts OpenRouter's
+`WebFetchServerToolConfig` directly — pick the fetch `engine` (`auto` — the
+default, `native`, `openrouter`, `exa`, or `firecrawl`), cap how much page
+content the model receives with `maxContentTokens`, cap how many fetches the
+model can make per request with `maxUses`, and restrict which URLs the model
+can fetch with `allowedDomains` / `blockedDomains`.
+
+> The `native` engine routes to the underlying provider's own fetch (for
+> example, Anthropic's `web_fetch` on Claude models). Native fetch
+> capabilities vary, so `allowedDomains` and `blockedDomains` may be
+> ignored. Use `openrouter`, `exa`, or `firecrawl` if you need consistent
+> behaviour across models.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openRouterText } from "@tanstack/ai-openrouter";
+import { webFetchTool } from "@tanstack/ai-openrouter/tools";
+
+const stream = chat({
+  adapter: openRouterText("openai/gpt-5"),
+  messages: [
+    { role: "user", content: "Summarize https://example.com/article" },
+  ],
+  tools: [
+    webFetchTool({
+      engine: "openrouter",
+      maxContentTokens: 4000,
+      allowedDomains: ["example.com"],
     }),
   ],
 });

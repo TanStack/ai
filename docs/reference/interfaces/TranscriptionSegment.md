@@ -5,7 +5,7 @@ title: TranscriptionSegment
 
 # Interface: TranscriptionSegment
 
-Defined in: [packages/typescript/ai/src/types.ts:1475](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1475)
+Defined in: [packages/ai/src/types.ts:1736](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1736)
 
 A single segment of transcribed audio with timing information.
 
@@ -17,7 +17,7 @@ A single segment of transcribed audio with timing information.
 optional confidence: number;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1485](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1485)
+Defined in: [packages/ai/src/types.ts:1746](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1746)
 
 Confidence score (0-1), if available
 
@@ -29,7 +29,7 @@ Confidence score (0-1), if available
 end: number;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1481](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1481)
+Defined in: [packages/ai/src/types.ts:1742](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1742)
 
 End time of the segment in seconds
 
@@ -41,7 +41,7 @@ End time of the segment in seconds
 id: number;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1477](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1477)
+Defined in: [packages/ai/src/types.ts:1738](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1738)
 
 Unique identifier for the segment
 
@@ -53,7 +53,7 @@ Unique identifier for the segment
 optional speaker: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1487](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1487)
+Defined in: [packages/ai/src/types.ts:1748](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1748)
 
 Speaker identifier, if diarization is enabled
 
@@ -65,7 +65,7 @@ Speaker identifier, if diarization is enabled
 start: number;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1479](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1479)
+Defined in: [packages/ai/src/types.ts:1740](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1740)
 
 Start time of the segment in seconds
 
@@ -77,6 +77,6 @@ Start time of the segment in seconds
 text: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1483](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1483)
+Defined in: [packages/ai/src/types.ts:1744](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1744)
 
 Transcribed text for this segment

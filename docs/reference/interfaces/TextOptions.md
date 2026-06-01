@@ -5,7 +5,7 @@ title: TextOptions
 
 # Interface: TextOptions\<TProviderOptionsSuperset, TProviderOptionsForModel\>
 
-Defined in: [packages/typescript/ai/src/types.ts:657](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L657)
+Defined in: [packages/ai/src/types.ts:729](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L729)
 
 Options passed into the SDK and further piped to the AI provider.
 
@@ -27,7 +27,7 @@ Options passed into the SDK and further piped to the AI provider.
 optional abortController: AbortController;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:741](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L741)
+Defined in: [packages/ai/src/types.ts:849](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L849)
 
 AbortController for request cancellation.
 
@@ -54,20 +54,28 @@ https://developer.mozilla.org/en-US/docs/Web/API/AbortController
 optional agentLoopStrategy: AgentLoopStrategy;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:665](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L665)
+Defined in: [packages/ai/src/types.ts:751](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L751)
 
 ***
 
-### conversationId?
+### ~~conversationId?~~
 
 ```ts
 optional conversationId: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:727](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L727)
+Defined in: [packages/ai/src/types.ts:835](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L835)
 
-Conversation ID for correlating client and server-side devtools events.
-When provided, server-side events will be linked to the client conversation in devtools.
+#### Deprecated
+
+Use `threadId` instead. `conversationId` is the legacy
+pre-AG-UI name for the same concept (a stable per-conversation
+identifier used to correlate client/server devtools events). When
+`conversationId` is omitted, the runtime falls back to `threadId`
+automatically, so most callers can simply pass `threadId` (or rely
+on `chatParamsFromRequest`, which surfaces it on `params`).
+
+Will be removed in a future major release.
 
 ***
 
@@ -77,7 +85,7 @@ When provided, server-side events will be linked to the client conversation in d
 logger: InternalLogger;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:748](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L748)
+Defined in: [packages/ai/src/types.ts:856](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L856)
 
 Internal logger threaded from the chat entry point. Adapter implementations
 must call `logger.request()` before SDK calls, `logger.provider()` for each
@@ -91,7 +99,7 @@ chunk received, and `logger.errors()` in catch blocks.
 optional maxTokens: number;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:700](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L700)
+Defined in: [packages/ai/src/types.ts:786](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L786)
 
 The maximum number of tokens to generate in the response.
 
@@ -111,7 +119,7 @@ messages: ModelMessage<
   | null>[];
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:662](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L662)
+Defined in: [packages/ai/src/types.ts:734](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L734)
 
 ***
 
@@ -121,7 +129,7 @@ Defined in: [packages/typescript/ai/src/types.ts:662](https://github.com/TanStac
 optional metadata: Record<string, any>;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:711](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L711)
+Defined in: [packages/ai/src/types.ts:797](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L797)
 
 Additional metadata to attach to the request.
 Can be used for tracking, debugging, or passing custom information.
@@ -140,7 +148,7 @@ Provider usage:
 model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:661](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L661)
+Defined in: [packages/ai/src/types.ts:733](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L733)
 
 ***
 
@@ -150,7 +158,7 @@ Defined in: [packages/typescript/ai/src/types.ts:661](https://github.com/TanStac
 optional modelOptions: TProviderOptionsForModel;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:712](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L712)
+Defined in: [packages/ai/src/types.ts:798](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L798)
 
 ***
 
@@ -160,13 +168,42 @@ Defined in: [packages/typescript/ai/src/types.ts:712](https://github.com/TanStac
 optional outputSchema: SchemaInput;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:722](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L722)
+Defined in: [packages/ai/src/types.ts:824](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L824)
 
 Schema for structured output.
-When provided, the adapter should use the provider's native structured output API
-to ensure the response conforms to this schema.
-The schema will be converted to JSON Schema format before being sent to the provider.
-Supports any Standard JSON Schema compliant library (Zod, ArkType, Valibot, etc.).
+
+**Two distinct use sites:**
+
+1. **User-facing (activity layer):** accepts any
+   [SchemaInput](../type-aliases/SchemaInput.md) — Zod, ArkType, Valibot, or a raw JSON Schema.
+   The activity layer converts to JSON Schema before handing off.
+
+2. **Adapter-facing (`chatStream` call):** the engine populates this with
+   a pre-converted JSON Schema **only** when the adapter declared
+   `supportsCombinedToolsAndSchema(modelOptions) === true`. The adapter
+   should then wire the schema into the upstream request (e.g.
+   `response_format: { type: 'json_schema', ... }`, `text.format`,
+   `output_format`) alongside any `tools`. The model's natural final
+   turn carries the schema-constrained JSON text and the engine
+   harvests it from the agent loop without a separate finalization
+   round-trip.
+
+   Adapters that did NOT declare the capability never see this field
+   populated — the engine instead invokes `structuredOutput` /
+   `structuredOutputStream` after the agent loop.
+
+***
+
+### parentRunId?
+
+```ts
+optional parentRunId: string;
+```
+
+Defined in: [packages/ai/src/types.ts:873](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L873)
+
+Parent run ID for AG-UI protocol nested run correlation.
+Surfaced for observability/middleware; not consumed by the LLM call.
 
 ***
 
@@ -176,7 +213,7 @@ Supports any Standard JSON Schema compliant library (Zod, ArkType, Valibot, etc.
 optional request: Request | RequestInit;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:713](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L713)
+Defined in: [packages/ai/src/types.ts:799](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L799)
 
 ***
 
@@ -186,7 +223,7 @@ Defined in: [packages/typescript/ai/src/types.ts:713](https://github.com/TanStac
 optional runId: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:760](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L760)
+Defined in: [packages/ai/src/types.ts:868](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L868)
 
 Run ID for AG-UI protocol run correlation.
 When provided, this will be used in RunStartedEvent and RunFinishedEvent.
@@ -197,10 +234,25 @@ If not provided, a unique ID will be generated.
 ### systemPrompts?
 
 ```ts
-optional systemPrompts: string[];
+optional systemPrompts: SystemPrompt[];
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:664](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L664)
+Defined in: [packages/ai/src/types.ts:750](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L750)
+
+System prompts to include with the request.
+
+Accepts plain strings (the common case) or `{ content, metadata }`
+objects that let providers attach typed metadata (e.g. Anthropic
+`cache_control` for prompt caching) per prompt. At the chat call site
+the adapter narrows `metadata`'s type via `~types['systemPromptMetadata']`
+— providers that don't declare one default to `never`, which makes the
+field carry no meaningful value (TypeScript will only accept
+`undefined` there). Provider-foreign metadata that reaches an adapter
+via JS / `as any` is silently dropped, never written to the wire.
+
+#### See
+
+SystemPrompt
 
 ***
 
@@ -210,7 +262,7 @@ Defined in: [packages/typescript/ai/src/types.ts:664](https://github.com/TanStac
 optional temperature: number;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:678](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L678)
+Defined in: [packages/ai/src/types.ts:764](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L764)
 
 Controls the randomness of the output.
 Higher values (e.g., 0.8) make output more random, lower values (e.g., 0.2) make it more focused and deterministic.
@@ -231,7 +283,7 @@ Provider usage:
 optional threadId: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:754](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L754)
+Defined in: [packages/ai/src/types.ts:862](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L862)
 
 Thread ID for AG-UI protocol run correlation.
 When provided, this will be used in RunStartedEvent and RunFinishedEvent.
@@ -244,7 +296,7 @@ When provided, this will be used in RunStartedEvent and RunFinishedEvent.
 optional tools: Tool<any, any, any>[];
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:663](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L663)
+Defined in: [packages/ai/src/types.ts:735](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L735)
 
 ***
 
@@ -254,7 +306,7 @@ Defined in: [packages/typescript/ai/src/types.ts:663](https://github.com/TanStac
 optional topP: number;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:691](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L691)
+Defined in: [packages/ai/src/types.ts:777](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L777)
 
 Nucleus sampling parameter. An alternative to temperature sampling.
 The model considers the results of tokens with topP probability mass.

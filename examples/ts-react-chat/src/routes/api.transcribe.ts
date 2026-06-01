@@ -8,7 +8,7 @@ import {
 } from '../lib/server-audio-adapters'
 
 const TRANSCRIPTION_PROVIDER_SCHEMA = z
-  .enum(['openai', 'fal', 'grok'])
+  .enum(['openai', 'fal', 'grok', 'elevenlabs'])
   .optional()
 
 const TRANSCRIBE_BODY_SCHEMA = z.object({

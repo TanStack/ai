@@ -5,7 +5,7 @@ title: IterationInfo
 
 # Interface: IterationInfo
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:179](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L179)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:221](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L221)
 
 Information passed to onIteration at the start of each agent loop iteration.
 
@@ -17,7 +17,7 @@ Information passed to onIteration at the start of each agent loop iteration.
 iteration: number;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:181](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L181)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:223](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L223)
 
 0-based iteration index
 
@@ -29,6 +29,6 @@ Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:181]
 messageId: string;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:183](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L183)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:225](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L225)
 
 The assistant message ID created for this iteration

@@ -61,7 +61,10 @@ Extends `ChatClientOptions` from `@tanstack/ai-client` (minus internal state cal
 - `tools?` - Array of client tool implementations (with `.client()` method)
 - `initialMessages?` - Initial messages array
 - `id?` - Unique identifier for this chat instance
-- `body?` - Additional body parameters to send (reactive -- changes are synced automatically via `watch`)
+- `threadId?` - Thread ID for AG-UI run correlation. Persists across sends; auto-generated if omitted
+- `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field (reactive -- changes are synced automatically via `watch`)
+- `body?` - **Deprecated.** Use `forwardedProps` instead. Still works for backward compatibility; values are merged into `forwardedProps` on the wire (reactive)
+- `context?` - Typed client-local runtime context passed to client tool implementations (reactive). This value is not serialized to the server
 - `live?` - Enable live subscription mode (auto-subscribes/unsubscribes)
 - `onResponse?` - Callback when response is received
 - `onChunk?` - Callback when stream chunk is received
@@ -103,7 +106,7 @@ interface UseChatReturn {
 }
 ```
 
-**Note:** Reactive state (`messages`, `isLoading`, `error`, `status`, `isSubscribed`, `connectionStatus`, `sessionGenerating`) is wrapped in `DeepReadonly<ShallowRef<T>>`. Access values with `.value` (e.g., `messages.value`). Cleanup is automatic via `onScopeDispose`.
+**Note:** Reactive state (`messages`, `isLoading`, `error`, `status`, `isSubscribed`, `connectionStatus`, `sessionGenerating`) is wrapped in `DeepReadonly<ShallowRef<T>>`. In `<script setup>` read the underlying value with `.value` (e.g., `messages.value`); in `<template>` Vue auto-unwraps the ref, so use the bare name (e.g., `v-for="m in messages"`). Cleanup is automatic via `onScopeDispose`.
 
 ## Connection Adapters
 
@@ -142,7 +145,7 @@ const handleSubmit = () => {
 <template>
   <div>
     <div>
-      <div v-for="message in messages.value" :key="message.id">
+      <div v-for="message in messages" :key="message.id">
         <strong>{{ message.role }}:</strong>
         <template v-for="(part, idx) in message.parts" :key="idx">
           <div
@@ -156,8 +159,8 @@ const handleSubmit = () => {
       </div>
     </div>
     <form @submit.prevent="handleSubmit">
-      <input v-model="input" :disabled="isLoading.value" />
-      <button type="submit" :disabled="isLoading.value">Send</button>
+      <input v-model="input" :disabled="isLoading" />
+      <button type="submit" :disabled="isLoading">Send</button>
     </form>
   </div>
 </template>
@@ -176,7 +179,7 @@ const { messages, sendMessage, addToolApprovalResponse } = useChat({
 
 <template>
   <div>
-    <template v-for="message in messages.value" :key="message.id">
+    <template v-for="message in messages" :key="message.id">
       <template v-for="part in message.parts" :key="part.id">
         <div
           v-if="
@@ -251,7 +254,7 @@ const { messages, sendMessage } = useChat({
 
 <template>
   <div>
-    <template v-for="message in messages.value" :key="message.id">
+    <template v-for="message in messages" :key="message.id">
       <template v-for="(part, idx) in message.parts" :key="idx">
         <div v-if="part.type === 'tool-call' && part.name === 'updateUI'">
           Tool executed: {{ part.name }}
@@ -338,7 +341,7 @@ Re-exported from `@tanstack/ai-client`:
 - `ThinkingPart` - Thinking content part
 - `ToolCallPart<TTools>` - Tool call part (discriminated union)
 - `ToolResultPart` - Tool result part
-- `ChatClientOptions<TTools>` - Chat client options
+- `ChatClientOptions<TTools, TContext>` - Chat client options with typed client runtime context
 - `ConnectionAdapter` - Connection adapter interface
 - `InferChatMessages<T>` - Extract message type from options
 - `ChatRequestBody` - Request body type

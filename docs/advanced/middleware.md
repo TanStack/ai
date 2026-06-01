@@ -71,13 +71,21 @@ graph TD
     K --> L{Continue loop?}
     L -->|Yes| D
     L -->|No| H
-    H --> M{Outcome}
+    H --> SO{outputSchema?}
+    SO -->|No| M{Outcome}
+    SO -->|Yes| SOC[onStructuredOutputConfig]
+    SOC --> SOM["onConfig (phase: structuredOutput)"]
+    SOM --> SOS["Structured-output finalization (onChunk, onUsage)"]
+    SOS --> M
     M -->|Success| N[onFinish]
     M -->|Abort| O[onAbort]
     M -->|Error| P[onError]
 
     style I fill:#e1f5ff
     style J fill:#ffe1e1
+    style SOC fill:#e1f5ff
+    style SOM fill:#e1f5ff
+    style SOS fill:#e1f5ff
     style N fill:#e1ffe1
     style O fill:#fff4e1
     style P fill:#ffe1e1
@@ -94,12 +102,13 @@ The context's `phase` field tracks where you are in the lifecycle:
 | `modelStream` | While adapter streams chunks | `onChunk`, `onUsage` |
 | `beforeTools` | Before tool execution | `onBeforeToolCall` |
 | `afterTools` | After tool execution | `onAfterToolCall` |
+| `structuredOutput` | During the final structured-output adapter call (when `outputSchema` is set **and** the adapter does not declare `supportsCombinedToolsAndSchema()`). Chunks from `adapter.structuredOutputStream` (or the synthesized non-streaming fallback) flow through `onChunk` with this phase, and `onUsage` fires for the final call's tokens. **Does not fire** for adapters that natively combine tools + schema in one streaming call (modern OpenAI Chat Completions, OpenAI Responses, Claude 4.5+, Gemini 3.x, Grok 4.x family — see issue #605); on that path middleware observes the run through `beforeModel` / `modelStream` as usual. | `onStructuredOutputConfig`, `onConfig`, `onChunk`, `onUsage` |
 
 ## Hooks Reference
 
 ### onConfig
 
-Called twice per iteration: once during `init` (startup) and once during `beforeModel` (before each model call). Use it to transform the configuration that the model receives.
+Called once during `init` (startup) and once per iteration during `beforeModel` (before each model call). When `chat()` was invoked with `outputSchema`, `onConfig` additionally re-fires at the structured-output boundary with `ctx.phase === 'structuredOutput'`, receiving the post-`onStructuredOutputConfig` view of the config — so a single-iteration run with `outputSchema` fires `onConfig` three times (`init` + `beforeModel` + `structuredOutput`). Use it to transform the configuration that the model receives.
 
 Return a **partial** config object with only the fields you want to change — they are shallow-merged with the current config automatically. No need to spread the existing config.
 
@@ -141,6 +150,49 @@ const dynamicTemperature: ChatMiddleware = {
 | `modelOptions` | `Record<string, unknown>` | Provider-specific options |
 
 When multiple middleware define `onConfig`, the config is **piped** through them in order — each receives the merged config from the previous middleware.
+
+### onStructuredOutputConfig
+
+Called once at the start of the final structured-output adapter call — only when `chat()` was invoked with `outputSchema` **and** the adapter takes the legacy finalization path (i.e. does not declare `supportsCombinedToolsAndSchema()`). Pipes through middleware in order, like `onConfig`, but with access to the **JSON Schema** being sent to the provider. Use this hook when you need to transform the schema (e.g., inject `$defs`, strip vendor-incompatible keywords) or apply structured-output-specific behavior (e.g., suppress system prompts on the final call).
+
+> Native-combined adapters (modern OpenAI, Claude 4.5+, Gemini 3.x, Grok 4.x — see issue #605) skip the separate finalization call and never invoke this hook. If you need to mutate the schema for a native-combined adapter, do it in `onConfig` (the schema is on `config.modelOptions` / the request — adapter-specific).
+
+Return a **partial** `StructuredOutputMiddlewareConfig` with only the fields you want to change — they are shallow-merged with the current config. Return `void` to pass through.
+
+```typescript
+const injectDefs: ChatMiddleware = {
+  name: "inject-defs",
+  onStructuredOutputConfig: (_ctx, config) => {
+    // `config.outputSchema` is the JSON Schema being sent to the provider
+    return {
+      outputSchema: {
+        ...config.outputSchema,
+        $defs: { ...sharedDefs },
+      },
+    };
+  },
+};
+```
+
+**Config fields you can transform:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `messages` | `ModelMessage[]` | Conversation history sent to the final call |
+| `systemPrompts` | `SystemPrompt[]` | System prompts on the final call |
+| `temperature` | `number` | Sampling temperature |
+| `topP` | `number` | Nucleus sampling |
+| `maxTokens` | `number` | Token limit |
+| `metadata` | `Record<string, unknown>` | Request metadata |
+| `modelOptions` | `Record<string, unknown>` | Provider-specific options |
+| `outputSchema` | `JSONSchema` | JSON Schema being sent to the provider for structured output |
+
+**Ordering at the structured-output boundary:**
+
+1. `onStructuredOutputConfig` fires first, piping through every middleware in array order.
+2. `onConfig` then re-fires at the same boundary with `ctx.phase === 'structuredOutput'`, receiving the post-`onStructuredOutputConfig` view of the config (minus `outputSchema`). Use `onConfig` for general-purpose transforms that apply to every adapter call; use `onStructuredOutputConfig` when you need access to the schema.
+
+When multiple middleware define `onStructuredOutputConfig`, the config is **piped** through them in order — each receives the merged config from the previous middleware.
 
 ### onStart
 
@@ -292,6 +344,17 @@ Exactly **one** terminal hook fires per `chat()` invocation. They are mutually e
 | `onAbort` | Run was aborted (via `ctx.abort()`, an external `AbortSignal`, or a `{ type: 'abort' }` decision from `onBeforeToolCall`) |
 | `onError` | An unhandled error occurred |
 
+> **Structured-output lifecycle ordering:** When `chat()` is invoked with `outputSchema`, `onFinish` fires **after** the structured-output finalization call completes — not at the end of the agent loop. `onIteration` does **not** fire for the finalization step; it only fires for agent-loop iterations.
+>
+> **`onFinish` info fields and structured-output runs:** the `info` object reflects the **agent loop's** terminal state — finalization state is intentionally segregated to keep agent-loop semantics clean.
+>
+> - `info.content` — the agent loop's accumulated text. Finalization JSON deltas are **not** included here. The structured-output result is delivered via the `structured-output.complete` CUSTOM event, which middleware observes via `onChunk` (with `ctx.phase === 'structuredOutput'`).
+> - `info.usage` — the agent loop's last `RUN_FINISHED.usage`. For a tools-less structured-output run (no agent-loop iteration produces `RUN_FINISHED`), this is `undefined`. To capture finalization tokens, use `onUsage` — that hook fires for **every** `RUN_FINISHED` carrying usage, including the finalization call.
+> - `info.finishReason` — the agent loop's last `finishReason`. `null` when no agent-loop iteration produced `RUN_FINISHED` (e.g. a tools-less structured-output run).
+> - `info.duration` — wall-clock duration of the entire `chat()` invocation, including finalization.
+>
+> To aggregate usage across the whole run, accumulate from `onUsage` callbacks rather than relying on `info.usage`.
+
 ```typescript
 const terminal: ChatMiddleware = {
   name: "terminal",
@@ -311,6 +374,15 @@ const terminal: ChatMiddleware = {
 };
 ```
 
+The `info` object for `onFinish` (`FinishInfo`):
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `finishReason` | `string \| null` | The agent loop's last `finishReason`. `null` when no agent-loop iteration produced `RUN_FINISHED` (e.g. a tools-less `chat({ outputSchema })` run). |
+| `duration` | `number` | Total run duration in milliseconds, including any structured-output finalization. |
+| `content` | `string` | The agent loop's accumulated text content. Does **not** include finalization JSON deltas — for that, observe the `structured-output.complete` CUSTOM event via `onChunk`. |
+| `usage` | `{ promptTokens; completionTokens; totalTokens } \| undefined` | **Optional.** The agent loop's last `RUN_FINISHED.usage`. **Does not include finalization tokens** — use `onUsage` to observe those. Always guard with `if (info.usage)` or `info.usage?.`. |
+
 ## Context Object
 
 Every hook receives a `ChatMiddlewareContext` as its first argument. It provides request-scoped information and control functions:
@@ -319,14 +391,56 @@ Every hook receives a `ChatMiddlewareContext` as its first argument. It provides
 |-------|------|-------------|
 | `requestId` | `string` | Unique ID for this chat request |
 | `streamId` | `string` | Unique ID for this stream |
-| `conversationId` | `string \| undefined` | User-provided conversation ID |
+| `threadId` | `string` | AG-UI thread identifier. Resolves to caller-provided `threadId` (or legacy `conversationId`), or an auto-generated value if neither is supplied. Use this for event correlation. |
+| `conversationId` | `string \| undefined` | **Deprecated** alias of `threadId`. Always equals `ctx.threadId`; retained so middleware written before the AG-UI rename keeps working. New middleware should read `ctx.threadId`. |
 | `phase` | `ChatMiddlewarePhase` | Current lifecycle phase |
 | `iteration` | `number` | Agent loop iteration (0-indexed) |
 | `chunkIndex` | `number` | Running count of chunks yielded |
 | `signal` | `AbortSignal \| undefined` | External abort signal |
 | `abort(reason?)` | `function` | Abort the run from within middleware |
-| `context` | `unknown` | User-provided context value |
+| `context` | `TContext` | User-provided runtime context value |
 | `defer(promise)` | `function` | Register a non-blocking side-effect |
+
+## Typed Runtime Context
+
+`ChatMiddleware` accepts a context generic. This lets reusable middleware declared outside `chat()` access the same typed runtime context as your tools.
+
+```typescript
+import { chat, type ChatMiddleware } from "@tanstack/ai";
+
+type AppContext = {
+  userId: string;
+  audit: {
+    write(event: { userId: string; requestId: string }): Promise<void>;
+  };
+};
+
+export const auditMiddleware: ChatMiddleware<AppContext> = {
+  name: "audit",
+  onStart(ctx) {
+    ctx.defer(
+      ctx.context.audit.write({
+        userId: ctx.context.userId,
+        requestId: ctx.requestId,
+      })
+    );
+  },
+};
+
+chat({
+  adapter,
+  messages,
+  middleware: [auditMiddleware],
+  context: {
+    userId: session.user.id,
+    audit,
+  },
+});
+```
+
+When typed middleware or typed tools are present, `chat()` checks that the provided `context` matches the required shape. Existing middleware typed as plain `ChatMiddleware` still works; its `ctx.context` remains `unknown` and does not force a `context` option.
+
+Runtime context is process-local application state. It is separate from AG-UI `RunAgentInput.context`, which is protocol metadata parsed by `chatParamsFromRequest`. See [Runtime Context](./runtime-context) for server, client, and client-to-server handoff patterns.
 
 ### Aborting from Middleware
 
@@ -382,6 +496,7 @@ const stream = chat({
 | Hook | Composition | Effect of Order |
 |------|------------|----------------|
 | `onConfig` | **Piped** — each receives previous output | Earlier middleware transforms first |
+| `onStructuredOutputConfig` | **Piped** — each receives previous output | Earlier middleware transforms first |
 | `onStart` | Sequential | All run in order |
 | `onChunk` | **Piped** — chunks flow through each middleware | If first drops a chunk, later middleware never see it |
 | `onBeforeToolCall` | **First-win** — first non-void decision wins | Earlier middleware has priority |
@@ -396,7 +511,8 @@ const stream = chat({
 Caches tool call results based on tool name and arguments. When a tool is called with the same name and arguments as a previous call, the cached result is returned immediately without re-executing the tool.
 
 ```typescript
-import { chat, toolCacheMiddleware } from "@tanstack/ai";
+import { chat } from "@tanstack/ai";
+import { toolCacheMiddleware } from "@tanstack/ai/middlewares";
 
 const stream = chat({
   adapter: openaiText("gpt-4o"),
@@ -448,7 +564,7 @@ By default the cache lives in-memory and is scoped to a single `toolCacheMiddlew
 The storage interface:
 
 ```typescript
-import type { ToolCacheStorage, ToolCacheEntry } from "@tanstack/ai";
+import type { ToolCacheStorage, ToolCacheEntry } from "@tanstack/ai/middlewares";
 
 interface ToolCacheStorage {
   getItem: (key: string) => ToolCacheEntry | undefined | Promise<ToolCacheEntry | undefined>;
@@ -465,7 +581,7 @@ All methods may return a `Promise` for async backends. The middleware handles TT
 
 ```typescript
 import { createClient } from "redis";
-import { toolCacheMiddleware, type ToolCacheStorage } from "@tanstack/ai";
+import { toolCacheMiddleware, type ToolCacheStorage } from "@tanstack/ai/middlewares";
 
 const redis = createClient();
 
@@ -644,6 +760,7 @@ import type {
   ChatMiddlewareContext,
   ChatMiddlewarePhase,
   ChatMiddlewareConfig,
+  StructuredOutputMiddlewareConfig,
   ToolCallHookContext,
   BeforeToolCallDecision,
   AfterToolCallInfo,

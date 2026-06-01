@@ -66,7 +66,10 @@ Extends `ChatClientOptions` from `@tanstack/ai-client`:
 - `tools?` - Array of client tool implementations (with `.client()` method)
 - `initialMessages?` - Initial messages array
 - `id?` - Unique identifier for this chat instance
-- `body?` - Additional body parameters to send
+- `threadId?` - Thread ID for AG-UI run correlation. Persists across sends; auto-generated if omitted
+- `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field (e.g., `{ provider: 'openai', model: 'gpt-4o' }`)
+- `body?` - **Deprecated.** Use `forwardedProps` instead. Still works for backward compatibility; values are merged into `forwardedProps` on the wire
+- `context?` - Typed client-local runtime context passed to client tool implementations. This value is not serialized to the server
 - `onResponse?` - Callback when response is received
 - `onChunk?` - Callback when stream chunk is received
 - `onFinish?` - Callback when response finishes
@@ -322,7 +325,7 @@ Re-exported from `@tanstack/ai-client`:
 - `ThinkingPart` - Thinking content part
 - `ToolCallPart<TTools>` - Tool call part (discriminated union)
 - `ToolResultPart` - Tool result part
-- `ChatClientOptions<TTools>` - Chat client options
+- `ChatClientOptions<TTools, TContext>` - Chat client options with typed client runtime context
 - `ConnectionAdapter` - Connection adapter interface
 - `InferChatMessages<T>` - Extract message type from options
 - `ChatRequestBody` - Request body type
