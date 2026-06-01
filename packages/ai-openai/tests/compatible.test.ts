@@ -16,10 +16,7 @@ import {
   OpenAICompatibleChatAdapter,
   OpenAICompatibleResponsesAdapter,
 } from '../src/compatible/adapter'
-import {
-  openaiCompatible,
-  openaiCompatibleText,
-} from '../src/compatible/index'
+import { openaiCompatible, openaiCompatibleText } from '../src/compatible/index'
 /* eslint-enable import/first */
 
 describe('openaiCompatible', () => {

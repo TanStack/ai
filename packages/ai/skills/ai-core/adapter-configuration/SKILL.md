@@ -62,16 +62,16 @@ into the factory, not into `chat()`.
 Each provider has a dedicated package with tree-shakeable adapter factories.
 The text adapter is the primary one for chat/completions:
 
-| Provider   | Package                   | Factory          | Env Var                                           |
-| ---------- | ------------------------- | ---------------- | ------------------------------------------------- |
-| OpenAI     | `@tanstack/ai-openai`     | `openaiText`     | `OPENAI_API_KEY`                                  |
-| Anthropic  | `@tanstack/ai-anthropic`  | `anthropicText`  | `ANTHROPIC_API_KEY`                               |
-| Gemini     | `@tanstack/ai-gemini`     | `geminiText`     | `GOOGLE_API_KEY` or `GEMINI_API_KEY`              |
-| Grok (xAI) | `@tanstack/ai-grok`       | `grokText`       | `XAI_API_KEY`                                     |
-| Groq       | `@tanstack/ai-groq`       | `groqText`       | `GROQ_API_KEY`                                    |
-| OpenRouter | `@tanstack/ai-openrouter` | `openRouterText` | `OPENROUTER_API_KEY`                              |
-| Ollama     | `@tanstack/ai-ollama`     | `ollamaText`     | `OLLAMA_HOST` (default: `http://localhost:11434`) |
-| OpenAI-compatible | `@tanstack/ai-openai/compatible` | `openaiCompatible` / `openaiCompatibleText` | provider-specific (passed via `apiKey`)    |
+| Provider          | Package                          | Factory                                     | Env Var                                           |
+| ----------------- | -------------------------------- | ------------------------------------------- | ------------------------------------------------- |
+| OpenAI            | `@tanstack/ai-openai`            | `openaiText`                                | `OPENAI_API_KEY`                                  |
+| Anthropic         | `@tanstack/ai-anthropic`         | `anthropicText`                             | `ANTHROPIC_API_KEY`                               |
+| Gemini            | `@tanstack/ai-gemini`            | `geminiText`                                | `GOOGLE_API_KEY` or `GEMINI_API_KEY`              |
+| Grok (xAI)        | `@tanstack/ai-grok`              | `grokText`                                  | `XAI_API_KEY`                                     |
+| Groq              | `@tanstack/ai-groq`              | `groqText`                                  | `GROQ_API_KEY`                                    |
+| OpenRouter        | `@tanstack/ai-openrouter`        | `openRouterText`                            | `OPENROUTER_API_KEY`                              |
+| Ollama            | `@tanstack/ai-ollama`            | `ollamaText`                                | `OLLAMA_HOST` (default: `http://localhost:11434`) |
+| OpenAI-compatible | `@tanstack/ai-openai/compatible` | `openaiCompatible` / `openaiCompatibleText` | provider-specific (passed via `apiKey`)           |
 
 ```typescript
 // Each factory takes model as first arg, optional config as second
