@@ -24,26 +24,30 @@ export type ModelNameOf<TModels extends ReadonlyArray<CompatibleModelInput>> = {
 /** Extract the rich def (if any) for model name `M`. */
 type FindDef<
   TModels extends ReadonlyArray<CompatibleModelInput>,
-  M extends string,
-> = Extract<Extract<TModels[number], ExtendedModelDef>, { name: M }>
+  TModelName extends string,
+> = Extract<Extract<TModels[number], ExtendedModelDef>, { name: TModelName }>
 
 /** Resolve input modalities for model `M`. */
 export type ResolveCompatInput<
   TModels extends ReadonlyArray<CompatibleModelInput>,
-  M extends string,
-> = [FindDef<TModels, M>] extends [never]
+  TModelName extends string,
+> = [FindDef<TModels, TModelName>] extends [never]
   ? DefaultCompatInput
-  : FindDef<TModels, M> extends ExtendedModelDef<any, infer TInput>
+  : FindDef<TModels, TModelName> extends ExtendedModelDef<any, infer TInput>
     ? TInput
     : DefaultCompatInput
 
 /** Resolve provider options for model `M`. */
 export type ResolveCompatOptions<
   TModels extends ReadonlyArray<CompatibleModelInput>,
-  M extends string,
-> = [FindDef<TModels, M>] extends [never]
+  TModelName extends string,
+> = [FindDef<TModels, TModelName>] extends [never]
   ? Record<string, any>
-  : FindDef<TModels, M> extends ExtendedModelDef<any, any, infer TOptions>
+  : FindDef<TModels, TModelName> extends ExtendedModelDef<
+        any,
+        any,
+        infer TOptions
+      >
     ? TOptions extends Record<string, any>
       ? TOptions
       : Record<string, any>
@@ -52,10 +56,16 @@ export type ResolveCompatOptions<
 /** Resolve provider tool capabilities for model `M`. */
 export type ResolveCompatTools<
   TModels extends ReadonlyArray<CompatibleModelInput>,
-  M extends string,
-> = [FindDef<TModels, M>] extends [never]
+  TModelName extends string,
+> = [FindDef<TModels, TModelName>] extends [never]
   ? readonly []
-  : FindDef<TModels, M> extends ExtendedModelDef<any, any, any, any, infer TTools>
+  : FindDef<TModels, TModelName> extends ExtendedModelDef<
+        any,
+        any,
+        any,
+        any,
+        infer TTools
+      >
     ? TTools
     : readonly []
 
@@ -74,8 +84,10 @@ export interface OpenAICompatibleConfig<
 }
 
 /** One-shot helper configuration (single model). */
-export interface OpenAICompatibleTextConfig
-  extends Omit<ClientOptions, 'apiKey' | 'baseURL'> {
+export interface OpenAICompatibleTextConfig extends Omit<
+  ClientOptions,
+  'apiKey' | 'baseURL'
+> {
   name?: string
   baseURL: string
   apiKey: string

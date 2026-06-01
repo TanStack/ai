@@ -1,8 +1,8 @@
-import OpenAI from 'openai'
 import {
   OpenAIBaseChatCompletionsTextAdapter,
   OpenAIBaseResponsesTextAdapter,
 } from '@tanstack/openai-base'
+import type OpenAI from 'openai'
 import type { Modality } from '@tanstack/ai'
 import type { OpenAIMessageMetadataByModality } from '../message-types'
 
