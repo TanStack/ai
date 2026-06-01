@@ -17,6 +17,10 @@
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
     },
+    "./compatible": {
+      "types": "./dist/esm/compatible/index.d.ts",
+      "import": "./dist/esm/compatible/index.js"
+    },
     "./tools": {
       "types": "./dist/esm/tools/index.d.ts",
       "import": "./dist/esm/tools/index.js"
