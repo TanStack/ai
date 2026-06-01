@@ -186,6 +186,16 @@ export interface UsageCostBreakdown {
 }
 
 /**
+ * Default value type for {@link TokenUsage.providerUsageDetails} when an adapter
+ * does not supply a specific shape. Values are constrained to non-nullish
+ * (`NonNullable<unknown>`, i.e. `{}`) rather than `unknown` so that `TokenUsage`
+ * stays assignable across JSON-serialization boundaries — e.g. TanStack Start's
+ * server-fn return types model serializable values as `{}` and reject `unknown`,
+ * which permits `null`/`undefined`.
+ */
+export type ProviderUsageDetails = Record<string, NonNullable<unknown>>
+
+/**
  * Canonical token usage for a run, with optional detailed breakdowns and
  * provider-reported cost. This is the single source of truth re-exported by
  * `@tanstack/ai`.
@@ -196,9 +206,10 @@ export interface UsageCostBreakdown {
  *
  * `providerUsageDetails` is parameterized via `TProviderDetails` so adapters can
  * surface a strongly-typed bag (e.g. `TokenUsage<AnthropicProviderUsageDetails>`);
- * it defaults to an open record for generic consumers.
+ * it defaults to {@link ProviderUsageDetails} (an open, serializable record) for
+ * generic consumers.
  */
-export interface TokenUsage<TProviderDetails = Record<string, unknown>> {
+export interface TokenUsage<TProviderDetails = ProviderUsageDetails> {
   /** Total input/prompt tokens */
   promptTokens: number
   /** Total output/completion tokens */

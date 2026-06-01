@@ -1,4 +1,4 @@
-import type { TokenUsage } from '../types'
+import type { ProviderUsageDetails, TokenUsage } from '../types'
 
 /**
  * Input parameters for building base TokenUsage.
@@ -30,7 +30,7 @@ export interface BaseUsageInput {
  * // Returns: { promptTokens: 100, completionTokens: 50, totalTokens: 150 }
  * ```
  */
-export function buildBaseUsage<TProviderDetails = Record<string, unknown>>(
+export function buildBaseUsage<TProviderDetails = ProviderUsageDetails>(
   input: BaseUsageInput,
 ): TokenUsage<TProviderDetails> {
   return {

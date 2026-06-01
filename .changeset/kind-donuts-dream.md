@@ -25,9 +25,13 @@ for provider-reported cost — so a single `usage` shape covers counts, detailed
 breakdowns, and cost.
 
 `TokenUsage` is generic over its provider details bag —
-`TokenUsage<TProviderDetails = Record<string, unknown>>` — so adapters return a
+`TokenUsage<TProviderDetails = ProviderUsageDetails>` — so adapters return a
 strongly-typed `providerUsageDetails` (e.g. `TokenUsage<AnthropicProviderUsageDetails>`)
-while generic consumers keep the open-record default. Each provider's usage
+while generic consumers keep the open-record default. The default,
+`ProviderUsageDetails` (`Record<string, NonNullable<unknown>>`), is now exported and
+uses non-nullish values rather than `unknown` so `TokenUsage` stays assignable across
+JSON-serialization boundaries (e.g. TanStack Start server-fn return types). Each
+provider's usage
 extractor now returns `undefined` (rather than fabricating zeroed totals) when
 the provider reports no usage object, so an absent `usage` is distinguishable
 from a genuine zero-token run.

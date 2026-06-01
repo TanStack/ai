@@ -10,6 +10,7 @@ import type { SystemPrompt } from './system-prompts'
 import type {
   CompletionTokensDetails,
   PromptTokensDetails,
+  ProviderUsageDetails,
   TokenUsage,
   UsageCostBreakdown,
 } from '@tanstack/ai-event-client'
@@ -939,6 +940,7 @@ export interface RunStartedEvent extends AGUIRunStartedEvent {
 export type {
   CompletionTokensDetails,
   PromptTokensDetails,
+  ProviderUsageDetails,
   TokenUsage,
   UsageCostBreakdown,
 }
