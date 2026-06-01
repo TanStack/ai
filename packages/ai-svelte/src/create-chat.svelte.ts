@@ -3,6 +3,7 @@ import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import type {
   ChatClientState,
   ConnectionStatus,
+  InferredClientContext,
   StructuredOutputPart,
 } from '@tanstack/ai-client'
 import type {
@@ -53,9 +54,10 @@ import type {
 export function createChat<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
+  TContext = InferredClientContext<TTools>,
 >(
-  options: CreateChatOptions<TTools, TSchema>,
-): CreateChatReturn<TTools, TSchema> {
+  options: CreateChatOptions<TTools, TSchema, TContext>,
+): CreateChatReturn<TTools, TSchema, TContext> {
   // Generate a unique ID for this chat instance
   const clientId =
     options.id ||
@@ -91,7 +93,7 @@ export function createChat<
     ? { connection: options.connection }
     : { fetcher: options.fetcher }
 
-  const client = new ChatClient({
+  const client = new ChatClient<TTools, TContext>({
     devtoolsBridgeFactory: createChatDevtoolsBridge,
     ...transport,
     id: clientId,
@@ -102,6 +104,7 @@ export function createChat<
     ...(options.forwardedProps !== undefined && {
       forwardedProps: options.forwardedProps,
     }),
+    ...(options.context !== undefined && { context: options.context }),
     devtools: {
       ...options.devtools,
       framework: 'svelte',
@@ -217,6 +220,10 @@ export function createChat<
     client.updateOptions({ forwardedProps: newForwardedProps })
   }
 
+  const updateContext = (newContext: TContext) => {
+    client.updateOptions({ context: newContext })
+  }
+
   // The "active" structured-output part is the one on the assistant message
   // after the latest user message. When no user message exists yet (e.g.
   // `initialMessages` carries only a stale assistant turn), we return null
@@ -257,7 +264,7 @@ export function createChat<
 
   // Return the chat interface with reactive getters
   // Using getters allows Svelte to track reactivity without needing $ prefix
-  // eslint-disable-next-line no-restricted-syntax -- rune return shape diverges from generic CreateChatReturn<TTools, TSchema> due to TSchema conditional partial/final fields; TS can't structurally narrow.
+  // eslint-disable-next-line no-restricted-syntax -- rune return shape diverges from generic CreateChatReturn<TTools, TSchema, TContext> due to TSchema conditional partial/final fields; TS can't structurally narrow.
   return {
     get messages() {
       return messages
@@ -297,5 +304,6 @@ export function createChat<
     addToolApprovalResponse,
     updateBody,
     updateForwardedProps,
-  } as unknown as CreateChatReturn<TTools, TSchema>
+    updateContext,
+  } as unknown as CreateChatReturn<TTools, TSchema, TContext>
 }

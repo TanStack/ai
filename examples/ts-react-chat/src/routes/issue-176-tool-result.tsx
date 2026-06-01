@@ -3,7 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { clientTools } from '@tanstack/ai-client'
 import { modelMessagesToUIMessages, type ModelMessage } from '@tanstack/ai'
-import { recommendGuitarToolDef } from '@/lib/guitar-tools'
+import { getGuitarsToolDef, recommendGuitarToolDef } from '@/lib/guitar-tools'
 
 const modelMessages: Array<ModelMessage> = [
   {
@@ -38,6 +38,7 @@ function Issue176ToolResultRepro() {
   const liveTools = useMemo(
     () =>
       clientTools(
+        getGuitarsToolDef,
         recommendGuitarToolDef.client(({ id }) => ({
           id: Number(id),
         })),

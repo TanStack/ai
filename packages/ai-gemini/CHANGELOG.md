@@ -1,5 +1,44 @@
 # @tanstack/ai-gemini
 
+## 0.13.0
+
+### Minor Changes
+
+- [#666](https://github.com/TanStack/ai/pull/666) [`c1ae8b9`](https://github.com/TanStack/ai/commit/c1ae8b94c83d70508975568eb4fc9b45f1af540b) - feat: support multimodal (image) tool results
+
+  Tools may now return an `Array<ContentPart>` (e.g. a text part plus an image part) and have it transmitted to the model as structured multimodal tool output instead of a `JSON.stringify`'d blob. This unblocks use cases like returning a screenshot from a tool so the model can see it (issue [#363](https://github.com/TanStack/ai/issues/363)).
+  - Detection is structural and opt-in by shape: a tool that returns a non-empty array whose every element is a valid `ContentPart` is passed through unchanged; strings and all other return values are serialized exactly as before, so there are no breaking changes.
+  - The OpenAI Responses, Anthropic, and Google Gemini adapters convert the content parts into their native multimodal tool-output formats (`function_call_output.output`, `tool_result` content blocks, and `functionResponse.parts` respectively). Providers on the Chat Completions path (Groq, Ollama, Grok, OpenRouter chat) fall back to stringifying, which their APIs require.
+  - AG-UI stream events (`TOOL_CALL_RESULT.content`, `TOOL_CALL_END.result`) remain string-only per the spec; the multimodal array travels on the tool message itself.
+
+- [#673](https://github.com/TanStack/ai/pull/673) [`a452ae8`](https://github.com/TanStack/ai/commit/a452ae8bcda8abfdc6309983976ed0fbf6df1915) - Populate AG-UI `rawEvent` on `RUN_ERROR` events with the provider's structured error body.
+
+  Previously, when a streaming chat call failed the `RUN_ERROR` event carried only an
+  opaque `{ message, code }` headline (e.g. `"Provider returned error"`), and no adapter
+  populated AG-UI's purpose-built `rawEvent` field — so the upstream provider detail was
+  unrecoverable.
+
+  Adapters now forward the provider's **structured error body** (e.g. an SDK `APIError`'s
+  parsed `.error` response body, or OpenRouter's mid-stream `chunk.error`) as `rawEvent`
+  on the `RUN_ERROR` event. The new `toRunErrorRawEvent` helper extracts only known
+  provider-body fields — never the raw SDK exception object, which can carry request
+  metadata such as auth headers. The `{ message, code }` contract of `toRunErrorPayload`
+  is unchanged.
+
+  The error surfaced to consumers via the `ChatClient` / `useChat` `error` (and the
+  `onError` callback) now also carries `code` and `rawEvent` when present, so the upstream
+  cause is recoverable in application code.
+
+  > Note: the OpenRouter SDK parses each in-band stream chunk's `error` through a strict
+  > schema (`{ code, message }`), so provider `metadata` survives only on pre-stream HTTP
+  > errors (rate-limit / overload / BYOK rejection), whose typed error class exposes the
+  > full body via `.error`.
+
+### Patch Changes
+
+- Updated dependencies [[`c1ae8b9`](https://github.com/TanStack/ai/commit/c1ae8b94c83d70508975568eb4fc9b45f1af540b), [`a452ae8`](https://github.com/TanStack/ai/commit/a452ae8bcda8abfdc6309983976ed0fbf6df1915), [`8036b50`](https://github.com/TanStack/ai/commit/8036b5054330a180023c6e3225b8d2735a43a919)]:
+  - @tanstack/ai@0.24.0
+
 ## 0.12.1
 
 ### Patch Changes

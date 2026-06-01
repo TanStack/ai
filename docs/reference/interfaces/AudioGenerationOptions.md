@@ -5,7 +5,7 @@ title: AudioGenerationOptions
 
 # Interface: AudioGenerationOptions\<TProviderOptions\>
 
-Defined in: [packages/ai/src/types.ts:1535](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1535)
+Defined in: [packages/ai/src/types.ts:1592](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1592)
 
 Options for audio generation (music, sound effects, etc.).
 These are the common options supported across providers.
@@ -24,7 +24,7 @@ These are the common options supported across providers.
 optional duration: number;
 ```
 
-Defined in: [packages/ai/src/types.ts:1543](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1543)
+Defined in: [packages/ai/src/types.ts:1600](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1600)
 
 Desired duration in seconds
 
@@ -36,7 +36,7 @@ Desired duration in seconds
 logger: InternalLogger;
 ```
 
-Defined in: [packages/ai/src/types.ts:1551](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1551)
+Defined in: [packages/ai/src/types.ts:1608](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1608)
 
 Internal logger threaded from the generateAudio() entry point. Adapters
 must call logger.request() before the SDK call and logger.errors() in
@@ -50,7 +50,7 @@ catch blocks.
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1539](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1539)
+Defined in: [packages/ai/src/types.ts:1596](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1596)
 
 The model to use for audio generation
 
@@ -62,7 +62,7 @@ The model to use for audio generation
 optional modelOptions: TProviderOptions;
 ```
 
-Defined in: [packages/ai/src/types.ts:1545](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1545)
+Defined in: [packages/ai/src/types.ts:1602](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1602)
 
 Model-specific options for audio generation
 
@@ -74,6 +74,6 @@ Model-specific options for audio generation
 prompt: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1541](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1541)
+Defined in: [packages/ai/src/types.ts:1598](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1598)
 
 Text description of the desired audio

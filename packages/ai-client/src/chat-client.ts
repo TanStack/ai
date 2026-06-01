@@ -2,7 +2,9 @@ import {
   StreamProcessor,
   convertSchemaToJsonSchema,
   generateMessageId,
+  isStandardSchema,
   normalizeToUIMessage,
+  parseWithStandardSchema,
 } from '@tanstack/ai/client'
 import { createNoOpChatDevtoolsBridge } from './devtools-noop'
 import {
@@ -39,6 +41,37 @@ import type {
   UIMessage,
 } from './types'
 
+type ChatClientUpdateOptionsWithoutContext<
+  TTools extends ReadonlyArray<AnyClientTool>,
+> = {
+  connection?: ConnectionAdapter
+  fetcher?: ChatFetcher
+  /** @deprecated Use `forwardedProps` instead. */
+  body?: Record<string, any>
+  forwardedProps?: Record<string, any>
+  tools?: TTools
+  onResponse?: (response?: Response) => void | Promise<void>
+  onChunk?: (chunk: StreamChunk) => void
+  onFinish?: (message: UIMessage) => void
+  onError?: (error: Error) => void
+  onSubscriptionChange?: (isSubscribed: boolean) => void
+  onConnectionStatusChange?: (status: ConnectionStatus) => void
+  onSessionGeneratingChange?: (isGenerating: boolean) => void
+  onCustomEvent?: (
+    eventType: string,
+    data: unknown,
+    context: { toolCallId?: string },
+  ) => void
+}
+
+type ClientToolResult = {
+  toolCallId: string
+  tool: string
+  output: any
+  state?: 'output-available' | 'output-error'
+  errorText?: string
+}
+
 function resolveTransport(transport: {
   connection?: ConnectionAdapter
   fetcher?: ChatFetcher
@@ -54,7 +87,10 @@ function resolveTransport(transport: {
   throw new Error('ChatClient: either `connection` or `fetcher` is required.')
 }
 
-export class ChatClient {
+export class ChatClient<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TContext = unknown,
+> {
   private readonly processor: StreamProcessor
   private connection: SubscribeConnectionAdapter
   private readonly uniqueId: string
@@ -65,6 +101,7 @@ export class ChatClient {
   // merged on every send, with `forwardedProps` winning on key collision.
   private bodyOption: Record<string, any> = {}
   private forwardedPropsOption: Record<string, any> = {}
+  private context: TContext | undefined = undefined
   private pendingMessageBody: Record<string, any> | undefined = undefined
   private isLoading = false
   private isSubscribed = false
@@ -86,6 +123,8 @@ export class ChatClient {
   private readonly postStreamActions: Array<() => Promise<void>> = []
   // Track pending client tool executions to await them before stream finalization
   private readonly pendingToolExecutions: Map<string, Promise<void>> = new Map()
+  private activeClientTools: Map<string, AnyClientTool> | null = null
+  private activeContext: TContext | undefined = undefined
   // Flag to deduplicate continuation checks during action draining
   private continuationPending = false
   private subscriptionAbortController: AbortController | null = null
@@ -121,7 +160,7 @@ export class ChatClient {
     }
   }
 
-  constructor(options: ChatClientOptions) {
+  constructor(options: ChatClientOptions<TTools, TContext>) {
     this.uniqueId = options.id || this.generateUniqueId('chat')
     this.threadId = options.threadId || this.generateUniqueId('thread')
     // Both `body` (deprecated) and `forwardedProps` populate the AG-UI
@@ -131,6 +170,7 @@ export class ChatClient {
     // winning on key collision.
     this.bodyOption = options.body || {}
     this.forwardedPropsOption = options.forwardedProps || {}
+    this.context = options.context
     this.connection = normalizeConnectionAdapter(resolveTransport(options))
 
     // Build client tools map
@@ -288,7 +328,9 @@ export class ChatClient {
           input: any
         }) => {
           // Handle client-side tool execution automatically
-          const clientTool = this.clientToolsRef.current.get(args.toolName)
+          const clientTools =
+            this.activeClientTools ?? this.clientToolsRef.current
+          const clientTool = clientTools.get(args.toolName)
           const executeFunc = clientTool?.execute
           if (executeFunc) {
             // Capture the run context at execution-start so a tool whose
@@ -300,18 +342,27 @@ export class ChatClient {
             // Create and track the execution promise
             const executionPromise = (async () => {
               try {
-                const output = await executeFunc(args.input)
-                await this.addToolResultInternal(
+                const context =
+                  this.activeClientTools === null
+                    ? this.context
+                    : this.activeContext
+                const output = await executeFunc(args.input, {
+                  toolCallId: args.toolCallId,
+                  context: context as TContext,
+                  emitCustomEvent: () => {},
+                })
+                await this.addToolResultForClientTool(
                   {
                     toolCallId: args.toolCallId,
                     tool: args.toolName,
                     output,
                     state: 'output-available',
                   },
+                  clientTool,
                   runEventContext,
                 )
               } catch (error: any) {
-                await this.addToolResultInternal(
+                await this.addToolResultForClientTool(
                   {
                     toolCallId: args.toolCallId,
                     tool: args.toolName,
@@ -319,6 +370,7 @@ export class ChatClient {
                     state: 'output-error',
                     errorText: error.message,
                   },
+                  clientTool,
                   runEventContext,
                 )
               } finally {
@@ -761,6 +813,8 @@ export class ChatClient {
     try {
       // Get UIMessages with parts (preserves approval state and client tool results)
       const messages = this.processor.getMessages()
+      const clientTools = new Map(this.clientToolsRef.current)
+      const runtimeContext = this.context
 
       // Call onResponse callback
       await this.callbacksRef.current.onResponse()
@@ -796,6 +850,8 @@ export class ChatClient {
       this.currentStreamId = this.generateUniqueId('stream')
       this.devtoolsBridge.setCurrentStreamId(this.currentStreamId)
       this.currentMessageId = null
+      this.activeClientTools = clientTools
+      this.activeContext = runtimeContext
 
       // Reset processor stream state for new response — prevents stale
       // messageStates entries (from a previous stream) from blocking
@@ -819,15 +875,13 @@ export class ChatClient {
       const runContext = {
         threadId: this.threadId,
         runId: `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        clientTools: Array.from(this.clientToolsRef.current.values()).map(
-          (t) => ({
-            name: t.name,
-            description: t.description,
-            parameters: t.inputSchema
-              ? convertSchemaToJsonSchema(t.inputSchema)
-              : { type: 'object' },
-          }),
-        ),
+        clientTools: Array.from(clientTools.values()).map((t) => ({
+          name: t.name,
+          description: t.description,
+          parameters: t.inputSchema
+            ? convertSchemaToJsonSchema(t.inputSchema)
+            : { type: 'object' },
+        })),
         forwardedProps: { ...mergedBody },
       }
       this.devtoolsBridge.beginRun(runContext.runId, this.threadId)
@@ -913,6 +967,8 @@ export class ChatClient {
         this.currentStreamId = null
         this.devtoolsBridge.setCurrentStreamId(null)
         this.currentMessageId = null
+        this.activeClientTools = null
+        this.activeContext = undefined
         this.abortController = null
         this.setIsLoading(false)
         this.pendingMessageBody = undefined // Ensure it's cleared even on error
@@ -1044,26 +1100,32 @@ export class ChatClient {
   /**
    * Add the result of a client-side tool execution
    */
-  async addToolResult(result: {
-    toolCallId: string
-    tool: string
-    output: any
-    state?: 'output-available' | 'output-error'
-    errorText?: string
-  }): Promise<void> {
-    await this.addToolResultInternal(result)
+  async addToolResult(result: ClientToolResult): Promise<void> {
+    const clientTool = this.clientToolsRef.current.get(result.tool)
+    await this.addToolResultForClientTool(result, clientTool)
   }
 
-  private async addToolResultInternal(
-    result: {
-      toolCallId: string
-      tool: string
-      output: any
-      state?: 'output-available' | 'output-error'
-      errorText?: string
-    },
+  private async addToolResultForClientTool(
+    result: ClientToolResult,
+    clientTool: AnyClientTool | undefined,
     context?: ChatClientRunEventContext,
   ): Promise<void> {
+    if (clientTool && result.state !== 'output-error') {
+      try {
+        result = {
+          ...result,
+          output: this.validateClientToolOutput(clientTool, result.output),
+        }
+      } catch (error: any) {
+        result = {
+          ...result,
+          output: null,
+          state: 'output-error',
+          errorText: error.message,
+        }
+      }
+    }
+
     this.events.toolResultAdded(
       result.toolCallId,
       result.tool,
@@ -1086,6 +1148,17 @@ export class ChatClient {
     }
 
     await this.checkForContinuation()
+  }
+
+  private validateClientToolOutput(
+    clientTool: AnyClientTool,
+    output: any,
+  ): any {
+    if (clientTool.outputSchema && isStandardSchema(clientTool.outputSchema)) {
+      return parseWithStandardSchema(clientTool.outputSchema, output)
+    }
+
+    return output
   }
 
   /**
@@ -1206,8 +1279,8 @@ export class ChatClient {
   /**
    * Get current messages
    */
-  getMessages(): Array<UIMessage> {
-    return this.processor.getMessages()
+  getMessages(): Array<UIMessage<TTools>> {
+    return this.processor.getMessages() as Array<UIMessage<TTools>>
   }
 
   /**
@@ -1258,7 +1331,7 @@ export class ChatClient {
   /**
    * Manually set messages
    */
-  setMessagesManually(messages: Array<UIMessage>): void {
+  setMessagesManually(messages: Array<UIMessage<TTools>>): void {
     this.processor.setMessages(messages)
     this.devtoolsBridge.emitSnapshot()
   }
@@ -1266,26 +1339,16 @@ export class ChatClient {
   /**
    * Update options refs (for use in React hooks to avoid recreating client)
    */
-  updateOptions(options: {
-    connection?: ConnectionAdapter
-    fetcher?: ChatFetcher
-    /** @deprecated Use `forwardedProps` instead. */
-    body?: Record<string, any>
-    forwardedProps?: Record<string, any>
-    tools?: ReadonlyArray<AnyClientTool>
-    onResponse?: (response?: Response) => void | Promise<void>
-    onChunk?: (chunk: StreamChunk) => void
-    onFinish?: (message: UIMessage) => void
-    onError?: (error: Error) => void
-    onSubscriptionChange?: (isSubscribed: boolean) => void
-    onConnectionStatusChange?: (status: ConnectionStatus) => void
-    onSessionGeneratingChange?: (isGenerating: boolean) => void
-    onCustomEvent?: (
-      eventType: string,
-      data: unknown,
-      context: { toolCallId?: string },
-    ) => void
-  }): void {
+  updateOptions(options: ChatClientUpdateOptionsWithoutContext<TTools>): void
+  updateOptions(
+    options: ChatClientUpdateOptionsWithoutContext<TTools> &
+      Pick<ChatClientOptions<TTools, TContext>, 'context'>,
+  ): void
+  updateOptions(
+    options: ChatClientUpdateOptionsWithoutContext<TTools> & {
+      context?: TContext | undefined
+    },
+  ): void {
     if (options.connection !== undefined || options.fetcher !== undefined) {
       const wasSubscribed = this.isSubscribed
 
@@ -1312,14 +1375,18 @@ export class ChatClient {
         this.subscribe()
       }
     }
-    // Replace each slot independently so callers can update one without
-    // wiping the other. (Passing `undefined` for either field is a "leave
-    // unchanged" signal - to clear a slot, pass an empty object `{}`.)
+    // Replace each wire-payload slot independently so callers can update one
+    // without wiping the other. Passing `undefined` for `body` or
+    // `forwardedProps` leaves that slot unchanged; context is cleared when the
+    // key is present with an `undefined` value.
     if (options.body !== undefined) {
       this.bodyOption = options.body
     }
     if (options.forwardedProps !== undefined) {
       this.forwardedPropsOption = options.forwardedProps
+    }
+    if ('context' in options) {
+      this.context = options.context
     }
     if (options.tools !== undefined) {
       this.clientToolsRef.current = new Map()

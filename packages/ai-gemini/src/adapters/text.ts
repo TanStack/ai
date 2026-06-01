@@ -1,5 +1,6 @@
 import { FinishReason } from '@google/genai'
 import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
+import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import { buildGeminiUsage } from '../usage'
@@ -134,6 +135,7 @@ export class GeminiTextAdapter<
 
       yield* this.processStreamChunks(result, options, logger)
     } catch (error) {
+      const rawEvent = toRunErrorRawEvent(error)
       logger.errors('gemini.chatStream fatal', {
         error,
         source: 'gemini.chatStream',
@@ -146,6 +148,9 @@ export class GeminiTextAdapter<
           error instanceof Error
             ? error.message
             : 'An unknown error occurred during the chat stream.',
+        // Forward the provider's structured error body when present (see
+        // toRunErrorRawEvent); omitted otherwise.
+        ...(rawEvent !== undefined && { rawEvent }),
         error: {
           message:
             error instanceof Error
@@ -744,15 +749,52 @@ export class GeminiTextAdapter<
       if (msg.role === 'tool' && msg.toolCallId) {
         const functionName =
           toolCallIdToName.get(msg.toolCallId) || msg.toolCallId
-        parts.push({
-          functionResponse: {
-            id: msg.toolCallId,
-            name: functionName,
-            response: {
-              content: msg.content || '',
+        const toolContent = msg.content
+        if (Array.isArray(toolContent)) {
+          const textChunks: Array<string> = []
+          const mediaParts: Array<Part> = []
+          for (const part of toolContent) {
+            if (part.type === 'text') {
+              textChunks.push(part.content)
+            } else if (part.source.type === 'data') {
+              mediaParts.push({
+                inlineData: {
+                  data: part.source.value,
+                  mimeType: part.source.mimeType,
+                },
+              })
+            } else {
+              const defaultMimeType = {
+                image: 'image/jpeg',
+                audio: 'audio/mp3',
+                video: 'video/mp4',
+                document: 'application/pdf',
+              }[part.type]
+              mediaParts.push({
+                fileData: {
+                  fileUri: part.source.value,
+                  mimeType: part.source.mimeType ?? defaultMimeType,
+                },
+              })
+            }
+          }
+          parts.push({
+            functionResponse: {
+              id: msg.toolCallId,
+              name: functionName,
+              response: { content: textChunks.join('\n') },
+              ...(mediaParts.length > 0 && { parts: mediaParts }),
             },
-          },
-        })
+          })
+        } else {
+          parts.push({
+            functionResponse: {
+              id: msg.toolCallId,
+              name: functionName,
+              response: { content: toolContent || '' },
+            },
+          })
+        }
       }
 
       return {

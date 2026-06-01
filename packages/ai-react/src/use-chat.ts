@@ -11,6 +11,7 @@ import type {
 import type {
   ChatClientState,
   ConnectionStatus,
+  InferredClientContext,
   StructuredOutputPart,
 } from '@tanstack/ai-client'
 
@@ -25,7 +26,10 @@ import type {
 export function useChat<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
->(options: UseChatOptions<TTools, TSchema>): UseChatReturn<TTools, TSchema> {
+  TContext = InferredClientContext<TTools>,
+>(
+  options: UseChatOptions<TTools, TSchema, TContext>,
+): UseChatReturn<TTools, TSchema> {
   const hookId = useId()
   const clientId = options.id || hookId
 
@@ -53,7 +57,7 @@ export function useChat<
   messagesRef.current = messages
 
   // Track current options in a ref to avoid recreating client when options change
-  const optionsRef = useRef<UseChatOptions<TTools, TSchema>>(options)
+  const optionsRef = useRef<UseChatOptions<TTools, TSchema, TContext>>(options)
   optionsRef.current = options
 
   // Create ChatClient instance with callbacks to sync state
@@ -73,7 +77,7 @@ export function useChat<
       ? { connection: initialOptions.connection }
       : { fetcher: initialOptions.fetcher }
 
-    return new ChatClient({
+    return new ChatClient<TTools, TContext>({
       devtoolsBridgeFactory: createChatDevtoolsBridge,
       ...transport,
       id: clientId,
@@ -81,6 +85,9 @@ export function useChat<
       ...(initialOptions.body !== undefined && { body: initialOptions.body }),
       ...(initialOptions.forwardedProps !== undefined && {
         forwardedProps: initialOptions.forwardedProps,
+      }),
+      ...(initialOptions.context !== undefined && {
+        context: initialOptions.context,
       }),
       devtools: {
         ...initialOptions.devtools,
@@ -141,8 +148,9 @@ export function useChat<
       ...(options.forwardedProps !== undefined && {
         forwardedProps: options.forwardedProps,
       }),
+      context: options.context,
     })
-  }, [client, options.body, options.forwardedProps])
+  }, [client, options.body, options.forwardedProps, options.context])
 
   useEffect(() => {
     if (options.initialMessages && options.initialMessages.length > 0) {

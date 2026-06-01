@@ -1,5 +1,94 @@
 # @tanstack/ai
 
+## 0.24.0
+
+### Minor Changes
+
+- [#666](https://github.com/TanStack/ai/pull/666) [`c1ae8b9`](https://github.com/TanStack/ai/commit/c1ae8b94c83d70508975568eb4fc9b45f1af540b) - feat: support multimodal (image) tool results
+
+  Tools may now return an `Array<ContentPart>` (e.g. a text part plus an image part) and have it transmitted to the model as structured multimodal tool output instead of a `JSON.stringify`'d blob. This unblocks use cases like returning a screenshot from a tool so the model can see it (issue [#363](https://github.com/TanStack/ai/issues/363)).
+  - Detection is structural and opt-in by shape: a tool that returns a non-empty array whose every element is a valid `ContentPart` is passed through unchanged; strings and all other return values are serialized exactly as before, so there are no breaking changes.
+  - The OpenAI Responses, Anthropic, and Google Gemini adapters convert the content parts into their native multimodal tool-output formats (`function_call_output.output`, `tool_result` content blocks, and `functionResponse.parts` respectively). Providers on the Chat Completions path (Groq, Ollama, Grok, OpenRouter chat) fall back to stringifying, which their APIs require.
+  - AG-UI stream events (`TOOL_CALL_RESULT.content`, `TOOL_CALL_END.result`) remain string-only per the spec; the multimodal array travels on the tool message itself.
+
+- [#673](https://github.com/TanStack/ai/pull/673) [`a452ae8`](https://github.com/TanStack/ai/commit/a452ae8bcda8abfdc6309983976ed0fbf6df1915) - Populate AG-UI `rawEvent` on `RUN_ERROR` events with the provider's structured error body.
+
+  Previously, when a streaming chat call failed the `RUN_ERROR` event carried only an
+  opaque `{ message, code }` headline (e.g. `"Provider returned error"`), and no adapter
+  populated AG-UI's purpose-built `rawEvent` field — so the upstream provider detail was
+  unrecoverable.
+
+  Adapters now forward the provider's **structured error body** (e.g. an SDK `APIError`'s
+  parsed `.error` response body, or OpenRouter's mid-stream `chunk.error`) as `rawEvent`
+  on the `RUN_ERROR` event. The new `toRunErrorRawEvent` helper extracts only known
+  provider-body fields — never the raw SDK exception object, which can carry request
+  metadata such as auth headers. The `{ message, code }` contract of `toRunErrorPayload`
+  is unchanged.
+
+  The error surfaced to consumers via the `ChatClient` / `useChat` `error` (and the
+  `onError` callback) now also carries `code` and `rawEvent` when present, so the upstream
+  cause is recoverable in application code.
+
+  > Note: the OpenRouter SDK parses each in-band stream chunk's `error` through a strict
+  > schema (`{ code, message }`), so provider `metadata` survives only on pre-stream HTTP
+  > errors (rate-limit / overload / BYOK rejection), whose typed error class exposes the
+  > full body via `.error`.
+
+- [#628](https://github.com/TanStack/ai/pull/628) [`8036b50`](https://github.com/TanStack/ai/commit/8036b5054330a180023c6e3225b8d2735a43a919) - Add typed runtime context for tools and middleware.
+
+  Tools and middleware can now declare the runtime context shape they require, and
+  `chat()`, `ChatClient`, and the framework `useChat` / `createChat` hooks infer
+  the merged requirement and type-check the `context` option you pass against it.
+
+  ```typescript
+  type AppContext = { userId: string; db: Db }
+
+  const listNotes = toolDefinition({
+    name: 'list_notes' /* ... */,
+  }).server<AppContext>((_input, ctx) =>
+    ctx.context.db.notes.findMany({ userId: ctx.context.userId }),
+  )
+
+  chat({
+    adapter,
+    messages,
+    tools: [listNotes],
+    context: { userId, db }, // required and type-checked because listNotes declares AppContext
+  })
+  ```
+
+  Runtime context is request-local application state for tool and middleware
+  implementations (authenticated users, database clients, tenancy, feature flags,
+  loggers, browser services). It is never sent to the model and is distinct from
+  the AG-UI `RunAgentInput.context` protocol field.
+
+  Untyped tools and middleware continue to receive `unknown` context and do not
+  force a `context` option. Client tools receive client-local context via
+  `ChatClient` / `useChat`; use `forwardedProps` to hand serializable client data
+  to the server and map it into server context explicitly. See the new Runtime
+  Context guide for details.
+
+  Behavior change: tool output validation now also runs when a tool returns
+  `undefined` or `null`. Previously these values bypassed `outputSchema`
+  validation entirely; now the schema decides whether they are valid, so a tool
+  whose schema forbids `undefined`/`null` surfaces a validation error
+  (`output-error`) instead of silently passing. Tools whose schema permits
+  `null`/`undefined` (e.g. nullable or void outputs) are unaffected.
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.4.3
+
+## 0.23.1
+
+### Patch Changes
+
+- [#662](https://github.com/TanStack/ai/pull/662) [`94bb9c0`](https://github.com/TanStack/ai/commit/94bb9c0f3a3e56a0c6c8b7c78f44ae41288aecc3) - Fix `convertSchemaToJsonSchema` (and tool input/output validation) for ArkType schemas. ArkType's `type()` returns a callable function with `~standard` attached, but the Standard Schema detection guards required `typeof schema === 'object'`, so ArkType schemas were never recognized and the raw validator function was passed through instead of a JSON Schema object. The guards now also accept callable schemas. ([#276](https://github.com/TanStack/ai/issues/276))
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.4.2
+
 ## 0.23.0
 
 ### Minor Changes

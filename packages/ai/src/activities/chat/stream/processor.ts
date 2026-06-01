@@ -18,6 +18,7 @@
  *   adapter contract, single-shot flows, and expected UIMessage output.
  */
 import { generateMessageId, uiMessageToModelMessages } from '../messages.js'
+import { normalizeToolResult } from '../../../utilities/tool-result'
 import { defaultJSONParser } from './json-parser'
 import {
   appendStructuredOutputDelta,
@@ -321,7 +322,7 @@ export class StreamProcessor {
     )
 
     // Step 2: Create a tool-result part (for LLM conversation history)
-    const content = typeof output === 'string' ? output : JSON.stringify(output)
+    const content = normalizeToolResult(output)
     const toolResultState: ToolResultState = error ? 'error' : 'complete'
 
     updatedMessages = updateToolResultPart(
@@ -1170,28 +1171,49 @@ export class StreamProcessor {
       // Step 1: Update the tool-call part's output field (for UI consistency
       // with client tools — see GitHub issue #176)
       let output: unknown
-      try {
-        output = JSON.parse(chunk.result)
-      } catch {
+      if (Array.isArray(chunk.result)) {
         output = chunk.result
+      } else {
+        try {
+          output = JSON.parse(chunk.result)
+        } catch {
+          output = chunk.result
+        }
       }
       this.messages = updateToolCallWithOutput(
         this.messages,
         chunk.toolCallId,
         output,
+        chunk.state === 'output-error' ? 'input-complete' : undefined,
       )
 
       // Step 2: Create/update the tool-result part (for LLM conversation history)
-      const resultState: ToolResultState = 'complete'
+      const resultState: ToolResultState =
+        chunk.state === 'output-error' ? 'error' : 'complete'
       this.messages = updateToolResultPart(
         this.messages,
         messageId,
         chunk.toolCallId,
         chunk.result,
         resultState,
+        resultState === 'error'
+          ? this.extractToolResultError(output)
+          : undefined,
       )
       this.emitMessagesChange()
     }
+  }
+
+  private extractToolResultError(output: unknown): string {
+    if (
+      output &&
+      typeof output === 'object' &&
+      'error' in output &&
+      typeof output.error === 'string'
+    ) {
+      return output.error
+    }
+    return typeof output === 'string' ? output : 'Tool execution failed'
   }
 
   /**
@@ -1218,16 +1240,19 @@ export class StreamProcessor {
       this.messages,
       chunk.toolCallId,
       output,
+      chunk.state === 'output-error' ? 'input-complete' : undefined,
     )
 
     // Step 2: Create/update the tool-result part
-    const resultState: ToolResultState = 'complete'
+    const resultState: ToolResultState =
+      chunk.state === 'output-error' ? 'error' : 'complete'
     this.messages = updateToolResultPart(
       this.messages,
       messageId,
       chunk.toolCallId,
       chunk.content,
       resultState,
+      resultState === 'error' ? this.extractToolResultError(output) : undefined,
     )
     this.emitMessagesChange()
   }
@@ -1274,7 +1299,10 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
   ): void {
     this.hasError = true
-    const runId = (chunk as any).runId as string | undefined
+    const runId =
+      'runId' in chunk && typeof chunk.runId === 'string'
+        ? chunk.runId
+        : undefined
     if (runId) {
       this.activeRuns.delete(runId)
     } else {
@@ -1305,7 +1333,19 @@ export class StreamProcessor {
       this.emitMessagesChange()
     }
 
-    this.events.onError?.(new Error(errorMessage))
+    // Attach the provider's structured error body (`rawEvent`) and `code` to
+    // the surfaced Error so consumers can recover the upstream detail that the
+    // RUN_ERROR's `message` alone discards. Both are optional and added only
+    // when present, keeping the Error backward compatible.
+    const error = new Error(errorMessage)
+    const code = chunk.code ?? chunk.error?.code
+    if (code !== undefined) {
+      Object.assign(error, { code })
+    }
+    if (chunk.rawEvent !== undefined) {
+      Object.assign(error, { rawEvent: chunk.rawEvent })
+    }
+    this.events.onError?.(error)
   }
 
   /**

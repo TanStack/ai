@@ -62,3 +62,47 @@ export function toRunErrorPayload(
   }
   return { message: fallbackMessage, code: undefined }
 }
+
+/**
+ * Extract the provider's *structured error body* from a thrown value, to attach
+ * as the AG-UI `rawEvent` on a RUN_ERROR event. This is the recoverable upstream
+ * detail (provider name, the upstream model's error JSON, rate-limit/overload
+ * codes, etc.) that `toRunErrorPayload`'s `{ message, code }` deliberately drops.
+ *
+ * Security boundary: only known provider-response-body fields are forwarded —
+ * never the raw SDK exception object, which can carry request metadata such as
+ * auth headers or request ids. The recognized sources, in priority order:
+ *
+ *  - `error.rawEvent` — a provider body an adapter attached explicitly (e.g. the
+ *    OpenRouter mid-stream `chunk.error`).
+ *  - `error.error` (object) — the parsed provider response body exposed by SDK
+ *    `APIError` instances (OpenAI/Anthropic `{ type, message, code, param }`,
+ *    OpenRouter typed errors whose `.error` carries `.metadata`). This is
+ *    provider-shaped data, distinct from `.headers` / `.request_id`.
+ *  - `error.metadata` — OpenRouter's `provider_name` + raw upstream body, when
+ *    surfaced directly on the thrown error.
+ *
+ * Returns `undefined` when no structured provider body is present, so callers
+ * omit the field entirely rather than setting it to `null`:
+ *
+ *   const rawEvent = toRunErrorRawEvent(error)
+ *   yield { type: EventType.RUN_ERROR, ..., ...(rawEvent !== undefined && { rawEvent }) }
+ */
+export function toRunErrorRawEvent(error: unknown): unknown {
+  if (!error || typeof error !== 'object') return undefined
+  const e = error as {
+    rawEvent?: unknown
+    error?: unknown
+    metadata?: unknown
+  }
+  if (e.rawEvent !== undefined && e.rawEvent !== null) return e.rawEvent
+  if (
+    e.error !== undefined &&
+    e.error !== null &&
+    typeof e.error === 'object'
+  ) {
+    return e.error
+  }
+  if (e.metadata !== undefined && e.metadata !== null) return e.metadata
+  return undefined
+}
