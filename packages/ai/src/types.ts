@@ -357,7 +357,7 @@ export interface ToolCallPart<TMetadata = unknown> {
 export interface ToolResultPart {
   type: 'tool-result'
   toolCallId: string
-  content: string
+  content: string | Array<ContentPart>
   state: ToolResultState
   error?: string // Error message if state is "error"
 }
@@ -1137,7 +1137,7 @@ export interface ToolCallEndEvent extends AGUIToolCallEndEvent {
   /** Final parsed input arguments (TanStack AI internal) */
   input?: unknown
   /** Tool execution result (TanStack AI internal) */
-  result?: string
+  result?: string | Array<ContentPart>
   /** Tool execution output state (TanStack AI internal) */
   state?: ToolOutputState
 }

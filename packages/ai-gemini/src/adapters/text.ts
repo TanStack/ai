@@ -744,15 +744,52 @@ export class GeminiTextAdapter<
       if (msg.role === 'tool' && msg.toolCallId) {
         const functionName =
           toolCallIdToName.get(msg.toolCallId) || msg.toolCallId
-        parts.push({
-          functionResponse: {
-            id: msg.toolCallId,
-            name: functionName,
-            response: {
-              content: msg.content || '',
+        const toolContent = msg.content
+        if (Array.isArray(toolContent)) {
+          const textChunks: Array<string> = []
+          const mediaParts: Array<Part> = []
+          for (const part of toolContent) {
+            if (part.type === 'text') {
+              textChunks.push(part.content)
+            } else if (part.source.type === 'data') {
+              mediaParts.push({
+                inlineData: {
+                  data: part.source.value,
+                  mimeType: part.source.mimeType,
+                },
+              })
+            } else {
+              const defaultMimeType = {
+                image: 'image/jpeg',
+                audio: 'audio/mp3',
+                video: 'video/mp4',
+                document: 'application/pdf',
+              }[part.type]
+              mediaParts.push({
+                fileData: {
+                  fileUri: part.source.value,
+                  mimeType: part.source.mimeType ?? defaultMimeType,
+                },
+              })
+            }
+          }
+          parts.push({
+            functionResponse: {
+              id: msg.toolCallId,
+              name: functionName,
+              response: { content: textChunks.join('\n') },
+              ...(mediaParts.length > 0 && { parts: mediaParts }),
             },
-          },
-        })
+          })
+        } else {
+          parts.push({
+            functionResponse: {
+              id: msg.toolCallId,
+              name: functionName,
+              response: { content: toolContent || '' },
+            },
+          })
+        }
       }
 
       return {

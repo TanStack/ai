@@ -189,6 +189,11 @@ export {
 // AG-UI wire serialization (used internally by @tanstack/ai-client)
 export { uiMessagesToWire } from './utilities/ag-ui-wire'
 export type { WireMessage } from './utilities/ag-ui-wire'
+export {
+  isContentPart,
+  isContentPartArray,
+  normalizeToolResult,
+} from './utilities/tool-result'
 
 // Adapter extension utilities
 export { createModel, extendAdapter } from './extend-adapter'

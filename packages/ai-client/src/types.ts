@@ -220,7 +220,7 @@ export type ToolCallPart<TTools extends ReadonlyArray<AnyClientTool> = any> =
 export interface ToolResultPart {
   type: 'tool-result'
   toolCallId: string
-  content: string
+  content: string | Array<ContentPart>
   state: ToolResultState
   error?: string // Error message if state is "error"
 }

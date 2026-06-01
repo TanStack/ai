@@ -1,6 +1,8 @@
+import { normalizeToolResult } from '../../../utilities/tool-result'
 import { isStandardSchema, parseWithStandardSchema } from './schema-converter'
 import type {
   AnyTool,
+  ContentPart,
   CustomEvent,
   ModelMessage,
   RunFinishedEvent,
@@ -220,7 +222,7 @@ export class ToolCallManager<
     for (const toolCall of toolCallsArray) {
       const tool = this.tools.find((t) => t.name === toolCall.function.name)
 
-      let toolResultContent: string
+      let toolResultContent: string | Array<ContentPart>
       let toolResultState: ToolOutputState | undefined
       if (tool?.execute) {
         try {
@@ -280,8 +282,7 @@ export class ToolCallManager<
             }
           }
 
-          toolResultContent =
-            typeof result === 'string' ? result : JSON.stringify(result)
+          toolResultContent = normalizeToolResult(result)
         } catch (error: unknown) {
           // If tool execution fails, add error message
           const message =

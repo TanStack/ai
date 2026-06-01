@@ -1196,6 +1196,12 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   protected convertMessage(message: ModelMessage): ChatCompletionMessageParam {
     // Handle tool messages
     if (message.role === 'tool') {
+      // The Chat Completions API has no multimodal `tool` message support
+      // (unlike the Responses API's `function_call_output`). A tool that
+      // returns an `Array<ContentPart>` is therefore stringified here — the
+      // documented fallback for providers on the chat-completions path
+      // (Groq, Ollama, Grok, OpenRouter chat). Multimodal tool results are
+      // only delivered structurally via the Responses adapter.
       return {
         role: 'tool',
         tool_call_id: message.toolCallId || '',

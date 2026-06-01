@@ -18,6 +18,7 @@
  *   adapter contract, single-shot flows, and expected UIMessage output.
  */
 import { generateMessageId, uiMessageToModelMessages } from '../messages.js'
+import { normalizeToolResult } from '../../../utilities/tool-result'
 import { defaultJSONParser } from './json-parser'
 import {
   appendStructuredOutputDelta,
@@ -321,7 +322,7 @@ export class StreamProcessor {
     )
 
     // Step 2: Create a tool-result part (for LLM conversation history)
-    const content = typeof output === 'string' ? output : JSON.stringify(output)
+    const content = normalizeToolResult(output)
     const toolResultState: ToolResultState = error ? 'error' : 'complete'
 
     updatedMessages = updateToolResultPart(
@@ -1170,10 +1171,14 @@ export class StreamProcessor {
       // Step 1: Update the tool-call part's output field (for UI consistency
       // with client tools — see GitHub issue #176)
       let output: unknown
-      try {
-        output = JSON.parse(chunk.result)
-      } catch {
+      if (Array.isArray(chunk.result)) {
         output = chunk.result
+      } else {
+        try {
+          output = JSON.parse(chunk.result)
+        } catch {
+          output = chunk.result
+        }
       }
       this.messages = updateToolCallWithOutput(
         this.messages,
