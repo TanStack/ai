@@ -1620,14 +1620,12 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
         message: 'You exceeded your current quota',
         code: 'insufficient_quota',
       }
-      mockResponsesCreate = vi
-        .fn()
-        .mockRejectedValue(
-          Object.assign(new Error('429 You exceeded your current quota'), {
-            status: 429,
-            error: providerBody,
-          }),
-        )
+      mockResponsesCreate = vi.fn().mockRejectedValue(
+        Object.assign(new Error('429 You exceeded your current quota'), {
+          status: 429,
+          error: providerBody,
+        }),
+      )
 
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<StreamChunk> = []

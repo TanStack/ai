@@ -1295,7 +1295,9 @@ export class StreamProcessor {
   ): void {
     this.hasError = true
     const runId =
-      'runId' in chunk && typeof chunk.runId === 'string' ? chunk.runId : undefined
+      'runId' in chunk && typeof chunk.runId === 'string'
+        ? chunk.runId
+        : undefined
     if (runId) {
       this.activeRuns.delete(runId)
     } else {
