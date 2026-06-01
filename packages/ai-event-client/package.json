@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-event-client",
-  "version": "0.4.3",
+  "version": "0.5.0",
   "description": "Typed event client for TanStack AI devtools, observability, and streamed runtime events.",
   "author": "",
   "license": "MIT",

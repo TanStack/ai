@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-groq",
-  "version": "0.2.9",
+  "version": "0.3.0",
   "type": "module",
   "description": "Groq adapter for TanStack AI low-latency chat, tool calling, and structured outputs.",
   "author": "",

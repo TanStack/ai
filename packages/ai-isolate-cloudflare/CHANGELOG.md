@@ -1,5 +1,12 @@
 # @tanstack/ai-isolate-cloudflare
 
+## 0.2.17
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-code-mode@0.2.1
+
 ## 0.2.16
 
 ### Patch Changes
