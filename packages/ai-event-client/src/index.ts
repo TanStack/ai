@@ -198,9 +198,7 @@ export interface UsageCostBreakdown {
  * surface a strongly-typed bag (e.g. `TokenUsage<AnthropicProviderUsageDetails>`);
  * it defaults to an open record for generic consumers.
  */
-export interface TokenUsage<
-  TProviderDetails = Record<string, unknown>,
-> {
+export interface TokenUsage<TProviderDetails = Record<string, unknown>> {
   /** Total input/prompt tokens */
   promptTokens: number
   /** Total output/completion tokens */
