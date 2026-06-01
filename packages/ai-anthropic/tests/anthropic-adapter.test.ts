@@ -1295,3 +1295,36 @@ describe('Anthropic stream processing', () => {
     })
   })
 })
+
+describe('Anthropic adapter error handling', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it("forwards the SDK error's `.error` body as RUN_ERROR.rawEvent", async () => {
+    const providerBody = { type: 'rate_limit_error', message: 'slow down' }
+    mocks.betaMessagesCreate.mockRejectedValueOnce(
+      Object.assign(new Error('429'), {
+        status: 429,
+        error: providerBody,
+      }),
+    )
+
+    const adapter = createAdapter('claude-3-7-sonnet')
+    const chunks: StreamChunk[] = []
+    for await (const chunk of adapter.chatStream({
+      model: 'claude-3-7-sonnet',
+      messages: [{ role: 'user', content: 'hi' }],
+      logger: { request: () => {}, errors: () => {} } as any,
+    })) {
+      chunks.push(chunk)
+    }
+
+    const runError = chunks.find((c) => c.type === 'RUN_ERROR')
+    expect(runError).toBeDefined()
+    if (runError?.type === 'RUN_ERROR') {
+      expect(runError.rawEvent).toEqual(providerBody)
+      expect(runError.code).toBe('429')
+    }
+  })
+})
