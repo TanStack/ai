@@ -4,6 +4,16 @@ import type {
 } from '@standard-schema/spec'
 import type { InternalLogger } from './logger/internal-logger'
 import type { SystemPrompt } from './system-prompts'
+// The canonical usage types live in the leaf `@tanstack/ai-event-client`
+// package (which `@tanstack/ai` already depends on) so there is a single source
+// of truth without a dependency cycle. They are re-exported below.
+import type {
+  CompletionTokensDetails,
+  PromptTokensDetails,
+  ProviderUsageDetails,
+  TokenUsage,
+  UsageCostBreakdown,
+} from '@tanstack/ai-event-client'
 import type {
   BaseEvent as AGUIBaseEvent,
   CustomEvent as AGUICustomEvent,
@@ -978,38 +988,22 @@ export interface RunStartedEvent extends AGUIRunStartedEvent {
   model?: string
 }
 
-/**
- * Provider-reported cost breakdown for a single request, normalized onto a
- * canonical shape so consumer code is portable across gateways. Each adapter's
- * extractor maps its provider-specific wire keys (e.g. OpenRouter's
- * `upstream_inference_prompt_cost`, `upstream_inference_input_cost`) onto these
- * fields at runtime.
- */
-export interface UsageCostBreakdown {
-  /** Total cost the gateway paid the upstream provider. */
-  upstreamCost?: number
-  /** Upstream cost for input (prompt) tokens. */
-  upstreamInputCost?: number
-  /** Upstream cost for output (completion) tokens. */
-  upstreamOutputCost?: number
+// Re-export the canonical usage types (defined in `@tanstack/ai-event-client`)
+// so `@tanstack/ai` consumers keep importing them from here unchanged.
+export type {
+  CompletionTokensDetails,
+  PromptTokensDetails,
+  ProviderUsageDetails,
+  TokenUsage,
+  UsageCostBreakdown,
 }
 
 /**
- * Token usage totals for a run, optionally including provider-reported cost.
- *
- * `cost` and `costDetails` are populated only by adapters whose provider returns
- * authoritative per-request cost (e.g. OpenRouter). They are absent for adapters
- * that do not report cost, so consumers must treat them as optional.
+ * @deprecated Renamed to {@link TokenUsage}. Kept as an alias for backward
+ * compatibility with `@tanstack/ai@0.23` and earlier; will be removed in a
+ * future release.
  */
-export interface UsageTotals {
-  promptTokens: number
-  completionTokens: number
-  totalTokens: number
-  /** Provider-reported cost for the request, when available. */
-  cost?: number
-  /** Provider-reported cost breakdown, when available. */
-  costDetails?: UsageCostBreakdown
-}
+export type UsageTotals = TokenUsage
 
 /**
  * Emitted when a run completes successfully.
@@ -1022,8 +1016,8 @@ export interface RunFinishedEvent extends AGUIRunFinishedEvent {
   model?: string
   /** Why the generation stopped */
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
-  /** Token usage statistics, optionally including provider-reported cost. */
-  usage?: UsageTotals
+  /** Token usage statistics with optional detailed breakdowns and provider-reported cost. */
+  usage?: TokenUsage
 }
 
 /**
@@ -1473,11 +1467,7 @@ export interface TextCompletionChunk {
   content: string
   role?: 'assistant'
   finishReason?: 'stop' | 'length' | 'content_filter' | null
-  usage?: {
-    promptTokens: number
-    completionTokens: number
-    totalTokens: number
-  }
+  usage?: TokenUsage
 }
 
 export interface SummarizationOptions<
@@ -1501,11 +1491,7 @@ export interface SummarizationResult {
   id: string
   model: string
   summary: string
-  usage: {
-    promptTokens: number
-    completionTokens: number
-    totalTokens: number
-  }
+  usage: TokenUsage
 }
 
 // ============================================================================
@@ -1574,11 +1560,7 @@ export interface ImageGenerationResult {
   /** Array of generated images */
   images: Array<GeneratedImage>
   /** Token usage information (if available) */
-  usage?: {
-    inputTokens?: number
-    outputTokens?: number
-    totalTokens?: number
-  }
+  usage?: TokenUsage
 }
 
 // ============================================================================
@@ -1629,11 +1611,7 @@ export interface AudioGenerationResult {
   /** The generated audio */
   audio: GeneratedAudio
   /** Token usage information (if available) */
-  usage?: {
-    inputTokens?: number
-    outputTokens?: number
-    totalTokens?: number
-  }
+  usage?: TokenUsage
 }
 
 // ============================================================================
@@ -1754,6 +1732,8 @@ export interface TTSResult {
   duration?: number
   /** Content type of the audio (e.g., 'audio/mp3') */
   contentType?: string
+  /** Token usage information (if provided by the adapter) */
+  usage?: TokenUsage
 }
 
 // ============================================================================
@@ -1835,6 +1815,8 @@ export interface TranscriptionResult {
   segments?: Array<TranscriptionSegment>
   /** Word-level timestamps, if available */
   words?: Array<TranscriptionWord>
+  /** Token usage information (if provided by the adapter) */
+  usage?: TokenUsage
 }
 
 /**

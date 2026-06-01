@@ -3,6 +3,7 @@ import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import { validateTextProviderOptions } from '../text/text-provider-options'
+import { buildAnthropicUsage } from '../usage'
 import {
   createAnthropicClient,
   generateId,
@@ -284,6 +285,7 @@ export class AnthropicTextAdapter<
       return {
         data: parsed,
         rawText,
+        usage: buildAnthropicUsage(response.usage),
       }
     } catch (error: unknown) {
       const err = error as Error
@@ -1101,13 +1103,7 @@ export class AnthropicTextAdapter<
                   model,
                   timestamp: Date.now(),
                   finishReason: 'tool_calls',
-                  usage: {
-                    promptTokens: event.usage.input_tokens || 0,
-                    completionTokens: event.usage.output_tokens || 0,
-                    totalTokens:
-                      (event.usage.input_tokens || 0) +
-                      (event.usage.output_tokens || 0),
-                  },
+                  usage: buildAnthropicUsage(event.usage),
                 }
                 break
               }
@@ -1145,13 +1141,7 @@ export class AnthropicTextAdapter<
                   model,
                   timestamp: Date.now(),
                   finishReason: 'stop',
-                  usage: {
-                    promptTokens: event.usage.input_tokens || 0,
-                    completionTokens: event.usage.output_tokens || 0,
-                    totalTokens:
-                      (event.usage.input_tokens || 0) +
-                      (event.usage.output_tokens || 0),
-                  },
+                  usage: buildAnthropicUsage(event.usage),
                 }
               }
             }

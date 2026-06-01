@@ -4,6 +4,7 @@ import {
   getOpenRouterApiKeyFromEnv,
   generateId as utilGenerateId,
 } from '../utils'
+import { buildOpenRouterUsage } from '../usage'
 import type { OpenRouterClientConfig } from '../utils'
 import type {
   OpenRouterImageModelProviderOptionsByName,
@@ -154,10 +155,18 @@ export class OpenRouterImageAdapter<
       throw new Error('Image generation failed: response contained no images')
     }
 
+    // OpenRouter routes image generation through the chat surface, so the
+    // response carries the same `usage` shape as text. Surface it (with any
+    // detail breakdowns) when present.
+    const usage = response.usage
+      ? buildOpenRouterUsage(response.usage)
+      : undefined
+
     return {
       id: response.id || this.generateId(),
       model: response.model || model,
       images,
+      ...(usage ? { usage } : {}),
     }
   }
 }

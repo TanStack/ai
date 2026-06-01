@@ -1,6 +1,7 @@
 import OpenAI from 'openai'
 import { BaseImageAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
+import { buildImagesUsage } from '@tanstack/openai-base'
 import { generateId } from '@tanstack/ai-utils'
 import { getGrokApiKeyFromEnv, withGrokDefaults } from '../utils/client'
 import {
@@ -105,17 +106,13 @@ export class GrokImageAdapter<
         },
       )
 
+      const usage = buildImagesUsage(response.usage)
+
       return {
         id: generateId(this.name),
         model,
         images,
-        ...(response.usage && {
-          usage: {
-            inputTokens: response.usage.input_tokens,
-            outputTokens: response.usage.output_tokens,
-            totalTokens: response.usage.total_tokens,
-          },
-        }),
+        ...(usage ? { usage } : {}),
       }
     } catch (error: unknown) {
       options.logger.errors(`${this.name}.generateImages fatal`, {

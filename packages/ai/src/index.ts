@@ -111,6 +111,9 @@ export type {
 // All types
 export * from './types'
 
+// Usage utilities
+export { buildBaseUsage, type BaseUsageInput } from './utilities/usage'
+
 // System prompts (type + normaliser used by adapters)
 export type { SystemPrompt, NormalizedSystemPrompt } from './system-prompts'
 export { normalizeSystemPrompts } from './system-prompts'

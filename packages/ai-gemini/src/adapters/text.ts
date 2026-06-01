@@ -3,6 +3,7 @@ import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
+import { buildGeminiUsage } from '../usage'
 import {
   createGeminiClient,
   generateId,
@@ -204,6 +205,9 @@ export class GeminiTextAdapter<
       return {
         data: parsed,
         rawText,
+        usage: result.usageMetadata
+          ? buildGeminiUsage(result.usageMetadata)
+          : undefined,
       }
     } catch (error) {
       logger.errors('gemini.structuredOutput fatal', {
@@ -633,11 +637,7 @@ export class GeminiTextAdapter<
           // exactOptionalPropertyTypes; only include it when usageMetadata is
           // present rather than assigning an explicit `undefined`.
           ...(chunk.usageMetadata && {
-            usage: {
-              promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
-              completionTokens: chunk.usageMetadata.candidatesTokenCount ?? 0,
-              totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
-            },
+            usage: buildGeminiUsage(chunk.usageMetadata),
           }),
         }
       }

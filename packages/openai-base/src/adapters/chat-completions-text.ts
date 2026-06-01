@@ -7,6 +7,7 @@ import {
 import { generateId, transformNullsToUndefined } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../utils/request-options'
 import { makeStructuredOutputCompatible } from '../utils/schema-converter'
+import { buildChatCompletionsUsage } from '../usage'
 import { convertToolsToChatCompletionsFormat } from './chat-completions-tool-converter'
 import type OpenAI from 'openai'
 import type {
@@ -506,11 +507,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         timestamp,
         finishReason: 'stop',
         ...(lastUsage && {
-          usage: {
-            promptTokens: lastUsage.prompt_tokens,
-            completionTokens: lastUsage.completion_tokens,
-            totalTokens: lastUsage.total_tokens,
-          },
+          usage: buildChatCompletionsUsage(lastUsage),
         }),
       }
     } catch (error: unknown) {
@@ -1063,11 +1060,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           model: lastModel || options.model,
           timestamp: Date.now(),
           ...(lastUsage && {
-            usage: {
-              promptTokens: lastUsage.prompt_tokens || 0,
-              completionTokens: lastUsage.completion_tokens || 0,
-              totalTokens: lastUsage.total_tokens || 0,
-            },
+            usage: buildChatCompletionsUsage(lastUsage),
           }),
           finishReason,
         }

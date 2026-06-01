@@ -174,6 +174,16 @@ async function runGenerateAudio<
       timestamp: Date.now(),
     })
 
+    if (result.usage) {
+      aiEventClient.emit('audio:usage', {
+        requestId,
+        model,
+        usage: result.usage,
+        modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
+        timestamp: Date.now(),
+      })
+    }
+
     logger.output(`activity=generateAudio provider=${providerName}`, {
       contentType: result.audio.contentType,
       audioDuration: result.audio.duration,

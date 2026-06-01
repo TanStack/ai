@@ -10,6 +10,7 @@ import { extractRequestOptions } from '../internal/request-options'
 import { makeStructuredOutputCompatible } from '../internal/schema-converter'
 import { convertToolsToProviderFormat } from '../tools'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
+import { buildOpenRouterUsage } from '../usage'
 import { extractUsageCost } from './cost'
 import type { SDKOptions } from '@openrouter/sdk'
 import type {
@@ -545,6 +546,8 @@ export class OpenRouterTextAdapter<
         timestamp,
       }
 
+      const finalUsage = buildOpenRouterUsage(lastUsage)
+
       yield {
         type: EventType.RUN_FINISHED,
         runId: aguiState.runId,
@@ -552,13 +555,8 @@ export class OpenRouterTextAdapter<
         model: lastModel || chatOptions.model,
         timestamp,
         finishReason: 'stop',
-        ...(lastUsage && {
-          usage: {
-            promptTokens: lastUsage.promptTokens,
-            completionTokens: lastUsage.completionTokens,
-            totalTokens: lastUsage.totalTokens,
-            ...extractUsageCost(lastUsage),
-          },
+        ...(finalUsage && {
+          usage: { ...finalUsage, ...extractUsageCost(lastUsage) },
         }),
       }
     } catch (error: unknown) {
@@ -1083,19 +1081,16 @@ export class OpenRouterTextAdapter<
                 ? 'content_filter'
                 : 'stop'
 
+        const finalUsage = buildOpenRouterUsage(lastUsage)
+
         yield {
           type: EventType.RUN_FINISHED,
           runId: aguiState.runId,
           threadId: aguiState.threadId,
           model: lastModel || options.model,
           timestamp: Date.now(),
-          ...(lastUsage && {
-            usage: {
-              promptTokens: lastUsage.promptTokens || 0,
-              completionTokens: lastUsage.completionTokens || 0,
-              totalTokens: lastUsage.totalTokens || 0,
-              ...extractUsageCost(lastUsage),
-            },
+          ...(finalUsage && {
+            usage: { ...finalUsage, ...extractUsageCost(lastUsage) },
           }),
           finishReason,
         }

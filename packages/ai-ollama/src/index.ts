@@ -44,3 +44,6 @@ export type {
   OllamaChatModelOptionsByName,
   OllamaModelInputModalitiesByName,
 } from './model-meta'
+
+// Export provider usage types
+export type { OllamaProviderUsageDetails } from './usage'

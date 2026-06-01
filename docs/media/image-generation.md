@@ -204,11 +204,10 @@ interface ImageGenerationResult {
   id: string // Unique identifier for this generation
   model: string // The model used
   images: GeneratedImage[] // Array of generated images
-  usage?: {
-    inputTokens: number
-    outputTokens: number
-    totalTokens: number
-  }
+  // Canonical TokenUsage (same shape as chat). Token-billed models also surface
+  // a per-modality breakdown on `promptTokensDetails` (e.g. text vs image input
+  // tokens for gpt-image-1).
+  usage?: TokenUsage
 }
 
 interface GeneratedImage {

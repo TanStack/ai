@@ -2,9 +2,9 @@ import type {
   JSONSchema,
   ModelMessage,
   StreamChunk,
+  TokenUsage,
   Tool,
   ToolCall,
-  UsageTotals,
 } from '../../../types'
 import type { SystemPrompt } from '../../../system-prompts'
 
@@ -266,11 +266,11 @@ export interface ToolPhaseCompleteInfo {
  * Token usage statistics passed to the onUsage hook.
  * Extracted from the RUN_FINISHED chunk when usage data is present.
  *
- * Includes optional provider-reported `cost`/`costDetails` (see {@link UsageTotals}).
- * Kept as an interface extending `UsageTotals` to preserve declaration merging for
+ * Includes optional provider-reported `cost`/`costDetails` (see {@link TokenUsage}).
+ * Kept as an interface extending `TokenUsage` to preserve declaration merging for
  * this publicly exported type.
  */
-export interface UsageInfo extends UsageTotals {}
+export interface UsageInfo extends TokenUsage {}
 
 // ===========================
 // Terminal Hook Info
@@ -287,7 +287,7 @@ export interface FinishInfo {
   /** Final accumulated text content */
   content: string
   /** Final usage totals, if available (optionally including provider-reported cost) */
-  usage?: UsageTotals | undefined
+  usage?: TokenUsage | undefined
 }
 
 /**

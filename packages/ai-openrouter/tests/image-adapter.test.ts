@@ -84,6 +84,33 @@ describe('OpenRouter Image Adapter', () => {
     expect(result.model).toBe('google/gemini-2.5-flash-image')
   })
 
+  it('surfaces token usage from the chat response', async () => {
+    const mockResponse = {
+      ...createMockImageResponse([{ url: 'https://example.com/image1.png' }]),
+      usage: {
+        promptTokens: 7,
+        completionTokens: 13,
+        totalTokens: 20,
+      },
+    }
+
+    mockSend = vi.fn().mockResolvedValueOnce(mockResponse)
+
+    const adapter = createAdapter()
+
+    const result = await adapter.generateImages({
+      model: 'google/gemini-2.5-flash-image',
+      prompt: 'A futuristic city at sunset',
+      logger: testLogger,
+    })
+
+    expect(result.usage).toEqual({
+      promptTokens: 7,
+      completionTokens: 13,
+      totalTokens: 20,
+    })
+  })
+
   it('generates multiple images', async () => {
     const mockResponse = createMockImageResponse([
       { url: 'https://example.com/image1.png' },

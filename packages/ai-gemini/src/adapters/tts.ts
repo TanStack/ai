@@ -5,6 +5,7 @@ import {
   getGeminiApiKeyFromEnv,
 } from '../utils'
 import { GEMINI_TTS_VOICES } from '../model-meta'
+import { buildGeminiUsage } from '../usage'
 import type { GEMINI_TTS_MODELS, GeminiTTSVoice } from '../model-meta'
 import type { TTSOptions, TTSResult } from '@tanstack/ai'
 import type { GoogleGenAI, SpeechConfig } from '@google/genai'
@@ -229,6 +230,13 @@ export class GeminiTTSAdapter<
       // mime is guaranteed by the `startsWith('audio/')` find predicate above.
       const mimeType = audioPart.inlineData.mimeType as string
 
+      // Surface token usage (with per-modality breakdown) when Gemini reports
+      // it. Spread conditionally for exactOptionalPropertyTypes — shared by both
+      // the PCM→WAV and pass-through return paths below.
+      const usageField = response.usageMetadata
+        ? { usage: buildGeminiUsage(response.usageMetadata) }
+        : {}
+
       // Gemini TTS models return raw 16-bit LE PCM with a mime type like
       // `audio/L16;codec=pcm;rate=24000`. That isn't playable in an <audio>
       // element and the bare string isn't a usable file extension, so we
@@ -247,6 +255,7 @@ export class GeminiTTSAdapter<
           audio: wavBase64,
           format: 'wav',
           contentType: 'audio/wav',
+          ...usageField,
         }
       }
 
@@ -261,6 +270,7 @@ export class GeminiTTSAdapter<
         audio: audioBase64,
         format,
         contentType: mimeType,
+        ...usageField,
       }
     } catch (error) {
       logger.errors('gemini.generateSpeech fatal', {
