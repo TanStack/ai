@@ -4,13 +4,13 @@ import type { ClientOptions } from 'openai'
 /** A model entry: either a bare id string or a rich createModel() def. */
 export type CompatibleModelInput = string | ExtendedModelDef
 
-/** Optimistic defaults applied to bare-string models. */
+/**
+ * Optimistic default input modalities for bare-string models. (Function
+ * calling and structured output are always available on the Chat Completions
+ * path, so they need no separate type-level flag; `TToolCapabilities`
+ * represents provider *built-in* tools, which bare strings don't declare.)
+ */
 export type DefaultCompatInput = readonly ['text', 'image']
-export type DefaultCompatFeatures = readonly [
-  'streaming',
-  'function_calling',
-  'structured_outputs',
-]
 
 /** Union of all selectable model names from a `models` tuple. */
 export type ModelNameOf<TModels extends ReadonlyArray<CompatibleModelInput>> = {
