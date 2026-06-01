@@ -9,7 +9,7 @@ title: extendAdapter
 function extendAdapter<TFactory, TDefs>(factory, _customModels): (model, ...args) => InferAdapterReturn<TFactory>;
 ```
 
-Defined in: [packages/ai/src/extend-adapter.ts:166](https://github.com/TanStack/ai/blob/main/packages/ai/src/extend-adapter.ts#L166)
+Defined in: [packages/ai/src/extend-adapter.ts:227](https://github.com/TanStack/ai/blob/main/packages/ai/src/extend-adapter.ts#L227)
 
 Extends an existing adapter factory with additional custom models.
 
@@ -27,7 +27,7 @@ The original factory's signature is fully preserved, including any config parame
 
 ### TDefs
 
-`TDefs` *extends* readonly [`ExtendedModelDef`](../interfaces/ExtendedModelDef.md)\<`string`, readonly [`Modality`](../type-aliases/Modality.md)[], `unknown`\>[]
+`TDefs` *extends* readonly [`ExtendedModelDef`](../interfaces/ExtendedModelDef.md)\<`string`, readonly [`Modality`](../type-aliases/Modality.md)[], `unknown`, readonly `string`[], readonly `string`[]\>[]
 
 ## Parameters
 

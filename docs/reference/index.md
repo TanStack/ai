@@ -57,6 +57,7 @@ title: "@tanstack/ai"
 - [JSONSchema](interfaces/JSONSchema.md)
 - [Logger](interfaces/Logger.md)
 - [MessagesSnapshotEvent](interfaces/MessagesSnapshotEvent.md)
+- [ModelCapabilities](interfaces/ModelCapabilities.md)
 - [ModelMessage](interfaces/ModelMessage.md)
 - [NormalizedSystemPrompt](interfaces/NormalizedSystemPrompt.md)
 - [ProcessorResult](interfaces/ProcessorResult.md)
