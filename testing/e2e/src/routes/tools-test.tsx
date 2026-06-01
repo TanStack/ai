@@ -689,6 +689,11 @@ function ToolsTestPage() {
         }
         data-has-error={(!!error).toString()}
         data-error-message={error?.message || ''}
+        data-error-raw-event={
+          error && 'rawEvent' in error
+            ? JSON.stringify((error as { rawEvent?: unknown }).rawEvent)
+            : ''
+        }
       />
 
       {/* Event log as JSON for easy parsing in tests */}

@@ -1,5 +1,6 @@
 import { FinishReason } from '@google/genai'
 import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
+import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import {
@@ -133,6 +134,7 @@ export class GeminiTextAdapter<
 
       yield* this.processStreamChunks(result, options, logger)
     } catch (error) {
+      const rawEvent = toRunErrorRawEvent(error)
       logger.errors('gemini.chatStream fatal', {
         error,
         source: 'gemini.chatStream',
@@ -145,6 +147,9 @@ export class GeminiTextAdapter<
           error instanceof Error
             ? error.message
             : 'An unknown error occurred during the chat stream.',
+        // Forward the provider's structured error body when present (see
+        // toRunErrorRawEvent); omitted otherwise.
+        ...(rawEvent !== undefined && { rawEvent }),
         error: {
           message:
             error instanceof Error

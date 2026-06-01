@@ -624,6 +624,58 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
         expect(chunks[1].error!.message).toBe('API key invalid')
       }
     })
+
+    it("forwards the SDK error's `.error` body as RUN_ERROR.rawEvent", async () => {
+      const providerBody = {
+        type: 'insufficient_quota',
+        message: 'You exceeded your current quota',
+        code: 'insufficient_quota',
+      }
+      mockCreate = vi
+        .fn()
+        .mockRejectedValue(
+          Object.assign(new Error('429 You exceeded your current quota'), {
+            status: 429,
+            error: providerBody,
+          }),
+        )
+
+      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
+      const chunks: Array<StreamChunk> = []
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Hello' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const runError = chunks.find((c) => c.type === 'RUN_ERROR')
+      expect(runError).toBeDefined()
+      if (runError?.type === 'RUN_ERROR') {
+        expect(runError.rawEvent).toEqual(providerBody)
+      }
+    })
+
+    it('omits rawEvent when the error carries no provider body', async () => {
+      mockCreate = vi.fn().mockRejectedValue(new Error('network down'))
+
+      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
+      const chunks: Array<StreamChunk> = []
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Hello' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const runError = chunks.find((c) => c.type === 'RUN_ERROR')
+      expect(runError).toBeDefined()
+      if (runError?.type === 'RUN_ERROR') {
+        expect(runError).not.toHaveProperty('rawEvent')
+      }
+    })
   })
 
   describe('structured output', () => {

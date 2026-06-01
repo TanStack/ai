@@ -239,6 +239,7 @@ export async function getMetadata(page: Page): Promise<Record<string, string>> {
       approvalDeniedCount: el.getAttribute('data-approval-denied-count') || '',
       hasError: el.getAttribute('data-has-error') || '',
       errorMessage: el.getAttribute('data-error-message') || '',
+      errorRawEvent: el.getAttribute('data-error-raw-event') || '',
     }
   })
 }
