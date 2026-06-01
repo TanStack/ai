@@ -47,7 +47,7 @@ export interface ModelCapabilities<
   input?: TInput
   features?: TFeatures
   tools?: TTools
-  providerOptions?: TOptions
+  modelOptions?: TOptions
 }
 
 /**
@@ -104,7 +104,7 @@ export function createModel<
   TCaps['input'] extends ReadonlyArray<Modality>
     ? TCaps['input']
     : ReadonlyArray<Modality>,
-  TCaps['providerOptions'],
+  TCaps['modelOptions'],
   TCaps['features'] extends ReadonlyArray<string>
     ? TCaps['features']
     : ReadonlyArray<string>,
@@ -124,7 +124,7 @@ export function createModel(
   return {
     name,
     input: caps.input ?? (['text'] as ReadonlyArray<Modality>),
-    modelOptions: caps.providerOptions ?? {},
+    modelOptions: caps.modelOptions ?? {},
     features: caps.features,
     tools: caps.tools,
   }

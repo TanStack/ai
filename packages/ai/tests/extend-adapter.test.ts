@@ -280,13 +280,13 @@ describe('createModel capabilities overload', () => {
     expectTypeOf(m).toMatchTypeOf<ExtendedModelDef>()
   })
 
-  it('maps providerOptions to modelOptions', () => {
+  it('maps modelOptions through to the def', () => {
     interface MyOpts {
       reasoningEffort: 'low' | 'high'
     }
     const m = createModel('reasoner', {
       input: ['text'],
-      providerOptions: {} as MyOpts,
+      modelOptions: {} as MyOpts,
     })
     expectTypeOf(m.modelOptions).toEqualTypeOf<MyOpts>()
   })
