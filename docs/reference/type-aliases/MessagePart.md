@@ -18,7 +18,7 @@ type MessagePart<TData> =
 | StructuredOutputPart<TData>;
 ```
 
-Defined in: [packages/ai/src/types.ts:408](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L408)
+Defined in: [packages/ai/src/types.ts:418](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L418)
 
 ## Type Parameters
 

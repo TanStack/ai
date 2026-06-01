@@ -30,6 +30,7 @@ title: "@tanstack/ai"
 - [AudioPart](interfaces/AudioPart.md)
 - [AudioVisualization](interfaces/AudioVisualization.md)
 - [BaseAGUIEvent](interfaces/BaseAGUIEvent.md)
+- [BaseUsageInput](interfaces/BaseUsageInput.md)
 - [ChatMiddleware](interfaces/ChatMiddleware.md)
 - [ChatMiddlewareConfig](interfaces/ChatMiddlewareConfig.md)
 - [ChatMiddlewareContext](interfaces/ChatMiddlewareContext.md)
@@ -130,9 +131,7 @@ title: "@tanstack/ai"
 - [TTSOptions](interfaces/TTSOptions.md)
 - [TTSResult](interfaces/TTSResult.md)
 - [UIMessage](interfaces/UIMessage.md)
-- [UsageCostBreakdown](interfaces/UsageCostBreakdown.md)
 - [UsageInfo](interfaces/UsageInfo.md)
-- [UsageTotals](interfaces/UsageTotals.md)
 - [VADConfig](interfaces/VADConfig.md)
 - [VideoAdapter](interfaces/VideoAdapter.md)
 - [VideoGenerationOptions](interfaces/VideoGenerationOptions.md)
@@ -192,6 +191,7 @@ title: "@tanstack/ai"
 - [ToolExecutionContext](type-aliases/ToolExecutionContext.md)
 - [ToolOutputState](type-aliases/ToolOutputState.md)
 - [ToolResultState](type-aliases/ToolResultState.md)
+- [~~UsageTotals~~](type-aliases/UsageTotals.md)
 - [WireMessage](type-aliases/WireMessage.md)
 
 ## Variables
@@ -201,6 +201,7 @@ title: "@tanstack/ai"
 ## Functions
 
 - [brandProviderTool](functions/brandProviderTool.md)
+- [buildBaseUsage](functions/buildBaseUsage.md)
 - [chat](functions/chat.md)
 - [chatParamsFromRequest](functions/chatParamsFromRequest.md)
 - [chatParamsFromRequestBody](functions/chatParamsFromRequestBody.md)

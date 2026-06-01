@@ -5,7 +5,7 @@ title: TextAdapter
 
 # Interface: TextAdapter\<TModel, TProviderOptions, TInputModalities, TMessageMetadataByModality, TToolCapabilities, TToolCallMetadata, TSystemPromptMetadata\>
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:63](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L63)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:66](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L66)
 
 Text adapter interface with pre-resolved generics.
 
@@ -62,7 +62,7 @@ Generic parameters:
 ~types: object;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:82](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L82)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:85](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L85)
 
 **`Internal`**
 
@@ -112,7 +112,7 @@ toolCapabilities: TToolCapabilities;
 chatStream: (options) => AsyncIterable<AGUIEvent>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:94](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L94)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:97](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L97)
 
 Stream text completions from the model
 
@@ -134,7 +134,7 @@ Stream text completions from the model
 readonly kind: "text";
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:73](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L73)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:76](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L76)
 
 Discriminator for adapter kind
 
@@ -146,7 +146,7 @@ Discriminator for adapter kind
 readonly model: TModel;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:77](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L77)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:80](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L80)
 
 The model this adapter is configured for
 
@@ -158,7 +158,7 @@ The model this adapter is configured for
 readonly name: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:75](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L75)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:78](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L78)
 
 Provider name identifier (e.g., 'openai', 'anthropic')
 
@@ -170,7 +170,7 @@ Provider name identifier (e.g., 'openai', 'anthropic')
 structuredOutput: (options) => Promise<StructuredOutputResult<unknown>>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:106](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L106)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:109](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L109)
 
 Generate structured output using the provider's native structured output API.
 This method uses stream: false and sends the JSON schema to the provider
@@ -198,7 +198,7 @@ Promise with the raw data (validation is done in the chat function)
 optional structuredOutputStream: (options) => AsyncIterable<AGUIEvent>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:123](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L123)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:126](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L126)
 
 Stream structured output using the provider's native streaming structured
 output API (stream + response_format json_schema in a single request).
@@ -230,7 +230,7 @@ TEXT_MESSAGE_*, RUN_FINISHED) carrying raw JSON text deltas, plus a final
 optional supportsCombinedToolsAndSchema: (modelOptions?) => boolean;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:146](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L146)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:149](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L149)
 
 Declares whether the adapter supports combining `tools` and a
 schema-constrained final answer in a single streaming request.
