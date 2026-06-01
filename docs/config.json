@@ -326,6 +326,10 @@
         {
           "label": "OpenRouter Adapter",
           "to": "adapters/openrouter"
+        },
+        {
+          "label": "OpenAI-Compatible",
+          "to": "adapters/openai-compatible"
         }
       ]
     },
