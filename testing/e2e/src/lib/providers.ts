@@ -7,6 +7,7 @@ import { createGeminiTextInteractions } from '@tanstack/ai-gemini/experimental'
 import { createOllamaChat } from '@tanstack/ai-ollama'
 import { createGroqText } from '@tanstack/ai-groq'
 import { createGrokText } from '@tanstack/ai-grok'
+import { openaiCompatibleText } from '@tanstack/ai-openai/compatible'
 import {
   createOpenRouterResponsesText,
   createOpenRouterText,
@@ -26,6 +27,7 @@ const defaultModels: Record<Provider, string> = {
   grok: 'grok-3',
   openrouter: 'openai/gpt-4o',
   'openrouter-responses': 'openai/gpt-4o',
+  'openai-compatible': 'gpt-4o',
   // ElevenLabs has no chat/text model — the support matrix already filters
   // it out of text features, but we still need an entry to satisfy the
   // Record<Provider, …> constraint.
@@ -154,6 +156,14 @@ export function createTextAdapter(
         ),
       })
     },
+    'openai-compatible': () =>
+      createChatOptions({
+        adapter: openaiCompatibleText(model, {
+          baseURL: openaiUrl,
+          apiKey: DUMMY_KEY,
+          defaultHeaders: testHeaders,
+        }),
+      }),
     elevenlabs: () => {
       throw new Error(
         'ElevenLabs has no text/chat adapter — use createTTSAdapter or createTranscriptionAdapter.',

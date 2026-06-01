@@ -16,6 +16,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'openai-compatible',
   ]),
   'one-shot-text': new Set([
     'openai',
@@ -25,6 +26,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'openai-compatible',
   ]),
   reasoning: new Set(['openai', 'anthropic', 'gemini']),
   'multi-turn': new Set([
@@ -35,6 +37,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'openai-compatible',
   ]),
   'tool-calling': new Set([
     'openai',
@@ -44,6 +47,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'openai-compatible',
   ]),
   'parallel-tool-calls': new Set([
     'openai',
@@ -52,6 +56,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'openai-compatible',
   ]),
   // Gemini excluded: approval flow timing issues with Gemini's streaming format
   'tool-approval': new Set([
@@ -61,6 +66,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'openai-compatible',
   ]),
   // Ollama excluded: aimock doesn't support content+toolCalls for /api/chat format
   'text-tool-text': new Set([
@@ -70,6 +76,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'openai-compatible',
   ]),
   'structured-output': new Set([
     'openai',
@@ -79,12 +86,19 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'openai-compatible',
   ]),
   // Streaming structured output: only providers with native streaming JSON
   // schema support are listed here. Other providers fall back to the
   // activity-layer `fallbackStructuredOutputStream` (which wraps the
   // non-streaming `structuredOutput`) but aren't exercised by E2E yet.
-  'structured-output-stream': new Set(['openai', 'groq', 'grok', 'openrouter']),
+  'structured-output-stream': new Set([
+    'openai',
+    'groq',
+    'grok',
+    'openrouter',
+    'openai-compatible',
+  ]),
   // Multi-turn structured output: every turn produces its own typed
   // `structured-output` part on the assistant message, and historical
   // turns stay renderable. Works for every provider that supports both
@@ -110,6 +124,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'openai-compatible',
   ]),
   'agentic-structured': new Set([
     'openai',
@@ -119,6 +134,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'openai-compatible',
   ]),
   // Native-combined-mode adapters only. Each provider's default test model
   // (or per-feature override in `features.ts`) must opt into combined mode
