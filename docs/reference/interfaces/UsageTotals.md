@@ -5,7 +5,7 @@ title: UsageTotals
 
 # Interface: UsageTotals
 
-Defined in: [packages/ai/src/types.ts:951](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L951)
+Defined in: [packages/ai/src/types.ts:1004](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1004)
 
 Token usage totals for a run, optionally including provider-reported cost.
 
@@ -25,7 +25,7 @@ that do not report cost, so consumers must treat them as optional.
 completionTokens: number;
 ```
 
-Defined in: [packages/ai/src/types.ts:953](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L953)
+Defined in: [packages/ai/src/types.ts:1006](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1006)
 
 ***
 
@@ -35,7 +35,7 @@ Defined in: [packages/ai/src/types.ts:953](https://github.com/TanStack/ai/blob/m
 optional cost: number;
 ```
 
-Defined in: [packages/ai/src/types.ts:956](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L956)
+Defined in: [packages/ai/src/types.ts:1009](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1009)
 
 Provider-reported cost for the request, when available.
 
@@ -47,7 +47,7 @@ Provider-reported cost for the request, when available.
 optional costDetails: UsageCostBreakdown;
 ```
 
-Defined in: [packages/ai/src/types.ts:958](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L958)
+Defined in: [packages/ai/src/types.ts:1011](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1011)
 
 Provider-reported cost breakdown, when available.
 
@@ -59,7 +59,7 @@ Provider-reported cost breakdown, when available.
 promptTokens: number;
 ```
 
-Defined in: [packages/ai/src/types.ts:952](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L952)
+Defined in: [packages/ai/src/types.ts:1005](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1005)
 
 ***
 
@@ -69,4 +69,4 @@ Defined in: [packages/ai/src/types.ts:952](https://github.com/TanStack/ai/blob/m
 totalTokens: number;
 ```
 
-Defined in: [packages/ai/src/types.ts:954](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L954)
+Defined in: [packages/ai/src/types.ts:1007](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1007)

@@ -3,7 +3,7 @@ id: ToolRegistry
 title: ToolRegistry
 ---
 
-# Interface: ToolRegistry
+# Interface: ToolRegistry\<TTool\>
 
 Defined in: [packages/ai/src/tool-registry.ts:9](https://github.com/TanStack/ai/blob/main/packages/ai/src/tool-registry.ts#L9)
 
@@ -11,6 +11,12 @@ A registry that holds tools and allows dynamic tool management.
 
 The registry can be either mutable (allowing additions/removals during execution)
 or frozen (static tool list, for backward compatibility with tools arrays).
+
+## Type Parameters
+
+### TTool
+
+`TTool` *extends* [`AnyTool`](../type-aliases/AnyTool.md) = [`AnyTool`](../type-aliases/AnyTool.md)
 
 ## Properties
 
@@ -29,7 +35,7 @@ For frozen registries, this is a no-op.
 
 ##### tool
 
-[`Tool`](Tool.md)
+`TTool`
 
 The tool to add
 
@@ -42,9 +48,7 @@ The tool to add
 ### get()
 
 ```ts
-get: (name) => 
-  | Tool<SchemaInput, SchemaInput, string>
-  | undefined;
+get: (name) => TTool | undefined;
 ```
 
 Defined in: [packages/ai/src/tool-registry.ts:46](https://github.com/TanStack/ai/blob/main/packages/ai/src/tool-registry.ts#L46)
@@ -61,8 +65,7 @@ The name of the tool to get
 
 #### Returns
 
-  \| [`Tool`](Tool.md)\<[`SchemaInput`](../type-aliases/SchemaInput.md), [`SchemaInput`](../type-aliases/SchemaInput.md), `string`\>
-  \| `undefined`
+`TTool` \| `undefined`
 
 The tool if found, undefined otherwise
 
@@ -71,7 +74,7 @@ The tool if found, undefined otherwise
 ### getTools()
 
 ```ts
-getTools: () => readonly Tool<SchemaInput, SchemaInput, string>[];
+getTools: () => TTool[];
 ```
 
 Defined in: [packages/ai/src/tool-registry.ts:14](https://github.com/TanStack/ai/blob/main/packages/ai/src/tool-registry.ts#L14)
@@ -81,7 +84,7 @@ Called each agent loop iteration to get the latest tool list.
 
 #### Returns
 
-readonly [`Tool`](Tool.md)\<[`SchemaInput`](../type-aliases/SchemaInput.md), [`SchemaInput`](../type-aliases/SchemaInput.md), `string`\>[]
+`TTool`[]
 
 ***
 

@@ -24,7 +24,7 @@ function chatParamsFromRequestBody(body): Promise<{
 }>;
 ```
 
-Defined in: [packages/ai/src/utilities/chat-params.ts:38](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/chat-params.ts#L38)
+Defined in: [packages/ai/src/utilities/chat-params.ts:44](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/chat-params.ts#L44)
 
 Parse and validate an HTTP request body as an AG-UI `RunAgentInput`.
 
@@ -32,9 +32,6 @@ Returns a spread-friendly object whose `messages` field is suitable for
 passing directly to `chat({ messages })`. The existing
 `convertMessagesToModelMessages` handles AG-UI fan-out dedup and
 reasoning/activity/developer-role normalization internally.
-
-`context` is a deprecated alias of `aguiContext` kept for backward
-compatibility.
 
 ## Parameters
 

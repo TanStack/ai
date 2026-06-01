@@ -5,7 +5,7 @@ title: UsageCostBreakdown
 
 # Interface: UsageCostBreakdown
 
-Defined in: [packages/ai/src/types.ts:935](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L935)
+Defined in: [packages/ai/src/types.ts:988](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L988)
 
 Provider-reported cost breakdown for a single request, normalized onto a
 canonical shape so consumer code is portable across gateways. Each adapter's
@@ -21,7 +21,7 @@ fields at runtime.
 optional upstreamCost: number;
 ```
 
-Defined in: [packages/ai/src/types.ts:937](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L937)
+Defined in: [packages/ai/src/types.ts:990](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L990)
 
 Total cost the gateway paid the upstream provider.
 
@@ -33,7 +33,7 @@ Total cost the gateway paid the upstream provider.
 optional upstreamInputCost: number;
 ```
 
-Defined in: [packages/ai/src/types.ts:939](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L939)
+Defined in: [packages/ai/src/types.ts:992](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L992)
 
 Upstream cost for input (prompt) tokens.
 
@@ -45,6 +45,6 @@ Upstream cost for input (prompt) tokens.
 optional upstreamOutputCost: number;
 ```
 
-Defined in: [packages/ai/src/types.ts:941](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L941)
+Defined in: [packages/ai/src/types.ts:994](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L994)
 
 Upstream cost for output (completion) tokens.

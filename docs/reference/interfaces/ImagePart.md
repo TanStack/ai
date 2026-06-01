@@ -5,7 +5,7 @@ title: ImagePart
 
 # Interface: ImagePart\<TMetadata\>
 
-Defined in: [packages/ai/src/types.ts:214](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L214)
+Defined in: [packages/ai/src/types.ts:216](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L216)
 
 Image content part for multimodal messages.
 
@@ -25,7 +25,7 @@ Provider-specific metadata type (e.g., OpenAI's detail level)
 optional metadata: TMetadata;
 ```
 
-Defined in: [packages/ai/src/types.ts:219](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L219)
+Defined in: [packages/ai/src/types.ts:221](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L221)
 
 Provider-specific metadata (e.g., OpenAI's detail: 'auto' | 'low' | 'high')
 
@@ -37,7 +37,7 @@ Provider-specific metadata (e.g., OpenAI's detail: 'auto' | 'low' | 'high')
 source: ContentPartSource;
 ```
 
-Defined in: [packages/ai/src/types.ts:217](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L217)
+Defined in: [packages/ai/src/types.ts:219](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L219)
 
 Source of the image content
 
@@ -49,4 +49,4 @@ Source of the image content
 type: "image";
 ```
 
-Defined in: [packages/ai/src/types.ts:215](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L215)
+Defined in: [packages/ai/src/types.ts:217](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L217)

@@ -5,17 +5,19 @@ title: ToolResultPart
 
 # Interface: ToolResultPart
 
-Defined in: [packages/ai/src/types.ts:355](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L355)
+Defined in: [packages/ai/src/types.ts:357](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L357)
 
 ## Properties
 
 ### content
 
 ```ts
-content: string;
+content: 
+  | string
+  | ContentPart<unknown, unknown, unknown, unknown, unknown>[];
 ```
 
-Defined in: [packages/ai/src/types.ts:358](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L358)
+Defined in: [packages/ai/src/types.ts:360](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L360)
 
 ***
 
@@ -25,7 +27,7 @@ Defined in: [packages/ai/src/types.ts:358](https://github.com/TanStack/ai/blob/m
 optional error: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:360](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L360)
+Defined in: [packages/ai/src/types.ts:362](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L362)
 
 ***
 
@@ -35,7 +37,7 @@ Defined in: [packages/ai/src/types.ts:360](https://github.com/TanStack/ai/blob/m
 state: ToolResultState;
 ```
 
-Defined in: [packages/ai/src/types.ts:359](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L359)
+Defined in: [packages/ai/src/types.ts:361](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L361)
 
 ***
 
@@ -45,7 +47,7 @@ Defined in: [packages/ai/src/types.ts:359](https://github.com/TanStack/ai/blob/m
 toolCallId: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:357](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L357)
+Defined in: [packages/ai/src/types.ts:359](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L359)
 
 ***
 
@@ -55,4 +57,4 @@ Defined in: [packages/ai/src/types.ts:357](https://github.com/TanStack/ai/blob/m
 type: "tool-result";
 ```
 
-Defined in: [packages/ai/src/types.ts:356](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L356)
+Defined in: [packages/ai/src/types.ts:358](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L358)
