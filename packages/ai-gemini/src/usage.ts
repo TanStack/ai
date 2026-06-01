@@ -83,7 +83,7 @@ export function hasModalityTokens(tokens: FlattenedModalityTokens): boolean {
  * Gemini-specific provider usage details.
  * These fields are unique to Gemini and placed in providerUsageDetails.
  */
-export interface GeminiProviderUsageDetails {
+export type GeminiProviderUsageDetails = {
   /**
    * The traffic type for this request.
    * Can indicate whether request was handled by different service tiers.
@@ -110,33 +110,35 @@ export interface GeminiProviderUsageDetails {
     modality: string
     tokenCount: number
   }>
-  /** Index signature for Record<string, unknown> compatibility */
-  [key: string]: unknown
 }
 
 /**
  * Build normalized TokenUsage from Gemini's usageMetadata.
- * Handles modality breakdowns and thinking tokens.
+ * Handles modality breakdowns and thinking tokens. Returns `undefined` when the
+ * provider reported no usage metadata, so callers omit the field rather than
+ * fabricating zeroed totals.
  */
 export function buildGeminiUsage(
-  usageMetadata: GenerateContentResponseUsageMetadata | undefined,
-): TokenUsage {
-  const promptTokens = usageMetadata?.promptTokenCount ?? 0
-  const completionTokens = usageMetadata?.candidatesTokenCount ?? 0
+  usageMetadata: GenerateContentResponseUsageMetadata | undefined | null,
+): TokenUsage<GeminiProviderUsageDetails> | undefined {
+  if (!usageMetadata) return undefined
 
-  const result = buildBaseUsage({
+  const promptTokens = usageMetadata.promptTokenCount ?? 0
+  const completionTokens = usageMetadata.candidatesTokenCount ?? 0
+
+  const result = buildBaseUsage<GeminiProviderUsageDetails>({
     promptTokens: promptTokens,
     completionTokens: completionTokens,
     totalTokens:
-      usageMetadata?.totalTokenCount ?? promptTokens + completionTokens,
+      usageMetadata.totalTokenCount ?? promptTokens + completionTokens,
   })
 
   // Add prompt token details
   // Flatten modality breakdown for prompt
   const promptModalities = flattenModalityTokenCounts(
-    usageMetadata?.promptTokensDetails,
+    usageMetadata.promptTokensDetails,
   )
-  const cachedTokens = usageMetadata?.cachedContentTokenCount
+  const cachedTokens = usageMetadata.cachedContentTokenCount
 
   const promptTokensDetails = {
     ...(hasModalityTokens(promptModalities) ? promptModalities : {}),
@@ -146,9 +148,9 @@ export function buildGeminiUsage(
   // Add completion token details
   // Flatten modality breakdown for candidates (output)
   const completionModalities = flattenModalityTokenCounts(
-    usageMetadata?.candidatesTokensDetails,
+    usageMetadata.candidatesTokensDetails,
   )
-  const thoughtsTokens = usageMetadata?.thoughtsTokenCount
+  const thoughtsTokens = usageMetadata.thoughtsTokenCount
 
   const completionTokensDetails = {
     ...(hasModalityTokens(completionModalities) ? completionModalities : {}),
@@ -160,14 +162,14 @@ export function buildGeminiUsage(
 
   // Add provider-specific details
   const providerDetails: GeminiProviderUsageDetails = {
-    ...(usageMetadata?.trafficType
+    ...(usageMetadata.trafficType
       ? { trafficType: usageMetadata.trafficType }
       : {}),
-    ...(usageMetadata?.toolUsePromptTokenCount !== undefined &&
+    ...(usageMetadata.toolUsePromptTokenCount !== undefined &&
     usageMetadata.toolUsePromptTokenCount > 0
       ? { toolUsePromptTokenCount: usageMetadata.toolUsePromptTokenCount }
       : {}),
-    ...(usageMetadata?.toolUsePromptTokensDetails &&
+    ...(usageMetadata.toolUsePromptTokensDetails &&
     usageMetadata.toolUsePromptTokensDetails.length > 0
       ? {
           toolUsePromptTokensDetails:
@@ -177,7 +179,7 @@ export function buildGeminiUsage(
             })),
         }
       : {}),
-    ...(usageMetadata?.cacheTokensDetails &&
+    ...(usageMetadata.cacheTokensDetails &&
     usageMetadata.cacheTokensDetails.length > 0
       ? {
           cacheTokensDetails: usageMetadata.cacheTokensDetails.map((item) => ({

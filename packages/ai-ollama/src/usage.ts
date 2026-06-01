@@ -6,7 +6,7 @@ import type { ChatResponse } from 'ollama'
  * Ollama-specific provider usage details.
  * These fields are unique to Ollama and placed in providerUsageDetails.
  */
-export interface OllamaProviderUsageDetails {
+export type OllamaProviderUsageDetails = {
   /** Time spent loading the model in nanoseconds */
   loadDuration?: number
   /** Time spent evaluating the prompt in nanoseconds */
@@ -19,8 +19,6 @@ export interface OllamaProviderUsageDetails {
   promptEvalCount?: number
   /** Number of evaluation steps for generation */
   evalCount?: number
-  /** Index signature for Record<string, unknown> compatibility */
-  [key: string]: unknown
 }
 
 /**
@@ -38,7 +36,7 @@ export function buildOllamaUsage(
   const completionTokens = response.eval_count || 0
   const hasTokenCounts = promptTokens > 0 || completionTokens > 0
 
-  const result = buildBaseUsage({
+  const result = buildBaseUsage<OllamaProviderUsageDetails>({
     promptTokens,
     completionTokens,
     totalTokens: promptTokens + completionTokens,

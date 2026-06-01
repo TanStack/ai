@@ -170,15 +170,43 @@ export interface CompletionTokensDetails {
 }
 
 /**
- * Token usage information with optional detailed breakdowns.
- * Core fields are always present; detail fields are provider-dependent.
+ * Provider-reported cost breakdown for a single request, normalized onto a
+ * canonical shape so consumer code is portable across gateways. Each adapter's
+ * extractor maps its provider-specific wire keys (e.g. OpenRouter's
+ * `upstream_inference_prompt_cost`, `upstream_inference_input_cost`) onto these
+ * fields at runtime.
  */
-export interface TokenUsage {
+export interface UsageCostBreakdown {
+  /** Total cost the gateway paid the upstream provider. */
+  upstreamCost?: number
+  /** Upstream cost for input (prompt) tokens. */
+  upstreamInputCost?: number
+  /** Upstream cost for output (completion) tokens. */
+  upstreamOutputCost?: number
+}
+
+/**
+ * Canonical token usage for a run, with optional detailed breakdowns and
+ * provider-reported cost. This is the single source of truth re-exported by
+ * `@tanstack/ai`.
+ *
+ * Core fields (`promptTokens`, `completionTokens`, `totalTokens`) are always
+ * present. Detail fields are provider-dependent and absent when not reported,
+ * so consumers must treat them as optional.
+ *
+ * `providerUsageDetails` is parameterized via `TProviderDetails` so adapters can
+ * surface a strongly-typed bag (e.g. `TokenUsage<AnthropicProviderUsageDetails>`);
+ * it defaults to an open record for generic consumers.
+ */
+export interface TokenUsage<
+  TProviderDetails = Record<string, unknown>,
+> {
   /** Total input/prompt tokens */
   promptTokens: number
   /** Total output/completion tokens */
   completionTokens: number
-  /** Total tokens (prompt + completion) */
+  /** Total tokens as reported by the provider; may exceed promptTokens +
+   * completionTokens when reasoning/cache/tool tokens are billed separately. */
   totalTokens: number
   /** Detailed breakdown of prompt tokens by category */
   promptTokensDetails?: PromptTokensDetails
@@ -187,7 +215,11 @@ export interface TokenUsage {
   /** Duration in seconds for duration-based billing (e.g., Whisper transcription) */
   durationSeconds?: number
   /** Provider-specific usage details not covered by standard fields */
-  providerUsageDetails?: Record<string, unknown>
+  providerUsageDetails?: TProviderDetails
+  /** Provider-reported cost for the request, when available. */
+  cost?: number
+  /** Provider-reported cost breakdown, when available. */
+  costDetails?: UsageCostBreakdown
 }
 
 /**

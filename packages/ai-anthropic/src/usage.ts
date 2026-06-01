@@ -6,7 +6,7 @@ import type Anthropic_SDK from '@anthropic-ai/sdk'
  * Anthropic-specific provider usage details.
  * These fields are unique to Anthropic and placed in providerUsageDetails.
  */
-export interface AnthropicProviderUsageDetails {
+export type AnthropicProviderUsageDetails = {
   /**
    * Server-side tool usage metrics.
    * Available when using Anthropic's built-in tools like web search.
@@ -17,26 +17,30 @@ export interface AnthropicProviderUsageDetails {
     /** Number of web fetch requests made during the response */
     webFetchRequests?: number
   }
-  /** Index signature for Record<string, unknown> compatibility */
-  [key: string]: unknown
 }
 
 /**
  * Build normalized TokenUsage from Anthropic's usage object.
- * Handles cache tokens and server tool use metrics.
+ * Handles cache tokens and server tool use metrics. Returns `undefined` when
+ * the provider reported no usage object, so callers omit the field rather than
+ * fabricating zeroed totals.
  */
 export function buildAnthropicUsage(
   usage:
     | Anthropic_SDK.Beta.BetaUsage
-    | Anthropic_SDK.Beta.BetaMessageDeltaUsage,
-): TokenUsage {
+    | Anthropic_SDK.Beta.BetaMessageDeltaUsage
+    | undefined
+    | null,
+): TokenUsage<AnthropicProviderUsageDetails> | undefined {
+  if (!usage) return undefined
+
   const inputTokens = usage.input_tokens ?? 0
   // `|| 0` (rather than `?? 0`) matches the sibling builders and stays defensive
   // against a runtime-absent count without tripping no-unnecessary-condition
   // (the SDK types output_tokens as a required number).
   const outputTokens = usage.output_tokens || 0
 
-  const result = buildBaseUsage({
+  const result = buildBaseUsage<AnthropicProviderUsageDetails>({
     promptTokens: inputTokens,
     completionTokens: outputTokens,
     totalTokens: inputTokens + outputTokens,

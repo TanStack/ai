@@ -9,19 +9,21 @@ import type OpenAI from 'openai'
  * Shared by every provider that routes through
  * {@link OpenAIBaseChatCompletionsTextAdapter} (OpenAI Chat Completions, Grok,
  * Groq). Surfaces cached prompt tokens and reasoning/audio detail tokens when
- * the provider reports them; absent usage collapses to zeroed totals so callers
- * can spread the result unconditionally.
+ * the provider reports them. Returns `undefined` when the provider reported no
+ * usage object, so callers omit the field rather than fabricating zeroed totals.
  */
 export function buildChatCompletionsUsage(
   usage: OpenAI.Chat.Completions.ChatCompletion['usage'] | undefined | null,
-): TokenUsage {
+): TokenUsage | undefined {
+  if (!usage) return undefined
+
   const result = buildBaseUsage({
-    promptTokens: usage?.prompt_tokens || 0,
-    completionTokens: usage?.completion_tokens || 0,
-    totalTokens: usage?.total_tokens || 0,
+    promptTokens: usage.prompt_tokens || 0,
+    completionTokens: usage.completion_tokens || 0,
+    totalTokens: usage.total_tokens || 0,
   })
 
-  const completionDetails = usage?.completion_tokens_details
+  const completionDetails = usage.completion_tokens_details
   const completionTokensDetails = {
     ...(completionDetails?.reasoning_tokens
       ? { reasoningTokens: completionDetails.reasoning_tokens }
@@ -31,7 +33,7 @@ export function buildChatCompletionsUsage(
       : {}),
   }
 
-  const promptDetails = usage?.prompt_tokens_details
+  const promptDetails = usage.prompt_tokens_details
   const promptTokensDetails = {
     ...(promptDetails?.cached_tokens
       ? { cachedTokens: promptDetails.cached_tokens }
@@ -78,20 +80,24 @@ export function buildChatCompletionsUsage(
  *
  * Shared by every provider that routes through
  * {@link OpenAIBaseResponsesTextAdapter}. Surfaces cached prompt tokens and
- * reasoning detail tokens when present; absent usage collapses to zeroed totals.
+ * reasoning detail tokens when present. Returns `undefined` when the provider
+ * reported no usage object, so callers omit the field rather than fabricating
+ * zeroed totals.
  */
 export function buildResponsesUsage(
   usage: OpenAI.Responses.ResponseUsage | undefined | null,
-): TokenUsage {
+): TokenUsage | undefined {
+  if (!usage) return undefined
+
   const result = buildBaseUsage({
-    promptTokens: usage?.input_tokens || 0,
-    completionTokens: usage?.output_tokens || 0,
-    totalTokens: usage?.total_tokens || 0,
+    promptTokens: usage.input_tokens || 0,
+    completionTokens: usage.output_tokens || 0,
+    totalTokens: usage.total_tokens || 0,
   })
 
   // Despite the SDK types marking these required, they can be undefined at runtime.
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  const cachedTokens = usage?.input_tokens_details?.cached_tokens
+  const cachedTokens = usage.input_tokens_details?.cached_tokens
   if (cachedTokens && cachedTokens > 0) {
     result.promptTokensDetails = {
       ...result.promptTokensDetails,
@@ -100,7 +106,7 @@ export function buildResponsesUsage(
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  const reasoningTokens = usage?.output_tokens_details?.reasoning_tokens
+  const reasoningTokens = usage.output_tokens_details?.reasoning_tokens
   if (reasoningTokens && reasoningTokens > 0) {
     result.completionTokensDetails = {
       ...result.completionTokensDetails,

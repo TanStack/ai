@@ -4,6 +4,15 @@ import type {
 } from '@standard-schema/spec'
 import type { InternalLogger } from './logger/internal-logger'
 import type { SystemPrompt } from './system-prompts'
+// The canonical usage types live in the leaf `@tanstack/ai-event-client`
+// package (which `@tanstack/ai` already depends on) so there is a single source
+// of truth without a dependency cycle. They are re-exported below.
+import type {
+  CompletionTokensDetails,
+  PromptTokensDetails,
+  TokenUsage,
+  UsageCostBreakdown,
+} from '@tanstack/ai-event-client'
 import type {
   BaseEvent as AGUIBaseEvent,
   CustomEvent as AGUICustomEvent,
@@ -925,94 +934,13 @@ export interface RunStartedEvent extends AGUIRunStartedEvent {
   model?: string
 }
 
-/**
- * Detailed breakdown of prompt/input token usage.
- * Fields are populated based on provider support.
- */
-export interface PromptTokensDetails {
-  /** Tokens read from cache   */
-  cachedTokens?: number
-  /** Tokens written to cache   */
-  cacheWriteTokens?: number
-
-  /** Audio input tokens   */
-  audioTokens?: number
-  /** Video input tokens   */
-  videoTokens?: number
-  /** Image input tokens   */
-  imageTokens?: number
-  /** Text input tokens   */
-  textTokens?: number
-  /** Document input tokens (e.g. PDF inputs on Gemini)   */
-  documentTokens?: number
-}
-
-/**
- * Detailed breakdown of completion/output token usage.
- * Fields are populated based on provider support.
- */
-export interface CompletionTokensDetails {
-  /** Reasoning/thinking tokens */
-  reasoningTokens?: number
-  /** Audio output tokens   */
-  audioTokens?: number
-  /** Video output tokens   */
-  videoTokens?: number
-  /** Image output tokens   */
-  imageTokens?: number
-  /** Text output tokens   */
-  textTokens?: number
-  /** Document output tokens   */
-  documentTokens?: number
-}
-
-/**
- * Provider-reported cost breakdown for a single request, normalized onto a
- * canonical shape so consumer code is portable across gateways. Each adapter's
- * extractor maps its provider-specific wire keys (e.g. OpenRouter's
- * `upstream_inference_prompt_cost`, `upstream_inference_input_cost`) onto these
- * fields at runtime.
- */
-export interface UsageCostBreakdown {
-  /** Total cost the gateway paid the upstream provider. */
-  upstreamCost?: number
-  /** Upstream cost for input (prompt) tokens. */
-  upstreamInputCost?: number
-  /** Upstream cost for output (completion) tokens. */
-  upstreamOutputCost?: number
-}
-
-/**
- * Token usage totals for a run, with optional detailed breakdowns and
- * provider-reported cost.
- *
- * Core fields (`promptTokens`, `completionTokens`, `totalTokens`) are always
- * present. Detail fields are provider-dependent: `promptTokensDetails` /
- * `completionTokensDetails` carry per-category breakdowns, `durationSeconds`
- * covers duration-based billing (e.g. Whisper-1 transcription), and `cost` /
- * `costDetails` are populated only by adapters whose provider returns
- * authoritative per-request cost (e.g. OpenRouter). All are absent for adapters
- * that do not report them, so consumers must treat them as optional.
- */
-export interface TokenUsage {
-  /** Total input/prompt tokens */
-  promptTokens: number
-  /** Total output/completion tokens */
-  completionTokens: number
-  /** Total tokens (prompt + completion) */
-  totalTokens: number
-  /** Detailed breakdown of prompt tokens by category */
-  promptTokensDetails?: PromptTokensDetails
-  /** Detailed breakdown of completion tokens by category */
-  completionTokensDetails?: CompletionTokensDetails
-  /** Duration in seconds for duration-based billing (e.g., Whisper-1 transcription) */
-  durationSeconds?: number
-  /** Provider-specific usage details not covered by standard fields */
-  providerUsageDetails?: Record<string, unknown>
-  /** Provider-reported cost for the request, when available. */
-  cost?: number
-  /** Provider-reported cost breakdown, when available. */
-  costDetails?: UsageCostBreakdown
+// Re-export the canonical usage types (defined in `@tanstack/ai-event-client`)
+// so `@tanstack/ai` consumers keep importing them from here unchanged.
+export type {
+  CompletionTokensDetails,
+  PromptTokensDetails,
+  TokenUsage,
+  UsageCostBreakdown,
 }
 
 /**

@@ -539,6 +539,8 @@ export class OpenRouterTextAdapter<
         timestamp,
       }
 
+      const finalUsage = buildOpenRouterUsage(lastUsage)
+
       yield {
         type: EventType.RUN_FINISHED,
         runId: aguiState.runId,
@@ -546,11 +548,8 @@ export class OpenRouterTextAdapter<
         model: lastModel || chatOptions.model,
         timestamp,
         finishReason: 'stop',
-        ...(lastUsage && {
-          usage: {
-            ...buildOpenRouterUsage(lastUsage),
-            ...extractUsageCost(lastUsage),
-          },
+        ...(finalUsage && {
+          usage: { ...finalUsage, ...extractUsageCost(lastUsage) },
         }),
       }
     } catch (error: unknown) {
@@ -1066,17 +1065,16 @@ export class OpenRouterTextAdapter<
                 ? 'content_filter'
                 : 'stop'
 
+        const finalUsage = buildOpenRouterUsage(lastUsage)
+
         yield {
           type: EventType.RUN_FINISHED,
           runId: aguiState.runId,
           threadId: aguiState.threadId,
           model: lastModel || options.model,
           timestamp: Date.now(),
-          ...(lastUsage && {
-            usage: {
-              ...buildOpenRouterUsage(lastUsage),
-              ...extractUsageCost(lastUsage),
-            },
+          ...(finalUsage && {
+            usage: { ...finalUsage, ...extractUsageCost(lastUsage) },
           }),
           finishReason,
         }

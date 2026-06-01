@@ -14,14 +14,23 @@
 
 Enhanced token usage reporting for every provider.
 
-`TokenUsage` is now the single canonical run-usage type, exported by both
-`@tanstack/ai` and `@tanstack/ai-event-client`. It carries optional detailed
-breakdowns alongside the core token counts: `promptTokensDetails` /
+`TokenUsage` is now the single canonical run-usage type. It is defined once in
+`@tanstack/ai-event-client` (the dependency-free leaf package) and re-exported by
+`@tanstack/ai`, so the two packages can no longer drift. It carries optional
+detailed breakdowns alongside the core token counts: `promptTokensDetails` /
 `completionTokensDetails` (cached, reasoning, audio, and per-modality tokens),
 `durationSeconds` for duration-billed models (e.g. Whisper transcription),
 `providerUsageDetails` for provider-specific metrics, and `cost` / `costDetails`
 for provider-reported cost — so a single `usage` shape covers counts, detailed
 breakdowns, and cost.
+
+`TokenUsage` is generic over its provider details bag —
+`TokenUsage<TProviderDetails = Record<string, unknown>>` — so adapters return a
+strongly-typed `providerUsageDetails` (e.g. `TokenUsage<AnthropicProviderUsageDetails>`)
+while generic consumers keep the open-record default. Each provider's usage
+extractor now returns `undefined` (rather than fabricating zeroed totals) when
+the provider reports no usage object, so an absent `usage` is distinguishable
+from a genuine zero-token run.
 
 `@tanstack/ai` still exports `UsageTotals` as a `@deprecated` alias of
 `TokenUsage` for backward compatibility; it will be removed in a future release.
