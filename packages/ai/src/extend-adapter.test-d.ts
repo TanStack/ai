@@ -26,3 +26,14 @@ test('a capabilities-form model is still an ExtendedModelDef', () => {
   const m = createModel('reasoner', { input: ['text'] })
   expectTypeOf(m).toMatchTypeOf<ExtendedModelDef>()
 })
+
+test('createModel maps providerOptions to modelOptions', () => {
+  interface MyOpts {
+    reasoningEffort: 'low' | 'high'
+  }
+  const m = createModel('reasoner', {
+    input: ['text'],
+    providerOptions: {} as MyOpts,
+  })
+  expectTypeOf(m.modelOptions).toEqualTypeOf<MyOpts>()
+})

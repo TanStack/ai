@@ -197,7 +197,7 @@ export {
 
 // Adapter extension utilities
 export { createModel, extendAdapter } from './extend-adapter'
-export type { ExtendedModelDef } from './extend-adapter'
+export type { ExtendedModelDef, ModelCapabilities } from './extend-adapter'
 
 // Logger
 export type {
