@@ -898,6 +898,43 @@ describe('OpenRouter AG-UI event emission', () => {
     }
   })
 
+  it('forwards the inline error body as RUN_ERROR.rawEvent', async () => {
+    // The mid-stream rethrow attaches the parsed `chunk.error` to the thrown
+    // error so the catch can surface it as `rawEvent`. Note: the real SDK
+    // strips unknown keys from in-band stream errors to `{ code, message }`;
+    // richer provider `metadata` survives only on pre-stream HTTP errors.
+    const errorBody = {
+      message: 'Provider returned error',
+      code: 502,
+      metadata: { provider_name: 'anthropic', raw: 'upstream overloaded' },
+    }
+    const streamChunks = [
+      {
+        id: 'chatcmpl-err',
+        model: 'anthropic/claude-sonnet-4.6',
+        choices: [] as Array<unknown>,
+        error: errorBody,
+      },
+    ]
+
+    setupMockSdkClient(streamChunks)
+    const adapter = createAdapter()
+    const chunks: Array<StreamChunk> = []
+    for await (const chunk of adapter.chatStream({
+      model: 'anthropic/claude-sonnet-4.6',
+      messages: [{ role: 'user', content: 'Hello' }],
+      logger: testLogger,
+    })) {
+      chunks.push(chunk)
+    }
+
+    const runErrorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
+    expect(runErrorChunk).toBeDefined()
+    if (runErrorChunk?.type === 'RUN_ERROR') {
+      expect(runErrorChunk.rawEvent).toEqual(errorBody)
+    }
+  })
+
   it('drops object-shaped error.code rather than shipping "[object Object]"', async () => {
     // A misbehaving upstream sending an object as `error.code` previously
     // surfaced as `code: "[object Object]"` in RUN_ERROR because the chunk

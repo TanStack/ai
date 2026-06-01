@@ -906,3 +906,33 @@ describe('GeminiAdapter through AI', () => {
     expect(result.summary).toBe(summaryText)
   })
 })
+
+describe('Gemini adapter error handling', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it("forwards the provider's structured error body as RUN_ERROR.rawEvent", async () => {
+    const providerBody = { error: { code: 429, message: 'quota' } }
+    mocks.generateContentStreamSpy.mockRejectedValueOnce(
+      Object.assign(new Error('429'), providerBody),
+    )
+
+    const adapter = createTextAdapter()
+    const chunks: StreamChunk[] = []
+    for await (const chunk of adapter.chatStream({
+      model: 'gemini-2.5-pro',
+      messages: [{ role: 'user', content: 'hi' }],
+      logger: { request: () => {}, errors: () => {} } as any,
+    })) {
+      chunks.push(chunk)
+    }
+
+    const runError = chunks.find((c) => c.type === 'RUN_ERROR')
+    expect(runError).toBeDefined()
+    if (runError?.type === 'RUN_ERROR') {
+      // toRunErrorRawEvent picks up the `.error` object when present
+      expect(runError.rawEvent).toEqual(providerBody.error)
+    }
+  })
+})

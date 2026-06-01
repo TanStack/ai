@@ -687,8 +687,40 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     expect(err).toBeDefined()
     expect(err.error.message).toBe('kaboom')
     expect(err.error.code).toBe('server_error')
+    // The provider's structured error body is forwarded as rawEvent for
+    // in-band response.failed events (see responses-text adapter).
+    expect(err.rawEvent).toEqual({ message: 'kaboom', code: 'server_error' })
     // RUN_ERROR is terminal — no synthetic RUN_FINISHED should follow.
     expect(chunks.find((c) => c.type === 'RUN_FINISHED')).toBeUndefined()
+  })
+
+  it("forwards the SDK error's `.error` body as RUN_ERROR.rawEvent on outer catch", async () => {
+    const providerBody = {
+      message: 'Provider returned error',
+      code: 502,
+      metadata: { provider_name: 'openai', raw: 'overloaded' },
+    }
+    mockSend = vi.fn().mockRejectedValue(
+      Object.assign(new Error('OpenRouter error'), {
+        error: providerBody,
+      }),
+    )
+
+    const adapter = createAdapter()
+    const chunks: Array<StreamChunk> = []
+    for await (const c of adapter.chatStream({
+      model: 'openai/gpt-4o-mini' as any,
+      messages: [{ role: 'user', content: 'hi' }],
+      logger: testLogger,
+    })) {
+      chunks.push(c)
+    }
+
+    const runError = chunks.find((c) => c.type === 'RUN_ERROR')
+    expect(runError).toBeDefined()
+    if (runError?.type === 'RUN_ERROR') {
+      expect(runError.rawEvent).toEqual(providerBody)
+    }
   })
 
   it('stringifies non-string error.code on top-level error events', async () => {

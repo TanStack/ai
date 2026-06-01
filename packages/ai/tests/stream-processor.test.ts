@@ -1792,6 +1792,32 @@ describe('StreamProcessor', () => {
       expect(events.onError.mock.calls[0]![0].message).toBe('API rate limited')
     })
 
+    it('attaches code and rawEvent from RUN_ERROR chunk to the Error passed to onError', () => {
+      const events = spyEvents()
+      const processor = new StreamProcessor({ events })
+      processor.prepareAssistantMessage()
+
+      const rawBody = { provider_name: 'openai', raw: { reason: 'quota' } }
+      const errorChunk = chunk(EventType.RUN_ERROR, {
+        message: 'Rate limited',
+        runId: 'run-1',
+        code: 'rate_limit',
+        rawEvent: rawBody,
+        error: { message: 'Rate limited' },
+      })
+      processor.processChunk(errorChunk)
+
+      expect(events.onError).toHaveBeenCalledTimes(1)
+      const err = events.onError.mock.calls[0]![0] as Error & {
+        code?: string
+        rawEvent?: unknown
+      }
+      expect(err).toBeInstanceOf(Error)
+      expect(err.message).toBe('Rate limited')
+      expect(err.code).toBe('rate_limit')
+      expect(err.rawEvent).toEqual(rawBody)
+    })
+
     it('onTextUpdate should fire for each text emission', () => {
       const events = spyEvents()
       const processor = new StreamProcessor({ events })

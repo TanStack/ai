@@ -189,6 +189,14 @@ export const Route = createFileRoute('/api/tools-test')({
                   type: EventType.RUN_ERROR,
                   message: 'Test error: Something went wrong during generation',
                   timestamp: Date.now(),
+                  code: 'provider_error',
+                  // Mirrors a provider's structured error body forwarded by the
+                  // adapters as `rawEvent`. Asserts it survives SSE transport,
+                  // the strip-to-spec middleware, and reaches the consumer.
+                  rawEvent: {
+                    provider_name: 'test-provider',
+                    raw: { reason: 'upstream overloaded' },
+                  },
                 }
               })()
             return toServerSentEventsResponse(errorStream, { abortController })

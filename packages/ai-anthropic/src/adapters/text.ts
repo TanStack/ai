@@ -1,4 +1,5 @@
 import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
+import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import { validateTextProviderOptions } from '../text/text-provider-options'
@@ -181,6 +182,7 @@ export class AnthropicTextAdapter<
       )
     } catch (error: unknown) {
       const err = error as Error & { status?: number; code?: string }
+      const rawEvent = toRunErrorRawEvent(error)
       logger.errors('anthropic.chatStream fatal', {
         error,
         source: 'anthropic.chatStream',
@@ -191,6 +193,9 @@ export class AnthropicTextAdapter<
         timestamp: Date.now(),
         message: err.message || 'Unknown error occurred',
         code: err.code || String(err.status),
+        // Forward the Anthropic SDK error's `.error` response body (e.g.
+        // `{ type, message }`) when present; never the raw exception object.
+        ...(rawEvent !== undefined && { rawEvent }),
         error: {
           message: err.message || 'Unknown error occurred',
           code: err.code || String(err.status),
@@ -1155,6 +1160,7 @@ export class AnthropicTextAdapter<
       }
     } catch (error: unknown) {
       const err = error as Error & { status?: number; code?: string }
+      const rawEvent = toRunErrorRawEvent(error)
 
       logger.errors('anthropic.processAnthropicStream fatal', {
         error,
@@ -1166,6 +1172,8 @@ export class AnthropicTextAdapter<
         timestamp: Date.now(),
         message: err.message || 'Unknown error occurred',
         code: err.code || String(err.status),
+        // Forward the Anthropic SDK error's `.error` response body when present.
+        ...(rawEvent !== undefined && { rawEvent }),
         error: {
           message: err.message || 'Unknown error occurred',
           code: err.code || String(err.status),
