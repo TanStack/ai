@@ -96,7 +96,11 @@ export function toRunErrorRawEvent(error: unknown): unknown {
     metadata?: unknown
   }
   if (e.rawEvent !== undefined && e.rawEvent !== null) return e.rawEvent
-  if (e.error !== undefined && e.error !== null && typeof e.error === 'object') {
+  if (
+    e.error !== undefined &&
+    e.error !== null &&
+    typeof e.error === 'object'
+  ) {
     return e.error
   }
   if (e.metadata !== undefined && e.metadata !== null) return e.metadata
