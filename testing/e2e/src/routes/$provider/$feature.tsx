@@ -191,7 +191,17 @@ function ChatFeature({
   const tools = needsApproval ? clientTools(addToCartClient) : undefined
 
   const { testId, aimockPort, persistence } = Route.useSearch()
-  const chatId = `e2e-chat-${testId ?? `${provider}-${feature}`}`
+  const persistenceEnabled = persistence === 'localStorage'
+  const baseChatId = `e2e-chat-${testId ?? `${provider}-${feature}`}`
+  // When persistence is on, expose a tiny thread switcher so e2e can verify that
+  // changing the `id` in place swaps to that id's own persisted history (the
+  // render-from-getMessages + activeClientRef path), keyed per thread. Start on
+  // thread "a" (not null) so the page loads already on a thread id — switching
+  // is then a pure in-place id swap with no initial null→thread transition.
+  const [activeThread, setActiveThread] = useState<string | null>(
+    persistenceEnabled ? 'a' : null,
+  )
+  const chatId = activeThread ? `${baseChatId}:${activeThread}` : baseChatId
 
   const [structuredObject, setStructuredObject] = useState<unknown>(null)
   const [contentDeltaCount, setContentDeltaCount] = useState(0)
@@ -240,43 +250,70 @@ function ChatFeature({
         }
       : { connection: fetchServerSentEvents('/api/chat') }
 
-  const { messages, sendMessage, isLoading, addToolApprovalResponse, stop } =
-    useChat({
-      id: chatId,
-      ...transport,
-      tools,
-      body: {
-        provider,
-        feature,
-        testId,
-        aimockPort,
-        previousInteractionId: interactionId,
-      },
-      persistence:
-        persistence === 'localStorage' ? localStoragePersistence : undefined,
-      onCustomEvent: (eventType, data) => {
-        if (eventType === 'structured-output.complete') {
-          const value = data as { object: unknown; raw: string } | undefined
-          setStructuredObject(value?.object ?? null)
-        } else if (eventType === 'gemini.interactionId') {
-          const value = data as
-            | GeminiInteractionsCustomEventValue<'gemini.interactionId'>
-            | undefined
-          if (value?.interactionId) setInteractionId(value.interactionId)
-        }
-      },
-      onChunk: (chunk) => {
-        if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
-          setContentDeltaCount((n) => n + 1)
-        }
-      },
-    })
+  const {
+    messages,
+    sendMessage,
+    isLoading,
+    addToolApprovalResponse,
+    stop,
+    clear,
+  } = useChat({
+    id: chatId,
+    ...transport,
+    tools,
+    body: {
+      provider,
+      feature,
+      testId,
+      aimockPort,
+      previousInteractionId: interactionId,
+    },
+    persistence:
+      persistence === 'localStorage' ? localStoragePersistence : undefined,
+    onCustomEvent: (eventType, data) => {
+      if (eventType === 'structured-output.complete') {
+        const value = data as { object: unknown; raw: string } | undefined
+        setStructuredObject(value?.object ?? null)
+      } else if (eventType === 'gemini.interactionId') {
+        const value = data as
+          | GeminiInteractionsCustomEventValue<'gemini.interactionId'>
+          | undefined
+        if (value?.interactionId) setInteractionId(value.interactionId)
+      }
+    },
+    onChunk: (chunk) => {
+      if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+        setContentDeltaCount((n) => n + 1)
+      }
+    },
+  })
 
   return (
     <>
       {interactionId && (
         <div data-testid="gemini-interaction-id" hidden>
           {interactionId}
+        </div>
+      )}
+      {persistenceEnabled && (
+        <div className="flex gap-2 border-b border-gray-700 p-2">
+          <button
+            type="button"
+            data-testid="select-thread-a"
+            onClick={() => setActiveThread('a')}
+          >
+            Thread A
+          </button>
+          <button
+            type="button"
+            data-testid="select-thread-b"
+            onClick={() => setActiveThread('b')}
+          >
+            Thread B
+          </button>
+          <button type="button" data-testid="clear-button" onClick={clear}>
+            Clear
+          </button>
         </div>
       )}
       <ChatUI

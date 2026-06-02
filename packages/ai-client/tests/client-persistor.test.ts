@@ -473,5 +473,25 @@ describe('ChatPersistor', () => {
       expect(persistor.shouldIgnoreChunk(runFinished('run-2'))).toBe(false)
       expect(persistor.shouldIgnoreChunk(textContent('late'))).toBe(true)
     })
+
+    it('keeps suppressing a second cleared run after the first drains via a runless error', () => {
+      const { persistor } = createPersistor(createMockPersistence())
+      persistor.snapshotClear({
+        messages: [],
+        activeRunIds: new Set(['run-1', 'run-2']),
+        currentRunId: null,
+      })
+      persistor.shouldIgnoreChunk(runStarted('run-1'))
+      persistor.shouldIgnoreChunk(runStarted('run-2')) // run-2 now pinned
+
+      // A runId-less RUN_ERROR drains the pinned run (run-2)...
+      expect(persistor.takeRunlessRunId()).toBe('run-2')
+
+      // ...but run-1 is still cleared, so its runless content stays suppressed
+      // instead of leaking through once the pointer advances back to it.
+      expect(persistor.shouldIgnoreChunk(textContent('late-from-run-1'))).toBe(
+        true,
+      )
+    })
   })
 })

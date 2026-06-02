@@ -295,7 +295,11 @@ export class ChatPersistor {
     if (!runId) return null
     this.ignoredActiveRunIds.delete(runId)
     this.clearedRunIds.delete(runId)
-    this.currentRunlessRunId = null
+    // Advance to another still-ignored run (mirroring `onRunSettled`) so that
+    // when two cleared runs drain concurrently, draining one via a runId-less
+    // RUN_ERROR doesn't stop suppressing the other's runless content.
+    this.currentRunlessRunId =
+      this.ignoredActiveRunIds.values().next().value ?? null
     return runId
   }
 
