@@ -1328,3 +1328,55 @@ describe('Anthropic adapter error handling', () => {
     }
   })
 })
+
+describe('isStructuredOutputSchemaError (#682)', () => {
+  const adapter = createAdapter('claude-3-7-sonnet')
+
+  it('matches the "compiled grammar is too large" rejection on a plain message', () => {
+    expect(
+      adapter.isStructuredOutputSchemaError({
+        message:
+          'output_config.format.schema: Invalid schema: The compiled grammar is too large.',
+      }),
+    ).toBe(true)
+  })
+
+  it('matches a RUN_ERROR-reconstructed value via its rawEvent body', () => {
+    expect(
+      adapter.isStructuredOutputSchemaError({
+        message: '400 status code (no body)',
+        code: '400',
+        rawEvent: {
+          type: 'invalid_request_error',
+          message:
+            'The compiled grammar is too large, which would cause performance issues.',
+        },
+      }),
+    ).toBe(true)
+  })
+
+  it('matches a thrown SDK error via its nested `.error` body', () => {
+    const err = Object.assign(new Error('400'), {
+      status: 400,
+      error: {
+        type: 'invalid_request_error',
+        message: 'output_config.format.schema: compiled grammar is too large',
+      },
+    })
+    expect(adapter.isStructuredOutputSchemaError(err)).toBe(true)
+  })
+
+  it('does not match unrelated errors', () => {
+    expect(
+      adapter.isStructuredOutputSchemaError({
+        message: 'rate limit exceeded',
+        code: '429',
+      }),
+    ).toBe(false)
+    expect(
+      adapter.isStructuredOutputSchemaError(new Error('network down')),
+    ).toBe(false)
+    expect(adapter.isStructuredOutputSchemaError(null)).toBe(false)
+    expect(adapter.isStructuredOutputSchemaError(undefined)).toBe(false)
+  })
+})

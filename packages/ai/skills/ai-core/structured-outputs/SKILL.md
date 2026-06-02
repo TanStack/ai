@@ -50,6 +50,27 @@ When `outputSchema` is provided, `chat()` returns `Promise<InferSchemaType<TSche
 
 Adding `stream: true` switches the return to `StructuredOutputStream<InferSchemaType<TSchema>>` — incremental JSON deltas plus a terminal validated object. See **Pattern 3** below for direct iteration, **Pattern 4** for the `useChat` shape on the client, and **Pattern 5** for multi-turn structured chats.
 
+## Large or complex schemas — the `structuredOutput` strategy
+
+`chat()` takes an optional `structuredOutput: 'auto' | 'native' | 'tool'` (default `'auto'`). It controls how `outputSchema` is satisfied and only matters when a provider rejects the schema:
+
+- `'native'` — use the provider's native structured-output API (e.g. Anthropic 4.5+ `output_config`, OpenRouter `json_schema` + `strict`). A schema rejection surfaces as a `RUN_ERROR` / rejected Promise.
+- `'tool'` — force the lenient forced-tool path: a `structured_output` tool with forced `tool_choice` and a **non-strict** `input_schema`, which avoids strict-grammar compilation.
+- `'auto'` (default) — try `'native'`; if the provider rejects the schema, transparently re-run via `'tool'`. The recovered run is a single clean lifecycle (the abandoned native attempt's events are withheld). Providers without a forced-tool fallback behave like `'native'`.
+
+Why it exists: Anthropic compiles `output_config` schemas into a grammar and rejects large/complex ones with _"The compiled grammar is too large"_ (directly, or for `anthropic/*` models via OpenRouter) — even though the same schema works on every other provider. `'auto'` recovers automatically; reach for `'tool'` to skip the wasted native attempt on a schema you already know is large.
+
+```typescript
+const result = await chat({
+  adapter: anthropicText('claude-sonnet-4-6'),
+  messages: [{ role: 'user', content: '…' }],
+  outputSchema: hugeNestedSchema,
+  structuredOutput: 'tool', // skip the native attempt for a known-large schema
+})
+```
+
+This is provider-agnostic: an adapter opts into recovery by implementing `isStructuredOutputSchemaError(error)` (Anthropic and OpenRouter do). Adapters without it just ignore `'auto'`/`'tool'` and use their native path.
+
 ## Decision: which pattern fits
 
 | Building this                                                                                  | Use                                                              |
@@ -202,6 +223,8 @@ finalization path: agent loop, then a separate `structuredOutput` /
 `structuredOutputStream` call with `'structuredOutput'` phase tagging.
 
 Consumer code is identical across providers — always read the final object off `structured-output.complete`.
+
+If a native-mode provider rejects an over-large schema, the default `structuredOutput: 'auto'` recovers via the forced-tool path — see **Large or complex schemas** above.
 
 ### Pattern 4: useChat with outputSchema (progressive UI)
 

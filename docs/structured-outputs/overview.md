@@ -60,6 +60,29 @@ Every adapter handles structured output through its provider's native API:
 
 The provider-specific details are handled for you — the same `chat({ outputSchema })` call works across all of them.
 
+## Handling large or complex schemas
+
+Anthropic compiles a structured-output schema into a grammar and rejects ones it considers too large with `output_config.format.schema: Invalid schema: The compiled grammar is too large`. This affects Claude models directly and `anthropic/*` models routed through OpenRouter — even when every other provider accepts the same schema.
+
+`chat()` accepts an optional `structuredOutput` strategy to handle this:
+
+```typescript
+const result = await chat({
+  adapter: anthropicText("claude-sonnet-4-6"),
+  messages: [{ role: "user", content: "…" }],
+  outputSchema: largeNestedSchema,
+  structuredOutput: "auto", // 'auto' | 'native' | 'tool' — defaults to 'auto'
+});
+```
+
+| Value | Behavior |
+|---|---|
+| `'native'` | Use the provider's native structured-output API. A schema rejection surfaces as a `RUN_ERROR` / rejected promise. |
+| `'tool'` | Force the lenient forced-tool path — a `structured_output` tool with forced `tool_choice` and a non-strict `input_schema`, which avoids strict-grammar compilation. Use for schemas you already know are large. |
+| `'auto'` *(default)* | Try `'native'`; if the provider rejects the schema, transparently re-run via `'tool'`. The recovered run emits a single clean lifecycle. Providers without a forced-tool fallback behave like `'native'`. |
+
+The default `'auto'` is fully backward compatible: it only changes behavior on the previously-hard-failing schema-rejection path. Small schemas and providers that accept the schema natively are unaffected.
+
 ## Which page do I read?
 
 Pick the journey that matches what you're building. The four guides under "Structured Outputs" cover non-overlapping use cases — read the one that fits, not all of them.

@@ -2419,3 +2419,151 @@ describe('OpenRouter cost tracking', () => {
     }
   })
 })
+
+describe('OpenRouter forced-tool structured output (#682)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  const outputSchema = {
+    type: 'object',
+    properties: { name: { type: 'string' }, age: { type: 'number' } },
+    required: ['name', 'age'],
+  }
+
+  it("strategy 'tool': sends a structured_output tool with forced toolChoice (no responseFormat)", async () => {
+    const nonStreamResponse = {
+      choices: [
+        {
+          message: {
+            toolCalls: [
+              {
+                id: 'call_1',
+                type: 'function',
+                function: {
+                  name: 'structured_output',
+                  arguments: '{"name":"Alice","age":30}',
+                },
+              },
+            ],
+          },
+        },
+      ],
+    }
+    setupMockSdkClient([], nonStreamResponse)
+    const adapter = createAdapter()
+
+    const result = await adapter.structuredOutput({
+      chatOptions: {
+        model: 'openai/gpt-4o-mini',
+        messages: [{ role: 'user', content: 'Give me a person' }],
+        logger: testLogger,
+      },
+      outputSchema,
+      strategy: 'tool',
+    })
+
+    expect(result.data).toEqual({ name: 'Alice', age: 30 })
+    expect(result.rawText).toBe('{"name":"Alice","age":30}')
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const params = rawParams.chatRequest
+    expect(params.responseFormat).toBeUndefined()
+    expect(params.tools).toEqual([
+      {
+        type: 'function',
+        function: {
+          name: 'structured_output',
+          description: expect.any(String),
+          // Raw (non-strict) schema — no additionalProperties:false grammar.
+          parameters: outputSchema,
+        },
+      },
+    ])
+    expect(params.toolChoice).toEqual({
+      type: 'function',
+      function: { name: 'structured_output' },
+    })
+    expect(params.stream).toBe(false)
+  })
+
+  it("strategy 'tool': structuredOutputStream synthesizes a stream around the tool call", async () => {
+    const nonStreamResponse = {
+      choices: [
+        {
+          message: {
+            toolCalls: [
+              {
+                id: 'call_1',
+                type: 'function',
+                function: {
+                  name: 'structured_output',
+                  arguments: '{"name":"Bob","age":42}',
+                },
+              },
+            ],
+          },
+        },
+      ],
+    }
+    setupMockSdkClient([], nonStreamResponse)
+    const adapter = createAdapter()
+
+    const chunks: Array<StreamChunk> = []
+    for await (const chunk of adapter.structuredOutputStream({
+      chatOptions: {
+        model: 'openai/gpt-4o-mini',
+        messages: [{ role: 'user', content: 'Give me a person' }],
+        logger: testLogger,
+      },
+      outputSchema,
+      strategy: 'tool',
+    })) {
+      chunks.push(chunk)
+    }
+
+    const complete = chunks.find(
+      (c) =>
+        c.type === EventType.CUSTOM &&
+        (c as { name?: string }).name === 'structured-output.complete',
+    ) as { value: { object: unknown } } | undefined
+    expect(complete?.value.object).toEqual({ name: 'Bob', age: 42 })
+
+    // It drove the non-streaming SDK call (single-shot forced tool).
+    const [rawParams] = mockSend.mock.calls[0]!
+    expect(rawParams.chatRequest.stream).toBe(false)
+    expect(rawParams.chatRequest.responseFormat).toBeUndefined()
+  })
+})
+
+describe('OpenRouter isStructuredOutputSchemaError (#682)', () => {
+  const adapter = createAdapter()
+
+  it('matches the upstream Anthropic "compiled grammar is too large" rejection', () => {
+    expect(
+      adapter.isStructuredOutputSchemaError({
+        message:
+          'output_config.format.schema: Invalid schema: The compiled grammar is too large.',
+      }),
+    ).toBe(true)
+  })
+
+  it('matches a rejection carried in the error metadata body', () => {
+    expect(
+      adapter.isStructuredOutputSchemaError({
+        message: 'Provider returned error',
+        code: '400',
+        metadata: {
+          raw: 'The compiled grammar is too large, which would cause performance issues.',
+        },
+      }),
+    ).toBe(true)
+  })
+
+  it('does not match unrelated errors', () => {
+    expect(
+      adapter.isStructuredOutputSchemaError({ message: 'Rate limit exceeded' }),
+    ).toBe(false)
+    expect(adapter.isStructuredOutputSchemaError(null)).toBe(false)
+  })
+})

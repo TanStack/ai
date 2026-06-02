@@ -250,6 +250,36 @@ export interface TextActivityOptions<
    */
   outputSchema?: TSchema
   /**
+   * How to satisfy {@link outputSchema}. Only meaningful when `outputSchema`
+   * is provided.
+   *
+   * - `'native'` — use the provider's native structured-output API
+   *   (e.g. Anthropic 4.5+ `output_config`, OpenRouter `response_format:
+   *   json_schema` with `strict: true`). No fallback: a provider schema
+   *   rejection surfaces as a `RUN_ERROR` / rejected Promise.
+   * - `'tool'` — force the lenient forced-tool path (a `structured_output`
+   *   tool with forced `tool_choice` and a non-strict `input_schema`), which
+   *   avoids strict-grammar compilation. Use for large/complex schemas that
+   *   Anthropic rejects with *"compiled grammar is too large"*.
+   * - `'auto'` (default) — try `'native'`; if the provider rejects the schema
+   *   (detected via the adapter's `isStructuredOutputSchemaError`),
+   *   transparently re-run via `'tool'`. Providers without a forced-tool
+   *   fallback behave like `'native'`.
+   *
+   * @default 'auto'
+   *
+   * @example Force the lenient path for a known-large schema
+   * ```ts
+   * const result = await chat({
+   *   adapter: anthropicText('claude-sonnet-4-6'),
+   *   messages: [...],
+   *   outputSchema: hugeSchema,
+   *   structuredOutput: 'tool',
+   * })
+   * ```
+   */
+  structuredOutput?: 'auto' | 'native' | 'tool'
+  /**
    * Whether to stream the text result.
    * When true (default), returns an AsyncIterable<StreamChunk> for streaming output.
    * When false, returns a Promise<string> with the collected text content.
@@ -432,6 +462,20 @@ interface TextEngineConfig<
     yieldChunks: boolean
     validate?: (data: unknown) => unknown
     nativeCombined?: boolean
+    /**
+     * Resolved strategy forwarded to the adapter's `structuredOutput` /
+     * `structuredOutputStream` call on the finalization path. `'tool'` asks
+     * the adapter to use its lenient forced-tool mode. Ignored on the
+     * native-combined path (the schema goes into `chatStream` instead).
+     */
+    strategy?: 'native' | 'tool'
+    /**
+     * When set (the caller left `structuredOutput: 'auto'`), the engine treats
+     * a matching schema-rejection error as recoverable: it records the error
+     * in `pendingSchemaFallback`, suppresses the terminal `onError`, and
+     * abandons the run so the activity layer can re-run in `'tool'` mode.
+     */
+    schemaFallback?: (error: unknown) => boolean
   }
 }
 
@@ -518,12 +562,25 @@ class TextEngine<
     message: string
     code?: string
     cause?: unknown
+    // Provider error body forwarded from the finalization RUN_ERROR. Kept so
+    // the `'auto'` schema-fallback predicate can inspect the full upstream
+    // detail (e.g. OpenRouter forwarding Anthropic's grammar message), which
+    // `{ message, code }` alone may not contain.
+    rawEvent?: unknown
   } | null = null
+  // Set when `finalStructuredOutput.schemaFallback` matched a recoverable
+  // provider schema rejection on the native attempt. Read by the activity
+  // layer (via `getPendingSchemaFallback`) to decide whether to re-run in
+  // `'tool'` mode. When set, the engine abandons the run without firing the
+  // terminal `onError`.
+  private pendingSchemaFallback: unknown = null
   private readonly finalStructuredOutput?: {
     jsonSchema: JSONSchema
     yieldChunks: boolean
     validate?: (data: unknown) => unknown
     nativeCombined?: boolean
+    strategy?: 'native' | 'tool'
+    schemaFallback?: (error: unknown) => boolean
   }
 
   constructor(
@@ -668,6 +725,16 @@ class TextEngine<
     return this.finalizationError
   }
 
+  /**
+   * Non-null when a recoverable structured-output schema rejection was
+   * detected on the native attempt (`structuredOutput: 'auto'`). The activity
+   * layer re-runs in `'tool'` mode when this is set. The value is the
+   * error-like object the adapter's `isStructuredOutputSchemaError` matched.
+   */
+  getPendingSchemaFallback(): unknown {
+    return this.pendingSchemaFallback
+  }
+
   async *run(): AsyncGenerator<StreamChunk> {
     this.beforeRun()
     this.logger.agentLoop('run started', {
@@ -743,6 +810,15 @@ class TextEngine<
         finishReason: this.lastFinishReason,
       })
 
+      // Native-combined auto-fallback recorded during the agent loop
+      // (`handleRunErrorEvent`): abandon this attempt without harvesting or
+      // firing the terminal hook. The activity layer re-runs in `'tool'`
+      // mode. The `finally` block still runs (deferred promises); no
+      // onAbort fires because the run wasn't cancelled.
+      if (this.pendingSchemaFallback !== null) {
+        return
+      }
+
       // After the agent loop ends, if a structured-output finalization was
       // requested AND the run hasn't already errored/aborted, run it through
       // the middleware pipeline. The terminal hook fires once at the very
@@ -760,6 +836,33 @@ class TextEngine<
           yield* this.harvestCombinedStructuredOutput()
         } else {
           yield* this.runStructuredFinalization()
+        }
+      }
+
+      // Finalization auto-fallback: a recoverable schema rejection during the
+      // native finalization request (e.g. OpenRouter → Anthropic
+      // `json_schema` strict). Record it and abandon before the terminal
+      // hook so the activity layer can re-run in `'tool'` mode. `.cause`
+      // carries the original adapter error when the synthesized-fallback path
+      // produced it; otherwise fall back to the RUN_ERROR message/code.
+      // (`pendingSchemaFallback` is guaranteed null here — the native-combined
+      // case returned above.)
+      if (
+        this.finalizationError &&
+        this.finalStructuredOutput?.schemaFallback
+      ) {
+        const errLike = this.finalizationError.cause ?? {
+          message: this.finalizationError.message,
+          ...(this.finalizationError.code !== undefined
+            ? { code: this.finalizationError.code }
+            : {}),
+          ...(this.finalizationError.rawEvent !== undefined
+            ? { rawEvent: this.finalizationError.rawEvent }
+            : {}),
+        }
+        if (this.finalStructuredOutput.schemaFallback(errLike)) {
+          this.pendingSchemaFallback = errLike
+          return
         }
       }
 
@@ -1122,9 +1225,35 @@ class TextEngine<
   }
 
   private handleRunErrorEvent(
-    _chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
+    chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
   ): void {
     this.earlyTermination = true
+
+    // Native-combined auto-fallback: when the adapter wired the schema into
+    // the agent-loop `chatStream` and the provider rejected it (e.g.
+    // Anthropic "compiled grammar is too large"), record it as a recoverable
+    // fallback rather than a terminal error. The grammar error is a
+    // request-time 400, so it arrives before any content/tool output — gate
+    // on that so a mid-run error is never mistaken for a schema rejection.
+    const fb = this.finalStructuredOutput
+    if (
+      fb?.schemaFallback &&
+      fb.nativeCombined === true &&
+      this.pendingSchemaFallback === null &&
+      this.iterationCount === 0 &&
+      this.accumulatedContent === ''
+    ) {
+      const errLike = {
+        message: chunk.message,
+        ...(chunk.code !== undefined ? { code: chunk.code } : {}),
+        ...('rawEvent' in chunk && chunk.rawEvent !== undefined
+          ? { rawEvent: chunk.rawEvent }
+          : {}),
+      }
+      if (fb.schemaFallback(errLike)) {
+        this.pendingSchemaFallback = errLike
+      }
+    }
   }
 
   private finalizeCurrentThinkingStep(): void {
@@ -1882,6 +2011,12 @@ class TextEngine<
         ...(this.effectiveRequest ? { request: this.effectiveRequest } : {}),
       },
       outputSchema: pinnedSchema,
+      // Forward the resolved strategy so adapters with a lenient forced-tool
+      // mode (Anthropic, OpenRouter) route around the native grammar path
+      // when the engine retried under `'tool'`.
+      ...(this.finalStructuredOutput.strategy
+        ? { strategy: this.finalStructuredOutput.strategy }
+        : {}),
     }
 
     // Select the provider call: native streaming if available, else synthesized fallback.
@@ -2042,10 +2177,12 @@ class TextEngine<
       }
 
       if (chunk.type === EventType.RUN_ERROR) {
-        // RunErrorEvent already exposes `message` and `code` after narrowing.
+        // RunErrorEvent already exposes `message`, `code`, and `rawEvent`
+        // after narrowing.
         this.finalizationError = {
           message: chunk.message,
           ...(chunk.code ? { code: chunk.code } : {}),
+          ...(chunk.rawEvent !== undefined ? { rawEvent: chunk.rawEvent } : {}),
           ...(fallbackAdapterError !== undefined
             ? { cause: fallbackAdapterError }
             : {}),
@@ -2589,7 +2726,16 @@ export function chat<
 async function* runStreamingText<TContext = unknown>(
   options: TextActivityOptions<AnyTextAdapter, undefined, true, TContext>,
 ): AsyncIterable<StreamChunk> {
-  const { adapter, middleware, context, debug, ...textOptions } = options
+  // `structuredOutput` only applies to the `outputSchema` paths; drop it so it
+  // never leaks into the adapter's `TextOptions`.
+  const {
+    adapter,
+    structuredOutput: _structuredOutput,
+    middleware,
+    context,
+    debug,
+    ...textOptions
+  } = options
   const model = adapter.model
   const logger = resolveDebugOption(debug)
 
@@ -2645,8 +2791,15 @@ async function runAgenticStructuredOutput<
 >(
   options: TextActivityOptions<AnyTextAdapter, TSchema, boolean, TContext>,
 ): Promise<InferSchemaType<TSchema>> {
-  const { adapter, outputSchema, middleware, context, debug, ...textOptions } =
-    options
+  const {
+    adapter,
+    outputSchema,
+    structuredOutput: strategyOption,
+    middleware,
+    context,
+    debug,
+    ...textOptions
+  } = options
   const model = adapter.model
   const logger = resolveDebugOption(debug)
 
@@ -2673,36 +2826,58 @@ async function runAgenticStructuredOutput<
         parseWithStandardSchema<InferSchemaType<TSchema>>(outputSchema, data)
     : undefined
 
-  // Per issue #605: same capability check as the streaming path. When the
-  // adapter handles tools + schema natively, the engine skips the separate
-  // structured-output finalization call and harvests the JSON from the
-  // agent loop's accumulated final-turn text.
-  const nativeCombined =
+  const strategy = strategyOption ?? 'auto'
+  // Per issue #605: when the adapter handles tools + schema natively, the
+  // engine skips the separate finalization call and harvests the JSON from
+  // the agent loop's accumulated final-turn text. Forced-tool mode (`'tool'`)
+  // always uses the separate finalization round-trip.
+  const supportsCombined =
     adapter.supportsCombinedToolsAndSchema?.(options.modelOptions) === true
+  const isSchemaError = adapter.isStructuredOutputSchemaError?.bind(adapter)
 
-  const engine = new TextEngine(
-    {
-      adapter,
-      params: { ...textOptions, model, logger } as TextOptions<
-        Record<string, unknown>,
-        Record<string, unknown>,
-        TContext
-      >,
-      middleware,
-      context,
-      finalStructuredOutput: {
-        jsonSchema,
-        yieldChunks: false,
-        ...(validate ? { validate } : {}),
-        ...(nativeCombined ? { nativeCombined: true } : {}),
+  const runEngine = async (mode: 'native' | 'tool') => {
+    const useCombined = mode === 'native' && supportsCombined
+    const engine = new TextEngine(
+      {
+        adapter,
+        params: { ...textOptions, model, logger } as TextOptions<
+          Record<string, unknown>,
+          Record<string, unknown>,
+          TContext
+        >,
+        middleware,
+        context,
+        finalStructuredOutput: {
+          jsonSchema,
+          yieldChunks: false,
+          ...(validate ? { validate } : {}),
+          ...(useCombined ? { nativeCombined: true } : {}),
+          ...(mode === 'tool' ? { strategy: 'tool' } : {}),
+          // Auto mode only: let the engine record a recoverable schema
+          // rejection instead of throwing, so we can retry below.
+          ...(mode === 'native' && strategy === 'auto' && isSchemaError
+            ? { schemaFallback: isSchemaError }
+            : {}),
+        },
       },
-    },
-    logger,
-  )
+      logger,
+    )
+    // Consume the stream — chunks pipe through middleware but are not yielded externally
+    for await (const _chunk of engine.run()) {
+      // intentionally empty
+    }
+    return engine
+  }
 
-  // Consume the stream — chunks pipe through middleware but are not yielded externally
-  for await (const _chunk of engine.run()) {
-    // intentionally empty
+  let engine = await runEngine(strategy === 'tool' ? 'tool' : 'native')
+  // `'auto'`: the native attempt hit a recoverable schema rejection — re-run
+  // through the lenient forced-tool path.
+  if (strategy === 'auto' && engine.getPendingSchemaFallback() != null) {
+    logger.agentLoop(
+      'structured-output: native schema rejected, retrying via forced-tool path',
+      { source: 'runAgenticStructuredOutput' },
+    )
+    engine = await runEngine('tool')
   }
 
   const finalizationError = engine.getFinalizationError()
@@ -2933,11 +3108,19 @@ async function* runStreamingStructuredOutputImpl<
   options: TextActivityOptions<AnyTextAdapter, TSchema, true, TContext>,
   jsonSchema: NonNullable<ReturnType<typeof convertSchemaToJsonSchema>>,
 ): StructuredOutputStreamInternal<InferSchemaType<TSchema>> {
-  const { adapter, outputSchema, middleware, context, debug, ...textOptions } =
-    options
+  const {
+    adapter,
+    outputSchema,
+    structuredOutput: strategyOption,
+    middleware,
+    context,
+    debug,
+    ...textOptions
+  } = options
   const model = adapter.model
   const logger = resolveDebugOption(debug)
 
+  const strategy = strategyOption ?? 'auto'
   // Per issue #605: adapters that natively combine tools + schema-constrained
   // output in one streaming call (modern OpenAI, Anthropic 4.5+, Gemini 3+,
   // Grok 4+) opt in via `supportsCombinedToolsAndSchema()`. The engine then
@@ -2945,33 +3128,99 @@ async function* runStreamingStructuredOutputImpl<
   // structured result from the agent loop's accumulated text — no separate
   // finalization round-trip, and the `'structuredOutput'` middleware phase
   // does not fire.
-  const nativeCombined =
+  const supportsCombined =
     adapter.supportsCombinedToolsAndSchema?.(options.modelOptions) === true
+  const isSchemaError = adapter.isStructuredOutputSchemaError?.bind(adapter)
 
-  // Inputs may be UIMessages (from useChat) or ModelMessages (from server-side
-  // callers). TextEngine handles the conversion uniformly.
-  const engine = new TextEngine(
-    {
-      adapter,
-      params: { ...textOptions, model, logger } as TextOptions<
-        Record<string, unknown>,
-        Record<string, unknown>,
-        TContext
-      >,
-      middleware,
-      context,
-      finalStructuredOutput: {
-        jsonSchema,
-        yieldChunks: true,
-        ...(nativeCombined ? { nativeCombined: true } : {}),
+  const buildEngine = (mode: 'native' | 'tool') => {
+    const useCombined = mode === 'native' && supportsCombined
+    // Inputs may be UIMessages (from useChat) or ModelMessages (from
+    // server-side callers). TextEngine handles the conversion uniformly.
+    return new TextEngine(
+      {
+        adapter,
+        params: { ...textOptions, model, logger } as TextOptions<
+          Record<string, unknown>,
+          Record<string, unknown>,
+          TContext
+        >,
+        middleware,
+        context,
+        finalStructuredOutput: {
+          jsonSchema,
+          yieldChunks: true,
+          ...(useCombined ? { nativeCombined: true } : {}),
+          ...(mode === 'tool' ? { strategy: 'tool' } : {}),
+          ...(mode === 'native' && strategy === 'auto' && isSchemaError
+            ? { schemaFallback: isSchemaError }
+            : {}),
+        },
       },
-    },
-    logger,
-  )
+      logger,
+    )
+  }
 
-  for await (const chunk of engine.run()) {
+  if (strategy !== 'auto') {
+    // Explicit `'native'` / `'tool'` — single attempt, no fallback. A schema
+    // rejection surfaces as a normal RUN_ERROR.
+    yield* buildEngine(strategy).run()
+    void outputSchema
+    return
+  }
+
+  // `'auto'`: run the native attempt but withhold its leading lifecycle until
+  // we know it took. A recoverable schema rejection (Anthropic "compiled
+  // grammar is too large") arrives before any content, so we buffer only
+  // RUN_STARTED / RUN_ERROR and commit on the first content/lifecycle chunk.
+  // If the engine records a fallback instead, we discard the buffer and
+  // stream a fresh `'tool'` run so the consumer sees one clean lifecycle.
+  const nativeEngine = buildEngine('native')
+  const buffer: Array<StreamChunk> = []
+  let committed = false
+  for await (const chunk of nativeEngine.run()) {
+    if (committed) {
+      yield chunk
+      continue
+    }
+    // Buffer the leading lifecycle that can still precede a recoverable schema
+    // rejection: RUN_STARTED, a synthesized `structured-output.start` (the
+    // finalization path emits one before a pre-delta RUN_ERROR), and the
+    // RUN_ERROR itself. Any other chunk (text/tool/reasoning/RUN_FINISHED/
+    // structured-output.complete) proves the native request was accepted.
+    const isPreCommitLifecycle =
+      chunk.type === EventType.RUN_STARTED ||
+      chunk.type === EventType.RUN_ERROR ||
+      (chunk.type === EventType.CUSTOM &&
+        chunk.name === 'structured-output.start')
+    if (isPreCommitLifecycle) {
+      buffer.push(chunk)
+      continue
+    }
+    committed = true
+    for (const buffered of buffer) yield buffered
+    buffer.length = 0
     yield chunk
   }
+
+  if (committed) {
+    void outputSchema
+    return
+  }
+
+  if (nativeEngine.getPendingSchemaFallback() != null) {
+    logger.agentLoop(
+      'structured-output: native schema rejected, retrying via forced-tool path',
+      { source: 'runStreamingStructuredOutput' },
+    )
+    // Discard the abandoned native lifecycle and stream the forced-tool run.
+    yield* buildEngine('tool').run()
+    void outputSchema
+    return
+  }
+
+  // Genuine early failure (or empty run) with no fallback: flush whatever the
+  // native attempt produced (RUN_STARTED / RUN_ERROR) unchanged.
+  for (const buffered of buffer) yield buffered
 
   // Schema validation for the streaming variant remains the consumer's
   // responsibility — they read the CUSTOM 'structured-output.complete' from

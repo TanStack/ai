@@ -31,6 +31,24 @@ export interface StructuredOutputOptions<TProviderOptions extends object> {
   chatOptions: TextOptions<TProviderOptions>
   /** JSON Schema for structured output - already converted from Zod in the ai layer */
   outputSchema: JSONSchema
+  /**
+   * Resolved structured-output strategy for this call.
+   *
+   * - `'native'` (default when omitted): use the provider's native
+   *   structured-output API (e.g. OpenRouter `response_format: json_schema`
+   *   with `strict: true`).
+   * - `'tool'`: satisfy the schema via a forced `structured_output` tool
+   *   (non-strict `input_schema`), which avoids strict-grammar compilation.
+   *   Adapters that route some providers through a grammar-compiling backend
+   *   (Anthropic, and Anthropic models via OpenRouter) should honor `'tool'`
+   *   so large/complex schemas that the native path rejects still resolve.
+   *
+   * The activity layer resolves `chat({ structuredOutput })` before calling
+   * the adapter — the public `'auto'` value never reaches here (the engine
+   * retries with `'tool'` after a {@link TextAdapter.isStructuredOutputSchemaError}
+   * match). Adapters without a forced-tool mode may ignore this field.
+   */
+  strategy?: 'native' | 'tool'
 }
 
 /**
@@ -149,6 +167,26 @@ export interface TextAdapter<
   supportsCombinedToolsAndSchema?: (
     modelOptions?: TProviderOptions | undefined,
   ) => boolean
+
+  /**
+   * Recognize a provider rejection of the structured-output schema that the
+   * engine can recover from by retrying via the lenient forced-tool path
+   * (`StructuredOutputOptions.strategy: 'tool'`).
+   *
+   * The canonical case is Anthropic rejecting a large `output_config.format`
+   * schema with `"compiled grammar is too large"` (directly, or for an
+   * `anthropic/*` model via OpenRouter). Return `true` only for such
+   * recoverable schema-compilation errors — return `false` (or omit the
+   * method) for anything that should surface to the caller unchanged
+   * (auth, rate limits, network, genuine validation failures).
+   *
+   * Consulted only when the caller leaves `structuredOutput: 'auto'` (the
+   * default). Receives either the thrown adapter error or a reconstructed
+   * `{ message, code?, rawEvent? }` lifted from a RUN_ERROR chunk, so
+   * implementations should inspect the message/body rather than rely on the
+   * error being an `Error` instance.
+   */
+  isStructuredOutputSchemaError?: (error: unknown) => boolean
 }
 
 /**

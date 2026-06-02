@@ -1,0 +1,18 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[so-fallback] recommend a guitar as json"
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "structured_output",
+            "arguments": "{\"name\":\"Fender Stratocaster\",\"price\":1299,\"reason\":\"Versatile tone and comfortable playability\",\"rating\":5}"
+          }
+        ],
+        "systemFingerprint": "fp_aimock"
+      }
+    }
+  ]
+}
