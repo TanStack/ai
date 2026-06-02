@@ -208,7 +208,7 @@ const { messages, sendMessage } = useChat({
 
 The fetcher receives `{ messages, data, threadId, runId }` plus an `AbortSignal` (triggered by `stop()` or when a send is superseded). Return either a `Response` — whose SSE body the chat client parses for you — or an `AsyncIterable<StreamChunk>`, which is yielded directly. Both sync and `Promise`-wrapped returns are accepted.
 
-> **Tip:** Reach for `fetcher` when your server function returns a `Response`; reach for [`stream()`](#server-functions-and-direct-async-iterables) when it returns an `AsyncIterable<StreamChunk>` directly. `stream()`'s factory is typed as `() => AsyncIterable<StreamChunk>`, so a `Promise<Response>` won't typecheck there — that's exactly the gap `fetcher` fills. Aborts, retries, and `live: true` work the same on both.
+> **Tip:** Reach for `fetcher` when your server function returns a `Response`; reach for [`stream()`](#server-functions-and-direct-async-iterables) when it returns an `AsyncIterable<StreamChunk>` directly. `stream()`'s factory must return an `AsyncIterable<StreamChunk>`, so a `Promise<Response>` won't typecheck there — that's exactly the gap `fetcher` fills. Internally `fetcher` normalizes to the same request-scoped adapter as `stream()`, so everything downstream — `stop()`/abort, error handling, and tool calls — behaves identically.
 
 ## RPC Streams
 
