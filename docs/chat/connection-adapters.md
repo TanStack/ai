@@ -12,6 +12,7 @@ keywords:
   - websocket
   - rpc
   - server functions
+  - fetcher
   - streaming transport
   - fetchServerSentEvents
   - subscribe send
@@ -29,6 +30,7 @@ This page covers every supported transport, when to pick which, and how to build
 | An environment that blocks SSE (some edge runtimes, strict proxies) | [`fetchHttpStream`](#http-streaming-ndjson) |
 | React Native or Expo | [`xhrHttpStream`](#react-native-and-expo) by default, [`xhrServerSentEvents`](#react-native-and-expo) for SSE, or [`fetchHttpStream`](#http-streaming-ndjson) only when streaming `fetch` is available |
 | A TanStack Start (or other) server function that already returns an async iterable | [`stream`](#server-functions-and-direct-async-iterables) |
+| A TanStack Start server function that returns an SSE `Response` (`toServerSentEventsResponse(...)`) | [`fetcher`](#server-functions-via-fetcher) |
 | An RPC framework like Cap'n Web, gRPC-Web, or tRPC | [`rpcStream`](#rpc-streams) |
 | A single long-lived WebSocket (or BroadcastChannel, postMessage, shared worker) serving many runs | [Custom `subscribe` / `send` adapter](#persistent-transports-websockets-and-friends) |
 | Standard SSE but with custom fetch wrapping (auth refresh, retries) | [`fetchServerSentEvents` with `fetchClient`](#custom-fetch-client) |
@@ -174,6 +176,39 @@ const { messages } = useChat({
 The factory receives the conversation messages plus any per-request `data` you passed to `sendMessage`. Return any async iterable that yields `StreamChunk` objects — a generator, the output of `chat()` on the server, a transformed stream, anything.
 
 > **Tip:** `stream()` is **request-scoped**. The factory is invoked once per `sendMessage`, the iterable runs to completion, and the connection closes. If you need a single long-lived channel that multiplexes many sends — for example a WebSocket — use [`subscribe` / `send`](#persistent-transports-websockets-and-friends) instead.
+
+## Server Functions via `fetcher`
+
+When your server function returns an SSE `Response` — the common case for a [TanStack Start](https://tanstack.com/start) handler that ends with `toServerSentEventsResponse(...)` — use the top-level `fetcher` option instead of a connection adapter. `fetcher` is a sibling of `connection` (provide exactly one), and it accepts a plain async function. It mirrors the `fetcher` option on the [generation hooks](../media/generation-hooks).
+
+```typescript
+// server/chat.server.ts
+import { createServerFn } from "@tanstack/react-start";
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import type { UIMessage } from "@tanstack/ai";
+
+export const chatFn = createServerFn({ method: "POST" })
+  .inputValidator((data: { messages: Array<UIMessage> }) => data)
+  .handler(({ data }) =>
+    toServerSentEventsResponse(
+      chat({ adapter: openaiText("gpt-5.1"), messages: data.messages }),
+    ),
+  );
+```
+
+```typescript
+import { useChat } from "@tanstack/ai-react";
+import { chatFn } from "./server/chat.server";
+
+const { messages, sendMessage } = useChat({
+  fetcher: ({ messages }, { signal }) => chatFn({ data: { messages }, signal }),
+});
+```
+
+The fetcher receives `{ messages, data, threadId, runId }` plus an `AbortSignal` (triggered by `stop()` or when a send is superseded). Return either a `Response` — whose SSE body the chat client parses for you — or an `AsyncIterable<StreamChunk>`, which is yielded directly. Both sync and `Promise`-wrapped returns are accepted.
+
+> **Tip:** Reach for `fetcher` when your server function returns a `Response`; reach for [`stream()`](#server-functions-and-direct-async-iterables) when it returns an `AsyncIterable<StreamChunk>` directly. `stream()`'s factory is typed as `() => AsyncIterable<StreamChunk>`, so a `Promise<Response>` won't typecheck there — that's exactly the gap `fetcher` fills. Aborts, retries, and `live: true` work the same on both.
 
 ## RPC Streams
 
