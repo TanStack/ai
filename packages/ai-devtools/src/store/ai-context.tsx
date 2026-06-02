@@ -14,7 +14,7 @@ import {
   createClientToolCallMessage,
   shouldSkipClientAssistantPlaceholder,
 } from './message-event-utils'
-import type { ContentPartSource } from '@tanstack/ai'
+import type { ContentPartSource, TokenUsage } from '@tanstack/ai'
 import type {
   DevtoolsToolFixtureApplyEvent,
   RunLifecycleEvent,
@@ -69,11 +69,8 @@ export interface ToolCall {
   duration?: number
 }
 
-interface TokenUsage {
-  promptTokens: number
-  completionTokens: number
-  totalTokens: number
-}
+// Re-export TokenUsage from @tanstack/ai for external consumers
+export type { TokenUsage }
 
 export interface Message {
   id: string

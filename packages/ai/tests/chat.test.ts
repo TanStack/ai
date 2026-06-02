@@ -285,6 +285,11 @@ describe('chat()', () => {
       // Error should be in the content
       const contentStr = (toolResultChunks[0] as any).content
       expect(contentStr).toContain('error')
+
+      const toolCallEnd = chunks.find(
+        (c) => c.type === 'TOOL_CALL_END' && c.toolCallId === 'call_1',
+      )
+      expect(toolCallEnd).toMatchObject({ state: 'output-error' })
     })
   })
 

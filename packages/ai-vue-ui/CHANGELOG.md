@@ -1,5 +1,47 @@
 # @tanstack/ai-vue-ui
 
+## 0.2.13
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-vue@0.13.1
+
+## 0.2.12
+
+### Patch Changes
+
+- Updated dependencies [[`755e995`](https://github.com/TanStack/ai/commit/755e9953a31e879c4b88df0e7672ce1224886c97)]:
+  - @tanstack/ai-vue@0.13.0
+
+## 0.2.11
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-vue@0.12.2
+
+## 0.2.10
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-vue@0.12.1
+
+## 0.2.9
+
+### Patch Changes
+
+- Updated dependencies [[`8036b50`](https://github.com/TanStack/ai/commit/8036b5054330a180023c6e3225b8d2735a43a919)]:
+  - @tanstack/ai-vue@0.12.0
+
+## 0.2.8
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-vue@0.11.1
+
 ## 0.2.7
 
 ### Patch Changes

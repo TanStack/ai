@@ -1,6 +1,6 @@
 import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
-
+import { buildOllamaUsage } from '../usage'
 import { createOllamaClient, generateId, getOllamaHostFromEnv } from '../utils'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import type { OllamaClientConfig } from '../utils/client'
@@ -160,6 +160,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
       return {
         data: parsed,
         rawText,
+        usage: buildOllamaUsage(response),
       }
     } catch (error: unknown) {
       const err = error as Error
@@ -305,6 +306,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
           }
         }
 
+        const finishUsage = buildOllamaUsage(chunk)
         yield {
           type: EventType.RUN_FINISHED,
           runId,
@@ -312,12 +314,9 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
           model: chunk.model,
           timestamp: Date.now(),
           finishReason: toolCallsEmitted.size > 0 ? 'tool_calls' : 'stop',
-          usage: {
-            promptTokens: chunk.prompt_eval_count || 0,
-            completionTokens: chunk.eval_count || 0,
-            totalTokens:
-              (chunk.prompt_eval_count || 0) + (chunk.eval_count || 0),
-          },
+          // usage is optional under exactOptionalPropertyTypes; omit the key
+          // entirely when Ollama reported no token counts.
+          ...(finishUsage && { usage: finishUsage }),
         }
         continue
       }

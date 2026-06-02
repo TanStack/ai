@@ -55,6 +55,8 @@ export {
 // Schema conversion (Standard JSON Schema compliant)
 export {
   convertSchemaToJsonSchema,
+  isStandardSchema,
+  parseWithStandardSchema,
   StandardSchemaValidationError,
 } from './activities/chat/tools/schema-converter'
 
@@ -108,6 +110,9 @@ export type {
 
 // All types
 export * from './types'
+
+// Usage utilities
+export { buildBaseUsage, type BaseUsageInput } from './utilities/usage'
 
 // System prompts (type + normaliser used by adapters)
 export type { SystemPrompt, NormalizedSystemPrompt } from './system-prompts'
@@ -187,10 +192,15 @@ export {
 // AG-UI wire serialization (used internally by @tanstack/ai-client)
 export { uiMessagesToWire } from './utilities/ag-ui-wire'
 export type { WireMessage } from './utilities/ag-ui-wire'
+export {
+  isContentPart,
+  isContentPartArray,
+  normalizeToolResult,
+} from './utilities/tool-result'
 
 // Adapter extension utilities
 export { createModel, extendAdapter } from './extend-adapter'
-export type { ExtendedModelDef } from './extend-adapter'
+export type { ExtendedModelDef, ModelCapabilities } from './extend-adapter'
 
 // Logger
 export type {

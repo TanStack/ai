@@ -79,7 +79,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:133](https://gi
 ### tools
 
 ```ts
-tools: Tool<SchemaInput, SchemaInput, string>[];
+tools: Tool<SchemaInput, SchemaInput, string, unknown>[];
 ```
 
 Defined in: [packages/ai/src/activities/chat/middleware/types.ts:132](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L132)

@@ -14,6 +14,26 @@ import type {
 import type { ChatFetcher } from './types'
 
 /**
+ * Associates connect-wrapped chunks with the run they were produced under.
+ * Content events (TEXT_MESSAGE_CONTENT, TOOL_CALL_*, …) carry no `runId` of
+ * their own, so the connect wrapper stamps the caller's run id here. Lets
+ * run-scoped consumers (e.g. clear-during-stream suppression) attribute those
+ * otherwise-runless chunks to their originating request.
+ */
+const chunkRunIds = new WeakMap<StreamChunk, string>()
+
+/**
+ * Resolve a chunk's run id, preferring the value on the chunk itself
+ * (RUN_STARTED / RUN_FINISHED / RUN_ERROR carry one) and falling back to the
+ * run the connect wrapper stamped it with.
+ */
+export function getChunkRunId(chunk: StreamChunk): string | undefined {
+  return 'runId' in chunk && typeof chunk.runId === 'string'
+    ? chunk.runId
+    : chunkRunIds.get(chunk)
+}
+
+/**
  * Thrown when an SSE/HTTP stream ends with a non-empty unterminated buffer.
  * Indicates the connection was cut mid-line (server crash, dropped TCP, proxy
  * timeout) so the partial content cannot be safely parsed.
@@ -265,7 +285,10 @@ export function normalizeConnectionAdapter(
   let activeBuffer: Array<StreamChunk> = []
   let activeWaiters: Array<(chunk: StreamChunk | null) => void> = []
 
-  function push(chunk: StreamChunk): void {
+  function push(chunk: StreamChunk, runId?: string): void {
+    if (runId) {
+      chunkRunIds.set(chunk, runId)
+    }
     const waiter = activeWaiters.shift()
     if (waiter) {
       waiter(chunk)
@@ -324,7 +347,7 @@ export function normalizeConnectionAdapter(
           if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
             hasTerminalEvent = true
           }
-          push(chunk)
+          push(chunk, runContext?.runId)
         }
 
         // If the connect stream ended cleanly without a terminal event,

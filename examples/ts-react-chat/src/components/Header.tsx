@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import {
   Activity,
+  BadgeCheck,
   Braces,
   FileAudio,
   FileText,
@@ -11,6 +12,7 @@ import {
   Image,
   Menu,
   Mic,
+  MessageSquare,
   Music,
   Server,
   Video,
@@ -211,6 +213,32 @@ export default function Header() {
           >
             <Guitar size={20} />
             <span className="font-medium">Guitar Demo</span>
+          </Link>
+
+          <Link
+            to="/threads"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
+            }}
+          >
+            <MessageSquare size={20} />
+            <span className="font-medium">Persistent Chats</span>
+          </Link>
+
+          <Link
+            to="/example/runtime-context"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-1',
+            }}
+          >
+            <BadgeCheck size={20} />
+            <span className="font-medium">Runtime Context</span>
           </Link>
 
           <Link

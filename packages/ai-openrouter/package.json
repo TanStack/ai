@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-openrouter",
-  "version": "0.10.0",
+  "version": "0.12.1",
   "description": "TanStack AI adapter for OpenRouter chat, provider tools, structured outputs, and access to hundreds of LLMs.",
   "author": "",
   "license": "MIT",

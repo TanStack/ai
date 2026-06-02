@@ -1,3 +1,4 @@
+import { normalizeToolResult } from '../../utilities/tool-result'
 import type {
   ContentPart,
   MessagePart,
@@ -339,7 +340,7 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
     if (part.output !== undefined && !emittedToolResultIds.has(part.id)) {
       messageList.push({
         role: 'tool',
-        content: JSON.stringify(part.output),
+        content: normalizeToolResult(part.output),
         toolCallId: part.id,
       })
       emittedToolResultIds.add(part.id)

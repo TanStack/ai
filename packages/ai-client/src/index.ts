@@ -12,9 +12,12 @@ export type {
   ThinkingPart,
   StructuredOutputPart,
   // Client configuration types
+  ChatClientPersistence,
   ChatClientOptions,
+  ClientContextOptionFromTools,
   ChatRequestBody,
   InferChatMessages,
+  InferredClientContext,
   ChatClientState,
   ConnectionStatus,
   ChatFetcher,

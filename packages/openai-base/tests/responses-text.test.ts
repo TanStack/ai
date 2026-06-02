@@ -1613,6 +1613,56 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
         expect(errorChunk.error!.code).toBe('rate_limit')
       }
     })
+
+    it("forwards the SDK error's `.error` body as RUN_ERROR.rawEvent", async () => {
+      const providerBody = {
+        type: 'insufficient_quota',
+        message: 'You exceeded your current quota',
+        code: 'insufficient_quota',
+      }
+      mockResponsesCreate = vi.fn().mockRejectedValue(
+        Object.assign(new Error('429 You exceeded your current quota'), {
+          status: 429,
+          error: providerBody,
+        }),
+      )
+
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<StreamChunk> = []
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Hello' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const runError = chunks.find((c) => c.type === 'RUN_ERROR')
+      expect(runError).toBeDefined()
+      if (runError?.type === 'RUN_ERROR') {
+        expect(runError.rawEvent).toEqual(providerBody)
+      }
+    })
+
+    it('omits rawEvent when the error carries no provider body', async () => {
+      mockResponsesCreate = vi.fn().mockRejectedValue(new Error('network down'))
+
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<StreamChunk> = []
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Hello' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const runError = chunks.find((c) => c.type === 'RUN_ERROR')
+      expect(runError).toBeDefined()
+      if (runError?.type === 'RUN_ERROR') {
+        expect(runError).not.toHaveProperty('rawEvent')
+      }
+    })
   })
 
   describe('structured output', () => {
@@ -2033,6 +2083,79 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
           }),
         ]),
       )
+    })
+
+    it('converts a multimodal tool result to a structured function_call_output', async () => {
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-mm-1',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-mm-1',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: {
+              input_tokens: 10,
+              output_tokens: 1,
+              total_tokens: 11,
+            },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+
+      const chunks: Array<StreamChunk> = []
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [
+          { role: 'user', content: 'look' },
+          {
+            role: 'assistant',
+            content: '',
+            toolCalls: [
+              {
+                id: 'call_1',
+                type: 'function',
+                function: { name: 'shot', arguments: '{}' },
+              },
+            ],
+          },
+          {
+            role: 'tool',
+            toolCallId: 'call_1',
+            content: [
+              { type: 'text', content: 'screenshot' },
+              {
+                type: 'image',
+                source: { type: 'url', value: 'https://x/y.png' },
+              },
+            ],
+          },
+        ],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      const out = payload.input.find(
+        (i: any) => i.type === 'function_call_output',
+      )
+      expect(Array.isArray(out.output)).toBe(true)
+      expect(out.output).toEqual([
+        { type: 'input_text', text: 'screenshot' },
+        { type: 'input_image', image_url: 'https://x/y.png', detail: 'auto' },
+      ])
     })
   })
 

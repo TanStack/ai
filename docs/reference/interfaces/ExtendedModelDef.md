@@ -3,7 +3,7 @@ id: ExtendedModelDef
 title: ExtendedModelDef
 ---
 
-# Interface: ExtendedModelDef\<TName, TInput, TOptions\>
+# Interface: ExtendedModelDef\<TName, TInput, TOptions, TFeatures, TTools\>
 
 Defined in: [packages/ai/src/extend-adapter.ts:21](https://github.com/TanStack/ai/blob/main/packages/ai/src/extend-adapter.ts#L21)
 
@@ -37,7 +37,27 @@ Array of supported input modalities
 
 Provider options type for this model
 
+### TFeatures
+
+`TFeatures` *extends* `ReadonlyArray`\<`string`\> = `ReadonlyArray`\<`string`\>
+
+### TTools
+
+`TTools` *extends* `ReadonlyArray`\<`string`\> = `ReadonlyArray`\<`string`\>
+
 ## Properties
+
+### features?
+
+```ts
+optional features: TFeatures;
+```
+
+Defined in: [packages/ai/src/extend-adapter.ts:35](https://github.com/TanStack/ai/blob/main/packages/ai/src/extend-adapter.ts#L35)
+
+Optional declared features (e.g. 'reasoning', 'structured_outputs')
+
+***
 
 ### input
 
@@ -45,7 +65,7 @@ Provider options type for this model
 input: TInput;
 ```
 
-Defined in: [packages/ai/src/extend-adapter.ts:29](https://github.com/TanStack/ai/blob/main/packages/ai/src/extend-adapter.ts#L29)
+Defined in: [packages/ai/src/extend-adapter.ts:31](https://github.com/TanStack/ai/blob/main/packages/ai/src/extend-adapter.ts#L31)
 
 Supported input modalities for this model
 
@@ -57,7 +77,7 @@ Supported input modalities for this model
 modelOptions: TOptions;
 ```
 
-Defined in: [packages/ai/src/extend-adapter.ts:31](https://github.com/TanStack/ai/blob/main/packages/ai/src/extend-adapter.ts#L31)
+Defined in: [packages/ai/src/extend-adapter.ts:33](https://github.com/TanStack/ai/blob/main/packages/ai/src/extend-adapter.ts#L33)
 
 Type brand for provider options - use `{} as YourOptionsType`
 
@@ -69,6 +89,18 @@ Type brand for provider options - use `{} as YourOptionsType`
 name: TName;
 ```
 
-Defined in: [packages/ai/src/extend-adapter.ts:27](https://github.com/TanStack/ai/blob/main/packages/ai/src/extend-adapter.ts#L27)
+Defined in: [packages/ai/src/extend-adapter.ts:29](https://github.com/TanStack/ai/blob/main/packages/ai/src/extend-adapter.ts#L29)
 
 The model name identifier
+
+***
+
+### tools?
+
+```ts
+optional tools: TTools;
+```
+
+Defined in: [packages/ai/src/extend-adapter.ts:37](https://github.com/TanStack/ai/blob/main/packages/ai/src/extend-adapter.ts#L37)
+
+Optional declared provider tools (e.g. 'web_search')

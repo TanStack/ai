@@ -46,7 +46,11 @@ export {
   type ToolDefinitionInstance,
 } from './activities/chat/tools/tool-definition'
 
-export { convertSchemaToJsonSchema } from './activities/chat/tools/schema-converter'
+export {
+  convertSchemaToJsonSchema,
+  isStandardSchema,
+  parseWithStandardSchema,
+} from './activities/chat/tools/schema-converter'
 
 export {
   convertMessagesToModelMessages,

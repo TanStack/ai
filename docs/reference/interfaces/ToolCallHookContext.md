@@ -27,7 +27,7 @@ Parsed arguments for the tool call
 
 ```ts
 tool: 
-  | Tool<SchemaInput, SchemaInput, string>
+  | Tool<SchemaInput, SchemaInput, string, unknown>
   | undefined;
 ```
 

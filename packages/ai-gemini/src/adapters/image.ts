@@ -4,6 +4,7 @@ import {
   generateId,
   getGeminiApiKeyFromEnv,
 } from '../utils'
+import { buildGeminiUsage } from '../usage'
 import {
   parseNativeImageSize,
   sizeToAspectRatio,
@@ -214,16 +215,13 @@ export class GeminiImageAdapter<
       id: generateId(this.name),
       model,
       images,
-      // Surface token usage when the model reports it (e.g. Nano Banana via
-      // generateContent). Conditionally spread to satisfy
-      // exactOptionalPropertyTypes — only include usage when present. See #330.
-      ...(response.usageMetadata && {
-        usage: {
-          inputTokens: response.usageMetadata.promptTokenCount ?? 0,
-          outputTokens: response.usageMetadata.candidatesTokenCount ?? 0,
-          totalTokens: response.usageMetadata.totalTokenCount ?? 0,
-        },
-      }),
+      // Surface token usage (with per-modality breakdown) when the model
+      // reports it (e.g. Nano Banana via generateContent). Conditionally spread
+      // to satisfy exactOptionalPropertyTypes — only include usage when
+      // present. See #330.
+      ...(response.usageMetadata
+        ? { usage: buildGeminiUsage(response.usageMetadata) }
+        : {}),
     }
   }
 

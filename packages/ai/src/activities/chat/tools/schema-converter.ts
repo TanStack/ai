@@ -25,6 +25,20 @@ function toJsonSchema(obj: object): JSONSchema {
 }
 
 /**
+ * Whether a value can carry a `~standard` property. Most schema libraries
+ * (Zod, Valibot) return plain objects, but ArkType's `type()` returns a
+ * *callable function* with `~standard` attached — so `typeof` must accept
+ * both `'object'` and `'function'` or ArkType schemas are missed entirely
+ * (issue #276).
+ */
+function isPropertyCarrier(schema: unknown): schema is Record<string, unknown> {
+  return (
+    (typeof schema === 'object' || typeof schema === 'function') &&
+    schema !== null
+  )
+}
+
+/**
  * Check if a value is a Standard JSON Schema compliant schema.
  * Standard JSON Schema compliant libraries (Zod v4+, ArkType, Valibot with toStandardJsonSchema, etc.)
  * implement the '~standard' property with jsonSchema converter methods.
@@ -32,18 +46,23 @@ function toJsonSchema(obj: object): JSONSchema {
 export function isStandardJSONSchema(
   schema: unknown,
 ): schema is StandardJSONSchemaV1 {
-  return (
-    typeof schema === 'object' &&
-    schema !== null &&
-    '~standard' in schema &&
-    typeof (schema as StandardJSONSchemaV1)['~standard'] === 'object' &&
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime guard for caller-provided unknown; type assertion narrows but doesn't validate the wire payload
-    (schema as StandardJSONSchemaV1)['~standard'].version === 1 &&
-    typeof (schema as StandardJSONSchemaV1)['~standard'].jsonSchema ===
-      'object' &&
-    typeof (schema as StandardJSONSchemaV1)['~standard'].jsonSchema.input ===
-      'function'
-  )
+  if (!isPropertyCarrier(schema) || !('~standard' in schema)) return false
+
+  const standard = schema['~standard']
+  if (
+    typeof standard !== 'object' ||
+    standard === null ||
+    !('version' in standard) ||
+    standard.version !== 1 ||
+    !('jsonSchema' in standard) ||
+    typeof standard.jsonSchema !== 'object' ||
+    standard.jsonSchema === null ||
+    !('input' in standard.jsonSchema)
+  ) {
+    return false
+  }
+
+  return typeof standard.jsonSchema.input === 'function'
 }
 
 /**
@@ -52,8 +71,7 @@ export function isStandardJSONSchema(
  */
 export function isStandardSchema(schema: unknown): schema is StandardSchemaV1 {
   return (
-    typeof schema === 'object' &&
-    schema !== null &&
+    isPropertyCarrier(schema) &&
     '~standard' in schema &&
     typeof schema['~standard'] === 'object' &&
     schema['~standard'] !== null &&

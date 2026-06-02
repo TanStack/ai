@@ -31,6 +31,8 @@ describe('chatParamsFromRequestBody', () => {
     expect(result.messages).toHaveLength(1)
     expect(result.tools).toEqual([])
     expect(result.forwardedProps).toEqual({ temperature: 0.7 })
+    expect(result.aguiContext).toEqual([])
+    expect(result.context).toBe(result.aguiContext)
   })
 
   it('preserves the `parts` field on messages (AG-UI strip mode tolerates extras in raw JSON)', async () => {

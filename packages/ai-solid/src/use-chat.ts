@@ -12,6 +12,7 @@ import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import type {
   ChatClientState,
   ConnectionStatus,
+  InferredClientContext,
   StructuredOutputPart,
 } from '@tanstack/ai-client'
 import type {
@@ -32,10 +33,12 @@ import type {
 export function useChat<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
+  TContext = InferredClientContext<TTools>,
 >(
-  options: UseChatOptions<TTools, TSchema> = {} as UseChatOptions<
+  options: UseChatOptions<TTools, TSchema, TContext> = {} as UseChatOptions<
     TTools,
-    TSchema
+    TSchema,
+    TContext
   >,
 ): UseChatReturn<TTools, TSchema> {
   const hookId = createUniqueId()
@@ -73,17 +76,21 @@ export function useChat<
     const transport = options.connection
       ? { connection: options.connection }
       : { fetcher: options.fetcher }
-    return new ChatClient({
+    return new ChatClient<TTools, TContext>({
       devtoolsBridgeFactory: createChatDevtoolsBridge,
       ...transport,
       id: clientId,
       ...(options.initialMessages !== undefined && {
         initialMessages: options.initialMessages,
       }),
+      ...(options.persistence !== undefined && {
+        persistence: options.persistence,
+      }),
       body: options.body,
       ...(options.forwardedProps !== undefined && {
         forwardedProps: options.forwardedProps,
       }),
+      ...(options.context !== undefined && { context: options.context }),
       devtools: {
         ...options.devtools,
         framework: 'solid',
@@ -132,6 +139,8 @@ export function useChat<
     // Connection and other options are captured at creation time
   }, [clientId])
 
+  setMessages(client().getMessages())
+
   // Sync body / forwardedProps changes to the client.
   // Both populate the same wire payload; `forwardedProps` is preferred
   // and `body` is deprecated but still supported.
@@ -143,20 +152,9 @@ export function useChat<
       ...(options.forwardedProps !== undefined && {
         forwardedProps: options.forwardedProps,
       }),
+      context: options.context,
     })
   })
-
-  // Sync initial messages on mount only
-  // Note: initialMessages are passed to ChatClient constructor, but we also
-  // set them here to ensure React state is in sync
-  createEffect(() => {
-    if (options.initialMessages && options.initialMessages.length > 0) {
-      // Only set if current messages are empty (initial state)
-      if (messages().length === 0) {
-        client().setMessagesManually(options.initialMessages)
-      }
-    }
-  }) // Only run on mount - initialMessages are handled by ChatClient constructor
 
   // Apply initial live mode immediately on hook creation.
   if (options.live) {

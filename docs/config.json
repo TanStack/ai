@@ -103,6 +103,10 @@
         {
           "label": "Thinking & Reasoning",
           "to": "chat/thinking-content"
+        },
+        {
+          "label": "Persistence",
+          "to": "chat/persistence"
         }
       ]
     },
@@ -195,6 +199,10 @@
         {
           "label": "Middleware",
           "to": "advanced/middleware"
+        },
+        {
+          "label": "Runtime Context",
+          "to": "advanced/runtime-context"
         },
         {
           "label": "Debug Logging",
@@ -326,6 +334,10 @@
         {
           "label": "OpenRouter Adapter",
           "to": "adapters/openrouter"
+        },
+        {
+          "label": "OpenAI-Compatible",
+          "to": "adapters/openai-compatible"
         }
       ]
     },

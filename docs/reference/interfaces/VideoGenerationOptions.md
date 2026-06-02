@@ -5,7 +5,7 @@ title: VideoGenerationOptions
 
 # Interface: VideoGenerationOptions\<TProviderOptions, TSize\>
 
-Defined in: [packages/ai/src/types.ts:1592](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1592)
+Defined in: [packages/ai/src/types.ts:1627](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1627)
 
 **`Experimental`**
 
@@ -32,7 +32,7 @@ These are the common options supported across providers.
 optional duration: number;
 ```
 
-Defined in: [packages/ai/src/types.ts:1603](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1603)
+Defined in: [packages/ai/src/types.ts:1638](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1638)
 
 **`Experimental`**
 
@@ -46,7 +46,7 @@ Video duration in seconds
 logger: InternalLogger;
 ```
 
-Defined in: [packages/ai/src/types.ts:1610](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1610)
+Defined in: [packages/ai/src/types.ts:1645](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1645)
 
 **`Experimental`**
 
@@ -61,7 +61,7 @@ call logger.request() before the SDK call and logger.errors() in catch blocks.
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1597](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1597)
+Defined in: [packages/ai/src/types.ts:1632](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1632)
 
 **`Experimental`**
 
@@ -75,7 +75,7 @@ The model to use for video generation
 optional modelOptions: TProviderOptions;
 ```
 
-Defined in: [packages/ai/src/types.ts:1605](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1605)
+Defined in: [packages/ai/src/types.ts:1640](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1640)
 
 **`Experimental`**
 
@@ -89,7 +89,7 @@ Model-specific options for video generation
 prompt: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1599](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1599)
+Defined in: [packages/ai/src/types.ts:1634](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1634)
 
 **`Experimental`**
 
@@ -103,7 +103,7 @@ Text description of the desired video
 optional size: TSize;
 ```
 
-Defined in: [packages/ai/src/types.ts:1601](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1601)
+Defined in: [packages/ai/src/types.ts:1636](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1636)
 
 **`Experimental`**
 

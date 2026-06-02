@@ -1,5 +1,127 @@
 # @tanstack/ai-anthropic
 
+## 0.13.1
+
+### Patch Changes
+
+- Updated dependencies [[`5d6cd28`](https://github.com/TanStack/ai/commit/5d6cd2834ba7ac1d7c7c1bd24ede202bf3e78010)]:
+  - @tanstack/ai@0.26.0
+
+## 0.13.0
+
+### Minor Changes
+
+- [#242](https://github.com/TanStack/ai/pull/242) [`c251038`](https://github.com/TanStack/ai/commit/c251038c6d8aa84e498f89e314ce5bb233bc689f) - Enhanced token usage reporting for every provider.
+
+  `TokenUsage` is now the single canonical run-usage type. It is defined once in
+  `@tanstack/ai-event-client` (the dependency-free leaf package) and re-exported by
+  `@tanstack/ai`, so the two packages can no longer drift. It carries optional
+  detailed breakdowns alongside the core token counts: `promptTokensDetails` /
+  `completionTokensDetails` (cached, reasoning, audio, and per-modality tokens),
+  `durationSeconds` for duration-billed models (e.g. Whisper transcription),
+  `providerUsageDetails` for provider-specific metrics, and `cost` / `costDetails`
+  for provider-reported cost — so a single `usage` shape covers counts, detailed
+  breakdowns, and cost.
+
+  `TokenUsage` is generic over its provider details bag —
+  `TokenUsage<TProviderDetails = ProviderUsageDetails>` — so adapters return a
+  strongly-typed `providerUsageDetails` (e.g. `TokenUsage<AnthropicProviderUsageDetails>`)
+  while generic consumers keep the open-record default. The default,
+  `ProviderUsageDetails` (`Record<string, NonNullable<unknown>>`), is now exported and
+  uses non-nullish values rather than `unknown` so `TokenUsage` stays assignable across
+  JSON-serialization boundaries (e.g. TanStack Start server-fn return types). Each
+  provider's usage
+  extractor now returns `undefined` (rather than fabricating zeroed totals) when
+  the provider reports no usage object, so an absent `usage` is distinguishable
+  from a genuine zero-token run.
+
+  `@tanstack/ai` still exports `UsageTotals` as a `@deprecated` alias of
+  `TokenUsage` for backward compatibility; it will be removed in a future release.
+
+  Detailed usage is extracted in one place per SDK surface: OpenAI-compatible
+  providers (OpenAI, Grok, Groq) share the extractors in `@tanstack/openai-base`,
+  while Anthropic, Gemini, Ollama, and OpenRouter normalize their own provider
+  usage. The devtools surface cached and reasoning token badges per iteration.
+
+  Usage is now unified across **every modality**, not just text/chat. Image, audio,
+  and text-to-speech results report the same canonical `TokenUsage` (with
+  per-modality breakdowns) instead of a minimal `inputTokens`/`outputTokens` shape:
+  - `ImageGenerationResult.usage`, `AudioGenerationResult.usage`, and the new
+    `TTSResult.usage` are now typed as `TokenUsage`. **Breaking:** consumers of
+    these fields should read `promptTokens`/`completionTokens` instead of
+    `inputTokens`/`outputTokens`. `@tanstack/ai-event-client`'s `ImageUsage` is now
+    a `@deprecated` alias of `TokenUsage`.
+  - OpenAI/Grok image generation surface the text-vs-image input token breakdown
+    (`promptTokensDetails`), Gemini image/audio/TTS now surface their full
+    `usageMetadata` (previously dropped), and OpenRouter image generation surfaces
+    the chat usage it already returns.
+  - Bug fixes: Ollama no longer produces `NaN` totals or discards duration-only
+    usage; Anthropic defaults missing `output_tokens` and no longer emits empty
+    `promptTokensDetails`/`providerUsageDetails` objects; OpenAI GPT-4o
+    transcription reads the real audio/text input token breakdown and never falls
+    back to duration billing.
+
+  Cross-adapter usage parity fixes:
+  - `PromptTokensDetails`/`CompletionTokensDetails` gain a `documentTokens` field,
+    and Gemini now surfaces `DOCUMENT` modality token counts (e.g. PDF inputs)
+    instead of silently dropping them.
+  - OpenAI-compatible chat (OpenAI/Grok/Groq via `@tanstack/openai-base`) now
+    surfaces Predicted-Outputs `acceptedPredictionTokens`/`rejectedPredictionTokens`
+    under `providerUsageDetails`, matching the OpenRouter adapter (rejected
+    prediction tokens are billed).
+  - Grok transcription (`/v1/stt`) now reports `durationSeconds`, mirroring the
+    Whisper-1 path in the OpenAI transcription adapter.
+
+### Patch Changes
+
+- Updated dependencies [[`c251038`](https://github.com/TanStack/ai/commit/c251038c6d8aa84e498f89e314ce5bb233bc689f)]:
+  - @tanstack/ai@0.25.0
+
+## 0.12.0
+
+### Minor Changes
+
+- [#666](https://github.com/TanStack/ai/pull/666) [`c1ae8b9`](https://github.com/TanStack/ai/commit/c1ae8b94c83d70508975568eb4fc9b45f1af540b) - feat: support multimodal (image) tool results
+
+  Tools may now return an `Array<ContentPart>` (e.g. a text part plus an image part) and have it transmitted to the model as structured multimodal tool output instead of a `JSON.stringify`'d blob. This unblocks use cases like returning a screenshot from a tool so the model can see it (issue [#363](https://github.com/TanStack/ai/issues/363)).
+  - Detection is structural and opt-in by shape: a tool that returns a non-empty array whose every element is a valid `ContentPart` is passed through unchanged; strings and all other return values are serialized exactly as before, so there are no breaking changes.
+  - The OpenAI Responses, Anthropic, and Google Gemini adapters convert the content parts into their native multimodal tool-output formats (`function_call_output.output`, `tool_result` content blocks, and `functionResponse.parts` respectively). Providers on the Chat Completions path (Groq, Ollama, Grok, OpenRouter chat) fall back to stringifying, which their APIs require.
+  - AG-UI stream events (`TOOL_CALL_RESULT.content`, `TOOL_CALL_END.result`) remain string-only per the spec; the multimodal array travels on the tool message itself.
+
+- [#673](https://github.com/TanStack/ai/pull/673) [`a452ae8`](https://github.com/TanStack/ai/commit/a452ae8bcda8abfdc6309983976ed0fbf6df1915) - Populate AG-UI `rawEvent` on `RUN_ERROR` events with the provider's structured error body.
+
+  Previously, when a streaming chat call failed the `RUN_ERROR` event carried only an
+  opaque `{ message, code }` headline (e.g. `"Provider returned error"`), and no adapter
+  populated AG-UI's purpose-built `rawEvent` field — so the upstream provider detail was
+  unrecoverable.
+
+  Adapters now forward the provider's **structured error body** (e.g. an SDK `APIError`'s
+  parsed `.error` response body, or OpenRouter's mid-stream `chunk.error`) as `rawEvent`
+  on the `RUN_ERROR` event. The new `toRunErrorRawEvent` helper extracts only known
+  provider-body fields — never the raw SDK exception object, which can carry request
+  metadata such as auth headers. The `{ message, code }` contract of `toRunErrorPayload`
+  is unchanged.
+
+  The error surfaced to consumers via the `ChatClient` / `useChat` `error` (and the
+  `onError` callback) now also carries `code` and `rawEvent` when present, so the upstream
+  cause is recoverable in application code.
+
+  > Note: the OpenRouter SDK parses each in-band stream chunk's `error` through a strict
+  > schema (`{ code, message }`), so provider `metadata` survives only on pre-stream HTTP
+  > errors (rate-limit / overload / BYOK rejection), whose typed error class exposes the
+  > full body via `.error`.
+
+### Patch Changes
+
+- Updated dependencies [[`c1ae8b9`](https://github.com/TanStack/ai/commit/c1ae8b94c83d70508975568eb4fc9b45f1af540b), [`a452ae8`](https://github.com/TanStack/ai/commit/a452ae8bcda8abfdc6309983976ed0fbf6df1915), [`8036b50`](https://github.com/TanStack/ai/commit/8036b5054330a180023c6e3225b8d2735a43a919)]:
+  - @tanstack/ai@0.24.0
+
+## 0.11.2
+
+### Patch Changes
+
+- [#630](https://github.com/TanStack/ai/pull/630) [`a40f888`](https://github.com/TanStack/ai/commit/a40f88847f382244d752b745402f00aa59e75072) - Update model metadata from OpenRouter API
+
 ## 0.11.1
 
 ### Patch Changes

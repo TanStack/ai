@@ -4,6 +4,16 @@ import type {
 } from '@standard-schema/spec'
 import type { InternalLogger } from './logger/internal-logger'
 import type { SystemPrompt } from './system-prompts'
+// The canonical usage types live in the leaf `@tanstack/ai-event-client`
+// package (which `@tanstack/ai` already depends on) so there is a single source
+// of truth without a dependency cycle. They are re-exported below.
+import type {
+  CompletionTokensDetails,
+  PromptTokensDetails,
+  ProviderUsageDetails,
+  TokenUsage,
+  UsageCostBreakdown,
+} from '@tanstack/ai-event-client'
 import type {
   BaseEvent as AGUIBaseEvent,
   CustomEvent as AGUICustomEvent,
@@ -49,6 +59,8 @@ export type ToolResultState =
   | 'streaming' // Placeholder for future streamed output
   | 'complete' // Result is complete
   | 'error' // Error occurred
+
+export type ToolOutputState = 'output-available' | 'output-error'
 
 /**
  * JSON Schema type for defining tool input/output schemas as raw JSON Schema objects.
@@ -355,7 +367,7 @@ export interface ToolCallPart<TMetadata = unknown> {
 export interface ToolResultPart {
   type: 'tool-result'
   toolCallId: string
-  content: string
+  content: string | Array<ContentPart>
   state: ToolResultState
   error?: string // Error message if state is "error"
 }
@@ -443,33 +455,75 @@ export type ConstrainedModelMessage<
   content: ConstrainedContent<TInputModalitiesTypes>
 }
 
+type IsUnknown<T> = unknown extends T
+  ? [T] extends [unknown]
+    ? true
+    : false
+  : false
+
+type RuntimeContextField<TContext> =
+  IsUnknown<TContext> extends true
+    ? {
+        /**
+         * Runtime context provided by the caller.
+         *
+         * This is request-local application state for tool and middleware
+         * implementations, not the AG-UI `Context[]` protocol field.
+         */
+        context?: TContext
+      }
+    : {
+        /**
+         * Runtime context provided by the caller.
+         *
+         * This is request-local application state for tool and middleware
+         * implementations, not the AG-UI `Context[]` protocol field.
+         */
+        context: TContext
+      }
+
 /**
  * Context passed to tool execute functions, providing capabilities like
  * emitting custom events during execution.
  */
-export interface ToolExecutionContext {
-  /** The ID of the tool call being executed */
-  toolCallId?: string
-  /**
-   * Emit a custom event during tool execution.
-   * Events are streamed to the client in real-time as AG-UI CUSTOM events.
-   *
-   * @param eventName - Name of the custom event
-   * @param value - Event payload value
-   *
-   * @example
-   * ```ts
-   * const tool = toolDefinition({ ... }).server(async (args, context) => {
-   *   context?.emitCustomEvent('progress', { step: 1, total: 3 })
-   *   // ... do work ...
-   *   context?.emitCustomEvent('progress', { step: 2, total: 3 })
-   *   // ... do more work ...
-   *   return result
-   * })
-   * ```
-   */
-  emitCustomEvent: (eventName: string, value: Record<string, any>) => void
-}
+export type ToolExecutionContext<TContext = unknown> =
+  RuntimeContextField<TContext> & {
+    /** The ID of the tool call being executed */
+    toolCallId?: string
+    /**
+     * Emit a custom event during tool execution.
+     * Events are streamed to the client in real-time as AG-UI CUSTOM events.
+     *
+     * @param eventName - Name of the custom event
+     * @param value - Event payload value
+     *
+     * @example
+     * ```ts
+     * const tool = toolDefinition({ ... }).server(async (args, context) => {
+     *   context?.emitCustomEvent('progress', { step: 1, total: 3 })
+     *   // ... do work ...
+     *   context?.emitCustomEvent('progress', { step: 2, total: 3 })
+     *   // ... do more work ...
+     *   return result
+     * })
+     * ```
+     */
+    emitCustomEvent: (eventName: string, value: Record<string, any>) => void
+  }
+
+export type ToolExecuteFunction<
+  TInput extends SchemaInput = SchemaInput,
+  TOutput extends SchemaInput = SchemaInput,
+  TContext = unknown,
+> = undefined extends TContext
+  ? (
+      args: InferSchemaType<TInput>,
+      context?: ToolExecutionContext<TContext>,
+    ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>
+  : (
+      args: InferSchemaType<TInput>,
+      context: ToolExecutionContext<TContext>,
+    ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>
 
 /**
  * Tool/Function definition for function calling.
@@ -488,6 +542,7 @@ export interface Tool<
   TInput extends SchemaInput = SchemaInput,
   TOutput extends SchemaInput = SchemaInput,
   TName extends string = string,
+  TContext = unknown,
 > {
   /**
    * Unique name of the tool (used by the model to call it).
@@ -587,9 +642,7 @@ export interface Tool<
    *   return weather; // Can return object or string
    * }
    */
-  execute?:
-    | ((args: any, context?: ToolExecutionContext) => Promise<any> | any)
-    | undefined
+  execute?: ToolExecuteFunction<TInput, TOutput, TContext> | undefined
 
   /** If true, tool execution requires user approval before running. Works with both server and client tools. */
   needsApproval?: boolean
@@ -599,6 +652,10 @@ export interface Tool<
 
   /** Additional metadata for adapters or custom extensions */
   metadata?: Record<string, any> | undefined
+}
+
+export type AnyTool = Omit<Tool<any, any, any, any>, 'execute'> & {
+  execute?: ((args: any, context?: any) => any) | undefined
 }
 
 export interface ToolConfig {
@@ -729,10 +786,16 @@ export type AgentLoopStrategy = (state: AgentLoopState) => boolean
 export interface TextOptions<
   TProviderOptionsSuperset extends Record<string, any> = Record<string, any>,
   TProviderOptionsForModel = TProviderOptionsSuperset,
+  TContext = unknown,
 > {
   model: string
   messages: Array<ModelMessage>
-  tools?: Array<Tool<any, any, any>> | undefined
+  tools?: Array<AnyTool> | undefined
+  /**
+   * Runtime context provided by the caller and passed to middleware and
+   * server-side tool implementations.
+   */
+  context?: TContext
   /**
    * System prompts to include with the request.
    *
@@ -890,38 +953,22 @@ export interface RunStartedEvent extends AGUIRunStartedEvent {
   model?: string
 }
 
-/**
- * Provider-reported cost breakdown for a single request, normalized onto a
- * canonical shape so consumer code is portable across gateways. Each adapter's
- * extractor maps its provider-specific wire keys (e.g. OpenRouter's
- * `upstream_inference_prompt_cost`, `upstream_inference_input_cost`) onto these
- * fields at runtime.
- */
-export interface UsageCostBreakdown {
-  /** Total cost the gateway paid the upstream provider. */
-  upstreamCost?: number
-  /** Upstream cost for input (prompt) tokens. */
-  upstreamInputCost?: number
-  /** Upstream cost for output (completion) tokens. */
-  upstreamOutputCost?: number
+// Re-export the canonical usage types (defined in `@tanstack/ai-event-client`)
+// so `@tanstack/ai` consumers keep importing them from here unchanged.
+export type {
+  CompletionTokensDetails,
+  PromptTokensDetails,
+  ProviderUsageDetails,
+  TokenUsage,
+  UsageCostBreakdown,
 }
 
 /**
- * Token usage totals for a run, optionally including provider-reported cost.
- *
- * `cost` and `costDetails` are populated only by adapters whose provider returns
- * authoritative per-request cost (e.g. OpenRouter). They are absent for adapters
- * that do not report cost, so consumers must treat them as optional.
+ * @deprecated Renamed to {@link TokenUsage}. Kept as an alias for backward
+ * compatibility with `@tanstack/ai@0.23` and earlier; will be removed in a
+ * future release.
  */
-export interface UsageTotals {
-  promptTokens: number
-  completionTokens: number
-  totalTokens: number
-  /** Provider-reported cost for the request, when available. */
-  cost?: number
-  /** Provider-reported cost breakdown, when available. */
-  costDetails?: UsageCostBreakdown
-}
+export type UsageTotals = TokenUsage
 
 /**
  * Emitted when a run completes successfully.
@@ -934,8 +981,8 @@ export interface RunFinishedEvent extends AGUIRunFinishedEvent {
   model?: string
   /** Why the generation stopped */
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
-  /** Token usage statistics, optionally including provider-reported cost. */
-  usage?: UsageTotals
+  /** Token usage statistics with optional detailed breakdowns and provider-reported cost. */
+  usage?: TokenUsage
 }
 
 /**
@@ -1049,7 +1096,9 @@ export interface ToolCallEndEvent extends AGUIToolCallEndEvent {
   /** Final parsed input arguments (TanStack AI internal) */
   input?: unknown
   /** Tool execution result (TanStack AI internal) */
-  result?: string
+  result?: string | Array<ContentPart>
+  /** Tool execution output state (TanStack AI internal) */
+  state?: ToolOutputState
 }
 
 /**
@@ -1061,6 +1110,8 @@ export interface ToolCallEndEvent extends AGUIToolCallEndEvent {
 export interface ToolCallResultEvent extends AGUIToolCallResultEvent {
   /** Model identifier for multi-model support */
   model?: string
+  /** Tool execution output state (TanStack AI internal) */
+  state?: ToolOutputState
 }
 
 /**
@@ -1381,11 +1432,7 @@ export interface TextCompletionChunk {
   content: string
   role?: 'assistant'
   finishReason?: 'stop' | 'length' | 'content_filter' | null
-  usage?: {
-    promptTokens: number
-    completionTokens: number
-    totalTokens: number
-  }
+  usage?: TokenUsage
 }
 
 export interface SummarizationOptions<
@@ -1409,11 +1456,7 @@ export interface SummarizationResult {
   id: string
   model: string
   summary: string
-  usage: {
-    promptTokens: number
-    completionTokens: number
-    totalTokens: number
-  }
+  usage: TokenUsage
 }
 
 // ============================================================================
@@ -1482,11 +1525,7 @@ export interface ImageGenerationResult {
   /** Array of generated images */
   images: Array<GeneratedImage>
   /** Token usage information (if available) */
-  usage?: {
-    inputTokens?: number
-    outputTokens?: number
-    totalTokens?: number
-  }
+  usage?: TokenUsage
 }
 
 // ============================================================================
@@ -1537,11 +1576,7 @@ export interface AudioGenerationResult {
   /** The generated audio */
   audio: GeneratedAudio
   /** Token usage information (if available) */
-  usage?: {
-    inputTokens?: number
-    outputTokens?: number
-    totalTokens?: number
-  }
+  usage?: TokenUsage
 }
 
 // ============================================================================
@@ -1662,6 +1697,8 @@ export interface TTSResult {
   duration?: number
   /** Content type of the audio (e.g., 'audio/mp3') */
   contentType?: string
+  /** Token usage information (if provided by the adapter) */
+  usage?: TokenUsage
 }
 
 // ============================================================================
@@ -1743,6 +1780,8 @@ export interface TranscriptionResult {
   segments?: Array<TranscriptionSegment>
   /** Word-level timestamps, if available */
   words?: Array<TranscriptionWord>
+  /** Token usage information (if provided by the adapter) */
+  usage?: TokenUsage
 }
 
 /**

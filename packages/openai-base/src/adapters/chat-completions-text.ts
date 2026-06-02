@@ -1,9 +1,13 @@
 import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
-import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
+import {
+  toRunErrorPayload,
+  toRunErrorRawEvent,
+} from '@tanstack/ai/adapter-internals'
 import { generateId, transformNullsToUndefined } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../utils/request-options'
 import { makeStructuredOutputCompatible } from '../utils/schema-converter'
+import { buildChatCompletionsUsage } from '../usage'
 import { convertToolsToChatCompletionsFormat } from './chat-completions-tool-converter'
 import type OpenAI from 'openai'
 import type {
@@ -96,6 +100,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         error,
         `${this.name}.chatStream failed`,
       )
+      const rawEvent = toRunErrorRawEvent(error)
 
       // Emit RUN_STARTED if not yet emitted
       if (!aguiState.hasEmittedRunStarted) {
@@ -120,6 +125,10 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         timestamp: Date.now(),
         message: errorPayload.message,
         code: errorPayload.code,
+        // Forward the provider's structured error body so consumers can recover
+        // the upstream detail the `{ message, code }` payload drops. Omitted
+        // when the error carried no provider body (see toRunErrorRawEvent).
+        ...(rawEvent !== undefined && { rawEvent }),
         error: {
           message: errorPayload.message,
           code: errorPayload.code,
@@ -498,11 +507,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         timestamp,
         finishReason: 'stop',
         ...(lastUsage && {
-          usage: {
-            promptTokens: lastUsage.prompt_tokens,
-            completionTokens: lastUsage.completion_tokens,
-            totalTokens: lastUsage.total_tokens,
-          },
+          usage: buildChatCompletionsUsage(lastUsage),
         }),
       }
     } catch (error: unknown) {
@@ -528,6 +533,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       // `exactOptionalPropertyTypes`: AG-UI's `RunErrorEvent.code` is `string?`
       // (absent vs explicit `undefined` matter).
       const resolvedCode = isAbort ? 'aborted' : errorPayload.code
+      const rawEvent = isAbort ? undefined : toRunErrorRawEvent(error)
       yield {
         type: EventType.RUN_ERROR,
         runId: aguiState.runId,
@@ -535,6 +541,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         timestamp,
         message: errorPayload.message,
         ...(resolvedCode !== undefined && { code: resolvedCode }),
+        ...(rawEvent !== undefined && { rawEvent }),
         error: {
           message: errorPayload.message,
           ...(resolvedCode !== undefined && { code: resolvedCode }),
@@ -1053,11 +1060,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           model: lastModel || options.model,
           timestamp: Date.now(),
           ...(lastUsage && {
-            usage: {
-              promptTokens: lastUsage.prompt_tokens || 0,
-              completionTokens: lastUsage.completion_tokens || 0,
-              totalTokens: lastUsage.total_tokens || 0,
-            },
+            usage: buildChatCompletionsUsage(lastUsage),
           }),
           finishReason,
         }
@@ -1069,19 +1072,22 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         error,
         `${this.name}.processStreamChunks failed`,
       )
+      const rawEvent = toRunErrorRawEvent(error)
       options.logger.errors(`${this.name}.processStreamChunks fatal`, {
         error: errorPayload,
         source: `${this.name}.processStreamChunks`,
       })
 
       // Emit AG-UI RUN_ERROR with conditional `code` spread (see chatStream's
-      // catch block for the rationale).
+      // catch block for the rationale). `rawEvent` carries the provider's
+      // structured error body when present.
       yield {
         type: EventType.RUN_ERROR,
         model: options.model,
         timestamp: Date.now(),
         message: errorPayload.message,
         ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+        ...(rawEvent !== undefined && { rawEvent }),
         error: {
           message: errorPayload.message,
           ...(errorPayload.code !== undefined && { code: errorPayload.code }),
@@ -1188,6 +1194,12 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   protected convertMessage(message: ModelMessage): ChatCompletionMessageParam {
     // Handle tool messages
     if (message.role === 'tool') {
+      // The Chat Completions API has no multimodal `tool` message support
+      // (unlike the Responses API's `function_call_output`). A tool that
+      // returns an `Array<ContentPart>` is therefore stringified here — the
+      // documented fallback for providers on the chat-completions path
+      // (Groq, Ollama, Grok, OpenRouter chat). Multimodal tool results are
+      // only delivered structurally via the Responses adapter.
       return {
         role: 'tool',
         tool_call_id: message.toolCallId || '',

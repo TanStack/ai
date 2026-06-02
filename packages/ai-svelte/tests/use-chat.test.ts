@@ -54,6 +54,59 @@ describe('createChat', () => {
     expect(chat.messages[0]!.role).toBe('user')
   })
 
+  it('should initialize with persisted messages', () => {
+    const mockConnection = createMockConnectionAdapter({ chunks: [] })
+    const persistedMessages = [
+      {
+        id: 'persisted-1',
+        role: 'user' as const,
+        parts: [{ type: 'text' as const, content: 'Persisted' }],
+        createdAt: new Date(),
+      },
+    ]
+    const persistence = {
+      getItem: vi.fn(() => persistedMessages),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    }
+
+    const chat = createChat({
+      connection: mockConnection,
+      id: 'persisted-chat',
+      persistence,
+    })
+
+    expect(chat.messages).toEqual(persistedMessages)
+    expect(persistence.getItem).toHaveBeenCalledWith('persisted-chat')
+  })
+
+  it('should let persisted empty arrays override initial messages', () => {
+    const mockConnection = createMockConnectionAdapter({ chunks: [] })
+    const initialMessages = [
+      {
+        id: 'initial-1',
+        role: 'user' as const,
+        parts: [{ type: 'text' as const, content: 'Initial' }],
+        createdAt: new Date(),
+      },
+    ]
+    const persistence = {
+      getItem: vi.fn(() => []),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    }
+
+    const chat = createChat({
+      connection: mockConnection,
+      id: 'persisted-chat',
+      initialMessages,
+      persistence,
+    })
+
+    expect(chat.messages).toEqual([])
+    expect(persistence.getItem).toHaveBeenCalledWith('persisted-chat')
+  })
+
   it('should have sendMessage method', () => {
     const mockConnection = createMockConnectionAdapter({ chunks: [] })
 

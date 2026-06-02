@@ -5,8 +5,9 @@
 
 import { describe, expectTypeOf, it } from 'vitest'
 import type { StandardJSONSchemaV1 } from '@standard-schema/spec'
-import type { AnyClientTool } from '@tanstack/ai'
-import type { StructuredOutputPart } from '@tanstack/ai-client'
+import { toolDefinition, type AnyClientTool } from '@tanstack/ai'
+import { clientTools, type StructuredOutputPart } from '@tanstack/ai-client'
+import { createChat } from '../src/create-chat.svelte'
 import type {
   CreateChatOptions,
   CreateChatReturn,
@@ -59,6 +60,79 @@ describe('createChat() return type (svelte)', () => {
       expectTypeOf<StructuredPart['data']>().toEqualTypeOf<
         unknown | undefined
       >()
+    })
+  })
+
+  describe('with runtime context', () => {
+    it('types context options and updateContext', () => {
+      type ClientContext = { localUserId: string }
+      type O = CreateChatOptions<NoTools, undefined, ClientContext>
+      type R = CreateChatReturn<NoTools, undefined, ClientContext>
+
+      expectTypeOf<O['context']>().toEqualTypeOf<ClientContext | undefined>()
+      expectTypeOf<R['updateContext']>().toEqualTypeOf<
+        (context: ClientContext) => void
+      >()
+    })
+  })
+
+  describe('with typed client tool context', () => {
+    it('requires context matching the tool tuple', () => {
+      type ClientContext = { localUserId: string; a: 'literal' }
+      const tool = toolDefinition({
+        name: 'svelteClientContextTool',
+        description: 'Requires client context',
+      }).client<ClientContext>(() => ({ ok: true }))
+      const tools = clientTools(tool)
+
+      const options: CreateChatOptions<typeof tools> = {
+        connection: {
+          connect: async function* () {},
+        },
+        tools,
+        context: { localUserId: 'local-1', a: 'literal' },
+      }
+
+      expectTypeOf(options.context).toEqualTypeOf<ClientContext>()
+
+      const missingLiteral: CreateChatOptions<typeof tools> = {
+        connection: {
+          connect: async function* () {},
+        },
+        tools,
+        // @ts-expect-error - the literal context property is required
+        context: { localUserId: 'local-1' },
+      }
+      void missingLiteral
+
+      // @ts-expect-error - context is required when a client tool declares it
+      const missingContext: CreateChatOptions<typeof tools> = {
+        connection: {
+          connect: async function* () {},
+        },
+        tools,
+      }
+      void missingContext
+
+      const checkCreateChatCall = () => {
+        createChat({
+          connection: {
+            connect: async function* () {},
+          },
+          tools,
+          context: { localUserId: 'local-1', a: 'literal' },
+        })
+
+        createChat({
+          connection: {
+            connect: async function* () {},
+          },
+          tools,
+          // @ts-expect-error - the literal context property is required
+          context: { localUserId: 'local-1' },
+        })
+      }
+      void checkCreateChatCall
     })
   })
 })

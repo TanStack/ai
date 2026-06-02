@@ -6,15 +6,19 @@ import {
   toolToBinding,
   toolsToBindings,
 } from '../src/bindings/tool-to-binding'
+import type { ToolBinding, ToolExecutionContext } from '../src/types'
 
-function createMockServerTool(name: string, description = 'A test tool') {
+function createMockServerTool<TName extends string>(
+  name: TName,
+  description = 'A test tool',
+) {
   const def = toolDefinition({
-    name: name as any,
+    name,
     description,
     inputSchema: z.object({ query: z.string() }),
     outputSchema: z.object({ result: z.string() }),
   })
-  return def.server(async (input: any) => ({
+  return def.server(async (input) => ({
     result: `response to ${input.query}`,
   }))
 }
@@ -39,12 +43,13 @@ describe('toolToBinding', () => {
 
   it('throws for ToolDefinition without execute', () => {
     const def = toolDefinition({
-      name: 'noExec' as any,
+      name: 'noExec',
       description: 'No execute',
       inputSchema: z.object({ x: z.string() }),
     })
 
-    expect(() => toolToBinding(def)).toThrow('.server(fn)')
+    // @ts-expect-error - bare definitions are rejected by the Code Mode API.
+    expect(() => toolToBinding(def)).toThrow('server tools')
   })
 
   it('execute function calls through to the tool', async () => {
@@ -81,16 +86,17 @@ describe('toolsToBindings', () => {
 
 describe('createEventAwareBindings', () => {
   function makeBinding(name: string) {
+    const execute = vi.fn<ToolBinding['execute']>().mockResolvedValue('ok')
     return {
       name,
       description: 'test',
       inputSchema: {},
-      execute: vi.fn().mockResolvedValue('ok'),
+      execute,
     }
   }
 
   it('emits code_mode:external_call before execution', async () => {
-    const emitCustomEvent = vi.fn()
+    const emitCustomEvent = vi.fn<ToolExecutionContext['emitCustomEvent']>()
     const binding = makeBinding('external_fetch')
     const wrapped = createEventAwareBindings(
       { external_fetch: binding },
@@ -110,7 +116,7 @@ describe('createEventAwareBindings', () => {
   })
 
   it('emits code_mode:external_result after success with duration', async () => {
-    const emitCustomEvent = vi.fn()
+    const emitCustomEvent = vi.fn<ToolExecutionContext['emitCustomEvent']>()
     const binding = makeBinding('external_fetch')
     const wrapped = createEventAwareBindings(
       { external_fetch: binding },
@@ -130,7 +136,7 @@ describe('createEventAwareBindings', () => {
   })
 
   it('emits code_mode:external_error on failure and re-throws', async () => {
-    const emitCustomEvent = vi.fn()
+    const emitCustomEvent = vi.fn<ToolExecutionContext['emitCustomEvent']>()
     const error = new Error('network fail')
     const binding = makeBinding('external_fetch')
     binding.execute.mockRejectedValue(error)
@@ -155,7 +161,7 @@ describe('createEventAwareBindings', () => {
   })
 
   it('event data includes function name, args, and timestamps', async () => {
-    const emitCustomEvent = vi.fn()
+    const emitCustomEvent = vi.fn<ToolExecutionContext['emitCustomEvent']>()
     const binding = makeBinding('external_search')
     const wrapped = createEventAwareBindings(
       { external_search: binding },

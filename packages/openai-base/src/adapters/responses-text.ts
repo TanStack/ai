@@ -1,9 +1,13 @@
 import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
-import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
+import {
+  toRunErrorPayload,
+  toRunErrorRawEvent,
+} from '@tanstack/ai/adapter-internals'
 import { generateId, transformNullsToUndefined } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../utils/request-options'
 import { makeStructuredOutputCompatible } from '../utils/schema-converter'
+import { buildResponsesUsage } from '../usage'
 import { convertToolsToResponsesFormat } from './responses-tool-converter'
 import type OpenAI from 'openai'
 import type {
@@ -13,6 +17,7 @@ import type {
 import type {
   Response,
   ResponseCreateParams,
+  ResponseFunctionCallOutputItem,
   ResponseInput,
   ResponseInputContent,
   ResponseStreamEvent,
@@ -119,6 +124,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         error,
         `${this.name}.chatStream failed`,
       )
+      const rawEvent = toRunErrorRawEvent(error)
 
       // Emit RUN_STARTED if not yet emitted
       if (!aguiState.hasEmittedRunStarted) {
@@ -143,6 +149,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         timestamp: Date.now(),
         message: errorPayload.message,
         code: errorPayload.code,
+        // Forward the provider's structured error body when present (see
+        // toRunErrorRawEvent); omitted otherwise.
+        ...(rawEvent !== undefined && { rawEvent }),
         error: {
           message: errorPayload.message,
           code: errorPayload.code,
@@ -590,11 +599,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         timestamp,
         finishReason: 'stop',
         ...(usage && {
-          usage: {
-            promptTokens: usage.input_tokens,
-            completionTokens: usage.output_tokens,
-            totalTokens: usage.total_tokens,
-          },
+          usage: buildResponsesUsage(usage),
         }),
       }
     } catch (error: unknown) {
@@ -619,6 +624,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       // Conditional `code` spread keeps the wire shape spec-compliant under
       // `exactOptionalPropertyTypes` (see chatStream catch).
       const resolvedCode = isAbort ? 'aborted' : errorPayload.code
+      const rawEvent = isAbort ? undefined : toRunErrorRawEvent(error)
       yield {
         type: EventType.RUN_ERROR,
         runId: aguiState.runId,
@@ -626,6 +632,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         timestamp,
         message: errorPayload.message,
         ...(resolvedCode !== undefined && { code: resolvedCode }),
+        ...(rawEvent !== undefined && { rawEvent }),
         error: {
           message: errorPayload.message,
           ...(resolvedCode !== undefined && { code: resolvedCode }),
@@ -1501,11 +1508,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             threadId: aguiState.threadId,
             model: model || options.model,
             timestamp: Date.now(),
-            usage: {
-              promptTokens: chunk.response.usage?.input_tokens || 0,
-              completionTokens: chunk.response.usage?.output_tokens || 0,
-              totalTokens: chunk.response.usage?.total_tokens || 0,
-            },
+            // Omit usage entirely when the provider reported none rather than
+            // emitting fabricated zeros (also satisfies exactOptionalPropertyTypes).
+            ...(chunk.response.usage && {
+              usage: buildResponsesUsage(chunk.response.usage),
+            }),
             finishReason,
           }
           runFinishedEmitted = true
@@ -1570,18 +1577,21 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         error,
         `${this.name}.processStreamChunks failed`,
       )
+      const rawEvent = toRunErrorRawEvent(error)
       options.logger.errors(`${this.name}.processStreamChunks fatal`, {
         error: errorPayload,
         source: `${this.name}.processStreamChunks`,
       })
       // Emit AG-UI RUN_ERROR with conditional `code` spread (see chatStream
-      // catch for the rationale).
+      // catch for the rationale). `rawEvent` carries the provider's structured
+      // error body when present.
       yield {
         type: EventType.RUN_ERROR,
         model: options.model,
         timestamp: Date.now(),
         message: errorPayload.message,
         ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+        ...(rawEvent !== undefined && { rawEvent }),
         error: {
           message: errorPayload.message,
           ...(errorPayload.code !== undefined && { code: errorPayload.code }),
@@ -1685,13 +1695,17 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     for (const message of messages) {
       // Handle tool messages - convert to FunctionToolCallOutput
       if (message.role === 'tool') {
+        const toolContent = message.content
+        const output: string | Array<ResponseFunctionCallOutputItem> =
+          Array.isArray(toolContent)
+            ? toolContent.map((part) => this.convertContentPartToInput(part))
+            : typeof toolContent === 'string'
+              ? toolContent
+              : JSON.stringify(toolContent)
         result.push({
           type: 'function_call_output',
           call_id: message.toolCallId || '',
-          output:
-            typeof message.content === 'string'
-              ? message.content
-              : JSON.stringify(message.content),
+          output,
         })
         continue
       }

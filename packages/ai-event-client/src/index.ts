@@ -130,6 +130,108 @@ export interface ToolCall<TMetadata = unknown> {
 }
 
 /**
+ * Detailed breakdown of prompt/input token usage.
+ * Fields are populated based on provider support.
+ */
+export interface PromptTokensDetails {
+  /** Tokens read from cache */
+  cachedTokens?: number
+  /** Tokens written to cache */
+  cacheWriteTokens?: number
+  /** Audio input tokens */
+  audioTokens?: number
+  /** Video input tokens */
+  videoTokens?: number
+  /** Image input tokens */
+  imageTokens?: number
+  /** Text input tokens */
+  textTokens?: number
+  /** Document input tokens (e.g. PDF inputs on Gemini) */
+  documentTokens?: number
+}
+
+/**
+ * Detailed breakdown of completion/output token usage.
+ * Fields are populated based on provider support.
+ */
+export interface CompletionTokensDetails {
+  /** Reasoning/thinking tokens */
+  reasoningTokens?: number
+  /** Audio output tokens */
+  audioTokens?: number
+  /** Video output tokens */
+  videoTokens?: number
+  /** Image output tokens */
+  imageTokens?: number
+  /** Text output tokens */
+  textTokens?: number
+  /** Document output tokens */
+  documentTokens?: number
+}
+
+/**
+ * Provider-reported cost breakdown for a single request, normalized onto a
+ * canonical shape so consumer code is portable across gateways. Each adapter's
+ * extractor maps its provider-specific wire keys (e.g. OpenRouter's
+ * `upstream_inference_prompt_cost`, `upstream_inference_input_cost`) onto these
+ * fields at runtime.
+ */
+export interface UsageCostBreakdown {
+  /** Total cost the gateway paid the upstream provider. */
+  upstreamCost?: number
+  /** Upstream cost for input (prompt) tokens. */
+  upstreamInputCost?: number
+  /** Upstream cost for output (completion) tokens. */
+  upstreamOutputCost?: number
+}
+
+/**
+ * Default value type for {@link TokenUsage.providerUsageDetails} when an adapter
+ * does not supply a specific shape. Values are constrained to non-nullish
+ * (`NonNullable<unknown>`, i.e. `{}`) rather than `unknown` so that `TokenUsage`
+ * stays assignable across JSON-serialization boundaries — e.g. TanStack Start's
+ * server-fn return types model serializable values as `{}` and reject `unknown`,
+ * which permits `null`/`undefined`.
+ */
+export type ProviderUsageDetails = Record<string, NonNullable<unknown>>
+
+/**
+ * Canonical token usage for a run, with optional detailed breakdowns and
+ * provider-reported cost. This is the single source of truth re-exported by
+ * `@tanstack/ai`.
+ *
+ * Core fields (`promptTokens`, `completionTokens`, `totalTokens`) are always
+ * present. Detail fields are provider-dependent and absent when not reported,
+ * so consumers must treat them as optional.
+ *
+ * `providerUsageDetails` is parameterized via `TProviderDetails` so adapters can
+ * surface a strongly-typed bag (e.g. `TokenUsage<AnthropicProviderUsageDetails>`);
+ * it defaults to {@link ProviderUsageDetails} (an open, serializable record) for
+ * generic consumers.
+ */
+export interface TokenUsage<TProviderDetails = ProviderUsageDetails> {
+  /** Total input/prompt tokens */
+  promptTokens: number
+  /** Total output/completion tokens */
+  completionTokens: number
+  /** Total tokens as reported by the provider; may exceed promptTokens +
+   * completionTokens when reasoning/cache/tool tokens are billed separately. */
+  totalTokens: number
+  /** Detailed breakdown of prompt tokens by category */
+  promptTokensDetails?: PromptTokensDetails
+  /** Detailed breakdown of completion tokens by category */
+  completionTokensDetails?: CompletionTokensDetails
+  /** Duration in seconds for duration-based billing (e.g., Whisper transcription) */
+  durationSeconds?: number
+  /** Provider-specific usage details not covered by standard fields */
+  providerUsageDetails?: TProviderDetails
+  /** Provider-reported cost for the request, when available. */
+  cost?: number
+  /** Provider-reported cost breakdown, when available. */
+  costDetails?: UsageCostBreakdown
+}
+
+/**
  * Tool call states - track the lifecycle of a tool call
  * Must match @tanstack/ai-client ToolCallState
  */
@@ -150,17 +252,12 @@ export type ToolResultState =
   | 'complete' // Result is complete
   | 'error' // Error occurred
 
-export interface TokenUsage {
-  promptTokens: number
-  completionTokens: number
-  totalTokens: number
-}
-
-export interface ImageUsage {
-  inputTokens?: number
-  outputTokens?: number
-  totalTokens?: number
-}
+/**
+ * @deprecated Image and audio usage now use the canonical {@link TokenUsage}
+ * shape. Kept as an alias for backward compatibility; will be removed in a
+ * future release.
+ */
+export type ImageUsage = TokenUsage
 
 // All optional fields explicitly allow `| undefined` so that callers
 // can spread shared-context builders (which set every field to a
@@ -524,7 +621,7 @@ export interface ImageRequestCompletedEvent extends BaseEventContext {
 export interface ImageUsageEvent extends BaseEventContext {
   requestId: string
   model: string
-  usage: ImageUsage
+  usage: TokenUsage
 }
 
 // ===========================
@@ -664,7 +761,7 @@ export interface TranscriptionRequestErrorEvent extends BaseEventContext {
 export interface AudioUsageEvent extends BaseEventContext {
   requestId: string
   model: string
-  usage: ImageUsage
+  usage: TokenUsage
 }
 
 // ===========================

@@ -9,6 +9,7 @@ export type Provider =
   | 'groq'
   | 'openrouter'
   | 'openrouter-responses'
+  | 'openai-compatible'
   | 'elevenlabs'
 
 export type Feature =
@@ -46,6 +47,7 @@ export const ALL_PROVIDERS: Provider[] = [
   'groq',
   'openrouter',
   'openrouter-responses',
+  'openai-compatible',
   'elevenlabs',
 ]
 
