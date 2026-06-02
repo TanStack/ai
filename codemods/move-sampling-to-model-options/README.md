@@ -15,11 +15,18 @@ The provider is resolved from the `adapter:` property's factory call (e.g.
 `openaiText('gpt-4o')` → `openai`). Each present root prop is moved into
 `modelOptions` under its provider-specific name:
 
-| Root prop     | openai              | anthropic     | gemini            | grok          | groq                    | openrouter            | ollama (nested)       |
+| Root prop     | openai (Responses)  | anthropic     | gemini            | grok          | groq                    | openrouter            | ollama (nested)       |
 | ------------- | ------------------- | ------------- | ----------------- | ------------- | ----------------------- | --------------------- | --------------------- |
 | `temperature` | `temperature`       | `temperature` | `temperature`     | `temperature` | `temperature`           | `temperature`         | `options.temperature` |
 | `topP`        | `top_p`             | `top_p`       | `topP`            | `top_p`       | `top_p`                 | `topP`                | `options.top_p`       |
 | `maxTokens`   | `max_output_tokens` | `max_tokens`  | `maxOutputTokens` | `max_tokens`  | `max_completion_tokens` | `maxCompletionTokens` | `options.num_predict` |
+
+The `openai` column above is the **Responses** adapter (`openaiText`), whose
+`maxTokens` key is `max_output_tokens`. The **Chat Completions** adapter
+(`openaiChatCompletions`) instead uses `max_tokens`, and is _not_ auto-resolved
+by this codemod — those call sites are left untouched and reported, so migrate
+them by hand: `temperature → temperature`, `topP → top_p`,
+`maxTokens → max_tokens`.
 
 For **ollama**, the renamed keys are nested inside a `options` object **within**
 `modelOptions` (e.g. `modelOptions: { options: { temperature, num_predict } }`).
@@ -47,8 +54,9 @@ chat({
 ```
 
 If `modelOptions` already exists (as an object literal), the renamed keys are
-merged into it. Original value expressions are preserved, and shorthand props
-(`{ temperature }`) are expanded to `key: temperature`.
+merged into it. Original value expressions are preserved; a shorthand prop
+(`{ temperature }`) whose provider key is unchanged stays shorthand
+(`{ temperature }`), and one whose key is renamed becomes `newKey: temperature`.
 
 ## Running it
 

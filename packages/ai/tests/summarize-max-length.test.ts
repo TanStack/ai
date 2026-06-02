@@ -75,7 +75,7 @@ describe('ChatStreamSummarizeAdapter — maxLength reaches the wrapped adapter u
     expect(opts?.['maxTokens']).toBeUndefined()
   })
 
-  it('Ollama adapter receives maxLength nested under options.num_predict', async () => {
+  it('Ollama adapter receives maxLength AND the temperature default nested under options', async () => {
     const { textAdapter, lastModelOptions } = createRecordingTextAdapter()
     const adapter = new ChatStreamSummarizeAdapter(
       textAdapter,
@@ -93,6 +93,11 @@ describe('ChatStreamSummarizeAdapter — maxLength reaches the wrapped adapter u
     const opts = lastModelOptions()
     const nested = opts?.['options'] as Record<string, unknown> | undefined
     expect(nested?.['num_predict']).toBe(64)
+    // Ollama reads sampling only from `modelOptions.options`, so the
+    // temperature default must be nested too — a flat `temperature` would be
+    // silently dropped at the wire while still showing up in OTel.
+    expect(nested?.['temperature']).toBe(0.3)
+    expect(opts?.['temperature']).toBeUndefined()
   })
 
   it('does not override a caller-supplied token limit', async () => {
@@ -118,16 +123,26 @@ describe('ChatStreamSummarizeAdapter — maxLength reaches the wrapped adapter u
     expect(opts?.['temperature']).toBe(0.9)
   })
 
-  it('unknown adapter name sets no token key (falls back to prompt hint only)', async () => {
+  it('unknown adapter name sets no token key and warns instead of silently dropping maxLength', async () => {
     const { textAdapter, lastModelOptions } = createRecordingTextAdapter()
     // Default name is 'chat-stream-summarize' — not a recognised provider.
     const adapter = new ChatStreamSummarizeAdapter(textAdapter, 'some-model')
+
+    const warnings: Array<string> = []
+    const warnLogger = resolveDebugOption({
+      logger: {
+        debug: () => {},
+        info: () => {},
+        warn: (message: string) => warnings.push(message),
+        error: () => {},
+      },
+    })
 
     await adapter.summarize({
       model: 'some-model',
       text: 'hi',
       maxLength: 128,
-      logger,
+      logger: warnLogger,
     })
 
     const opts = lastModelOptions()
@@ -135,5 +150,7 @@ describe('ChatStreamSummarizeAdapter — maxLength reaches the wrapped adapter u
     expect(opts?.['max_tokens']).toBeUndefined()
     expect(opts?.['maxTokens']).toBeUndefined()
     expect(opts?.['options']).toBeUndefined()
+    // The drop must be surfaced, not silent.
+    expect(warnings.some((w) => w.includes('maxLength=128'))).toBe(true)
   })
 })

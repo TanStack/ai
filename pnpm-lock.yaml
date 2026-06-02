@@ -95,6 +95,9 @@ importers:
       jscodeshift:
         specifier: ^17.1.1
         version: 17.3.0
+      prettier:
+        specifier: ^3.7.4
+        version: 3.7.4
       typescript:
         specifier: 5.9.3
         version: 5.9.3

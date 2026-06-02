@@ -362,7 +362,7 @@ export class AnthropicTextAdapter<
       validProviderOptions.thinking?.type === 'enabled'
         ? validProviderOptions.thinking.budget_tokens
         : undefined
-    const defaultMaxTokens = modelOptions?.max_tokens || 1024
+    const defaultMaxTokens = modelOptions?.max_tokens ?? 1024
     const maxTokens =
       thinkingBudget && thinkingBudget >= defaultMaxTokens
         ? thinkingBudget + 1

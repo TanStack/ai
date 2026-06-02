@@ -1144,10 +1144,13 @@ export class OpenRouterTextAdapter<
     // `modelOptions` is the sole sampling surface: callers set provider-native
     // wire names (`temperature`, `topP`, `maxCompletionTokens`, etc.) there and
     // they flow through the spread below. The root `temperature`/`topP`/
-    // `maxTokens` fields are intentionally NOT read here.
+    // `maxTokens` fields are intentionally NOT read here. Root `metadata` is
+    // still part of the contract, so forward it the same way the responses
+    // adapter does.
     const request: Omit<ChatRequest, 'stream'> = {
       ...restModelOptions,
       model: options.model + variantSuffix,
+      ...(options.metadata !== undefined && { metadata: options.metadata }),
       messages,
       ...(tools && tools.length > 0 && { tools }),
     }

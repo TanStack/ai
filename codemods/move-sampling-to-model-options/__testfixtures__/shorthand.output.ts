@@ -12,7 +12,7 @@ export function run(messages: Array<unknown>) {
     messages,
 
     modelOptions: {
-      temperature: temperature,
+      temperature,
     },
   })
 }

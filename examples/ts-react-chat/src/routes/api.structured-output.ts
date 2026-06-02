@@ -381,18 +381,22 @@ export const Route = createFileRoute('/api/structured-output')({
               : undefined
           const stream = params.forwardedProps.stream !== false
           const adapter = adapterFor(resolvedProvider, model)
-          const modelOptions = reasoningOptionsFor(resolvedProvider, model)
           // Adaptive thinking on Claude 4.7 can chew through a few thousand
           // tokens before the schema-constrained JSON even starts. The
           // adapter's default `max_tokens` (1024) was producing truncated
           // outputs ("response was cut off"). Bump for the
           // `:thinking-max` variant so the reasoning + JSON both fit. We
           // keep the budget modest (16k) for everyone else to avoid
-          // surprising bills on the demo.
+          // surprising bills on the demo. The cap now lives in provider-native
+          // `modelOptions` (Anthropic: `max_tokens`) — the generic root
+          // `maxTokens` was removed.
           const wantsAnthropicMaxThinking =
             resolvedProvider === 'anthropic' &&
             model?.endsWith(':thinking-max') === true
-          const maxTokens = wantsAnthropicMaxThinking ? 16_000 : undefined
+          const modelOptions = {
+            ...reasoningOptionsFor(resolvedProvider, model),
+            ...(wantsAnthropicMaxThinking && { max_tokens: 16_000 }),
+          }
           const counter = phaseCounterMiddleware()
 
           if (stream) {
@@ -406,7 +410,6 @@ export const Route = createFileRoute('/api/structured-output')({
               threadId: params.threadId,
               runId: params.runId,
               abortController,
-              ...(maxTokens !== undefined && { maxTokens }),
             }) as AsyncIterable<StreamChunk>
             const withCounts = withTrailingPhaseCounts(
               streamIterable,
@@ -427,7 +430,6 @@ export const Route = createFileRoute('/api/structured-output')({
             threadId: params.threadId,
             runId: params.runId,
             abortController,
-            ...(maxTokens !== undefined && { maxTokens }),
           })
 
           const responseStream = structuredOutputResultStream({

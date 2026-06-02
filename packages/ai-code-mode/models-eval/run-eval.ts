@@ -222,7 +222,10 @@ function maxTokensModelOptions(
 ): Record<string, unknown> {
   switch (provider) {
     case 'ollama':
-      return { num_predict: maxTokens, num_ctx: 32768 }
+      // Ollama reads sampling/runner params from the nested `options` key, not
+      // the top level of `modelOptions`. Flat keys here would be silently
+      // dropped at the wire.
+      return { options: { num_predict: maxTokens, num_ctx: 32768 } }
     case 'openai':
       return { max_output_tokens: maxTokens }
     case 'anthropic':

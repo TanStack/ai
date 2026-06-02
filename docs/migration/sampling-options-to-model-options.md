@@ -207,5 +207,3 @@ chat({
 - [Per-Model Type Safety](../advanced/per-model-type-safety) — how the adapter+model pair drives `modelOptions` inference.
 - [API Reference](../api/ai) — complete `chat()` signature.
 - See your provider's adapter page ([OpenAI](../adapters/openai), [Anthropic](../adapters/anthropic), [Gemini](../adapters/gemini), [Ollama](../adapters/ollama)) for the full list of `modelOptions` it accepts.
-</content>
-</invoke>

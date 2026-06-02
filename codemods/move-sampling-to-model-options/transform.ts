@@ -315,7 +315,16 @@ export default function transform(
       const movedProps: Array<Property> = presentKeys.map((key) => {
         const original = findKey(obj, key)!
         const renamed = renameMap[key]
-        return j.property('init', j.identifier(renamed), valueOf(original))
+        const value = valueOf(original)
+        const moved = j.property('init', j.identifier(renamed), value)
+        // Emit ES6 shorthand (`temperature`) rather than `temperature:
+        // temperature` when the value is exactly the same identifier as the
+        // (renamed) destination key — e.g. a shorthand `{ temperature }` whose
+        // provider key is unchanged.
+        if (value.type === 'Identifier' && value.name === renamed) {
+          moved.shorthand = true
+        }
+        return moved
       })
 
       // Ensure the destination object exists.
@@ -339,17 +348,14 @@ export default function transform(
       }
 
       // Remove the moved root props from the call's first arg.
-      const movedSet = new Set<RootSamplingKey>(presentKeys)
+      const movedSet = new Set<string>(presentKeys)
       obj.properties = obj.properties.filter((prop) => {
         if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') {
           return true
         }
         if ((prop as Property).computed) return true
         const key = (prop as Property).key
-        if (
-          key.type === 'Identifier' &&
-          movedSet.has(key.name as RootSamplingKey)
-        ) {
+        if (key.type === 'Identifier' && movedSet.has(key.name)) {
           return false
         }
         return true

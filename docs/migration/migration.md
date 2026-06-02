@@ -461,9 +461,11 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: openaiText('gpt-5.2'),
     messages,
-    temperature: 0.7,
-    maxTokens: 1000,
+    // Sampling now lives in provider-native `modelOptions` (OpenAI Responses
+    // keys: `temperature`, `max_output_tokens`). `metadata` stays at the root.
     modelOptions: {
+      temperature: 0.7,
+      max_output_tokens: 1000,
       responseFormat: { type: 'json_object' },
     },
     abortController,
