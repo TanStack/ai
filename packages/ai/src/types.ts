@@ -1864,8 +1864,10 @@ type IsAny<T> = 0 extends 1 & T ? true : false
  *
  * @internal
  */
-type NonProviderTools<TTools extends ReadonlyArray<AnyTool>> =
-  Exclude<TTools[number], ProviderTool<string, string>>
+type NonProviderTools<TTools extends ReadonlyArray<AnyTool>> = Exclude<
+  TTools[number],
+  ProviderTool<string, string>
+>
 
 /**
  * Check whether the tools array carries typed tool definitions.
@@ -1936,9 +1938,7 @@ type SafeToolOutput<T> = T extends {
  * `Tool` definition — because all three expose `name: TName`.
  * @internal
  */
-type DistributedToolCallStart<
-  TTools extends ReadonlyArray<AnyTool>,
-> =
+type DistributedToolCallStart<TTools extends ReadonlyArray<AnyTool>> =
   NonProviderTools<TTools> extends infer T
     ? T extends { name: infer TName extends string }
       ? ToolCallStartEvent<TName> & { toolCallName: TName; toolName: TName }

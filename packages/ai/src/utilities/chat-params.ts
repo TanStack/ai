@@ -1,11 +1,6 @@
 import { AGUIError, RunAgentInputSchema } from '@ag-ui/core'
 import type { Context as AGUIContext } from '@ag-ui/core'
-import type {
-  AnyTool,
-  JSONSchema,
-  ModelMessage,
-  UIMessage,
-} from '../types'
+import type { AnyTool, JSONSchema, ModelMessage, UIMessage } from '../types'
 
 const KNOWN_PART_TYPES = new Set([
   'text',
