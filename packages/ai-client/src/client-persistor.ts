@@ -19,8 +19,7 @@ function getChunkMessageId(chunk: StreamChunk): string | undefined {
 }
 
 function getChunkParentMessageId(chunk: StreamChunk): string | undefined {
-  return 'parentMessageId' in chunk &&
-    typeof chunk.parentMessageId === 'string'
+  return 'parentMessageId' in chunk && typeof chunk.parentMessageId === 'string'
     ? chunk.parentMessageId
     : undefined
 }
