@@ -3,13 +3,16 @@ import type {
   InferSchemaType,
   ModelMessage,
   SchemaInput,
-} from '@tanstack/ai'
+} from '@tanstack/ai/client'
 import type {
+  AIDevtoolsDisplayOptions,
   ChatClientOptions,
   ChatClientState,
   ChatRequestBody,
+  ClientContextOptionFromTools,
   ConnectionStatus,
   DistributedOmit,
+  InferredClientContext,
   MultimodalContent,
   UIMessage,
 } from '@tanstack/ai-client'
@@ -58,8 +61,9 @@ export type DeepPartial<T> =
 export type UseChatOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
+  TContext = InferredClientContext<TTools>,
 > = DistributedOmit<
-  ChatClientOptions<TTools>,
+  ChatClientOptions<TTools, TContext>,
   | 'onMessagesChange'
   | 'onLoadingChange'
   | 'onErrorChange'
@@ -67,7 +71,11 @@ export type UseChatOptions<
   | 'onSubscriptionChange'
   | 'onConnectionStatusChange'
   | 'onSessionGeneratingChange'
+  | 'context'
+  | 'devtools'
 > & {
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
   /**
    * Opt into mount-time live subscription behavior.
    * When enabled, the hook subscribes on mount and unsubscribes on unmount.
@@ -80,7 +88,7 @@ export type UseChatOptions<
    * against the schema passed to `chat({ outputSchema })` on the server route.
    */
   outputSchema?: TSchema
-}
+} & ClientContextOptionFromTools<TTools, TContext>
 
 /**
  * Discriminated return shape: when `outputSchema` is supplied, the hook adds

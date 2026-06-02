@@ -5,6 +5,7 @@ import {
   maxIterations,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
+import type { StreamChunk } from '@tanstack/ai'
 import type { Feature, Provider } from '@/lib/types'
 import { createTextAdapter } from '@/lib/providers'
 import { featureConfigs } from '@/lib/features'
@@ -43,6 +44,10 @@ export const Route = createFileRoute('/api/chat')({
         const testId = typeof fp.testId === 'string' ? fp.testId : undefined
         const aimockPort =
           fp.aimockPort != null ? Number(fp.aimockPort) : undefined
+        const previousInteractionId: string | undefined =
+          typeof fp.previousInteractionId === 'string'
+            ? fp.previousInteractionId
+            : undefined
 
         const config = featureConfigs[feature]
         const modelOverride = config.modelOverrides?.[provider]
@@ -51,7 +56,15 @@ export const Route = createFileRoute('/api/chat')({
           modelOverride,
           aimockPort,
           testId,
+          feature,
         )
+
+        const modelOptions = previousInteractionId
+          ? {
+              ...config.modelOptions,
+              previous_interaction_id: previousInteractionId,
+            }
+          : config.modelOptions
 
         try {
           const systemPrompt = config.systemPrompt ?? DEFAULT_SYSTEM_PROMPT
@@ -84,7 +97,7 @@ export const Route = createFileRoute('/api/chat')({
             feature === 'structured-output-stream'
               ? chat({
                   ...adapterOptions,
-                  modelOptions: config.modelOptions,
+                  modelOptions,
                   systemPrompts,
                   messages: params.messages,
                   threadId: params.threadId,
@@ -96,7 +109,7 @@ export const Route = createFileRoute('/api/chat')({
               : feature === 'multi-turn-structured'
                 ? chat({
                     ...adapterOptions,
-                    modelOptions: config.modelOptions,
+                    modelOptions,
                     systemPrompts,
                     messages: params.messages,
                     threadId: params.threadId,
@@ -109,7 +122,7 @@ export const Route = createFileRoute('/api/chat')({
                   ? chat({
                       ...adapterOptions,
                       tools: config.tools,
-                      modelOptions: config.modelOptions,
+                      modelOptions,
                       systemPrompts,
                       agentLoopStrategy: maxIterations(5),
                       messages: params.messages,
@@ -122,7 +135,7 @@ export const Route = createFileRoute('/api/chat')({
                   : chat({
                       ...adapterOptions,
                       tools: config.tools,
-                      modelOptions: config.modelOptions,
+                      modelOptions,
                       systemPrompts,
                       agentLoopStrategy: maxIterations(5),
                       messages: params.messages,
@@ -131,19 +144,30 @@ export const Route = createFileRoute('/api/chat')({
                       abortController,
                     })
 
-          return toServerSentEventsResponse(stream, { abortController })
-        } catch (error: any) {
-          console.error(`[api.chat] Error:`, error.message)
-          if (error.name === 'AbortError' || abortController.signal.aborted) {
+          // Cast: `chat()` returns `AsyncIterable<StreamChunk> |
+          // StructuredOutputStream<T>`. Both yield AG-UI events at runtime
+          // but the typed-CUSTOM-events variants on `StructuredOutputStream`
+          // aren't structurally assignable to the bare `StreamChunk` union
+          // (zod-passthrough index-signature variance). The runtime is fine
+          // either way.
+          return toServerSentEventsResponse(
+            stream as AsyncIterable<StreamChunk>,
+            { abortController },
+          )
+        } catch (error) {
+          console.error('[api.chat] Error:', error)
+          if (
+            (error instanceof Error && error.name === 'AbortError') ||
+            abortController.signal.aborted
+          ) {
             return new Response(null, { status: 499 })
           }
-          return new Response(
-            JSON.stringify({ error: error.message || 'An error occurred' }),
-            {
-              status: 500,
-              headers: { 'Content-Type': 'application/json' },
-            },
-          )
+          const message =
+            error instanceof Error ? error.message : 'An error occurred'
+          return new Response(JSON.stringify({ error: message }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          })
         }
       },
     },

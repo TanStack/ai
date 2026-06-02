@@ -1,5 +1,90 @@
 # @tanstack/ai-code-mode
 
+## 0.2.2
+
+### Patch Changes
+
+- Updated dependencies [[`5d6cd28`](https://github.com/TanStack/ai/commit/5d6cd2834ba7ac1d7c7c1bd24ede202bf3e78010)]:
+  - @tanstack/ai@0.26.0
+
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [[`c251038`](https://github.com/TanStack/ai/commit/c251038c6d8aa84e498f89e314ce5bb233bc689f)]:
+  - @tanstack/ai@0.25.0
+
+## 0.2.0
+
+### Minor Changes
+
+- [#628](https://github.com/TanStack/ai/pull/628) [`8036b50`](https://github.com/TanStack/ai/commit/8036b5054330a180023c6e3225b8d2735a43a919) - Add typed runtime context for tools and middleware.
+
+  Tools and middleware can now declare the runtime context shape they require, and
+  `chat()`, `ChatClient`, and the framework `useChat` / `createChat` hooks infer
+  the merged requirement and type-check the `context` option you pass against it.
+
+  ```typescript
+  type AppContext = { userId: string; db: Db }
+
+  const listNotes = toolDefinition({
+    name: 'list_notes' /* ... */,
+  }).server<AppContext>((_input, ctx) =>
+    ctx.context.db.notes.findMany({ userId: ctx.context.userId }),
+  )
+
+  chat({
+    adapter,
+    messages,
+    tools: [listNotes],
+    context: { userId, db }, // required and type-checked because listNotes declares AppContext
+  })
+  ```
+
+  Runtime context is request-local application state for tool and middleware
+  implementations (authenticated users, database clients, tenancy, feature flags,
+  loggers, browser services). It is never sent to the model and is distinct from
+  the AG-UI `RunAgentInput.context` protocol field.
+
+  Untyped tools and middleware continue to receive `unknown` context and do not
+  force a `context` option. Client tools receive client-local context via
+  `ChatClient` / `useChat`; use `forwardedProps` to hand serializable client data
+  to the server and map it into server context explicitly. See the new Runtime
+  Context guide for details.
+
+  Behavior change: tool output validation now also runs when a tool returns
+  `undefined` or `null`. Previously these values bypassed `outputSchema`
+  validation entirely; now the schema decides whether they are valid, so a tool
+  whose schema forbids `undefined`/`null` surfaces a validation error
+  (`output-error`) instead of silently passing. Tools whose schema permits
+  `null`/`undefined` (e.g. nullable or void outputs) are unaffected.
+
+### Patch Changes
+
+- Updated dependencies [[`c1ae8b9`](https://github.com/TanStack/ai/commit/c1ae8b94c83d70508975568eb4fc9b45f1af540b), [`a452ae8`](https://github.com/TanStack/ai/commit/a452ae8bcda8abfdc6309983976ed0fbf6df1915), [`8036b50`](https://github.com/TanStack/ai/commit/8036b5054330a180023c6e3225b8d2735a43a919)]:
+  - @tanstack/ai@0.24.0
+
+## 0.1.24
+
+### Patch Changes
+
+- Updated dependencies [[`94bb9c0`](https://github.com/TanStack/ai/commit/94bb9c0f3a3e56a0c6c8b7c78f44ae41288aecc3)]:
+  - @tanstack/ai@0.23.1
+
+## 0.1.23
+
+### Patch Changes
+
+- Updated dependencies [[`980ff9b`](https://github.com/TanStack/ai/commit/980ff9ba925f5dbae62a9318cc1e787d0ae24314), [`d5645cf`](https://github.com/TanStack/ai/commit/d5645cfd4d1b9cfc877f7d4d714517e166a99ce3)]:
+  - @tanstack/ai@0.23.0
+
+## 0.1.22
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai@0.22.1
+
 ## 0.1.21
 
 ### Patch Changes

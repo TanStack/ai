@@ -11,7 +11,7 @@
     "postinstall": "playwright install chromium"
   },
   "dependencies": {
-    "@copilotkit/aimock": "^1.18.0",
+    "@copilotkit/aimock": "^1.27.0",
     "@openrouter/sdk": "0.12.35",
     "@opentelemetry/api": "^1.9.0",
     "@tailwindcss/vite": "^4.1.18",
@@ -27,9 +27,12 @@
     "@tanstack/ai-openrouter": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
     "@tanstack/ai-react-ui": "workspace:*",
+    "@tanstack/devtools-event-bus": "^0.4.1",
     "@tanstack/nitro-v2-vite-plugin": "^1.154.7",
+    "@tanstack/react-ai-devtools": "workspace:*",
     "@tanstack/react-router": "^1.158.4",
     "@tanstack/react-start": "^1.159.0",
+    "arktype": "^2.1.28",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-markdown": "^10.1.0",

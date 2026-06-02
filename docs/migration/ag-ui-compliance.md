@@ -220,6 +220,31 @@ chat({
 })
 ```
 
+### Mapping forwarded values into runtime context
+
+TanStack AI's `chat({ context })` is typed runtime context for tools and middleware. It is separate from AG-UI `RunAgentInput.context` and is not populated automatically from protocol fields.
+
+If a client value should become available to server tools or middleware, validate it from `forwardedProps` and build the runtime context explicitly:
+
+```ts
+const params = await chatParamsFromRequest(req)
+
+const tenantId =
+  typeof params.forwardedProps.tenantId === 'string'
+    ? params.forwardedProps.tenantId
+    : defaultTenantId
+
+const stream = chat({
+  adapter: openaiText('gpt-4o'),
+  messages: params.messages,
+  tools: serverTools,
+  context: {
+    userId: session.user.id,
+    tenantId,
+  },
+})
+```
+
 ## Client-side: nothing required, one rename recommended
 
 `useChat` and the connection adapters (`fetchServerSentEvents`, `fetchHttpStream`) handle the new wire format internally. Existing `UIMessage` state is unchanged. `clientTools(...)` declarations are now automatically advertised to the server in the request payload.
@@ -291,4 +316,4 @@ Pure AG-UI `RunAgentInput` payloads (no TanStack `parts` field) work end-to-end:
 ## Out of scope (existing behavior preserved)
 
 - **Reasoning replay to LLM providers.** TanStack still drops `ThinkingPart` at the `UIMessage`→`ModelMessage` boundary (pre-existing behavior). Providers like Anthropic that require thinking blocks to be replayed for extended thinking continuation remain a separate concern, tracked outside this migration.
-- **AG-UI `state` and `context` fields.** Surfaced on `chatParamsFromRequestBody`'s return value but not yet wired into `chat()`. They're available for your endpoint to inspect/forward, but the runtime ignores them.
+- **AG-UI `state` and `context` fields.** Surfaced on `chatParamsFromRequestBody`'s return value as `state` and `aguiContext`, with `context` kept as a deprecated alias of `aguiContext` for backward compatibility. They are protocol-level fields available for your endpoint to inspect/forward. TanStack AI's typed runtime context is the separate `chat({ context })` option; validate and map AG-UI values into it yourself if you want tools or middleware to read them.

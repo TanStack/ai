@@ -1,4 +1,5 @@
 import { ChatClient } from '@tanstack/ai-client'
+import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type {
   AnyClientTool,
@@ -6,10 +7,11 @@ import type {
   ModelMessage,
   SchemaInput,
   StreamChunk,
-} from '@tanstack/ai'
+} from '@tanstack/ai/client'
 import type {
   ChatClientState,
   ConnectionStatus,
+  InferredClientContext,
   StructuredOutputPart,
 } from '@tanstack/ai-client'
 
@@ -24,7 +26,10 @@ import type {
 export function useChat<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
->(options: UseChatOptions<TTools, TSchema>): UseChatReturn<TTools, TSchema> {
+  TContext = InferredClientContext<TTools>,
+>(
+  options: UseChatOptions<TTools, TSchema, TContext>,
+): UseChatReturn<TTools, TSchema> {
   const hookId = useId()
   const clientId = options.id || hookId
 
@@ -52,7 +57,7 @@ export function useChat<
   messagesRef.current = messages
 
   // Track current options in a ref to avoid recreating client when options change
-  const optionsRef = useRef<UseChatOptions<TTools, TSchema>>(options)
+  const optionsRef = useRef<UseChatOptions<TTools, TSchema, TContext>>(options)
   optionsRef.current = options
 
   // Create ChatClient instance with callbacks to sync state
@@ -72,7 +77,8 @@ export function useChat<
       ? { connection: initialOptions.connection }
       : { fetcher: initialOptions.fetcher }
 
-    return new ChatClient({
+    return new ChatClient<TTools, TContext>({
+      devtoolsBridgeFactory: createChatDevtoolsBridge,
       ...transport,
       id: clientId,
       initialMessages: messagesToUse,
@@ -80,6 +86,15 @@ export function useChat<
       ...(initialOptions.forwardedProps !== undefined && {
         forwardedProps: initialOptions.forwardedProps,
       }),
+      ...(initialOptions.context !== undefined && {
+        context: initialOptions.context,
+      }),
+      devtools: {
+        ...initialOptions.devtools,
+        framework: 'react',
+        hookName: 'useChat',
+        outputKind: initialOptions.outputSchema ? 'structured' : 'chat',
+      },
       onResponse: (response) => {
         void optionsRef.current.onResponse?.(response)
       },
@@ -133,8 +148,9 @@ export function useChat<
       ...(options.forwardedProps !== undefined && {
         forwardedProps: options.forwardedProps,
       }),
+      context: options.context,
     })
-  }, [client, options.body, options.forwardedProps])
+  }, [client, options.body, options.forwardedProps, options.context])
 
   useEffect(() => {
     if (options.initialMessages && options.initialMessages.length > 0) {
@@ -153,14 +169,21 @@ export function useChat<
   }, [client, options.live])
 
   useEffect(() => {
+    client.mountDevtools()
+
     return () => {
-      if (options.live) {
+      // Subscribe/unsubscribe on `options.live` is owned by the dedicated
+      // effect above. This cleanup only fires on unmount or client swap,
+      // so read `live` through the ref to avoid disposing the client every
+      // time `live` toggles.
+      if (optionsRef.current.live) {
         client.unsubscribe()
       } else {
         client.stop()
       }
+      client.dispose()
     }
-  }, [client, options.live])
+  }, [client])
 
   const sendMessage = useCallback(
     async (content: string | MultimodalContent) => {

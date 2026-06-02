@@ -687,8 +687,40 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     expect(err).toBeDefined()
     expect(err.error.message).toBe('kaboom')
     expect(err.error.code).toBe('server_error')
+    // The provider's structured error body is forwarded as rawEvent for
+    // in-band response.failed events (see responses-text adapter).
+    expect(err.rawEvent).toEqual({ message: 'kaboom', code: 'server_error' })
     // RUN_ERROR is terminal — no synthetic RUN_FINISHED should follow.
     expect(chunks.find((c) => c.type === 'RUN_FINISHED')).toBeUndefined()
+  })
+
+  it("forwards the SDK error's `.error` body as RUN_ERROR.rawEvent on outer catch", async () => {
+    const providerBody = {
+      message: 'Provider returned error',
+      code: 502,
+      metadata: { provider_name: 'openai', raw: 'overloaded' },
+    }
+    mockSend = vi.fn().mockRejectedValue(
+      Object.assign(new Error('OpenRouter error'), {
+        error: providerBody,
+      }),
+    )
+
+    const adapter = createAdapter()
+    const chunks: Array<StreamChunk> = []
+    for await (const c of adapter.chatStream({
+      model: 'openai/gpt-4o-mini' as any,
+      messages: [{ role: 'user', content: 'hi' }],
+      logger: testLogger,
+    })) {
+      chunks.push(c)
+    }
+
+    const runError = chunks.find((c) => c.type === 'RUN_ERROR')
+    expect(runError).toBeDefined()
+    if (runError?.type === 'RUN_ERROR') {
+      expect(runError.rawEvent).toEqual(providerBody)
+    }
   })
 
   it('stringifies non-string error.code on top-level error events', async () => {
@@ -994,5 +1026,132 @@ describe('OpenRouter responses adapter — SDK constructor wiring', () => {
     }
     const [, options] = mockSend.mock.calls[0]!
     expect(options.headers).toEqual(headers)
+  })
+})
+
+describe('OpenRouter responses adapter — cost tracking', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  const runFinishedFor = async (usage: Record<string, unknown>) => {
+    setupMockSdkClient([
+      {
+        type: 'response.completed',
+        sequenceNumber: 1,
+        response: {
+          model: 'openai/gpt-4o-mini',
+          output: [],
+          usage,
+        },
+      },
+    ])
+    const adapter = createAdapter()
+    const chunks: Array<StreamChunk> = []
+    for await (const chunk of adapter.chatStream({
+      model: 'openai/gpt-4o-mini' as any,
+      messages: [{ role: 'user', content: 'hi' }],
+      logger: testLogger,
+    })) {
+      chunks.push(chunk)
+    }
+    return chunks.find((c) => c.type === 'RUN_FINISHED')
+  }
+
+  it('forwards cost and costDetails from response.completed usage', async () => {
+    // Responses UsageCostDetails uses input/output cost (not the chat
+    // prompt/completions shape) per @openrouter/sdk@0.12.35.
+    const runFinishedChunk = await runFinishedFor({
+      inputTokens: 5,
+      outputTokens: 2,
+      totalTokens: 7,
+      cost: 0.0042,
+      costDetails: {
+        upstreamInferenceCost: 0.0038,
+        upstreamInferenceInputCost: 0.0012,
+        upstreamInferenceOutputCost: 0.0026,
+      },
+    })
+    expect(runFinishedChunk).toMatchObject({
+      type: 'RUN_FINISHED',
+      usage: {
+        promptTokens: 5,
+        completionTokens: 2,
+        totalTokens: 7,
+        cost: 0.0042,
+        costDetails: {
+          upstreamCost: 0.0038,
+          upstreamInputCost: 0.0012,
+          upstreamOutputCost: 0.0026,
+        },
+      },
+    })
+  })
+
+  it('omits cost when the provider does not report it', async () => {
+    const runFinishedChunk = await runFinishedFor({
+      inputTokens: 5,
+      outputTokens: 2,
+      totalTokens: 7,
+    })
+    expect(runFinishedChunk?.type).toBe('RUN_FINISHED')
+    if (runFinishedChunk?.type === 'RUN_FINISHED') {
+      expect(runFinishedChunk.usage).not.toHaveProperty('cost')
+      expect(runFinishedChunk.usage).not.toHaveProperty('costDetails')
+    }
+  })
+
+  // The SDK surfaces wire shapes it can't parse as { isUnknown, raw } events,
+  // where usage stays in raw snake_case. costDetails keys must still normalize
+  // to canonical camelCase so this fallback path matches the SDK-parsed path.
+  it('normalizes cost details from a raw (UNKNOWN) response.completed event', async () => {
+    setupMockSdkClient([
+      {
+        isUnknown: true,
+        raw: {
+          type: 'response.completed',
+          sequence_number: 1,
+          response: {
+            model: 'openai/gpt-4o-mini',
+            output: [],
+            usage: {
+              input_tokens: 11,
+              output_tokens: 3,
+              total_tokens: 14,
+              cost: 0.0042,
+              cost_details: {
+                upstream_inference_cost: 0.0038,
+                upstream_inference_input_cost: 0.0012,
+                upstream_inference_output_cost: 0.0026,
+              },
+            },
+          },
+        },
+      },
+    ])
+    const adapter = createAdapter()
+    const chunks: Array<StreamChunk> = []
+    for await (const chunk of adapter.chatStream({
+      model: 'openai/gpt-4o-mini' as any,
+      messages: [{ role: 'user', content: 'hi' }],
+      logger: testLogger,
+    })) {
+      chunks.push(chunk)
+    }
+    const runFinishedChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
+    expect(runFinishedChunk).toMatchObject({
+      type: 'RUN_FINISHED',
+      usage: {
+        promptTokens: 11,
+        completionTokens: 3,
+        totalTokens: 14,
+        cost: 0.0042,
+        costDetails: {
+          upstreamCost: 0.0038,
+          upstreamInputCost: 0.0012,
+          upstreamOutputCost: 0.0026,
+        },
+      },
+    })
   })
 })

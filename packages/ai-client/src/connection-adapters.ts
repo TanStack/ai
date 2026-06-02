@@ -1,11 +1,16 @@
-import { EventType, uiMessagesToWire } from '@tanstack/ai'
+import { EventType, uiMessagesToWire } from '@tanstack/ai/client'
+import {
+  createResponseStreamTextDecoder,
+  getResponseStreamReader,
+} from './response-stream'
+import { parseSseDataLine } from './sse-utils'
 import type {
   ModelMessage,
   RunErrorEvent,
   RunFinishedEvent,
   StreamChunk,
   UIMessage,
-} from '@tanstack/ai'
+} from '@tanstack/ai/client'
 import type { ChatFetcher } from './types'
 
 /**
@@ -71,7 +76,7 @@ async function* readStreamLines(
   abortSignal?: AbortSignal,
 ): AsyncGenerator<string> {
   try {
-    const decoder = new TextDecoder()
+    const decoder = createResponseStreamTextDecoder()
     let buffer = ''
 
     while (!abortSignal?.aborted) {
@@ -125,10 +130,7 @@ async function* responseToSSEChunks(
       `HTTP error! status: ${response.status} ${response.statusText}`,
     )
   }
-  const reader = response.body?.getReader()
-  if (!reader) {
-    throw new Error('Response body is not readable')
-  }
+  const reader = getResponseStreamReader(response)
   let lastThreadId: string | undefined
   let lastRunId: string | undefined
   let lastModel: string | undefined
@@ -141,7 +143,7 @@ async function* responseToSSEChunks(
     ) {
       continue
     }
-    const data = line.startsWith('data: ') ? line.slice(6) : line
+    const data = parseSseDataLine(line)
     if (data === '[DONE]') {
       const synthetic: RunFinishedEvent = {
         type: EventType.RUN_FINISHED,
@@ -382,6 +384,53 @@ export interface FetchConnectionOptions {
 }
 
 /**
+ * Options for XHR-based connection adapters.
+ */
+export interface XhrConnectionOptions {
+  headers?: Record<string, string> | Headers
+  withCredentials?: boolean
+  signal?: AbortSignal
+  body?: Record<string, any>
+  xhrFactory?: () => XMLHttpRequest
+}
+
+type ResolvedConnectionOptions = Pick<
+  FetchConnectionOptions,
+  'body' | 'headers'
+>
+
+function buildRunAgentInputBody(
+  messages: Array<UIMessage> | Array<ModelMessage>,
+  data: Record<string, any> | undefined,
+  runContext: RunAgentInputContext | undefined,
+  options: ResolvedConnectionOptions,
+): Record<string, unknown> {
+  // Precedence (later spreads win): static adapter `body` is the base,
+  // overridden by `runContext.forwardedProps`, overridden by per-message `data`.
+  const wireMessages = uiMessagesToWire(messages as Array<UIMessage>)
+  const forwardedProps = {
+    ...options.body,
+    ...(runContext?.forwardedProps ?? {}),
+    ...data,
+  }
+
+  return {
+    threadId: runContext?.threadId ?? generateRunId('thread'),
+    runId: runContext?.runId ?? generateRunId('run'),
+    ...(runContext?.parentRunId !== undefined && {
+      parentRunId: runContext.parentRunId,
+    }),
+    state: {},
+    messages: wireMessages,
+    tools: runContext?.clientTools ?? [],
+    context: [],
+    forwardedProps,
+    // Backward-compat mirror of `forwardedProps` under the legacy field name.
+    data: { ...forwardedProps },
+  }
+}
+
+/**
  * Create a Server-Sent Events connection adapter
  *
  * @param url - The API endpoint URL (or a function that returns the URL)
@@ -440,34 +489,12 @@ export function fetchServerSentEvents(
       // forwardedProps options), overridden by per-message `data` passed
       // to `connection.send`. Runtime values win over static config —
       // this matches the documented "forwardedProps wins" semantic.
-      const wireMessages = uiMessagesToWire(messages as Array<UIMessage>)
-      const forwardedProps = {
-        ...resolvedOptions.body,
-        ...(runContext?.forwardedProps ?? {}),
-        ...data,
-      }
-      const requestBody = {
-        threadId: runContext?.threadId ?? generateRunId('thread'),
-        runId: runContext?.runId ?? generateRunId('run'),
-        ...(runContext?.parentRunId !== undefined && {
-          parentRunId: runContext.parentRunId,
-        }),
-        state: {},
-        messages: wireMessages,
-        tools: runContext?.clientTools ?? [],
-        context: [],
-        forwardedProps,
-        // Backward-compat mirror of `forwardedProps` under the legacy
-        // field name `data`. Server endpoints that have not migrated
-        // off the pre-AG-UI shape (`{ messages, data }`) keep working.
-        // AG-UI strict consumers strip this via `RunAgentInputSchema`
-        // (see `chatParamsFromRequestBody`). Will be removed when the
-        // legacy `body` client option is dropped.
-        // Shallow-cloned so that downstream mutation of `data` (e.g.
-        // by a logging interceptor or fetch wrapper) cannot corrupt
-        // `forwardedProps` and vice versa.
-        data: { ...forwardedProps },
-      }
+      const requestBody = buildRunAgentInputBody(
+        messages,
+        data,
+        runContext,
+        resolvedOptions,
+      )
 
       const fetchClient = resolvedOptions.fetchClient ?? fetch
       // `RequestInit.signal` is typed `AbortSignal | null` (no `undefined`
@@ -546,34 +573,12 @@ export function fetchHttpStream(
       // forwardedProps options), overridden by per-message `data` passed
       // to `connection.send`. Runtime values win over static config —
       // this matches the documented "forwardedProps wins" semantic.
-      const wireMessages = uiMessagesToWire(messages as Array<UIMessage>)
-      const forwardedProps = {
-        ...resolvedOptions.body,
-        ...(runContext?.forwardedProps ?? {}),
-        ...data,
-      }
-      const requestBody = {
-        threadId: runContext?.threadId ?? generateRunId('thread'),
-        runId: runContext?.runId ?? generateRunId('run'),
-        ...(runContext?.parentRunId !== undefined && {
-          parentRunId: runContext.parentRunId,
-        }),
-        state: {},
-        messages: wireMessages,
-        tools: runContext?.clientTools ?? [],
-        context: [],
-        forwardedProps,
-        // Backward-compat mirror of `forwardedProps` under the legacy
-        // field name `data`. Server endpoints that have not migrated
-        // off the pre-AG-UI shape (`{ messages, data }`) keep working.
-        // AG-UI strict consumers strip this via `RunAgentInputSchema`
-        // (see `chatParamsFromRequestBody`). Will be removed when the
-        // legacy `body` client option is dropped.
-        // Shallow-cloned so that downstream mutation of `data` (e.g.
-        // by a logging interceptor or fetch wrapper) cannot corrupt
-        // `forwardedProps` and vice versa.
-        data: { ...forwardedProps },
-      }
+      const requestBody = buildRunAgentInputBody(
+        messages,
+        data,
+        runContext,
+        resolvedOptions,
+      )
 
       const fetchClient = resolvedOptions.fetchClient ?? fetch
       // `RequestInit.signal` is typed `AbortSignal | null` (no `undefined`
@@ -595,12 +600,299 @@ export function fetchHttpStream(
       }
 
       // Parse raw HTTP stream (newline-delimited JSON)
-      const reader = response.body?.getReader()
-      if (!reader) {
-        throw new Error('Response body is not readable')
-      }
+      const reader = getResponseStreamReader(response)
 
       for await (const line of readStreamLines(reader, abortSignal)) {
+        yield JSON.parse(line) as StreamChunk
+      }
+    },
+  }
+}
+
+type XhrConnectionOptionsResolver =
+  | XhrConnectionOptions
+  | (() => XhrConnectionOptions | Promise<XhrConnectionOptions>)
+
+function createDefaultXMLHttpRequest(): XMLHttpRequest {
+  if (typeof globalThis.XMLHttpRequest !== 'function') {
+    throw new Error('XMLHttpRequest is not available in this runtime')
+  }
+
+  return new globalThis.XMLHttpRequest()
+}
+
+function cleanupXhr(
+  xhr: XMLHttpRequest,
+  abortSignal: AbortSignal | undefined,
+  onAbort: (() => void) | undefined,
+): void {
+  xhr.onprogress = null
+  xhr.onload = null
+  xhr.onerror = null
+  xhr.onabort = null
+  xhr.onloadend = null
+
+  if (abortSignal && onAbort) {
+    abortSignal.removeEventListener('abort', onAbort)
+  }
+}
+
+function readXhrLines(
+  xhr: XMLHttpRequest,
+  abortSignal?: AbortSignal,
+): AsyncGenerator<string> {
+  let offset = 0
+  let buffer = ''
+  const lines: Array<string> = []
+  const waiters: Array<() => void> = []
+  let done = false
+  let aborted = false
+  let error: unknown
+  let onAbort: (() => void) | undefined
+
+  const wake = () => {
+    const waiter = waiters.shift()
+    waiter?.()
+  }
+
+  const enqueueDelta = () => {
+    if (xhr.status !== 0 && (xhr.status < 200 || xhr.status >= 300)) {
+      error = new Error(`XHR error! status: ${xhr.status} ${xhr.statusText}`)
+      done = true
+      return
+    }
+
+    const responseText = xhr.responseText
+    if (responseText.length <= offset) {
+      return
+    }
+
+    buffer += responseText.slice(offset)
+    offset = responseText.length
+    const splitLines = buffer.split('\n')
+    buffer = splitLines.pop() ?? ''
+
+    for (const line of splitLines) {
+      const normalized = line.endsWith('\r') ? line.slice(0, -1) : line
+      if (normalized.trim()) {
+        lines.push(normalized)
+      }
+    }
+  }
+
+  const finish = () => {
+    enqueueDelta()
+    if (xhr.status < 200 || xhr.status >= 300) {
+      error = new Error(`XHR error! status: ${xhr.status} ${xhr.statusText}`)
+    } else if (buffer.trim() && !aborted) {
+      error = new StreamTruncatedError()
+    }
+    done = true
+    wake()
+  }
+
+  xhr.onprogress = () => {
+    enqueueDelta()
+    wake()
+  }
+  xhr.onload = finish
+  xhr.onerror = () => {
+    error = new Error('XHR request failed')
+    done = true
+    wake()
+  }
+  xhr.onabort = () => {
+    aborted = true
+    done = true
+    wake()
+  }
+  xhr.onloadend = () => {
+    if (!done) {
+      finish()
+    }
+  }
+
+  if (abortSignal) {
+    onAbort = () => {
+      aborted = true
+      xhr.abort()
+    }
+    if (abortSignal.aborted) {
+      onAbort()
+    } else {
+      abortSignal.addEventListener('abort', onAbort, { once: true })
+    }
+  }
+
+  return (async function* () {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+      while (true) {
+        const line = lines.shift()
+        if (line !== undefined) {
+          yield line
+          continue
+        }
+
+        if (error) {
+          throw error
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+        if (done || abortSignal?.aborted) {
+          return
+        }
+
+        await new Promise<void>((resolve) => {
+          waiters.push(resolve)
+        })
+      }
+    } finally {
+      cleanupXhr(xhr, abortSignal, onAbort)
+    }
+  })()
+}
+
+interface ConfiguredXhrRequest {
+  xhr: XMLHttpRequest
+  body: string
+}
+
+function createConfiguredXhrRequest(
+  url: string,
+  options: XhrConnectionOptions,
+  messages: Array<UIMessage> | Array<ModelMessage>,
+  data: Record<string, any> | undefined,
+  runContext: RunAgentInputContext | undefined,
+): ConfiguredXhrRequest {
+  const xhr = options.xhrFactory?.() ?? createDefaultXMLHttpRequest()
+  xhr.open('POST', url)
+  if (options.withCredentials !== undefined) {
+    xhr.withCredentials = options.withCredentials
+  }
+
+  const requestHeaders: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...mergeHeaders(options.headers),
+  }
+
+  for (const [name, value] of Object.entries(requestHeaders)) {
+    xhr.setRequestHeader(name, value)
+  }
+
+  const requestBody = buildRunAgentInputBody(
+    messages,
+    data,
+    runContext,
+    options,
+  )
+
+  return { xhr, body: JSON.stringify(requestBody) }
+}
+
+async function resolveXhrConnectionOptions(
+  options: XhrConnectionOptionsResolver,
+): Promise<XhrConnectionOptions> {
+  return typeof options === 'function' ? await options() : options
+}
+
+/**
+ * Create an XMLHttpRequest-backed Server-Sent Events connection adapter.
+ */
+export function xhrServerSentEvents(
+  url: string | (() => string),
+  options: XhrConnectionOptionsResolver = {},
+): ConnectConnectionAdapter {
+  return {
+    async *connect(messages, data, abortSignal, runContext) {
+      const resolvedUrl = typeof url === 'function' ? url() : url
+      const resolvedOptions = await resolveXhrConnectionOptions(options)
+      const signal = abortSignal || resolvedOptions.signal
+      const request = createConfiguredXhrRequest(
+        resolvedUrl,
+        resolvedOptions,
+        messages,
+        data,
+        runContext,
+      )
+      const lines = readXhrLines(request.xhr, signal)
+      if (signal?.aborted) {
+        await lines.next()
+        return
+      }
+      request.xhr.send(request.body)
+      let lastThreadId: string | undefined
+      let lastRunId: string | undefined
+      let lastModel: string | undefined
+
+      for await (const line of lines) {
+        if (
+          line.startsWith(':') ||
+          line.startsWith('event:') ||
+          line.startsWith('id:') ||
+          line.startsWith('retry:')
+        ) {
+          continue
+        }
+
+        const chunkData = parseSseDataLine(line)
+        if (chunkData === '[DONE]') {
+          const synthetic: RunFinishedEvent = {
+            type: EventType.RUN_FINISHED,
+            threadId: lastThreadId ?? runContext?.threadId ?? '',
+            runId: lastRunId ?? runContext?.runId ?? '',
+            model: lastModel ?? '',
+            timestamp: Date.now(),
+            finishReason: 'stop',
+          }
+          request.xhr.abort()
+          yield synthetic
+          return
+        }
+
+        const chunk = JSON.parse(chunkData) as StreamChunk
+        if ('threadId' in chunk && typeof chunk.threadId === 'string') {
+          lastThreadId = chunk.threadId
+        }
+        if ('runId' in chunk && typeof chunk.runId === 'string') {
+          lastRunId = chunk.runId
+        }
+        if ('model' in chunk && typeof chunk.model === 'string') {
+          lastModel = chunk.model
+        }
+        yield chunk
+      }
+    },
+  }
+}
+
+/**
+ * Create an XMLHttpRequest-backed newline-delimited JSON stream adapter.
+ */
+export function xhrHttpStream(
+  url: string | (() => string),
+  options: XhrConnectionOptionsResolver = {},
+): ConnectConnectionAdapter {
+  return {
+    async *connect(messages, data, abortSignal, runContext) {
+      const resolvedUrl = typeof url === 'function' ? url() : url
+      const resolvedOptions = await resolveXhrConnectionOptions(options)
+      const signal = abortSignal || resolvedOptions.signal
+      const request = createConfiguredXhrRequest(
+        resolvedUrl,
+        resolvedOptions,
+        messages,
+        data,
+        runContext,
+      )
+      const lines = readXhrLines(request.xhr, signal)
+      if (signal?.aborted) {
+        await lines.next()
+        return
+      }
+      request.xhr.send(request.body)
+
+      for await (const line of lines) {
         yield JSON.parse(line) as StreamChunk
       }
     },

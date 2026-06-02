@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { toRunErrorPayload } from '../src/activities/error-payload'
+import {
+  toRunErrorPayload,
+  toRunErrorRawEvent,
+} from '../src/activities/error-payload'
 
 describe('toRunErrorPayload', () => {
   it('narrows an Error instance, extracting message and code', () => {
@@ -128,5 +131,59 @@ describe('toRunErrorPayload', () => {
         code: undefined,
       })
     })
+  })
+})
+
+describe('toRunErrorRawEvent', () => {
+  it('forwards an explicit `rawEvent` attached to the error', () => {
+    const providerBody = { provider_name: 'anthropic', raw: { foo: 'bar' } }
+    const err = Object.assign(new Error('Provider returned error'), {
+      code: 502,
+      rawEvent: providerBody,
+    })
+    expect(toRunErrorRawEvent(err)).toBe(providerBody)
+  })
+
+  it("forwards an SDK APIError's object-valued `error` response body", () => {
+    const body = { type: 'rate_limit_error', message: 'slow down', code: 429 }
+    const err = Object.assign(new Error('429'), { status: 429, error: body })
+    expect(toRunErrorRawEvent(err)).toBe(body)
+  })
+
+  it('forwards `metadata` when no richer body is present', () => {
+    const metadata = { provider_name: 'openai', raw: 'overloaded' }
+    expect(toRunErrorRawEvent({ message: 'boom', metadata })).toBe(metadata)
+  })
+
+  it('prefers `rawEvent` over `error` over `metadata`', () => {
+    const raw = { winner: true }
+    const err = {
+      rawEvent: raw,
+      error: { loser: true },
+      metadata: { loser: true },
+    }
+    expect(toRunErrorRawEvent(err)).toBe(raw)
+  })
+
+  it('ignores a string-valued `error` field (not a structured body)', () => {
+    expect(toRunErrorRawEvent({ message: 'x', error: 'just a string' })).toBe(
+      undefined,
+    )
+  })
+
+  it('returns undefined for plain errors, strings, and nullish values', () => {
+    expect(toRunErrorRawEvent(new Error('plain'))).toBe(undefined)
+    expect(toRunErrorRawEvent('string error')).toBe(undefined)
+    expect(toRunErrorRawEvent(null)).toBe(undefined)
+    expect(toRunErrorRawEvent(undefined)).toBe(undefined)
+  })
+
+  it('never returns the raw exception object itself (no header leakage)', () => {
+    const err = Object.assign(new Error('leaky'), {
+      request: { headers: { authorization: 'Bearer secret' } },
+    })
+    const raw = toRunErrorRawEvent(err)
+    expect(raw).toBe(undefined)
+    expect(raw).not.toBe(err)
   })
 })

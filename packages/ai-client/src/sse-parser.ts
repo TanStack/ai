@@ -1,4 +1,9 @@
-import type { StreamChunk } from '@tanstack/ai'
+import {
+  createResponseStreamTextDecoder,
+  getResponseStreamReader,
+} from './response-stream'
+import { parseSseDataLine } from './sse-utils'
+import type { StreamChunk } from '@tanstack/ai/client'
 
 /**
  * Read lines from a stream (newline-delimited)
@@ -8,7 +13,7 @@ async function* readStreamLines(
   abortSignal?: AbortSignal,
 ): AsyncGenerator<string> {
   try {
-    const decoder = new TextDecoder()
+    const decoder = createResponseStreamTextDecoder()
     let buffer = ''
 
     while (!abortSignal?.aborted) {
@@ -51,13 +56,10 @@ export async function* parseSSEResponse(
     )
   }
 
-  const reader = response.body?.getReader()
-  if (!reader) {
-    throw new Error('Response body is not readable')
-  }
+  const reader = getResponseStreamReader(response)
 
   for await (const line of readStreamLines(reader, abortSignal)) {
-    const data = line.startsWith('data: ') ? line.slice(6) : line
+    const data = parseSseDataLine(line)
 
     if (data === '[DONE]') {
       console.warn(

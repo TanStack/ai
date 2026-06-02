@@ -398,8 +398,49 @@ Every hook receives a `ChatMiddlewareContext` as its first argument. It provides
 | `chunkIndex` | `number` | Running count of chunks yielded |
 | `signal` | `AbortSignal \| undefined` | External abort signal |
 | `abort(reason?)` | `function` | Abort the run from within middleware |
-| `context` | `unknown` | User-provided context value |
+| `context` | `TContext` | User-provided runtime context value |
 | `defer(promise)` | `function` | Register a non-blocking side-effect |
+
+## Typed Runtime Context
+
+`ChatMiddleware` accepts a context generic. This lets reusable middleware declared outside `chat()` access the same typed runtime context as your tools.
+
+```typescript
+import { chat, type ChatMiddleware } from "@tanstack/ai";
+
+type AppContext = {
+  userId: string;
+  audit: {
+    write(event: { userId: string; requestId: string }): Promise<void>;
+  };
+};
+
+export const auditMiddleware: ChatMiddleware<AppContext> = {
+  name: "audit",
+  onStart(ctx) {
+    ctx.defer(
+      ctx.context.audit.write({
+        userId: ctx.context.userId,
+        requestId: ctx.requestId,
+      })
+    );
+  },
+};
+
+chat({
+  adapter,
+  messages,
+  middleware: [auditMiddleware],
+  context: {
+    userId: session.user.id,
+    audit,
+  },
+});
+```
+
+When typed middleware or typed tools are present, `chat()` checks that the provided `context` matches the required shape. Existing middleware typed as plain `ChatMiddleware` still works; its `ctx.context` remains `unknown` and does not force a `context` option.
+
+Runtime context is process-local application state. It is separate from AG-UI `RunAgentInput.context`, which is protocol metadata parsed by `chatParamsFromRequest`. See [Runtime Context](./runtime-context) for server, client, and client-to-server handoff patterns.
 
 ### Aborting from Middleware
 

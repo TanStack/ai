@@ -1,10 +1,13 @@
-import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
+import type { AnyClientTool, ModelMessage, SchemaInput } from '@tanstack/ai'
 import type {
+  AIDevtoolsDisplayOptions,
   ChatClientOptions,
   ChatClientState,
   ChatRequestBody,
+  ClientContextOptionFromTools,
   ConnectionStatus,
   DistributedOmit,
+  InferredClientContext,
   MultimodalContent,
   UIMessage,
 } from '@tanstack/ai-client'
@@ -28,19 +31,32 @@ export type { ChatRequestBody, MultimodalContent, UIMessage }
  * Note: Connection and body changes will recreate the ChatClient instance.
  * To update these options, remount the component or use a key prop.
  */
-export type UseChatOptions<TTools extends ReadonlyArray<AnyClientTool> = any> =
-  DistributedOmit<
-    ChatClientOptions<TTools>,
-    | 'onMessagesChange'
-    | 'onLoadingChange'
-    | 'onErrorChange'
-    | 'onStatusChange'
-    | 'onSubscriptionChange'
-    | 'onConnectionStatusChange'
-    | 'onSessionGeneratingChange'
-  > & {
-    live?: boolean
-  }
+export type UseChatOptions<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TContext = InferredClientContext<TTools>,
+> = DistributedOmit<
+  ChatClientOptions<TTools, TContext>,
+  | 'onMessagesChange'
+  | 'onLoadingChange'
+  | 'onErrorChange'
+  | 'onStatusChange'
+  | 'onSubscriptionChange'
+  | 'onConnectionStatusChange'
+  | 'onSessionGeneratingChange'
+  | 'context'
+  | 'devtools'
+> & {
+  live?: boolean
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
+  /**
+   * Standard-schema-compatible schema used to identify structured-output chat
+   * hooks in devtools. Preact currently exposes structured-output parts via
+   * `messages`; typed `partial` / `final` sugar is implemented in the other
+   * framework adapters.
+   */
+  outputSchema?: SchemaInput
+} & ClientContextOptionFromTools<TTools, TContext>
 
 export interface UseChatReturn<
   TTools extends ReadonlyArray<AnyClientTool> = any,

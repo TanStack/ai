@@ -1,4 +1,5 @@
 import { ChatClient } from '@tanstack/ai-client'
+import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import {
   useCallback,
   useEffect,
@@ -7,7 +8,11 @@ import {
   useRef,
   useState,
 } from 'preact/hooks'
-import type { ChatClientState, ConnectionStatus } from '@tanstack/ai-client'
+import type {
+  ChatClientState,
+  ConnectionStatus,
+  InferredClientContext,
+} from '@tanstack/ai-client'
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
 
 import type {
@@ -17,9 +22,10 @@ import type {
   UseChatReturn,
 } from './types'
 
-export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
-  options: UseChatOptions<TTools>,
-): UseChatReturn<TTools> {
+export function useChat<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TContext = InferredClientContext<TTools>,
+>(options: UseChatOptions<TTools, TContext>): UseChatReturn<TTools> {
   const hookId = useId()
   const clientId = options.id || hookId
 
@@ -39,7 +45,7 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     options.initialMessages || [],
   )
   const isFirstMountRef = useRef(true)
-  const optionsRef = useRef<UseChatOptions<TTools>>(options)
+  const optionsRef = useRef<UseChatOptions<TTools, TContext>>(options)
 
   optionsRef.current = options
 
@@ -64,7 +70,8 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       ? { connection: initialOptions.connection }
       : { fetcher: initialOptions.fetcher }
 
-    return new ChatClient({
+    return new ChatClient<TTools, TContext>({
+      devtoolsBridgeFactory: createChatDevtoolsBridge,
       ...transport,
       id: clientId,
       initialMessages: messagesToUse,
@@ -72,6 +79,15 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       ...(initialOptions.forwardedProps !== undefined && {
         forwardedProps: initialOptions.forwardedProps,
       }),
+      ...(initialOptions.context !== undefined && {
+        context: initialOptions.context,
+      }),
+      devtools: {
+        ...initialOptions.devtools,
+        framework: 'preact',
+        hookName: 'useChat',
+        outputKind: initialOptions.outputSchema ? 'structured' : 'chat',
+      },
       // Wrap every callback so the latest options are read at call time.
       // Capturing the function reference directly would freeze it to whatever
       // the parent passed on the first render.
@@ -126,8 +142,9 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       ...(options.forwardedProps !== undefined && {
         forwardedProps: options.forwardedProps,
       }),
+      context: options.context,
     })
-  }, [client, options.body, options.forwardedProps])
+  }, [client, options.body, options.forwardedProps, options.context])
 
   // Sync initial messages on mount only
   // Note: initialMessages are passed to ChatClient constructor, but we also
@@ -155,14 +172,21 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   // DO NOT include isLoading in dependencies - that would cause the cleanup
   // to run when isLoading changes, aborting continuation requests.
   useEffect(() => {
+    client.mountDevtools()
+
     return () => {
-      if (options.live) {
+      // Subscribe/unsubscribe on `options.live` is owned by the dedicated
+      // effect above. This cleanup only fires on unmount or client swap,
+      // so read `live` through the ref to avoid disposing the client every
+      // time `live` toggles.
+      if (optionsRef.current.live) {
         client.unsubscribe()
       } else {
         client.stop()
       }
+      client.dispose()
     }
-  }, [client, options.live])
+  }, [client])
 
   // All callback options are read through optionsRef at call time, so fresh
   // closures from each render are picked up without recreating the client.

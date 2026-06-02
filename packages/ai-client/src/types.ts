@@ -11,10 +11,12 @@ import type {
   StreamChunk,
   StructuredOutputPart,
   VideoPart,
-} from '@tanstack/ai'
+} from '@tanstack/ai/client'
 import type { ConnectionAdapter } from './connection-adapters'
+import type { AIDevtoolsClientMetadata } from './devtools'
+import type { ChatDevtoolsBridgeFactory } from './devtools-noop'
 
-export type { StructuredOutputPart } from '@tanstack/ai'
+export type { StructuredOutputPart } from '@tanstack/ai/client'
 
 /**
  * `messages` is the full UIMessage history (not a delta). `data` is the
@@ -218,7 +220,7 @@ export type ToolCallPart<TTools extends ReadonlyArray<AnyClientTool> = any> =
 export interface ToolResultPart {
   type: 'tool-result'
   toolCallId: string
-  content: string
+  content: string | Array<ContentPart>
   state: ToolResultState
   error?: string // Error message if state is "error"
 }
@@ -264,13 +266,91 @@ export interface UIMessage<
   createdAt?: Date
 }
 
+type IsUnknown<T> = unknown extends T
+  ? [T] extends [unknown]
+    ? true
+    : false
+  : false
+
+type KnownContext<T> = IsUnknown<T> extends true ? never : T
+
+type MergeContext<TLeft, TRight> = [TLeft] extends [never]
+  ? TRight
+  : [TRight] extends [never]
+    ? TLeft
+    : TLeft & TRight
+
+type UnionToIntersection<T> = [T] extends [never]
+  ? never
+  : (T extends unknown ? (value: T) => void : never) extends (
+        value: infer TIntersection,
+      ) => void
+    ? TIntersection
+    : never
+
+type DefinedContext<T> = Exclude<T, undefined>
+
+type ContextFromExecute<T> = T extends (...args: any) => any
+  ? NonNullable<Parameters<T>[1]> extends { context: infer TContext }
+    ? KnownContext<TContext>
+    : never
+  : never
+
+type ContextFromClientTool<T> = T extends AnyClientTool
+  ? T extends { execute?: infer TExecute }
+    ? ContextFromExecute<TExecute>
+    : never
+  : never
+
+type RequiredContextFromClientToolUnion<T> = T extends unknown
+  ? undefined extends ContextFromClientTool<T>
+    ? never
+    : ContextFromClientTool<T>
+  : never
+
+type ContextFromClientToolUnion<T> = [
+  UnionToIntersection<DefinedContext<ContextFromClientTool<T>>>,
+] extends [never]
+  ? never
+  : [RequiredContextFromClientToolUnion<T>] extends [never]
+    ? UnionToIntersection<DefinedContext<ContextFromClientTool<T>>> | undefined
+    : UnionToIntersection<DefinedContext<ContextFromClientTool<T>>>
+
+type ContextFromClientTools<TTools> =
+  IsUnknown<TTools> extends true
+    ? never
+    : TTools extends readonly [infer THead, ...infer TTail]
+      ? MergeContext<
+          ContextFromClientTool<THead>,
+          ContextFromClientTools<TTail>
+        >
+      : TTools extends ReadonlyArray<infer TItem>
+        ? ContextFromClientToolUnion<TItem>
+        : never
+
+export type InferredClientContext<TTools> = [
+  ContextFromClientTools<TTools>,
+] extends [never]
+  ? unknown
+  : ContextFromClientTools<TTools>
+
+export type ClientContextOptionFromTools<TTools, TContext> = [
+  ContextFromClientTools<TTools>,
+] extends [never]
+  ? { context?: TContext }
+  : undefined extends ContextFromClientTools<TTools>
+    ? { context?: TContext & ContextFromClientTools<TTools> }
+    : { context: TContext & ContextFromClientTools<TTools> }
+
 /**
- * Options for `ChatClient`. Exactly one of `connection` or `fetcher` must be
- * provided — the type-level XOR is enforced via `ChatTransport`.
+ * Base options for `ChatClient`, excluding the transport (`connection` or
+ * `fetcher`) which is supplied separately via `ChatTransport` so the XOR
+ * is preserved when composing the final `ChatClientOptions` type.
  */
-export type ChatClientOptions<
+export interface ChatClientBaseOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
-> = {
+  TContext = unknown,
+> {
   /**
    * Initial messages to populate the chat
    */
@@ -307,6 +387,14 @@ export type ChatClientOptions<
    * migrated yet. Will be removed in a future major release.
    */
   body?: Record<string, any>
+
+  /**
+   * Client-local runtime context passed to client tool implementations.
+   *
+   * This value is not serialized to the server. Use `forwardedProps` for
+   * explicit client-to-server handoff of serializable values.
+   */
+  context?: TContext
 
   /**
    * Callback when a response is received
@@ -388,6 +476,20 @@ export type ChatClientOptions<
   tools?: TTools
 
   /**
+   * Devtools hook metadata for this client instance.
+   */
+  devtools?: Partial<AIDevtoolsClientMetadata>
+
+  /**
+   * Factory that constructs the devtools bridge. Default is a no-op
+   * factory, which keeps `@tanstack/ai-client/devtools` (the heavy
+   * bridge implementation) out of the main entry's bundle. Frameworks
+   * that need live devtools should pass the real factory from
+   * `@tanstack/ai-client/devtools`.
+   */
+  devtoolsBridgeFactory?: ChatDevtoolsBridgeFactory
+
+  /**
    * Stream processing options (optional)
    * Configure chunking strategy
    */
@@ -398,7 +500,18 @@ export type ChatClientOptions<
      */
     chunkStrategy?: ChunkStrategy
   }
-} & ChatTransport
+}
+
+/**
+ * Options for `ChatClient`. Exactly one of `connection` or `fetcher` must be
+ * provided — the type-level XOR is enforced via `ChatTransport`.
+ */
+export type ChatClientOptions<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TContext = InferredClientContext<TTools>,
+> = DistributedOmit<ChatClientBaseOptions<TTools, TContext>, 'context'> &
+  ClientContextOptionFromTools<TTools, TContext> &
+  ChatTransport
 
 export interface ChatRequestBody {
   messages: Array<ModelMessage>
@@ -444,7 +557,10 @@ export function clientTools<const T extends Array<AnyClientTool>>(
  */
 export function createChatClientOptions<
   const TTools extends ReadonlyArray<AnyClientTool>,
->(options: ChatClientOptions<TTools>): ChatClientOptions<TTools> {
+  TContext = InferredClientContext<TTools>,
+>(
+  options: ChatClientOptions<TTools, TContext>,
+): ChatClientOptions<TTools, TContext> {
   return options
 }
 
@@ -463,4 +579,6 @@ export function createChatClientOptions<
  * ```
  */
 export type InferChatMessages<T> =
-  T extends ChatClientOptions<infer TTools> ? Array<UIMessage<TTools>> : never
+  T extends ChatClientOptions<infer TTools, any>
+    ? Array<UIMessage<TTools>>
+    : never

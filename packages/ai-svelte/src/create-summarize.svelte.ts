@@ -1,6 +1,7 @@
 import { createGeneration } from './create-generation.svelte'
 import type { StreamChunk, SummarizationResult } from '@tanstack/ai'
 import type {
+  AIDevtoolsDisplayOptions,
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
@@ -22,6 +23,8 @@ export interface CreateSummarizeOptions<TOutput = SummarizationResult> {
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
   /**
    * Callback when summarization is complete. Can optionally return a transformed value.
    *
@@ -102,11 +105,20 @@ export function createSummarize<
 ): CreateSummarizeReturn<
   InferGenerationOutput<SummarizationResult, TOnResult>
 > {
+  const devtools = {
+    ...options.devtools,
+    framework: 'svelte',
+    hookName: 'createSummarize',
+    outputKind: 'text' as const,
+  }
   const gen = createGeneration<
     SummarizeGenerateInput,
     SummarizationResult,
     TOnResult
-  >(options)
+  >({
+    ...options,
+    devtools,
+  })
 
   return {
     get result() {

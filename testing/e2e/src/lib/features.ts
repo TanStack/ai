@@ -103,6 +103,14 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
     tools: [],
     modelOptions: {},
   },
+  'audio-gen': {
+    tools: [],
+    modelOptions: {},
+  },
+  'sound-effects': {
+    tools: [],
+    modelOptions: {},
+  },
   tts: {
     tools: [],
     modelOptions: {},
@@ -112,6 +120,10 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
     modelOptions: {},
   },
   'video-gen': {
+    tools: [],
+    modelOptions: {},
+  },
+  'stateful-interactions': {
     tools: [],
     modelOptions: {},
   },

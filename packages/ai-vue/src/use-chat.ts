@@ -1,6 +1,8 @@
 import { ChatClient } from '@tanstack/ai-client'
+import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import {
   computed,
+  onMounted,
   onScopeDispose,
   readonly,
   shallowRef,
@@ -17,6 +19,7 @@ import type {
 import type {
   ChatClientState,
   ConnectionStatus,
+  InferredClientContext,
   StructuredOutputPart,
 } from '@tanstack/ai-client'
 import type {
@@ -30,10 +33,12 @@ import type {
 export function useChat<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
+  TContext = InferredClientContext<TTools>,
 >(
-  options: UseChatOptions<TTools, TSchema> = {} as UseChatOptions<
+  options: UseChatOptions<TTools, TSchema, TContext> = {} as UseChatOptions<
     TTools,
-    TSchema
+    TSchema,
+    TContext
   >,
 ): UseChatReturn<TTools, TSchema> {
   const hookId = useId() // Available in Vue 3.5+
@@ -74,7 +79,8 @@ export function useChat<
     ? { connection: options.connection }
     : { fetcher: options.fetcher }
 
-  const client = new ChatClient({
+  const client = new ChatClient<TTools, TContext>({
+    devtoolsBridgeFactory: createChatDevtoolsBridge,
     ...transport,
     id: clientId,
     ...(options.initialMessages !== undefined && {
@@ -84,6 +90,13 @@ export function useChat<
     ...(options.forwardedProps !== undefined && {
       forwardedProps: options.forwardedProps,
     }),
+    ...(options.context !== undefined && { context: options.context }),
+    devtools: {
+      ...options.devtools,
+      framework: 'vue',
+      hookName: 'useChat',
+      outputKind: options.outputSchema ? 'structured' : 'chat',
+    },
     onResponse: (response) => options.onResponse?.(response),
     onChunk: (chunk: StreamChunk) => {
       options.onChunk?.(chunk)
@@ -129,13 +142,14 @@ export function useChat<
   // Conditional spread: `updateOptions` declares strict-optional fields and
   // rejects explicit `undefined` under EOPT.
   watch(
-    () => [options.body, options.forwardedProps] as const,
-    ([newBody, newForwardedProps]) => {
+    () => [options.body, options.forwardedProps, options.context] as const,
+    ([newBody, newForwardedProps, newContext]) => {
       client.updateOptions({
         body: newBody,
         ...(newForwardedProps !== undefined && {
           forwardedProps: newForwardedProps,
         }),
+        context: newContext,
       })
     },
   )
@@ -152,6 +166,10 @@ export function useChat<
     { immediate: true },
   )
 
+  onMounted(() => {
+    client.mountDevtools()
+  })
+
   // Cleanup on unmount: stop any in-flight requests
   // Note: client.stop() is safe to call even if nothing is in progress
   onScopeDispose(() => {
@@ -160,6 +178,7 @@ export function useChat<
     } else {
       client.stop()
     }
+    client.dispose()
   })
 
   // Callback options are read through `options.xxx` at call time, so reactive

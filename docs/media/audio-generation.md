@@ -117,7 +117,9 @@ interface AudioGenerationResult {
     contentType?: string
     duration?: number
   }
-  usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number }
+  // Canonical TokenUsage (same shape as chat), present when the provider
+  // reports it (e.g. Gemini Lyria via generateContent).
+  usage?: TokenUsage
 }
 ```
 

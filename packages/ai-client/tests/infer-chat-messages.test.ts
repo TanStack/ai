@@ -11,7 +11,7 @@
  */
 import { describe, expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
-import { toolDefinition } from '@tanstack/ai'
+import { toolDefinition } from '@tanstack/ai/client'
 import { createChatClientOptions } from '../src/types'
 import type {
   ChatClientOptions,

@@ -1,12 +1,16 @@
 import { VideoGenerationClient } from '@tanstack/ai-client'
+import { createVideoDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import {
   createEffect,
   createMemo,
   createSignal,
   createUniqueId,
+  onCleanup,
+  onMount,
 } from 'solid-js'
 import type { StreamChunk } from '@tanstack/ai'
 import type {
+  AIDevtoolsDisplayOptions,
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
@@ -31,6 +35,8 @@ export interface UseGenerateVideoOptions<TOutput = VideoGenerateResult> {
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
   /**
    * Callback when video generation completes. Can optionally return a transformed value.
    *
@@ -137,6 +143,13 @@ export function useGenerateVideo<
     const baseOptions = {
       id: clientId,
       body: options.body,
+      devtoolsBridgeFactory: createVideoDevtoolsBridge,
+      devtools: {
+        ...options.devtools,
+        framework: 'solid',
+        hookName: 'useGenerateVideo',
+        outputKind: 'video' as const,
+      },
       onResult: (r: VideoGenerateResult) => options.onResult?.(r),
       onError: (e: Error) => options.onError?.(e),
       onProgress: (p: number, m?: string) => options.onProgress?.(p, m),
@@ -178,11 +191,13 @@ export function useGenerateVideo<
     })
   })
 
-  // Cleanup on unmount: stop any in-flight requests
-  createEffect(() => {
-    return () => {
-      client().stop()
-    }
+  onMount(() => {
+    client().mountDevtools()
+  })
+
+  // Cleanup on unmount: stop any in-flight requests and unregister devtools
+  onCleanup(() => {
+    client().dispose()
   })
 
   const generate = async (input: VideoGenerateInput) => {

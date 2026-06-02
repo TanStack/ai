@@ -18,6 +18,7 @@
  *   adapter contract, single-shot flows, and expected UIMessage output.
  */
 import { generateMessageId, uiMessageToModelMessages } from '../messages.js'
+import { normalizeToolResult } from '../../../utilities/tool-result'
 import { defaultJSONParser } from './json-parser'
 import {
   appendStructuredOutputDelta,
@@ -98,6 +99,17 @@ export interface StreamProcessorEvents {
     stepId: string,
     content: string,
   ) => void
+  onStructuredOutputChange?: (args: {
+    phase: 'start' | 'update' | 'complete' | 'error'
+    messageId: string
+    status: 'streaming' | 'complete' | 'error'
+    raw: string
+    partial?: unknown
+    data?: unknown
+    reasoning?: string
+    errorMessage?: string
+    delta?: string
+  }) => void
 }
 
 /**
@@ -115,6 +127,8 @@ export interface StreamProcessorOptions {
   /** Initial messages to populate the processor */
   initialMessages?: Array<UIMessage>
 }
+
+const STRUCTURED_OUTPUT_UPDATE_BATCH_SIZE = 12
 
 /**
  * StreamProcessor - State machine for processing AI response streams
@@ -149,6 +163,13 @@ export class StreamProcessor {
   private pendingThinkingStepId: string | null = null
 
   private readonly structuredMessageIds: Set<string> = new Set()
+  private readonly structuredOutputUpdateBatches = new Map<
+    string,
+    {
+      delta: string
+      chunkCount: number
+    }
+  >()
 
   // Run tracking (for concurrent run safety)
   private readonly activeRuns = new Set<string>()
@@ -301,7 +322,7 @@ export class StreamProcessor {
     )
 
     // Step 2: Create a tool-result part (for LLM conversation history)
-    const content = typeof output === 'string' ? output : JSON.stringify(output)
+    const content = normalizeToolResult(output)
     const toolResultState: ToolResultState = error ? 'error' : 'complete'
 
     updatedMessages = updateToolResultPart(
@@ -401,6 +422,9 @@ export class StreamProcessor {
     for (const id of this.structuredMessageIds) {
       if (!keptIds.has(id)) this.structuredMessageIds.delete(id)
     }
+    for (const id of this.structuredOutputUpdateBatches.keys()) {
+      if (!keptIds.has(id)) this.structuredOutputUpdateBatches.delete(id)
+    }
     for (const id of this.messageStates.keys()) {
       if (!keptIds.has(id)) this.messageStates.delete(id)
     }
@@ -423,6 +447,7 @@ export class StreamProcessor {
     this.activeMessageIds.clear()
     this.toolCallToMessage.clear()
     this.structuredMessageIds.clear()
+    this.structuredOutputUpdateBatches.clear()
     this.pendingManualMessageId = null
     this.emitMessagesChange()
   }
@@ -899,6 +924,7 @@ export class StreamProcessor {
           delta,
         )
         state.totalTextContent += delta
+        this.queueStructuredOutputUpdate(messageId, delta)
         this.emitMessagesChange()
       }
       return
@@ -1145,28 +1171,49 @@ export class StreamProcessor {
       // Step 1: Update the tool-call part's output field (for UI consistency
       // with client tools — see GitHub issue #176)
       let output: unknown
-      try {
-        output = JSON.parse(chunk.result)
-      } catch {
+      if (Array.isArray(chunk.result)) {
         output = chunk.result
+      } else {
+        try {
+          output = JSON.parse(chunk.result)
+        } catch {
+          output = chunk.result
+        }
       }
       this.messages = updateToolCallWithOutput(
         this.messages,
         chunk.toolCallId,
         output,
+        chunk.state === 'output-error' ? 'input-complete' : undefined,
       )
 
       // Step 2: Create/update the tool-result part (for LLM conversation history)
-      const resultState: ToolResultState = 'complete'
+      const resultState: ToolResultState =
+        chunk.state === 'output-error' ? 'error' : 'complete'
       this.messages = updateToolResultPart(
         this.messages,
         messageId,
         chunk.toolCallId,
         chunk.result,
         resultState,
+        resultState === 'error'
+          ? this.extractToolResultError(output)
+          : undefined,
       )
       this.emitMessagesChange()
     }
+  }
+
+  private extractToolResultError(output: unknown): string {
+    if (
+      output &&
+      typeof output === 'object' &&
+      'error' in output &&
+      typeof output.error === 'string'
+    ) {
+      return output.error
+    }
+    return typeof output === 'string' ? output : 'Tool execution failed'
   }
 
   /**
@@ -1193,16 +1240,19 @@ export class StreamProcessor {
       this.messages,
       chunk.toolCallId,
       output,
+      chunk.state === 'output-error' ? 'input-complete' : undefined,
     )
 
     // Step 2: Create/update the tool-result part
-    const resultState: ToolResultState = 'complete'
+    const resultState: ToolResultState =
+      chunk.state === 'output-error' ? 'error' : 'complete'
     this.messages = updateToolResultPart(
       this.messages,
       messageId,
       chunk.toolCallId,
       chunk.content,
       resultState,
+      resultState === 'error' ? this.extractToolResultError(output) : undefined,
     )
     this.emitMessagesChange()
   }
@@ -1249,7 +1299,10 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
   ): void {
     this.hasError = true
-    const runId = (chunk as any).runId as string | undefined
+    const runId =
+      'runId' in chunk && typeof chunk.runId === 'string'
+        ? chunk.runId
+        : undefined
     if (runId) {
       this.activeRuns.delete(runId)
     } else {
@@ -1269,16 +1322,30 @@ export class StreamProcessor {
     }
 
     if (this.structuredMessageIds.has(messageId)) {
+      this.flushStructuredOutputUpdate(messageId)
       this.messages = errorStructuredOutputPart(
         this.messages,
         messageId,
         errorMessage,
       )
       this.structuredMessageIds.delete(messageId)
+      this.emitStructuredOutputChange(messageId, 'error')
       this.emitMessagesChange()
     }
 
-    this.events.onError?.(new Error(errorMessage))
+    // Attach the provider's structured error body (`rawEvent`) and `code` to
+    // the surfaced Error so consumers can recover the upstream detail that the
+    // RUN_ERROR's `message` alone discards. Both are optional and added only
+    // when present, keeping the Error backward compatible.
+    const error = new Error(errorMessage)
+    const code = chunk.code ?? chunk.error?.code
+    if (code !== undefined) {
+      Object.assign(error, { code })
+    }
+    if (chunk.rawEvent !== undefined) {
+      Object.assign(error, { rawEvent: chunk.rawEvent })
+    }
+    this.events.onError?.(error)
   }
 
   /**
@@ -1463,6 +1530,13 @@ export class StreamProcessor {
       if (targetId) {
         this.ensureAssistantMessage(targetId)
         this.structuredMessageIds.add(targetId)
+        this.structuredOutputUpdateBatches.delete(targetId)
+        this.events.onStructuredOutputChange?.({
+          phase: 'start',
+          messageId: targetId,
+          status: 'streaming',
+          raw: '',
+        })
       }
       return
     }
@@ -1476,6 +1550,7 @@ export class StreamProcessor {
       }
       const targetId = v.messageId ?? messageId
       if (targetId) {
+        this.flushStructuredOutputUpdate(targetId)
         this.messages = completeStructuredOutputPart(
           this.messages,
           targetId,
@@ -1484,6 +1559,7 @@ export class StreamProcessor {
           v.reasoning,
         )
         this.structuredMessageIds.delete(targetId)
+        this.emitStructuredOutputChange(targetId, 'complete')
         this.emitMessagesChange()
       }
       // Fall through so user `onCustomEvent` callbacks still observe the event.
@@ -1665,6 +1741,58 @@ export class StreamProcessor {
     this.events.onTextUpdate?.(messageId, state.currentSegmentText)
   }
 
+  private queueStructuredOutputUpdate(messageId: string, delta: string): void {
+    const existing = this.structuredOutputUpdateBatches.get(messageId)
+    const next = {
+      delta: `${existing?.delta ?? ''}${delta}`,
+      chunkCount: (existing?.chunkCount ?? 0) + 1,
+    }
+
+    this.structuredOutputUpdateBatches.set(messageId, next)
+
+    if (next.chunkCount >= STRUCTURED_OUTPUT_UPDATE_BATCH_SIZE) {
+      this.flushStructuredOutputUpdate(messageId)
+    }
+  }
+
+  private flushStructuredOutputUpdate(messageId: string): void {
+    const batch = this.structuredOutputUpdateBatches.get(messageId)
+    if (!batch || batch.chunkCount === 0) return
+
+    this.structuredOutputUpdateBatches.delete(messageId)
+    this.emitStructuredOutputChange(messageId, 'update', batch.delta)
+  }
+
+  private emitStructuredOutputChange(
+    messageId: string,
+    phase: 'update' | 'complete' | 'error',
+    delta?: string,
+  ): void {
+    const part = this.messages
+      .find((message) => message.id === messageId)
+      ?.parts.find(
+        (
+          messagePart,
+        ): messagePart is Extract<MessagePart, { type: 'structured-output' }> =>
+          messagePart.type === 'structured-output',
+      )
+    if (!part) return
+
+    this.events.onStructuredOutputChange?.({
+      phase,
+      messageId,
+      status: part.status,
+      raw: part.raw,
+      ...(part.partial !== undefined ? { partial: part.partial } : {}),
+      ...(part.data !== undefined ? { data: part.data } : {}),
+      ...(part.reasoning !== undefined ? { reasoning: part.reasoning } : {}),
+      ...(part.errorMessage !== undefined
+        ? { errorMessage: part.errorMessage }
+        : {}),
+      ...(delta !== undefined ? { delta } : {}),
+    })
+  }
+
   /**
    * Emit messages change event
    */
@@ -1718,13 +1846,16 @@ export class StreamProcessor {
     // definition a non-errored, never-completed run (the multi-run case:
     // run-A errors, run-B is still streaming when finalize fires).
     for (const messageId of this.structuredMessageIds) {
+      this.flushStructuredOutputUpdate(messageId)
       this.messages = errorStructuredOutputPart(
         this.messages,
         messageId,
         'Stream ended without structured-output.complete',
       )
+      this.emitStructuredOutputChange(messageId, 'error')
     }
     this.structuredMessageIds.clear()
+    this.structuredOutputUpdateBatches.clear()
 
     this.activeMessageIds.clear()
 
@@ -1855,6 +1986,7 @@ export class StreamProcessor {
     this.activeRuns.clear()
     this.toolCallToMessage.clear()
     this.structuredMessageIds.clear()
+    this.structuredOutputUpdateBatches.clear()
     this.pendingManualMessageId = null
     this.pendingThinkingStepId = null
     this.finishReason = null

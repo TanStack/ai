@@ -1,6 +1,7 @@
 import { BaseTranscriptionAdapter } from '@tanstack/ai/adapters'
 import { generateId, getGrokApiKeyFromEnv, toAudioFile } from '../utils'
 import type {
+  TokenUsage,
   TranscriptionOptions,
   TranscriptionResult,
   TranscriptionWord,
@@ -135,6 +136,18 @@ export class GrokTranscriptionAdapter<
       )
 
       const resolvedLanguage = data.language ?? language
+      // xAI's /v1/stt response carries no token counts — STT is duration-billed —
+      // so surface the audio duration as `durationSeconds`, mirroring the
+      // whisper-1 path in the OpenAI transcription adapter.
+      const usage: TokenUsage | undefined =
+        data.duration !== undefined && data.duration > 0
+          ? {
+              promptTokens: 0,
+              completionTokens: 0,
+              totalTokens: 0,
+              durationSeconds: data.duration,
+            }
+          : undefined
       return {
         id: generateId(this.name),
         model,
@@ -142,6 +155,7 @@ export class GrokTranscriptionAdapter<
         ...(resolvedLanguage !== undefined && { language: resolvedLanguage }),
         duration: data.duration,
         ...(words !== undefined && { words }),
+        ...(usage !== undefined && { usage }),
       }
     } catch (error) {
       logger.errors('grok.transcribe fatal', {

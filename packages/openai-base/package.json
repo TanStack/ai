@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/openai-base",
-  "version": "0.4.0",
+  "version": "0.6.1",
   "description": "Shared OpenAI SDK base adapters for TanStack AI providers using Chat Completions and Responses APIs.",
   "author": "",
   "license": "MIT",

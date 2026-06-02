@@ -2,7 +2,7 @@ import type {
   AnyClientTool,
   InferToolInput,
   InferToolOutput,
-} from '@tanstack/ai'
+} from '@tanstack/ai/client'
 
 /**
  * Extract all tool names from a tools array as a union type

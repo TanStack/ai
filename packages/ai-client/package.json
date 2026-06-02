@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-client",
-  "version": "0.12.0",
+  "version": "0.15.2",
   "description": "Framework-agnostic headless client for TanStack AI chat, realtime sessions, streaming transports, and media generations.",
   "author": "",
   "license": "MIT",
@@ -30,6 +30,10 @@
     ".": {
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
+    },
+    "./devtools": {
+      "types": "./dist/esm/devtools.d.ts",
+      "import": "./dist/esm/devtools.js"
     }
   },
   "files": [

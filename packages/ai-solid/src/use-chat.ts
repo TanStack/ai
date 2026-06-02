@@ -4,12 +4,15 @@ import {
   createSignal,
   createUniqueId,
   onCleanup,
+  onMount,
 } from 'solid-js'
 
 import { ChatClient } from '@tanstack/ai-client'
+import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import type {
   ChatClientState,
   ConnectionStatus,
+  InferredClientContext,
   StructuredOutputPart,
 } from '@tanstack/ai-client'
 import type {
@@ -30,10 +33,12 @@ import type {
 export function useChat<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
+  TContext = InferredClientContext<TTools>,
 >(
-  options: UseChatOptions<TTools, TSchema> = {} as UseChatOptions<
+  options: UseChatOptions<TTools, TSchema, TContext> = {} as UseChatOptions<
     TTools,
-    TSchema
+    TSchema,
+    TContext
   >,
 ): UseChatReturn<TTools, TSchema> {
   const hookId = createUniqueId()
@@ -71,7 +76,8 @@ export function useChat<
     const transport = options.connection
       ? { connection: options.connection }
       : { fetcher: options.fetcher }
-    return new ChatClient({
+    return new ChatClient<TTools, TContext>({
+      devtoolsBridgeFactory: createChatDevtoolsBridge,
       ...transport,
       id: clientId,
       ...(options.initialMessages !== undefined && {
@@ -81,6 +87,13 @@ export function useChat<
       ...(options.forwardedProps !== undefined && {
         forwardedProps: options.forwardedProps,
       }),
+      ...(options.context !== undefined && { context: options.context }),
+      devtools: {
+        ...options.devtools,
+        framework: 'solid',
+        hookName: 'useChat',
+        outputKind: options.outputSchema ? 'structured' : 'chat',
+      },
       onResponse: (response) => options.onResponse?.(response),
       onChunk: (chunk: StreamChunk) => {
         options.onChunk?.(chunk)
@@ -134,6 +147,7 @@ export function useChat<
       ...(options.forwardedProps !== undefined && {
         forwardedProps: options.forwardedProps,
       }),
+      context: options.context,
     })
   })
 
@@ -164,6 +178,10 @@ export function useChat<
     }
   })
 
+  onMount(() => {
+    client().mountDevtools()
+  })
+
   // Cleanup on unmount: stop any in-flight requests.
   onCleanup(() => {
     if (options.live) {
@@ -171,6 +189,7 @@ export function useChat<
     } else {
       client().stop()
     }
+    client().dispose()
   })
 
   // Callback options are read through `options.xxx` at call time, so reactive

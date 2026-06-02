@@ -5,11 +5,14 @@ import type {
   SchemaInput,
 } from '@tanstack/ai'
 import type {
+  AIDevtoolsDisplayOptions,
   ChatClientOptions,
   ChatClientState,
   ChatRequestBody,
+  ClientContextOptionFromTools,
   ConnectionStatus,
   DistributedOmit,
+  InferredClientContext,
   MultimodalContent,
   UIMessage,
 } from '@tanstack/ai-client'
@@ -54,8 +57,9 @@ export type DeepPartial<T> =
 export type UseChatOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
+  TContext = InferredClientContext<TTools>,
 > = DistributedOmit<
-  ChatClientOptions<TTools>,
+  ChatClientOptions<TTools, TContext>,
   | 'onMessagesChange'
   | 'onLoadingChange'
   | 'onErrorChange'
@@ -63,14 +67,18 @@ export type UseChatOptions<
   | 'onSubscriptionChange'
   | 'onConnectionStatusChange'
   | 'onSessionGeneratingChange'
+  | 'context'
+  | 'devtools'
 > & {
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
   live?: boolean
   /**
    * Standard-schema-compatible schema (Zod, Valibot, ArkType, or plain JSON
    * Schema). Used to infer the shape of `partial` and `final`.
    */
   outputSchema?: TSchema
-}
+} & ClientContextOptionFromTools<TTools, TContext>
 
 /**
  * Discriminated return shape: when `outputSchema` is supplied, the hook adds

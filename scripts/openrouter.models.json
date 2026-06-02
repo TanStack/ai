@@ -301,13 +301,13 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.00000073",
-      "completion": "0.00000349",
-      "input_cache_read": "0.00000025"
+      "prompt": "0.000000684",
+      "completion": "0.00000342",
+      "input_cache_read": "0.000000144"
     },
     "top_provider": {
-      "context_length": 262142,
-      "max_completion_tokens": 262142,
+      "context_length": 262144,
+      "max_completion_tokens": 262144,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -426,7 +426,7 @@
     "top_provider": {
       "context_length": 400000,
       "max_completion_tokens": 128000,
-      "is_moderated": false
+      "is_moderated": true
     },
     "per_request_limits": null,
     "supported_parameters": [
@@ -654,108 +654,6 @@
     "expiration_date": null,
     "links": {
       "details": "/api/v1/models/aion-labs/aion-rp-llama-3.1-8b/endpoints"
-    }
-  },
-  {
-    "id": "alfredpros/codellama-7b-instruct-solidity",
-    "canonical_slug": "alfredpros/codellama-7b-instruct-solidity",
-    "hugging_face_id": "AlfredPros/CodeLlama-7b-Instruct-Solidity",
-    "name": "AlfredPros: CodeLLaMa 7B Instruct Solidity",
-    "created": 1744641874,
-    "description": "A finetuned 7 billion parameters Code LLaMA - Instruct model to generate Solidity smart contract using 4-bit QLoRA finetuning provided by PEFT library.",
-    "context_length": 4096,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
-      "output_modalities": ["text"],
-      "tokenizer": "Other",
-      "instruct_type": "alpaca"
-    },
-    "pricing": {
-      "prompt": "0.0000008",
-      "completion": "0.0000012"
-    },
-    "top_provider": {
-      "context_length": 4096,
-      "max_completion_tokens": 4096,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "frequency_penalty",
-      "max_tokens",
-      "min_p",
-      "presence_penalty",
-      "repetition_penalty",
-      "seed",
-      "stop",
-      "temperature",
-      "top_k",
-      "top_p"
-    ],
-    "default_parameters": {},
-    "supported_voices": null,
-    "knowledge_cutoff": "2023-06-30",
-    "expiration_date": null,
-    "links": {
-      "details": "/api/v1/models/alfredpros/codellama-7b-instruct-solidity/endpoints"
-    }
-  },
-  {
-    "id": "alibaba/tongyi-deepresearch-30b-a3b",
-    "canonical_slug": "alibaba/tongyi-deepresearch-30b-a3b",
-    "hugging_face_id": "Alibaba-NLP/Tongyi-DeepResearch-30B-A3B",
-    "name": "Tongyi DeepResearch 30B A3B",
-    "created": 1758210804,
-    "description": "Tongyi DeepResearch is an agentic large language model developed by Tongyi Lab, with 30 billion total parameters activating only 3 billion per token. It's optimized for long-horizon, deep information-seeking tasks...",
-    "context_length": 131072,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
-      "output_modalities": ["text"],
-      "tokenizer": "Other",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.00000009",
-      "completion": "0.00000045",
-      "input_cache_read": "0.00000009"
-    },
-    "top_provider": {
-      "context_length": 131072,
-      "max_completion_tokens": 131072,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "frequency_penalty",
-      "include_reasoning",
-      "logit_bias",
-      "max_tokens",
-      "min_p",
-      "presence_penalty",
-      "reasoning",
-      "repetition_penalty",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_k",
-      "top_p"
-    ],
-    "default_parameters": {
-      "temperature": null,
-      "top_p": null,
-      "frequency_penalty": null
-    },
-    "supported_voices": null,
-    "knowledge_cutoff": "2025-03-31",
-    "expiration_date": null,
-    "links": {
-      "details": "/api/v1/models/alibaba/tongyi-deepresearch-30b-a3b/endpoints"
     }
   },
   {
@@ -1502,7 +1400,7 @@
     },
     "supported_voices": null,
     "knowledge_cutoff": null,
-    "expiration_date": null,
+    "expiration_date": "2026-06-29",
     "links": {
       "details": "/api/v1/models/anthropic/claude-4.6-opus-fast-20260407/endpoints"
     }
@@ -1613,6 +1511,114 @@
     "expiration_date": null,
     "links": {
       "details": "/api/v1/models/anthropic/claude-4.7-opus-fast-20260512/endpoints"
+    }
+  },
+  {
+    "id": "anthropic/claude-opus-4.8",
+    "canonical_slug": "anthropic/claude-4.8-opus-20260528",
+    "hugging_face_id": null,
+    "name": "Anthropic: Claude Opus 4.8",
+    "created": 1779905091,
+    "description": "Claude Opus 4.8 is Anthropic's most capable generally available model in the Opus family. It supports text, image, and file inputs with text output, with reasoning support and a 1M-token...",
+    "context_length": 1000000,
+    "architecture": {
+      "modality": "text+image+file->text",
+      "input_modalities": ["text", "image", "file"],
+      "output_modalities": ["text"],
+      "tokenizer": "Claude",
+      "instruct_type": null
+    },
+    "pricing": {
+      "prompt": "0.000005",
+      "completion": "0.000025",
+      "web_search": "0.01",
+      "input_cache_read": "0.0000005",
+      "input_cache_write": "0.00000625"
+    },
+    "top_provider": {
+      "context_length": 1000000,
+      "max_completion_tokens": 128000,
+      "is_moderated": false
+    },
+    "per_request_limits": null,
+    "supported_parameters": [
+      "include_reasoning",
+      "max_tokens",
+      "reasoning",
+      "response_format",
+      "stop",
+      "structured_outputs",
+      "tool_choice",
+      "tools",
+      "verbosity"
+    ],
+    "default_parameters": {
+      "temperature": null,
+      "top_p": null,
+      "top_k": null,
+      "frequency_penalty": null,
+      "presence_penalty": null,
+      "repetition_penalty": null
+    },
+    "supported_voices": null,
+    "knowledge_cutoff": null,
+    "expiration_date": null,
+    "links": {
+      "details": "/api/v1/models/anthropic/claude-4.8-opus-20260528/endpoints"
+    }
+  },
+  {
+    "id": "anthropic/claude-opus-4.8-fast",
+    "canonical_slug": "anthropic/claude-4.8-opus-fast-20260528",
+    "hugging_face_id": null,
+    "name": "Anthropic: Claude Opus 4.8 (Fast)",
+    "created": 1779913703,
+    "description": "Fast-mode variant of [Opus 4.8](/anthropic/claude-opus-4.8) - identical capabilities with higher output speed at 2x pricing relative to regular Opus 4.8.\n\nLearn more in Anthropic's docs: https://platform.claude.com/docs/en/build-with-claude/fast-mode",
+    "context_length": 1000000,
+    "architecture": {
+      "modality": "text+image+file->text",
+      "input_modalities": ["text", "image", "file"],
+      "output_modalities": ["text"],
+      "tokenizer": "Claude",
+      "instruct_type": null
+    },
+    "pricing": {
+      "prompt": "0.00001",
+      "completion": "0.00005",
+      "web_search": "0.01",
+      "input_cache_read": "0.000001",
+      "input_cache_write": "0.0000125"
+    },
+    "top_provider": {
+      "context_length": 1000000,
+      "max_completion_tokens": 128000,
+      "is_moderated": true
+    },
+    "per_request_limits": null,
+    "supported_parameters": [
+      "include_reasoning",
+      "max_tokens",
+      "reasoning",
+      "response_format",
+      "stop",
+      "structured_outputs",
+      "tool_choice",
+      "tools",
+      "verbosity"
+    ],
+    "default_parameters": {
+      "temperature": null,
+      "top_p": null,
+      "top_k": null,
+      "frequency_penalty": null,
+      "presence_penalty": null,
+      "repetition_penalty": null
+    },
+    "supported_voices": null,
+    "knowledge_cutoff": null,
+    "expiration_date": null,
+    "links": {
+      "details": "/api/v1/models/anthropic/claude-4.8-opus-fast-20260528/endpoints"
     }
   },
   {
@@ -1978,56 +1984,6 @@
     }
   },
   {
-    "id": "arcee-ai/trinity-large-thinking:free",
-    "canonical_slug": "arcee-ai/trinity-large-thinking",
-    "hugging_face_id": "arcee-ai/Trinity-Large-Thinking",
-    "name": "Arcee AI: Trinity Large Thinking (free)",
-    "created": 1775058318,
-    "description": "Trinity Large Thinking is a powerful open source reasoning model from the team at Arcee AI. It shows strong performance in PinchBench, agentic workloads, and reasoning tasks. Launch video: https://youtu.be/Gc82AXLa0Rg?si=4RLn6WBz33qT--B7...",
-    "context_length": 262144,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
-      "output_modalities": ["text"],
-      "tokenizer": "Other",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0",
-      "completion": "0"
-    },
-    "top_provider": {
-      "context_length": 262144,
-      "max_completion_tokens": 80000,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "include_reasoning",
-      "max_tokens",
-      "reasoning",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_k",
-      "top_p"
-    ],
-    "default_parameters": {
-      "temperature": 0.3,
-      "top_p": 0.8,
-      "top_k": null,
-      "frequency_penalty": null,
-      "presence_penalty": null,
-      "repetition_penalty": null
-    },
-    "supported_voices": null,
-    "knowledge_cutoff": null,
-    "expiration_date": null,
-    "links": {
-      "details": "/api/v1/models/arcee-ai/trinity-large-thinking/endpoints"
-    }
-  },
-  {
     "id": "arcee-ai/trinity-mini",
     "canonical_slug": "arcee-ai/trinity-mini-20251201",
     "hugging_face_id": "arcee-ai/Trinity-Mini",
@@ -2122,146 +2078,6 @@
     "expiration_date": null,
     "links": {
       "details": "/api/v1/models/arcee-ai/virtuoso-large/endpoints"
-    }
-  },
-  {
-    "id": "baidu/cobuddy:free",
-    "canonical_slug": "baidu/cobuddy-20260430",
-    "hugging_face_id": null,
-    "name": "Baidu Qianfan: CoBuddy (free)",
-    "created": 1778035480,
-    "description": "CoBuddy is a code generation model from Baidu, optimized for coding tasks and AI Agent workflows. It features high inference throughput and low end-to-end latency, with native support for tool...",
-    "context_length": 131072,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
-      "output_modalities": ["text"],
-      "tokenizer": "Other",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0",
-      "completion": "0"
-    },
-    "top_provider": {
-      "context_length": 131072,
-      "max_completion_tokens": 65536,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "include_reasoning",
-      "max_tokens",
-      "reasoning",
-      "stop",
-      "tools"
-    ],
-    "default_parameters": {},
-    "supported_voices": null,
-    "knowledge_cutoff": null,
-    "expiration_date": null,
-    "links": {
-      "details": "/api/v1/models/baidu/cobuddy-20260430/endpoints"
-    }
-  },
-  {
-    "id": "baidu/ernie-4.5-21b-a3b",
-    "canonical_slug": "baidu/ernie-4.5-21b-a3b",
-    "hugging_face_id": "baidu/ERNIE-4.5-21B-A3B-PT",
-    "name": "Baidu: ERNIE 4.5 21B A3B",
-    "created": 1755034167,
-    "description": "A sophisticated text-based Mixture-of-Experts (MoE) model featuring 21B total parameters with 3B activated per token, delivering exceptional multimodal understanding and generation through heterogeneous MoE structures and modality-isolated routing. Supporting an...",
-    "context_length": 131072,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
-      "output_modalities": ["text"],
-      "tokenizer": "Other",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.00000007",
-      "completion": "0.00000028"
-    },
-    "top_provider": {
-      "context_length": 120000,
-      "max_completion_tokens": 8000,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "frequency_penalty",
-      "max_tokens",
-      "presence_penalty",
-      "repetition_penalty",
-      "seed",
-      "stop",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_k",
-      "top_p"
-    ],
-    "default_parameters": {
-      "temperature": 0.8,
-      "top_p": 0.8,
-      "frequency_penalty": null
-    },
-    "supported_voices": null,
-    "knowledge_cutoff": "2025-03-31",
-    "expiration_date": null,
-    "links": {
-      "details": "/api/v1/models/baidu/ernie-4.5-21b-a3b/endpoints"
-    }
-  },
-  {
-    "id": "baidu/ernie-4.5-21b-a3b-thinking",
-    "canonical_slug": "baidu/ernie-4.5-21b-a3b-thinking",
-    "hugging_face_id": "baidu/ERNIE-4.5-21B-A3B-Thinking",
-    "name": "Baidu: ERNIE 4.5 21B A3B Thinking",
-    "created": 1760048887,
-    "description": "ERNIE-4.5-21B-A3B-Thinking is Baidu's upgraded lightweight MoE model, refined to boost reasoning depth and quality for top-tier performance in logical puzzles, math, science, coding, text generation, and expert-level academic benchmarks.",
-    "context_length": 131072,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
-      "output_modalities": ["text"],
-      "tokenizer": "Other",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.00000007",
-      "completion": "0.00000028"
-    },
-    "top_provider": {
-      "context_length": 131072,
-      "max_completion_tokens": 65536,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "frequency_penalty",
-      "include_reasoning",
-      "max_tokens",
-      "presence_penalty",
-      "reasoning",
-      "repetition_penalty",
-      "seed",
-      "stop",
-      "temperature",
-      "top_k",
-      "top_p"
-    ],
-    "default_parameters": {
-      "temperature": 0.6,
-      "top_p": 0.95,
-      "frequency_penalty": null
-    },
-    "supported_voices": null,
-    "knowledge_cutoff": "2025-03-31",
-    "expiration_date": null,
-    "links": {
-      "details": "/api/v1/models/baidu/ernie-4.5-21b-a3b-thinking/endpoints"
     }
   },
   {
@@ -2401,58 +2217,6 @@
     "expiration_date": null,
     "links": {
       "details": "/api/v1/models/baidu/ernie-4.5-vl-424b-a47b/endpoints"
-    }
-  },
-  {
-    "id": "baidu/qianfan-ocr-fast",
-    "canonical_slug": "baidu/qianfan-ocr-fast-20260420",
-    "hugging_face_id": "",
-    "name": "Baidu: Qianfan-OCR-Fast",
-    "created": 1776707472,
-    "description": "Qianfan-OCR-Fast is a domain-specific multimodal large model purpose-built for OCR. By leveraging specialized OCR training data while preserving versatile multimodal intelligence, it provides a powerful performance upgrade over Qianfan-OCR.",
-    "context_length": 65536,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": ["image", "text"],
-      "output_modalities": ["text"],
-      "tokenizer": "Other",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.00000068",
-      "completion": "0.00000281"
-    },
-    "top_provider": {
-      "context_length": 65536,
-      "max_completion_tokens": 28672,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "frequency_penalty",
-      "include_reasoning",
-      "max_tokens",
-      "presence_penalty",
-      "reasoning",
-      "repetition_penalty",
-      "seed",
-      "stop",
-      "temperature",
-      "top_p"
-    ],
-    "default_parameters": {
-      "temperature": null,
-      "top_p": null,
-      "top_k": null,
-      "frequency_penalty": null,
-      "presence_penalty": null,
-      "repetition_penalty": null
-    },
-    "supported_voices": null,
-    "knowledge_cutoff": null,
-    "expiration_date": "2026-05-28",
-    "links": {
-      "details": "/api/v1/models/baidu/qianfan-ocr-fast-20260420/endpoints"
     }
   },
   {
@@ -2992,7 +2756,7 @@
     "name": "DeepSeek: DeepSeek V3",
     "created": 1735241320,
     "description": "DeepSeek-V3 is the latest model from the DeepSeek team, building upon the instruction following and coding abilities of the previous versions. Pre-trained on nearly 15 trillion tokens, the reported evaluations...",
-    "context_length": 163840,
+    "context_length": 131072,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -3001,12 +2765,12 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.00000032",
-      "completion": "0.00000089"
+      "prompt": "0.0000002288",
+      "completion": "0.0000009144"
     },
     "top_provider": {
-      "context_length": 163840,
-      "max_completion_tokens": 16384,
+      "context_length": 128000,
+      "max_completion_tokens": 16000,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -3526,61 +3290,6 @@
     }
   },
   {
-    "id": "deepseek/deepseek-v3.2-speciale",
-    "canonical_slug": "deepseek/deepseek-v3.2-speciale-20251201",
-    "hugging_face_id": "deepseek-ai/DeepSeek-V3.2-Speciale",
-    "name": "DeepSeek: DeepSeek V3.2 Speciale",
-    "created": 1764594837,
-    "description": "DeepSeek-V3.2-Speciale is a high-compute variant of DeepSeek-V3.2 optimized for maximum reasoning and agentic performance. It builds on DeepSeek Sparse Attention (DSA) for efficient long-context processing, then scales post-training reinforcement learning...",
-    "context_length": 163840,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
-      "output_modalities": ["text"],
-      "tokenizer": "DeepSeek",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.000000287",
-      "completion": "0.000000431",
-      "input_cache_read": "0.000000058"
-    },
-    "top_provider": {
-      "context_length": 163840,
-      "max_completion_tokens": 163840,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "frequency_penalty",
-      "include_reasoning",
-      "logit_bias",
-      "max_tokens",
-      "min_p",
-      "presence_penalty",
-      "reasoning",
-      "repetition_penalty",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "top_k",
-      "top_p"
-    ],
-    "default_parameters": {
-      "temperature": 1,
-      "top_p": 0.95,
-      "frequency_penalty": null
-    },
-    "supported_voices": null,
-    "knowledge_cutoff": null,
-    "expiration_date": null,
-    "links": {
-      "details": "/api/v1/models/deepseek/deepseek-v3.2-speciale-20251201/endpoints"
-    }
-  },
-  {
     "id": "deepseek/deepseek-v4-flash",
     "canonical_slug": "deepseek/deepseek-v4-flash-20260423",
     "hugging_face_id": "deepseek-ai/DeepSeek-V4-Flash",
@@ -3596,13 +3305,13 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.000000112",
-      "completion": "0.000000224",
-      "input_cache_read": "0.000000022"
+      "prompt": "0.0000000983",
+      "completion": "0.0000001966",
+      "input_cache_read": "0.0000000197"
     },
     "top_provider": {
-      "context_length": 1048575,
-      "max_completion_tokens": null,
+      "context_length": 1048576,
+      "max_completion_tokens": 131072,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -3626,52 +3335,6 @@
       "top_k",
       "top_logprobs",
       "top_p"
-    ],
-    "default_parameters": {
-      "temperature": null,
-      "top_p": null,
-      "top_k": null,
-      "frequency_penalty": null,
-      "presence_penalty": null,
-      "repetition_penalty": null
-    },
-    "supported_voices": null,
-    "knowledge_cutoff": null,
-    "expiration_date": null,
-    "links": {
-      "details": "/api/v1/models/deepseek/deepseek-v4-flash-20260423/endpoints"
-    }
-  },
-  {
-    "id": "deepseek/deepseek-v4-flash:free",
-    "canonical_slug": "deepseek/deepseek-v4-flash-20260423",
-    "hugging_face_id": "deepseek-ai/DeepSeek-V4-Flash",
-    "name": "DeepSeek: DeepSeek V4 Flash (free)",
-    "created": 1777000666,
-    "description": "DeepSeek V4 Flash is an efficiency-optimized Mixture-of-Experts model from DeepSeek with 284B total parameters and 13B activated parameters, supporting a 1M-token context window. It is designed for fast inference and...",
-    "context_length": 1048576,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
-      "output_modalities": ["text"],
-      "tokenizer": "DeepSeek",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0",
-      "completion": "0"
-    },
-    "top_provider": {
-      "context_length": 1048576,
-      "max_completion_tokens": 384000,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "include_reasoning",
-      "reasoning",
-      "tool_choice",
-      "tools"
     ],
     "default_parameters": {
       "temperature": null,
@@ -3810,7 +3473,7 @@
     "name": "Google: Gemini 2.0 Flash",
     "created": 1738769413,
     "description": "Gemini Flash 2.0 offers a significantly faster time to first token (TTFT) compared to [Gemini Flash 1.5](/google/gemini-flash-1.5), while maintaining quality on par with larger models like [Gemini Pro 1.5](/google/gemini-pro-1.5). It...",
-    "context_length": 1000000,
+    "context_length": 1048576,
     "architecture": {
       "modality": "text+image+file+audio+video->text",
       "input_modalities": ["text", "image", "file", "audio", "video"],
@@ -3829,7 +3492,7 @@
       "input_cache_write": "0.00000008333333333333334"
     },
     "top_provider": {
-      "context_length": 1000000,
+      "context_length": 1048576,
       "max_completion_tokens": 8192,
       "is_moderated": false
     },
@@ -3956,7 +3619,10 @@
     "default_parameters": {
       "temperature": null,
       "top_p": null,
-      "frequency_penalty": null
+      "top_k": null,
+      "frequency_penalty": null,
+      "presence_penalty": null,
+      "repetition_penalty": null
     },
     "supported_voices": null,
     "knowledge_cutoff": "2025-01-31",
@@ -5190,6 +4856,7 @@
       "reasoning",
       "response_format",
       "seed",
+      "stop",
       "temperature",
       "tool_choice",
       "tools",
@@ -5641,9 +5308,9 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.000000075",
-      "completion": "0.000000625",
-      "input_cache_read": "0.000000015"
+      "prompt": "0.0000003",
+      "completion": "0.0000025",
+      "input_cache_read": "0.00000006"
     },
     "top_provider": {
       "context_length": 262144,
@@ -6180,7 +5847,6 @@
     "supported_parameters": [
       "frequency_penalty",
       "logit_bias",
-      "logprobs",
       "max_tokens",
       "min_p",
       "presence_penalty",
@@ -6193,7 +5859,6 @@
       "tool_choice",
       "tools",
       "top_k",
-      "top_logprobs",
       "top_p"
     ],
     "default_parameters": {},
@@ -6516,6 +6181,8 @@
       "stop",
       "structured_outputs",
       "temperature",
+      "tool_choice",
+      "tools",
       "top_k",
       "top_p"
     ],
@@ -7119,56 +6786,6 @@
     }
   },
   {
-    "id": "minimax/minimax-m2.5:free",
-    "canonical_slug": "minimax/minimax-m2.5-20260211",
-    "hugging_face_id": "MiniMaxAI/MiniMax-M2.5",
-    "name": "MiniMax: MiniMax M2.5 (free)",
-    "created": 1770908502,
-    "description": "MiniMax-M2.5 is a SOTA large language model designed for real-world productivity. Trained in a diverse range of complex real-world digital working environments, M2.5 builds upon the coding expertise of M2.1...",
-    "context_length": 204800,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
-      "output_modalities": ["text"],
-      "tokenizer": "Other",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0",
-      "completion": "0"
-    },
-    "top_provider": {
-      "context_length": 196608,
-      "max_completion_tokens": 8192,
-      "is_moderated": true
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "include_reasoning",
-      "max_tokens",
-      "reasoning",
-      "response_format",
-      "seed",
-      "stop",
-      "temperature",
-      "tools"
-    ],
-    "default_parameters": {
-      "temperature": 1,
-      "top_p": 0.95,
-      "top_k": null,
-      "frequency_penalty": null,
-      "presence_penalty": null,
-      "repetition_penalty": null
-    },
-    "supported_voices": null,
-    "knowledge_cutoff": null,
-    "expiration_date": null,
-    "links": {
-      "details": "/api/v1/models/minimax/minimax-m2.5-20260211/endpoints"
-    }
-  },
-  {
     "id": "minimax/minimax-m2.7",
     "canonical_slug": "minimax/minimax-m2.7-20260318",
     "hugging_face_id": "MiniMaxAI/MiniMax-M2.7",
@@ -7184,12 +6801,12 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.000000279",
+      "prompt": "0.00000026",
       "completion": "0.0000012"
     },
     "top_provider": {
       "context_length": 196608,
-      "max_completion_tokens": 131072,
+      "max_completion_tokens": null,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -7227,6 +6844,57 @@
     "expiration_date": null,
     "links": {
       "details": "/api/v1/models/minimax/minimax-m2.7-20260318/endpoints"
+    }
+  },
+  {
+    "id": "minimax/minimax-m3",
+    "canonical_slug": "minimax/minimax-m3-20260531",
+    "hugging_face_id": "MiniMaxAI/MiniMax-M3",
+    "name": "MiniMax: MiniMax M3",
+    "created": 1780245374,
+    "description": "MiniMax-M3 is a multimodal foundation model from MiniMax. It supports text, image, and video inputs with text output, a 1M-token context window, and is suited for long-horizon agentic work, coding,...",
+    "context_length": 1048576,
+    "architecture": {
+      "modality": "text+image+video->text",
+      "input_modalities": ["text", "image", "video"],
+      "output_modalities": ["text"],
+      "tokenizer": "Other",
+      "instruct_type": null
+    },
+    "pricing": {
+      "prompt": "0.0000003",
+      "completion": "0.0000012",
+      "input_cache_read": "0.00000006"
+    },
+    "top_provider": {
+      "context_length": 524288,
+      "max_completion_tokens": 512000,
+      "is_moderated": false
+    },
+    "per_request_limits": null,
+    "supported_parameters": [
+      "include_reasoning",
+      "max_tokens",
+      "reasoning",
+      "response_format",
+      "temperature",
+      "tool_choice",
+      "tools",
+      "top_p"
+    ],
+    "default_parameters": {
+      "temperature": 1,
+      "top_p": 0.95,
+      "top_k": null,
+      "frequency_penalty": null,
+      "presence_penalty": null,
+      "repetition_penalty": null
+    },
+    "supported_voices": null,
+    "knowledge_cutoff": null,
+    "expiration_date": null,
+    "links": {
+      "details": "/api/v1/models/minimax/minimax-m3-20260531/endpoints"
     }
   },
   {
@@ -7327,104 +6995,6 @@
     "expiration_date": null,
     "links": {
       "details": "/api/v1/models/mistralai/devstral-2512/endpoints"
-    }
-  },
-  {
-    "id": "mistralai/devstral-medium",
-    "canonical_slug": "mistralai/devstral-medium-2507",
-    "hugging_face_id": "",
-    "name": "Mistral: Devstral Medium",
-    "created": 1752161321,
-    "description": "Devstral Medium is a high-performance code generation and agentic reasoning model developed jointly by Mistral AI and All Hands AI. Positioned as a step up from Devstral Small, it achieves...",
-    "context_length": 131072,
-    "architecture": {
-      "modality": "text+file->text",
-      "input_modalities": ["text", "file"],
-      "output_modalities": ["text"],
-      "tokenizer": "Mistral",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.0000004",
-      "completion": "0.000002",
-      "input_cache_read": "0.00000004"
-    },
-    "top_provider": {
-      "context_length": 131072,
-      "max_completion_tokens": null,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "frequency_penalty",
-      "max_tokens",
-      "presence_penalty",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_p"
-    ],
-    "default_parameters": {
-      "temperature": 0.3
-    },
-    "supported_voices": null,
-    "knowledge_cutoff": "2025-06-30",
-    "expiration_date": null,
-    "links": {
-      "details": "/api/v1/models/mistralai/devstral-medium-2507/endpoints"
-    }
-  },
-  {
-    "id": "mistralai/devstral-small",
-    "canonical_slug": "mistralai/devstral-small-2507",
-    "hugging_face_id": "mistralai/Devstral-Small-2507",
-    "name": "Mistral: Devstral Small 1.1",
-    "created": 1752160751,
-    "description": "Devstral Small 1.1 is a 24B parameter open-weight language model for software engineering agents, developed by Mistral AI in collaboration with All Hands AI. Finetuned from Mistral Small 3.1 and...",
-    "context_length": 131072,
-    "architecture": {
-      "modality": "text+file->text",
-      "input_modalities": ["text", "file"],
-      "output_modalities": ["text"],
-      "tokenizer": "Mistral",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.0000001",
-      "completion": "0.0000003",
-      "input_cache_read": "0.00000001"
-    },
-    "top_provider": {
-      "context_length": 131072,
-      "max_completion_tokens": null,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "frequency_penalty",
-      "max_tokens",
-      "presence_penalty",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_p"
-    ],
-    "default_parameters": {
-      "temperature": 0.3
-    },
-    "supported_voices": null,
-    "knowledge_cutoff": "2025-03-31",
-    "expiration_date": null,
-    "links": {
-      "details": "/api/v1/models/mistralai/devstral-small-2507/endpoints"
     }
   },
   {
@@ -7590,54 +7160,6 @@
     }
   },
   {
-    "id": "mistralai/mistral-7b-instruct-v0.1",
-    "canonical_slug": "mistralai/mistral-7b-instruct-v0.1",
-    "hugging_face_id": "mistralai/Mistral-7B-Instruct-v0.1",
-    "name": "Mistral: Mistral 7B Instruct v0.1",
-    "created": 1695859200,
-    "description": "A 7.3B parameter model that outperforms Llama 2 13B on all benchmarks, with optimizations for speed and context length.",
-    "context_length": 4096,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
-      "output_modalities": ["text"],
-      "tokenizer": "Mistral",
-      "instruct_type": "mistral"
-    },
-    "pricing": {
-      "prompt": "0.00000011",
-      "completion": "0.00000019"
-    },
-    "top_provider": {
-      "context_length": 2824,
-      "max_completion_tokens": 2824,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "frequency_penalty",
-      "logit_bias",
-      "max_tokens",
-      "min_p",
-      "presence_penalty",
-      "repetition_penalty",
-      "seed",
-      "stop",
-      "temperature",
-      "top_k",
-      "top_p"
-    ],
-    "default_parameters": {
-      "temperature": 0.3
-    },
-    "supported_voices": null,
-    "knowledge_cutoff": "2023-09-30",
-    "expiration_date": "2026-05-30",
-    "links": {
-      "details": "/api/v1/models/mistralai/mistral-7b-instruct-v0.1/endpoints"
-    }
-  },
-  {
     "id": "mistralai/mistral-large",
     "canonical_slug": "mistralai/mistral-large",
     "hugging_face_id": null,
@@ -7733,55 +7255,6 @@
     "expiration_date": null,
     "links": {
       "details": "/api/v1/models/mistralai/mistral-large-2407/endpoints"
-    }
-  },
-  {
-    "id": "mistralai/mistral-large-2411",
-    "canonical_slug": "mistralai/mistral-large-2411",
-    "hugging_face_id": "",
-    "name": "Mistral Large 2411",
-    "created": 1731978685,
-    "description": "Mistral Large 2 2411 is an update of [Mistral Large 2](/mistralai/mistral-large) released together with [Pixtral Large 2411](/mistralai/pixtral-large-2411) It provides a significant upgrade on the previous [Mistral Large 24.07](/mistralai/mistral-large-2407), with notable...",
-    "context_length": 131072,
-    "architecture": {
-      "modality": "text+file->text",
-      "input_modalities": ["text", "file"],
-      "output_modalities": ["text"],
-      "tokenizer": "Mistral",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.000002",
-      "completion": "0.000006",
-      "input_cache_read": "0.0000002"
-    },
-    "top_provider": {
-      "context_length": 131072,
-      "max_completion_tokens": null,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "frequency_penalty",
-      "max_tokens",
-      "presence_penalty",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_p"
-    ],
-    "default_parameters": {
-      "temperature": 0.3
-    },
-    "supported_voices": null,
-    "knowledge_cutoff": "2024-07-31",
-    "expiration_date": null,
-    "links": {
-      "details": "/api/v1/models/mistralai/mistral-large-2411/endpoints"
     }
   },
   {
@@ -8348,55 +7821,6 @@
     }
   },
   {
-    "id": "mistralai/pixtral-large-2411",
-    "canonical_slug": "mistralai/pixtral-large-2411",
-    "hugging_face_id": "",
-    "name": "Mistral: Pixtral Large 2411",
-    "created": 1731977388,
-    "description": "Pixtral Large is a 124B parameter, open-weight, multimodal model built on top of [Mistral Large 2](/mistralai/mistral-large-2411). The model is able to understand documents, charts and natural images. The model is...",
-    "context_length": 131072,
-    "architecture": {
-      "modality": "text+image+file->text",
-      "input_modalities": ["text", "image", "file"],
-      "output_modalities": ["text"],
-      "tokenizer": "Mistral",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.000002",
-      "completion": "0.000006",
-      "input_cache_read": "0.0000002"
-    },
-    "top_provider": {
-      "context_length": 131072,
-      "max_completion_tokens": null,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "frequency_penalty",
-      "max_tokens",
-      "presence_penalty",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_p"
-    ],
-    "default_parameters": {
-      "temperature": 0.3
-    },
-    "supported_voices": null,
-    "knowledge_cutoff": "2024-07-31",
-    "expiration_date": null,
-    "links": {
-      "details": "/api/v1/models/mistralai/pixtral-large-2411/endpoints"
-    }
-  },
-  {
     "id": "mistralai/voxtral-small-24b-2507",
     "canonical_slug": "mistralai/voxtral-small-24b-2507",
     "hugging_face_id": "mistralai/Voxtral-Small-24B-2507",
@@ -8678,13 +8102,13 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.00000073",
-      "completion": "0.00000349",
-      "input_cache_read": "0.00000025"
+      "prompt": "0.000000684",
+      "completion": "0.00000342",
+      "input_cache_read": "0.000000144"
     },
     "top_provider": {
-      "context_length": 262142,
-      "max_completion_tokens": 262142,
+      "context_length": 262144,
+      "max_completion_tokens": 262144,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -8710,6 +8134,52 @@
       "top_k",
       "top_logprobs",
       "top_p"
+    ],
+    "default_parameters": {
+      "temperature": null,
+      "top_p": null,
+      "top_k": null,
+      "frequency_penalty": null,
+      "presence_penalty": null,
+      "repetition_penalty": null
+    },
+    "supported_voices": null,
+    "knowledge_cutoff": null,
+    "expiration_date": null,
+    "links": {
+      "details": "/api/v1/models/moonshotai/kimi-k2.6-20260420/endpoints"
+    }
+  },
+  {
+    "id": "moonshotai/kimi-k2.6:free",
+    "canonical_slug": "moonshotai/kimi-k2.6-20260420",
+    "hugging_face_id": "moonshotai/Kimi-K2.6",
+    "name": "MoonshotAI: Kimi K2.6 (free)",
+    "created": 1776699402,
+    "description": "Kimi K2.6 is Moonshot AI's next-generation multimodal model, designed for long-horizon coding, coding-driven UI/UX generation, and multi-agent orchestration. It handles complex end-to-end coding tasks across Python, Rust, and Go, and...",
+    "context_length": 262144,
+    "architecture": {
+      "modality": "text+image->text",
+      "input_modalities": ["text", "image"],
+      "output_modalities": ["text"],
+      "tokenizer": "Other",
+      "instruct_type": null
+    },
+    "pricing": {
+      "prompt": "0",
+      "completion": "0"
+    },
+    "top_provider": {
+      "context_length": 262144,
+      "max_completion_tokens": null,
+      "is_moderated": false
+    },
+    "per_request_limits": null,
+    "supported_parameters": [
+      "include_reasoning",
+      "reasoning",
+      "tool_choice",
+      "tools"
     ],
     "default_parameters": {
       "temperature": null,
@@ -8891,7 +8361,7 @@
     "default_parameters": {},
     "supported_voices": null,
     "knowledge_cutoff": "2023-12-31",
-    "expiration_date": null,
+    "expiration_date": "2026-06-05",
     "links": {
       "details": "/api/v1/models/nousresearch/hermes-2-pro-llama-3-8b/endpoints"
     }
@@ -10383,60 +9853,6 @@
     }
   },
   {
-    "id": "openai/gpt-4o-audio-preview",
-    "canonical_slug": "openai/gpt-4o-audio-preview",
-    "hugging_face_id": "",
-    "name": "OpenAI: GPT-4o Audio",
-    "created": 1755233061,
-    "description": "The gpt-4o-audio-preview model adds support for audio inputs as prompts. This enhancement allows the model to detect nuances within audio recordings and add depth to generated user experiences. Audio outputs...",
-    "context_length": 128000,
-    "architecture": {
-      "modality": "text+audio->text+audio",
-      "input_modalities": ["audio", "text"],
-      "output_modalities": ["text", "audio"],
-      "tokenizer": "GPT",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.0000025",
-      "completion": "0.00001",
-      "audio": "0.00004"
-    },
-    "top_provider": {
-      "context_length": 128000,
-      "max_completion_tokens": 16384,
-      "is_moderated": true
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "frequency_penalty",
-      "logit_bias",
-      "logprobs",
-      "max_tokens",
-      "presence_penalty",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_logprobs",
-      "top_p"
-    ],
-    "default_parameters": {
-      "temperature": null,
-      "top_p": null,
-      "frequency_penalty": null
-    },
-    "supported_voices": null,
-    "knowledge_cutoff": "2023-10-31",
-    "expiration_date": null,
-    "links": {
-      "details": "/api/v1/models/openai/gpt-4o-audio-preview/endpoints"
-    }
-  },
-  {
     "id": "openai/gpt-4o-mini",
     "canonical_slug": "openai/gpt-4o-mini",
     "hugging_face_id": null,
@@ -11098,12 +10514,12 @@
       "prompt": "0.00000125",
       "completion": "0.00001",
       "web_search": "0.01",
-      "input_cache_read": "0.000000125"
+      "input_cache_read": "0.00000013"
     },
     "top_provider": {
       "context_length": 128000,
-      "max_completion_tokens": 16384,
-      "is_moderated": true
+      "max_completion_tokens": 32000,
+      "is_moderated": false
     },
     "per_request_limits": null,
     "supported_parameters": [
@@ -11146,12 +10562,12 @@
       "prompt": "0.00000125",
       "completion": "0.00001",
       "web_search": "0.01",
-      "input_cache_read": "0.000000125"
+      "input_cache_read": "0.00000013"
     },
     "top_provider": {
       "context_length": 400000,
       "max_completion_tokens": 128000,
-      "is_moderated": true
+      "is_moderated": false
     },
     "per_request_limits": null,
     "supported_parameters": [
@@ -11252,12 +10668,12 @@
       "prompt": "0.00000025",
       "completion": "0.000002",
       "web_search": "0.01",
-      "input_cache_read": "0.00000003"
+      "input_cache_read": "0.000000025"
     },
     "top_provider": {
       "context_length": 400000,
-      "max_completion_tokens": 128000,
-      "is_moderated": false
+      "max_completion_tokens": 100000,
+      "is_moderated": true
     },
     "per_request_limits": null,
     "supported_parameters": [
@@ -11310,7 +10726,7 @@
     "top_provider": {
       "context_length": 400000,
       "max_completion_tokens": 128000,
-      "is_moderated": false
+      "is_moderated": true
     },
     "per_request_limits": null,
     "supported_parameters": [
@@ -11362,8 +10778,8 @@
     },
     "top_provider": {
       "context_length": 128000,
-      "max_completion_tokens": 32000,
-      "is_moderated": false
+      "max_completion_tokens": 16384,
+      "is_moderated": true
     },
     "per_request_limits": null,
     "supported_parameters": [
@@ -11382,7 +10798,7 @@
     },
     "supported_voices": null,
     "knowledge_cutoff": null,
-    "expiration_date": null,
+    "expiration_date": "2026-08-10",
     "links": {
       "details": "/api/v1/models/openai/gpt-5.2-chat-20251211/endpoints"
     }
@@ -11411,7 +10827,7 @@
     "top_provider": {
       "context_length": 400000,
       "max_completion_tokens": 128000,
-      "is_moderated": false
+      "is_moderated": true
     },
     "per_request_limits": null,
     "supported_parameters": [
@@ -11613,7 +11029,7 @@
     "top_provider": {
       "context_length": 1050000,
       "max_completion_tokens": 128000,
-      "is_moderated": false
+      "is_moderated": true
     },
     "per_request_limits": null,
     "supported_parameters": [
@@ -11722,7 +11138,7 @@
     "top_provider": {
       "context_length": 400000,
       "max_completion_tokens": 128000,
-      "is_moderated": false
+      "is_moderated": true
     },
     "per_request_limits": null,
     "supported_parameters": [
@@ -11827,7 +11243,7 @@
     "top_provider": {
       "context_length": 1050000,
       "max_completion_tokens": 128000,
-      "is_moderated": false
+      "is_moderated": true
     },
     "per_request_limits": null,
     "supported_parameters": [
@@ -12005,7 +11421,10 @@
     "default_parameters": {
       "temperature": null,
       "top_p": null,
-      "frequency_penalty": null
+      "top_k": null,
+      "frequency_penalty": null,
+      "presence_penalty": null,
+      "repetition_penalty": null
     },
     "supported_voices": null,
     "knowledge_cutoff": null,
@@ -12245,12 +11664,12 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.00000003",
+      "prompt": "0.000000029",
       "completion": "0.00000014"
     },
     "top_provider": {
       "context_length": 131072,
-      "max_completion_tokens": 131072,
+      "max_completion_tokens": null,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -13213,7 +12632,7 @@
     "name": "Poolside: Laguna M.1 (free)",
     "created": 1777388504,
     "description": "Laguna M.1 is the flagship coding agent model from [Poolside](https://poolside.ai), optimized for complex software engineering tasks. Designed for agentic coding workflows, it supports tool calling and reasoning, with a 128K...",
-    "context_length": 131072,
+    "context_length": 262144,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -13226,8 +12645,8 @@
       "completion": "0"
     },
     "top_provider": {
-      "context_length": 131072,
-      "max_completion_tokens": 8192,
+      "context_length": 262144,
+      "max_completion_tokens": 32768,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -13261,7 +12680,7 @@
     "name": "Poolside: Laguna XS.2 (free)",
     "created": 1777389604,
     "description": "Laguna XS.2 is the second-generation model in the XS size class from [Poolside](https://poolside.ai), their efficient coding agent series. It combines tool calling and reasoning capabilities with a compact footprint, offering...",
-    "context_length": 131072,
+    "context_length": 262144,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -13274,8 +12693,8 @@
       "completion": "0"
     },
     "top_provider": {
-      "context_length": 131072,
-      "max_completion_tokens": 8192,
+      "context_length": 262144,
+      "max_completion_tokens": 32768,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -13436,12 +12855,9 @@
       "min_p",
       "presence_penalty",
       "repetition_penalty",
-      "response_format",
       "seed",
       "stop",
       "temperature",
-      "tool_choice",
-      "tools",
       "top_k",
       "top_p"
     ],
@@ -13565,8 +12981,7 @@
     },
     "pricing": {
       "prompt": "0.00000026",
-      "completion": "0.00000078",
-      "input_cache_write": "0.000000325"
+      "completion": "0.00000078"
     },
     "top_provider": {
       "context_length": 1000000,
@@ -13822,7 +13237,6 @@
     "supported_parameters": [
       "frequency_penalty",
       "logit_bias",
-      "logprobs",
       "max_tokens",
       "min_p",
       "presence_penalty",
@@ -13835,7 +13249,6 @@
       "tool_choice",
       "tools",
       "top_k",
-      "top_logprobs",
       "top_p"
     ],
     "default_parameters": {},
@@ -13862,12 +13275,13 @@
       "instruct_type": "qwen3"
     },
     "pricing": {
-      "prompt": "0.0000001495",
-      "completion": "0.000001495"
+      "prompt": "0.0000001",
+      "completion": "0.0000001",
+      "input_cache_read": "0.0000001"
     },
     "top_provider": {
-      "context_length": 131072,
-      "max_completion_tokens": null,
+      "context_length": 262144,
+      "max_completion_tokens": 262144,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -13955,7 +13369,7 @@
     },
     "supported_voices": null,
     "knowledge_cutoff": "2025-03-31",
-    "expiration_date": null,
+    "expiration_date": "2026-06-05",
     "links": {
       "details": "/api/v1/models/qwen/qwen3-30b-a3b-04-28/endpoints"
     }
@@ -15238,12 +14652,13 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.000000139",
-      "completion": "0.000001"
+      "prompt": "0.00000014",
+      "completion": "0.000001",
+      "input_cache_read": "0.00000005"
     },
     "top_provider": {
       "context_length": 262144,
-      "max_completion_tokens": null,
+      "max_completion_tokens": 262144,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -15422,8 +14837,7 @@
     },
     "pricing": {
       "prompt": "0.000000065",
-      "completion": "0.00000026",
-      "input_cache_write": "0.00000008125"
+      "completion": "0.00000026"
     },
     "top_provider": {
       "context_length": 1000000,
@@ -15473,8 +14887,7 @@
     },
     "pricing": {
       "prompt": "0.00000026",
-      "completion": "0.00000156",
-      "input_cache_write": "0.000000325"
+      "completion": "0.00000156"
     },
     "top_provider": {
       "context_length": 1000000,
@@ -15524,7 +14937,8 @@
     },
     "pricing": {
       "prompt": "0.0000003",
-      "completion": "0.0000018"
+      "completion": "0.0000018",
+      "input_cache_write": "0.000000375"
     },
     "top_provider": {
       "context_length": 1000000,
@@ -15569,12 +14983,12 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.0000003",
+      "prompt": "0.00000029",
       "completion": "0.0000032"
     },
     "top_provider": {
-      "context_length": 262144,
-      "max_completion_tokens": 262144,
+      "context_length": 262140,
+      "max_completion_tokens": 262140,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -15630,13 +15044,12 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.00000015",
-      "completion": "0.000001",
-      "input_cache_read": "0.00000005"
+      "prompt": "0.00000014",
+      "completion": "0.000001"
     },
     "top_provider": {
-      "context_length": 262144,
-      "max_completion_tokens": 262144,
+      "context_length": 262140,
+      "max_completion_tokens": 262140,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -15689,9 +15102,9 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.00000012375",
-      "completion": "0.0000007425",
-      "input_cache_write": "0.0000001545"
+      "prompt": "0.0000001875",
+      "completion": "0.000001125",
+      "input_cache_write": "0.000000234375"
     },
     "top_provider": {
       "context_length": 1000000,
@@ -15785,9 +15198,9 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.0000001794",
-      "completion": "0.00000107315",
-      "input_cache_write": "0.0000002236"
+      "prompt": "0.000000325",
+      "completion": "0.00000195",
+      "input_cache_write": "0.00000040625"
     },
     "top_provider": {
       "context_length": 1000000,
@@ -15839,9 +15252,10 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.0000025",
-      "completion": "0.0000075",
-      "input_cache_write": "0.000003125"
+      "prompt": "0.00000125",
+      "completion": "0.00000375",
+      "input_cache_read": "0.00000025",
+      "input_cache_write": "0.0000015625"
     },
     "top_provider": {
       "context_length": 1000000,
@@ -16109,7 +15523,7 @@
     "default_parameters": {},
     "supported_voices": null,
     "knowledge_cutoff": "2023-12-31",
-    "expiration_date": null,
+    "expiration_date": "2026-06-05",
     "links": {
       "details": "/api/v1/models/sao10k/l3-euryale-70b/endpoints"
     }
@@ -16352,13 +15766,71 @@
     "default_parameters": {
       "temperature": null,
       "top_p": null,
-      "frequency_penalty": null
+      "top_k": null,
+      "frequency_penalty": null,
+      "presence_penalty": null,
+      "repetition_penalty": null
     },
     "supported_voices": null,
     "knowledge_cutoff": null,
     "expiration_date": null,
     "links": {
       "details": "/api/v1/models/stepfun/step-3.5-flash/endpoints"
+    }
+  },
+  {
+    "id": "stepfun/step-3.7-flash",
+    "canonical_slug": "stepfun/step-3.7-flash-20260528",
+    "hugging_face_id": null,
+    "name": "StepFun: Step 3.7 Flash",
+    "created": 1779985069,
+    "description": "Step 3.7 Flash is StepFun's latest high-efficiency multimodal Mixture-of-Experts model. It pairs a 196B-parameter language backbone with a vision encoder for native image and video understanding, activating roughly 11B parameters...",
+    "context_length": 256000,
+    "architecture": {
+      "modality": "text+image+video->text",
+      "input_modalities": ["text", "image", "video"],
+      "output_modalities": ["text"],
+      "tokenizer": "Other",
+      "instruct_type": null
+    },
+    "pricing": {
+      "prompt": "0.0000002",
+      "completion": "0.00000115",
+      "input_cache_read": "0.00000004"
+    },
+    "top_provider": {
+      "context_length": 256000,
+      "max_completion_tokens": 256000,
+      "is_moderated": false
+    },
+    "per_request_limits": null,
+    "supported_parameters": [
+      "frequency_penalty",
+      "include_reasoning",
+      "logprobs",
+      "max_tokens",
+      "reasoning",
+      "response_format",
+      "stop",
+      "structured_outputs",
+      "temperature",
+      "tools",
+      "top_logprobs",
+      "top_p"
+    ],
+    "default_parameters": {
+      "temperature": null,
+      "top_p": null,
+      "top_k": null,
+      "frequency_penalty": null,
+      "presence_penalty": null,
+      "repetition_penalty": null
+    },
+    "supported_voices": null,
+    "knowledge_cutoff": null,
+    "expiration_date": null,
+    "links": {
+      "details": "/api/v1/models/stepfun/step-3.7-flash-20260528/endpoints"
     }
   },
   {
@@ -16480,6 +15952,7 @@
       "max_tokens",
       "presence_penalty",
       "reasoning",
+      "seed",
       "stop",
       "temperature",
       "tool_choice",
@@ -17128,114 +16601,6 @@
     }
   },
   {
-    "id": "xiaomi/mimo-v2-omni",
-    "canonical_slug": "xiaomi/mimo-v2-omni-20260318",
-    "hugging_face_id": "",
-    "name": "Xiaomi: MiMo-V2-Omni",
-    "created": 1773863703,
-    "description": "MiMo-V2-Omni is a frontier omni-modal model that natively processes image, video, and audio inputs within a unified architecture. It combines strong multimodal perception with agentic capability - visual grounding, multi-step...",
-    "context_length": 262144,
-    "architecture": {
-      "modality": "text+image+audio+video->text",
-      "input_modalities": ["text", "audio", "image", "video"],
-      "output_modalities": ["text"],
-      "tokenizer": "Other",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.0000004",
-      "completion": "0.000002",
-      "input_cache_read": "0.00000008"
-    },
-    "top_provider": {
-      "context_length": 262144,
-      "max_completion_tokens": 65536,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "frequency_penalty",
-      "include_reasoning",
-      "max_tokens",
-      "presence_penalty",
-      "reasoning",
-      "response_format",
-      "stop",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_p"
-    ],
-    "default_parameters": {
-      "temperature": 1,
-      "top_p": 0.95,
-      "top_k": null,
-      "frequency_penalty": null,
-      "presence_penalty": null,
-      "repetition_penalty": null
-    },
-    "supported_voices": null,
-    "knowledge_cutoff": null,
-    "expiration_date": null,
-    "links": {
-      "details": "/api/v1/models/xiaomi/mimo-v2-omni-20260318/endpoints"
-    }
-  },
-  {
-    "id": "xiaomi/mimo-v2-pro",
-    "canonical_slug": "xiaomi/mimo-v2-pro-20260318",
-    "hugging_face_id": "",
-    "name": "Xiaomi: MiMo-V2-Pro",
-    "created": 1773863643,
-    "description": "MiMo-V2-Pro is Xiaomi's flagship foundation model, featuring over 1T total parameters and a 1M context length, deeply optimized for agentic scenarios. It is highly adaptable to general agent frameworks like...",
-    "context_length": 1048576,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
-      "output_modalities": ["text"],
-      "tokenizer": "Other",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.000001",
-      "completion": "0.000003",
-      "input_cache_read": "0.0000002"
-    },
-    "top_provider": {
-      "context_length": 1048576,
-      "max_completion_tokens": 131072,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "frequency_penalty",
-      "include_reasoning",
-      "max_tokens",
-      "presence_penalty",
-      "reasoning",
-      "response_format",
-      "stop",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_p"
-    ],
-    "default_parameters": {
-      "temperature": 1,
-      "top_p": 0.95,
-      "top_k": null,
-      "frequency_penalty": null,
-      "presence_penalty": null,
-      "repetition_penalty": null
-    },
-    "supported_voices": null,
-    "knowledge_cutoff": null,
-    "expiration_date": null,
-    "links": {
-      "details": "/api/v1/models/xiaomi/mimo-v2-pro-20260318/endpoints"
-    }
-  },
-  {
     "id": "xiaomi/mimo-v2.5",
     "canonical_slug": "xiaomi/mimo-v2.5-20260422",
     "hugging_face_id": "XiaomiMiMo/MiMo-V2.5",
@@ -17251,9 +16616,9 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.0000004",
-      "completion": "0.000002",
-      "input_cache_read": "0.00000008"
+      "prompt": "0.00000014",
+      "completion": "0.00000028",
+      "input_cache_read": "0.0000000028"
     },
     "top_provider": {
       "context_length": 1048576,
@@ -17305,13 +16670,13 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.000001",
-      "completion": "0.000003",
-      "input_cache_read": "0.0000002"
+      "prompt": "0.000000435",
+      "completion": "0.00000087",
+      "input_cache_read": "0.0000000036"
     },
     "top_provider": {
       "context_length": 1048576,
-      "max_completion_tokens": 16384,
+      "max_completion_tokens": 131072,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -17463,13 +16828,13 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.00000013",
+      "prompt": "0.000000125",
       "completion": "0.00000085",
-      "input_cache_read": "0.000000025"
+      "input_cache_read": "0.00000006"
     },
     "top_provider": {
-      "context_length": 131072,
-      "max_completion_tokens": 98304,
+      "context_length": 131070,
+      "max_completion_tokens": 131070,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -17480,6 +16845,7 @@
       "presence_penalty",
       "reasoning",
       "repetition_penalty",
+      "response_format",
       "seed",
       "stop",
       "temperature",
@@ -17847,12 +17213,12 @@
     },
     "pricing": {
       "prompt": "0.0000006",
-      "completion": "0.00000192",
+      "completion": "0.00000208",
       "input_cache_read": "0.00000012"
     },
     "top_provider": {
       "context_length": 202752,
-      "max_completion_tokens": null,
+      "max_completion_tokens": 16384,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -17968,7 +17334,7 @@
     },
     "top_provider": {
       "context_length": 202752,
-      "max_completion_tokens": null,
+      "max_completion_tokens": 131072,
       "is_moderated": false
     },
     "per_request_limits": null,

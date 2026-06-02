@@ -15,6 +15,6 @@ type ToolCallState =
   | "complete";
 ```
 
-Defined in: [packages/ai/src/types.ts:37](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L37)
+Defined in: [packages/ai/src/types.ts:47](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L47)
 
 Tool call states - track the lifecycle of a tool call

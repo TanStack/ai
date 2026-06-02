@@ -166,6 +166,54 @@ export async function POST(request: Request) {
 }
 ```
 
+## Runtime Context
+
+Server tools can receive typed runtime context as their second argument. Use this for request-scoped dependencies like authenticated users, database clients, tenant IDs, or audit loggers.
+
+```typescript
+import { chat, toolDefinition } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { z } from "zod";
+
+type AppContext = {
+  userId: string;
+  db: {
+    users: {
+      findUnique(args: { where: { id: string } }): Promise<{ name: string } | null>;
+    };
+  };
+};
+
+const getCurrentUser = toolDefinition({
+  name: "get_current_user",
+  description: "Get the current authenticated user",
+  inputSchema: z.object({}),
+  outputSchema: z.object({
+    name: z.string().nullable(),
+  }),
+}).server<AppContext>(async (_input, ctx) => {
+  const user = await ctx.context.db.users.findUnique({
+    where: { id: ctx.context.userId },
+  });
+
+  return { name: user?.name ?? null };
+});
+
+chat({
+  adapter: openaiText("gpt-5.2"),
+  messages,
+  tools: [getCurrentUser],
+  context: {
+    userId: session.user.id,
+    db,
+  },
+});
+```
+
+If a server tool declares a context generic, `chat()` requires a compatible `context` value. Untyped tools keep working and receive `unknown` context.
+
+For middleware and client-to-server handoff patterns, see [Runtime Context](../advanced/runtime-context).
+
 ## Tool Organization Pattern
 
 For better organization, define tool schemas and implementations separately:

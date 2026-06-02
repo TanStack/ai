@@ -15,6 +15,9 @@ TanStack AI is a type-safe, provider-agnostic AI SDK for building AI-powered app
 - **Linting**: ESLint with custom TanStack config
 - **Formatting**: Prettier
 
+Run `pnpm install` before starting any task and again after every merge with
+`main`.
+
 ## Common Commands
 
 ### Testing
@@ -214,6 +217,34 @@ Each framework integration uses the headless `ai-client` under the hood.
 7. Run linter: `pnpm test:eslint`
 8. Format code: `pnpm format`
 9. Verify build: `pnpm test:build` or `pnpm build`
+
+### Pre-PR Quality Gate (MANDATORY)
+
+**Before committing, run the narrowest meaningful quality checks for your changes and confirm they pass locally. Before opening a PR or pushing changes intended for review, run the same checks CI runs.** If you make post-commit changes, rebase, or merge before pushing to a PR, rerun the relevant checks first.
+
+Use the repo-preferred package manager, scripts, and Nx targets where applicable. Do **not** commit or push while quality checks are failing unless the user explicitly instructs otherwise; report the exact failing command and failure instead.
+
+The single canonical command is:
+
+```bash
+pnpm test:pr
+```
+
+This runs the exact target set the `PR` workflow runs in CI (`nx affected --targets=test:sherif,test:knip,test:docs,test:eslint,test:lib,test:types,test:build,build --exclude=examples/**,testing/**`).
+
+If you can't run `test:pr` (e.g. it's too slow on your machine), at minimum run each of these and confirm they're green before pushing:
+
+- `pnpm test:sherif` — workspace consistency
+- `pnpm test:knip` — unused dependencies
+- `pnpm test:docs` — doc link verification
+- `pnpm test:eslint` — lint
+- `pnpm test:types` — typecheck
+- `pnpm test:lib` — unit tests
+- `pnpm test:build` — build artifact verification
+- `pnpm build` — build all affected packages
+- `pnpm --filter @tanstack/ai-e2e test:e2e` — E2E suite (mandatory for any behavior change; see E2E Testing)
+
+Do **not** rely on CI as your first signal. Run locally, fix, then push.
 
 ### Working with Examples
 

@@ -81,20 +81,69 @@ interface RunStartedEvent extends BaseAGUIEvent {
 
 Emitted when a run completes successfully.
 
+> **AG-UI vs TanStack AI:** AG-UI's `RUN_FINISHED` event only defines
+> `threadId`, `runId`, and an optional `result`. The `finishReason` and `usage`
+> fields below are **TanStack AI extensions** — they ride along on the event
+> (AG-UI event schemas are `passthrough`) but are not part of the AG-UI protocol
+> itself. `usage` is typed as `TokenUsage`, defined by `@tanstack/ai` and
+> mirrored under the same name by `@tanstack/ai-event-client` for wire/devtools
+> consumers. (`@tanstack/ai` also exports `UsageTotals` as a deprecated alias of
+> `TokenUsage` for backward compatibility.)
+
 ```typescript
 interface RunFinishedEvent extends BaseAGUIEvent {
   type: 'RUN_FINISHED';
   runId: string;
-  finishReason: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null;
-  usage?: {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
+  finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null; // TanStack AI addition
+  usage?: TokenUsage;                                                         // TanStack AI addition
+}
+
+// TanStack AI extension — not an AG-UI primitive.
+interface TokenUsage {
+  // Core token counts (always present when usage is available)
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+
+  // Detailed prompt token breakdown (provider-dependent)
+  promptTokensDetails?: {
+    cachedTokens?: number;       // Tokens read from cache (prompt cache hits)
+    cacheWriteTokens?: number;   // Tokens written to cache (Anthropic cache creation)
+    audioTokens?: number;        // Audio input tokens
+    videoTokens?: number;        // Video input tokens
+    imageTokens?: number;        // Image input tokens
+    textTokens?: number;         // Text input tokens
+    documentTokens?: number;     // Document input tokens (e.g. PDF inputs on Gemini)
+  };
+
+  // Detailed completion token breakdown (provider-dependent)
+  completionTokensDetails?: {
+    reasoningTokens?: number;    // Reasoning/thinking tokens (o1, Claude thinking)
+    audioTokens?: number;        // Audio output tokens
+    videoTokens?: number;        // Video output tokens
+    imageTokens?: number;        // Image output tokens
+    textTokens?: number;         // Text output tokens
+    documentTokens?: number;     // Document output tokens
+  };
+
+  // Duration in seconds for duration-billed models (e.g. Whisper transcription)
+  durationSeconds?: number;
+
+  // Provider-specific fields not covered by the standard schema (e.g. OpenRouter
+  // accepted/rejectedPredictionTokens, Anthropic serverToolUse)
+  providerUsageDetails?: Record<string, unknown>;
+
+  // Provider-reported cost, when available (e.g. OpenRouter)
+  cost?: number;
+  costDetails?: {
+    upstreamCost?: number;        // Total cost the gateway paid upstream
+    upstreamInputCost?: number;   // Upstream cost for input (prompt) tokens
+    upstreamOutputCost?: number;  // Upstream cost for output (completion) tokens
   };
 }
 ```
 
-**Example:**
+**Example (basic usage):**
 ```json
 {
   "type": "RUN_FINISHED",
@@ -109,6 +158,96 @@ interface RunFinishedEvent extends BaseAGUIEvent {
   }
 }
 ```
+
+**Example (with cached tokens - OpenAI):**
+```json
+{
+  "type": "RUN_FINISHED",
+  "runId": "run_abc123",
+  "model": "gpt-4o",
+  "timestamp": 1701234567892,
+  "finishReason": "stop",
+  "usage": {
+    "promptTokens": 150,
+    "completionTokens": 75,
+    "totalTokens": 225,
+    "promptTokensDetails": {
+      "cachedTokens": 100
+    }
+  }
+}
+```
+
+**Example (with reasoning tokens - o1):**
+```json
+{
+  "type": "RUN_FINISHED",
+  "runId": "run_abc123",
+  "model": "o1-preview",
+  "timestamp": 1701234567892,
+  "finishReason": "stop",
+  "usage": {
+    "promptTokens": 150,
+    "completionTokens": 500,
+    "totalTokens": 650,
+    "completionTokensDetails": {
+      "reasoningTokens": 425
+    }
+  }
+}
+```
+
+**Example (Anthropic with cache):**
+```json
+{
+  "type": "RUN_FINISHED",
+  "runId": "run_abc123",
+  "model": "claude-3-5-sonnet",
+  "timestamp": 1701234567892,
+  "finishReason": "stop",
+  "usage": {
+    "promptTokens": 150,
+    "completionTokens": 75,
+    "totalTokens": 225,
+    "promptTokensDetails": {
+      "cacheWriteTokens": 50,
+      "cachedTokens": 100
+    }
+  }
+}
+```
+
+**Example (OpenRouter with cost):**
+```json
+{
+  "type": "RUN_FINISHED",
+  "runId": "run_abc123",
+  "model": "openai/gpt-4o",
+  "timestamp": 1701234567892,
+  "finishReason": "stop",
+  "usage": {
+    "promptTokens": 150,
+    "completionTokens": 75,
+    "totalTokens": 225,
+    "cost": 0.0012,
+    "costDetails": {
+      "upstreamInputCost": 0.0008,
+      "upstreamOutputCost": 0.0004
+    }
+  }
+}
+```
+
+**Token Usage Notes:**
+- `usage` is a TanStack AI extension to the AG-UI `RUN_FINISHED` event; all fields beyond the three core counts are optional and provider-dependent.
+- `promptTokensDetails.cachedTokens` - Tokens read from cache (OpenAI/Anthropic prompt caching)
+- `promptTokensDetails.cacheWriteTokens` - Tokens written to cache (Anthropic prompt caching)
+- `completionTokensDetails.reasoningTokens` - Internal reasoning tokens (o1, Claude thinking)
+- `durationSeconds` - Set by duration-billed models (e.g. Whisper transcription) instead of token counts
+- `providerUsageDetails` - Provider-specific fields not in the standard schema (e.g. OpenRouter's accepted/rejected prediction tokens, Anthropic's server tool use)
+- `cost` / `costDetails` - Provider-reported per-request cost, populated only by gateways that return it (e.g. OpenRouter)
+- For Gemini, modality-specific token counts (audio, video, image, text) are extracted from the response
+
 
 ---
 

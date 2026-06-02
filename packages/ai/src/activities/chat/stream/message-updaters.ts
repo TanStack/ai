@@ -7,6 +7,7 @@
 
 import { parsePartialJSON } from './json-parser'
 import type {
+  ContentPart,
   StructuredOutputPart,
   ThinkingPart,
   ToolCallPart,
@@ -107,7 +108,7 @@ export function updateToolResultPart(
   messages: Array<UIMessage>,
   messageId: string,
   toolCallId: string,
-  content: string,
+  content: string | Array<ContentPart>,
   state: ToolResultState,
   error?: string,
 ): Array<UIMessage> {

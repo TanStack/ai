@@ -80,6 +80,56 @@ describe('Gemini Audio (Lyria) Adapter', () => {
     expect(result.audio.contentType).toBe('audio/mp3')
   })
 
+  it('surfaces token usage from usageMetadata', async () => {
+    mockGenerateContent.mockResolvedValueOnce({
+      candidates: [
+        {
+          content: {
+            parts: [
+              { inlineData: { mimeType: 'audio/mp3', data: 'BASE64AUDIO' } },
+            ],
+          },
+        },
+      ],
+      usageMetadata: {
+        promptTokenCount: 8,
+        candidatesTokenCount: 20,
+        totalTokenCount: 28,
+      },
+    })
+
+    const adapter = createGeminiAudio('lyria-3-pro-preview', 'key')
+    const result = await generateAudio({
+      adapter,
+      prompt: 'Ambient piano',
+    })
+
+    expect(result.usage).toEqual({
+      promptTokens: 8,
+      completionTokens: 20,
+      totalTokens: 28,
+    })
+  })
+
+  it('omits usage when Gemini reports no usageMetadata', async () => {
+    mockGenerateContent.mockResolvedValueOnce({
+      candidates: [
+        {
+          content: {
+            parts: [
+              { inlineData: { mimeType: 'audio/mp3', data: 'BASE64AUDIO' } },
+            ],
+          },
+        },
+      ],
+    })
+
+    const adapter = createGeminiAudio('lyria-3-pro-preview', 'key')
+    const result = await generateAudio({ adapter, prompt: 'Ambient piano' })
+
+    expect(result.usage).toBeUndefined()
+  })
+
   it('omits responseMimeType by default so Gemini returns the MP3 default', async () => {
     mockGenerateContent.mockResolvedValueOnce({
       candidates: [
