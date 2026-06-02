@@ -2,6 +2,29 @@ import { getChunkRunId } from './connection-adapters'
 import type { StreamChunk } from '@tanstack/ai/client'
 import type { ChatClientPersistence, UIMessage } from './types'
 
+// `StreamChunk` is a discriminated union; `toolCallId` / `messageId` /
+// `parentMessageId` exist on only some members. Narrow with `in` (matching
+// `getChunkRunId`) instead of asserting a shape, so the field's real type is
+// preserved and a protocol rename can't be read past silently.
+function getChunkToolCallId(chunk: StreamChunk): string | undefined {
+  return 'toolCallId' in chunk && typeof chunk.toolCallId === 'string'
+    ? chunk.toolCallId
+    : undefined
+}
+
+function getChunkMessageId(chunk: StreamChunk): string | undefined {
+  return 'messageId' in chunk && typeof chunk.messageId === 'string'
+    ? chunk.messageId
+    : undefined
+}
+
+function getChunkParentMessageId(chunk: StreamChunk): string | undefined {
+  return 'parentMessageId' in chunk &&
+    typeof chunk.parentMessageId === 'string'
+    ? chunk.parentMessageId
+    : undefined
+}
+
 /**
  * Encapsulates everything persistence-related for `ChatClient` so the client
  * itself stays focused on streaming and message state.
@@ -211,13 +234,12 @@ export class ChatPersistor {
       return true
     }
 
-    const toolCallId = (chunk as { toolCallId?: string }).toolCallId
+    const toolCallId = getChunkToolCallId(chunk)
     if (toolCallId && this.clearedToolCallIds.has(toolCallId)) {
       return true
     }
 
-    const parentMessageId = (chunk as { parentMessageId?: string })
-      .parentMessageId
+    const parentMessageId = getChunkParentMessageId(chunk)
     if (parentMessageId && this.clearedMessageIds.has(parentMessageId)) {
       if (toolCallId) {
         this.clearedToolCallIds.add(toolCallId)
@@ -225,7 +247,7 @@ export class ChatPersistor {
       return true
     }
 
-    const messageId = (chunk as { messageId?: string }).messageId
+    const messageId = getChunkMessageId(chunk)
     if (!messageId) {
       return false
     }
@@ -279,11 +301,11 @@ export class ChatPersistor {
   }
 
   private markIgnoredChunkIds(chunk: StreamChunk): void {
-    const messageId = (chunk as { messageId?: string }).messageId
+    const messageId = getChunkMessageId(chunk)
     if (messageId) {
       this.clearedMessageIds.add(messageId)
     }
-    const toolCallId = (chunk as { toolCallId?: string }).toolCallId
+    const toolCallId = getChunkToolCallId(chunk)
     if (toolCallId) {
       this.clearedToolCallIds.add(toolCallId)
     }
