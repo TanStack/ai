@@ -1,5 +1,13 @@
 # @tanstack/ai-svelte
 
+## 0.13.1
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai@0.26.1
+  - @tanstack/ai-client@0.16.1
+
 ## 0.13.0
 
 ### Minor Changes

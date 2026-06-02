@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-devtools-core",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "description": "Core TanStack AI Devtools plugin for inspecting chat messages, tool calls, streams, and errors.",
   "author": "",
   "license": "MIT",
