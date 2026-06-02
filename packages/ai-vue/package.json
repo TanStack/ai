@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-vue",
-  "version": "0.12.2",
+  "version": "0.13.0",
   "description": "Vue composables for TanStack AI streaming chat, structured outputs, and media generation.",
   "author": "",
   "license": "MIT",

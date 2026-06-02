@@ -1,5 +1,16 @@
 # @tanstack/ai-preact
 
+## 0.9.0
+
+### Minor Changes
+
+- [#661](https://github.com/TanStack/ai/pull/661) [`755e995`](https://github.com/TanStack/ai/commit/755e9953a31e879c4b88df0e7672ce1224886c97) - Add persistence support for chat messages.
+
+### Patch Changes
+
+- Updated dependencies [[`755e995`](https://github.com/TanStack/ai/commit/755e9953a31e879c4b88df0e7672ce1224886c97)]:
+  - @tanstack/ai-client@0.16.0
+
 ## 0.8.2
 
 ### Patch Changes
