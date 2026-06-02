@@ -51,12 +51,22 @@ function createRuntimeId(): string {
   return Math.random().toString(36).slice(2)
 }
 
-const runtimeId = (() => {
+// Memoized after first resolution. Generation is deferred to first use rather
+// than computed at module scope so importing this module performs no random
+// value generation — edge runtimes (e.g. Cloudflare Workers) forbid that in
+// global scope and would crash on module evaluation. See issue #667.
+let memoizedRuntimeId: string | undefined
+
+function getRuntimeId(): string {
+  if (memoizedRuntimeId !== undefined) {
+    return memoizedRuntimeId
+  }
   if (!globalThis.__TANSTACK_AI_DEVTOOLS_RUNTIME_ID__) {
     globalThis.__TANSTACK_AI_DEVTOOLS_RUNTIME_ID__ = createRuntimeId()
   }
-  return globalThis.__TANSTACK_AI_DEVTOOLS_RUNTIME_ID__
-})()
+  memoizedRuntimeId = globalThis.__TANSTACK_AI_DEVTOOLS_RUNTIME_ID__
+  return memoizedRuntimeId
+}
 
 let eventCounter = 0
 
@@ -72,7 +82,7 @@ function timestampBucket(timestamp: number): number {
 export function createAIDevtoolsEventEnvelope(
   input: AIDevtoolsEventEnvelopeInput,
 ): AIDevtoolsEventEnvelope {
-  const resolvedRuntimeId = input.runtimeId ?? runtimeId
+  const resolvedRuntimeId = input.runtimeId ?? getRuntimeId()
   const eventId =
     input.eventId && input.eventId.length > 0
       ? input.eventId
@@ -90,7 +100,7 @@ export function createAIDevtoolsEventEnvelope(
           idPart(input.toolCallId),
           idPart(input.sequence),
           input.timestamp,
-          runtimeId,
+          getRuntimeId(),
           eventCounter++,
         ].join(':')
 
@@ -102,7 +112,7 @@ export function createAIDevtoolsEventEnvelope(
 }
 
 export function getAIDevtoolsRuntimeId(): string {
-  return runtimeId
+  return getRuntimeId()
 }
 
 export function getAIDevtoolsDedupeKey(
