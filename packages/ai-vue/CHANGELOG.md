@@ -1,5 +1,11 @@
 # @tanstack/ai-vue
 
+## 0.13.3
+
+### Patch Changes
+
+- [#689](https://github.com/TanStack/ai/pull/689) [`d5cb4b9`](https://github.com/TanStack/ai/commit/d5cb4b9445c5b97b06a7fc224dd2c3a92f0e802a) - Forward `threadId` option to `ChatClient` in all framework wrappers
+
 ## 0.13.2
 
 ### Patch Changes
