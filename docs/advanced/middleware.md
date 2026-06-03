@@ -269,24 +269,29 @@ How you distinguish them depends on which finalization path the adapter takes:
 - **Native-combined adapters** (modern OpenAI Chat Completions / Responses, Claude 4.5+, Gemini 3.x, Grok 4.x — see issue #605): the schema-constrained JSON is produced on the model's natural final turn, so **`ctx.phase` stays `'modelStream'`** — the `'structuredOutput'` phase never fires. Discriminate on the CUSTOM event name (`structured-output.start` / `structured-output.complete`) instead.
 
 ```typescript
-const structuredOutputObserver: ChatMiddleware = {
-  name: "structured-output-observer",
+const redactStructuredOutput: ChatMiddleware = {
+  name: "redact-structured-output",
   onChunk: (ctx, chunk) => {
-    // Separate-finalization path: the raw JSON streams as TEXT_MESSAGE_CONTENT
-    // during the 'structuredOutput' phase. Transform it like any text delta.
+    // Separate-finalization path: the JSON streams as TEXT_MESSAGE_CONTENT
+    // during the 'structuredOutput' phase. Transform the delta like any
+    // other text chunk — here, redact anything that looks like an SSN before
+    // it reaches the client.
     if (
       ctx.phase === "structuredOutput" &&
       chunk.type === "TEXT_MESSAGE_CONTENT"
     ) {
-      return { ...chunk, delta: redact(chunk.delta) };
+      return {
+        ...chunk,
+        delta: chunk.delta.replace(/\b\d{3}-\d{2}-\d{4}\b/g, "[REDACTED]"),
+      };
     }
 
-    // Both paths: the final parsed object arrives as a CUSTOM event. On the
-    // native-combined path this is your only signal (ctx.phase never flips
-    // to 'structuredOutput'), so key off the event name, not the phase.
+    // Both paths: the validated object arrives as a CUSTOM
+    // `structured-output.complete` event. On the native-combined path this is
+    // your only signal (ctx.phase never flips to 'structuredOutput'), so key
+    // off the event name, not the phase. `chunk.value` carries { object, raw }.
     if (chunk.type === "CUSTOM" && chunk.name === "structured-output.complete") {
-      // chunk.value carries { object, raw } — observe, log, or replace it
-      console.log("structured output:", chunk.value);
+      console.log("final structured output:", chunk.value);
     }
 
     // Return void to pass everything else through unchanged.

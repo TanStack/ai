@@ -32,7 +32,7 @@ import { chat } from "@tanstack/ai";
 import { toolCacheMiddleware } from "@tanstack/ai/middlewares";
 
 const stream = chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.5"),
   messages,
   tools: [weatherTool, stockTool],
   middleware: [
@@ -159,7 +159,7 @@ import { chat } from "@tanstack/ai";
 import { contentGuardMiddleware } from "@tanstack/ai/middlewares";
 
 const stream = chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.5"),
   messages,
   middleware: [
     contentGuardMiddleware({
@@ -212,7 +212,7 @@ const otel = otelMiddleware({
 });
 
 const result = await chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.5"),
   messages,
   middleware: [otel],
 });
