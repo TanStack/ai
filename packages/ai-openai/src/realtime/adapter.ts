@@ -190,7 +190,7 @@ async function createWebRTCConnection(
   // Send SDP to OpenAI and get answer. `offer.sdp` is `string | undefined` per
   // the WebRTC type definitions; coerce to `null` (which `RequestInit.body`
   // accepts) under exactOptionalPropertyTypes.
-  const sdpResponse = await fetch(`${OPENAI_REALTIME_URL}?model=${model}`, {
+  const sdpResponse = await fetch(`${OPENAI_REALTIME_URL}/calls`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token.token}`,
@@ -586,7 +586,7 @@ async function createWebRTCConnection(
     },
 
     updateSession(config: Partial<RealtimeSessionConfig>) {
-      const sessionUpdate: Record<string, unknown> = {}
+      const sessionUpdate: Record<string, unknown> = { type: 'realtime' }
 
       if (config.instructions) {
         sessionUpdate.instructions = config.instructions
