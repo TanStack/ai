@@ -233,7 +233,7 @@ optional options: Record<string, unknown>;
 
 Defined in: [packages/ai/src/activities/chat/middleware/types.ts:94](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L94)
 
-Flattened generation options (temperature, topP, maxTokens, metadata)
+Flattened generation options (metadata)
 
 ***
 
