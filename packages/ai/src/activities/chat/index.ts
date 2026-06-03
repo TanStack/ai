@@ -1639,8 +1639,9 @@ class TextEngine<
       const wireContent =
         typeof content === 'string' ? content : JSON.stringify(content)
 
-      // Emit TOOL_CALL_START + TOOL_CALL_ARGS before TOOL_CALL_END so that
-      // the client can reconstruct the full tool call during continuations.
+      // argsMap is set only on continuation re-executions, where the adapter
+      // never streamed these calls. Otherwise it already emitted END, so a
+      // second one here would be an orphan that fails verifyEvents (#519).
       if (argsMap) {
         chunks.push({
           type: 'TOOL_CALL_START',
@@ -1660,18 +1661,18 @@ class TextEngine<
           delta: args,
           args,
         } as StreamChunk)
-      }
 
-      chunks.push({
-        type: 'TOOL_CALL_END',
-        timestamp: Date.now(),
-        model: finishEvent.model,
-        toolCallId: result.toolCallId,
-        toolCallName: result.toolName,
-        toolName: result.toolName,
-        result: wireContent,
-        ...(result.state !== undefined && { state: result.state }),
-      } as StreamChunk)
+        chunks.push({
+          type: 'TOOL_CALL_END',
+          timestamp: Date.now(),
+          model: finishEvent.model,
+          toolCallId: result.toolCallId,
+          toolCallName: result.toolName,
+          toolName: result.toolName,
+          result: wireContent,
+          ...(result.state !== undefined && { state: result.state }),
+        } as StreamChunk)
+      }
 
       // AG-UI spec TOOL_CALL_RESULT event (content is string-only per spec)
       chunks.push({

@@ -1449,8 +1449,7 @@ describe('chat() middleware', () => {
         // Tool execution phase
         'onBeforeToolCall:myTool',
         'onAfterToolCall:myTool:true',
-        // Tool result events (piped through middleware)
-        'onChunk:TOOL_CALL_END',
+        // Only the result — the adapter already streamed END above (#519)
         'onChunk:TOOL_CALL_RESULT',
         // Second model call (beforeModel phase)
         'onConfig:beforeModel',
