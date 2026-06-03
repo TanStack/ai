@@ -39,7 +39,7 @@ How you enable thinking depends on the provider.
 
 ### Anthropic (Extended Thinking)
 
-Pass the `thinking` option in `modelOptions` with `type: "enabled"` and a `budget_tokens` (minimum 1024). If `budget_tokens` is not below `maxTokens`, the adapter automatically raises `maxTokens` so there is room for the visible response in addition to the thinking budget:
+Pass the `thinking` option in `modelOptions` with `type: "enabled"` and a `budget_tokens` (minimum 1024). Keep `budget_tokens` below `modelOptions.max_tokens` so there is room for the visible response in addition to the thinking budget:
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -48,9 +48,9 @@ import { anthropicText } from "@tanstack/ai-anthropic";
 const stream = chat({
   adapter: anthropicText("claude-sonnet-4-6"),
   messages,
-  maxTokens: 32000,
   modelOptions: {
-    // budget_tokens must be at least 1024
+    max_tokens: 32000,
+    // budget_tokens must be at least 1024 and below max_tokens
     thinking: { type: "enabled", budget_tokens: 10000 },
   },
 });

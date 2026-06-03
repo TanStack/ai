@@ -140,7 +140,7 @@ modelOptions: {
 }
 ```
 
-**Note:** `max_tokens` must be greater than `budget_tokens`. The adapter automatically raises the top-level `maxTokens` when your `budget_tokens` meets or exceeds it. If you instead set `max_tokens` inside `modelOptions`, keep it greater than `budget_tokens` yourself — that path is validated and throws rather than auto-adjusting.
+**Note:** `budget_tokens` must be less than `modelOptions.max_tokens` — set `max_tokens` high enough to leave room for the visible response alongside the thinking budget, or the request is rejected.
 
 ### Prompt Caching
 
