@@ -630,9 +630,10 @@ export class OpenRouterTextAdapter<
   }
 
   /**
-   * Recognize OpenRouter forwarding Anthropic's "compiled grammar is too
-   * large" rejection of a `json_schema` structured-output request (only
-   * `anthropic/*` models hit this; every other upstream accepts the same
+   * Recognize OpenRouter forwarding Anthropic's rejection of an over-large/
+   * complex `json_schema` structured-output request ("The compiled grammar is
+   * too large" or the docs' canonical "Schema is too complex for compilation";
+   * only `anthropic/*` models hit this; every other upstream accepts the same
    * schema). When the caller leaves `structuredOutput: 'auto'`, the engine
    * retries via the forced-tool path ({@link structuredOutputViaTool}). Other
    * errors return `false` so they surface unchanged.
@@ -1586,8 +1587,14 @@ export class OpenRouterTextAdapter<
 const STRUCTURED_OUTPUT_TOOL_NAME = 'structured_output'
 
 /**
- * Detect OpenRouter forwarding Anthropic's "compiled grammar is too large"
- * rejection of a `json_schema` structured-output request. Inspects the
+ * Detect OpenRouter forwarding Anthropic's rejection of an over-large/complex
+ * `json_schema` structured-output request. Two documented/observed message
+ * shapes both trigger the fallback:
+ *  - "The compiled grammar is too large" — observed in the forwarded raw
+ *    response when the compiled grammar exceeds the internal size budget.
+ *  - "Schema is too complex for compilation" — the canonical 400 message
+ *    Anthropic's structured-output docs guarantee for the same internal limit.
+ * Also matches any error naming `output_config.format.schema`. Inspects the
  * message plus any nested provider error body (`error` / `rawEvent` /
  * `metadata`), because the engine may pass the thrown SDK error OR a
  * `{ message, code, rawEvent }` value reconstructed from a RUN_ERROR chunk.
@@ -1596,6 +1603,7 @@ function isOpenRouterStructuredOutputSchemaError(error: unknown): boolean {
   const text = collectErrorText(error).toLowerCase()
   return (
     text.includes('compiled grammar is too large') ||
+    text.includes('schema is too complex for compilation') ||
     text.includes('output_config.format.schema')
   )
 }

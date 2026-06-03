@@ -1341,6 +1341,15 @@ describe('isStructuredOutputSchemaError (#682)', () => {
     ).toBe(true)
   })
 
+  it('matches the docs\' canonical "Schema is too complex for compilation" message', () => {
+    expect(
+      adapter.isStructuredOutputSchemaError({
+        message: 'Schema is too complex for compilation.',
+        code: '400',
+      }),
+    ).toBe(true)
+  })
+
   it('matches a RUN_ERROR-reconstructed value via its rawEvent body', () => {
     expect(
       adapter.isStructuredOutputSchemaError({

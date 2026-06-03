@@ -2548,6 +2548,15 @@ describe('OpenRouter isStructuredOutputSchemaError (#682)', () => {
     ).toBe(true)
   })
 
+  it('matches the docs\' canonical "Schema is too complex for compilation" message', () => {
+    expect(
+      adapter.isStructuredOutputSchemaError({
+        message: 'Schema is too complex for compilation.',
+        code: '400',
+      }),
+    ).toBe(true)
+  })
+
   it('matches a rejection carried in the error metadata body', () => {
     expect(
       adapter.isStructuredOutputSchemaError({

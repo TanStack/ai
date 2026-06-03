@@ -58,7 +58,9 @@ Adding `stream: true` switches the return to `StructuredOutputStream<InferSchema
 - `'tool'` — force the lenient forced-tool path: a `structured_output` tool with forced `tool_choice` and a **non-strict** `input_schema`, which avoids strict-grammar compilation.
 - `'auto'` (default) — try `'native'`; if the provider rejects the schema, transparently re-run via `'tool'`. The recovered run is a single clean lifecycle (the abandoned native attempt's events are withheld). Providers without a forced-tool fallback behave like `'native'`.
 
-Why it exists: Anthropic compiles `output_config` schemas into a grammar and rejects large/complex ones with _"The compiled grammar is too large"_ (directly, or for `anthropic/*` models via OpenRouter) — even though the same schema works on every other provider. `'auto'` recovers automatically; reach for `'tool'` to skip the wasted native attempt on a schema you already know is large.
+Why it exists: Anthropic compiles `output_config` schemas into a grammar and rejects large/complex ones with _"The compiled grammar is too large"_ / _"Schema is too complex for compilation"_ (directly, or for `anthropic/*` models via OpenRouter) — even though the same schema works on every other provider. `'auto'` recovers automatically; reach for `'tool'` to skip the wasted native attempt on a schema you already know is large.
+
+Boundary: detection is **reactive** (we react to the rejection, never pre-check the schema against Anthropic's caps). `'auto'` recovers from the compiled-grammar-size rejection only — Anthropic's other strict-mode rejections (per-request strict-tool / optional-param / union-type caps, or the compilation timeout) are **not** auto-recovered and surface as `RUN_ERROR`; use `'tool'` to bypass them. We don't hardcode the numeric limits anywhere (they change); see Anthropic's [structured output complexity limits](https://docs.claude.com/en/docs/build-with-claude/structured-outputs).
 
 ```typescript
 const result = await chat({

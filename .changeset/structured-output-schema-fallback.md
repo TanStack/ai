@@ -6,7 +6,7 @@
 
 Add a `structuredOutput` strategy option to `chat()` and gracefully fall back when a provider rejects a large structured-output schema. Closes #682.
 
-Since the native single-pass tool+schema path landed for Claude 4.5+, `chat({ outputSchema })` routes Claude structured output through Anthropic's `output_config`. For a large/complex schema Anthropic rejects the request with _"The compiled grammar is too large"_ and the run hard-failed with a `RUN_ERROR` and no recovery (also reproducible for `anthropic/*` models via OpenRouter).
+Since the native single-pass tool+schema path landed for Claude 4.5+, `chat({ outputSchema })` routes Claude structured output through Anthropic's `output_config`. For a large/complex schema Anthropic rejects the request with _"The compiled grammar is too large"_ (or the docs' canonical _"Schema is too complex for compilation"_) and the run hard-failed with a `RUN_ERROR` and no recovery (also reproducible for `anthropic/*` models via OpenRouter).
 
 `chat()` now accepts `structuredOutput: 'auto' | 'native' | 'tool'` (default `'auto'`):
 
