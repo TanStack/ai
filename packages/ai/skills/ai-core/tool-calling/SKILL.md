@@ -375,6 +375,131 @@ gets the full schema, then calls `compareProducts` directly.
 Once discovered, a tool stays available for the conversation.
 When all lazy tools are discovered, the discovery tool is removed automatically.
 
+## MCP Tools
+
+`@tanstack/ai-mcp` lets a server-side `chat()` call discover and invoke tools
+hosted on any MCP server (Streamable HTTP, SSE, or stdio).
+
+### Basic usage — auto-discovery
+
+```typescript
+// api/chat/route.ts
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+
+  // 1. Connect to the MCP server.
+  const mcp = await createMCPClient({
+    transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+  })
+
+  try {
+    // 2. Discover all tools from the server (returns ServerTool[]).
+    const mcpTools = await mcp.tools()
+
+    // 3. Spread them into chat() — they work exactly like hand-written tools.
+    const stream = chat({
+      adapter: openaiText('gpt-4o'),
+      messages,
+      tools: [...mcpTools],
+    })
+    return toServerSentEventsResponse(stream)
+  } finally {
+    // 4. Caller owns the lifecycle — chat() never closes the client.
+    await mcp.close()
+  }
+}
+```
+
+### Typed path — pass toolDefinition instances
+
+Pass bare `toolDefinition()` instances (no `.server()`) to `client.tools([...])`.
+The MCP client supplies a `callTool` proxy as the execute function, while
+input/output validation and types come from the definitions' Zod schemas.
+
+```typescript
+import { toolDefinition } from '@tanstack/ai'
+import { createMCPClient } from '@tanstack/ai-mcp'
+import { z } from 'zod'
+
+const getWeather = toolDefinition({
+  name: 'get_weather',
+  description: 'Current weather for a city',
+  inputSchema: z.object({ city: z.string() }),
+  outputSchema: z.object({ temperature: z.number(), conditions: z.string() }),
+})
+
+const mcp = await createMCPClient({
+  transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+})
+
+// Returns ServerTool[] typed to the definitions' input/output schemas.
+// Throws MCPToolNotFoundError if the server does not expose a tool with that name.
+const tools = await mcp.tools([getWeather])
+
+const stream = chat({ adapter: openaiText('gpt-4o'), messages, tools })
+```
+
+### Multiple servers with `createMCPClients`
+
+```typescript
+import { createMCPClients } from '@tanstack/ai-mcp'
+
+// Each key becomes the default prefix for that server's tools.
+await using pool = await createMCPClients({
+  github: { transport: { type: 'http', url: 'https://mcp.github.com/mcp' } },
+  linear: { transport: { type: 'http', url: 'https://mcp.linear.app/mcp' } },
+})
+
+// Tools auto-prefixed: 'github_search_repos', 'linear_create_issue', etc.
+const tools = await pool.tools()
+
+const stream = chat({ adapter: openaiText('gpt-4o'), messages, tools })
+```
+
+Use `pool.clients.<name>` for typed per-server access (resources, prompts, typed
+`tools([defs])` overload).
+
+### `ToolExecutionContext.abortSignal` — cancelling long-running tools
+
+Every server tool's execute function now receives `abortSignal` in its context.
+When the chat run aborts (e.g. the client disconnects or calls the run's
+`abortController`), the signal fires and any in-flight `callTool` call is
+cancelled automatically.
+
+You can also forward it from your own server tools:
+
+```typescript
+const longRunningTool = myToolDef.server(async (args, ctx) => {
+  // Forward to fetch, a DB query, or an MCP callTool call.
+  const response = await fetch('https://slow.api/data', {
+    signal: ctx?.abortSignal,
+  })
+  return response.json()
+})
+```
+
+MCP tools wire this automatically — `makeMcpExecute` passes `ctx?.abortSignal`
+as the `signal` option to `client.callTool(...)`, so MCP server calls cancel
+with the chat run without any extra code.
+
+### stdio transport (Node-only)
+
+```typescript
+import { createMCPClient } from '@tanstack/ai-mcp'
+import { stdioTransport } from '@tanstack/ai-mcp/stdio'
+
+const mcp = await createMCPClient({
+  transport: stdioTransport({ command: 'npx', args: ['-y', 'my-mcp-server'] }),
+})
+```
+
+Import `stdioTransport` from the `/stdio` subpath only — it contains Node.js
+`child_process` imports and must not be bundled for edge runtimes.
+
 ## Common Mistakes
 
 ### a. HIGH: Not passing tool definitions to both server and client
