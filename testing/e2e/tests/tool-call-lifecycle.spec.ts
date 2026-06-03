@@ -41,12 +41,15 @@ test.describe('chat() tool-call lifecycle (#519)', () => {
     // The server tool actually ran — its result reached the stream.
     expect(results[0]).toMatchObject({ content: expect.stringContaining('22') })
 
-    // verifyEvents invariant: every END is preceded by a matching START.
+    // verifyEvents invariant: every END consumes a matching open START, so a
+    // duplicate END for the same toolCallId finds none and fails here.
     const open = new Set<string>()
     for (const c of chunks) {
       if (c.type === 'TOOL_CALL_START') open.add(idOf(c))
       if (c.type === 'TOOL_CALL_END') {
-        expect(open.has(idOf(c))).toBe(true)
+        const id = idOf(c)
+        expect(open.has(id)).toBe(true)
+        open.delete(id)
       }
     }
   })
