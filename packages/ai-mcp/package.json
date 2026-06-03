@@ -26,15 +26,15 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "@tanstack/ai": "workspace:*",
-    "@modelcontextprotocol/sdk": "^1.29.0"
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@tanstack/ai": "workspace:*"
   },
   "devDependencies": {
-    "json-schema-to-typescript": "^15.0.4",
+    "@vitest/coverage-v8": "4.0.14",
     "jiti": "^2.4.2",
-    "tsup": "^8.3.5",
+    "json-schema-to-typescript": "^15.0.4",
+    "tsup": "^8.5.1",
     "vite": "^7.3.3",
-    "zod": "^4.2.0",
-    "@vitest/coverage-v8": "4.0.14"
+    "zod": "^4.2.0"
   }
 }
