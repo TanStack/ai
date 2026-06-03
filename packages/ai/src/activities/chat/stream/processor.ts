@@ -17,7 +17,7 @@
  * @see docs/chat-architecture.md — Canonical reference for AG-UI chunk ordering,
  *   adapter contract, single-shot flows, and expected UIMessage output.
  */
-import { generateMessageId, uiMessageToModelMessages } from '../messages.js'
+import { generateMessageId, modelMessageToUIMessage, uiMessageToModelMessages } from '../messages.js'
 import { normalizeToolResult } from '../../../utilities/tool-result'
 import { defaultJSONParser } from './json-parser'
 import {
@@ -870,8 +870,16 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'MESSAGES_SNAPSHOT' }>,
   ): void {
     this.resetStreamState()
-    // AG-UI Message[] is compatible with UIMessage[] at runtime
-    this.messages = [...chunk.messages] as Array<UIMessage>
+    // Normalize AG-UI messages to UIMessage[] to ensure each message has
+    // a `parts` array. AG-UI snapshot messages carry `content` but no
+    // `parts`, so casting them directly as UIMessage[] is unsafe and causes
+    // "Cannot read properties of undefined (reading 'find')" when any code
+    // later accesses message.parts (e.g. onToolCallStateChange devtools handler).
+    this.messages = chunk.messages.map((msg) =>
+      'parts' in msg
+        ? (msg as UIMessage)
+        : modelMessageToUIMessage(msg as any, generateMessageId()),
+    )
     this.emitMessagesChange()
   }
 
