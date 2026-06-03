@@ -89,19 +89,21 @@ To attach typed `modelOptions`, declared `features`, or provider `tools` to a cu
 import { createModel } from '@tanstack/ai'
 import type { OpenAITextProviderOptions } from '@tanstack/ai-openai'
 
+// Type brand for provider options — the value is unused at runtime.
+const modelOptions: OpenAITextProviderOptions = {}
+
 const reasoner = createModel('my-reasoner', {
   input: ['text'],
   features: ['reasoning', 'structured_outputs'],
   tools: ['web_search'],
-  // Type brand for provider options — use `{} as YourOptionsType`
-  modelOptions: {} as OpenAITextProviderOptions,
+  modelOptions,
 })
 ```
 
 - `input` — supported input modalities (same as the positional form).
 - `features` — declared feature flags (e.g. `'reasoning'`, `'structured_outputs'`).
 - `tools` — declared provider tools (e.g. `'web_search'`).
-- `modelOptions` — a type brand for the provider options accepted by this model; the value is unused at runtime, so pass `{} as YourOptionsType`.
+- `modelOptions` — a type brand for the provider options accepted by this model; the value is unused at runtime, so declare an empty object typed as the provider options (e.g. `const modelOptions: OpenAITextProviderOptions = {}`).
  
 ## Preserving Original Factory Behavior
 

@@ -207,10 +207,6 @@
         {
           "label": "OpenTelemetry",
           "to": "advanced/otel"
-        },
-        {
-          "label": "Observability",
-          "to": "advanced/observability"
         }
       ]
     },

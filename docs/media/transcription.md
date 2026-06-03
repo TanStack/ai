@@ -303,7 +303,10 @@ import { openaiTranscription } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
   const formData = await request.formData()
-  const audioFile = formData.get('audio') as File
+  const audioFile = formData.get('audio')
+  if (!(audioFile instanceof File)) {
+    throw new Error('Expected an audio file under "audio"')
+  }
 
   const result = await generateTranscription({
     adapter: openaiTranscription('whisper-1'),

@@ -168,4 +168,3 @@ otelMiddleware({
 
 - [Middleware](./middleware) — the lifecycle this middleware hooks into
 - [Debug Logging](./debug-logging) — quick console-output diagnostics, complementary to OTel
-- [Observability](./observability) — TanStack AI's built-in event client

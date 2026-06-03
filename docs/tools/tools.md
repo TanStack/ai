@@ -172,11 +172,16 @@ const getWeatherDef = toolDefinition({
   outputSchema,
 });
 
-// Create server implementation (args is typed as `unknown` with JSON Schema)
+// With a raw JSON Schema, `args` is `unknown` — narrow it before use
+// (prefer a Zod schema for automatic typing).
 const getWeatherServer = getWeatherDef.server(async (args) => {
-  const { location, unit } = args as { location: string; unit?: string };
+  if (typeof args !== "object" || args === null || !("location" in args)) {
+    throw new Error("Invalid input: expected a location");
+  }
+  const location = String(args.location);
+  const unit = "unit" in args ? String(args.unit) : "fahrenheit";
   const response = await fetch(
-    `https://api.weather.com/v1/current?location=${location}&unit=${unit || "fahrenheit"}`
+    `https://api.weather.com/v1/current?location=${location}&unit=${unit}`
   );
   return await response.json();
 });

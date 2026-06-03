@@ -359,10 +359,12 @@ const getUserDataDef = toolDefinition({
   outputSchema,
 });
 
-// When using JSON Schema, args is typed as `unknown` — narrow or cast before use
+// With a raw JSON Schema, args is typed as `unknown` — narrow it before use
 const getUserData = getUserDataDef.server(async (args) => {
-  const { userId } = args as { userId: string };
-  const user = await db.users.findUnique({ where: { id: userId } });
+  if (typeof args !== "object" || args === null || !("userId" in args)) {
+    throw new Error("Invalid input: expected a userId");
+  }
+  const user = await db.users.findUnique({ where: { id: String(args.userId) } });
   return { name: user.name, email: user.email };
 });
 ```

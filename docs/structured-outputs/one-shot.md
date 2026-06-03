@@ -150,8 +150,8 @@ const result = await chat({
   outputSchema: schema,
 });
 
-// Result is `unknown` — narrow before use.
-const person = result as { name: string; age: number };
+// `result` is `unknown` — a raw JSON Schema gives no compile-time type.
+// Validate it (e.g. with a Standard Schema library) before use.
 ```
 
 Prefer a schema library when you can — type inference is worth it.
@@ -204,7 +204,7 @@ const res = await fetch("/api/extract-person", {
   method: "POST",
   body: JSON.stringify({ text }),
 });
-const person = (await res.json()) as z.infer<typeof PersonSchema>;
+const person = PersonSchema.parse(await res.json()); // validated + typed
 ```
 
 This is the most literal one-shot shape: one request, one object back. You own the fetch and the typing; the hook isn't involved.

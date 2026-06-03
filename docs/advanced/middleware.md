@@ -246,7 +246,7 @@ When multiple middleware define `onChunk`, chunks flow through them in order. If
 
 #### Chunk types you'll see
 
-`onChunk` receives every [AG-UI event](../protocol/chunk-definitions) the run produces — not just text. Narrow on `chunk.type` (a discriminated union) before reading type-specific fields. The common ones:
+`onChunk` receives every [AG-UI event](https://docs.ag-ui.com/introduction) the run produces — not just text. Narrow on `chunk.type` (a discriminated union) before reading type-specific fields. The common ones:
 
 | `chunk.type` | Meaning | Key fields |
 |--------------|---------|-----------|
@@ -257,7 +257,7 @@ When multiple middleware define `onChunk`, chunks flow through them in order. If
 | `STATE_SNAPSHOT` / `STATE_DELTA` | Agent state sync | `snapshot`, `delta` |
 | `CUSTOM` | Extensibility events (incl. structured-output — see below) | `name`, `value` |
 
-See [AG-UI Event Definitions](../protocol/chunk-definitions) for the full catalogue and exact field shapes.
+See the [AG-UI protocol docs](https://docs.ag-ui.com/introduction) for the full event catalogue and exact field shapes.
 
 #### Transforming structured-output chunks
 
@@ -735,8 +735,6 @@ import type {
 ## Next Steps
 
 - [Built-in Middleware](./built-in-middleware) — `toolCacheMiddleware`, `contentGuardMiddleware`, `otelMiddleware`
-- [OpenTelemetry](./otel) — emit traces and metrics via `otelMiddleware`
-- [Observability](./observability) — Event-driven observability with the event client
-- [Tools](../tools/tools) — Learn about the isomorphic tool system
+- [OpenTelemetry](./otel) — emit traces and metrics via `otelMiddleware`- [Tools](../tools/tools) — Learn about the isomorphic tool system
 - [Agentic Cycle](../chat/agentic-cycle) — Understand the multi-step agent loop
 - [Streaming](../chat/streaming) — How streaming works in TanStack AI

@@ -424,5 +424,5 @@ All execute simultaneously, then LLM generates comparison.
 - [Server Tools](./server-tools) - Deep dive into server-side tools
 - [Client Tools](./client-tools) - Deep dive into client-side tools
 - [Tool Approval Flow](./tool-approval) - Implementing approval workflows
-- [Stream Chunk Definitions](../protocol/chunk-definitions) - Understanding the streaming protocol
+- [AG-UI protocol](https://docs.ag-ui.com/introduction) - Understanding the streaming protocol
 

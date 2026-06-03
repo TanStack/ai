@@ -134,11 +134,14 @@ for await (const chunk of chat({
   adapter: geminiTextInteractions("gemini-3.5-flash"),
   messages: [{ role: "user", content: "Hi, my name is Amir." }],
 })) {
-  if (chunk.type === "CUSTOM" && chunk.name === "gemini.interactionId") {
-    const value = chunk.value as GeminiInteractionsCustomEventValue<
-      "gemini.interactionId"
-    >;
-    interactionId = value.interactionId;
+  if (
+    chunk.type === "CUSTOM" &&
+    chunk.name === "gemini.interactionId" &&
+    chunk.value &&
+    typeof chunk.value === "object" &&
+    "interactionId" in chunk.value
+  ) {
+    interactionId = String(chunk.value.interactionId);
   }
 }
 

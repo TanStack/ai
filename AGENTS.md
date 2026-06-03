@@ -47,6 +47,20 @@ each of these and confirm they're green before pushing:
 
 Do **not** rely on CI as your first signal. Run locally, fix, then push.
 
+## Documentation
+
+When editing docs under `docs/`:
+
+- **No `as` type-assertion casts in code samples.** Examples must type-check
+  without `as SomeType` — narrow `unknown` values with `typeof` / `in`
+  checks, type guards, or Standard Schema validation instead. (`as const` is
+  fine — it's a const assertion, not a type cast.)
+- **Show both sides of the coin.** When a doc spans server and client,
+  include snippets for both halves (server endpoint AND client consumption).
+- **Use the latest model per provider**, sourced from each adapter's
+  `model-meta.ts` (newest `gpt-*`, `claude-*`, `gemini-*`, …), in example code.
+- Run `pnpm test:docs` (link verification) before pushing.
+
 ## Everything Else
 
 For package manager (`pnpm@10.17.0`), monorepo layout, adapter architecture,

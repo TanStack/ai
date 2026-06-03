@@ -272,7 +272,8 @@ function websocketConnection(url: string): SubscribeConnectionAdapter {
   }
 
   ws.addEventListener("message", (event) => {
-    deliver(JSON.parse(event.data) as StreamChunk);
+    const chunk: StreamChunk = JSON.parse(event.data);
+    deliver(chunk);
   });
   ws.addEventListener("close", () => {
     closed = true;
@@ -391,7 +392,10 @@ const myAdapter: ConnectConnectionAdapter = {
       const lines = buffer.split("\n");
       buffer = lines.pop() ?? "";
       for (const line of lines) {
-        if (line.trim()) yield JSON.parse(line) as StreamChunk;
+        if (line.trim()) {
+          const chunk: StreamChunk = JSON.parse(line);
+          yield chunk;
+        }
       }
     }
   },

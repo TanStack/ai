@@ -65,10 +65,16 @@ const stream = chat({
 **Custom key function** — useful when you want to ignore certain arguments:
 
 ```typescript
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
 toolCacheMiddleware({
   keyFn: (toolName, args) => {
-    // Ignore pagination, cache by query only
-    const { page, ...rest } = args as Record<string, unknown>;
+    // Ignore pagination, cache by query only. `args` is `unknown`, so
+    // narrow it with a type guard before destructuring.
+    if (!isRecord(args)) return JSON.stringify([toolName, args]);
+    const { page, ...rest } = args;
     return JSON.stringify([toolName, rest]);
   },
 });
@@ -81,15 +87,14 @@ By default the cache lives in-memory and is scoped to a single `toolCacheMiddlew
 The storage interface:
 
 ```typescript
-import type { ToolCacheStorage, ToolCacheEntry } from "@tanstack/ai/middlewares";
-
+// Implement this interface (exported from `@tanstack/ai/middlewares`):
 interface ToolCacheStorage {
   getItem: (key: string) => ToolCacheEntry | undefined | Promise<ToolCacheEntry | undefined>;
   setItem: (key: string, value: ToolCacheEntry) => void | Promise<void>;
   deleteItem: (key: string) => void | Promise<void>;
 }
 
-// ToolCacheEntry is { result: unknown, timestamp: number }
+// ToolCacheEntry is { result: unknown; timestamp: number }
 ```
 
 All methods may return a `Promise` for async backends. The middleware handles TTL checking — your storage just needs to store and retrieve entries.
@@ -223,4 +228,3 @@ These built-ins are just `ChatMiddleware` objects — nothing about them is priv
 
 - [Middleware](./middleware) — the full lifecycle and hook reference
 - [OpenTelemetry](./otel) — `otelMiddleware` in depth
-- [Observability](./observability) — event-driven observability with the event client
