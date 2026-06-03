@@ -1,0 +1,125 @@
+import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
+import type { ServerTool } from '@tanstack/ai'
+import { resolveTransport } from './transport'
+import { toServerTools } from './tools'
+import { MCPConnectionError, DuplicateToolNameError } from './errors'
+import type {
+  AnyToolDefinition,
+  AutomaticDescriptor,
+  MappedServerTools,
+  MCPClientOptions,
+  ServerDescriptor,
+  ToolsOptions,
+} from './types'
+
+export interface MCPClient<
+  TServer extends ServerDescriptor = AutomaticDescriptor,
+> {
+  readonly capabilities: TServer['capabilities']
+  /** Auto-discovery: every server tool as a ServerTool (args typed `unknown`). */
+  tools(options?: ToolsOptions): Promise<Array<ServerTool>>
+  /** Explicit: bind these TanStack toolDefinitions to the server (typed + validated, allowlist). */
+  tools<const TDefs extends ReadonlyArray<AnyToolDefinition>>(
+    defs: TDefs,
+    options?: ToolsOptions,
+  ): Promise<MappedServerTools<TDefs>>
+  // resources()/readResource()/prompts()/getPrompt() added in Phase 4.
+  close(): Promise<void>
+  [Symbol.asyncDispose](): Promise<void>
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+class MCPClientImpl<_TServer extends ServerDescriptor>
+  implements MCPClient<_TServer>
+{
+  capabilities: Record<string, unknown> = {}
+  #client: Client
+  #closed = false
+  private prefix?: string
+
+  constructor(
+    prefix?: string,
+    name = 'tanstack-ai-mcp',
+    version = '0.0.1',
+  ) {
+    this.prefix = prefix
+    this.#client = new Client({ name, version })
+  }
+
+  async connect(transport: Transport): Promise<void> {
+    try {
+      await this.#client.connect(transport)
+      this.capabilities = (this.#client.getServerCapabilities() ??
+        {}) as Record<string, unknown>
+    } catch (err) {
+      throw new MCPConnectionError('Failed to connect to MCP server', err)
+    }
+  }
+
+  async tools(
+    defsOrOptions?: ReadonlyArray<AnyToolDefinition> | ToolsOptions,
+    maybeOptions: ToolsOptions = {},
+  ): Promise<Array<ServerTool>> {
+    if (this.#closed) throw new MCPConnectionError('MCP client is closed')
+
+    const isDefs = Array.isArray(defsOrOptions)
+    const options: ToolsOptions = isDefs
+      ? maybeOptions
+      : ((defsOrOptions as ToolsOptions) ?? {})
+
+    if (isDefs) {
+      // TODO(4.1b): implement definition-binding branch
+      throw new Error(
+        'definition-binding mode (tools(defs)) is implemented in the next step',
+      )
+    }
+
+    // Auto-discovery path.
+    const defs = (await this.#client.listTools()).tools
+    const tools = toServerTools(this.#client, defs, {
+      prefix: this.prefix,
+      lazy: options.lazy,
+    })
+
+    // Local duplicate guard (within one client's own list).
+    const seen = new Set<string>()
+    for (const t of tools) {
+      if (seen.has(t.name)) throw new DuplicateToolNameError(t.name)
+      seen.add(t.name)
+    }
+    return tools
+  }
+
+  async close(): Promise<void> {
+    if (this.#closed) return
+    this.#closed = true
+    await this.#client.close()
+  }
+
+  async [Symbol.asyncDispose](): Promise<void> {
+    await this.close()
+  }
+}
+
+export async function createMCPClient<
+  TServer extends ServerDescriptor = AutomaticDescriptor,
+>(options: MCPClientOptions): Promise<MCPClient<TServer>> {
+  const transport = await resolveTransport(options.transport)
+  const impl = new MCPClientImpl<TServer>(
+    options.prefix,
+    options.name,
+    options.version,
+  )
+  await impl.connect(transport)
+  return impl
+}
+
+/** Test-only: connect directly from a transport instance (skips resolveTransport). */
+export async function createMCPClientFromTransport<
+  TServer extends ServerDescriptor = AutomaticDescriptor,
+>(transport: Transport, prefix?: string): Promise<MCPClient<TServer>> {
+  const impl = new MCPClientImpl<TServer>(prefix)
+  await impl.connect(transport)
+  return impl
+}
