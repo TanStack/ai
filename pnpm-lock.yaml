@@ -9,6 +9,7 @@ overrides:
 
 patchedDependencies:
   '@changesets/assemble-release-plan@6.0.9': 1bc53c741da20baad9cdeb674c599225dcf9fe6aa7b0de16ff87e63f12a97b24
+  '@copilotkit/aimock@1.27.0': 0c8b6757b61f05d7d8916c140d35c3b4323a4113a0fb04f5133429872f128633
 
 importers:
 
@@ -1272,8 +1273,8 @@ importers:
         specifier: workspace:*
         version: link:../openai-base
       openai:
-        specifier: ^6.9.1
-        version: 6.10.0(ws@8.19.0)(zod@4.3.6)
+        specifier: ^6.41.0
+        version: 6.41.0(ws@8.19.0)(zod@4.3.6)
       zod:
         specifier: ^4.0.0
         version: 4.3.6
@@ -1303,8 +1304,8 @@ importers:
         specifier: workspace:*
         version: link:../openai-base
       openai:
-        specifier: ^6.9.1
-        version: 6.10.0(ws@8.19.0)(zod@4.3.6)
+        specifier: ^6.41.0
+        version: 6.41.0(ws@8.19.0)(zod@4.3.6)
       zod:
         specifier: ^4.0.0
         version: 4.3.6
@@ -1386,8 +1387,8 @@ importers:
         specifier: workspace:*
         version: link:../openai-base
       openai:
-        specifier: ^6.9.1
-        version: 6.10.0(ws@8.19.0)(zod@4.3.6)
+        specifier: ^6.41.0
+        version: 6.41.0(ws@8.19.0)(zod@4.3.6)
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -1723,8 +1724,8 @@ importers:
         specifier: workspace:*
         version: link:../ai-utils
       openai:
-        specifier: ^6.9.1
-        version: 6.10.0(ws@8.19.0)(zod@4.3.6)
+        specifier: ^6.41.0
+        version: 6.41.0(ws@8.19.0)(zod@4.3.6)
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -1806,7 +1807,7 @@ importers:
     dependencies:
       '@copilotkit/aimock':
         specifier: ^1.27.0
-        version: 1.27.0(vitest@4.1.4(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jsdom@27.3.0(postcss@8.5.15))(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)))
+        version: 1.27.0(patch_hash=0c8b6757b61f05d7d8916c140d35c3b4323a4113a0fb04f5133429872f128633)(vitest@4.1.4(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jsdom@27.3.0(postcss@8.5.15))(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)))
       '@openrouter/sdk':
         specifier: 0.12.35
         version: 0.12.35
@@ -11180,9 +11181,8 @@ packages:
     resolution: {integrity: sha512-7x81NCL719oNbsq/3mh+hVrAWmFuEYUqrq/Iw3kUzH8ReypT9QQ0BLoJS7/G9k6N81XjW4qHWtjWwe/9eLy1EQ==}
     engines: {node: '>=12'}
 
-  openai@6.10.0:
-    resolution: {integrity: sha512-ITxOGo7rO3XRMiKA5l7tQ43iNNu+iXGFAcf2t+aWVzzqRaS0i7m1K2BhxNdaveB+5eENhO0VY1FkiZzhBk4v3A==}
-    hasBin: true
+  openai@6.41.0:
+    resolution: {integrity: sha512-IGWPopZq6Rjoynjfb3NSLf/z2MTw7UiOsm9TAjPGAjUESH7Uq41Trg4QWehBEn58p74i+m7uoRPV2vXcpPXhyA==}
     peerDependencies:
       ws: ^8.18.0
       zod: ^3.25 || ^4.0
@@ -14689,7 +14689,7 @@ snapshots:
 
   '@cloudflare/workers-types@4.20260317.1': {}
 
-  '@copilotkit/aimock@1.27.0(vitest@4.1.4(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jsdom@27.3.0(postcss@8.5.15))(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)))':
+  '@copilotkit/aimock@1.27.0(patch_hash=0c8b6757b61f05d7d8916c140d35c3b4323a4113a0fb04f5133429872f128633)(vitest@4.1.4(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jsdom@27.3.0(postcss@8.5.15))(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)))':
     optionalDependencies:
       vitest: 4.1.4(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jsdom@27.3.0(postcss@8.5.15))(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
 
@@ -24467,7 +24467,7 @@ snapshots:
       is-docker: 2.2.1
       is-wsl: 2.2.0
 
-  openai@6.10.0(ws@8.19.0)(zod@4.3.6):
+  openai@6.41.0(ws@8.19.0)(zod@4.3.6):
     optionalDependencies:
       ws: 8.19.0
       zod: 4.3.6
