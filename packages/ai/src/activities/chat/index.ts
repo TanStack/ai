@@ -1237,6 +1237,7 @@ class TextEngine<
         },
       },
       this.middlewareCtx.context,
+      this.effectiveSignal,
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -1398,6 +1399,7 @@ class TextEngine<
         },
       },
       this.middlewareCtx.context,
+      this.effectiveSignal,
     )
 
     // Consume the async generator, yielding custom events and collecting the return value

@@ -599,6 +599,7 @@ export async function* executeToolCalls<TContext = unknown>(
   ) => CustomEvent,
   middlewareHooks?: ToolExecutionMiddlewareHooks,
   userContext?: TContext,
+  abortSignal?: AbortSignal,
 ): AsyncGenerator<CustomEvent, ExecuteToolCallsResult, void> {
   const results: Array<ToolResult> = []
   const needsApproval: Array<ApprovalRequest> = []
@@ -679,6 +680,7 @@ export async function* executeToolCalls<TContext = unknown>(
     const context = {
       toolCallId: toolCall.id,
       context: userContext,
+      abortSignal,
       emitCustomEvent: (eventName: string, value: Record<string, any>) => {
         if (createCustomEventChunk) {
           pendingEvents.push(
