@@ -36,3 +36,26 @@ export async function makeServerWithResource() {
   await server.connect(serverTransport)
   return { server, clientTransport }
 }
+
+/** Build a connected (server, clientTransport) pair that exposes a prompt accepting a `code` argument. */
+export async function makeServerWithPrompt() {
+  const server = new McpServer({ name: 'prompt-server', version: '1.0.0' })
+  server.registerPrompt(
+    'review-code',
+    {
+      description: 'Review a code snippet',
+      argsSchema: { code: z.string() },
+    },
+    ({ code }) => ({
+      messages: [
+        {
+          role: 'user' as const,
+          content: { type: 'text' as const, text: `Please review: ${code}` },
+        },
+      ],
+    }),
+  )
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+  await server.connect(serverTransport)
+  return { server, clientTransport }
+}
