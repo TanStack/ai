@@ -20,3 +20,19 @@ export async function makeServerWithWeatherTool() {
   await server.connect(serverTransport)
   return { server, clientTransport }
 }
+
+/** Build a connected (server, clientTransport) pair that exposes a static text resource. */
+export async function makeServerWithResource() {
+  const server = new McpServer({ name: 'resource-server', version: '1.0.0' })
+  server.registerResource(
+    'hello',
+    'file:///hello.txt',
+    { description: 'A simple text resource', mimeType: 'text/plain' },
+    async (_uri) => ({
+      contents: [{ uri: 'file:///hello.txt', text: 'hello from resource' }],
+    }),
+  )
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+  await server.connect(serverTransport)
+  return { server, clientTransport }
+}
