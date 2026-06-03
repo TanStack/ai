@@ -36,7 +36,7 @@ export interface MCPClient<
 class MCPClientImpl<_TServer extends ServerDescriptor>
   implements MCPClient<_TServer>
 {
-  capabilities: _TServer['capabilities'] = {} as _TServer['capabilities']
+  capabilities: _TServer['capabilities'] = {}
   #client: Client
   #closed = false
   private prefix?: string
@@ -53,8 +53,7 @@ class MCPClientImpl<_TServer extends ServerDescriptor>
   async connect(transport: Transport): Promise<void> {
     try {
       await this.#client.connect(transport)
-      this.capabilities = (this.#client.getServerCapabilities() ??
-        {}) as _TServer['capabilities']
+      this.capabilities = this.#client.getServerCapabilities() ?? {}
     } catch (err) {
       throw new MCPConnectionError('Failed to connect to MCP server', err)
     }
