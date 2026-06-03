@@ -462,7 +462,7 @@ const getWeatherClient = getWeather.client(async ({ city }) => {
 import { generateText } from 'ai'
 
 const result = await generateText({
-  model: openai('gpt-4o'),
+  model: openai('gpt-5.2'),
   tools: {
     getWeather: {
       description: 'Get current weather for a location',
@@ -504,7 +504,7 @@ const stream = chat({
 import { generateText } from 'ai'
 
 const result = await generateText({
-  model: openai('gpt-4o'),
+  model: openai('gpt-5.2'),
   tools,
   maxSteps: 10,
   prompt: 'Help me plan a trip.',

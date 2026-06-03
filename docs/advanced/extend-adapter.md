@@ -35,7 +35,7 @@ const myOpenai = extendAdapter(openaiText, [
 ])
 
 // Use with original models - full type inference preserved
-const gpt4Adapter = myOpenai('gpt-4o')
+const gpt4Adapter = myOpenai('gpt-5.2')
 
 // Use with custom models - your custom types are applied
 const customAdapter = myOpenai('my-fine-tuned-gpt4')
@@ -109,7 +109,7 @@ import { openaiText } from '@tanstack/ai-openai'
 const myOpenai = extendAdapter(openaiText, [createModel('custom-model', ['text'])])
 
 // ✅ Original models work with their original types
-const a1 = myOpenai('gpt-4o')
+const a1 = myOpenai('gpt-5.2')
 
 // ✅ Custom models work with your defined types
 const a2 = myOpenai('custom-model')

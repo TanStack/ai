@@ -91,6 +91,8 @@ const inputSchema: JSONSchema = {
 
 > **Note:** When using JSON Schema, TypeScript will infer `any` for input/output types since JSON Schema cannot provide compile-time type information. Zod schemas are recommended for full type safety.
 
+> **Tip:** Type safety from Zod schemas extends beyond tool execution — when you iterate over the stream returned by `chat()`, tool call events have typed `toolName` and `input` fields too. See [Type-Safe Tool Call Events](../chat/streaming#type-safe-tool-call-events).
+
 ## Tool Definition
 
 Tools are defined using `toolDefinition()` from `@tanstack/ai`:

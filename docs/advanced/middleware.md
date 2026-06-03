@@ -43,7 +43,7 @@ const logger: ChatMiddleware = {
 };
 
 const stream = chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.2"),
   messages: [{ role: "user", content: "Hello" }],
   middleware: [logger],
 });
@@ -491,7 +491,7 @@ Middleware execute in array order. The ordering matters for hooks that pipe or s
 
 ```typescript
 const stream = chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.2"),
   messages,
   middleware: [authMiddleware, loggingMiddleware, cachingMiddleware],
 });
@@ -521,7 +521,7 @@ import { chat } from "@tanstack/ai";
 import { toolCacheMiddleware } from "@tanstack/ai/middlewares";
 
 const stream = chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.2"),
   messages,
   tools: [weatherTool, stockTool],
   middleware: [

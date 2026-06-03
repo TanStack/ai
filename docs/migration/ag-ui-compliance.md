@@ -115,7 +115,7 @@ export async function POST(req: Request) {
   // const provider = body.forwardedProps?.provider
 
   const stream = chat({
-    adapter: openaiText('gpt-4o'),
+    adapter: openaiText('gpt-5.2'),
     messages: body.messages, // AG-UI mixed shape — works directly
     tools: serverTools,
   })
@@ -144,7 +144,7 @@ import { openaiText } from '@tanstack/ai-openai/adapters'
 export async function POST(req: Request) {
   const params = await chatParamsFromRequest(req)
   const stream = chat({
-    adapter: openaiText('gpt-4o'),
+    adapter: openaiText('gpt-5.2'),
     messages: params.messages,
     tools: serverTools,
   })
@@ -176,7 +176,7 @@ import { openaiText } from '@tanstack/ai-openai/adapters'
 export async function POST(req: Request) {
   const params = await chatParamsFromRequest(req)
   const stream = chat({
-    adapter: openaiText('gpt-4o'),
+    adapter: openaiText('gpt-5.2'),
     messages: params.messages,
     tools: mergeAgentTools(serverTools, params.tools), // ← merges client-declared tools
   })
@@ -195,7 +195,7 @@ Skip this section if you're on Tier 1. `forwardedProps` is only surfaced when yo
 ```ts
 // 🚫 UNSAFE — a client could override `adapter`, `model`, `tools`, system prompts, anything
 chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.2'),
   ...params,
   ...params.forwardedProps,
 })
@@ -206,7 +206,7 @@ Always destructure the specific fields you intend to forward:
 ```ts
 // ✅ SAFE — explicit allowlist
 chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.2'),
   messages: params.messages,
   tools: mergeAgentTools(serverTools, params.tools),
   temperature:
@@ -257,13 +257,13 @@ The `body` option on `useChat` / `ChatClient` is now `@deprecated` in favor of `
 // Before — still works, but deprecated
 useChat({
   connection: fetchServerSentEvents('/api/chat'),
-  body: { provider: 'openai', model: 'gpt-4o' },
+  body: { provider: 'openai', model: 'gpt-5.2' },
 })
 
 // After — recommended
 useChat({
   connection: fetchServerSentEvents('/api/chat'),
-  forwardedProps: { provider: 'openai', model: 'gpt-4o' },
+  forwardedProps: { provider: 'openai', model: 'gpt-5.2' },
 })
 ```
 

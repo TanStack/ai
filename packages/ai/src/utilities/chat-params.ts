@@ -1,12 +1,6 @@
 import { AGUIError, RunAgentInputSchema } from '@ag-ui/core'
 import type { Context as AGUIContext } from '@ag-ui/core'
-import type {
-  JSONSchema,
-  ModelMessage,
-  SchemaInput,
-  Tool,
-  UIMessage,
-} from '../types'
+import type { AnyTool, JSONSchema, ModelMessage, UIMessage } from '../types'
 
 const KNOWN_PART_TYPES = new Set([
   'text',
@@ -184,18 +178,18 @@ export async function chatParamsFromRequest(
  *   `chatParamsFromRequest(...)` / `chatParamsFromRequestBody(...)`.
  * @returns A merged array suitable for `chat({ tools })`.
  */
-export function mergeAgentTools<TContext = unknown>(
-  serverTools: ReadonlyArray<Tool<SchemaInput, SchemaInput, string, TContext>>,
+export function mergeAgentTools<
+  const TServerTools extends ReadonlyArray<AnyTool>,
+>(
+  serverTools: TServerTools,
   clientTools: ReadonlyArray<{
     name: string
     description: string
     parameters: JSONSchema
   }>,
-): Array<Tool<SchemaInput, SchemaInput, string, TContext>> {
+): TServerTools {
   const seen = new Set(serverTools.map((t) => t.name))
-  const merged: Array<Tool<SchemaInput, SchemaInput, string, TContext>> = [
-    ...serverTools,
-  ]
+  const merged: Array<AnyTool> = [...serverTools]
   for (const ct of clientTools) {
     if (seen.has(ct.name)) {
       // Server wins on name collision.
@@ -208,7 +202,15 @@ export function mergeAgentTools<TContext = unknown>(
       inputSchema: ct.parameters,
       // No `execute` — runtime treats this as a client-side tool and
       // emits ClientToolRequest events.
-    } as Tool<SchemaInput, SchemaInput, string, TContext>)
+    } as AnyTool)
   }
-  return merged
+  // The runtime array carries both server and client tools, but the
+  // return type is narrowed to just the typed server tuple so that
+  // `chat({ tools })` can discriminate `chunk.toolCallName` against the
+  // server tool names. Client tool calls still flow at runtime through
+  // the existing `ClientToolRequest` path — TypedStreamChunk just doesn't
+  // surface their names as typed literals (they appear as the bare
+  // `ToolCallStartEvent<string>` shape after narrowing).
+  // eslint-disable-next-line no-restricted-syntax -- intentional narrowing (see above)
+  return merged as unknown as TServerTools
 }

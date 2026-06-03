@@ -27,7 +27,7 @@ import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.2"),
   messages: [{ role: "user", content: "Hello" }],
   debug: true,
 });
@@ -36,7 +36,7 @@ const stream = chat({
 Every internal event now prints to the console with a `[tanstack-ai:<category>]` prefix:
 
 ```
-[tanstack-ai:request] activity=chat provider=openai model=gpt-4o messages=1 tools=0 stream=true
+[tanstack-ai:request] activity=chat provider=openai model=gpt-5.2 messages=1 tools=0 stream=true
 [tanstack-ai:agentLoop] run started
 [tanstack-ai:provider] provider=openai type=response.output_text.delta
 [tanstack-ai:output] type=TEXT_MESSAGE_CONTENT
@@ -49,7 +49,7 @@ Pass a `DebugConfig` object instead of `true`. Every unspecified category defaul
 
 ```typescript
 chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.2"),
   messages,
   debug: { middleware: false }, // everything except middleware
 });
@@ -59,7 +59,7 @@ If you want to see ONLY a specific set of categories, set the rest to `false` ex
 
 ```typescript
 chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.2"),
   messages,
   debug: {
     provider: true,
@@ -91,7 +91,7 @@ const logger: Logger = {
 };
 
 chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.2"),
   messages,
   debug: { logger }, // all categories on, piped to pino
 });

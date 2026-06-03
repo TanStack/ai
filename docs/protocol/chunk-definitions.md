@@ -70,7 +70,7 @@ interface RunStartedEvent extends BaseAGUIEvent {
 {
   "type": "RUN_STARTED",
   "runId": "run_abc123",
-  "model": "gpt-4o",
+  "model": "gpt-5.2",
   "timestamp": 1701234567890
 }
 ```
@@ -148,7 +148,7 @@ interface TokenUsage {
 {
   "type": "RUN_FINISHED",
   "runId": "run_abc123",
-  "model": "gpt-4o",
+  "model": "gpt-5.2",
   "timestamp": 1701234567900,
   "finishReason": "stop",
   "usage": {
@@ -271,7 +271,7 @@ interface RunErrorEvent extends BaseAGUIEvent {
 {
   "type": "RUN_ERROR",
   "runId": "run_abc123",
-  "model": "gpt-4o",
+  "model": "gpt-5.2",
   "timestamp": 1701234567890,
   "error": {
     "message": "Rate limit exceeded",
@@ -314,7 +314,7 @@ interface TextMessageContentEvent extends BaseAGUIEvent {
 {
   "type": "TEXT_MESSAGE_CONTENT",
   "messageId": "msg_abc123",
-  "model": "gpt-4o",
+  "model": "gpt-5.2",
   "timestamp": 1701234567890,
   "delta": "Hello",
   "content": "Hello"

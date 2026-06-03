@@ -21,7 +21,7 @@ describe('stripToSpec', () => {
       error: { message: 'Something went wrong' },
       model: 'gpt-4o',
     })
-    const result = stripToSpec(chunk) as Record<string, unknown>
+    const result = stripToSpec(chunk) as unknown as Record<string, unknown>
     expect(result).not.toHaveProperty('error')
     expect(result).toHaveProperty('message', 'Something went wrong')
     expect(result).toHaveProperty('code', 'INTERNAL_ERROR')
@@ -49,7 +49,7 @@ describe('stripToSpec', () => {
       finishReason: 'stop',
       usage: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
     })
-    const result = stripToSpec(chunk) as Record<string, unknown>
+    const result = stripToSpec(chunk) as unknown as Record<string, unknown>
     expect(result).toHaveProperty('model', 'gpt-4o')
     expect(result).toHaveProperty('finishReason', 'stop')
     expect(result).toHaveProperty('usage')
@@ -64,7 +64,7 @@ describe('stripToSpec', () => {
       result: '{"items":[]}',
       model: 'gpt-4o',
     })
-    const result = stripToSpec(chunk) as Record<string, unknown>
+    const result = stripToSpec(chunk) as unknown as Record<string, unknown>
     expect(result).toHaveProperty('toolName', 'getTodos')
     expect(result).toHaveProperty('toolCallName', 'getTodos')
     expect(result).toHaveProperty('input')

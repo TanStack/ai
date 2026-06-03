@@ -27,7 +27,7 @@ npm install @cencori/ai-sdk
 import { chat } from "@tanstack/ai";
 import { cencori } from "@cencori/ai-sdk/tanstack";
 
-const adapter = cencori("gpt-4o");
+const adapter = cencori("gpt-5.2");
 
 for await (const chunk of chat({
   adapter,
@@ -49,7 +49,7 @@ const cencori = createCencori({
   baseUrl: "https://cencori.com", // Optional
 });
 
-const adapter = cencori("gpt-4o");
+const adapter = cencori("gpt-5.2");
 ```
 
 ## Streaming
@@ -79,7 +79,7 @@ for await (const chunk of chat({
 import { chat } from "@tanstack/ai";
 import { cencori } from "@cencori/ai-sdk/tanstack";
 
-const adapter = cencori("gpt-4o");
+const adapter = cencori("gpt-5.2");
 
 for await (const chunk of chat({
   adapter,
@@ -110,7 +110,7 @@ Switch between providers with a single parameter:
 import { cencori } from "@cencori/ai-sdk/tanstack";
 
 // OpenAI
-const openai = cencori("gpt-4o");
+const openai = cencori("gpt-5.2");
 
 // Anthropic
 const anthropic = cencori("claude-3-5-sonnet");
@@ -131,7 +131,7 @@ All responses use the same unified format regardless of provider.
 
 | Provider | Models |
 |----------|--------|
-| OpenAI | `gpt-5`, `gpt-4o`, `gpt-4o-mini`, `o3`, `o1` |
+| OpenAI | `gpt-5`, `gpt-5.2`, `gpt-4o-mini`, `o3`, `o1` |
 | Anthropic | `claude-opus-4`, `claude-sonnet-4`, `claude-3-5-sonnet` |
 | Google | `gemini-3-pro`, `gemini-2.5-flash`, `gemini-2.0-flash` |
 | xAI | `grok-4`, `grok-3` |
@@ -168,7 +168,7 @@ Creates a Cencori adapter using environment variables.
 
 **Parameters:**
 
-- `model` - Model name (e.g., `"gpt-4o"`, `"claude-3-5-sonnet"`, `"gemini-2.5-flash"`)
+- `model` - Model name (e.g., `"gpt-5.2"`, `"claude-3-5-sonnet"`, `"gemini-2.5-flash"`)
 
 **Returns:** A Cencori TanStack AI adapter instance.
 

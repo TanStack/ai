@@ -209,7 +209,7 @@ type InferAdapterReturn<TFactory> = TFactory extends (
  * const myOpenai = extendAdapter(openaiText, customModels)
  *
  * // Use with original models - full type inference preserved
- * const gpt4 = myOpenai('gpt-4o')
+ * const gpt4 = myOpenai('gpt-5.2')
  *
  * // Use with custom models
  * const custom = myOpenai('my-fine-tuned-gpt4')

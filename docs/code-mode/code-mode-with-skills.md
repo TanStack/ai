@@ -101,7 +101,7 @@ const { toolsRegistry, systemPrompt, selectedSkills } = await codeModeWithSkills
 })
 
 const stream = chat({
-  adapter: openaiText('gpt-4o'),  // strong model for reasoning
+  adapter: openaiText('gpt-5.2'),  // strong model for reasoning
   toolRegistry: toolsRegistry,
   messages,
   systemPrompts: ['You are a helpful assistant.', systemPrompt],
@@ -189,7 +189,7 @@ const skillsPrompt = createSkillsSystemPrompt({
 
 // 5. Assemble and call chat()
 const stream = chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.2'),
   tools: [codeModeTool, ...managementTools, ...skillTools],
   messages,
   systemPrompts: [BASE_PROMPT, codeModePrompt, skillsPrompt],

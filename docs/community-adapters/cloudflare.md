@@ -202,7 +202,7 @@ import {
   createOpenRouterChat,
 } from "@cloudflare/tanstack-ai";
 
-const openai = createOpenAiChat("gpt-4o", {
+const openai = createOpenAiChat("gpt-5.2", {
   binding: env.AI.gateway("my-gateway-id"),
 });
 
@@ -214,7 +214,7 @@ const grok = createGrokChat("grok-4", {
   binding: env.AI.gateway("my-gateway-id"),
 });
 
-const openrouter = createOpenRouterChat("openai/gpt-4o", {
+const openrouter = createOpenRouterChat("openai/gpt-5.2", {
   binding: env.AI.gateway("my-gateway-id"),
 });
 ```
@@ -224,7 +224,7 @@ Or use credentials for non-Worker environments:
 ```typescript
 import { createOpenAiChat } from "@cloudflare/tanstack-ai";
 
-const adapter = createOpenAiChat("gpt-4o", {
+const adapter = createOpenAiChat("gpt-5.2", {
   accountId: "your-account-id",
   gatewayId: "your-gateway-id",
   cfApiKey: "your-cf-api-key",
@@ -237,7 +237,7 @@ const adapter = createOpenAiChat("gpt-4o", {
 Both binding and credentials modes support cache configuration:
 
 ```typescript
-const adapter = createOpenAiChat("gpt-4o", {
+const adapter = createOpenAiChat("gpt-5.2", {
   binding: env.AI.gateway("my-gateway-id"),
   skipCache: false,
   cacheTtl: 3600,

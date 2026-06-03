@@ -126,7 +126,7 @@ const stream = chat({
   messages,
   modelOptions: {
     models: [
-      "openai/gpt-4o",
+      "openai/gpt-5.2",
       "anthropic/claude-3.5-sonnet",
       "google/gemini-pro",
     ],

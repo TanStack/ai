@@ -22,7 +22,7 @@ export interface SummarizeAdapterConfig {
  * All type resolution happens at the provider call site, not in this interface.
  *
  * Generic parameters:
- * - TModel: The specific model name (e.g., 'gpt-4o')
+ * - TModel: The specific model name (e.g., 'gpt-5.2')
  * - TProviderOptions: Provider-specific options (already resolved)
  */
 export interface SummarizeAdapter<

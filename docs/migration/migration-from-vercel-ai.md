@@ -77,7 +77,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json()
 
   const result = streamText({
-    model: openai('gpt-4o'),
+    model: openai('gpt-5.2'),
     messages: convertToModelMessages(messages),
   })
 
@@ -96,7 +96,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json()
 
   const stream = chat({
-    adapter: openaiText('gpt-4o'),
+    adapter: openaiText('gpt-5.2'),
     messages,
   })
 
@@ -111,7 +111,7 @@ export async function POST(request: Request) {
 | `streamText()` | `chat()` | Main text generation function |
 | `generateText()` | `chat({ stream: false })` | Returns `Promise<string>` |
 | `generateObject()` / `streamObject()` / `Output.object()` | `chat({ outputSchema })` | Returns `Promise<T>` — see [Structured Output](#structured-output) |
-| `openai('gpt-4o')` | `openaiText('gpt-4o')` | Activity-specific adapters |
+| `openai('gpt-5.2')` | `openaiText('gpt-5.2')` | Activity-specific adapters |
 | `result.toUIMessageStreamResponse()` / `.toTextStreamResponse()` | `toServerSentEventsResponse(stream)` / `toHttpResponse(stream)` | Separate utility functions |
 | `model` parameter | `adapter` parameter | Model baked into adapter |
 
@@ -121,7 +121,7 @@ Options accepted by `streamText` as of AI SDK v6, and where each lives in TanSta
 
 | `streamText` option | `chat()` equivalent | Notes |
 |--------------------|--------------------|-------|
-| `model: openai('gpt-4o')` | `adapter: openaiText('gpt-4o')` | Activity-specific adapters |
+| `model: openai('gpt-5.2')` | `adapter: openaiText('gpt-5.2')` | Activity-specific adapters |
 | `prompt: 'Hello'` | `messages: [{ role: 'user', content: 'Hello' }]` | TanStack is messages-only |
 | `messages` | `messages` | Same concept; content parts differ (see [Multimodal](#multimodal-content)) |
 | `system: 'You are…'` | `systemPrompts: ['You are…']` | Root-level `string[]` |
@@ -185,7 +185,7 @@ TanStack AI promotes a small, cross-provider set of options to the top level (`t
 
 ```typescript
 const result = streamText({
-  model: openai('gpt-4o'),
+  model: openai('gpt-5.2'),
   messages,
   temperature: 0.7,
   maxOutputTokens: 1000, // (v5+); `maxTokens` on v4
@@ -208,12 +208,12 @@ const result = streamText({
 
 ```typescript
 const stream = chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.2'),
   messages,
   temperature: 0.7,
   maxTokens: 1000,
   topP: 0.9,
-  // Everything else lives under modelOptions — typed for gpt-4o specifically
+  // Everything else lives under modelOptions — typed for gpt-5.2 specifically
   modelOptions: {
     topK: 40,
     presencePenalty: 0.1,
@@ -225,7 +225,7 @@ const stream = chat({
 })
 ```
 
-> Autocomplete in `modelOptions` reflects the **exact** adapter and model you passed. Swap `openaiText('gpt-4o')` for `anthropicText('claude-sonnet-4-5')` and the shape changes to match Anthropic's options.
+> Autocomplete in `modelOptions` reflects the **exact** adapter and model you passed. Swap `openaiText('gpt-5.2')` for `anthropicText('claude-sonnet-4-5')` and the shape changes to match Anthropic's options.
 
 ### System Messages
 
@@ -235,7 +235,7 @@ TanStack AI accepts system prompts at the **root level** via the `systemPrompts`
 
 ```typescript
 const result = streamText({
-  model: openai('gpt-4o'),
+  model: openai('gpt-5.2'),
   system: 'You are a helpful assistant.',
   messages,
 })
@@ -245,7 +245,7 @@ const result = streamText({
 
 ```typescript
 const stream = chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.2'),
   systemPrompts: ['You are a helpful assistant.'],
   messages,
 })
@@ -255,7 +255,7 @@ Multiple system prompts are supported — useful for composing persona, policies
 
 ```typescript
 const stream = chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.2'),
   systemPrompts: [
     'You are a helpful assistant.',
     'Respond in concise, plain English.',
@@ -495,7 +495,7 @@ import { openai } from '@ai-sdk/openai'
 import { z } from 'zod'
 
 const result = streamText({
-  model: openai('gpt-4o'),
+  model: openai('gpt-5.2'),
   messages,
   tools: {
     getWeather: tool({
@@ -540,7 +540,7 @@ const getWeather = getWeatherDef.server(async ({ location }) => {
 
 // Step 3: Use in chat
 const stream = chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.2'),
   messages,
   tools: [getWeather],
 })
@@ -689,7 +689,7 @@ import { openai } from '@ai-sdk/openai'
 import { z } from 'zod'
 
 const { output } = await generateText({
-  model: openai('gpt-4o'),
+  model: openai('gpt-5.2'),
   prompt: 'Extract the user profile from this bio…',
   output: Output.object({
     schema: z.object({
@@ -710,7 +710,7 @@ import { openaiText } from '@tanstack/ai-openai'
 import { z } from 'zod'
 
 const profile = await chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.2'),
   messages: [{ role: 'user', content: 'Extract the user profile from this bio…' }],
   outputSchema: z.object({
     name: z.string(),
@@ -749,7 +749,7 @@ import { streamText, stepCountIs } from 'ai'
 import { openai } from '@ai-sdk/openai'
 
 const result = streamText({
-  model: openai('gpt-4o'),
+  model: openai('gpt-5.2'),
   messages,
   tools: { getWeather },
   stopWhen: stepCountIs(10),
@@ -773,7 +773,7 @@ import {
 import { openaiText } from '@tanstack/ai-openai'
 
 const stream = chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.2'),
   messages,
   tools: [getWeather],
   agentLoopStrategy: combineStrategies([
@@ -802,7 +802,7 @@ const stream = chat({
 ```typescript
 // Stage 1: heavy model for the opening turn
 const firstPass = await chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.2'),
   messages,
   agentLoopStrategy: maxIterations(1),
   stream: false,
@@ -843,7 +843,7 @@ const loggingMiddleware = {
 }
 
 const wrapped = wrapLanguageModel({
-  model: openai('gpt-4o'),
+  model: openai('gpt-5.2'),
   middleware: [loggingMiddleware],
 })
 
@@ -868,7 +868,7 @@ const loggingMiddleware: ChatMiddleware<AppContext> = {
 }
 
 const stream = chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.2'),
   messages,
   middleware: [loggingMiddleware],
   context: { userId: 'u_123' }, // passed to every hook as typed ctx.context
@@ -904,7 +904,7 @@ import { chat } from '@tanstack/ai'
 import { toolCacheMiddleware } from '@tanstack/ai/middlewares'
 
 const stream = chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.2'),
   messages,
   tools: [searchDocs, getWeather],
   middleware: [
@@ -950,7 +950,7 @@ TanStack AI uses activity-specific adapters for optimal tree-shaking.
 import { openai } from '@ai-sdk/openai'
 
 // Chat
-streamText({ model: openai('gpt-4o'), ... })
+streamText({ model: openai('gpt-5.2'), ... })
 
 // Embeddings
 embed({ model: openai.embedding('text-embedding-3-small'), ... })
@@ -965,7 +965,7 @@ generateImage({ model: openai.image('dall-e-3'), ... })
 import { openaiText, openaiImage, openaiSpeech } from '@tanstack/ai-openai'
 
 // Chat
-chat({ adapter: openaiText('gpt-4o'), ... })
+chat({ adapter: openaiText('gpt-5.2'), ... })
 
 // Image generation
 generateImage({ adapter: openaiImage('dall-e-3'), ... })
@@ -1037,7 +1037,7 @@ import {
   toHttpStream,
 } from '@tanstack/ai'
 
-const stream = chat({ adapter: openaiText('gpt-4o'), messages })
+const stream = chat({ adapter: openaiText('gpt-5.2'), messages })
 
 // SSE response (recommended; pairs with fetchServerSentEvents on the client).
 // Both response helpers accept a ResponseInit with an optional abortController
@@ -1093,7 +1093,7 @@ useChat({
 
 ```typescript
 const result = streamText({
-  model: openai('gpt-4o'),
+  model: openai('gpt-5.2'),
   messages,
   abortSignal: controller.signal,
 })
@@ -1107,7 +1107,7 @@ TanStack AI takes an `AbortController` (not a bare signal) so helpers like `toSe
 const abortController = new AbortController()
 
 const stream = chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.2'),
   messages,
   abortController,
 })
@@ -1152,7 +1152,7 @@ TanStack AI also lets you hook into the **server-side** stream lifecycle by subs
 
 ```typescript
 streamText({
-  model: openai('gpt-4o'),
+  model: openai('gpt-5.2'),
   messages: [
     {
       role: 'user',
@@ -1169,7 +1169,7 @@ streamText({
 
 ```typescript
 chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.2'),
   messages: [
     {
       role: 'user',
@@ -1192,7 +1192,7 @@ chat({
 
 ```typescript
 const providers = {
-  openai: openai('gpt-4o'),
+  openai: openai('gpt-5.2'),
   anthropic: anthropic('claude-sonnet-4-5-20250514'),
 }
 
@@ -1206,7 +1206,7 @@ streamText({
 
 ```typescript
 const adapters = {
-  openai: () => openaiText('gpt-4o'),
+  openai: () => openaiText('gpt-5.2'),
   anthropic: () => anthropicText('claude-sonnet-4-5-20250514'),
 }
 
@@ -1244,13 +1244,13 @@ type ChatMessages = InferChatMessages<typeof chatOptions>
 ### Per-Model Type Safety
 
 ```typescript
-const adapter = openaiText('gpt-4o')
+const adapter = openaiText('gpt-5.2')
 
 chat({
   adapter,
   messages,
   modelOptions: {
-    // TypeScript autocompletes options specific to gpt-4o
+    // TypeScript autocompletes options specific to gpt-5.2
     responseFormat: { type: 'json_object' },
     logitBias: { '123': 1.0 },
   },
@@ -1266,7 +1266,7 @@ import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 const text = await chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.2'),
   messages: [{ role: 'user', content: 'Summarize TanStack AI in one sentence.' }],
   stream: false,
 })
@@ -1278,7 +1278,7 @@ If you already have a stream for another reason, `streamToText(stream)` collects
 ```typescript
 import { chat, streamToText } from '@tanstack/ai'
 
-const stream = chat({ adapter: openaiText('gpt-4o'), messages })
+const stream = chat({ adapter: openaiText('gpt-5.2'), messages })
 const text = await streamToText(stream)
 ```
 
@@ -1326,7 +1326,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json()
 
   const result = streamText({
-    model: openai('gpt-4o'),
+    model: openai('gpt-5.2'),
     system: 'You are a helpful assistant.',
     messages: convertToModelMessages(messages),
     temperature: 0.7,
@@ -1402,7 +1402,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json()
 
   const stream = chat({
-    adapter: openaiText('gpt-4o'),
+    adapter: openaiText('gpt-5.2'),
     systemPrompts: ['You are a helpful assistant.'],
     messages,
     temperature: 0.7,

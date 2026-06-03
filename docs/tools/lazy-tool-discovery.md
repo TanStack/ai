@@ -82,7 +82,7 @@ import { chat, toServerSentEventsResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.2"),
   messages,
   tools: [
     getProducts, // Normal tool — sent to LLM immediately
@@ -208,7 +208,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: openaiText("gpt-4o"),
+    adapter: openaiText("gpt-5.2"),
     messages,
     tools: [getProducts, compareProducts, calculateFinancing],
     agentLoopStrategy: maxIterations(20),

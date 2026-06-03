@@ -52,7 +52,7 @@ app.post('/api/chat', async (req, res) => {
     // `chat()` uses the AG-UI `threadId` for devtools correlation
     // when available — no need to plumb `conversationId` manually.
     const stream = chat({
-      adapter: openaiText('gpt-4o'),
+      adapter: openaiText('gpt-5.2'),
       messages,
     })
 

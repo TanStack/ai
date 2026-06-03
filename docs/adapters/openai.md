@@ -6,7 +6,7 @@ description: "Use OpenAI models with TanStack AI — GPT-4o, GPT-5, DALL-E image
 keywords:
   - tanstack ai
   - openai
-  - gpt-4o
+  - gpt-5.2
   - gpt-5
   - dall-e
   - whisper

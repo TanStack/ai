@@ -14,7 +14,7 @@ export interface OpenAISummarizeConfig extends OpenAIClientConfig {}
  * Creates an OpenAI summarize adapter with explicit API key.
  * Type resolution happens here at the call site.
  *
- * @param model - The model name (e.g., 'gpt-4o-mini', 'gpt-4o')
+ * @param model - The model name (e.g., 'gpt-4o-mini', 'gpt-5.2')
  * @param apiKey - Your OpenAI API key
  * @param config - Optional additional configuration
  * @returns Configured OpenAI summarize adapter instance with resolved types
@@ -47,7 +47,7 @@ export function createOpenaiSummarize<TModel extends OpenAIChatModel>(
  * - `process.env` (Node.js)
  * - `window.env` (Browser with injected env)
  *
- * @param model - The model name (e.g., 'gpt-4o-mini', 'gpt-4o')
+ * @param model - The model name (e.g., 'gpt-4o-mini', 'gpt-5.2')
  * @param config - Optional configuration (excluding apiKey which is auto-detected)
  * @returns Configured OpenAI summarize adapter instance with resolved types
  * @throws Error if OPENAI_API_KEY is not found in environment

@@ -52,7 +52,7 @@ export const POST: RequestHandler = async ({ request }) => {
     // `chat()` uses the AG-UI `threadId` for devtools correlation
     // when available — no need to plumb `conversationId` manually.
     const stream = chat({
-      adapter: openaiText('gpt-4o'),
+      adapter: openaiText('gpt-5.2'),
       messages: body.messages,
     })
 

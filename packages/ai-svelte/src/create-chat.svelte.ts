@@ -80,11 +80,18 @@ export function createChat<
   type Final = InferSchemaType<NonNullable<TSchema>>
 
   // Create ChatClient instance.
-  // Note: Svelte's createChat runs once per instance and `options` is captured
-  // by reference. Callbacks are therefore frozen to whatever the caller passed
-  // at creation — to swap them dynamically, mutate the options object
-  // in-place or call `client.updateOptions(...)` imperatively.
-  // Optional fields use conditional spread because the target
+  //
+  // Svelte's `createChat` runs once per instance, so `options` is captured by
+  // reference at creation time. Wrapping each user-supplied callback through
+  // `options.onX?.(...)` lets callers mutate the options object in place (or
+  // call `client.updateOptions(...)` imperatively) and have the next invocation
+  // pick up the new function — without this indirection, those five callbacks
+  // would be frozen to whatever was passed at `createChat(...)` time, which
+  // diverges from the React/Preact/Vue/Solid sibling wrappers. This is the
+  // same uniform treatment applied to `onFinish`/`onError`; the other three
+  // (`onResponse`, `onChunk`, `onCustomEvent`) used to be direct references.
+  //
+  // Non-callback optional fields use conditional spread because the target
   // `ChatClientOptions` declares them as `field?: T` (absent vs. present)
   // rather than `field?: T | undefined`. Under `exactOptionalPropertyTypes`,
   // passing an explicit `undefined` for an absent-only optional is a type
@@ -114,7 +121,7 @@ export function createChat<
       hookName: 'useChat',
       outputKind: options.outputSchema ? 'structured' : 'chat',
     },
-    ...(options.onResponse !== undefined && { onResponse: options.onResponse }),
+    onResponse: (response) => options.onResponse?.(response),
     onChunk: (chunk: StreamChunk) => {
       options.onChunk?.(chunk)
     },
@@ -125,9 +132,9 @@ export function createChat<
       options.onError?.(err)
     },
     tools: options.tools,
-    ...(options.onCustomEvent !== undefined && {
-      onCustomEvent: options.onCustomEvent,
-    }),
+    onCustomEvent: (eventType, data, context) => {
+      options.onCustomEvent?.(eventType, data, context)
+    },
     ...(options.streamProcessor !== undefined && {
       streamProcessor: options.streamProcessor,
     }),

@@ -229,7 +229,7 @@ import { openaiText } from "@tanstack/ai-openai";
 export async function POST(req: Request) {
   const params = await chatParamsFromRequest(req);
   const stream = chat({
-    adapter: openaiText("gpt-4o"),
+    adapter: openaiText("gpt-5.2"),
     messages: params.messages,
     tools: serverTools,
   });
@@ -274,7 +274,7 @@ import { chat, chatParamsFromRequest, mergeAgentTools } from "@tanstack/ai";
 
 const params = await chatParamsFromRequest(req);
 const stream = chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.2"),
   messages: params.messages,
   tools: mergeAgentTools(serverTools, params.tools),
 });

@@ -277,7 +277,7 @@ https://platform.openai.com/docs/api-reference/responses/create#responses_create
   instructions?: string
 
   /**
-   * The model name (e.g. "gpt-4o", "gpt-5", "gpt-4.1-mini", etc).
+   * The model name (e.g. "gpt-5.2", "gpt-5", "gpt-4.1-mini", etc).
    * https://platform.openai.com/docs/api-reference/responses/create#responses_create-model
    */
   model: string

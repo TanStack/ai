@@ -45,7 +45,7 @@ export type { CodeModeWithSkillsOptions, CodeModeWithSkillsResult }
  * });
  *
  * const stream = chat({
- *   adapter: openaiText('gpt-4o'),  // Main model
+ *   adapter: openaiText('gpt-5.2'),  // Main model
  *   toolRegistry: toolsRegistry,  // Dynamic tool registry
  *   messages,
  *   systemPrompts: [BASE_PROMPT, systemPrompt],

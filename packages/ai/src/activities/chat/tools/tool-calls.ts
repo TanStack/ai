@@ -224,6 +224,13 @@ export class ToolCallManager<
 
       let toolResultContent: string | Array<ContentPart>
       let toolResultState: ToolOutputState | undefined
+      // Holds the parsed/validated execution output before serialization.
+      // Surfaced on the emitted `TOOL_CALL_END` event as `output` so
+      // consumers can read it typed (via `TypedStreamChunk` distribution
+      // over the tools array) without re-parsing `result`.
+      // Stays `undefined` when the tool has no `execute` (client-only
+      // tools) or when execution throws.
+      let toolOutput: unknown
       if (tool?.execute) {
         try {
           // Parse arguments (normalize null/non-object to {} for empty tool_use blocks)
@@ -282,6 +289,7 @@ export class ToolCallManager<
             }
           }
 
+          toolOutput = result
           toolResultContent = normalizeToolResult(result)
         } catch (error: unknown) {
           // If tool execution fails, add error message
@@ -303,9 +311,11 @@ export class ToolCallManager<
         toolName: toolCall.function.name,
         model: finishEvent.model,
         timestamp: Date.now(),
+        // Typed parsed output (undefined for failed exec / client-only tools).
+        ...(toolOutput !== undefined ? { output: toolOutput } : {}),
         result: toolResultContent,
         ...(toolResultState !== undefined && { state: toolResultState }),
-      } as ToolCallEndEvent
+      }
 
       // Add tool result message
       toolResults.push({

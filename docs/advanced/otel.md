@@ -38,7 +38,7 @@ const otel = otelMiddleware({
 })
 
 const result = await chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.2'),
   messages: [{ role: 'user', content: 'hi' }],
   middleware: [otel],
   stream: false,
@@ -50,11 +50,11 @@ const result = await chat({
 ### Spans
 
 ```text
-chat gpt-4o              (root, kind: INTERNAL)
-├── chat gpt-4o #0       (iteration, kind: CLIENT)
+chat gpt-5.2              (root, kind: INTERNAL)
+├── chat gpt-5.2 #0       (iteration, kind: CLIENT)
 │   ├── execute_tool get_weather
 │   └── execute_tool get_time
-└── chat gpt-4o #1       (iteration, kind: CLIENT)
+└── chat gpt-5.2 #1       (iteration, kind: CLIENT)
 ```
 
 Iteration spans are numbered (`#0`, `#1`, ...) so distinct iterations of the same chat are easy to pick apart in trace viewers.

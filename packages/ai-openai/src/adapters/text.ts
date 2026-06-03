@@ -144,15 +144,15 @@ export class OpenAITextAdapter<
  * Creates an OpenAI chat adapter with explicit API key.
  * Type resolution happens here at the call site.
  *
- * @param model - The model name (e.g., 'gpt-4o', 'gpt-4-turbo')
+ * @param model - The model name (e.g., 'gpt-5.2', 'gpt-4-turbo')
  * @param apiKey - Your OpenAI API key
  * @param config - Optional additional configuration
  * @returns Configured OpenAI chat adapter instance with resolved types
  *
  * @example
  * ```typescript
- * const adapter = createOpenaiChat('gpt-4o', "sk-...");
- * // adapter has type-safe modelOptions for gpt-4o
+ * const adapter = createOpenaiChat('gpt-5.2', "sk-...");
+ * // adapter has type-safe modelOptions for gpt-5.2
  * ```
  */
 export function createOpenaiChat<
@@ -173,7 +173,7 @@ export function createOpenaiChat<
  * - `process.env` (Node.js)
  * - `window.env` (Browser with injected env)
  *
- * @param model - The model name (e.g., 'gpt-4o', 'gpt-4-turbo')
+ * @param model - The model name (e.g., 'gpt-5.2', 'gpt-4-turbo')
  * @param config - Optional configuration (excluding apiKey which is auto-detected)
  * @returns Configured OpenAI text adapter instance with resolved types
  * @throws Error if OPENAI_API_KEY is not found in environment
@@ -181,7 +181,7 @@ export function createOpenaiChat<
  * @example
  * ```typescript
  * // Automatically uses OPENAI_API_KEY from environment
- * const adapter = openaiText('gpt-4o');
+ * const adapter = openaiText('gpt-5.2');
  *
  * const stream = chat({
  *   adapter,

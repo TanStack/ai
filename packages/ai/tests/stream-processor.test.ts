@@ -23,10 +23,10 @@ import type {
 function chunk<T extends StreamChunk['type']>(
   type: T,
   fields?: Record<string, unknown>,
-): Extract<StreamChunk, { type: T }> {
-  return { type, timestamp: Date.now(), ...fields } as Extract<
+): Extract<StreamChunk, { type: `${T}` }> {
+  return { type, timestamp: Date.now(), ...fields } as unknown as Extract<
     StreamChunk,
-    { type: T }
+    { type: `${T}` }
   >
 }
 

@@ -11,7 +11,7 @@ async function* createMockStream(
   chunks: Array<Record<string, unknown>>,
 ): AsyncGenerator<StreamChunk> {
   for (const chunk of chunks) {
-    yield chunk as StreamChunk
+    yield chunk as unknown as StreamChunk
   }
 }
 

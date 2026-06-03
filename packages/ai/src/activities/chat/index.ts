@@ -39,6 +39,7 @@ import type {
   InferSchemaType,
   JSONSchema,
   ModelMessage,
+  ProviderTool,
   RunFinishedEvent,
   SchemaInput,
   StreamChunk,
@@ -50,6 +51,7 @@ import type {
   ToolCallArgsEvent,
   ToolCallEndEvent,
   ToolCallStartEvent,
+  TypedStreamChunk,
   UIMessage,
 } from '../../types'
 import type {
@@ -61,7 +63,6 @@ import type {
 import type { SystemPrompt } from '../../system-prompts'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
-import type { ProviderTool } from '../../tools/provider-tool'
 import type {
   ContextFromMiddleware,
   ContextFromTool,
@@ -153,6 +154,7 @@ type TextActivityOptionsWithContext<
  * @template TAdapter - The text adapter type (created by a provider function)
  * @template TSchema - Optional Standard Schema for structured output
  * @template TStream - Whether to stream the output (default: true)
+ * @template TContext - Runtime context value threaded to middleware hooks and server tools
  */
 export interface TextActivityOptions<
   TAdapter extends AnyTextAdapter,
@@ -160,7 +162,7 @@ export interface TextActivityOptions<
   TStream extends boolean,
   TContext = unknown,
 > {
-  /** The text adapter to use (created by a provider function like openaiText('gpt-4o')) */
+  /** The text adapter to use (created by a provider function like openaiText('gpt-5.2')) */
   adapter: TAdapter
   /**
    * Conversation messages. Accepts:
@@ -203,7 +205,7 @@ export interface TextActivityOptions<
    *    compile-time error on the array element.
    */
   tools?:
-    | Array<
+    | ReadonlyArray<
         | (AnyRuntimeTool & { readonly '~toolKind'?: never })
         | ProviderTool<string, TAdapter['~types']['toolCapabilities'][number]>
       >
@@ -235,7 +237,7 @@ export interface TextActivityOptions<
    * @example
    * ```ts
    * const result = await chat({
-   *   adapter: openaiText('gpt-4o'),
+   *   adapter: openaiText('gpt-5.2'),
    *   messages: [{ role: 'user', content: 'Generate a person' }],
    *   outputSchema: z.object({ name: z.string(), age: z.number() })
    * })
@@ -245,7 +247,7 @@ export interface TextActivityOptions<
   outputSchema?: TSchema
   /**
    * Whether to stream the text result.
-   * When true (default), returns an AsyncIterable<StreamChunk> for streaming output.
+   * When true (default), returns an AsyncIterable<TypedStreamChunk<TTools>> for streaming output.
    * When false, returns a Promise<string> with the collected text content.
    *
    * Note: If outputSchema is provided, this option is ignored and the result
@@ -256,7 +258,7 @@ export interface TextActivityOptions<
    * @example Non-streaming text
    * ```ts
    * const text = await chat({
-   *   adapter: openaiText('gpt-4o'),
+   *   adapter: openaiText('gpt-5.2'),
    *   messages: [{ role: 'user', content: 'Hello!' }],
    *   stream: false
    * })
@@ -271,7 +273,7 @@ export interface TextActivityOptions<
    * @example
    * ```ts
    * const stream = chat({
-   *   adapter: openaiText('gpt-4o'),
+   *   adapter: openaiText('gpt-5.2'),
    *   messages: [...],
    *   middleware: [loggingMiddleware, redactionMiddleware],
    * })
@@ -337,12 +339,18 @@ export function createChatOptions<
     TTools,
     TMiddleware
   >,
-): TextActivityOptions<
-  TAdapter,
-  TSchema,
-  TStream,
-  InferredContext<TTools, TMiddleware>
-> {
+  // Preserve the concrete `tools` tuple on the returned options (so a later
+  // `chat({ ...opts })` still narrows tool-call events to the tool names)
+  // while threading the inferred runtime context like the bare options type.
+): Omit<
+  TextActivityOptions<
+    TAdapter,
+    TSchema,
+    TStream,
+    InferredContext<TTools, TMiddleware>
+  >,
+  'tools'
+> & { tools?: TTools } {
   return options
 }
 
@@ -359,7 +367,10 @@ export function createChatOptions<
  * - If outputSchema is provided without explicit stream:true:
  *   Promise<InferSchemaType<TSchema>>.
  * - If stream is explicitly false (no schema): Promise<string>.
- * - Otherwise (default): AsyncIterable<StreamChunk>.
+ * - Otherwise (default): AsyncIterable<TypedStreamChunk<TTools>>.
+ *
+ * When tools with typed schemas are provided, the stream chunks include
+ * type-safe `toolName` and `input` fields on tool call events.
  *
  * `[TStream] extends [true]` is used (not `TStream extends true`) so that the
  * default `boolean` value of `TStream` does *not* match the streaming branch.
@@ -369,13 +380,23 @@ export function createChatOptions<
 export type TextActivityResult<
   TSchema extends SchemaInput | undefined,
   TStream extends boolean = boolean,
+  // Unconstrained so `chat()` can forward its inferred `options['tools']` type
+  // (which may be `undefined` or the broad `AnyRuntimeTool | ProviderTool`
+  // array) directly; non-tool-array inputs normalize to the default below.
+  TTools = ReadonlyArray<AnyTool>,
 > = TSchema extends SchemaInput
   ? [TStream] extends [true]
     ? StructuredOutputStream<InferSchemaType<TSchema>>
     : Promise<InferSchemaType<TSchema>>
   : [TStream] extends [false]
     ? Promise<string>
-    : AsyncIterable<StreamChunk>
+    : AsyncIterable<
+        TypedStreamChunk<
+          TTools extends ReadonlyArray<AnyTool>
+            ? TTools
+            : ReadonlyArray<AnyTool>
+        >
+      >
 
 // ===========================
 // ChatEngine Implementation
@@ -1592,7 +1613,7 @@ class TextEngine<
             needsApproval: true,
           },
         },
-      } as StreamChunk)
+      })
     }
 
     return chunks
@@ -1615,7 +1636,7 @@ class TextEngine<
           toolName: clientTool.toolName,
           input: clientTool.input,
         },
-      } as StreamChunk)
+      })
     }
 
     return chunks
@@ -1649,7 +1670,7 @@ class TextEngine<
           toolCallId: result.toolCallId,
           toolCallName: result.toolName,
           toolName: result.toolName,
-        } as StreamChunk)
+        })
 
         const args = argsMap.get(result.toolCallId) ?? '{}'
         chunks.push({
@@ -1659,7 +1680,7 @@ class TextEngine<
           toolCallId: result.toolCallId,
           delta: args,
           args,
-        } as StreamChunk)
+        })
       }
 
       chunks.push({
@@ -1671,7 +1692,7 @@ class TextEngine<
         toolName: result.toolName,
         result: wireContent,
         ...(result.state !== undefined && { state: result.state }),
-      } as StreamChunk)
+      })
 
       // AG-UI spec TOOL_CALL_RESULT event (content is string-only per spec)
       chunks.push({
@@ -1683,7 +1704,7 @@ class TextEngine<
         content: wireContent,
         role: 'tool',
         ...(result.state !== undefined && { state: result.state }),
-      } as StreamChunk)
+      })
 
       // If a placeholder tool message exists for this toolCallId (created by
       // uiMessageToModelMessages for an approval-responded part with no
@@ -1773,7 +1794,7 @@ class TextEngine<
       model: this.params.model,
       timestamp: Date.now(),
       finishReason: 'tool_calls',
-    } as RunFinishedEvent
+    }
   }
 
   private shouldContinue(): boolean {
@@ -2421,7 +2442,7 @@ class TextEngine<
       model: this.params.model,
       name: eventName,
       value,
-    } as CustomEvent
+    }
   }
 
   private createId(prefix: string): string {
@@ -2448,7 +2469,7 @@ class TextEngine<
  * import { openaiText } from '@tanstack/ai-openai'
  *
  * for await (const chunk of chat({
- *   adapter: openaiText('gpt-4o'),
+ *   adapter: openaiText('gpt-5.2'),
  *   messages: [{ role: 'user', content: 'What is the weather?' }],
  *   tools: [weatherTool]
  * })) {
@@ -2461,7 +2482,7 @@ class TextEngine<
  * @example One-shot text (streaming without tools)
  * ```ts
  * for await (const chunk of chat({
- *   adapter: openaiText('gpt-4o'),
+ *   adapter: openaiText('gpt-5.2'),
  *   messages: [{ role: 'user', content: 'Hello!' }]
  * })) {
  *   console.log(chunk)
@@ -2471,7 +2492,7 @@ class TextEngine<
  * @example Non-streaming text (stream: false)
  * ```ts
  * const text = await chat({
- *   adapter: openaiText('gpt-4o'),
+ *   adapter: openaiText('gpt-5.2'),
  *   messages: [{ role: 'user', content: 'Hello!' }],
  *   stream: false
  * })
@@ -2483,7 +2504,7 @@ class TextEngine<
  * import { z } from 'zod'
  *
  * const result = await chat({
- *   adapter: openaiText('gpt-4o'),
+ *   adapter: openaiText('gpt-5.2'),
  *   messages: [{ role: 'user', content: 'Research and summarize the topic' }],
  *   tools: [researchTool, analyzeTool],
  *   outputSchema: z.object({
@@ -2523,7 +2544,7 @@ export function chat<
     TTools,
     TMiddleware
   >,
-): TextActivityResult<TSchema, TStream> {
+): TextActivityResult<TSchema, TStream, TTools> {
   const { outputSchema, stream } = options
 
   // outputSchema + stream:true is the only branch that streams structured
@@ -2534,7 +2555,7 @@ export function chat<
       ...options,
       outputSchema,
       stream,
-    }) as TextActivityResult<TSchema, TStream>
+    }) as TextActivityResult<TSchema, TStream, TTools>
   }
 
   // If outputSchema is provided, run agentic structured output (Promise<T>)
@@ -2542,7 +2563,7 @@ export function chat<
     return runAgenticStructuredOutput({
       ...options,
       outputSchema,
-    }) as TextActivityResult<TSchema, TStream>
+    }) as TextActivityResult<TSchema, TStream, TTools>
   }
 
   // If stream is explicitly false, run non-streaming text
@@ -2551,7 +2572,7 @@ export function chat<
       ...options,
       outputSchema: undefined,
       stream,
-    }) as TextActivityResult<TSchema, TStream>
+    }) as TextActivityResult<TSchema, TStream, TTools>
   }
 
   // Otherwise, run streaming text (default)
@@ -2559,7 +2580,7 @@ export function chat<
     ...options,
     outputSchema: undefined,
     stream,
-  }) as TextActivityResult<TSchema, TStream>
+  }) as TextActivityResult<TSchema, TStream, TTools>
 }
 
 /**
