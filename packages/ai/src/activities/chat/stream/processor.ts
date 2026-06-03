@@ -878,7 +878,7 @@ export class StreamProcessor {
     this.messages = chunk.messages.map((msg) =>
       'parts' in msg
         ? (msg as UIMessage)
-        : modelMessageToUIMessage(msg as any, generateMessageId()),
+        : modelMessageToUIMessage(msg as any, (msg as { id?: string }).id ?? generateMessageId()),
     )
     this.emitMessagesChange()
   }
