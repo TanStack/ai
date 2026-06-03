@@ -204,19 +204,22 @@ chat({
 Always destructure the specific fields you intend to forward:
 
 ```ts
-// ✅ SAFE — explicit allowlist
+// ✅ SAFE — explicit allowlist. Sampling params live in modelOptions under
+// each provider's native key (OpenAI: temperature / max_output_tokens).
 chat({
   adapter: openaiText('gpt-4o'),
   messages: params.messages,
   tools: mergeAgentTools(serverTools, params.tools),
-  temperature:
-    typeof params.forwardedProps.temperature === 'number'
-      ? params.forwardedProps.temperature
-      : undefined,
-  maxTokens:
-    typeof params.forwardedProps.maxTokens === 'number'
-      ? params.forwardedProps.maxTokens
-      : undefined,
+  modelOptions: {
+    temperature:
+      typeof params.forwardedProps.temperature === 'number'
+        ? params.forwardedProps.temperature
+        : undefined,
+    max_output_tokens:
+      typeof params.forwardedProps.maxTokens === 'number'
+        ? params.forwardedProps.maxTokens
+        : undefined,
+  },
 })
 ```
 
