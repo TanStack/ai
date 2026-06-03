@@ -90,6 +90,7 @@ export function useChat<
       persistence: options.persistence,
     }),
     ...(options.body !== undefined && { body: options.body }),
+    ...(options.threadId !== undefined && { threadId: options.threadId }),
     ...(options.forwardedProps !== undefined && {
       forwardedProps: options.forwardedProps,
     }),
