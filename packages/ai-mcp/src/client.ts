@@ -33,11 +33,10 @@ export interface MCPClient<
   [Symbol.asyncDispose](): Promise<void>
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 class MCPClientImpl<_TServer extends ServerDescriptor>
   implements MCPClient<_TServer>
 {
-  capabilities: Record<string, unknown> = {}
+  capabilities: _TServer['capabilities'] = {} as _TServer['capabilities']
   #client: Client
   #closed = false
   private prefix?: string
@@ -55,7 +54,7 @@ class MCPClientImpl<_TServer extends ServerDescriptor>
     try {
       await this.#client.connect(transport)
       this.capabilities = (this.#client.getServerCapabilities() ??
-        {}) as Record<string, unknown>
+        {}) as _TServer['capabilities']
     } catch (err) {
       throw new MCPConnectionError('Failed to connect to MCP server', err)
     }
@@ -84,7 +83,7 @@ class MCPClientImpl<_TServer extends ServerDescriptor>
           makeMcpExecute(this.#client, def.name, Boolean(def.outputSchema)),
         ) as ServerTool
         if (this.prefix) tool.name = `${this.prefix}_${def.name}`
-        if (options.lazy) (tool as ServerTool & { lazy?: boolean }).lazy = true
+        if (options.lazy) tool.lazy = true
         return tool
       })
     } else {
