@@ -16,6 +16,11 @@ import type {
   ToolsOptions,
 } from './types'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
+import type {
+  ReadResourceResult,
+  Resource,
+  ResourceTemplate,
+} from '@modelcontextprotocol/sdk/types.js'
 import type { ServerTool } from '@tanstack/ai'
 
 export interface MCPClient<
@@ -31,7 +36,10 @@ export interface MCPClient<
       options?: ToolsOptions,
     ): Promise<MappedServerTools<TDefs>>
   }
-  // resources()/readResource()/prompts()/getPrompt() added in Phase 4.
+  resources: () => Promise<Array<Resource>>
+  readResource: (uri: string) => Promise<ReadResourceResult>
+  resourceTemplates: () => Promise<Array<ResourceTemplate>>
+  // prompts()/getPrompt() added in Phase 4.
   close: () => Promise<void>
   [Symbol.asyncDispose]: () => Promise<void>
 }
@@ -105,6 +113,21 @@ class MCPClientImpl<TServer extends ServerDescriptor>
       seen.add(t.name)
     }
     return tools
+  }
+
+  async resources(): Promise<Array<Resource>> {
+    if (this.#closed) throw new MCPConnectionError('MCP client is closed')
+    return (await this.#client.listResources()).resources
+  }
+
+  async readResource(uri: string): Promise<ReadResourceResult> {
+    if (this.#closed) throw new MCPConnectionError('MCP client is closed')
+    return this.#client.readResource({ uri })
+  }
+
+  async resourceTemplates(): Promise<Array<ResourceTemplate>> {
+    if (this.#closed) throw new MCPConnectionError('MCP client is closed')
+    return (await this.#client.listResourceTemplates()).resourceTemplates
   }
 
   async close(): Promise<void> {
