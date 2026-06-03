@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { createMCPClientFromTransport } from '../src/client'
 import { mcpPromptToMessages } from '../src/prompts'
+import { makeServerWithPrompt } from './helpers/in-memory-server'
 
 describe('mcpPromptToMessages', () => {
   it('converts a user text message correctly', () => {
@@ -42,5 +44,22 @@ describe('mcpPromptToMessages', () => {
     const messages = mcpPromptToMessages(prompt)
 
     expect(messages[0]!.role).toBe('user')
+  })
+})
+
+describe('MCPClient prompts integration', () => {
+  it('lists prompts and retrieves a prompt via the client', async () => {
+    await using client = await createMCPClientFromTransport(
+      (await makeServerWithPrompt()).clientTransport,
+    )
+
+    const list = await client.prompts()
+    expect(list.length).toBeGreaterThan(0)
+
+    const prompt = await client.getPrompt(list[0]!.name, { code: 'x = 1' })
+    const messages = mcpPromptToMessages(prompt)
+
+    expect(messages[0]).toHaveProperty('role')
+    expect(messages[0]).toHaveProperty('content')
   })
 })

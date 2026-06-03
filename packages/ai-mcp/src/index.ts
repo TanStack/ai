@@ -21,7 +21,7 @@ export {
 } from './errors'
 // Converters added in Phase 4:
 export { mcpResourceToContentPart } from './resources'
-// export { mcpPromptToMessages } from './prompts'
+export { mcpPromptToMessages } from './prompts'
 export { createMCPClients } from './pool'
 export type { MCPClients, MCPClientsConfig } from './pool'
 

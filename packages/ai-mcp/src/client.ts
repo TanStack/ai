@@ -17,6 +17,8 @@ import type {
 } from './types'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import type {
+  GetPromptResult,
+  Prompt,
   ReadResourceResult,
   Resource,
   ResourceTemplate,
@@ -39,7 +41,8 @@ export interface MCPClient<
   resources: () => Promise<Array<Resource>>
   readResource: (uri: string) => Promise<ReadResourceResult>
   resourceTemplates: () => Promise<Array<ResourceTemplate>>
-  // prompts()/getPrompt() added in Phase 4.
+  prompts: () => Promise<Array<Prompt>>
+  getPrompt: (name: string, args?: Record<string, string>) => Promise<GetPromptResult>
   close: () => Promise<void>
   [Symbol.asyncDispose]: () => Promise<void>
 }
@@ -128,6 +131,16 @@ class MCPClientImpl<TServer extends ServerDescriptor>
   async resourceTemplates(): Promise<Array<ResourceTemplate>> {
     if (this.#closed) throw new MCPConnectionError('MCP client is closed')
     return (await this.#client.listResourceTemplates()).resourceTemplates
+  }
+
+  async prompts(): Promise<Array<Prompt>> {
+    if (this.#closed) throw new MCPConnectionError('MCP client is closed')
+    return (await this.#client.listPrompts()).prompts
+  }
+
+  async getPrompt(name: string, args?: Record<string, string>): Promise<GetPromptResult> {
+    if (this.#closed) throw new MCPConnectionError('MCP client is closed')
+    return this.#client.getPrompt({ name, arguments: args })
   }
 
   async close(): Promise<void> {
