@@ -1161,7 +1161,6 @@
       "temperature",
       "tool_choice",
       "tools",
-      "top_k",
       "top_p"
     ],
     "default_parameters": {
@@ -2081,51 +2080,6 @@
     }
   },
   {
-    "id": "baidu/ernie-4.5-300b-a47b",
-    "canonical_slug": "baidu/ernie-4.5-300b-a47b",
-    "hugging_face_id": "baidu/ERNIE-4.5-300B-A47B-PT",
-    "name": "Baidu: ERNIE 4.5 300B A47B ",
-    "created": 1751300139,
-    "description": "ERNIE-4.5-300B-A47B is a 300B parameter Mixture-of-Experts (MoE) language model developed by Baidu as part of the ERNIE 4.5 series. It activates 47B parameters per token and supports text generation in...",
-    "context_length": 131072,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
-      "output_modalities": ["text"],
-      "tokenizer": "Other",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.00000028",
-      "completion": "0.0000011"
-    },
-    "top_provider": {
-      "context_length": 123000,
-      "max_completion_tokens": 12000,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "frequency_penalty",
-      "max_tokens",
-      "presence_penalty",
-      "repetition_penalty",
-      "response_format",
-      "seed",
-      "stop",
-      "temperature",
-      "top_k",
-      "top_p"
-    ],
-    "default_parameters": {},
-    "supported_voices": null,
-    "knowledge_cutoff": "2025-03-31",
-    "expiration_date": null,
-    "links": {
-      "details": "/api/v1/models/baidu/ernie-4.5-300b-a47b/endpoints"
-    }
-  },
-  {
     "id": "baidu/ernie-4.5-vl-28b-a3b",
     "canonical_slug": "baidu/ernie-4.5-vl-28b-a3b",
     "hugging_face_id": "baidu/ERNIE-4.5-VL-28B-A3B-PT",
@@ -2765,8 +2719,8 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.0000002288",
-      "completion": "0.0000009144"
+      "prompt": "0.0000002002",
+      "completion": "0.0000008001"
     },
     "top_provider": {
       "context_length": 128000,
@@ -3189,13 +3143,12 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.000000252",
-      "completion": "0.000000378",
-      "input_cache_read": "0.0000000252"
+      "prompt": "0.0000002288",
+      "completion": "0.0000003432"
     },
     "top_provider": {
-      "context_length": 131072,
-      "max_completion_tokens": 65536,
+      "context_length": 128000,
+      "max_completion_tokens": 64000,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -3464,112 +3417,6 @@
     "expiration_date": null,
     "links": {
       "details": "/api/v1/models/essentialai/rnj-1-instruct/endpoints"
-    }
-  },
-  {
-    "id": "google/gemini-2.0-flash-001",
-    "canonical_slug": "google/gemini-2.0-flash-001",
-    "hugging_face_id": "",
-    "name": "Google: Gemini 2.0 Flash",
-    "created": 1738769413,
-    "description": "Gemini Flash 2.0 offers a significantly faster time to first token (TTFT) compared to [Gemini Flash 1.5](/google/gemini-flash-1.5), while maintaining quality on par with larger models like [Gemini Pro 1.5](/google/gemini-pro-1.5). It...",
-    "context_length": 1048576,
-    "architecture": {
-      "modality": "text+image+file+audio+video->text",
-      "input_modalities": ["text", "image", "file", "audio", "video"],
-      "output_modalities": ["text"],
-      "tokenizer": "Gemini",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.0000001",
-      "completion": "0.0000004",
-      "image": "0.0000001",
-      "audio": "0.0000007",
-      "web_search": "0.014",
-      "internal_reasoning": "0.0000004",
-      "input_cache_read": "0.000000025",
-      "input_cache_write": "0.00000008333333333333334"
-    },
-    "top_provider": {
-      "context_length": 1048576,
-      "max_completion_tokens": 8192,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "max_tokens",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_p"
-    ],
-    "default_parameters": {
-      "temperature": null,
-      "top_p": null,
-      "frequency_penalty": null
-    },
-    "supported_voices": null,
-    "knowledge_cutoff": "2024-08-31",
-    "expiration_date": "2026-06-01",
-    "links": {
-      "details": "/api/v1/models/google/gemini-2.0-flash-001/endpoints"
-    }
-  },
-  {
-    "id": "google/gemini-2.0-flash-lite-001",
-    "canonical_slug": "google/gemini-2.0-flash-lite-001",
-    "hugging_face_id": "",
-    "name": "Google: Gemini 2.0 Flash Lite",
-    "created": 1740506212,
-    "description": "Gemini 2.0 Flash Lite offers a significantly faster time to first token (TTFT) compared to [Gemini Flash 1.5](/google/gemini-flash-1.5), while maintaining quality on par with larger models like [Gemini Pro 1.5](/google/gemini-pro-1.5),...",
-    "context_length": 1048576,
-    "architecture": {
-      "modality": "text+image+file+audio+video->text",
-      "input_modalities": ["text", "image", "file", "audio", "video"],
-      "output_modalities": ["text"],
-      "tokenizer": "Gemini",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.000000075",
-      "completion": "0.0000003",
-      "image": "0.000000075",
-      "audio": "0.000000075",
-      "web_search": "0.014",
-      "internal_reasoning": "0.0000003"
-    },
-    "top_provider": {
-      "context_length": 1048576,
-      "max_completion_tokens": 8192,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "max_tokens",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_p"
-    ],
-    "default_parameters": {
-      "temperature": null,
-      "top_p": null,
-      "frequency_penalty": null
-    },
-    "supported_voices": null,
-    "knowledge_cutoff": "2024-08-31",
-    "expiration_date": "2026-06-01",
-    "links": {
-      "details": "/api/v1/models/google/gemini-2.0-flash-lite-001/endpoints"
     }
   },
   {
@@ -5308,9 +5155,9 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.0000003",
-      "completion": "0.0000025",
-      "input_cache_read": "0.00000006"
+      "prompt": "0.000000075",
+      "completion": "0.000000625",
+      "input_cache_read": "0.000000015"
     },
     "top_provider": {
       "context_length": 262144,
@@ -6801,12 +6648,12 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.00000026",
+      "prompt": "0.000000279",
       "completion": "0.0000012"
     },
     "top_provider": {
       "context_length": 196608,
-      "max_completion_tokens": null,
+      "max_completion_tokens": 131072,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -6849,7 +6696,7 @@
   {
     "id": "minimax/minimax-m3",
     "canonical_slug": "minimax/minimax-m3-20260531",
-    "hugging_face_id": "MiniMaxAI/MiniMax-M3",
+    "hugging_face_id": "",
     "name": "MiniMax: MiniMax M3",
     "created": 1780245374,
     "description": "MiniMax-M3 is a multimodal foundation model from MiniMax. It supports text, image, and video inputs with text output, a 1M-token context window, and is suited for long-horizon agentic work, coding,...",
@@ -8315,7 +8162,7 @@
     },
     "supported_voices": null,
     "knowledge_cutoff": null,
-    "expiration_date": null,
+    "expiration_date": "2026-06-08",
     "links": {
       "details": "/api/v1/models/nex-agi/deepseek-v3.1-nex-n1/endpoints"
     }
@@ -13381,7 +13228,7 @@
     "name": "Qwen: Qwen3 30B A3B Instruct 2507",
     "created": 1753806965,
     "description": "Qwen3-30B-A3B-Instruct-2507 is a 30.5B-parameter mixture-of-experts language model from Qwen, with 3.3B active parameters per inference. It operates in non-thinking mode and is designed for high-quality instruction following, multilingual understanding, and...",
-    "context_length": 262144,
+    "context_length": 131072,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -13390,12 +13237,12 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.00000009",
-      "completion": "0.0000003"
+      "prompt": "0.0000000428",
+      "completion": "0.0000001716"
     },
     "top_provider": {
-      "context_length": 262144,
-      "max_completion_tokens": 262144,
+      "context_length": 128000,
+      "max_completion_tokens": 32000,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -15936,13 +15783,13 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.000000066",
-      "completion": "0.00000026",
-      "input_cache_read": "0.000000029"
+      "prompt": "0.000000063",
+      "completion": "0.00000021",
+      "input_cache_read": "0.000000021"
     },
     "top_provider": {
       "context_length": 262144,
-      "max_completion_tokens": 262144,
+      "max_completion_tokens": null,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -17213,12 +17060,12 @@
     },
     "pricing": {
       "prompt": "0.0000006",
-      "completion": "0.00000208",
+      "completion": "0.00000192",
       "input_cache_read": "0.00000012"
     },
     "top_provider": {
       "context_length": 202752,
-      "max_completion_tokens": 16384,
+      "max_completion_tokens": null,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -17334,7 +17181,7 @@
     },
     "top_provider": {
       "context_length": 202752,
-      "max_completion_tokens": 131072,
+      "max_completion_tokens": null,
       "is_moderated": false
     },
     "per_request_limits": null,
