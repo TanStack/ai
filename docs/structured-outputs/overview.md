@@ -26,7 +26,7 @@ import { z } from "zod";
 const Person = z.object({ name: z.string(), age: z.number() });
 
 const person = await chat({
-  adapter: openaiText("gpt-5.2"),
+  adapter: openaiText("gpt-5.5"),
   messages: [{ role: "user", content: "John Doe, 30" }],
   outputSchema: Person,
 });

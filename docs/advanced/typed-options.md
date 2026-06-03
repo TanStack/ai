@@ -27,7 +27,7 @@ import { chat, createChatOptions } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 const chatOptions = createChatOptions({
-  adapter: openaiText('gpt-5.2'),
+  adapter: openaiText('gpt-5.5'),
   // modelOptions, systemPrompts, tools — all type-checked against the
   // adapter+model pair above. Sampling params (temperature, top_p,
   // max_output_tokens, …) live inside modelOptions, under each provider's
@@ -89,7 +89,7 @@ const lookupOrder = lookupOrderDef.server(async ({ orderId }) => {
 })
 
 export const supportChatOptions = createChatOptions({
-  adapter: openaiText('gpt-5.2'),
+  adapter: openaiText('gpt-5.5'),
   systemPrompts: ['You are a customer-support assistant for Acme Corp.'],
   tools: [lookupOrder],
   modelOptions: {

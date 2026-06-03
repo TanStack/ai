@@ -83,7 +83,7 @@ const SYSTEM_PROMPT = `You are a chef assistant. Always respond with a single re
 export async function POST(request: Request) {
   const { messages } = await request.json();
   const stream = chat({
-    adapter: openaiText("gpt-5.2"),
+    adapter: openaiText("gpt-5.5"),
     messages,
     systemPrompts: [SYSTEM_PROMPT],
     outputSchema: RecipeSchema,

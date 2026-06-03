@@ -82,7 +82,7 @@ GPT-5 and later models also support reasoning. Their `reasoning.effort` accepts 
 
 ```typescript
 const stream = chat({
-  adapter: openaiText("gpt-5.2"),
+  adapter: openaiText("gpt-5.5"),
   messages,
   modelOptions: {
     reasoning: { effort: "high" },

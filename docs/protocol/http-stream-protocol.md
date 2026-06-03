@@ -197,7 +197,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: openaiText('gpt-5.2'),
+    adapter: openaiText('gpt-5.5'),
     messages,
   });
 
@@ -216,7 +216,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json();
   const abortController = new AbortController();
 
-  const stream = chat({ adapter: openaiText('gpt-5.2'), messages });
+  const stream = chat({ adapter: openaiText('gpt-5.5'), messages });
 
   return new Response(toHttpStream(stream, abortController), {
     headers: { 'Content-Type': 'application/x-ndjson' },
@@ -243,7 +243,7 @@ app.post('/api/chat', async (req, res) => {
 
   try {
     const stream = chat({
-      adapter: openaiText('gpt-5.2'),
+      adapter: openaiText('gpt-5.5'),
       messages,
     });
 

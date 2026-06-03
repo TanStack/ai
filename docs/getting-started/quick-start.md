@@ -68,7 +68,7 @@ export const Route = createFileRoute("/api/chat")({
           // Create a streaming chat response. `chat()` reads the AG-UI
           // `threadId` for devtools correlation when available.
           const stream = chat({
-            adapter: openaiText("gpt-5.2"),
+            adapter: openaiText("gpt-5.5"),
             messages: body.messages,
           });
 
@@ -118,7 +118,7 @@ export async function POST(request: Request) {
     // Create a streaming chat response. `chat()` reads the AG-UI
     // `threadId` for devtools correlation when available.
     const stream = chat({
-      adapter: openaiText("gpt-5.2"),
+      adapter: openaiText("gpt-5.5"),
       messages: body.messages,
     });
 
@@ -276,7 +276,7 @@ const getProducts = getProductsDef.server(async ({ query }) => {
 })
 
 const stream = chat({
-  adapter: openaiText('gpt-5.2'),
+  adapter: openaiText('gpt-5.5'),
   messages: [{ role: 'user', content: 'Find products' }],
   tools: [getProducts],
 })

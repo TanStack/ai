@@ -53,7 +53,7 @@ import { geminiSpeech } from '@tanstack/ai-gemini'
 
 // Generate speech from text (uses GOOGLE_API_KEY or GEMINI_API_KEY from environment)
 const result = await generateSpeech({
-  adapter: geminiSpeech('gemini-2.5-flash-preview-tts'),
+  adapter: geminiSpeech('gemini-3.1-flash-tts-preview'),
   text: 'Hello from Gemini TTS!',
 })
 
@@ -504,7 +504,7 @@ import { createGeminiSpeech } from '@tanstack/ai-gemini'
 const openaiAdapter = createOpenaiSpeech('tts-1', 'your-openai-api-key')
 
 // Gemini
-const geminiAdapter = createGeminiSpeech('gemini-2.5-flash-preview-tts', 'your-google-api-key')
+const geminiAdapter = createGeminiSpeech('gemini-3.1-flash-tts-preview', 'your-google-api-key')
 ```
 
 ## Best Practices

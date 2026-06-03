@@ -35,7 +35,7 @@ const PersonSchema = z.object({
 });
 
 const person = await chat({
-  adapter: openaiText("gpt-5.2"),
+  adapter: openaiText("gpt-5.5"),
   messages: [
     {
       role: "user",
@@ -118,7 +118,7 @@ const CompanySchema = z.object({
 });
 
 const company = await chat({
-  adapter: anthropicText("claude-sonnet-4-5"),
+  adapter: anthropicText("claude-sonnet-4-6"),
   messages: [{ role: "user", content: "Extract company info from this article: ..." }],
   outputSchema: CompanySchema,
 });
@@ -145,7 +145,7 @@ const schema: JSONSchema = {
 };
 
 const result = await chat({
-  adapter: openaiText("gpt-5.2"),
+  adapter: openaiText("gpt-5.5"),
   messages: [{ role: "user", content: "Extract: John is 25 years old" }],
   outputSchema: schema,
 });
@@ -163,7 +163,7 @@ If the model's response doesn't satisfy your schema, `chat()` throws a validatio
 ```typescript
 try {
   const result = await chat({
-    adapter: openaiText("gpt-5.2"),
+    adapter: openaiText("gpt-5.5"),
     messages: [{ role: "user", content: "..." }],
     outputSchema: MySchema,
   });
@@ -190,7 +190,7 @@ If the client only needs the finished object and you don't want progressive UI, 
 export async function POST(request: Request) {
   const { text } = await request.json();
   const person = await chat({
-    adapter: openaiText("gpt-5.2"),
+    adapter: openaiText("gpt-5.5"),
     messages: [{ role: "user", content: `Extract the person info: ${text}` }],
     outputSchema: PersonSchema,
   });

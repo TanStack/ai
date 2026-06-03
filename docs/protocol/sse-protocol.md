@@ -189,7 +189,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: openaiText('gpt-5.2'),
+    adapter: openaiText('gpt-5.5'),
     messages,
   });
 
@@ -238,7 +238,7 @@ export async function POST(request: Request) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        for await (const chunk of chat({ adapter: openaiText('gpt-5.2'), messages })) {
+        for await (const chunk of chat({ adapter: openaiText('gpt-5.5'), messages })) {
           const sseData = `data: ${JSON.stringify(chunk)}\n\n`;
           controller.enqueue(encoder.encode(sseData));
         }

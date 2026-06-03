@@ -57,7 +57,7 @@ This article compares the two SDKs from TanStack AI's perspective, with honest a
 
 When you select a provider and model, TypeScript narrows the exact options, capabilities, and input modalities available for that specific model - not a union of everything the provider supports.
 
-Each provider adapter contains a comprehensive `model-meta.ts` that maps every model to its capabilities: supported input modalities, context windows, and provider-specific options. When you write `openaiText('gpt-5.2')`, the type system knows exactly what that model can do.
+Each provider adapter contains a comprehensive `model-meta.ts` that maps every model to its capabilities: supported input modalities, context windows, and provider-specific options. When you write `openaiText('gpt-5.5')`, the type system knows exactly what that model can do.
 
 ```ts
 import { chat } from '@tanstack/ai'
@@ -145,7 +145,7 @@ import { chat, maxIterations, untilFinishReason, combineStrategies } from '@tans
 import { openaiText } from '@tanstack/ai-openai'
 
 const stream = chat({
-  adapter: openaiText('gpt-5.2'),
+  adapter: openaiText('gpt-5.5'),
   messages,
   tools,
   agentLoopStrategy: combineStrategies([
@@ -290,7 +290,7 @@ const logger: ChatMiddleware = {
 }
 
 const stream = chat({
-  adapter: openaiText('gpt-5.2'),
+  adapter: openaiText('gpt-5.5'),
   messages,
   middleware: [logger],
 })
@@ -491,7 +491,7 @@ The TanStack approach separates the tool contract from its implementation, makin
 import { chat, combineStrategies, maxIterations, untilFinishReason } from '@tanstack/ai'
 
 const stream = chat({
-  adapter: openaiText('gpt-5.2'),
+  adapter: openaiText('gpt-5.5'),
   messages,
   tools,
   agentLoopStrategy: combineStrategies([

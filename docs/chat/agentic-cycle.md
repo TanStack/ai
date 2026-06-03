@@ -137,7 +137,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: openaiText("gpt-5.2"),
+    adapter: openaiText("gpt-5.5"),
     messages,
     tools: [getWeather, getClothingAdvice],
   });
@@ -164,7 +164,7 @@ import { chat } from "@tanstack/ai";
 import { maxIterations } from "@tanstack/ai";
 
 const stream = chat({
-  adapter: openaiText("gpt-5.2"),
+  adapter: openaiText("gpt-5.5"),
   messages,
   tools: [getWeather, getClothingAdvice],
   agentLoopStrategy: maxIterations(3), // default is 5
@@ -180,7 +180,7 @@ A strategy is just a function that receives `{ iterationCount, finishReason, mes
 
 ```typescript
 const stream = chat({
-  adapter: openaiText("gpt-5.2"),
+  adapter: openaiText("gpt-5.5"),
   messages,
   tools: [getWeather, getClothingAdvice],
   agentLoopStrategy: combineStrategies([

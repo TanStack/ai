@@ -71,7 +71,7 @@ import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 const response = await chat({
-  adapter: openaiText('gpt-5.2'),
+  adapter: openaiText('gpt-5.5'),
   messages: [
     {
       role: 'user',
@@ -99,7 +99,7 @@ OpenAI supports images and audio in their vision and audio models:
 ```typescript
 import { openaiText } from '@tanstack/ai-openai'
 
-const adapter = openaiText('gpt-5.2')
+const adapter = openaiText('gpt-5.5')
 
 // Image with detail level metadata
 const message = {
@@ -126,7 +126,7 @@ Anthropic's Claude models support images and PDF documents:
 ```typescript
 import { anthropicText } from '@tanstack/ai-anthropic'
 
-const adapter = anthropicText('claude-sonnet-4-5')
+const adapter = anthropicText('claude-sonnet-4-6')
 
 // Image with mimeType in source
 const imageMessage = {
@@ -165,7 +165,7 @@ Google's Gemini models support a wide range of modalities:
 ```typescript
 import { geminiText } from '@tanstack/ai-gemini'
 
-const adapter = geminiText('gemini-2.0-flash')
+const adapter = geminiText('gemini-3-flash-preview')
 
 // Image with mimeType in source
 const message = {
@@ -326,7 +326,7 @@ const BodySchema = z.object({ messages: z.array(MessageSchema) })
 const { messages } = BodySchema.parse(await request.json())
 
 const stream = chat({
-  adapter: openaiText('gpt-5.2'),
+  adapter: openaiText('gpt-5.5'),
   messages,
 })
 ```
