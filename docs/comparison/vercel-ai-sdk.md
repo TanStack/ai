@@ -24,31 +24,35 @@ This article compares the two SDKs from TanStack AI's perspective, with honest a
 
 ## Feature Comparison
 
+Versions referenced below: TanStack AI as of this writing; Vercel AI SDK `ai@6.x` (v6.0.0 shipped December 2025, ESM-only).
+
 | Feature | TanStack AI | Vercel AI SDK |
 |---------|------------|---------------|
 | License | MIT | Apache 2.0 |
 | Hosting | Works anywhere | Works anywhere |
-| Providers | 9 official (including OpenRouter) + 5 community | 40+ via Gateway or direct |
-| Framework Hooks | React, Solid, Svelte, Vue, Preact | React, Svelte, Vue, Angular |
+| Providers | 9 official + community; OpenRouter routes to 100s of models and the `openaiCompatible` adapter connects to any OpenAI-compatible endpoint | 50+ direct provider packages; 100+ models via AI Gateway |
+| Framework Hooks | React, Solid, Svelte, Vue, Preact (+ React Native) | React, Vue, Svelte, Solid, Angular |
 | Streaming | Built-in with configurable chunk strategies | Built-in with progressive delivery |
-| Tool Calling | Isomorphic `.server()` / `.client()` system | Provider-scoped tool objects |
-| Agent Loop Control | Composable strategy functions | `maxSteps` parameter |
-| Tool Approval | Per-tool `needsApproval` with batched approval flow | Per-tool approval |
+| Tool Calling | Isomorphic `.server()` / `.client()` system | `tool()` objects; client execution via `onToolCall` |
+| Agent Loop Control | Composable strategy functions `(state) => boolean` | `stopWhen` conditions + `Agent` (`ToolLoopAgent`) class |
+| Tool Approval | Per-tool `needsApproval` with batched approval flow | Per-tool `needsApproval` (human-in-the-loop) |
 | Type Safety | Per-model type narrowing | Per-provider types |
 | Tree-Shaking | Separate adapter per activity (text, image, speech, etc.) | Monolithic provider packages |
 | Lazy Tool Discovery | Built-in - token-optimized dynamic loading | - |
-| Connection Adapters | SSE, HTTP stream, RPC, direct async iterables, custom | SSE-based transport |
-| Middleware | Lifecycle hooks: config, chunks, tool calls, usage, errors | Model wrapping via `wrapLanguageModel()` |
+| Connection Adapters | SSE, HTTP stream, XHR (SSE/stream), RPC, direct async iterables, `fetcher`, custom | SSE-based data stream protocol (`ChatTransport`) |
+| Middleware | App-level lifecycle hooks (config, iterations, chunks, tool calls, usage, errors) | Model-level wrapping via `wrapLanguageModel()` |
 | Extend Adapter | Add custom/fine-tuned models with full type safety | - |
-| Image Generation | Stable API with per-model type safety (OpenAI, Gemini, fal.ai) | `generateImage()` |
+| Structured Outputs | Typed `StructuredOutputPart`, streamed alongside tools in one chat call | `generateObject()` / `streamObject()` / `Output` API |
+| Image Generation | Stable API with per-model type safety (OpenAI, Gemini, Grok, OpenRouter, fal.ai) | `generateImage()` (stable) |
 | Video Generation | Stable API with async job lifecycle (OpenAI, fal.ai) | `experimental_generateVideo()` |
-| Text-to-Speech | Stable API, 6 output formats, speed control (OpenAI, Gemini, ElevenLabs) | `experimental_generateSpeech()` |
-| Transcription | Stable API with word timestamps and diarization (OpenAI) | `experimental_transcribe()` |
+| Text-to-Speech | Stable API, 6 output formats, speed control (OpenAI, Gemini, Grok, ElevenLabs, fal.ai) | `generateSpeech()` (experimental) |
+| Transcription | Stable API with word timestamps and diarization (OpenAI, Grok, ElevenLabs, fal.ai) | `transcribe()` (experimental) |
+| Audio / Music Generation | `generateAudio()` for music & sound effects (Gemini, ElevenLabs, fal.ai) | - |
 | Summarization | Dedicated `summarize()` with streaming and style options | - |
 | Code Execution | Node.js, Cloudflare Workers, QuickJS sandboxes | - |
-| Realtime Voice | OpenAI Realtime API with VAD modes and tool support | - |
-| DevTools | TanStack DevTools integration | Local dev inspector |
-| MCP Client | - | Built-in |
+| Realtime Voice | OpenAI, Grok, and ElevenLabs with VAD modes and tool support | - |
+| DevTools | TanStack DevTools integration | `devToolsMiddleware` + local inspector |
+| MCP Client | Provider-routed `mcpTool()` (no standalone client) | Built-in (`@ai-sdk/mcp`, stable) |
 | Platform Association | None - pure library | Optional Vercel integration |
 
 ## Where TanStack AI Excels
@@ -134,7 +138,7 @@ const addToCartClient = addToCartDef.client(async ({ itemId, quantity }) => {
 
 The same schema validates inputs and outputs on both sides. The type system tracks whether a tool is a `ServerTool` or `ClientTool` at compile time.
 
-Vercel AI SDK supports extracting tools via a `tool()` helper for reuse, but there's no shared definition that bridges server and client - tools don't have separate `.server()` and `.client()` implementations from a single contract.
+Vercel AI SDK defines tools with a `tool()` helper and does support client-side execution - a tool with no `execute` function is handled in the browser via the UI hook's `onToolCall` callback, with the result returned through `addToolResult`. What it doesn't have is a single shared contract that produces separate `.server()` and `.client()` implementations: server and client tool code are declared independently rather than derived from one definition.
 
 ### Composable Agent Loop Strategies
 
@@ -166,7 +170,7 @@ combineStrategies([
 ])
 ```
 
-Vercel AI SDK controls agent loops via the `maxSteps` parameter on `generateText()` and `streamText()`. You can set a step limit, but it doesn't offer a composable strategy pattern for combining multiple stopping conditions.
+Vercel AI SDK (v5+) controls agent loops via `stopWhen`, which accepts composable stopping conditions like `stepCountIs(n)` and `hasToolCall(name)` (the default is `stepCountIs(20)`), and v6 adds a dedicated `Agent` abstraction (the `ToolLoopAgent` class) that bundles model, tools, instructions, and loop settings into a reusable object. The remaining difference is in the composition model: TanStack AI's strategies are arbitrary `(state) => boolean` predicates you write inline and combine with `combineStrategies`, so a stopping condition can encode any business logic (token budgets, cost ceilings, custom state checks) without waiting for a built-in condition to exist. Vercel's `stopWhen` also accepts custom functions, so the gap here is smaller than it once was.
 
 ### Lazy Tool Discovery
 
@@ -203,14 +207,18 @@ Vercel AI SDK has no equivalent - all tools must be sent upfront.
 
 No framework-specific logic in the core. If a new framework emerges, it only needs a thin reactive wrapper.
 
+`ChatClient` also accepts a persistence adapter (`ChatClientPersistence`) for saving and restoring conversations client-side, and a typed runtime `context` that flows through to tools and middleware.
+
 ### Connection Adapters
 
-TanStack AI ships four built-in connection adapters plus a custom adapter interface:
+TanStack AI ships six built-in connection adapters plus a custom adapter interface:
 
 ```ts
 import {
   fetchServerSentEvents,
   fetchHttpStream,
+  xhrServerSentEvents,
+  xhrHttpStream,
   stream,
   rpcStream,
 } from '@tanstack/ai-client'
@@ -221,16 +229,20 @@ fetchServerSentEvents('/api/chat')
 // Raw HTTP streaming (newline-delimited JSON)
 fetchHttpStream('/api/chat')
 
+// XHR-based SSE / HTTP streaming (React Native / Expo, where fetch streaming is unavailable)
+xhrServerSentEvents('/api/chat')
+xhrHttpStream('/api/chat')
+
 // Direct async iterables (TanStack Start server functions)
 stream((messages) => chatOnServer({ messages }))
 
 // RPC-based transport
 rpcStream((messages, data) => api.streamResponse(messages, data))
 
-// Or implement your own ConnectConnectionAdapter
+// Or implement your own ConnectionAdapter
 ```
 
-Each adapter accepts static or dynamic (function-based) URLs and options. Swap transport without changing application code. Vercel AI SDK primarily uses SSE-based transport and provides extensibility via a transport interface, but doesn't ship the same breadth of built-in adapters.
+Each adapter accepts static or dynamic (function-based) URLs and options. There's also a lighter-weight `fetcher` option on `ChatClient` / `useChat` for wiring a server function directly without a full adapter. Swap transport without changing application code. Vercel AI SDK centers on its SSE-based data stream protocol and a `ChatTransport` interface for extensibility, but doesn't ship the same breadth of built-in adapters - notably the XHR variants for React Native.
 
 ### Extend Adapter
 
@@ -301,22 +313,26 @@ The available hooks cover the full lifecycle:
 | Hook | Purpose |
 |------|---------|
 | `onConfig` | Transform messages, tools, temperature, system prompts per iteration |
+| `onStructuredOutputConfig` | Transform the structured-output schema/config before the call |
 | `onStart` | Setup tasks (timers, logging) |
+| `onIteration` | Observe each agent-loop iteration |
 | `onChunk` | Transform, expand, or drop individual stream chunks |
 | `onBeforeToolCall` | Intercept tool calls: transform args, skip execution, or abort the run |
 | `onAfterToolCall` | Observe tool results, timing, and errors |
+| `onToolPhaseComplete` | Observe the full batch of tool results for an iteration (e.g. aggregate approval state) |
 | `onUsage` | Track token usage per iteration |
 | `onFinish` / `onAbort` / `onError` | Terminal hooks (exactly one fires per run) |
 
 Middleware compose naturally. `onConfig` pipes through each middleware in order. `onChunk` pipes chunks through each middleware (if one drops a chunk, later middleware never see it). `onBeforeToolCall` uses first-win semantics: the first middleware that returns a decision short-circuits the rest.
 
-TanStack AI also ships `toolCacheMiddleware` built-in (imported from the `@tanstack/ai/middlewares` subpath), which caches tool results by name and arguments with configurable TTL, LRU eviction, and pluggable storage backends (Redis, localStorage, etc.).
+TanStack AI ships several built-in middleware. `toolCacheMiddleware` and `contentGuardMiddleware` come from the `@tanstack/ai/middlewares` subpath, and `otelMiddleware` from `@tanstack/ai/middlewares/otel` (kept on its own subpath so `@opentelemetry/api` stays an optional peer). `toolCacheMiddleware` caches tool results by name and arguments with configurable TTL, LRU eviction, and pluggable storage backends (Redis, localStorage, etc.).
 
 ```ts
-import { toolCacheMiddleware } from '@tanstack/ai/middlewares'
+import { toolCacheMiddleware, contentGuardMiddleware } from '@tanstack/ai/middlewares'
+import { otelMiddleware } from '@tanstack/ai/middlewares/otel'
 ```
 
-Vercel AI SDK takes a different approach: `wrapLanguageModel()` wraps a model instance with middleware that can intercept and transform calls. It ships several built-in middleware (`extractReasoningMiddleware`, `simulateStreamingMiddleware`, `defaultSettingsMiddleware`), but these operate at the model level rather than the application level. There's no equivalent to TanStack AI's tool call interception, chunk-level stream processing, or lifecycle hooks like `onBeforeToolCall` and `onAfterToolCall`.
+Vercel AI SDK takes a different approach: `wrapLanguageModel()` wraps a model instance with middleware that can intercept and transform calls (and v6 adds `wrapEmbeddingModel()`). It ships several built-in middleware (`extractReasoningMiddleware`, `simulateStreamingMiddleware`, `defaultSettingsMiddleware`, and the new `devToolsMiddleware`), but these all operate at the model level rather than the application level. There's no equivalent to TanStack AI's tool call interception, chunk-level stream processing, or lifecycle hooks like `onBeforeToolCall` and `onAfterToolCall`.
 
 ### No Platform Association
 
@@ -332,26 +348,26 @@ TanStack AI provides three isolate drivers for safe code execution in AI workflo
 - **`@tanstack/ai-isolate-cloudflare`** - Cloudflare Workers sandbox
 - **`@tanstack/ai-isolate-quickjs`** - QuickJS lightweight sandbox
 
-All three implement the same `IsolateDriver` interface, so you can swap execution environments without changing application code. This powers TanStack AI's code mode - where the LLM writes and executes code as part of the agent loop.
+All three implement the same `IsolateDriver` interface, so you can swap execution environments without changing application code. This powers TanStack AI's code mode - where the LLM writes and executes code as part of the agent loop. A companion `@tanstack/ai-code-mode-skills` package lets you give code mode a persistent, reusable library of runtime skills.
 
-Vercel AI SDK does not provide built-in code execution sandboxes.
+Vercel AI SDK does not provide built-in code execution sandboxes (though some providers expose their own server-side code execution as provider-executed tools).
 
 ### Media Generation
 
 TanStack AI provides stable, dedicated APIs for every media generation activity - image, video, speech, transcription, and summarization. Each is a separate, tree-shakeable function with its own adapter per provider.
 
-Vercel AI SDK has added some of these capabilities, but most remain experimental (`experimental_generateSpeech`, `experimental_generateVideo`, `experimental_transcribe`). TanStack AI's media APIs are stable and go further in several areas:
+Vercel AI SDK has added several of these capabilities. As of v6, `generateImage()` is stable; video generation is still experimental (`experimental_generateVideo()`); and `generateSpeech()` / `transcribe()` are exported without the `experimental_` prefix but are still documented as experimental features. TanStack AI's media APIs are stable across the board and go further in several areas:
 
-**Image generation** - `generateImage()` with per-model type safety. TypeScript knows that `dall-e-3` supports `1024x1024`, `1792x1024`, and `1024x1792`, while `gpt-image-1` has different size constraints. Three providers ship adapters: OpenAI (DALL-E, GPT Image), Gemini (Imagen 3), and fal.ai (600+ community models including Flux, SDXL, and more).
+**Image generation** - `generateImage()` with per-model type safety. TypeScript knows that `gpt-image-2` and `dall-e-3` expose different size constraints. Five providers ship adapters: OpenAI (GPT Image, DALL-E), Gemini (Imagen), Grok, OpenRouter, and fal.ai (600+ community models including Flux, SDXL, and more).
 
 ```ts
 import { generateImage } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 
 const result = await generateImage({
-  adapter: openaiImage('dall-e-3'),
+  adapter: openaiImage('gpt-image-2'),
   prompt: 'A sunset over mountains',
-  size: '1792x1024',
+  size: '1536x1024',
   numberOfImages: 1,
 })
 ```
@@ -378,7 +394,7 @@ for await (const chunk of stream) {
 
 Vercel AI SDK's `experimental_generateVideo()` returns the video directly without exposing the job lifecycle or streaming status updates.
 
-**Text-to-speech** - `generateSpeech()` supports 6 audio output formats (mp3, opus, aac, flac, wav, pcm), speed control (0.25x to 4x), and multiple providers: OpenAI (11 voices), Gemini (30+ voices with language hints), and ElevenLabs.
+**Text-to-speech** - `generateSpeech()` supports 6 audio output formats (mp3, opus, aac, flac, wav, pcm), speed control (0.25x to 4x), and five providers: OpenAI (11 voices), Gemini (30+ voices with language hints), Grok, ElevenLabs, and fal.ai.
 
 ```ts
 import { generateSpeech } from '@tanstack/ai'
@@ -393,7 +409,7 @@ const result = await generateSpeech({
 })
 ```
 
-**Transcription** - `generateTranscription()` supports 5 output formats (json, text, srt, verbose_json, vtt), word-level timestamps with confidence scores, and speaker diarization via OpenAI's `gpt-4o-transcribe-diarize` model.
+**Transcription** - `generateTranscription()` supports 5 output formats (json, text, srt, verbose_json, vtt), word-level timestamps with confidence scores, and four providers (OpenAI, Grok, ElevenLabs, fal.ai), with speaker diarization via OpenAI's `gpt-4o-transcribe-diarize` model.
 
 ```ts
 import { generateTranscription } from '@tanstack/ai'
@@ -408,9 +424,11 @@ const result = await generateTranscription({
 // result.words → [{ word: 'Hello', start: 0.0, end: 0.42 }, ...]
 ```
 
+**Audio & music generation** - `generateAudio()` generates music and sound effects across Gemini (Lyria), ElevenLabs (music + sound effects), and fal.ai. Vercel AI SDK has no equivalent.
+
 **Summarization** - `summarize()` is a dedicated activity with style control (`bullet-points`, `paragraph`, `concise`), focus topics, and streaming support. Vercel AI SDK has no equivalent - summarization requires calling `generateText()` with a prompt.
 
-**Realtime voice** - `realtimeToken()` enables bidirectional audio streaming via OpenAI's Realtime API with Voice Activity Detection modes (server, semantic, manual), tool calling during voice sessions, and simultaneous audio + text output.
+**Realtime voice** - `realtimeToken()` enables bidirectional audio streaming with Voice Activity Detection modes (server, semantic, manual), tool calling during voice sessions, and simultaneous audio + text output. Three providers ship realtime adapters: OpenAI (Realtime API), Grok, and ElevenLabs. Vercel AI SDK has no realtime/bidirectional voice primitive - its audio support is batch-only (`generateSpeech` and `transcribe`).
 
 All media activities follow the same adapter pattern as chat - tree-shakeable imports, per-model type safety, and streaming support. If your app only uses chat, none of this media code enters your bundle.
 
@@ -420,15 +438,17 @@ TanStack AI publishes an open adapter specification. The community has already b
 
 ## Where Vercel AI SDK Excels
 
-**Provider breadth.** Vercel AI SDK ships 40+ provider packages - from major platforms to niche providers. If you need immediate access to a specific provider without writing an adapter, their coverage is broader today.
+**Provider breadth.** Vercel AI SDK ships 50+ first-party, individually typed provider packages. If you want a specific provider as a dedicated, maintained package without writing an adapter, their coverage is broader today. Raw model *count* is not the differentiator, though - TanStack AI's OpenRouter adapter reaches OpenRouter's full catalog (several hundred models), and the `openaiCompatible` adapter connects to any OpenAI-compatible endpoint.
 
-**Angular support.** Vercel AI SDK has an official Angular integration. TanStack AI supports React, Solid, Svelte, Vue, and Preact, but not Angular.
+**Angular support.** Vercel AI SDK has an official Angular integration. TanStack AI supports React, Solid, Svelte, Vue, and Preact, but not Angular. (Both ship Solid integrations, so Solid is not a differentiator.)
 
-**MCP client.** Vercel AI SDK includes a built-in Model Context Protocol client for connecting to MCP servers. TanStack AI does not currently ship one.
+**MCP client.** Vercel AI SDK ships a stable, standalone Model Context Protocol client (`@ai-sdk/mcp`'s `createMCPClient`) that connects directly to MCP servers over HTTP, with OAuth, resource reading, and prompt templates. TanStack AI has no standalone client - it supports MCP through a provider-routed `mcpTool()` (OpenAI Responses API and Anthropic), where the provider, not your app, connects to the MCP server.
 
-**AI Gateway.** For teams that want centralized provider management with failover routing and caching, Vercel's optional AI Gateway provides this out of the box.
+**Agent abstraction.** Vercel AI SDK v6 ships a dedicated `Agent` abstraction (the `ToolLoopAgent` class) that packages a model, tools, instructions, and loop settings into a reusable object with `.generate()` and `.stream()` methods, plus `InferAgentUIMessage` for end-to-end type safety. TanStack AI composes these pieces per call rather than offering a single agent class.
 
-**React Server Components.** Vercel AI SDK has deep integration with React Server Components via `@ai-sdk/rsc`, including `AIState` and `StreamableValue` primitives optimized for Next.js.
+**AI Gateway.** Vercel's optional AI Gateway adds centralized provider management - failover routing, caching, and a single key across providers - integrated with the Vercel platform (and used by default when no provider is configured). TanStack AI ships no gateway of its own; for the same centralized routing across a large model catalog, it recommends its first-class OpenRouter adapter, with no platform association attached.
+
+**React Server Components.** Vercel AI SDK has an RSC integration via `@ai-sdk/rsc` (`AIState`, `StreamableValue`, `streamUI`). Note that Vercel documents this as experimental and recommends AI SDK UI for production - so it's an option for Next.js RSC apps rather than the primary path.
 
 ## Side-by-Side: Key Differences
 
@@ -460,22 +480,22 @@ const getWeatherClient = getWeather.client(async ({ city }) => {
 })
 ```
 
-**Vercel AI SDK** - Inline tool objects:
+**Vercel AI SDK** - Tool objects via the `tool()` helper:
 
 ```ts
-import { generateText } from 'ai'
+import { generateText, tool } from 'ai'
 
 const result = await generateText({
-  model: openai('gpt-4o'),
+  model: openai('gpt-5.5'),
   tools: {
-    getWeather: {
+    getWeather: tool({
       description: 'Get current weather for a location',
-      parameters: z.object({ city: z.string() }),
+      inputSchema: z.object({ city: z.string() }),
       execute: async ({ city }) => {
         const data = await weatherApi.get(city)
         return { temp: data.temperature, condition: data.condition }
       },
-    },
+    }),
   },
   prompt: "What's the weather in Tokyo?",
 })
@@ -502,20 +522,20 @@ const stream = chat({
 })
 ```
 
-**Vercel AI SDK** - Step limit parameter:
+**Vercel AI SDK** - `stopWhen` conditions (v5+):
 
 ```ts
-import { generateText } from 'ai'
+import { generateText, stepCountIs } from 'ai'
 
 const result = await generateText({
-  model: openai('gpt-4o'),
+  model: openai('gpt-5.5'),
   tools,
-  maxSteps: 10,
+  stopWhen: stepCountIs(10), // also: hasToolCall('name'), or a custom function
   prompt: 'Help me plan a trip.',
 })
 ```
 
-TanStack AI's approach lets you compose multiple conditions - iteration limits, finish reasons, token budgets, custom business logic - as simple functions. Vercel AI SDK's `maxSteps` provides a straightforward step limit but doesn't offer a composable strategy pattern.
+Both let you compose multiple stopping conditions - `stopWhen` accepts an array of conditions including custom functions, and v6 adds a reusable `Agent` class. The remaining nuance is ergonomic: TanStack AI's strategies are plain `(state) => boolean` predicates combined with `combineStrategies`, so token budgets and custom business logic are first-class without reaching for a built-in condition.
 
 ### Tree-Shaking
 
@@ -539,20 +559,23 @@ In TanStack AI, each activity (chat, image, speech, video, transcription, summar
 ## When to Choose TanStack AI
 
 - **Bundle size matters** - Tree-shakeable adapters per activity mean smaller bundles
-- **Multi-framework team** - React, Solid, Vue, Svelte, Preact from one headless core
-- **Custom agent behavior** - Composable loop strategies, not a fixed agent class
+- **Preact or React Native** - One headless core covers React, Solid, Vue, Svelte, Preact, and React Native (via XHR adapters)
+- **Isomorphic tools** - Define a tool once and derive `.server()` / `.client()` implementations from one contract
+- **App-level middleware** - Lifecycle hooks for chunks, tool calls, usage, and errors - not just model wrapping
+- **Realtime voice** - Bidirectional audio across OpenAI, Grok, and ElevenLabs
 - **No vendor association** - Pure library with no platform layer
 - **Per-model type safety** - TypeScript narrows options per model, not per provider
 - **Code execution** - Built-in sandboxed execution environments
-- **Flexible transport** - SSE, HTTP streams, RPC, direct iterables, or custom adapters
+- **Flexible transport** - SSE, HTTP streams, XHR, RPC, direct iterables, or custom adapters
 
 ## When to Choose Vercel AI SDK
 
-- **Need 40+ providers immediately** - Broader provider coverage today
+- **Need 50+ first-party provider packages** - Broader coverage of dedicated, individually typed provider packages today (TanStack reaches comparable model breadth via OpenRouter + `openaiCompatible`)
 - **Angular support** - Official Angular integration
-- **MCP client** - Built-in Model Context Protocol support
+- **MCP client** - Stable, standalone MCP client (`@ai-sdk/mcp`) that connects to servers directly
+- **Agent abstraction** - A reusable `Agent` (`ToolLoopAgent`) class with end-to-end UI message types
 - **Vercel platform** - AI Gateway, observability, and deployment optimization
-- **React Server Components** - Deep RSC integration via `@ai-sdk/rsc`
+- **React Server Components** - RSC primitives via `@ai-sdk/rsc` (experimental; AI SDK UI is the recommended production path)
 
 ## Getting Started
 
