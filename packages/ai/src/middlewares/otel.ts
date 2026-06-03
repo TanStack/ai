@@ -4,6 +4,10 @@ import {
   context as otelContext,
   trace as otelTrace,
 } from '@opentelemetry/api'
+import {
+  MAX_TOKENS_KEYS,
+  NESTED_MAX_TOKENS_KEY,
+} from '../utilities/sampling-keys'
 import type {
   AttributeValue,
   Exception,
@@ -365,13 +369,11 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
           sampling['topP'],
           nestedOptions?.['top_p'],
         )
+        // Spellings come from the shared `MAX_TOKENS_KEYS` table so this stays
+        // in lockstep with the summarize wrapper's caller-limit detection.
         const samplingMaxTokens = firstNumber(
-          sampling['max_tokens'],
-          sampling['max_output_tokens'],
-          sampling['maxOutputTokens'],
-          sampling['max_completion_tokens'],
-          sampling['maxCompletionTokens'],
-          nestedOptions?.['num_predict'],
+          ...MAX_TOKENS_KEYS.map((k) => sampling[k]),
+          nestedOptions?.[NESTED_MAX_TOKENS_KEY],
         )
         if (samplingTemperature !== undefined)
           baseAttrs['gen_ai.request.temperature'] = samplingTemperature

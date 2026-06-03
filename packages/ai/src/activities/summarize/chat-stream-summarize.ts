@@ -1,5 +1,6 @@
 import { EventType } from '@ag-ui/core'
 import { toRunErrorPayload } from '../error-payload'
+import { MAX_TOKENS_KEYS } from '../../utilities/sampling-keys'
 import { BaseSummarizeAdapter } from './adapter'
 import type {
   StreamChunk,
@@ -49,18 +50,13 @@ const MAX_TOKENS_KEY_BY_ADAPTER: Record<string, string> = {
 }
 
 /**
- * Every flat key any supported provider uses to cap output tokens, plus the
- * camelCase variants. Used to detect a caller-supplied token limit so the
- * summarize default never overrides an explicit caller value.
+ * Every flat key any supported provider uses to cap output tokens (plus the
+ * generic `maxTokens` spelling no adapter reads). Used to detect a
+ * caller-supplied token limit so the summarize default never overrides an
+ * explicit caller value. Shared with the OTel middleware via
+ * `MAX_TOKENS_KEYS` so the two spelling sets cannot drift.
  */
-const KNOWN_MAX_TOKENS_KEYS = [
-  'max_output_tokens',
-  'max_tokens',
-  'max_completion_tokens',
-  'maxOutputTokens',
-  'maxCompletionTokens',
-  'maxTokens',
-] as const
+const KNOWN_MAX_TOKENS_KEYS = MAX_TOKENS_KEYS
 
 /**
  * Whether `applyMaxLength` knows how to place a token limit for this adapter
@@ -112,6 +108,15 @@ function applyDefaultTemperature(
  * default is left untouched. Unknown/unrecognised adapter names fall back to
  * NOT setting a token key (the prompt hint still asks the model to stay under
  * `maxLength`) rather than writing a dead key no provider reads.
+ *
+ * Caveat (intentional): "caller wins" keys off ANY recognised spelling in
+ * `KNOWN_MAX_TOKENS_KEYS`, but only the adapter's native key is read on the
+ * wire. So a caller who sets a NON-native spelling for this provider — e.g.
+ * `maxTokens`, or Anthropic's `max_tokens` against an OpenAI adapter — suppresses
+ * the summarize default WITHOUT getting their own value applied either: neither
+ * cap reaches the wire. This favours never clobbering a migration leftover over
+ * guaranteeing a cap; the prompt-level hint still asks the model to stay under
+ * `maxLength`. Rename the key to the provider-native spelling to forward it.
  */
 function applyMaxLength(
   adapterName: string,
