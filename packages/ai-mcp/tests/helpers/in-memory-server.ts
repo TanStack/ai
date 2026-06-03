@@ -59,3 +59,48 @@ export async function makeServerWithPrompt() {
   await server.connect(serverTransport)
   return { server, clientTransport }
 }
+
+/** Build a connected (server, clientTransport) pair that exposes one tool, one resource, and one prompt. */
+export async function makeFullServer() {
+  const server = new McpServer({ name: 'full-server', version: '1.0.0' })
+
+  server.registerTool(
+    'get_weather',
+    {
+      description: 'Get weather for a city',
+      inputSchema: { city: z.string() },
+    },
+    async ({ city }) => ({
+      content: [{ type: 'text' as const, text: `Sunny in ${city}` }],
+    }),
+  )
+
+  server.registerResource(
+    'hello',
+    'file:///hello.txt',
+    { description: 'A simple text resource', mimeType: 'text/plain' },
+    async (_uri) => ({
+      contents: [{ uri: 'file:///hello.txt', text: 'hello from resource' }],
+    }),
+  )
+
+  server.registerPrompt(
+    'review-code',
+    {
+      description: 'Review a code snippet',
+      argsSchema: { code: z.string() },
+    },
+    ({ code }) => ({
+      messages: [
+        {
+          role: 'user' as const,
+          content: { type: 'text' as const, text: `Please review: ${code}` },
+        },
+      ],
+    }),
+  )
+
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+  await server.connect(serverTransport)
+  return { server, clientTransport }
+}
