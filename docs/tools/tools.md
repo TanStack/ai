@@ -89,7 +89,7 @@ const inputSchema: JSONSchema = {
 };
 ```
 
-> **Note:** When using JSON Schema, TypeScript will infer `any` for input/output types since JSON Schema cannot provide compile-time type information. Zod schemas are recommended for full type safety.
+> **Note:** When using JSON Schema, TypeScript infers `unknown` for input/output types (it cannot derive types from a JSON Schema at compile time), so you must narrow or cast `args` before use. Zod schemas are recommended for full type safety.
 
 ## Tool Definition
 
@@ -172,9 +172,9 @@ const getWeatherDef = toolDefinition({
   outputSchema,
 });
 
-// Create server implementation (args is typed as `any` with JSON Schema)
+// Create server implementation (args is typed as `unknown` with JSON Schema)
 const getWeatherServer = getWeatherDef.server(async (args) => {
-  const { location, unit } = args;
+  const { location, unit } = args as { location: string; unit?: string };
   const response = await fetch(
     `https://api.weather.com/v1/current?location=${location}&unit=${unit || "fahrenheit"}`
   );

@@ -59,7 +59,7 @@ type AGUIEventType =
 
 > The exported `EventType` enum (`@tanstack/ai`) carries a few additional
 > internal/transitional members (e.g. `TEXT_MESSAGE_CHUNK`, `TOOL_CALL_CHUNK`,
-> `THINKING_*`, `ACTIVITY_*`, `RAW`). The events above are the ones that appear
+> `REASONING_MESSAGE_CHUNK`, `THINKING_*`, `ACTIVITY_*`, `RAW`). The events above are the ones that appear
 > on the wire for a normal chat run.
 
 Only AG-UI event types are supported; previous legacy chunk formats are no longer accepted.
@@ -74,7 +74,7 @@ Emitted when a run begins. This is the first event in any streaming response.
 interface RunStartedEvent extends BaseAGUIEvent {
   type: 'RUN_STARTED';
   runId: string;           // Unique identifier for this run
-  threadId?: string;       // Optional thread/conversation ID
+  threadId: string;        // Thread/conversation ID (required; always emitted)
 }
 ```
 
@@ -83,7 +83,8 @@ interface RunStartedEvent extends BaseAGUIEvent {
 {
   "type": "RUN_STARTED",
   "runId": "run_abc123",
-  "model": "gpt-4o",
+  "threadId": "thread_abc123",
+  "model": "gpt-5.5",
   "timestamp": 1701234567890
 }
 ```
@@ -107,6 +108,7 @@ Emitted when a run completes successfully.
 interface RunFinishedEvent extends BaseAGUIEvent {
   type: 'RUN_FINISHED';
   runId: string;
+  threadId: string;                                                           // required (inherited from AG-UI base)
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null; // TanStack AI addition
   usage?: TokenUsage;                                                         // TanStack AI addition
 }

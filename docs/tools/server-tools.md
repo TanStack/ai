@@ -359,9 +359,10 @@ const getUserDataDef = toolDefinition({
   outputSchema,
 });
 
-// When using JSON Schema, args is typed as `any`
+// When using JSON Schema, args is typed as `unknown` — narrow or cast before use
 const getUserData = getUserDataDef.server(async (args) => {
-  const user = await db.users.findUnique({ where: { id: args.userId } });
+  const { userId } = args as { userId: string };
+  const user = await db.users.findUnique({ where: { id: userId } });
   return { name: user.name, email: user.email };
 });
 ```

@@ -53,7 +53,7 @@ subscribe on the server/client respectfully.
 
 Here is an example for the server:
 ```ts
-import { aiEventClient } from "@tanstack/ai/event-client";
+import { aiEventClient } from "@tanstack/ai-event-client";
 
 // server.ts file or wherever the root of your server is
 aiEventClient.on("text:request:started", e => {
@@ -70,7 +70,7 @@ Listening on the client is the same approach, just subscribe to the events:
 
 ```tsx
 // App.tsx
-import { aiEventClient } from "@tanstack/ai/event-client";
+import { aiEventClient } from "@tanstack/ai-event-client";
 
 const App = () => {
   useEffect(() => {

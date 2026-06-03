@@ -365,6 +365,6 @@ chat({ adapter: openaiText('gpt-5.2'), messages: [], tools: [addToCartServer] })
 
 ## Next Steps
 
-- [How Tools Work](./tools) - Deep dive into the tool architecture
+- [How Tools Work](./tool-architecture) - Deep dive into the tool architecture
 - [Server Tools](./server-tools) - Learn about server-side tool execution
 - [Tool Approval Flow](./tool-approval) - Add approval workflows for sensitive operations

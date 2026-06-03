@@ -37,7 +37,7 @@ person.age;  // number
 
 ## Schema Libraries
 
-TanStack AI accepts any library that implements [Standard JSON Schema](https://standardschema.dev/):
+TanStack AI accepts any library that implements [Standard JSON Schema](https://standardschema.dev/json-schema):
 
 - [Zod](https://zod.dev/) (v4.2+)
 - [ArkType](https://arktype.io/)

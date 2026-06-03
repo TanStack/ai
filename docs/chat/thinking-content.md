@@ -39,37 +39,22 @@ How you enable thinking depends on the provider.
 
 ### Anthropic (Extended Thinking)
 
-Pass the `thinking` option in `modelOptions`. You must specify `budget_tokens` (minimum 1024). Validation also requires `budget_tokens` to be **less than** `maxTokens`, so set `maxTokens` high enough to leave room for the visible response:
+Pass the `thinking` option in `modelOptions` with `type: "enabled"` and a `budget_tokens` (minimum 1024). If `budget_tokens` is not below `maxTokens`, the adapter automatically raises `maxTokens` so there is room for the visible response in addition to the thinking budget:
 
 ```typescript
 import { chat } from "@tanstack/ai";
 import { anthropicText } from "@tanstack/ai-anthropic";
 
 const stream = chat({
-  adapter: anthropicText("claude-sonnet-4-5"),
+  adapter: anthropicText("claude-sonnet-4-6"),
   messages,
   maxTokens: 32000,
   modelOptions: {
-    // budget_tokens must satisfy 1024 <= budget_tokens < maxTokens
+    // budget_tokens must be at least 1024
     thinking: { type: "enabled", budget_tokens: 10000 },
   },
 });
 ```
-
-For Claude Opus 4.6 and later, you can use adaptive thinking, where the model decides how much to think. On these models you pair `thinking: { type: "adaptive" }` with a top-level `effort`:
-
-```typescript
-const stream = chat({
-  adapter: anthropicText("claude-opus-4-6"),
-  messages,
-  modelOptions: {
-    thinking: { type: "adaptive" },
-    effort: "high", // 'max' | 'high' | 'medium' | 'low'
-  },
-});
-```
-
-> **Claude 4.7+:** Adaptive effort moved under `modelOptions: { output_config: { effort: "high" } }`, and `thinking: { type: "enabled", budget_tokens }` is deprecated in favor of `thinking: { type: "adaptive" }` there. The top-level `effort` field shown above is the Opus 4.6 form; earlier models continue to accept the legacy top-level `effort` / `thinking.type: "enabled"` shape.
 
 ### OpenAI (Reasoning Models)
 

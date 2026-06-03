@@ -249,6 +249,7 @@ const { result } = useGenerateSpeech({
 | Activity | Server Function | Client Hook (React) | Guide |
 |----------|----------------|---------------------|-------|
 | Image generation | `generateImage()` | `useGenerateImage()` | [Image Generation](./image-generation) |
+| Audio generation | `generateAudio()` | `useGenerateAudio()` | [Audio Generation](./audio-generation) |
 | Text-to-speech | `generateSpeech()` | `useGenerateSpeech()` | [Text-to-Speech](./text-to-speech) |
 | Transcription | `generateTranscription()` | `useTranscription()` | [Transcription](./transcription) |
 | Summarization | `summarize()` | `useSummarize()` | - |

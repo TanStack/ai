@@ -167,7 +167,7 @@ const result = await generateSpeech({
 |--------|------|-------------|
 | `instructions` | `string` | Voice style instructions (GPT-4o audio models only) |
 
-> **Note:** The `instructions` and `stream_format` options are only available with `gpt-4o-audio-preview` and `gpt-4o-mini-audio-preview` models, not with `tts-1` or `tts-1-hd`.
+> **Note:** The `instructions` and `stream_format` options are only available with the `gpt-4o-audio-preview` model, not with `tts-1` or `tts-1-hd`.
 
 ## Response Format
 
@@ -455,7 +455,6 @@ TypeScript automatically infers the result type from your `onResult` return valu
 | `tts-1` | Standard | Fast | Real-time applications |
 | `tts-1-hd` | High | Slower | Production audio |
 | `gpt-4o-audio-preview` | Highest | Variable | Advanced voice control |
-| `gpt-4o-mini-audio-preview` | High | Fast | Balanced quality/speed |
 
 ### Gemini Models
 

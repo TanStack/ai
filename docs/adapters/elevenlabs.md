@@ -194,7 +194,7 @@ Used on the **server** to generate a signed WebSocket URL.
 
 | Option | Type | Required | Description |
 |--------|------|----------|-------------|
-| `agentId` | `string` | Yes | Agent ID configured in the ElevenLabs dashboard |
+| `agentId` | `string` | No\* | Agent ID configured in the ElevenLabs dashboard. \*Falls back to `ELEVENLABS_AGENT_ID`; required only if that env var is unset |
 | `overrides.voiceId` | `string` | No | Custom voice ID to override the agent's default voice |
 | `overrides.systemPrompt` | `string` | No | Custom system prompt to override the agent's default |
 | `overrides.firstMessage` | `string` | No | First message the agent speaks when the session starts |
@@ -207,7 +207,7 @@ Used on the **client** to establish the connection.
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `connectionMode` | `'websocket' \| 'webrtc'` | auto-detect | Transport protocol for the connection |
-| `debug` | `boolean` | `false` | Enable debug logging |
+| `debug` | `boolean \| DebugConfig` | `false` | Enable debug logging — pass `true` for all categories, or a `DebugConfig` to select categories/sink |
 
 ## Differences from OpenAI Realtime
 
@@ -218,7 +218,7 @@ ElevenLabs and OpenAI take different approaches to realtime voice:
 | **Configuration** | Agent-based. Configure voice, personality, and knowledge in the ElevenLabs dashboard or via `overrides` at token time. | Session-based. Configure `instructions`, `voice`, `temperature`, etc. per session via `useRealtimeChat` options. |
 | **Token type** | Signed WebSocket URL (valid 30 minutes) | Ephemeral API token (valid ~10 minutes) |
 | **Transport** | WebSocket (default) or WebRTC | WebRTC |
-| **Audio handling** | `@11labs/client` SDK manages audio capture and playback automatically | TanStack AI manages WebRTC peer connection and audio tracks |
+| **Audio handling** | `@elevenlabs/client` SDK manages audio capture and playback automatically | TanStack AI manages WebRTC peer connection and audio tracks |
 | **VAD** | Handled by ElevenLabs server-side | Supports `server`, `semantic`, and `manual` modes |
 | **Runtime updates** | Session config is set at creation time and cannot be changed mid-session | Supports `updateSession()` for mid-session config changes |
 | **Image input** | Not supported | Supported via `sendImage()` |

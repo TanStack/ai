@@ -401,7 +401,7 @@ const { jobId } = await generateVideo({
   duration: 8,           // 4, 8, or 12 seconds
   modelOptions: {
     size: '1280x720',    // Alternative way to specify size
-    seconds: 8,          // Alternative way to specify duration
+    seconds: '8',        // Alternative way to specify duration ('4' | '8' | '12')
   }
 })
 ```
@@ -504,7 +504,7 @@ For production use or when you need explicit control:
 ```typescript
 import { createOpenaiVideo } from '@tanstack/ai-openai'
 
-const adapter = createOpenaiVideo('your-openai-api-key')
+const adapter = createOpenaiVideo('sora-2', 'your-openai-api-key')
 ```
 
 ## Differences from Image Generation

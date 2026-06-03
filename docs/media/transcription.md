@@ -132,21 +132,21 @@ Whisper supports many languages. Common codes include:
 const result = await generateTranscription({
   adapter: openaiTranscription('whisper-1'),
   audio: audioFile,
+  responseFormat: 'verbose_json', // Top-level: detailed output with timestamps
+  prompt: 'Technical terms: API, SDK, CLI', // Top-level: guide transcription
   modelOptions: {
-    response_format: 'verbose_json', // Get detailed output with timestamps
-    temperature: 0, // Lower = more deterministic
-    prompt: 'Technical terms: API, SDK, CLI', // Guide transcription
+    temperature: 0, // Lower = more deterministic (provider option)
   },
 })
 ```
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `response_format` | `string` | Output format: "json", "text", "srt", "verbose_json", "vtt" |
 | `temperature` | `number` | Sampling temperature (0 to 1) |
-| `prompt` | `string` | Optional text to guide transcription style |
-| `timestamp_granularities` | `Array<'word' \| 'segment'>` | Timestamp granularity to populate (requires `response_format: 'verbose_json'`) |
+| `timestamp_granularities` | `Array<'word' \| 'segment'>` | Timestamp granularity to populate (requires top-level `responseFormat: 'verbose_json'`) |
 | `include` | `string[]` | Additional values to include in the response (e.g., `logprobs`) |
+
+> `responseFormat` and `prompt` are **top-level** options on `generateTranscription`, not `modelOptions` keys.
 
 ### Response Formats
 
@@ -206,8 +206,8 @@ async function transcribeAudio(filepath: string) {
     adapter: openaiTranscription('whisper-1'),
     audio: audioFile,
     language: 'en',
+    responseFormat: 'verbose_json',
     modelOptions: {
-      response_format: 'verbose_json',
       timestamp_granularities: ['segment', 'word'],
     },
   })

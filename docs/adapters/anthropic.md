@@ -140,7 +140,7 @@ modelOptions: {
 }
 ```
 
-**Note:** `max_tokens` must be greater than `budget_tokens`. The adapter automatically adjusts `max_tokens` if needed.
+**Note:** `max_tokens` must be greater than `budget_tokens`. The adapter automatically raises the top-level `maxTokens` when your `budget_tokens` meets or exceeds it. If you instead set `max_tokens` inside `modelOptions`, keep it greater than `budget_tokens` yourself — that path is validated and throws rather than auto-adjusting.
 
 ### Prompt Caching
 
@@ -254,7 +254,7 @@ const stream = chat({
 });
 ```
 
-**Supported models:** every current Claude model. `claude-haiku-3` supports
+**Supported models:** every current Claude model. `claude-3-haiku` supports
 only `web_search` (not `web_fetch`). See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
 
 ### `webFetchTool`

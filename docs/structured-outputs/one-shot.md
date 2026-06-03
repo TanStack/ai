@@ -66,7 +66,7 @@ The TypeScript type of `person` above is `{ name: string; age: number; email: st
 
 ## Field Descriptions
 
-Field descriptions tell the model what data to extract. They become part of the JSON Schema sent to the provider — the model sees them as hints. In Zod 4+ use `.meta()`:
+Field descriptions tell the model what data to extract. They become part of the JSON Schema sent to the provider — the model sees them as hints. In Zod v4.2+ use `.meta()`:
 
 ```typescript
 const ProductSchema = z.object({

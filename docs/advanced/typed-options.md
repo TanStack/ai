@@ -138,7 +138,7 @@ import { openaiImage } from '@tanstack/ai-openai'
 
 const heroImageOptions = createImageOptions({
   adapter: openaiImage('gpt-image-1'),
-  size: '1792x1024',
+  size: '1536x1024',
   numberOfImages: 1,
 })
 

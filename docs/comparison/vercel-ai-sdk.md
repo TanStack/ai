@@ -63,14 +63,14 @@ Each provider adapter contains a comprehensive `model-meta.ts` that maps every m
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
-// TypeScript knows gpt-5.2 supports text + image input
+// TypeScript knows gpt-5.5 supports text + image input
 const stream = chat({
-  adapter: openaiText('gpt-5.2'),
+  adapter: openaiText('gpt-5.5'),
   messages: [{
     role: 'user',
     content: [
-      { type: 'text', text: 'What is in this image?' },
-      { type: 'image', url: 'https://example.com/photo.jpg' },
+      { type: 'text', content: 'What is in this image?' },
+      { type: 'image', source: { type: 'url', url: 'https://example.com/photo.jpg' } },
     ],
   }],
 })
