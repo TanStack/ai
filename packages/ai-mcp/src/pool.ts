@@ -66,7 +66,14 @@ export async function createMCPClients<
     )
   }
 
-  const clients = Object.fromEntries(ok.map((r) => r.value)) as {
+  // Cast via `unknown`: the runtime map is descriptor-agnostic
+  // (`MCPClient<ServerDescriptor>` values), but per-key the public type is the
+  // narrowed `MCPClient<TServers[K]>`. Those no longer structurally overlap
+  // because `tools()` is now descriptor-typed (`DescriptorTools<TServer>`), yet
+  // the generated descriptor is a compile-time overlay only — the runtime
+  // values are identical, so the through-`unknown` cast is sound here.
+  // eslint-disable-next-line no-restricted-syntax -- descriptor is a compile-time overlay; runtime MCPClient values are identical regardless of TServer
+  const clients = Object.fromEntries(ok.map((r) => r.value)) as unknown as {
     [K in keyof TServers]: MCPClient<TServers[K]>
   }
 

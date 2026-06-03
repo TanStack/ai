@@ -9,6 +9,7 @@ import { resolveTransport } from './transport'
 import type {
   AnyToolDefinition,
   AutomaticDescriptor,
+  DescriptorTools,
   MCPClientOptions,
   MappedServerTools,
   ServerDescriptor,
@@ -23,7 +24,7 @@ export interface MCPClient<
   readonly capabilities: TServer['capabilities']
   /** Auto-discovery: every server tool as a ServerTool (args typed `unknown`). */
   tools: {
-    (options?: ToolsOptions): Promise<Array<ServerTool>>
+    (options?: ToolsOptions): Promise<DescriptorTools<TServer>>
     /** Explicit: bind these TanStack toolDefinitions to the server (typed + validated, allowlist). */
     <const TDefs extends ReadonlyArray<AnyToolDefinition>>(
       defs: TDefs,

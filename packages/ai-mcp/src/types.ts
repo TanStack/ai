@@ -50,3 +50,22 @@ export type ServerToolFromDef<TDef> = TDef extends ToolDefinition<
 export type MappedServerTools<TDefs extends ReadonlyArray<AnyToolDefinition>> = {
   -readonly [K in keyof TDefs]: ServerToolFromDef<TDefs[K]>
 }
+
+/**
+ * ServerTool typed from one descriptor tool entry, named by its key `TKey`.
+ * (Input/output stay `any` for now — the descriptor only carries the tool
+ * name into the discovery result; per-tool schema typing comes from the
+ * explicit `tools(defs)` overload via `MappedServerTools`.)
+ */
+type DescribedTool<TKey extends string> = ServerTool<any, any, TKey>
+
+/**
+ * Discovery result typed from the generated descriptor. When TServer is the
+ * AutomaticDescriptor (no generated types), this collapses to `Array<ServerTool>`
+ * (args typed `unknown`).
+ */
+export type DescriptorTools<TServer extends ServerDescriptor> = Array<
+  {
+    [K in keyof TServer['tools'] & string]: DescribedTool<K>
+  }[keyof TServer['tools'] & string]
+>
