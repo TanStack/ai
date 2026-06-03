@@ -33,7 +33,7 @@ for await (const chunk of chat({
   adapter,
   messages: [{ role: "user", content: "Hello!" }],
 })) {
-  if (chunk.type === "content") {
+  if (chunk.type === "TEXT_MESSAGE_CONTENT") {
     console.log(chunk.delta);
   }
 }
@@ -64,9 +64,9 @@ for await (const chunk of chat({
   adapter,
   messages: [{ role: "user", content: "Tell me a story" }],
 })) {
-  if (chunk.type === "content") {
+  if (chunk.type === "TEXT_MESSAGE_CONTENT") {
     process.stdout.write(chunk.delta);
-  } else if (chunk.type === "done") {
+  } else if (chunk.type === "RUN_FINISHED") {
     console.log("\nDone:", chunk.finishReason);
   }
 }
@@ -76,27 +76,32 @@ for await (const chunk of chat({
 ## Tool Calling
 
 ```typescript
-import { chat } from "@tanstack/ai";
+import { chat, toolDefinition } from "@tanstack/ai";
 import { cencori } from "@cencori/ai-sdk/tanstack";
+import { z } from "zod";
 
 const adapter = cencori("gpt-4o");
+
+const getWeatherDef = toolDefinition({
+  name: "getWeather",
+  description: "Get weather for a location",
+  inputSchema: z.object({ location: z.string() }),
+});
+
+const getWeather = getWeatherDef.server(async ({ location }) => {
+  // Look up the weather for `location`
+  return { temperature: 72, conditions: "Sunny" };
+});
 
 for await (const chunk of chat({
   adapter,
   messages: [{ role: "user", content: "What's the weather in NYC?" }],
-  tools: {
-    getWeather: {
-      name: "getWeather",
-      description: "Get weather for a location",
-      inputSchema: {
-        type: "object",
-        properties: { location: { type: "string" } },
-      },
-    },
-  },
+  tools: [getWeather],
 })) {
-  if (chunk.type === "tool_call") {
-    console.log("Tool call:", chunk.toolCall);
+  if (chunk.type === "TOOL_CALL_START") {
+    console.log("Tool call:", chunk.toolName);
+  } else if (chunk.type === "TOOL_CALL_END") {
+    console.log("Tool result:", chunk.result);
   }
 }
 ```
@@ -138,6 +143,8 @@ All responses use the same unified format regardless of provider.
 | Mistral | `mistral-large`, `codestral`, `devstral` |
 | DeepSeek | `deepseek-v3.2`, `deepseek-reasoner` |
 | + More | Groq, Cohere, Perplexity, Together, Qwen, OpenRouter |
+
+> **Note:** Cencori is an external package and its catalogue changes over time. Verify the model ids above against [Cencori's current catalogue](https://cencori.com/docs) before relying on them.
 
 ## Environment Variables
 

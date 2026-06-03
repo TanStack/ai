@@ -106,7 +106,7 @@ Keep reading `body.messages` and pass it through. `chat()` accepts mixed `UIMess
 
 ```ts
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai/adapters'
+import { openaiText } from '@tanstack/ai-openai'
 
 export async function POST(req: Request) {
   const body = await req.json()
@@ -139,7 +139,7 @@ import {
   chatParamsFromRequest,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai/adapters'
+import { openaiText } from '@tanstack/ai-openai'
 
 export async function POST(req: Request) {
   const params = await chatParamsFromRequest(req)
@@ -171,7 +171,7 @@ import {
   mergeAgentTools,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai/adapters'
+import { openaiText } from '@tanstack/ai-openai'
 
 export async function POST(req: Request) {
   const params = await chatParamsFromRequest(req)

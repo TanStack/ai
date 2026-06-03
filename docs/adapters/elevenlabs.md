@@ -22,7 +22,7 @@ The ElevenLabs adapter is **voice-focused**. It exposes four capabilities:
 
 It does not support text `chat()` or `summarize()` — use OpenAI, Anthropic, or Gemini for those.
 
-The realtime adapter uses an **agent-based architecture** where you configure your conversational AI agent in the [ElevenLabs dashboard](https://elevenlabs.io/) (voice, personality, knowledge base, tools) and then connect to it at runtime. The adapter wraps the `@11labs/client` SDK for seamless integration with `useRealtimeChat` and `RealtimeClient`.
+The realtime adapter uses an **agent-based architecture** where you configure your conversational AI agent in the [ElevenLabs dashboard](https://elevenlabs.io/) (voice, personality, knowledge base, tools) and then connect to it at runtime. The adapter wraps the `@elevenlabs/client` SDK for seamless integration with `useRealtimeChat` and `RealtimeClient`.
 
 ## Installation
 
@@ -184,7 +184,7 @@ const chat = useRealtimeChat({
 })
 ```
 
-Tool results are automatically serialized to strings and returned to the ElevenLabs agent. The adapter converts TanStack tool definitions into the `@11labs/client` clientTools format internally.
+Tool results are automatically serialized to strings and returned to the ElevenLabs agent. The adapter converts TanStack tool definitions into the `@elevenlabs/client` clientTools format internally.
 
 ## Configuration
 
@@ -293,7 +293,7 @@ const music = await generateAudio({
 
 // Sound effects
 const sfx = await generateAudio({
-  adapter: elevenlabsAudio("sound_effects_v1"),
+  adapter: elevenlabsAudio("eleven_text_to_sound_v2"),
   prompt: "A glass shattering on concrete",
 });
 ```

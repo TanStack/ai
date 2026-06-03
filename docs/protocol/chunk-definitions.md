@@ -33,21 +33,34 @@ interface BaseAGUIEvent {
 
 ```typescript
 type AGUIEventType =
-  | 'RUN_STARTED'           // Run lifecycle begins
-  | 'RUN_FINISHED'          // Run completed successfully
-  | 'RUN_ERROR'             // Error occurred
-  | 'TEXT_MESSAGE_START'    // Text message begins
-  | 'TEXT_MESSAGE_CONTENT'  // Text content streaming
-  | 'TEXT_MESSAGE_END'      // Text message completes
-  | 'TOOL_CALL_START'       // Tool invocation begins
-  | 'TOOL_CALL_ARGS'        // Tool arguments streaming
-  | 'TOOL_CALL_END'         // Tool call completes (with result)
-  | 'STEP_STARTED'          // Thinking/reasoning step begins
-  | 'STEP_FINISHED'         // Thinking/reasoning step completes
-  | 'STATE_SNAPSHOT'        // Full state synchronization
-  | 'STATE_DELTA'           // Incremental state update
-  | 'CUSTOM';               // Custom extensibility events
+  | 'RUN_STARTED'                 // Run lifecycle begins
+  | 'RUN_FINISHED'                // Run completed successfully
+  | 'RUN_ERROR'                   // Error occurred
+  | 'TEXT_MESSAGE_START'          // Text message begins
+  | 'TEXT_MESSAGE_CONTENT'        // Text content streaming
+  | 'TEXT_MESSAGE_END'            // Text message completes
+  | 'TOOL_CALL_START'             // Tool invocation begins
+  | 'TOOL_CALL_ARGS'              // Tool arguments streaming
+  | 'TOOL_CALL_END'               // Tool call completes
+  | 'TOOL_CALL_RESULT'            // Tool execution result
+  | 'STEP_STARTED'                // Thinking/reasoning step begins
+  | 'STEP_FINISHED'               // Thinking/reasoning step completes
+  | 'REASONING_START'             // Reasoning begins for a message
+  | 'REASONING_MESSAGE_START'     // Reasoning message begins
+  | 'REASONING_MESSAGE_CONTENT'   // Reasoning content streaming
+  | 'REASONING_MESSAGE_END'       // Reasoning message completes
+  | 'REASONING_END'               // Reasoning ends for a message
+  | 'REASONING_ENCRYPTED_VALUE'   // Encrypted reasoning payload
+  | 'MESSAGES_SNAPSHOT'           // Full conversation transcript snapshot
+  | 'STATE_SNAPSHOT'              // Full state synchronization
+  | 'STATE_DELTA'                 // Incremental state update
+  | 'CUSTOM';                     // Custom extensibility events
 ```
+
+> The exported `EventType` enum (`@tanstack/ai`) carries a few additional
+> internal/transitional members (e.g. `TEXT_MESSAGE_CHUNK`, `TOOL_CALL_CHUNK`,
+> `THINKING_*`, `ACTIVITY_*`, `RAW`). The events above are the ones that appear
+> on the wire for a normal chat run.
 
 Only AG-UI event types are supported; previous legacy chunk formats are no longer accepted.
 
@@ -255,22 +268,31 @@ interface TokenUsage {
 
 Emitted when an error occurs during a run.
 
+> **Canonical vs deprecated shape.** The AG-UI-canonical form carries
+> `message` and `code` at the **top level** of the event. The nested `error`
+> object is a TanStack AI backward-compatibility alias and is `@deprecated`;
+> prefer reading the top-level fields. Note that the wire emitter
+> (`toServerSentEventsStream` / `toHttpStream`) still emits the nested `error`
+> form, so consumers should accept either until the alias is removed.
+
 ```typescript
 interface RunErrorEvent extends BaseAGUIEvent {
   type: 'RUN_ERROR';
+  message: string;     // Canonical (AG-UI)
+  code?: string;       // Canonical (AG-UI)
   runId?: string;
-  error: {
+  /** @deprecated Use top-level `message`/`code`. Still emitted on the wire. */
+  error?: {
     message: string;
     code?: string;
   };
 }
 ```
 
-**Example:**
+**Example (as emitted on the wire — nested `error`):**
 ```json
 {
   "type": "RUN_ERROR",
-  "runId": "run_abc123",
   "model": "gpt-4o",
   "timestamp": 1701234567890,
   "error": {
@@ -344,8 +366,10 @@ Emitted when a tool call starts.
 interface ToolCallStartEvent extends BaseAGUIEvent {
   type: 'TOOL_CALL_START';
   toolCallId: string;
-  toolName: string;
-  index?: number;      // Index for parallel tool calls
+  toolCallName: string;  // Canonical (AG-UI)
+  /** @deprecated Use `toolCallName` instead. */
+  toolName: string;      // Deprecated alias, still emitted
+  index?: number;        // Index for parallel tool calls
 }
 ```
 
@@ -374,9 +398,41 @@ Emitted when a tool call completes.
 interface ToolCallEndEvent extends BaseAGUIEvent {
   type: 'TOOL_CALL_END';
   toolCallId: string;
-  toolName: string;
-  input?: unknown;     // Final parsed input arguments
-  result?: string;     // Tool execution result (if executed)
+  toolCallName?: string;  // Canonical (AG-UI)
+  /** @deprecated Use `toolCallName` instead. */
+  toolName?: string;      // Deprecated alias
+  input?: unknown;        // Final parsed input arguments (TanStack AI internal)
+  result?: string | ContentPart[]; // Tool execution result (TanStack AI internal)
+}
+```
+
+---
+
+### TOOL_CALL_RESULT
+
+Emitted when a tool's execution result is available. AG-UI carries this as a
+distinct event from `TOOL_CALL_END`: `TOOL_CALL_END` closes the call's
+argument stream, while `TOOL_CALL_RESULT` delivers the executed tool's output
+as a `tool`-role message.
+
+```typescript
+interface ToolCallResultEvent extends BaseAGUIEvent {
+  type: 'TOOL_CALL_RESULT';
+  messageId: string;   // ID of the resulting tool-role message
+  toolCallId: string;  // The tool call this result answers
+  content: string;     // Serialized tool result
+  role?: 'tool';
+}
+```
+
+**Example:**
+```json
+{
+  "type": "TOOL_CALL_RESULT",
+  "messageId": "msg_tool_1",
+  "toolCallId": "call_xyz",
+  "content": "{\"temperature\":72,\"conditions\":\"sunny\"}",
+  "timestamp": 1701234567894
 }
 ```
 
@@ -389,7 +445,9 @@ Emitted when a thinking/reasoning step starts.
 ```typescript
 interface StepStartedEvent extends BaseAGUIEvent {
   type: 'STEP_STARTED';
-  stepId: string;
+  stepName: string;    // Canonical (AG-UI)
+  /** @deprecated Use `stepName` instead. */
+  stepId?: string;     // Deprecated alias
   stepType?: string;   // e.g., 'thinking', 'planning'
 }
 ```
@@ -403,9 +461,113 @@ Emitted when a thinking/reasoning step finishes.
 ```typescript
 interface StepFinishedEvent extends BaseAGUIEvent {
   type: 'STEP_FINISHED';
-  stepId: string;
-  delta?: string;      // Incremental thinking content
-  content?: string;    // Full accumulated thinking content
+  stepName: string;    // Canonical (AG-UI)
+  /** @deprecated Use `stepName` instead. */
+  stepId?: string;     // Deprecated alias
+  delta?: string;      // Incremental thinking content (TanStack AI internal)
+  content?: string;    // Full accumulated thinking content (TanStack AI internal)
+}
+```
+
+---
+
+## Reasoning Events
+
+AG-UI defines a dedicated reasoning event family for thinking/reasoning models.
+**These `REASONING_MESSAGE_*` events are the AG-UI-canonical path for reasoning
+content.** During a transition period, adapters also emit `STEP_FINISHED` with
+the same thinking deltas as a backward-compatibility duplicate; the stream
+processor de-duplicates by ignoring `STEP_FINISHED` thinking deltas once it has
+seen reasoning events for a message (see
+`packages/ai/src/activities/chat/stream/processor.ts`). Prefer
+`REASONING_MESSAGE_*` in new consumers.
+
+All reasoning events extend `BaseAGUIEvent`. TanStack AI adds an optional
+`model?` field; the canonical fields come from `@ag-ui/core`.
+
+### REASONING_START
+
+Reasoning begins for a message.
+
+```typescript
+interface ReasoningStartEvent extends BaseAGUIEvent {
+  type: 'REASONING_START';
+  messageId: string;
+}
+```
+
+### REASONING_MESSAGE_START
+
+A reasoning message begins.
+
+```typescript
+interface ReasoningMessageStartEvent extends BaseAGUIEvent {
+  type: 'REASONING_MESSAGE_START';
+  messageId: string;
+  role: 'reasoning';
+}
+```
+
+### REASONING_MESSAGE_CONTENT
+
+Incremental reasoning content (streaming tokens).
+
+```typescript
+interface ReasoningMessageContentEvent extends BaseAGUIEvent {
+  type: 'REASONING_MESSAGE_CONTENT';
+  messageId: string;
+  delta: string;
+}
+```
+
+### REASONING_MESSAGE_END
+
+A reasoning message completes.
+
+```typescript
+interface ReasoningMessageEndEvent extends BaseAGUIEvent {
+  type: 'REASONING_MESSAGE_END';
+  messageId: string;
+}
+```
+
+### REASONING_END
+
+Reasoning ends for a message.
+
+```typescript
+interface ReasoningEndEvent extends BaseAGUIEvent {
+  type: 'REASONING_END';
+  messageId: string;
+}
+```
+
+### REASONING_ENCRYPTED_VALUE
+
+Carries an encrypted/opaque reasoning payload (e.g. provider-encrypted thinking
+that can be replayed but not read).
+
+```typescript
+interface ReasoningEncryptedValueEvent extends BaseAGUIEvent {
+  type: 'REASONING_ENCRYPTED_VALUE';
+  subtype: string;
+  entityId: string;
+  encryptedValue: string;
+}
+```
+
+---
+
+## MESSAGES_SNAPSHOT
+
+Delivers a full snapshot of the conversation transcript. Unlike
+`STATE_SNAPSHOT` (which carries arbitrary application state),
+`MESSAGES_SNAPSHOT` specifically carries the message list.
+
+```typescript
+interface MessagesSnapshotEvent extends BaseAGUIEvent {
+  type: 'MESSAGES_SNAPSHOT';
+  messages: Message[];  // @ag-ui/core Message[] — use converters for UIMessage
 }
 ```
 
@@ -496,11 +658,19 @@ type StreamChunk =
   | ToolCallStartEvent
   | ToolCallArgsEvent
   | ToolCallEndEvent
+  | ToolCallResultEvent
   | StepStartedEvent
   | StepFinishedEvent
+  | MessagesSnapshotEvent
   | StateSnapshotEvent
   | StateDeltaEvent
-  | CustomEvent;
+  | CustomEvent
+  | ReasoningStartEvent
+  | ReasoningMessageStartEvent
+  | ReasoningMessageContentEvent
+  | ReasoningMessageEndEvent
+  | ReasoningEndEvent
+  | ReasoningEncryptedValueEvent;
 ```
 
 This enables type-safe handling in TypeScript:
@@ -515,7 +685,7 @@ function handleChunk(chunk: StreamChunk) {
       console.log(chunk.content);
       break;
     case 'TOOL_CALL_START':
-      console.log(chunk.toolName);
+      console.log(chunk.toolCallName);
       break;
     // ... other cases
   }

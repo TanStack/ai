@@ -42,7 +42,7 @@ const chatOptions = createChatOptions({
 const stream = chat({ ...chatOptions, messages })
 ```
 
-Without the helper you'd have to either inline the configuration at every call site, or type the object yourself with `TextActivityOptions<...>` and resolve the generics manually — `createChatOptions` does that for you.
+Without the helper you'd have to either inline the configuration at every call site, or hand-write the full chat options type with its adapter/model generics resolved manually — `createChatOptions` does that for you.
 
 ## When to reach for it
 
@@ -153,7 +153,7 @@ The same pattern works for `createVideoOptions`, `createSpeechOptions`, `createT
 ## What the helper does NOT do
 
 - **No runtime behavior.** `createChatOptions(opts)` is `opts`. There is no validation, freezing, cloning, or memoization. If you mutate the returned object after creation, the next call sees the mutation. Treat the result as immutable by convention.
-- **No partial typing.** The helper expects the full options shape it'll be spread into. If you need to build options up incrementally, type the intermediate state yourself (`Partial<TextActivityOptions<...>>`) and only call the helper at the boundary where the shape is complete.
+- **No partial typing.** The helper expects the full options shape it'll be spread into. If you need to build options up incrementally, type the intermediate state yourself (a `Partial<>` of the full chat options shape) and only call the helper at the boundary where the shape is complete.
 - **No request execution.** The helper does not call the model. Only the activity function (`chat`, `generateImage`, …) makes the request.
 
 ## Related

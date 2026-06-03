@@ -254,7 +254,7 @@ const stream = chat({
 });
 ```
 
-**Supported models:** every current Claude model. `claude-3-haiku` supports
+**Supported models:** every current Claude model. `claude-haiku-3` supports
 only `web_search` (not `web_fetch`). See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
 
 ### `webFetchTool`

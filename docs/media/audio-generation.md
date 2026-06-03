@@ -32,7 +32,7 @@ const result = await generateAudio({
   prompt: 'Uplifting indie pop with layered vocals and jangly guitars',
 })
 
-console.log(result.audio.url) // URL to the generated audio file
+console.log(result.audio.b64Json) // Base64-encoded audio bytes (Gemini)
 console.log(result.audio.contentType) // e.g. "audio/mpeg"
 ```
 
@@ -215,6 +215,9 @@ FAL_KEY=your-fal-api-key
 Or pass it explicitly to the adapter:
 
 ```typescript
-geminiAudio('lyria-3-pro-preview', { apiKey: 'your-key' })
+import { createGeminiAudio } from '@tanstack/ai-gemini'
+import { falAudio } from '@tanstack/ai-fal'
+
+createGeminiAudio('lyria-3-pro-preview', 'your-key')
 falAudio('fal-ai/diffrhythm', { apiKey: 'your-key' })
 ```

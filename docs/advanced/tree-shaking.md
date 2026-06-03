@@ -170,7 +170,7 @@ The tree-shakeable design doesn't sacrifice type safety. Each adapter provides f
 ```ts
 import { openaiText, type OpenAIChatModel } from '@tanstack/ai-openai'
 
-const adapter = openaiText()
+const adapter = openaiText('gpt-5.2')
 
 // TypeScript knows the exact models supported
 const model: OpenAIChatModel = 'gpt-5.2' // ✓ Valid
@@ -186,6 +186,7 @@ import {
   createChatOptions,
   createImageOptions
 } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
 
 // Only import what you need
 const chatOptions = createChatOptions({
@@ -222,12 +223,7 @@ import { openaiText } from '@tanstack/ai-openai'
 
 ### Real-World Impact
 
-For a typical chat application:
-
-- **Monolithic approach**: ~200KB+ (all activities + all adapters)
-- **Tree-shakeable approach**: ~50KB (only chat + one adapter)
-
-That's a **75% reduction** in bundle size for most applications!
+For a typical chat application, importing a single activity and one adapter pulls in substantially less code than bundling every activity and every provider adapter. Because each activity and adapter lives in its own side-effect-free module, your bundler drops everything you don't reference — so the more providers and activities the library supports, the larger the difference between a focused import and a namespace import.
 
 ## How It Works
 
@@ -282,10 +278,10 @@ Each adapter type implements a specific interface:
 All adapters have a `kind` property that indicates their type:
 
 ```ts
-const chatAdapter = openaiText()
+const chatAdapter = openaiText('gpt-5.2')
 console.log(chatAdapter.kind) // 'text'
 
-const summarizeAdapter = openaiSummarize()
+const summarizeAdapter = openaiSummarize('gpt-5-mini')
 console.log(summarizeAdapter.kind) // 'summarize'
 ```
 

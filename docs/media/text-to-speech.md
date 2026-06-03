@@ -94,8 +94,10 @@ console.log(result.format) // e.g. "wav"
 const result = await generateSpeech({
   adapter: falSpeech('fal-ai/elevenlabs/tts/eleven-v3'),
   text: 'Welcome to TanStack AI.',
+  // The fal adapter maps top-level `voice`/`speed` into the model input;
+  // `modelOptions` is reserved for model-specific keys.
+  voice: 'Rachel',
   modelOptions: {
-    voice: 'Rachel',
     stability: 0.5,
   },
 })
@@ -152,15 +154,17 @@ const result = await generateSpeech({
   text: 'High quality speech synthesis',
   voice: 'nova',
   format: 'mp3',
+  speed: 1.0, // top-level option, 0.25 to 4.0
   modelOptions: {
-    speed: 1.0, // 0.25 to 4.0
+    instructions: 'Speak in a calm, measured tone', // GPT-4o audio models only
   },
 })
 ```
 
+> **Note:** `voice`, `format`, and `speed` are top-level `generateSpeech` options, not `modelOptions` keys.
+
 | Option | Type | Description |
 |--------|------|-------------|
-| `speed` | `number` | Playback speed (0.25 to 4.0, default 1.0) |
 | `instructions` | `string` | Voice style instructions (GPT-4o audio models only) |
 
 > **Note:** The `instructions` and `stream_format` options are only available with `gpt-4o-audio-preview` and `gpt-4o-mini-audio-preview` models, not with `tts-1` or `tts-1-hd`.

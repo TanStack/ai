@@ -289,14 +289,21 @@ const addToCartClient = addToCartDef.client((input) => {
 });
 ```
 
-On the server, pass the definition (for client execution) or server implementation:
+On the server, pass either the definition (for client execution) or the server implementation — in separate `chat()` calls:
 
 ```typescript
+// Pass the definition: the client will execute the tool
 chat({
   adapter: openaiText("gpt-5.2"),
   messages,
-  tools: [addToCartDef], // Client will execute, or
-  tools: [addToCartServer], // Server will execute
+  tools: [addToCartDef],
+});
+
+// Or pass the server implementation: the server will execute the tool
+chat({
+  adapter: openaiText("gpt-5.2"),
+  messages,
+  tools: [addToCartServer],
 });
 ```
 
@@ -329,6 +336,25 @@ messages.forEach((message) => {
 4. **Result is returned** - To the model as a tool result message
 5. **Model continues** - Uses the result to generate a response
 
+## Progress Events and Runtime Context
+
+A server tool's `.server()` implementation receives a second argument, the `ToolExecutionContext` — `{ context, toolCallId, emitCustomEvent }`. Use `emitCustomEvent` to stream typed progress to the client while the tool runs, and `context` to read request-scoped dependencies (auth, DB clients, etc.):
+
+```typescript
+const importData = importDataDef.server(async (input, { context, emitCustomEvent }) => {
+  emitCustomEvent("progress", { step: 1, total: 3 });
+  const rows = await context.db.read(input.source);
+
+  emitCustomEvent("progress", { step: 2, total: 3 });
+  await context.db.write(rows);
+
+  emitCustomEvent("progress", { step: 3, total: 3 });
+  return { imported: rows.length };
+});
+```
+
+See [Server Tools](./server-tools) for the full runtime-context pattern.
+
 ## Tool States
 
 Tools go through different states during execution:
@@ -338,6 +364,8 @@ Tools go through different states during execution:
 - `input-complete` - All arguments received
 - `approval-requested` - Tool requires user approval (if `needsApproval: true`)
 - `approval-responded` - User has approved/denied
+
+Once arguments (and approval, if required) are in, the result appears as `part.output` on the tool-call part and as a separate sibling `tool-result` part whose `state` is `complete` or `error`. See [Tool Architecture](./tool-architecture) for the full state model.
 
 > **Tip:** If your use case involves calling multiple tools with complex logic (filtering, aggregation, parallel calls), consider [Code Mode](../code-mode/code-mode) — it lets the LLM write a TypeScript program that orchestrates tools in a single execution instead of one tool call at a time.
 

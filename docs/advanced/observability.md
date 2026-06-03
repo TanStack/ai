@@ -1,7 +1,7 @@
 ---
 title: Observability
 id: observability
-order: 2
+order: 4
 description: "Subscribe to TanStack AI events for observability and debugging — tool calls, streaming chunks, usage, and errors via the type-safe event client."
 keywords:
   - tanstack ai

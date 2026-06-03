@@ -211,7 +211,7 @@ The `generate` function accepts a `TranscriptionGenerateInput`:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `audio` | `string \| File \| Blob` | Audio data -- base64 string, File, or Blob (required) |
+| `audio` | `string \| File \| Blob \| ArrayBuffer` | Audio data -- base64 string, File, Blob, or ArrayBuffer (required) |
 | `language` | `string` | Language in ISO-639-1 format (e.g., `"en"`) |
 | `prompt` | `string` | Optional prompt to guide the transcription |
 | `responseFormat` | `'json' \| 'text' \| 'srt' \| 'verbose_json' \| 'vtt'` | Output format |

@@ -15,8 +15,16 @@ keywords:
 
 The AI SDK provides **model-specific type safety** for `modelOptions`. Each model's capabilities determine which model options are allowed, and TypeScript will enforce this at compile time.
 
+> **Tip:** For structured outputs, most users should prefer the first-class `chat({ outputSchema })` option over the raw provider `text` option shown below — it works across providers and validates the result for you. The raw `text` option is for when you need provider-specific control.
+
 ## How It Works
- 
+
+Each adapter factory captures the model literal as a type parameter — `openaiText<TModel>(model)` — so the adapter carries the exact model you selected at the type level.
+
+The `modelOptions` you pass are then resolved against a per-model map (`ResolveProviderOptions<TModel>`). Each model's entry declares only the options that model actually supports. A model without a structured-output capability simply has no `text` property in its resolved options type, so TypeScript's excess-property checking rejects `text` for that model — at compile time, with zero runtime cost.
+
+This is the same mechanism described in [Typed Pre-Configured Options](./typed-options) (which captures these resolved options in a reusable object) and [Extend Adapter](./extend-adapter) (which lets you attach the same typed `modelOptions` to custom models).
+
 ## Usage Examples
 
 ### ✅ Correct Usage
@@ -32,9 +40,12 @@ const validCall = chat({
   modelOptions: {
     // OK - text is included for gpt-5
     text: {
-      type: "json_schema",
-      json_schema: {
-        /* ... */
+      format: {
+        type: "json_schema",
+        name: "my_schema",
+        schema: {
+          /* JSON Schema object */
+        },
       },
     },
   },

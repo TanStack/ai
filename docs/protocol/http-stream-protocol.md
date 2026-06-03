@@ -20,7 +20,7 @@ HTTP streaming with newline-delimited JSON (NDJSON) is a simpler protocol than S
 
 This protocol is **less common** than SSE for TanStack AI applications, but supported for flexibility.
 
-This document describes how TanStack AI transmits StreamChunks over raw HTTP streaming (newline-delimited JSON), an alternative to Server-Sent Events.
+This document describes how TanStack AI transmits [AG-UI events](./chunk-definitions) over raw HTTP streaming (newline-delimited JSON), an alternative to Server-Sent Events.
 
 ---
 
@@ -35,17 +35,21 @@ This document describes how TanStack AI transmits StreamChunks over raw HTTP str
 Content-Type: application/json
 ```
 
-**Body:**
+**Body:** The current `@tanstack/ai-client` POSTs an AG-UI `RunAgentInput` object — `threadId`, `runId`, `messages`, `tools`, `forwardedProps`, etc. The legacy `data` field is still emitted alongside `forwardedProps` as a deprecation bridge. See [Migrating to AG-UI Client-to-Server Compliance](../migration/ag-ui-compliance) for the full wire shape.
+
 ```json
 {
+  "threadId": "thread-abc",
+  "runId": "run-123",
   "messages": [
     {
       "role": "user",
       "content": "Hello, how are you?"
     }
   ],
-  "data": {
-    // Optional additional data
+  "tools": [],
+  "forwardedProps": {
+    // Optional client-supplied options
   }
 }
 ```
@@ -66,16 +70,16 @@ Content-Type: application/json
 Transfer-Encoding: chunked
 ```
 
-**Body:** Stream of newline-delimited JSON chunks
+**Body:** Stream of newline-delimited JSON, one [AG-UI event](./chunk-definitions) per line
 
 ---
 
 ## Stream Format
 
-Each StreamChunk is transmitted as a single line of JSON followed by a newline (`\n`):
+Each [AG-UI event](./chunk-definitions) is transmitted as a single line of JSON followed by a newline (`\n`):
 
 ```
-{JSON_ENCODED_CHUNK}\n
+{JSON_ENCODED_EVENT}\n
 ```
 
 ### Key Points
@@ -83,30 +87,34 @@ Each StreamChunk is transmitted as a single line of JSON followed by a newline (
 1. **One JSON object per line**
 2. **Each line ends with `\n`**
 3. **No prefixes** (unlike SSE's `data:` prefix)
-4. **No blank lines between chunks** (unlike SSE's `\n\n`)
-5. **Stream ends when connection closes** (no `[DONE]` marker)
+4. **No blank lines between events** (unlike SSE's `\n\n`)
+5. **Stream ends when connection closes** (no `[DONE]` marker — `RUN_FINISHED` is the terminal event)
 
 ### Examples
 
-#### Content Chunks
+#### Text Content
 
 ```json
-{"type":"content","id":"chatcmpl-abc123","model":"gpt-5.2","timestamp":1701234567890,"delta":"Hello","content":"Hello","role":"assistant"}
-{"type":"content","id":"chatcmpl-abc123","model":"gpt-5.2","timestamp":1701234567891,"delta":" world","content":"Hello world","role":"assistant"}
-{"type":"content","id":"chatcmpl-abc123","model":"gpt-5.2","timestamp":1701234567892,"delta":"!","content":"Hello world!","role":"assistant"}
+{"type":"TEXT_MESSAGE_CONTENT","messageId":"msg_1","delta":"Hello","timestamp":1701234567890}
+{"type":"TEXT_MESSAGE_CONTENT","messageId":"msg_1","delta":" world","timestamp":1701234567891}
+{"type":"TEXT_MESSAGE_CONTENT","messageId":"msg_1","delta":"!","timestamp":1701234567892}
 ```
 
 #### Tool Call
 
+A tool call streams as `TOOL_CALL_START` → `TOOL_CALL_ARGS` → `TOOL_CALL_END`, optionally followed by `TOOL_CALL_RESULT`:
+
 ```json
-{"type":"tool_call","id":"chatcmpl-abc123","model":"gpt-5.2","timestamp":1701234567893,"toolCall":{"id":"call_xyz","type":"function","function":{"name":"get_weather","arguments":"{\"location\":\"SF\"}"}},"index":0}
-{"type":"tool_result","id":"chatcmpl-abc123","model":"gpt-5.2","timestamp":1701234567894,"toolCallId":"call_xyz","content":"{\"temperature\":72,\"conditions\":\"sunny\"}"}
+{"type":"TOOL_CALL_START","toolCallId":"call_xyz","toolCallName":"get_weather","timestamp":1701234567893}
+{"type":"TOOL_CALL_ARGS","toolCallId":"call_xyz","delta":"{\"location\":\"SF\"}","timestamp":1701234567894}
+{"type":"TOOL_CALL_END","toolCallId":"call_xyz","toolCallName":"get_weather","timestamp":1701234567895}
+{"type":"TOOL_CALL_RESULT","messageId":"msg_2","toolCallId":"call_xyz","content":"{\"temperature\":72,\"conditions\":\"sunny\"}","timestamp":1701234567896}
 ```
 
-#### Stream Completion
+#### Run Completion
 
 ```json
-{"type":"done","id":"chatcmpl-abc123","model":"gpt-5.2","timestamp":1701234567895,"finishReason":"stop","usage":{"promptTokens":10,"completionTokens":15,"totalTokens":25}}
+{"type":"RUN_FINISHED","runId":"run_123","timestamp":1701234567897,"finishReason":"stop","usage":{"promptTokens":10,"completionTokens":15,"totalTokens":25}}
 ```
 
 ---
@@ -138,16 +146,17 @@ Transfer-Encoding: chunked
 The server sends newline-delimited JSON:
 
 ```json
-{"type":"content","id":"msg_1","model":"gpt-5.2","timestamp":1701234567890,"delta":"The","content":"The"}
-{"type":"content","id":"msg_1","model":"gpt-5.2","timestamp":1701234567891,"delta":" weather","content":"The weather"}
-{"type":"content","id":"msg_1","model":"gpt-5.2","timestamp":1701234567892,"delta":" is","content":"The weather is"}
-{"type":"content","id":"msg_1","model":"gpt-5.2","timestamp":1701234567893,"delta":" sunny","content":"The weather is sunny"}
-{"type":"done","id":"msg_1","model":"gpt-5.2","timestamp":1701234567894,"finishReason":"stop"}
+{"type":"RUN_STARTED","runId":"run_123","timestamp":1701234567889}
+{"type":"TEXT_MESSAGE_START","messageId":"msg_1","role":"assistant","timestamp":1701234567890}
+{"type":"TEXT_MESSAGE_CONTENT","messageId":"msg_1","delta":"The","timestamp":1701234567890}
+{"type":"TEXT_MESSAGE_CONTENT","messageId":"msg_1","delta":" weather is sunny","timestamp":1701234567891}
+{"type":"TEXT_MESSAGE_END","messageId":"msg_1","timestamp":1701234567893}
+{"type":"RUN_FINISHED","runId":"run_123","timestamp":1701234567894,"finishReason":"stop"}
 ```
 
 ### 4. Stream Completion
 
-Server closes the connection. No special marker needed (unlike SSE's `[DONE]`).
+`RUN_FINISHED` is the terminal event of a successful run; the server then closes the connection. No special marker is sent (neither transport uses a `[DONE]` sentinel).
 
 ---
 
@@ -155,13 +164,13 @@ Server closes the connection. No special marker needed (unlike SSE's `[DONE]`).
 
 ### Server-Side Errors
 
-If an error occurs during generation, send an error chunk:
+If an error occurs during generation, TanStack AI's HTTP-stream helpers emit a `RUN_ERROR` event, then close the connection:
 
 ```json
-{"type":"error","id":"msg_1","model":"gpt-5.2","timestamp":1701234567895,"error":{"message":"Rate limit exceeded","code":"rate_limit_exceeded"}}
+{"type":"RUN_ERROR","timestamp":1701234567895,"error":{"message":"Rate limit exceeded","code":"rate_limit_exceeded"}}
 ```
 
-Then close the connection.
+> **Canonical shape.** The AG-UI-canonical form carries `message` and `code` at the top level of the event. The wire emitter still nests them under `error` (shown above) as a backward-compatibility bridge; new consumers should prefer the top-level fields. See [Chunk Definitions → RUN_ERROR](./chunk-definitions#run_error).
 
 ### Connection Errors
 
@@ -176,51 +185,41 @@ Unlike SSE, HTTP streaming does not provide automatic reconnection:
 
 ### Server-Side (Node.js/TypeScript)
 
-#### Using TanStack AI (Custom Stream)
+#### Using TanStack AI
 
-TanStack AI doesn't provide a built-in NDJSON formatter, but you can create one easily:
+TanStack AI provides built-in NDJSON helpers — `toHttpResponse(stream, init?)` returns a ready-to-return `Response`, and `toHttpStream(stream, abortController?)` returns the raw `ReadableStream` if you need to set your own headers or wrap it. Both are exported from `@tanstack/ai`, emit one AG-UI event per line, close the connection when the stream ends (`RUN_FINISHED` is terminal), and emit a `RUN_ERROR` event on a thrown error.
 
 ```typescript
-import { chat } from '@tanstack/ai';
+import { chat, toHttpResponse } from '@tanstack/ai';
 import { openaiText } from '@tanstack/ai-openai';
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
-  const encoder = new TextEncoder();
 
   const stream = chat({
     adapter: openaiText('gpt-5.2'),
     messages,
   });
 
-  const readableStream = new ReadableStream({
-    async start(controller) {
-      try {
-        for await (const chunk of stream) {
-          // Send as newline-delimited JSON
-          const line = JSON.stringify(chunk) + '\n';
-          controller.enqueue(encoder.encode(line));
-        }
-        controller.close();
-      } catch (error: any) {
-        const errorChunk = {
-          type: 'error',
-          error: {
-            message: error.message || 'Unknown error',
-            code: error.code,
-          },
-        };
-        controller.enqueue(encoder.encode(JSON.stringify(errorChunk) + '\n'));
-        controller.close();
-      }
-    },
-  });
+  // Emits newline-delimited AG-UI events; sets NDJSON-friendly defaults.
+  return toHttpResponse(stream);
+}
+```
 
-  return new Response(readableStream, {
-    headers: {
-      'Content-Type': 'application/x-ndjson',
-      'Cache-Control': 'no-cache',
-    },
+If you need the raw stream (e.g. to add custom headers), use `toHttpStream`:
+
+```typescript
+import { chat, toHttpStream } from '@tanstack/ai';
+import { openaiText } from '@tanstack/ai-openai';
+
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+  const abortController = new AbortController();
+
+  const stream = chat({ adapter: openaiText('gpt-5.2'), messages });
+
+  return new Response(toHttpStream(stream, abortController), {
+    headers: { 'Content-Type': 'application/x-ndjson' },
   });
 }
 ```
@@ -252,11 +251,12 @@ app.post('/api/chat', async (req, res) => {
       res.write(JSON.stringify(chunk) + '\n');
     }
   } catch (error: any) {
-    const errorChunk = {
-      type: 'error',
+    const errorEvent = {
+      type: 'RUN_ERROR',
+      timestamp: Date.now(),
       error: { message: error.message },
     };
-    res.write(JSON.stringify(errorChunk) + '\n');
+    res.write(JSON.stringify(errorEvent) + '\n');
   } finally {
     res.end();
   }
@@ -276,11 +276,11 @@ const { messages, sendMessage } = useChat({
 ```
 
 **What `fetchHttpStream()` does:**
-1. Makes POST request with messages
-2. Reads response body as stream
+1. Makes a POST request with the AG-UI `RunAgentInput` body
+2. Reads the response body as a stream
 3. Splits by newlines
 4. Parses each line as JSON
-5. Yields StreamChunk objects
+5. Yields `StreamChunk` (AG-UI event) objects
 
 ### Manual Implementation (Advanced)
 
@@ -340,7 +340,7 @@ if (buffer.trim()) {
 | Overhead | Lower (no prefixes) | Higher (`data:` prefix) |
 | Auto-reconnect | ❌ No | ✅ Yes |
 | Browser API | ❌ No (manual) | ✅ Yes (EventSource) |
-| Completion marker | ❌ No (close connection) | ✅ Yes (`[DONE]`) |
+| Completion marker | ❌ No (close connection after `RUN_FINISHED`) | ❌ No (close connection after `RUN_FINISHED`) |
 | Debugging | Easy (plain JSON lines) | Easy (plain text) |
 | Use case | Custom protocols, lower overhead | Standard streaming, reconnection needed |
 
@@ -368,9 +368,9 @@ The `-N` flag disables buffering to see real-time output.
 
 **Example Output:**
 ```json
-{"type":"content","id":"msg_1","model":"gpt-5.2","timestamp":1701234567890,"delta":"Hello","content":"Hello"}
-{"type":"content","id":"msg_1","model":"gpt-5.2","timestamp":1701234567891,"delta":" there","content":"Hello there"}
-{"type":"done","id":"msg_1","model":"gpt-5.2","timestamp":1701234567892,"finishReason":"stop"}
+{"type":"TEXT_MESSAGE_CONTENT","messageId":"msg_1","delta":"Hello","timestamp":1701234567890}
+{"type":"TEXT_MESSAGE_CONTENT","messageId":"msg_1","delta":" there","timestamp":1701234567891}
+{"type":"RUN_FINISHED","runId":"run_123","timestamp":1701234567892,"finishReason":"stop"}
 ```
 
 ### Validating NDJSON
@@ -399,8 +399,9 @@ done
 
 1. **No Auto-Reconnect** - Must implement manually
 2. **No Browser API** - Can't use EventSource
-3. **No Completion Marker** - Must rely on connection close
-4. **Less Common** - SSE is more standard for streaming
+3. **Less Common** - SSE is more standard for streaming
+
+(Both transports rely on connection close after `RUN_FINISHED`; neither uses a `[DONE]` marker.)
 
 ---
 

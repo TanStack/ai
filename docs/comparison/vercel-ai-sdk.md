@@ -310,7 +310,11 @@ The available hooks cover the full lifecycle:
 
 Middleware compose naturally. `onConfig` pipes through each middleware in order. `onChunk` pipes chunks through each middleware (if one drops a chunk, later middleware never see it). `onBeforeToolCall` uses first-win semantics: the first middleware that returns a decision short-circuits the rest.
 
-TanStack AI also ships `toolCacheMiddleware` built-in, which caches tool results by name and arguments with configurable TTL, LRU eviction, and pluggable storage backends (Redis, localStorage, etc.).
+TanStack AI also ships `toolCacheMiddleware` built-in (imported from the `@tanstack/ai/middlewares` subpath), which caches tool results by name and arguments with configurable TTL, LRU eviction, and pluggable storage backends (Redis, localStorage, etc.).
+
+```ts
+import { toolCacheMiddleware } from '@tanstack/ai/middlewares'
+```
 
 Vercel AI SDK takes a different approach: `wrapLanguageModel()` wraps a model instance with middleware that can intercept and transform calls. It ships several built-in middleware (`extractReasoningMiddleware`, `simulateStreamingMiddleware`, `defaultSettingsMiddleware`), but these operate at the model level rather than the application level. There's no equivalent to TanStack AI's tool call interception, chunk-level stream processing, or lifecycle hooks like `onBeforeToolCall` and `onAfterToolCall`.
 

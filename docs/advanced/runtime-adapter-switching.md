@@ -53,10 +53,10 @@ const adapter1 = openaiText('gpt-5.2')
 const adapter2 = new OpenAITextAdapter({ apiKey: process.env.OPENAI_API_KEY }, 'gpt-5.2')
 
 // The model is stored on the adapter
-console.log(adapter1.selectedModel) // 'gpt-5.2'
+console.log(adapter1.model) // 'gpt-5.2'
 ```
 
-When you pass an adapter to `chat()`, it uses the model from `adapter.selectedModel`. This means:
+When you pass an adapter to `chat()`, it uses the model from `adapter.model`. This means:
 
 - **Full autocomplete** - When typing the model name, TypeScript knows valid options
 - **Type validation** - Invalid model names cause compile errors
@@ -79,7 +79,7 @@ type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 // Define adapters with their models
 const adapters = {
   anthropic: () => anthropicText('claude-sonnet-4-5'),
-  gemini: () => geminiText('gemini-2.0-flash-exp'),
+  gemini: () => geminiText('gemini-2.0-flash'),
   ollama: () => ollamaText('mistral:7b'),
   openai: () => openaiText('gpt-5.2'),
 }
