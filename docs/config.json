@@ -82,6 +82,10 @@
         {
           "label": "Lazy Tool Discovery",
           "to": "tools/lazy-tool-discovery"
+        },
+        {
+          "label": "MCP Server Tools",
+          "to": "tools/mcp"
         }
       ]
     },

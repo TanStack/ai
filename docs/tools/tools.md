@@ -347,3 +347,4 @@ Tools go through different states during execution:
 - [Client Tools](./client-tools) - Learn about client-side tool execution
 - [Tool Approval Flow](./tool-approval) - Implement approval workflows
 - [How Tools Work](./tool-architecture) - Deep dive into the tool architecture
+- [MCP Server Tools](./mcp) - Connect to external MCP servers for additional tools
