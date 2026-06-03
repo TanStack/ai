@@ -1,45 +1,47 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
-import type { ServerTool } from '@tanstack/ai'
-import { resolveTransport } from './transport'
-import { makeMcpExecute, toServerTools } from './tools'
 import {
-  MCPConnectionError,
   DuplicateToolNameError,
+  MCPConnectionError,
   MCPToolNotFoundError,
 } from './errors'
+import { makeMcpExecute, toServerTools } from './tools'
+import { resolveTransport } from './transport'
 import type {
   AnyToolDefinition,
   AutomaticDescriptor,
-  MappedServerTools,
   MCPClientOptions,
+  MappedServerTools,
   ServerDescriptor,
   ToolsOptions,
 } from './types'
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
+import type { ServerTool } from '@tanstack/ai'
 
 export interface MCPClient<
   TServer extends ServerDescriptor = AutomaticDescriptor,
 > {
   readonly capabilities: TServer['capabilities']
   /** Auto-discovery: every server tool as a ServerTool (args typed `unknown`). */
-  tools(options?: ToolsOptions): Promise<Array<ServerTool>>
-  /** Explicit: bind these TanStack toolDefinitions to the server (typed + validated, allowlist). */
-  tools<const TDefs extends ReadonlyArray<AnyToolDefinition>>(
-    defs: TDefs,
-    options?: ToolsOptions,
-  ): Promise<MappedServerTools<TDefs>>
+  tools: {
+    (options?: ToolsOptions): Promise<Array<ServerTool>>
+    /** Explicit: bind these TanStack toolDefinitions to the server (typed + validated, allowlist). */
+    <const TDefs extends ReadonlyArray<AnyToolDefinition>>(
+      defs: TDefs,
+      options?: ToolsOptions,
+    ): Promise<MappedServerTools<TDefs>>
+  }
   // resources()/readResource()/prompts()/getPrompt() added in Phase 4.
-  close(): Promise<void>
-  [Symbol.asyncDispose](): Promise<void>
+  close: () => Promise<void>
+  [Symbol.asyncDispose]: () => Promise<void>
 }
 
-class MCPClientImpl<_TServer extends ServerDescriptor>
-  implements MCPClient<_TServer>
+class MCPClientImpl<TServer extends ServerDescriptor>
+  implements MCPClient<TServer>
 {
-  capabilities: _TServer['capabilities'] = {}
-  #client: Client
+  capabilities: TServer['capabilities'] = {}
+  readonly #client: Client
   #closed = false
-  private prefix?: string
+  private readonly prefix?: string
 
   constructor(
     prefix?: string,
@@ -68,7 +70,8 @@ class MCPClientImpl<_TServer extends ServerDescriptor>
     const isDefs = Array.isArray(defsOrOptions)
     const options: ToolsOptions = isDefs
       ? maybeOptions
-      : ((defsOrOptions as ToolsOptions) ?? {})
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+      : ((defsOrOptions as ToolsOptions) ?? {}) // SDK interop: defsOrOptions may be undefined at runtime even though TS types it as ToolsOptions here
 
     let tools: Array<ServerTool>
     if (isDefs) {

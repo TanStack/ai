@@ -39,7 +39,7 @@ export interface ToolsOptions {
  * already returns a fully-typed `ServerTool<TInput, TOutput, TName>`, so a
  * mapped tuple over the passed definitions preserves per-tool types.
  */
-export type ServerToolFromDef<D> = D extends ToolDefinition<
+export type ServerToolFromDef<TDef> = TDef extends ToolDefinition<
   infer TInput,
   infer TOutput,
   infer TName

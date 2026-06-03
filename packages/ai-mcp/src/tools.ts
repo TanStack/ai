@@ -45,20 +45,20 @@ export function makeMcpExecute(
 ) {
   return async (args: unknown, ctx?: { abortSignal?: AbortSignal }) => {
     const result = await client.callTool(
-      { name: mcpName, arguments: (args as Record<string, unknown>) ?? {} },
+      { name: mcpName, arguments: (args ?? {}) as Record<string, unknown> },
       undefined,
       { signal: ctx?.abortSignal },
     )
     if (result.isError) {
       const text = Array.isArray(result.content)
-        ? mcpContentToTanstack(result.content as Array<any>)
+        ? mcpContentToTanstack(result.content)
         : 'MCP tool returned an error'
       throw new Error(typeof text === 'string' ? text : JSON.stringify(text))
     }
-    if (preferStructured && (result as any).structuredContent !== undefined) {
-      return (result as any).structuredContent
+    if (preferStructured && result.structuredContent !== undefined) {
+      return result.structuredContent
     }
-    return mcpContentToTanstack((result.content as Array<any>) ?? [])
+    return mcpContentToTanstack(result.content as Array<any>)
   }
 }
 
