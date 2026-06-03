@@ -2,8 +2,12 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import type { ServerTool } from '@tanstack/ai'
 import { resolveTransport } from './transport'
-import { toServerTools } from './tools'
-import { MCPConnectionError, DuplicateToolNameError } from './errors'
+import { makeMcpExecute, toServerTools } from './tools'
+import {
+  MCPConnectionError,
+  DuplicateToolNameError,
+  MCPToolNotFoundError,
+} from './errors'
 import type {
   AnyToolDefinition,
   AutomaticDescriptor,
@@ -68,21 +72,31 @@ class MCPClientImpl<_TServer extends ServerDescriptor>
       ? maybeOptions
       : ((defsOrOptions as ToolsOptions) ?? {})
 
+    let tools: Array<ServerTool>
     if (isDefs) {
-      // TODO(4.1b): implement definition-binding branch
-      throw new Error(
-        'definition-binding mode (tools(defs)) is implemented in the next step',
+      // Explicit path: bind each TanStack toolDefinition to the server by name.
+      const available = new Set(
+        (await this.#client.listTools()).tools.map((t) => t.name),
       )
+      tools = (defsOrOptions as ReadonlyArray<AnyToolDefinition>).map((def) => {
+        if (!available.has(def.name)) throw new MCPToolNotFoundError(def.name)
+        const tool = def.server(
+          makeMcpExecute(this.#client, def.name, Boolean(def.outputSchema)),
+        ) as ServerTool
+        if (this.prefix) tool.name = `${this.prefix}_${def.name}`
+        if (options.lazy) (tool as ServerTool & { lazy?: boolean }).lazy = true
+        return tool
+      })
+    } else {
+      // Auto-discovery path.
+      const defs = (await this.#client.listTools()).tools
+      tools = toServerTools(this.#client, defs, {
+        prefix: this.prefix,
+        lazy: options.lazy,
+      })
     }
 
-    // Auto-discovery path.
-    const defs = (await this.#client.listTools()).tools
-    const tools = toServerTools(this.#client, defs, {
-      prefix: this.prefix,
-      lazy: options.lazy,
-    })
-
-    // Local duplicate guard (within one client's own list).
+    // Local duplicate guard (within one client's own list — applies to both branches).
     const seen = new Set<string>()
     for (const t of tools) {
       if (seen.has(t.name)) throw new DuplicateToolNameError(t.name)
