@@ -11,6 +11,7 @@ overrides:
 
 patchedDependencies:
   '@changesets/assemble-release-plan@6.0.9': patches/@changesets__assemble-release-plan@6.0.9.patch
+  '@copilotkit/aimock@1.27.0': patches/@copilotkit__aimock@1.27.0.patch
 
 packages:
   - 'packages/*'
