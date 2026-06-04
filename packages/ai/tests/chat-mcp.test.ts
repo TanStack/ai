@@ -20,7 +20,10 @@ interface FakeSourceOpts {
 function fakeSource(
   toolNames: ReadonlyArray<string>,
   opts?: FakeSourceOpts,
-): MCPToolSource & { readonly closed: boolean; readonly toolCallCount: number } {
+): MCPToolSource & {
+  readonly closed: boolean
+  readonly toolCallCount: number
+} {
   let closed = false
   let toolCallCount = 0
 
@@ -34,15 +37,18 @@ function fakeSource(
     tools: (options?: { lazy?: boolean }): Promise<Array<ServerTool>> => {
       toolCallCount++
       if (opts?.fail) {
-        return Promise.reject(new Error(`discovery failed for ${toolNames[0] ?? 'unknown'}`))
+        return Promise.reject(
+          new Error(`discovery failed for ${toolNames[0] ?? 'unknown'}`),
+        )
       }
-      const tools: Array<ServerTool> = toolNames.map((name) =>
-        ({
-          __toolSide: 'server' as const,
-          name,
-          description: `MCP tool: ${name}`,
-          execute: (_args: unknown) => ({ mcp: true, tool: name }),
-        }) satisfies ServerTool,
+      const tools: Array<ServerTool> = toolNames.map(
+        (name) =>
+          ({
+            __toolSide: 'server' as const,
+            name,
+            description: `MCP tool: ${name}`,
+            execute: (_args: unknown) => ({ mcp: true, tool: name }),
+          }) satisfies ServerTool,
       )
       // Spy-able: caller can inspect toolCallCount and options via the spy wrapping tools()
       void options // used by spy in lazyTools test
@@ -68,7 +74,13 @@ describe('chat({ mcp })', () => {
 
     const { adapter } = createMockAdapter({
       iterations: [
-        [ev.runStarted(), ev.textStart(), ev.textContent('hi'), ev.textEnd(), ev.runFinished('stop')],
+        [
+          ev.runStarted(),
+          ev.textStart(),
+          ev.textContent('hi'),
+          ev.textEnd(),
+          ev.runFinished('stop'),
+        ],
       ],
     })
 
@@ -91,7 +103,13 @@ describe('chat({ mcp })', () => {
 
     const { adapter } = createMockAdapter({
       iterations: [
-        [ev.runStarted(), ev.textStart(), ev.textContent('hi'), ev.textEnd(), ev.runFinished('stop')],
+        [
+          ev.runStarted(),
+          ev.textStart(),
+          ev.textContent('hi'),
+          ev.textEnd(),
+          ev.runFinished('stop'),
+        ],
       ],
     })
 
@@ -225,7 +243,8 @@ describe('chat({ mcp })', () => {
 
     // There should be a tool result chunk in the stream
     const toolResultChunks = chunks.filter(
-      (c) => c.type === 'TOOL_CALL_RESULT' && 'content' in c && (c as any).content,
+      (c) =>
+        c.type === 'TOOL_CALL_RESULT' && 'content' in c && (c as any).content,
     )
     expect(toolResultChunks.length).toBeGreaterThanOrEqual(1)
   })
@@ -250,7 +269,13 @@ describe('chat({ mcp })', () => {
 
     const { adapter } = createMockAdapter({
       iterations: [
-        [ev.runStarted(), ev.textStart(), ev.textContent('ok'), ev.textEnd(), ev.runFinished('stop')],
+        [
+          ev.runStarted(),
+          ev.textStart(),
+          ev.textContent('ok'),
+          ev.textEnd(),
+          ev.runFinished('stop'),
+        ],
       ],
     })
 
@@ -276,7 +301,13 @@ describe('chat({ mcp })', () => {
 
     const { adapter } = createMockAdapter({
       iterations: [
-        [ev.runStarted(), ev.textStart(), ev.textContent('ok'), ev.textEnd(), ev.runFinished('stop')],
+        [
+          ev.runStarted(),
+          ev.textStart(),
+          ev.textContent('ok'),
+          ev.textEnd(),
+          ev.runFinished('stop'),
+        ],
       ],
     })
 

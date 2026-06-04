@@ -20,7 +20,11 @@ import {
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
-import { createMCPClient, mcpResourceToContentPart, mcpPromptToMessages } from '@tanstack/ai-mcp'
+import {
+  createMCPClient,
+  mcpResourceToContentPart,
+  mcpPromptToMessages,
+} from '@tanstack/ai-mcp'
 import type { StreamChunk, ModelMessage } from '@tanstack/ai'
 import type { MCPClient } from '@tanstack/ai-mcp'
 import { everythingTransport } from '@/lib/mcp-servers'
