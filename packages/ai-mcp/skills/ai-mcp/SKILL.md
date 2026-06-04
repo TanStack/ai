@@ -456,8 +456,12 @@ and do NOT appear in the library's runtime dependency graph.
   methods after `close()`.
 - `MCPToolNotFoundError` — thrown from `client.tools([defs])` when a definition's
   `name` is not exposed by the server.
-- `DuplicateToolNameError` — thrown when two tools end up with the same name
-  (same server or across pool clients with no prefix).
+- `DuplicateToolNameError` — thrown by a single pool's own `tools()` when two
+  tools within that pool share the same name (same server or pool clients with no
+  prefix). Exported from `@tanstack/ai-mcp`.
+- `MCPDuplicateToolNameError` — thrown by `chat()` when tools from separate
+  `mcp.clients` entries collide after merging. Exported from `@tanstack/ai`
+  (not `@tanstack/ai-mcp`), so users can `instanceof` it at the `chat()` call site.
 
 ```typescript
 import {
@@ -465,6 +469,8 @@ import {
   MCPToolNotFoundError,
   DuplicateToolNameError,
 } from '@tanstack/ai-mcp'
+
+import { MCPDuplicateToolNameError } from '@tanstack/ai'
 ```
 
 ## Complete server-route example
@@ -571,9 +577,17 @@ type-check time (unless generated types are in use).
 
 ### d. MEDIUM: not setting a prefix when multiple servers share tool names
 
-If two servers both expose a tool named `search`, the merged pool will throw
-`DuplicateToolNameError`. Use `createMCPClients` (which auto-prefixes by config
-key) or set an explicit `prefix` on each `createMCPClient` call.
+Two different errors can arise depending on where the collision is detected:
+
+- **Within a single `createMCPClients` pool** — calling `pool.tools()` throws
+  `DuplicateToolNameError` (from `@tanstack/ai-mcp`) when two servers in that
+  pool expose the same name with no prefix to separate them.
+- **Across separate `mcp.clients` entries in `chat()`** — `chat()` throws
+  `MCPDuplicateToolNameError` (from `@tanstack/ai`) after merging discovered
+  tools from all `mcp.clients` entries.
+
+In both cases, the fix is the same: use `createMCPClients` (which auto-prefixes
+by config key) or set an explicit `prefix` on each `createMCPClient` call.
 
 ## Cross-References
 

@@ -59,6 +59,9 @@ export type {
   MCPConnectionPolicy,
 } from './activities/chat/mcp/types'
 
+// MCP error classes (value exports — usable with instanceof)
+export { MCPDuplicateToolNameError } from './activities/chat/mcp/manager'
+
 // Schema conversion (Standard JSON Schema compliant)
 export {
   convertSchemaToJsonSchema,

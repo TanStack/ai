@@ -613,11 +613,11 @@ export async function POST(request: Request) {
 
 ### Tool-name collisions
 
-If two sources expose a tool with the same name, `chat()` throws a `DuplicateToolNameError` after merging the discovered tools. Fix it by assigning a `prefix` to one of the clients, or by using `createMCPClients` (which auto-prefixes using the config key).
+If two sources in `mcp.clients` expose a tool with the same name, `chat()` throws an `MCPDuplicateToolNameError` (exported from `@tanstack/ai`) after merging the discovered tools. Fix it by assigning a `prefix` to one of the clients, or by using `createMCPClients` (which auto-prefixes using the config key).
 
 ```ts
 // app/api/chat/route.ts
-import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import { chat, toServerSentEventsResponse, MCPDuplicateToolNameError } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai/adapters'
 import { createMCPClient } from '@tanstack/ai-mcp'
 
@@ -633,7 +633,7 @@ export async function POST(request: Request) {
   }
 
   // Both servers expose a tool called "search". Without prefixes this would
-  // throw DuplicateToolNameError. The prefix option resolves the clash.
+  // throw MCPDuplicateToolNameError. The prefix option resolves the clash.
   const serverA = await createMCPClient({
     transport: { type: 'http', url: process.env.SERVER_A_URL! },
     prefix: 'alpha',   // tools become "alpha_search", etc.
@@ -644,17 +644,24 @@ export async function POST(request: Request) {
     prefix: 'beta',    // tools become "beta_search", etc.
   })
 
-  const stream = chat({
-    adapter: openaiText(),
-    model: 'gpt-4o',
-    messages: body.messages,
-    mcp: {
-      clients: [serverA, serverB],
-      connection: 'close',
-    },
-  })
+  try {
+    const stream = chat({
+      adapter: openaiText(),
+      model: 'gpt-4o',
+      messages: body.messages,
+      mcp: {
+        clients: [serverA, serverB],
+        connection: 'close',
+      },
+    })
 
-  return toServerSentEventsResponse(stream)
+    return toServerSentEventsResponse(stream)
+  } catch (err) {
+    if (err instanceof MCPDuplicateToolNameError) {
+      return new Response(`Tool name conflict: ${err.toolName}`, { status: 409 })
+    }
+    throw err
+  }
 }
 ```
 
