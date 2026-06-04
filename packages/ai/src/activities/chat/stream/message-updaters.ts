@@ -161,10 +161,14 @@ export function updateToolCallApproval(
     )
 
     if (toolCallPart) {
-      toolCallPart.state = 'approval-requested'
-      toolCallPart.approval = {
-        id: approvalId,
-        needsApproval: true,
+      const index = parts.indexOf(toolCallPart)
+      parts[index] = {
+        ...toolCallPart,
+        state: 'approval-requested',
+        approval: {
+          id: approvalId,
+          needsApproval: true,
+        },
       }
     }
 
@@ -192,7 +196,8 @@ export function updateToolCallState(
     )
 
     if (toolCallPart) {
-      toolCallPart.state = state
+      const index = parts.indexOf(toolCallPart)
+      parts[index] = { ...toolCallPart, state }
     }
 
     return { ...msg, parts }
@@ -217,8 +222,12 @@ export function updateToolCallWithOutput(
     )
 
     if (toolCallPart) {
-      toolCallPart.output = errorText ? { error: errorText } : output
-      toolCallPart.state = state ?? (errorText ? 'input-complete' : 'complete')
+      const index = parts.indexOf(toolCallPart)
+      parts[index] = {
+        ...toolCallPart,
+        output: errorText ? { error: errorText } : output,
+        state: state ?? (errorText ? 'input-complete' : 'complete'),
+      }
     }
 
     return { ...msg, parts }
@@ -242,8 +251,12 @@ export function updateToolCallApprovalResponse(
     )
 
     if (toolCallPart && toolCallPart.approval) {
-      toolCallPart.approval.approved = approved
-      toolCallPart.state = 'approval-responded'
+      const index = parts.indexOf(toolCallPart)
+      parts[index] = {
+        ...toolCallPart,
+        approval: { ...toolCallPart.approval, approved },
+        state: 'approval-responded',
+      }
     }
 
     return { ...msg, parts }
