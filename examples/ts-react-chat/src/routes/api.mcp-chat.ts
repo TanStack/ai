@@ -17,8 +17,8 @@ import {
   maxIterations,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai'
 import { createMCPClient } from '@tanstack/ai-mcp'
+import { resolveTextAdapter } from '@/lib/mcp-providers'
 import { everythingTransport, memoryTransport } from '@/lib/mcp-servers'
 
 export const Route = createFileRoute('/api/mcp-chat')({
@@ -63,7 +63,7 @@ export const Route = createFileRoute('/api/mcp-chat')({
           // stream drains — connection: 'close' (the default; shown explicitly).
           // The model is encoded in the adapter; do not pass it separately.
           const stream = chat({
-            adapter: openaiText('gpt-5.5'),
+            adapter: resolveTextAdapter(params.forwardedProps.provider),
             messages: params.messages,
             mcp: {
               clients: [everything, memory],

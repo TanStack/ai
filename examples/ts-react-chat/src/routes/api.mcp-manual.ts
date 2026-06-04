@@ -19,12 +19,12 @@ import {
   maxIterations,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai'
 import {
   createMCPClient,
   mcpResourceToContentPart,
   mcpPromptToMessages,
 } from '@tanstack/ai-mcp'
+import { resolveTextAdapter } from '@/lib/mcp-providers'
 import type { StreamChunk, ModelMessage } from '@tanstack/ai'
 import type { MCPClient } from '@tanstack/ai-mcp'
 import { everythingTransport } from '@/lib/mcp-servers'
@@ -130,7 +130,7 @@ export const Route = createFileRoute('/api/mcp-manual')({
           // keyless MCP server transport which needs no credentials).
           // The model is encoded in the adapter; do not pass it separately.
           const stream = chat({
-            adapter: openaiText('gpt-5.5'),
+            adapter: resolveTextAdapter(params.forwardedProps.provider),
             messages: [...contextMessages, ...params.messages],
             tools,
             agentLoopStrategy: maxIterations(20),

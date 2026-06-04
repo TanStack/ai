@@ -9,6 +9,7 @@ import remarkGfm from 'remark-gfm'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { ThinkingPart } from '@tanstack/ai-react-ui'
 import type { UIMessage } from '@tanstack/ai-react'
+import { MCP_PROVIDERS, type McpProvider } from '@/lib/mcp-providers'
 
 type McpMode = 'manual' | 'chat' | 'pool'
 
@@ -231,16 +232,20 @@ function Messages({ messages }: { messages: Array<UIMessage> }) {
 function ChatSurface({
   endpoint,
   threadId,
+  provider,
 }: {
   endpoint: string
   threadId: string
+  provider: McpProvider
 }) {
   const { messages, sendMessage, isLoading, error, stop } = useChat({
     // A stable threadId is sent to the server (AG-UI `RunAgentInput.threadId`)
     // and used to group this conversation's runs in the TanStack AI devtools.
     threadId,
     connection: fetchServerSentEvents(endpoint),
-    body: { model: 'gpt-5.5' },
+    // `provider` is forwarded to the route (AG-UI forwardedProps); the route
+    // resolves it to the matching text adapter. MCP works the same regardless.
+    body: { provider },
   })
 
   const [input, setInput] = useState('')
@@ -314,19 +319,23 @@ function ChatSurface({
 
 function McpDemoPage() {
   const [mode, setMode] = useState<McpMode>('manual')
+  const [provider, setProvider] = useState<McpProvider>('openai')
 
   const selectedMode = MODES.find((m) => m.value === mode)!
+  const selectedProvider = MCP_PROVIDERS.find((p) => p.value === provider)!
 
   return (
     <div className="flex flex-col h-[calc(100vh-72px)] bg-gray-900">
-      {/* Header / mode selector */}
+      {/* Header / mode + provider selectors */}
       <div className="border-b border-orange-500/20 bg-gray-800 px-4 py-3 shrink-0">
         <p className="text-xs text-gray-400 mb-3">
           These chat against keyless MCP reference servers (server-everything /
-          -memory / -sequential-thinking) spawned via stdio. Requires
-          OPENAI_API_KEY for the LLM; the MCP servers need no keys. First run
-          downloads the servers via npx.
+          -memory / -sequential-thinking) spawned via stdio. The MCP servers
+          need no keys — but the selected LLM provider does (set{' '}
+          <code className="text-gray-300">{selectedProvider.envKey}</code> in
+          your environment). First run downloads the servers via npx.
         </p>
+
         <div className="flex gap-2 flex-wrap">
           {MODES.map((m) => (
             <label
@@ -349,14 +358,44 @@ function McpDemoPage() {
             </label>
           ))}
         </div>
+
+        {/* Provider selector — MCP tool discovery/execution is provider-agnostic */}
+        <div className="mt-3 flex items-center gap-2 flex-wrap">
+          <span className="text-xs uppercase tracking-wide text-gray-500">
+            Provider
+          </span>
+          {MCP_PROVIDERS.map((p) => (
+            <label
+              key={p.value}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border cursor-pointer transition-colors text-sm ${
+                provider === p.value
+                  ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300'
+                  : 'border-gray-600 bg-gray-700/50 text-gray-300 hover:border-cyan-500/50'
+              }`}
+            >
+              <input
+                type="radio"
+                name="mcp-provider"
+                value={p.value}
+                checked={provider === p.value}
+                onChange={() => setProvider(p.value)}
+                className="sr-only"
+              />
+              <span className="font-medium">{p.label}</span>
+              <span className="text-xs text-gray-500">{p.model}</span>
+            </label>
+          ))}
+        </div>
+
         <p className="mt-2 text-xs text-gray-400">{selectedMode.description}</p>
       </div>
 
-      {/* Remount the chat surface on mode change so each mode gets a fresh session */}
+      {/* Remount the chat surface on mode/provider change so each combo gets a fresh session */}
       <ChatSurface
-        key={mode}
+        key={`${mode}-${provider}`}
         endpoint={selectedMode.endpoint}
-        threadId={`mcp-${mode}`}
+        threadId={`mcp-${mode}-${provider}`}
+        provider={provider}
       />
     </div>
   )
