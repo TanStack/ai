@@ -45,10 +45,7 @@ Currently supported:
 import { generateVideo } from '@tanstack/ai'
 import { openaiVideo } from '@tanstack/ai-openai'
 
-// Create a video adapter (uses OPENAI_API_KEY from environment)
-const adapter = openaiVideo()
-
-// Start a video generation job
+// Start a video generation job (the adapter uses OPENAI_API_KEY from environment)
 const { jobId, model } = await generateVideo({
   adapter: openaiVideo('sora-2'),
   prompt: 'A golden retriever puppy playing in a field of sunflowers',
@@ -89,7 +86,6 @@ const result = await getVideoJobStatus({
 
 if (result.status === 'completed' && result.url) {
   console.log('Video URL:', result.url)
-  console.log('Expires at:', result.expiresAt)
 }
 ```
 
@@ -99,9 +95,7 @@ if (result.status === 'completed' && result.url) {
 import { generateVideo, getVideoJobStatus } from '@tanstack/ai'
 import { openaiVideo } from '@tanstack/ai-openai'
 
-async function generateVideo(prompt: string) {
-  const adapter = openaiVideo()
-
+async function createAndAwaitVideo(prompt: string) {
   // 1. Create the job
   const { jobId } = await generateVideo({
     adapter: openaiVideo('sora-2'),
@@ -145,7 +139,7 @@ async function generateVideo(prompt: string) {
 }
 
 // Usage
-const videoUrl = await generateVideo('A cat playing piano in a jazz bar')
+const videoUrl = await createAndAwaitVideo('A cat playing piano in a jazz bar')
 console.log('Video ready:', videoUrl)
 ```
 
@@ -342,7 +336,7 @@ The `useGenerateVideo` hook accepts all common options plus video-specific callb
 |--------|------|-------------|
 | `connection` | `ConnectionAdapter` | Streaming transport (SSE, HTTP stream, custom) |
 | `fetcher` | `(input) => Promise<VideoGenerateResult \| Response>` | Direct async function, or server function returning an SSE `Response` |
-| `onResult` | `(result) => void` | Callback when video is ready |
+| `onResult` | `(result) => TOutput \| null \| void` | Callback when video is ready. Optionally return a transformed value to store as `result` |
 | `onError` | `(error) => void` | Callback on error |
 | `onProgress` | `(progress, message?) => void` | Progress updates (0-100) |
 | `onJobCreated` | `(jobId: string) => void` | Callback when the job is created |
@@ -407,12 +401,14 @@ const { jobId } = await generateVideo({
   duration: 8,           // 4, 8, or 12 seconds
   modelOptions: {
     size: '1280x720',    // Alternative way to specify size
-    seconds: 8,          // Alternative way to specify duration
+    seconds: '8',        // Alternative way to specify duration ('4' | '8' | '12')
   }
 })
 ```
 
 ## Response Types
+
+> **Note:** The interfaces below are the underlying adapter-level types. The `getVideoJobStatus()` helper returns a single merged object, `{ status, progress?, url?, error? }` — it does not return `jobId` or `expiresAt`.
 
 ### VideoJobResult (from create)
 
@@ -508,7 +504,7 @@ For production use or when you need explicit control:
 ```typescript
 import { createOpenaiVideo } from '@tanstack/ai-openai'
 
-const adapter = createOpenaiVideo('your-openai-api-key')
+const adapter = createOpenaiVideo('sora-2', 'your-openai-api-key')
 ```
 
 ## Differences from Image Generation

@@ -28,6 +28,7 @@ import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiOpenrouterWebToolsWireRouteImport } from './routes/api.openrouter-web-tools-wire'
 import { Route as ApiOpenrouterCostRouteImport } from './routes/api.openrouter-cost'
 import { Route as ApiOpenaiUsageDetailsRouteImport } from './routes/api.openai-usage-details'
+import { Route as ApiOpenaiShellSkillsWireRouteImport } from './routes/api.openai-shell-skills-wire'
 import { Route as ApiMultimodalToolResultWireRouteImport } from './routes/api.multimodal-tool-result-wire'
 import { Route as ApiMiddlewareTestRouteImport } from './routes/api.middleware-test'
 import { Route as ApiMcpTestRouteImport } from './routes/api.mcp-test'
@@ -37,6 +38,7 @@ import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
 import { Route as ApiArktypeToolWireRouteImport } from './routes/api.arktype-tool-wire'
+import { Route as ApiAnthropicSkillsWireRouteImport } from './routes/api.anthropic-skills-wire'
 import { Route as ApiAnthropicBugTestRouteImport } from './routes/api.anthropic-bug-test'
 import { Route as ProviderFeatureRouteImport } from './routes/$provider/$feature'
 import { Route as ApiVideoStreamRouteImport } from './routes/api.video.stream'
@@ -141,6 +143,12 @@ const ApiOpenaiUsageDetailsRoute = ApiOpenaiUsageDetailsRouteImport.update({
   path: '/api/openai-usage-details',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOpenaiShellSkillsWireRoute =
+  ApiOpenaiShellSkillsWireRouteImport.update({
+    id: '/api/openai-shell-skills-wire',
+    path: '/api/openai-shell-skills-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiMultimodalToolResultWireRoute =
   ApiMultimodalToolResultWireRouteImport.update({
     id: '/api/multimodal-tool-result-wire',
@@ -185,6 +193,11 @@ const ApiAudioRoute = ApiAudioRouteImport.update({
 const ApiArktypeToolWireRoute = ApiArktypeToolWireRouteImport.update({
   id: '/api/arktype-tool-wire',
   path: '/api/arktype-tool-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAnthropicSkillsWireRoute = ApiAnthropicSkillsWireRouteImport.update({
+  id: '/api/anthropic-skills-wire',
+  path: '/api/anthropic-skills-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAnthropicBugTestRoute = ApiAnthropicBugTestRouteImport.update({
@@ -236,6 +249,7 @@ export interface FileRoutesByFullPath {
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
@@ -245,6 +259,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp-test': typeof ApiMcpTestRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
+  '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
@@ -273,6 +288,7 @@ export interface FileRoutesByTo {
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
@@ -282,6 +298,7 @@ export interface FileRoutesByTo {
   '/api/mcp-test': typeof ApiMcpTestRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
+  '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
@@ -311,6 +328,7 @@ export interface FileRoutesById {
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
@@ -320,6 +338,7 @@ export interface FileRoutesById {
   '/api/mcp-test': typeof ApiMcpTestRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
+  '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
@@ -350,6 +369,7 @@ export interface FileRouteTypes {
     | '/tools-test'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
+    | '/api/anthropic-skills-wire'
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/chat'
@@ -359,6 +379,7 @@ export interface FileRouteTypes {
     | '/api/mcp-test'
     | '/api/middleware-test'
     | '/api/multimodal-tool-result-wire'
+    | '/api/openai-shell-skills-wire'
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
     | '/api/openrouter-web-tools-wire'
@@ -387,6 +408,7 @@ export interface FileRouteTypes {
     | '/tools-test'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
+    | '/api/anthropic-skills-wire'
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/chat'
@@ -396,6 +418,7 @@ export interface FileRouteTypes {
     | '/api/mcp-test'
     | '/api/middleware-test'
     | '/api/multimodal-tool-result-wire'
+    | '/api/openai-shell-skills-wire'
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
     | '/api/openrouter-web-tools-wire'
@@ -424,6 +447,7 @@ export interface FileRouteTypes {
     | '/tools-test'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
+    | '/api/anthropic-skills-wire'
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/chat'
@@ -433,6 +457,7 @@ export interface FileRouteTypes {
     | '/api/mcp-test'
     | '/api/middleware-test'
     | '/api/multimodal-tool-result-wire'
+    | '/api/openai-shell-skills-wire'
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
     | '/api/openrouter-web-tools-wire'
@@ -462,6 +487,7 @@ export interface RootRouteChildren {
   ToolsTestRoute: typeof ToolsTestRoute
   ProviderFeatureRoute: typeof ProviderFeatureRoute
   ApiAnthropicBugTestRoute: typeof ApiAnthropicBugTestRoute
+  ApiAnthropicSkillsWireRoute: typeof ApiAnthropicSkillsWireRoute
   ApiArktypeToolWireRoute: typeof ApiArktypeToolWireRoute
   ApiAudioRoute: typeof ApiAudioRouteWithChildren
   ApiChatRoute: typeof ApiChatRoute
@@ -471,6 +497,7 @@ export interface RootRouteChildren {
   ApiMcpTestRoute: typeof ApiMcpTestRoute
   ApiMiddlewareTestRoute: typeof ApiMiddlewareTestRoute
   ApiMultimodalToolResultWireRoute: typeof ApiMultimodalToolResultWireRoute
+  ApiOpenaiShellSkillsWireRoute: typeof ApiOpenaiShellSkillsWireRoute
   ApiOpenaiUsageDetailsRoute: typeof ApiOpenaiUsageDetailsRoute
   ApiOpenrouterCostRoute: typeof ApiOpenrouterCostRoute
   ApiOpenrouterWebToolsWireRoute: typeof ApiOpenrouterWebToolsWireRoute
@@ -617,6 +644,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOpenaiUsageDetailsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/openai-shell-skills-wire': {
+      id: '/api/openai-shell-skills-wire'
+      path: '/api/openai-shell-skills-wire'
+      fullPath: '/api/openai-shell-skills-wire'
+      preLoaderRoute: typeof ApiOpenaiShellSkillsWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/multimodal-tool-result-wire': {
       id: '/api/multimodal-tool-result-wire'
       path: '/api/multimodal-tool-result-wire'
@@ -678,6 +712,13 @@ declare module '@tanstack/react-router' {
       path: '/api/arktype-tool-wire'
       fullPath: '/api/arktype-tool-wire'
       preLoaderRoute: typeof ApiArktypeToolWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/anthropic-skills-wire': {
+      id: '/api/anthropic-skills-wire'
+      path: '/api/anthropic-skills-wire'
+      fullPath: '/api/anthropic-skills-wire'
+      preLoaderRoute: typeof ApiAnthropicSkillsWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/anthropic-bug-test': {
@@ -803,6 +844,7 @@ const rootRouteChildren: RootRouteChildren = {
   ToolsTestRoute: ToolsTestRoute,
   ProviderFeatureRoute: ProviderFeatureRoute,
   ApiAnthropicBugTestRoute: ApiAnthropicBugTestRoute,
+  ApiAnthropicSkillsWireRoute: ApiAnthropicSkillsWireRoute,
   ApiArktypeToolWireRoute: ApiArktypeToolWireRoute,
   ApiAudioRoute: ApiAudioRouteWithChildren,
   ApiChatRoute: ApiChatRoute,
@@ -812,6 +854,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpTestRoute: ApiMcpTestRoute,
   ApiMiddlewareTestRoute: ApiMiddlewareTestRoute,
   ApiMultimodalToolResultWireRoute: ApiMultimodalToolResultWireRoute,
+  ApiOpenaiShellSkillsWireRoute: ApiOpenaiShellSkillsWireRoute,
   ApiOpenaiUsageDetailsRoute: ApiOpenaiUsageDetailsRoute,
   ApiOpenrouterCostRoute: ApiOpenrouterCostRoute,
   ApiOpenrouterWebToolsWireRoute: ApiOpenrouterWebToolsWireRoute,

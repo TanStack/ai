@@ -71,7 +71,7 @@ import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 const response = await chat({
-  adapter: openaiText('gpt-5.2'),
+  adapter: openaiText('gpt-5.5'),
   messages: [
     {
       role: 'user',
@@ -99,7 +99,7 @@ OpenAI supports images and audio in their vision and audio models:
 ```typescript
 import { openaiText } from '@tanstack/ai-openai'
 
-const adapter = openaiText()
+const adapter = openaiText('gpt-5.5')
 
 // Image with detail level metadata
 const message = {
@@ -117,7 +117,7 @@ const message = {
 
 **Supported modalities by model:**
 - `gpt-5.2`, `gpt-5-mini`: text, image
-- `gpt-5.2-audio-preview`: text, image, audio
+- `gpt-4o-audio`: text, audio
 
 ### Anthropic
 
@@ -126,7 +126,7 @@ Anthropic's Claude models support images and PDF documents:
 ```typescript
 import { anthropicText } from '@tanstack/ai-anthropic'
 
-const adapter = anthropicText()
+const adapter = anthropicText('claude-sonnet-4-6')
 
 // Image with mimeType in source
 const imageMessage = {
@@ -154,8 +154,9 @@ const docMessage = {
 ```
 
 **Supported modalities:**
-- Claude 3 models: text, image
-- Claude 3.5 models: text, image, document (PDF)
+- Most Claude models (e.g. `claude-haiku-3`, `claude-haiku-4-5`, `claude-sonnet-4-6`, `claude-opus-4.8`): text, image, and document (PDF)
+
+Check each model's `supports.input` in `@tanstack/ai-anthropic`'s `model-meta.ts` for the authoritative per-model list.
 
 ### Gemini
 
@@ -164,7 +165,7 @@ Google's Gemini models support a wide range of modalities:
 ```typescript
 import { geminiText } from '@tanstack/ai-gemini'
 
-const adapter = geminiText()
+const adapter = geminiText('gemini-3-flash-preview')
 
 // Image with mimeType in source
 const message = {
@@ -180,8 +181,7 @@ const message = {
 ```
 
 **Supported modalities:**
-- `gemini-1.5-pro`, `gemini-1.5-flash`: text, image, audio, video, document
-- `gemini-2.0-flash`: text, image, audio, video, document
+- `gemini-2.0-flash`: text, image, audio, video
 
 ### Ollama
 
@@ -190,7 +190,9 @@ Ollama supports images in compatible models:
 ```typescript
 import { ollamaText } from '@tanstack/ai-ollama'
 
-const adapter = ollamaText('http://localhost:11434')
+// `ollamaText(model)` takes a model name. The host is read from the
+// `OLLAMA_HOST` environment variable (defaults to http://localhost:11434).
+const adapter = ollamaText('llama3.2-vision')
 
 // Image as base64
 const message = {
@@ -290,7 +292,7 @@ import type {
 // Provider-specific metadata types
 import type { OpenAIImageMetadata } from '@tanstack/ai-openai'
 import type { AnthropicImageMetadata } from '@tanstack/ai-anthropic'
-import type { GeminiMediaMetadata } from '@tanstack/ai-gemini'
+import type { GeminiImageMetadata } from '@tanstack/ai-gemini'
 ```
 
 ### Validating Dynamic Messages
@@ -311,7 +313,10 @@ const ContentPartSchema = z.discriminatedUnion('type', [
 ])
 
 const MessageSchema = z.object({
-  role: z.enum(['user', 'assistant', 'system']),
+  // `ModelMessage.role` is 'user' | 'assistant' | 'tool' — there is no
+  // 'system' role. System instructions are passed separately via the
+  // `systemPrompts` option on `chat()`, not as messages.
+  role: z.enum(['user', 'assistant', 'tool']),
   content: z.union([z.string(), z.array(ContentPartSchema)]),
 })
 
@@ -321,7 +326,7 @@ const BodySchema = z.object({ messages: z.array(MessageSchema) })
 const { messages } = BodySchema.parse(await request.json())
 
 const stream = chat({
-  adapter: openaiText('gpt-5.2'),
+  adapter: openaiText('gpt-5.5'),
   messages,
 })
 ```
@@ -477,8 +482,7 @@ function ChatWithFileUpload() {
         { type: 'text', content: `Please analyze this ${type}` },
         {
           type,
-          source: { type: 'data', value: base64 },
-          metadata: { mimeType: file.type }
+          source: { type: 'data', value: base64, mimeType: file.type }
         }
       ]
     })

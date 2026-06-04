@@ -211,8 +211,13 @@ function CodeExecutionPanel({
   );
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
 function EventLine({ event }: { event: VMEvent }) {
-  const data = event.data as Record<string, unknown>;
+  if (!isRecord(event.data)) return null;
+  const data = event.data;
 
   switch (event.eventType) {
     case "code_mode:console":

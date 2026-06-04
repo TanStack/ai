@@ -66,11 +66,11 @@ const model = createModel(
  
 ## Model Definition Structure
 
-Each custom model definition has three properties:
+A custom model definition (`ExtendedModelDef`) has the required properties `name`, `input`, and `modelOptions`, plus optional `features` and `tools`. The two `createModel` overloads let you fill these in two ways.
 
 ### Defining Input Modalities
 
-The `input` array specifies which content types your model supports:
+The positional form takes a model name and an `input` array specifying which content types your model supports:
 
 ```typescript
 const models = [
@@ -80,6 +80,30 @@ const models = [
 ```
 
 Available modalities: `'text'`, `'image'`, `'audio'`, `'video'`, `'document'`
+
+### Capabilities-object form
+
+To attach typed `modelOptions`, declared `features`, or provider `tools` to a custom model, use the second `createModel` overload, which takes a capabilities object as its second argument:
+
+```typescript
+import { createModel } from '@tanstack/ai'
+import type { OpenAITextProviderOptions } from '@tanstack/ai-openai'
+
+// Type brand for provider options — the value is unused at runtime.
+const modelOptions: OpenAITextProviderOptions = {}
+
+const reasoner = createModel('my-reasoner', {
+  input: ['text'],
+  features: ['reasoning', 'structured_outputs'],
+  tools: ['web_search'],
+  modelOptions,
+})
+```
+
+- `input` — supported input modalities (same as the positional form).
+- `features` — declared feature flags (e.g. `'reasoning'`, `'structured_outputs'`).
+- `tools` — declared provider tools (e.g. `'web_search'`).
+- `modelOptions` — a type brand for the provider options accepted by this model; the value is unused at runtime, so declare an empty object typed as the provider options (e.g. `const modelOptions: OpenAITextProviderOptions = {}`).
  
 ## Preserving Original Factory Behavior
 

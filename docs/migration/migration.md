@@ -197,6 +197,8 @@ These options are now available at the top level:
 - `maxTokens` - Maximum tokens to generate
 - `metadata` - Additional metadata to attach
 
+> **Heads up — sampling has since moved (breaking).** In a later release, the sampling props (`temperature`, `topP`, `maxTokens`) were removed from the root of `chat()` and now live in provider-native `modelOptions`. Passing them at the root no longer type-checks or takes effect. See [Moving Sampling Options into modelOptions](./sampling-options-to-model-options) for the codemod and provider-native key names. `metadata` stays at the root.
+
 ## 3. `providerOptions` → `modelOptions`
 
 The `providerOptions` parameter has been renamed to `modelOptions` for clarity. This parameter contains model-specific options that vary by provider and model.
@@ -459,9 +461,11 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: openaiText('gpt-5.2'),
     messages,
-    temperature: 0.7,
-    maxTokens: 1000,
+    // Sampling now lives in provider-native `modelOptions` (OpenAI Responses
+    // keys: `temperature`, `max_output_tokens`). `metadata` stays at the root.
     modelOptions: {
+      temperature: 0.7,
+      max_output_tokens: 1000,
       responseFormat: { type: 'json_object' },
     },
     abortController,

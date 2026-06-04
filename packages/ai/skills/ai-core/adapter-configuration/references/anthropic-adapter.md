@@ -39,12 +39,15 @@ Note: Model IDs use the format `claude-opus-4-6`, `claude-sonnet-4-6`, etc.
 chat({
   adapter: anthropicText('claude-sonnet-4-6'),
   messages,
-  maxTokens: 16000,
   modelOptions: {
+    // Sampling
+    temperature: 0.7,
+    top_p: 0.9, // cannot be combined with temperature
+    max_tokens: 16000,
     // Extended thinking (budget-based)
     thinking: {
       type: 'enabled',
-      budget_tokens: 8000, // must be >= 1024 and < maxTokens
+      budget_tokens: 8000, // must be >= 1024 and < max_tokens
     },
     // Adaptive thinking (claude-sonnet-4-6, claude-opus-4-6+)
     thinking: {
@@ -89,7 +92,7 @@ ANTHROPIC_API_KEY
 
 ## Gotchas
 
-- `thinking.budget_tokens` must be >= 1024 AND less than `maxTokens`.
+- `thinking.budget_tokens` must be >= 1024 AND less than `modelOptions.max_tokens`.
   Failing either check throws a validation error.
 - Cannot set both `top_p` and `temperature` at the same time (throws error).
 - `claude-3-5-haiku` and `claude-3-haiku` do NOT support extended thinking.

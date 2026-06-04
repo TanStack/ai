@@ -14,6 +14,7 @@ import {
 } from '../src/adapters/text'
 import { EventType } from '@tanstack/ai'
 import type { StreamChunk, Tool } from '@tanstack/ai'
+import type { GroqTextProviderOptions } from '../src/index'
 
 // Test helper: a silent logger for test chatStream calls.
 const testLogger = resolveDebugOption(false)
@@ -147,6 +148,44 @@ describe('Groq adapters', () => {
       // override to `false` because the upstream API returns 400 on
       // `response_format` + `tools` + `stream`.
       expect(adapter.supportsCombinedToolsAndSchema()).toBe(false)
+    })
+
+    it('forwards sampling options from modelOptions with Groq wire names', async () => {
+      const streamChunks = [
+        {
+          id: 'chatcmpl-sampling',
+          model: 'llama-3.3-70b-versatile',
+          choices: [{ delta: {}, finish_reason: 'stop' }],
+          x_groq: {
+            usage: { prompt_tokens: 1, completion_tokens: 0, total_tokens: 1 },
+          },
+        },
+      ]
+
+      const mockCreate = setupMockSdkClient(streamChunks)
+      const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
+
+      const modelOptions: GroqTextProviderOptions = {
+        temperature: 0.5,
+        top_p: 0.8,
+        max_completion_tokens: 128,
+      }
+
+      for await (const _ of adapter.chatStream({
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'user', content: 'Hello' }],
+        modelOptions,
+        logger: testLogger,
+      })) {
+        // consume stream
+      }
+
+      expect(mockCreate).toHaveBeenCalledTimes(1)
+      expect(mockCreate.mock.calls[0]?.[0]).toMatchObject({
+        temperature: 0.5,
+        top_p: 0.8,
+        max_completion_tokens: 128,
+      })
     })
   })
 })

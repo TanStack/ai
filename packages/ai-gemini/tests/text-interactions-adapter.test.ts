@@ -229,6 +229,46 @@ describe('GeminiTextInteractionsAdapter', () => {
     ])
   })
 
+  it('reads sampling from modelOptions.generation_config into the request generation_config', async () => {
+    mocks.interactionsCreateSpy.mockResolvedValue(
+      mkStream([
+        {
+          event_type: 'interaction.start',
+          interaction: { id: 'int_gen', status: 'in_progress' },
+        },
+        {
+          event_type: 'interaction.complete',
+          interaction: { id: 'int_gen', status: 'completed' },
+        },
+      ]),
+    )
+
+    const adapter = createAdapter()
+    const providerOptions: GeminiTextInteractionsProviderOptions = {
+      generation_config: {
+        temperature: 0.6,
+        top_p: 0.95,
+        max_output_tokens: 512,
+      },
+    }
+
+    await collectChunks(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'hi' }],
+        modelOptions: providerOptions,
+      }),
+    )
+
+    expect(mocks.interactionsCreateSpy).toHaveBeenCalledTimes(1)
+    const [payload] = mocks.interactionsCreateSpy.mock.calls[0]!
+    expect(payload.generation_config).toMatchObject({
+      temperature: 0.6,
+      top_p: 0.95,
+      max_output_tokens: 512,
+    })
+  })
+
   it('includes trailing tool result when chaining with previous_interaction_id', async () => {
     mocks.interactionsCreateSpy.mockResolvedValue(
       mkStream([

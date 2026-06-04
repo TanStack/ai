@@ -8,7 +8,6 @@ import {
   validateVideoSeconds,
   validateVideoSize,
 } from '../video/video-provider-options'
-import type { VideoModel } from 'openai/resources'
 import type {
   VideoGenerationOptions,
   VideoJobResult,
@@ -94,7 +93,7 @@ export class OpenAIVideoAdapter<
     validateVideoSeconds(model, seconds)
 
     const request: OpenAI_SDK.Videos.VideoCreateParams = {
-      model: model as VideoModel,
+      model,
       prompt: options.prompt,
     }
     // `VideoCreateParams.size` is `size?: VideoSize` (no `| undefined`), so we

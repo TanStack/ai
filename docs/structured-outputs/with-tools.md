@@ -43,7 +43,7 @@ const RecommendationSchema = z.object({
 });
 
 const recommendation = await chat({
-  adapter: openaiText("gpt-5.2"),
+  adapter: openaiText("gpt-5.5"),
   messages: [{ role: "user", content: "Recommend a product for a developer" }],
   tools: [getProductPrice],
   outputSchema: RecommendationSchema,

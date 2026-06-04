@@ -101,7 +101,8 @@ const localStoragePersistence: ChatClientPersistence = {
   getItem: (id) => {
     const raw = window.localStorage.getItem(id);
     if (!raw) return null;
-    return (JSON.parse(raw) as Array<UIMessage>).map((message) => ({
+    const stored: Array<UIMessage> = JSON.parse(raw);
+    return stored.map((message) => ({
       ...message,
       createdAt:
         typeof message.createdAt === "string"

@@ -97,7 +97,7 @@ describe('chat()', () => {
       expect(calls[0]!.systemPrompts).toEqual(['You are a helpful assistant'])
     })
 
-    it('should pass temperature, topP, maxTokens to the adapter', async () => {
+    it('should pass sampling modelOptions (temperature, topP, maxTokens) to the adapter', async () => {
       const { adapter, calls } = createMockAdapter({
         iterations: [[ev.runStarted(), ev.runFinished('stop')]],
       })
@@ -105,16 +105,20 @@ describe('chat()', () => {
       const stream = chat({
         adapter,
         messages: [{ role: 'user', content: 'Hello' }],
-        temperature: 0.5,
-        topP: 0.9,
-        maxTokens: 100,
+        modelOptions: {
+          temperature: 0.5,
+          topP: 0.9,
+          maxTokens: 100,
+        },
       })
 
       await collectChunks(stream as AsyncIterable<StreamChunk>)
 
-      expect(calls[0]!.temperature).toBe(0.5)
-      expect(calls[0]!.topP).toBe(0.9)
-      expect(calls[0]!.maxTokens).toBe(100)
+      expect(calls[0]!.modelOptions).toMatchObject({
+        temperature: 0.5,
+        topP: 0.9,
+        maxTokens: 100,
+      })
     })
   })
 
@@ -1278,11 +1282,11 @@ describe('chat()', () => {
       const options = createChatOptions({
         adapter,
         messages: [{ role: 'user', content: 'Hello' }],
-        temperature: 0.7,
+        modelOptions: { temperature: 0.7 },
       })
 
       expect(options.adapter).toBe(adapter)
-      expect(options.temperature).toBe(0.7)
+      expect(options.modelOptions).toEqual({ temperature: 0.7 })
       expect(options.messages).toEqual([{ role: 'user', content: 'Hello' }])
     })
   })

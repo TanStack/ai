@@ -5,7 +5,7 @@ import type {
   BetaToolChoiceTool,
 } from '@anthropic-ai/sdk/resources/beta/messages/messages'
 import type { CacheControlEphemeral } from '@anthropic-ai/sdk/resources'
-import type { AnthropicTool } from '../tools'
+import type { AnthropicContainerSkill, AnthropicTool } from '../tools'
 import type {
   MessageParam,
   TextBlockParam,
@@ -49,20 +49,14 @@ export interface AnthropicContainerOptions {
   container?: {
     id: string | null
     /**
-     * List of skills to load into the container
+     * List of skills to load into the container.
+     *
+     * @deprecated Configure skills on the `code_execution` tool instead:
+     * `codeExecutionTool(config, { skills })`. The adapter lifts those into
+     * `container.skills` and attaches the required beta headers. Setting
+     * skills here bypasses the beta-header wiring and may stop working.
      */
-    skills: Array<{
-      /**
-       * Between 1-64 characters
-       */
-      skill_id: string
-
-      type: 'anthropic' | 'custom'
-      /**
-       * Skill version or latest by default
-       */
-      version?: string
-    }> | null
+    skills: Array<AnthropicContainerSkill> | null
   } | null
 }
 
@@ -206,6 +200,24 @@ Recommended for advanced use cases only. You usually only need to use temperatur
 Required range: x >= 0
    */
   top_k?: number
+  /**
+   * Amount of randomness injected into the response.
+   * Either use this or top_p, but not both.
+   * Defaults to 1.0. Ranges from 0.0 to 1.0. Use temperature closer to 0.0 for analytical / multiple choice, and closer to 1.0 for creative and generative tasks.
+   * @default 1.0
+   */
+  temperature?: number
+  /**
+   * Use nucleus sampling.
+   *
+   * In nucleus sampling, we compute the cumulative distribution over all the options for each subsequent token in decreasing probability order and cut it off once it reaches a particular probability specified by top_p. You should either alter temperature or top_p, but not both.
+   */
+  top_p?: number
+  /**
+   * The maximum number of tokens to generate before stopping. This parameter only specifies the absolute maximum number of tokens to generate. Required by the API; the adapter defaults to 1024 when omitted.
+   * Range x >= 1.
+   */
+  max_tokens?: number
 }
 
 export type ExternalTextProviderOptions = AnthropicContainerOptions &
@@ -244,13 +256,6 @@ export interface InternalTextProviderOptions extends ExternalTextProviderOptions
    * such as specifying a particular goal or role.
    */
   system?: string | Array<TextBlockParam>
-  /**
-   * Amount of randomness injected into the response.
-   * Either use this or top_p, but not both.
-   * Defaults to 1.0. Ranges from 0.0 to 1.0. Use temperature closer to 0.0 for analytical / multiple choice, and closer to 1.0 for creative and generative tasks.
-   * @default 1.0
-   */
-  temperature?: number
 
   tools?: Array<AnthropicTool>
 
@@ -276,13 +281,6 @@ export interface InternalTextProviderOptions extends ExternalTextProviderOptions
       schema: Record<string, unknown>
     }
   }
-
-  /**
-   * Use nucleus sampling.
-
-In nucleus sampling, we compute the cumulative distribution over all the options for each subsequent token in decreasing probability order and cut it off once it reaches a particular probability specified by top_p. You should either alter temperature or top_p, but not both.
-   */
-  top_p?: number
 }
 
 const validateTopPandTemperature = (options: InternalTextProviderOptions) => {

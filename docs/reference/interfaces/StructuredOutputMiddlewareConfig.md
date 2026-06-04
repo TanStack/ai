@@ -5,7 +5,7 @@ title: StructuredOutputMiddlewareConfig
 
 # Interface: StructuredOutputMiddlewareConfig
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:150](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L150)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:147](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L147)
 
 Config passed to onStructuredOutputConfig.
 
@@ -21,20 +21,6 @@ vendor-incompatible keywords) by returning a partial that includes
 - `Omit`\<[`ChatMiddlewareConfig`](ChatMiddlewareConfig.md), `"tools"`\>
 
 ## Properties
-
-### maxTokens?
-
-```ts
-optional maxTokens: number;
-```
-
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:135](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L135)
-
-#### Inherited from
-
-[`ChatMiddlewareConfig`](ChatMiddlewareConfig.md).[`maxTokens`](ChatMiddlewareConfig.md#maxtokens)
-
-***
 
 ### messages
 
@@ -59,7 +45,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:130](https://gi
 optional metadata: Record<string, unknown>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:136](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L136)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:133](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L133)
 
 #### Inherited from
 
@@ -73,7 +59,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:136](https://gi
 optional modelOptions: Record<string, unknown>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:137](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L137)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:134](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L134)
 
 #### Inherited from
 
@@ -87,7 +73,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:137](https://gi
 outputSchema: JSONSchema;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:155](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L155)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:152](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L152)
 
 JSON Schema being sent to the provider for structured output.
 
@@ -104,31 +90,3 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:131](https://gi
 #### Inherited from
 
 [`ChatMiddlewareConfig`](ChatMiddlewareConfig.md).[`systemPrompts`](ChatMiddlewareConfig.md#systemprompts)
-
-***
-
-### temperature?
-
-```ts
-optional temperature: number;
-```
-
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:133](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L133)
-
-#### Inherited from
-
-[`ChatMiddlewareConfig`](ChatMiddlewareConfig.md).[`temperature`](ChatMiddlewareConfig.md#temperature)
-
-***
-
-### topP?
-
-```ts
-optional topP: number;
-```
-
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:134](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L134)
-
-#### Inherited from
-
-[`ChatMiddlewareConfig`](ChatMiddlewareConfig.md).[`topP`](ChatMiddlewareConfig.md#topp)

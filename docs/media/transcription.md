@@ -33,10 +33,7 @@ Currently supported:
 import { generateTranscription } from '@tanstack/ai'
 import { openaiTranscription } from '@tanstack/ai-openai'
 
-// Create a transcription adapter (uses OPENAI_API_KEY from environment)
-const adapter = openaiTranscription()
-
-// Transcribe audio from a file
+// Transcribe audio from a file (the adapter uses OPENAI_API_KEY from environment)
 const audioFile = new File([audioBuffer], 'audio.mp3', { type: 'audio/mpeg' })
 
 const result = await generateTranscription({
@@ -135,20 +132,21 @@ Whisper supports many languages. Common codes include:
 const result = await generateTranscription({
   adapter: openaiTranscription('whisper-1'),
   audio: audioFile,
+  responseFormat: 'verbose_json', // Top-level: detailed output with timestamps
+  prompt: 'Technical terms: API, SDK, CLI', // Top-level: guide transcription
   modelOptions: {
-    response_format: 'verbose_json', // Get detailed output with timestamps
-    temperature: 0, // Lower = more deterministic
-    prompt: 'Technical terms: API, SDK, CLI', // Guide transcription
+    temperature: 0, // Lower = more deterministic (provider option)
   },
 })
 ```
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `response_format` | `string` | Output format: "json", "text", "srt", "verbose_json", "vtt" |
 | `temperature` | `number` | Sampling temperature (0 to 1) |
-| `prompt` | `string` | Optional text to guide transcription style |
-| `include` | `string[]` | Timestamp granularity: ["word"], ["segment"], or both |
+| `timestamp_granularities` | `Array<'word' \| 'segment'>` | Timestamp granularity to populate (requires top-level `responseFormat: 'verbose_json'`) |
+| `include` | `string[]` | Additional values to include in the response (e.g., `logprobs`) |
+
+> `responseFormat` and `prompt` are **top-level** options on `generateTranscription`, not `modelOptions` keys.
 
 ### Response Formats
 
@@ -172,15 +170,17 @@ interface TranscriptionResult {
   language?: string    // Detected/specified language
   duration?: number    // Audio duration in seconds
   segments?: Array<{   // Timestamped segments
+    id: number         // Segment identifier
     start: number      // Start time in seconds
     end: number        // End time in seconds
     text: string       // Segment text
-    words?: Array<{    // Word-level timestamps
-      word: string
-      start: number
-      end: number
-      confidence?: number
-    }>
+    confidence?: number // Confidence score (0-1), if available
+    speaker?: string    // Speaker identifier, if diarization is enabled
+  }>
+  words?: Array<{      // Word-level timestamps (top-level)
+    word: string
+    start: number
+    end: number
   }>
 }
 ```
@@ -193,8 +193,6 @@ import { openaiTranscription } from '@tanstack/ai-openai'
 import { readFile } from 'fs/promises'
 
 async function transcribeAudio(filepath: string) {
-  const adapter = openaiTranscription()
-  
   // Read the audio file
   const audioBuffer = await readFile(filepath)
   const audioFile = new File(
@@ -208,9 +206,9 @@ async function transcribeAudio(filepath: string) {
     adapter: openaiTranscription('whisper-1'),
     audio: audioFile,
     language: 'en',
+    responseFormat: 'verbose_json',
     modelOptions: {
-      response_format: 'verbose_json',
-      include: ['segment', 'word'],
+      timestamp_granularities: ['segment', 'word'],
     },
   })
 
@@ -305,7 +303,10 @@ import { openaiTranscription } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
   const formData = await request.formData()
-  const audioFile = formData.get('audio') as File
+  const audioFile = formData.get('audio')
+  if (!(audioFile instanceof File)) {
+    throw new Error('Expected an audio file under "audio"')
+  }
 
   const result = await generateTranscription({
     adapter: openaiTranscription('whisper-1'),
@@ -475,7 +476,7 @@ The `useTranscription` hook accepts:
 |--------|------|-------------|
 | `connection` | `ConnectionAdapter` | Streaming transport (SSE, HTTP stream, custom) |
 | `fetcher` | `(input) => Promise<TranscriptionResult \| Response>` | Direct async function, or server function returning an SSE `Response` |
-| `onResult` | `(result) => void` | Callback when transcription completes |
+| `onResult` | `(result) => TOutput \| null \| void` | Callback when transcription completes. Optionally return a transformed value to store as `result` |
 | `onError` | `(error) => void` | Callback on error |
 | `onProgress` | `(progress, message?) => void` | Progress updates (0-100) |
 
@@ -525,7 +526,7 @@ The transcription adapter uses:
 ```typescript
 import { createOpenaiTranscription } from '@tanstack/ai-openai'
 
-const adapter = createOpenaiTranscription('your-openai-api-key')
+const adapter = createOpenaiTranscription('whisper-1', 'your-openai-api-key')
 ```
 
 ## Best Practices
@@ -540,5 +541,5 @@ const adapter = createOpenaiTranscription('your-openai-api-key')
 
 5. **Prompting**: Use the `prompt` option to provide context or expected vocabulary (e.g., technical terms, names).
 
-6. **Timestamps**: Request `verbose_json` format and enable `include: ['word', 'segment']` when you need timing information for captions or synchronization.
+6. **Timestamps**: Request `verbose_json` format and enable `timestamp_granularities: ['word', 'segment']` when you need timing information for captions or synchronization.
 

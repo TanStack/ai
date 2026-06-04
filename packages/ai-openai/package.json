@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-openai",
-  "version": "0.12.1",
+  "version": "0.14.0",
   "description": "OpenAI adapter for TanStack AI chat, tools, images, video, speech, transcription, realtime, and structured outputs.",
   "author": "",
   "license": "MIT",
@@ -60,7 +60,7 @@
   "dependencies": {
     "@tanstack/ai-utils": "workspace:*",
     "@tanstack/openai-base": "workspace:*",
-    "openai": "^6.9.1"
+    "openai": "^6.41.0"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",

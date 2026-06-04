@@ -1,7 +1,7 @@
 ---
 title: OpenTelemetry
 id: otel
-order: 4
+order: 3
 description: "Emit vendor-neutral OpenTelemetry traces and metrics from every TanStack AI chat() call, following the OTel GenAI semantic conventions."
 keywords:
   - tanstack ai
@@ -29,7 +29,7 @@ Wire up your OTel SDK however you already do (e.g. `@opentelemetry/sdk-node`). T
 ```ts
 import { chat } from '@tanstack/ai'
 import { otelMiddleware } from '@tanstack/ai/middlewares/otel'
-import { openaiText } from '@tanstack/ai-openai/adapters'
+import { openaiText } from '@tanstack/ai-openai'
 import { trace, metrics } from '@opentelemetry/api'
 
 const otel = otelMiddleware({
@@ -168,4 +168,3 @@ otelMiddleware({
 
 - [Middleware](./middleware) — the lifecycle this middleware hooks into
 - [Debug Logging](./debug-logging) — quick console-output diagnostics, complementary to OTel
-- [Observability](./observability) — TanStack AI's built-in event client

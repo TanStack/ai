@@ -26,7 +26,7 @@ import { z } from "zod";
 const Person = z.object({ name: z.string(), age: z.number() });
 
 const person = await chat({
-  adapter: openaiText("gpt-5.2"),
+  adapter: openaiText("gpt-5.5"),
   messages: [{ role: "user", content: "John Doe, 30" }],
   outputSchema: Person,
 });
@@ -37,7 +37,7 @@ person.age;  // number
 
 ## Schema Libraries
 
-TanStack AI accepts any library that implements [Standard JSON Schema](https://standardschema.dev/):
+TanStack AI accepts any library that implements [Standard JSON Schema](https://standardschema.dev/json-schema):
 
 - [Zod](https://zod.dev/) (v4.2+)
 - [ArkType](https://arktype.io/)
@@ -60,13 +60,26 @@ Every adapter handles structured output through its provider's native API:
 
 The provider-specific details are handled for you — the same `chat({ outputSchema })` call works across all of them.
 
+### Anthropic schema complexity limits
+
+Anthropic compiles a structured-output schema into a grammar and rejects schemas it considers too large or too complex with a 400 error — typically `Schema is too complex for compilation` or `output_config.format.schema: Invalid schema: The compiled grammar is too large`. This affects Claude models directly and `anthropic/*` models routed through OpenRouter, even when every other provider accepts the same schema.
+
+If you hit one of these errors, simplify the schema. Complexity is driven less by overall size than by constructs that multiply the grammar's branching — common offenders:
+
+- `.optional()` fields you don't strictly need
+- `.catch()` / `.default()` wrappers (they widen the accepted input)
+- Union types and deeply nested objects
+- Unconstrained optional strings — tighten with enums or formats where possible
+
+Anthropic's exact limits change over time and aren't all published, so we deliberately don't reproduce the numbers here — see Anthropic's [structured outputs documentation](https://docs.claude.com/en/docs/build-with-claude/structured-outputs) for the current limits and reduction strategies.
+
 ## Which page do I read?
 
 Pick the journey that matches what you're building. The four guides under "Structured Outputs" cover non-overlapping use cases — read the one that fits, not all of them.
 
 | You want to… | Read |
 |---|---|
-| Extract one structured object from a single prompt (script, server endpoint, CLI) | [One-Shot Extraction](./one-shot) |
+| Extract one structured object from a single prompt — and consume it server-side (script, endpoint, CLI) or in a browser via `final` | [One-Shot Extraction](./one-shot) |
 | Build a UI that fills in field-by-field as the model streams (progressive form, live card, typewriter preview) | [Streaming UIs](./streaming) |
 | Let users iterate on a structured object across multiple turns — each turn produces a new typed object and history stays renderable | [Multi-Turn Chat](./multi-turn) |
 | Combine structured output with tool calls (agent loop that runs tools first, then returns a typed object) | [With Tools](./with-tools) |

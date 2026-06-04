@@ -90,7 +90,7 @@ export interface ChatMiddlewareContext<TContext = unknown> {
   systemPrompts: Array<SystemPrompt>
   /** Names of configured tools, if any */
   toolNames?: Array<string>
-  /** Flattened generation options (temperature, topP, maxTokens, metadata) */
+  /** Flattened generation options (metadata) */
   options?: Record<string, unknown> | undefined
   /** Provider-specific model options */
   modelOptions?: Record<string, unknown> | undefined
@@ -130,9 +130,6 @@ export interface ChatMiddlewareConfig {
   messages: Array<ModelMessage>
   systemPrompts: Array<SystemPrompt>
   tools: Array<Tool>
-  temperature?: number
-  topP?: number
-  maxTokens?: number
   metadata?: Record<string, unknown> | undefined
   modelOptions?: Record<string, unknown> | undefined
 }

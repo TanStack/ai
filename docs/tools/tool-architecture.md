@@ -87,7 +87,7 @@ export async function POST(request: Request) {
 
   // Create streaming chat with tools
   const stream = chat({
-    adapter: openaiText("gpt-5.2"),
+    adapter: openaiText("gpt-5.5"),
     messages,
     tools: [getWeather, sendEmail], // Tool definitions passed here
   });
@@ -99,9 +99,11 @@ export async function POST(request: Request) {
 **Client (React Component):**
 
 ```typescript
+import { useState } from "react";
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
 function ChatComponent() {
+  const [input, setInput] = useState("");
   const { messages, sendMessage, isLoading } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
   });
@@ -111,7 +113,18 @@ function ChatComponent() {
       {messages.map((message) => (
         <div key={message.id}>{/* Render message */}</div>
       ))}
-      <input onSubmit={(e) => sendMessage(e.target.value)} />
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          sendMessage(input);
+          setInput("");
+        }}
+      >
+        <input value={input} onChange={(e) => setInput(e.target.value)} />
+        <button type="submit" disabled={isLoading}>
+          Send
+        </button>
+      </form>
     </div>
   );
 }
@@ -121,20 +134,30 @@ function ChatComponent() {
 
 Tools progress through different states during their lifecycle. Understanding these states helps build robust UIs and debug tool execution.
 
+> **Two parts, two state sets — this page is the canonical reference.** Call states (`awaiting-input`, `input-streaming`, `input-complete`, `approval-requested`, `approval-responded`) live on the **`tool-call`** part as `part.state`. There is no `complete`/`error`/`executing`/`cancelled` value on the call part. The *result* lives on a separate sibling **`tool-result`** part whose own `state` is `streaming`, `complete`, or `error`; the resolved value is also mirrored onto the call part's `part.output`.
+
+The diagram below is conceptual: the nodes after `approval-responded` (executing, success, error, cancelled) are **not** `ToolCallState` values — they correspond to the sibling `tool-result` part's state (`complete` / `error`) and the call part's `output` field.
+
 ```mermaid
 stateDiagram-v2
-    [*] --> AwaitingInput: tool_call received
-    AwaitingInput --> InputStreaming: partial arguments
-    InputStreaming --> InputComplete: all arguments received
-    InputComplete --> ApprovalRequested: needsApproval=true
-    InputComplete --> Executing: needsApproval=false
-    ApprovalRequested --> Executing: user approves
-    ApprovalRequested --> Cancelled: user denies
-    Executing --> OutputAvailable: success
-    Executing --> OutputError: error
-    OutputAvailable --> [*]
-    OutputError --> [*]
-    Cancelled --> [*]
+    state "tool-call part (ToolCallState)" as Call {
+        [*] --> AwaitingInput: tool_call received
+        AwaitingInput --> InputStreaming: partial arguments
+        InputStreaming --> InputComplete: all arguments received
+        InputComplete --> ApprovalRequested: needsApproval=true
+        ApprovalRequested --> ApprovalResponded: user approves / denies
+    }
+    InputComplete --> ResultComplete: needsApproval=false, success
+    ApprovalResponded --> ResultComplete: approved + success (output set)
+    ApprovalResponded --> ResultError: approved + error
+    ApprovalResponded --> Denied: user denied (no execution)
+    state "tool-result part" as Results {
+        ResultComplete: complete
+        ResultError: error
+    }
+    ResultComplete --> [*]
+    ResultError --> [*]
+    Denied --> [*]
 ```
 
 ### Call States
@@ -158,10 +181,19 @@ stateDiagram-v2
 ### Monitoring Tool States in React
 
 ```typescript
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { clientTools, createChatClientOptions } from "@tanstack/ai-client";
+import { getWeather, sendEmail } from "./tools";
+
+// Wiring `tools` is what lets `part.name` / `part.input` / `part.output`
+// narrow to each tool's types below.
+const chatOptions = createChatClientOptions({
+  connection: fetchServerSentEvents("/api/chat"),
+  tools: clientTools(getWeather, sendEmail),
+});
+
 function ChatComponent() {
-  const { messages } = useChat({
-    connection: fetchServerSentEvents("/api/chat"),
-  });
+  const { messages } = useChat(chatOptions);
 
   return (
     <div>
@@ -258,32 +290,34 @@ const { messages, addToolApprovalResponse } = useChat({
   connection: fetchServerSentEvents("/api/chat"),
 });
 
-// In your render:
-{part.state === "approval-requested" && (
-  <div>
-    <p>Approve sending email to {part.input.to}?</p>
-    <button
-      onClick={() =>
-        addToolApprovalResponse({
-          id: part.approval.id,
-          approved: true,
-        })
-      }
-    >
-      Approve
-    </button>
-    <button
-      onClick={() =>
-        addToolApprovalResponse({
-          id: part.approval.id,
-          approved: false,
-        })
-      }
-    >
-      Deny
-    </button>
-  </div>
-)}
+// In your render (guard `type` and `approval` so `part.approval.id` is safe):
+{part.type === "tool-call" &&
+  part.state === "approval-requested" &&
+  part.approval && (
+    <div>
+      <p>Approve sending email to {part.input.to}?</p>
+      <button
+        onClick={() =>
+          addToolApprovalResponse({
+            id: part.approval.id,
+            approved: true,
+          })
+        }
+      >
+        Approve
+      </button>
+      <button
+        onClick={() =>
+          addToolApprovalResponse({
+            id: part.approval.id,
+            approved: false,
+          })
+        }
+      >
+        Deny
+      </button>
+    </div>
+  )}
 ```
 
 ### Hybrid Tools (Server + Client)
@@ -390,5 +424,5 @@ All execute simultaneously, then LLM generates comparison.
 - [Server Tools](./server-tools) - Deep dive into server-side tools
 - [Client Tools](./client-tools) - Deep dive into client-side tools
 - [Tool Approval Flow](./tool-approval) - Implementing approval workflows
-- [Stream Chunk Definitions](../protocol/chunk-definitions) - Understanding the streaming protocol
+- [AG-UI protocol](https://docs.ag-ui.com/introduction) - Understanding the streaming protocol
 

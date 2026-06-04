@@ -216,12 +216,6 @@ export interface TextActivityOptions<
    * when the run ends. See docs/tools/mcp.md "Managing MCP clients with chat()".
    */
   mcp?: ChatMCPOptions
-  /** Controls the randomness of the output. Higher values make output more random. Range: [0.0, 2.0] */
-  temperature?: TextOptions['temperature']
-  /** Nucleus sampling parameter. The model considers tokens with topP probability mass. */
-  topP?: TextOptions['topP']
-  /** The maximum number of tokens to generate in the response. */
-  maxTokens?: TextOptions['maxTokens']
   /** Additional metadata to attach to the request. */
   metadata?: TextOptions['metadata']
   /** Model-specific provider options (type comes from adapter) */
@@ -852,13 +846,10 @@ class TextEngine<
 
   private beforeRun(): void {
     this.streamStartTime = Date.now()
-    const { tools, temperature, topP, maxTokens, metadata } = this.params
+    const { tools, metadata } = this.params
 
     // Gather flattened options into an object for context
     const options: Record<string, unknown> = {}
-    if (temperature !== undefined) options.temperature = temperature
-    if (topP !== undefined) options.topP = topP
-    if (maxTokens !== undefined) options.maxTokens = maxTokens
     if (metadata !== undefined) options.metadata = metadata
 
     this.eventOptions = Object.keys(options).length > 0 ? options : undefined
@@ -905,7 +896,7 @@ class TextEngine<
   }
 
   private async *streamModelResponse(): AsyncGenerator<StreamChunk> {
-    const { temperature, topP, maxTokens, metadata, modelOptions } = this.params
+    const { metadata, modelOptions } = this.params
     const tools = this.tools
 
     // Convert tool schemas to JSON Schema before passing to adapter
@@ -949,9 +940,6 @@ class TextEngine<
       model: this.params.model,
       messages: this.messages,
       tools: toolsWithJsonSchemas,
-      temperature,
-      topP,
-      maxTokens,
       metadata,
       request: this.effectiveRequest,
       modelOptions,
@@ -1879,9 +1867,6 @@ class TextEngine<
       chatOptions: {
         model: this.params.model,
         messages: this.messages,
-        temperature: postOnConfig.temperature,
-        topP: postOnConfig.topP,
-        maxTokens: postOnConfig.maxTokens,
         metadata: postOnConfig.metadata,
         modelOptions: postOnConfig.modelOptions,
         systemPrompts: postOnConfig.systemPrompts,
@@ -2361,9 +2346,6 @@ class TextEngine<
       messages: this.messages,
       systemPrompts: [...this.systemPrompts],
       tools: [...this.tools],
-      temperature: this.params.temperature,
-      topP: this.params.topP,
-      maxTokens: this.params.maxTokens,
       metadata: this.params.metadata,
       modelOptions: this.params.modelOptions,
     }
@@ -2375,9 +2357,6 @@ class TextEngine<
     this.tools = config.tools
     this.params = {
       ...this.params,
-      temperature: config.temperature,
-      topP: config.topP,
-      maxTokens: config.maxTokens,
       metadata: config.metadata,
       modelOptions: config.modelOptions,
     }

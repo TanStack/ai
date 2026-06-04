@@ -84,6 +84,9 @@ export function useChat<
       id: clientId,
       initialMessages: messagesToUse,
       ...(initialOptions.body !== undefined && { body: initialOptions.body }),
+      ...(initialOptions.threadId !== undefined && {
+        threadId: initialOptions.threadId,
+      }),
       ...(initialOptions.forwardedProps !== undefined && {
         forwardedProps: initialOptions.forwardedProps,
       }),

@@ -134,6 +134,24 @@ const stream = chat({
 });
 ```
 
+## Model Options
+
+OpenRouter supports various provider-specific options. Sampling parameters live here too — `temperature`, `topP`, and `maxCompletionTokens` (OpenRouter's token-limit key for the chat adapter) — rather than as root-level props on `chat()`:
+
+```typescript
+const stream = chat({
+  adapter: openRouterText("openai/gpt-5"),
+  messages,
+  modelOptions: {
+    temperature: 0.7,
+    topP: 0.9,
+    maxCompletionTokens: 1024,
+  },
+});
+```
+
+> If you previously passed `temperature` / `topP` / `maxTokens` at the root of `chat()`, see [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
+
 ## Chat Completions vs Responses (beta)
 
 OpenRouter exposes two OpenAI-compatible wire formats, and the adapter

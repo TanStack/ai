@@ -6,9 +6,10 @@ Each codemod lives in its own subdirectory and is named after the migration it c
 
 ## Available codemods
 
-| Codemod                                  | Migrates                                                                                                                                                                                                                                                      |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`ag-ui-compliance`](./ag-ui-compliance) | Client-side renames introduced by the AG-UI client/server compliance release: `body` → `forwardedProps` on `useChat` / `ChatClient` / `updateOptions`, Svelte's `updateBody` → `updateForwardedProps`, and `chat({ conversationId })` → `chat({ threadId })`. |
+| Codemod                                                              | Migrates                                                                                                                                                                                                                                                      |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`ag-ui-compliance`](./ag-ui-compliance)                             | Client-side renames introduced by the AG-UI client/server compliance release: `body` → `forwardedProps` on `useChat` / `ChatClient` / `updateOptions`, Svelte's `updateBody` → `updateForwardedProps`, and `chat({ conversationId })` → `chat({ threadId })`. |
+| [`move-sampling-to-model-options`](./move-sampling-to-model-options) | Moves root `temperature` / `topP` / `maxTokens` off `chat()` / `ai()` / `generate()` / `createChatOptions()` into provider-native `modelOptions`, renamed per provider (with ollama nesting under `options`).                                                 |
 
 ## Running a codemod
 

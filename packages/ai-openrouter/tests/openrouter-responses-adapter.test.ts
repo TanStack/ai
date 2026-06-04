@@ -88,10 +88,12 @@ describe('OpenRouter responses adapter — request shape', () => {
       systemPrompts: ['Stay concise'],
       messages: [{ role: 'user', content: 'How is the weather?' }],
       tools: [weatherTool],
-      temperature: 0.25,
-      topP: 0.6,
-      maxTokens: 1024,
-      modelOptions: { toolChoice: 'auto' as any },
+      modelOptions: {
+        temperature: 0.25,
+        topP: 0.6,
+        maxOutputTokens: 1024,
+        toolChoice: 'auto' as any,
+      },
     })) {
       // consume
     }

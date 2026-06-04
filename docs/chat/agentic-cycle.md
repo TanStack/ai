@@ -86,7 +86,7 @@ Here's a real-world example of the agentic cycle:
 - Tool returns: `[{id: "F1", price: 450}, {id: "F2", price: 480}]`
 
 **Cycle 2**: LLM analyzes results and calls `bookFlight({flightId: "F1"})`
-- Tool requires approval (sensitive operation)
+- Tool requires approval (sensitive operation) — see [Tool Approval](../tools/tool-approval)
 - User approves
 - Tool returns: `{bookingId: "B123", confirmed: true}`
 
@@ -96,6 +96,10 @@ Here's a real-world example of the agentic cycle:
 ### Code Example: Agentic Weather Assistant
 
 ```typescript
+import { chat, toolDefinition, toServerSentEventsResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { z } from "zod";
+
 // Tool definitions
 const getWeatherDef = toolDefinition({
   name: "get_weather",
@@ -133,7 +137,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: openaiText("gpt-5.2"),
+    adapter: openaiText("gpt-5.5"),
     messages,
     tools: [getWeather, getClothingAdvice],
   });
@@ -148,3 +152,40 @@ export async function POST(request: Request) {
 1. LLM calls `get_weather({city: "San Francisco"})` → Returns `{temp: 62, conditions: "cloudy"}`
 2. LLM calls `get_clothing_advice({temperature: 62, conditions: "cloudy"})` → Returns `{recommendation: "Light jacket recommended"}`
 3. LLM generates: "The weather in San Francisco is 62°F and cloudy. I recommend wearing a light jacket."
+
+The loop continues only while the model's finish reason is `tool_calls` (with pending tool calls) **and** the agent loop strategy permits another iteration; it ends as soon as the model returns a normal `stop` finish reason.
+
+### Controlling the loop
+
+By default the loop is bounded by `maxIterations(5)` — after five iterations it stops even if the model would keep calling tools. Override this with the `agentLoopStrategy` option:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { maxIterations } from "@tanstack/ai";
+
+const stream = chat({
+  adapter: openaiText("gpt-5.5"),
+  messages,
+  tools: [getWeather, getClothingAdvice],
+  agentLoopStrategy: maxIterations(3), // default is 5
+});
+```
+
+Other built-in strategies:
+
+- **`untilFinishReason([...])`** — continue until the model returns one of the given finish reasons (e.g. `untilFinishReason(["stop", "length"])`).
+- **`combineStrategies([...])`** — combine multiple strategies with AND logic; the loop continues only while every strategy agrees.
+
+A strategy is just a function that receives `{ iterationCount, finishReason, messages }` and returns `true` to allow another iteration or `false` to stop, so you can also write your own:
+
+```typescript
+const stream = chat({
+  adapter: openaiText("gpt-5.5"),
+  messages,
+  tools: [getWeather, getClothingAdvice],
+  agentLoopStrategy: combineStrategies([
+    maxIterations(10),
+    ({ messages }) => messages.length < 100,
+  ]),
+});
+```

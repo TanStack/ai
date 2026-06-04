@@ -89,7 +89,7 @@ const inputSchema: JSONSchema = {
 };
 ```
 
-> **Note:** When using JSON Schema, TypeScript will infer `any` for input/output types since JSON Schema cannot provide compile-time type information. Zod schemas are recommended for full type safety.
+> **Note:** When using JSON Schema, TypeScript infers `unknown` for input/output types (it cannot derive types from a JSON Schema at compile time), so you must narrow or cast `args` before use. Zod schemas are recommended for full type safety.
 
 ## Tool Definition
 
@@ -172,11 +172,16 @@ const getWeatherDef = toolDefinition({
   outputSchema,
 });
 
-// Create server implementation (args is typed as `any` with JSON Schema)
+// With a raw JSON Schema, `args` is `unknown` — narrow it before use
+// (prefer a Zod schema for automatic typing).
 const getWeatherServer = getWeatherDef.server(async (args) => {
-  const { location, unit } = args;
+  if (typeof args !== "object" || args === null || !("location" in args)) {
+    throw new Error("Invalid input: expected a location");
+  }
+  const location = String(args.location);
+  const unit = "unit" in args ? String(args.unit) : "fahrenheit";
   const response = await fetch(
-    `https://api.weather.com/v1/current?location=${location}&unit=${unit || "fahrenheit"}`
+    `https://api.weather.com/v1/current?location=${location}&unit=${unit}`
   );
   return await response.json();
 });
@@ -201,7 +206,7 @@ export async function POST(request: Request) {
   });
 
   const stream = chat({
-    adapter: openaiText("gpt-5.2"),
+    adapter: openaiText("gpt-5.5"),
     messages,
     tools: [getWeather], // Pass server tools
   });
@@ -289,14 +294,21 @@ const addToCartClient = addToCartDef.client((input) => {
 });
 ```
 
-On the server, pass the definition (for client execution) or server implementation:
+On the server, pass either the definition (for client execution) or the server implementation — in separate `chat()` calls:
 
 ```typescript
+// Pass the definition: the client will execute the tool
 chat({
-  adapter: openaiText("gpt-5.2"),
+  adapter: openaiText("gpt-5.5"),
   messages,
-  tools: [addToCartDef], // Client will execute, or
-  tools: [addToCartServer], // Server will execute
+  tools: [addToCartDef],
+});
+
+// Or pass the server implementation: the server will execute the tool
+chat({
+  adapter: openaiText("gpt-5.5"),
+  messages,
+  tools: [addToCartServer],
 });
 ```
 
@@ -329,6 +341,25 @@ messages.forEach((message) => {
 4. **Result is returned** - To the model as a tool result message
 5. **Model continues** - Uses the result to generate a response
 
+## Progress Events and Runtime Context
+
+A server tool's `.server()` implementation receives a second argument, the `ToolExecutionContext` — `{ context, toolCallId, emitCustomEvent }`. Use `emitCustomEvent` to stream typed progress to the client while the tool runs, and `context` to read request-scoped dependencies (auth, DB clients, etc.):
+
+```typescript
+const importData = importDataDef.server(async (input, { context, emitCustomEvent }) => {
+  emitCustomEvent("progress", { step: 1, total: 3 });
+  const rows = await context.db.read(input.source);
+
+  emitCustomEvent("progress", { step: 2, total: 3 });
+  await context.db.write(rows);
+
+  emitCustomEvent("progress", { step: 3, total: 3 });
+  return { imported: rows.length };
+});
+```
+
+See [Server Tools](./server-tools) for the full runtime-context pattern.
+
 ## Tool States
 
 Tools go through different states during execution:
@@ -338,6 +369,8 @@ Tools go through different states during execution:
 - `input-complete` - All arguments received
 - `approval-requested` - Tool requires user approval (if `needsApproval: true`)
 - `approval-responded` - User has approved/denied
+
+Once arguments (and approval, if required) are in, the result appears as `part.output` on the tool-call part and as a separate sibling `tool-result` part whose `state` is `complete` or `error`. See [Tool Architecture](./tool-architecture) for the full state model.
 
 > **Tip:** If your use case involves calling multiple tools with complex logic (filtering, aggregation, parallel calls), consider [Code Mode](../code-mode/code-mode) — it lets the LLM write a TypeScript program that orchestrates tools in a single execution instead of one tool call at a time.
 

@@ -134,11 +134,14 @@ for await (const chunk of chat({
   adapter: geminiTextInteractions("gemini-3.5-flash"),
   messages: [{ role: "user", content: "Hi, my name is Amir." }],
 })) {
-  if (chunk.type === "CUSTOM" && chunk.name === "gemini.interactionId") {
-    const value = chunk.value as GeminiInteractionsCustomEventValue<
-      "gemini.interactionId"
-    >;
-    interactionId = value.interactionId;
+  if (
+    chunk.type === "CUSTOM" &&
+    chunk.name === "gemini.interactionId" &&
+    chunk.value &&
+    typeof chunk.value === "object" &&
+    "interactionId" in chunk.value
+  ) {
+    interactionId = String(chunk.value.interactionId);
   }
 }
 
@@ -304,7 +307,7 @@ for await (const chunk of stream) {
 
 ## Model Options
 
-Gemini supports various model-specific options:
+Gemini supports various model-specific options. Sampling parameters live here too — `temperature`, `topP`, and `maxOutputTokens` — rather than as root-level props on `chat()`:
 
 ```typescript
 const stream = chat({
@@ -319,6 +322,8 @@ const stream = chat({
   },
 });
 ```
+
+> If you previously passed `temperature` / `topP` / `maxTokens` at the root of `chat()`, see [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
 
 ### Thinking
 

@@ -95,6 +95,9 @@ importers:
       jscodeshift:
         specifier: ^17.1.1
         version: 17.3.0
+      prettier:
+        specifier: ^3.7.4
+        version: 3.7.4
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -1272,8 +1275,8 @@ importers:
         specifier: workspace:*
         version: link:../openai-base
       openai:
-        specifier: ^6.9.1
-        version: 6.10.0(ws@8.19.0)(zod@4.3.6)
+        specifier: ^6.41.0
+        version: 6.41.0(ws@8.19.0)(zod@4.3.6)
       zod:
         specifier: ^4.0.0
         version: 4.3.6
@@ -1303,8 +1306,8 @@ importers:
         specifier: workspace:*
         version: link:../openai-base
       openai:
-        specifier: ^6.9.1
-        version: 6.10.0(ws@8.19.0)(zod@4.3.6)
+        specifier: ^6.41.0
+        version: 6.41.0(ws@8.19.0)(zod@4.3.6)
       zod:
         specifier: ^4.0.0
         version: 4.3.6
@@ -1414,8 +1417,8 @@ importers:
         specifier: workspace:*
         version: link:../openai-base
       openai:
-        specifier: ^6.9.1
-        version: 6.10.0(ws@8.19.0)(zod@4.3.6)
+        specifier: ^6.41.0
+        version: 6.41.0(ws@8.19.0)(zod@4.3.6)
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -1751,8 +1754,8 @@ importers:
         specifier: workspace:*
         version: link:../ai-utils
       openai:
-        specifier: ^6.9.1
-        version: 6.10.0(ws@8.19.0)(zod@4.3.6)
+        specifier: ^6.41.0
+        version: 6.41.0(ws@8.19.0)(zod@4.3.6)
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -1833,8 +1836,8 @@ importers:
   testing/e2e:
     dependencies:
       '@copilotkit/aimock':
-        specifier: ^1.27.0
-        version: 1.27.0(vitest@4.1.4(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jsdom@27.3.0(postcss@8.5.15))(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)))
+        specifier: ^1.28.1
+        version: 1.29.0(vitest@4.1.4(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jsdom@27.3.0(postcss@8.5.15))(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)))
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@4.3.6)
@@ -2777,9 +2780,9 @@ packages:
   '@cloudflare/workers-types@4.20260317.1':
     resolution: {integrity: sha512-+G4eVwyCpm8Au1ex8vQBCuA9wnwqetz4tPNRoB/53qvktERWBRMQnrtvC1k584yRE3emMThtuY0gWshvSJ++PQ==}
 
-  '@copilotkit/aimock@1.27.0':
-    resolution: {integrity: sha512-8NNDhKCc9FBK+tD9bTufZl/v4EOXUZ6OBin4YlJUegHFKLTIIgHemyVqlzUYl4r2XjslAr8ilPwFf4p2O8ksAQ==}
-    engines: {node: '>=24.0.0'}
+  '@copilotkit/aimock@1.29.0':
+    resolution: {integrity: sha512-xNMHMUDX7zPSc56dm2ZXbttoLk6x72oEBHwWCAakVWNO85zZepLkB8Poc/x1cJrY69FI9frN0gavI/zVuZq/9A==}
+    engines: {node: '>=20.15.0'}
     hasBin: true
     peerDependencies:
       jest: '>=29'
@@ -9889,6 +9892,10 @@ packages:
     resolution: {integrity: sha512-tAAg/72/VxOUW7RQSX1pIxJVucYKcjFjfvj60L57jrZpYCHC3XN0WCQ3sNYL4Gmvv+7GPvTAjc+KSdeNuE8oWQ==}
     engines: {node: '>=12.22.0'}
 
+  ip-address@10.1.0:
+    resolution: {integrity: sha512-XXADHxXmvT9+CRxhXg56LJovE+bmWnEWB78LB83VZTprKTmaC5QfruXocxzTZ2Kl0DNwKuBdlIhjL8LeY8Sf8Q==}
+    engines: {node: '>= 12'}
+
   ip-address@10.2.0:
     resolution: {integrity: sha512-/+S6j4E9AHvW9SWMSEY9Xfy66O5PWvVEJ08O0y5JGyEKQpojb0K0GKpz/v5HJ/G0vi3D2sjGK78119oXZeE0qA==}
     engines: {node: '>= 12'}
@@ -11266,9 +11273,8 @@ packages:
     resolution: {integrity: sha512-7x81NCL719oNbsq/3mh+hVrAWmFuEYUqrq/Iw3kUzH8ReypT9QQ0BLoJS7/G9k6N81XjW4qHWtjWwe/9eLy1EQ==}
     engines: {node: '>=12'}
 
-  openai@6.10.0:
-    resolution: {integrity: sha512-ITxOGo7rO3XRMiKA5l7tQ43iNNu+iXGFAcf2t+aWVzzqRaS0i7m1K2BhxNdaveB+5eENhO0VY1FkiZzhBk4v3A==}
-    hasBin: true
+  openai@6.41.0:
+    resolution: {integrity: sha512-IGWPopZq6Rjoynjfb3NSLf/z2MTw7UiOsm9TAjPGAjUESH7Uq41Trg4QWehBEn58p74i+m7uoRPV2vXcpPXhyA==}
     peerDependencies:
       ws: ^8.18.0
       zod: ^3.25 || ^4.0
@@ -14790,7 +14796,7 @@ snapshots:
 
   '@cloudflare/workers-types@4.20260317.1': {}
 
-  '@copilotkit/aimock@1.27.0(vitest@4.1.4(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jsdom@27.3.0(postcss@8.5.15))(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)))':
+  '@copilotkit/aimock@1.29.0(vitest@4.1.4(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jsdom@27.3.0(postcss@8.5.15))(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)))':
     optionalDependencies:
       vitest: 4.1.4(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jsdom@27.3.0(postcss@8.5.15))(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
 
@@ -22718,6 +22724,8 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  ip-address@10.1.0: {}
+
   ip-address@10.2.0: {}
 
   ipaddr.js@1.9.1: {}
@@ -23367,8 +23375,8 @@ snapshots:
 
   magicast@0.5.2:
     dependencies:
-      '@babel/parser': 7.29.0
-      '@babel/types': 7.29.0
+      '@babel/parser': 7.29.7
+      '@babel/types': 7.29.7
       source-map-js: 1.2.1
 
   make-dir@2.1.0:
@@ -24639,7 +24647,7 @@ snapshots:
       is-docker: 2.2.1
       is-wsl: 2.2.0
 
-  openai@6.10.0(ws@8.19.0)(zod@4.3.6):
+  openai@6.41.0(ws@8.19.0)(zod@4.3.6):
     optionalDependencies:
       ws: 8.19.0
       zod: 4.3.6
@@ -26043,7 +26051,7 @@ snapshots:
 
   socks@2.8.7:
     dependencies:
-      ip-address: 10.2.0
+      ip-address: 10.1.0
       smart-buffer: 4.2.0
 
   solid-js@1.9.10:

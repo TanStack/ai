@@ -6,6 +6,7 @@ import { openaiText } from '@tanstack/ai-openai'
 import { geminiText } from '@tanstack/ai-gemini'
 import type { AnyTextAdapter } from '@tanstack/ai'
 
+import { maxTokensModelOptions } from '@/lib/max-tokens-model-options'
 import { allTools } from '@/lib/tools'
 import { CODE_MODE_SYSTEM_PROMPT } from '@/lib/prompts'
 import { reportTools } from '@/lib/reports/tools'
@@ -234,7 +235,9 @@ export const Route = createFileRoute('/_banking-demo/api/banking-demo' as any)({
             ],
             agentLoopStrategy: maxIterations(20),
             abortController,
-            maxTokens: 8192,
+            // Sampling lives in provider-native `modelOptions` now; map the
+            // generic cap to the resolved adapter's wire key.
+            modelOptions: maxTokensModelOptions(adapter, 8192),
           })
 
           const sseStream = toServerSentEventsStream(stream, abortController)

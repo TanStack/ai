@@ -34,10 +34,7 @@ Image generation is handled by image adapters that follow the same tree-shakeabl
 import { generateImage } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 
-// Create an image adapter (uses OPENAI_API_KEY from environment)
-const adapter = openaiImage()
-
-// Generate an image
+// Generate an image (the adapter uses OPENAI_API_KEY from environment)
 const result = await generateImage({
   adapter: openaiImage('dall-e-3'),
   prompt: 'A beautiful sunset over mountains',
@@ -437,7 +434,7 @@ The `useGenerateImage` hook accepts:
 | `fetcher` | `(input) => Promise<ImageGenerationResult \| Response>` | Direct async function, or server function returning an SSE `Response` |
 | `id` | `string` | Unique identifier for this instance |
 | `body` | `Record<string, any>` | Additional body parameters (connection mode) |
-| `onResult` | `(result) => void` | Callback when images are generated |
+| `onResult` | `(result) => TOutput \| null \| void` | Callback when images are generated. Optionally return a transformed value to store as `result` |
 | `onError` | `(error) => void` | Callback on error |
 | `onProgress` | `(progress, message?) => void` | Progress updates (0-100) |
 
@@ -471,8 +468,8 @@ import { createOpenaiImage } from '@tanstack/ai-openai'
 import { createGeminiImage } from '@tanstack/ai-gemini'
 
 // OpenAI
-const openaiAdapter = createOpenaiImage('your-openai-api-key')
+const openaiAdapter = createOpenaiImage('dall-e-3', 'your-openai-api-key')
 
 // Gemini
-const geminiAdapter = createGeminiImage('your-google-api-key')
+const geminiAdapter = createGeminiImage('imagen-4.0-generate-001', 'your-google-api-key')
 ```

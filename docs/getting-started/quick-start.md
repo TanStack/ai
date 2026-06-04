@@ -68,7 +68,7 @@ export const Route = createFileRoute("/api/chat")({
           // Create a streaming chat response. `chat()` reads the AG-UI
           // `threadId` for devtools correlation when available.
           const stream = chat({
-            adapter: openaiText("gpt-5.2"),
+            adapter: openaiText("gpt-5.5"),
             messages: body.messages,
           });
 
@@ -118,7 +118,7 @@ export async function POST(request: Request) {
     // Create a streaming chat response. `chat()` reads the AG-UI
     // `threadId` for devtools correlation when available.
     const stream = chat({
-      adapter: openaiText("gpt-5.2"),
+      adapter: openaiText("gpt-5.5"),
       messages: body.messages,
     });
 
@@ -150,7 +150,7 @@ import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 export function Chat() {
   const [input, setInput] = useState("");
 
-  const { messages, sendMessage, isLoading } = useChat({
+  const { messages, sendMessage, isLoading, error } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
   });
 
@@ -197,6 +197,13 @@ export function Chat() {
           </div>
         ))}
       </div>
+
+      {/* Error */}
+      {error && (
+        <p role="alert" className="px-4 text-red-600">
+          {error.message}
+        </p>
+      )}
 
       {/* Input */}
       <form onSubmit={handleSubmit} className="p-4 border-t">
@@ -261,6 +268,7 @@ import { z } from 'zod'
 const getProductsDef = toolDefinition({
   name: 'getProducts',
   inputSchema: z.object({ query: z.string() }),
+  outputSchema: z.array(z.object({ id: z.string(), name: z.string() })),
 })
 
 const getProducts = getProductsDef.server(async ({ query }) => {
@@ -268,7 +276,7 @@ const getProducts = getProductsDef.server(async ({ query }) => {
 })
 
 const stream = chat({
-  adapter: openaiText('gpt-5.2'),
+  adapter: openaiText('gpt-5.5'),
   messages: [{ role: 'user', content: 'Find products' }],
   tools: [getProducts],
 })

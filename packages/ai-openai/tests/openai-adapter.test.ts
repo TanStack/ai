@@ -75,8 +75,13 @@ describe('OpenAI adapter option mapping', () => {
       },
     }
 
+    // Sampling options now live exclusively in `modelOptions` (provider-native
+    // wire names) rather than the root `temperature`/`topP`/`maxTokens` fields.
     const modelOptions: OpenAITextProviderOptions = {
       tool_choice: 'required',
+      temperature: 0.25,
+      top_p: 0.6,
+      max_output_tokens: 1024,
     }
 
     const chunks: StreamChunk[] = []
@@ -99,9 +104,6 @@ describe('OpenAI adapter option mapping', () => {
         { role: 'tool', toolCallId: 'call_weather', content: '{"temp":72}' },
       ],
       tools: [weatherTool],
-      temperature: 0.25,
-      topP: 0.6,
-      maxTokens: 1024,
       metadata: { requestId: 'req-42' },
       modelOptions,
     })) {
@@ -172,5 +174,50 @@ describe('OpenAI adapter option mapping', () => {
 
     const [payload] = responsesCreate.mock.calls[0]!
     expect(payload.instructions).toBe('Plain string.\nStructured.')
+  })
+
+  it('forwards sampling options from modelOptions with OpenAI wire names', async () => {
+    const mockStream = createMockChatCompletionsStream([
+      {
+        type: 'response.created',
+        response: {
+          id: 'resp-sampling',
+          model: 'gpt-4o-mini',
+          status: 'in_progress',
+          created_at: 1234567890,
+        },
+      },
+      {
+        type: 'response.completed',
+        response: {
+          id: 'resp-sampling',
+          status: 'completed',
+          usage: { input_tokens: 1, output_tokens: 0 },
+        },
+      },
+    ])
+
+    const responsesCreate = vi.fn().mockResolvedValueOnce(mockStream)
+    const adapter = createAdapter('gpt-4o-mini')
+    ;(adapter as any).client = { responses: { create: responsesCreate } }
+
+    const modelOptions: OpenAITextProviderOptions = {
+      temperature: 0.3,
+      top_p: 0.9,
+      max_output_tokens: 256,
+    }
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'hi' }],
+      modelOptions,
+    })) {
+      // consume stream
+    }
+
+    const [payload] = responsesCreate.mock.calls[0]!
+    expect(payload.temperature).toBe(0.3)
+    expect(payload.top_p).toBe(0.9)
+    expect(payload.max_output_tokens).toBe(256)
   })
 })

@@ -5,7 +5,7 @@ title: RunFinishedEvent
 
 # Interface: RunFinishedEvent
 
-Defined in: [packages/ai/src/types.ts:1014](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1014)
+Defined in: [packages/ai/src/types.ts:979](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L979)
 
 Emitted when a run completes successfully.
 
@@ -30,7 +30,7 @@ TanStack AI adds: `model?`, `finishReason?`, `usage?`
 optional finishReason: "length" | "stop" | "content_filter" | "tool_calls" | null;
 ```
 
-Defined in: [packages/ai/src/types.ts:1018](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1018)
+Defined in: [packages/ai/src/types.ts:983](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L983)
 
 Why the generation stopped
 
@@ -42,7 +42,7 @@ Why the generation stopped
 optional model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1016](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1016)
+Defined in: [packages/ai/src/types.ts:981](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L981)
 
 Model identifier for multi-model support
 
@@ -54,6 +54,6 @@ Model identifier for multi-model support
 optional usage: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1020](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1020)
+Defined in: [packages/ai/src/types.ts:985](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L985)
 
 Token usage statistics with optional detailed breakdowns and provider-reported cost.

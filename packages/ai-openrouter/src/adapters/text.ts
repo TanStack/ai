@@ -1134,12 +1134,11 @@ export class OpenRouterTextAdapter<
   protected mapOptionsToRequest(
     options: TextOptions<ResolveProviderOptions<TModel>>,
   ): Omit<ChatRequest, 'stream'> {
-    const modelOptions = options.modelOptions as
-      | (Record<string, any> & { variant?: string })
-      | undefined
-    const variantSuffix = modelOptions?.variant
-      ? `:${modelOptions.variant}`
-      : ''
+    // `variant` is OpenRouter metadata used only to build the `:variant` model
+    // suffix — it must NOT be spread into the request body. Destructure it out
+    // so the remaining sampling/provider options flow through `...restModelOptions`.
+    const { variant, ...restModelOptions } = options.modelOptions ?? {}
+    const variantSuffix = variant ? `:${variant}` : ''
 
     const messages: Array<ChatMessages> = []
     const systemPrompts = normalizeSystemPrompts(options.systemPrompts)
@@ -1157,20 +1156,17 @@ export class OpenRouterTextAdapter<
       ? convertToolsToProviderFormat(options.tools)
       : undefined
 
-    // Spread modelOptions first so explicit top-level options (set below) win
-    // when defined but `undefined` doesn't clobber values the caller set in
-    // modelOptions.
+    // `modelOptions` is the sole sampling surface: callers set provider-native
+    // wire names (`temperature`, `topP`, `maxCompletionTokens`, etc.) there and
+    // they flow through the spread below. The root `temperature`/`topP`/
+    // `maxTokens` fields are intentionally NOT read here. Root `metadata` is
+    // still part of the contract, so forward it the same way the responses
+    // adapter does.
     const request: Omit<ChatRequest, 'stream'> = {
-      ...modelOptions,
+      ...restModelOptions,
       model: options.model + variantSuffix,
+      ...(options.metadata !== undefined && { metadata: options.metadata }),
       messages,
-      ...(options.temperature !== undefined && {
-        temperature: options.temperature,
-      }),
-      ...(options.maxTokens !== undefined && {
-        maxCompletionTokens: options.maxTokens,
-      }),
-      ...(options.topP !== undefined && { topP: options.topP }),
       ...(tools && tools.length > 0 && { tools }),
     }
     return request
