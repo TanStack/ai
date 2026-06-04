@@ -14,7 +14,12 @@ import { groqText } from '@tanstack/ai-groq'
  * separate from the (keyless) MCP servers.
  */
 export const MCP_PROVIDERS = [
-  { value: 'openai', label: 'OpenAI', model: 'gpt-5.5', envKey: 'OPENAI_API_KEY' },
+  {
+    value: 'openai',
+    label: 'OpenAI',
+    model: 'gpt-5.5',
+    envKey: 'OPENAI_API_KEY',
+  },
   {
     value: 'anthropic',
     label: 'Anthropic',

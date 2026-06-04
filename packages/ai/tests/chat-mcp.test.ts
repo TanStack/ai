@@ -454,7 +454,10 @@ describe('chat({ mcp }) — structured-output runners', () => {
     const source = fakeSource(['mcpTool'])
     const { adapter } = createMockAdapter({
       iterations: [finishTurn()],
-      structuredOutput: async () => ({ data: { ok: true }, rawText: '{"ok":true}' }),
+      structuredOutput: async () => ({
+        data: { ok: true },
+        rawText: '{"ok":true}',
+      }),
     })
 
     const stream = chat({
@@ -475,7 +478,10 @@ describe('chat({ mcp }) — structured-output runners', () => {
     const source = fakeSource(['mcpTool'])
     const { adapter } = createMockAdapter({
       iterations: [finishTurn()],
-      structuredOutput: async () => ({ data: { ok: true }, rawText: '{"ok":true}' }),
+      structuredOutput: async () => ({
+        data: { ok: true },
+        rawText: '{"ok":true}',
+      }),
     })
 
     const stream = chat({
@@ -495,7 +501,10 @@ describe('chat({ mcp }) — structured-output runners', () => {
     const source = fakeSource(['mcpTool'])
     const { adapter } = createMockAdapter({
       iterations: [finishTurn()],
-      structuredOutput: async () => ({ data: { ok: true }, rawText: '{"ok":true}' }),
+      structuredOutput: async () => ({
+        data: { ok: true },
+        rawText: '{"ok":true}',
+      }),
     })
 
     const result = await chat({
@@ -536,7 +545,10 @@ describe('chat({ mcp }) — structured-output runners', () => {
         // Turn 2: the model finishes; finalization produces the structured output.
         finishTurn(),
       ],
-      structuredOutput: async () => ({ data: { ok: true }, rawText: '{"ok":true}' }),
+      structuredOutput: async () => ({
+        data: { ok: true },
+        rawText: '{"ok":true}',
+      }),
     })
 
     const stream = chat({

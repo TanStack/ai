@@ -19,7 +19,9 @@ import { makeServerWithWeatherTool } from './helpers/in-memory-server'
  * can assert the pool's tools were discovered + merged) and emits a complete
  * AG-UI lifecycle so the engine finishes cleanly.
  */
-function makeMockAdapter(onTools: (names: Array<string>) => void): AnyTextAdapter {
+function makeMockAdapter(
+  onTools: (names: Array<string>) => void,
+): AnyTextAdapter {
   return {
     kind: 'text',
     name: 'mock',
@@ -42,7 +44,12 @@ function makeMockAdapter(onTools: (names: Array<string>) => void): AnyTextAdapte
       onTools((opts.tools ?? []).map((t) => t.name))
       return (async function* () {
         const ts = Date.now()
-        yield { type: 'RUN_STARTED', runId: 'r1', threadId: 't1', timestamp: ts }
+        yield {
+          type: 'RUN_STARTED',
+          runId: 'r1',
+          threadId: 't1',
+          timestamp: ts,
+        }
         yield {
           type: 'TEXT_MESSAGE_START',
           messageId: 'm1',
