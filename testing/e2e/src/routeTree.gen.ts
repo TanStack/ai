@@ -32,8 +32,10 @@ import { Route as ApiOpenaiShellSkillsWireRouteImport } from './routes/api.opena
 import { Route as ApiMultimodalToolResultWireRouteImport } from './routes/api.multimodal-tool-result-wire'
 import { Route as ApiMiddlewareTestRouteImport } from './routes/api.middleware-test'
 import { Route as ApiMcpTestRouteImport } from './routes/api.mcp-test'
+import { Route as ApiMcpStatusTestRouteImport } from './routes/api.mcp-status-test'
 import { Route as ApiMcpServerRouteImport } from './routes/api.mcp-server'
 import { Route as ApiMcpManagedTestRouteImport } from './routes/api.mcp-managed-test'
+import { Route as ApiMcpLifecycleTestRouteImport } from './routes/api.mcp-lifecycle-test'
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
@@ -165,6 +167,11 @@ const ApiMcpTestRoute = ApiMcpTestRouteImport.update({
   path: '/api/mcp-test',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMcpStatusTestRoute = ApiMcpStatusTestRouteImport.update({
+  id: '/api/mcp-status-test',
+  path: '/api/mcp-status-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMcpServerRoute = ApiMcpServerRouteImport.update({
   id: '/api/mcp-server',
   path: '/api/mcp-server',
@@ -173,6 +180,11 @@ const ApiMcpServerRoute = ApiMcpServerRouteImport.update({
 const ApiMcpManagedTestRoute = ApiMcpManagedTestRouteImport.update({
   id: '/api/mcp-managed-test',
   path: '/api/mcp-managed-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpLifecycleTestRoute = ApiMcpLifecycleTestRouteImport.update({
+  id: '/api/mcp-lifecycle-test',
+  path: '/api/mcp-lifecycle-test',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiImageRoute = ApiImageRouteImport.update({
@@ -254,8 +266,10 @@ export interface FileRoutesByFullPath {
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
+  '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
   '/api/mcp-server': typeof ApiMcpServerRoute
+  '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
   '/api/mcp-test': typeof ApiMcpTestRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
@@ -293,8 +307,10 @@ export interface FileRoutesByTo {
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
+  '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
   '/api/mcp-server': typeof ApiMcpServerRoute
+  '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
   '/api/mcp-test': typeof ApiMcpTestRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
@@ -333,8 +349,10 @@ export interface FileRoutesById {
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
+  '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
   '/api/mcp-server': typeof ApiMcpServerRoute
+  '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
   '/api/mcp-test': typeof ApiMcpTestRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
@@ -374,8 +392,10 @@ export interface FileRouteTypes {
     | '/api/audio'
     | '/api/chat'
     | '/api/image'
+    | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
     | '/api/mcp-server'
+    | '/api/mcp-status-test'
     | '/api/mcp-test'
     | '/api/middleware-test'
     | '/api/multimodal-tool-result-wire'
@@ -413,8 +433,10 @@ export interface FileRouteTypes {
     | '/api/audio'
     | '/api/chat'
     | '/api/image'
+    | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
     | '/api/mcp-server'
+    | '/api/mcp-status-test'
     | '/api/mcp-test'
     | '/api/middleware-test'
     | '/api/multimodal-tool-result-wire'
@@ -452,8 +474,10 @@ export interface FileRouteTypes {
     | '/api/audio'
     | '/api/chat'
     | '/api/image'
+    | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
     | '/api/mcp-server'
+    | '/api/mcp-status-test'
     | '/api/mcp-test'
     | '/api/middleware-test'
     | '/api/multimodal-tool-result-wire'
@@ -492,8 +516,10 @@ export interface RootRouteChildren {
   ApiAudioRoute: typeof ApiAudioRouteWithChildren
   ApiChatRoute: typeof ApiChatRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
+  ApiMcpLifecycleTestRoute: typeof ApiMcpLifecycleTestRoute
   ApiMcpManagedTestRoute: typeof ApiMcpManagedTestRoute
   ApiMcpServerRoute: typeof ApiMcpServerRoute
+  ApiMcpStatusTestRoute: typeof ApiMcpStatusTestRoute
   ApiMcpTestRoute: typeof ApiMcpTestRoute
   ApiMiddlewareTestRoute: typeof ApiMiddlewareTestRoute
   ApiMultimodalToolResultWireRoute: typeof ApiMultimodalToolResultWireRoute
@@ -672,6 +698,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMcpTestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mcp-status-test': {
+      id: '/api/mcp-status-test'
+      path: '/api/mcp-status-test'
+      fullPath: '/api/mcp-status-test'
+      preLoaderRoute: typeof ApiMcpStatusTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/mcp-server': {
       id: '/api/mcp-server'
       path: '/api/mcp-server'
@@ -684,6 +717,13 @@ declare module '@tanstack/react-router' {
       path: '/api/mcp-managed-test'
       fullPath: '/api/mcp-managed-test'
       preLoaderRoute: typeof ApiMcpManagedTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-lifecycle-test': {
+      id: '/api/mcp-lifecycle-test'
+      path: '/api/mcp-lifecycle-test'
+      fullPath: '/api/mcp-lifecycle-test'
+      preLoaderRoute: typeof ApiMcpLifecycleTestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/image': {
@@ -849,8 +889,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAudioRoute: ApiAudioRouteWithChildren,
   ApiChatRoute: ApiChatRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
+  ApiMcpLifecycleTestRoute: ApiMcpLifecycleTestRoute,
   ApiMcpManagedTestRoute: ApiMcpManagedTestRoute,
   ApiMcpServerRoute: ApiMcpServerRoute,
+  ApiMcpStatusTestRoute: ApiMcpStatusTestRoute,
   ApiMcpTestRoute: ApiMcpTestRoute,
   ApiMiddlewareTestRoute: ApiMiddlewareTestRoute,
   ApiMultimodalToolResultWireRoute: ApiMultimodalToolResultWireRoute,

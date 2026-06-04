@@ -45,6 +45,39 @@ function createMockMcpServer(): McpServer {
     },
   )
 
+  // A static resource + prompt so the resource/prompt read+convert path can be
+  // exercised end-to-end (see api.mcp-status-test). The catalog text carries a
+  // distinctive token (STRAT-001) the spec asserts survives conversion.
+  server.registerResource(
+    'catalog',
+    'guitar://catalog',
+    { description: 'Featured guitar catalog', mimeType: 'text/plain' },
+    async () => ({
+      contents: [
+        {
+          uri: 'guitar://catalog',
+          text: 'Featured guitar: Fender Stratocaster (SKU STRAT-001), price 1999.',
+        },
+      ],
+    }),
+  )
+
+  server.registerPrompt(
+    'recommend_guitar',
+    { description: 'Ask for a beginner-friendly guitar recommendation' },
+    () => ({
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: 'Recommend a beginner-friendly electric guitar under $500.',
+          },
+        },
+      ],
+    }),
+  )
+
   return server
 }
 
