@@ -30,6 +30,8 @@ import { Route as ApiOpenrouterCostRouteImport } from './routes/api.openrouter-c
 import { Route as ApiOpenaiUsageDetailsRouteImport } from './routes/api.openai-usage-details'
 import { Route as ApiMultimodalToolResultWireRouteImport } from './routes/api.multimodal-tool-result-wire'
 import { Route as ApiMiddlewareTestRouteImport } from './routes/api.middleware-test'
+import { Route as ApiMcpTestRouteImport } from './routes/api.mcp-test'
+import { Route as ApiMcpServerRouteImport } from './routes/api.mcp-server'
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
@@ -149,6 +151,16 @@ const ApiMiddlewareTestRoute = ApiMiddlewareTestRouteImport.update({
   path: '/api/middleware-test',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMcpTestRoute = ApiMcpTestRouteImport.update({
+  id: '/api/mcp-test',
+  path: '/api/mcp-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpServerRoute = ApiMcpServerRouteImport.update({
+  id: '/api/mcp-server',
+  path: '/api/mcp-server',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiImageRoute = ApiImageRouteImport.update({
   id: '/api/image',
   path: '/api/image',
@@ -222,6 +234,8 @@ export interface FileRoutesByFullPath {
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
+  '/api/mcp-server': typeof ApiMcpServerRoute
+  '/api/mcp-test': typeof ApiMcpTestRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
@@ -256,6 +270,8 @@ export interface FileRoutesByTo {
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
+  '/api/mcp-server': typeof ApiMcpServerRoute
+  '/api/mcp-test': typeof ApiMcpTestRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
@@ -291,6 +307,8 @@ export interface FileRoutesById {
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
+  '/api/mcp-server': typeof ApiMcpServerRoute
+  '/api/mcp-test': typeof ApiMcpTestRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
@@ -327,6 +345,8 @@ export interface FileRouteTypes {
     | '/api/audio'
     | '/api/chat'
     | '/api/image'
+    | '/api/mcp-server'
+    | '/api/mcp-test'
     | '/api/middleware-test'
     | '/api/multimodal-tool-result-wire'
     | '/api/openai-usage-details'
@@ -361,6 +381,8 @@ export interface FileRouteTypes {
     | '/api/audio'
     | '/api/chat'
     | '/api/image'
+    | '/api/mcp-server'
+    | '/api/mcp-test'
     | '/api/middleware-test'
     | '/api/multimodal-tool-result-wire'
     | '/api/openai-usage-details'
@@ -395,6 +417,8 @@ export interface FileRouteTypes {
     | '/api/audio'
     | '/api/chat'
     | '/api/image'
+    | '/api/mcp-server'
+    | '/api/mcp-test'
     | '/api/middleware-test'
     | '/api/multimodal-tool-result-wire'
     | '/api/openai-usage-details'
@@ -430,6 +454,8 @@ export interface RootRouteChildren {
   ApiAudioRoute: typeof ApiAudioRouteWithChildren
   ApiChatRoute: typeof ApiChatRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
+  ApiMcpServerRoute: typeof ApiMcpServerRoute
+  ApiMcpTestRoute: typeof ApiMcpTestRoute
   ApiMiddlewareTestRoute: typeof ApiMiddlewareTestRoute
   ApiMultimodalToolResultWireRoute: typeof ApiMultimodalToolResultWireRoute
   ApiOpenaiUsageDetailsRoute: typeof ApiOpenaiUsageDetailsRoute
@@ -592,6 +618,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMiddlewareTestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mcp-test': {
+      id: '/api/mcp-test'
+      path: '/api/mcp-test'
+      fullPath: '/api/mcp-test'
+      preLoaderRoute: typeof ApiMcpTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-server': {
+      id: '/api/mcp-server'
+      path: '/api/mcp-server'
+      fullPath: '/api/mcp-server'
+      preLoaderRoute: typeof ApiMcpServerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/image': {
       id: '/api/image'
       path: '/api/image'
@@ -747,6 +787,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAudioRoute: ApiAudioRouteWithChildren,
   ApiChatRoute: ApiChatRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
+  ApiMcpServerRoute: ApiMcpServerRoute,
+  ApiMcpTestRoute: ApiMcpTestRoute,
   ApiMiddlewareTestRoute: ApiMiddlewareTestRoute,
   ApiMultimodalToolResultWireRoute: ApiMultimodalToolResultWireRoute,
   ApiOpenaiUsageDetailsRoute: ApiOpenaiUsageDetailsRoute,
