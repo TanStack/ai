@@ -230,10 +230,10 @@ Rather than calling `client.tools()` and `client.close()` yourself, pass the
 
 **When to use `mcp` vs. the tools spread:**
 
-| Approach | Use when |
-|---|---|
-| `chat({ mcp: { clients: [...] } })` | Convenience: discovery + lifecycle handled for you; untyped args are fine |
-| `tools: [...await client.tools([toolDefinition(...)])]` | Fully-typed args/results via Zod schemas (`toolDefinition` mode) |
+| Approach                                                | Use when                                                                  |
+| ------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `chat({ mcp: { clients: [...] } })`                     | Convenience: discovery + lifecycle handled for you; untyped args are fine |
+| `tools: [...await client.tools([toolDefinition(...)])]` | Fully-typed args/results via Zod schemas (`toolDefinition` mode)          |
 
 **Server-side example:**
 

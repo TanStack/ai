@@ -525,14 +525,14 @@ Instead of manually calling `client.tools()` and managing `close()`, pass an
 
 **When to use `mcp` vs. the tools spread:**
 
-| Approach | Use when |
-|---|---|
-| `chat({ mcp: { clients: [...] } })` | Convenience: discovery + lifecycle in one place; untyped tool args are acceptable |
-| `tools: [...await client.tools([toolDefinition(...)])]` | Fully-typed tool args/results via Zod schemas |
+| Approach                                                | Use when                                                                          |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `chat({ mcp: { clients: [...] } })`                     | Convenience: discovery + lifecycle in one place; untyped tool args are acceptable |
+| `tools: [...await client.tools([toolDefinition(...)])]` | Fully-typed tool args/results via Zod schemas                                     |
 
 **Example:**
 
-```typescript
+````typescript
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { createMCPClient } from '@tanstack/ai-mcp'
@@ -591,7 +591,7 @@ export async function POST(request: Request) {
   })
   return toServerSentEventsResponse(stream)
 }
-```
+````
 
 `AnthropicContainerSkill` shape: `{ type: 'anthropic' | 'custom'; skill_id: string; version?: string }`. Constraints: max 8 skills per request; `skill_id` must be 1–64 characters.
 

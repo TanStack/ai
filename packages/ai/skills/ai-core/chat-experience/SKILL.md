@@ -340,10 +340,10 @@ clients across calls.
 
 **When to use `mcp` vs. the tools spread:**
 
-| Approach | Use when |
-|---|---|
-| `chat({ mcp: { clients: [...] } })` | You want discovery + lifecycle managed for you, and don't need fully-typed input/output schemas |
-| `tools: [...await client.tools([toolDefinition(...)])]` | You want fully-typed MCP tools with Zod input/output validation |
+| Approach                                                | Use when                                                                                        |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `chat({ mcp: { clients: [...] } })`                     | You want discovery + lifecycle managed for you, and don't need fully-typed input/output schemas |
+| `tools: [...await client.tools([toolDefinition(...)])]` | You want fully-typed MCP tools with Zod input/output validation                                 |
 
 **Server-side example:**
 

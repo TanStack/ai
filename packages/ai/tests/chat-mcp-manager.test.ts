@@ -96,4 +96,3 @@ describe('MCPManager', () => {
     await expect(m.discover()).rejects.toThrow('abort')
   })
 })
-
