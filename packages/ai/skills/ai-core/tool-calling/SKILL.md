@@ -500,6 +500,67 @@ const mcp = await createMCPClient({
 Import `stdioTransport` from the `/stdio` subpath only — it contains Node.js
 `child_process` imports and must not be bundled for edge runtimes.
 
+### `chat({ mcp })` — discovery + lifecycle in one prop
+
+Instead of manually calling `client.tools()` and managing `close()`, pass an
+`mcp` object and let `chat()` handle discovery and lifecycle.
+
+```typescript
+// Prop shape (ChatMCPOptions):
+// mcp: {
+//   clients: Array<MCPClient | MCPClients>,
+//   connection?: 'close' | 'keep-alive',  // default: 'close'
+//   lazyTools?: boolean,
+//   onDiscoveryError?: (error: unknown, source) => void,
+// }
+```
+
+- At run start, `chat()` calls `.tools()` on every entry in `clients` and merges
+  the results — identical to spreading `await client.tools()` into `tools: [...]`.
+- `lazyTools: true` is forwarded to `tools({ lazy: true })`.
+- `onDiscoveryError`: throw to fail-fast; return to skip that source.
+- `connection: 'close'` (default) closes each client after discovery. Use
+  `'keep-alive'` when the model may still invoke tools after the discovery phase
+  (agent loops, multi-turn runs).
+
+**When to use `mcp` vs. the tools spread:**
+
+| Approach | Use when |
+|---|---|
+| `chat({ mcp: { clients: [...] } })` | Convenience: discovery + lifecycle in one place; untyped tool args are acceptable |
+| `tools: [...await client.tools([toolDefinition(...)])]` | Fully-typed tool args/results via Zod schemas |
+
+**Example:**
+
+```typescript
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+
+  const mcpClient = await createMCPClient({
+    transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+  })
+
+  const stream = chat({
+    adapter: openaiText('gpt-4o'),
+    messages,
+    mcp: {
+      clients: [mcpClient],
+      connection: 'keep-alive',
+      onDiscoveryError: (err, source) => {
+        console.warn('MCP discovery failed, skipping source:', err)
+        // returning (not throwing) skips this source and continues
+      },
+    },
+  })
+
+  return toServerSentEventsResponse(stream)
+}
+```
+
 ## Common Mistakes
 
 ### a. HIGH: Not passing tool definitions to both server and client

@@ -308,6 +308,69 @@ const { messages, sendMessage } = useChat({
 The only difference is swapping `toServerSentEventsResponse` / `fetchServerSentEvents`
 for `toHttpResponse` / `fetchHttpStream`. Everything else stays identical.
 
+### 5. MCP Tool Discovery via `chat({ mcp })`
+
+Pass `mcp` to let `chat()` own discovery **and** lifecycle for one or more MCP
+clients. Useful when you want minimal boilerplate and don't need to reuse the
+clients across calls.
+
+```typescript
+// Prop shape:
+// chat({
+//   ...,
+//   mcp: {
+//     clients: Array<MCPClient | MCPClients>,
+//     connection?: 'close' | 'keep-alive',  // default: 'close'
+//     lazyTools?: boolean,
+//     onDiscoveryError?: (error: unknown, source) => void,
+//   }
+// })
+```
+
+- **`clients`** — one or more `MCPClient` / `MCPClients` instances.
+- **`connection`** — `'close'` (default) closes each client after tool discovery;
+  `'keep-alive'` holds connections open for the duration of the call (needed when
+  tools execute after discovery, e.g. in a multi-turn agent loop).
+- **`lazyTools`** — forwarded to `tools({ lazy: true })` so tool schemas are
+  sent to the LLM on demand.
+- **`onDiscoveryError`** — throw (or re-throw) to fail the entire call fast;
+  return normally to skip that source and continue. Omit to rethrow (fail-fast).
+
+**When to use `mcp` vs. the tools spread:**
+
+| Approach | Use when |
+|---|---|
+| `chat({ mcp: { clients: [...] } })` | You want discovery + lifecycle managed for you, and don't need fully-typed input/output schemas |
+| `tools: [...await client.tools([toolDefinition(...)])]` | You want fully-typed MCP tools with Zod input/output validation |
+
+**Server-side example:**
+
+```typescript
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+
+  const mcpClient = await createMCPClient({
+    transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+  })
+
+  const stream = chat({
+    adapter: openaiText('gpt-4o'),
+    messages,
+    mcp: {
+      clients: [mcpClient],
+      connection: 'keep-alive', // keep open while tools may still be called
+    },
+  })
+
+  return toServerSentEventsResponse(stream)
+  // chat() closes mcpClient when the run ends (connection: 'keep-alive' closes on finish)
+}
+```
+
 ## Common Mistakes
 
 ### a. CRITICAL: Using Vercel AI SDK patterns (streamText, generateText)
