@@ -39,6 +39,10 @@ import { Route as ApiGenerateVideoRouteImport } from './routes/api.generate.vide
 import { Route as ApiGenerateSpeechRouteImport } from './routes/api.generate.speech'
 import { Route as ApiGenerateImageRouteImport } from './routes/api.generate.image'
 import { Route as ApiGenerateAudioRouteImport } from './routes/api.generate.audio'
+import { Route as McpDemoRouteImport } from './routes/mcp-demo'
+import { Route as ApiMcpManualRouteImport } from './routes/api.mcp-manual'
+import { Route as ApiMcpChatRouteImport } from './routes/api.mcp-chat'
+import { Route as ApiMcpPoolRouteImport } from './routes/api.mcp-pool'
 
 const ThreadsRoute = ThreadsRouteImport.update({
   id: '/threads',
@@ -193,6 +197,26 @@ const ApiGenerateAudioRoute = ApiGenerateAudioRouteImport.update({
   path: '/api/generate/audio',
   getParentRoute: () => rootRouteImport,
 } as any)
+const McpDemoRoute = McpDemoRouteImport.update({
+  id: '/mcp-demo',
+  path: '/mcp-demo',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpManualRoute = ApiMcpManualRouteImport.update({
+  id: '/api/mcp-manual',
+  path: '/api/mcp-manual',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpChatRoute = ApiMcpChatRouteImport.update({
+  id: '/api/mcp-chat',
+  path: '/api/mcp-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpPoolRoute = ApiMcpPoolRouteImport.update({
+  id: '/api/mcp-pool',
+  path: '/api/mcp-pool',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -225,6 +249,10 @@ export interface FileRoutesByFullPath {
   '/api/generate/video': typeof ApiGenerateVideoRoute
   '/example/guitars/$guitarId': typeof ExampleGuitarsGuitarIdRoute
   '/example/guitars/': typeof ExampleGuitarsIndexRoute
+  '/mcp-demo': typeof McpDemoRoute
+  '/api/mcp-manual': typeof ApiMcpManualRoute
+  '/api/mcp-chat': typeof ApiMcpChatRoute
+  '/api/mcp-pool': typeof ApiMcpPoolRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -257,6 +285,10 @@ export interface FileRoutesByTo {
   '/api/generate/video': typeof ApiGenerateVideoRoute
   '/example/guitars/$guitarId': typeof ExampleGuitarsGuitarIdRoute
   '/example/guitars': typeof ExampleGuitarsIndexRoute
+  '/mcp-demo': typeof McpDemoRoute
+  '/api/mcp-manual': typeof ApiMcpManualRoute
+  '/api/mcp-chat': typeof ApiMcpChatRoute
+  '/api/mcp-pool': typeof ApiMcpPoolRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -290,6 +322,10 @@ export interface FileRoutesById {
   '/api/generate/video': typeof ApiGenerateVideoRoute
   '/example/guitars/$guitarId': typeof ExampleGuitarsGuitarIdRoute
   '/example/guitars/': typeof ExampleGuitarsIndexRoute
+  '/mcp-demo': typeof McpDemoRoute
+  '/api/mcp-manual': typeof ApiMcpManualRoute
+  '/api/mcp-chat': typeof ApiMcpChatRoute
+  '/api/mcp-pool': typeof ApiMcpPoolRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -324,6 +360,10 @@ export interface FileRouteTypes {
     | '/api/generate/video'
     | '/example/guitars/$guitarId'
     | '/example/guitars/'
+    | '/mcp-demo'
+    | '/api/mcp-manual'
+    | '/api/mcp-chat'
+    | '/api/mcp-pool'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -356,6 +396,10 @@ export interface FileRouteTypes {
     | '/api/generate/video'
     | '/example/guitars/$guitarId'
     | '/example/guitars'
+    | '/mcp-demo'
+    | '/api/mcp-manual'
+    | '/api/mcp-chat'
+    | '/api/mcp-pool'
   id:
     | '__root__'
     | '/'
@@ -388,6 +432,10 @@ export interface FileRouteTypes {
     | '/api/generate/video'
     | '/example/guitars/$guitarId'
     | '/example/guitars/'
+    | '/mcp-demo'
+    | '/api/mcp-manual'
+    | '/api/mcp-chat'
+    | '/api/mcp-pool'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -421,6 +469,10 @@ export interface RootRouteChildren {
   ApiGenerateVideoRoute: typeof ApiGenerateVideoRoute
   ExampleGuitarsGuitarIdRoute: typeof ExampleGuitarsGuitarIdRoute
   ExampleGuitarsIndexRoute: typeof ExampleGuitarsIndexRoute
+  McpDemoRoute: typeof McpDemoRoute
+  ApiMcpManualRoute: typeof ApiMcpManualRoute
+  ApiMcpChatRoute: typeof ApiMcpChatRoute
+  ApiMcpPoolRoute: typeof ApiMcpPoolRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -635,6 +687,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGenerateAudioRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/mcp-demo': {
+      id: '/mcp-demo'
+      path: '/mcp-demo'
+      fullPath: '/mcp-demo'
+      preLoaderRoute: typeof McpDemoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-manual': {
+      id: '/api/mcp-manual'
+      path: '/api/mcp-manual'
+      fullPath: '/api/mcp-manual'
+      preLoaderRoute: typeof ApiMcpManualRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-chat': {
+      id: '/api/mcp-chat'
+      path: '/api/mcp-chat'
+      fullPath: '/api/mcp-chat'
+      preLoaderRoute: typeof ApiMcpChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-pool': {
+      id: '/api/mcp-pool'
+      path: '/api/mcp-pool'
+      fullPath: '/api/mcp-pool'
+      preLoaderRoute: typeof ApiMcpPoolRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -669,6 +749,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGenerateVideoRoute: ApiGenerateVideoRoute,
   ExampleGuitarsGuitarIdRoute: ExampleGuitarsGuitarIdRoute,
   ExampleGuitarsIndexRoute: ExampleGuitarsIndexRoute,
+  McpDemoRoute: McpDemoRoute,
+  ApiMcpManualRoute: ApiMcpManualRoute,
+  ApiMcpChatRoute: ApiMcpChatRoute,
+  ApiMcpPoolRoute: ApiMcpPoolRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

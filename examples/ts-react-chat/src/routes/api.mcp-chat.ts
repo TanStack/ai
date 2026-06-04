@@ -43,11 +43,6 @@ export const Route = createFileRoute('/api/mcp-chat')({
           )
         }
 
-        const model: string =
-          typeof params.forwardedProps.model === 'string'
-            ? params.forwardedProps.model
-            : 'gpt-4o'
-
         try {
           // Connect two keyless MCP servers in parallel.
           // Prefixes disambiguate tools if both servers expose same-named tools.
@@ -68,7 +63,7 @@ export const Route = createFileRoute('/api/mcp-chat')({
           // stream drains — connection: 'close' (the default; shown explicitly).
           // The model is encoded in the adapter; do not pass it separately.
           const stream = chat({
-            adapter: openaiText(model as 'gpt-4o'),
+            adapter: openaiText('gpt-4o'),
             messages: params.messages,
             mcp: {
               clients: [everything, memory],

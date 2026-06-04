@@ -49,11 +49,6 @@ export const Route = createFileRoute('/api/mcp-pool')({
           )
         }
 
-        const model: string =
-          typeof params.forwardedProps.model === 'string'
-            ? params.forwardedProps.model
-            : 'gpt-4o'
-
         try {
           // createMCPClients connects all three servers in parallel and
           // auto-prefixes tools with the config key (everything_*, memory_*,
@@ -69,7 +64,7 @@ export const Route = createFileRoute('/api/mcp-pool')({
           // chat() manages discovery and closes all pool connections on drain.
           // The model is encoded in the adapter; do not pass it separately.
           const stream = chat({
-            adapter: openaiText(model as 'gpt-4o'),
+            adapter: openaiText('gpt-4o'),
             messages: params.messages,
             mcp: {
               clients: [pool],

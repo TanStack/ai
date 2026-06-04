@@ -66,12 +66,6 @@ export const Route = createFileRoute('/api/mcp-manual')({
           )
         }
 
-        // Extract model from forwardedProps; default to gpt-4o.
-        const model: string =
-          typeof params.forwardedProps.model === 'string'
-            ? params.forwardedProps.model
-            : 'gpt-4o'
-
         try {
           // --- MCP: create and connect to the everything server (keyless, stdio) ---
           const client = await createMCPClient({
@@ -132,7 +126,7 @@ export const Route = createFileRoute('/api/mcp-manual')({
           // keyless MCP server transport which needs no credentials).
           // The model is encoded in the adapter; do not pass it separately.
           const stream = chat({
-            adapter: openaiText(model as 'gpt-4o'),
+            adapter: openaiText('gpt-4o'),
             messages: [...contextMessages, ...params.messages],
             tools,
             agentLoopStrategy: maxIterations(20),
