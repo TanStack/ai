@@ -126,7 +126,7 @@ export const Route = createFileRoute('/api/mcp-manual')({
           // keyless MCP server transport which needs no credentials).
           // The model is encoded in the adapter; do not pass it separately.
           const stream = chat({
-            adapter: openaiText('gpt-4o'),
+            adapter: openaiText('gpt-5.5'),
             messages: [...contextMessages, ...params.messages],
             tools,
             agentLoopStrategy: maxIterations(20),

@@ -63,7 +63,7 @@ export const Route = createFileRoute('/api/mcp-chat')({
           // stream drains — connection: 'close' (the default; shown explicitly).
           // The model is encoded in the adapter; do not pass it separately.
           const stream = chat({
-            adapter: openaiText('gpt-4o'),
+            adapter: openaiText('gpt-5.5'),
             messages: params.messages,
             mcp: {
               clients: [everything, memory],

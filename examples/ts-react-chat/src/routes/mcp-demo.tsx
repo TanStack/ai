@@ -138,7 +138,7 @@ function Messages({ messages }: { messages: Array<UIMessage> }) {
 function ChatSurface({ endpoint }: { endpoint: string }) {
   const { messages, sendMessage, isLoading, error, stop } = useChat({
     connection: fetchServerSentEvents(endpoint),
-    body: { model: 'gpt-4o' },
+    body: { model: 'gpt-5.5' },
   })
 
   const [input, setInput] = useState('')

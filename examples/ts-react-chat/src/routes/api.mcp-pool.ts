@@ -64,7 +64,7 @@ export const Route = createFileRoute('/api/mcp-pool')({
           // chat() manages discovery and closes all pool connections on drain.
           // The model is encoded in the adapter; do not pass it separately.
           const stream = chat({
-            adapter: openaiText('gpt-4o'),
+            adapter: openaiText('gpt-5.5'),
             messages: params.messages,
             mcp: {
               clients: [pool],
