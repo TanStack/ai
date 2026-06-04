@@ -1,20 +1,7 @@
-import type { TransportConfig } from '../transport'
+import type { MCPCodegenConfig } from './define-config'
 
-export interface CodegenServerConfig {
-  transport: TransportConfig
-  /** Tool-name prefix; must match the runtime `createMCPClient({ prefix })`. */
-  prefix?: string
-}
-
-export interface MCPCodegenConfig {
-  servers: Record<string, CodegenServerConfig>
-  /** Output file for the generated descriptor types. */
-  outFile: string
-}
-
-export function defineConfig(config: MCPCodegenConfig): MCPCodegenConfig {
-  return config
-}
+export type { CodegenServerConfig, MCPCodegenConfig } from './define-config'
+export { defineConfig } from './define-config'
 
 /** Load mcp.config.ts (via jiti) or mcp.config.json from cwd. */
 export async function loadConfig(cwd: string): Promise<MCPCodegenConfig> {

@@ -1,7 +1,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { resolveTransport } from '../transport'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
-import type { CodegenServerConfig } from './config'
+import type { CodegenServerConfig } from './define-config'
 
 export interface ServerSurface {
   tools: Array<{

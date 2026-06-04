@@ -423,7 +423,7 @@ The `generate` CLI introspects a live MCP server and emits TypeScript interface 
 
 ```ts
 // mcp.config.ts
-import { defineConfig } from '@tanstack/ai-mcp/cli'
+import { defineConfig } from '@tanstack/ai-mcp'
 
 export default defineConfig({
   servers: {

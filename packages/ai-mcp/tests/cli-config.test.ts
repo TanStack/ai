@@ -2,7 +2,8 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { defineConfig, loadConfig } from '../src/cli/config'
+import { defineConfig } from '../src/cli/define-config'
+import { loadConfig } from '../src/cli/config'
 
 describe('defineConfig', () => {
   it('returns the config verbatim (identity helper for typing)', () => {

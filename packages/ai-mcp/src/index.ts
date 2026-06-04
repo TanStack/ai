@@ -24,4 +24,6 @@ export { mcpResourceToContentPart } from './resources'
 export { mcpPromptToMessages } from './prompts'
 export { createMCPClients } from './pool'
 export type { MCPClients, MCPClientsConfig } from './pool'
+export { defineConfig } from './cli/define-config'
+export type { MCPCodegenConfig, CodegenServerConfig } from './cli/define-config'
 
