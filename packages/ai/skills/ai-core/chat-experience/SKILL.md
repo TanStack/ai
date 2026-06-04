@@ -367,7 +367,7 @@ export async function POST(request: Request) {
   })
 
   return toServerSentEventsResponse(stream)
-  // chat() closes mcpClient when the run ends (connection: 'keep-alive' closes on finish)
+  // connection: 'keep-alive' — chat() never closes mcpClient; it stays open for reuse across runs.
 }
 ```
 

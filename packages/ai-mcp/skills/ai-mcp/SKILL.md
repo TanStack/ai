@@ -261,7 +261,7 @@ export async function POST(request: Request) {
   })
 
   return toServerSentEventsResponse(stream)
-  // mcpClient is closed by chat() when the run finishes (connection: 'keep-alive')
+  // connection: 'keep-alive' — chat() never closes mcpClient; it stays warm for the next request.
 }
 ```
 
