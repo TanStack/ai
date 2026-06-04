@@ -135,8 +135,17 @@ function Messages({ messages }: { messages: Array<UIMessage> }) {
   )
 }
 
-function ChatSurface({ endpoint }: { endpoint: string }) {
+function ChatSurface({
+  endpoint,
+  threadId,
+}: {
+  endpoint: string
+  threadId: string
+}) {
   const { messages, sendMessage, isLoading, error, stop } = useChat({
+    // A stable threadId is sent to the server (AG-UI `RunAgentInput.threadId`)
+    // and used to group this conversation's runs in the TanStack AI devtools.
+    threadId,
     connection: fetchServerSentEvents(endpoint),
     body: { model: 'gpt-5.5' },
   })
@@ -251,7 +260,11 @@ function McpDemoPage() {
       </div>
 
       {/* Remount the chat surface on mode change so each mode gets a fresh session */}
-      <ChatSurface key={mode} endpoint={selectedMode.endpoint} />
+      <ChatSurface
+        key={mode}
+        endpoint={selectedMode.endpoint}
+        threadId={`mcp-${mode}`}
+      />
     </div>
   )
 }
