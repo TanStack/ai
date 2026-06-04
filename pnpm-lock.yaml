@@ -355,6 +355,9 @@ importers:
       '@tanstack/ai-groq':
         specifier: workspace:*
         version: link:../../packages/ai-groq
+      '@tanstack/ai-mcp':
+        specifier: workspace:*
+        version: link:../../packages/ai-mcp
       '@tanstack/ai-ollama':
         specifier: workspace:*
         version: link:../../packages/ai-ollama

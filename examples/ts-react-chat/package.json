@@ -13,6 +13,7 @@
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-anthropic": "workspace:*",
+    "@tanstack/ai-mcp": "workspace:*",
     "@tanstack/ai-client": "workspace:*",
     "@tanstack/ai-elevenlabs": "workspace:*",
     "@tanstack/ai-fal": "workspace:*",
