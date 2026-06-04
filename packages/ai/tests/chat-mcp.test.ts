@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
 import { chat } from '../src/activities/chat/index'
 import { MCPDuplicateToolNameError } from '../src/activities/chat/mcp/manager'
 import type { StreamChunk } from '../src/types'
@@ -423,5 +424,131 @@ describe('chat({ mcp })', () => {
 
     // goodSource connected and must be closed by cleanup-on-failure
     expect(goodSource.closed).toBe(true)
+  })
+})
+
+// ============================================================================
+// Structured-output runners + mcp
+//
+// chat() has THREE runners (streaming text, streaming structured output, and
+// non-streaming/agentic structured output). The mcp wiring (discover → merge →
+// dispose) lives in all of them, but the cases above only exercise the
+// streaming-text runner. These pin the structured-output runners so the
+// discovery/merge/close logic can't silently regress there.
+// ============================================================================
+
+describe('chat({ mcp }) — structured-output runners', () => {
+  const OutSchema = z.object({ ok: z.boolean() })
+
+  // A single chatStream turn that finishes without a tool call, so the agent
+  // loop ends and the runner proceeds to structured-output finalization.
+  const finishTurn = () => [
+    ev.runStarted(),
+    ev.textStart(),
+    ev.textContent('{"ok":true}'),
+    ev.textEnd(),
+    ev.runFinished('stop'),
+  ]
+
+  it('streaming structured output (stream:true) discovers MCP tools and closes the source on drain', async () => {
+    const source = fakeSource(['mcpTool'])
+    const { adapter } = createMockAdapter({
+      iterations: [finishTurn()],
+      structuredOutput: async () => ({ data: { ok: true }, rawText: '{"ok":true}' }),
+    })
+
+    const stream = chat({
+      adapter,
+      messages: [{ role: 'user', content: 'extract' }],
+      outputSchema: OutSchema,
+      stream: true,
+      mcp: { clients: [source] },
+    })
+
+    await collectChunks(stream as unknown as AsyncIterable<StreamChunk>)
+
+    expect(source.toolCallCount).toBe(1) // discovery ran in this runner
+    expect(source.closed).toBe(true) // dispose ran in this runner
+  })
+
+  it('streaming structured output with keep-alive does NOT close the source', async () => {
+    const source = fakeSource(['mcpTool'])
+    const { adapter } = createMockAdapter({
+      iterations: [finishTurn()],
+      structuredOutput: async () => ({ data: { ok: true }, rawText: '{"ok":true}' }),
+    })
+
+    const stream = chat({
+      adapter,
+      messages: [{ role: 'user', content: 'extract' }],
+      outputSchema: OutSchema,
+      stream: true,
+      mcp: { clients: [source], connection: 'keep-alive' },
+    })
+
+    await collectChunks(stream as unknown as AsyncIterable<StreamChunk>)
+
+    expect(source.closed).toBe(false)
+  })
+
+  it('non-streaming structured output (Promise) discovers MCP tools and closes the source', async () => {
+    const source = fakeSource(['mcpTool'])
+    const { adapter } = createMockAdapter({
+      iterations: [finishTurn()],
+      structuredOutput: async () => ({ data: { ok: true }, rawText: '{"ok":true}' }),
+    })
+
+    const result = await chat({
+      adapter,
+      messages: [{ role: 'user', content: 'extract' }],
+      outputSchema: OutSchema,
+      mcp: { clients: [source] },
+    })
+
+    expect(result).toEqual({ ok: true })
+    expect(source.toolCallCount).toBe(1)
+    expect(source.closed).toBe(true)
+  })
+
+  it('discovered MCP tool executes inside the structured-output agent loop', async () => {
+    const mcpExecuteSpy = vi.fn().mockReturnValue({ mcp: true })
+    const source: MCPToolSource = {
+      tools: async () => [
+        {
+          __toolSide: 'server' as const,
+          name: 'mcpDo',
+          description: 'does a thing via MCP',
+          execute: mcpExecuteSpy,
+        } satisfies ServerTool,
+      ],
+      close: async () => {},
+    }
+
+    const { adapter } = createMockAdapter({
+      iterations: [
+        // Turn 1: the model calls the MCP-discovered tool.
+        [
+          ev.runStarted(),
+          ev.toolStart('call_mcp', 'mcpDo'),
+          ev.toolArgs('call_mcp', '{}'),
+          ev.runFinished('tool_calls'),
+        ],
+        // Turn 2: the model finishes; finalization produces the structured output.
+        finishTurn(),
+      ],
+      structuredOutput: async () => ({ data: { ok: true }, rawText: '{"ok":true}' }),
+    })
+
+    const stream = chat({
+      adapter,
+      messages: [{ role: 'user', content: 'do it then summarize' }],
+      outputSchema: OutSchema,
+      stream: true,
+      mcp: { clients: [source] },
+    })
+
+    await collectChunks(stream as unknown as AsyncIterable<StreamChunk>)
+
+    expect(mcpExecuteSpy).toHaveBeenCalledTimes(1)
   })
 })
