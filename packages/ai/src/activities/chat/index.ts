@@ -69,6 +69,7 @@ import type {
   MergeContext,
   UnionToIntersection,
 } from './runtime-context-types'
+import type { ChatMCPOptions } from './mcp/types'
 
 // ===========================
 // Activity Kind
@@ -208,6 +209,12 @@ export interface TextActivityOptions<
         | ProviderTool<string, TAdapter['~types']['toolCapabilities'][number]>
       >
     | undefined
+  /**
+   * Hand MCP clients/pools to chat(): their tools are discovered at run start
+   * and merged into the run; `connection` controls whether chat() closes them
+   * when the run ends. See docs/tools/mcp.md "Managing MCP clients with chat()".
+   */
+  mcp?: ChatMCPOptions
   /** Controls the randomness of the output. Higher values make output more random. Range: [0.0, 2.0] */
   temperature?: TextOptions['temperature']
   /** Nucleus sampling parameter. The model considers tokens with topP probability mass. */
