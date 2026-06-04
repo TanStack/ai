@@ -32,6 +32,7 @@ import { Route as ApiTanchatRouteImport } from './routes/api.tanchat'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiStructuredOutputRouteImport } from './routes/api.structured-output'
 import { Route as ApiStructuredChatRouteImport } from './routes/api.structured-chat'
+import { Route as ApiMcpStatusRouteImport } from './routes/api.mcp-status'
 import { Route as ApiMcpPoolRouteImport } from './routes/api.mcp-pool'
 import { Route as ApiMcpManualRouteImport } from './routes/api.mcp-manual'
 import { Route as ApiMcpChatRouteImport } from './routes/api.mcp-chat'
@@ -162,6 +163,11 @@ const ApiStructuredChatRoute = ApiStructuredChatRouteImport.update({
   path: '/api/structured-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMcpStatusRoute = ApiMcpStatusRouteImport.update({
+  id: '/api/mcp-status',
+  path: '/api/mcp-status',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMcpPoolRoute = ApiMcpPoolRouteImport.update({
   id: '/api/mcp-pool',
   path: '/api/mcp-pool',
@@ -233,6 +239,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp-chat': typeof ApiMcpChatRoute
   '/api/mcp-manual': typeof ApiMcpManualRoute
   '/api/mcp-pool': typeof ApiMcpPoolRoute
+  '/api/mcp-status': typeof ApiMcpStatusRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -269,6 +276,7 @@ export interface FileRoutesByTo {
   '/api/mcp-chat': typeof ApiMcpChatRoute
   '/api/mcp-manual': typeof ApiMcpManualRoute
   '/api/mcp-pool': typeof ApiMcpPoolRoute
+  '/api/mcp-status': typeof ApiMcpStatusRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -306,6 +314,7 @@ export interface FileRoutesById {
   '/api/mcp-chat': typeof ApiMcpChatRoute
   '/api/mcp-manual': typeof ApiMcpManualRoute
   '/api/mcp-pool': typeof ApiMcpPoolRoute
+  '/api/mcp-status': typeof ApiMcpStatusRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -344,6 +353,7 @@ export interface FileRouteTypes {
     | '/api/mcp-chat'
     | '/api/mcp-manual'
     | '/api/mcp-pool'
+    | '/api/mcp-status'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
@@ -380,6 +390,7 @@ export interface FileRouteTypes {
     | '/api/mcp-chat'
     | '/api/mcp-manual'
     | '/api/mcp-pool'
+    | '/api/mcp-status'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
@@ -416,6 +427,7 @@ export interface FileRouteTypes {
     | '/api/mcp-chat'
     | '/api/mcp-manual'
     | '/api/mcp-pool'
+    | '/api/mcp-status'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
@@ -453,6 +465,7 @@ export interface RootRouteChildren {
   ApiMcpChatRoute: typeof ApiMcpChatRoute
   ApiMcpManualRoute: typeof ApiMcpManualRoute
   ApiMcpPoolRoute: typeof ApiMcpPoolRoute
+  ApiMcpStatusRoute: typeof ApiMcpStatusRoute
   ApiStructuredChatRoute: typeof ApiStructuredChatRoute
   ApiStructuredOutputRoute: typeof ApiStructuredOutputRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
@@ -638,6 +651,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiStructuredChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mcp-status': {
+      id: '/api/mcp-status'
+      path: '/api/mcp-status'
+      fullPath: '/api/mcp-status'
+      preLoaderRoute: typeof ApiMcpStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/mcp-pool': {
       id: '/api/mcp-pool'
       path: '/api/mcp-pool'
@@ -733,6 +753,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpChatRoute: ApiMcpChatRoute,
   ApiMcpManualRoute: ApiMcpManualRoute,
   ApiMcpPoolRoute: ApiMcpPoolRoute,
+  ApiMcpStatusRoute: ApiMcpStatusRoute,
   ApiStructuredChatRoute: ApiStructuredChatRoute,
   ApiStructuredOutputRoute: ApiStructuredOutputRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,

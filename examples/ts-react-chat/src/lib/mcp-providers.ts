@@ -2,6 +2,7 @@ import { openaiText } from '@tanstack/ai-openai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
 import { groqText } from '@tanstack/ai-groq'
+import { openRouterText } from '@tanstack/ai-openrouter'
 
 /**
  * Providers the MCP demo can route a chat through. MCP tool discovery and
@@ -14,6 +15,12 @@ import { groqText } from '@tanstack/ai-groq'
  * separate from the (keyless) MCP servers.
  */
 export const MCP_PROVIDERS = [
+  {
+    value: 'openrouter',
+    label: 'OpenRouter',
+    model: 'openai/gpt-5.5',
+    envKey: 'OPENROUTER_API_KEY',
+  },
   { value: 'openai', label: 'OpenAI', model: 'gpt-5.5', envKey: 'OPENAI_API_KEY' },
   {
     value: 'anthropic',
@@ -43,6 +50,8 @@ export type McpProvider = (typeof MCP_PROVIDERS)[number]['value']
  */
 export function resolveTextAdapter(provider: unknown) {
   switch (provider) {
+    case 'openrouter':
+      return openRouterText('openai/gpt-5.5')
     case 'anthropic':
       return anthropicText('claude-sonnet-4-6')
     case 'gemini':

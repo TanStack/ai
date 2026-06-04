@@ -322,7 +322,7 @@ function ChatSurface({
 
 function McpDemoPage() {
   const [mode, setMode] = useState<McpMode>('manual')
-  const [provider, setProvider] = useState<McpProvider>('openai')
+  const [provider, setProvider] = useState<McpProvider>('openrouter')
 
   const selectedMode = MODES.find((m) => m.value === mode)!
   const selectedProvider = MCP_PROVIDERS.find((p) => p.value === provider)!
