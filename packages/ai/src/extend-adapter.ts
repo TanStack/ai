@@ -158,7 +158,6 @@ type InferFactoryModels<TFactory> = TFactory extends (
     : string
   : string
 
-
 /**
  * Infer the adapter return type from a factory function.
  */
@@ -169,10 +168,26 @@ type InferAdapterReturn<TFactory> = TFactory extends (
   : never
 
 /**
- * Extracts all parameter types after the first parameter from a function.
+ * Extracts all parameter types after the model parameter from a factory,
+ * preserving labels and optionality (e.g. `[apiKey: string, config?: C]`).
+ * Note: overloaded factories resolve against their last overload (a
+ * `Parameters` limitation).
  */
-type InferRestArgs<TFactory extends (...args: any) => any> =
-  Parameters<TFactory> extends [any, ...infer Rest] ? Rest : []
+type InferRestArgs<TFactory extends (...args: Array<any>) => any> =
+  Parameters<TFactory> extends [any?, ...infer TRest] ? TRest : []
+
+/**
+ * The factory signature produced by `extendAdapter`: accepts both original
+ * and custom model names while preserving all remaining parameters and the
+ * return type of the original factory.
+ */
+type ExtendedFactory<
+  TFactory extends (model: any, ...args: Array<any>) => any,
+  TDefs extends ReadonlyArray<ExtendedModelDef>,
+> = (
+  model: InferFactoryModels<TFactory> | ExtractCustomModelNames<TDefs>,
+  ...args: InferRestArgs<TFactory>
+) => InferAdapterReturn<TFactory>
 
 // ===========================
 // extendAdapter Function
@@ -224,15 +239,9 @@ type InferRestArgs<TFactory extends (...args: any) => any> =
 export function extendAdapter<
   TFactory extends (model: any, ...args: Array<any>) => any,
   const TDefs extends ReadonlyArray<ExtendedModelDef>,
->(
-  factory: TFactory,
-  _customModels: TDefs,
-) {
+>(factory: TFactory, _customModels: TDefs): ExtendedFactory<TFactory, TDefs> {
   // At runtime, we simply pass through to the original factory.
   // The _customModels parameter is only used for type inference.
   // No runtime validation - users are trusted to pass valid model names.
-  return factory as unknown as (
-    model: InferFactoryModels<TFactory> | ExtractCustomModelNames<TDefs>,
-    ...args: InferRestArgs<TFactory>
-  ) => InferAdapterReturn<TFactory>
+  return factory
 }

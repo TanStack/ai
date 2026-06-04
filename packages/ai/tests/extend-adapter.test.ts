@@ -243,6 +243,35 @@ describe('extendAdapter', () => {
     })
   })
 
+  describe('Factories with required args after model (#407)', () => {
+    // Mimics createAnthropicChat(model, apiKey, config?)
+    function mockChat<TModel extends MockModel>(
+      model: TModel,
+      apiKey: string,
+      config?: MockAdapterConfig,
+    ): MockTextAdapter<TModel> {
+      void apiKey
+      return new MockTextAdapter(model, config)
+    }
+
+    it('should preserve required apiKey and optional config parameters', () => {
+      const extendedMock = extendAdapter(mockChat, customModels)
+
+      expectTypeOf(extendedMock).parameter(1).toEqualTypeOf<string>()
+
+      const adapter = extendedMock('my-fine-tuned-model', 'sk-test', {
+        baseURL: 'https://custom.api.com',
+      })
+      expect(adapter.model).toBe('my-fine-tuned-model')
+
+      // config stays optional
+      void extendedMock('mock-gpt-4', 'sk-test')
+
+      // @ts-expect-error - apiKey is required
+      void extendedMock('mock-gpt-4')
+    })
+  })
+
   describe('Empty custom models', () => {
     it('should work with empty custom models array', () => {
       const extendedMock = extendAdapter(mockText, [] as const)
