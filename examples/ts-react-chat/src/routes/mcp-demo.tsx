@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { Send, Square } from 'lucide-react'
+import { Check, Loader2, Send, Square, Wrench } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
@@ -41,6 +41,89 @@ const MODES: Array<{
   },
 ]
 
+type ToolCallPart = Extract<UIMessage['parts'][number], { type: 'tool-call' }>
+type ToolResultPart = Extract<UIMessage['parts'][number], { type: 'tool-result' }>
+
+function formatValue(value: unknown): string {
+  if (typeof value === 'string') return value
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return String(value)
+  }
+}
+
+/** Renders an MCP (or any) tool call: name, arguments, live state, and result. */
+function ToolCallView({ part }: { part: ToolCallPart }) {
+  let args: unknown = part.input
+  if (args === undefined && part.arguments) {
+    try {
+      args = JSON.parse(part.arguments)
+    } catch {
+      args = part.arguments
+    }
+  }
+  const done = part.state === 'complete' || part.output !== undefined
+
+  return (
+    <div className="my-2 overflow-hidden rounded-lg border border-cyan-500/30 bg-cyan-500/5">
+      <div className="flex items-center gap-2 border-b border-cyan-500/20 bg-cyan-500/10 px-3 py-2">
+        <Wrench className="h-3.5 w-3.5 text-cyan-400" />
+        <span className="font-mono text-sm text-cyan-300">{part.name}</span>
+        <span className="ml-auto flex items-center gap-1 text-xs text-gray-400">
+          {done ? (
+            <>
+              <Check className="h-3 w-3 text-green-400" /> done
+            </>
+          ) : (
+            <>
+              <Loader2 className="h-3 w-3 animate-spin" /> {part.state}
+            </>
+          )}
+        </span>
+      </div>
+      <div className="space-y-2 px-3 py-2">
+        <div>
+          <p className="mb-1 text-[10px] uppercase tracking-wide text-gray-500">
+            Arguments
+          </p>
+          <pre className="overflow-x-auto rounded bg-gray-900/60 p-2 text-xs text-gray-300">
+            {formatValue(args ?? {})}
+          </pre>
+        </div>
+        {part.output !== undefined && (
+          <div>
+            <p className="mb-1 text-[10px] uppercase tracking-wide text-gray-500">
+              Result
+            </p>
+            <pre className="max-h-60 overflow-auto rounded bg-gray-900/60 p-2 text-xs text-emerald-200">
+              {formatValue(part.output)}
+            </pre>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/** Renders a standalone tool-result part (when emitted separately from the call). */
+function ToolResultView({ part }: { part: ToolResultPart }) {
+  return (
+    <div className="my-2 overflow-hidden rounded-lg border border-emerald-500/30 bg-emerald-500/5">
+      <div className="flex items-center gap-2 border-b border-emerald-500/20 bg-emerald-500/10 px-3 py-2">
+        <Check className="h-3.5 w-3.5 text-emerald-400" />
+        <span className="text-sm text-emerald-300">Tool result</span>
+        {part.state === 'error' && (
+          <span className="ml-auto text-xs text-red-400">error</span>
+        )}
+      </div>
+      <pre className="max-h-60 overflow-auto px-3 py-2 text-xs text-emerald-200">
+        {part.error ?? formatValue(part.content)}
+      </pre>
+    </div>
+  )
+}
+
 function Messages({ messages }: { messages: Array<UIMessage> }) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
 
@@ -48,7 +131,9 @@ function Messages({ messages }: { messages: Array<UIMessage> }) {
     message.parts.some(
       (part) =>
         (part.type === 'text' && part.content.trim()) ||
-        part.type === 'thinking',
+        part.type === 'thinking' ||
+        part.type === 'tool-call' ||
+        part.type === 'tool-result',
     ),
   )
 
@@ -123,6 +208,14 @@ function Messages({ messages }: { messages: Array<UIMessage> }) {
                       </ReactMarkdown>
                     </div>
                   )
+                }
+
+                if (part.type === 'tool-call') {
+                  return <ToolCallView key={`tool-${index}`} part={part} />
+                }
+
+                if (part.type === 'tool-result') {
+                  return <ToolResultView key={`result-${index}`} part={part} />
                 }
 
                 return null
