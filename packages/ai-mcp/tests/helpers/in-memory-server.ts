@@ -16,7 +16,8 @@ export async function makeServerWithWeatherTool() {
       content: [{ type: 'text' as const, text: `Sunny in ${city}` }],
     }),
   )
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
   await server.connect(serverTransport)
   return { server, clientTransport }
 }
@@ -32,7 +33,8 @@ export async function makeServerWithResource() {
       contents: [{ uri: 'file:///hello.txt', text: 'hello from resource' }],
     }),
   )
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
   await server.connect(serverTransport)
   return { server, clientTransport }
 }
@@ -55,7 +57,8 @@ export async function makeServerWithPrompt() {
       ],
     }),
   )
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
   await server.connect(serverTransport)
   return { server, clientTransport }
 }
@@ -100,7 +103,8 @@ export async function makeFullServer() {
     }),
   )
 
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
   await server.connect(serverTransport)
   return { server, clientTransport }
 }

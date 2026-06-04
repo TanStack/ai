@@ -22,7 +22,10 @@ describe('mcpResourceToContentPart', () => {
   })
 
   it('falls back to JSON.stringify for unknown content', () => {
-    const input = { uri: 'file:///unknown', mimeType: 'application/octet-stream' }
+    const input = {
+      uri: 'file:///unknown',
+      mimeType: 'application/octet-stream',
+    }
     const part = mcpResourceToContentPart(input)
     expect(part.type).toBe('text')
     expect((part as { type: 'text'; content: string }).content).toBe(

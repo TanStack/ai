@@ -56,7 +56,7 @@ import { createMCPClient } from '@tanstack/ai-mcp'
 const client = await createMCPClient({
   transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
   prefix: 'weather', // optional: prefixes all tool names (e.g. 'weather_get_forecast')
-  name: 'my-app',    // optional: client identity sent to the server
+  name: 'my-app', // optional: client identity sent to the server
 })
 ```
 
@@ -182,7 +182,9 @@ See the "Codegen CLI" section below for details.
 
 ```typescript
 // Option 1: explicit close
-const client = await createMCPClient({ transport: { type: 'http', url: '...' } })
+const client = await createMCPClient({
+  transport: { type: 'http', url: '...' },
+})
 try {
   const tools = await client.tools()
   const stream = chat({ adapter: openaiText('gpt-4o'), messages, tools })
@@ -275,7 +277,9 @@ Inject resources into a chat turn:
 import { chat } from '@tanstack/ai'
 import { createMCPClient, mcpResourceToContentPart } from '@tanstack/ai-mcp'
 
-const client = await createMCPClient({ transport: { type: 'http', url: '...' } })
+const client = await createMCPClient({
+  transport: { type: 'http', url: '...' },
+})
 const resource = await client.readResource('file:///project/README.md')
 const parts = resource.contents.map(mcpResourceToContentPart)
 
@@ -447,7 +451,9 @@ middleware:
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { createMCPClient } from '@tanstack/ai-mcp'
 
-const client = await createMCPClient({ transport: { type: 'http', url: '...' } })
+const client = await createMCPClient({
+  transport: { type: 'http', url: '...' },
+})
 
 const stream = chat({
   adapter: openaiText('gpt-4o'),

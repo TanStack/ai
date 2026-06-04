@@ -16,11 +16,14 @@ describe('ToolExecutionContext.abortSignal', () => {
       return args.v
     })
     // Invoke execute directly with a context to assert the field is typed + forwarded.
-    await tool.execute!({ v: 'hi' }, {
-      toolCallId: 't1',
-      emitCustomEvent: () => {},
-      abortSignal: controller.signal,
-    })
+    await tool.execute!(
+      { v: 'hi' },
+      {
+        toolCallId: 't1',
+        emitCustomEvent: () => {},
+        abortSignal: controller.signal,
+      },
+    )
     expect(seen).toBe(controller.signal)
   })
 })

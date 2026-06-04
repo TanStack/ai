@@ -13,7 +13,11 @@ describe('resolveTransport', () => {
   })
 
   it('passes through a user-supplied transport instance', async () => {
-    const fake = { start: async () => {}, send: async () => {}, close: async () => {} }
+    const fake = {
+      start: async () => {},
+      send: async () => {},
+      close: async () => {},
+    }
     const t = await resolveTransport(fake as any)
     expect(t).toBe(fake)
   })
