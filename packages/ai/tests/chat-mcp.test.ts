@@ -4,7 +4,7 @@ import { MCPDuplicateToolNameError } from '../src/activities/chat/mcp/manager'
 import type { StreamChunk } from '../src/types'
 import type { MCPToolSource } from '../src/activities/chat/mcp/types'
 import type { ServerTool } from '../src/activities/chat/tools/tool-definition'
-import { ev, createMockAdapter, collectChunks, serverTool } from './test-utils'
+import { ev, createMockAdapter, collectChunks } from './test-utils'
 
 // ============================================================================
 // Fake MCP source factory
