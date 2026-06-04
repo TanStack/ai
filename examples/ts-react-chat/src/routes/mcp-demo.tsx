@@ -42,7 +42,10 @@ const MODES: Array<{
 ]
 
 type ToolCallPart = Extract<UIMessage['parts'][number], { type: 'tool-call' }>
-type ToolResultPart = Extract<UIMessage['parts'][number], { type: 'tool-result' }>
+type ToolResultPart = Extract<
+  UIMessage['parts'][number],
+  { type: 'tool-result' }
+>
 
 function formatValue(value: unknown): string {
   if (typeof value === 'string') return value
