@@ -72,9 +72,7 @@ export const Route = createFileRoute('/api/mcp-status')({
     handlers: {
       GET: async ({ request }) => {
         const only = new URL(request.url).searchParams.get('server')
-        const targets = only
-          ? SERVERS.filter((s) => s.name === only)
-          : SERVERS
+        const targets = only ? SERVERS.filter((s) => s.name === only) : SERVERS
         const servers = await Promise.all(
           targets.map((s) => probe(s.name, s.transport)),
         )

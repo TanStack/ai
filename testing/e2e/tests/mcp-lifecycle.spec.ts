@@ -14,7 +14,11 @@ import { test, expect } from './fixtures'
  */
 async function runLifecycle(
   request: import('@playwright/test').APIRequestContext,
-  opts: { testId: string; aimockPort: number; connection: 'close' | 'keep-alive' },
+  opts: {
+    testId: string
+    aimockPort: number
+    connection: 'close' | 'keep-alive'
+  },
 ) {
   const res = await request.post('/api/mcp-lifecycle-test', {
     headers: { 'Content-Type': 'application/json' },

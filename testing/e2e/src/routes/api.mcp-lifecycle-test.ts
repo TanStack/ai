@@ -1,9 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import {
-  chat,
-  chatParamsFromRequestBody,
-  maxIterations,
-} from '@tanstack/ai'
+import { chat, chatParamsFromRequestBody, maxIterations } from '@tanstack/ai'
 import { createMCPClient } from '@tanstack/ai-mcp'
 import type { StreamChunk } from '@tanstack/ai'
 import { createTextAdapter } from '@/lib/providers'
@@ -41,7 +37,8 @@ export const Route = createFileRoute('/api/mcp-lifecycle-test')({
         const testId = typeof fp.testId === 'string' ? fp.testId : undefined
         const aimockPort =
           fp.aimockPort != null ? Number(fp.aimockPort) : undefined
-        const connection = fp.connection === 'keep-alive' ? 'keep-alive' : 'close'
+        const connection =
+          fp.connection === 'keep-alive' ? 'keep-alive' : 'close'
 
         const origin = new URL(request.url).origin
         const mcpUrl = `${origin}/api/mcp-server`

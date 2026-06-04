@@ -36,9 +36,7 @@ test.describe('mcp — resource/prompt discovery + conversion', () => {
     // Resource listed + read + converted to a text ContentPart carrying the
     // server's distinctive token.
     expect(json.resources).toContain('guitar://catalog')
-    const resourceText = json.resourceContent
-      .map((c) => c.content)
-      .join('\n')
+    const resourceText = json.resourceContent.map((c) => c.content).join('\n')
     expect(resourceText).toContain('STRAT-001')
 
     // Prompt listed + fetched + converted to ModelMessages.
