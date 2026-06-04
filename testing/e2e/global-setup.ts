@@ -66,95 +66,9 @@ export default async function globalSetup() {
   // `promptTokensDetails.cachedTokens` / `completionTokensDetails.reasoningTokens`.
   mock.mount('/openai-usage-details', openaiUsageDetailsMount())
 
-  // Structured-output schema-rejection fallback (issue #682). Reproduces
-  // Anthropic rejecting a large structured-output schema on its native path
-  // ("compiled grammar is too large") and accepting the lenient forced-tool
-  // retry. aimock's built-in chat helper can't branch its response on the
-  // request shape (native `output_config` vs forced `structured_output` tool),
-  // so this mount inspects the body directly. The companion
-  // api.structured-output-fallback.ts route points the Anthropic adapter here.
-  mock.mount('/structured-output-fallback', structuredOutputFallbackMount())
-
   await mock.start()
   console.log(`[aimock] started on port 4010`)
   ;(globalThis as any).__aimock = mock
-}
-
-/** The schema-shaped object the forced-tool retry resolves to. */
-const STRUCTURED_FALLBACK_OBJECT = {
-  name: 'Fender Stratocaster',
-  price: 1299,
-  reason: 'Versatile tone and comfortable playability',
-  rating: 5,
-}
-
-const GRAMMAR_TOO_LARGE_MESSAGE =
-  'output_config.format.schema: Invalid schema: The compiled grammar is too large, ' +
-  'which would cause performance issues. Simplify your tool schemas or reduce the number of strict tools.'
-
-function structuredOutputFallbackMount(): Mountable {
-  return {
-    async handleRequest(
-      req: http.IncomingMessage,
-      res: http.ServerResponse,
-      pathname: string,
-    ): Promise<boolean> {
-      // The Anthropic SDK posts to /v1/messages (query string stripped).
-      if (req.method !== 'POST' || !pathname.startsWith('/v1/messages')) {
-        return false
-      }
-
-      const bodyText = await readBody(req)
-      let body: { output_config?: unknown } = {}
-      try {
-        body = JSON.parse(bodyText) as typeof body
-      } catch {
-        // Malformed body — treat as the native attempt and reject.
-      }
-
-      // Native attempt: the schema rides `output_config.format`. Reject it with
-      // the exact "compiled grammar is too large" error issue #682 reports.
-      if (body.output_config != null) {
-        res.statusCode = 400
-        res.setHeader('Content-Type', 'application/json')
-        res.end(
-          JSON.stringify({
-            type: 'error',
-            error: {
-              type: 'invalid_request_error',
-              message: GRAMMAR_TOO_LARGE_MESSAGE,
-            },
-          }),
-        )
-        return true
-      }
-
-      // Forced-tool retry: a `structured_output` tool with forced tool_choice.
-      // Return the schema-shaped JSON as the tool call's input.
-      res.statusCode = 200
-      res.setHeader('Content-Type', 'application/json')
-      res.end(
-        JSON.stringify({
-          id: 'msg_structured_fallback',
-          type: 'message',
-          role: 'assistant',
-          model: 'claude-sonnet-4-5',
-          content: [
-            {
-              type: 'tool_use',
-              id: 'toolu_structured_output',
-              name: 'structured_output',
-              input: STRUCTURED_FALLBACK_OBJECT,
-            },
-          ],
-          stop_reason: 'tool_use',
-          stop_sequence: null,
-          usage: { input_tokens: 12, output_tokens: 8 },
-        }),
-      )
-      return true
-    },
-  }
 }
 
 function registerMediaFixtures(mock: LLMock) {

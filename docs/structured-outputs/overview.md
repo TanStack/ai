@@ -60,37 +60,6 @@ Every adapter handles structured output through its provider's native API:
 
 The provider-specific details are handled for you — the same `chat({ outputSchema })` call works across all of them.
 
-## Handling large or complex schemas
-
-Anthropic compiles a structured-output schema into a grammar and rejects ones it considers too large or too complex. You may see this as `output_config.format.schema: Invalid schema: The compiled grammar is too large`, or as the canonical 400 message Anthropic's docs document for the same internal limit, `Schema is too complex for compilation`. Both are detected and recovered. This affects Claude models directly and `anthropic/*` models routed through OpenRouter — even when every other provider accepts the same schema.
-
-`chat()` accepts an optional `structuredOutput` strategy to handle this:
-
-```typescript
-const result = await chat({
-  adapter: anthropicText("claude-sonnet-4-6"),
-  messages: [{ role: "user", content: "…" }],
-  outputSchema: largeNestedSchema,
-  structuredOutput: "auto", // 'auto' | 'native' | 'tool' — defaults to 'auto'
-});
-```
-
-| Value | Behavior |
-|---|---|
-| `'native'` | Use the provider's native structured-output API. A schema rejection surfaces as a `RUN_ERROR` / rejected promise. |
-| `'tool'` | Force the lenient forced-tool path — a `structured_output` tool with forced `tool_choice` and a non-strict `input_schema`, which avoids strict-grammar compilation. Use for schemas you already know are large. |
-| `'auto'` *(default)* | Try `'native'`; if the provider rejects the schema, transparently re-run via `'tool'`. The recovered run emits a single clean lifecycle. Providers without a forced-tool fallback behave like `'native'`. |
-
-The default `'auto'` is fully backward compatible: it only changes behavior on the previously-hard-failing schema-rejection path. Small schemas and providers that accept the schema natively are unaffected.
-
-### What `'auto'` recovers from (and what it doesn't)
-
-The fallback is **reactive**: we never inspect your schema against Anthropic's limits before sending — we send the native request and recover only if the provider rejects it. This keeps us correct even as those limits change.
-
-`'auto'` recovers from Anthropic's **compiled-grammar-size** rejection (the messages quoted above). It does **not** auto-recover from Anthropic's other strict-mode rejections — exceeding the per-request strict-tool / optional-parameter / union-type caps, or the compilation timeout — which surface as a `RUN_ERROR` / rejected promise. If you hit one of those, pass `structuredOutput: 'tool'` to skip the native attempt entirely (the forced-tool path is non-strict, so it sidesteps every one of these limits), or simplify the schema.
-
-Anthropic's exact limits change over time and aren't all published, so we deliberately don't reproduce the numbers here — see Anthropic's [Structured output complexity limits](https://docs.claude.com/en/docs/build-with-claude/structured-outputs) for the current values and reduction strategies.
-
 ## Which page do I read?
 
 Pick the journey that matches what you're building. The four guides under "Structured Outputs" cover non-overlapping use cases — read the one that fits, not all of them.

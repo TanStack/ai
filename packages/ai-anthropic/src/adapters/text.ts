@@ -441,19 +441,6 @@ export class AnthropicTextAdapter<
     return ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(this.model)
   }
 
-  /**
-   * Recognize Anthropic's rejection of an over-large/complex
-   * `output_config.format` schema ("The compiled grammar is too large" or the
-   * docs' canonical "Schema is too complex for compilation").
-   * When the caller leaves `structuredOutput: 'auto'`, the engine retries via
-   * the lenient forced-tool path ({@link structuredOutput}, which sends a
-   * non-strict `structured_output` tool that Anthropic does not grammar-
-   * compile). Every other error returns `false` so it surfaces unchanged.
-   */
-  isStructuredOutputSchemaError(error: unknown): boolean {
-    return isAnthropicGrammarError(error)
-  }
-
   private convertContentPartToAnthropic(
     part: ContentPart,
   ): TextBlockParam | ImageBlockParam | DocumentBlockParam {
@@ -1184,50 +1171,6 @@ export class AnthropicTextAdapter<
       }
     }
   }
-}
-
-/**
- * Detect Anthropic's rejection of an over-large/complex `output_config.format`
- * schema. Two documented/observed message shapes both trigger the fallback:
- *  - "The compiled grammar is too large" — observed in the raw API/OpenRouter
- *    response when the compiled grammar exceeds the internal size budget.
- *  - "Schema is too complex for compilation" — the canonical 400 message
- *    Anthropic's structured-output docs guarantee for the same internal limit.
- * Also matches any error naming `output_config.format.schema`. Inspects the
- * message plus any nested provider error body (`error` / `rawEvent`), because
- * the engine may pass the thrown SDK error OR a `{ message, code, rawEvent }`
- * value reconstructed from a RUN_ERROR chunk (the native-combined `chatStream`
- * path).
- */
-function isAnthropicGrammarError(error: unknown): boolean {
-  const text = collectErrorText(error).toLowerCase()
-  return (
-    text.includes('compiled grammar is too large') ||
-    text.includes('schema is too complex for compilation') ||
-    text.includes('output_config.format.schema')
-  )
-}
-
-function collectErrorText(error: unknown): string {
-  const parts: Array<string> = []
-  const visit = (value: unknown, depth: number): void => {
-    if (value == null || depth > 4) return
-    if (typeof value === 'string') {
-      parts.push(value)
-      return
-    }
-    if (typeof value !== 'object') return
-    const obj = value as Record<string, unknown>
-    // `Error.message` is non-enumerable, so `Object.values` misses it — read
-    // it explicitly. The recursion then sweeps any nested provider body
-    // (`error`, `rawEvent`, `metadata`, …) without hard-coding key names.
-    if (typeof obj.message === 'string') parts.push(obj.message)
-    for (const nested of Object.values(obj)) {
-      visit(nested, depth + 1)
-    }
-  }
-  visit(error, 0)
-  return parts.join(' ')
 }
 
 /**

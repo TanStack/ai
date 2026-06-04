@@ -25,7 +25,6 @@ import { Route as ApiTtsRouteImport } from './routes/api.tts'
 import { Route as ApiTranscriptionRouteImport } from './routes/api.transcription'
 import { Route as ApiToolsTestRouteImport } from './routes/api.tools-test'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
-import { Route as ApiStructuredOutputFallbackRouteImport } from './routes/api.structured-output-fallback'
 import { Route as ApiOpenrouterWebToolsWireRouteImport } from './routes/api.openrouter-web-tools-wire'
 import { Route as ApiOpenrouterCostRouteImport } from './routes/api.openrouter-cost'
 import { Route as ApiOpenaiUsageDetailsRouteImport } from './routes/api.openai-usage-details'
@@ -123,12 +122,6 @@ const ApiSummarizeRoute = ApiSummarizeRouteImport.update({
   path: '/api/summarize',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiStructuredOutputFallbackRoute =
-  ApiStructuredOutputFallbackRouteImport.update({
-    id: '/api/structured-output-fallback',
-    path: '/api/structured-output-fallback',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const ApiOpenrouterWebToolsWireRoute =
   ApiOpenrouterWebToolsWireRouteImport.update({
     id: '/api/openrouter-web-tools-wire',
@@ -234,7 +227,6 @@ export interface FileRoutesByFullPath {
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
-  '/api/structured-output-fallback': typeof ApiStructuredOutputFallbackRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
@@ -269,7 +261,6 @@ export interface FileRoutesByTo {
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
-  '/api/structured-output-fallback': typeof ApiStructuredOutputFallbackRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
@@ -305,7 +296,6 @@ export interface FileRoutesById {
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
-  '/api/structured-output-fallback': typeof ApiStructuredOutputFallbackRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
@@ -342,7 +332,6 @@ export interface FileRouteTypes {
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
     | '/api/openrouter-web-tools-wire'
-    | '/api/structured-output-fallback'
     | '/api/summarize'
     | '/api/tools-test'
     | '/api/transcription'
@@ -377,7 +366,6 @@ export interface FileRouteTypes {
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
     | '/api/openrouter-web-tools-wire'
-    | '/api/structured-output-fallback'
     | '/api/summarize'
     | '/api/tools-test'
     | '/api/transcription'
@@ -412,7 +400,6 @@ export interface FileRouteTypes {
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
     | '/api/openrouter-web-tools-wire'
-    | '/api/structured-output-fallback'
     | '/api/summarize'
     | '/api/tools-test'
     | '/api/transcription'
@@ -448,7 +435,6 @@ export interface RootRouteChildren {
   ApiOpenaiUsageDetailsRoute: typeof ApiOpenaiUsageDetailsRoute
   ApiOpenrouterCostRoute: typeof ApiOpenrouterCostRoute
   ApiOpenrouterWebToolsWireRoute: typeof ApiOpenrouterWebToolsWireRoute
-  ApiStructuredOutputFallbackRoute: typeof ApiStructuredOutputFallbackRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
   ApiToolsTestRoute: typeof ApiToolsTestRoute
   ApiTranscriptionRoute: typeof ApiTranscriptionRouteWithChildren
@@ -569,13 +555,6 @@ declare module '@tanstack/react-router' {
       path: '/api/summarize'
       fullPath: '/api/summarize'
       preLoaderRoute: typeof ApiSummarizeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/structured-output-fallback': {
-      id: '/api/structured-output-fallback'
-      path: '/api/structured-output-fallback'
-      fullPath: '/api/structured-output-fallback'
-      preLoaderRoute: typeof ApiStructuredOutputFallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/openrouter-web-tools-wire': {
@@ -773,7 +752,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOpenaiUsageDetailsRoute: ApiOpenaiUsageDetailsRoute,
   ApiOpenrouterCostRoute: ApiOpenrouterCostRoute,
   ApiOpenrouterWebToolsWireRoute: ApiOpenrouterWebToolsWireRoute,
-  ApiStructuredOutputFallbackRoute: ApiStructuredOutputFallbackRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
   ApiToolsTestRoute: ApiToolsTestRoute,
   ApiTranscriptionRoute: ApiTranscriptionRouteWithChildren,

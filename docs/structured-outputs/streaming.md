@@ -168,8 +168,6 @@ Streaming structured output works with **every adapter**, but only some support 
 
 The fallback path keeps the consumer code identical across providers — you always read the final object off `structured-output.complete` — but you won't see incremental deltas unless the adapter implements `structuredOutputStream` natively.
 
-> **Large schemas:** If a provider rejects the schema on its native path (Anthropic's _"The compiled grammar is too large"_, directly or via OpenRouter), the default `structuredOutput: 'auto'` transparently re-runs through the lenient forced-tool path and you still get one clean `structured-output.complete`. Pass `structuredOutput: 'tool'` to skip the native attempt for a known-large schema. See [Overview → Handling large or complex schemas](./overview#handling-large-or-complex-schemas).
-
 ## Advanced: iterating the stream directly
 
 When you don't need the SSE-over-HTTP boundary — Node scripts, CLIs, server endpoints that respond with a final JSON object instead of a stream, or tests — consume `chat({ outputSchema, stream: true })` as a plain async iterable:

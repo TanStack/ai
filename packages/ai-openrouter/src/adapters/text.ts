@@ -12,7 +12,6 @@ import { convertToolsToProviderFormat } from '../tools'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
 import { buildOpenRouterUsage } from '../usage'
 import { extractUsageCost } from './cost'
-import type { FunctionTool } from '../tools'
 import type { SDKOptions } from '@openrouter/sdk'
 import type {
   ChatContentItems,
@@ -204,15 +203,6 @@ export class OpenRouterTextAdapter<
   async structuredOutput(
     options: StructuredOutputOptions<ResolveProviderOptions<TModel>>,
   ): Promise<StructuredOutputResult<unknown>> {
-    // Forced-tool path: satisfy the schema via a `structured_output` function
-    // tool instead of `response_format: json_schema`. For `anthropic/*`
-    // models OpenRouter compiles the json_schema into a grammar upstream and
-    // rejects large schemas ("compiled grammar is too large"); a non-strict
-    // tool `input_schema` avoids that. Selected by `structuredOutput: 'tool'`
-    // or the engine's auto-fallback retry.
-    if (options.strategy === 'tool') {
-      return this.structuredOutputViaTool(options)
-    }
     const { chatOptions, outputSchema } = options
     const chatRequest = this.mapOptionsToRequest(chatOptions)
 
@@ -312,15 +302,6 @@ export class OpenRouterTextAdapter<
   async *structuredOutputStream(
     options: StructuredOutputOptions<ResolveProviderOptions<TModel>>,
   ): AsyncIterable<StreamChunk> {
-    // Forced-tool path: the lenient `structured_output` tool call is
-    // non-streaming, so synthesize the AG-UI stream around it (mirrors the
-    // engine's `fallbackStructuredOutputStream`). Used by
-    // `structuredOutput: 'tool'` and the auto-fallback retry for large
-    // schemas OpenRouter rejects via the native `json_schema` path.
-    if (options.strategy === 'tool') {
-      yield* this.synthesizeToolStructuredOutputStream(options)
-      return
-    }
     const { chatOptions, outputSchema } = options
     const chatRequest = this.mapOptionsToRequest(chatOptions)
 
@@ -626,192 +607,6 @@ export class OpenRouterTextAdapter<
         error: errorPayload,
         source: `${this.name}.structuredOutputStream`,
       })
-    }
-  }
-
-  /**
-   * Recognize OpenRouter forwarding Anthropic's rejection of an over-large/
-   * complex `json_schema` structured-output request ("The compiled grammar is
-   * too large" or the docs' canonical "Schema is too complex for compilation";
-   * only `anthropic/*` models hit this; every other upstream accepts the same
-   * schema). When the caller leaves `structuredOutput: 'auto'`, the engine
-   * retries via the forced-tool path ({@link structuredOutputViaTool}). Other
-   * errors return `false` so they surface unchanged.
-   */
-  isStructuredOutputSchemaError(error: unknown): boolean {
-    return isOpenRouterStructuredOutputSchemaError(error)
-  }
-
-  /**
-   * Forced-tool structured output: send the schema as a non-strict
-   * `structured_output` function tool with forced `toolChoice` and parse the
-   * single tool call's arguments. Avoids the upstream grammar compilation
-   * that strict `json_schema` triggers for `anthropic/*` models.
-   */
-  private async structuredOutputViaTool(
-    options: StructuredOutputOptions<ResolveProviderOptions<TModel>>,
-  ): Promise<StructuredOutputResult<unknown>> {
-    const { chatOptions, outputSchema } = options
-    const chatRequest = this.mapOptionsToRequest(chatOptions)
-    // Drop streaming-only options and any caller tools — this is a dedicated
-    // single-shot structured-output request driven entirely by the forced
-    // `structured_output` tool.
-    const { streamOptions: _so, tools: _t, ...cleanParams } = chatRequest
-    void _so
-    void _t
-
-    const structuredTool: FunctionTool = {
-      type: 'function',
-      function: {
-        name: STRUCTURED_OUTPUT_TOOL_NAME,
-        description:
-          'Respond by calling this tool exactly once. Its arguments must match the required schema.',
-        parameters: outputSchema,
-      },
-    }
-
-    try {
-      chatOptions.logger.request(
-        `activity=structuredOutput(tool) provider=${this.name} model=${this.model} messages=${chatOptions.messages.length}`,
-        { provider: this.name, model: this.model },
-      )
-      const reqOptions = extractRequestOptions(chatOptions.request)
-      const response = await this.orClient.chat.send(
-        {
-          chatRequest: {
-            ...cleanParams,
-            stream: false,
-            tools: [structuredTool],
-            toolChoice: {
-              type: 'function',
-              function: { name: STRUCTURED_OUTPUT_TOOL_NAME },
-            },
-          },
-        },
-        {
-          ...(reqOptions.signal != null && { signal: reqOptions.signal }),
-          ...(reqOptions.headers && { headers: reqOptions.headers }),
-        },
-      )
-
-      const toolCalls = response.choices[0]?.message.toolCalls
-      const toolCall =
-        toolCalls?.find(
-          (tc) => tc.function.name === STRUCTURED_OUTPUT_TOOL_NAME,
-        ) ?? toolCalls?.[0]
-      const rawText = toolCall?.function.arguments ?? ''
-      if (rawText.length === 0) {
-        throw new Error(
-          `${this.name}.structuredOutput: model returned no structured_output tool call`,
-        )
-      }
-
-      let parsed: unknown
-      try {
-        parsed = JSON.parse(rawText)
-      } catch {
-        throw new Error(
-          `Failed to parse structured output as JSON. Content: ${rawText.slice(0, 200)}${rawText.length > 200 ? '...' : ''}`,
-        )
-      }
-
-      return {
-        data: this.transformStructuredOutput(parsed),
-        rawText,
-      }
-    } catch (error: unknown) {
-      chatOptions.logger.errors(`${this.name}.structuredOutput(tool) fatal`, {
-        error: toRunErrorPayload(error, `${this.name}.structuredOutput failed`),
-        source: `${this.name}.structuredOutput`,
-      })
-      throw error
-    }
-  }
-
-  /**
-   * Synthesize an AG-UI structured-output stream around the single-shot
-   * forced-tool call (mirrors the engine's `fallbackStructuredOutputStream`):
-   * one RUN_STARTED → TEXT_MESSAGE_* carrying the raw JSON → a terminal
-   * `structured-output.complete` → RUN_FINISHED.
-   */
-  private async *synthesizeToolStructuredOutputStream(
-    options: StructuredOutputOptions<ResolveProviderOptions<TModel>>,
-  ): AsyncIterable<StreamChunk> {
-    const { chatOptions } = options
-    const model = chatOptions.model
-    const runId = generateId(this.name)
-    const threadId = chatOptions.threadId ?? generateId(this.name)
-    const messageId = generateId(this.name)
-    const timestamp = Date.now()
-
-    yield {
-      type: EventType.RUN_STARTED,
-      runId,
-      threadId,
-      model,
-      timestamp,
-      parentRunId: chatOptions.parentRunId,
-    }
-
-    let result: StructuredOutputResult<unknown>
-    try {
-      result = await this.structuredOutputViaTool(options)
-    } catch (error: unknown) {
-      const errorPayload = toRunErrorPayload(
-        error,
-        `${this.name}.structuredOutputStream failed`,
-      )
-      const rawEvent = toRunErrorRawEvent(error)
-      yield {
-        type: EventType.RUN_ERROR,
-        runId,
-        model,
-        timestamp,
-        message: errorPayload.message,
-        ...(errorPayload.code !== undefined && { code: errorPayload.code }),
-        ...(rawEvent !== undefined && { rawEvent }),
-        error: {
-          message: errorPayload.message,
-          ...(errorPayload.code !== undefined && { code: errorPayload.code }),
-        },
-      }
-      return
-    }
-
-    yield {
-      type: EventType.TEXT_MESSAGE_START,
-      messageId,
-      role: 'assistant',
-      model,
-      timestamp,
-    }
-    yield {
-      type: EventType.TEXT_MESSAGE_CONTENT,
-      messageId,
-      delta: result.rawText,
-      model,
-      timestamp,
-    }
-    yield {
-      type: EventType.TEXT_MESSAGE_END,
-      messageId,
-      model,
-      timestamp,
-    }
-    yield {
-      type: EventType.CUSTOM,
-      name: 'structured-output.complete',
-      value: { object: result.data, raw: result.rawText },
-      model,
-      timestamp,
-    }
-    yield {
-      type: EventType.RUN_FINISHED,
-      runId,
-      threadId,
-      model,
-      timestamp,
-      finishReason: 'stop',
     }
   }
 
@@ -1581,53 +1376,6 @@ export class OpenRouterTextAdapter<
       .map((p) => p.content)
       .join('')
   }
-}
-
-/** Name of the synthetic tool used by the forced-tool structured-output path. */
-const STRUCTURED_OUTPUT_TOOL_NAME = 'structured_output'
-
-/**
- * Detect OpenRouter forwarding Anthropic's rejection of an over-large/complex
- * `json_schema` structured-output request. Two documented/observed message
- * shapes both trigger the fallback:
- *  - "The compiled grammar is too large" — observed in the forwarded raw
- *    response when the compiled grammar exceeds the internal size budget.
- *  - "Schema is too complex for compilation" — the canonical 400 message
- *    Anthropic's structured-output docs guarantee for the same internal limit.
- * Also matches any error naming `output_config.format.schema`. Inspects the
- * message plus any nested provider error body (`error` / `rawEvent` /
- * `metadata`), because the engine may pass the thrown SDK error OR a
- * `{ message, code, rawEvent }` value reconstructed from a RUN_ERROR chunk.
- */
-function isOpenRouterStructuredOutputSchemaError(error: unknown): boolean {
-  const text = collectErrorText(error).toLowerCase()
-  return (
-    text.includes('compiled grammar is too large') ||
-    text.includes('schema is too complex for compilation') ||
-    text.includes('output_config.format.schema')
-  )
-}
-
-function collectErrorText(error: unknown): string {
-  const parts: Array<string> = []
-  const visit = (value: unknown, depth: number): void => {
-    if (value == null || depth > 4) return
-    if (typeof value === 'string') {
-      parts.push(value)
-      return
-    }
-    if (typeof value !== 'object') return
-    const obj = value as Record<string, unknown>
-    // `Error.message` is non-enumerable, so `Object.values` misses it — read
-    // it explicitly. The recursion then sweeps any nested provider body
-    // (`error`, `rawEvent`, `metadata`, …) without hard-coding key names.
-    if (typeof obj.message === 'string') parts.push(obj.message)
-    for (const nested of Object.values(obj)) {
-      visit(nested, depth + 1)
-    }
-  }
-  visit(error, 0)
-  return parts.join(' ')
 }
 
 /**

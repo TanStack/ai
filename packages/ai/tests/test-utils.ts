@@ -162,10 +162,6 @@ export function createMockAdapter(options: {
    *  The engine then forwards `outputSchema` into `chatStream` and skips
    *  the separate finalization round-trip. */
   supportsCombinedToolsAndSchema?: boolean
-  /** Predicate the engine consults under `structuredOutput: 'auto'` to decide
-   *  whether a structured-output failure is a recoverable schema rejection
-   *  worth retrying via the forced-tool path (issue #682). */
-  isStructuredOutputSchemaError?: (error: unknown) => boolean
 }) {
   const calls: Array<TextOptions<any, any>> = []
   let callIndex = 0
@@ -215,11 +211,6 @@ export function createMockAdapter(options: {
 
   if (options.supportsCombinedToolsAndSchema) {
     adapter.supportsCombinedToolsAndSchema = () => true
-  }
-
-  if (options.isStructuredOutputSchemaError) {
-    adapter.isStructuredOutputSchemaError =
-      options.isStructuredOutputSchemaError
   }
 
   return { adapter, calls }

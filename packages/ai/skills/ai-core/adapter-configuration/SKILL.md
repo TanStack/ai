@@ -255,37 +255,7 @@ Subclasses can override to narrow the capability. When extending an
 adapter for a custom model that doesn't support the combination, return
 `false` explicitly.
 
-### 6. Capability Flag: `isStructuredOutputSchemaError` (schema-rejection fallback)
-
-Adapters can declare an optional predicate:
-
-```ts
-isStructuredOutputSchemaError?(error: unknown): boolean
-```
-
-It powers `chat({ structuredOutput: 'auto' })` (the default). When a
-provider rejects a structured-output schema on its native path (the
-canonical case: Anthropic _"The compiled grammar is too large"_, directly
-or for `anthropic/*` via OpenRouter), the engine consults this predicate.
-On a `true`, it suppresses the terminal error and transparently re-runs via
-the lenient forced-tool path (a non-strict `structured_output` tool); on a
-`false` (or when the method is omitted) the error surfaces unchanged.
-
-The predicate receives either the thrown adapter error or a reconstructed
-`{ message, code?, rawEvent? }` lifted from a `RUN_ERROR` chunk — match on
-the message / nested provider body, not on the error being an `Error`
-instance. Return `true` only for recoverable schema-compilation rejections;
-return `false` for auth, rate-limit, network, and genuine validation
-failures.
-
-Adapters that honor `'tool'` should also branch their
-`structuredOutput` / `structuredOutputStream` on
-`StructuredOutputOptions.strategy === 'tool'` to emit the forced-tool
-request. Current status: `anthropicText` (its `structuredOutput` is already
-forced-tool) and `openRouterText` (gains a forced-tool mode) implement the
-predicate; other adapters omit it and behave as `'native'`.
-
-### 7. OpenAI-Compatible Providers
+### 6. OpenAI-Compatible Providers
 
 Any provider that implements the OpenAI **Chat Completions** API (DeepSeek,
 Moonshot/Kimi, Together, Fireworks, Cerebras, Qwen/DashScope, Perplexity,
