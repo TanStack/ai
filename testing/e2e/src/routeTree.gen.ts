@@ -32,6 +32,7 @@ import { Route as ApiMultimodalToolResultWireRouteImport } from './routes/api.mu
 import { Route as ApiMiddlewareTestRouteImport } from './routes/api.middleware-test'
 import { Route as ApiMcpTestRouteImport } from './routes/api.mcp-test'
 import { Route as ApiMcpServerRouteImport } from './routes/api.mcp-server'
+import { Route as ApiMcpManagedTestRouteImport } from './routes/api.mcp-managed-test'
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
@@ -161,6 +162,11 @@ const ApiMcpServerRoute = ApiMcpServerRouteImport.update({
   path: '/api/mcp-server',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMcpManagedTestRoute = ApiMcpManagedTestRouteImport.update({
+  id: '/api/mcp-managed-test',
+  path: '/api/mcp-managed-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiImageRoute = ApiImageRouteImport.update({
   id: '/api/image',
   path: '/api/image',
@@ -234,6 +240,7 @@ export interface FileRoutesByFullPath {
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
+  '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
   '/api/mcp-server': typeof ApiMcpServerRoute
   '/api/mcp-test': typeof ApiMcpTestRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
@@ -270,6 +277,7 @@ export interface FileRoutesByTo {
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
+  '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
   '/api/mcp-server': typeof ApiMcpServerRoute
   '/api/mcp-test': typeof ApiMcpTestRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
@@ -307,6 +315,7 @@ export interface FileRoutesById {
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
+  '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
   '/api/mcp-server': typeof ApiMcpServerRoute
   '/api/mcp-test': typeof ApiMcpTestRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
@@ -345,6 +354,7 @@ export interface FileRouteTypes {
     | '/api/audio'
     | '/api/chat'
     | '/api/image'
+    | '/api/mcp-managed-test'
     | '/api/mcp-server'
     | '/api/mcp-test'
     | '/api/middleware-test'
@@ -381,6 +391,7 @@ export interface FileRouteTypes {
     | '/api/audio'
     | '/api/chat'
     | '/api/image'
+    | '/api/mcp-managed-test'
     | '/api/mcp-server'
     | '/api/mcp-test'
     | '/api/middleware-test'
@@ -417,6 +428,7 @@ export interface FileRouteTypes {
     | '/api/audio'
     | '/api/chat'
     | '/api/image'
+    | '/api/mcp-managed-test'
     | '/api/mcp-server'
     | '/api/mcp-test'
     | '/api/middleware-test'
@@ -454,6 +466,7 @@ export interface RootRouteChildren {
   ApiAudioRoute: typeof ApiAudioRouteWithChildren
   ApiChatRoute: typeof ApiChatRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
+  ApiMcpManagedTestRoute: typeof ApiMcpManagedTestRoute
   ApiMcpServerRoute: typeof ApiMcpServerRoute
   ApiMcpTestRoute: typeof ApiMcpTestRoute
   ApiMiddlewareTestRoute: typeof ApiMiddlewareTestRoute
@@ -632,6 +645,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMcpServerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mcp-managed-test': {
+      id: '/api/mcp-managed-test'
+      path: '/api/mcp-managed-test'
+      fullPath: '/api/mcp-managed-test'
+      preLoaderRoute: typeof ApiMcpManagedTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/image': {
       id: '/api/image'
       path: '/api/image'
@@ -787,6 +807,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAudioRoute: ApiAudioRouteWithChildren,
   ApiChatRoute: ApiChatRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
+  ApiMcpManagedTestRoute: ApiMcpManagedTestRoute,
   ApiMcpServerRoute: ApiMcpServerRoute,
   ApiMcpTestRoute: ApiMcpTestRoute,
   ApiMiddlewareTestRoute: ApiMiddlewareTestRoute,
