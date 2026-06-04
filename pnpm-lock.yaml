@@ -477,6 +477,67 @@ importers:
         specifier: ^5.1.0
         version: 5.1.0
 
+  examples/ts-react-copilotkit:
+    dependencies:
+      '@ag-ui/client':
+        specifier: ^0.0.45
+        version: 0.0.45
+      '@tailwindcss/vite':
+        specifier: ^4.1.18
+        version: 4.1.18(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
+      '@tanstack/ai-client':
+        specifier: workspace:*
+        version: link:../../packages/ai-client
+      '@tanstack/ai-openai':
+        specifier: workspace:*
+        version: link:../../packages/ai-openai
+      '@tanstack/ai-react':
+        specifier: workspace:*
+        version: link:../../packages/ai-react
+      '@tanstack/nitro-v2-vite-plugin':
+        specifier: ^1.154.7
+        version: 1.154.7(rolldown@1.0.0-rc.17)(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+      '@tanstack/react-router':
+        specifier: ^1.158.4
+        version: 1.159.5(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@tanstack/react-start':
+        specifier: ^1.159.0
+        version: 1.159.5(crossws@0.4.5(srvx@0.11.15))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(vite-plugin-solid@2.11.10(solid-js@1.9.10)(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)))(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+      react:
+        specifier: ^19.2.3
+        version: 19.2.3
+      react-dom:
+        specifier: ^19.2.3
+        version: 19.2.3(react@19.2.3)
+      tailwindcss:
+        specifier: ^4.1.18
+        version: 4.1.18
+      zod:
+        specifier: ^4.2.0
+        version: 4.3.6
+    devDependencies:
+      '@types/react':
+        specifier: ^19.2.7
+        version: 19.2.7
+      '@types/react-dom':
+        specifier: ^19.2.3
+        version: 19.2.3(@types/react@19.2.7)
+      '@vitejs/plugin-react':
+        specifier: ^5.1.2
+        version: 5.1.2(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vite:
+        specifier: ^7.2.7
+        version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
+      vite-tsconfig-paths:
+        specifier: ^5.1.4
+        version: 5.1.4(typescript@5.9.3)(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+
   examples/ts-react-media:
     dependencies:
       '@tailwindcss/vite':
@@ -2077,8 +2138,20 @@ packages:
   '@acemir/cssom@0.9.29':
     resolution: {integrity: sha512-G90x0VW+9nW4dFajtjCoT+NM0scAfH9Mb08IcjgFHYbfiL/lU04dTF9JuVOi3/OH+DJCQdcIseSXkdCB9Ky6JA==}
 
+  '@ag-ui/client@0.0.45':
+    resolution: {integrity: sha512-JePLNDcl0W1SU+FAEWkcfa6JxONfQmyA3IQLL7mG2gCQKrF+9rcxPWwL7okIX6Bio6rWefXlpJ01H9zNeBLGcw==}
+
+  '@ag-ui/core@0.0.45':
+    resolution: {integrity: sha512-Ccsarxb23TChONOWXDbNBqp1fIbOSMht8g7w6AsSYBTtdOwZ7h7AkjNkr3LSdVv+RbT30JMdSLtieJE0YepNPg==}
+
   '@ag-ui/core@0.0.52':
     resolution: {integrity: sha512-Xo0bUaNV56EqylzcrAuhUkQX7et7+SZIrqZZtEByGwEq/I1EHny6ZMkWHLkKR7UNi0FJZwJyhKYmKJS3B2SEgA==}
+
+  '@ag-ui/encoder@0.0.45':
+    resolution: {integrity: sha512-EGvLZfadsmOyXJ8uYrqA/STnqdKxYQlNDHO51og7WZbJszZ/dpMCqo6GBfN0uVW7blSQvJS9UDCxztopbp/zFw==}
+
+  '@ag-ui/proto@0.0.45':
+    resolution: {integrity: sha512-gj+XdbTOyNV1i5my77OaVZa7E2T/XTkoHlzpbd/O9C+BX6wxqMWORATKDJG1KZoanNsWr0Z7mtpwVuehs0GbBA==}
 
   '@anthropic-ai/sdk@0.97.1':
     resolution: {integrity: sha512-wOf7AUeJPitcVpvKO4UMu63mWH5SaVipkGd7OOQJt/G6VYGlV8D2Gp9dLxOrttDJh/9gqPqdaBwDGcBevumeAg==}
@@ -2627,6 +2700,9 @@ packages:
 
   '@bufbuild/protobuf@1.10.1':
     resolution: {integrity: sha512-wJ8ReQbHxsAfXhrf9ixl0aYbZorRuOWpBNzm8pL8ftmSxQx/wnJD5Eg861NwJU/czy2VXFIebCeZnZrI9rktIQ==}
+
+  '@bufbuild/protobuf@2.12.0':
+    resolution: {integrity: sha512-B/XlCaFIP8LOwzo+bz5uFzATYokcwCKQcghqnlfwSmM5eX/qTkvDBnDPs+gXtX/RyjxJ4DRikECcPJbyALA8FA==}
 
   '@changesets/apply-release-plan@7.1.0':
     resolution: {integrity: sha512-yq8ML3YS7koKQ/9bk1PqO0HMzApIFNwjlwCnwFEXMzNe8NpzeeYYKCmnhWJGkN8g7E51MnWaSbqRcTcdIxUgnQ==}
@@ -4809,6 +4885,10 @@ packages:
 
   '@poppinss/exception@1.2.3':
     resolution: {integrity: sha512-dCED+QRChTVatE9ibtoaxc+WkdzOSjYTKi/+uacHWIsfodVfpsueo3+DKpgU5Px8qXjgmXkSvhXvSCz3fnP9lw==}
+
+  '@protobuf-ts/protoc@2.11.1':
+    resolution: {integrity: sha512-mUZJaV0daGO6HUX90o/atzQ6A7bbN2RSuHtdwo8SSF2Qoe3zHwa4IHyCN1evftTeHfLmdz+45qo47sL+5P8nyg==}
+    hasBin: true
 
   '@protobufjs/aspromise@1.1.2':
     resolution: {integrity: sha512-j+gKExEuLmKwvz3OgROXtrJ2UG2x8Ch2YZUxahh+s1F2HZ+wAceUNLkvy6zKCPVRkU++ZWQrdxsUeQXmcg4uoQ==}
@@ -7210,6 +7290,9 @@ packages:
   '@types/unist@3.0.3':
     resolution: {integrity: sha512-ko/gIFJRv177XgZsZcBwnqJN5x/Gien8qNOn0D5bQU/zAzVf9Zt3BlcUiLqhV9y4ARk0GbT3tnUiPNgnTXzc/Q==}
 
+  '@types/uuid@10.0.0':
+    resolution: {integrity: sha512-7gqG38EyHgyP1S+7+xomFtL+ZNHcKv6DwNaCZmJmo1vgMugyF3TCnXVg4t1uk89mLNwnLtnY3TpOpCOyp1/xHQ==}
+
   '@types/whatwg-mimetype@3.0.2':
     resolution: {integrity: sha512-c2AKvDT8ToxLIOUlN51gTiHXflsfIFisS4pO7pDPoKouJCESkhZnEy623gwP9laCy5lnLDAw1vAzu2vM2YLOrA==}
 
@@ -9208,6 +9291,9 @@ packages:
   fast-glob@3.3.3:
     resolution: {integrity: sha512-7MptL8U0cqcFdzIzwOTHoilX9x5BrNqye7Z/LuC7kCMRio1EMSyqRK3BEAUD7sXRq4iT4AzTVuZdhgQ2TCvYLg==}
     engines: {node: '>=8.6.0'}
+
+  fast-json-patch@3.1.1:
+    resolution: {integrity: sha512-vf6IHUX2SBcA+5/+4883dsIjpBTqmfBjmYiWK1savxQmFk4JfBMLa7ynTYOs1Rolp/T1betJxHiGD3g1Mn8lUQ==}
 
   fast-json-stable-stringify@2.1.0:
     resolution: {integrity: sha512-lhd/wF+Lk98HZoTCtlVraHtfh5XYijIjalXck7saUtuanSDyLMxnHhSXEDJqHxD7msR8D0uCmqlkwjCV8xvwHw==}
@@ -11960,6 +12046,9 @@ packages:
   run-parallel@1.2.0:
     resolution: {integrity: sha512-5l4VyZR86LZ/lDxZTR6jqL8AFE2S0IFLMP26AbjsLVADxHdhB/c0GUsH+y39UfCi3dzz8OlQuPmnaJOMoDHQBA==}
 
+  rxjs@7.8.1:
+    resolution: {integrity: sha512-AA3TVj+0A2iuIoQkWEK/tqFjBq2j+6PO6Y0zJcvzLAFhEFIO3HL0vls9hWLncZbAAbK0mar7oZ4V079I/qPMxg==}
+
   rxjs@7.8.2:
     resolution: {integrity: sha512-dhKf903U/PQZY6boNNtAGdWbG85WAbjT/1xYoZIC7FAY0yWapOBQVsVrDl58W86//e1VpMNBtRV4MaXfdMySFA==}
 
@@ -13123,6 +13212,9 @@ packages:
       uploadthing:
         optional: true
 
+  untruncate-json@0.0.1:
+    resolution: {integrity: sha512-4W9enDK4X1y1s2S/Rz7ysw6kDuMS3VmRjMFg7GZrNO+98OSe+x5Lh7PKYoVjy3lW/1wmhs6HW0lusnQRHgMarA==}
+
   untun@0.1.3:
     resolution: {integrity: sha512-4luGP9LMYszMRZwsvyUd9MrxgEGZdZuZgpVQHEEX0lCYFESasVRvZd0EYpCkOIbJKHMuv0LskpXc/8Un+MJzEQ==}
     hasBin: true
@@ -13180,6 +13272,10 @@ packages:
   utils-merge@1.0.1:
     resolution: {integrity: sha512-pMZTvIkT1d+TFGvDOqodOclx0QWkkgi6Tdoa8gC8ffGAAqz9pzPTZWAybbsHHoED/ztMtkv/VoYTYyShUn81hA==}
     engines: {node: '>= 0.4.0'}
+
+  uuid@11.1.1:
+    resolution: {integrity: sha512-vIYxrBCC/N/K+Js3qSN88go7kIfNPssr/hHCesKCQNAjmgvYS2oqr69kIufEG+O4+PfezOH4EbIeHCfFov8ZgQ==}
+    hasBin: true
 
   uuid@7.0.3:
     resolution: {integrity: sha512-DPSke0pXhTZgoF/d+WSt2QaKMCFSfx7QegxEWT+JOuHF5aWrKEn0G+ztjuJg/gG8/ItK+rbPCD/yNv8yyih6Cg==}
@@ -13791,9 +13887,38 @@ snapshots:
 
   '@acemir/cssom@0.9.29': {}
 
+  '@ag-ui/client@0.0.45':
+    dependencies:
+      '@ag-ui/core': 0.0.45
+      '@ag-ui/encoder': 0.0.45
+      '@ag-ui/proto': 0.0.45
+      '@types/uuid': 10.0.0
+      compare-versions: 6.1.1
+      fast-json-patch: 3.1.1
+      rxjs: 7.8.1
+      untruncate-json: 0.0.1
+      uuid: 11.1.1
+      zod: 3.25.76
+
+  '@ag-ui/core@0.0.45':
+    dependencies:
+      rxjs: 7.8.1
+      zod: 3.25.76
+
   '@ag-ui/core@0.0.52':
     dependencies:
       zod: 3.25.76
+
+  '@ag-ui/encoder@0.0.45':
+    dependencies:
+      '@ag-ui/core': 0.0.45
+      '@ag-ui/proto': 0.0.45
+
+  '@ag-ui/proto@0.0.45':
+    dependencies:
+      '@ag-ui/core': 0.0.45
+      '@bufbuild/protobuf': 2.12.0
+      '@protobuf-ts/protoc': 2.11.1
 
   '@anthropic-ai/sdk@0.97.1(zod@4.2.1)':
     dependencies:
@@ -14503,6 +14628,8 @@ snapshots:
   '@bcoe/v8-coverage@1.0.2': {}
 
   '@bufbuild/protobuf@1.10.1': {}
+
+  '@bufbuild/protobuf@2.12.0': {}
 
   '@changesets/apply-release-plan@7.1.0':
     dependencies:
@@ -16363,6 +16490,8 @@ snapshots:
       supports-color: 10.2.2
 
   '@poppinss/exception@1.2.3': {}
+
+  '@protobuf-ts/protoc@2.11.1': {}
 
   '@protobufjs/aspromise@1.1.2': {}
 
@@ -19443,6 +19572,8 @@ snapshots:
 
   '@types/unist@3.0.3': {}
 
+  '@types/uuid@10.0.0': {}
+
   '@types/whatwg-mimetype@3.0.2': {}
 
   '@types/ws@8.18.1':
@@ -21850,6 +21981,8 @@ snapshots:
       glob-parent: 5.1.2
       merge2: 1.4.1
       micromatch: 4.0.8
+
+  fast-json-patch@3.1.1: {}
 
   fast-json-stable-stringify@2.1.0: {}
 
@@ -25566,6 +25699,10 @@ snapshots:
     dependencies:
       queue-microtask: 1.2.3
 
+  rxjs@7.8.1:
+    dependencies:
+      tslib: 2.8.1
+
   rxjs@7.8.2:
     dependencies:
       tslib: 2.8.1
@@ -26664,6 +26801,8 @@ snapshots:
       db0: 0.3.4
       ofetch: 2.0.0-alpha.3
 
+  untruncate-json@0.0.1: {}
+
   untun@0.1.3:
     dependencies:
       citty: 0.1.6
@@ -26730,6 +26869,8 @@ snapshots:
   util-deprecate@1.0.2: {}
 
   utils-merge@1.0.1: {}
+
+  uuid@11.1.1: {}
 
   uuid@7.0.3: {}
 
