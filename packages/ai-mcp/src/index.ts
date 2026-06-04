@@ -14,6 +14,8 @@ export type {
   SseTransportConfig,
   StdioTransportConfig,
 } from './transport'
+export type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
+export { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 export {
   MCPConnectionError,
   DuplicateToolNameError,

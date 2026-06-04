@@ -135,7 +135,16 @@ const mcp = await createMCPClient({
 
 ### Custom transport (escape hatch)
 
-Pass any `Transport` instance from `@modelcontextprotocol/sdk` directly:
+Pass any `Transport` instance directly as the `transport` option. For in-process testing, `InMemoryTransport` is re-exported from `@tanstack/ai-mcp`:
+
+```ts
+import { createMCPClient, InMemoryTransport } from '@tanstack/ai-mcp'
+
+const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+const mcp = await createMCPClient({ transport: clientTransport })
+```
+
+For a custom network transport, pass any SDK `Transport`-compatible instance:
 
 ```ts
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
