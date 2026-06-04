@@ -347,6 +347,55 @@ const templates = await mcp.resourceTemplates()
 // templates: Array<ResourceTemplate>
 ```
 
+## Prompts
+
+MCP prompts are reusable message templates the server exposes. Fetch a prompt, convert it to `ModelMessage[]` with `mcpPromptToMessages`, and spread it into `chat()` to seed the conversation with server-defined context or instructions.
+
+```ts
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai/adapters'
+import { createMCPClient, mcpPromptToMessages } from '@tanstack/ai-mcp'
+
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+
+  const mcp = await createMCPClient({
+    transport: { type: 'http', url: process.env.MCP_URL! },
+  })
+
+  try {
+    // List all available prompts on the server
+    const available = await mcp.prompts()
+    // available: Array<{ name: string; description?: string; arguments?: ... }>
+
+    // Fetch a specific prompt, optionally passing template arguments
+    const prompt = await mcp.getPrompt('summarize', { language: 'english' })
+
+    const stream = chat({
+      adapter: openaiText(),
+      model: 'gpt-4o',
+      messages: [
+        // Seed the conversation with the server-defined prompt messages
+        ...mcpPromptToMessages(prompt),
+        // Then append the user's own messages
+        ...messages,
+      ],
+    })
+
+    return toServerSentEventsResponse(stream)
+  } finally {
+    await mcp.close()
+  }
+}
+```
+
+`mcpPromptToMessages` maps each MCP prompt message to a `ModelMessage`:
+- `role === 'assistant'` → `{ role: 'assistant', content: text }`
+- any other role → `{ role: 'user', content: text }`
+- non-text content → `content` is `JSON.stringify`'d
+
+`getPrompt(name, args?)` accepts an optional `args` parameter typed as `Record<string, string>` for filling in template variables declared by the prompt.
+
 ## Cancellation
 
 When the chat run is cancelled (e.g. the user navigates away or an `AbortController` fires), in-flight MCP `callTool` requests are cancelled automatically. The abort signal from the chat run is threaded through `ToolExecutionContext.abortSignal` into each tool's execute function.
