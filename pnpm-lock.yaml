@@ -1374,7 +1374,7 @@ importers:
         specifier: ^15.0.4
         version: 15.0.4
       tsup:
-        specifier: ^8.3.5
+        specifier: ^8.5.1
         version: 8.5.1(@microsoft/api-extractor@7.47.7(@types/node@24.10.3))(jiti@2.6.1)(postcss@8.5.15)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)
       vite:
         specifier: ^7.3.3
