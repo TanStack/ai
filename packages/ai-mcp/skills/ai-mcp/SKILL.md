@@ -321,7 +321,7 @@ Generate end-to-end TypeScript types by introspecting live MCP servers.
 **1. Create `mcp.config.ts` at your project root:**
 
 ```typescript
-import { defineConfig } from '@tanstack/ai-mcp'
+import { defineConfig } from '@tanstack/ai-mcp/cli'
 
 export default defineConfig({
   servers: {

@@ -6,12 +6,13 @@
   "repository": { "type": "git", "url": "git+https://github.com/TanStack/ai.git", "directory": "packages/ai-mcp" },
   "keywords": ["ai", "mcp", "model-context-protocol", "tanstack", "tools", "typescript"],
   "type": "module",
-  "module": "./dist/esm/index.js",
+  "module": "./dist/esm/packages/ai-mcp/src/index.js",
   "types": "./dist/esm/index.d.ts",
   "bin": { "tanstack-ai-mcp": "./dist/bin/bin.js" },
   "exports": {
-    ".": { "types": "./dist/esm/index.d.ts", "import": "./dist/esm/index.js" },
-    "./stdio": { "types": "./dist/esm/stdio.d.ts", "import": "./dist/esm/stdio.js" }
+    ".": { "types": "./dist/esm/index.d.ts", "import": "./dist/esm/packages/ai-mcp/src/index.js" },
+    "./stdio": { "types": "./dist/esm/stdio.d.ts", "import": "./dist/esm/packages/ai-mcp/src/stdio.js" },
+    "./cli": { "types": "./dist/esm/cli/config.d.ts", "import": "./dist/esm/packages/ai-mcp/src/cli/config.js" }
   },
   "files": ["dist", "src"],
   "scripts": {
