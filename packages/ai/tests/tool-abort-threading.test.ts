@@ -16,7 +16,13 @@ describe('executeToolCalls abort threading', () => {
       seen = ctx?.abortSignal
       return 'ok'
     })
-    const calls = [{ id: 'c1', type: 'function', function: { name: 'probe', arguments: '{}' } }]
+    const calls = [
+      {
+        id: 'c1',
+        type: 'function',
+        function: { name: 'probe', arguments: '{}' },
+      },
+    ]
     const gen = executeToolCalls(
       calls as any,
       [tool],

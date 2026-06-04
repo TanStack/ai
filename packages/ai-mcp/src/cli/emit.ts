@@ -17,7 +17,10 @@ function pascal(name: string): string {
  * `export interface <typeName> { ... }` declaration which callers inline via
  * {@link inlineBody}.
  */
-async function schemaToType(schema: unknown, typeName: string): Promise<string> {
+async function schemaToType(
+  schema: unknown,
+  typeName: string,
+): Promise<string> {
   if (!schema || typeof schema !== 'object') return 'unknown'
   const compiled = await compile(schema, typeName, {
     bannerComment: '',
@@ -89,7 +92,9 @@ export async function emitDescriptors(input: EmitInput): Promise<string> {
  */
 function inlineBody(compiled: string): string {
   const brace = compiled.indexOf('{')
-  return brace >= 0 ? compiled.slice(brace).replace(/\n/g, ' ').trim() : 'unknown'
+  return brace >= 0
+    ? compiled.slice(brace).replace(/\n/g, ' ').trim()
+    : 'unknown'
 }
 
 function emitResources(s: ServerSurface): string {
@@ -102,6 +107,8 @@ function emitResources(s: ServerSurface): string {
 function emitPrompts(s: ServerSurface): string {
   if (!s.prompts.length) return '{}'
   return `{ ${s.prompts
-    .map((p) => `'${p.name}': { args: Record<string, string>; messages: unknown }`)
+    .map(
+      (p) => `'${p.name}': { args: Record<string, string>; messages: unknown }`,
+    )
     .join('; ')} }`
 }

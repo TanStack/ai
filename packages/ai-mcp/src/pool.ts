@@ -51,8 +51,9 @@ export async function createMCPClients<
   const ok = settled.filter(
     (
       r,
-    ): r is PromiseFulfilledResult<readonly [string, MCPClient<ServerDescriptor>]> =>
-      r.status === 'fulfilled',
+    ): r is PromiseFulfilledResult<
+      readonly [string, MCPClient<ServerDescriptor>]
+    > => r.status === 'fulfilled',
   )
   const failed = settled
     .map((r, i) => (r.status === 'rejected' ? names[i] : null))

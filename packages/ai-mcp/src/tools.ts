@@ -11,7 +11,8 @@ export function mcpContentToTanstack(
   content: Array<any>,
 ): string | Array<ContentPart> {
   // Single text block → plain string (most common, best for the model).
-  if (content.length === 1 && content[0]?.type === 'text') return content[0].text
+  if (content.length === 1 && content[0]?.type === 'text')
+    return content[0].text
   return content.map((c): ContentPart => {
     switch (c.type) {
       case 'text':
@@ -74,7 +75,10 @@ export function toServerTools(
       __toolSide: 'server',
       name,
       description: def.description ?? '',
-      inputSchema: (def.inputSchema as any) ?? { type: 'object', properties: {} },
+      inputSchema: (def.inputSchema as any) ?? {
+        type: 'object',
+        properties: {},
+      },
       ...(def.outputSchema ? { outputSchema: def.outputSchema as any } : {}),
       ...(options.lazy ? { lazy: true } : {}),
       metadata: { mcp: { serverToolName: def.name } },

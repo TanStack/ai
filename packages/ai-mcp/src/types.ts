@@ -39,17 +39,15 @@ export interface ToolsOptions {
  * already returns a fully-typed `ServerTool<TInput, TOutput, TName>`, so a
  * mapped tuple over the passed definitions preserves per-tool types.
  */
-export type ServerToolFromDef<TDef> = TDef extends ToolDefinition<
-  infer TInput,
-  infer TOutput,
-  infer TName
->
-  ? ServerTool<TInput, TOutput, TName>
-  : never
+export type ServerToolFromDef<TDef> =
+  TDef extends ToolDefinition<infer TInput, infer TOutput, infer TName>
+    ? ServerTool<TInput, TOutput, TName>
+    : never
 
-export type MappedServerTools<TDefs extends ReadonlyArray<AnyToolDefinition>> = {
-  -readonly [K in keyof TDefs]: ServerToolFromDef<TDefs[K]>
-}
+export type MappedServerTools<TDefs extends ReadonlyArray<AnyToolDefinition>> =
+  {
+    -readonly [K in keyof TDefs]: ServerToolFromDef<TDefs[K]>
+  }
 
 /**
  * ServerTool typed from one descriptor tool entry, named by its key `TKey`.

@@ -21,12 +21,20 @@ export interface ServerSurface {
 export async function introspectFromTransport(
   transport: Transport,
 ): Promise<ServerSurface> {
-  const client = new Client({ name: 'tanstack-ai-mcp-codegen', version: '0.0.1' })
+  const client = new Client({
+    name: 'tanstack-ai-mcp-codegen',
+    version: '0.0.1',
+  })
   await client.connect(transport)
   try {
-    const caps = (client.getServerCapabilities() ?? {}) as Record<string, unknown>
+    const caps = (client.getServerCapabilities() ?? {}) as Record<
+      string,
+      unknown
+    >
     const tools = caps['tools'] ? (await client.listTools()).tools : []
-    const resources = caps['resources'] ? (await client.listResources()).resources : []
+    const resources = caps['resources']
+      ? (await client.listResources()).resources
+      : []
     const prompts = caps['prompts'] ? (await client.listPrompts()).prompts : []
     return {
       tools: tools.map((t) => ({

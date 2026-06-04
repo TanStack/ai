@@ -42,24 +42,23 @@ export interface MCPClient<
   readResource: (uri: string) => Promise<ReadResourceResult>
   resourceTemplates: () => Promise<Array<ResourceTemplate>>
   prompts: () => Promise<Array<Prompt>>
-  getPrompt: (name: string, args?: Record<string, string>) => Promise<GetPromptResult>
+  getPrompt: (
+    name: string,
+    args?: Record<string, string>,
+  ) => Promise<GetPromptResult>
   close: () => Promise<void>
   [Symbol.asyncDispose]: () => Promise<void>
 }
 
-class MCPClientImpl<TServer extends ServerDescriptor>
-  implements MCPClient<TServer>
-{
+class MCPClientImpl<
+  TServer extends ServerDescriptor,
+> implements MCPClient<TServer> {
   capabilities: TServer['capabilities'] = {}
   readonly #client: Client
   #closed = false
   private readonly prefix?: string
 
-  constructor(
-    prefix?: string,
-    name = 'tanstack-ai-mcp',
-    version = '0.0.1',
-  ) {
+  constructor(prefix?: string, name = 'tanstack-ai-mcp', version = '0.0.1') {
     this.prefix = prefix
     this.#client = new Client({ name, version })
   }
@@ -82,8 +81,8 @@ class MCPClientImpl<TServer extends ServerDescriptor>
     const isDefs = Array.isArray(defsOrOptions)
     const options: ToolsOptions = isDefs
       ? maybeOptions
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-      : ((defsOrOptions as ToolsOptions) ?? {}) // SDK interop: defsOrOptions may be undefined at runtime even though TS types it as ToolsOptions here
+      : // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+        ((defsOrOptions as ToolsOptions) ?? {}) // SDK interop: defsOrOptions may be undefined at runtime even though TS types it as ToolsOptions here
 
     let tools: Array<ServerTool>
     if (isDefs) {
@@ -138,7 +137,10 @@ class MCPClientImpl<TServer extends ServerDescriptor>
     return (await this.#client.listPrompts()).prompts
   }
 
-  async getPrompt(name: string, args?: Record<string, string>): Promise<GetPromptResult> {
+  async getPrompt(
+    name: string,
+    args?: Record<string, string>,
+  ): Promise<GetPromptResult> {
     if (this.#closed) throw new MCPConnectionError('MCP client is closed')
     return this.#client.getPrompt({ name, arguments: args })
   }

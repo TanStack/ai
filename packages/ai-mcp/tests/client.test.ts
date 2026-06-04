@@ -26,10 +26,13 @@ describe('createMCPClient', () => {
     const tools = await client.tools([getWeather])
     expect(tools).toHaveLength(1)
     expect(tools[0].name).toBe('get_weather')
-    const result = await tools[0].execute!({ city: 'Brooklyn' }, {
-      toolCallId: 't',
-      emitCustomEvent: () => {},
-    })
+    const result = await tools[0].execute!(
+      { city: 'Brooklyn' },
+      {
+        toolCallId: 't',
+        emitCustomEvent: () => {},
+      },
+    )
     expect(JSON.stringify(result)).toContain('Sunny in Brooklyn')
   })
 

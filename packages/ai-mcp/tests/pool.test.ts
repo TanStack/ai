@@ -17,7 +17,9 @@ describe('createMCPClients', () => {
 
   it('exposes typed per-server access via .clients', async () => {
     const a = await makeServerWithWeatherTool()
-    await using pool = await createMCPClients({ alpha: { transport: a.clientTransport } })
+    await using pool = await createMCPClients({
+      alpha: { transport: a.clientTransport },
+    })
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     expect(await pool.clients.alpha!.tools()).toBeDefined()
   })

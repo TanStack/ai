@@ -10,14 +10,20 @@ describe('toServerTools', () => {
     await client.connect(clientTransport)
 
     const defs = (await client.listTools()).tools
-    const tools = toServerTools(client, defs, { prefix: undefined, lazy: false })
+    const tools = toServerTools(client, defs, {
+      prefix: undefined,
+      lazy: false,
+    })
 
     expect(tools.map((t) => t.name)).toContain('get_weather')
     const tool = tools.find((t) => t.name === 'get_weather')!
-    const result = await tool.execute!({ city: 'Brooklyn' }, {
-      toolCallId: 't',
-      emitCustomEvent: () => {},
-    })
+    const result = await tool.execute!(
+      { city: 'Brooklyn' },
+      {
+        toolCallId: 't',
+        emitCustomEvent: () => {},
+      },
+    )
     expect(JSON.stringify(result)).toContain('Sunny in Brooklyn')
     await client.close()
   })

@@ -40,7 +40,9 @@ function isTransportInstance(input: TransportInput): input is Transport {
   return typeof (input as Transport).start === 'function'
 }
 
-export async function resolveTransport(input: TransportInput): Promise<Transport> {
+export async function resolveTransport(
+  input: TransportInput,
+): Promise<Transport> {
   if (isTransportInstance(input)) return input
 
   switch (input.type) {
