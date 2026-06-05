@@ -103,7 +103,12 @@
           "label": "Lazy Tool Discovery",
           "to": "tools/lazy-tool-discovery",
           "addedAt": "2026-04-15"
-        },
+        }
+      ]
+    },
+    {
+      "label": "MCP",
+      "children": [
         {
           "label": "MCP Server Tools",
           "to": "tools/mcp",
@@ -115,7 +120,7 @@
           "addedAt": "2026-06-05"
         },
         {
-          "label": "Manual MCP: Tools, Resources & Prompts",
+          "label": "Manual MCP",
           "to": "tools/mcp-manual",
           "addedAt": "2026-06-05"
         },
@@ -340,7 +345,7 @@
           "addedAt": "2026-05-16"
         },
         {
-          "label": "Sampling Options to modelOptions",
+          "label": "Sampling → modelOptions",
           "to": "migration/sampling-options-to-model-options",
           "addedAt": "2026-06-03"
         }
