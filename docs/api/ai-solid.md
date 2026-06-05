@@ -25,7 +25,7 @@ npm install @tanstack/ai-solid
 
 Main primitive for managing chat state in SolidJS with full type safety.
 
-```typescript
+```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-solid";
 import { 
   clientTools, 
@@ -122,7 +122,7 @@ import {
 
 ## Example: Basic Chat
 
-```typescript
+```tsx
 import { createSignal, For } from "solid-js";
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-solid";
 
@@ -184,7 +184,7 @@ export function Chat() {
 
 ## Example: Tool Approval
 
-```typescript
+```tsx
 import { For, Show } from "solid-js";
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-solid";
 
@@ -241,7 +241,7 @@ export function ChatWithApproval() {
 
 ## Example: Client Tools with Type Safety
 
-```typescript
+```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-solid";
 import { 
   clientTools, 

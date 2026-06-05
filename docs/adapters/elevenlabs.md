@@ -78,7 +78,7 @@ const token = await realtimeToken({
 
 ### React (useRealtimeChat)
 
-```typescript
+```tsx
 import { useRealtimeChat } from '@tanstack/ai-react'
 import { elevenlabsRealtime } from '@tanstack/ai-elevenlabs'
 

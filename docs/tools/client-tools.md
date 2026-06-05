@@ -122,7 +122,7 @@ export async function POST(request: Request) {
 
 Create client implementations with automatic execution and full type safety:
 
-```typescript
+```tsx
 // app/chat.tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import { 
@@ -277,7 +277,7 @@ A `tool-call` part moves through a small set of observable `ToolCallState` value
 
 The `ToolCallState` union includes a `complete` value, but the runtime never transitions a tool-call part to it — a finished call settles at `input-complete`. Once the tool runs, the result appears two ways: `part.output` becomes populated on the tool-call part, and a sibling `tool-result` part is emitted whose own `state` is `complete` or `error` (the `error` case carries `part.error`). Use the tool-call states for loading/streaming progress and the tool-result part for final success/error feedback.
 
-```typescript
+```tsx
 import type { ToolCallPart } from "@tanstack/ai-client";
 
 function ToolCallDisplay({ part }: { part: ToolCallPart }) {

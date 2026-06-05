@@ -93,7 +93,7 @@ Events are keyed by `toolCallId` so each `execute_typescript` call gets its own 
 
 When rendering messages, check for `execute_typescript` tool calls and display their events:
 
-```typescript
+```tsx
 function MessageList({
   messages,
   toolCallEvents,
@@ -142,7 +142,7 @@ function MessageList({
 
 Here's a complete `CodeExecutionPanel` component that shows the generated code, live event stream, and final result:
 
-```typescript
+```tsx
 function CodeExecutionPanel({
   code,
   events,

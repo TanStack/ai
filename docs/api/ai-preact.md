@@ -24,7 +24,7 @@ npm install @tanstack/ai-preact
 
 Main hook for managing chat state in Preact with full type safety.
 
-```typescript
+```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-preact";
 import { 
   clientTools, 
@@ -119,7 +119,7 @@ import {
 
 ## Example: Basic Chat
 
-```typescript
+```tsx
 import { useState } from "preact/hooks";
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-preact";
 
@@ -177,7 +177,7 @@ export function Chat() {
 
 ## Example: Tool Approval
 
-```typescript
+```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-preact";
 
 export function ChatWithApproval() {
@@ -230,7 +230,7 @@ export function ChatWithApproval() {
 
 ## Example: Client Tools with Type Safety
 
-```typescript
+```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-preact";
 import { 
   clientTools, 
