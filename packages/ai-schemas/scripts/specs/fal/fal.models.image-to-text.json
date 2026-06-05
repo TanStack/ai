@@ -1,0 +1,373 @@
+{
+  "generated_at": "2026-06-05T08:08:07.774Z",
+  "total_models": 1,
+  "category": "image-to-text",
+  "models": [
+    {
+      "endpoint_id": "nvidia/nemotron-3-nano-omni/vision",
+      "metadata": {
+        "display_name": "Nemotron 3 Nano Omni",
+        "category": "image-to-text",
+        "description": "Vision reasoning variant of NVIDIA's Nemotron 3 Nano Omni. 30B A3B hybrid Transformer-Mamba MoE - accepts an image plus a prompt and returns text.",
+        "status": "active",
+        "tags": [
+          "nemotron",
+          "nvidia",
+          "image-to-text",
+          "vision-language",
+          "vision-reasoning",
+          "reasoning",
+          "agentic",
+          "agents",
+          "open-weights",
+          "hybrid-moe",
+          "mamba",
+          "30b-a3b"
+        ],
+        "updated_at": "2026-04-30T23:01:03.594Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/0a97fc1a/44YyOoFOCrsAmXpvExbhN_bf489eed741849bf89170edd15436191.jpg",
+        "model_url": "https://fal.run/nvidia/nemotron-3-nano-omni/vision",
+        "license_type": "commercial",
+        "date": "2026-04-27T21:46:49.986Z",
+        "group": {
+          "key": "nemotron-3",
+          "label": "Image"
+        },
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for nvidia/nemotron-3-nano-omni/vision",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the nvidia/nemotron-3-nano-omni/vision queue.",
+          "x-fal-metadata": {
+            "endpointId": "nvidia/nemotron-3-nano-omni/vision",
+            "category": "image-to-text",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/0a97fc1a/44YyOoFOCrsAmXpvExbhN_bf489eed741849bf89170edd15436191.jpg",
+            "playgroundUrl": "https://fal.ai/models/nvidia/nemotron-3-nano-omni/vision",
+            "documentationUrl": "https://fal.ai/models/nvidia/nemotron-3-nano-omni/vision/api",
+            "about": "Run Vision"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": ["IN_QUEUE", "IN_PROGRESS", "COMPLETED"]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": ["status", "request_id"]
+            },
+            "Nemotron3NanoOmniVisionInput": {
+              "properties": {
+                "top_p": {
+                  "default": 0.95,
+                  "description": "Nucleus sampling probability mass.",
+                  "title": "Top P",
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "temperature": {
+                  "default": 0.7,
+                  "description": "Sampling temperature. Lower is more deterministic.",
+                  "title": "Temperature",
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 2
+                },
+                "system_prompt": {
+                  "description": "Optional system prompt to steer the model. Reasoning behavior is controlled by the separate `reasoning_mode` field.",
+                  "title": "System Prompt",
+                  "examples": ["You are a concise enterprise assistant."],
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "reasoning_mode": {
+                  "description": "Whether the model should emit an explicit reasoning trace. `no_think` returns a direct answer; `think` returns chain-of-thought followed by the final answer.",
+                  "title": "Reasoning Mode",
+                  "type": "string",
+                  "enum": ["think", "no_think"],
+                  "default": "no_think"
+                },
+                "image_url": {
+                  "description": "URL of the image to reason about. RGB JPEG or PNG.",
+                  "title": "Image URL",
+                  "type": "string",
+                  "examples": [
+                    "https://storage.googleapis.com/falserverless/example_inputs/nemotron-3-nano-omni/vision_in.jpg"
+                  ]
+                },
+                "max_tokens": {
+                  "default": 1024,
+                  "description": "Maximum number of tokens to generate.",
+                  "title": "Max Tokens",
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 20000
+                },
+                "prompt": {
+                  "description": "Text prompt to send to the model. English only.",
+                  "title": "Prompt",
+                  "minLength": 1,
+                  "examples": [
+                    "Summarize the key capabilities of a multimodal agent."
+                  ],
+                  "type": "string"
+                }
+              },
+              "type": "object",
+              "title": "VisionInput",
+              "x-fal-order-properties": [
+                "prompt",
+                "system_prompt",
+                "reasoning_mode",
+                "max_tokens",
+                "temperature",
+                "top_p",
+                "image_url"
+              ],
+              "required": ["prompt", "image_url"]
+            },
+            "Nemotron3NanoOmniVisionOutput": {
+              "properties": {
+                "finish_reason": {
+                  "description": "Reason generation stopped.",
+                  "title": "Finish Reason",
+                  "type": "string",
+                  "examples": ["stop", "length"],
+                  "default": "stop"
+                },
+                "output": {
+                  "description": "Generated text response.",
+                  "title": "Output",
+                  "type": "string",
+                  "examples": [
+                    "The image shows a golden retriever puppy sitting on a wooden floor."
+                  ]
+                },
+                "usage": {
+                  "$ref": "#/components/schemas/UsageInfo",
+                  "description": "Token usage for the request.",
+                  "examples": [
+                    {
+                      "output_tokens": 87,
+                      "input_tokens": 412
+                    }
+                  ]
+                }
+              },
+              "type": "object",
+              "title": "BaseOutput",
+              "x-fal-order-properties": ["output", "finish_reason", "usage"],
+              "required": ["output", "usage"]
+            },
+            "UsageInfo": {
+              "properties": {
+                "output_tokens": {
+                  "description": "Number of output tokens generated.",
+                  "title": "Output Tokens",
+                  "type": "integer"
+                },
+                "input_tokens": {
+                  "description": "Number of input tokens processed.",
+                  "title": "Input Tokens",
+                  "type": "integer"
+                }
+              },
+              "type": "object",
+              "title": "UsageInfo",
+              "x-fal-order-properties": ["input_tokens", "output_tokens"],
+              "required": ["input_tokens", "output_tokens"]
+            }
+          }
+        },
+        "paths": {
+          "/nvidia/nemotron-3-nano-omni/vision/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/nvidia/nemotron-3-nano-omni/vision/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/nvidia/nemotron-3-nano-omni/vision": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/Nemotron3NanoOmniVisionInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/nvidia/nemotron-3-nano-omni/vision/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/Nemotron3NanoOmniVisionOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -433,3 +433,10 @@ lose type safety. If model names come from user input or config files, use
 
 - See also: `ai-core/chat-experience/SKILL.md` -- Adapter choice affects chat setup
 - See also: `ai-core/structured-outputs/SKILL.md` -- `outputSchema` handles provider differences transparently
+- See also: `@tanstack/ai-schemas` package -- model-meta.ts ships coarse
+  per-model capabilities (context window, modalities). `@tanstack/ai-schemas`
+  ships the rich per-endpoint constraint surface (allowed video durations,
+  image sizes, voice ids, etc.) as JSON Schema and Zod, grouped per provider
+  by activity and generated nightly from each provider's OpenAPI spec. Use it
+  for runtime validation before hitting the network, and to discover allowed
+  values for LLM tool inputs.

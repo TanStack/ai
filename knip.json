@@ -44,6 +44,14 @@
     },
     "packages/ai-vue-ui": {
       "ignore": ["src/use-chat-context.ts"]
+    },
+    "packages/ai-schemas": {
+      "ignore": [
+        "src/providers/**/*.gen.ts",
+        "scripts/**",
+        "openapi-ts.config.ts"
+      ],
+      "ignoreDependencies": ["zod", "vite"]
     }
   }
 }

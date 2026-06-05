@@ -1,0 +1,82 @@
+{
+  "name": "@tanstack/ai-schemas",
+  "version": "0.1.0",
+  "description": "JSON Schema and Zod schemas for AI provider endpoints (OpenAI, Anthropic, Gemini, FAL, ElevenLabs, …), generated nightly from upstream OpenAPI specs.",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-schemas"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    },
+    "./openai-strict": {
+      "types": "./dist/esm/openai-strict.d.ts",
+      "import": "./dist/esm/openai-strict.js"
+    },
+    "./*/json-schema": {
+      "types": "./dist/esm/providers/*/schemas-index.d.ts",
+      "import": "./dist/esm/providers/*/schemas-index.js"
+    },
+    "./*/zod": {
+      "types": "./dist/esm/providers/*/index.d.ts",
+      "import": "./dist/esm/providers/*/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "node --max-old-space-size=8192 ./node_modules/vite/bin/vite.js build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:build": "publint --strict",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest --passWithNoTests",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc",
+    "fetch-schemas": "tsx scripts/fetch-schemas.ts",
+    "generate-schemas": "openapi-ts",
+    "generate-endpoint-maps": "tsx scripts/generate-endpoint-maps.ts",
+    "update-schemas": "pnpm fetch-schemas && pnpm generate-schemas && pnpm generate-endpoint-maps"
+  },
+  "keywords": [
+    "ai",
+    "schemas",
+    "json-schema",
+    "zod",
+    "openapi",
+    "openai",
+    "anthropic",
+    "gemini",
+    "fal",
+    "elevenlabs",
+    "tanstack"
+  ],
+  "peerDependencies": {
+    "zod": "^4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "zod": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@hey-api/openapi-ts": "0.97.2",
+    "@vitest/coverage-v8": "4.0.14",
+    "prettier": "^3.7.4",
+    "tsx": "^4.21.0",
+    "vite": "^7.3.3",
+    "yaml": "^2.7.0",
+    "zod": "^4.2.0"
+  }
+}

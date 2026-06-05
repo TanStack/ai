@@ -1,0 +1,95 @@
+name: Sync Provider Schemas
+
+on:
+  schedule:
+    # 05:00 UTC daily — one hour before sync-models.yml so the two automated
+    # PRs don't contend on the changeset / branch push at the same minute.
+    - cron: '0 5 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    name: Sync Schemas
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Setup Tools
+        uses: TanStack/config/.github/setup@e4b48f16568324f76f467aa4c2aac2f05db632c3 # main
+
+      - name: Fetch provider OpenAPI specs
+        run: pnpm --filter @tanstack/ai-schemas fetch-schemas
+        env:
+          FAL_KEY: ${{ secrets.FAL_KEY }}
+
+      - name: Generate JSON Schemas + Zod
+        run: pnpm --filter @tanstack/ai-schemas generate-schemas
+
+      - name: Generate endpoint maps and barrels
+        run: pnpm --filter @tanstack/ai-schemas generate-endpoint-maps
+
+      - name: Check for package changes
+        id: changes
+        run: |
+          if git diff --quiet -- packages/ai-schemas/; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Write changeset and commit
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          mkdir -p .changeset
+          cat > .changeset/automated-sync-schemas.md <<'EOF'
+          ---
+          "@tanstack/ai-schemas": patch
+          ---
+
+          Nightly sync of provider OpenAPI schemas.
+          EOF
+          git add packages/ai-schemas/ .changeset/
+          git commit -m "chore(schemas): sync provider OpenAPI schemas"
+          git push --force origin HEAD:automated/sync-schemas
+
+      - name: Create or update PR
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          BRANCH="automated/sync-schemas"
+          EXISTING_PR=$(gh pr list --head "$BRANCH" --base main --json number --jq '.[0].number' 2>/dev/null || true)
+          if [ -z "$EXISTING_PR" ] || [ "$EXISTING_PR" = "null" ]; then
+            BODY=$(cat <<'PRBODY'
+          Automated nightly sync of provider OpenAPI schemas.
+
+          - Fetches upstream specs (OpenAI, Anthropic, Gemini, ElevenLabs, FAL).
+          - Runs `@hey-api/openapi-ts` to regenerate JSON Schemas + Zod.
+          - Bundles each schema's `$defs` closure and regenerates endpoint maps.
+          - Patch changeset for `@tanstack/ai-schemas`.
+
+          Providers with missing secrets are skipped; the diff reflects only the
+          providers whose specs the workflow could fetch.
+          PRBODY
+          )
+            gh pr create \
+              --title "chore(schemas): sync provider OpenAPI schemas" \
+              --body "$BODY" \
+              --base main \
+              --head "$BRANCH"
+          fi

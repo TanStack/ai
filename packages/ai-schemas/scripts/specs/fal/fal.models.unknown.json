@@ -1,0 +1,768 @@
+{
+  "generated_at": "2026-06-05T08:08:07.775Z",
+  "total_models": 2,
+  "category": "unknown",
+  "models": [
+    {
+      "endpoint_id": "openrouter/router/audio",
+      "metadata": {
+        "display_name": "OpenRouter [Audio]",
+        "category": "unknown",
+        "description": " Run any audio capable LLM with fal. Process audio files — transcription, analysis, understanding, understand— using Gemini (Google) models. Supports wav, mp3, aiff, aac, ogg, flac, m4a. Powered by OpenRouter.",
+        "status": "active",
+        "tags": [],
+        "updated_at": "2026-05-06T21:21:33.117Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/0a87593d/pDGPXXb694Rjgst08FkUa_60fe8689185944889b162dc64de6cffc.jpg",
+        "model_url": "https://fal.run/openrouter/router/audio",
+        "license_type": "commercial",
+        "date": "2025-12-22T17:15:42.947Z",
+        "group": {
+          "key": "openrouter/router",
+          "label": "Any ALM"
+        },
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for openrouter/router/audio",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the openrouter/router/audio queue.",
+          "x-fal-metadata": {
+            "endpointId": "openrouter/router/audio",
+            "category": "unknown",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/0a87593d/pDGPXXb694Rjgst08FkUa_60fe8689185944889b162dc64de6cffc.jpg",
+            "playgroundUrl": "https://fal.ai/models/openrouter/router/audio",
+            "documentationUrl": "https://fal.ai/models/openrouter/router/audio/api",
+            "about": "Run any audio-capable LLM with fal, powered by OpenRouter.\n\nProcess audio files (transcription, analysis, etc.) using models that support\naudio input. Audio files can be provided as URLs or data URIs."
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": ["IN_QUEUE", "IN_PROGRESS", "COMPLETED"]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": ["status", "request_id"]
+            },
+            "RouterAudioInput": {
+              "x-fal-order-properties": [
+                "audio_url",
+                "prompt",
+                "system_prompt",
+                "model",
+                "reasoning",
+                "temperature",
+                "max_tokens"
+              ],
+              "title": "AudioInput",
+              "properties": {
+                "reasoning": {
+                  "title": "Reasoning",
+                  "default": false,
+                  "type": "boolean",
+                  "description": "Should reasoning be the part of the final answer."
+                },
+                "model": {
+                  "title": "Model",
+                  "examples": [
+                    "google/gemini-3-flash-preview",
+                    "google/gemini-2.5-flash",
+                    "google/gemini-3-pro-preview",
+                    "google/gemini-3.1-pro-preview"
+                  ],
+                  "type": "string",
+                  "description": "Name of the model to use. Charged based on actual token usage."
+                },
+                "system_prompt": {
+                  "description": "System prompt to provide context or instructions to the model",
+                  "title": "System Prompt",
+                  "examples": [
+                    "Transcribe the audio accurately, including speaker identification if multiple speakers are present."
+                  ],
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "max_tokens": {
+                  "description": "This sets the upper limit for the number of tokens the model can generate in response. It won't produce more than this limit. The maximum value is the context length minus the prompt length.",
+                  "title": "Max Tokens",
+                  "anyOf": [
+                    {
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "prompt": {
+                  "title": "Prompt",
+                  "examples": [
+                    "Please transcribe this audio file.",
+                    "What is being said in this audio?"
+                  ],
+                  "type": "string",
+                  "description": "Prompt to be used for the audio processing"
+                },
+                "temperature": {
+                  "title": "Temperature",
+                  "default": 1,
+                  "minimum": 0,
+                  "maximum": 2,
+                  "type": "number",
+                  "description": "This setting influences the variety in the model's responses. Lower values lead to more predictable and typical responses, while higher values encourage more diverse and less common responses. At 0, the model always gives the same response for a given input."
+                },
+                "audio_url": {
+                  "title": "Audio Url",
+                  "examples": [
+                    "https://storage.googleapis.com/falserverless/model_tests/audio-understanding/Title_%20Running%20on%20Fal.mp3"
+                  ],
+                  "type": "string",
+                  "description": "URL or data URI of the audio file to process. Supported formats: wav, mp3, aiff, aac, ogg, flac, m4a."
+                }
+              },
+              "required": ["prompt", "audio_url", "model"],
+              "type": "object"
+            },
+            "RouterAudioOutput": {
+              "x-fal-order-properties": ["output", "usage"],
+              "title": "AudioOutput",
+              "properties": {
+                "usage": {
+                  "description": "Token usage information",
+                  "examples": [
+                    {
+                      "completion_tokens": 50,
+                      "cost": 0.0003,
+                      "total_tokens": 550,
+                      "prompt_tokens": 500
+                    }
+                  ],
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/UsageInfo"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "output": {
+                  "title": "Output",
+                  "examples": [
+                    "The audio contains a conversation between two people discussing the weather forecast for the upcoming week."
+                  ],
+                  "type": "string",
+                  "description": "Generated output from audio processing"
+                }
+              },
+              "required": ["output", "usage"],
+              "type": "object"
+            },
+            "UsageInfo": {
+              "x-fal-order-properties": [
+                "prompt_tokens",
+                "completion_tokens",
+                "total_tokens",
+                "cost",
+                "prompt_tokens_details"
+              ],
+              "title": "UsageInfo",
+              "properties": {
+                "completion_tokens": {
+                  "title": "Completion Tokens",
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "cost": {
+                  "title": "Cost",
+                  "type": "number"
+                },
+                "total_tokens": {
+                  "title": "Total Tokens",
+                  "default": 0,
+                  "type": "integer"
+                },
+                "prompt_tokens": {
+                  "title": "Prompt Tokens",
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "prompt_tokens_details": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/PromptTokensDetails"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": ["cost"],
+              "type": "object"
+            },
+            "PromptTokensDetails": {
+              "x-fal-order-properties": ["cached_tokens", "cache_write_tokens"],
+              "title": "PromptTokensDetails",
+              "properties": {
+                "cache_write_tokens": {
+                  "title": "Cache Write Tokens",
+                  "default": 0,
+                  "type": "integer"
+                },
+                "cached_tokens": {
+                  "title": "Cached Tokens",
+                  "default": 0,
+                  "type": "integer"
+                }
+              },
+              "type": "object"
+            }
+          }
+        },
+        "paths": {
+          "/openrouter/router/audio/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/audio/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/audio": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/RouterAudioInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/audio/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/RouterAudioOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "fal-ai/workflow-utilities/interleave-video",
+      "metadata": {
+        "display_name": "Workflow Utilities Interleave Video",
+        "category": "unknown",
+        "description": "ffmpeg utility to interleave videos",
+        "status": "active",
+        "tags": [],
+        "updated_at": "2026-04-21T17:56:39.205Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/0a87987b/4FBs4s-6F9ng4C6B3e-4i_d97b1dd479a045cfa4b0e8d3a1ed39e1.jpg",
+        "model_url": "https://fal.run/fal-ai/workflow-utilities/interleave-video",
+        "license_type": "private",
+        "date": "2026-01-27T17:40:26.521Z",
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/workflow-utilities/interleave-video",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/workflow-utilities/interleave-video queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/workflow-utilities/interleave-video",
+            "category": "unknown",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/0a87987b/4FBs4s-6F9ng4C6B3e-4i_d97b1dd479a045cfa4b0e8d3a1ed39e1.jpg",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/workflow-utilities/interleave-video",
+            "documentationUrl": "https://fal.ai/models/fal-ai/workflow-utilities/interleave-video/api",
+            "about": "Interleave videos into a single output.\n\nUses FFmpeg's interleave filter to alternate frames from the inputs."
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": ["IN_QUEUE", "IN_PROGRESS", "COMPLETED"]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": ["status", "request_id"]
+            },
+            "WorkflowUtilitiesInterleaveVideoInput": {
+              "properties": {
+                "frames_per_second": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "maximum": 120,
+                      "minimum": 1
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Frames Per Second",
+                  "examples": [24],
+                  "description": "Frame rate of the interleaved output video. When set, all interleaved frames are emitted at this rate, so lower values produce a longer output while higher values produce a shorter, faster one. Leave unset to preserve the legacy behavior, which derives the output rate from the input videos (this can yield non-standard rates such as 384.0098)."
+                },
+                "video_urls": {
+                  "max_file_size": 100000000,
+                  "type": "array",
+                  "title": "Video Urls",
+                  "examples": [
+                    [
+                      "https://storage.googleapis.com/falserverless/example_outputs/wan-25-i2v-output.mp4",
+                      "https://storage.googleapis.com/falserverless/model_tests/kling/kling-v2.5-turbo-pro-image-to-video-output.mp4",
+                      "https://storage.googleapis.com/falserverless/example_inputs/seedance_pro_i2v.mp4",
+                      "https://storage.googleapis.com/falserverless/example_outputs/wan-25-i2v-output.mp4",
+                      "https://storage.googleapis.com/falserverless/model_tests/kling/kling-v2.5-turbo-pro-image-to-video-output.mp4",
+                      "https://storage.googleapis.com/falserverless/example_inputs/seedance_pro_i2v.mp4"
+                    ]
+                  ],
+                  "description": "List of video URLs to interleave in order",
+                  "items": {
+                    "type": "string",
+                    "_fal_ui_field": "video"
+                  }
+                }
+              },
+              "type": "object",
+              "x-fal-order-properties": ["video_urls", "frames_per_second"],
+              "title": "InterleaveVideoInput",
+              "required": ["video_urls"],
+              "description": "Input model for interleaving multiple videos"
+            },
+            "WorkflowUtilitiesInterleaveVideoOutput": {
+              "properties": {
+                "video": {
+                  "$ref": "#/components/schemas/File",
+                  "examples": [
+                    {
+                      "file_size": 3886177,
+                      "file_name": "output.mp4",
+                      "content_type": "application/octet-stream",
+                      "url": "https://v3b.fal.media/files/b/monkey/xVp56BqDLgb39NONPs1Gb_output.mp4"
+                    }
+                  ],
+                  "description": "The interleaved video output"
+                }
+              },
+              "type": "object",
+              "x-fal-order-properties": ["video"],
+              "title": "InterleaveVideoOutput",
+              "required": ["video"],
+              "description": "Output model for interleaved video"
+            },
+            "File": {
+              "properties": {
+                "file_size": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "File Size",
+                  "examples": [4404019],
+                  "description": "The size of the file in bytes."
+                },
+                "file_name": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "File Name",
+                  "examples": ["z9RV14K95DvU.png"],
+                  "description": "The name of the file. It will be auto-generated if not provided."
+                },
+                "content_type": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Content Type",
+                  "examples": ["image/png"],
+                  "description": "The mime type of the file."
+                },
+                "url": {
+                  "type": "string",
+                  "title": "Url",
+                  "description": "The URL where the file can be downloaded from."
+                }
+              },
+              "type": "object",
+              "x-fal-order-properties": [
+                "url",
+                "content_type",
+                "file_name",
+                "file_size"
+              ],
+              "title": "File",
+              "required": ["url"]
+            }
+          }
+        },
+        "paths": {
+          "/fal-ai/workflow-utilities/interleave-video/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/workflow-utilities/interleave-video/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/workflow-utilities/interleave-video": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/WorkflowUtilitiesInterleaveVideoInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/workflow-utilities/interleave-video/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/WorkflowUtilitiesInterleaveVideoOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    }
+  ]
+}

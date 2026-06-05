@@ -326,6 +326,11 @@
           "label": "Typed Pre-Configured Options",
           "to": "advanced/typed-options",
           "addedAt": "2026-05-25"
+        },
+        {
+          "label": "Provider Endpoint Schemas",
+          "to": "advanced/ai-schemas",
+          "addedAt": "2026-06-11"
         }
       ]
     },

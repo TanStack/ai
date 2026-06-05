@@ -1,0 +1,8 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist"
+  },
+  "include": ["src", "tests", "scripts", "openapi-ts.config.ts"],
+  "exclude": ["node_modules", "dist", "src/providers/**/*.gen.ts"]
+}
