@@ -52,7 +52,7 @@ Versions referenced below: TanStack AI as of this writing; Vercel AI SDK `ai@6.x
 | Code Execution | Node.js, Cloudflare Workers, QuickJS sandboxes | - |
 | Realtime Voice | OpenAI, Grok, and ElevenLabs with VAD modes and tool support | - |
 | DevTools | TanStack DevTools integration | `devToolsMiddleware` + local inspector |
-| MCP Client | Provider-routed `mcpTool()` (no standalone client) | Built-in (`@ai-sdk/mcp`, stable) |
+| MCP Client | Standalone host-side client (`@tanstack/ai-mcp`) + provider-routed `mcpTool()` | Built-in (`@ai-sdk/mcp`, stable) |
 | Platform Association | None - pure library | Optional Vercel integration |
 
 ## Where TanStack AI Excels
@@ -194,6 +194,40 @@ const searchProducts = toolDefinition({
 The LLM sees a lightweight `__lazy__tool__discovery__` tool listing available tool names. When it needs one, it calls the discovery tool to get the full schema, then uses the real tool. For applications with large tool inventories, this significantly reduces per-request token costs.
 
 Vercel AI SDK has no equivalent - all tools must be sent upfront.
+
+### Model Context Protocol (MCP)
+
+TanStack AI connects to MCP servers two ways, and you can mix them in a single `chat()` run:
+
+- **Host-side client** (`@tanstack/ai-mcp`) - your server connects directly to any MCP server. `createMCPClient` (single server) and `createMCPClients` (multi-server pool) discover and execute tools, read resources, and fetch prompts over Streamable HTTP, SSE, or stdio transports, with OAuth 2.1 (`authProvider`) and static-token auth.
+- **Provider-routed** (`mcpTool()`) - the *provider* connects to the MCP server on your behalf (OpenAI Responses API, Anthropic), so no MCP traffic flows through your server at all.
+
+The host-side client goes beyond basic discovery:
+
+- **Managed lifecycle** - hand clients to `chat()` via the `mcp` option and it discovers tools and closes connections when the run ends - no `try/finally` per route.
+- **Multi-server pools** - `createMCPClients` connects to many servers in parallel, auto-prefixing each server's tools to prevent name collisions.
+- **Three modes of type safety** - untyped auto-discovery, `toolDefinition()`-typed allowlists with Zod validation, or fully generated per-server types via the `tanstack-ai-mcp` CLI.
+- **Lazy discovery** - `tools({ lazy: true })` defers sending tool schemas to the LLM, plugging into TanStack AI's lazy tool discovery to cut token usage on tool-heavy servers.
+- **Resources & prompts** - inject MCP resources and prompts into a run with `mcpResourceToContentPart` and `mcpPromptToMessages`.
+
+```ts
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+const mcp = await createMCPClient({
+  transport: { type: 'http', url: 'https://my-mcp-server.example.com/mcp' },
+})
+
+// chat() discovers the tools and closes the client when the run ends
+const stream = chat({
+  adapter: openaiText('gpt-5.5'),
+  messages,
+  mcp: { clients: [mcp] },
+})
+```
+
+Vercel AI SDK's `@ai-sdk/mcp` (`createMCPClient`) is a stable host-side client with HTTP/SSE transports, OAuth, resource reading, and prompt templates. TanStack AI's `@tanstack/ai-mcp` matches that surface and adds generated end-to-end types, multi-server pools, lazy discovery, a managed `chat()` lifecycle, and the provider-routed `mcpTool()` alternative.
 
 ### Headless Client Architecture
 
@@ -442,8 +476,6 @@ TanStack AI publishes an open adapter specification. The community has already b
 
 **Angular support.** Vercel AI SDK has an official Angular integration. TanStack AI supports React, Solid, Svelte, Vue, and Preact, but not Angular. (Both ship Solid integrations, so Solid is not a differentiator.)
 
-**MCP client.** Vercel AI SDK ships a stable, standalone Model Context Protocol client (`@ai-sdk/mcp`'s `createMCPClient`) that connects directly to MCP servers over HTTP, with OAuth, resource reading, and prompt templates. TanStack AI has no standalone client - it supports MCP through a provider-routed `mcpTool()` (OpenAI Responses API and Anthropic), where the provider, not your app, connects to the MCP server.
-
 **Agent abstraction.** Vercel AI SDK v6 ships a dedicated `Agent` abstraction (the `ToolLoopAgent` class) that packages a model, tools, instructions, and loop settings into a reusable object with `.generate()` and `.stream()` methods, plus `InferAgentUIMessage` for end-to-end type safety. TanStack AI composes these pieces per call rather than offering a single agent class.
 
 **AI Gateway.** Vercel's optional AI Gateway adds centralized provider management - failover routing, caching, and a single key across providers - integrated with the Vercel platform (and used by default when no provider is configured). TanStack AI ships no gateway of its own; for the same centralized routing across a large model catalog, it recommends its first-class OpenRouter adapter, with no platform association attached.
@@ -567,12 +599,12 @@ In TanStack AI, each activity (chat, image, speech, video, transcription, summar
 - **Per-model type safety** - TypeScript narrows options per model, not per provider
 - **Code execution** - Built-in sandboxed execution environments
 - **Flexible transport** - SSE, HTTP streams, XHR, RPC, direct iterables, or custom adapters
+- **MCP, two ways** - A standalone host-side client (`@tanstack/ai-mcp`) with pools, codegen, and managed `chat()` lifecycle, plus a provider-routed `mcpTool()`
 
 ## When to Choose Vercel AI SDK
 
 - **Need 50+ first-party provider packages** - Broader coverage of dedicated, individually typed provider packages today (TanStack reaches comparable model breadth via OpenRouter + `openaiCompatible`)
 - **Angular support** - Official Angular integration
-- **MCP client** - Stable, standalone MCP client (`@ai-sdk/mcp`) that connects to servers directly
 - **Agent abstraction** - A reusable `Agent` (`ToolLoopAgent`) class with end-to-end UI message types
 - **Vercel platform** - AI Gateway, observability, and deployment optimization
 - **React Server Components** - RSC primitives via `@ai-sdk/rsc` (experimental; AI SDK UI is the recommended production path)
