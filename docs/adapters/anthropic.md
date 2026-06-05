@@ -299,6 +299,40 @@ const stream = chat({
 
 **Supported models:** Claude Sonnet 4.x and above. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
 
+#### Attaching hosted skills
+
+Pass a `skills` array as the second argument to load provider-managed skill
+bundles into the sandbox. The adapter auto-lifts them into the API's
+`container.skills` param and adds the required beta headers for you.
+
+```typescript
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { anthropicText } from "@tanstack/ai-anthropic";
+import { codeExecutionTool } from "@tanstack/ai-anthropic/tools";
+
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter: anthropicText("claude-sonnet-4-5"),
+    messages,
+    tools: [
+      codeExecutionTool(
+        { type: "code_execution_20250825", name: "code_execution" },
+        {
+          skills: [{ type: "anthropic", skill_id: "pptx", version: "latest" }],
+        },
+      ),
+    ],
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+For the full reference — skill shape, constraints, scope, and the OpenAI
+equivalent — see [Provider Skills](../tools/provider-skills.md).
+
 ### `computerUseTool`
 
 Allows Claude to observe a virtual desktop (screenshots) and interact with it

@@ -573,7 +573,8 @@ const stream = chat({
 ### `shellTool`
 
 A function-style shell tool that exposes shell execution as a structured
-function call. Takes no arguments.
+function call. Pass an `environment` object to attach container config and
+hosted skills.
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -587,7 +588,43 @@ const stream = chat({
 });
 ```
 
-**Supported models:** GPT-5.x and other agent-capable models. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+**Supported models:** GPT-5.x and other agent-capable models. Responses API
+only — Chat Completions does not support the shell tool. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+
+#### Attaching hosted skills
+
+Pass `environment.skills` to load provider-managed skill bundles into the
+shell's container (Responses API only).
+
+```typescript
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { shellTool } from "@tanstack/ai-openai/tools";
+
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter: openaiText("gpt-5.2"),
+    messages,
+    tools: [
+      shellTool({
+        environment: {
+          type: "container_auto",
+          skills: [
+            { type: "skill_reference", skill_id: "skill_abc", version: "2" },
+          ],
+        },
+      }),
+    ],
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+For the full reference — skill shape, `version` string format, and the
+Anthropic equivalent — see [Provider Skills](../tools/provider-skills.md).
 
 ### `applyPatchTool`
 

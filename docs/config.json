@@ -64,6 +64,10 @@
           "to": "tools/provider-tools"
         },
         {
+          "label": "Provider Skills",
+          "to": "tools/provider-skills"
+        },
+        {
           "label": "Tool Architecture",
           "to": "tools/tool-architecture"
         },
