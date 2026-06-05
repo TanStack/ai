@@ -103,7 +103,12 @@
           "label": "Lazy Tool Discovery",
           "to": "tools/lazy-tool-discovery",
           "addedAt": "2026-04-15"
-        },
+        }
+      ]
+    },
+    {
+      "label": "MCP",
+      "children": [
         {
           "label": "MCP Server Tools",
           "to": "tools/mcp",
