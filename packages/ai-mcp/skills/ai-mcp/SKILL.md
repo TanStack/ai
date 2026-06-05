@@ -533,6 +533,11 @@ and do NOT appear in the library's runtime dependency graph.
   methods after `close()`.
 - `MCPToolNotFoundError` — thrown from `client.tools([defs])` when a definition's
   `name` is not exposed by the server.
+- `MCPTaskRequiredToolError` — thrown from `client.tools([defs])` when the named
+  tool declares `execution.taskSupport: 'required'` (experimental MCP tasks).
+  Such tools only run via the SDK's `tasks/callToolStream` flow, which
+  `@tanstack/ai-mcp` does not support yet; they are silently excluded from
+  `tools()` auto-discovery for the same reason.
 - `DuplicateToolNameError` — thrown by a single pool's own `tools()` when two
   tools within that pool share the same name (same server or pool clients with no
   prefix). Exported from `@tanstack/ai-mcp`.
@@ -544,6 +549,7 @@ and do NOT appear in the library's runtime dependency graph.
 import {
   MCPConnectionError,
   MCPToolNotFoundError,
+  MCPTaskRequiredToolError,
   DuplicateToolNameError,
 } from '@tanstack/ai-mcp'
 

@@ -69,27 +69,43 @@ export function makeMcpExecute(
   }
 }
 
-/** Auto-discovery path: turn raw MCP tool defs into ServerTools (args typed `unknown`). */
+/**
+ * A tool with `execution.taskSupport: 'required'` can only run through the
+ * SDK's experimental task-based execution (`tasks/callToolStream`) — plain
+ * `callTool` is rejected by the server with -32600. Until task execution is
+ * supported, such tools must not be offered to the model.
+ */
+export function requiresTaskExecution(def: McpToolDef): boolean {
+  return def.execution?.taskSupport === 'required'
+}
+
+/**
+ * Auto-discovery path: turn raw MCP tool defs into ServerTools (args typed
+ * `unknown`). Task-required tools are excluded — they cannot be invoked via
+ * plain `callTool` (see {@link requiresTaskExecution}).
+ */
 export function toServerTools(
   client: Client,
   defs: Array<McpToolDef>,
   options: ConvertOptions,
 ): Array<ServerTool> {
-  return defs.map((def) => {
-    const name = options.prefix ? `${options.prefix}_${def.name}` : def.name
-    const tool: ServerTool = {
-      __toolSide: 'server',
-      name,
-      description: def.description ?? '',
-      inputSchema: (def.inputSchema as any) ?? {
-        type: 'object',
-        properties: {},
-      },
-      ...(def.outputSchema ? { outputSchema: def.outputSchema as any } : {}),
-      ...(options.lazy ? { lazy: true } : {}),
-      metadata: { mcp: { serverToolName: def.name } },
-      execute: makeMcpExecute(client, def.name, Boolean(def.outputSchema)),
-    }
-    return tool
-  })
+  return defs
+    .filter((def) => !requiresTaskExecution(def))
+    .map((def) => {
+      const name = options.prefix ? `${options.prefix}_${def.name}` : def.name
+      const tool: ServerTool = {
+        __toolSide: 'server',
+        name,
+        description: def.description ?? '',
+        inputSchema: (def.inputSchema as any) ?? {
+          type: 'object',
+          properties: {},
+        },
+        ...(def.outputSchema ? { outputSchema: def.outputSchema as any } : {}),
+        ...(options.lazy ? { lazy: true } : {}),
+        metadata: { mcp: { serverToolName: def.name } },
+        execute: makeMcpExecute(client, def.name, Boolean(def.outputSchema)),
+      }
+      return tool
+    })
 }

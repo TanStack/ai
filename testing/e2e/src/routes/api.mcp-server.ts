@@ -45,6 +45,23 @@ function createMockMcpServer(): McpServer {
     },
   )
 
+  // A task-required tool (experimental MCP tasks). Plain `callTool` would be
+  // rejected with -32600, so @tanstack/ai-mcp must EXCLUDE it from tools()
+  // discovery — the spec asserts it never reaches the tool list.
+  const taskTool = server.registerTool(
+    'appraise_guitar_collection',
+    {
+      description: 'Long-running appraisal that requires task-based execution',
+      inputSchema: { ids: z.array(z.string()) },
+    },
+    () => ({
+      content: [{ type: 'text' as const, text: 'unreachable via callTool' }],
+    }),
+  )
+  // registerTool's config doesn't accept `execution` directly in SDK 1.29;
+  // RegisteredTool exposes it as a mutable property consumed at list time.
+  taskTool.execution = { taskSupport: 'required' }
+
   // A static resource + prompt so the resource/prompt read+convert path can be
   // exercised end-to-end (see api.mcp-status-test). The catalog text carries a
   // distinctive token (STRAT-001) the spec asserts survives conversion.

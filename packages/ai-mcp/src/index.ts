@@ -19,6 +19,7 @@ export { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 export {
   MCPConnectionError,
   DuplicateToolNameError,
+  MCPTaskRequiredToolError,
   MCPToolNotFoundError,
 } from './errors'
 // Converters added in Phase 4:

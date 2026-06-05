@@ -1,8 +1,15 @@
 // packages/ai-mcp/tests/client.test.ts
 import { describe, expect, it } from 'vitest'
-import { makeServerWithWeatherTool } from './helpers/in-memory-server'
+import {
+  makeServerWithTaskRequiredTool,
+  makeServerWithWeatherTool,
+} from './helpers/in-memory-server'
 import { createMCPClientFromTransport } from '../src/client'
-import { DuplicateToolNameError, MCPConnectionError } from '../src/errors'
+import {
+  DuplicateToolNameError,
+  MCPConnectionError,
+  MCPTaskRequiredToolError,
+} from '../src/errors'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 
 describe('createMCPClient', () => {
@@ -82,6 +89,29 @@ describe('createMCPClient', () => {
     })
     const tools = await client.tools([getWeather])
     expect(tools[0].name).toBe('wx_get_weather')
+  })
+
+  it('excludes task-required tools from auto-discovery', async () => {
+    const { clientTransport } = await makeServerWithTaskRequiredTool()
+    await using client = await createMCPClientFromTransport(clientTransport)
+    const names = (await client.tools()).map((t) => t.name)
+    expect(names).toContain('get_weather')
+    expect(names).not.toContain('research_task')
+  })
+
+  it('throws MCPTaskRequiredToolError when binding a task-required tool', async () => {
+    const { clientTransport } = await makeServerWithTaskRequiredTool()
+    await using client = await createMCPClientFromTransport(clientTransport)
+    const { toolDefinition } = await import('@tanstack/ai')
+    const { z } = await import('zod')
+    const researchTask = toolDefinition({
+      name: 'research_task',
+      description: 'A long-running tool that requires task-based execution',
+      inputSchema: z.object({ query: z.string() }),
+    })
+    await expect(client.tools([researchTask])).rejects.toThrow(
+      MCPTaskRequiredToolError,
+    )
   })
 
   it('wraps connection failures in MCPConnectionError preserving the cause', async () => {

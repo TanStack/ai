@@ -33,6 +33,10 @@ test.describe('mcp — resource/prompt discovery + conversion', () => {
     // Tool discovered.
     expect(json.tools).toContain('get_guitar_price')
 
+    // Task-required tool (execution.taskSupport: 'required') is excluded from
+    // discovery — plain callTool can never execute it (-32600).
+    expect(json.tools).not.toContain('appraise_guitar_collection')
+
     // Resource listed + read + converted to a text ContentPart carrying the
     // server's distinctive token.
     expect(json.resources).toContain('guitar://catalog')

@@ -18,6 +18,19 @@ export class DuplicateToolNameError extends Error {
   }
 }
 
+export class MCPTaskRequiredToolError extends Error {
+  constructor(public readonly toolName: string) {
+    super(
+      `MCP tool "${toolName}" declares \`execution.taskSupport: 'required'\` — it can ` +
+        `only be invoked via the MCP SDK's experimental task-based execution ` +
+        `(client.experimental.tasks.callToolStream()), which @tanstack/ai-mcp does not ` +
+        `support yet. Task-required tools are excluded from tools() auto-discovery; ` +
+        `binding one explicitly via tools([toolDefinition(...)]) is an error.`,
+    )
+    this.name = 'MCPTaskRequiredToolError'
+  }
+}
+
 export class MCPToolNotFoundError extends Error {
   constructor(public readonly toolName: string) {
     super(

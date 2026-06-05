@@ -42,6 +42,38 @@ export async function makeServerWithFailingTool() {
   return { server, clientTransport }
 }
 
+/** Build a connected (server, clientTransport) pair with one normal tool and one task-required tool. */
+export async function makeServerWithTaskRequiredTool() {
+  const server = new McpServer({ name: 'tasky', version: '1.0.0' })
+  server.registerTool(
+    'get_weather',
+    {
+      description: 'Get weather for a city',
+      inputSchema: { city: z.string() },
+    },
+    async ({ city }) => ({
+      content: [{ type: 'text' as const, text: `Sunny in ${city}` }],
+    }),
+  )
+  const registered = server.registerTool(
+    'research_task',
+    {
+      description: 'A long-running tool that requires task-based execution',
+      inputSchema: { query: z.string() },
+    },
+    async () => ({
+      content: [{ type: 'text' as const, text: 'unreachable via callTool' }],
+    }),
+  )
+  // registerTool's config doesn't accept `execution` directly in SDK 1.29;
+  // RegisteredTool exposes it as a mutable property consumed at list time.
+  registered.execution = { taskSupport: 'required' }
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
+  await server.connect(serverTransport)
+  return { server, clientTransport }
+}
+
 /** Build a connected (server, clientTransport) pair that exposes a static text resource. */
 export async function makeServerWithResource() {
   const server = new McpServer({ name: 'resource-server', version: '1.0.0' })

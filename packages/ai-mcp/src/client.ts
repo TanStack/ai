@@ -2,9 +2,10 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import {
   DuplicateToolNameError,
   MCPConnectionError,
+  MCPTaskRequiredToolError,
   MCPToolNotFoundError,
 } from './errors'
-import { makeMcpExecute, toServerTools } from './tools'
+import { makeMcpExecute, requiresTaskExecution, toServerTools } from './tools'
 import { resolveTransport } from './transport'
 import type {
   AnyToolDefinition,
@@ -96,11 +97,16 @@ class MCPClientImpl<
     let tools: Array<ServerTool>
     if (isDefs) {
       // Explicit path: bind each TanStack toolDefinition to the server by name.
-      const available = new Set(
-        (await this.#client.listTools()).tools.map((t) => t.name),
+      const available = new Map(
+        (await this.#client.listTools()).tools.map((t) => [t.name, t]),
       )
       tools = (defsOrOptions as ReadonlyArray<AnyToolDefinition>).map((def) => {
-        if (!available.has(def.name)) throw new MCPToolNotFoundError(def.name)
+        const serverTool = available.get(def.name)
+        if (!serverTool) throw new MCPToolNotFoundError(def.name)
+        // Explicitly binding a task-required tool is an error (it would fail
+        // on every callTool with -32600) — unlike discovery, which skips them.
+        if (requiresTaskExecution(serverTool))
+          throw new MCPTaskRequiredToolError(def.name)
         const tool = def.server(
           makeMcpExecute(this.#client, def.name, Boolean(def.outputSchema)),
         ) as ServerTool

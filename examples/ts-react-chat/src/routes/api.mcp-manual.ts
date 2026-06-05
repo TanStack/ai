@@ -21,12 +21,12 @@ import {
 } from '@tanstack/ai'
 import {
   createMCPClient,
-  mcpResourceToContentPart,
   mcpPromptToMessages,
+  mcpResourceToContentPart,
 } from '@tanstack/ai-mcp'
-import { resolveTextAdapter } from '@/lib/mcp-providers'
-import type { StreamChunk, ModelMessage } from '@tanstack/ai'
+import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { MCPClient } from '@tanstack/ai-mcp'
+import { resolveTextAdapter } from '@/lib/mcp-providers'
 import { everythingTransport } from '@/lib/mcp-servers'
 
 /**
@@ -92,7 +92,7 @@ export const Route = createFileRoute('/api/mcp-manual')({
             const resources = await client.resources()
             if (resources.length > 0) {
               // Read the first resource and convert each content block to a ContentPart.
-              const readResult = await client.readResource(resources[0]!.uri)
+              const readResult = await client.readResource(resources[0].uri)
               const parts = readResult.contents.map(mcpResourceToContentPart)
               if (parts.length > 0) {
                 contextMessages.push({
