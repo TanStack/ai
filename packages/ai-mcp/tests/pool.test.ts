@@ -36,6 +36,22 @@ describe('createMCPClients', () => {
     expect(tools.every((t) => t.lazy === true)).toBe(true)
   })
 
+  it('names the failing server by config key when tools() discovery fails', async () => {
+    const a = await makeServerWithWeatherTool()
+    const b = await makeServerWithWeatherTool()
+    const pool = await createMCPClients({
+      alpha: { transport: a.clientTransport },
+      beta: { transport: b.clientTransport },
+    })
+    // Force a per-server discovery failure after connect.
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    await pool.clients.beta!.close()
+    await expect(pool.tools()).rejects.toThrow(
+      /Failed to list tools from MCP server\(s\): beta/,
+    )
+    await pool.close()
+  })
+
   it('closes already-connected clients and throws if one server fails', async () => {
     const a = await makeServerWithWeatherTool()
     const broken = {

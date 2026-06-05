@@ -29,10 +29,19 @@ export interface MCPClient<
   TServer extends ServerDescriptor = AutomaticDescriptor,
 > {
   readonly capabilities: TServer['capabilities']
-  /** Auto-discovery: every server tool as a ServerTool (args typed `unknown`). */
+  /**
+   * Auto-discovery: every server tool as a ServerTool. With a generated
+   * descriptor, tool names are typed as the descriptor's name literals;
+   * args/results stay untyped — use the `tools(defs)` overload for typed args.
+   */
   tools: {
     (options?: ToolsOptions): Promise<DescriptorTools<TServer>>
-    /** Explicit: bind these TanStack toolDefinitions to the server (typed + validated, allowlist). */
+    /**
+     * Explicit: bind these TanStack toolDefinitions to the server (typed +
+     * validated, allowlist). Note: when the client has a `prefix`, the
+     * runtime tool name is `${prefix}_${def.name}` while the static `TName`
+     * stays the unprefixed definition name.
+     */
     <const TDefs extends ReadonlyArray<AnyToolDefinition>>(
       defs: TDefs,
       options?: ToolsOptions,

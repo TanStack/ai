@@ -19,14 +19,15 @@ You have a live [MCP client](./mcp) and want to do more than auto-discover tools
 
 > **Manual (`tools` spread) vs managed (`mcp` prop)**
 >
-> This page covers the **manual** path — you call `client.tools()` / `client.resources()` / `client.getPrompt()` yourself and own the `try/finally close()`. If you only need runtime-typed tools with discovery and lifecycle handled for you, use the `mcp` prop instead — see [Managing MCP clients with `chat()`](./mcp-chat). Both paths build on the [`createMCPClient` basics](./mcp).
+> This page covers the **manual** path — you call `client.tools()` / `client.resources()` / `client.getPrompt()` yourself and own `close()`. If you only need runtime-typed tools with discovery and lifecycle handled for you, use the `mcp` prop instead — see [Managing MCP clients with `chat()`](./mcp-chat). Both paths build on the [`createMCPClient` basics](./mcp).
 
 ## Fully-typed tools via the `tools` spread
 
-Pass `toolDefinition()` instances to `client.tools([...])` to get Zod-validated, TypeScript-typed arguments ([Mode 2](./mcp#mode-2--explicit-definitions-clienttoolsdefs)), then spread the result into `chat()`'s `tools` option. You own the client, so close it in a `finally` block.
+Pass `toolDefinition()` instances to `client.tools([...])` to get Zod-validated, TypeScript-typed arguments ([Mode 2](./mcp#mode-2--explicit-definitions-clienttoolsdefs)), then spread the result into `chat()`'s `tools` option. You own the client, so you must close it — but **not before the stream is consumed**: `chat()` executes tools lazily while the response streams, so closing in a `finally` around the `return` would kill in-flight tool calls. Close in a middleware terminal hook instead (exactly one of `onFinish`/`onAbort`/`onError` fires per run).
 
 ```ts
-// app/api/chat/route.ts
+// src/routes/api.chat.ts
+import { createFileRoute } from '@tanstack/react-router'
 import { chat, toServerSentEventsResponse, toolDefinition } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai/adapters'
 import { createMCPClient } from '@tanstack/ai-mcp'
@@ -39,27 +40,37 @@ const searchDef = toolDefinition({
   outputSchema: z.array(z.object({ id: z.string(), title: z.string() })),
 })
 
-export async function POST(request: Request) {
-  const { messages } = await request.json()
+export const Route = createFileRoute('/api/chat')({
+  server: {
+    handlers: {
+      POST: async ({ request }) => {
+        const { messages } = await request.json()
 
-  const mcp = await createMCPClient({
-    transport: { type: 'http', url: process.env.MCP_URL! },
-  })
+        const mcp = await createMCPClient({
+          transport: { type: 'http', url: process.env.MCP_URL! },
+        })
 
-  try {
-    const stream = chat({
-      adapter: openaiText(),
-      model: 'gpt-4o',
-      messages,
-      // Fully-typed MCP tools, merged with any other tools you pass
-      tools: [...(await mcp.tools([searchDef]))],
-    })
+        const stream = chat({
+          adapter: openaiText('gpt-5.5'),
+          messages,
+          // Fully-typed MCP tools, merged with any other tools you pass
+          tools: [...(await mcp.tools([searchDef]))],
+          // Close after the run ends — tools execute while the response streams.
+          middleware: [
+            {
+              name: 'mcp-close',
+              onFinish: () => mcp.close(),
+              onAbort: () => mcp.close(),
+              onError: () => mcp.close(),
+            },
+          ],
+        })
 
-    return toServerSentEventsResponse(stream)
-  } finally {
-    await mcp.close()
-  }
-}
+        return toServerSentEventsResponse(stream)
+      },
+    },
+  },
+})
 ```
 
 ## Resources
@@ -77,8 +88,7 @@ const parts = readResult.contents.map(mcpResourceToContentPart)
 
 // Inject as part of a user message
 const stream = chat({
-  adapter: openaiText(),
-  model: 'gpt-4o',
+  adapter: openaiText('gpt-5.5'),
   messages: [
     {
       role: 'user',
@@ -108,41 +118,51 @@ const templates = await mcp.resourceTemplates()
 MCP prompts are reusable message templates the server exposes. Fetch a prompt, convert it to `ModelMessage[]` with `mcpPromptToMessages`, and spread it into `chat()` to seed the conversation with server-defined context or instructions.
 
 ```ts
+import { createFileRoute } from '@tanstack/react-router'
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai/adapters'
 import { createMCPClient, mcpPromptToMessages } from '@tanstack/ai-mcp'
 
-export async function POST(request: Request) {
-  const { messages } = await request.json()
+export const Route = createFileRoute('/api/chat')({
+  server: {
+    handlers: {
+      POST: async ({ request }) => {
+        const { messages } = await request.json()
 
-  const mcp = await createMCPClient({
-    transport: { type: 'http', url: process.env.MCP_URL! },
-  })
+        const mcp = await createMCPClient({
+          transport: { type: 'http', url: process.env.MCP_URL! },
+        })
 
-  try {
-    // List all available prompts on the server
-    const available = await mcp.prompts()
-    // available: Array<{ name: string; description?: string; arguments?: ... }>
+        try {
+          // List all available prompts on the server
+          const available = await mcp.prompts()
+          // available: Array<{ name: string; description?: string; arguments?: ... }>
 
-    // Fetch a specific prompt, optionally passing template arguments
-    const prompt = await mcp.getPrompt('summarize', { language: 'english' })
+          // Fetch a specific prompt, optionally passing template arguments
+          const prompt = await mcp.getPrompt('summarize', { language: 'english' })
 
-    const stream = chat({
-      adapter: openaiText(),
-      model: 'gpt-4o',
-      messages: [
-        // Seed the conversation with the server-defined prompt messages
-        ...mcpPromptToMessages(prompt),
-        // Then append the user's own messages
-        ...messages,
-      ],
-    })
+          const stream = chat({
+            adapter: openaiText('gpt-5.5'),
+            messages: [
+              // Seed the conversation with the server-defined prompt messages
+              ...mcpPromptToMessages(prompt),
+              // Then append the user's own messages
+              ...messages,
+            ],
+          })
 
-    return toServerSentEventsResponse(stream)
-  } finally {
-    await mcp.close()
-  }
-}
+          return toServerSentEventsResponse(stream)
+        } finally {
+          // Safe here: all MCP calls (prompts/getPrompt) completed before chat()
+          // started, and no MCP tools are passed to the run. If you also spread
+          // MCP tools into `tools`, close in a middleware terminal hook instead
+          // (see "Fully-typed tools via the `tools` spread" above).
+          await mcp.close()
+        }
+      },
+    },
+  },
+})
 ```
 
 `mcpPromptToMessages` maps each MCP prompt message to a `ModelMessage`:
@@ -160,8 +180,7 @@ When the chat run is cancelled (e.g. the user navigates away or an `AbortControl
 const controller = new AbortController()
 
 const stream = chat({
-  adapter: openaiText(),
-  model: 'gpt-4o',
+  adapter: openaiText('gpt-5.5'),
   messages,
   tools: await mcp.tools(),
   abortController: controller,
@@ -173,55 +192,66 @@ controller.abort()
 
 ## Full Server + Client Example
 
-Here is a complete Next.js App Router route that connects to two MCP servers and streams the response to the browser.
+Here is a complete TanStack Start API route that connects to two MCP servers and streams the response to the browser.
 
-**Server route (`app/api/chat/route.ts`):**
+**Server route (`src/routes/api.chat.ts`):**
 
 ```ts
+import { createFileRoute } from '@tanstack/react-router'
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai/adapters'
 import { createMCPClients } from '@tanstack/ai-mcp'
 
-export async function POST(request: Request) {
-  const body = await request.json()
+export const Route = createFileRoute('/api/chat')({
+  server: {
+    handlers: {
+      POST: async ({ request }) => {
+        const body = await request.json()
 
-  if (typeof body !== 'object' || body === null || !Array.isArray(body.messages)) {
-    return new Response('Bad request', { status: 400 })
-  }
+        if (typeof body !== 'object' || body === null || !Array.isArray(body.messages)) {
+          return new Response('Bad request', { status: 400 })
+        }
 
-  const pool = await createMCPClients({
-    github: {
-      transport: {
-        type: 'http',
-        url: process.env.GITHUB_MCP_URL!,
-        headers: { Authorization: `Bearer ${process.env.GITHUB_MCP_TOKEN}` },
+        const pool = await createMCPClients({
+          github: {
+            transport: {
+              type: 'http',
+              url: process.env.GITHUB_MCP_URL!,
+              headers: { Authorization: `Bearer ${process.env.GITHUB_MCP_TOKEN}` },
+            },
+          },
+          linear: {
+            transport: {
+              type: 'http',
+              url: process.env.LINEAR_MCP_URL!,
+              headers: { Authorization: `Bearer ${process.env.LINEAR_MCP_TOKEN}` },
+            },
+          },
+        })
+
+        const stream = chat({
+          adapter: openaiText('gpt-5.5'),
+          messages: body.messages,
+          tools: await pool.tools(),
+          // Close after the run ends — tools execute while the response streams.
+          middleware: [
+            {
+              name: 'mcp-close',
+              onFinish: () => pool.close(),
+              onAbort: () => pool.close(),
+              onError: () => pool.close(),
+            },
+          ],
+        })
+
+        return toServerSentEventsResponse(stream)
       },
     },
-    linear: {
-      transport: {
-        type: 'http',
-        url: process.env.LINEAR_MCP_URL!,
-        headers: { Authorization: `Bearer ${process.env.LINEAR_MCP_TOKEN}` },
-      },
-    },
-  })
-
-  try {
-    const stream = chat({
-      adapter: openaiText(),
-      model: 'gpt-4o',
-      messages: body.messages,
-      tools: await pool.tools(),
-    })
-
-    return toServerSentEventsResponse(stream)
-  } finally {
-    await pool.close()
-  }
-}
+  },
+})
 ```
 
-**Client component (`components/Chat.tsx`):**
+**Client component (`src/components/Chat.tsx`):**
 
 ```tsx
 import { useChat } from '@tanstack/ai-react'
@@ -254,4 +284,4 @@ export function Chat() {
 }
 ```
 
-> **Want `chat()` to discover tools and close clients for you?** If you don't need the manual `tools` spread, resources, or prompts, the `mcp` prop removes the `try/finally` boilerplate entirely. See [Managing MCP clients with `chat()`](./mcp-chat).
+> **Want `chat()` to discover tools and close clients for you?** If you don't need the manual `tools` spread, resources, or prompts, the `mcp` prop removes the close-middleware boilerplate entirely. See [Managing MCP clients with `chat()`](./mcp-chat).

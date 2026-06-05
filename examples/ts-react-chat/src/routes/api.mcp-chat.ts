@@ -48,7 +48,11 @@ export const Route = createFileRoute('/api/mcp-chat')({
           // Prefixes disambiguate tools if both servers expose same-named tools.
           // OPENAI_API_KEY is used by the LLM adapter (separate from the
           // keyless MCP server transports which need no credentials).
-          const [everything, memory] = await Promise.all([
+          // Settle (don't Promise.all) so that if one server fails to connect,
+          // the sibling that DID connect is closed before rethrowing — no
+          // leaked stdio subprocess. (createMCPClients does this for you;
+          // shown manually here because this route demonstrates individual clients.)
+          const settled = await Promise.allSettled([
             createMCPClient({
               transport: everythingTransport(),
               prefix: 'everything',
@@ -58,6 +62,20 @@ export const Route = createFileRoute('/api/mcp-chat')({
               prefix: 'memory',
             }),
           ])
+          const rejected = settled.find(
+            (r): r is PromiseRejectedResult => r.status === 'rejected',
+          )
+          if (rejected) {
+            await Promise.allSettled(
+              settled.map((r) =>
+                r.status === 'fulfilled' ? r.value.close() : Promise.resolve(),
+              ),
+            )
+            throw rejected.reason
+          }
+          const clients = settled.flatMap((r) =>
+            r.status === 'fulfilled' ? [r.value] : [],
+          )
 
           // chat() discovers tools from both clients and closes them when the
           // stream drains — connection: 'close' (the default; shown explicitly).
@@ -66,7 +84,7 @@ export const Route = createFileRoute('/api/mcp-chat')({
             adapter: resolveTextAdapter(params.forwardedProps.provider),
             messages: params.messages,
             mcp: {
-              clients: [everything, memory],
+              clients,
               connection: 'close',
             },
             agentLoopStrategy: maxIterations(20),

@@ -2,7 +2,7 @@
 
 Host-side Model Context Protocol (MCP) client for TanStack AI.
 
-Discover and run MCP server tools, resources, and prompts inside any TanStack AI `chat()` / agent loop — across any provider adapter — with optional generated end-to-end TypeScript types.
+Discover and run MCP server tools, resources, and prompts inside any TanStack AI `chat()` / agent loop — across any provider adapter — with optional generated TypeScript types (typed tool names and pool keys).
 
 ## Features
 
@@ -30,14 +30,17 @@ const mcp = await createMCPClient({
   transport: { type: 'http', url: 'https://your-mcp-server.com/mcp' },
 })
 
-const tools = await mcp.tools()
-
-const result = await chat({
-  adapter: openaiText(),
-  model: 'gpt-4o',
+const stream = chat({
+  adapter: openaiText('gpt-5.5'),
   messages: [{ role: 'user', content: 'What is the weather in Brooklyn?' }],
-  tools,
+  tools: await mcp.tools(),
 })
+
+// Tools execute lazily while the stream is consumed — close only after
+// the stream is fully drained (or hand lifecycle to chat() via the `mcp` option).
+for await (const chunk of stream) {
+  // handle StreamChunks, or return toServerSentEventsResponse(stream) instead
+}
 
 await mcp.close()
 ```

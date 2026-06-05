@@ -12,13 +12,8 @@ export interface ServerDescriptor {
   capabilities: Record<string, unknown>
 }
 
-/** The "no generated types" default — discovery yields unknown-typed tools. */
-export interface AutomaticDescriptor extends ServerDescriptor {
-  tools: Record<string, { input: unknown; output: unknown }>
-  resources: Record<string, { uri: string; data: unknown }>
-  prompts: Record<string, { args: unknown; messages: unknown }>
-  capabilities: Record<string, unknown>
-}
+/** The "no generated types" default — discovery yields untyped tools. */
+export type AutomaticDescriptor = ServerDescriptor
 
 export interface MCPClientOptions {
   transport: TransportInput
@@ -50,17 +45,22 @@ export type MappedServerTools<TDefs extends ReadonlyArray<AnyToolDefinition>> =
   }
 
 /**
- * ServerTool typed from one descriptor tool entry, named by its key `TKey`.
- * (Input/output stay `any` for now — the descriptor only carries the tool
- * name into the discovery result; per-tool schema typing comes from the
- * explicit `tools(defs)` overload via `MappedServerTools`.)
+ * ServerTool named by one descriptor tool key `TKey`.
+ *
+ * Only the tool **name** survives into the discovery result — input/output
+ * stay `any` because `ServerTool`'s generics are *schema* types
+ * (`extends SchemaInput`), while the descriptor carries plain *value* types
+ * emitted by the codegen CLI. Per-tool argument/result typing comes from the
+ * explicit `tools(defs)` overload via `MappedServerTools`.
  */
 type DescribedTool<TKey extends string> = ServerTool<any, any, TKey>
 
 /**
- * Discovery result typed from the generated descriptor. When TServer is the
- * AutomaticDescriptor (no generated types), this collapses to `Array<ServerTool>`
- * (args typed `unknown`).
+ * Discovery result typed from the generated descriptor: an array whose
+ * elements' `name` is the union of the descriptor's tool-name literals.
+ * Arguments/results are untyped (`any`) on this path — use the `tools(defs)`
+ * overload for typed args. When TServer is the AutomaticDescriptor (no
+ * generated types), this collapses to `Array<ServerTool>`.
  */
 export type DescriptorTools<TServer extends ServerDescriptor> = Array<
   {

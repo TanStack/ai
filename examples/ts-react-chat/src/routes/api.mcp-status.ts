@@ -41,16 +41,16 @@ async function probe(
     const client = await createMCPClient({ transport: makeTransport() })
     try {
       const tools = (await client.tools()).map((t) => t.name)
-      // resources() / prompts() throw if the server doesn't advertise the
-      // capability — treat that as "none" rather than a connection failure.
-      const resources = await client
-        .resources()
-        .then((r) => r.map((x) => x.uri))
-        .catch(() => [])
-      const prompts = await client
-        .prompts()
-        .then((p) => p.map((x) => x.name))
-        .catch(() => [])
+      // Check the advertised capabilities instead of catch-all-ing the list
+      // calls: a server without the capability reports "none", while a real
+      // transport/protocol failure propagates to the outer catch and is
+      // surfaced as a probe error (not silently collapsed to []).
+      const resources = client.capabilities.resources
+        ? (await client.resources()).map((x) => x.uri)
+        : []
+      const prompts = client.capabilities.prompts
+        ? (await client.prompts()).map((x) => x.name)
+        : []
       return { name, connected: true, tools, resources, prompts }
     } finally {
       await client.close()

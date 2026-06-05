@@ -28,37 +28,51 @@ pnpm add @tanstack/ai-mcp @modelcontextprotocol/sdk
 ## Quick Start
 
 ```ts
-// app/api/chat/route.ts  (Next.js App Router example)
+// src/routes/api.chat.ts  (TanStack Start)
+import { createFileRoute } from '@tanstack/react-router'
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai/adapters'
 import { createMCPClient } from '@tanstack/ai-mcp'
 
-export async function POST(request: Request) {
-  const { messages } = await request.json()
+export const Route = createFileRoute('/api/chat')({
+  server: {
+    handlers: {
+      POST: async ({ request }) => {
+        const { messages } = await request.json()
 
-  const mcp = await createMCPClient({
-    transport: { type: 'http', url: 'https://my-mcp-server.example.com/mcp' },
-  })
+        const mcp = await createMCPClient({
+          transport: {
+            type: 'http',
+            url: 'https://my-mcp-server.example.com/mcp',
+          },
+        })
 
-  try {
-    const stream = chat({
-      adapter: openaiText(),
-      model: 'gpt-4o',
-      messages,
-      tools: await mcp.tools(),
-    })
+        const stream = chat({
+          adapter: openaiText('gpt-5.5'),
+          messages,
+          tools: await mcp.tools(),
+          // Close after the run ends — tools execute while the response streams.
+          middleware: [
+            {
+              name: 'mcp-close',
+              onFinish: () => mcp.close(),
+              onAbort: () => mcp.close(),
+              onError: () => mcp.close(),
+            },
+          ],
+        })
 
-    return toServerSentEventsResponse(stream)
-  } finally {
-    await mcp.close()
-  }
-}
+        return toServerSentEventsResponse(stream)
+      },
+    },
+  },
+})
 ```
 
 On the client side, consume the stream with `useChat` exactly as you would any other TanStack AI endpoint:
 
 ```tsx
-// components/Chat.tsx
+// src/components/Chat.tsx
 import { useChat } from '@tanstack/ai-react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
 
@@ -152,6 +166,55 @@ const transport = new StreamableHTTPClientTransport(new URL('https://example.com
 const mcp = await createMCPClient({ transport })
 ```
 
+## Authentication
+
+### Static tokens (headers)
+
+For servers that take a pre-provisioned API key or bearer token, pass `headers` on the `http`/`sse` transport config — they are sent with every request:
+
+```ts
+const mcp = await createMCPClient({
+  transport: {
+    type: 'http',
+    url: 'https://my-mcp-server.example.com/mcp',
+    headers: { Authorization: `Bearer ${process.env.MCP_TOKEN}` },
+  },
+})
+```
+
+### OAuth (`authProvider`)
+
+For servers implementing the [MCP authorization spec](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization) (OAuth 2.1), pass an `authProvider` on the `http`/`sse` transport config. It accepts any `OAuthClientProvider` from the official SDK (`@modelcontextprotocol/sdk/client/auth.js`); the SDK transport then handles attaching tokens, refreshing them, and retrying on 401 — no extra wiring in TanStack AI.
+
+```ts
+import { createMCPClient } from '@tanstack/ai-mcp'
+import type { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js'
+
+// Server-side: back the provider with tokens you persist (database, KV, ...).
+// `tokens()` returning a valid (or refreshable) token set is all the SDK
+// needs to authenticate requests.
+declare const myOAuthProvider: OAuthClientProvider
+
+const mcp = await createMCPClient({
+  transport: {
+    type: 'http',
+    url: 'https://my-mcp-server.example.com/mcp',
+    authProvider: myOAuthProvider,
+  },
+})
+```
+
+> **Interactive authorization (redirect flows).** Completing an authorization-code
+> grant requires calling `finishAuth(code)` on the transport after the user is
+> redirected back — and `createMCPClient` constructs the transport internally,
+> so it cannot expose it. If you need the interactive flow, build the transport
+> yourself and pass it in (the escape hatch above): construct a
+> `StreamableHTTPClientTransport` with your `authProvider`, keep a reference,
+> call `transport.finishAuth(code)` in your OAuth callback route, then hand the
+> transport to `createMCPClient({ transport })`. For typical server-side use —
+> a provider backed by pre-provisioned or stored tokens with working refresh —
+> the config form shown above is all you need.
+
 ## Three Modes of Type Safety
 
 ### Mode 1 — Auto-discovery (`client.tools()`)
@@ -184,7 +247,7 @@ const tools = await mcp.tools([searchDef])
 
 ### Mode 3 — Generated types (`createMCPClient<GeneratedServer>`)
 
-Run the CLI against a live server to generate per-server `interface` types, then pass the generated type as a generic for end-to-end type safety with zero runtime overhead.
+Run the CLI against a live server to generate per-server `interface` types, then pass the generated type as a generic — tool names are narrowed to the server's literal names and pool config keys are compile-checked, with zero runtime overhead. (Tool *arguments* stay untyped on the discovery path — combine with Mode 2 for typed args.)
 
 > See [MCP Type Generation](./mcp-codegen) for the full `mcp.config.ts` setup, the `generate` CLI, and how to wire the generated types into `createMCPClient` and `createMCPClients`.
 
@@ -242,15 +305,47 @@ If any server fails to connect, already-connected clients are closed before the 
 
 The MCP client is **caller-owned**. `chat()` never closes it.
 
-> **Prefer to let `chat()` manage lifecycle?** If you'd rather skip the `try/finally` and have `chat()` discover tools and close clients automatically, see [Managing MCP clients with `chat()`](./mcp-chat).
+Tools execute **lazily while the response stream is consumed**, so only close the client after the stream is fully drained. In a route handler that returns a streaming `Response`, a `try/finally` around the `return` (or `await using` at function scope) closes the client *before* the body streams — in-flight tool calls would fail. Close in a middleware terminal hook instead.
 
-### Manual close
+> **Prefer to let `chat()` manage lifecycle?** If you'd rather have `chat()` discover tools and close clients automatically when the run ends, see [Managing MCP clients with `chat()`](./mcp-chat).
+
+### Streaming route handlers — close via middleware
+
+Exactly one of `onFinish`/`onAbort`/`onError` fires per run, after the agent loop ends:
+
+```ts
+const mcp = await createMCPClient({ transport: { type: 'http', url } })
+const stream = chat({
+  adapter: openaiText('gpt-5.5'),
+  messages,
+  tools: await mcp.tools(),
+  middleware: [
+    {
+      name: 'mcp-close',
+      onFinish: () => mcp.close(),
+      onAbort: () => mcp.close(),
+      onError: () => mcp.close(),
+    },
+  ],
+})
+return toServerSentEventsResponse(stream)
+```
+
+### Manual close — when you consume the stream in scope
+
+`try/finally` is correct when the stream is drained before the scope exits:
 
 ```ts
 const mcp = await createMCPClient({ transport: { type: 'http', url } })
 try {
-  const stream = chat({ ..., tools: await mcp.tools() })
-  return toServerSentEventsResponse(stream)
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    messages,
+    tools: await mcp.tools(),
+  })
+  for await (const chunk of stream) {
+    // handle chunks — the stream is fully consumed inside this block
+  }
 } finally {
   await mcp.close()
 }
@@ -258,13 +353,19 @@ try {
 
 ### `await using` (Explicit Resource Management)
 
-If your runtime supports `Symbol.asyncDispose` (Node 18.2+ with TypeScript `target: "es2022"` + `lib: ["esnext"]`):
+If your runtime supports `Symbol.asyncDispose` (Node 18.2+ with TypeScript `target: "es2022"` + `lib: ["esnext"]`), the same in-scope-consumption rule applies — the client closes when the block exits:
 
 ```ts
 await using mcp = await createMCPClient({ transport: { type: 'http', url } })
+const stream = chat({
+  adapter: openaiText('gpt-5.5'),
+  messages,
+  tools: await mcp.tools(),
+})
+for await (const chunk of stream) {
+  // handle chunks
+}
 // mcp.close() is called automatically when the block exits
-const stream = chat({ ..., tools: await mcp.tools() })
-return toServerSentEventsResponse(stream)
 ```
 
 ## Tool Name Collisions

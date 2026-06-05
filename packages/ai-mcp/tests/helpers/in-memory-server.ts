@@ -22,6 +22,26 @@ export async function makeServerWithWeatherTool() {
   return { server, clientTransport }
 }
 
+/** Build a connected (server, clientTransport) pair whose only tool always returns an MCP error result. */
+export async function makeServerWithFailingTool() {
+  const server = new McpServer({ name: 'failing', version: '1.0.0' })
+  server.registerTool(
+    'always_fails',
+    {
+      description: 'A tool that always returns an error result',
+      inputSchema: {},
+    },
+    async () => ({
+      isError: true,
+      content: [{ type: 'text' as const, text: 'boom' }],
+    }),
+  )
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
+  await server.connect(serverTransport)
+  return { server, clientTransport }
+}
+
 /** Build a connected (server, clientTransport) pair that exposes a static text resource. */
 export async function makeServerWithResource() {
   const server = new McpServer({ name: 'resource-server', version: '1.0.0' })

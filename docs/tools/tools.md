@@ -30,7 +30,7 @@ Tools enable your AI application to:
 ## Framework Support
 
 TanStack AI works with **any** JavaScript framework:
-- Next.js, Express, Remix, Fastify, etc.
+- TanStack Start, Next.js, Express, Remix, Fastify, etc.
 - React, Vue, Solid, Svelte, vanilla JS, etc.
 
 TanStack AI works with any JavaScript framework.

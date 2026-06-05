@@ -2,7 +2,8 @@
 import { describe, expect, it } from 'vitest'
 import { makeServerWithWeatherTool } from './helpers/in-memory-server'
 import { createMCPClientFromTransport } from '../src/client'
-import { DuplicateToolNameError } from '../src/errors'
+import { DuplicateToolNameError, MCPConnectionError } from '../src/errors'
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 
 describe('createMCPClient', () => {
   it('connects and returns discovered tools', async () => {
@@ -49,18 +50,60 @@ describe('createMCPClient', () => {
     await expect(client.tools([ghost])).rejects.toThrow(/does_not_exist/)
   })
 
-  it('throws DuplicateToolNameError when discovered tools collide', async () => {
+  it('throws DuplicateToolNameError when bound defs collide within one tools() call', async () => {
     const { clientTransport } = await makeServerWithWeatherTool()
     await using client = await createMCPClientFromTransport(clientTransport)
-    const a = await client.tools()
-    const b = await client.tools()
-    expect(() => {
-      const seen = new Set<string>()
-      for (const t of [...a, ...b]) {
-        if (seen.has(t.name)) throw new DuplicateToolNameError(t.name)
-        seen.add(t.name)
-      }
-    }).toThrow(DuplicateToolNameError)
+    const { toolDefinition } = await import('@tanstack/ai')
+    const { z } = await import('zod')
+    const getWeather = toolDefinition({
+      name: 'get_weather',
+      description: 'Get weather for a city',
+      inputSchema: z.object({ city: z.string() }),
+    })
+    // Two defs resolving to the same final tool name trip the client's own
+    // duplicate guard (single tools() call).
+    await expect(client.tools([getWeather, getWeather])).rejects.toThrow(
+      DuplicateToolNameError,
+    )
+  })
+
+  it('applies the client prefix to bound definitions', async () => {
+    const { clientTransport } = await makeServerWithWeatherTool()
+    await using client = await createMCPClientFromTransport(
+      clientTransport,
+      'wx',
+    )
+    const { toolDefinition } = await import('@tanstack/ai')
+    const { z } = await import('zod')
+    const getWeather = toolDefinition({
+      name: 'get_weather',
+      description: 'Get weather for a city',
+      inputSchema: z.object({ city: z.string() }),
+    })
+    const tools = await client.tools([getWeather])
+    expect(tools[0].name).toBe('wx_get_weather')
+  })
+
+  it('wraps connection failures in MCPConnectionError preserving the cause', async () => {
+    const broken: Transport = {
+      start: async () => {
+        throw new Error('nope')
+      },
+      send: async () => {},
+      close: async () => {},
+    }
+    const err: unknown = await createMCPClientFromTransport(broken).catch(
+      (e: unknown) => e,
+    )
+    expect(err).toBeInstanceOf(MCPConnectionError)
+    expect((err as MCPConnectionError).cause).toBeInstanceOf(Error)
+  })
+
+  it('close() is idempotent', async () => {
+    const { clientTransport } = await makeServerWithWeatherTool()
+    const client = await createMCPClientFromTransport(clientTransport)
+    await client.close()
+    await expect(client.close()).resolves.toBeUndefined()
   })
 
   it('closes on asyncDispose', async () => {

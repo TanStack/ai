@@ -15,10 +15,13 @@ interface WeatherServer extends ServerDescriptor {
 declare const client: MCPClient<WeatherServer>
 
 // Discovery: tools() (no args) resolves to typed ServerTools keyed by the
-// descriptor — an array whose element matches ServerTool (not unknown-collapsed).
+// descriptor — an array whose element matches ServerTool, and whose `name`
+// is the descriptor's tool-name literal (the guarantee this path delivers;
+// args/results stay untyped on discovery).
 const discovered = await client.tools()
 expectTypeOf(discovered).toBeArray()
 expectTypeOf(discovered).items.toMatchTypeOf<ServerTool>()
+expectTypeOf(discovered).items.toMatchTypeOf<{ name: 'get_weather' }>()
 
 // Default (no generic): discovery still yields an array of ServerTool
 // (unchanged from before the descriptor overlay was added).

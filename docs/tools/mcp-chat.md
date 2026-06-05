@@ -28,45 +28,51 @@ You have one or more live [MCP clients](./mcp) (or pools) and you want the model
 The simplest path: create a client, hand it to `chat()`, and let the run clean it up. `connection` defaults to `'close'`, so the client is closed automatically once the run ends — on success, error, or abort.
 
 ```ts
-// app/api/chat/route.ts  (Next.js App Router)
+// src/routes/api.chat.ts
+import { createFileRoute } from '@tanstack/react-router'
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai/adapters'
 import { createMCPClient } from '@tanstack/ai-mcp'
 
-export async function POST(request: Request) {
-  const body = await request.json()
+export const Route = createFileRoute('/api/chat')({
+  server: {
+    handlers: {
+      POST: async ({ request }) => {
+        const body = await request.json()
 
-  if (
-    typeof body !== 'object' ||
-    body === null ||
-    !Array.isArray(body.messages)
-  ) {
-    return new Response('Bad request', { status: 400 })
-  }
+        if (
+          typeof body !== 'object' ||
+          body === null ||
+          !Array.isArray(body.messages)
+        ) {
+          return new Response('Bad request', { status: 400 })
+        }
 
-  const mcpClient = await createMCPClient({
-    transport: {
-      type: 'http',
-      url: process.env.MCP_URL!,
-      headers: { Authorization: `Bearer ${process.env.MCP_TOKEN}` },
+        const mcpClient = await createMCPClient({
+          transport: {
+            type: 'http',
+            url: process.env.MCP_URL!,
+            headers: { Authorization: `Bearer ${process.env.MCP_TOKEN}` },
+          },
+        })
+
+        // chat() discovers mcpClient's tools and closes the connection when done.
+        // No try/finally needed.
+        const stream = chat({
+          adapter: openaiText('gpt-5.5'),
+          messages: body.messages,
+          mcp: {
+            clients: [mcpClient],
+            // connection: 'close' is the default — shown here for clarity
+            connection: 'close',
+          },
+        })
+
+        return toServerSentEventsResponse(stream)
+      },
     },
-  })
-
-  // chat() discovers mcpClient's tools and closes the connection when done.
-  // No try/finally needed.
-  const stream = chat({
-    adapter: openaiText(),
-    model: 'gpt-4o',
-    messages: body.messages,
-    mcp: {
-      clients: [mcpClient],
-      // connection: 'close' is the default — shown here for clarity
-      connection: 'close',
-    },
-  })
-
-  return toServerSentEventsResponse(stream)
-}
+  },
+})
 ```
 
 ## Multiple servers and pools
@@ -74,67 +80,74 @@ export async function POST(request: Request) {
 Pass any mix of `MCPClient` instances and `MCPClients` pools. Their tools are discovered in parallel and merged into one flat tool set. Pools auto-prefix each server's tools with the config key to prevent name collisions.
 
 ```ts
-// app/api/chat/route.ts
+// src/routes/api.chat.ts
+import { createFileRoute } from '@tanstack/react-router'
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai/adapters'
 import { createMCPClient, createMCPClients } from '@tanstack/ai-mcp'
 
-export async function POST(request: Request) {
-  const body = await request.json()
+export const Route = createFileRoute('/api/chat')({
+  server: {
+    handlers: {
+      POST: async ({ request }) => {
+        const body = await request.json()
 
-  if (
-    typeof body !== 'object' ||
-    body === null ||
-    !Array.isArray(body.messages)
-  ) {
-    return new Response('Bad request', { status: 400 })
-  }
+        if (
+          typeof body !== 'object' ||
+          body === null ||
+          !Array.isArray(body.messages)
+        ) {
+          return new Response('Bad request', { status: 400 })
+        }
 
-  // A pool of two servers — their tools are prefixed "github_" and "linear_"
-  const githubLinearPool = await createMCPClients({
-    github: {
-      transport: {
-        type: 'http',
-        url: process.env.GITHUB_MCP_URL!,
-        headers: { Authorization: `Bearer ${process.env.GITHUB_MCP_TOKEN}` },
+        // A pool of two servers — their tools are prefixed "github_" and "linear_"
+        const githubLinearPool = await createMCPClients({
+          github: {
+            transport: {
+              type: 'http',
+              url: process.env.GITHUB_MCP_URL!,
+              headers: { Authorization: `Bearer ${process.env.GITHUB_MCP_TOKEN}` },
+            },
+          },
+          linear: {
+            transport: {
+              type: 'http',
+              url: process.env.LINEAR_MCP_URL!,
+              headers: { Authorization: `Bearer ${process.env.LINEAR_MCP_TOKEN}` },
+            },
+          },
+        })
+
+        // A standalone client for an internal server
+        const internalClient = await createMCPClient({
+          transport: { type: 'http', url: process.env.INTERNAL_MCP_URL! },
+        })
+
+        // All three servers' tools are merged: github_*, linear_*, plus internal tools
+        const stream = chat({
+          adapter: openaiText('gpt-5.5'),
+          messages: body.messages,
+          mcp: {
+            clients: [githubLinearPool, internalClient],
+            connection: 'close',
+          },
+        })
+
+        return toServerSentEventsResponse(stream)
       },
     },
-    linear: {
-      transport: {
-        type: 'http',
-        url: process.env.LINEAR_MCP_URL!,
-        headers: { Authorization: `Bearer ${process.env.LINEAR_MCP_TOKEN}` },
-      },
-    },
-  })
-
-  // A standalone client for an internal server
-  const internalClient = await createMCPClient({
-    transport: { type: 'http', url: process.env.INTERNAL_MCP_URL! },
-  })
-
-  // All three servers' tools are merged: github_*, linear_*, plus internal tools
-  const stream = chat({
-    adapter: openaiText(),
-    model: 'gpt-4o',
-    messages: body.messages,
-    mcp: {
-      clients: [githubLinearPool, internalClient],
-      connection: 'close',
-    },
-  })
-
-  return toServerSentEventsResponse(stream)
-}
+  },
+})
 ```
 
 ## Keep connections warm
 
 Creating a new MCP connection on every request adds latency. For production routes with high request rates, create your pool once at module level and pass `connection: 'keep-alive'` so `chat()` never closes it. The pool stays ready for the next request.
 
-**Server route (`app/api/chat/route.ts`):**
+**Server route (`src/routes/api.chat.ts`):**
 
 ```ts
+import { createFileRoute } from '@tanstack/react-router'
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai/adapters'
 import { createMCPClients } from '@tanstack/ai-mcp'
@@ -157,33 +170,38 @@ const sharedPool = await createMCPClients({
   },
 })
 
-export async function POST(request: Request) {
-  const body = await request.json()
+export const Route = createFileRoute('/api/chat')({
+  server: {
+    handlers: {
+      POST: async ({ request }) => {
+        const body = await request.json()
 
-  if (
-    typeof body !== 'object' ||
-    body === null ||
-    !Array.isArray(body.messages)
-  ) {
-    return new Response('Bad request', { status: 400 })
-  }
+        if (
+          typeof body !== 'object' ||
+          body === null ||
+          !Array.isArray(body.messages)
+        ) {
+          return new Response('Bad request', { status: 400 })
+        }
 
-  // keep-alive: sharedPool is never closed by chat(); stays warm for next call
-  const stream = chat({
-    adapter: openaiText(),
-    model: 'gpt-4o',
-    messages: body.messages,
-    mcp: {
-      clients: [sharedPool],
-      connection: 'keep-alive',
+        // keep-alive: sharedPool is never closed by chat(); stays warm for next call
+        const stream = chat({
+          adapter: openaiText('gpt-5.5'),
+          messages: body.messages,
+          mcp: {
+            clients: [sharedPool],
+            connection: 'keep-alive',
+          },
+        })
+
+        return toServerSentEventsResponse(stream)
+      },
     },
-  })
-
-  return toServerSentEventsResponse(stream)
-}
+  },
+})
 ```
 
-**Client component (`components/Chat.tsx`):**
+**Client component (`src/components/Chat.tsx`):**
 
 ```tsx
 import { useChat } from '@tanstack/ai-react'
@@ -221,40 +239,46 @@ export function Chat() {
 When your MCP server exposes dozens of tools, sending every schema to the model inflates prompt size and cost. Set `lazyTools: true` to defer sending tool schemas until the model explicitly requests them.
 
 ```ts
-// app/api/chat/route.ts
+// src/routes/api.chat.ts
+import { createFileRoute } from '@tanstack/react-router'
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai/adapters'
 import { createMCPClient } from '@tanstack/ai-mcp'
 
-export async function POST(request: Request) {
-  const body = await request.json()
+export const Route = createFileRoute('/api/chat')({
+  server: {
+    handlers: {
+      POST: async ({ request }) => {
+        const body = await request.json()
 
-  if (
-    typeof body !== 'object' ||
-    body === null ||
-    !Array.isArray(body.messages)
-  ) {
-    return new Response('Bad request', { status: 400 })
-  }
+        if (
+          typeof body !== 'object' ||
+          body === null ||
+          !Array.isArray(body.messages)
+        ) {
+          return new Response('Bad request', { status: 400 })
+        }
 
-  const mcpClient = await createMCPClient({
-    transport: { type: 'http', url: process.env.LARGE_MCP_URL! },
-  })
+        const mcpClient = await createMCPClient({
+          transport: { type: 'http', url: process.env.LARGE_MCP_URL! },
+        })
 
-  const stream = chat({
-    adapter: openaiText(),
-    model: 'gpt-4o',
-    messages: body.messages,
-    mcp: {
-      clients: [mcpClient],
-      connection: 'close',
-      // Tools are registered but schemas are withheld until the model asks
-      lazyTools: true,
+        const stream = chat({
+          adapter: openaiText('gpt-5.5'),
+          messages: body.messages,
+          mcp: {
+            clients: [mcpClient],
+            connection: 'close',
+            // Tools are registered but schemas are withheld until the model asks
+            lazyTools: true,
+          },
+        })
+
+        return toServerSentEventsResponse(stream)
+      },
     },
-  })
-
-  return toServerSentEventsResponse(stream)
-}
+  },
+})
 ```
 
 `lazyTools: true` is forwarded to each source's `tools({ lazy: true })` call. See [Lazy Tool Discovery](./lazy-tool-discovery) for how the model discovers and loads lazy tools at runtime, and [the standalone lazy discovery section](./mcp#lazy-tool-discovery) for using `{ lazy: true }` directly with `client.tools()`.
@@ -266,39 +290,45 @@ By default, if any source fails during discovery, `chat()` throws immediately (f
 **Fail-fast (default):**
 
 ```ts
-// app/api/chat/route.ts
+// src/routes/api.chat.ts
+import { createFileRoute } from '@tanstack/react-router'
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai/adapters'
 import { createMCPClient } from '@tanstack/ai-mcp'
 
-export async function POST(request: Request) {
-  const body = await request.json()
+export const Route = createFileRoute('/api/chat')({
+  server: {
+    handlers: {
+      POST: async ({ request }) => {
+        const body = await request.json()
 
-  if (
-    typeof body !== 'object' ||
-    body === null ||
-    !Array.isArray(body.messages)
-  ) {
-    return new Response('Bad request', { status: 400 })
-  }
+        if (
+          typeof body !== 'object' ||
+          body === null ||
+          !Array.isArray(body.messages)
+        ) {
+          return new Response('Bad request', { status: 400 })
+        }
 
-  const mcpClient = await createMCPClient({
-    transport: { type: 'http', url: process.env.MCP_URL! },
-  })
+        const mcpClient = await createMCPClient({
+          transport: { type: 'http', url: process.env.MCP_URL! },
+        })
 
-  // If discovery fails, chat() throws before the first model call.
-  // mcpClient is closed automatically (connection: 'close' default).
-  const stream = chat({
-    adapter: openaiText(),
-    model: 'gpt-4o',
-    messages: body.messages,
-    mcp: {
-      clients: [mcpClient],
+        // If discovery fails, chat() throws before the first model call.
+        // mcpClient is closed automatically (connection: 'close' default).
+        const stream = chat({
+          adapter: openaiText('gpt-5.5'),
+          messages: body.messages,
+          mcp: {
+            clients: [mcpClient],
+          },
+        })
+
+        return toServerSentEventsResponse(stream)
+      },
     },
-  })
-
-  return toServerSentEventsResponse(stream)
-}
+  },
+})
 ```
 
 **Skip a flaky server and proceed:**
@@ -306,103 +336,109 @@ export async function POST(request: Request) {
 Use `onDiscoveryError` to log the problem and return normally — the failing source is skipped and the run continues with the remaining clients' tools.
 
 ```ts
-// app/api/chat/route.ts
+// src/routes/api.chat.ts
+import { createFileRoute } from '@tanstack/react-router'
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai/adapters'
 import { createMCPClient } from '@tanstack/ai-mcp'
 
-export async function POST(request: Request) {
-  const body = await request.json()
+export const Route = createFileRoute('/api/chat')({
+  server: {
+    handlers: {
+      POST: async ({ request }) => {
+        const body = await request.json()
 
-  if (
-    typeof body !== 'object' ||
-    body === null ||
-    !Array.isArray(body.messages)
-  ) {
-    return new Response('Bad request', { status: 400 })
-  }
+        if (
+          typeof body !== 'object' ||
+          body === null ||
+          !Array.isArray(body.messages)
+        ) {
+          return new Response('Bad request', { status: 400 })
+        }
 
-  const primaryClient = await createMCPClient({
-    transport: { type: 'http', url: process.env.PRIMARY_MCP_URL! },
-  })
+        const primaryClient = await createMCPClient({
+          transport: { type: 'http', url: process.env.PRIMARY_MCP_URL! },
+        })
 
-  const optionalClient = await createMCPClient({
-    transport: { type: 'http', url: process.env.OPTIONAL_MCP_URL! },
-  })
+        const optionalClient = await createMCPClient({
+          transport: { type: 'http', url: process.env.OPTIONAL_MCP_URL! },
+        })
 
-  const stream = chat({
-    adapter: openaiText(),
-    model: 'gpt-4o',
-    messages: body.messages,
-    mcp: {
-      clients: [primaryClient, optionalClient],
-      connection: 'close',
-      onDiscoveryError(error, source) {
-        // Log the failure but let the run proceed without this source's tools.
-        // Throw here (or re-throw `error`) to fail the whole run instead.
-        console.warn('MCP discovery failed for a source, skipping.', error)
+        const stream = chat({
+          adapter: openaiText('gpt-5.5'),
+          messages: body.messages,
+          mcp: {
+            clients: [primaryClient, optionalClient],
+            connection: 'close',
+            onDiscoveryError(error, source) {
+              // Log the failure but let the run proceed without this source's tools.
+              // Throw here (or re-throw `error`) to fail the whole run instead.
+              console.warn('MCP discovery failed for a source, skipping.', error)
+            },
+          },
+        })
+
+        return toServerSentEventsResponse(stream)
       },
     },
-  })
-
-  return toServerSentEventsResponse(stream)
-}
+  },
+})
 ```
 
 > Sources passed to `onDiscoveryError` may have already connected before discovery failed. When `connection: 'close'`, they are still closed at the end of the run — even if their tools were skipped.
 
 ## Tool name collisions
 
-If two sources in `mcp.clients` expose a tool with the same name, `chat()` throws an `MCPDuplicateToolNameError` (exported from `@tanstack/ai`) after merging the discovered tools. Fix it by assigning a `prefix` to one of the clients, or by using `createMCPClients` (which auto-prefixes using the config key).
+If two sources in `mcp.clients` expose a tool with the same name, the run fails with an `MCPDuplicateToolNameError` (exported from `@tanstack/ai`) after merging the discovered tools. Note that `chat()` runs lazily — discovery happens when the stream is first consumed, so the error surfaces **through the stream** (the SSE response errors), not as a synchronous throw you can `try/catch` at the `chat()` call site. The fix is to prevent the collision up front: assign a `prefix` to one of the clients, or use `createMCPClients` (which auto-prefixes using the config key).
 
 ```ts
-// app/api/chat/route.ts
-import { chat, toServerSentEventsResponse, MCPDuplicateToolNameError } from '@tanstack/ai'
+// src/routes/api.chat.ts
+import { createFileRoute } from '@tanstack/react-router'
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai/adapters'
 import { createMCPClient } from '@tanstack/ai-mcp'
 
-export async function POST(request: Request) {
-  const body = await request.json()
+export const Route = createFileRoute('/api/chat')({
+  server: {
+    handlers: {
+      POST: async ({ request }) => {
+        const body = await request.json()
 
-  if (
-    typeof body !== 'object' ||
-    body === null ||
-    !Array.isArray(body.messages)
-  ) {
-    return new Response('Bad request', { status: 400 })
-  }
+        if (
+          typeof body !== 'object' ||
+          body === null ||
+          !Array.isArray(body.messages)
+        ) {
+          return new Response('Bad request', { status: 400 })
+        }
 
-  // Both servers expose a tool called "search". Without prefixes this would
-  // throw MCPDuplicateToolNameError. The prefix option resolves the clash.
-  const serverA = await createMCPClient({
-    transport: { type: 'http', url: process.env.SERVER_A_URL! },
-    prefix: 'alpha',   // tools become "alpha_search", etc.
-  })
+        // Both servers expose a tool called "search". Without prefixes the run
+        // would fail with MCPDuplicateToolNameError. The prefix option resolves
+        // the clash.
+        const serverA = await createMCPClient({
+          transport: { type: 'http', url: process.env.SERVER_A_URL! },
+          prefix: 'alpha',   // tools become "alpha_search", etc.
+        })
 
-  const serverB = await createMCPClient({
-    transport: { type: 'http', url: process.env.SERVER_B_URL! },
-    prefix: 'beta',    // tools become "beta_search", etc.
-  })
+        const serverB = await createMCPClient({
+          transport: { type: 'http', url: process.env.SERVER_B_URL! },
+          prefix: 'beta',    // tools become "beta_search", etc.
+        })
 
-  try {
-    const stream = chat({
-      adapter: openaiText(),
-      model: 'gpt-4o',
-      messages: body.messages,
-      mcp: {
-        clients: [serverA, serverB],
-        connection: 'close',
+        const stream = chat({
+          adapter: openaiText('gpt-5.5'),
+          messages: body.messages,
+          mcp: {
+            clients: [serverA, serverB],
+            connection: 'close',
+          },
+        })
+
+        return toServerSentEventsResponse(stream)
       },
-    })
-
-    return toServerSentEventsResponse(stream)
-  } catch (err) {
-    if (err instanceof MCPDuplicateToolNameError) {
-      return new Response(`Tool name conflict: ${err.toolName}`, { status: 409 })
-    }
-    throw err
-  }
-}
+    },
+  },
+})
 ```
 
 For the standalone `pool.tools()` collision behavior and the general `prefix` strategy, see [Tool Name Collisions](./mcp#tool-name-collisions) and [Disable or override the prefix](./mcp#disable-or-override-the-prefix).

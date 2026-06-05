@@ -383,35 +383,48 @@ hosted on any MCP server (Streamable HTTP, SSE, or stdio).
 ### Basic usage — auto-discovery
 
 ```typescript
-// api/chat/route.ts
+// src/routes/api.chat.ts
+import { createFileRoute } from '@tanstack/react-router'
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { createMCPClient } from '@tanstack/ai-mcp'
 
-export async function POST(request: Request) {
-  const { messages } = await request.json()
+export const Route = createFileRoute('/api/chat')({
+  server: {
+    handlers: {
+      POST: async ({ request }) => {
+        const { messages } = await request.json()
 
-  // 1. Connect to the MCP server.
-  const mcp = await createMCPClient({
-    transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
-  })
+        // 1. Connect to the MCP server.
+        const mcp = await createMCPClient({
+          transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+        })
 
-  try {
-    // 2. Discover all tools from the server (returns ServerTool[]).
-    const mcpTools = await mcp.tools()
+        // 2. Discover all tools from the server (returns ServerTool[]).
+        const mcpTools = await mcp.tools()
 
-    // 3. Spread them into chat() — they work exactly like hand-written tools.
-    const stream = chat({
-      adapter: openaiText('gpt-4o'),
-      messages,
-      tools: [...mcpTools],
-    })
-    return toServerSentEventsResponse(stream)
-  } finally {
-    // 4. Caller owns the lifecycle — chat() never closes the client.
-    await mcp.close()
-  }
-}
+        // 3. Spread them into chat() — they work exactly like hand-written tools.
+        // Caller owns the lifecycle — chat() never closes the client. Tools run
+        // while the response streams, so close in a middleware terminal hook
+        // (a try/finally around the return would close before tools execute).
+        const stream = chat({
+          adapter: openaiText('gpt-5.5'),
+          messages,
+          tools: [...mcpTools],
+          middleware: [
+            {
+              name: 'mcp-close',
+              onFinish: () => mcp.close(),
+              onAbort: () => mcp.close(),
+              onError: () => mcp.close(),
+            },
+          ],
+        })
+        return toServerSentEventsResponse(stream)
+      },
+    },
+  },
+})
 ```
 
 ### Typed path — pass toolDefinition instances
@@ -440,7 +453,7 @@ const mcp = await createMCPClient({
 // Throws MCPToolNotFoundError if the server does not expose a tool with that name.
 const tools = await mcp.tools([getWeather])
 
-const stream = chat({ adapter: openaiText('gpt-4o'), messages, tools })
+const stream = chat({ adapter: openaiText('gpt-5.5'), messages, tools })
 ```
 
 ### Multiple servers with `createMCPClients`
@@ -457,7 +470,7 @@ await using pool = await createMCPClients({
 // Tools auto-prefixed: 'github_search_repos', 'linear_create_issue', etc.
 const tools = await pool.tools()
 
-const stream = chat({ adapter: openaiText('gpt-4o'), messages, tools })
+const stream = chat({ adapter: openaiText('gpt-5.5'), messages, tools })
 ```
 
 Use `pool.clients.<name>` for typed per-server access (resources, prompts, typed
@@ -519,9 +532,10 @@ Instead of manually calling `client.tools()` and managing `close()`, pass an
   the results — identical to spreading `await client.tools()` into `tools: [...]`.
 - `lazyTools: true` is forwarded to `tools({ lazy: true })`.
 - `onDiscoveryError`: throw to fail-fast; return to skip that source.
-- `connection: 'close'` (default) closes each client after discovery. Use
-  `'keep-alive'` when the model may still invoke tools after the discovery phase
-  (agent loops, multi-turn runs).
+- `connection: 'close'` (default) closes each client when the run ends (after
+  the agent loop completes and the stream is drained). With `'keep-alive'`,
+  `chat()` never closes the clients — the caller owns their lifecycle (keep
+  connections warm across requests).
 
 **When to use `mcp` vs. the tools spread:**
 
@@ -532,30 +546,41 @@ Instead of manually calling `client.tools()` and managing `close()`, pass an
 
 **Example:**
 
-````typescript
+```typescript
+import { createFileRoute } from '@tanstack/react-router'
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { createMCPClient } from '@tanstack/ai-mcp'
 
-export async function POST(request: Request) {
-  const { messages } = await request.json()
+export const Route = createFileRoute('/api/chat')({
+  server: {
+    handlers: {
+      POST: async ({ request }) => {
+        const { messages } = await request.json()
 
-  const mcpClient = await createMCPClient({
-    transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
-  })
+        const mcpClient = await createMCPClient({
+          transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+        })
 
-  const stream = chat({
-    adapter: openaiText('gpt-4o'),
-    messages,
-    mcp: {
-      clients: [mcpClient],
-      connection: 'keep-alive',
-      onDiscoveryError: (err, source) => {
-        console.warn('MCP discovery failed, skipping source:', err)
-        // returning (not throwing) skips this source and continues
+        const stream = chat({
+          adapter: openaiText('gpt-5.5'),
+          messages,
+          mcp: {
+            clients: [mcpClient],
+            connection: 'keep-alive',
+            onDiscoveryError: (err, source) => {
+              console.warn('MCP discovery failed, skipping source:', err)
+              // returning (not throwing) skips this source and continues
+            },
+          },
+        })
+
+        return toServerSentEventsResponse(stream)
       },
     },
-  })
+  },
+})
+```
 
 ## Provider Skills
 
@@ -591,7 +616,7 @@ export async function POST(request: Request) {
   })
   return toServerSentEventsResponse(stream)
 }
-````
+```
 
 `AnthropicContainerSkill` shape: `{ type: 'anthropic' | 'custom'; skill_id: string; version?: string }`. Constraints: max 8 skills per request; `skill_id` must be 1–64 characters.
 

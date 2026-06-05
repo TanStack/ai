@@ -330,9 +330,10 @@ clients across calls.
 ```
 
 - **`clients`** — one or more `MCPClient` / `MCPClients` instances.
-- **`connection`** — `'close'` (default) closes each client after tool discovery;
-  `'keep-alive'` holds connections open for the duration of the call (needed when
-  tools execute after discovery, e.g. in a multi-turn agent loop).
+- **`connection`** — `'close'` (default) closes each client when the run ends
+  (after the agent loop completes and the stream is drained); with
+  `'keep-alive'`, `chat()` never closes the clients — the caller owns their
+  lifecycle (keep connections warm across requests).
 - **`lazyTools`** — forwarded to `tools({ lazy: true })` so tool schemas are
   sent to the LLM on demand.
 - **`onDiscoveryError`** — throw (or re-throw) to fail the entire call fast;
@@ -348,29 +349,36 @@ clients across calls.
 **Server-side example:**
 
 ```typescript
+import { createFileRoute } from '@tanstack/react-router'
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { createMCPClient } from '@tanstack/ai-mcp'
 
-export async function POST(request: Request) {
-  const { messages } = await request.json()
+export const Route = createFileRoute('/api/chat')({
+  server: {
+    handlers: {
+      POST: async ({ request }) => {
+        const { messages } = await request.json()
 
-  const mcpClient = await createMCPClient({
-    transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
-  })
+        const mcpClient = await createMCPClient({
+          transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+        })
 
-  const stream = chat({
-    adapter: openaiText('gpt-4o'),
-    messages,
-    mcp: {
-      clients: [mcpClient],
-      connection: 'keep-alive', // keep open while tools may still be called
+        const stream = chat({
+          adapter: openaiText('gpt-5.5'),
+          messages,
+          mcp: {
+            clients: [mcpClient],
+            connection: 'keep-alive', // chat() won't close it — reuse across requests
+          },
+        })
+
+        return toServerSentEventsResponse(stream)
+        // connection: 'keep-alive' — chat() never closes mcpClient; it stays open for reuse across runs.
+      },
     },
-  })
-
-  return toServerSentEventsResponse(stream)
-  // connection: 'keep-alive' — chat() never closes mcpClient; it stays open for reuse across runs.
-}
+  },
+})
 ```
 
 ## Common Mistakes

@@ -81,13 +81,29 @@ export async function createMCPClients<
   const pool: MCPClients<TServers> = {
     clients,
     async tools(options?: ToolsOptions): Promise<Array<ServerTool>> {
-      const all = (
-        await Promise.all(
-          Object.values(clients).map((c) =>
-            (c as MCPClient<ServerDescriptor>).tools(options),
-          ),
+      // Settle (like the connect path) so a single failing server is reported
+      // by config key instead of rejecting with an unattributed SDK error.
+      const entries = Object.entries(clients)
+      const results = await Promise.allSettled(
+        entries.map(([, c]) =>
+          (c as MCPClient<ServerDescriptor>).tools(options),
+        ),
+      )
+      const failedNames = entries
+        .map(([key], i) => (results[i]?.status === 'rejected' ? key : null))
+        .filter((k): k is string => k !== null)
+      if (failedNames.length > 0) {
+        const firstFailure = results.find(
+          (r): r is PromiseRejectedResult => r.status === 'rejected',
         )
-      ).flat()
+        throw new MCPConnectionError(
+          `Failed to list tools from MCP server(s): ${failedNames.join(', ')}`,
+          firstFailure?.reason,
+        )
+      }
+      const all = results.flatMap((r) =>
+        r.status === 'fulfilled' ? r.value : [],
+      )
       const seen = new Set<string>()
       for (const t of all) {
         if (seen.has(t.name)) throw new DuplicateToolNameError(t.name)

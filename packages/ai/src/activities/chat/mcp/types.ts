@@ -8,15 +8,21 @@ import type { ServerTool } from '../tools/tool-definition'
  * (ai-mcp depends on ai, not the reverse).
  */
 export interface MCPToolSource {
+  // Keep the options shape in sync with ai-mcp's `ToolsOptions` — extra
+  // optional fields added there still match structurally, but chat() only
+  // forwards what is declared here.
   tools: (options?: { lazy?: boolean }) => Promise<Array<ServerTool>>
   close: () => Promise<void>
 }
 
 /**
- * Controls what happens to MCP connections after tool discovery.
+ * Controls what happens to MCP connections when the chat run ends.
  *
- * - `'close'` (default) — connections are closed after tools are discovered.
- * - `'keep-alive'` — connections are kept open for the duration of the chat call.
+ * - `'close'` (default) — `chat()` closes each connection when the run ends
+ *   (after the agent loop completes and the stream is drained), so tools can
+ *   still execute throughout the run.
+ * - `'keep-alive'` — `chat()` never closes the connections; the caller owns
+ *   their lifecycle (e.g. keep them warm across requests).
  */
 export type MCPConnectionPolicy = 'close' | 'keep-alive'
 
@@ -30,7 +36,7 @@ export interface ChatMCPOptions {
   clients: Array<MCPToolSource>
 
   /**
-   * Connection lifecycle policy applied to all clients after tool discovery.
+   * Connection lifecycle policy applied to all clients when the run ends.
    *
    * Defaults to `'close'`.
    */
