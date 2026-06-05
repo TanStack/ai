@@ -269,6 +269,9 @@ describe('extendAdapter', () => {
 
       // @ts-expect-error - apiKey is required
       void extendedMock('mock-gpt-4')
+
+      // @ts-expect-error - invalid model names still rejected
+      void extendedMock('not-a-model', 'sk-test')
     })
   })
 
