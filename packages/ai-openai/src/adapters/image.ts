@@ -223,6 +223,7 @@ export class OpenAIImageAdapter<
     const sourceFiles = await Promise.all(
       sourceParts.map((part, i) => imagePartToFile(part, `source-${i}`)),
     )
+    const [firstSourceFile] = sourceFiles
     const maskFile = maskParts[0]
       ? await imagePartToFile(maskParts[0], 'mask')
       : undefined
@@ -234,7 +235,10 @@ export class OpenAIImageAdapter<
     const request: OpenAI_SDK.Images.ImageEditParamsNonStreaming = {
       model,
       prompt,
-      image: sourceFiles.length === 1 ? sourceFiles[0]! : sourceFiles,
+      image:
+        firstSourceFile && sourceFiles.length === 1
+          ? firstSourceFile
+          : sourceFiles,
       n: numberOfImages ?? 1,
       stream: false,
       ...((modelOptions ??

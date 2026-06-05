@@ -430,7 +430,7 @@ await generateVideo({
 | Provider     | Image-to-Video Behavior                                                                                  |
 | ------------ | -------------------------------------------------------------------------------------------------------- |
 | **OpenAI**   | Sora-2 / Sora-2-Pro → first input goes to `input_reference`. Single image only — throws if more than one. |
-| **fal.ai**   | Single input → `image_url` (start frame). `role: 'end_frame'` → `end_image_url`. `role: 'start_frame'` → `start_image_url`. `role: 'reference'` / `'character'` → `reference_image_urls`. Override per-endpoint via `modelOptions`. |
+| **fal.ai**   | Field names resolve per endpoint from a map generated from the fal SDK's endpoint types — e.g. `role: 'start_frame'` lands on `image_url` for Kling/Veo image-to-video, `first_frame_url` for first-last-frame endpoints, and `start_image_url` otherwise. Defaults: single input → `image_url` (start frame); `role: 'end_frame'` → `end_image_url`; `role: 'reference'` / `'character'` → `reference_image_urls`. Override per-endpoint via `modelOptions`. |
 | **Gemini**   | Veo adapter not yet implemented — `imageInputs` will be supported when Veo lands.                         |
 
 Adapters whose underlying API can't accept image inputs throw a clear

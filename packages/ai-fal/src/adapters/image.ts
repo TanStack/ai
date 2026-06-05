@@ -103,7 +103,10 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
     // Order matters: modelOptions first (so user overrides win for
     // mask_url / control_image_url / reference_image_urls), then size,
     // then derived image-input fields, then prompt / num_images.
-    const inputFields = mapImageInputsToFalFields(options.imageInputs)
+    const inputFields = mapImageInputsToFalFields(
+      this.model,
+      options.imageInputs,
+    )
     const input = {
       ...options.modelOptions,
       ...sizeParams,

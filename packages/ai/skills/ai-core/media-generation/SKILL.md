@@ -260,8 +260,8 @@ await generateVideo({
 | `'character'`   | Same as `'reference'`; Veo `referenceImages` slot                        |
 | `'mask'`        | OpenAI `mask` (gpt-image-1, dall-e-2); fal `mask_url`                    |
 | `'control'`     | fal `control_image_url` (ControlNet / depth / pose)                      |
-| `'start_frame'` | fal `start_image_url`; Veo `image`                                       |
-| `'end_frame'`   | fal `end_image_url`; Veo `lastFrame`                                     |
+| `'start_frame'` | fal `start_image_url` (or the endpoint's field, e.g. `image_url` on Kling i2v); Veo `image` |
+| `'end_frame'`   | fal `end_image_url` (or e.g. `tail_image_url` / `last_frame_url`); Veo `lastFrame`          |
 
 **Provider support matrix:**
 
@@ -269,7 +269,7 @@ await generateVideo({
 | ---------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
 | OpenAI     | gpt-image-1 / -mini → `images.edit()` (up to 16). dall-e-2 → edit (1). dall-e-3 throws.                      | Sora-2 / -pro → `input_reference` (single). Throws if >1.                                                                   |
 | Gemini     | Native (gemini-\*-flash-image, "nano-banana") → multimodal `contents`. Imagen throws.                        | No native Veo adapter yet — deferred to a follow-up.                                                                        |
-| fal        | 1 input → `image_url`; >1 → `image_urls`; roles → `mask_url` / `control_image_url` / `reference_image_urls`. | 1 input → `image_url`; `start_frame`/`end_frame` → `start_image_url`/`end_image_url`; `reference` → `reference_image_urls`. |
+| fal        | Per-endpoint field names from a generated map (`pnpm generate:fal-image-fields`). Defaults: 1 input → `image_url`; >1 → `image_urls`; roles → `mask_url` / `control_image_url` / `reference_image_urls`. | Per-endpoint map (e.g. Kling i2v start frame → `image_url`). Defaults: 1 input → `image_url`; `start_frame`/`end_frame` → `start_image_url`/`end_image_url`; `reference` → `reference_image_urls`. |
 | Grok       | Throws — adapter uses OpenAI-compat endpoint; native Imagine API rewrite pending.                            | n/a                                                                                                                         |
 | OpenRouter | Throws — multimodal injection pending.                                                                       | n/a                                                                                                                         |
 | Anthropic  | n/a (no image generation API).                                                                               | n/a                                                                                                                         |
