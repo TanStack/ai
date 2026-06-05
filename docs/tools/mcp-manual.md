@@ -284,4 +284,8 @@ export function Chat() {
 }
 ```
 
+## Going further
+
 > **Want `chat()` to discover tools and close clients for you?** If you don't need the manual `tools` spread, resources, or prompts, the `mcp` prop removes the close-middleware boilerplate entirely. See [Managed MCP with `chat()`](./mcp-managed).
+
+> **Want compile-checked tool names on the discovery path?** Generate per-server interface types from your live servers and pass them as a generic to `createMCPClient` — discovered tool names narrow to the server's literal names, with zero runtime overhead. See [MCP Type Generation](./mcp-codegen).
