@@ -5,6 +5,8 @@ import { buildImagesUsage } from '@tanstack/openai-base'
 import { generateId } from '@tanstack/ai-utils'
 import { getGrokApiKeyFromEnv, withGrokDefaults } from '../utils/client'
 import {
+  isGrokImagineImageModel,
+  parseGrokImagineSize,
   validateImageSize,
   validateNumberOfImages,
   validatePrompt,
@@ -13,6 +15,8 @@ import type {
   GeneratedImage,
   ImageGenerationOptions,
   ImageGenerationResult,
+  ImagePart,
+  MediaInputMetadata,
 } from '@tanstack/ai'
 import type OpenAI_SDK from 'openai'
 import type { GrokImageModel } from '../model-meta'
@@ -28,15 +32,58 @@ import type { GrokClientConfig } from '../utils'
  */
 export interface GrokImageConfig extends GrokClientConfig {}
 
+/** Maximum source images accepted by xAI's image edit endpoint. */
+const MAX_EDIT_IMAGES = 3
+
+/**
+ * Maps the generic `size` option onto Imagine API parameters: the
+ * "aspectRatio_resolution" template ("16:9_2k") splits into `aspect_ratio`
+ * and optional `resolution` request fields.
+ */
+function imagineSizeParams(size: string | undefined): {
+  aspect_ratio?: string
+  resolution?: string
+} {
+  if (!size) return {}
+  const parsed = parseGrokImagineSize(size)
+  if (!parsed) return {}
+  return {
+    aspect_ratio: parsed.aspectRatio,
+    ...(parsed.resolution !== undefined && { resolution: parsed.resolution }),
+  }
+}
+
+/**
+ * Convert a TanStack ImagePart to the URL string accepted by xAI's edit
+ * endpoint: public URLs pass through (fetched by xAI's servers), data
+ * sources become base64 data URIs.
+ */
+function imagePartToUrl(part: ImagePart<MediaInputMetadata>): string {
+  if (part.source.type === 'url') return part.source.value
+  return `data:${part.source.mimeType};base64,${part.source.value}`
+}
+
+/** Response shape of xAI's `/v1/images/edits` endpoint. */
+interface GrokImageEditResponse {
+  data?: Array<{
+    url?: string | null
+    b64_json?: string | null
+    mime_type?: string
+  }>
+}
+
 /**
  * Grok Image Generation Adapter
  *
  * Tree-shakeable adapter for Grok image generation functionality.
- * Supports grok-2-image-1212 model.
+ * Supports the legacy grok-2-image-1212 model (text-to-image via the
+ * OpenAI-compat endpoint) and the grok-imagine image models, which also
+ * accept `imageInputs` for image-conditioned generation via xAI's
+ * `/v1/images/edits` endpoint (up to 3 source images).
  *
  * Features:
  * - Model-specific type-safe provider options
- * - Size validation per model
+ * - Size / aspect-ratio validation per model
  * - Number of images validation
  */
 export class GrokImageAdapter<
@@ -51,10 +98,12 @@ export class GrokImageAdapter<
   readonly name = 'grok' as const
 
   protected client: OpenAI
+  private readonly clientConfig: GrokImageConfig
 
   constructor(config: GrokImageConfig, model: TModel) {
     super(model, {})
-    this.client = new OpenAI(withGrokDefaults(config))
+    this.clientConfig = withGrokDefaults(config)
+    this.client = new OpenAI(this.clientConfig)
   }
 
   async generateImages(
@@ -62,31 +111,44 @@ export class GrokImageAdapter<
   ): Promise<ImageGenerationResult> {
     const { model, prompt, numberOfImages, size, modelOptions } = options
 
-    if (
-      options.imageInputs?.length ||
-      options.videoInputs?.length ||
-      options.audioInputs?.length
-    ) {
+    if (options.videoInputs?.length || options.audioInputs?.length) {
       throw new Error(
-        `grok.generateImages does not yet support imageInputs / videoInputs / audioInputs. ` +
-          `Image-conditioned generation requires the xAI Imagine API, which the current adapter ` +
-          `does not target (it uses the OpenAI-compat endpoint). Track progress at https://github.com/TanStack/ai/issues/618.`,
+        `grok.generateImages does not support videoInputs / audioInputs on model ${model}.`,
       )
+    }
+
+    if (options.imageInputs?.length) {
+      if (!isGrokImagineImageModel(model)) {
+        throw new Error(
+          `grok: model "${model}" does not support imageInputs. ` +
+            `Image-conditioned generation requires an Imagine API model ` +
+            `('grok-imagine-image' or 'grok-imagine-image-quality').`,
+        )
+      }
+      return await this.editImages(options)
     }
 
     validatePrompt({ prompt, model })
     validateImageSize(model, size)
     validateNumberOfImages(model, numberOfImages)
 
-    const resolvedSize = size as OpenAI_SDK.Images.ImageGenerateParams['size']
-    const request: OpenAI_SDK.Images.ImageGenerateParamsNonStreaming = {
+    // grok-imagine models are aspect-ratio sized: the generic `size` option
+    // carries an "aspectRatio_resolution" template (e.g. '16:9_2k', like
+    // Gemini native image models) and maps to the Imagine API's
+    // `aspect_ratio` / `resolution` parameters instead of OpenAI-style `size`.
+    const isImagine = isGrokImagineImageModel(model)
+    const request = {
       model,
       prompt,
       n: numberOfImages ?? 1,
-      ...(resolvedSize !== undefined && { size: resolvedSize }),
+      ...(isImagine
+        ? imagineSizeParams(size)
+        : size !== undefined && {
+            size: size as OpenAI_SDK.Images.ImageGenerateParams['size'],
+          }),
       stream: false,
       ...modelOptions,
-    }
+    } as OpenAI_SDK.Images.ImageGenerateParamsNonStreaming
 
     try {
       options.logger.request(
@@ -128,6 +190,104 @@ export class GrokImageAdapter<
       }
     } catch (error: unknown) {
       options.logger.errors(`${this.name}.generateImages fatal`, {
+        error: toRunErrorPayload(error, `${this.name}.generateImages failed`),
+        source: `${this.name}.generateImages`,
+      })
+      throw error
+    }
+  }
+
+  /**
+   * Image-conditioned generation via xAI's Imagine API.
+   *
+   * The `/v1/images/edits` endpoint takes `application/json` (the OpenAI
+   * SDK's `images.edit()` sends `multipart/form-data`, which xAI rejects),
+   * so this path issues the request directly. One input is sent as
+   * `image: { url }`; multiple inputs (up to 3) as `images: [{ url }, ...]`,
+   * referenceable in the prompt as `<IMAGE_0>`, `<IMAGE_1>`, ...
+   */
+  private async editImages(
+    options: ImageGenerationOptions<GrokImageProviderOptions>,
+  ): Promise<ImageGenerationResult> {
+    const { model, prompt, numberOfImages, size, modelOptions, logger } =
+      options
+    const imageInputs = options.imageInputs ?? []
+
+    const unsupportedRole = imageInputs.find(
+      (part) =>
+        part.metadata?.role === 'mask' || part.metadata?.role === 'control',
+    )
+    if (unsupportedRole) {
+      throw new Error(
+        `grok: the Imagine API has no ${unsupportedRole.metadata?.role} input; ` +
+          `only source/reference images are supported.`,
+      )
+    }
+    if (imageInputs.length > MAX_EDIT_IMAGES) {
+      throw new Error(
+        `grok: model "${model}" accepts at most ${MAX_EDIT_IMAGES} source images; received ${imageInputs.length}.`,
+      )
+    }
+
+    validatePrompt({ prompt, model })
+    validateImageSize(model, size)
+    validateNumberOfImages(model, numberOfImages)
+
+    const urls = imageInputs.map((part) => imagePartToUrl(part))
+    const request: Record<string, unknown> = {
+      model,
+      prompt,
+      ...(urls.length === 1
+        ? { image: { url: urls[0] } }
+        : { images: urls.map((url) => ({ url })) }),
+      ...(numberOfImages !== undefined && { n: numberOfImages }),
+      ...imagineSizeParams(size),
+      ...modelOptions,
+    }
+
+    try {
+      logger.request(
+        `activity=image provider=${this.name} model=${model} edit images=${urls.length}`,
+        { provider: this.name, model },
+      )
+
+      const response = await fetch(
+        `${this.clientConfig.baseURL}/images/edits`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${this.clientConfig.apiKey}`,
+          },
+          body: JSON.stringify(request),
+        },
+      )
+      if (!response.ok) {
+        const body = await response.text()
+        throw new Error(
+          `grok: image edit request failed (${response.status} ${response.statusText}): ${body}`,
+        )
+      }
+
+      const result = (await response.json()) as GrokImageEditResponse
+      const images: Array<GeneratedImage> = (result.data ?? []).flatMap(
+        (item): Array<GeneratedImage> => {
+          if (item.b64_json) return [{ b64Json: item.b64_json }]
+          if (item.url) return [{ url: item.url }]
+          return []
+        },
+      )
+      if (images.length === 0) {
+        throw new Error('grok: image edit response contained no images')
+      }
+
+      return {
+        id: generateId(this.name),
+        model,
+        images,
+      }
+    } catch (error: unknown) {
+      logger.errors(`${this.name}.generateImages fatal`, {
         error: toRunErrorPayload(error, `${this.name}.generateImages failed`),
         source: `${this.name}.generateImages`,
       })

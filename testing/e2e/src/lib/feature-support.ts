@@ -180,7 +180,8 @@ export const matrix: Record<Feature, Set<Provider>> = {
   'image-gen': new Set(['openai', 'grok']),
   // image-to-image (imageInputs on generateImage) routes adapters to wire
   // endpoints aimock doesn't yet mock (OpenAI `/v1/images/edits`, Gemini
-  // multimodal `generateContent`, fal endpoint-specific input fields).
+  // multimodal `generateContent`, xAI `/v1/images/edits`, OpenRouter
+  // multimodal chat content parts, fal endpoint-specific input fields).
   // Adapter-level mapping is covered by unit tests. Populate this set when
   // aimock gains support for those endpoints.
   'image-to-image': new Set([]),

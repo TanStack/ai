@@ -242,6 +242,88 @@ describe('OpenRouter Image Adapter', () => {
     )
   })
 
+  it('injects imageInputs as multimodal content parts', async () => {
+    const mockResponse = createMockImageResponse([
+      { url: 'https://example.com/edited.png' },
+    ])
+
+    mockSend = vi.fn().mockResolvedValueOnce(mockResponse)
+
+    const adapter = createAdapter()
+
+    const result = await adapter.generateImages({
+      model: 'google/gemini-2.5-flash-image',
+      prompt: 'Turn this into a cinematic product photo',
+      imageInputs: [
+        {
+          type: 'image',
+          source: { type: 'url', value: 'https://example.com/source.png' },
+        },
+        {
+          type: 'image',
+          source: { type: 'data', value: 'c3R5bGU=', mimeType: 'image/png' },
+          metadata: { role: 'reference' },
+        },
+      ],
+      logger: testLogger,
+    })
+
+    const callArgs = mockSend.mock.calls[0]![0].chatRequest
+    expect(callArgs.messages).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Turn this into a cinematic product photo' },
+          {
+            type: 'image_url',
+            imageUrl: { url: 'https://example.com/source.png' },
+          },
+          {
+            type: 'image_url',
+            imageUrl: { url: 'data:image/png;base64,c3R5bGU=' },
+          },
+        ],
+      },
+    ])
+    expect(result.images).toHaveLength(1)
+  })
+
+  it('keeps a plain string prompt when no imageInputs are given', async () => {
+    const mockResponse = createMockImageResponse([
+      { url: 'https://example.com/image.png' },
+    ])
+
+    mockSend = vi.fn().mockResolvedValueOnce(mockResponse)
+
+    const adapter = createAdapter()
+    await adapter.generateImages({
+      model: 'google/gemini-2.5-flash-image',
+      prompt: 'A plain prompt',
+      logger: testLogger,
+    })
+
+    const callArgs = mockSend.mock.calls[0]![0].chatRequest
+    expect(callArgs.messages[0].content).toBe('A plain prompt')
+  })
+
+  it('throws for videoInputs / audioInputs', async () => {
+    const adapter = createAdapter()
+
+    await expect(
+      adapter.generateImages({
+        model: 'google/gemini-2.5-flash-image',
+        prompt: 'Test',
+        videoInputs: [
+          {
+            type: 'video',
+            source: { type: 'url', value: 'https://example.com/v.mp4' },
+          },
+        ],
+        logger: testLogger,
+      }),
+    ).rejects.toThrow(/does not support videoInputs \/ audioInputs/)
+  })
+
   it('passes imageConfig correctly', async () => {
     const mockResponse = createMockImageResponse([
       { url: 'https://example.com/image.png' },

@@ -15,6 +15,8 @@ import type {
   GeneratedImage,
   ImageGenerationOptions,
   ImageGenerationResult,
+  ImagePart,
+  MediaInputMetadata,
 } from '@tanstack/ai'
 import type { OPENROUTER_IMAGE_MODELS } from '../model-meta'
 import type { ChatResult } from '@openrouter/sdk/models'
@@ -38,6 +40,16 @@ const SIZE_TO_ASPECT_RATIO: Record<string, string> = {
   '768x1344': '9:16',
   '1344x768': '16:9',
   '1536x672': '21:9',
+}
+
+/**
+ * Convert a TanStack ImagePart into the URL string accepted by OpenRouter's
+ * `image_url` content parts: public URLs pass through, data sources become
+ * base64 data URIs.
+ */
+function imagePartToUrl(part: ImagePart<MediaInputMetadata>): string {
+  if (part.source.type === 'url') return part.source.value
+  return `data:${part.source.mimeType};base64,${part.source.value}`
 }
 
 export class OpenRouterImageAdapter<
@@ -65,15 +77,9 @@ export class OpenRouterImageAdapter<
   async generateImages(
     options: ImageGenerationOptions<OpenRouterImageProviderOptions>,
   ): Promise<ImageGenerationResult> {
-    if (
-      options.imageInputs?.length ||
-      options.videoInputs?.length ||
-      options.audioInputs?.length
-    ) {
+    if (options.videoInputs?.length || options.audioInputs?.length) {
       throw new Error(
-        `openrouter.generateImages does not yet support imageInputs / videoInputs / audioInputs. ` +
-          `Image-conditioned generation via OpenRouter requires injecting parts into the multimodal ` +
-          `chat-completions messages array; this is tracked at https://github.com/TanStack/ai/issues/618.`,
+        `openrouter.generateImages does not support videoInputs / audioInputs on model ${this.model}.`,
       )
     }
 
@@ -81,6 +87,23 @@ export class OpenRouterImageAdapter<
       options
     // Use provided aspect_ratio or derive from size
     const aspectRatio = size ? SIZE_TO_ASPECT_RATIO[size] : undefined
+
+    // Image-conditioned generation: inject inputs as multimodal content
+    // parts alongside the prompt. OpenRouter forwards them to the
+    // underlying image model (e.g. Gemini image models). Role hints carry
+    // no per-field semantics on the chat-completions pathway — inputs are
+    // attached in order, like the Gemini adapter's multimodal `contents`.
+    const imageInputs = options.imageInputs ?? []
+    const content =
+      imageInputs.length > 0
+        ? [
+            { type: 'text' as const, text: prompt },
+            ...imageInputs.map((part) => ({
+              type: 'image_url' as const,
+              imageUrl: { url: imagePartToUrl(part) },
+            })),
+          ]
+        : prompt
 
     logger.request(
       `activity=generateImage provider=openrouter model=${this.model}`,
@@ -96,7 +119,7 @@ export class OpenRouterImageAdapter<
         messages: [
           {
             role: 'user',
-            content: prompt,
+            content,
           },
         ],
         modalities: ['image'],

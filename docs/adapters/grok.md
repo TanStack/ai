@@ -160,6 +160,45 @@ const result = await generateImage({
 console.log(result.images);
 ```
 
+The grok-imagine models (`grok-imagine-image`, `grok-imagine-image-quality`)
+are aspect-ratio sized — `size` takes an `aspectRatio_resolution` template
+like `"16:9_2k"` (the `_2k` suffix is optional):
+
+```typescript
+const result = await generateImage({
+  adapter: grokImage("grok-imagine-image"),
+  prompt: "A futuristic cityscape at sunset",
+  size: "16:9_2k",
+});
+```
+
+### Image Editing (image-to-image)
+
+The grok-imagine models accept `imageInputs` for image-conditioned
+generation via xAI's `/v1/images/edits` endpoint — up to 3 source images,
+referenceable in the prompt as `<IMAGE_0>`, `<IMAGE_1>`:
+
+```typescript
+const result = await generateImage({
+  adapter: grokImage("grok-imagine-image"),
+  prompt: "Render <IMAGE_0> in the style of <IMAGE_1>",
+  imageInputs: [
+    {
+      type: "image",
+      source: { type: "url", value: "https://example.com/product.png" },
+    },
+    {
+      type: "image",
+      source: { type: "url", value: "https://example.com/style.png" },
+    },
+  ],
+});
+```
+
+URL sources are fetched by xAI's servers, so they must be publicly
+reachable; use a `data` source for private images. `grok-2-image-1212` is
+text-to-image only and throws when `imageInputs` is passed.
+
 ## Text-to-Speech
 
 Generate speech with Grok TTS:
