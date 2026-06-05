@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { makeFullServer } from './helpers/in-memory-server'
 import { introspectFromTransport } from '../src/cli/introspect'
+import { makeFullServer } from './helpers/in-memory-server'
 
 describe('introspect', () => {
   it('reads the full server surface', async () => {

@@ -56,6 +56,11 @@ export interface ChatMCPOptions {
    * - Throw (or re-throw) from this handler to fail the entire chat call fast.
    * - Return normally to skip that source and continue with remaining clients.
    * - Omit this handler entirely to rethrow the error (fail-fast by default).
+   *
+   * Async handlers are awaited, so a rejected promise also fails fast.
    */
-  onDiscoveryError?: (error: unknown, source: MCPToolSource) => void
+  onDiscoveryError?: (
+    error: unknown,
+    source: MCPToolSource,
+  ) => void | Promise<void>
 }

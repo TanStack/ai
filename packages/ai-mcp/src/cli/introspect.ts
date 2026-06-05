@@ -18,6 +18,22 @@ export interface ServerSurface {
   capabilities: Record<string, unknown>
 }
 
+/** Drain a cursor-paginated MCP list endpoint into a single array. */
+async function listAll<TItem>(
+  fetchPage: (
+    cursor: string | undefined,
+  ) => Promise<{ items: Array<TItem>; nextCursor?: string }>,
+): Promise<Array<TItem>> {
+  const all: Array<TItem> = []
+  let cursor: string | undefined
+  do {
+    const page = await fetchPage(cursor)
+    all.push(...page.items)
+    cursor = page.nextCursor
+  } while (cursor)
+  return all
+}
+
 export async function introspectFromTransport(
   transport: Transport,
 ): Promise<ServerSurface> {
@@ -25,17 +41,30 @@ export async function introspectFromTransport(
     name: 'tanstack-ai-mcp-codegen',
     version: '0.0.1',
   })
-  await client.connect(transport)
   try {
+    await client.connect(transport)
     const caps = (client.getServerCapabilities() ?? {}) as Record<
       string,
       unknown
     >
-    const tools = caps['tools'] ? (await client.listTools()).tools : []
-    const resources = caps['resources']
-      ? (await client.listResources()).resources
+    const tools = caps['tools']
+      ? await listAll(async (cursor) => {
+          const r = await client.listTools({ cursor })
+          return { items: r.tools, nextCursor: r.nextCursor }
+        })
       : []
-    const prompts = caps['prompts'] ? (await client.listPrompts()).prompts : []
+    const resources = caps['resources']
+      ? await listAll(async (cursor) => {
+          const r = await client.listResources({ cursor })
+          return { items: r.resources, nextCursor: r.nextCursor }
+        })
+      : []
+    const prompts = caps['prompts']
+      ? await listAll(async (cursor) => {
+          const r = await client.listPrompts({ cursor })
+          return { items: r.prompts, nextCursor: r.nextCursor }
+        })
+      : []
     return {
       tools: tools.map((t) => ({
         name: t.name,
@@ -48,7 +77,8 @@ export async function introspectFromTransport(
       capabilities: caps,
     }
   } finally {
-    await client.close()
+    // Guarded so a close() failure can't mask the original error.
+    await client.close().catch(() => undefined)
   }
 }
 

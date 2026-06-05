@@ -53,6 +53,12 @@ export const Route = createFileRoute('/api/mcp-test')({
         }
 
         const abortController = new AbortController()
+        // Bridge request cancellation into the chat abort controller so an
+        // abort during setup (before the SSE handoff) is observed.
+        const onRequestAbort = () => abortController.abort()
+        request.signal.addEventListener('abort', onRequestAbort, {
+          once: true,
+        })
 
         let params
         try {
@@ -73,18 +79,15 @@ export const Route = createFileRoute('/api/mcp-test')({
         const origin = new URL(request.url).origin
         const mcpUrl = `${origin}/api/mcp-server`
 
+        // Held in the outer scope so the catch below can close it on any
+        // error path that happens before the SSE stream takes ownership.
+        let mcp: MCPClient | undefined
         try {
-          const mcp = await createMCPClient({
+          mcp = await createMCPClient({
             transport: { type: 'http', url: mcpUrl },
           })
 
-          let tools
-          try {
-            tools = await mcp.tools()
-          } catch (error) {
-            await mcp.close()
-            throw error
-          }
+          const tools = await mcp.tools()
 
           const adapterOptions = createTextAdapter(
             'openai',
@@ -109,6 +112,10 @@ export const Route = createFileRoute('/api/mcp-test')({
             abortController,
           })
         } catch (error) {
+          // The stream never took ownership of the client — close it here.
+          if (mcp) {
+            await mcp.close().catch(() => undefined)
+          }
           console.error('[api.mcp-test] Error:', error)
           if (
             (error instanceof Error && error.name === 'AbortError') ||

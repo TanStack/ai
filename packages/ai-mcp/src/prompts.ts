@@ -20,7 +20,9 @@ export function mcpPromptToMessages(prompt: {
     const content =
       m.content?.type === 'text' && m.content.text !== undefined
         ? m.content.text
-        : JSON.stringify(m.content)
+        : // `?? null` so absent content stringifies to 'null' rather than
+          // producing `undefined` (invalid for ModelMessage['content']).
+          JSON.stringify(m.content ?? null)
     return { role, content }
   })
 }

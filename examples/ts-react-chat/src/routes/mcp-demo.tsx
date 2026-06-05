@@ -205,8 +205,8 @@ function Messages({ messages }: { messages: Array<UIMessage> }) {
                           rehypeRaw,
                           rehypeSanitize,
                           rehypeHighlight,
-                          remarkGfm,
                         ]}
+                        remarkPlugins={[remarkGfm]}
                       >
                         {part.content}
                       </ReactMarkdown>

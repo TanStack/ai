@@ -440,6 +440,28 @@ interface TextEngineConfig<
 type ToolPhaseResult = 'continue' | 'stop' | 'wait'
 type CyclePhase = 'processText' | 'executeToolCalls'
 
+/**
+ * Combine two optional AbortSignals into one that aborts when either does.
+ * Returns the other signal directly when one is absent or already aborted.
+ * (Manual implementation — `AbortSignal.any` requires Node >= 20.3.)
+ */
+function combineAbortSignals(
+  a: AbortSignal | undefined,
+  b: AbortSignal | undefined,
+): AbortSignal | undefined {
+  if (!a) return b
+  if (!b) return a
+  if (a.aborted) return a
+  if (b.aborted) return b
+  const controller = new AbortController()
+  const onAbort = (source: AbortSignal) => () => {
+    controller.abort(source.reason)
+  }
+  a.addEventListener('abort', onAbort(a), { once: true })
+  b.addEventListener('abort', onAbort(b), { once: true })
+  return controller.signal
+}
+
 class TextEngine<
   TAdapter extends AnyTextAdapter,
   TContext = unknown,
@@ -494,6 +516,9 @@ class TextEngine<
   private readonly deferredPromises: Array<Promise<unknown>> = []
   private abortReason?: string
   private readonly middlewareAbortController?: AbortController
+  // Combines the caller's signal with middleware abort() so running tools
+  // observe both cancellation sources via ctx.abortSignal.
+  private readonly toolAbortSignal?: AbortSignal
   private terminalHookCalled = false
 
   private readonly logger: InternalLogger
@@ -591,6 +616,10 @@ class TextEngine<
     ]
     this.middlewareRunner = new MiddlewareRunner(allMiddleware, logger)
     this.middlewareAbortController = new AbortController()
+    this.toolAbortSignal = combineAbortSignals(
+      this.effectiveSignal,
+      this.middlewareAbortController.signal,
+    )
     this.middlewareCtx = {
       requestId: this.requestId,
       streamId: this.streamId,
@@ -1233,7 +1262,7 @@ class TextEngine<
         },
       },
       this.middlewareCtx.context,
-      this.effectiveSignal,
+      this.toolAbortSignal,
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -1395,7 +1424,7 @@ class TextEngine<
         },
       },
       this.middlewareCtx.context,
-      this.effectiveSignal,
+      this.toolAbortSignal,
     )
 
     // Consume the async generator, yielding custom events and collecting the return value

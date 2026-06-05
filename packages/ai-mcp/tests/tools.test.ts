@@ -1,14 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import {
-  makeServerWithFailingTool,
-  makeServerWithWeatherTool,
-} from './helpers/in-memory-server'
-import {
   makeMcpExecute,
   mcpContentToTanstack,
   toServerTools,
 } from '../src/tools'
+import {
+  makeServerWithFailingTool,
+  makeServerWithWeatherTool,
+} from './helpers/in-memory-server'
 
 describe('mcpContentToTanstack', () => {
   it('returns a plain string for a single text block', () => {

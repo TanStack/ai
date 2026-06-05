@@ -70,20 +70,17 @@ export const Route = createFileRoute('/api/mcp-manual')({
           )
         }
 
+        // Held in the outer scope so the catch below can close it on any
+        // error path that happens before the SSE stream takes ownership.
+        let client: MCPClient | undefined
         try {
           // --- MCP: create and connect to the everything server (keyless, stdio) ---
-          const client = await createMCPClient({
+          client = await createMCPClient({
             transport: everythingTransport(),
           })
 
-          let tools
-          try {
-            // Auto-discover all tools from the MCP server.
-            tools = await client.tools()
-          } catch (error) {
-            await client.close()
-            throw error
-          }
+          // Auto-discover all tools from the MCP server.
+          const tools = await client.tools()
 
           // --- MCP: resources — inject the first resource as context (if any) ---
           const contextMessages: Array<ModelMessage> = []
@@ -144,6 +141,11 @@ export const Route = createFileRoute('/api/mcp-manual')({
             abortController,
           })
         } catch (error: any) {
+          // The stream never took ownership of the client — close it here so
+          // the stdio MCP process isn't leaked.
+          if (client) {
+            await client.close().catch(() => undefined)
+          }
           console.error('[api.mcp-manual] Error:', {
             message: error?.message,
             name: error?.name,

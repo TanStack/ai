@@ -1,15 +1,15 @@
 // packages/ai-mcp/tests/client.test.ts
 import { describe, expect, it } from 'vitest'
-import {
-  makeServerWithTaskRequiredTool,
-  makeServerWithWeatherTool,
-} from './helpers/in-memory-server'
 import { createMCPClientFromTransport } from '../src/client'
 import {
   DuplicateToolNameError,
   MCPConnectionError,
   MCPTaskRequiredToolError,
 } from '../src/errors'
+import {
+  makeServerWithTaskRequiredTool,
+  makeServerWithWeatherTool,
+} from './helpers/in-memory-server'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 
 describe('createMCPClient', () => {

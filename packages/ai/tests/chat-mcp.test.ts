@@ -2,10 +2,10 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { chat } from '../src/activities/chat/index'
 import { MCPDuplicateToolNameError } from '../src/activities/chat/mcp/manager'
+import { collectChunks, createMockAdapter, ev } from './test-utils'
 import type { StreamChunk } from '../src/types'
 import type { MCPToolSource } from '../src/activities/chat/mcp/types'
 import type { ServerTool } from '../src/activities/chat/tools/tool-definition'
-import { ev, createMockAdapter, collectChunks } from './test-utils'
 
 // ============================================================================
 // Fake MCP source factory
@@ -468,7 +468,7 @@ describe('chat({ mcp }) — structured-output runners', () => {
       mcp: { clients: [source] },
     })
 
-    await collectChunks(stream as unknown as AsyncIterable<StreamChunk>)
+    await collectChunks(stream)
 
     expect(source.toolCallCount).toBe(1) // discovery ran in this runner
     expect(source.closed).toBe(true) // dispose ran in this runner
@@ -492,7 +492,7 @@ describe('chat({ mcp }) — structured-output runners', () => {
       mcp: { clients: [source], connection: 'keep-alive' },
     })
 
-    await collectChunks(stream as unknown as AsyncIterable<StreamChunk>)
+    await collectChunks(stream)
 
     expect(source.closed).toBe(false)
   })
@@ -559,7 +559,7 @@ describe('chat({ mcp }) — structured-output runners', () => {
       mcp: { clients: [source] },
     })
 
-    await collectChunks(stream as unknown as AsyncIterable<StreamChunk>)
+    await collectChunks(stream)
 
     expect(mcpExecuteSpy).toHaveBeenCalledTimes(1)
   })

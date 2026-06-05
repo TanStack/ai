@@ -1,7 +1,7 @@
 // packages/ai/tests/tool-execution-context.test.ts
 import { describe, expect, it } from 'vitest'
-import { toolDefinition } from '../src'
 import { z } from 'zod'
+import { toolDefinition } from '../src'
 
 describe('ToolExecutionContext.abortSignal', () => {
   it('passes the abort signal into a server tool execute', async () => {

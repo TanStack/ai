@@ -26,7 +26,10 @@ export class MCPManager {
   readonly #sources: ReadonlyArray<MCPToolSource>
   readonly #shouldClose: boolean
   readonly #lazyTools: boolean
-  readonly #onDiscoveryError?: (error: unknown, source: MCPToolSource) => void
+  readonly #onDiscoveryError?: (
+    error: unknown,
+    source: MCPToolSource,
+  ) => void | Promise<void>
 
   private constructor(options: ChatMCPOptions | undefined) {
     this.#sources = options?.clients ?? []
@@ -56,8 +59,8 @@ export class MCPManager {
         if (result.status === 'fulfilled') {
           tools.push(...result.value)
         } else if (this.#onDiscoveryError) {
-          // throw inside handler ⇒ propagate (fail-fast); return ⇒ skip
-          this.#onDiscoveryError(result.reason, source)
+          // throw/reject inside handler ⇒ propagate (fail-fast); return ⇒ skip
+          await this.#onDiscoveryError(result.reason, source)
         } else {
           throw result.reason
         }

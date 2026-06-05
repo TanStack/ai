@@ -1,8 +1,8 @@
 // packages/ai/tests/tool-abort-threading.test.ts
 import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
 import { executeToolCalls } from '../src/activities/chat/tools/tool-calls'
 import { toolDefinition } from '../src'
-import { z } from 'zod'
 
 describe('executeToolCalls abort threading', () => {
   it('forwards an AbortSignal to server tool execute via context', async () => {

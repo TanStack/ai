@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { makeServerWithWeatherTool } from './helpers/in-memory-server'
 import { createMCPClients } from '../src/pool'
+import { makeServerWithWeatherTool } from './helpers/in-memory-server'
 
 describe('createMCPClients', () => {
   it('connects to many servers and flattens auto-prefixed tools', async () => {
@@ -20,7 +20,7 @@ describe('createMCPClients', () => {
     await using pool = await createMCPClients({
       alpha: { transport: a.clientTransport },
     })
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+
     expect(await pool.clients.alpha!.tools()).toBeDefined()
   })
 
@@ -44,7 +44,7 @@ describe('createMCPClients', () => {
       beta: { transport: b.clientTransport },
     })
     // Force a per-server discovery failure after connect.
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+
     await pool.clients.beta!.close()
     await expect(pool.tools()).rejects.toThrow(
       /Failed to list tools from MCP server\(s\): beta/,
@@ -54,6 +54,13 @@ describe('createMCPClients', () => {
 
   it('closes already-connected clients and throws if one server fails', async () => {
     const a = await makeServerWithWeatherTool()
+    // Wrap alpha's transport close so we can assert cleanup actually ran.
+    const originalClose = a.clientTransport.close.bind(a.clientTransport)
+    let alphaClosed = false
+    a.clientTransport.close = async () => {
+      alphaClosed = true
+      await originalClose()
+    }
     const broken = {
       start: async () => {
         throw new Error('nope')
@@ -67,5 +74,6 @@ describe('createMCPClients', () => {
         beta: { transport: broken as any },
       }),
     ).rejects.toThrow(/beta/)
+    expect(alphaClosed).toBe(true)
   })
 })

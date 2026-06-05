@@ -1,14 +1,25 @@
 import { compile } from 'json-schema-to-typescript'
 import type { ServerSurface } from './introspect'
 
-/** Convert an arbitrary server/tool name into a PascalCase identifier. */
+/**
+ * Convert an arbitrary server/tool name into a valid PascalCase identifier.
+ * Falls back to `Generated` for names with no alphanumeric characters and
+ * prefixes an underscore when the result would start with a digit.
+ */
 function pascal(name: string): string {
-  return name
+  const base = name
     .replace(/[^a-zA-Z0-9]+/g, ' ')
     .split(' ')
     .filter(Boolean)
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join('')
+  const safe = base || 'Generated'
+  return /^[A-Za-z_]/.test(safe) ? safe : `_${safe}`
+}
+
+/** Escape a value as a TypeScript string literal (handles quotes/newlines). */
+function tsString(value: string): string {
+  return JSON.stringify(value)
 }
 
 /**
@@ -42,8 +53,19 @@ export async function emitDescriptors(input: EmitInput): Promise<string> {
   ]
   // Track config-key -> interface-name so we can emit the combined pool map.
   const mapEntries: Array<[string, string]> = []
+  // Distinct server keys can pascal-case to the same identifier
+  // (`foo-bar` vs `foo_bar`) — fail loudly rather than emit duplicate
+  // interface declarations.
+  const seenIfaces = new Set<string>()
   for (const [serverName, { prefix, surface }] of Object.entries(input)) {
     const iface = `${pascal(serverName)}Server`
+    if (seenIfaces.has(iface)) {
+      throw new Error(
+        `Interface name collision for server key "${serverName}" -> ${iface}. ` +
+          `Rename one of the colliding servers in your codegen config.`,
+      )
+    }
+    seenIfaces.add(iface)
     mapEntries.push([serverName, iface])
     const toolEntries: Array<string> = []
     for (const tool of surface.tools) {
@@ -57,7 +79,7 @@ export async function emitDescriptors(input: EmitInput): Promise<string> {
         : 'unknown'
       // Inline the compiled interface bodies as anonymous object types.
       toolEntries.push(
-        `    '${key}': { input: ${inlineBody(inputType)}; output: ${inlineBody(outputType)} }`,
+        `    ${tsString(key)}: { input: ${inlineBody(inputType)}; output: ${inlineBody(outputType)} }`,
       )
     }
     blocks.push(
@@ -77,7 +99,7 @@ export async function emitDescriptors(input: EmitInput): Promise<string> {
   // pool.clients access.
   blocks.push(
     'export interface MCPServers extends Record<string, ServerDescriptor> {',
-    ...mapEntries.map(([key, iface]) => `  '${key}': ${iface}`),
+    ...mapEntries.map(([key, iface]) => `  ${tsString(key)}: ${iface}`),
     '}',
     '',
   )
@@ -100,7 +122,9 @@ function inlineBody(compiled: string): string {
 function emitResources(s: ServerSurface): string {
   if (!s.resources.length) return '{}'
   return `{ ${s.resources
-    .map((r) => `'${r.uri}': { uri: '${r.uri}'; data: unknown }`)
+    .map(
+      (r) => `${tsString(r.uri)}: { uri: ${tsString(r.uri)}; data: unknown }`,
+    )
     .join('; ')} }`
 }
 
@@ -108,7 +132,8 @@ function emitPrompts(s: ServerSurface): string {
   if (!s.prompts.length) return '{}'
   return `{ ${s.prompts
     .map(
-      (p) => `'${p.name}': { args: Record<string, string>; messages: unknown }`,
+      (p) =>
+        `${tsString(p.name)}: { args: Record<string, string>; messages: unknown }`,
     )
     .join('; ')} }`
 }
