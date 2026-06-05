@@ -1,7 +1,7 @@
 ---
 title: MCP Type Generation
 id: mcp-codegen
-order: 9
+order: 11
 description: "Generate per-server TypeScript interface types from a live MCP server and wire them into createMCPClient for typed tool names and compile-checked pool keys."
 keywords:
   - tanstack ai
@@ -119,4 +119,4 @@ const pool = await createMCPClients<MCPServers>({
 const tools = await pool.tools()
 ```
 
-Now that tool names and pool keys are compile-checked, hand the generated client to `chat()`. See [Managing MCP clients with `chat()`](./mcp-chat) to let `chat()` own discovery and lifecycle.
+Now that tool names and pool keys are compile-checked, hand the generated client to `chat()`. See [Managed MCP with `chat()`](./mcp-managed) to let `chat()` own discovery and lifecycle.

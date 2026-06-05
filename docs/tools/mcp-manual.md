@@ -1,7 +1,7 @@
 ---
-title: Resources, prompts & manual tools with chat()
-id: mcp-with-chat
-order: 11
+title: "Manual MCP: typed tools, resources & prompts"
+id: mcp-manual
+order: 10
 description: "Spread fully-typed MCP tools into chat(), inject MCP resources and prompts as content and messages, and cancel in-flight MCP tool calls."
 keywords:
   - tanstack ai
@@ -19,7 +19,7 @@ You have a live [MCP client](./mcp) and want to do more than auto-discover tools
 
 > **Manual (`tools` spread) vs managed (`mcp` prop)**
 >
-> This page covers the **manual** path — you call `client.tools()` / `client.resources()` / `client.getPrompt()` yourself and own `close()`. If you only need runtime-typed tools with discovery and lifecycle handled for you, use the `mcp` prop instead — see [Managing MCP clients with `chat()`](./mcp-chat). Both paths build on the [`createMCPClient` basics](./mcp).
+> This page covers the **manual** path — you call `client.tools()` / `client.resources()` / `client.getPrompt()` yourself and own `close()`. If you only need runtime-typed tools with discovery and lifecycle handled for you, use the `mcp` prop instead — see [Managed MCP with `chat()`](./mcp-managed). Both paths build on the [`createMCPClient` basics](./mcp).
 
 ## Fully-typed tools via the `tools` spread
 
@@ -284,4 +284,4 @@ export function Chat() {
 }
 ```
 
-> **Want `chat()` to discover tools and close clients for you?** If you don't need the manual `tools` spread, resources, or prompts, the `mcp` prop removes the close-middleware boilerplate entirely. See [Managing MCP clients with `chat()`](./mcp-chat).
+> **Want `chat()` to discover tools and close clients for you?** If you don't need the manual `tools` spread, resources, or prompts, the `mcp` prop removes the close-middleware boilerplate entirely. See [Managed MCP with `chat()`](./mcp-managed).

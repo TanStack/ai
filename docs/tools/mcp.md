@@ -27,6 +27,8 @@ pnpm add @tanstack/ai-mcp @modelcontextprotocol/sdk
 
 ## Quick Start
 
+The simplest integration is the managed `mcp` option: hand the client to `chat()` and it discovers the tools and closes the connection when the run ends — no lifecycle code at all.
+
 ```ts
 // src/routes/api.chat.ts  (TanStack Start)
 import { createFileRoute } from '@tanstack/react-router'
@@ -47,19 +49,11 @@ export const Route = createFileRoute('/api/chat')({
           },
         })
 
+        // chat() discovers the tools and closes the client when the run ends.
         const stream = chat({
           adapter: openaiText('gpt-5.5'),
           messages,
-          tools: await mcp.tools(),
-          // Close after the run ends — tools execute while the response streams.
-          middleware: [
-            {
-              name: 'mcp-close',
-              onFinish: () => mcp.close(),
-              onAbort: () => mcp.close(),
-              onError: () => mcp.close(),
-            },
-          ],
+          mcp: { clients: [mcp] },
         })
 
         return toServerSentEventsResponse(stream)
@@ -68,6 +62,8 @@ export const Route = createFileRoute('/api/chat')({
   },
 })
 ```
+
+> Need fully-typed tool arguments, resources, prompts, or your own lifecycle? Spread tools manually instead — see [Manual MCP: typed tools, resources & prompts](./mcp-manual) and the [Lifecycle](#lifecycle) section below.
 
 On the client side, consume the stream with `useChat` exactly as you would any other TanStack AI endpoint:
 
@@ -310,11 +306,11 @@ If any server fails to connect, already-connected clients are closed before the 
 
 ## Lifecycle
 
-The MCP client is **caller-owned**. `chat()` never closes it.
+> **You can skip this entire section** by passing clients to `chat()` via the `mcp` option (as in the Quick Start) — `chat()` discovers tools and closes the connections when the run ends. See [Managed MCP with `chat()`](./mcp-managed). Read on only if you spread tools manually and own `close()` yourself.
+
+When you manage the client manually, it is **caller-owned**: `chat()` never closes it.
 
 Tools execute **lazily while the response stream is consumed**, so only close the client after the stream is fully drained. In a route handler that returns a streaming `Response`, a `try/finally` around the `return` (or `await using` at function scope) closes the client *before* the body streams — in-flight tool calls would fail. Close in a middleware terminal hook instead.
-
-> **Prefer to let `chat()` manage lifecycle?** If you'd rather have `chat()` discover tools and close clients automatically when the run ends, see [Managing MCP clients with `chat()`](./mcp-chat).
 
 ### Streaming route handlers — close via middleware
 
@@ -415,9 +411,9 @@ See [Lazy Tool Discovery](./lazy-tool-discovery) for how the LLM discovers lazy 
 
 The Quick Start above hands tools to `chat()` manually via `tools: await mcp.tools()` and closes the client yourself. Two follow-on guides cover richer integrations:
 
-> **Let `chat()` own discovery and lifecycle.** Pass live clients and pools to `chat()` via the `mcp` option and it discovers tools and closes connections for you — no `try/finally` per route. See [Managing MCP clients with `chat()`](./mcp-chat).
+> **Let `chat()` own discovery and lifecycle.** Pass live clients and pools to `chat()` via the `mcp` option and it discovers tools and closes connections for you — no `try/finally` per route. See [Managed MCP with `chat()`](./mcp-managed).
 
-> **Resources, prompts, and fully-typed manual tools.** Inject MCP resources and prompts into a `chat()` run, cancel in-flight MCP calls, and spread `toolDefinition`-typed tools. See [Resources, prompts & manual tools with `chat()`](./mcp-with-chat).
+> **Resources, prompts, and fully-typed manual tools.** Inject MCP resources and prompts into a `chat()` run, cancel in-flight MCP calls, and spread `toolDefinition`-typed tools. See [Manual MCP: typed tools, resources & prompts](./mcp-manual).
 
 ## Error Reference
 
@@ -428,4 +424,4 @@ The Quick Start above hands tools to `chat()` manually via `tools: await mcp.too
 | `MCPToolNotFoundError` | A `toolDefinition` name passed to `tools([...defs])` is not found on the server |
 | `MCPTaskRequiredToolError` | A `toolDefinition` passed to `tools([...defs])` names a tool that requires task-based execution (`execution.taskSupport: 'required'`) — such tools are also excluded from `tools()` auto-discovery |
 
-For the `MCPDuplicateToolNameError` thrown when merging tools from multiple sources inside a `chat({ mcp })` run, see [Managing MCP clients with `chat()`](./mcp-chat#tool-name-collisions).
+For the `MCPDuplicateToolNameError` thrown when merging tools from multiple sources inside a `chat({ mcp })` run, see [Managed MCP with `chat()`](./mcp-managed#tool-name-collisions).

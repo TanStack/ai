@@ -92,16 +92,16 @@
           "to": "tools/mcp"
         },
         {
+          "label": "Managed MCP with chat()",
+          "to": "tools/mcp-managed"
+        },
+        {
+          "label": "Manual MCP: Tools, Resources & Prompts",
+          "to": "tools/mcp-manual"
+        },
+        {
           "label": "MCP Type Generation",
           "to": "tools/mcp-codegen"
-        },
-        {
-          "label": "Managing MCP Clients with chat()",
-          "to": "tools/mcp-chat"
-        },
-        {
-          "label": "MCP Resources, Prompts & Manual Tools",
-          "to": "tools/mcp-with-chat"
         }
       ]
     },
