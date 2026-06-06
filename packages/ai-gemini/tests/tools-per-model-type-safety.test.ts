@@ -65,24 +65,38 @@ describe('Gemini per-model tool gating', () => {
     ])
   })
 
-  it('gemini-2.0-flash-lite rejects all provider tools', () => {
-    const adapter = geminiText('gemini-2.0-flash-lite')
+  it('gemini-2.5-flash-lite accepts code_execution, google_maps, google_search, url_context but rejects file_search', () => {
+    const adapter = geminiText('gemini-2.5-flash-lite')
     typedTools(adapter, [
       userTool,
-      // @ts-expect-error - gemini-2.0-flash-lite does not support code_execution
       codeExecutionTool(),
-      // @ts-expect-error - gemini-2.0-flash-lite does not support computer_use
-      computerUseTool({}),
-      // @ts-expect-error - gemini-2.0-flash-lite does not support file_search
-      fileSearchTool({ fileSearchStoreNames: [] }),
-      // @ts-expect-error - gemini-2.0-flash-lite does not support google_maps
       googleMapsTool(),
-      // @ts-expect-error - gemini-2.0-flash-lite does not support google_search
       googleSearchTool(),
-      // @ts-expect-error - gemini-2.0-flash-lite does not support google_search_retrieval
-      googleSearchRetrievalTool(),
-      // @ts-expect-error - gemini-2.0-flash-lite does not support url_context
       urlContextTool(),
+      // @ts-expect-error - gemini-2.5-flash-lite does not support file_search
+      fileSearchTool({ fileSearchStoreNames: [] }),
+      // @ts-expect-error - gemini-2.5-flash-lite does not support computer_use
+      computerUseTool({
+        environment: Environment.ENVIRONMENT_BROWSER,
+        excludedPredefinedFunctions: [],
+      }),
+      // @ts-expect-error - gemini-2.5-flash-lite does not support google_search_retrieval
+      googleSearchRetrievalTool(),
+    ])
+  })
+
+  it('gemini-3.1-flash-lite (stable) accepts the same tool set as the preview id', () => {
+    const adapter = geminiText('gemini-3.1-flash-lite')
+    typedTools(adapter, [
+      userTool,
+      codeExecutionTool(),
+      fileSearchTool({ fileSearchStoreNames: [] }),
+      googleSearchTool(),
+      urlContextTool(),
+      // @ts-expect-error - gemini-3.1-flash-lite does not support google_maps
+      googleMapsTool(),
+      // @ts-expect-error - gemini-3.1-flash-lite does not support google_search_retrieval
+      googleSearchRetrievalTool(),
     ])
   })
 })

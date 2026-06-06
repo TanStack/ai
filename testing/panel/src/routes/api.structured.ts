@@ -65,7 +65,7 @@ export const Route = createFileRoute('/api/structured')({
           // Default models per provider
           const defaultModels: Record<Provider, string> = {
             anthropic: 'claude-sonnet-4-5',
-            gemini: 'gemini-2.0-flash',
+            gemini: 'gemini-2.5-flash',
             grok: 'grok-3-mini',
             ollama: 'mistral:7b',
             openai: 'gpt-4o',

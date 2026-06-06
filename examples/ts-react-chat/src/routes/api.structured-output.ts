@@ -159,8 +159,12 @@ function adapterFor(provider: Provider, model?: string): AnyTextAdapter {
       // `generateContentStream` call. Gemini 2.x is documented as brittle
       // for the combination and falls back to the engine's legacy
       // finalization path.
+      //
+      // Default is `gemini-3.5-flash`: the newest *stable* (non-preview)
+      // 3.x id, matching the dropdown's first entry. The previous default
+      // (`gemini-3-pro-preview`) was retired by Google and now 404s.
       return geminiText(
-        (baseModel || 'gemini-3-pro-preview') as 'gemini-3-pro-preview',
+        (baseModel || 'gemini-3.5-flash') as 'gemini-3.5-flash',
       )
     case 'grok':
       return grokText(

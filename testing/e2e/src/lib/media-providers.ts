@@ -47,7 +47,7 @@ export function createImageAdapter(
       }),
     gemini: () =>
       createGeminiImage(
-        'gemini-2.0-flash-preview-image-generation',
+        'gemini-2.5-flash-image',
         DUMMY_KEY,
         {
           httpOptions: { baseUrl: llmockBase(aimockPort), headers },

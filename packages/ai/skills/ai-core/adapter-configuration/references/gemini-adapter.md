@@ -27,7 +27,6 @@ import { geminiImage } from '@tanstack/ai-gemini'
 | Model                           | Max Input | Max Output | Notes                        |
 | ------------------------------- | --------- | ---------- | ---------------------------- |
 | `gemini-3.1-pro-preview`        | 1M        | 65K        | Latest flagship, thinking    |
-| `gemini-3-pro-preview`          | 1M        | 65K        | Previous flagship            |
 | `gemini-3-flash-preview`        | 1M        | 65K        | Fast, thinking, multimodal   |
 | `gemini-3.1-flash-lite-preview` | 1M        | 65K        | Budget, still capable        |
 | `gemini-2.5-pro`                | 1M        | 65K        | Stable release, all features |

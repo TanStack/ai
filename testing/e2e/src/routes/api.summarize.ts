@@ -42,7 +42,7 @@ function createSummarizeAdapter(
         defaultHeaders: headers,
       }),
     gemini: () =>
-      createGeminiSummarize(DUMMY_KEY, 'gemini-2.0-flash', {
+      createGeminiSummarize(DUMMY_KEY, 'gemini-2.5-flash', {
         httpOptions: { baseUrl: llmockBase(aimockPort), headers },
       }),
     ollama: () => createOllamaSummarize('mistral', llmockBase(aimockPort)),

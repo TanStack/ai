@@ -77,16 +77,16 @@ const PROVIDER_MODELS: Record<
   // hit the engine's legacy finalization path instead.
   //
   // Naming gotcha: Google uses a dash separator for the major version
-  // (`gemini-3-pro-preview`) but a dot separator for the minor version
+  // (`gemini-3-flash-preview`) but a dot separator for the minor version
   // (`gemini-3.1-pro-preview`). The dropdown values mirror the canonical
   // ids from `ai-gemini/model-meta` — `GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS`
   // keys on the exact string, so any drift here silently breaks
   // combined-mode routing.
   gemini: [
     { value: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash' },
-    { value: 'gemini-3-pro-preview', label: 'Gemini 3 Pro (Preview)' },
     { value: 'gemini-3-flash-preview', label: 'Gemini 3 Flash (Preview)' },
     { value: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro (Preview)' },
+    { value: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash Lite' },
     {
       value: 'gemini-3.1-flash-lite-preview',
       label: 'Gemini 3.1 Flash Lite (Preview)',
