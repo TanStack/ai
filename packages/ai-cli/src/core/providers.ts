@@ -94,6 +94,35 @@ const PROVIDERS: Record<string, ProviderEntry> = {
   },
 }
 
+/**
+ * The factory export names to try, in order, for a provider + activity.
+ *
+ * Pure and deterministic — no module resolution — so it can be unit-tested.
+ * Chat factory naming varies by provider (`Chat` vs `Text` vs `ResponsesText`);
+ * every other activity uses a single `create<Prefix><Activity>` name, with an
+ * optional alternate prefix (e.g. fal's `falImage`).
+ */
+export function factoryCandidatesForProvider(
+  provider: string,
+  activity: Activity,
+): Array<string> {
+  const entry = PROVIDERS[provider]
+  if (!entry) return []
+  const alt = entry.altFactoryPrefix
+  if (activity === 'chat') {
+    return [
+      `create${entry.factoryPrefix}Chat`,
+      `create${entry.factoryPrefix}Text`,
+      `create${entry.factoryPrefix}ResponsesText`,
+      ...(alt ? [`${alt}Chat`, `${alt}Text`] : []),
+    ]
+  }
+  return [
+    `create${entry.factoryPrefix}${ACTIVITY_SUFFIX[activity]}`,
+    ...(alt ? [`${alt}${ACTIVITY_SUFFIX[activity]}`] : []),
+  ]
+}
+
 /** Factory-name suffix per activity (the irregular `chat` -> `Chat`/text case included). */
 const ACTIVITY_SUFFIX: Record<Activity, string> = {
   chat: 'Chat',
@@ -184,22 +213,7 @@ export async function instantiateAdapter(params: {
 
   const mod = await importProvider(entry, provider)
   const moduleExports = mod as Record<string, unknown>
-
-  // Chat factory naming varies by provider (Chat vs Text vs ResponsesText);
-  // every other activity uses a single `create<Prefix><Activity>` name.
-  const alt = entry.altFactoryPrefix
-  const candidates =
-    activity === 'chat'
-      ? [
-          `create${entry.factoryPrefix}Chat`,
-          `create${entry.factoryPrefix}Text`,
-          `create${entry.factoryPrefix}ResponsesText`,
-          ...(alt ? [`${alt}Chat`, `${alt}Text`] : []),
-        ]
-      : [
-          `create${entry.factoryPrefix}${ACTIVITY_SUFFIX[activity]}`,
-          ...(alt ? [`${alt}${ACTIVITY_SUFFIX[activity]}`] : []),
-        ]
+  const candidates = factoryCandidatesForProvider(provider, activity)
 
   for (const name of candidates) {
     const factory = moduleExports[name]
