@@ -1,0 +1,82 @@
+{
+  "name": "@tanstack/ai-cli",
+  "version": "0.1.0",
+  "description": "ts-ai — a type-safe CLI over TanStack AI: chat, image, video, audio, speech, transcribe, and summarize from the terminal or any agent harness.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-cli"
+  },
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "cli",
+    "tanstack",
+    "agent",
+    "agent-harness",
+    "llm",
+    "chat",
+    "image-generation",
+    "tts",
+    "transcription"
+  ],
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "bin": {
+    "ts-ai": "./dist/bin/bin.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build && tsup --config tsup.bin.config.ts",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:build": "publint --strict",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-anthropic": "workspace:*",
+    "@tanstack/ai-code-mode": "workspace:*",
+    "@tanstack/ai-fal": "workspace:*",
+    "@tanstack/ai-gemini": "workspace:*",
+    "@tanstack/ai-isolate-node": "workspace:*",
+    "@tanstack/ai-mcp": "workspace:*",
+    "@tanstack/ai-openai": "workspace:*",
+    "@tanstack/ai-openrouter": "workspace:*",
+    "commander": "^13.1.0",
+    "ink": "^7.0.5",
+    "react": "^19.2.3",
+    "react-devtools-core": "^6.1.5",
+    "terminal-image": "^4.3.0"
+  },
+  "peerDependencies": {
+    "zod": "^3.0.0 || ^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.7",
+    "@vitest/coverage-v8": "4.0.14",
+    "tsup": "^8.5.1",
+    "vite": "^7.3.3",
+    "zod": "^4.2.0"
+  }
+}
