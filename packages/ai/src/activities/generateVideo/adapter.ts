@@ -1,4 +1,5 @@
 import type {
+  ModelInputModalitiesByName,
   VideoGenerationOptions,
   VideoJobResult,
   VideoStatusResult,
@@ -31,6 +32,8 @@ export interface VideoAdapterConfig {
  * - TProviderOptions: Provider-specific options (already resolved)
  * - TModelProviderOptionsByName: Map from model name to its specific provider options
  * - TModelSizeByName: Map from model name to its supported sizes
+ * - TModelInputModalitiesByName: Map from model name to the non-text prompt
+ *   modalities it accepts (constrains the `prompt` part types at compile time)
  */
 export interface VideoAdapter<
   TModel extends string = string,
@@ -40,6 +43,8 @@ export interface VideoAdapter<
     string,
     string
   >,
+  TModelInputModalitiesByName extends ModelInputModalitiesByName =
+    ModelInputModalitiesByName,
 > {
   /** Discriminator for adapter kind - used to determine API shape */
   readonly kind: 'video'
@@ -55,6 +60,7 @@ export interface VideoAdapter<
     providerOptions: TProviderOptions
     modelProviderOptionsByName: TModelProviderOptionsByName
     modelSizeByName: TModelSizeByName
+    modelInputModalitiesByName: TModelInputModalitiesByName
   }
 
   /**
@@ -81,7 +87,7 @@ export interface VideoAdapter<
  * A VideoAdapter with any/unknown type parameters.
  * Useful as a constraint in generic functions and interfaces.
  */
-export type AnyVideoAdapter = VideoAdapter<any, any, any, any>
+export type AnyVideoAdapter = VideoAdapter<any, any, any, any, any>
 
 /**
  * Abstract base class for video generation adapters.
@@ -99,11 +105,14 @@ export abstract class BaseVideoAdapter<
     string,
     string
   >,
+  TModelInputModalitiesByName extends ModelInputModalitiesByName =
+    ModelInputModalitiesByName,
 > implements VideoAdapter<
   TModel,
   TProviderOptions,
   TModelProviderOptionsByName,
-  TModelSizeByName
+  TModelSizeByName,
+  TModelInputModalitiesByName
 > {
   readonly kind = 'video' as const
   abstract readonly name: string
@@ -114,6 +123,7 @@ export abstract class BaseVideoAdapter<
     providerOptions: TProviderOptions
     modelProviderOptionsByName: TModelProviderOptionsByName
     modelSizeByName: TModelSizeByName
+    modelInputModalitiesByName: TModelInputModalitiesByName
   }
 
   protected config: VideoAdapterConfig

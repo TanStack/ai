@@ -174,15 +174,20 @@ const result = await generateImage({
 
 ### Image Editing (image-to-image)
 
-The grok-imagine models accept `imageInputs` for image-conditioned
+The grok-imagine models accept image prompt parts for image-conditioned
 generation via xAI's `/v1/images/edits` endpoint — up to 3 source images,
-referenceable in the prompt as `<IMAGE_0>`, `<IMAGE_1>`:
+addressed by xAI in the order they appear in the prompt. Per xAI's docs
+there is no in-prompt referencing syntax; write the prompt naturally and
+your text is sent verbatim:
 
 ```typescript
 const result = await generateImage({
   adapter: grokImage("grok-imagine-image"),
-  prompt: "Render <IMAGE_0> in the style of <IMAGE_1>",
-  imageInputs: [
+  prompt: [
+    {
+      type: "text",
+      content: "Render the product in the style of the second image",
+    },
     {
       type: "image",
       source: { type: "url", value: "https://example.com/product.png" },
@@ -197,7 +202,8 @@ const result = await generateImage({
 
 URL sources are fetched by xAI's servers, so they must be publicly
 reachable; use a `data` source for private images. `grok-2-image-1212` is
-text-to-image only and throws when `imageInputs` is passed.
+text-to-image only — image prompt parts are a compile-time type error and
+throw at runtime.
 
 ## Text-to-Speech
 

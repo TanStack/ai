@@ -1,4 +1,5 @@
 import OpenAI from 'openai'
+import { resolveMediaPrompt } from '@tanstack/ai'
 import { BaseVideoAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { arrayBufferToBase64 } from '@tanstack/ai-utils'
@@ -18,6 +19,7 @@ import type {
 import type OpenAI_SDK from 'openai'
 import type { OpenAIVideoModel } from '../model-meta'
 import type {
+  OpenAIVideoModelInputModalitiesByName,
   OpenAIVideoModelProviderOptionsByName,
   OpenAIVideoModelSizeByName,
   OpenAIVideoProviderOptions,
@@ -68,7 +70,8 @@ export class OpenAIVideoAdapter<
   TModel,
   OpenAIVideoProviderOptions,
   OpenAIVideoModelProviderOptionsByName,
-  OpenAIVideoModelSizeByName
+  OpenAIVideoModelSizeByName,
+  OpenAIVideoModelInputModalitiesByName
 > {
   readonly name = 'openai' as const
 
@@ -88,36 +91,38 @@ export class OpenAIVideoAdapter<
     options: VideoGenerationOptions<OpenAIVideoProviderOptions>,
   ): Promise<VideoJobResult> {
     const { model, size, duration, modelOptions } = options
-    const { imageInputs, videoInputs, audioInputs } = options
 
     validateVideoSize(model, size)
     const seconds = duration ?? modelOptions?.seconds
     validateVideoSeconds(model, seconds)
 
-    if (videoInputs?.length) {
+    const resolved = resolveMediaPrompt(options.prompt)
+
+    if (resolved.videos.length > 0) {
       throw new Error(
-        `${this.name}.createVideoJob does not support videoInputs (model: ${model}).`,
+        `${this.name}.createVideoJob does not support video prompt parts (model: ${model}).`,
       )
     }
-    if (audioInputs?.length) {
+    if (resolved.audios.length > 0) {
       throw new Error(
-        `${this.name}.createVideoJob does not support audioInputs (model: ${model}).`,
+        `${this.name}.createVideoJob does not support audio prompt parts (model: ${model}).`,
       )
     }
-    if (imageInputs && imageInputs.length > 1) {
+    if (resolved.images.length > 1) {
       throw new Error(
-        `${this.name}: Sora accepts at most one input_reference image; received ${imageInputs.length}.`,
+        `${this.name}: Sora accepts at most one input_reference image; received ${resolved.images.length}.`,
       )
     }
 
     const request: OpenAI_SDK.Videos.VideoCreateParams = {
       model,
-      prompt: options.prompt,
+      prompt: resolved.text,
     }
-    if (imageInputs && imageInputs[0]) {
+    const [inputReference] = resolved.images
+    if (inputReference) {
       // Sora's `input_reference` is a single Uploadable; convert TanStack
       // ImagePart (URL or base64) → File before handing it to the SDK.
-      const file = await imagePartToFile(imageInputs[0], 'input-reference')
+      const file = await imagePartToFile(inputReference, 'input-reference')
       ;(request as { input_reference?: unknown }).input_reference = file
     }
     // `VideoCreateParams.size` is `size?: VideoSize` (no `| undefined`), so we

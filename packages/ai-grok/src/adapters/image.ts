@@ -1,4 +1,5 @@
 import OpenAI from 'openai'
+import { resolveMediaPrompt } from '@tanstack/ai'
 import { BaseImageAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { buildImagesUsage } from '@tanstack/openai-base'
@@ -17,10 +18,12 @@ import type {
   ImageGenerationResult,
   ImagePart,
   MediaInputMetadata,
+  ResolvedMediaPrompt,
 } from '@tanstack/ai'
 import type OpenAI_SDK from 'openai'
 import type { GrokImageModel } from '../model-meta'
 import type {
+  GrokImageModelInputModalitiesByName,
   GrokImageModelProviderOptionsByName,
   GrokImageModelSizeByName,
   GrokImageProviderOptions,
@@ -78,7 +81,7 @@ interface GrokImageEditResponse {
  * Tree-shakeable adapter for Grok image generation functionality.
  * Supports the legacy grok-2-image-1212 model (text-to-image via the
  * OpenAI-compat endpoint) and the grok-imagine image models, which also
- * accept `imageInputs` for image-conditioned generation via xAI's
+ * accept image prompt parts for image-conditioned generation via xAI's
  * `/v1/images/edits` endpoint (up to 3 source images).
  *
  * Features:
@@ -92,7 +95,8 @@ export class GrokImageAdapter<
   TModel,
   GrokImageProviderOptions,
   GrokImageModelProviderOptionsByName,
-  GrokImageModelSizeByName
+  GrokImageModelSizeByName,
+  GrokImageModelInputModalitiesByName
 > {
   override readonly kind = 'image' as const
   readonly name = 'grok' as const
@@ -109,23 +113,26 @@ export class GrokImageAdapter<
   async generateImages(
     options: ImageGenerationOptions<GrokImageProviderOptions>,
   ): Promise<ImageGenerationResult> {
-    const { model, prompt, numberOfImages, size, modelOptions } = options
+    const { model, numberOfImages, size, modelOptions } = options
 
-    if (options.videoInputs?.length || options.audioInputs?.length) {
+    const resolved = resolveMediaPrompt(options.prompt)
+    const prompt = resolved.text
+
+    if (resolved.videos.length > 0 || resolved.audios.length > 0) {
       throw new Error(
-        `grok.generateImages does not support videoInputs / audioInputs on model ${model}.`,
+        `grok.generateImages does not support video / audio prompt parts on model ${model}.`,
       )
     }
 
-    if (options.imageInputs?.length) {
+    if (resolved.images.length > 0) {
       if (!isGrokImagineImageModel(model)) {
         throw new Error(
-          `grok: model "${model}" does not support imageInputs. ` +
+          `grok: model "${model}" does not support image prompt parts. ` +
             `Image-conditioned generation requires an Imagine API model ` +
             `('grok-imagine-image' or 'grok-imagine-image-quality').`,
         )
       }
-      return await this.editImages(options)
+      return await this.editImages(options, resolved)
     }
 
     validatePrompt({ prompt, model })
@@ -204,14 +211,16 @@ export class GrokImageAdapter<
    * SDK's `images.edit()` sends `multipart/form-data`, which xAI rejects),
    * so this path issues the request directly. One input is sent as
    * `image: { url }`; multiple inputs (up to 3) as `images: [{ url }, ...]`,
-   * referenceable in the prompt as `<IMAGE_0>`, `<IMAGE_1>`, ...
+   * addressed by xAI in the order they are sent. The prompt text is sent
+   * verbatim — no referencing markers are injected.
    */
   private async editImages(
     options: ImageGenerationOptions<GrokImageProviderOptions>,
+    resolved: ResolvedMediaPrompt,
   ): Promise<ImageGenerationResult> {
-    const { model, prompt, numberOfImages, size, modelOptions, logger } =
-      options
-    const imageInputs = options.imageInputs ?? []
+    const { model, numberOfImages, size, modelOptions, logger } = options
+    const prompt = resolved.text
+    const imageInputs = resolved.images
 
     const unsupportedRole = imageInputs.find(
       (part) =>

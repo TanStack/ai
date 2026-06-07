@@ -363,38 +363,52 @@ And returns:
 | Option | Type | Description |
 |--------|------|-------------|
 | `adapter` | `VideoAdapter` | Video adapter instance with model (required) |
-| `prompt` | `string` | Text description of the video to generate (required) |
+| `prompt` | `string \| MediaPromptPart[]` | Description of the video to generate (required). A plain string, or — on models that support conditioned generation — an ordered array of content parts interleaving text with image / video / audio inputs. See [Image-to-Video](#image-to-video) below. |
 | `size` | `string` | Video resolution in WIDTHxHEIGHT format |
 | `duration` | `number` | Video duration in seconds (maps to `seconds` parameter in API) |
-| `imageInputs?` | `ImagePart[]` | Image conditioning inputs — starting frame, end frame, character / reference images. See [Image-to-Video](#image-to-video) below. |
-| `videoInputs?` | `VideoPart[]` | Video conditioning inputs for video-to-video / source clip flows. Provider support varies. |
-| `audioInputs?` | `AudioPart[]` | Audio conditioning inputs for lipsync / voice cloning flows. Provider support varies. |
 | `modelOptions?` | `object` | Model-specific options (renamed from `providerOptions`) |
 
 ## Image-to-Video
 
-`generateVideo()` accepts `imageInputs` for starting-frame, ending-frame,
-and reference-image conditioned video generation:
+For starting-frame, ending-frame, and reference-image conditioned video
+generation, pass the `prompt` as an array of content parts:
 
 ```typescript
-import { generateVideo, type ImagePart } from '@tanstack/ai'
+import { generateVideo } from '@tanstack/ai'
 import { openaiVideo } from '@tanstack/ai-openai'
-
-const startingFrame: ImagePart = {
-  type: 'image',
-  source: {
-    type: 'data',
-    value: base64Image,
-    mimeType: 'image/png',
-  },
-}
 
 const { jobId } = await generateVideo({
   adapter: openaiVideo('sora-2'),
-  prompt: 'Animate this still into a slow cinematic push-in with subtle motion',
-  imageInputs: [startingFrame],
+  prompt: [
+    {
+      type: 'text',
+      content:
+        'Animate this still into a slow cinematic push-in with subtle motion',
+    },
+    {
+      type: 'image',
+      source: {
+        type: 'data',
+        value: base64Image,
+        mimeType: 'image/png',
+      },
+    },
+  ],
 })
 ```
+
+The accepted part types are narrowed **per model at compile time** — fal
+endpoints, for example, only admit image / video / audio parts that their
+SDK input type actually declares fields for.
+
+Prompt text is always sent **verbatim** — the SDK never injects or rewrites
+in-prompt referencing markers. Some fal video endpoints have their own
+referencing syntax you can write directly in your text (e.g. Kling v3
+elements as `@Element1`, Seedance 2.0 reference-to-video as `@Image1` /
+`@Video1` / `@Audio1`, 1-indexed by input order); Veo and Sora take
+reference images as plain inputs with naturally written prompts. See
+[Referencing images from your prompt](./image-generation.md#referencing-images-from-your-prompt)
+for the per-provider table.
 
 ### Role hints
 
@@ -413,9 +427,9 @@ import { falVideo } from '@tanstack/ai-fal'
 
 await generateVideo({
   adapter: falVideo('fal-ai/kling-video/v3/pro/image-to-video'),
-  prompt: 'Slow cinematic push-in then a hard cut',
-  imageInputs: [
+  prompt: [
     { type: 'image', source: { type: 'url', value: firstFrameUrl } },
+    { type: 'text', content: 'Slow cinematic push-in then a hard cut' },
     {
       type: 'image',
       source: { type: 'url', value: lastFrameUrl },
@@ -429,9 +443,9 @@ await generateVideo({
 
 | Provider     | Image-to-Video Behavior                                                                                  |
 | ------------ | -------------------------------------------------------------------------------------------------------- |
-| **OpenAI**   | Sora-2 / Sora-2-Pro → first input goes to `input_reference`. Single image only — throws if more than one. |
+| **OpenAI**   | Sora-2 / Sora-2-Pro → the image part goes to `input_reference`; flattened text is the prompt. Single image only — throws if more than one. |
 | **fal.ai**   | Field names resolve per endpoint from a map generated from the fal SDK's endpoint types — e.g. `role: 'start_frame'` lands on `image_url` for Kling/Veo image-to-video, `first_frame_url` for first-last-frame endpoints, and `start_image_url` otherwise. Defaults: single input → `image_url` (start frame); `role: 'end_frame'` → `end_image_url`; `role: 'reference'` / `'character'` → `reference_image_urls`. Override per-endpoint via `modelOptions`. |
-| **Gemini**   | Veo adapter not yet implemented — `imageInputs` will be supported when Veo lands.                         |
+| **Gemini**   | Veo adapter not yet implemented — image prompt parts will be supported when Veo lands.                    |
 
 Adapters whose underlying API can't accept image inputs throw a clear
 runtime error so calls fail fast.

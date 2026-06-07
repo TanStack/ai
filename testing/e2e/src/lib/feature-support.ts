@@ -178,9 +178,9 @@ export const matrix: Record<Feature, Set<Provider>> = {
   ]),
   // Gemini excluded: aimock doesn't mock Gemini's Imagen predict endpoint format
   'image-gen': new Set(['openai', 'grok']),
-  // image-to-image (imageInputs on generateImage) routes adapters to wire
-  // endpoints aimock doesn't yet mock (OpenAI `/v1/images/edits`, Gemini
-  // multimodal `generateContent`, xAI `/v1/images/edits`, OpenRouter
+  // image-to-image (image parts in the generateImage prompt) routes adapters
+  // to wire endpoints aimock doesn't yet mock (OpenAI `/v1/images/edits`,
+  // Gemini multimodal `generateContent`, xAI `/v1/images/edits`, OpenRouter
   // multimodal chat content parts, fal endpoint-specific input fields).
   // Adapter-level mapping is covered by unit tests. Populate this set when
   // aimock gains support for those endpoints.
@@ -190,9 +190,9 @@ export const matrix: Record<Feature, Set<Provider>> = {
   tts: new Set(['openai', 'grok', 'elevenlabs']),
   transcription: new Set(['openai', 'grok', 'elevenlabs']),
   'video-gen': new Set(['openai']),
-  // image-to-video (imageInputs on generateVideo) similarly depends on
-  // aimock mocking Sora's `input_reference` upload field. Populate when
-  // aimock support lands.
+  // image-to-video (image parts in the generateVideo prompt) similarly
+  // depends on aimock mocking Sora's `input_reference` upload field.
+  // Populate when aimock support lands.
   'image-to-video': new Set([]),
   // Only Gemini currently surfaces a first-class stateful conversation API via
   // the adapter (geminiTextInteractions, behind @tanstack/ai-gemini/experimental).

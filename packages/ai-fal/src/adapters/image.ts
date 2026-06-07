@@ -1,4 +1,5 @@
 import { fal } from '@fal-ai/client'
+import { resolveMediaPrompt } from '@tanstack/ai'
 import { BaseImageAdapter } from '@tanstack/ai/adapters'
 import {
   buildFalUsage,
@@ -14,8 +15,10 @@ import type {
   GeneratedImage,
   ImageGenerationOptions,
   ImageGenerationResult,
+  ResolvedMediaPrompt,
 } from '@tanstack/ai'
 import type {
+  FalImagePromptModalitiesFor,
   FalImageProviderOptions,
   FalModel,
   FalModelImageSize,
@@ -46,7 +49,8 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
   TModel,
   FalImageProviderOptions<TModel>,
   Record<TModel, FalImageProviderOptions<TModel>>,
-  Record<TModel, FalModelImageSize<TModel>>
+  Record<TModel, FalModelImageSize<TModel>>,
+  Record<TModel, FalImagePromptModalitiesFor<TModel>>
 > {
   override readonly kind = 'image' as const
   readonly name = 'fal' as const
@@ -69,19 +73,21 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
       model: this.model,
     })
 
-    if (options.videoInputs?.length) {
+    const resolved = resolveMediaPrompt(options.prompt)
+
+    if (resolved.videos.length > 0) {
       throw new Error(
-        `fal.generateImages does not support videoInputs on model ${this.model}.`,
+        `fal.generateImages does not support video prompt parts on model ${this.model}.`,
       )
     }
-    if (options.audioInputs?.length) {
+    if (resolved.audios.length > 0) {
       throw new Error(
-        `fal.generateImages does not support audioInputs on model ${this.model}.`,
+        `fal.generateImages does not support audio prompt parts on model ${this.model}.`,
       )
     }
 
     try {
-      const input = this.buildInput(options)
+      const input = this.buildInput(options, resolved)
       const result = await fal.subscribe(this.model, { input })
       return this.transformResponse(result)
     } catch (error) {
@@ -98,20 +104,20 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
       FalImageProviderOptions<TModel>,
       FalModelImageSize<TModel>
     >,
+    resolved: ResolvedMediaPrompt,
   ): FalModelInput<TModel> {
     const sizeParams = mapSizeToFalFormat(options.size)
     // Order matters: modelOptions first (so user overrides win for
     // mask_url / control_image_url / reference_image_urls), then size,
     // then derived image-input fields, then prompt / num_images.
-    const inputFields = mapImageInputsToFalFields(
-      this.model,
-      options.imageInputs,
-    )
+    const inputFields = mapImageInputsToFalFields(this.model, resolved.images)
     const input = {
       ...options.modelOptions,
       ...sizeParams,
       ...inputFields,
-      prompt: options.prompt,
+      // Media-only prompts (e.g. upscalers, background removal) omit the
+      // prompt field entirely rather than sending an empty string.
+      ...(resolved.text ? { prompt: resolved.text } : {}),
       num_images: options.numberOfImages,
     } as FalModelInput<TModel>
     return input

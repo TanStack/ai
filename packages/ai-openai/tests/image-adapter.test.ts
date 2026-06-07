@@ -238,13 +238,13 @@ describe('OpenAI Image Adapter', () => {
     })
   })
 
-  describe('imageInputs (image-conditioned generation)', () => {
+  describe('multimodal prompt (image-conditioned generation)', () => {
     const imagesEditResponse: OpenAI.Images.ImagesResponse = {
       created: 0,
       data: [{ b64_json: 'edited-base64' }],
     }
 
-    it('routes to images.edit() for gpt-image-1 when imageInputs is present', async () => {
+    it('routes to images.edit() for gpt-image-1 when the prompt has image parts', async () => {
       const adapter = new TestOpenAIImageAdapter(
         { apiKey: 'test-api-key' },
         'gpt-image-1',
@@ -256,8 +256,8 @@ describe('OpenAI Image Adapter', () => {
 
       const result = await adapter.generateImages({
         model: 'gpt-image-1',
-        prompt: 'Make it cinematic',
-        imageInputs: [
+        prompt: [
+          { type: 'text', content: 'Make it cinematic' },
           {
             type: 'image',
             source: {
@@ -279,7 +279,7 @@ describe('OpenAI Image Adapter', () => {
       expect(result.images[0]!.b64Json).toBe('edited-base64')
     })
 
-    it('rejects dall-e-3 with a clear error when imageInputs is present', async () => {
+    it('rejects dall-e-3 with a clear error when the prompt has image parts', async () => {
       const adapter = new TestOpenAIImageAdapter(
         { apiKey: 'test-api-key' },
         'dall-e-3',
@@ -288,8 +288,8 @@ describe('OpenAI Image Adapter', () => {
       await expect(
         adapter.generateImages({
           model: 'dall-e-3',
-          prompt: 'edit',
-          imageInputs: [
+          prompt: [
+            { type: 'text', content: 'edit' },
             {
               type: 'image',
               source: { type: 'data', value: 'aGk=', mimeType: 'image/png' },
@@ -297,7 +297,7 @@ describe('OpenAI Image Adapter', () => {
           ],
           logger: testLogger,
         }),
-      ).rejects.toThrow(/does not support imageInputs/)
+      ).rejects.toThrow(/does not support image prompt parts/)
     })
 
     it('rejects dall-e-2 when more than one source image is provided', async () => {
@@ -309,8 +309,8 @@ describe('OpenAI Image Adapter', () => {
       await expect(
         adapter.generateImages({
           model: 'dall-e-2',
-          prompt: 'edit',
-          imageInputs: [
+          prompt: [
+            { type: 'text', content: 'edit' },
             {
               type: 'image',
               source: { type: 'data', value: 'aGk=', mimeType: 'image/png' },
@@ -340,8 +340,8 @@ describe('OpenAI Image Adapter', () => {
 
       await adapter.generateImages({
         model: 'gpt-image-1',
-        prompt: 'replace masked region',
-        imageInputs: [
+        prompt: [
+          { type: 'text', content: 'replace masked region' },
           {
             type: 'image',
             source: { type: 'data', value: 'aGk=', mimeType: 'image/png' },
@@ -360,7 +360,7 @@ describe('OpenAI Image Adapter', () => {
       expect(editArgs.image).toBeInstanceOf(File)
     })
 
-    it('rejects videoInputs or audioInputs', async () => {
+    it('rejects video or audio prompt parts', async () => {
       const adapter = new TestOpenAIImageAdapter(
         { apiKey: 'test-api-key' },
         'gpt-image-1',
@@ -369,8 +369,8 @@ describe('OpenAI Image Adapter', () => {
       await expect(
         adapter.generateImages({
           model: 'gpt-image-1',
-          prompt: 'x',
-          videoInputs: [
+          prompt: [
+            { type: 'text', content: 'x' },
             {
               type: 'video',
               source: { type: 'url', value: 'https://example.com/v.mp4' },
@@ -378,13 +378,13 @@ describe('OpenAI Image Adapter', () => {
           ],
           logger: testLogger,
         }),
-      ).rejects.toThrow(/videoInputs/)
+      ).rejects.toThrow(/video prompt parts/)
 
       await expect(
         adapter.generateImages({
           model: 'gpt-image-1',
-          prompt: 'x',
-          audioInputs: [
+          prompt: [
+            { type: 'text', content: 'x' },
             {
               type: 'audio',
               source: { type: 'url', value: 'https://example.com/a.mp3' },
@@ -392,7 +392,7 @@ describe('OpenAI Image Adapter', () => {
           ],
           logger: testLogger,
         }),
-      ).rejects.toThrow(/audioInputs/)
+      ).rejects.toThrow(/audio prompt parts/)
     })
   })
 })

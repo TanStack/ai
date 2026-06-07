@@ -189,23 +189,30 @@ Result shape: `ImageGenerationResult` with `images` array where each entry
 has `b64Json?`, `url?`, and `revisedPrompt?`. OpenAI image URLs expire
 after 1 hour -- download or display immediately.
 
-#### Image-conditioned generation: `imageInputs` / `videoInputs` / `audioInputs`
+#### Image-conditioned generation: multimodal `prompt` parts
 
-Both `generateImage()` and `generateVideo()` accept multimodal conditioning
-inputs that reuse the existing `ImagePart` / `VideoPart` / `AudioPart`
-shape used elsewhere in TanStack AI. Each input may carry an optional
+Both `generateImage()` and `generateVideo()` accept the `prompt` either as
+a plain string or as an ordered array of content parts (`TextPart` /
+`ImagePart` / `VideoPart` / `AudioPart` — the same shapes used elsewhere in
+TanStack AI). Part order is meaningful: natively multimodal providers
+(Gemini, OpenRouter) receive parts in order; named-field providers (OpenAI,
+fal, xAI) extract media parts and flatten the text. Prompt text is always
+sent verbatim — to reference inputs from the prompt, write the provider's
+own syntax (fal `@Image1`, OpenAI "image 1" prose); the SDK never injects
+or rewrites markers. Each media part may carry an optional
 `metadata.role` hint that adapters use to route the part to the
-provider-specific field.
+provider-specific field. The accepted part types are narrowed per model at
+compile time via the adapter's input-modality map.
 
 ```typescript
-import { generateImage, type ImagePart } from '@tanstack/ai'
+import { generateImage } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 
 // Image-to-image (OpenAI gpt-image-1, dall-e-2)
 await generateImage({
   adapter: openaiImage('gpt-image-1'),
-  prompt: 'Turn this into a cinematic product photo',
-  imageInputs: [
+  prompt: [
+    { type: 'text', content: 'Turn this into a cinematic product photo' },
     { type: 'image', source: { type: 'url', value: 'https://…/product.png' } },
   ],
 })
@@ -213,8 +220,8 @@ await generateImage({
 // Multi-reference (up to 16 for gpt-image-1; up to 14 for Gemini native)
 await generateImage({
   adapter: openaiImage('gpt-image-1'),
-  prompt: 'Apply the second image as style to the first',
-  imageInputs: [
+  prompt: [
+    { type: 'text', content: 'Apply the second image as style to the first' },
     { type: 'image', source: { type: 'url', value: 'https://…/product.png' } },
     { type: 'image', source: { type: 'url', value: 'https://…/style.png' } },
   ],
@@ -223,8 +230,8 @@ await generateImage({
 // Inpaint via metadata.role === 'mask' (OpenAI gpt-image-1, dall-e-2; fal mask_url)
 await generateImage({
   adapter: openaiImage('gpt-image-1'),
-  prompt: 'Replace the masked region with a tree',
-  imageInputs: [
+  prompt: [
+    { type: 'text', content: 'Replace the masked region with a tree' },
     { type: 'image', source: { type: 'url', value: photoUrl } },
     {
       type: 'image',
@@ -240,9 +247,9 @@ import { falVideo } from '@tanstack/ai-fal'
 
 await generateVideo({
   adapter: falVideo('fal-ai/kling-video/v3/pro/image-to-video'),
-  prompt: 'Slow cinematic push-in',
-  imageInputs: [
+  prompt: [
     { type: 'image', source: { type: 'url', value: firstFrameUrl } },
+    { type: 'text', content: 'Slow cinematic push-in' },
     {
       type: 'image',
       source: { type: 'url', value: lastFrameUrl },
@@ -265,16 +272,16 @@ await generateVideo({
 
 **Provider support matrix:**
 
-| Provider   | `generateImage` `imageInputs`                                                                                                                                                                            | `generateVideo` `imageInputs`                                                                                                                                                                      |
+| Provider   | `generateImage` image parts                                                                                                                                                                              | `generateVideo` image parts                                                                                                                                                                        |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | OpenAI     | gpt-image-1 / -mini → `images.edit()` (up to 16). dall-e-2 → edit (1). dall-e-3 throws.                                                                                                                  | Sora-2 / -pro → `input_reference` (single). Throws if >1.                                                                                                                                          |
 | Gemini     | Native (gemini-\*-flash-image, "nano-banana") → multimodal `contents`. Imagen throws.                                                                                                                    | No native Veo adapter yet — deferred to a follow-up.                                                                                                                                               |
 | fal        | Per-endpoint field names from a generated map (`pnpm generate:fal-image-fields`). Defaults: 1 input → `image_url`; >1 → `image_urls`; roles → `mask_url` / `control_image_url` / `reference_image_urls`. | Per-endpoint map (e.g. Kling i2v start frame → `image_url`). Defaults: 1 input → `image_url`; `start_frame`/`end_frame` → `start_image_url`/`end_image_url`; `reference` → `reference_image_urls`. |
-| Grok       | grok-imagine models → `/v1/images/edits` JSON endpoint (≤3 sources, `<IMAGE_n>` prompt refs; mask/control throw). grok-2-image-1212 throws.                                                              | n/a                                                                                                                                                                                                |
-| OpenRouter | Inputs injected as multimodal `image_url` content parts in the chat-completions message.                                                                                                                 | n/a                                                                                                                                                                                                |
+| Grok       | grok-imagine models → `/v1/images/edits` JSON endpoint (≤3 sources, addressed by xAI in request order; prompt sent verbatim; mask/control throw). grok-2-image-1212 throws.                              | n/a                                                                                                                                                                                                |
+| OpenRouter | Prompt parts map 1:1 onto multimodal `text` / `image_url` content parts, preserving interleaved order.                                                                                                   | n/a                                                                                                                                                                                                |
 | Anthropic  | n/a (no image generation API).                                                                                                                                                                           | n/a                                                                                                                                                                                                |
 
-`videoInputs` and `audioInputs` follow the same `metadata.role` convention
+Video and audio prompt parts follow the same `metadata.role` convention
 for video-to-video and lipsync flows on fal; other providers throw when
 they're passed.
 
@@ -696,39 +703,48 @@ generateSpeech({
 
 > Source: Gemini TTS adapter validation; CodeRabbit review of PR #463.
 
-### h. HIGH: Passing `imageInputs` to a model that doesn't support image-conditioned generation
+### h. HIGH: Passing image prompt parts to a model that doesn't support image-conditioned generation
 
-Not every model accepts image-conditioned inputs. Adapters throw a clear
-runtime error when the caller passes `imageInputs` to a model that
-can't honor it (dall-e-3, Imagen, Grok, OpenRouter), so users learn at
-call time rather than getting silently wrong output.
+Not every model accepts image-conditioned prompts. The `prompt` type is
+narrowed per model, so passing an image part to a text-only model
+(dall-e-3, Imagen, grok-2-image) is a **compile-time error**; adapters
+also throw a clear runtime error as a backstop, so users learn at call
+time rather than getting silently wrong output.
 
 ```typescript
-// WRONG — dall-e-3 has no edit/inputs API
+// WRONG — dall-e-3 has no edit/inputs API; image parts are a type error
 generateImage({
   adapter: openaiImage('dall-e-3'),
-  prompt: 'Edit this',
-  imageInputs: [{ type: 'image', source: { type: 'url', value: url } }],
-}) // throws: model "dall-e-3" does not support imageInputs.
+  prompt: [
+    { type: 'text', content: 'Edit this' },
+    { type: 'image', source: { type: 'url', value: url } }, // ❌ type error
+  ],
+})
 
-// WRONG — Imagen is text-to-image only
+// WRONG — Imagen is text-to-image only; same compile-time rejection
 generateImage({
   adapter: geminiImage('imagen-4.0-generate-001'),
-  prompt: 'Edit this',
-  imageInputs: [{ type: 'image', source: { type: 'url', value: url } }],
-}) // throws: Imagen does not support imageInputs.
+  prompt: [
+    { type: 'text', content: 'Edit this' },
+    { type: 'image', source: { type: 'url', value: url } }, // ❌ type error
+  ],
+})
 
-// CORRECT — use a model that supports edits/inputs
+// CORRECT — use a model that supports image-conditioned generation
 generateImage({
   adapter: openaiImage('gpt-image-1'), // edits up to 16 images
-  prompt: 'Edit this',
-  imageInputs: [{ type: 'image', source: { type: 'url', value: url } }],
+  prompt: [
+    { type: 'text', content: 'Edit this' },
+    { type: 'image', source: { type: 'url', value: url } },
+  ],
 })
 
 generateImage({
   adapter: geminiImage('gemini-3.1-flash-image-preview'), // native multimodal
-  prompt: 'Edit this',
-  imageInputs: [{ type: 'image', source: { type: 'url', value: url } }],
+  prompt: [
+    { type: 'text', content: 'Edit this' },
+    { type: 'image', source: { type: 'url', value: url } },
+  ],
 })
 ```
 

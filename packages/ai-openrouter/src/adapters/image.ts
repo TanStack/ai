@@ -1,4 +1,5 @@
 import { OpenRouter } from '@openrouter/sdk'
+import { resolveMediaPrompt } from '@tanstack/ai'
 import { BaseImageAdapter } from '@tanstack/ai/adapters'
 import {
   getOpenRouterApiKeyFromEnv,
@@ -7,6 +8,7 @@ import {
 import { buildOpenRouterUsage } from '../usage'
 import type { OpenRouterClientConfig } from '../utils'
 import type {
+  OpenRouterImageModelInputModalitiesByName,
   OpenRouterImageModelProviderOptionsByName,
   OpenRouterImageModelSizeByName,
   OpenRouterImageProviderOptions,
@@ -58,7 +60,8 @@ export class OpenRouterImageAdapter<
   TModel,
   OpenRouterImageProviderOptions,
   OpenRouterImageModelProviderOptionsByName,
-  OpenRouterImageModelSizeByName
+  OpenRouterImageModelSizeByName,
+  OpenRouterImageModelInputModalitiesByName
 > {
   override readonly kind = 'image' as const
   readonly name = 'openrouter' as const
@@ -77,33 +80,41 @@ export class OpenRouterImageAdapter<
   async generateImages(
     options: ImageGenerationOptions<OpenRouterImageProviderOptions>,
   ): Promise<ImageGenerationResult> {
-    if (options.videoInputs?.length || options.audioInputs?.length) {
+    const resolved = resolveMediaPrompt(options.prompt)
+
+    if (resolved.videos.length > 0 || resolved.audios.length > 0) {
       throw new Error(
-        `openrouter.generateImages does not support videoInputs / audioInputs on model ${this.model}.`,
+        `openrouter.generateImages does not support video / audio prompt parts on model ${this.model}.`,
       )
     }
 
-    const { model, prompt, numberOfImages, size, modelOptions, logger } =
-      options
+    const { model, numberOfImages, size, modelOptions, logger } = options
     // Use provided aspect_ratio or derive from size
     const aspectRatio = size ? SIZE_TO_ASPECT_RATIO[size] : undefined
 
-    // Image-conditioned generation: inject inputs as multimodal content
-    // parts alongside the prompt. OpenRouter forwards them to the
-    // underlying image model (e.g. Gemini image models). Role hints carry
-    // no per-field semantics on the chat-completions pathway — inputs are
-    // attached in order, like the Gemini adapter's multimodal `contents`.
-    const imageInputs = options.imageInputs ?? []
+    // Image-conditioned generation: map the prompt parts 1:1 onto
+    // chat-completions content parts, preserving the interleaved order —
+    // OpenRouter forwards them to the underlying image model (e.g. Gemini
+    // image models), where position is meaningful. Role hints carry no
+    // per-field semantics on this pathway.
+    type ContentItem =
+      | { type: 'text'; text: string }
+      | { type: 'image_url'; imageUrl: { url: string } }
     const content =
-      imageInputs.length > 0
-        ? [
-            { type: 'text' as const, text: prompt },
-            ...imageInputs.map((part) => ({
-              type: 'image_url' as const,
-              imageUrl: { url: imagePartToUrl(part) },
-            })),
-          ]
-        : prompt
+      resolved.images.length > 0
+        ? resolved.parts.flatMap((part): Array<ContentItem> => {
+            if (part.type === 'text') {
+              return [{ type: 'text', text: part.content }]
+            }
+            if (part.type === 'image') {
+              return [
+                { type: 'image_url', imageUrl: { url: imagePartToUrl(part) } },
+              ]
+            }
+            // Video / audio parts were rejected above.
+            return []
+          })
+        : resolved.text
 
     logger.request(
       `activity=generateImage provider=openrouter model=${this.model}`,

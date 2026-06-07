@@ -4,6 +4,8 @@
  * These types give you full autocomplete and type safety for any model.
  */
 import type { EndpointTypeMap } from '@fal-ai/client/endpoints'
+import type { MediaPromptModality } from '@tanstack/ai'
+import type { FalImageFieldName } from './image/generated/image-field-overrides'
 
 export type { EndpointTypeMap } from '@fal-ai/client/endpoints'
 
@@ -117,6 +119,46 @@ export type FalModelVideoSizeInput<TModel extends string> =
         ? { resolution: NonNullable<FalModelInput<TModel>['resolution']> }
         : never
     : { aspect_ratio?: string; resolution?: string }
+
+/**
+ * Prompt input modalities for a fal image endpoint, derived from the SDK's
+ * endpoint input type: an endpoint accepts image prompt parts exactly when
+ * its input declares one of the known image-conditioning fields
+ * (`image_url`, `image_urls`, `mask_url`, …). Endpoints unknown to the
+ * installed SDK are unconstrained.
+ */
+export type FalImagePromptModalitiesFor<TModel extends string> =
+  TModel extends keyof EndpointTypeMap
+    ? ReadonlyArray<
+        Extract<keyof FalModelInput<TModel>, FalImageFieldName> extends never
+          ? never
+          : 'image'
+      >
+    : ReadonlyArray<MediaPromptModality>
+
+/**
+ * Prompt input modalities for a fal video endpoint. Image conditioning is
+ * detected via the same field set as image endpoints; video conditioning via
+ * `video_url` / `video_urls` / `reference_video_urls`; audio conditioning
+ * via `audio_url`. Endpoints unknown to the installed SDK are unconstrained.
+ */
+export type FalVideoPromptModalitiesFor<TModel extends string> =
+  TModel extends keyof EndpointTypeMap
+    ? ReadonlyArray<
+        | (Extract<keyof FalModelInput<TModel>, FalImageFieldName> extends never
+            ? never
+            : 'image')
+        | (Extract<
+            keyof FalModelInput<TModel>,
+            'video_url' | 'video_urls' | 'reference_video_urls'
+          > extends never
+            ? never
+            : 'video')
+        | (Extract<keyof FalModelInput<TModel>, 'audio_url'> extends never
+            ? never
+            : 'audio')
+      >
+    : ReadonlyArray<MediaPromptModality>
 
 /**
  * Provider options for video generation, excluding fields TanStack AI handles.

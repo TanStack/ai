@@ -215,7 +215,7 @@ describe('Grok adapters', () => {
     })
   })
 
-  describe('Image adapter — imageInputs (Imagine edits endpoint)', () => {
+  describe('Image adapter — image prompt parts (Imagine edits endpoint)', () => {
     const editResponse = (body: Record<string, unknown>, ok = true) =>
       vi.fn().mockResolvedValue({
         ok,
@@ -229,7 +229,7 @@ describe('Grok adapters', () => {
       vi.unstubAllGlobals()
     })
 
-    it('routes a single imageInput to POST /v1/images/edits', async () => {
+    it('routes a single image part to POST /v1/images/edits with the prompt sent verbatim', async () => {
       const mockFetch = editResponse({
         data: [{ url: 'https://example.com/edited.png' }],
       })
@@ -238,8 +238,8 @@ describe('Grok adapters', () => {
       const adapter = createGrokImage('grok-imagine-image', 'test-api-key')
       const result = await adapter.generateImages({
         model: 'grok-imagine-image',
-        prompt: 'Make it a pencil sketch',
-        imageInputs: [
+        prompt: [
+          { type: 'text', content: 'Make it a pencil sketch' },
           {
             type: 'image',
             source: { type: 'url', value: 'https://example.com/source.png' },
@@ -260,7 +260,37 @@ describe('Grok adapters', () => {
       expect(result.images).toEqual([{ url: 'https://example.com/edited.png' }])
     })
 
-    it('sends multiple inputs as images[] and maps size to aspect_ratio', async () => {
+    it('flattens interleaved text verbatim — no markers are injected', async () => {
+      const mockFetch = editResponse({ data: [{ b64_json: 'aGVsbG8=' }] })
+      vi.stubGlobal('fetch', mockFetch)
+
+      const adapter = createGrokImage('grok-imagine-image', 'test-api-key')
+      await adapter.generateImages({
+        model: 'grok-imagine-image',
+        prompt: [
+          { type: 'text', content: 'Not like' },
+          {
+            type: 'image',
+            source: { type: 'url', value: 'https://example.com/bad.png' },
+          },
+          { type: 'text', content: 'more like' },
+          {
+            type: 'image',
+            source: { type: 'url', value: 'https://example.com/good.png' },
+          },
+        ],
+        logger: testLogger,
+      })
+
+      const body = JSON.parse(mockFetch.mock.calls[0]![1].body)
+      expect(body.prompt).toBe('Not like\n\nmore like')
+      expect(body.images).toEqual([
+        { url: 'https://example.com/bad.png' },
+        { url: 'https://example.com/good.png' },
+      ])
+    })
+
+    it('passes user-written referencing text through verbatim, sends images[] and maps size', async () => {
       const mockFetch = editResponse({ data: [{ b64_json: 'aGVsbG8=' }] })
       vi.stubGlobal('fetch', mockFetch)
 
@@ -270,9 +300,8 @@ describe('Grok adapters', () => {
       )
       const result = await adapter.generateImages({
         model: 'grok-imagine-image-quality',
-        prompt: 'Put <IMAGE_0> in the style of <IMAGE_1>',
-        size: '1:1',
-        imageInputs: [
+        prompt: [
+          { type: 'text', content: 'Put <IMAGE_0> in the style of <IMAGE_1>' },
           {
             type: 'image',
             source: { type: 'url', value: 'https://example.com/product.png' },
@@ -282,10 +311,12 @@ describe('Grok adapters', () => {
             source: { type: 'data', value: 'c3R5bGU=', mimeType: 'image/png' },
           },
         ],
+        size: '1:1',
         logger: testLogger,
       })
 
       const body = JSON.parse(mockFetch.mock.calls[0]![1].body)
+      expect(body.prompt).toBe('Put <IMAGE_0> in the style of <IMAGE_1>')
       expect(body.images).toEqual([
         { url: 'https://example.com/product.png' },
         { url: 'data:image/png;base64,c3R5bGU=' },
@@ -295,14 +326,14 @@ describe('Grok adapters', () => {
       expect(result.images).toEqual([{ b64Json: 'aGVsbG8=' }])
     })
 
-    it('throws for imageInputs on the legacy grok-2 image model', async () => {
+    it('throws for image prompt parts on the legacy grok-2 image model', async () => {
       const adapter = createGrokImage('grok-2-image-1212', 'test-api-key')
 
       await expect(
         adapter.generateImages({
           model: 'grok-2-image-1212',
-          prompt: 'Edit this',
-          imageInputs: [
+          prompt: [
+            { type: 'text', content: 'Edit this' },
             {
               type: 'image',
               source: { type: 'url', value: 'https://example.com/a.png' },
@@ -310,7 +341,7 @@ describe('Grok adapters', () => {
           ],
           logger: testLogger,
         }),
-      ).rejects.toThrow(/does not support imageInputs/)
+      ).rejects.toThrow(/does not support image prompt parts/)
     })
 
     it('throws for more than 3 source images', async () => {
@@ -323,8 +354,13 @@ describe('Grok adapters', () => {
       await expect(
         adapter.generateImages({
           model: 'grok-imagine-image',
-          prompt: 'Combine these',
-          imageInputs: [part, part, part, part],
+          prompt: [
+            { type: 'text', content: 'Combine these' },
+            part,
+            part,
+            part,
+            part,
+          ],
           logger: testLogger,
         }),
       ).rejects.toThrow(/at most 3 source images/)
@@ -336,8 +372,8 @@ describe('Grok adapters', () => {
       await expect(
         adapter.generateImages({
           model: 'grok-imagine-image',
-          prompt: 'Inpaint',
-          imageInputs: [
+          prompt: [
+            { type: 'text', content: 'Inpaint' },
             {
               type: 'image',
               source: { type: 'url', value: 'https://example.com/m.png' },
@@ -359,8 +395,8 @@ describe('Grok adapters', () => {
       await expect(
         adapter.generateImages({
           model: 'grok-imagine-image',
-          prompt: 'Edit',
-          imageInputs: [
+          prompt: [
+            { type: 'text', content: 'Edit' },
             {
               type: 'image',
               source: { type: 'url', value: 'https://example.com/a.png' },

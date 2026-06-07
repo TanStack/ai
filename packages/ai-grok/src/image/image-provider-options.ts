@@ -160,6 +160,17 @@ export type GrokImageModelSizeByName = {
 }
 
 /**
+ * Per-model prompt input modalities. Imagine API models accept image parts
+ * in the prompt (routed to `/v1/images/edits`, up to 3 images, addressed by
+ * xAI in request order); grok-2-image is text-to-image only.
+ */
+export type GrokImageModelInputModalitiesByName = {
+  'grok-2-image-1212': readonly []
+  'grok-imagine-image': readonly ['image']
+  'grok-imagine-image-quality': readonly ['image']
+}
+
+/**
  * Internal options interface for validation
  */
 interface ImageValidationOptions {

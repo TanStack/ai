@@ -121,7 +121,7 @@ function bucketByRole(
 }
 
 /**
- * Map TanStack `imageInputs` onto fal.ai image-endpoint fields.
+ * Map the prompt's image parts onto fal.ai image-endpoint fields.
  *
  * fal endpoints use different field names for image-conditioned generation
  * (~80% use `image_url` for single; the rest use `image_urls`,
@@ -177,7 +177,7 @@ export function mapImageInputsToFalFields<TModel extends FalModel>(
 }
 
 /**
- * Map TanStack `imageInputs` onto fal.ai video-endpoint fields.
+ * Map the prompt's image parts onto fal.ai video-endpoint fields.
  *
  * Video endpoints often expose a start frame as `image_url` (76% of i2v
  * models) plus an optional `end_image_url`. Multi-reference video models

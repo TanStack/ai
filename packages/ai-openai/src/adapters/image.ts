@@ -1,4 +1,5 @@
 import OpenAI from 'openai'
+import { resolveMediaPrompt } from '@tanstack/ai'
 import { BaseImageAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { buildImagesUsage } from '@tanstack/openai-base'
@@ -20,6 +21,7 @@ import type {
 import type OpenAI_SDK from 'openai'
 import type { OpenAIImageModel } from '../model-meta'
 import type {
+  OpenAIImageModelInputModalitiesByName,
   OpenAIImageModelProviderOptionsByName,
   OpenAIImageModelSizeByName,
   OpenAIImageProviderOptions,
@@ -58,7 +60,8 @@ export class OpenAIImageAdapter<
   TModel,
   OpenAIImageProviderOptions,
   OpenAIImageModelProviderOptionsByName,
-  OpenAIImageModelSizeByName
+  OpenAIImageModelSizeByName,
+  OpenAIImageModelInputModalitiesByName
 > {
   override readonly kind = 'image' as const
   readonly name = 'openai' as const
@@ -73,40 +76,34 @@ export class OpenAIImageAdapter<
   async generateImages(
     options: ImageGenerationOptions<OpenAIImageProviderOptions>,
   ): Promise<ImageGenerationResult> {
-    const {
-      model,
-      prompt,
-      numberOfImages,
-      size,
-      modelOptions,
-      imageInputs,
-      videoInputs,
-      audioInputs,
-    } = options
+    const { model, numberOfImages, size, modelOptions } = options
+
+    const resolved = resolveMediaPrompt(options.prompt)
+    const prompt = resolved.text
 
     validatePrompt({ prompt, model })
     validateImageSize(model, size)
     validateNumberOfImages(model, numberOfImages)
 
-    if (videoInputs?.length) {
+    if (resolved.videos.length > 0) {
       throw new Error(
-        `${this.name}.generateImages does not support videoInputs (model: ${model}).`,
+        `${this.name}.generateImages does not support video prompt parts (model: ${model}).`,
       )
     }
-    if (audioInputs?.length) {
+    if (resolved.audios.length > 0) {
       throw new Error(
-        `${this.name}.generateImages does not support audioInputs (model: ${model}).`,
+        `${this.name}.generateImages does not support audio prompt parts (model: ${model}).`,
       )
     }
 
-    if (imageInputs && imageInputs.length > 0) {
+    if (resolved.images.length > 0) {
       return this.editImages({
         model: model as OpenAIImageModel,
         prompt,
         numberOfImages,
         size,
         modelOptions,
-        imageInputs,
+        imageInputs: resolved.images,
         logger: options.logger,
       })
     }
@@ -193,7 +190,7 @@ export class OpenAIImageAdapter<
     const maxImages = EDIT_MAX_IMAGES[model]
     if (maxImages === 0) {
       throw new Error(
-        `${this.name}: model "${model}" does not support imageInputs. ` +
+        `${this.name}: model "${model}" does not support image prompt parts. ` +
           `Use gpt-image-1, gpt-image-1-mini, or dall-e-2 for image-conditioned generation.`,
       )
     }
@@ -212,7 +209,7 @@ export class OpenAIImageAdapter<
     }
     if (sourceParts.length === 0) {
       throw new Error(
-        `${this.name}: imageInputs contained only mask parts; at least one source image is required.`,
+        `${this.name}: the prompt contained only mask image parts; at least one source image is required.`,
       )
     }
     if (sourceParts.length > maxImages) {

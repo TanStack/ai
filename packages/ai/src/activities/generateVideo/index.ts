@@ -14,13 +14,11 @@ import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
 import type { VideoAdapter } from './adapter'
 import type {
-  AudioPart,
-  ImagePart,
-  MediaInputMetadata,
+  MediaPrompt,
+  MediaPromptFor,
   StreamChunk,
   TokenUsage,
   VideoJobResult,
-  VideoPart,
   VideoStatusResult,
   VideoUrlResult,
 } from '../../types'
@@ -53,6 +51,21 @@ export type VideoSizeForAdapter<TAdapter> =
       ? TSizeMap[TModel]
       : string
     : string
+
+/**
+ * Extract the prompt type a model accepts from a VideoAdapter via ~types.
+ * Mirrors `ImagePromptForModel`: models in the adapter's input-modality map
+ * get a `prompt` narrowed to text + their supported part types; adapters
+ * without a map fall back to the full MediaPrompt.
+ */
+export type VideoPromptForAdapter<TAdapter> =
+  TAdapter extends VideoAdapter<infer TModel, any, any, any, infer ModsByName>
+    ? string extends keyof ModsByName
+      ? MediaPrompt
+      : TModel extends keyof ModsByName
+        ? MediaPromptFor<ModsByName[TModel][number]>
+        : MediaPrompt
+    : MediaPrompt
 
 // ===========================
 // Activity Options Types
@@ -88,22 +101,20 @@ export type VideoCreateOptions<
 > = VideoActivityBaseOptions<TAdapter> & {
   /** Request type - create a new job (default if not specified) */
   request?: 'create'
-  /** Text description of the desired video */
-  prompt: string
+  /**
+   * Description of the desired video. Either a plain string, or — for models
+   * that support image-conditioned generation — an ordered array of content
+   * parts interleaving text with image inputs. Image parts may carry
+   * `metadata.role` (`'start_frame' | 'end_frame' | 'reference' |
+   * 'character'`) to disambiguate intent; positional fallback otherwise. The
+   * accepted part types are narrowed per model via the adapter's
+   * input-modality map.
+   */
+  prompt: VideoPromptForAdapter<TAdapter>
   /** Video size — format depends on the provider (e.g., "16:9", "1280x720") */
   size?: VideoSizeForAdapter<TAdapter>
   /** Video duration in seconds */
   duration?: number
-  /**
-   * Image conditioning inputs (start frame, end frame, reference / character
-   * images). Use `metadata.role` (`'start_frame' | 'end_frame' | 'reference' |
-   * 'character'`) to disambiguate intent; positional fallback otherwise.
-   */
-  imageInputs?: Array<ImagePart<MediaInputMetadata>>
-  /** Video conditioning inputs (video-to-video, source clip). */
-  videoInputs?: Array<VideoPart<MediaInputMetadata>>
-  /** Audio conditioning inputs (lipsync source, voice reference). */
-  audioInputs?: Array<AudioPart<MediaInputMetadata>>
   /**
    * Whether to stream the video generation lifecycle.
    * When true, returns an AsyncIterable<StreamChunk> that handles the full
@@ -264,16 +275,7 @@ export function generateVideo<
 async function runCreateVideoJob<
   TAdapter extends VideoAdapter<string, any, any, any>,
 >(options: VideoCreateOptions<TAdapter, boolean>): Promise<VideoJobResult> {
-  const {
-    adapter,
-    prompt,
-    size,
-    duration,
-    modelOptions,
-    imageInputs,
-    videoInputs,
-    audioInputs,
-  } = options
+  const { adapter, prompt, size, duration, modelOptions } = options
   const model = adapter.model
   const logger: InternalLogger = resolveDebugOption(options.debug)
   const providerName =
@@ -293,9 +295,6 @@ async function runCreateVideoJob<
       size,
       duration,
       modelOptions,
-      imageInputs,
-      videoInputs,
-      audioInputs,
       logger,
     })
     logger.output(`activity=generateVideo jobId=${result.jobId}`, {
@@ -323,16 +322,7 @@ function sleep(ms: number): Promise<void> {
 async function* runStreamingVideoGeneration<
   TAdapter extends VideoAdapter<string, any, any, any>,
 >(options: VideoCreateOptions<TAdapter, true>): AsyncIterable<StreamChunk> {
-  const {
-    adapter,
-    prompt,
-    size,
-    duration,
-    modelOptions,
-    imageInputs,
-    videoInputs,
-    audioInputs,
-  } = options
+  const { adapter, prompt, size, duration, modelOptions } = options
   const model = adapter.model
   const runId = options.runId ?? createId('run')
   const pollingInterval = options.pollingInterval ?? 2000
@@ -368,9 +358,6 @@ async function* runStreamingVideoGeneration<
       size,
       duration,
       modelOptions,
-      imageInputs,
-      videoInputs,
-      audioInputs,
       logger,
     })
 

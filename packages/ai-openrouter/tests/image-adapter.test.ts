@@ -242,7 +242,7 @@ describe('OpenRouter Image Adapter', () => {
     )
   })
 
-  it('injects imageInputs as multimodal content parts', async () => {
+  it('maps image prompt parts onto content parts preserving interleaved order', async () => {
     const mockResponse = createMockImageResponse([
       { url: 'https://example.com/edited.png' },
     ])
@@ -253,12 +253,12 @@ describe('OpenRouter Image Adapter', () => {
 
     const result = await adapter.generateImages({
       model: 'google/gemini-2.5-flash-image',
-      prompt: 'Turn this into a cinematic product photo',
-      imageInputs: [
+      prompt: [
         {
           type: 'image',
           source: { type: 'url', value: 'https://example.com/source.png' },
         },
+        { type: 'text', content: 'Turn this into a cinematic product photo' },
         {
           type: 'image',
           source: { type: 'data', value: 'c3R5bGU=', mimeType: 'image/png' },
@@ -273,11 +273,11 @@ describe('OpenRouter Image Adapter', () => {
       {
         role: 'user',
         content: [
-          { type: 'text', text: 'Turn this into a cinematic product photo' },
           {
             type: 'image_url',
             imageUrl: { url: 'https://example.com/source.png' },
           },
+          { type: 'text', text: 'Turn this into a cinematic product photo' },
           {
             type: 'image_url',
             imageUrl: { url: 'data:image/png;base64,c3R5bGU=' },
@@ -288,7 +288,7 @@ describe('OpenRouter Image Adapter', () => {
     expect(result.images).toHaveLength(1)
   })
 
-  it('keeps a plain string prompt when no imageInputs are given', async () => {
+  it('keeps a plain string prompt when no image parts are given', async () => {
     const mockResponse = createMockImageResponse([
       { url: 'https://example.com/image.png' },
     ])
@@ -306,14 +306,14 @@ describe('OpenRouter Image Adapter', () => {
     expect(callArgs.messages[0].content).toBe('A plain prompt')
   })
 
-  it('throws for videoInputs / audioInputs', async () => {
+  it('throws for video / audio prompt parts', async () => {
     const adapter = createAdapter()
 
     await expect(
       adapter.generateImages({
         model: 'google/gemini-2.5-flash-image',
-        prompt: 'Test',
-        videoInputs: [
+        prompt: [
+          { type: 'text', content: 'Test' },
           {
             type: 'video',
             source: { type: 'url', value: 'https://example.com/v.mp4' },
@@ -321,7 +321,7 @@ describe('OpenRouter Image Adapter', () => {
         ],
         logger: testLogger,
       }),
-    ).rejects.toThrow(/does not support videoInputs \/ audioInputs/)
+    ).rejects.toThrow(/does not support video \/ audio prompt parts/)
   })
 
   it('passes imageConfig correctly', async () => {
