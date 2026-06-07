@@ -17,7 +17,10 @@ interface RunResult {
  * scrubbed env so no real provider key leaks in. Returns the captured streams
  * and exit code.
  */
-function runCli(args: Array<string>, env: Record<string, string> = {}): Promise<RunResult> {
+function runCli(
+  args: Array<string>,
+  env: Record<string, string> = {},
+): Promise<RunResult> {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [BIN, ...args], {
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -45,7 +48,13 @@ describe('ts-ai meta commands', () => {
     const manifest = JSON.parse(stdout)
     expect(manifest.bin).toBe('ts-ai')
     expect(manifest.bundledProviders).toEqual(
-      expect.arrayContaining(['openai', 'anthropic', 'gemini', 'openrouter', 'fal']),
+      expect.arrayContaining([
+        'openai',
+        'anthropic',
+        'gemini',
+        'openrouter',
+        'fal',
+      ]),
     )
     const names = manifest.commands.map((c: { name: string }) => c.name)
     expect(names).toEqual(
@@ -70,7 +79,13 @@ describe('ts-ai machine-mode error contract', () => {
   })
 
   it('rejects an unknown provider with a USAGE error', async () => {
-    const { code, stdout } = await runCli(['chat', 'hi', '--model', 'bogus/x', '--json'])
+    const { code, stdout } = await runCli([
+      'chat',
+      'hi',
+      '--model',
+      'bogus/x',
+      '--json',
+    ])
     expect(code).toBe(2)
     expect(JSON.parse(stdout).error.code).toBe('USAGE')
   })
@@ -84,7 +99,10 @@ describe('ts-ai machine-mode error contract', () => {
       '--json',
     ])
     expect(code).toBe(2)
-    expect(JSON.parse(stdout).error).toMatchObject({ code: 'USAGE', provider: 'openai' })
+    expect(JSON.parse(stdout).error).toMatchObject({
+      code: 'USAGE',
+      provider: 'openai',
+    })
   })
 
   it('keeps stdout free of human chatter in --json mode', async () => {
@@ -145,7 +163,13 @@ describe('ts-ai argv-injection guard', () => {
   })
 
   it('does not let a prompt smuggle --api-key', async () => {
-    const { code, stdout } = await runCli(['chat', '--json', '--', '--api-key', 'LEAKED'])
+    const { code, stdout } = await runCli([
+      'chat',
+      '--json',
+      '--',
+      '--api-key',
+      'LEAKED',
+    ])
     expect(code).toBe(2)
     expect(JSON.parse(stdout).error.code).toBe('USAGE')
   })
@@ -155,12 +179,20 @@ describe('ts-ai introspect flag spelling', () => {
   it('emits kebab-cased CLI flag strings for multi-word options', async () => {
     const { stdout } = await runCli(['introspect'])
     const manifest = JSON.parse(stdout)
-    const apiKey = manifest.commonFlags.find((f: { name: string }) => f.name === 'apiKey')
+    const apiKey = manifest.commonFlags.find(
+      (f: { name: string }) => f.name === 'apiKey',
+    )
     expect(apiKey.flag).toBe('--api-key')
-    const chat = manifest.commands.find((c: { name: string }) => c.name === 'chat')
-    const maxSteps = chat.flags.find((f: { name: string }) => f.name === 'maxSteps')
+    const chat = manifest.commands.find(
+      (c: { name: string }) => c.name === 'chat',
+    )
+    const maxSteps = chat.flags.find(
+      (f: { name: string }) => f.name === 'maxSteps',
+    )
     expect(maxSteps.flag).toBe('--max-steps')
-    const video = manifest.commands.find((c: { name: string }) => c.name === 'video')
+    const video = manifest.commands.find(
+      (c: { name: string }) => c.name === 'video',
+    )
     const wait = video.flags.find((f: { name: string }) => f.name === 'wait')
     // default-true booleans render as negatable --no-x flags.
     expect(wait.flag).toBe('--no-wait')

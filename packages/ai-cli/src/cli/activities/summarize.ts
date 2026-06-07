@@ -15,10 +15,12 @@ interface SummaryResultLike {
 type SummaryStyle = 'bullet-points' | 'paragraph' | 'concise'
 
 /** `ts-ai summarize` handler. */
-export async function runSummarize(ctx: RunContext, text: string): Promise<void> {
-  const { resolved, apiKey, adapterConfig, modelOptions } = resolveAdapterContext(
-    ctx.options,
-  )
+export async function runSummarize(
+  ctx: RunContext,
+  text: string,
+): Promise<void> {
+  const { resolved, apiKey, adapterConfig, modelOptions } =
+    resolveAdapterContext(ctx.options)
   const adapter = await instantiateAdapter({
     resolved,
     activity: 'summarize',

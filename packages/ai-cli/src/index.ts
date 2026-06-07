@@ -5,7 +5,13 @@
  * module exports the declarative manifest and supporting types so tooling can
  * introspect the CLI surface without spawning the binary.
  */
-export { buildManifest, MANIFEST_VERSION, COMMANDS, COMMON_FLAGS, findCommand } from './manifest/manifest'
+export {
+  buildManifest,
+  MANIFEST_VERSION,
+  COMMANDS,
+  COMMON_FLAGS,
+  findCommand,
+} from './manifest/manifest'
 export type {
   Activity,
   CliManifest,

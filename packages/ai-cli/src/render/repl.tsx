@@ -66,9 +66,7 @@ function Repl({
 
   return (
     <Box flexDirection="column">
-      <Text dimColor>
-        chat · {model} · /clear to reset · /exit to quit
-      </Text>
+      <Text dimColor>chat · {model} · /clear to reset · /exit to quit</Text>
       <Box flexDirection="column" marginTop={1}>
         {messages.map((m, i) => (
           <Box key={i} marginBottom={1} flexDirection="column">
@@ -100,6 +98,8 @@ export async function runChatReplInk(input: {
   model: string
   respond: (messages: Array<ReplMessage>) => Promise<string>
 }): Promise<void> {
-  const { waitUntilExit } = render(<Repl model={input.model} respond={input.respond} />)
+  const { waitUntilExit } = render(
+    <Repl model={input.model} respond={input.respond} />,
+  )
   await waitUntilExit()
 }

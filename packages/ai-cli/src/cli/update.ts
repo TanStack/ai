@@ -22,7 +22,10 @@ export async function runUpdate(): Promise<void> {
   process.stderr.write(`Updating ${PKG} via: ${cmd} ${args.join(' ')}\n`)
   const status = await runProcess(cmd, args)
   if (status !== 0) {
-    throw new CliError('RUNTIME', `Update failed (${cmd} exited with ${status ?? 'signal'}).`)
+    throw new CliError(
+      'RUNTIME',
+      `Update failed (${cmd} exited with ${status ?? 'signal'}).`,
+    )
   }
 }
 
@@ -39,13 +42,16 @@ function runProcess(cmd: string, args: Array<string>): Promise<number | null> {
 
 function isOnDemand(): boolean {
   const execPath = process.env.npm_execpath ?? ''
-  return execPath.includes('_npx') || (process.env.npm_command === 'exec')
+  return execPath.includes('_npx') || process.env.npm_command === 'exec'
 }
 
 function upgradeCommand(agent: string): { cmd: string; args: Array<string> } {
   const target = `${PKG}@latest`
-  if (agent.startsWith('pnpm')) return { cmd: 'pnpm', args: ['add', '-g', target] }
-  if (agent.startsWith('yarn')) return { cmd: 'yarn', args: ['global', 'add', target] }
-  if (agent.startsWith('bun')) return { cmd: 'bun', args: ['add', '-g', target] }
+  if (agent.startsWith('pnpm'))
+    return { cmd: 'pnpm', args: ['add', '-g', target] }
+  if (agent.startsWith('yarn'))
+    return { cmd: 'yarn', args: ['global', 'add', target] }
+  if (agent.startsWith('bun'))
+    return { cmd: 'bun', args: ['add', '-g', target] }
   return { cmd: 'npm', args: ['install', '-g', target] }
 }

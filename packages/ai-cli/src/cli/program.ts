@@ -10,7 +10,9 @@ export function buildProgram(cliVersion: string): Command {
   const program = new Command()
   program
     .name('ts-ai')
-    .description('Type-safe CLI over TanStack AI — chat, image, video, audio, speech, transcribe, summarize.')
+    .description(
+      'Type-safe CLI over TanStack AI — chat, image, video, audio, speech, transcribe, summarize.',
+    )
     .version(cliVersion, '--version')
     .showHelpAfterError()
 
@@ -45,15 +47,21 @@ function registerGenerationCommand(program: Command, spec: CommandSpec): void {
 
   for (const flag of [...COMMON_FLAGS, ...spec.flags]) applyFlag(cmd, flag)
 
-  cmd.action(async (positional: Array<string> | string | undefined, _opts, command: Command) => {
-    const raw = coerceFlags(spec, command.opts())
-    const args = Array.isArray(positional)
-      ? positional
-      : positional
-        ? [positional]
-        : []
-    await dispatchCommand(spec, args, raw)
-  })
+  cmd.action(
+    async (
+      positional: Array<string> | string | undefined,
+      _opts,
+      command: Command,
+    ) => {
+      const raw = coerceFlags(spec, command.opts())
+      const args = Array.isArray(positional)
+        ? positional
+        : positional
+          ? [positional]
+          : []
+      await dispatchCommand(spec, args, raw)
+    },
+  )
 
   // `ts-ai video status <jobId>` — poll an existing job.
   if (spec.name === 'video') {
@@ -76,7 +84,9 @@ function registerGenerationCommand(program: Command, spec: CommandSpec): void {
 function registerIntrospect(program: Command, cliVersion: string): void {
   program
     .command('introspect')
-    .description('Print a machine-readable manifest of the entire CLI surface as JSON.')
+    .description(
+      'Print a machine-readable manifest of the entire CLI surface as JSON.',
+    )
     .action(() => runIntrospect(cliVersion))
 }
 
@@ -111,13 +121,15 @@ function applyFlag(cmd: Command, flag: FlagSpec): void {
 
   const long = `--${kebab}`
   const namePart = flag.short ? `-${flag.short}, ${long}` : long
-  const flagStr =
-    flag.type === 'boolean' ? namePart : `${namePart} <value>`
+  const flagStr = flag.type === 'boolean' ? namePart : `${namePart} <value>`
 
   const option = new Option(flagStr, flag.description)
   if (flag.hidden) option.hideHelp()
   if (flag.repeatable || flag.type === 'string[]') {
-    option.argParser((value: string, previous: Array<string> = []) => [...previous, value])
+    option.argParser((value: string, previous: Array<string> = []) => [
+      ...previous,
+      value,
+    ])
     option.default([])
   }
   cmd.addOption(option)

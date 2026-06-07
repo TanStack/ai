@@ -29,7 +29,9 @@ afterAll(async () => {
   await client?.close()
 })
 
-function toolResultJson(res: { content?: Array<{ type: string; text?: string }> }): any {
+function toolResultJson(res: {
+  content?: Array<{ type: string; text?: string }>
+}): any {
   const text = res.content?.find((c) => c.type === 'text')?.text ?? ''
   return JSON.parse(text)
 }
@@ -39,7 +41,15 @@ describe('ts-ai mcp server', () => {
     const { tools } = await client.listTools()
     const names = tools.map((t) => t.name).sort()
     expect(names).toEqual(
-      ['audio', 'chat', 'image', 'speech', 'summarize', 'transcribe', 'video'].sort(),
+      [
+        'audio',
+        'chat',
+        'image',
+        'speech',
+        'summarize',
+        'transcribe',
+        'video',
+      ].sort(),
     )
   })
 

@@ -15,6 +15,8 @@ run(argv, pkg.version)
   })
   .catch((err: unknown) => {
     // Last-resort guard; run() is expected to handle everything itself.
-    process.stderr.write(`error: ${err instanceof Error ? err.message : String(err)}\n`)
+    process.stderr.write(
+      `error: ${err instanceof Error ? err.message : String(err)}\n`,
+    )
     process.exitCode = 1
   })

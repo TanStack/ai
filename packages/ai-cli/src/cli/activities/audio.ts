@@ -9,7 +9,12 @@ import type { RunContext } from '../context'
 interface AudioResultLike {
   id: string
   model: string
-  audio: { url?: string; b64Json?: string; contentType?: string; duration?: number }
+  audio: {
+    url?: string
+    b64Json?: string
+    contentType?: string
+    duration?: number
+  }
   usage?: unknown
 }
 
@@ -23,9 +28,8 @@ const EXT_BY_CONTENT_TYPE: Record<string, string> = {
 
 /** `ts-ai audio` (music / sfx) handler. */
 export async function runAudio(ctx: RunContext, prompt: string): Promise<void> {
-  const { resolved, apiKey, adapterConfig, modelOptions } = resolveAdapterContext(
-    ctx.options,
-  )
+  const { resolved, apiKey, adapterConfig, modelOptions } =
+    resolveAdapterContext(ctx.options)
   const adapter = await instantiateAdapter({
     resolved,
     activity: 'audio',
@@ -33,7 +37,9 @@ export async function runAudio(ctx: RunContext, prompt: string): Promise<void> {
     config: adapterConfig,
   })
 
-  ctx.logger.info(`Generating audio with ${resolved.provider}/${resolved.model}…`)
+  ctx.logger.info(
+    `Generating audio with ${resolved.provider}/${resolved.model}…`,
+  )
 
   const duration =
     typeof ctx.options.duration === 'number'
@@ -52,7 +58,8 @@ export async function runAudio(ctx: RunContext, prompt: string): Promise<void> {
 
   const bytes = await mediaSourceToBytes(result.audio)
   const ext = EXT_BY_CONTENT_TYPE[result.audio.contentType ?? ''] ?? 'mp3'
-  const output = typeof ctx.options.output === 'string' ? ctx.options.output : undefined
+  const output =
+    typeof ctx.options.output === 'string' ? ctx.options.output : undefined
   const path = await writeArtifact(
     'audio',
     { bytes, ext, mimeType: result.audio.contentType ?? `audio/${ext}` },
@@ -64,7 +71,9 @@ export async function runAudio(ctx: RunContext, prompt: string): Promise<void> {
     await renderArtifactPath({
       label: `Audio generated with ${result.model}`,
       path: path ?? '(stdout)',
-      meta: result.audio.duration ? { duration: `${result.audio.duration}s` } : undefined,
+      meta: result.audio.duration
+        ? { duration: `${result.audio.duration}s` }
+        : undefined,
     })
     return
   }

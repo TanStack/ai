@@ -28,12 +28,14 @@ export async function runTranscribe(
     : undefined
   const audioPath = positional[0] ?? attachment
   if (!audioPath) {
-    throw new CliError('USAGE', 'Provide an audio file: ts-ai transcribe ./audio.mp3')
+    throw new CliError(
+      'USAGE',
+      'Provide an audio file: ts-ai transcribe ./audio.mp3',
+    )
   }
 
-  const { resolved, apiKey, adapterConfig, modelOptions } = resolveAdapterContext(
-    ctx.options,
-  )
+  const { resolved, apiKey, adapterConfig, modelOptions } =
+    resolveAdapterContext(ctx.options)
   const adapter = await instantiateAdapter({
     resolved,
     activity: 'transcription',
@@ -47,7 +49,9 @@ export async function runTranscribe(
     // Buffer — so hand over base64.
     audio = (await readFile(audioPath)).toString('base64')
   } catch (cause) {
-    throw new CliError('USAGE', `Cannot read audio file "${audioPath}".`, { cause })
+    throw new CliError('USAGE', `Cannot read audio file "${audioPath}".`, {
+      cause,
+    })
   }
 
   ctx.logger.info(`Transcribing with ${resolved.provider}/${resolved.model}…`)
@@ -55,7 +59,10 @@ export async function runTranscribe(
   const result = (await generateTranscription({
     adapter: adapter as never,
     audio,
-    language: typeof ctx.options.language === 'string' ? ctx.options.language : undefined,
+    language:
+      typeof ctx.options.language === 'string'
+        ? ctx.options.language
+        : undefined,
     modelOptions: modelOptions as never,
     debug: false,
   })) as TranscriptionResultLike

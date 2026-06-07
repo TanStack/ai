@@ -41,7 +41,9 @@ export async function writeArtifact(
   try {
     await writeFile(path, artifact.bytes)
   } catch (cause) {
-    throw new CliError('RUNTIME', `Failed to write artifact to "${path}".`, { cause })
+    throw new CliError('RUNTIME', `Failed to write artifact to "${path}".`, {
+      cause,
+    })
   }
   return path
 }
@@ -50,7 +52,10 @@ export async function writeArtifact(
 export async function fetchBytes(url: string): Promise<Uint8Array> {
   const res = await fetch(url)
   if (!res.ok) {
-    throw new CliError('PROVIDER', `Failed to download artifact (${res.status}) from ${url}.`)
+    throw new CliError(
+      'PROVIDER',
+      `Failed to download artifact (${res.status}) from ${url}.`,
+    )
   }
   return new Uint8Array(await res.arrayBuffer())
 }
@@ -60,7 +65,8 @@ export async function mediaSourceToBytes(source: {
   url?: string
   b64Json?: string
 }): Promise<Uint8Array> {
-  if (source.b64Json) return new Uint8Array(Buffer.from(source.b64Json, 'base64'))
+  if (source.b64Json)
+    return new Uint8Array(Buffer.from(source.b64Json, 'base64'))
   if (source.url) return fetchBytes(source.url)
   throw new CliError('PROVIDER', 'Generated media has neither url nor b64Json.')
 }

@@ -34,7 +34,9 @@ export async function renderImageResultInk(input: {
         <Box key={image.path} flexDirection="column">
           {previews[index] ? <Text>{previews[index]}</Text> : null}
           <Text dimColor>{image.path}</Text>
-          {image.revisedPrompt ? <Text dimColor>“{image.revisedPrompt}”</Text> : null}
+          {image.revisedPrompt ? (
+            <Text dimColor>“{image.revisedPrompt}”</Text>
+          ) : null}
         </Box>
       ))}
     </Box>,

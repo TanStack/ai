@@ -60,7 +60,8 @@ export function resolveAdapterContext(
     typeof options.modelOptions === 'object' && options.modelOptions !== null
       ? (options.modelOptions as Record<string, unknown>)
       : undefined
-  const baseURL = typeof options.baseURL === 'string' ? { baseURL: options.baseURL } : {}
+  const baseURL =
+    typeof options.baseURL === 'string' ? { baseURL: options.baseURL } : {}
   return {
     resolved,
     apiKey,

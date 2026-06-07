@@ -37,7 +37,10 @@ export async function resolvePrompt(
 
   const fromStdin = (await readStdin()).trim()
   if (!fromStdin && options.required) {
-    throw new CliError('USAGE', 'No prompt provided. Pass it as arguments or pipe via stdin.')
+    throw new CliError(
+      'USAGE',
+      'No prompt provided. Pass it as arguments or pipe via stdin.',
+    )
   }
   return fromStdin
 }
@@ -85,11 +88,14 @@ export async function loadAttachments(
           : await readFile(path)
       out.push({
         path,
-        mimeType: path === '-' ? 'application/octet-stream' : inferMimeType(path),
+        mimeType:
+          path === '-' ? 'application/octet-stream' : inferMimeType(path),
         data: buffer.toString('base64'),
       })
     } catch (cause) {
-      throw new CliError('USAGE', `Cannot read attachment "${path}".`, { cause })
+      throw new CliError('USAGE', `Cannot read attachment "${path}".`, {
+        cause,
+      })
     }
   }
   return out
