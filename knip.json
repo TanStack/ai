@@ -27,6 +27,15 @@
     "packages/ai": {
       "ignoreDependencies": ["@opentelemetry/api"]
     },
+    "packages/ai-cli": {
+      "ignoreDependencies": [
+        "@tanstack/ai-openai",
+        "@tanstack/ai-anthropic",
+        "@tanstack/ai-gemini",
+        "@tanstack/ai-openrouter",
+        "@tanstack/ai-fal"
+      ]
+    },
     "packages/ai-anthropic": {
       "ignore": ["src/tools/**"]
     },
