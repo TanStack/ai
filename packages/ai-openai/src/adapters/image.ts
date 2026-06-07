@@ -150,6 +150,12 @@ export class OpenAIImageAdapter<
         },
       )
 
+      // Surface empty responses (e.g. moderation blocks returning items with
+      // neither b64_json nor url) instead of resolving to `{ images: [] }`.
+      if (images.length === 0) {
+        throw new Error(`${this.name}: image response contained no images`)
+      }
+
       // `ImageGenerationResult.usage` is `usage?: TokenUsage` without
       // `| undefined`, so spread the field only when the model reported usage.
       const usage = buildImagesUsage(response.usage)

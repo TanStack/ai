@@ -208,6 +208,24 @@ describe('OpenAI Image Adapter', () => {
       })
     })
 
+    it('throws when the response contains no usable images', async () => {
+      const adapter = new TestOpenAIImageAdapter(
+        { apiKey: 'test-api-key' },
+        'gpt-image-1',
+      )
+      adapter
+        .spyOnImagesGenerate()
+        .mockResolvedValueOnce({ created: 0, data: [{}] })
+
+      await expect(
+        adapter.generateImages({
+          model: 'gpt-image-1',
+          prompt: 'A cat',
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/image response contained no images/)
+    })
+
     it('generates a unique ID for each response', async () => {
       const mockResponse: OpenAI.Images.ImagesResponse = {
         created: 0,
