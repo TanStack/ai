@@ -18,18 +18,60 @@ interface MenuItem {
 }
 
 const ITEMS: Array<MenuItem> = [
-  { command: 'chat', label: 'Chat', hint: 'Interactive agentic chat', needsPrompt: false },
-  { command: 'image', label: 'Image', hint: 'Generate an image', needsPrompt: true },
-  { command: 'video', label: 'Video', hint: 'Generate a video', needsPrompt: true },
-  { command: 'audio', label: 'Audio', hint: 'Generate music / sfx', needsPrompt: true },
-  { command: 'speech', label: 'Speech', hint: 'Text to speech', needsPrompt: true },
-  { command: 'summarize', label: 'Summarize', hint: 'Summarize text', needsPrompt: true },
-  { command: 'transcribe', label: 'Transcribe', hint: 'Audio file to text', needsPrompt: true },
+  {
+    command: 'chat',
+    label: 'Chat',
+    hint: 'Interactive agentic chat',
+    needsPrompt: false,
+  },
+  {
+    command: 'image',
+    label: 'Image',
+    hint: 'Generate an image',
+    needsPrompt: true,
+  },
+  {
+    command: 'video',
+    label: 'Video',
+    hint: 'Generate a video',
+    needsPrompt: true,
+  },
+  {
+    command: 'audio',
+    label: 'Audio',
+    hint: 'Generate music / sfx',
+    needsPrompt: true,
+  },
+  {
+    command: 'speech',
+    label: 'Speech',
+    hint: 'Text to speech',
+    needsPrompt: true,
+  },
+  {
+    command: 'summarize',
+    label: 'Summarize',
+    hint: 'Summarize text',
+    needsPrompt: true,
+  },
+  {
+    command: 'transcribe',
+    label: 'Transcribe',
+    hint: 'Audio file to text',
+    needsPrompt: true,
+  },
   { command: 'quit', label: 'Quit', hint: 'Exit', needsPrompt: false },
 ]
 
 const TITLE = 'TANSTACK AI'
-const GRADIENT = ['cyan', 'cyanBright', 'blueBright', 'magenta', 'magentaBright', 'blueBright']
+const GRADIENT = [
+  'cyan',
+  'cyanBright',
+  'blueBright',
+  'magenta',
+  'magentaBright',
+  'blueBright',
+]
 
 /** Animated wordmark: a gradient sweeps across the letters. */
 function Title() {

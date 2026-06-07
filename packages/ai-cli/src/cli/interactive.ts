@@ -1,5 +1,9 @@
 import { StreamProcessor, chat } from '@tanstack/ai'
-import { instantiateAdapter, resolveApiKey, resolveModelSlug } from '../core/providers'
+import {
+  instantiateAdapter,
+  resolveApiKey,
+  resolveModelSlug,
+} from '../core/providers'
 import { findCommand } from '../manifest/manifest'
 import { renderChatRepl, renderMenu } from '../render/lazy'
 import { dispatchCommand } from './dispatch'
@@ -23,7 +27,9 @@ export async function runHome(modelOverride?: string): Promise<number> {
   if (choice.command === 'quit') return 0
 
   if (choice.command === 'chat') {
-    return runChatRepl(modelOverride ?? DEFAULT_MODELS['chat'] ?? 'openai/gpt-5.5')
+    return runChatRepl(
+      modelOverride ?? DEFAULT_MODELS['chat'] ?? 'openai/gpt-5.5',
+    )
   }
 
   const model = modelOverride ?? DEFAULT_MODELS[choice.command]
@@ -36,7 +42,10 @@ export async function runHome(modelOverride?: string): Promise<number> {
 
   const spec = findCommand(choice.command)
   if (!spec) return 0
-  await dispatchCommand(spec, choice.prompt ? [choice.prompt] : [], { model, preview: true })
+  await dispatchCommand(spec, choice.prompt ? [choice.prompt] : [], {
+    model,
+    preview: true,
+  })
   return 0
 }
 
@@ -63,6 +72,9 @@ export async function runChatRepl(modelSlug: string): Promise<number> {
     return result.content || '(no response)'
   }
 
-  await renderChatRepl({ model: `${resolved.provider}/${resolved.model}`, respond })
+  await renderChatRepl({
+    model: `${resolved.provider}/${resolved.model}`,
+    respond,
+  })
   return 0
 }

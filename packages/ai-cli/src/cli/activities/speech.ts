@@ -18,9 +18,8 @@ type SpeechFormat = 'mp3' | 'opus' | 'aac' | 'flac' | 'wav' | 'pcm'
 
 /** `ts-ai speech` (text-to-speech) handler. */
 export async function runSpeech(ctx: RunContext, text: string): Promise<void> {
-  const { resolved, apiKey, adapterConfig, modelOptions } = resolveAdapterContext(
-    ctx.options,
-  )
+  const { resolved, apiKey, adapterConfig, modelOptions } =
+    resolveAdapterContext(ctx.options)
   const adapter = await instantiateAdapter({
     resolved,
     activity: 'speech',
@@ -28,7 +27,9 @@ export async function runSpeech(ctx: RunContext, text: string): Promise<void> {
     config: adapterConfig,
   })
 
-  ctx.logger.info(`Synthesizing speech with ${resolved.provider}/${resolved.model}…`)
+  ctx.logger.info(
+    `Synthesizing speech with ${resolved.provider}/${resolved.model}…`,
+  )
 
   const result = (await generateSpeech({
     adapter: adapter as never,

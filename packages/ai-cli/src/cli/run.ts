@@ -10,7 +10,10 @@ import type { ExitCodeValue } from '../core/exit-codes'
  * errors are funneled through CliError so the exit code and (in machine mode)
  * the structured stdout error object are consistent.
  */
-export async function run(argv: Array<string>, cliVersion: string): Promise<ExitCodeValue> {
+export async function run(
+  argv: Array<string>,
+  cliVersion: string,
+): Promise<ExitCodeValue> {
   const program = buildProgram(cliVersion)
   // Take control of exits so commander's own usage/help/version paths don't
   // call process.exit out from under us.

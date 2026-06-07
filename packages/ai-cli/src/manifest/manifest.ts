@@ -12,7 +12,11 @@ export const COMMON_FLAGS: Array<FlagSpec> = [
     type: 'string',
     description: 'Model as a "provider/model" slug, e.g. openai/gpt-5.5.',
   },
-  { name: 'apiKey', type: 'string', description: 'API key (overrides env vars).' },
+  {
+    name: 'apiKey',
+    type: 'string',
+    description: 'API key (overrides env vars).',
+  },
   {
     name: 'json',
     type: 'boolean',
@@ -33,15 +37,24 @@ export const COMMON_FLAGS: Array<FlagSpec> = [
     name: 'preview',
     type: 'boolean',
     default: true,
-    description: 'Inline-preview artifacts in a capable terminal (use --no-preview to disable).',
+    description:
+      'Inline-preview artifacts in a capable terminal (use --no-preview to disable).',
   },
   {
     name: 'config',
     type: 'json',
     description: 'Options as a JSON file path or inline JSON string.',
   },
-  { name: 'verbose', type: 'boolean', description: 'Verbose debug logging to stderr.' },
-  { name: 'quiet', type: 'boolean', description: 'Suppress non-error stderr output.' },
+  {
+    name: 'verbose',
+    type: 'boolean',
+    description: 'Verbose debug logging to stderr.',
+  },
+  {
+    name: 'quiet',
+    type: 'boolean',
+    description: 'Suppress non-error stderr output.',
+  },
 ]
 
 const ATTACHMENT_FLAG: FlagSpec = {
@@ -54,19 +67,29 @@ const ATTACHMENT_FLAG: FlagSpec = {
 export const COMMANDS: Array<CommandSpec> = [
   {
     name: 'chat',
-    description: 'Chat / agentic text generation with optional tools and structured output.',
+    description:
+      'Chat / agentic text generation with optional tools and structured output.',
     activity: 'chat',
     acceptsPrompt: true,
     producesArtifact: false,
     flags: [
       ATTACHMENT_FLAG,
-      { name: 'system', type: 'string', description: 'System prompt (text or file path).' },
+      {
+        name: 'system',
+        type: 'string',
+        description: 'System prompt (text or file path).',
+      },
       {
         name: 'messages',
         type: 'json',
-        description: 'Full message history as a JSON array (stateless multi-turn).',
+        description:
+          'Full message history as a JSON array (stateless multi-turn).',
       },
-      { name: 'threadId', type: 'string', description: 'Correlation id passed through to telemetry/AG-UI.' },
+      {
+        name: 'threadId',
+        type: 'string',
+        description: 'Correlation id passed through to telemetry/AG-UI.',
+      },
       {
         name: 'maxSteps',
         type: 'number',
@@ -78,11 +101,16 @@ export const COMMANDS: Array<CommandSpec> = [
         repeatable: true,
         description: 'MCP server (command or URL) exposing tools (repeatable).',
       },
-      { name: 'codeMode', type: 'boolean', description: 'Enable the sandboxed execute_typescript tool.' },
+      {
+        name: 'codeMode',
+        type: 'boolean',
+        description: 'Enable the sandboxed execute_typescript tool.',
+      },
       {
         name: 'schema',
         type: 'json',
-        description: 'JSON Schema for structured output (file path or inline). Result is under .data.',
+        description:
+          'JSON Schema for structured output (file path or inline). Result is under .data.',
       },
     ],
   },
@@ -94,13 +122,23 @@ export const COMMANDS: Array<CommandSpec> = [
     producesArtifact: true,
     flags: [
       ATTACHMENT_FLAG,
-      { name: 'size', type: 'string', description: 'Output size, e.g. 1024x1024.' },
-      { name: 'count', type: 'number', default: 1, description: 'Number of images to generate.' },
+      {
+        name: 'size',
+        type: 'string',
+        description: 'Output size, e.g. 1024x1024.',
+      },
+      {
+        name: 'count',
+        type: 'number',
+        default: 1,
+        description: 'Number of images to generate.',
+      },
     ],
   },
   {
     name: 'video',
-    description: 'Generate a video from a prompt (async job; blocks until done by default).',
+    description:
+      'Generate a video from a prompt (async job; blocks until done by default).',
     activity: 'video',
     acceptsPrompt: true,
     producesArtifact: true,
@@ -111,9 +149,14 @@ export const COMMANDS: Array<CommandSpec> = [
         name: 'wait',
         type: 'boolean',
         default: true,
-        description: 'Poll until the job completes (use --no-wait to return the job id immediately).',
+        description:
+          'Poll until the job completes (use --no-wait to return the job id immediately).',
       },
-      { name: 'size', type: 'string', description: 'Output size / resolution.' },
+      {
+        name: 'size',
+        type: 'string',
+        description: 'Output size / resolution.',
+      },
     ],
   },
   {
@@ -122,7 +165,13 @@ export const COMMANDS: Array<CommandSpec> = [
     activity: 'audio',
     acceptsPrompt: true,
     producesArtifact: true,
-    flags: [{ name: 'duration', type: 'number', description: 'Desired duration in seconds.' }],
+    flags: [
+      {
+        name: 'duration',
+        type: 'number',
+        description: 'Desired duration in seconds.',
+      },
+    ],
   },
   {
     name: 'speech',
@@ -133,8 +182,16 @@ export const COMMANDS: Array<CommandSpec> = [
     producesArtifact: true,
     flags: [
       { name: 'voice', type: 'string', description: 'Voice id.' },
-      { name: 'format', type: 'string', description: 'Audio format: mp3, opus, aac, flac, wav, pcm.' },
-      { name: 'speed', type: 'number', description: 'Playback speed 0.25–4.0.' },
+      {
+        name: 'format',
+        type: 'string',
+        description: 'Audio format: mp3, opus, aac, flac, wav, pcm.',
+      },
+      {
+        name: 'speed',
+        type: 'number',
+        description: 'Playback speed 0.25–4.0.',
+      },
     ],
   },
   {
@@ -146,7 +203,11 @@ export const COMMANDS: Array<CommandSpec> = [
     producesArtifact: false,
     flags: [
       ATTACHMENT_FLAG,
-      { name: 'language', type: 'string', description: 'ISO-639-1 language hint, e.g. en.' },
+      {
+        name: 'language',
+        type: 'string',
+        description: 'ISO-639-1 language hint, e.g. en.',
+      },
     ],
   },
   {
@@ -156,13 +217,22 @@ export const COMMANDS: Array<CommandSpec> = [
     acceptsPrompt: true,
     producesArtifact: false,
     flags: [
-      { name: 'maxLength', type: 'number', description: 'Maximum summary length.' },
+      {
+        name: 'maxLength',
+        type: 'number',
+        description: 'Maximum summary length.',
+      },
       {
         name: 'style',
         type: 'string',
         description: 'Summary style: bullet-points, paragraph, concise.',
       },
-      { name: 'focus', type: 'string[]', repeatable: true, description: 'Topic to focus on (repeatable).' },
+      {
+        name: 'focus',
+        type: 'string[]',
+        repeatable: true,
+        description: 'Topic to focus on (repeatable).',
+      },
     ],
   },
 ]
@@ -176,7 +246,10 @@ export function toKebabFlag(name: string): string {
 function withFlagSpelling(flag: FlagSpec): FlagSpec {
   const kebab = toKebabFlag(flag.name)
   // Default-true booleans are negatable flags (`--no-x`).
-  const spelling = flag.type === 'boolean' && flag.default === true ? `--no-${kebab}` : `--${kebab}`
+  const spelling =
+    flag.type === 'boolean' && flag.default === true
+      ? `--no-${kebab}`
+      : `--${kebab}`
   return { ...flag, flag: spelling }
 }
 
@@ -188,7 +261,10 @@ export function buildManifest(cliVersion: string): CliManifest {
     cliVersion,
     bundledProviders: bundledProviders(),
     commonFlags: COMMON_FLAGS.map(withFlagSpelling),
-    commands: COMMANDS.map((c) => ({ ...c, flags: c.flags.map(withFlagSpelling) })),
+    commands: COMMANDS.map((c) => ({
+      ...c,
+      flags: c.flags.map(withFlagSpelling),
+    })),
     exitCodes: {
       success: ExitCode.Success,
       runtime: ExitCode.Runtime,

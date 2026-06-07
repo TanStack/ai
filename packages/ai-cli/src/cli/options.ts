@@ -36,7 +36,10 @@ function coerceValue(flag: FlagSpec, value: unknown): unknown {
     case 'number': {
       const n = Number(value)
       if (Number.isNaN(n)) {
-        throw new CliError('USAGE', `--${flag.name} must be a number, got "${String(value)}".`)
+        throw new CliError(
+          'USAGE',
+          `--${flag.name} must be a number, got "${String(value)}".`,
+        )
       }
       return n
     }

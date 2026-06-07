@@ -62,7 +62,9 @@ function invokeSelf(
   if (args.prompt) argv.push('--', args.prompt)
 
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, argv, { stdio: ['ignore', 'pipe', 'pipe'] })
+    const child = spawn(process.execPath, argv, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
     let stdout = ''
     let stderr = ''
     child.stdout.on('data', (chunk) => (stdout += String(chunk)))

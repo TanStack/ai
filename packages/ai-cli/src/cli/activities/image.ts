@@ -27,9 +27,8 @@ const EXT_BY_MIME: Record<string, string> = {
 
 /** `ts-ai image` handler. */
 export async function runImage(ctx: RunContext, prompt: string): Promise<void> {
-  const { resolved, apiKey, adapterConfig, modelOptions } = resolveAdapterContext(
-    ctx.options,
-  )
+  const { resolved, apiKey, adapterConfig, modelOptions } =
+    resolveAdapterContext(ctx.options)
   const adapter = await instantiateAdapter({
     resolved,
     activity: 'image',
@@ -37,7 +36,9 @@ export async function runImage(ctx: RunContext, prompt: string): Promise<void> {
     config: adapterConfig,
   })
 
-  ctx.logger.info(`Generating image with ${resolved.provider}/${resolved.model}…`)
+  ctx.logger.info(
+    `Generating image with ${resolved.provider}/${resolved.model}…`,
+  )
 
   const result = (await generateImage({
     // The CLI resolves adapters at runtime; the static generic shape is erased.
@@ -50,7 +51,11 @@ export async function runImage(ctx: RunContext, prompt: string): Promise<void> {
   })) as ImageResultLike
 
   const output = stringValue(ctx.options.output)
-  const written: Array<{ path: string | null; mimeType: string; revisedPrompt?: string }> = []
+  const written: Array<{
+    path: string | null
+    mimeType: string
+    revisedPrompt?: string
+  }> = []
 
   for (const [index, image] of result.images.entries()) {
     const bytes = await mediaSourceToBytes(image)
@@ -58,15 +63,25 @@ export async function runImage(ctx: RunContext, prompt: string): Promise<void> {
     const ext = EXT_BY_MIME[mimeType] ?? 'png'
     // Only the first image honors an explicit -o; subsequent ones get a suffix.
     const target =
-      index === 0 ? output : output && output !== '-' ? suffixPath(output, index) : undefined
-    const path = await writeArtifact('image', { bytes, ext, mimeType }, target, ctx.now + index)
+      index === 0
+        ? output
+        : output && output !== '-'
+          ? suffixPath(output, index)
+          : undefined
+    const path = await writeArtifact(
+      'image',
+      { bytes, ext, mimeType },
+      target,
+      ctx.now + index,
+    )
     written.push({ path, mimeType, revisedPrompt: image.revisedPrompt })
   }
 
   if (ctx.mode === 'pretty') {
     const previewable: Array<{ path: string; revisedPrompt?: string }> = []
     for (const w of written) {
-      if (w.path) previewable.push({ path: w.path, revisedPrompt: w.revisedPrompt })
+      if (w.path)
+        previewable.push({ path: w.path, revisedPrompt: w.revisedPrompt })
     }
     await renderImageResult({
       model: result.model,

@@ -30,7 +30,9 @@ describe('resolveModelSlug', () => {
   })
 
   it('rejects a bare model it cannot infer', () => {
-    expect(() => resolveModelSlug('mystery-model')).toThrowError(/provider\/model/)
+    expect(() => resolveModelSlug('mystery-model')).toThrowError(
+      /provider\/model/,
+    )
   })
 
   it('rejects a slug with an empty model', () => {
@@ -48,8 +50,15 @@ describe('resolveModelSlug', () => {
 })
 
 describe('instantiateAdapter factory resolution (no network — just constructs adapters)', () => {
-  const make = (slug: string, activity: Parameters<typeof instantiateAdapter>[0]['activity']) =>
-    instantiateAdapter({ resolved: resolveModelSlug(slug), activity, apiKey: 'test-key' })
+  const make = (
+    slug: string,
+    activity: Parameters<typeof instantiateAdapter>[0]['activity'],
+  ) =>
+    instantiateAdapter({
+      resolved: resolveModelSlug(slug),
+      activity,
+      apiKey: 'test-key',
+    })
 
   it('resolves openai chat via the create*Chat factory', async () => {
     expect(await make('openai/gpt-5.5', 'chat')).toBeTruthy()
@@ -67,13 +76,17 @@ describe('instantiateAdapter factory resolution (no network — just constructs 
   })
 
   it('throws PROVIDER_NOT_INSTALLED for a non-bundled provider', async () => {
-    await expect(make('groq/llama-3.3-70b-versatile', 'chat')).rejects.toMatchObject({
+    await expect(
+      make('groq/llama-3.3-70b-versatile', 'chat'),
+    ).rejects.toMatchObject({
       code: 'PROVIDER_NOT_INSTALLED',
     })
   })
 
   it('throws USAGE when a provider does not support an activity', async () => {
-    await expect(make('fal/fal-ai/flux/dev', 'chat')).rejects.toMatchObject({ code: 'USAGE' })
+    await expect(make('fal/fal-ai/flux/dev', 'chat')).rejects.toMatchObject({
+      code: 'USAGE',
+    })
   })
 })
 
@@ -81,11 +94,15 @@ describe('resolveApiKey', () => {
   const { entry } = resolveModelSlug('openai/gpt-5.5')
 
   it('prefers the explicit key', () => {
-    expect(resolveApiKey(entry, 'openai', 'sk-explicit', {})).toBe('sk-explicit')
+    expect(resolveApiKey(entry, 'openai', 'sk-explicit', {})).toBe(
+      'sk-explicit',
+    )
   })
 
   it('falls back to the conventional env var', () => {
-    expect(resolveApiKey(entry, 'openai', undefined, { OPENAI_API_KEY: 'sk-env' })).toBe('sk-env')
+    expect(
+      resolveApiKey(entry, 'openai', undefined, { OPENAI_API_KEY: 'sk-env' }),
+    ).toBe('sk-env')
   })
 
   it('throws a USAGE error when no key is available', () => {
@@ -113,7 +130,11 @@ describe('mergeOptions', () => {
       { model: 'openai/gpt-5.5', size: undefined },
       { model: 'anthropic/x', size: '1024x1024', extra: true },
     )
-    expect(merged).toEqual({ model: 'openai/gpt-5.5', size: '1024x1024', extra: true })
+    expect(merged).toEqual({
+      model: 'openai/gpt-5.5',
+      size: '1024x1024',
+      extra: true,
+    })
   })
 })
 
@@ -137,19 +158,27 @@ describe('coerceFlags', () => {
   const spec = findCommand('image') as CommandSpec
 
   it('coerces numbers and leaves config/strings alone', () => {
-    const out = coerceFlags(spec, { count: '3', model: 'openai/gpt-image-1', config: '{"a":1}' })
+    const out = coerceFlags(spec, {
+      count: '3',
+      model: 'openai/gpt-image-1',
+      config: '{"a":1}',
+    })
     expect(out.count).toBe(3)
     expect(out.model).toBe('openai/gpt-image-1')
     expect(out.config).toBe('{"a":1}')
   })
 
   it('throws on a non-numeric number flag', () => {
-    expect(() => coerceFlags(spec, { count: 'abc' })).toThrowError(/must be a number/)
+    expect(() => coerceFlags(spec, { count: 'abc' })).toThrowError(
+      /must be a number/,
+    )
   })
 
   it('parses json flags from the chat command', () => {
     const chatSpec = findCommand('chat') as CommandSpec
-    const out = coerceFlags(chatSpec, { messages: '[{"role":"user","content":"hi"}]' })
+    const out = coerceFlags(chatSpec, {
+      messages: '[{"role":"user","content":"hi"}]',
+    })
     expect(Array.isArray(out.messages)).toBe(true)
   })
 })
@@ -157,7 +186,9 @@ describe('coerceFlags', () => {
 describe('exit codes', () => {
   it('maps error codes to exit codes', () => {
     expect(new CliError('USAGE', 'x').exitCode).toBe(ExitCode.Usage)
-    expect(new CliError('PROVIDER_NOT_INSTALLED', 'x').exitCode).toBe(ExitCode.ProviderNotInstalled)
+    expect(new CliError('PROVIDER_NOT_INSTALLED', 'x').exitCode).toBe(
+      ExitCode.ProviderNotInstalled,
+    )
     expect(new CliError('PROVIDER', 'x').exitCode).toBe(ExitCode.Provider)
   })
 
@@ -168,8 +199,14 @@ describe('exit codes', () => {
   })
 
   it('serializes a structured error object', () => {
-    const obj = new CliError('PROVIDER', 'nope', { provider: 'openai' }).toErrorObject()
-    expect(obj).toMatchObject({ code: 'PROVIDER', message: 'nope', provider: 'openai' })
+    const obj = new CliError('PROVIDER', 'nope', {
+      provider: 'openai',
+    }).toErrorObject()
+    expect(obj).toMatchObject({
+      code: 'PROVIDER',
+      message: 'nope',
+      provider: 'openai',
+    })
   })
 })
 
@@ -207,10 +244,16 @@ describe('tokenizeCommand (--mcp stdio spec)', () => {
       'C:\\Program Files\\srv.js',
       '--flag',
     ])
-    expect(tokenizeCommand("node '/opt/my srv/x.js'")).toEqual(['node', '/opt/my srv/x.js'])
+    expect(tokenizeCommand("node '/opt/my srv/x.js'")).toEqual([
+      'node',
+      '/opt/my srv/x.js',
+    ])
   })
 
   it('collapses runs of whitespace', () => {
-    expect(tokenizeCommand('  node   server.js  ')).toEqual(['node', 'server.js'])
+    expect(tokenizeCommand('  node   server.js  ')).toEqual([
+      'node',
+      'server.js',
+    ])
   })
 })

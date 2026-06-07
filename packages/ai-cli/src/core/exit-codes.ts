@@ -46,9 +46,16 @@ export class CliError extends Error {
   constructor(
     code: CliErrorCode,
     message: string,
-    options?: { provider?: string; detail?: Record<string, unknown>; cause?: unknown },
+    options?: {
+      provider?: string
+      detail?: Record<string, unknown>
+      cause?: unknown
+    },
   ) {
-    super(message, options?.cause === undefined ? undefined : { cause: options.cause })
+    super(
+      message,
+      options?.cause === undefined ? undefined : { cause: options.cause },
+    )
     this.name = 'CliError'
     this.code = code
     this.provider = options?.provider

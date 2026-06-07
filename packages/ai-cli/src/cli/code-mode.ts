@@ -15,7 +15,9 @@ export interface CodeModeWiring {
  *
  * `@tanstack/ai-code-mode` and `@tanstack/ai-isolate-node` are imported lazily.
  */
-export async function buildCodeMode(tools: Array<unknown>): Promise<CodeModeWiring> {
+export async function buildCodeMode(
+  tools: Array<unknown>,
+): Promise<CodeModeWiring> {
   if (tools.length === 0) {
     throw new CliError(
       'USAGE',
@@ -32,7 +34,12 @@ export async function buildCodeMode(tools: Array<unknown>): Promise<CodeModeWiri
     throw new CliError(
       'PROVIDER_NOT_INSTALLED',
       '--code-mode requires @tanstack/ai-code-mode and @tanstack/ai-isolate-node.',
-      { detail: { packages: ['@tanstack/ai-code-mode', '@tanstack/ai-isolate-node'] }, cause },
+      {
+        detail: {
+          packages: ['@tanstack/ai-code-mode', '@tanstack/ai-isolate-node'],
+        },
+        cause,
+      },
     )
   }
 

@@ -17,7 +17,9 @@ export interface McpClientLike {
  * `@tanstack/ai-mcp` is imported lazily so the machine path that doesn't use
  * tools never loads it.
  */
-export async function buildMcpClients(specs: Array<string>): Promise<Array<McpClientLike>> {
+export async function buildMcpClients(
+  specs: Array<string>,
+): Promise<Array<McpClientLike>> {
   if (specs.length === 0) return []
 
   let mcp: typeof McpModule
@@ -35,7 +37,10 @@ export async function buildMcpClients(specs: Array<string>): Promise<Array<McpCl
 
   const clients: Array<McpClientLike> = []
   for (const spec of specs) {
-    const httpTransport: { type: 'http'; url: string } = { type: 'http', url: spec }
+    const httpTransport: { type: 'http'; url: string } = {
+      type: 'http',
+      url: spec,
+    }
     const transport = isUrl(spec)
       ? httpTransport
       : stdio.stdioTransport(parseCommand(spec))
@@ -43,7 +48,11 @@ export async function buildMcpClients(specs: Array<string>): Promise<Array<McpCl
       const client = await mcp.createMCPClient({ transport })
       clients.push(client)
     } catch (cause) {
-      throw new CliError('RUNTIME', `Failed to connect to MCP server "${spec}".`, { cause })
+      throw new CliError(
+        'RUNTIME',
+        `Failed to connect to MCP server "${spec}".`,
+        { cause },
+      )
     }
   }
   return clients

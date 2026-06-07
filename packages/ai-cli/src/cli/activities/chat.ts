@@ -30,9 +30,8 @@ interface ModelMessageLike {
  * `execute_typescript` tool.
  */
 export async function runChat(ctx: RunContext, prompt: string): Promise<void> {
-  const { resolved, apiKey, adapterConfig, modelOptions } = resolveAdapterContext(
-    ctx.options,
-  )
+  const { resolved, apiKey, adapterConfig, modelOptions } =
+    resolveAdapterContext(ctx.options)
   const adapter = await instantiateAdapter({
     resolved,
     activity: 'chat',
@@ -59,7 +58,9 @@ export async function runChat(ctx: RunContext, prompt: string): Promise<void> {
         : undefined
 
   // Resolve tools from MCP servers, optionally wrapped in Code Mode.
-  const mcpSpecs = Array.isArray(ctx.options.mcp) ? (ctx.options.mcp as Array<string>) : []
+  const mcpSpecs = Array.isArray(ctx.options.mcp)
+    ? (ctx.options.mcp as Array<string>)
+    : []
   const useCodeMode = Boolean(ctx.options.codeMode)
   const clients = await buildMcpClients(mcpSpecs)
 
