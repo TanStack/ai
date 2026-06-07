@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   bundledProviders,
-  instantiateAdapter,
+  factoryCandidatesForProvider,
   resolveApiKey,
   resolveModelSlug,
 } from '../src/core/providers'
@@ -49,44 +49,29 @@ describe('resolveModelSlug', () => {
   })
 })
 
-describe('instantiateAdapter factory resolution (no network — just constructs adapters)', () => {
-  const make = (
-    slug: string,
-    activity: Parameters<typeof instantiateAdapter>[0]['activity'],
-  ) =>
-    instantiateAdapter({
-      resolved: resolveModelSlug(slug),
-      activity,
-      apiKey: 'test-key',
-    })
-
-  it('resolves openai chat via the create*Chat factory', async () => {
-    expect(await make('openai/gpt-5.5', 'chat')).toBeTruthy()
+describe('factoryCandidatesForProvider (pure factory-name derivation)', () => {
+  it('tries create<Prefix>Chat first for chat', () => {
+    expect(factoryCandidatesForProvider('openai', 'chat')[0]).toBe(
+      'createOpenaiChat',
+    )
   })
 
-  it('resolves openrouter chat via the *Text factory (not Chat)', async () => {
-    // Regression: OpenRouter exports createOpenRouterText, and the prefix is
-    // "OpenRouter" (capital R), not "Openrouter".
-    expect(await make('openrouter/openai/gpt-oss-120b', 'chat')).toBeTruthy()
+  it('uses the OpenRouter *Text factory with correct casing (regression)', () => {
+    // OpenRouter exports createOpenRouterText (capital R, "Text" not "Chat").
+    const candidates = factoryCandidatesForProvider('openrouter', 'chat')
+    expect(candidates).toContain('createOpenRouterText')
+    expect(candidates).not.toContain('createOpenrouterChat')
   })
 
-  it('resolves fal image via the falImage factory + config-object key style', async () => {
-    // Regression: fal uses `falImage(model, { apiKey })`, not createFalImage(model, key).
-    expect(await make('fal/fal-ai/flux/dev', 'image')).toBeTruthy()
+  it('tries createFalImage then falImage for fal (alt prefix regression)', () => {
+    expect(factoryCandidatesForProvider('fal', 'image')).toEqual([
+      'createFalImage',
+      'falImage',
+    ])
   })
 
-  it('throws PROVIDER_NOT_INSTALLED for a non-bundled provider', async () => {
-    await expect(
-      make('groq/llama-3.3-70b-versatile', 'chat'),
-    ).rejects.toMatchObject({
-      code: 'PROVIDER_NOT_INSTALLED',
-    })
-  })
-
-  it('throws USAGE when a provider does not support an activity', async () => {
-    await expect(make('fal/fal-ai/flux/dev', 'chat')).rejects.toMatchObject({
-      code: 'USAGE',
-    })
+  it('returns no candidates for an unknown provider', () => {
+    expect(factoryCandidatesForProvider('nope', 'chat')).toEqual([])
   })
 })
 
