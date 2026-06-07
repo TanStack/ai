@@ -300,7 +300,7 @@ Abort signal from the chat request
 ### source
 
 ```ts
-source: "client" | "server";
+source: "server" | "client";
 ```
 
 Defined in: [packages/ai/src/activities/chat/middleware/types.ts:83](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L83)

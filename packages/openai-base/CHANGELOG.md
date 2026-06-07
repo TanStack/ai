@@ -1,5 +1,14 @@
 # @tanstack/openai-base
 
+## 0.8.1
+
+### Patch Changes
+
+- [#700](https://github.com/TanStack/ai/pull/700) [`496e814`](https://github.com/TanStack/ai/commit/496e8143435746965b10e0bbd12f26ebf04ae2a6) - Strip JSON Schema `format` values that OpenAI's strict Structured Outputs subset rejects (e.g. `uri`, `uri-reference`, `iri`) from tool and response schemas before sending. Tools whose input schemas declare an unsupported `format` — common with MCP server tools — previously caused the entire request to fail with `400 ... '<format>' is not a valid format`. Supported formats (`date-time`, `time`, `date`, `duration`, `email`, `hostname`, `ipv4`, `ipv6`, `uuid`) are preserved, and the caller's original tool definition is never mutated.
+
+- Updated dependencies [[`496e814`](https://github.com/TanStack/ai/commit/496e8143435746965b10e0bbd12f26ebf04ae2a6), [`c0af426`](https://github.com/TanStack/ai/commit/c0af4262d269be67c69d6f878d9618f25fdeee19), [`00e0c93`](https://github.com/TanStack/ai/commit/00e0c932e6cb5e31f75f4b5e94486d7eb02b9ce1), [`496e814`](https://github.com/TanStack/ai/commit/496e8143435746965b10e0bbd12f26ebf04ae2a6)]:
+  - @tanstack/ai@0.28.0
+
 ## 0.8.0
 
 ### Minor Changes

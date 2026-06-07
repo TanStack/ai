@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as ThreadsRouteImport } from './routes/threads'
 import { Route as ServerFnChatRouteImport } from './routes/server-fn-chat'
 import { Route as RealtimeRouteImport } from './routes/realtime'
+import { Route as McpDemoRouteImport } from './routes/mcp-demo'
 import { Route as Issue176ToolResultRouteImport } from './routes/issue-176-tool-result'
 import { Route as ImageToolReproRouteImport } from './routes/image-tool-repro'
 import { Route as ImageGenRouteImport } from './routes/image-gen'
@@ -31,6 +32,10 @@ import { Route as ApiTanchatRouteImport } from './routes/api.tanchat'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiStructuredOutputRouteImport } from './routes/api.structured-output'
 import { Route as ApiStructuredChatRouteImport } from './routes/api.structured-chat'
+import { Route as ApiMcpStatusRouteImport } from './routes/api.mcp-status'
+import { Route as ApiMcpPoolRouteImport } from './routes/api.mcp-pool'
+import { Route as ApiMcpManualRouteImport } from './routes/api.mcp-manual'
+import { Route as ApiMcpChatRouteImport } from './routes/api.mcp-chat'
 import { Route as ApiImageToolReproRouteImport } from './routes/api.image-tool-repro'
 import { Route as ApiImageGenRouteImport } from './routes/api.image-gen'
 import { Route as ExampleGuitarsIndexRouteImport } from './routes/example.guitars/index'
@@ -53,6 +58,11 @@ const ServerFnChatRoute = ServerFnChatRouteImport.update({
 const RealtimeRoute = RealtimeRouteImport.update({
   id: '/realtime',
   path: '/realtime',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const McpDemoRoute = McpDemoRouteImport.update({
+  id: '/mcp-demo',
+  path: '/mcp-demo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const Issue176ToolResultRoute = Issue176ToolResultRouteImport.update({
@@ -153,6 +163,26 @@ const ApiStructuredChatRoute = ApiStructuredChatRouteImport.update({
   path: '/api/structured-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMcpStatusRoute = ApiMcpStatusRouteImport.update({
+  id: '/api/mcp-status',
+  path: '/api/mcp-status',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpPoolRoute = ApiMcpPoolRouteImport.update({
+  id: '/api/mcp-pool',
+  path: '/api/mcp-pool',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpManualRoute = ApiMcpManualRouteImport.update({
+  id: '/api/mcp-manual',
+  path: '/api/mcp-manual',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpChatRoute = ApiMcpChatRouteImport.update({
+  id: '/api/mcp-chat',
+  path: '/api/mcp-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiImageToolReproRoute = ApiImageToolReproRouteImport.update({
   id: '/api/image-tool-repro',
   path: '/api/image-tool-repro',
@@ -200,11 +230,16 @@ export interface FileRoutesByFullPath {
   '/image-gen': typeof ImageGenRoute
   '/image-tool-repro': typeof ImageToolReproRoute
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
+  '/mcp-demo': typeof McpDemoRoute
   '/realtime': typeof RealtimeRoute
   '/server-fn-chat': typeof ServerFnChatRoute
   '/threads': typeof ThreadsRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/image-tool-repro': typeof ApiImageToolReproRoute
+  '/api/mcp-chat': typeof ApiMcpChatRoute
+  '/api/mcp-manual': typeof ApiMcpManualRoute
+  '/api/mcp-pool': typeof ApiMcpPoolRoute
+  '/api/mcp-status': typeof ApiMcpStatusRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -232,11 +267,16 @@ export interface FileRoutesByTo {
   '/image-gen': typeof ImageGenRoute
   '/image-tool-repro': typeof ImageToolReproRoute
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
+  '/mcp-demo': typeof McpDemoRoute
   '/realtime': typeof RealtimeRoute
   '/server-fn-chat': typeof ServerFnChatRoute
   '/threads': typeof ThreadsRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/image-tool-repro': typeof ApiImageToolReproRoute
+  '/api/mcp-chat': typeof ApiMcpChatRoute
+  '/api/mcp-manual': typeof ApiMcpManualRoute
+  '/api/mcp-pool': typeof ApiMcpPoolRoute
+  '/api/mcp-status': typeof ApiMcpStatusRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -265,11 +305,16 @@ export interface FileRoutesById {
   '/image-gen': typeof ImageGenRoute
   '/image-tool-repro': typeof ImageToolReproRoute
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
+  '/mcp-demo': typeof McpDemoRoute
   '/realtime': typeof RealtimeRoute
   '/server-fn-chat': typeof ServerFnChatRoute
   '/threads': typeof ThreadsRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/image-tool-repro': typeof ApiImageToolReproRoute
+  '/api/mcp-chat': typeof ApiMcpChatRoute
+  '/api/mcp-manual': typeof ApiMcpManualRoute
+  '/api/mcp-pool': typeof ApiMcpPoolRoute
+  '/api/mcp-status': typeof ApiMcpStatusRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -299,11 +344,16 @@ export interface FileRouteTypes {
     | '/image-gen'
     | '/image-tool-repro'
     | '/issue-176-tool-result'
+    | '/mcp-demo'
     | '/realtime'
     | '/server-fn-chat'
     | '/threads'
     | '/api/image-gen'
     | '/api/image-tool-repro'
+    | '/api/mcp-chat'
+    | '/api/mcp-manual'
+    | '/api/mcp-pool'
+    | '/api/mcp-status'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
@@ -331,11 +381,16 @@ export interface FileRouteTypes {
     | '/image-gen'
     | '/image-tool-repro'
     | '/issue-176-tool-result'
+    | '/mcp-demo'
     | '/realtime'
     | '/server-fn-chat'
     | '/threads'
     | '/api/image-gen'
     | '/api/image-tool-repro'
+    | '/api/mcp-chat'
+    | '/api/mcp-manual'
+    | '/api/mcp-pool'
+    | '/api/mcp-status'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
@@ -363,11 +418,16 @@ export interface FileRouteTypes {
     | '/image-gen'
     | '/image-tool-repro'
     | '/issue-176-tool-result'
+    | '/mcp-demo'
     | '/realtime'
     | '/server-fn-chat'
     | '/threads'
     | '/api/image-gen'
     | '/api/image-tool-repro'
+    | '/api/mcp-chat'
+    | '/api/mcp-manual'
+    | '/api/mcp-pool'
+    | '/api/mcp-status'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
@@ -396,11 +456,16 @@ export interface RootRouteChildren {
   ImageGenRoute: typeof ImageGenRoute
   ImageToolReproRoute: typeof ImageToolReproRoute
   Issue176ToolResultRoute: typeof Issue176ToolResultRoute
+  McpDemoRoute: typeof McpDemoRoute
   RealtimeRoute: typeof RealtimeRoute
   ServerFnChatRoute: typeof ServerFnChatRoute
   ThreadsRoute: typeof ThreadsRoute
   ApiImageGenRoute: typeof ApiImageGenRoute
   ApiImageToolReproRoute: typeof ApiImageToolReproRoute
+  ApiMcpChatRoute: typeof ApiMcpChatRoute
+  ApiMcpManualRoute: typeof ApiMcpManualRoute
+  ApiMcpPoolRoute: typeof ApiMcpPoolRoute
+  ApiMcpStatusRoute: typeof ApiMcpStatusRoute
   ApiStructuredChatRoute: typeof ApiStructuredChatRoute
   ApiStructuredOutputRoute: typeof ApiStructuredOutputRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
@@ -444,6 +509,13 @@ declare module '@tanstack/react-router' {
       path: '/realtime'
       fullPath: '/realtime'
       preLoaderRoute: typeof RealtimeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mcp-demo': {
+      id: '/mcp-demo'
+      path: '/mcp-demo'
+      fullPath: '/mcp-demo'
+      preLoaderRoute: typeof McpDemoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/issue-176-tool-result': {
@@ -579,6 +651,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiStructuredChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mcp-status': {
+      id: '/api/mcp-status'
+      path: '/api/mcp-status'
+      fullPath: '/api/mcp-status'
+      preLoaderRoute: typeof ApiMcpStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-pool': {
+      id: '/api/mcp-pool'
+      path: '/api/mcp-pool'
+      fullPath: '/api/mcp-pool'
+      preLoaderRoute: typeof ApiMcpPoolRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-manual': {
+      id: '/api/mcp-manual'
+      path: '/api/mcp-manual'
+      fullPath: '/api/mcp-manual'
+      preLoaderRoute: typeof ApiMcpManualRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-chat': {
+      id: '/api/mcp-chat'
+      path: '/api/mcp-chat'
+      fullPath: '/api/mcp-chat'
+      preLoaderRoute: typeof ApiMcpChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/image-tool-repro': {
       id: '/api/image-tool-repro'
       path: '/api/image-tool-repro'
@@ -644,11 +744,16 @@ const rootRouteChildren: RootRouteChildren = {
   ImageGenRoute: ImageGenRoute,
   ImageToolReproRoute: ImageToolReproRoute,
   Issue176ToolResultRoute: Issue176ToolResultRoute,
+  McpDemoRoute: McpDemoRoute,
   RealtimeRoute: RealtimeRoute,
   ServerFnChatRoute: ServerFnChatRoute,
   ThreadsRoute: ThreadsRoute,
   ApiImageGenRoute: ApiImageGenRoute,
   ApiImageToolReproRoute: ApiImageToolReproRoute,
+  ApiMcpChatRoute: ApiMcpChatRoute,
+  ApiMcpManualRoute: ApiMcpManualRoute,
+  ApiMcpPoolRoute: ApiMcpPoolRoute,
+  ApiMcpStatusRoute: ApiMcpStatusRoute,
   ApiStructuredChatRoute: ApiStructuredChatRoute,
   ApiStructuredOutputRoute: ApiStructuredOutputRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,

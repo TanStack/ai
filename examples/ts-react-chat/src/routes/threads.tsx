@@ -352,7 +352,8 @@ function ThreadsRoute() {
 
 const CHAT_BODY = { provider: 'openrouter', model: 'openai/gpt-5.1' } as const
 
-const MARKDOWN_PLUGINS = [rehypeRaw, rehypeSanitize, rehypeHighlight, remarkGfm]
+const REHYPE_PLUGINS = [rehypeRaw, rehypeSanitize, rehypeHighlight]
+const REMARK_PLUGINS = [remarkGfm]
 
 /** Render a single UIMessage part: reasoning, text, approval prompt, or guitar card. */
 function MessagePart({
@@ -386,7 +387,10 @@ function MessagePart({
   if (part.type === 'text' && part.content) {
     return (
       <div className="prose prose-invert max-w-none text-white">
-        <ReactMarkdown rehypePlugins={MARKDOWN_PLUGINS}>
+        <ReactMarkdown
+          rehypePlugins={REHYPE_PLUGINS}
+          remarkPlugins={REMARK_PLUGINS}
+        >
           {part.content}
         </ReactMarkdown>
       </div>

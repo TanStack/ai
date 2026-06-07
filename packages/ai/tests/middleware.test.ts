@@ -1068,6 +1068,66 @@ describe('chat() middleware', () => {
       expect(onAbort.mock.calls[0]![1].reason).toBe('seen enough')
       expect(onFinish).not.toHaveBeenCalled()
     })
+
+    it('propagates ctx.abort() into a running tool via ctx.abortSignal', async () => {
+      let seenSignal: AbortSignal | undefined
+
+      // Tool resolves only when its abort signal fires — without middleware
+      // abort propagation this would hang and the test would time out.
+      const tool = {
+        name: 'slowTool',
+        description: 'waits for abort',
+        execute: (_args: unknown, toolCtx?: { abortSignal?: AbortSignal }) =>
+          new Promise((resolve) => {
+            seenSignal = toolCtx?.abortSignal
+            if (!toolCtx?.abortSignal) {
+              resolve({ done: 'no-signal' })
+              return
+            }
+            if (toolCtx.abortSignal.aborted) {
+              resolve({ done: 'aborted' })
+              return
+            }
+            toolCtx.abortSignal.addEventListener(
+              'abort',
+              () => resolve({ done: 'aborted' }),
+              { once: true },
+            )
+          }),
+      }
+
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('tc-1', 'slowTool'),
+            ev.toolArgs('tc-1', '{}'),
+            ev.toolEnd('tc-1', 'slowTool', { input: {} }),
+            ev.runFinished('tool_calls'),
+          ],
+        ],
+      })
+
+      const middleware: ChatMiddleware = {
+        name: 'tool-aborter',
+        onBeforeToolCall: (ctx) => {
+          // Abort shortly after the tool has started executing.
+          setTimeout(() => ctx.abort('mid-tool abort'), 10)
+          return undefined
+        },
+      }
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        tools: [tool],
+        middleware: [middleware],
+      })
+      await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      expect(seenSignal).toBeDefined()
+      expect(seenSignal!.aborted).toBe(true)
+    })
   })
 
   // ==========================================================================

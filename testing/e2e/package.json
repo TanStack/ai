@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@copilotkit/aimock": "^1.28.1",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@openrouter/sdk": "0.12.35",
     "@opentelemetry/api": "^1.9.0",
     "@tailwindcss/vite": "^4.1.18",
@@ -22,6 +23,7 @@
     "@tanstack/ai-gemini": "workspace:*",
     "@tanstack/ai-grok": "workspace:*",
     "@tanstack/ai-groq": "workspace:*",
+    "@tanstack/ai-mcp": "workspace:*",
     "@tanstack/ai-ollama": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-openrouter": "workspace:*",

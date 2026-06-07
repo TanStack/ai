@@ -58,7 +58,7 @@ const getRealtimeToken = createServerFn({ method: 'POST' })
 
 ### 2. Connect from the Client (React)
 
-```typescript
+```tsx
 import { useRealtimeChat } from '@tanstack/ai-react'
 import { openaiRealtime } from '@tanstack/ai-openai'
 
@@ -194,7 +194,7 @@ const { startListening, stopListening, vadMode, setVADMode } = useRealtimeChat({
 
 With `manual` VAD mode, use push-to-talk style interactions:
 
-```typescript
+```tsx
 <button onMouseDown={startListening} onMouseUp={stopListening}>
   Hold to talk
 </button>
@@ -283,13 +283,13 @@ The `inputLevel` and `outputLevel` values update on every animation frame while 
 
 **Simple level meter:**
 
-```typescript
+```tsx
 <div style={{ width: `${inputLevel * 100}%`, height: 4, background: 'green' }} />
 ```
 
 **Pulsing audio indicator:**
 
-```typescript
+```tsx
 function AudioIndicator({ level }: { level: number }) {
   return (
     <div

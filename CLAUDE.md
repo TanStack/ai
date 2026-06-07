@@ -333,6 +333,17 @@ OPENAI_API_KEY=sk-... pnpm --filter @tanstack/ai-e2e record
 - **Use the latest model per provider in examples**, sourced from each
   adapter's `model-meta.ts` (the newest `gpt-*`, `claude-*`, `gemini-*`,
   etc.). Don't introduce superseded model ids in new or edited samples.
+- **Maintain `addedAt` / `updatedAt` on docs entries in `docs/config.json`.**
+  Every page entry carries an `addedAt` (ISO `YYYY-MM-DD`) and, once edited,
+  an `updatedAt`. When you touch a docs page, update its entry:
+  - **New page** → add the entry with `addedAt` set to today's date.
+  - **Content change** to an existing page (new section, new capability,
+    reworked guidance, new examples) → set/refresh `updatedAt` to today's
+    date.
+  - **Bug fixes don't bump anything.** Pure corrections — typos, broken
+    links, code-fence languages, formatting, factual fixes — must **not**
+    touch `addedAt` or `updatedAt`. Only genuinely new or changed content
+    moves these dates.
 
 ## Key Dependencies
 

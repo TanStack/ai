@@ -98,7 +98,7 @@ export async function POST(request: Request) {
 
 **Client (React Component):**
 
-```typescript
+```tsx
 import { useState } from "react";
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
@@ -180,7 +180,7 @@ stateDiagram-v2
 
 ### Monitoring Tool States in React
 
-```typescript
+```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import { clientTools, createChatClientOptions } from "@tanstack/ai-client";
 import { getWeather, sendEmail } from "./tools";
@@ -285,7 +285,7 @@ const sendEmail = sendEmailDef.server(async ({ to, subject, body }) => {
 
 **Handle approval in client:**
 
-```typescript
+```tsx
 const { messages, addToolApprovalResponse } = useChat({
   connection: fetchServerSentEvents("/api/chat"),
 });

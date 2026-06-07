@@ -245,4 +245,92 @@ describe('makeStructuredOutputCompatible', () => {
     expect(result.properties.value.anyOf).toContainEqual({ type: 'null' })
     expect(result.properties.value.anyOf).toHaveLength(3)
   })
+
+  it('should strip unsupported string formats (e.g. uri) anywhere in the tree', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        data: { type: 'string', format: 'uri' },
+        nested: {
+          type: 'object',
+          properties: {
+            link: { type: 'string', format: 'uri-reference' },
+          },
+          required: ['link'],
+        },
+        list: {
+          type: 'array',
+          items: { type: 'string', format: 'iri' },
+        },
+      },
+      required: ['data', 'nested', 'list'],
+    }
+
+    const result: any = makeStructuredOutputCompatible(schema, [
+      'data',
+      'nested',
+      'list',
+    ])
+
+    expect(result.properties.data.format).toBeUndefined()
+    expect(result.properties.data.type).toBe('string')
+    expect(result.properties.nested.properties.link.format).toBeUndefined()
+    expect(result.properties.list.items.format).toBeUndefined()
+  })
+
+  it('should retain supported string formats', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        when: { type: 'string', format: 'date-time' },
+        who: { type: 'string', format: 'email' },
+        id: { type: 'string', format: 'uuid' },
+      },
+      required: ['when', 'who', 'id'],
+    }
+
+    const result: any = makeStructuredOutputCompatible(schema, [
+      'when',
+      'who',
+      'id',
+    ])
+
+    expect(result.properties.when.format).toBe('date-time')
+    expect(result.properties.who.format).toBe('email')
+    expect(result.properties.id.format).toBe('uuid')
+  })
+
+  it('should preserve a property literally named "format"', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        // "format" here is a property NAME, not the format keyword — its value
+        // is a schema object and must survive (only its inner unsupported
+        // format keyword is stripped).
+        format: { type: 'string', format: 'uri' },
+      },
+      required: ['format'],
+    }
+
+    const result: any = makeStructuredOutputCompatible(schema, ['format'])
+
+    expect(result.properties.format).toBeDefined()
+    expect(result.properties.format.type).toBe('string')
+    expect(result.properties.format.format).toBeUndefined()
+  })
+
+  it('should not mutate the input schema when stripping formats', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        data: { type: 'string', format: 'uri' },
+      },
+      required: ['data'],
+    }
+
+    makeStructuredOutputCompatible(schema, ['data'])
+
+    // Original definition is untouched — the strip pass returns a fresh tree.
+    expect(schema.properties.data.format).toBe('uri')
+  })
 })

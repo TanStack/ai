@@ -89,7 +89,7 @@ export async function POST(request: Request) {
 
 The client receives approval requests and can respond:
 
-```typescript
+```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
 function ChatComponent() {
@@ -148,7 +148,7 @@ function ChatComponent() {
 
 Here's a more complete approval UI component:
 
-```typescript
+```tsx
 import type { ToolCallPart } from "@tanstack/ai-client";
 
 function ApprovalPrompt({
@@ -195,7 +195,7 @@ function ApprovalPrompt({
 
 Wire it up from your message renderer. Note the `id` you pass is the **approval id** (`part.approval.id`), not the tool call id:
 
-```typescript
+```tsx
 {part.type === "tool-call" &&
   part.state === "approval-requested" &&
   part.approval && (
