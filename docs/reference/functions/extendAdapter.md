@@ -6,10 +6,10 @@ title: extendAdapter
 # Function: extendAdapter()
 
 ```ts
-function extendAdapter<TFactory, TDefs>(factory, _customModels): (model, ...args) => InferAdapterReturn<TFactory>;
+function extendAdapter<TFactory, TDefs>(factory, _customModels): ExtendedFactory<TFactory, TDefs>;
 ```
 
-Defined in: [packages/ai/src/extend-adapter.ts:227](https://github.com/TanStack/ai/blob/main/packages/ai/src/extend-adapter.ts#L227)
+Defined in: [packages/ai/src/extend-adapter.ts:247](https://github.com/TanStack/ai/blob/main/packages/ai/src/extend-adapter.ts#L247)
 
 Extends an existing adapter factory with additional custom models.
 
@@ -23,7 +23,7 @@ The original factory's signature is fully preserved, including any config parame
 
 ### TFactory
 
-`TFactory` *extends* (...`args`) => `any`
+`TFactory` *extends* `AnyAdapterFactory`
 
 ### TDefs
 
@@ -43,25 +43,9 @@ The original adapter factory function (e.g., `openaiText`, `anthropicText`)
 
 ## Returns
 
+`ExtendedFactory`\<`TFactory`, `TDefs`\>
+
 A new factory function that accepts both original and custom models
-
-```ts
-(model, ...args): InferAdapterReturn<TFactory>;
-```
-
-### Parameters
-
-#### model
-
-`InferFactoryModels`\<`TFactory`\> | `ExtractCustomModelNames`\<`TDefs`\>
-
-#### args
-
-...`InferConfig`\<`TFactory`\> *extends* `undefined` ? \[\] : \[`InferConfig`\<`TFactory`\>\]
-
-### Returns
-
-`InferAdapterReturn`\<`TFactory`\>
 
 ## Example
 

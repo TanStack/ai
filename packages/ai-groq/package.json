@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-groq",
-  "version": "0.4.0",
+  "version": "0.4.2",
   "type": "module",
   "description": "Groq adapter for TanStack AI low-latency chat, tool calling, and structured outputs.",
   "author": "",
@@ -60,6 +60,6 @@
   "dependencies": {
     "@tanstack/ai-utils": "workspace:*",
     "@tanstack/openai-base": "workspace:*",
-    "openai": "^6.9.1"
+    "openai": "^6.41.0"
   }
 }

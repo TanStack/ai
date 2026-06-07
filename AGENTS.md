@@ -59,6 +59,14 @@ When editing docs under `docs/`:
   include snippets for both halves (server endpoint AND client consumption).
 - **Use the latest model per provider**, sourced from each adapter's
   `model-meta.ts` (newest `gpt-*`, `claude-*`, `gemini-*`, …), in example code.
+- **Maintain `addedAt` / `updatedAt` on docs entries in `docs/config.json`.**
+  Every page entry carries an `addedAt` (ISO `YYYY-MM-DD`) and, once edited, an
+  `updatedAt`. When you touch a docs page, update its entry: add a new entry
+  with `addedAt` set to today's date for a **new page**, or set/refresh
+  `updatedAt` to today's date when you make a **content change** to an existing
+  page (new section, capability, reworked guidance, new examples). **Bug fixes
+  don't bump anything** — typos, broken links, code-fence languages,
+  formatting, and factual fixes must not touch `addedAt` or `updatedAt`.
 - Run `pnpm test:docs` (link verification) before pushing.
 
 ## Everything Else

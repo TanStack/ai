@@ -5,7 +5,7 @@ import type {
   BetaToolChoiceTool,
 } from '@anthropic-ai/sdk/resources/beta/messages/messages'
 import type { CacheControlEphemeral } from '@anthropic-ai/sdk/resources'
-import type { AnthropicTool } from '../tools'
+import type { AnthropicContainerSkill, AnthropicTool } from '../tools'
 import type {
   MessageParam,
   TextBlockParam,
@@ -49,20 +49,14 @@ export interface AnthropicContainerOptions {
   container?: {
     id: string | null
     /**
-     * List of skills to load into the container
+     * List of skills to load into the container.
+     *
+     * @deprecated Configure skills on the `code_execution` tool instead:
+     * `codeExecutionTool(config, { skills })`. The adapter lifts those into
+     * `container.skills` and attaches the required beta headers. Setting
+     * skills here bypasses the beta-header wiring and may stop working.
      */
-    skills: Array<{
-      /**
-       * Between 1-64 characters
-       */
-      skill_id: string
-
-      type: 'anthropic' | 'custom'
-      /**
-       * Skill version or latest by default
-       */
-      version?: string
-    }> | null
+    skills: Array<AnthropicContainerSkill> | null
   } | null
 }
 

@@ -1,5 +1,35 @@
 # @tanstack/ai
 
+## 0.28.0
+
+### Minor Changes
+
+- [#700](https://github.com/TanStack/ai/pull/700) [`496e814`](https://github.com/TanStack/ai/commit/496e8143435746965b10e0bbd12f26ebf04ae2a6) - Add an `mcp` option to `chat()` for managing MCP clients directly: `chat({ mcp: { clients, connection, lazyTools, onDiscoveryError } })` discovers the given MCP clients'/pools' tools at run start, merges them into the run, and (by default, `connection: 'close'`) closes them when the run ends — or keeps them warm with `connection: 'keep-alive'`. Also exports `MCPToolSource`, `ChatMCPOptions`, `MCPConnectionPolicy`, and `MCPDuplicateToolNameError` (the error thrown when tools from separate `mcp.clients` entries collide after merging; catchable with `instanceof`).
+
+- [#700](https://github.com/TanStack/ai/pull/700) [`496e814`](https://github.com/TanStack/ai/commit/496e8143435746965b10e0bbd12f26ebf04ae2a6) - Add `@tanstack/ai-mcp`: a host-side Model Context Protocol client. Discover and run MCP server tools (and read resources/prompts) inside any adapter's `chat()` loop, with three type-safety modes (auto-discovery, hand-written `toolDefinition()` binding, and generated end-to-end types via `npx @tanstack/ai-mcp generate`). Includes `createMCPClients` for connecting to multiple servers with auto-prefixed tool names. Also exposes `abortSignal` on `ToolExecutionContext` so long-running tools (e.g. MCP `callTool`) cancel with the chat run.
+
+### Patch Changes
+
+- [#408](https://github.com/TanStack/ai/pull/408) [`c0af426`](https://github.com/TanStack/ai/commit/c0af4262d269be67c69d6f878d9618f25fdeee19) - Fix `extendAdapter` dropping required parameters after the model (e.g. `apiKey` in `createAnthropicChat`). All factory parameters after the model are now preserved, including labels and optionality.
+
+- [#395](https://github.com/TanStack/ai/pull/395) [`00e0c93`](https://github.com/TanStack/ai/commit/00e0c932e6cb5e31f75f4b5e94486d7eb02b9ce1) - fix(ai): produce new object references in tool-call message updaters
+
+  `updateToolCallApproval`, `updateToolCallState`, `updateToolCallWithOutput`,
+  and `updateToolCallApprovalResponse` previously mutated the found tool-call
+  part in-place (`toolCallPart.state = ...`) after spreading the parts array.
+  The shallow `[...msg.parts]` copy created a new array but preserved the
+  original object references, so frameworks that rely on reference identity
+  for change detection (Svelte 5 proxies, Vue 3 reactivity, etc.) could not
+  observe the updates.
+
+  Each function now replaces the part at its index with a spread copy
+  (`parts[index] = { ...toolCallPart, ...changes }`), producing a fresh
+  object on every update. This aligns with the pattern already used by
+  `updateToolCallPart`, `updateTextPart`, and `updateThinkingPart`.
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.5.4
+
 ## 0.27.0
 
 ### Minor Changes

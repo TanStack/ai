@@ -16,6 +16,16 @@ emitting custom events during execution.
 
 ## Type Declaration
 
+### abortSignal?
+
+```ts
+optional abortSignal: AbortSignal;
+```
+
+Abort signal for the current chat run. Aborts when the run's
+`abortController` fires (or middleware aborts). Long-running tools —
+e.g. MCP `callTool` — should forward this to cancel in-flight work.
+
 ### emitCustomEvent()
 
 ```ts

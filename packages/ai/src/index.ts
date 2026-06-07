@@ -52,6 +52,16 @@ export {
   type InferToolOutput,
 } from './activities/chat/tools/tool-definition'
 
+// MCP chat option types
+export type {
+  MCPToolSource,
+  ChatMCPOptions,
+  MCPConnectionPolicy,
+} from './activities/chat/mcp/types'
+
+// MCP error classes (value exports — usable with instanceof)
+export { MCPDuplicateToolNameError } from './activities/chat/mcp/manager'
+
 // Schema conversion (Standard JSON Schema compliant)
 export {
   convertSchemaToJsonSchema,

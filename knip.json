@@ -8,6 +8,7 @@
   ],
   "ignore": [
     "scripts/**",
+    "**/*.test-d.ts",
     "packages/ai-code-mode-skills/test-cli/**",
     ".claude/worktrees/**",
     "packages/ai-openai/live-tests/**",

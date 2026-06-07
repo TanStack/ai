@@ -1,0 +1,13 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[mcp-lifecycle] ping",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "pong"
+      }
+    }
+  ]
+}

@@ -30,7 +30,7 @@ Tools enable your AI application to:
 ## Framework Support
 
 TanStack AI works with **any** JavaScript framework:
-- Next.js, Express, Remix, Fastify, etc.
+- TanStack Start, Next.js, Express, Remix, Fastify, etc.
 - React, Vue, Solid, Svelte, vanilla JS, etc.
 
 TanStack AI works with any JavaScript framework.
@@ -217,7 +217,7 @@ export async function POST(request: Request) {
 
 ### Client-Side with Type Safety
 
-```typescript
+```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import { 
   clientTools, 
@@ -380,3 +380,4 @@ Once arguments (and approval, if required) are in, the result appears as `part.o
 - [Client Tools](./client-tools) - Learn about client-side tool execution
 - [Tool Approval Flow](./tool-approval) - Implement approval workflows
 - [How Tools Work](./tool-architecture) - Deep dive into the tool architecture
+- [MCP Server Tools](./mcp) - Connect to external MCP servers for additional tools

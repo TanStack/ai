@@ -491,6 +491,12 @@ export type ToolExecutionContext<TContext = unknown> =
     /** The ID of the tool call being executed */
     toolCallId?: string
     /**
+     * Abort signal for the current chat run. Aborts when the run's
+     * `abortController` fires (or middleware aborts). Long-running tools —
+     * e.g. MCP `callTool` — should forward this to cancel in-flight work.
+     */
+    abortSignal?: AbortSignal
+    /**
      * Emit a custom event during tool execution.
      * Events are streamed to the client in real-time as AG-UI CUSTOM events.
      *

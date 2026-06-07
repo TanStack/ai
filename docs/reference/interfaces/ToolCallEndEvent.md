@@ -5,7 +5,7 @@ title: ToolCallEndEvent
 
 # Interface: ToolCallEndEvent
 
-Defined in: [packages/ai/src/types.ts:1086](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1086)
+Defined in: [packages/ai/src/types.ts:1092](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1092)
 
 Emitted when a tool call completes.
 
@@ -30,7 +30,7 @@ TanStack AI adds: `model?`, `toolCallName?`, `toolName?` (deprecated), `input?`,
 optional input: unknown;
 ```
 
-Defined in: [packages/ai/src/types.ts:1097](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1097)
+Defined in: [packages/ai/src/types.ts:1103](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1103)
 
 Final parsed input arguments (TanStack AI internal)
 
@@ -42,7 +42,7 @@ Final parsed input arguments (TanStack AI internal)
 optional model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1088](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1088)
+Defined in: [packages/ai/src/types.ts:1094](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1094)
 
 Model identifier for multi-model support
 
@@ -56,7 +56,7 @@ optional result:
   | ContentPart<unknown, unknown, unknown, unknown, unknown>[];
 ```
 
-Defined in: [packages/ai/src/types.ts:1099](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1099)
+Defined in: [packages/ai/src/types.ts:1105](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1105)
 
 Tool execution result (TanStack AI internal)
 
@@ -68,7 +68,7 @@ Tool execution result (TanStack AI internal)
 optional state: ToolOutputState;
 ```
 
-Defined in: [packages/ai/src/types.ts:1101](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1101)
+Defined in: [packages/ai/src/types.ts:1107](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1107)
 
 Tool execution output state (TanStack AI internal)
 
@@ -80,7 +80,7 @@ Tool execution output state (TanStack AI internal)
 optional toolCallName: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1090](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1090)
+Defined in: [packages/ai/src/types.ts:1096](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1096)
 
 Name of the tool that completed
 
@@ -92,7 +92,7 @@ Name of the tool that completed
 optional toolName: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1095](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1095)
+Defined in: [packages/ai/src/types.ts:1101](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1101)
 
 #### Deprecated
 

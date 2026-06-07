@@ -1,5 +1,30 @@
 # @tanstack/openai-base
 
+## 0.8.1
+
+### Patch Changes
+
+- [#700](https://github.com/TanStack/ai/pull/700) [`496e814`](https://github.com/TanStack/ai/commit/496e8143435746965b10e0bbd12f26ebf04ae2a6) - Strip JSON Schema `format` values that OpenAI's strict Structured Outputs subset rejects (e.g. `uri`, `uri-reference`, `iri`) from tool and response schemas before sending. Tools whose input schemas declare an unsupported `format` — common with MCP server tools — previously caused the entire request to fail with `400 ... '<format>' is not a valid format`. Supported formats (`date-time`, `time`, `date`, `duration`, `email`, `hostname`, `ipv4`, `ipv6`, `uuid`) are preserved, and the caller's original tool definition is never mutated.
+
+- Updated dependencies [[`496e814`](https://github.com/TanStack/ai/commit/496e8143435746965b10e0bbd12f26ebf04ae2a6), [`c0af426`](https://github.com/TanStack/ai/commit/c0af4262d269be67c69d6f878d9618f25fdeee19), [`00e0c93`](https://github.com/TanStack/ai/commit/00e0c932e6cb5e31f75f4b5e94486d7eb02b9ce1), [`496e814`](https://github.com/TanStack/ai/commit/496e8143435746965b10e0bbd12f26ebf04ae2a6)]:
+  - @tanstack/ai@0.28.0
+
+## 0.8.0
+
+### Minor Changes
+
+- [#695](https://github.com/TanStack/ai/pull/695) [`786b3e4`](https://github.com/TanStack/ai/commit/786b3e4d68815349f3157bdfea1791038c978519) - feat: attach hosted provider Skills to code-execution / shell tools
+
+  Hosted, provider-managed Agent Skills can now be attached to the server-side execution tool that runs them:
+  - **Anthropic** — `codeExecutionTool(config, { skills: [{ type: 'anthropic', skill_id: 'pptx', version: 'latest' }] })`. The adapter lifts the skills into the request's top-level `container.skills` and automatically attaches the required beta headers (`code-execution-2025-08-25` — or `code-execution-2025-05-22` for the legacy `code_execution_20250522` variant — plus `skills-2025-10-02`).
+  - **OpenAI** — `shellTool({ environment: { type: 'container_auto', skills: [{ type: 'skill_reference', skill_id: '...', version: '2' }] } })`, threaded through the Responses API shell tool.
+
+  Scope: hosted/managed skills referenced by id + version. Skills are inert without the execution tool that runs them.
+
+  Setting skills via Anthropic's `modelOptions.container.skills` is deprecated in favor of `codeExecutionTool(config, { skills })`.
+
+  Bumps the `openai` SDK to `^6.41.0` (required for the typed shell `environment.skills` surface).
+
 ## 0.7.0
 
 ### Minor Changes

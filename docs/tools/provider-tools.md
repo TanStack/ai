@@ -88,6 +88,15 @@ matrix is maintained alongside `model-meta.ts` and reflected here:
 For the exact per-model list, open the adapter page or read the model's
 `supports.tools` array directly from `model-meta.ts`.
 
+## Provider Skills
+
+Anthropic and OpenAI support hosted, provider-managed skill bundles that run
+inside the provider's server-side sandbox. Skills attach to an execution tool
+(`codeExecutionTool` for Anthropic, `shellTool` for OpenAI) and are referenced
+by ID — the provider handles installation and execution.
+
+See [Provider Skills](./provider-skills.md) for full setup steps and examples.
+
 ## Migrating from earlier versions
 
 If you were using `createWebSearchTool` from `@tanstack/ai-openrouter`, see

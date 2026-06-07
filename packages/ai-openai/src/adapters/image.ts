@@ -76,13 +76,7 @@ export class OpenAIImageAdapter<
       ...(modelOptions ?? {}),
     }
     if (size !== undefined) {
-      // Index into ImageGenerateParams['size'] gives `... | null | undefined`;
-      // strip `undefined` so the value matches the SDK's `size?: ... | null`
-      // shape under exactOptionalPropertyTypes.
-      request.size = size as Exclude<
-        OpenAI_SDK.Images.ImageGenerateParams['size'],
-        undefined
-      >
+      request.size = size
     }
 
     try {

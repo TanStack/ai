@@ -25,6 +25,7 @@ import {
 import { maxIterations as maxIterationsStrategy } from './agent-loop-strategies'
 import { convertMessagesToModelMessages, generateMessageId } from './messages'
 import { MiddlewareRunner } from './middleware/compose'
+import { MCPManager } from './mcp/manager'
 import type {
   ApprovalRequest,
   ClientToolRequest,
@@ -69,6 +70,7 @@ import type {
   MergeContext,
   UnionToIntersection,
 } from './runtime-context-types'
+import type { ChatMCPOptions } from './mcp/types'
 
 // ===========================
 // Activity Kind
@@ -208,6 +210,12 @@ export interface TextActivityOptions<
         | ProviderTool<string, TAdapter['~types']['toolCapabilities'][number]>
       >
     | undefined
+  /**
+   * Hand MCP clients/pools to chat(): their tools are discovered at run start
+   * and merged into the run; `connection` controls whether chat() closes them
+   * when the run ends. See docs/tools/mcp.md "Managing MCP clients with chat()".
+   */
+  mcp?: ChatMCPOptions
   /** Additional metadata to attach to the request. */
   metadata?: TextOptions['metadata']
   /** Model-specific provider options (type comes from adapter) */
@@ -432,6 +440,28 @@ interface TextEngineConfig<
 type ToolPhaseResult = 'continue' | 'stop' | 'wait'
 type CyclePhase = 'processText' | 'executeToolCalls'
 
+/**
+ * Combine two optional AbortSignals into one that aborts when either does.
+ * Returns the other signal directly when one is absent or already aborted.
+ * (Manual implementation — `AbortSignal.any` requires Node >= 20.3.)
+ */
+function combineAbortSignals(
+  a: AbortSignal | undefined,
+  b: AbortSignal | undefined,
+): AbortSignal | undefined {
+  if (!a) return b
+  if (!b) return a
+  if (a.aborted) return a
+  if (b.aborted) return b
+  const controller = new AbortController()
+  const onAbort = (source: AbortSignal) => () => {
+    controller.abort(source.reason)
+  }
+  a.addEventListener('abort', onAbort(a), { once: true })
+  b.addEventListener('abort', onAbort(b), { once: true })
+  return controller.signal
+}
+
 class TextEngine<
   TAdapter extends AnyTextAdapter,
   TContext = unknown,
@@ -486,6 +516,9 @@ class TextEngine<
   private readonly deferredPromises: Array<Promise<unknown>> = []
   private abortReason?: string
   private readonly middlewareAbortController?: AbortController
+  // Combines the caller's signal with middleware abort() so running tools
+  // observe both cancellation sources via ctx.abortSignal.
+  private readonly toolAbortSignal?: AbortSignal
   private terminalHookCalled = false
 
   private readonly logger: InternalLogger
@@ -583,6 +616,10 @@ class TextEngine<
     ]
     this.middlewareRunner = new MiddlewareRunner(allMiddleware, logger)
     this.middlewareAbortController = new AbortController()
+    this.toolAbortSignal = combineAbortSignals(
+      this.effectiveSignal,
+      this.middlewareAbortController.signal,
+    )
     this.middlewareCtx = {
       requestId: this.requestId,
       streamId: this.streamId,
@@ -1225,6 +1262,7 @@ class TextEngine<
         },
       },
       this.middlewareCtx.context,
+      this.toolAbortSignal,
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -1386,6 +1424,7 @@ class TextEngine<
         },
       },
       this.middlewareCtx.context,
+      this.toolAbortSignal,
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -2568,9 +2607,15 @@ export function chat<
 async function* runStreamingText<TContext = unknown>(
   options: TextActivityOptions<AnyTextAdapter, undefined, true, TContext>,
 ): AsyncIterable<StreamChunk> {
-  const { adapter, middleware, context, debug, ...textOptions } = options
+  const { adapter, middleware, context, debug, mcp, ...textOptions } = options
   const model = adapter.model
   const logger = resolveDebugOption(debug)
+
+  const mcpManager = MCPManager.from(mcp)
+  const mcpTools = await mcpManager.discover()
+  if (mcpTools.length > 0) {
+    textOptions.tools = [...(textOptions.tools ?? []), ...mcpTools]
+  }
 
   const engine = new TextEngine(
     {
@@ -2586,8 +2631,12 @@ async function* runStreamingText<TContext = unknown>(
     logger,
   )
 
-  for await (const chunk of engine.run()) {
-    yield chunk
+  try {
+    for await (const chunk of engine.run()) {
+      yield chunk
+    }
+  } finally {
+    await mcpManager.dispose()
   }
 }
 
@@ -2624,8 +2673,15 @@ async function runAgenticStructuredOutput<
 >(
   options: TextActivityOptions<AnyTextAdapter, TSchema, boolean, TContext>,
 ): Promise<InferSchemaType<TSchema>> {
-  const { adapter, outputSchema, middleware, context, debug, ...textOptions } =
-    options
+  const {
+    adapter,
+    outputSchema,
+    middleware,
+    context,
+    debug,
+    mcp,
+    ...textOptions
+  } = options
   const model = adapter.model
   const logger = resolveDebugOption(debug)
 
@@ -2659,6 +2715,12 @@ async function runAgenticStructuredOutput<
   const nativeCombined =
     adapter.supportsCombinedToolsAndSchema?.(options.modelOptions) === true
 
+  const mcpManager = MCPManager.from(mcp)
+  const mcpTools = await mcpManager.discover()
+  if (mcpTools.length > 0) {
+    textOptions.tools = [...(textOptions.tools ?? []), ...mcpTools]
+  }
+
   const engine = new TextEngine(
     {
       adapter,
@@ -2679,9 +2741,13 @@ async function runAgenticStructuredOutput<
     logger,
   )
 
-  // Consume the stream — chunks pipe through middleware but are not yielded externally
-  for await (const _chunk of engine.run()) {
-    // intentionally empty
+  try {
+    // Consume the stream — chunks pipe through middleware but are not yielded externally
+    for await (const _chunk of engine.run()) {
+      // intentionally empty
+    }
+  } finally {
+    await mcpManager.dispose()
   }
 
   const finalizationError = engine.getFinalizationError()
@@ -2912,8 +2978,15 @@ async function* runStreamingStructuredOutputImpl<
   options: TextActivityOptions<AnyTextAdapter, TSchema, true, TContext>,
   jsonSchema: NonNullable<ReturnType<typeof convertSchemaToJsonSchema>>,
 ): StructuredOutputStreamInternal<InferSchemaType<TSchema>> {
-  const { adapter, outputSchema, middleware, context, debug, ...textOptions } =
-    options
+  const {
+    adapter,
+    outputSchema,
+    middleware,
+    context,
+    debug,
+    mcp,
+    ...textOptions
+  } = options
   const model = adapter.model
   const logger = resolveDebugOption(debug)
 
@@ -2926,6 +2999,12 @@ async function* runStreamingStructuredOutputImpl<
   // does not fire.
   const nativeCombined =
     adapter.supportsCombinedToolsAndSchema?.(options.modelOptions) === true
+
+  const mcpManager = MCPManager.from(mcp)
+  const mcpTools = await mcpManager.discover()
+  if (mcpTools.length > 0) {
+    textOptions.tools = [...(textOptions.tools ?? []), ...mcpTools]
+  }
 
   // Inputs may be UIMessages (from useChat) or ModelMessages (from server-side
   // callers). TextEngine handles the conversion uniformly.
@@ -2948,8 +3027,12 @@ async function* runStreamingStructuredOutputImpl<
     logger,
   )
 
-  for await (const chunk of engine.run()) {
-    yield chunk
+  try {
+    for await (const chunk of engine.run()) {
+      yield chunk
+    }
+  } finally {
+    await mcpManager.dispose()
   }
 
   // Schema validation for the streaming variant remains the consumer's

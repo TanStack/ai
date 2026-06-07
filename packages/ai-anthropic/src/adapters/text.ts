@@ -2,6 +2,7 @@ import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
+import { readCodeExecutionConfig, readCodeExecutionSkills } from '../tools'
 import { validateTextProviderOptions } from '../text/text-provider-options'
 import { buildAnthropicUsage } from '../usage'
 import {
@@ -36,6 +37,7 @@ import type {
 import type Anthropic_SDK from '@anthropic-ai/sdk'
 import type { AnthropicBeta } from '@anthropic-ai/sdk/resources/beta/beta'
 import type {
+  AnyTool,
   ContentPart,
   Modality,
   ModelMessage,
@@ -54,6 +56,60 @@ import type {
   AnthropicTextMetadata,
 } from '../message-types'
 import type { AnthropicClientConfig } from '../utils'
+
+/**
+ * Computes the `betas` array for a Messages request. Unions:
+ * - `interleaved-thinking-2025-05-14` when interleaved thinking is enabled,
+ * - `code-execution-2025-08-25` when a `code_execution` tool is present,
+ * - `skills-2025-10-02` when that tool carries skills.
+ * Returns `undefined` when none apply (so the call site omits `betas`).
+ */
+export function computeAnthropicBetas(
+  tools: Array<AnyTool> | undefined,
+  modelOptions:
+    | {
+        thinking?: {
+          type?: 'enabled' | 'disabled' | 'adaptive'
+          budget_tokens?: number
+        }
+      }
+    | undefined,
+): Array<AnthropicBeta> | undefined {
+  const betas = new Set<AnthropicBeta>()
+
+  const useInterleavedThinking =
+    modelOptions?.thinking?.type === 'enabled' &&
+    typeof modelOptions.thinking.budget_tokens === 'number' &&
+    modelOptions.thinking.budget_tokens > 0
+  if (useInterleavedThinking) betas.add('interleaved-thinking-2025-05-14')
+
+  // Code-execution beta is version-aware: select from the FIRST code_execution
+  // tool's config type.
+  const codeExecTool = tools?.find((t) => t.name === 'code_execution')
+  if (codeExecTool) {
+    const cfgType = readCodeExecutionConfig(codeExecTool)?.type
+    // Each code_execution tool version pairs with a specific beta. Known
+    // legacy variant maps explicitly; current/future variants (e.g.
+    // `code_execution_20250825` and later) use the latest `-08-25` beta.
+    betas.add(
+      cfgType === 'code_execution_20250522'
+        ? 'code-execution-2025-05-22'
+        : 'code-execution-2025-08-25',
+    )
+  }
+
+  // Skills beta: scan ALL code_execution tools so this AGREES with the
+  // container-lift, which lifts skills from any code_execution tool that
+  // carries them (not just the first).
+  const hasSkills = tools?.some(
+    (t) =>
+      t.name === 'code_execution' &&
+      (readCodeExecutionSkills(t)?.length ?? 0) > 0,
+  )
+  if (hasSkills) betas.add('skills-2025-10-02')
+
+  return betas.size > 0 ? Array.from(betas) : undefined
+}
 
 /**
  * Configuration for Anthropic text adapter
@@ -144,18 +200,8 @@ export class AnthropicTextAdapter<
       )
 
       // `betas` is attached at the call site rather than in the shared mapper
-      // because the `interleaved-thinking-2025-05-14` header is only useful for
-      // the streaming path.
-      const modelOptions = options.modelOptions as
-        | InternalTextProviderOptions
-        | undefined
-      const useInterleavedThinking =
-        modelOptions?.thinking?.type === 'enabled' &&
-        typeof modelOptions.thinking.budget_tokens === 'number' &&
-        modelOptions.thinking.budget_tokens > 0
-      const betas: Array<AnthropicBeta> | undefined = useInterleavedThinking
-        ? ['interleaved-thinking-2025-05-14']
-        : undefined
+      // because the beta set depends on both the tools and the modelOptions.
+      const betas = computeAnthropicBetas(options.tools, options.modelOptions)
 
       // `client.beta.messages` is Anthropic's permanent staging surface, not a
       // sunset path: it's a superset of `client.messages` that additionally
@@ -237,6 +283,10 @@ export class AnthropicTextAdapter<
         `activity=chat provider=anthropic model=${this.model} messages=${chatOptions.messages.length} tools=${chatOptions.tools?.length ?? 0} stream=false`,
         { provider: 'anthropic', model: this.model },
       )
+      const betas = computeAnthropicBetas(
+        chatOptions.tools,
+        chatOptions.modelOptions,
+      )
       // Make non-streaming request with tool_choice forced to our structured output tool
       const response = await this.client.beta.messages.create(
         {
@@ -244,6 +294,7 @@ export class AnthropicTextAdapter<
           stream: false,
           tools: [structuredOutputTool],
           tool_choice: { type: 'tool', name: 'structured_output' },
+          ...(betas && { betas }),
         },
         {
           signal: chatOptions.request?.signal,
@@ -413,6 +464,26 @@ export class AnthropicTextAdapter<
           },
         }
       : undefined
+
+    // Lift skills attached to a `code_execution` tool into the top-level
+    // `container.skills` request param (Anthropic's required shape). Preserve any
+    // `container.id` supplied via modelOptions for container reuse. This is the
+    // canonical path for skills; `modelOptions.container.skills` is deprecated.
+    const toolSkills = options.tools
+      ?.map((tool) =>
+        tool.name === 'code_execution'
+          ? readCodeExecutionSkills(tool)
+          : undefined,
+      )
+      .find((skills) => skills && skills.length > 0)
+
+    if (toolSkills && toolSkills.length > 0) {
+      const existingContainer = validProviderOptions.container ?? undefined
+      validProviderOptions.container = {
+        id: existingContainer?.id ?? null,
+        skills: toolSkills,
+      }
+    }
 
     // `temperature`/`top_p` arrive via `...validProviderOptions` (sourced from
     // `modelOptions`). `InternalTextProviderOptions` declares `system` and
