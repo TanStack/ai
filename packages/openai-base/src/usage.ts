@@ -35,7 +35,7 @@ export function buildChatCompletionsUsage(
 
   const promptDetails = usage.prompt_tokens_details
   const promptTokensDetails = {
-    ...(promptDetails?.cached_tokens
+    ...(promptDetails?.cached_tokens != null
       ? { cachedTokens: promptDetails.cached_tokens }
       : {}),
     ...(promptDetails?.audio_tokens
@@ -98,7 +98,7 @@ export function buildResponsesUsage(
   // Despite the SDK types marking these required, they can be undefined at runtime.
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   const cachedTokens = usage.input_tokens_details?.cached_tokens
-  if (cachedTokens && cachedTokens > 0) {
+  if (cachedTokens != null) {
     result.promptTokensDetails = {
       ...result.promptTokensDetails,
       cachedTokens,
