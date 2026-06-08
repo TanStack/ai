@@ -1,4 +1,5 @@
 import { dirname, resolve } from 'node:path'
+import { useEffect, useState } from 'react'
 import { Box, Text } from 'ink'
 import pkg from '../../package.json'
 import {
@@ -68,14 +69,113 @@ function GradientRule({ width }: { width: number }) {
   )
 }
 
+/** Width of the moving pink sweep band, in columns. */
+const SWEEP_BAND = 7
+const DONE_FRONT = WORDMARK_WIDTH + SWEEP_BAND
+
 /**
- * The full welcome header: optional logo, the big two-color wordmark (or a
- * compact fallback on narrow terminals), a sunset gradient rule, and tagline.
+ * Color for a single wordmark column given the sweep front position. Behind the
+ * band, columns settle to their final color (white for TANSTACK, pink for AI);
+ * the band itself is pink; columns ahead of it are still white.
  */
-export function WelcomeHeader({ logo }: { logo: string | null }) {
-  const cols = columns()
-  const ruleWidth = Math.min(cols, WORDMARK_WIDTH)
-  const wide = cols >= WORDMARK_WIDTH
+function colorForColumn(col: number, aiStart: number, front: number): string {
+  if (col <= front - SWEEP_BAND) return col >= aiStart ? PINK : WHITE
+  if (col <= front) return PINK
+  return WHITE
+}
+
+/** Run-length group a line's columns into colored segments to minimize nodes. */
+function lineSegments(
+  line: string,
+  aiStart: number,
+  front: number,
+): Array<{ text: string; color: string }> {
+  const segs: Array<{ text: string; color: string }> = []
+  let color = ''
+  let buf = ''
+  for (let c = 0; c < line.length; c++) {
+    const next = colorForColumn(c, aiStart, front)
+    if (next !== color) {
+      if (buf) segs.push({ text: buf, color })
+      buf = line[c] ?? ''
+      color = next
+    } else {
+      buf += line[c] ?? ''
+    }
+  }
+  if (buf) segs.push({ text: buf, color })
+  return segs
+}
+
+/**
+ * The big two-color wordmark. When `animate` is set (and the terminal is wide
+ * enough), a pink band sweeps left→right across the letters, leaving TANSTACK
+ * white and AI pink. Otherwise it renders the settled final state.
+ */
+function Wordmark({ animate }: { animate: boolean }) {
+  const wide = columns() >= WORDMARK_WIDTH
+  const [front, setFront] = useState(animate && wide ? 0 : DONE_FRONT)
+
+  useEffect(() => {
+    if (!animate || !wide) return
+    const id = setInterval(() => {
+      setFront((f) => {
+        const n = f + 2
+        if (n >= DONE_FRONT) {
+          clearInterval(id)
+          return DONE_FRONT
+        }
+        return n
+      })
+    }, 35)
+    return () => clearInterval(id)
+  }, [animate, wide])
+
+  if (!wide) {
+    return (
+      <Text>
+        <Text color={WHITE} bold>
+          TanStack{' '}
+        </Text>
+        <Text color={PINK} bold>
+          AI
+        </Text>
+      </Text>
+    )
+  }
+
+  const aiStart = (TANSTACK_LINES[0]?.length ?? 0) + 1
+  return (
+    <Box flexDirection="column">
+      {TANSTACK_LINES.map((tan, i) => {
+        const line = `${tan} ${AI_LINES[i] ?? ''}`
+        return (
+          <Text key={i}>
+            {lineSegments(line, aiStart, front).map((seg, j) => (
+              <Text key={j} color={seg.color} bold={seg.color === PINK}>
+                {seg.text}
+              </Text>
+            ))}
+          </Text>
+        )
+      })}
+    </Box>
+  )
+}
+
+/**
+ * The full welcome header: optional logo, the big two-color wordmark (animated
+ * sweep when `animate` is set, compact fallback on narrow terminals), a sunset
+ * gradient rule, and tagline.
+ */
+export function WelcomeHeader({
+  logo,
+  animate = false,
+}: {
+  logo: string | null
+  animate?: boolean
+}) {
+  const ruleWidth = Math.min(columns(), WORDMARK_WIDTH)
 
   return (
     <Box flexDirection="column" marginBottom={1}>
@@ -85,28 +185,7 @@ export function WelcomeHeader({ logo }: { logo: string | null }) {
         </Box>
       ) : null}
 
-      {wide ? (
-        <Box flexDirection="column">
-          {TANSTACK_LINES.map((line, i) => (
-            <Text key={i}>
-              <Text color={WHITE}>{line}</Text>
-              <Text> </Text>
-              <Text color={PINK} bold>
-                {AI_LINES[i]}
-              </Text>
-            </Text>
-          ))}
-        </Box>
-      ) : (
-        <Text>
-          <Text color={WHITE} bold>
-            TanStack{' '}
-          </Text>
-          <Text color={PINK} bold>
-            AI
-          </Text>
-        </Text>
-      )}
+      <Wordmark animate={animate} />
 
       <Box marginTop={1} flexDirection="column">
         <GradientRule width={ruleWidth} />
