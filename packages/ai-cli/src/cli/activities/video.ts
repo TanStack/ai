@@ -65,10 +65,14 @@ export async function runVideo(ctx: RunContext, prompt: string): Promise<void> {
   const bytes = await fetchBytes(final.url)
   const output =
     typeof ctx.options.output === 'string' ? ctx.options.output : undefined
+  const outputDir =
+    typeof ctx.options.outputDir === 'string'
+      ? ctx.options.outputDir
+      : undefined
   const path = await writeArtifact(
     'video',
     { bytes, ext: 'mp4', mimeType: 'video/mp4' },
-    output,
+    { output, outputDir },
     ctx.now,
   )
 

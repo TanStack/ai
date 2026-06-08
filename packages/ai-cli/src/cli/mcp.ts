@@ -4,6 +4,44 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod'
 import { COMMANDS } from '../manifest/manifest'
 
+const PINK = '[38;2;236;72;153m'
+const DIM = '[2m'
+const RESET = '[0m'
+
+/**
+ * Human-facing connection info for `ts-ai mcp`, returned for writing to STDERR
+ * (stdout is the JSON-RPC channel and must stay clean). Includes a ready-to-paste
+ * MCP client config, transport, server identity, and the tool list.
+ */
+export function describeMcpServer(cliVersion: string): string {
+  const tty = Boolean(process.stderr.isTTY)
+  const pink = (s: string) => (tty ? `${PINK}${s}${RESET}` : s)
+  const dim = (s: string) => (tty ? `${DIM}${s}${RESET}` : s)
+  const tools = COMMANDS.map((c) => c.name).join(', ')
+  const config = JSON.stringify(
+    { mcpServers: { 'tanstack-ai': { command: 'ts-ai', args: ['mcp'] } } },
+    null,
+    2,
+  )
+    .split('\n')
+    .map((line) => `  ${line}`)
+    .join('\n')
+
+  return [
+    '',
+    `${pink('TanStack AI')} ${dim(`· MCP server (stdio) · v${cliVersion}`)}`,
+    '',
+    dim('Add to your MCP client (e.g. Claude Desktop / Cursor):'),
+    config,
+    '',
+    `${dim('Transport :')} stdio`,
+    `${dim('Tools     :')} ${tools}`,
+    '',
+    `${pink('●')} listening on stdio — connect a client…`,
+    '',
+  ].join('\n')
+}
+
 /**
  * `ts-ai mcp` — expose each generation command as an MCP tool over stdio.
  *
@@ -41,6 +79,10 @@ export async function runMcpServer(cliVersion: string): Promise<void> {
       },
     )
   }
+
+  // Log connection info to stderr BEFORE listening — stdout is the JSON-RPC
+  // channel, stderr is free and is surfaced in MCP client logs.
+  process.stderr.write(describeMcpServer(cliVersion))
 
   const transport = new StdioServerTransport()
   await server.connect(transport)

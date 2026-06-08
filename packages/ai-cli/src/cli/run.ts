@@ -44,7 +44,10 @@ export async function run(
     if (isMachine(mode)) {
       emitError(cliError)
     } else {
-      process.stderr.write(`error: ${cliError.message}\n`)
+      // Pretty (TTY) mode: a branded red ✗ instead of a bare "error:" line.
+      const red = process.stderr.isTTY ? '[38;2;244;63;94m' : ''
+      const reset = process.stderr.isTTY ? '[39m' : ''
+      process.stderr.write(`${red}✗${reset} ${cliError.message}\n`)
     }
     return cliError.exitCode
   }

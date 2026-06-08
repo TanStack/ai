@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Box, Text, render, useApp, useInput } from 'ink'
+import { DIM, PINK } from './theme'
+import { WelcomeHeader, loadLogo } from './welcome'
 
 /** A selectable action from the home menu. */
 export interface MenuChoice {
@@ -63,37 +65,13 @@ const ITEMS: Array<MenuItem> = [
   { command: 'quit', label: 'Quit', hint: 'Exit', needsPrompt: false },
 ]
 
-const TITLE = 'TANSTACK AI'
-const GRADIENT = [
-  'cyan',
-  'cyanBright',
-  'blueBright',
-  'magenta',
-  'magentaBright',
-  'blueBright',
-]
-
-/** Animated wordmark: a gradient sweeps across the letters. */
-function Title() {
-  const [tick, setTick] = useState(0)
-  useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 90)
-    return () => clearInterval(id)
-  }, [])
-  return (
-    <Box marginBottom={1}>
-      <Text bold>
-        {TITLE.split('').map((ch, i) => (
-          <Text key={i} color={GRADIENT[(i + tick) % GRADIENT.length]}>
-            {ch}
-          </Text>
-        ))}
-      </Text>
-    </Box>
-  )
-}
-
-function Menu({ onChoose }: { onChoose: (choice: MenuChoice) => void }) {
+function Menu({
+  onChoose,
+  logo,
+}: {
+  onChoose: (choice: MenuChoice) => void
+  logo: string | null
+}) {
   const { exit } = useApp()
   const [index, setIndex] = useState(0)
   const [promptFor, setPromptFor] = useState<MenuItem | null>(null)
@@ -142,42 +120,51 @@ function Menu({ onChoose }: { onChoose: (choice: MenuChoice) => void }) {
   if (promptFor) {
     return (
       <Box flexDirection="column">
-        <Title />
+        <WelcomeHeader logo={logo} />
         <Text>
-          {promptFor.label}: <Text color="cyan">{draft}</Text>
-          <Text color="gray">▌</Text>
+          <Text color={PINK}>{promptFor.label}</Text>
+          <Text color={DIM}> › </Text>
+          <Text>{draft}</Text>
+          <Text color={DIM}>▌</Text>
         </Text>
-        <Text dimColor>Enter to run · Esc to go back</Text>
+        <Text color={DIM}>Enter to run · Esc to go back</Text>
       </Box>
     )
   }
 
   return (
     <Box flexDirection="column">
-      <Title />
-      <Text dimColor>What do you want to do?</Text>
+      <WelcomeHeader logo={logo} />
+      <Text color={DIM}>What do you want to do?</Text>
       <Box flexDirection="column" marginTop={1}>
-        {ITEMS.map((item, i) => (
-          <Text key={item.command} color={i === index ? 'cyan' : undefined}>
-            {i === index ? '❯ ' : '  '}
-            <Text bold={i === index}>{item.label}</Text>
-            <Text dimColor> — {item.hint}</Text>
-          </Text>
-        ))}
+        {ITEMS.map((item, i) => {
+          const active = i === index
+          return (
+            <Text key={item.command}>
+              <Text color={PINK}>{active ? '❯ ' : '  '}</Text>
+              <Text color={active ? PINK : undefined} bold={active}>
+                {item.label}
+              </Text>
+              <Text color={DIM}> — {item.hint}</Text>
+            </Text>
+          )
+        })}
       </Box>
       <Box marginTop={1}>
-        <Text dimColor>↑/↓ to move · Enter to select · Esc to quit</Text>
+        <Text color={DIM}>↑/↓ to move · Enter to select · Esc to quit</Text>
       </Box>
     </Box>
   )
 }
 
 /** Render the home screen and resolve the user's choice. */
-export function runMenuInk(): Promise<MenuChoice> {
+export async function runMenuInk(): Promise<MenuChoice> {
+  const logo = await loadLogo()
   return new Promise((resolve) => {
     let choice: MenuChoice = { command: 'quit' }
     const { waitUntilExit } = render(
       <Menu
+        logo={logo}
         onChoose={(c) => {
           choice = c
         }}

@@ -1,5 +1,6 @@
 import { Box, Text, render } from 'ink'
 import terminalImage from 'terminal-image'
+import { DIM, PINK, SUCCESS } from './theme'
 import type { RenderedImage } from './lazy'
 
 /**
@@ -27,15 +28,17 @@ export async function renderImageResultInk(input: {
 
   const { waitUntilExit } = render(
     <Box flexDirection="column" gap={1}>
-      <Text color="green">
-        ✓ Generated {input.images.length} image(s) with {input.model}
+      <Text>
+        <Text color={SUCCESS}>✓ </Text>
+        Generated {input.images.length} image(s) with{' '}
+        <Text color={PINK}>{input.model}</Text>
       </Text>
       {input.images.map((image, index) => (
         <Box key={image.path} flexDirection="column">
           {previews[index] ? <Text>{previews[index]}</Text> : null}
-          <Text dimColor>{image.path}</Text>
+          <Text color={DIM}>{image.path}</Text>
           {image.revisedPrompt ? (
-            <Text dimColor>“{image.revisedPrompt}”</Text>
+            <Text color={DIM}>“{image.revisedPrompt}”</Text>
           ) : null}
         </Box>
       ))}
@@ -62,11 +65,14 @@ export async function renderArtifactPathInk(input: {
 }): Promise<void> {
   const { waitUntilExit } = render(
     <Box flexDirection="column">
-      <Text color="green">✓ {input.label}</Text>
-      <Text dimColor>{input.path}</Text>
+      <Text>
+        <Text color={SUCCESS}>✓ </Text>
+        {input.label}
+      </Text>
+      <Text color={DIM}>{input.path}</Text>
       {input.meta
         ? Object.entries(input.meta).map(([key, value]) => (
-            <Text key={key} dimColor>
+            <Text key={key} color={DIM}>
               {key}: {String(value)}
             </Text>
           ))

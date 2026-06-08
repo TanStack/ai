@@ -196,6 +196,14 @@ describe('ts-ai introspect flag spelling', () => {
     const wait = video.flags.find((f: { name: string }) => f.name === 'wait')
     // default-true booleans render as negatable --no-x flags.
     expect(wait.flag).toBe('--no-wait')
+    // generation commands expose --output-dir.
+    const image = manifest.commands.find(
+      (c: { name: string }) => c.name === 'image',
+    )
+    const outputDir = image.flags.find(
+      (f: { name: string }) => f.name === 'outputDir',
+    )
+    expect(outputDir.flag).toBe('--output-dir')
   })
 })
 

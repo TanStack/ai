@@ -64,6 +64,14 @@ const ATTACHMENT_FLAG: FlagSpec = {
   description: 'Attach a file (repeatable). "-" reads stdin.',
 }
 
+/** Directory for generated artifacts (image/video/audio/speech). */
+const OUTPUT_DIR_FLAG: FlagSpec = {
+  name: 'outputDir',
+  type: 'string',
+  description:
+    'Directory for generated files (default: current directory; created if missing). -o sets a full path and wins.',
+}
+
 export const COMMANDS: Array<CommandSpec> = [
   {
     name: 'chat',
@@ -122,6 +130,7 @@ export const COMMANDS: Array<CommandSpec> = [
     producesArtifact: true,
     flags: [
       ATTACHMENT_FLAG,
+      OUTPUT_DIR_FLAG,
       {
         name: 'size',
         type: 'string',
@@ -145,6 +154,7 @@ export const COMMANDS: Array<CommandSpec> = [
     experimental: true,
     flags: [
       ATTACHMENT_FLAG,
+      OUTPUT_DIR_FLAG,
       {
         name: 'wait',
         type: 'boolean',
@@ -166,6 +176,7 @@ export const COMMANDS: Array<CommandSpec> = [
     acceptsPrompt: true,
     producesArtifact: true,
     flags: [
+      OUTPUT_DIR_FLAG,
       {
         name: 'duration',
         type: 'number',
@@ -181,6 +192,7 @@ export const COMMANDS: Array<CommandSpec> = [
     acceptsPrompt: true,
     producesArtifact: true,
     flags: [
+      OUTPUT_DIR_FLAG,
       { name: 'voice', type: 'string', description: 'Voice id.' },
       {
         name: 'format',

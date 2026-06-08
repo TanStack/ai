@@ -10,7 +10,10 @@ import { resolveOutputMode } from '../src/core/output'
 import { coerceFlags } from '../src/cli/options'
 import { CliError, ExitCode, toCliError } from '../src/core/exit-codes'
 import { inferMimeType, resolvePrompt } from '../src/core/io'
+import { join } from 'node:path'
 import { tokenizeCommand } from '../src/cli/mcp-clients'
+import { resolveOutputPath } from '../src/cli/artifact'
+import { describeMcpServer } from '../src/cli/mcp'
 import { findCommand } from '../src/manifest/manifest'
 import type { CommandSpec } from '../src/manifest/types'
 
@@ -210,6 +213,42 @@ describe('io helpers', () => {
   it('rejects a stale find for aliases', () => {
     expect(findCommand('tts')?.name).toBe('speech')
     expect(findCommand('stt')?.name).toBe('transcribe')
+  })
+})
+
+describe('resolveOutputPath (--outputDir / -o precedence)', () => {
+  it('defaults to an auto filename in the current directory', () => {
+    expect(resolveOutputPath('image', 'png', {}, 123)).toBe(
+      join('.', 'ts-ai-image-123.png'),
+    )
+  })
+
+  it('writes the auto filename into --outputDir', () => {
+    expect(
+      resolveOutputPath('audio', 'mp3', { outputDir: 'out/clips' }, 9),
+    ).toBe(join('out/clips', 'ts-ai-audio-9.mp3'))
+  })
+
+  it('lets an explicit --output path win over --outputDir', () => {
+    expect(
+      resolveOutputPath(
+        'image',
+        'png',
+        { output: './pics/fox.png', outputDir: 'out' },
+        1,
+      ),
+    ).toBe('./pics/fox.png')
+  })
+})
+
+describe('describeMcpServer', () => {
+  it('includes a paste-ready client config, transport, and tools', () => {
+    const info = describeMcpServer('1.2.3')
+    expect(info).toContain('"mcpServers"')
+    expect(info).toContain('"command": "ts-ai"')
+    expect(info).toContain('stdio')
+    expect(info).toContain('chat')
+    expect(info).toContain('v1.2.3')
   })
 })
 
