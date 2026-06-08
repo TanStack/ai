@@ -8,6 +8,8 @@ import { renderArtifactPath } from '../../render/lazy'
 import type { RunContext } from '../context'
 
 const POLL_INTERVAL_MS = 3000
+/** Stop polling after this long so a stuck job can't hang the CLI forever. */
+const MAX_POLL_MS = 15 * 60 * 1000
 
 /**
  * `ts-ai video` handler (experimental). Creates a job and, by default, blocks
@@ -120,6 +122,7 @@ async function pollToCompletion(
   adapter: unknown,
   jobId: string,
 ) {
+  const deadline = Date.now() + MAX_POLL_MS
   for (;;) {
     const status = await getVideoJobStatus({
       adapter: adapter as never,
@@ -130,6 +133,13 @@ async function pollToCompletion(
     )
     if (status.status === 'completed' || status.status === 'failed')
       return status
+    if (Date.now() >= deadline) {
+      throw new CliError(
+        'PROVIDER',
+        `Timed out after ${Math.round(MAX_POLL_MS / 60000)}m waiting for video job ${jobId}. Re-check with: ts-ai video status ${jobId}`,
+        { detail: { jobId } },
+      )
+    }
     await sleep(POLL_INTERVAL_MS)
   }
 }

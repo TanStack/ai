@@ -2,23 +2,32 @@ import { readFile } from 'node:fs/promises'
 import { extname } from 'node:path'
 import { CliError } from './exit-codes'
 
-let stdinCache: string | undefined
+let stdinBufferCache: Buffer | undefined
 
 /**
- * Read all of stdin as a string. Returns '' if stdin is an interactive TTY.
- * The result is memoized: stdin can only be drained once, so a later consumer
- * (e.g. `--attachment -` after the prompt was read from stdin) gets the same
- * content instead of an empty buffer.
+ * Read all of stdin as raw bytes. Returns an empty buffer on an interactive TTY.
+ * Memoized: stdin can only be drained once, so a later consumer (e.g.
+ * `--attachment -` after the prompt was read from stdin) gets the same bytes.
  */
-export async function readStdin(): Promise<string> {
-  if (process.stdin.isTTY) return ''
-  if (stdinCache !== undefined) return stdinCache
+async function readStdinBuffer(): Promise<Buffer> {
+  if (process.stdin.isTTY) return Buffer.alloc(0)
+  if (stdinBufferCache !== undefined) return stdinBufferCache
   const chunks: Array<Buffer> = []
   for await (const chunk of process.stdin) {
     chunks.push(chunk as Buffer)
   }
-  stdinCache = Buffer.concat(chunks).toString('utf8')
-  return stdinCache
+  stdinBufferCache = Buffer.concat(chunks)
+  return stdinBufferCache
+}
+
+/** Read all of stdin as a UTF-8 string (for text prompts). */
+export async function readStdin(): Promise<string> {
+  return (await readStdinBuffer()).toString('utf8')
+}
+
+/** Read all of stdin as raw bytes (for binary attachments — no text decoding). */
+export async function readStdinBytes(): Promise<Buffer> {
+  return readStdinBuffer()
 }
 
 /**
@@ -83,9 +92,7 @@ export async function loadAttachments(
   for (const path of paths) {
     try {
       const buffer =
-        path === '-'
-          ? Buffer.from(await readStdin(), 'utf8')
-          : await readFile(path)
+        path === '-' ? await readStdinBytes() : await readFile(path)
       out.push({
         path,
         mimeType:

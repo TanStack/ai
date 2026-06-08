@@ -38,9 +38,9 @@ export async function renderArtifactPath(input: {
   await renderArtifactPathInk(input)
 }
 
-export async function renderMenu(): Promise<MenuChoice> {
+export async function renderMenu(animate = true): Promise<MenuChoice> {
   const { runMenuInk } = await import('./menu')
-  return runMenuInk()
+  return runMenuInk(animate)
 }
 
 export async function renderChatRepl(input: {

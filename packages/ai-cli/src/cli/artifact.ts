@@ -62,9 +62,19 @@ export async function writeArtifact(
   return path
 }
 
-/** Fetch bytes from a generated-media URL. */
+/** Fetch bytes from a generated-media URL, with a timeout and normalized errors. */
 export async function fetchBytes(url: string): Promise<Uint8Array> {
-  const res = await fetch(url)
+  let res: Response
+  try {
+    res = await fetch(url, { signal: AbortSignal.timeout(120_000) })
+  } catch (cause) {
+    const timedOut = cause instanceof Error && cause.name === 'TimeoutError'
+    throw new CliError(
+      'PROVIDER',
+      `Failed to download artifact from ${url}${timedOut ? ' (timed out)' : ''}.`,
+      { cause },
+    )
+  }
   if (!res.ok) {
     throw new CliError(
       'PROVIDER',

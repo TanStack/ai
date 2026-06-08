@@ -1,6 +1,7 @@
-import { generateImage } from '@tanstack/ai'
+import { detectImageMimeType, generateImage } from '@tanstack/ai'
 import { instantiateAdapter } from '../../core/providers'
 import { emitJson } from '../../core/emit'
+import { CliError } from '../../core/exit-codes'
 import { mediaSourceToBytes, writeArtifact } from '../artifact'
 import { resolveAdapterContext } from '../context'
 import { renderImageResult } from '../../render/lazy'
@@ -52,6 +53,13 @@ export async function runImage(ctx: RunContext, prompt: string): Promise<void> {
 
   const output = stringValue(ctx.options.output)
   const outputDir = stringValue(ctx.options.outputDir)
+  // Streaming bytes to stdout only makes sense for a single image.
+  if (output === '-' && result.images.length > 1) {
+    throw new CliError(
+      'USAGE',
+      `Cannot stream ${result.images.length} images to stdout with "-o -". Use --output-dir or --count 1.`,
+    )
+  }
   const written: Array<{
     path: string | null
     mimeType: string
@@ -60,7 +68,12 @@ export async function runImage(ctx: RunContext, prompt: string): Promise<void> {
 
   for (const [index, image] of result.images.entries()) {
     const bytes = await mediaSourceToBytes(image)
-    const mimeType = 'image/png'
+    // Detect the real format from the magic bytes rather than assuming PNG.
+    // detectImageMimeType reads only the leading base64 chars, so encoding a
+    // small prefix is enough.
+    const b64Prefix =
+      image.b64Json ?? Buffer.from(bytes.subarray(0, 16)).toString('base64')
+    const mimeType = detectImageMimeType(b64Prefix) ?? 'image/png'
     const ext = EXT_BY_MIME[mimeType] ?? 'png'
     // Only the first image honors an explicit -o; subsequent ones get a suffix.
     const target =

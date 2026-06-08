@@ -1,6 +1,7 @@
 import { summarize } from '@tanstack/ai'
 import { instantiateAdapter } from '../../core/providers'
 import { emitJson } from '../../core/emit'
+import { CliError } from '../../core/exit-codes'
 import { resolveAdapterContext } from '../context'
 import { renderText } from '../../render/lazy'
 import type { RunContext } from '../context'
@@ -39,6 +40,12 @@ export async function runSummarize(
       : typeof ctx.options.maxLength === 'string'
         ? Number(ctx.options.maxLength)
         : undefined
+  if (
+    maxLength !== undefined &&
+    (!Number.isInteger(maxLength) || maxLength < 1)
+  ) {
+    throw new CliError('USAGE', '--max-length must be a positive integer.')
+  }
 
   const result = (await summarize({
     adapter: adapter as never,

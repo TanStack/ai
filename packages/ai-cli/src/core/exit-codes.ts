@@ -72,10 +72,11 @@ export class CliError extends Error {
     provider?: string
   } & Record<string, unknown> {
     return {
+      // Spread detail first so it can never override the canonical fields.
+      ...(this.detail ?? {}),
       code: this.code,
       message: this.message,
       ...(this.provider ? { provider: this.provider } : {}),
-      ...(this.detail ?? {}),
     }
   }
 }
