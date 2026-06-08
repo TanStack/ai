@@ -48,10 +48,13 @@ export const Route = createFileRoute('/api/fal-billable-units')({
             adapter,
             prompt: 'a billed image',
           })
-          return new Response(JSON.stringify({ ok: true, usage: result.usage }), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          })
+          return new Response(
+            JSON.stringify({ ok: true, usage: result.usage }),
+            {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          )
         } catch (error) {
           return new Response(
             JSON.stringify({
