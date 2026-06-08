@@ -6,6 +6,40 @@ settings:
 
 overrides:
   abbrev: ^3.0.0
+  '@tanstack/ai': workspace:*
+  '@tanstack/ai-anthropic': workspace:*
+  '@tanstack/ai-cli': workspace:*
+  '@tanstack/ai-client': workspace:*
+  '@tanstack/ai-code-mode': workspace:*
+  '@tanstack/ai-code-mode-models-eval': workspace:*
+  '@tanstack/ai-code-mode-skills': workspace:*
+  '@tanstack/ai-devtools-core': workspace:*
+  '@tanstack/ai-elevenlabs': workspace:*
+  '@tanstack/ai-event-client': workspace:*
+  '@tanstack/ai-fal': workspace:*
+  '@tanstack/ai-gemini': workspace:*
+  '@tanstack/ai-grok': workspace:*
+  '@tanstack/ai-groq': workspace:*
+  '@tanstack/ai-isolate-cloudflare': workspace:*
+  '@tanstack/ai-isolate-node': workspace:*
+  '@tanstack/ai-isolate-quickjs': workspace:*
+  '@tanstack/ai-mcp': workspace:*
+  '@tanstack/ai-ollama': workspace:*
+  '@tanstack/ai-openai': workspace:*
+  '@tanstack/ai-openrouter': workspace:*
+  '@tanstack/ai-preact': workspace:*
+  '@tanstack/ai-react': workspace:*
+  '@tanstack/ai-react-ui': workspace:*
+  '@tanstack/ai-solid': workspace:*
+  '@tanstack/ai-solid-ui': workspace:*
+  '@tanstack/ai-svelte': workspace:*
+  '@tanstack/ai-utils': workspace:*
+  '@tanstack/ai-vue': workspace:*
+  '@tanstack/ai-vue-ui': workspace:*
+  '@tanstack/openai-base': workspace:*
+  '@tanstack/preact-ai-devtools': workspace:*
+  '@tanstack/react-ai-devtools': workspace:*
+  '@tanstack/solid-ai-devtools': workspace:*
 
 packageExtensionsChecksum: sha256-TJ1mU2/7WHrzH26P7N/SH79HTTR1L5lzW4Ndk6Eqkdk=
 
@@ -1451,10 +1485,10 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
       '@tanstack/ai-event-client':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-event-client
       '@tanstack/ai-utils':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-utils
       partial-json:
         specifier: ^0.1.7
@@ -1495,7 +1529,7 @@ importers:
   packages/ai-angular:
     dependencies:
       '@tanstack/ai-client':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-client
       tslib:
         specifier: ^2.8.1
@@ -1553,7 +1587,7 @@ importers:
         specifier: ^0.97.1
         version: 0.97.1(zod@4.2.1)
       '@tanstack/ai-utils':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-utils
     devDependencies:
       '@anthropic-ai/sdk-v112':
@@ -1590,10 +1624,10 @@ importers:
         specifier: ^4.14.2
         version: 4.15.0
       '@tanstack/ai':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai
       '@tanstack/openai-base':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../openai-base
       openai:
         specifier: ^6.41.0
@@ -1609,10 +1643,10 @@ importers:
   packages/ai-byteplus:
     dependencies:
       '@tanstack/ai-utils':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-utils
       '@tanstack/openai-base':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../openai-base
       openai:
         specifier: ^6.41.0
@@ -1689,7 +1723,7 @@ importers:
         version: 6.1.5
       terminal-image:
         specifier: ^4.3.0
-        version: 4.3.0
+        version: 4.3.0(supports-color@7.2.0)
     devDependencies:
       '@types/node':
         specifier: ^24.10.1
@@ -1699,10 +1733,10 @@ importers:
         version: 19.2.18
       '@vitest/coverage-v8':
         specifier: 4.0.14
-        version: 4.0.14(vitest@4.1.10)
+        version: 4.0.14(supports-color@7.2.0)(vitest@4.1.10)
       tsup:
         specifier: ^8.5.1
-        version: 8.5.1(@microsoft/api-extractor@7.47.7(@types/node@24.10.3))(jiti@2.7.0)(postcss@8.5.26)(tsx@4.23.12)(typescript@7.0.2)(yaml@2.9.0)
+        version: 8.5.1(@microsoft/api-extractor@7.47.7(@types/node@24.10.3))(jiti@2.7.0)(postcss@8.5.26)(supports-color@7.2.0)(tsx@4.23.12)(typescript@7.0.2)(yaml@2.9.0)
       vite:
         specifier: ^7.3.3
         version: 7.3.6(@types/node@24.10.3)(jiti@2.7.0)(less@4.6.6)(lightningcss@1.33.0)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
@@ -1713,13 +1747,13 @@ importers:
   packages/ai-client:
     dependencies:
       '@tanstack/ai':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai
       '@tanstack/ai-event-client':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-event-client
       '@tanstack/ai-utils':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-utils
     devDependencies:
       '@standard-schema/spec':
@@ -1754,10 +1788,10 @@ importers:
   packages/ai-code-mode-snippets:
     dependencies:
       '@tanstack/ai':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai
       '@tanstack/ai-code-mode':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-code-mode
     devDependencies:
       '@tanstack/ai-anthropic':
@@ -1846,7 +1880,7 @@ importers:
   packages/ai-cohere:
     dependencies:
       '@tanstack/ai-utils':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-utils
     devDependencies:
       '@tanstack/ai':
@@ -1871,10 +1905,10 @@ importers:
   packages/ai-devtools:
     dependencies:
       '@tanstack/ai':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai
       '@tanstack/ai-event-client':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-event-client
       '@tanstack/devtools-ui':
         specifier: ^0.5.1
@@ -1929,7 +1963,7 @@ importers:
         specifier: ^2.44.0
         version: 2.44.0
       '@tanstack/ai-utils':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-utils
     devDependencies:
       '@tanstack/ai':
@@ -1955,7 +1989,7 @@ importers:
         specifier: ^1.10.1
         version: 1.10.1
       '@tanstack/ai-utils':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-utils
     devDependencies:
       '@tanstack/ai':
@@ -1974,7 +2008,7 @@ importers:
         specifier: ^2.10.0
         version: 2.10.0(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))
       '@tanstack/ai-utils':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-utils
       partial-json:
         specifier: ^0.1.7
@@ -1996,10 +2030,10 @@ importers:
   packages/ai-grok:
     dependencies:
       '@tanstack/ai-utils':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-utils
       '@tanstack/openai-base':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../openai-base
       openai:
         specifier: ^6.41.0
@@ -2040,13 +2074,13 @@ importers:
   packages/ai-groq:
     dependencies:
       '@tanstack/ai':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai
       '@tanstack/ai-utils':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-utils
       '@tanstack/openai-base':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../openai-base
       openai:
         specifier: ^6.41.0
@@ -2062,7 +2096,7 @@ importers:
   packages/ai-isolate-cloudflare:
     dependencies:
       '@tanstack/ai-code-mode':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-code-mode
     devDependencies:
       '@cloudflare/workers-types':
@@ -2090,7 +2124,7 @@ importers:
   packages/ai-isolate-node:
     dependencies:
       '@tanstack/ai-code-mode':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-code-mode
       isolated-vm:
         specifier: ^6.0.2
@@ -2103,7 +2137,7 @@ importers:
   packages/ai-isolate-quickjs:
     dependencies:
       '@tanstack/ai-code-mode':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-code-mode
       quickjs-emscripten:
         specifier: ^0.31.0
@@ -2116,7 +2150,7 @@ importers:
   packages/ai-isolate-quickjs-bun:
     dependencies:
       '@tanstack/ai-code-mode':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-code-mode
       quickjs-bun:
         specifier: 0.1.2
@@ -2135,10 +2169,10 @@ importers:
   packages/ai-llmgateway:
     dependencies:
       '@tanstack/ai-utils':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-utils
       '@tanstack/openai-base':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../openai-base
       openai:
         specifier: ^6.41.0
@@ -2182,7 +2216,7 @@ importers:
         specifier: ^1.29.0
         version: 1.29.0(zod@4.3.6)
       '@tanstack/ai':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai
     devDependencies:
       '@vitest/coverage-v8':
@@ -2207,7 +2241,7 @@ importers:
   packages/ai-memory:
     dependencies:
       '@tanstack/ai-event-client':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-event-client
       ioredis:
         specifier: '>=5.0.0'
@@ -2291,7 +2325,7 @@ importers:
   packages/ai-ollama:
     dependencies:
       '@tanstack/ai-utils':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-utils
       ollama:
         specifier: ^0.6.3
@@ -2310,10 +2344,10 @@ importers:
   packages/ai-openai:
     dependencies:
       '@tanstack/ai-utils':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-utils
       '@tanstack/openai-base':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../openai-base
       openai:
         specifier: ^6.41.0
@@ -2354,7 +2388,7 @@ importers:
         specifier: 0.13.20
         version: 0.13.20
       '@tanstack/ai-utils':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-utils
     devDependencies:
       '@tanstack/ai':
@@ -2388,7 +2422,7 @@ importers:
   packages/ai-persistence:
     dependencies:
       '@tanstack/ai-utils':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-utils
     devDependencies:
       '@tanstack/ai':
@@ -2404,7 +2438,7 @@ importers:
   packages/ai-preact:
     dependencies:
       '@tanstack/ai-client':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-client
     devDependencies:
       '@mcp-ui/client':
@@ -2432,7 +2466,7 @@ importers:
   packages/ai-react:
     dependencies:
       '@tanstack/ai-client':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-client
     devDependencies:
       '@mcp-ui/client':
@@ -2651,7 +2685,7 @@ importers:
   packages/ai-solid:
     dependencies:
       '@tanstack/ai-client':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-client
     devDependencies:
       '@solidjs/testing-library':
@@ -2728,7 +2762,7 @@ importers:
   packages/ai-svelte:
     dependencies:
       '@tanstack/ai-client':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-client
     devDependencies:
       '@standard-schema/spec':
@@ -2780,13 +2814,13 @@ importers:
   packages/ai-vercel-gateway:
     dependencies:
       '@tanstack/ai':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai
       '@tanstack/ai-utils':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-utils
       '@tanstack/openai-base':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../openai-base
       openai:
         specifier: ^6.41.0
@@ -2802,7 +2836,7 @@ importers:
   packages/ai-vertex:
     dependencies:
       '@tanstack/ai-gemini':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-gemini
     devDependencies:
       '@google/genai':
@@ -2821,7 +2855,7 @@ importers:
   packages/ai-vue:
     dependencies:
       '@tanstack/ai-client':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-client
     devDependencies:
       '@standard-schema/spec':
@@ -2861,7 +2895,7 @@ importers:
         specifier: ^1.1.4
         version: 1.1.4(vue@3.5.25(typescript@5.9.3))
       '@tanstack/ai-vue':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-vue
       rehype-highlight:
         specifier: ^7.0.2
@@ -2892,7 +2926,7 @@ importers:
   packages/openai-base:
     dependencies:
       '@tanstack/ai-utils':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-utils
       openai:
         specifier: ^6.41.0
@@ -2914,7 +2948,7 @@ importers:
   packages/preact-ai-devtools:
     dependencies:
       '@tanstack/ai-devtools-core':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-devtools
       '@tanstack/devtools-utils':
         specifier: ^0.7.0
@@ -2933,7 +2967,7 @@ importers:
   packages/react-ai-devtools:
     dependencies:
       '@tanstack/ai-devtools-core':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-devtools
       '@tanstack/devtools-utils':
         specifier: ^0.7.0
@@ -2955,7 +2989,7 @@ importers:
   packages/solid-ai-devtools:
     dependencies:
       '@tanstack/ai-devtools-core':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../ai-devtools
       '@tanstack/devtools-utils':
         specifier: ^0.7.0
@@ -20470,14 +20504,14 @@ snapshots:
       '@types/yargs': 17.0.35
       chalk: 4.1.2
 
-  '@jimp/core@1.6.1':
+  '@jimp/core@1.6.1(supports-color@7.2.0)':
     dependencies:
       '@jimp/file-ops': 1.6.1
       '@jimp/types': 1.6.1
       '@jimp/utils': 1.6.1
       await-to-js: 3.0.0
       exif-parser: 0.1.12
-      file-type: 21.3.4
+      file-type: 21.3.4(supports-color@7.2.0)
       mime: 3.0.0
     transitivePeerDependencies:
       - supports-color
@@ -20495,7 +20529,7 @@ snapshots:
 
   '@jimp/js-bmp@1.6.1':
     dependencies:
-      '@jimp/core': 1.6.1
+      '@jimp/core': 1.6.1(supports-color@7.2.0)
       '@jimp/types': 1.6.1
       '@jimp/utils': 1.6.1
       bmp-ts: 1.0.9
@@ -20504,7 +20538,7 @@ snapshots:
 
   '@jimp/js-gif@1.6.1':
     dependencies:
-      '@jimp/core': 1.6.1
+      '@jimp/core': 1.6.1(supports-color@7.2.0)
       '@jimp/types': 1.6.1
       gifwrap: 0.10.1
       omggif: 1.0.10
@@ -20513,7 +20547,7 @@ snapshots:
 
   '@jimp/js-jpeg@1.6.1':
     dependencies:
-      '@jimp/core': 1.6.1
+      '@jimp/core': 1.6.1(supports-color@7.2.0)
       '@jimp/types': 1.6.1
       jpeg-js: 0.4.4
     transitivePeerDependencies:
@@ -20521,7 +20555,7 @@ snapshots:
 
   '@jimp/js-png@1.6.1':
     dependencies:
-      '@jimp/core': 1.6.1
+      '@jimp/core': 1.6.1(supports-color@7.2.0)
       '@jimp/types': 1.6.1
       pngjs: 7.0.0
     transitivePeerDependencies:
@@ -20529,7 +20563,7 @@ snapshots:
 
   '@jimp/js-tiff@1.6.1':
     dependencies:
-      '@jimp/core': 1.6.1
+      '@jimp/core': 1.6.1(supports-color@7.2.0)
       '@jimp/types': 1.6.1
       utif2: 4.1.0
     transitivePeerDependencies:
@@ -20543,7 +20577,7 @@ snapshots:
 
   '@jimp/plugin-blur@1.6.1':
     dependencies:
-      '@jimp/core': 1.6.1
+      '@jimp/core': 1.6.1(supports-color@7.2.0)
       '@jimp/utils': 1.6.1
     transitivePeerDependencies:
       - supports-color
@@ -20555,7 +20589,7 @@ snapshots:
 
   '@jimp/plugin-color@1.6.1':
     dependencies:
-      '@jimp/core': 1.6.1
+      '@jimp/core': 1.6.1(supports-color@7.2.0)
       '@jimp/types': 1.6.1
       '@jimp/utils': 1.6.1
       tinycolor2: 1.6.0
@@ -20565,7 +20599,7 @@ snapshots:
 
   '@jimp/plugin-contain@1.6.1':
     dependencies:
-      '@jimp/core': 1.6.1
+      '@jimp/core': 1.6.1(supports-color@7.2.0)
       '@jimp/plugin-blit': 1.6.1
       '@jimp/plugin-resize': 1.6.1
       '@jimp/types': 1.6.1
@@ -20576,7 +20610,7 @@ snapshots:
 
   '@jimp/plugin-cover@1.6.1':
     dependencies:
-      '@jimp/core': 1.6.1
+      '@jimp/core': 1.6.1(supports-color@7.2.0)
       '@jimp/plugin-crop': 1.6.1
       '@jimp/plugin-resize': 1.6.1
       '@jimp/types': 1.6.1
@@ -20586,7 +20620,7 @@ snapshots:
 
   '@jimp/plugin-crop@1.6.1':
     dependencies:
-      '@jimp/core': 1.6.1
+      '@jimp/core': 1.6.1(supports-color@7.2.0)
       '@jimp/types': 1.6.1
       '@jimp/utils': 1.6.1
       zod: 3.25.76
@@ -20616,7 +20650,7 @@ snapshots:
 
   '@jimp/plugin-hash@1.6.1':
     dependencies:
-      '@jimp/core': 1.6.1
+      '@jimp/core': 1.6.1(supports-color@7.2.0)
       '@jimp/js-bmp': 1.6.1
       '@jimp/js-jpeg': 1.6.1
       '@jimp/js-png': 1.6.1
@@ -20636,7 +20670,7 @@ snapshots:
 
   '@jimp/plugin-print@1.6.1':
     dependencies:
-      '@jimp/core': 1.6.1
+      '@jimp/core': 1.6.1(supports-color@7.2.0)
       '@jimp/js-jpeg': 1.6.1
       '@jimp/js-png': 1.6.1
       '@jimp/plugin-blit': 1.6.1
@@ -20656,7 +20690,7 @@ snapshots:
 
   '@jimp/plugin-resize@1.6.1':
     dependencies:
-      '@jimp/core': 1.6.1
+      '@jimp/core': 1.6.1(supports-color@7.2.0)
       '@jimp/types': 1.6.1
       zod: 3.25.76
     transitivePeerDependencies:
@@ -20664,7 +20698,7 @@ snapshots:
 
   '@jimp/plugin-rotate@1.6.1':
     dependencies:
-      '@jimp/core': 1.6.1
+      '@jimp/core': 1.6.1(supports-color@7.2.0)
       '@jimp/plugin-crop': 1.6.1
       '@jimp/plugin-resize': 1.6.1
       '@jimp/types': 1.6.1
@@ -20675,7 +20709,7 @@ snapshots:
 
   '@jimp/plugin-threshold@1.6.1':
     dependencies:
-      '@jimp/core': 1.6.1
+      '@jimp/core': 1.6.1(supports-color@7.2.0)
       '@jimp/plugin-color': 1.6.1
       '@jimp/plugin-hash': 1.6.1
       '@jimp/types': 1.6.1
@@ -25005,7 +25039,7 @@ snapshots:
       '@types/react': 19.2.7
       '@types/react-dom': 19.2.3(@types/react@19.2.7)
 
-  '@tokenizer/inflate@0.4.1':
+  '@tokenizer/inflate@0.4.1(supports-color@7.2.0)':
     dependencies:
       debug: 4.4.3(supports-color@7.2.0)
       token-types: 6.1.2
@@ -25681,14 +25715,14 @@ snapshots:
       vite: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
       vue: 3.5.25(typescript@5.9.3)
 
-  '@vitest/coverage-v8@4.0.14(vitest@4.1.10)':
+  '@vitest/coverage-v8@4.0.14(supports-color@7.2.0)(vitest@4.1.10)':
     dependencies:
       '@bcoe/v8-coverage': 1.0.2
       '@vitest/utils': 4.0.14
       ast-v8-to-istanbul: 0.3.12
       istanbul-lib-coverage: 3.2.2
       istanbul-lib-report: 3.0.1
-      istanbul-lib-source-maps: 5.0.6
+      istanbul-lib-source-maps: 5.0.6(supports-color@7.2.0)
       istanbul-reports: 3.2.0
       magicast: 0.5.2
       obug: 2.1.1
@@ -26842,7 +26876,7 @@ snapshots:
   cliui@9.0.1:
     dependencies:
       string-width: 7.2.0
-      strip-ansi: 7.1.2
+      strip-ansi: 7.2.0
       wrap-ansi: 9.0.2
 
   clone-deep@4.0.1:
@@ -28194,9 +28228,9 @@ snapshots:
     dependencies:
       flat-cache: 4.0.1
 
-  file-type@21.3.4:
+  file-type@21.3.4(supports-color@7.2.0):
     dependencies:
-      '@tokenizer/inflate': 0.4.1
+      '@tokenizer/inflate': 0.4.1(supports-color@7.2.0)
       strtok3: 10.3.5
       token-types: 6.1.2
       uint8array-extras: 1.5.0
@@ -29182,7 +29216,7 @@ snapshots:
       make-dir: 4.0.0
       supports-color: 7.2.0
 
-  istanbul-lib-source-maps@5.0.6:
+  istanbul-lib-source-maps@5.0.6(supports-color@7.2.0):
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       debug: 4.4.3(supports-color@7.2.0)
@@ -29235,9 +29269,9 @@ snapshots:
 
   jimp-compact@0.16.1: {}
 
-  jimp@1.6.1:
+  jimp@1.6.1(supports-color@7.2.0):
     dependencies:
-      '@jimp/core': 1.6.1
+      '@jimp/core': 1.6.1(supports-color@7.2.0)
       '@jimp/diff': 1.6.1
       '@jimp/js-bmp': 1.6.1
       '@jimp/js-gif': 1.6.1
@@ -33260,7 +33294,7 @@ snapshots:
     dependencies:
       emoji-regex: 10.6.0
       get-east-asian-width: 1.6.0
-      strip-ansi: 7.1.2
+      strip-ansi: 7.2.0
 
   string-width@8.2.1:
     dependencies:
@@ -33475,11 +33509,11 @@ snapshots:
 
   term-size@2.2.1: {}
 
-  terminal-image@4.3.0:
+  terminal-image@4.3.0(supports-color@7.2.0):
     dependencies:
       chalk: 5.6.2
       image-dimensions: 2.5.1
-      jimp: 1.6.1
+      jimp: 1.6.1(supports-color@7.2.0)
       log-update: 8.0.0
       omggif: 1.0.10
       supports-terminal-graphics: 0.1.0
@@ -33688,6 +33722,35 @@ snapshots:
       - tsx
       - yaml
 
+  tsup@8.5.1(@microsoft/api-extractor@7.47.7(@types/node@24.10.3))(jiti@2.7.0)(postcss@8.5.26)(supports-color@7.2.0)(tsx@4.23.12)(typescript@7.0.2)(yaml@2.9.0):
+    dependencies:
+      bundle-require: 5.1.0(esbuild@0.27.7)
+      cac: 6.7.14
+      chokidar: 4.0.3
+      consola: 3.4.2
+      debug: 4.4.3(supports-color@7.2.0)
+      esbuild: 0.27.7
+      fix-dts-default-cjs-exports: 1.0.1
+      joycon: 3.1.1
+      picocolors: 1.1.1
+      postcss-load-config: 6.0.1(jiti@2.7.0)(postcss@8.5.26)(tsx@4.23.12)(yaml@2.9.0)
+      resolve-from: 5.0.0
+      rollup: 4.60.1
+      source-map: 0.7.6
+      sucrase: 3.35.1
+      tinyexec: 0.3.2
+      tinyglobby: 0.2.17
+      tree-kill: 1.2.2
+    optionalDependencies:
+      '@microsoft/api-extractor': 7.47.7(@types/node@24.10.3)
+      postcss: 8.5.26
+      typescript: 7.0.2
+    transitivePeerDependencies:
+      - jiti
+      - supports-color
+      - tsx
+      - yaml
+
   tsup@8.5.1(@microsoft/api-extractor@7.47.7(@types/node@24.10.3))(jiti@2.7.0)(postcss@8.5.26)(tsx@4.23.12)(typescript@5.9.3)(yaml@2.9.0):
     dependencies:
       bundle-require: 5.1.0(esbuild@0.27.7)
@@ -33711,35 +33774,6 @@ snapshots:
       '@microsoft/api-extractor': 7.47.7(@types/node@24.10.3)
       postcss: 8.5.26
       typescript: 5.9.3
-    transitivePeerDependencies:
-      - jiti
-      - supports-color
-      - tsx
-      - yaml
-
-  tsup@8.5.1(@microsoft/api-extractor@7.47.7(@types/node@24.10.3))(jiti@2.7.0)(postcss@8.5.26)(tsx@4.23.12)(typescript@7.0.2)(yaml@2.9.0):
-    dependencies:
-      bundle-require: 5.1.0(esbuild@0.27.7)
-      cac: 6.7.14
-      chokidar: 4.0.3
-      consola: 3.4.2
-      debug: 4.4.3(supports-color@7.2.0)
-      esbuild: 0.27.7
-      fix-dts-default-cjs-exports: 1.0.1
-      joycon: 3.1.1
-      picocolors: 1.1.1
-      postcss-load-config: 6.0.1(jiti@2.7.0)(postcss@8.5.26)(tsx@4.23.12)(yaml@2.9.0)
-      resolve-from: 5.0.0
-      rollup: 4.60.1
-      source-map: 0.7.6
-      sucrase: 3.35.1
-      tinyexec: 0.3.2
-      tinyglobby: 0.2.17
-      tree-kill: 1.2.2
-    optionalDependencies:
-      '@microsoft/api-extractor': 7.47.7(@types/node@24.10.3)
-      postcss: 8.5.26
-      typescript: 7.0.2
     transitivePeerDependencies:
       - jiti
       - supports-color
@@ -34441,7 +34475,7 @@ snapshots:
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
       '@types/node': 24.10.3
-      '@vitest/coverage-v8': 4.0.14(vitest@4.1.10)
+      '@vitest/coverage-v8': 4.0.14(supports-color@7.2.0)(vitest@4.1.10)
       happy-dom: 20.11.2
       jsdom: 27.4.0(@noble/hashes@2.3.0)(postcss@8.5.26)
     transitivePeerDependencies:
