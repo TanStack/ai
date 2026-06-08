@@ -19,7 +19,8 @@
     "chat",
     "image-generation",
     "tts",
-    "transcription"
+    "transcription",
+    "tanstack-intent"
   ],
   "type": "module",
   "module": "./dist/esm/index.js",
@@ -40,6 +41,7 @@
   "files": [
     "assets",
     "dist",
+    "skills",
     "src"
   ],
   "scripts": {
