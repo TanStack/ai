@@ -23,6 +23,7 @@ export const providers: Provider[] = [
   'openrouter',
   'openrouter-responses',
   'openai-compatible',
+  'litellm',
   'elevenlabs',
 ]
 
