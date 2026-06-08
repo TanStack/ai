@@ -367,7 +367,7 @@ const { tools, systemPrompt } = createCodeMode({
 })
 
 const stream = chat({
-  adapter: openaiText('gpt-5.2'),
+  adapter: openaiText('gpt-5.5'),
   systemPrompts: ['You are a helpful assistant.', systemPrompt],
   tools: [...tools, ...otherTools], // spread tools, not just tool
   messages,
@@ -380,7 +380,7 @@ const stream = chat({
 
 When the model encounters a lazy tool it has not seen before, it calls `discover_tools` with the bare name (no `external_` prefix). The tool returns each requested tool's TypeScript type stub and description. The model then writes correctly-typed `external_<name>` calls inside `execute_typescript`.
 
-```
+```text
 Model sees: "Discoverable APIs: external_fetchStocks"
 Model calls: discover_tools({ toolNames: ["fetchStocks"] })
 Response:    { tools: [{ name: "external_fetchStocks", description: "...", typeStub: "declare function external_fetchStocks(...)" }] }

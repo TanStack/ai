@@ -80,7 +80,7 @@ export async function POST(req: Request) {
   const { messages } = await req.json();
 
   const stream = chat({
-    adapter: openaiText("gpt-5.2"),
+    adapter: openaiText("gpt-5.5"),
     systemPrompts: ["You are a helpful weather assistant.", systemPrompt],
     tools: [...tools],
     messages,
@@ -116,7 +116,7 @@ The bindings are always injected into the sandbox — discovering a tool only re
 
 By default, lazy tools appear in the system prompt as bare names with no description:
 
-```
+```text
 ### Discoverable APIs
 
 - external_fetchArchive
@@ -138,7 +138,7 @@ const { tools, systemPrompt } = createCodeMode({
 
 With `'first-sentence'` the catalog becomes:
 
-```
+```text
 ### Discoverable APIs
 
 - external_fetchArchive — Retrieve historical weather archive data for a date range.
@@ -164,7 +164,7 @@ import { openaiText } from "@tanstack/ai-openai";
 
 // Non-code-mode: lazy tools in a regular chat agent
 const stream = chat({
-  adapter: openaiText("gpt-5.2"),
+  adapter: openaiText("gpt-5.5"),
   messages,
   tools: [fetchWeather, fetchArchive, runReport],
   lazyToolsConfig: {

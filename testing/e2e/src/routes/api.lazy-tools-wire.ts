@@ -57,7 +57,7 @@ export const Route = createFileRoute('/api/lazy-tools-wire')({
             ? (rawInclude as NonNullable<LazyToolsConfig['includeDescription']>)
             : 'none'
 
-        const adapter = createOpenaiChat('gpt-5.2', DUMMY_KEY, {
+        const adapter = createOpenaiChat('gpt-5.5', DUMMY_KEY, {
           baseURL: `${LLMOCK_DEFAULT_BASE}/v1`,
           defaultHeaders: testId ? { 'X-Test-Id': testId } : undefined,
         })

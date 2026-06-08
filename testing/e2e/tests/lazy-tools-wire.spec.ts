@@ -60,12 +60,9 @@ async function discoveryDescription(
 }
 
 test.describe('lazy tools — discovery catalog wire format', () => {
-  test.beforeEach(async ({ request, aimockPort }) => {
-    // Clear the aimock journal so we only assert against this test's requests —
-    // adjacent specs share the same aimock instance.
-    await request.delete(`http://127.0.0.1:${aimockPort}/v1/_requests`)
-  })
-
+  // No journal reset here: the shared aimock journal is filtered per-test by
+  // X-Test-Id (see discoveryDescription), so a global DELETE would only race
+  // with adjacent parallel specs on the same aimock instance.
   test("includeDescription: 'none' sends bare lazy tool names (legacy default)", async ({
     request,
     aimockPort,
