@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Box, Text, render, useApp, useInput } from 'ink'
 import { DIM, ERROR_RED, PINK } from './theme'
+import { forceExit, isCtrlC } from './exit'
 import { BrandMark } from './welcome'
 
 export interface ReplMessage {
@@ -27,6 +28,7 @@ function Repl({
   const [error, setError] = useState<string | null>(null)
 
   useInput((input, key) => {
+    if (isCtrlC(input, key)) forceExit()
     if (busy) return
     if (key.return) {
       const text = draft.trim()
@@ -104,6 +106,7 @@ export async function runChatReplInk(input: {
 }): Promise<void> {
   const { waitUntilExit } = render(
     <Repl model={input.model} respond={input.respond} />,
+    { exitOnCtrlC: false },
   )
   await waitUntilExit()
 }

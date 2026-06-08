@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Box, Text, render, useApp, useInput } from 'ink'
 import terminalImage from 'terminal-image'
 import { DIM, PINK, SUCCESS } from './theme'
+import { forceExit, isCtrlC } from './exit'
 import type { ReactNode } from 'react'
 import type { RenderedImage } from './lazy'
 
@@ -28,7 +29,8 @@ function ResultView({ children }: { children: ReactNode }) {
   const interactive = Boolean(process.stdin.isTTY)
 
   useInput(
-    (_input, key) => {
+    (input, key) => {
+      if (isCtrlC(input, key)) forceExit()
       if (key.escape || key.return) exit()
     },
     { isActive: interactive },
@@ -50,7 +52,9 @@ function ResultView({ children }: { children: ReactNode }) {
 }
 
 async function renderResult(content: ReactNode): Promise<void> {
-  const { waitUntilExit } = render(<ResultView>{content}</ResultView>)
+  const { waitUntilExit } = render(<ResultView>{content}</ResultView>, {
+    exitOnCtrlC: false,
+  })
   await waitUntilExit()
 }
 

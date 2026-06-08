@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Box, Text, render, useApp, useInput } from 'ink'
 import { DIM, PINK } from './theme'
+import { forceExit, isCtrlC } from './exit'
 import { WelcomeHeader, loadLogo } from './welcome'
 
 /** A selectable action from the home menu. */
@@ -80,6 +81,7 @@ function Menu({
   const [draft, setDraft] = useState('')
 
   useInput((input, key) => {
+    if (isCtrlC(input, key)) forceExit()
     if (promptFor) {
       if (key.return) {
         onChoose({ command: promptFor.command, prompt: draft })
@@ -174,6 +176,7 @@ export async function runMenuInk(animate = true): Promise<MenuChoice> {
           choice = c
         }}
       />,
+      { exitOnCtrlC: false },
     )
     void waitUntilExit().then(() => resolve(choice))
   })
