@@ -91,19 +91,22 @@ export function buildFalUsage(
 }
 
 /**
- * Wrap the global `fetch` so every fal request's response is inspected for the
+ * Wrap a fetch so every fal request's response is inspected for the
  * `x-fal-billable-units` header before being returned untouched. Installed as
  * fal's `config.fetch`, which (unlike a global `responseHandler`) is honoured for
  * every request — the fal client forces `resultResponseHandler` per queue
  * operation, clobbering any configured response handler.
  *
- * `globalThis.fetch` is resolved per call (late binding) rather than captured, so
- * a host that swaps the global implementation (test harnesses, instrumented
- * runtimes) is still respected.
+ * `baseFetch` is the underlying implementation to delegate to (defaults to the
+ * global `fetch`). Injecting it keeps usage capture working when a caller
+ * supplies a custom fetch — a proxy, instrumentation, or a test mock — without
+ * mutating any global.
  */
-export function createBillingFetch(): typeof fetch {
+export function createBillingFetch(
+  baseFetch: typeof fetch = globalThis.fetch,
+): typeof fetch {
   return async (input, init) => {
-    const response = await globalThis.fetch(input, init)
+    const response = await baseFetch(input, init)
     try {
       recordBillableUnitsFromResponse(response)
     } catch {

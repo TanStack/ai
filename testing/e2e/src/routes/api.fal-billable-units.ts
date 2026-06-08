@@ -10,22 +10,23 @@ const FAL_QUEUE_PREFIX = 'https://queue.fal.run/'
 /**
  * Drives the fal image adapter against the `/fal-queue` aimock mount, which
  * stamps `x-fal-billable-units` on the result fetch. The companion spec asserts
- * those units reach `result.usage.unitsBilled` — proving the adapter's
- * `config.fetch` billing capture forwards fal's real billed quantity.
+ * those units reach `result.usage.unitsBilled` — proving the adapter's billing
+ * capture forwards fal's real billed quantity.
  *
- * fal's queue URLs are not configurable, so the handler temporarily redirects
- * `queue.fal.run` requests to the mock by swapping `globalThis.fetch` (the
- * adapter's billing fetch resolves the global per call, so the swap is honoured).
- * Non-fal requests pass through untouched and the original fetch is restored in
- * `finally`.
+ * fal's queue URLs are not configurable, so we pass a per-request `fetch` to the
+ * adapter that rewrites `queue.fal.run` requests to the mock. This is scoped to
+ * the adapter instance (no global mutation), so concurrent requests can't
+ * interfere with each other. Non-fal requests pass through untouched.
  */
 export const Route = createFileRoute('/api/fal-billable-units')({
   server: {
     handlers: {
       POST: async () => {
         const mockBase = `${LLMOCK_DEFAULT_BASE}/fal-queue/`
-        const originalFetch = globalThis.fetch
-        globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+        const redirectFetch = ((
+          input: RequestInfo | URL,
+          init?: RequestInit,
+        ) => {
           const url =
             typeof input === 'string'
               ? input
@@ -33,29 +34,24 @@ export const Route = createFileRoute('/api/fal-billable-units')({
                 ? input.href
                 : input.url
           if (url.startsWith(FAL_QUEUE_PREFIX)) {
-            return originalFetch(
-              mockBase + url.slice(FAL_QUEUE_PREFIX.length),
-              init,
-            )
+            return fetch(mockBase + url.slice(FAL_QUEUE_PREFIX.length), init)
           }
-          return originalFetch(input, init)
+          return fetch(input, init)
         }) as typeof fetch
 
         try {
           const adapter = falImage('fal-ai/flux/dev', {
             apiKey: 'fal-e2e-dummy',
+            fetch: redirectFetch,
           })
           const result = await generateImage({
             adapter,
             prompt: 'a billed image',
           })
-          return new Response(
-            JSON.stringify({ ok: true, usage: result.usage }),
-            {
-              status: 200,
-              headers: { 'Content-Type': 'application/json' },
-            },
-          )
+          return new Response(JSON.stringify({ ok: true, usage: result.usage }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          })
         } catch (error) {
           return new Response(
             JSON.stringify({
@@ -64,8 +60,6 @@ export const Route = createFileRoute('/api/fal-billable-units')({
             }),
             { status: 200, headers: { 'Content-Type': 'application/json' } },
           )
-        } finally {
-          globalThis.fetch = originalFetch
         }
       },
     },

@@ -5,6 +5,13 @@ import { createBillingFetch } from './billing'
 export interface FalClientConfig {
   apiKey: string
   proxyUrl?: string
+  /**
+   * Override the underlying fetch used for fal requests. The adapter wraps it to
+   * read the `x-fal-billable-units` header (see ./billing.ts), so usage capture
+   * still works. Defaults to the global `fetch`. Useful for proxying,
+   * instrumentation, or pointing requests at a mock in tests.
+   */
+  fetch?: typeof fetch
 }
 
 export function getFalApiKeyFromEnv(): string {
@@ -15,9 +22,10 @@ export function configureFalClient(config?: FalClientConfig): void {
   const apiKey = config?.apiKey ?? getFalApiKeyFromEnv()
   fal.config({
     credentials: apiKey,
-    // Read fal's `x-fal-billable-units` header off every response so adapters
-    // can surface the real billed cost as `result.usage`. See ./billing.ts.
-    fetch: createBillingFetch(),
+    // Wrap the (optionally overridden) fetch to read fal's
+    // `x-fal-billable-units` header off every response so adapters can surface
+    // the billed quantity as `result.usage`. See ./billing.ts.
+    fetch: createBillingFetch(config?.fetch),
     ...(config?.proxyUrl ? { proxyUrl: config.proxyUrl } : {}),
   })
 }

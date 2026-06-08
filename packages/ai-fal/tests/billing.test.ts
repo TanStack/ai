@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   buildFalUsage,
   createBillingFetch,
@@ -100,10 +100,6 @@ describe('buildFalUsage', () => {
 })
 
 describe('createBillingFetch', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('records the header and returns the response with its body intact', async () => {
     const mockResponse = resultResponse(
       {
@@ -113,10 +109,10 @@ describe('createBillingFetch', () => {
       },
       JSON.stringify({ ok: true }),
     )
+    // Inject the underlying fetch directly — no global to stub or restore.
     const baseFetch = vi.fn().mockResolvedValue(mockResponse)
-    vi.stubGlobal('fetch', baseFetch)
 
-    const billingFetch = createBillingFetch()
+    const billingFetch = createBillingFetch(baseFetch)
     const returned = await billingFetch(
       'https://queue.fal.run/fal-ai/flux/requests/req-fetch-1',
     )
@@ -131,9 +127,8 @@ describe('createBillingFetch', () => {
   it('passes through responses without the billable-units header', async () => {
     const mockResponse = resultResponse({ 'x-fal-request-id': 'req-fetch-2' })
     const baseFetch = vi.fn().mockResolvedValue(mockResponse)
-    vi.stubGlobal('fetch', baseFetch)
 
-    const billingFetch = createBillingFetch()
+    const billingFetch = createBillingFetch(baseFetch)
     await billingFetch('https://queue.fal.run/fal-ai/flux/requests/req-fetch-2')
 
     expect(takeBillableUnits('req-fetch-2')).toBeUndefined()
