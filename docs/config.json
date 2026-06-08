@@ -213,6 +213,11 @@
           "label": "Code Mode Isolate Drivers",
           "to": "code-mode/code-mode-isolates",
           "addedAt": "2026-04-15"
+        },
+        {
+          "label": "Lazy Tools",
+          "to": "code-mode/lazy-tools",
+          "addedAt": "2026-06-08"
         }
       ]
     },
