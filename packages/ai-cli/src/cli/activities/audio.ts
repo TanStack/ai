@@ -2,7 +2,7 @@ import { generateAudio } from '@tanstack/ai'
 import { instantiateAdapter } from '../../core/providers'
 import { emitJson } from '../../core/emit'
 import { mediaSourceToBytes, writeArtifact } from '../artifact'
-import { resolveAdapterContext } from '../context'
+import { resolveAdapterContext, withSpinner } from '../context'
 import { renderArtifactPath } from '../../render/lazy'
 import type { RunContext } from '../context'
 
@@ -37,10 +37,6 @@ export async function runAudio(ctx: RunContext, prompt: string): Promise<void> {
     config: adapterConfig,
   })
 
-  ctx.logger.info(
-    `Generating audio with ${resolved.provider}/${resolved.model}…`,
-  )
-
   const duration =
     typeof ctx.options.duration === 'number'
       ? ctx.options.duration
@@ -48,13 +44,18 @@ export async function runAudio(ctx: RunContext, prompt: string): Promise<void> {
         ? Number(ctx.options.duration)
         : undefined
 
-  const result = (await generateAudio({
-    adapter: adapter as never,
-    prompt,
-    duration,
-    modelOptions: modelOptions as never,
-    debug: false,
-  })) as AudioResultLike
+  const result = (await withSpinner(
+    ctx,
+    `Generating audio with ${resolved.provider}/${resolved.model}…`,
+    () =>
+      generateAudio({
+        adapter: adapter as never,
+        prompt,
+        duration,
+        modelOptions: modelOptions as never,
+        debug: false,
+      }),
+  )) as AudioResultLike
 
   const bytes = await mediaSourceToBytes(result.audio)
   const ext = EXT_BY_CONTENT_TYPE[result.audio.contentType ?? ''] ?? 'mp3'

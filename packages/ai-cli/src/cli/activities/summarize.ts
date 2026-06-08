@@ -2,7 +2,7 @@ import { summarize } from '@tanstack/ai'
 import { instantiateAdapter } from '../../core/providers'
 import { emitJson } from '../../core/emit'
 import { CliError } from '../../core/exit-codes'
-import { resolveAdapterContext } from '../context'
+import { resolveAdapterContext, withSpinner } from '../context'
 import { renderText } from '../../render/lazy'
 import type { RunContext } from '../context'
 
@@ -29,8 +29,6 @@ export async function runSummarize(
     config: adapterConfig,
   })
 
-  ctx.logger.info(`Summarizing with ${resolved.provider}/${resolved.model}…`)
-
   const focus = Array.isArray(ctx.options.focus)
     ? (ctx.options.focus as Array<string>)
     : undefined
@@ -47,15 +45,20 @@ export async function runSummarize(
     throw new CliError('USAGE', '--max-length must be a positive integer.')
   }
 
-  const result = (await summarize({
-    adapter: adapter as never,
-    text,
-    maxLength,
-    style: ctx.options.style as SummaryStyle | undefined,
-    focus,
-    modelOptions: modelOptions as never,
-    debug: false,
-  })) as SummaryResultLike
+  const result = (await withSpinner(
+    ctx,
+    `Summarizing with ${resolved.provider}/${resolved.model}…`,
+    () =>
+      summarize({
+        adapter: adapter as never,
+        text,
+        maxLength,
+        style: ctx.options.style as SummaryStyle | undefined,
+        focus,
+        modelOptions: modelOptions as never,
+        debug: false,
+      }),
+  )) as SummaryResultLike
 
   if (ctx.mode === 'pretty') {
     await renderText(result.summary)
