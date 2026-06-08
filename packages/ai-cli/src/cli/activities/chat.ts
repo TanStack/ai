@@ -105,7 +105,8 @@ export async function runChat(ctx: RunContext, prompt: string): Promise<void> {
       const data = await withSpinner(
         ctx,
         thinking,
-        () => chat({ ...base, outputSchema: schema as never }) as Promise<unknown>,
+        () =>
+          chat({ ...base, outputSchema: schema as never }) as Promise<unknown>,
       )
       if (ctx.mode === 'pretty') {
         await renderText(JSON.stringify(data, null, 2))
@@ -127,7 +128,9 @@ export async function runChat(ctx: RunContext, prompt: string): Promise<void> {
     const processor = new StreamProcessor()
     processor.setMessages(modelMessagesToUIMessages(messages as never))
     const result = await withSpinner(ctx, thinking, () =>
-      processor.process(chat({ ...base, stream: true }) as AsyncIterable<never>),
+      processor.process(
+        chat({ ...base, stream: true }) as AsyncIterable<never>,
+      ),
     )
 
     if (ctx.mode === 'pretty') {
