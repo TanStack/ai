@@ -362,3 +362,35 @@ describe('LazyToolManager', () => {
     })
   })
 })
+
+function lazyTool(name: string, description: string) {
+  return {
+    name,
+    description,
+    inputSchema: { type: 'object', properties: {} },
+    lazy: true,
+  }
+}
+
+describe('LazyToolManager — catalog includeDescription', () => {
+  it("lists names only by default ('none'), preserving legacy output", () => {
+    const mgr = new LazyToolManager([lazyTool('alpha', 'Does A. Extra.')], [])
+    const discovery = mgr
+      .getActiveTools()
+      .find((t) => t.name === '__lazy__tool__discovery__')
+    expect(discovery?.description).toContain('Available tools: [alpha].')
+  })
+
+  it('includes first sentences when configured', () => {
+    const mgr = new LazyToolManager(
+      [lazyTool('alpha', 'Does A. Extra.'), lazyTool('beta', 'Does B. Extra.')],
+      [],
+      { includeDescription: 'first-sentence' },
+    )
+    const discovery = mgr
+      .getActiveTools()
+      .find((t) => t.name === '__lazy__tool__discovery__')
+    expect(discovery?.description).toContain('alpha — Does A.')
+    expect(discovery?.description).toContain('beta — Does B.')
+  })
+})

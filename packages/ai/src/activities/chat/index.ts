@@ -39,6 +39,7 @@ import type {
   CustomEvent,
   InferSchemaType,
   JSONSchema,
+  LazyToolsConfig,
   ModelMessage,
   RunFinishedEvent,
   SchemaInput,
@@ -224,6 +225,12 @@ export interface TextActivityOptions<
   abortController?: TextOptions['abortController']
   /** Strategy for controlling the agent loop */
   agentLoopStrategy?: TextOptions['agentLoopStrategy']
+  /**
+   * Optional configuration for lazy-tool discovery (tools marked `lazy: true`).
+   * Tunes how much of each lazy tool's description appears in the discovery
+   * catalog. Optional — defaults to `{ includeDescription: 'none' }`.
+   */
+  lazyToolsConfig?: LazyToolsConfig
   /** Unique conversation identifier for tracking */
   conversationId?: TextOptions['conversationId']
   /** Thread/conversation ID for AG-UI protocol. Auto-generated if not provided. */
@@ -583,6 +590,7 @@ class TextEngine<
     this.lazyToolManager = new LazyToolManager(
       config.params.tools || [],
       this.messages,
+      config.params.lazyToolsConfig,
     )
     this.tools = this.lazyToolManager.getActiveTools()
     this.toolCallManager = new ToolCallManager<

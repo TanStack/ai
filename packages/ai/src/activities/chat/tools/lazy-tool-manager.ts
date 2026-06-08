@@ -1,5 +1,6 @@
 import { convertSchemaToJsonSchema } from './schema-converter'
-import type { Tool } from '../../../types'
+import { renderLazyCatalogEntry } from './lazy-tools'
+import type { LazyToolsConfig, Tool } from '../../../types'
 
 const DISCOVERY_TOOL_NAME = '__lazy__tool__discovery__'
 
@@ -16,6 +17,7 @@ export class LazyToolManager {
   private readonly discoveredTools: Set<string>
   private hasNewDiscoveries: boolean
   private readonly discoveryTool: Tool | null
+  private readonly lazyToolsConfig: LazyToolsConfig
 
   constructor(
     tools: ReadonlyArray<Tool>,
@@ -29,7 +31,9 @@ export class LazyToolManager {
       }>
       toolCallId?: string
     }>,
+    lazyToolsConfig: LazyToolsConfig = {},
   ) {
+    this.lazyToolsConfig = lazyToolsConfig
     const eager: Array<Tool> = []
     this.lazyToolMap = new Map()
     this.discoveredTools = new Set()
@@ -188,9 +192,13 @@ export class LazyToolManager {
 
     const lazyToolMap = this.lazyToolMap
 
-    // Build the static description with all lazy tool names
-    const allLazyNames = Array.from(this.lazyToolMap.keys())
-    const description = `You have access to additional tools that can be discovered. Available tools: [${allLazyNames.join(', ')}]. Call this tool with a list of tool names to discover their full descriptions and argument schemas before using them.`
+    // Build the static description, rendering each entry per includeDescription.
+    // With the default 'none' this is byte-identical to the legacy output.
+    const include = this.lazyToolsConfig.includeDescription ?? 'none'
+    const allLazyEntries = Array.from(this.lazyToolMap.values()).map((t) =>
+      renderLazyCatalogEntry(t.name, t.description, include),
+    )
+    const description = `You have access to additional tools that can be discovered. Available tools: [${allLazyEntries.join(', ')}]. Call this tool with a list of tool names to discover their full descriptions and argument schemas before using them.`
 
     // Use the arrow function to capture `this` context
     const manager = this
