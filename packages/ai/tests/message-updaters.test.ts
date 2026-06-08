@@ -629,7 +629,9 @@ describe('message-updaters', () => {
 
       const part = result[0]?.parts[0] as ToolCallPart | undefined
       expect(part?.output).toEqual({ error: 'Tool execution failed' })
-      expect(part?.state).toBe('input-complete')
+      // An error output drives the tool-call part to the terminal 'error'
+      // state (issue #718).
+      expect(part?.state).toBe('error')
     })
 
     it('should search across all messages', () => {

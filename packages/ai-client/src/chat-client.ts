@@ -1218,11 +1218,16 @@ export class ChatClient<
       context,
     )
 
-    // Add result via processor
+    // Add result via processor. `result.state` is the authoritative error
+    // signal; `addToolResult` infers error-ness from the error message being
+    // truthy, so a failed tool with an empty message (e.g. `throw new Error()`)
+    // must still pass a non-empty string to reach the terminal 'error' state.
     this.processor.addToolResult(
       result.toolCallId,
       result.output,
-      result.errorText,
+      result.state === 'output-error'
+        ? result.errorText || 'Tool execution failed'
+        : result.errorText,
     )
 
     // If stream is in progress, queue continuation check for after it ends
