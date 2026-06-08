@@ -9,7 +9,7 @@ import { emitEvent, emitJson } from '../../core/emit'
 import { CliError } from '../../core/exit-codes'
 import { loadJsonInput } from '../../core/config'
 import { loadAttachments } from '../../core/io'
-import { resolveAdapterContext } from '../context'
+import { resolveAdapterContext, withSpinner } from '../context'
 import { renderText } from '../../render/lazy'
 import { buildMcpClients } from '../mcp-clients'
 import { buildCodeMode } from '../code-mode'
@@ -98,12 +98,15 @@ export async function runChat(ctx: RunContext, prompt: string): Promise<void> {
         : {}),
     }
 
+    const thinking = `Thinking with ${resolved.provider}/${resolved.model}…`
+
     // Structured output: schema-bearing call resolves to the validated object.
     if (schema !== undefined) {
-      const data = await (chat({
-        ...base,
-        outputSchema: schema as never,
-      }) as Promise<unknown>)
+      const data = await withSpinner(
+        ctx,
+        thinking,
+        () => chat({ ...base, outputSchema: schema as never }) as Promise<unknown>,
+      )
       if (ctx.mode === 'pretty') {
         await renderText(JSON.stringify(data, null, 2))
         return
@@ -123,8 +126,8 @@ export async function runChat(ctx: RunContext, prompt: string): Promise<void> {
     // Buffered: accumulate the stream into a rich envelope via StreamProcessor.
     const processor = new StreamProcessor()
     processor.setMessages(modelMessagesToUIMessages(messages as never))
-    const result = await processor.process(
-      chat({ ...base, stream: true }) as AsyncIterable<never>,
+    const result = await withSpinner(ctx, thinking, () =>
+      processor.process(chat({ ...base, stream: true }) as AsyncIterable<never>),
     )
 
     if (ctx.mode === 'pretty') {

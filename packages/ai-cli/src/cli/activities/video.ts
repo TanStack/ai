@@ -3,7 +3,7 @@ import { instantiateAdapter } from '../../core/providers'
 import { emitJson } from '../../core/emit'
 import { CliError } from '../../core/exit-codes'
 import { fetchBytes, writeArtifact } from '../artifact'
-import { resolveAdapterContext } from '../context'
+import { resolveAdapterContext, withSpinner } from '../context'
 import { renderArtifactPath } from '../../render/lazy'
 import type { RunContext } from '../context'
 
@@ -26,19 +26,20 @@ export async function runVideo(ctx: RunContext, prompt: string): Promise<void> {
     config: adapterConfig,
   })
 
-  ctx.logger.info(
+  const job = await withSpinner(
+    ctx,
     `Creating video job with ${resolved.provider}/${resolved.model}…`,
+    () =>
+      generateVideo({
+        adapter: adapter as never,
+        prompt,
+        size: (typeof ctx.options.size === 'string'
+          ? ctx.options.size
+          : undefined) as never,
+        modelOptions: modelOptions as never,
+        debug: false,
+      }),
   )
-
-  const job = await generateVideo({
-    adapter: adapter as never,
-    prompt,
-    size: (typeof ctx.options.size === 'string'
-      ? ctx.options.size
-      : undefined) as never,
-    modelOptions: modelOptions as never,
-    debug: false,
-  })
 
   if (ctx.options.wait === false) {
     if (ctx.mode === 'pretty') {
