@@ -75,18 +75,18 @@ echo "$result" | jq '.data'
 
 ## Commands
 
-| Command | Purpose |
-| --- | --- |
-| `ts-ai chat <prompt>` | Chat / agentic text (tools, code-mode, structured output) |
-| `ts-ai image <prompt>` | Generate an image |
-| `ts-ai video <prompt>` | Generate a video (async job; blocks until done) |
-| `ts-ai audio <prompt>` | Generate audio (music / sfx) |
-| `ts-ai speech <text>` | Text-to-speech (alias `tts`) |
-| `ts-ai transcribe <file>` | Speech-to-text (alias `stt`) |
-| `ts-ai summarize <text>` | Summarize text |
-| `ts-ai introspect` | Print the full CLI manifest as JSON |
-| `ts-ai mcp` | Expose every command as an MCP tool over stdio |
-| `ts-ai update` | Update to the latest version |
+| Command                   | Purpose                                                   |
+| ------------------------- | --------------------------------------------------------- |
+| `ts-ai chat <prompt>`     | Chat / agentic text (tools, code-mode, structured output) |
+| `ts-ai image <prompt>`    | Generate an image                                         |
+| `ts-ai video <prompt>`    | Generate a video (async job; blocks until done)           |
+| `ts-ai audio <prompt>`    | Generate audio (music / sfx)                              |
+| `ts-ai speech <text>`     | Text-to-speech (alias `tts`)                              |
+| `ts-ai transcribe <file>` | Speech-to-text (alias `stt`)                              |
+| `ts-ai summarize <text>`  | Summarize text                                            |
+| `ts-ai introspect`        | Print the full CLI manifest as JSON                       |
+| `ts-ai mcp`               | Expose every command as an MCP tool over stdio            |
+| `ts-ai update`            | Update to the latest version                              |
 
 The prompt is every non-flag argument after the command. With no positional
 prompt, input is read from stdin (`cat doc.txt | ts-ai summarize ...`). Media
