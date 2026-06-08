@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { Box, Text, render, useApp, useInput } from 'ink'
+import { DIM, ERROR_RED, PINK } from './theme'
+import { BrandMark } from './welcome'
 
 export interface ReplMessage {
   role: 'user' | 'assistant'
@@ -66,26 +68,28 @@ function Repl({
 
   return (
     <Box flexDirection="column">
-      <Text dimColor>chat · {model} · /clear to reset · /exit to quit</Text>
-      <Box flexDirection="column" marginTop={1}>
+      <Box marginBottom={1}>
+        <BrandMark suffix={`chat · ${model} · /clear · /exit`} />
+      </Box>
+      <Box flexDirection="column">
         {messages.map((m, i) => (
           <Box key={i} marginBottom={1} flexDirection="column">
-            <Text bold color={m.role === 'user' ? 'cyan' : 'green'}>
+            <Text bold color={m.role === 'user' ? DIM : PINK}>
               {m.role === 'user' ? 'you' : 'ai'}
             </Text>
             <Text>{m.content}</Text>
           </Box>
         ))}
       </Box>
-      {error ? <Text color="red">error: {error}</Text> : null}
+      {error ? <Text color={ERROR_RED}>✗ {error}</Text> : null}
       <Box>
         {busy ? (
-          <Text color="yellow">…thinking</Text>
+          <Text color={PINK}>● thinking…</Text>
         ) : (
           <Text>
-            <Text color="cyan">❯ </Text>
+            <Text color={PINK}>❯ </Text>
             {draft}
-            <Text color="gray">▌</Text>
+            <Text color={DIM}>▌</Text>
           </Text>
         )}
       </Box>

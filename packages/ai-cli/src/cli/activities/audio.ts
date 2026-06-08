@@ -60,10 +60,14 @@ export async function runAudio(ctx: RunContext, prompt: string): Promise<void> {
   const ext = EXT_BY_CONTENT_TYPE[result.audio.contentType ?? ''] ?? 'mp3'
   const output =
     typeof ctx.options.output === 'string' ? ctx.options.output : undefined
+  const outputDir =
+    typeof ctx.options.outputDir === 'string'
+      ? ctx.options.outputDir
+      : undefined
   const path = await writeArtifact(
     'audio',
     { bytes, ext, mimeType: result.audio.contentType ?? `audio/${ext}` },
-    output,
+    { output, outputDir },
     ctx.now,
   )
 

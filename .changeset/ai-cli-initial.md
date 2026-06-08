@@ -15,9 +15,15 @@ anthropic, gemini, openrouter, and fal bundled for zero-install) with keys from
 `--apiKey`, a conventional `.env`, or environment variables, and all options are
 expressible via `--config` (file or inline JSON).
 
-For humans there's a lazily-loaded Ink layer: running `ts-ai` with no command on
-a TTY opens an animated home screen and menu, `ts-ai chat` with no prompt drops
-into an interactive REPL, and image results preview inline. `chat` supports tools
-via `--mcp` servers, sandboxed `--code-mode` execution, and `--schema` structured
-output, plus `ts-ai introspect` (machine-readable manifest), `ts-ai mcp` (expose
-commands as MCP tools), and `ts-ai update`.
+For humans there's a lazily-loaded, TanStack-branded Ink layer: running `ts-ai`
+with no command on a TTY opens a full-width welcome screen (island logo on
+graphics-capable terminals + a two-color `TANSTACK` / pink `AI` wordmark) and
+menu, `ts-ai chat` with no prompt drops into an interactive REPL, and image
+results preview inline. `chat` supports tools via `--mcp` servers, sandboxed
+`--code-mode` execution, and `--schema` structured output, plus
+`ts-ai introspect` (machine-readable manifest), `ts-ai mcp` (expose commands as
+MCP tools — prints a ready-to-paste client config to stderr), and `ts-ai update`.
+
+Generations (`image`, `video`, `audio`, `speech`) write to the current directory
+by default; `--output-dir <dir>` sets the target directory (created if missing,
+cross-platform) and `-o/--output <path>` sets an exact path.

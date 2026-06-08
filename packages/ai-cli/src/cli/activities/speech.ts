@@ -46,7 +46,7 @@ export async function runSpeech(ctx: RunContext, text: string): Promise<void> {
   const path = await writeArtifact(
     'speech',
     { bytes, ext, mimeType: `audio/${ext}` },
-    str(ctx.options.output),
+    { output: str(ctx.options.output), outputDir: str(ctx.options.outputDir) },
     ctx.now,
   )
 

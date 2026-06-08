@@ -1,4 +1,5 @@
-import { writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import { CliError } from '../core/exit-codes'
 import { emitBytes } from '../core/emit'
 
@@ -9,36 +10,49 @@ export interface Artifact {
   mimeType: string
 }
 
+/** Where to write an artifact: an explicit full path and/or a target directory. */
+export interface OutputTarget {
+  /** `-o/--output`: explicit path ("-" = stdout). Wins over `outputDir`. */
+  output?: string
+  /** `--outputDir`: directory for the auto-generated filename. Defaults to cwd. */
+  outputDir?: string
+}
+
 /**
- * Resolve where an artifact should be written. Explicit `-o` wins; otherwise a
- * timestamped name in the cwd. `-o -` is handled by the caller (stdout).
+ * Resolve where an artifact should be written. Precedence: an explicit
+ * `--output` path wins; otherwise an auto-generated filename inside
+ * `--outputDir` (default: the current directory). Cross-platform via node:path.
+ * `-o -` is handled by the caller (stdout).
  */
 export function resolveOutputPath(
   command: string,
   ext: string,
-  output: string | undefined,
+  target: OutputTarget,
   now: number,
 ): string {
-  if (output && output !== '-') return output
-  return `./ts-ai-${command}-${now}.${ext}`
+  if (target.output && target.output !== '-') return target.output
+  const dir = target.outputDir ?? '.'
+  return join(dir, `ts-ai-${command}-${now}.${ext}`)
 }
 
 /**
- * Persist an artifact. Returns the path written, or null when bytes were sent
- * to stdout (`-o -`).
+ * Persist an artifact, creating the target directory if needed. Returns the
+ * path written, or null when bytes were sent to stdout (`-o -`).
  */
 export async function writeArtifact(
   command: string,
   artifact: Artifact,
-  output: string | undefined,
+  target: OutputTarget,
   now: number,
 ): Promise<string | null> {
-  if (output === '-') {
+  if (target.output === '-') {
     await emitBytes(artifact.bytes)
     return null
   }
-  const path = resolveOutputPath(command, artifact.ext, output, now)
+  const path = resolveOutputPath(command, artifact.ext, target, now)
   try {
+    const dir = dirname(path)
+    if (dir && dir !== '.') await mkdir(dir, { recursive: true })
     await writeFile(path, artifact.bytes)
   } catch (cause) {
     throw new CliError('RUNTIME', `Failed to write artifact to "${path}".`, {

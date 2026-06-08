@@ -51,10 +51,11 @@ and `--apiKey` always take precedence over `.env`.
 
 ## Interactive mode
 
-Run `ts-ai` with no command on a terminal and you get an animated home screen
-that asks what you want to do, with a menu (Chat, Image, Video, …). Pick **Chat**
-to drop into a live REPL (`/clear` to reset, `/exit` to quit); pick a generation
-command to type a prompt and run it inline.
+Run `ts-ai` with no command on a terminal and you get a full-width TanStack AI
+welcome screen — the island logo (on graphics-capable terminals) above the
+wordmark — and a menu (Chat, Image, Video, …). Pick **Chat** to drop into a live
+REPL (`/clear` to reset, `/exit` to quit); pick a generation command to type a
+prompt and run it inline.
 
 ```bash
 ts-ai            # animated menu → pick an action
@@ -109,8 +110,20 @@ ts-ai image "a red bicycle" --model openai/gpt-image-1 --json
 # {"id":"...","model":"gpt-image-1","images":[{"path":"./ts-ai-image-<ts>.png","mimeType":"image/png"}],"usage":{...}}
 ```
 
-Media commands always write the artifact to a file (override with `-o`, or
-`-o -` to stream raw bytes to stdout) and report the path in the JSON.
+Media commands (`image`, `video`, `audio`, `speech`) always write the artifact
+to a file and report the path in the JSON. By default the file lands in the
+**current directory** with an auto-generated name. Control where it goes:
+
+- `--output-dir <dir>` — write the auto-named file into `<dir>` (created if
+  missing). Works the same on Windows and macOS.
+- `-o/--output <path>` — set the exact file path (wins over `--output-dir`).
+- `-o -` — stream the raw bytes to stdout (for piping).
+
+```bash
+ts-ai image "a red bicycle" --model openai/gpt-image-1               # ./ts-ai-image-<ts>.png
+ts-ai image "a red bicycle" --model openai/gpt-image-1 --output-dir ./out
+ts-ai image "a red bicycle" --model openai/gpt-image-1 -o ./pics/bike.png
+```
 
 ### Streaming the AG-UI event stream
 
@@ -167,7 +180,16 @@ Two patterns make `ts-ai` easy to drive programmatically:
 1. **`ts-ai introspect`** prints a versioned JSON manifest of every command,
    flag, type, and exit code — read it once and auto-generate tool definitions.
 2. **`ts-ai mcp`** starts an MCP server (stdio) that exposes each command as a
-   tool, so any MCP-capable agent can register `ts-ai` directly.
+   tool, so any MCP-capable agent can register `ts-ai` directly. On startup it
+   prints the connection details to **stderr** (stdout is the JSON-RPC channel)
+   — a ready-to-paste client config, the transport, and the tool list:
+
+   ```jsonc
+   // add to Claude Desktop / Cursor
+   "mcpServers": {
+     "tanstack-ai": { "command": "ts-ai", "args": ["mcp"] }
+   }
+   ```
 
 ### Exit codes
 

@@ -51,6 +51,7 @@ export async function runImage(ctx: RunContext, prompt: string): Promise<void> {
   })) as ImageResultLike
 
   const output = stringValue(ctx.options.output)
+  const outputDir = stringValue(ctx.options.outputDir)
   const written: Array<{
     path: string | null
     mimeType: string
@@ -71,7 +72,7 @@ export async function runImage(ctx: RunContext, prompt: string): Promise<void> {
     const path = await writeArtifact(
       'image',
       { bytes, ext, mimeType },
-      target,
+      { output: target, outputDir },
       ctx.now + index,
     )
     written.push({ path, mimeType, revisedPrompt: image.revisedPrompt })
