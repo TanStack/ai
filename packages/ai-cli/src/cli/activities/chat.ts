@@ -56,10 +56,7 @@ export async function runChat(ctx: RunContext, prompt: string): Promise<void> {
       : typeof ctx.options.maxSteps === 'string'
         ? Number(ctx.options.maxSteps)
         : undefined
-  if (
-    maxSteps !== undefined &&
-    (!Number.isInteger(maxSteps) || maxSteps < 1)
-  ) {
+  if (maxSteps !== undefined && (!Number.isInteger(maxSteps) || maxSteps < 1)) {
     throw new CliError('USAGE', '--max-steps must be a positive integer.')
   }
 
