@@ -302,6 +302,13 @@ Use the `workspace:` protocol for internal package dependencies in
 Private packages (`examples/`, `testing/`) are never published, so `workspace:*`
 is fine there in any field.
 
+When adding a new library under `packages/`, add a `workspace:*` override for
+it in `pnpm-workspace.yaml` under `overrides:` (e.g.
+`'@tanstack/ai-foo': workspace:*`), then run `pnpm install`. Every `packages/`
+library must have an entry. This forces any transitive or example dependency
+that references a published version onto the local workspace copy, so the
+monorepo never accidentally builds/tests against an npm-published version.
+
 ### Tree-Shakeable Exports
 
 When adding new functionality to provider adapters, create separate adapters rather than adding to monolithic ones. Export from `/adapters` subpath.
