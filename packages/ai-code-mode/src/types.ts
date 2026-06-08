@@ -1,4 +1,5 @@
 import type {
+  LazyToolsConfig,
   SchemaInput,
   ServerTool,
   ToolExecutionContext,
@@ -195,6 +196,14 @@ export interface CodeModeToolConfig {
    * ```
    */
   getSkillBindings?: () => Promise<Record<string, ToolBinding>>
+
+  /**
+   * Optional lazy-tool discovery config. Tools marked `lazy: true` are kept out
+   * of the system prompt's full documentation and listed in a Discoverable APIs
+   * catalog instead; this tunes how much of each lazy tool's description that
+   * catalog shows. Optional — defaults to `{ includeDescription: 'none' }`.
+   */
+  lazyToolsConfig?: LazyToolsConfig
 }
 
 /**
@@ -226,4 +235,20 @@ export interface CodeModeToolResult {
         line?: number | undefined
       }
     | undefined
+}
+
+/**
+ * Return shape of `createCodeMode`. `tool` (execute_typescript) and
+ * `systemPrompt` are preserved for backward compatibility; `discoveryTool` and
+ * `tools` are additive. Spread `tools` into `chat({ tools })`.
+ */
+export interface CreateCodeModeResult {
+  /** The execute_typescript tool. */
+  tool: ServerTool<SchemaInput, SchemaInput, 'execute_typescript'>
+  /** The discover_tools tool, or null when there are no lazy tools. */
+  discoveryTool: ServerTool<SchemaInput, SchemaInput, 'discover_tools'> | null
+  /** [tool] or [tool, discoveryTool] — the array to spread into chat({ tools }). */
+  tools: Array<ServerTool<SchemaInput, SchemaInput, string>>
+  /** The matching system prompt. */
+  systemPrompt: string
 }

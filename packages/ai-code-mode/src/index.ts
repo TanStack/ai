@@ -7,6 +7,7 @@ export type {
 
 export { createCodeModeSystemPrompt } from './create-system-prompt'
 export { createCodeMode } from './create-code-mode'
+export { createDiscoveryTool } from './create-discovery-tool'
 
 export {
   InMemoryAgentStore,
@@ -39,6 +40,7 @@ export { wrapCode } from './code-wrapper'
 export type {
   // Tool-based API types
   CodeModeToolConfig,
+  CreateCodeModeResult,
   CodeModeToolResult,
   // Isolate driver interfaces (used by driver packages)
   IsolateDriver,
