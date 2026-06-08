@@ -33,7 +33,9 @@ export async function runHome(modelOverride?: string): Promise<number> {
     try {
       if (choice.command === 'chat') {
         // Esc in the REPL unmounts it and returns here → back to the menu.
-        await runChatRepl(modelOverride ?? DEFAULT_MODELS['chat'] ?? 'openai/gpt-5.5')
+        await runChatRepl(
+          modelOverride ?? DEFAULT_MODELS['chat'] ?? 'openai/gpt-5.5',
+        )
         continue
       }
 
