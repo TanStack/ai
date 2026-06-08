@@ -68,9 +68,11 @@ const ITEMS: Array<MenuItem> = [
 function Menu({
   onChoose,
   logo,
+  animate,
 }: {
   onChoose: (choice: MenuChoice) => void
   logo: string | null
+  animate: boolean
 }) {
   const { exit } = useApp()
   const [index, setIndex] = useState(0)
@@ -134,7 +136,7 @@ function Menu({
 
   return (
     <Box flexDirection="column">
-      <WelcomeHeader logo={logo} animate />
+      <WelcomeHeader logo={logo} animate={animate} />
       <Text color={DIM}>What do you want to do?</Text>
       <Box flexDirection="column" marginTop={1}>
         {ITEMS.map((item, i) => {
@@ -158,7 +160,7 @@ function Menu({
 }
 
 /** Render the home screen and resolve the user's choice. */
-export async function runMenuInk(): Promise<MenuChoice> {
+export async function runMenuInk(animate = true): Promise<MenuChoice> {
   const logo = await loadLogo()
   // Clear the screen (and scrollback) so the welcome splash starts clean.
   if (process.stdout.isTTY) process.stdout.write('[2J[3J[H')
@@ -167,6 +169,7 @@ export async function runMenuInk(): Promise<MenuChoice> {
     const { waitUntilExit } = render(
       <Menu
         logo={logo}
+        animate={animate}
         onChoose={(c) => {
           choice = c
         }}

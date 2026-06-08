@@ -239,9 +239,24 @@ async function importProvider(
   try {
     return await import(entry.pkg)
   } catch (cause) {
+    const code = (cause as { code?: string }).code
+    const message = cause instanceof Error ? cause.message : String(cause)
+    // Only treat a genuinely-absent package as "not installed". If the package
+    // is present but throws while loading (broken build, missing transitive),
+    // surface the real error instead of a misleading install hint.
+    const missingPackage =
+      (code === 'ERR_MODULE_NOT_FOUND' || code === 'MODULE_NOT_FOUND') &&
+      message.includes(entry.pkg)
+    if (missingPackage) {
+      throw new CliError(
+        'PROVIDER_NOT_INSTALLED',
+        `Provider "${provider}" requires ${entry.pkg}. Install it: pnpm add ${entry.pkg}`,
+        { provider, detail: { package: entry.pkg }, cause },
+      )
+    }
     throw new CliError(
-      'PROVIDER_NOT_INSTALLED',
-      `Provider "${provider}" requires ${entry.pkg}. Install it: pnpm add ${entry.pkg}`,
+      'RUNTIME',
+      `Failed to load provider "${provider}" (${entry.pkg}): ${message}`,
       { provider, detail: { package: entry.pkg }, cause },
     )
   }

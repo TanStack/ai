@@ -48,6 +48,8 @@ export async function buildMcpClients(
       const client = await mcp.createMCPClient({ transport })
       clients.push(client)
     } catch (cause) {
+      // Don't leak the connections opened so far if a later one fails.
+      await Promise.all(clients.map((c) => c.close().catch(() => undefined)))
       throw new CliError(
         'RUNTIME',
         `Failed to connect to MCP server "${spec}".`,

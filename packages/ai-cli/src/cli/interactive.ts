@@ -20,33 +20,42 @@ const DEFAULT_MODELS: Record<string, string> = {
 
 /**
  * The home screen shown when `ts-ai` is run with no command on a TTY: an
- * animated wordmark + menu. Resolves the chosen action and runs it.
+ * animated wordmark + menu. Acts as a hub — after each action (or pressing Esc
+ * inside a sub-flow) it returns to the menu, until the user quits.
  */
 export async function runHome(modelOverride?: string): Promise<number> {
-  const choice = await renderMenu()
-  if (choice.command === 'quit') return 0
+  let first = true
+  for (;;) {
+    const choice = await renderMenu(first)
+    first = false
+    if (choice.command === 'quit') return 0
 
-  if (choice.command === 'chat') {
-    return runChatRepl(
-      modelOverride ?? DEFAULT_MODELS['chat'] ?? 'openai/gpt-5.5',
-    )
+    try {
+      if (choice.command === 'chat') {
+        // Esc in the REPL unmounts it and returns here → back to the menu.
+        await runChatRepl(modelOverride ?? DEFAULT_MODELS['chat'] ?? 'openai/gpt-5.5')
+        continue
+      }
+
+      const model = modelOverride ?? DEFAULT_MODELS[choice.command]
+      const spec = findCommand(choice.command)
+      if (!model || !spec) {
+        process.stderr.write(
+          `Run it with a model, e.g.:\n  ts-ai ${choice.command} "${choice.prompt ?? '<prompt>'}" --model <provider/model>\n`,
+        )
+        continue
+      }
+      await dispatchCommand(spec, choice.prompt ? [choice.prompt] : [], {
+        model,
+        preview: true,
+      })
+    } catch (err) {
+      // A failed action shouldn't crash the hub — report and return to the menu.
+      process.stderr.write(
+        `error: ${err instanceof Error ? err.message : String(err)}\n`,
+      )
+    }
   }
-
-  const model = modelOverride ?? DEFAULT_MODELS[choice.command]
-  if (!model) {
-    process.stderr.write(
-      `Run it with a model, e.g.:\n  ts-ai ${choice.command} "${choice.prompt ?? '<prompt>'}" --model <provider/model>\n`,
-    )
-    return 0
-  }
-
-  const spec = findCommand(choice.command)
-  if (!spec) return 0
-  await dispatchCommand(spec, choice.prompt ? [choice.prompt] : [], {
-    model,
-    preview: true,
-  })
-  return 0
 }
 
 /** Launch the interactive chat REPL (also used by `ts-ai chat` with no prompt on a TTY). */

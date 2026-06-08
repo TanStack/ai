@@ -41,8 +41,16 @@ function runProcess(cmd: string, args: Array<string>): Promise<number | null> {
 }
 
 function isOnDemand(): boolean {
+  // Detect one-shot runners (npx, pnpm dlx, yarn dlx, bunx) — there's nothing
+  // to update, since each invocation already fetches the latest.
   const execPath = process.env.npm_execpath ?? ''
-  return execPath.includes('_npx') || process.env.npm_command === 'exec'
+  const userAgent = process.env.npm_config_user_agent ?? ''
+  return (
+    execPath.includes('_npx') ||
+    execPath.includes('dlx') ||
+    process.env.npm_command === 'exec' ||
+    /\bdlx\b/.test(userAgent)
+  )
 }
 
 function upgradeCommand(agent: string): { cmd: string; args: Array<string> } {

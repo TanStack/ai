@@ -56,6 +56,12 @@ export async function runChat(ctx: RunContext, prompt: string): Promise<void> {
       : typeof ctx.options.maxSteps === 'string'
         ? Number(ctx.options.maxSteps)
         : undefined
+  if (
+    maxSteps !== undefined &&
+    (!Number.isInteger(maxSteps) || maxSteps < 1)
+  ) {
+    throw new CliError('USAGE', '--max-steps must be a positive integer.')
+  }
 
   // Resolve tools from MCP servers, optionally wrapped in Code Mode.
   const mcpSpecs = Array.isArray(ctx.options.mcp)
@@ -90,7 +96,9 @@ export async function runChat(ctx: RunContext, prompt: string): Promise<void> {
       debug: false as never,
       ...(tools ? { tools: tools as never } : {}),
       ...(mcp ? { mcp: mcp as never } : {}),
-      ...(maxSteps ? { agentLoopStrategy: maxIterations(maxSteps) } : {}),
+      ...(maxSteps !== undefined
+        ? { agentLoopStrategy: maxIterations(maxSteps) }
+        : {}),
     }
 
     // Structured output: schema-bearing call resolves to the validated object.
@@ -174,6 +182,19 @@ function parseMessages(value: unknown): Array<ModelMessageLike> {
   if (value === undefined) return []
   if (!Array.isArray(value)) {
     throw new CliError('USAGE', '--messages must be a JSON array of messages.')
+  }
+  for (const m of value) {
+    if (
+      typeof m !== 'object' ||
+      m === null ||
+      typeof (m as { role?: unknown }).role !== 'string' ||
+      !('content' in (m as Record<string, unknown>))
+    ) {
+      throw new CliError(
+        'USAGE',
+        '--messages entries must be objects with a string "role" and a "content" field.',
+      )
+    }
   }
   return value as Array<ModelMessageLike>
 }

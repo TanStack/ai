@@ -1,3 +1,4 @@
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   bundledProviders,
@@ -10,7 +11,6 @@ import { resolveOutputMode } from '../src/core/output'
 import { coerceFlags } from '../src/cli/options'
 import { CliError, ExitCode, toCliError } from '../src/core/exit-codes'
 import { inferMimeType, resolvePrompt } from '../src/core/io'
-import { join } from 'node:path'
 import { tokenizeCommand } from '../src/cli/mcp-clients'
 import { resolveOutputPath } from '../src/cli/artifact'
 import { describeMcpServer } from '../src/cli/mcp'

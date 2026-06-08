@@ -1,16 +1,18 @@
 import { Box, Text, render } from 'ink'
 import terminalImage from 'terminal-image'
-import { DIM, PINK, SUCCESS } from './theme'
+import { DIM, PINK, SUCCESS, supportsInlineGraphics } from './theme'
 import type { RenderedImage } from './lazy'
 
 /**
- * Encode an image file into a terminal-renderable string (native iTerm2/Kitty
- * graphics where supported, ANSI block-art otherwise). Returns null on failure
- * so a missing preview never breaks the run.
+ * Encode an image file into a terminal-renderable string. Only attempted on
+ * terminals with inline raster graphics (iTerm2/Kitty/WezTerm), where it renders
+ * crisply; elsewhere returns null so we show just the saved path instead of
+ * heavily pixelated ANSI block-art. Returns null on any failure too.
  */
 async function encodePreview(path: string): Promise<string | null> {
+  if (!supportsInlineGraphics()) return null
   try {
-    return await terminalImage.file(path, { height: 20 })
+    return await terminalImage.file(path, { height: 24 })
   } catch {
     return null
   }
