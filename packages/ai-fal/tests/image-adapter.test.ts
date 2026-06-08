@@ -341,7 +341,9 @@ describe('Fal Image Adapter', () => {
 
   it('omits usage when fal does not report billable units', async () => {
     mockSubscribe.mockResolvedValueOnce(
-      createMockImageResponse([{ url: 'https://fal.media/files/unbilled.png' }]),
+      createMockImageResponse([
+        { url: 'https://fal.media/files/unbilled.png' },
+      ]),
     )
 
     const result = await generateImage({

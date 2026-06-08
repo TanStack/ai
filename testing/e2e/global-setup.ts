@@ -502,8 +502,7 @@ function falQueueMount(): Mountable {
     ): Promise<boolean> {
       const isResultPath =
         req.method === 'GET' && /\/requests\/[^/]+$/.test(pathname)
-      const isStatusPath =
-        req.method === 'GET' && pathname.endsWith('/status')
+      const isStatusPath = req.method === 'GET' && pathname.endsWith('/status')
       const isSubmitPath =
         req.method === 'POST' && !pathname.includes('/requests/')
 
@@ -512,7 +511,10 @@ function falQueueMount(): Mountable {
         res.statusCode = 200
         res.setHeader('Content-Type', 'application/json')
         res.end(
-          JSON.stringify({ request_id: FAL_E2E_REQUEST_ID, status: 'IN_QUEUE' }),
+          JSON.stringify({
+            request_id: FAL_E2E_REQUEST_ID,
+            status: 'IN_QUEUE',
+          }),
         )
         return true
       }
