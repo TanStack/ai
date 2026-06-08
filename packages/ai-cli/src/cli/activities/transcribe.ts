@@ -3,7 +3,7 @@ import { generateTranscription } from '@tanstack/ai'
 import { instantiateAdapter } from '../../core/providers'
 import { emitJson } from '../../core/emit'
 import { CliError } from '../../core/exit-codes'
-import { resolveAdapterContext } from '../context'
+import { resolveAdapterContext, withSpinner } from '../context'
 import { renderText } from '../../render/lazy'
 import type { RunContext } from '../context'
 
@@ -54,18 +54,21 @@ export async function runTranscribe(
     })
   }
 
-  ctx.logger.info(`Transcribing with ${resolved.provider}/${resolved.model}…`)
-
-  const result = (await generateTranscription({
-    adapter: adapter as never,
-    audio,
-    language:
-      typeof ctx.options.language === 'string'
-        ? ctx.options.language
-        : undefined,
-    modelOptions: modelOptions as never,
-    debug: false,
-  })) as TranscriptionResultLike
+  const result = (await withSpinner(
+    ctx,
+    `Transcribing with ${resolved.provider}/${resolved.model}…`,
+    () =>
+      generateTranscription({
+        adapter: adapter as never,
+        audio,
+        language:
+          typeof ctx.options.language === 'string'
+            ? ctx.options.language
+            : undefined,
+        modelOptions: modelOptions as never,
+        debug: false,
+      }),
+  )) as TranscriptionResultLike
 
   if (ctx.mode === 'pretty') {
     await renderText(result.text)

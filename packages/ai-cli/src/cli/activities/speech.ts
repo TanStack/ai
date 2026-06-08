@@ -2,7 +2,7 @@ import { generateSpeech } from '@tanstack/ai'
 import { instantiateAdapter } from '../../core/providers'
 import { emitJson } from '../../core/emit'
 import { writeArtifact } from '../artifact'
-import { resolveAdapterContext } from '../context'
+import { resolveAdapterContext, withSpinner } from '../context'
 import { renderArtifactPath } from '../../render/lazy'
 import type { RunContext } from '../context'
 
@@ -27,19 +27,20 @@ export async function runSpeech(ctx: RunContext, text: string): Promise<void> {
     config: adapterConfig,
   })
 
-  ctx.logger.info(
+  const result = (await withSpinner(
+    ctx,
     `Synthesizing speech with ${resolved.provider}/${resolved.model}…`,
-  )
-
-  const result = (await generateSpeech({
-    adapter: adapter as never,
-    text,
-    voice: str(ctx.options.voice),
-    format: str(ctx.options.format) as SpeechFormat | undefined,
-    speed: num(ctx.options.speed),
-    modelOptions: modelOptions as never,
-    debug: false,
-  })) as TTSResultLike
+    () =>
+      generateSpeech({
+        adapter: adapter as never,
+        text,
+        voice: str(ctx.options.voice),
+        format: str(ctx.options.format) as SpeechFormat | undefined,
+        speed: num(ctx.options.speed),
+        modelOptions: modelOptions as never,
+        debug: false,
+      }),
+  )) as TTSResultLike
 
   const bytes = new Uint8Array(Buffer.from(result.audio, 'base64'))
   const ext = result.format || 'mp3'

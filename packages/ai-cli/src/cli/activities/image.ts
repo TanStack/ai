@@ -3,7 +3,7 @@ import { instantiateAdapter } from '../../core/providers'
 import { emitJson } from '../../core/emit'
 import { CliError } from '../../core/exit-codes'
 import { mediaSourceToBytes, writeArtifact } from '../artifact'
-import { resolveAdapterContext } from '../context'
+import { resolveAdapterContext, withSpinner } from '../context'
 import { renderImageResult } from '../../render/lazy'
 import type { RunContext } from '../context'
 
@@ -37,19 +37,20 @@ export async function runImage(ctx: RunContext, prompt: string): Promise<void> {
     config: adapterConfig,
   })
 
-  ctx.logger.info(
+  const result = (await withSpinner(
+    ctx,
     `Generating image with ${resolved.provider}/${resolved.model}…`,
-  )
-
-  const result = (await generateImage({
-    // The CLI resolves adapters at runtime; the static generic shape is erased.
-    adapter: adapter as never,
-    prompt,
-    numberOfImages: numberValue(ctx.options.count) ?? 1,
-    size: stringValue(ctx.options.size) as never,
-    modelOptions: modelOptions as never,
-    debug: false,
-  })) as ImageResultLike
+    () =>
+      generateImage({
+        // The CLI resolves adapters at runtime; the static generic is erased.
+        adapter: adapter as never,
+        prompt,
+        numberOfImages: numberValue(ctx.options.count) ?? 1,
+        size: stringValue(ctx.options.size) as never,
+        modelOptions: modelOptions as never,
+        debug: false,
+      }),
+  )) as ImageResultLike
 
   const output = stringValue(ctx.options.output)
   const outputDir = stringValue(ctx.options.outputDir)
