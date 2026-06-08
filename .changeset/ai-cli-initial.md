@@ -27,3 +27,7 @@ MCP tools — prints a ready-to-paste client config to stderr), and `ts-ai updat
 Generations (`image`, `video`, `audio`, `speech`) write to the current directory
 by default; `--output-dir <dir>` sets the target directory (created if missing,
 cross-platform) and `-o/--output <path>` sets an exact path.
+
+Ships a TanStack Intent agent skill (`ai-cli`) so coding agents learn how to
+drive `ts-ai` correctly (machine-mode contract, exit codes, `--config`,
+`--output-dir`, `introspect`, `mcp`).
