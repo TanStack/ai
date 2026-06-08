@@ -214,6 +214,7 @@ describe('Fal Speech Adapter', () => {
 
     expect(mockConfig).toHaveBeenCalledWith({
       credentials: 'my-api-key',
+      fetch: expect.any(Function),
     })
   })
 
@@ -225,6 +226,7 @@ describe('Fal Speech Adapter', () => {
 
     expect(mockConfig).toHaveBeenCalledWith({
       credentials: 'my-api-key',
+      fetch: expect.any(Function),
       proxyUrl: '/api/fal/proxy',
     })
   })

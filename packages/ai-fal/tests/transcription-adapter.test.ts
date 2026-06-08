@@ -219,6 +219,7 @@ describe('Fal Transcription Adapter', () => {
 
     expect(mockConfig).toHaveBeenCalledWith({
       credentials: 'my-api-key',
+      fetch: expect.any(Function),
     })
   })
 
@@ -230,6 +231,7 @@ describe('Fal Transcription Adapter', () => {
 
     expect(mockConfig).toHaveBeenCalledWith({
       credentials: 'my-api-key',
+      fetch: expect.any(Function),
       proxyUrl: '/api/fal/proxy',
     })
   })

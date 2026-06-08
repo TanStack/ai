@@ -15,6 +15,7 @@ import type { DebugOption } from '../../logger/types'
 import type { VideoAdapter } from './adapter'
 import type {
   StreamChunk,
+  TokenUsage,
   VideoJobResult,
   VideoStatusResult,
   VideoUrlResult,
@@ -380,6 +381,7 @@ async function* runStreamingVideoGeneration<
             status: 'completed',
             url: urlResult.url,
             expiresAt: urlResult.expiresAt,
+            ...(urlResult.usage ? { usage: urlResult.usage } : {}),
           },
           timestamp: Date.now(),
         } as StreamChunk
@@ -454,6 +456,7 @@ export async function getVideoJobStatus<
   progress?: number
   url?: string
   error?: string
+  usage?: TokenUsage
 }> {
   const { adapter, jobId } = options
   const requestId = createId('video-status')
@@ -487,10 +490,19 @@ export async function getVideoJobStatus<
         duration: Date.now() - startTime,
         timestamp: Date.now(),
       })
+      if (urlResult.usage) {
+        aiEventClient.emit('video:usage', {
+          requestId,
+          model: adapter.model,
+          usage: urlResult.usage,
+          timestamp: Date.now(),
+        })
+      }
       return {
         status: statusResult.status,
         progress: statusResult.progress,
         url: urlResult.url,
+        ...(urlResult.usage ? { usage: urlResult.usage } : {}),
       }
     } catch (error) {
       const errorMessage =

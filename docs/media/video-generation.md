@@ -408,7 +408,7 @@ const { jobId } = await generateVideo({
 
 ## Response Types
 
-> **Note:** The interfaces below are the underlying adapter-level types. The `getVideoJobStatus()` helper returns a single merged object, `{ status, progress?, url?, error? }` — it does not return `jobId` or `expiresAt`.
+> **Note:** The interfaces below are the underlying adapter-level types. The `getVideoJobStatus()` helper returns a single merged object, `{ status, progress?, url?, error?, usage? }` — it does not return `jobId` or `expiresAt`.
 
 ### VideoJobResult (from create)
 
@@ -437,8 +437,19 @@ interface VideoUrlResult {
   jobId: string
   url: string        // URL to download/stream the video
   expiresAt?: Date   // When the URL expires
+  // Usage for the completed generation, when the adapter reports it. fal
+  // populates `usage.unitsBilled` from its `x-fal-billable-units` header.
+  usage?: TokenUsage
 }
 ```
+
+> **Cost tracking (fal):** fal bills media generation by usage-based units
+> rather than tokens. The fal adapters surface the real billed quantity as
+> `usage.unitsBilled` (denominated in the endpoint's priced unit). Combine it
+> with the endpoint's unit price from
+> `GET https://api.fal.ai/v1/models/pricing?endpoint_id=…` to compute the exact
+> cost (`unitsBilled * unitPrice`). The same `usage.unitsBilled` is surfaced
+> on image, audio, speech, and transcription results.
 
 ## Model Variants
 

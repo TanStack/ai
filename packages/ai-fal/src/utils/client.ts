@@ -1,5 +1,6 @@
 import { fal } from '@fal-ai/client'
 import { generateId as _generateId, getApiKeyFromEnv } from '@tanstack/ai-utils'
+import { createBillingFetch } from './billing'
 
 export interface FalClientConfig {
   apiKey: string
@@ -14,6 +15,9 @@ export function configureFalClient(config?: FalClientConfig): void {
   const apiKey = config?.apiKey ?? getFalApiKeyFromEnv()
   fal.config({
     credentials: apiKey,
+    // Read fal's `x-fal-billable-units` header off every response so adapters
+    // can surface the real billed cost as `result.usage`. See ./billing.ts.
+    fetch: createBillingFetch(),
     ...(config?.proxyUrl ? { proxyUrl: config.proxyUrl } : {}),
   })
 }
