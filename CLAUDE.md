@@ -269,6 +269,12 @@ pnpm dev      # start dev server
 
 - Use `workspace:*` protocol for internal package dependencies in `package.json`
 - Example: `"@tanstack/ai": "workspace:*"`
+- **When adding a new library under `packages/`, add a `workspace:*` override for
+  it in `pnpm-workspace.yaml` under `overrides:`** (e.g.
+  `'@tanstack/ai-foo': workspace:*`), then run `pnpm install`. Every `packages/`
+  library must have an entry. This forces any transitive or example dependency
+  that references a published version onto the local workspace copy, so the
+  monorepo never accidentally builds/tests against an npm-published version.
 
 ### Tree-Shakeable Exports
 
