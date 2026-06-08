@@ -16,7 +16,9 @@ export function startSpinner(label: string): () => void {
   let i = 0
   process.stderr.write('[?25l') // hide cursor
   const render = () => {
-    process.stderr.write(`\r${PINK}${FRAMES[i % FRAMES.length]}${RESET} ${label}`)
+    process.stderr.write(
+      `\r${PINK}${FRAMES[i % FRAMES.length]}${RESET} ${label}`,
+    )
     i += 1
   }
   render()
