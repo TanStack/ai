@@ -37,7 +37,6 @@ import { Route as ApiMcpServerRouteImport } from './routes/api.mcp-server'
 import { Route as ApiMcpManagedTestRouteImport } from './routes/api.mcp-managed-test'
 import { Route as ApiMcpLifecycleTestRouteImport } from './routes/api.mcp-lifecycle-test'
 import { Route as ApiImageRouteImport } from './routes/api.image'
-import { Route as ApiFalBillableUnitsRouteImport } from './routes/api.fal-billable-units'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
 import { Route as ApiArktypeToolWireRouteImport } from './routes/api.arktype-tool-wire'
@@ -193,11 +192,6 @@ const ApiImageRoute = ApiImageRouteImport.update({
   path: '/api/image',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiFalBillableUnitsRoute = ApiFalBillableUnitsRouteImport.update({
-  id: '/api/fal-billable-units',
-  path: '/api/fal-billable-units',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
@@ -271,7 +265,6 @@ export interface FileRoutesByFullPath {
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
-  '/api/fal-billable-units': typeof ApiFalBillableUnitsRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
@@ -313,7 +306,6 @@ export interface FileRoutesByTo {
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
-  '/api/fal-billable-units': typeof ApiFalBillableUnitsRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
@@ -356,7 +348,6 @@ export interface FileRoutesById {
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
-  '/api/fal-billable-units': typeof ApiFalBillableUnitsRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
@@ -400,7 +391,6 @@ export interface FileRouteTypes {
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/chat'
-    | '/api/fal-billable-units'
     | '/api/image'
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
@@ -442,7 +432,6 @@ export interface FileRouteTypes {
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/chat'
-    | '/api/fal-billable-units'
     | '/api/image'
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
@@ -484,7 +473,6 @@ export interface FileRouteTypes {
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/chat'
-    | '/api/fal-billable-units'
     | '/api/image'
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
@@ -527,7 +515,6 @@ export interface RootRouteChildren {
   ApiArktypeToolWireRoute: typeof ApiArktypeToolWireRoute
   ApiAudioRoute: typeof ApiAudioRouteWithChildren
   ApiChatRoute: typeof ApiChatRoute
-  ApiFalBillableUnitsRoute: typeof ApiFalBillableUnitsRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
   ApiMcpLifecycleTestRoute: typeof ApiMcpLifecycleTestRoute
   ApiMcpManagedTestRoute: typeof ApiMcpManagedTestRoute
@@ -746,13 +733,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiImageRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/fal-billable-units': {
-      id: '/api/fal-billable-units'
-      path: '/api/fal-billable-units'
-      fullPath: '/api/fal-billable-units'
-      preLoaderRoute: typeof ApiFalBillableUnitsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/chat': {
       id: '/api/chat'
       path: '/api/chat'
@@ -908,7 +888,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiArktypeToolWireRoute: ApiArktypeToolWireRoute,
   ApiAudioRoute: ApiAudioRouteWithChildren,
   ApiChatRoute: ApiChatRoute,
-  ApiFalBillableUnitsRoute: ApiFalBillableUnitsRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
   ApiMcpLifecycleTestRoute: ApiMcpLifecycleTestRoute,
   ApiMcpManagedTestRoute: ApiMcpManagedTestRoute,

@@ -1862,9 +1862,6 @@ importers:
       '@tanstack/ai-elevenlabs':
         specifier: workspace:*
         version: link:../../packages/ai-elevenlabs
-      '@tanstack/ai-fal':
-        specifier: workspace:*
-        version: link:../../packages/ai-fal
       '@tanstack/ai-gemini':
         specifier: workspace:*
         version: link:../../packages/ai-gemini
