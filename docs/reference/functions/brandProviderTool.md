@@ -9,7 +9,7 @@ title: brandProviderTool
 function brandProviderTool<T>(tool): T;
 ```
 
-Defined in: [packages/typescript/ai/src/tools/provider-tool.ts:35](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/provider-tool.ts#L35)
+Defined in: [packages/ai/src/tools/provider-tool.ts:35](https://github.com/TanStack/ai/blob/main/packages/ai/src/tools/provider-tool.ts#L35)
 
 Attach the `ProviderTool` phantom brand to a plain `Tool`-shaped object.
 

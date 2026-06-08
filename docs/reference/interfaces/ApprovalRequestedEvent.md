@@ -5,7 +5,7 @@ title: ApprovalRequestedEvent
 
 # Interface: ApprovalRequestedEvent
 
-Defined in: [packages/typescript/ai/src/types.ts:1196](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1196)
+Defined in: [packages/ai/src/types.ts:1263](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1263)
 
 Emitted when a server tool requires approval before execution. The agent
 loop yields this and pauses — `structured-output.complete` will not fire
@@ -31,7 +31,7 @@ for that run. The shape is fixed by the orchestrator's tool-approval flow
 optional model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1148](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1148)
+Defined in: [packages/ai/src/types.ts:1215](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1215)
 
 Model identifier for multi-model support
 
@@ -47,7 +47,7 @@ Model identifier for multi-model support
 name: "approval-requested";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1197](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1197)
+Defined in: [packages/ai/src/types.ts:1264](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1264)
 
 #### Overrides
 
@@ -63,7 +63,7 @@ CustomEvent.name
 value: object;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1198](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1198)
+Defined in: [packages/ai/src/types.ts:1265](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1265)
 
 #### approval
 

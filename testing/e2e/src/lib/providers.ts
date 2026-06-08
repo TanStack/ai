@@ -3,15 +3,17 @@ import { createChatOptions } from '@tanstack/ai'
 import { createOpenaiChat } from '@tanstack/ai-openai'
 import { createAnthropicChat } from '@tanstack/ai-anthropic'
 import { createGeminiChat } from '@tanstack/ai-gemini'
+import { createGeminiTextInteractions } from '@tanstack/ai-gemini/experimental'
 import { createOllamaChat } from '@tanstack/ai-ollama'
 import { createGroqText } from '@tanstack/ai-groq'
 import { createGrokText } from '@tanstack/ai-grok'
+import { openaiCompatibleText } from '@tanstack/ai-openai/compatible'
 import {
   createOpenRouterResponsesText,
   createOpenRouterText,
 } from '@tanstack/ai-openrouter'
 import { HTTPClient } from '@openrouter/sdk'
-import type { Provider } from '@/lib/types'
+import type { Feature, Provider } from '@/lib/types'
 
 const LLMOCK_DEFAULT_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
 const DUMMY_KEY = 'sk-e2e-test-dummy-key'
@@ -25,6 +27,7 @@ const defaultModels: Record<Provider, string> = {
   grok: 'grok-3',
   openrouter: 'openai/gpt-4o',
   'openrouter-responses': 'openai/gpt-4o',
+  'openai-compatible': 'gpt-4o',
   // ElevenLabs has no chat/text model — the support matrix already filters
   // it out of text features, but we still need an entry to satisfy the
   // Record<Provider, …> constraint.
@@ -34,8 +37,9 @@ const defaultModels: Record<Provider, string> = {
 export function createTextAdapter(
   provider: Provider,
   modelOverride?: string,
-  aimockPort?: number,
+  _aimockPort?: number,
   testId?: string,
+  feature?: Feature,
 ): { adapter: AnyTextAdapter } {
   const model = modelOverride ?? defaultModels[provider]
 
@@ -46,6 +50,24 @@ export function createTextAdapter(
 
   // X-Test-Id header for per-test sequenceIndex isolation in aimock
   const testHeaders = testId ? { 'X-Test-Id': testId } : undefined
+
+  // The Gemini Interactions API lives at a different endpoint
+  // (POST /v1beta/interactions) and uses a different adapter than the
+  // standard Gemini chat path.
+  if (provider === 'gemini' && feature === 'stateful-interactions') {
+    return createChatOptions({
+      adapter: createGeminiTextInteractions(
+        model as 'gemini-2.0-flash',
+        DUMMY_KEY,
+        {
+          httpOptions: {
+            baseUrl: base,
+            headers: testHeaders,
+          },
+        },
+      ),
+    })
+  }
 
   const factories: Record<Provider, () => { adapter: AnyTextAdapter }> = {
     openai: () =>
@@ -134,6 +156,14 @@ export function createTextAdapter(
         ),
       })
     },
+    'openai-compatible': () =>
+      createChatOptions({
+        adapter: openaiCompatibleText(model, {
+          baseURL: openaiUrl,
+          apiKey: DUMMY_KEY,
+          defaultHeaders: testHeaders,
+        }),
+      }),
     elevenlabs: () => {
       throw new Error(
         'ElevenLabs has no text/chat adapter — use createTTSAdapter or createTranscriptionAdapter.',

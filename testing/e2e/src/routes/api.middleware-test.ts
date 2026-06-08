@@ -265,11 +265,20 @@ export const Route = createFileRoute('/api/middleware-test')({
           typeof fp.testId === 'string' ? fp.testId : undefined
         const aimockPort: number | undefined =
           fp.aimockPort != null ? Number(fp.aimockPort) : undefined
+        // Provider/model overrides let the middleware E2E exercise both the
+        // native-combined-mode path (modern OpenAI / Claude 4.5+ — no
+        // `structuredOutput` phase, single combined call) and the legacy
+        // finalization path (Claude 3.7, etc. — `structuredOutput` phase
+        // fires). See #605.
+        const provider =
+          typeof fp.provider === 'string' ? fp.provider : 'openai'
+        const modelOverride =
+          typeof fp.model === 'string' ? fp.model : undefined
 
         try {
           const adapterOptions = createTextAdapter(
-            'openai',
-            undefined,
+            provider as Parameters<typeof createTextAdapter>[0],
+            modelOverride,
             aimockPort,
             testId,
           )

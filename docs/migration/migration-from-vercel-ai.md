@@ -146,7 +146,7 @@ Options accepted by `streamText` as of AI SDK v6, and where each lives in TanSta
 | `stopWhen: [a, b]` | `agentLoopStrategy: combineStrategies([a, b])` | Multiple conditions, AND semantics |
 | `prepareStep` | `middleware` with `onConfig`/`onIteration` | See [Middleware](#middleware) |
 | `experimental_transform` | `middleware.onChunk` (transform / drop / expand chunks) | See [Middleware](#middleware) |
-| `experimental_context` | `context` (root-level) | Passed through to every middleware hook |
+| `experimental_context` | `context` (root-level) | Typed runtime context passed to middleware hooks and tool implementations |
 | `experimental_telemetry` | `middleware` + your tracer of choice | See [Observability](#observability-logging-metrics-tracing) |
 | `experimental_repairToolCall` | `middleware.onBeforeToolCall` | Return transformed args or a decision |
 | `experimental_download` | Preprocess your `messages` before calling `chat()` | No built-in hook |
@@ -271,7 +271,7 @@ const stream = chat({
 
 #### Before (Vercel AI SDK v5+)
 
-```typescript
+```tsx
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import { useState } from 'react'
@@ -309,7 +309,7 @@ export function Chat() {
 
 #### After (TanStack AI)
 
-```typescript
+```tsx
 import { useState } from 'react'
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
 
@@ -442,7 +442,7 @@ type ToolResultState = 'streaming' | 'complete' | 'error'
 
 #### Before (Vercel AI SDK)
 
-```typescript
+```tsx
 {messages.map((m) => (
   <div key={m.id}>
     {m.role}: {m.content}
@@ -457,7 +457,7 @@ type ToolResultState = 'streaming' | 'complete' | 'error'
 
 #### After (TanStack AI)
 
-```typescript
+```tsx
 {messages.map((message) => (
   <div key={message.id}>
     {message.role}:{' '}
@@ -634,7 +634,7 @@ const { messages, addToolApprovalResponse } = useChat({
 
 #### After (TanStack AI)
 
-```typescript
+```tsx
 // Built-in approval support
 const bookFlightDef = toolDefinition({
   name: 'bookFlight',
@@ -856,8 +856,10 @@ const result = streamText({ model: wrapped, messages })
 import { chat, type ChatMiddleware } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
-const loggingMiddleware: ChatMiddleware = {
-  onStart: (ctx) => console.log('start', { requestId: ctx.requestId, model: ctx.model }),
+type AppContext = { userId: string }
+
+const loggingMiddleware: ChatMiddleware<AppContext> = {
+  onStart: (ctx) => console.log('start', { requestId: ctx.requestId, userId: ctx.context.userId }),
   onConfig: (ctx, config) => console.log('config', config),
   onChunk:  (ctx, chunk) => { /* observe or transform; return null to drop */ },
   onUsage:  (ctx, usage) => console.log('usage', usage),
@@ -869,7 +871,7 @@ const stream = chat({
   adapter: openaiText('gpt-4o'),
   messages,
   middleware: [loggingMiddleware],
-  context: { userId: 'u_123' }, // passed to every hook as ctx.context
+  context: { userId: 'u_123' }, // passed to every hook as typed ctx.context
 })
 ```
 
@@ -891,7 +893,7 @@ Each middleware is a plain object. Every hook is optional, so pick what you need
 | `onAbort(ctx, info)` | Run aborted (terminal) | — |
 | `onError(ctx, info)` | Unhandled error (terminal) | — |
 
-`ctx` carries `requestId`, `streamId`, `conversationId`, `iteration`, `model`, `provider`, `systemPrompts`, `toolNames`, `messages`, `context` (your opaque value), `abort(reason)`, `defer(promise)`, `createId(prefix)`, and more. See [the middleware guide](../advanced/middleware) for the full reference.
+`ctx` carries `requestId`, `streamId`, `threadId`, `iteration`, `model`, `provider`, `systemPrompts`, `toolNames`, `messages`, `context` (your typed runtime value), `abort(reason)`, `defer(promise)`, `createId(prefix)`, and more. See [the middleware guide](../advanced/middleware) and [runtime context guide](../advanced/runtime-context) for the full reference.
 
 ### Built-in: tool-call cache
 
@@ -1314,7 +1316,7 @@ Vercel's `maxRetries` / `timeout` options have no direct `chat()` equivalent. Us
 
 ### Before (Vercel AI SDK v5+)
 
-```typescript
+```tsx
 // server/api/chat.ts
 import { streamText, tool, convertToModelMessages } from 'ai'
 import { openai } from '@ai-sdk/openai'
@@ -1381,7 +1383,7 @@ export function Chat() {
 
 ### After (TanStack AI)
 
-```typescript
+```tsx
 // server/api/chat.ts
 import { chat, toServerSentEventsResponse, toolDefinition } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'

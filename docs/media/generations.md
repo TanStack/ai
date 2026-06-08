@@ -178,6 +178,27 @@ If the function throws, a `RUN_ERROR` event is emitted instead:
 
 This is the same event protocol used by chat streaming, so the same transport layer (`toServerSentEventsResponse`, `fetchServerSentEvents`) works for both.
 
+When the server emits `RUN_ERROR`, the client surfaces it on `error` (and sets `status` to `'error'`). Use the `onError` callback to react, and render `error?.message` in your UI:
+
+```tsx
+const { generate, result, error, status } = useGenerateImage({
+  connection: fetchServerSentEvents('/api/generate/image'),
+  onError: (err) => console.error('Generation failed:', err.message),
+})
+
+return (
+  <div>
+    <button onClick={() => generate({ prompt: 'A sunset over mountains' })}>
+      Generate
+    </button>
+    {status === 'error' && <p role="alert">Error: {error?.message}</p>}
+    {result?.images.map((img, i) => (
+      <img key={i} src={img.url || `data:image/png;base64,${img.b64Json}`} />
+    ))}
+  </div>
+)
+```
+
 ## Common Hook API
 
 All generation hooks share the same interface:
@@ -228,6 +249,7 @@ const { result } = useGenerateSpeech({
 | Activity | Server Function | Client Hook (React) | Guide |
 |----------|----------------|---------------------|-------|
 | Image generation | `generateImage()` | `useGenerateImage()` | [Image Generation](./image-generation) |
+| Audio generation | `generateAudio()` | `useGenerateAudio()` | [Audio Generation](./audio-generation) |
 | Text-to-speech | `generateSpeech()` | `useGenerateSpeech()` | [Text-to-Speech](./text-to-speech) |
 | Transcription | `generateTranscription()` | `useTranscription()` | [Transcription](./transcription) |
 | Summarization | `summarize()` | `useSummarize()` | - |

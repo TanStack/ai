@@ -29,9 +29,9 @@ markdown report under `.agent/gap-analysis/`. **Do not edit source files.**
 2. **Load the truth files**, then read the per-scope inputs you need:
    - Matrix: `testing/e2e/src/lib/feature-support.ts`
    - Types: `testing/e2e/src/lib/types.ts` (Provider + Feature unions, ALL_PROVIDERS, ALL_FEATURES)
-   - Adapter index: `packages/typescript/ai-<provider>/src/index.ts`
-   - Model meta: `packages/typescript/ai-<provider>/src/model-meta.ts`
-   - Core types: `packages/typescript/ai/src/types.ts` (Modality, ContentPart, ToolCall)
+   - Adapter index: `packages/ai-<provider>/src/index.ts`
+   - Model meta: `packages/ai-<provider>/src/model-meta.ts`
+   - Core types: `packages/ai/src/types.ts` (Modality, ContentPart, ToolCall)
 3. **Research upstream.** Use WebFetch against the curated URLs in
    [references/provider-doc-urls.md](references/provider-doc-urls.md). When a
    doc page has moved, fall back to WebSearch. For SDK API surface details

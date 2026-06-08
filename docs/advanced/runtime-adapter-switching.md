@@ -29,8 +29,8 @@ type Provider = 'openai' | 'anthropic'
 
 // Define adapters with their models - autocomplete works here!
 const adapters = {
-  anthropic: () => anthropicText('claude-sonnet-4-5'),  // ✅ Autocomplete!
-  openai: () => openaiText('gpt-5.2'),  // ✅ Autocomplete!
+  anthropic: () => anthropicText('claude-sonnet-4-6'),  // ✅ Autocomplete!
+  openai: () => openaiText('gpt-5.5'),  // ✅ Autocomplete!
 }
 
 // In your request handler:
@@ -49,14 +49,14 @@ Each adapter factory function accepts a model name as its first argument and ret
 
 ```typescript
 // These are equivalent:
-const adapter1 = openaiText('gpt-5.2')
-const adapter2 = new OpenAITextAdapter({ apiKey: process.env.OPENAI_API_KEY }, 'gpt-5.2')
+const adapter1 = openaiText('gpt-5.5')
+const adapter2 = new OpenAITextAdapter({ apiKey: process.env.OPENAI_API_KEY }, 'gpt-5.5')
 
 // The model is stored on the adapter
-console.log(adapter1.selectedModel) // 'gpt-5.2'
+console.log(adapter1.model) // 'gpt-5.5'
 ```
 
-When you pass an adapter to `chat()`, it uses the model from `adapter.selectedModel`. This means:
+When you pass an adapter to `chat()`, it uses the model from `adapter.model`. This means:
 
 - **Full autocomplete** - When typing the model name, TypeScript knows valid options
 - **Type validation** - Invalid model names cause compile errors
@@ -78,10 +78,10 @@ type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 
 // Define adapters with their models
 const adapters = {
-  anthropic: () => anthropicText('claude-sonnet-4-5'),
-  gemini: () => geminiText('gemini-2.0-flash-exp'),
+  anthropic: () => anthropicText('claude-sonnet-4-6'),
+  gemini: () => geminiText('gemini-3-flash-preview'),
   ollama: () => ollamaText('mistral:7b'),
-  openai: () => openaiText('gpt-5.2'),
+  openai: () => openaiText('gpt-5.5'),
 }
 
 export const Route = createFileRoute('/api/chat')({
@@ -121,7 +121,7 @@ import { geminiImage } from '@tanstack/ai-gemini'
 
 const imageAdapters = {
   openai: () => openaiImage('gpt-image-1'),
-  gemini: () => geminiImage('gemini-2.0-flash-preview-image-generation'),
+  gemini: () => geminiImage('gemini-3.1-flash-image-preview'),
 }
 
 // Usage
@@ -142,8 +142,8 @@ import { openaiSummarize } from '@tanstack/ai-openai'
 import { anthropicSummarize } from '@tanstack/ai-anthropic'
 
 const summarizeAdapters = {
-  openai: () => openaiSummarize('gpt-5-mini'),
-  anthropic: () => anthropicSummarize('claude-sonnet-4-5'),
+  openai: () => openaiSummarize('gpt-5.4-mini'),
+  anthropic: () => anthropicSummarize('claude-sonnet-4-6'),
 }
 
 // Usage
@@ -168,12 +168,12 @@ let model
 switch (provider) {
   case 'anthropic':
     adapter = anthropicText()
-    model = 'claude-sonnet-4-5'
+    model = 'claude-sonnet-4-6'
     break
   case 'openai':
   default:
     adapter = openaiText()
-    model = 'gpt-5.2'
+    model = 'gpt-5.5'
     break
 }
 
@@ -188,8 +188,8 @@ const stream = chat({
 
 ```typescript
 const adapters = {
-  anthropic: () => anthropicText('claude-sonnet-4-5'),
-  openai: () => openaiText('gpt-5.2'),
+  anthropic: () => anthropicText('claude-sonnet-4-6'),
+  openai: () => openaiText('gpt-5.5'),
 }
 
 const stream = chat({

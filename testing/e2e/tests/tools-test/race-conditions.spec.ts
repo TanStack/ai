@@ -3,6 +3,7 @@ import {
   selectScenario,
   runTest,
   waitForTestComplete,
+  waitForExecutionComplete,
   waitForApproval,
   getMetadata,
   getEventLog,
@@ -197,6 +198,7 @@ test.describe('Race Condition Tests', () => {
 
     // Wait for completion - expect 2 tools (1 client + 1 approval)
     await waitForTestComplete(page, 20000, 2)
+    await waitForExecutionComplete(page, 'show_notification')
 
     // Verify flow completed
     const metadata = await getMetadata(page)
@@ -224,6 +226,7 @@ test.describe('Race Condition Tests', () => {
 
     // Wait for completion - expect 2 tools (1 approval + 1 client)
     await waitForTestComplete(page, 20000, 2)
+    await waitForExecutionComplete(page, 'show_notification')
 
     // Verify client tool also executed
     const metadata = await getMetadata(page)

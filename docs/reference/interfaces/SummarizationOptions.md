@@ -5,7 +5,7 @@ title: SummarizationOptions
 
 # Interface: SummarizationOptions\<TProviderOptions\>
 
-Defined in: [packages/typescript/ai/src/types.ts:1381](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1381)
+Defined in: [packages/ai/src/types.ts:1444](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1444)
 
 ## Type Parameters
 
@@ -21,7 +21,7 @@ Defined in: [packages/typescript/ai/src/types.ts:1381](https://github.com/TanSta
 optional focus: string[];
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1388](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1388)
+Defined in: [packages/ai/src/types.ts:1451](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1451)
 
 ***
 
@@ -31,7 +31,7 @@ Defined in: [packages/typescript/ai/src/types.ts:1388](https://github.com/TanSta
 logger: InternalLogger;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1395](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1395)
+Defined in: [packages/ai/src/types.ts:1458](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1458)
 
 Internal logger threaded from the summarize() entry point. Adapters must
 call logger.request() before the SDK call and logger.errors() in catch blocks.
@@ -44,7 +44,7 @@ call logger.request() before the SDK call and logger.errors() in catch blocks.
 optional maxLength: number;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1386](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1386)
+Defined in: [packages/ai/src/types.ts:1449](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1449)
 
 ***
 
@@ -54,7 +54,7 @@ Defined in: [packages/typescript/ai/src/types.ts:1386](https://github.com/TanSta
 model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1384](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1384)
+Defined in: [packages/ai/src/types.ts:1447](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1447)
 
 ***
 
@@ -64,7 +64,7 @@ Defined in: [packages/typescript/ai/src/types.ts:1384](https://github.com/TanSta
 optional modelOptions: TProviderOptions;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1390](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1390)
+Defined in: [packages/ai/src/types.ts:1453](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1453)
 
 Provider-specific options forwarded by the summarize() activity.
 
@@ -76,7 +76,7 @@ Provider-specific options forwarded by the summarize() activity.
 optional style: "bullet-points" | "paragraph" | "concise";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1387](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1387)
+Defined in: [packages/ai/src/types.ts:1450](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1450)
 
 ***
 
@@ -86,4 +86,4 @@ Defined in: [packages/typescript/ai/src/types.ts:1387](https://github.com/TanSta
 text: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1385](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1385)
+Defined in: [packages/ai/src/types.ts:1448](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1448)

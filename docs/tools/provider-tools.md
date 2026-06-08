@@ -33,7 +33,7 @@ import { anthropicText } from '@tanstack/ai-anthropic'
 import { webSearchTool } from '@tanstack/ai-anthropic/tools'
 
 const stream = chat({
-  adapter: anthropicText('claude-opus-4-6'),
+  adapter: anthropicText('claude-opus-4.8'),
   messages: [{ role: 'user', content: "Summarize today's AI news." }],
   tools: [
     webSearchTool({
@@ -87,6 +87,15 @@ matrix is maintained alongside `model-meta.ts` and reflected here:
 
 For the exact per-model list, open the adapter page or read the model's
 `supports.tools` array directly from `model-meta.ts`.
+
+## Provider Skills
+
+Anthropic and OpenAI support hosted, provider-managed skill bundles that run
+inside the provider's server-side sandbox. Skills attach to an execution tool
+(`codeExecutionTool` for Anthropic, `shellTool` for OpenAI) and are referenced
+by ID — the provider handles installation and execution.
+
+See [Provider Skills](./provider-skills.md) for full setup steps and examples.
 
 ## Migrating from earlier versions
 

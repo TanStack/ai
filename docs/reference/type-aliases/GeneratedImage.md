@@ -9,7 +9,7 @@ title: GeneratedImage
 type GeneratedImage = GeneratedMediaSource & object;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1459](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1459)
+Defined in: [packages/ai/src/types.ts:1518](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1518)
 
 A single generated image
 

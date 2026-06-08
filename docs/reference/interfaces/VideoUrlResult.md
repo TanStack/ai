@@ -5,7 +5,7 @@ title: VideoUrlResult
 
 # Interface: VideoUrlResult
 
-Defined in: [packages/typescript/ai/src/types.ts:1601](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1601)
+Defined in: [packages/ai/src/types.ts:1652](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1652)
 
 **`Experimental`**
 
@@ -21,7 +21,7 @@ Result containing the URL to a generated video.
 optional expiresAt: Date;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1607](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1607)
+Defined in: [packages/ai/src/types.ts:1658](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1658)
 
 **`Experimental`**
 
@@ -35,7 +35,7 @@ When the URL expires, if applicable
 jobId: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1603](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1603)
+Defined in: [packages/ai/src/types.ts:1654](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1654)
 
 **`Experimental`**
 
@@ -49,7 +49,7 @@ Job identifier
 url: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1605](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1605)
+Defined in: [packages/ai/src/types.ts:1656](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1656)
 
 **`Experimental`**
 

@@ -22,6 +22,11 @@ By the end of this guide you'll have a chat UI that walks `messages` directly, r
 
 > **Note:** If you only need a single round-trip (one prompt → one object), use [One-Shot Extraction](./one-shot). If you have one turn that streams progressively but no history, use [Streaming UIs](./streaming) — its `partial` / `final` sugar is the right surface. This page is for the case where history matters.
 
+> **React Native recipe app:** The Expo example streams this same multi-turn
+> recipe pattern into native cards with an XHR transport selector. See
+> [Quick Start: React Native](../getting-started/quick-start-react-native) to
+> run it on Expo Go.
+
 ## How it lands on the message
 
 When `useChat({ outputSchema })` receives the server's `structured-output.complete` for an assistant turn, the runtime attaches a typed `structured-output` `MessagePart` to that assistant's `UIMessage`. The part looks like this:
@@ -78,7 +83,7 @@ const SYSTEM_PROMPT = `You are a chef assistant. Always respond with a single re
 export async function POST(request: Request) {
   const { messages } = await request.json();
   const stream = chat({
-    adapter: openaiText("gpt-5.2"),
+    adapter: openaiText("gpt-5.5"),
     messages,
     systemPrompts: [SYSTEM_PROMPT],
     outputSchema: RecipeSchema,
@@ -156,13 +161,13 @@ function RecipeCard({ part }: { part: RecipePart }) {
   // `data` is `Recipe` once status === 'complete'. `partial` is
   // DeepPartial<Recipe> while the model is still streaming the JSON.
   // Read whichever is freshest — they converge on complete.
-  const recipe = part.data ?? part.partial ?? ({} as Partial<Recipe>);
+  const recipe = part.data ?? part.partial;
 
   return (
     <article>
-      <h3>{recipe.title ?? "Plating up…"}</h3>
-      {recipe.cuisine && <p>{recipe.cuisine}</p>}
-      {recipe.ingredients?.map((ing, i) => (
+      <h3>{recipe?.title ?? "Plating up…"}</h3>
+      {recipe?.cuisine && <p>{recipe?.cuisine}</p>}
+      {recipe?.ingredients?.map((ing, i) => (
         <li key={i}>
           {ing?.amount} {ing?.item}
         </li>

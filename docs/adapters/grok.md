@@ -62,7 +62,7 @@ const adapter = createGrokText("grok-4", process.env.XAI_API_KEY!, config);
 ## Example: Chat Completion
 
 ```typescript
-import { chat, toStreamResponse } from "@tanstack/ai";
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
 import { grokText } from "@tanstack/ai-grok";
 
 export async function POST(request: Request) {
@@ -73,7 +73,7 @@ export async function POST(request: Request) {
     messages,
   });
 
-  return toStreamResponse(stream);
+  return toServerSentEventsResponse(stream);
 }
 ```
 
@@ -106,19 +106,24 @@ const stream = chat({
 
 ## Model Options
 
-Grok supports various provider-specific options:
+Grok supports various provider-specific options. Sampling parameters live here too — `temperature`, `top_p`, and `max_tokens` — rather than as root-level props on `chat()`:
 
 ```typescript
 const stream = chat({
   adapter: grokText("grok-4"),
   messages,
   modelOptions: {
+    temperature: 0.7,
+    top_p: 0.9,
+    max_tokens: 1024,
     frequency_penalty: 0.5,
     presence_penalty: 0.5,
     stop: ["END"],
   },
 });
 ```
+
+> If you previously passed `temperature` / `topP` / `maxTokens` at the root of `chat()`, see [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
 
 ## Summarization
 
@@ -154,6 +159,44 @@ const result = await generateImage({
 
 console.log(result.images);
 ```
+
+## Text-to-Speech
+
+Generate speech with Grok TTS:
+
+```typescript
+import { generateSpeech } from "@tanstack/ai";
+import { grokSpeech } from "@tanstack/ai-grok";
+
+const result = await generateSpeech({
+  adapter: grokSpeech("grok-tts"),
+  text: "Hello from Grok!",
+  voice: "default",
+  format: "mp3",
+});
+
+console.log(result.audio); // Base64-encoded audio
+```
+
+## Transcription
+
+Transcribe audio with Grok STT:
+
+```typescript
+import { generateTranscription } from "@tanstack/ai";
+import { grokTranscription } from "@tanstack/ai-grok";
+
+const result = await generateTranscription({
+  adapter: grokTranscription("grok-stt"),
+  audio: audioFile,
+});
+
+console.log(result.text);
+```
+
+## Realtime Voice
+
+Grok also exposes a Realtime voice adapter (`grokRealtime`) and a token issuer (`grokRealtimeToken`) for low-latency voice conversations. See [Realtime Voice Chat](../media/realtime-chat) for the end-to-end flow.
 
 ## Environment Variables
 
@@ -216,22 +259,24 @@ Creates a Grok summarization adapter with an explicit API key.
 
 **Returns:** A Grok summarize adapter instance.
 
-### `grokImage(model, config?)`
+### `grokImage(model, config?)` / `createGrokImage(model, apiKey, config?)`
 
-Creates a Grok image generation adapter using environment variables.
+Creates a Grok image generation adapter.
 
-**Returns:** A Grok image adapter instance.
+### `grokSpeech(model, config?)` / `createGrokSpeech(model, apiKey, config?)`
 
-### `createGrokImage(model, apiKey, config?)`
+Creates a Grok text-to-speech adapter.
 
-Creates a Grok image generation adapter with an explicit API key.
+### `grokTranscription(model, config?)` / `createGrokTranscription(model, apiKey, config?)`
 
-**Returns:** A Grok image adapter instance.
+Creates a Grok speech-to-text adapter.
+
+### `grokRealtime(...)` / `grokRealtimeToken(...)`
+
+Realtime voice adapter and token issuer. See [Realtime Voice Chat](../media/realtime-chat) for usage.
 
 ## Limitations
 
-- **Text-to-Speech**: Grok does not support text-to-speech. Use OpenAI for TTS.
-- **Transcription**: Grok does not support audio transcription. Use OpenAI's Whisper.
 - **Responses API Tools**: Server-side tools (web search, X search, code execution) are not supported through this adapter. Use the Chat Completions API with custom tools instead.
 
 ## Next Steps

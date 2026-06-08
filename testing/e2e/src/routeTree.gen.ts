@@ -12,6 +12,12 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as ToolsTestRouteImport } from './routes/tools-test'
 import { Route as MiddlewareTestRouteImport } from './routes/middleware-test'
 import { Route as MarkdownCjkRouteImport } from './routes/markdown-cjk'
+import { Route as DevtoolsToolsRouteImport } from './routes/devtools-tools'
+import { Route as DevtoolsStructuredRouteImport } from './routes/devtools-structured'
+import { Route as DevtoolsRouteBRouteImport } from './routes/devtools-route-b'
+import { Route as DevtoolsRouteARouteImport } from './routes/devtools-route-a'
+import { Route as DevtoolsGenerationHooksRouteImport } from './routes/devtools-generation-hooks'
+import { Route as DevtoolsChatRouteImport } from './routes/devtools-chat'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProviderIndexRouteImport } from './routes/$provider/index'
 import { Route as ApiVideoRouteImport } from './routes/api.video'
@@ -20,10 +26,22 @@ import { Route as ApiTranscriptionRouteImport } from './routes/api.transcription
 import { Route as ApiToolsTestRouteImport } from './routes/api.tools-test'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiOpenrouterWebToolsWireRouteImport } from './routes/api.openrouter-web-tools-wire'
+import { Route as ApiOpenrouterCostRouteImport } from './routes/api.openrouter-cost'
+import { Route as ApiOpenaiUsageDetailsRouteImport } from './routes/api.openai-usage-details'
+import { Route as ApiOpenaiShellSkillsWireRouteImport } from './routes/api.openai-shell-skills-wire'
+import { Route as ApiMultimodalToolResultWireRouteImport } from './routes/api.multimodal-tool-result-wire'
 import { Route as ApiMiddlewareTestRouteImport } from './routes/api.middleware-test'
+import { Route as ApiMcpTestRouteImport } from './routes/api.mcp-test'
+import { Route as ApiMcpStatusTestRouteImport } from './routes/api.mcp-status-test'
+import { Route as ApiMcpServerRouteImport } from './routes/api.mcp-server'
+import { Route as ApiMcpManagedTestRouteImport } from './routes/api.mcp-managed-test'
+import { Route as ApiMcpLifecycleTestRouteImport } from './routes/api.mcp-lifecycle-test'
 import { Route as ApiImageRouteImport } from './routes/api.image'
+import { Route as ApiFalBillableUnitsRouteImport } from './routes/api.fal-billable-units'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
+import { Route as ApiArktypeToolWireRouteImport } from './routes/api.arktype-tool-wire'
+import { Route as ApiAnthropicSkillsWireRouteImport } from './routes/api.anthropic-skills-wire'
 import { Route as ApiAnthropicBugTestRouteImport } from './routes/api.anthropic-bug-test'
 import { Route as ProviderFeatureRouteImport } from './routes/$provider/$feature'
 import { Route as ApiVideoStreamRouteImport } from './routes/api.video.stream'
@@ -45,6 +63,36 @@ const MiddlewareTestRoute = MiddlewareTestRouteImport.update({
 const MarkdownCjkRoute = MarkdownCjkRouteImport.update({
   id: '/markdown-cjk',
   path: '/markdown-cjk',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevtoolsToolsRoute = DevtoolsToolsRouteImport.update({
+  id: '/devtools-tools',
+  path: '/devtools-tools',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevtoolsStructuredRoute = DevtoolsStructuredRouteImport.update({
+  id: '/devtools-structured',
+  path: '/devtools-structured',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevtoolsRouteBRoute = DevtoolsRouteBRouteImport.update({
+  id: '/devtools-route-b',
+  path: '/devtools-route-b',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevtoolsRouteARoute = DevtoolsRouteARouteImport.update({
+  id: '/devtools-route-a',
+  path: '/devtools-route-a',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevtoolsGenerationHooksRoute = DevtoolsGenerationHooksRouteImport.update({
+  id: '/devtools-generation-hooks',
+  path: '/devtools-generation-hooks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevtoolsChatRoute = DevtoolsChatRouteImport.update({
+  id: '/devtools-chat',
+  path: '/devtools-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -88,14 +136,66 @@ const ApiOpenrouterWebToolsWireRoute =
     path: '/api/openrouter-web-tools-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiOpenrouterCostRoute = ApiOpenrouterCostRouteImport.update({
+  id: '/api/openrouter-cost',
+  path: '/api/openrouter-cost',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOpenaiUsageDetailsRoute = ApiOpenaiUsageDetailsRouteImport.update({
+  id: '/api/openai-usage-details',
+  path: '/api/openai-usage-details',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOpenaiShellSkillsWireRoute =
+  ApiOpenaiShellSkillsWireRouteImport.update({
+    id: '/api/openai-shell-skills-wire',
+    path: '/api/openai-shell-skills-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiMultimodalToolResultWireRoute =
+  ApiMultimodalToolResultWireRouteImport.update({
+    id: '/api/multimodal-tool-result-wire',
+    path: '/api/multimodal-tool-result-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiMiddlewareTestRoute = ApiMiddlewareTestRouteImport.update({
   id: '/api/middleware-test',
   path: '/api/middleware-test',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMcpTestRoute = ApiMcpTestRouteImport.update({
+  id: '/api/mcp-test',
+  path: '/api/mcp-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpStatusTestRoute = ApiMcpStatusTestRouteImport.update({
+  id: '/api/mcp-status-test',
+  path: '/api/mcp-status-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpServerRoute = ApiMcpServerRouteImport.update({
+  id: '/api/mcp-server',
+  path: '/api/mcp-server',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpManagedTestRoute = ApiMcpManagedTestRouteImport.update({
+  id: '/api/mcp-managed-test',
+  path: '/api/mcp-managed-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpLifecycleTestRoute = ApiMcpLifecycleTestRouteImport.update({
+  id: '/api/mcp-lifecycle-test',
+  path: '/api/mcp-lifecycle-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiImageRoute = ApiImageRouteImport.update({
   id: '/api/image',
   path: '/api/image',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFalBillableUnitsRoute = ApiFalBillableUnitsRouteImport.update({
+  id: '/api/fal-billable-units',
+  path: '/api/fal-billable-units',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiChatRoute = ApiChatRouteImport.update({
@@ -106,6 +206,16 @@ const ApiChatRoute = ApiChatRouteImport.update({
 const ApiAudioRoute = ApiAudioRouteImport.update({
   id: '/api/audio',
   path: '/api/audio',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiArktypeToolWireRoute = ApiArktypeToolWireRouteImport.update({
+  id: '/api/arktype-tool-wire',
+  path: '/api/arktype-tool-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAnthropicSkillsWireRoute = ApiAnthropicSkillsWireRouteImport.update({
+  id: '/api/anthropic-skills-wire',
+  path: '/api/anthropic-skills-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAnthropicBugTestRoute = ApiAnthropicBugTestRouteImport.update({
@@ -146,15 +256,33 @@ const ApiAudioStreamRoute = ApiAudioStreamRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/devtools-chat': typeof DevtoolsChatRoute
+  '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
+  '/devtools-route-a': typeof DevtoolsRouteARoute
+  '/devtools-route-b': typeof DevtoolsRouteBRoute
+  '/devtools-structured': typeof DevtoolsStructuredRoute
+  '/devtools-tools': typeof DevtoolsToolsRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
+  '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
+  '/api/fal-billable-units': typeof ApiFalBillableUnitsRoute
   '/api/image': typeof ApiImageRouteWithChildren
+  '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
+  '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
+  '/api/mcp-server': typeof ApiMcpServerRoute
+  '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
+  '/api/mcp-test': typeof ApiMcpTestRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
+  '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
+  '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
+  '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
+  '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tools-test': typeof ApiToolsTestRoute
@@ -170,15 +298,33 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/devtools-chat': typeof DevtoolsChatRoute
+  '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
+  '/devtools-route-a': typeof DevtoolsRouteARoute
+  '/devtools-route-b': typeof DevtoolsRouteBRoute
+  '/devtools-structured': typeof DevtoolsStructuredRoute
+  '/devtools-tools': typeof DevtoolsToolsRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
+  '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
+  '/api/fal-billable-units': typeof ApiFalBillableUnitsRoute
   '/api/image': typeof ApiImageRouteWithChildren
+  '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
+  '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
+  '/api/mcp-server': typeof ApiMcpServerRoute
+  '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
+  '/api/mcp-test': typeof ApiMcpTestRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
+  '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
+  '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
+  '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
+  '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tools-test': typeof ApiToolsTestRoute
@@ -195,15 +341,33 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/devtools-chat': typeof DevtoolsChatRoute
+  '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
+  '/devtools-route-a': typeof DevtoolsRouteARoute
+  '/devtools-route-b': typeof DevtoolsRouteBRoute
+  '/devtools-structured': typeof DevtoolsStructuredRoute
+  '/devtools-tools': typeof DevtoolsToolsRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
+  '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
+  '/api/fal-billable-units': typeof ApiFalBillableUnitsRoute
   '/api/image': typeof ApiImageRouteWithChildren
+  '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
+  '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
+  '/api/mcp-server': typeof ApiMcpServerRoute
+  '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
+  '/api/mcp-test': typeof ApiMcpTestRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
+  '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
+  '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
+  '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
+  '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tools-test': typeof ApiToolsTestRoute
@@ -221,15 +385,33 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/devtools-chat'
+    | '/devtools-generation-hooks'
+    | '/devtools-route-a'
+    | '/devtools-route-b'
+    | '/devtools-structured'
+    | '/devtools-tools'
     | '/markdown-cjk'
     | '/middleware-test'
     | '/tools-test'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
+    | '/api/anthropic-skills-wire'
+    | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/chat'
+    | '/api/fal-billable-units'
     | '/api/image'
+    | '/api/mcp-lifecycle-test'
+    | '/api/mcp-managed-test'
+    | '/api/mcp-server'
+    | '/api/mcp-status-test'
+    | '/api/mcp-test'
     | '/api/middleware-test'
+    | '/api/multimodal-tool-result-wire'
+    | '/api/openai-shell-skills-wire'
+    | '/api/openai-usage-details'
+    | '/api/openrouter-cost'
     | '/api/openrouter-web-tools-wire'
     | '/api/summarize'
     | '/api/tools-test'
@@ -245,15 +427,33 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/devtools-chat'
+    | '/devtools-generation-hooks'
+    | '/devtools-route-a'
+    | '/devtools-route-b'
+    | '/devtools-structured'
+    | '/devtools-tools'
     | '/markdown-cjk'
     | '/middleware-test'
     | '/tools-test'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
+    | '/api/anthropic-skills-wire'
+    | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/chat'
+    | '/api/fal-billable-units'
     | '/api/image'
+    | '/api/mcp-lifecycle-test'
+    | '/api/mcp-managed-test'
+    | '/api/mcp-server'
+    | '/api/mcp-status-test'
+    | '/api/mcp-test'
     | '/api/middleware-test'
+    | '/api/multimodal-tool-result-wire'
+    | '/api/openai-shell-skills-wire'
+    | '/api/openai-usage-details'
+    | '/api/openrouter-cost'
     | '/api/openrouter-web-tools-wire'
     | '/api/summarize'
     | '/api/tools-test'
@@ -269,15 +469,33 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/devtools-chat'
+    | '/devtools-generation-hooks'
+    | '/devtools-route-a'
+    | '/devtools-route-b'
+    | '/devtools-structured'
+    | '/devtools-tools'
     | '/markdown-cjk'
     | '/middleware-test'
     | '/tools-test'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
+    | '/api/anthropic-skills-wire'
+    | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/chat'
+    | '/api/fal-billable-units'
     | '/api/image'
+    | '/api/mcp-lifecycle-test'
+    | '/api/mcp-managed-test'
+    | '/api/mcp-server'
+    | '/api/mcp-status-test'
+    | '/api/mcp-test'
     | '/api/middleware-test'
+    | '/api/multimodal-tool-result-wire'
+    | '/api/openai-shell-skills-wire'
+    | '/api/openai-usage-details'
+    | '/api/openrouter-cost'
     | '/api/openrouter-web-tools-wire'
     | '/api/summarize'
     | '/api/tools-test'
@@ -294,15 +512,33 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DevtoolsChatRoute: typeof DevtoolsChatRoute
+  DevtoolsGenerationHooksRoute: typeof DevtoolsGenerationHooksRoute
+  DevtoolsRouteARoute: typeof DevtoolsRouteARoute
+  DevtoolsRouteBRoute: typeof DevtoolsRouteBRoute
+  DevtoolsStructuredRoute: typeof DevtoolsStructuredRoute
+  DevtoolsToolsRoute: typeof DevtoolsToolsRoute
   MarkdownCjkRoute: typeof MarkdownCjkRoute
   MiddlewareTestRoute: typeof MiddlewareTestRoute
   ToolsTestRoute: typeof ToolsTestRoute
   ProviderFeatureRoute: typeof ProviderFeatureRoute
   ApiAnthropicBugTestRoute: typeof ApiAnthropicBugTestRoute
+  ApiAnthropicSkillsWireRoute: typeof ApiAnthropicSkillsWireRoute
+  ApiArktypeToolWireRoute: typeof ApiArktypeToolWireRoute
   ApiAudioRoute: typeof ApiAudioRouteWithChildren
   ApiChatRoute: typeof ApiChatRoute
+  ApiFalBillableUnitsRoute: typeof ApiFalBillableUnitsRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
+  ApiMcpLifecycleTestRoute: typeof ApiMcpLifecycleTestRoute
+  ApiMcpManagedTestRoute: typeof ApiMcpManagedTestRoute
+  ApiMcpServerRoute: typeof ApiMcpServerRoute
+  ApiMcpStatusTestRoute: typeof ApiMcpStatusTestRoute
+  ApiMcpTestRoute: typeof ApiMcpTestRoute
   ApiMiddlewareTestRoute: typeof ApiMiddlewareTestRoute
+  ApiMultimodalToolResultWireRoute: typeof ApiMultimodalToolResultWireRoute
+  ApiOpenaiShellSkillsWireRoute: typeof ApiOpenaiShellSkillsWireRoute
+  ApiOpenaiUsageDetailsRoute: typeof ApiOpenaiUsageDetailsRoute
+  ApiOpenrouterCostRoute: typeof ApiOpenrouterCostRoute
   ApiOpenrouterWebToolsWireRoute: typeof ApiOpenrouterWebToolsWireRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
   ApiToolsTestRoute: typeof ApiToolsTestRoute
@@ -333,6 +569,48 @@ declare module '@tanstack/react-router' {
       path: '/markdown-cjk'
       fullPath: '/markdown-cjk'
       preLoaderRoute: typeof MarkdownCjkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/devtools-tools': {
+      id: '/devtools-tools'
+      path: '/devtools-tools'
+      fullPath: '/devtools-tools'
+      preLoaderRoute: typeof DevtoolsToolsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/devtools-structured': {
+      id: '/devtools-structured'
+      path: '/devtools-structured'
+      fullPath: '/devtools-structured'
+      preLoaderRoute: typeof DevtoolsStructuredRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/devtools-route-b': {
+      id: '/devtools-route-b'
+      path: '/devtools-route-b'
+      fullPath: '/devtools-route-b'
+      preLoaderRoute: typeof DevtoolsRouteBRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/devtools-route-a': {
+      id: '/devtools-route-a'
+      path: '/devtools-route-a'
+      fullPath: '/devtools-route-a'
+      preLoaderRoute: typeof DevtoolsRouteARouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/devtools-generation-hooks': {
+      id: '/devtools-generation-hooks'
+      path: '/devtools-generation-hooks'
+      fullPath: '/devtools-generation-hooks'
+      preLoaderRoute: typeof DevtoolsGenerationHooksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/devtools-chat': {
+      id: '/devtools-chat'
+      path: '/devtools-chat'
+      fullPath: '/devtools-chat'
+      preLoaderRoute: typeof DevtoolsChatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -391,6 +669,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOpenrouterWebToolsWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/openrouter-cost': {
+      id: '/api/openrouter-cost'
+      path: '/api/openrouter-cost'
+      fullPath: '/api/openrouter-cost'
+      preLoaderRoute: typeof ApiOpenrouterCostRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/openai-usage-details': {
+      id: '/api/openai-usage-details'
+      path: '/api/openai-usage-details'
+      fullPath: '/api/openai-usage-details'
+      preLoaderRoute: typeof ApiOpenaiUsageDetailsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/openai-shell-skills-wire': {
+      id: '/api/openai-shell-skills-wire'
+      path: '/api/openai-shell-skills-wire'
+      fullPath: '/api/openai-shell-skills-wire'
+      preLoaderRoute: typeof ApiOpenaiShellSkillsWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/multimodal-tool-result-wire': {
+      id: '/api/multimodal-tool-result-wire'
+      path: '/api/multimodal-tool-result-wire'
+      fullPath: '/api/multimodal-tool-result-wire'
+      preLoaderRoute: typeof ApiMultimodalToolResultWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/middleware-test': {
       id: '/api/middleware-test'
       path: '/api/middleware-test'
@@ -398,11 +704,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMiddlewareTestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mcp-test': {
+      id: '/api/mcp-test'
+      path: '/api/mcp-test'
+      fullPath: '/api/mcp-test'
+      preLoaderRoute: typeof ApiMcpTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-status-test': {
+      id: '/api/mcp-status-test'
+      path: '/api/mcp-status-test'
+      fullPath: '/api/mcp-status-test'
+      preLoaderRoute: typeof ApiMcpStatusTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-server': {
+      id: '/api/mcp-server'
+      path: '/api/mcp-server'
+      fullPath: '/api/mcp-server'
+      preLoaderRoute: typeof ApiMcpServerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-managed-test': {
+      id: '/api/mcp-managed-test'
+      path: '/api/mcp-managed-test'
+      fullPath: '/api/mcp-managed-test'
+      preLoaderRoute: typeof ApiMcpManagedTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-lifecycle-test': {
+      id: '/api/mcp-lifecycle-test'
+      path: '/api/mcp-lifecycle-test'
+      fullPath: '/api/mcp-lifecycle-test'
+      preLoaderRoute: typeof ApiMcpLifecycleTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/image': {
       id: '/api/image'
       path: '/api/image'
       fullPath: '/api/image'
       preLoaderRoute: typeof ApiImageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/fal-billable-units': {
+      id: '/api/fal-billable-units'
+      path: '/api/fal-billable-units'
+      fullPath: '/api/fal-billable-units'
+      preLoaderRoute: typeof ApiFalBillableUnitsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/chat': {
@@ -417,6 +765,20 @@ declare module '@tanstack/react-router' {
       path: '/api/audio'
       fullPath: '/api/audio'
       preLoaderRoute: typeof ApiAudioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/arktype-tool-wire': {
+      id: '/api/arktype-tool-wire'
+      path: '/api/arktype-tool-wire'
+      fullPath: '/api/arktype-tool-wire'
+      preLoaderRoute: typeof ApiArktypeToolWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/anthropic-skills-wire': {
+      id: '/api/anthropic-skills-wire'
+      path: '/api/anthropic-skills-wire'
+      fullPath: '/api/anthropic-skills-wire'
+      preLoaderRoute: typeof ApiAnthropicSkillsWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/anthropic-bug-test': {
@@ -531,15 +893,33 @@ const ApiVideoRouteWithChildren = ApiVideoRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DevtoolsChatRoute: DevtoolsChatRoute,
+  DevtoolsGenerationHooksRoute: DevtoolsGenerationHooksRoute,
+  DevtoolsRouteARoute: DevtoolsRouteARoute,
+  DevtoolsRouteBRoute: DevtoolsRouteBRoute,
+  DevtoolsStructuredRoute: DevtoolsStructuredRoute,
+  DevtoolsToolsRoute: DevtoolsToolsRoute,
   MarkdownCjkRoute: MarkdownCjkRoute,
   MiddlewareTestRoute: MiddlewareTestRoute,
   ToolsTestRoute: ToolsTestRoute,
   ProviderFeatureRoute: ProviderFeatureRoute,
   ApiAnthropicBugTestRoute: ApiAnthropicBugTestRoute,
+  ApiAnthropicSkillsWireRoute: ApiAnthropicSkillsWireRoute,
+  ApiArktypeToolWireRoute: ApiArktypeToolWireRoute,
   ApiAudioRoute: ApiAudioRouteWithChildren,
   ApiChatRoute: ApiChatRoute,
+  ApiFalBillableUnitsRoute: ApiFalBillableUnitsRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
+  ApiMcpLifecycleTestRoute: ApiMcpLifecycleTestRoute,
+  ApiMcpManagedTestRoute: ApiMcpManagedTestRoute,
+  ApiMcpServerRoute: ApiMcpServerRoute,
+  ApiMcpStatusTestRoute: ApiMcpStatusTestRoute,
+  ApiMcpTestRoute: ApiMcpTestRoute,
   ApiMiddlewareTestRoute: ApiMiddlewareTestRoute,
+  ApiMultimodalToolResultWireRoute: ApiMultimodalToolResultWireRoute,
+  ApiOpenaiShellSkillsWireRoute: ApiOpenaiShellSkillsWireRoute,
+  ApiOpenaiUsageDetailsRoute: ApiOpenaiUsageDetailsRoute,
+  ApiOpenrouterCostRoute: ApiOpenrouterCostRoute,
   ApiOpenrouterWebToolsWireRoute: ApiOpenrouterWebToolsWireRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
   ApiToolsTestRoute: ApiToolsTestRoute,

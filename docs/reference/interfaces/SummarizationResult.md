@@ -5,7 +5,7 @@ title: SummarizationResult
 
 # Interface: SummarizationResult
 
-Defined in: [packages/typescript/ai/src/types.ts:1398](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1398)
+Defined in: [packages/ai/src/types.ts:1461](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1461)
 
 ## Properties
 
@@ -15,7 +15,7 @@ Defined in: [packages/typescript/ai/src/types.ts:1398](https://github.com/TanSta
 id: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1399](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1399)
+Defined in: [packages/ai/src/types.ts:1462](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1462)
 
 ***
 
@@ -25,7 +25,7 @@ Defined in: [packages/typescript/ai/src/types.ts:1399](https://github.com/TanSta
 model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1400](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1400)
+Defined in: [packages/ai/src/types.ts:1463](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1463)
 
 ***
 
@@ -35,32 +35,14 @@ Defined in: [packages/typescript/ai/src/types.ts:1400](https://github.com/TanSta
 summary: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1401](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1401)
+Defined in: [packages/ai/src/types.ts:1464](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1464)
 
 ***
 
 ### usage
 
 ```ts
-usage: object;
+usage: TokenUsage;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1402](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1402)
-
-#### completionTokens
-
-```ts
-completionTokens: number;
-```
-
-#### promptTokens
-
-```ts
-promptTokens: number;
-```
-
-#### totalTokens
-
-```ts
-totalTokens: number;
-```
+Defined in: [packages/ai/src/types.ts:1465](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1465)

@@ -20,16 +20,18 @@ Thinking content is **UI-only**. It is never sent back to the model in subsequen
 
 ## How It Works
 
-When a model emits reasoning tokens, the adapter converts them into AG-UI `STEP_STARTED` and `STEP_FINISHED` events. The stream processor accumulates these into a single `ThinkingPart` on the assistant's `UIMessage`:
+When a model emits reasoning tokens, the adapter emits AG-UI events for them. Adapters emit `REASONING_MESSAGE_*` events (the preferred, canonical form) **and** the older `STEP_STARTED` / `STEP_FINISHED` events. The stream processor reconciles both into a single `ThinkingPart` on the assistant's `UIMessage`, deduplicating overlapping content. You should rely on the `ThinkingPart` in `message.parts` rather than hand-parsing the raw events:
 
 ```typescript
 interface ThinkingPart {
   type: "thinking";
   content: string;
+  stepId?: string;
+  signature?: string;
 }
 ```
 
-The `ThinkingPart` appears in `UIMessage.parts` alongside `TextPart` and `ToolCallPart` entries. Each `STEP_FINISHED` event carries an incremental `delta` and the full accumulated `content`, so you always have both the latest token and the complete thinking so far.
+The `ThinkingPart` appears in `UIMessage.parts` alongside `TextPart` and `ToolCallPart` entries. As reasoning tokens arrive, its `content` accumulates token by token.
 
 ## Enabling Thinking
 
@@ -37,30 +39,19 @@ How you enable thinking depends on the provider.
 
 ### Anthropic (Extended Thinking)
 
-Pass the `thinking` option in `providerOptions`. You must specify `budget_tokens` (minimum 1024):
+Pass the `thinking` option in `modelOptions` with `type: "enabled"` and a `budget_tokens` (minimum 1024). Keep `budget_tokens` below `modelOptions.max_tokens` so there is room for the visible response in addition to the thinking budget:
 
 ```typescript
 import { chat } from "@tanstack/ai";
 import { anthropicText } from "@tanstack/ai-anthropic";
 
 const stream = chat({
-  adapter: anthropicText("claude-sonnet-4-20250514"),
+  adapter: anthropicText("claude-sonnet-4-6"),
   messages,
-  providerOptions: {
+  modelOptions: {
+    max_tokens: 32000,
+    // budget_tokens must be at least 1024 and below max_tokens
     thinking: { type: "enabled", budget_tokens: 10000 },
-  },
-});
-```
-
-For Claude Opus 4.6 and later, you can use adaptive thinking, where the model decides how much to think:
-
-```typescript
-const stream = chat({
-  adapter: anthropicText("claude-opus-4-6-20250514"),
-  messages,
-  providerOptions: {
-    thinking: { type: "adaptive" },
-    effort: "high", // 'max' | 'high' | 'medium' | 'low'
   },
 });
 ```
@@ -76,9 +67,9 @@ import { openaiText } from "@tanstack/ai-openai";
 const stream = chat({
   adapter: openaiText("o3-mini"),
   messages,
-  providerOptions: {
+  modelOptions: {
     reasoning: {
-      effort: "medium", // 'low' | 'medium' | 'high'
+      effort: "medium", // 'none' | 'minimal' | 'low' | 'medium' | 'high'
       summary: "auto", // 'auto' | 'detailed'
     },
   },
@@ -87,13 +78,13 @@ const stream = chat({
 
 When `reasoning.summary` is set, the adapter streams reasoning summary text as thinking content. Without it, reasoning tokens are still used internally but may not be surfaced depending on the model.
 
-GPT-5 and later models also support reasoning when you set the `effort` to a non-`none` value:
+GPT-5 and later models also support reasoning. Their `reasoning.effort` accepts `"none" | "minimal" | "low" | "medium" | "high"`, and reasoning activates on any non-`none` value:
 
 ```typescript
 const stream = chat({
-  adapter: openaiText("gpt-5"),
+  adapter: openaiText("gpt-5.5"),
   messages,
-  providerOptions: {
+  modelOptions: {
     reasoning: { effort: "high" },
   },
 });
@@ -134,12 +125,12 @@ Thinking content streams **before** the final text response. As reasoning tokens
 
 The typical streaming order is:
 
-1. `STEP_STARTED` -- marks the beginning of a thinking block
-2. `STEP_FINISHED` (repeated) -- each carries a `delta` with the new token and `content` with the full thinking so far
+1. The reasoning block begins (`REASONING_MESSAGE_START`, plus a legacy `STEP_STARTED`)
+2. Reasoning tokens stream in (`REASONING_MESSAGE_CONTENT`, plus legacy `STEP_FINISHED` events), accumulating into `ThinkingPart.content`
 3. `TEXT_MESSAGE_START` -- the model begins its visible response
 4. `TEXT_MESSAGE_CONTENT` (repeated) -- the response text streams in
 
-The stream processor handles all of this for you. If you use `useChat` from `@tanstack/ai-react` (or the Solid/Vue/Svelte equivalents), your `messages` array updates automatically with both thinking and text parts as they arrive.
+Adapters emit both the canonical `REASONING_MESSAGE_*` events and the older `STEP_*` events; the stream processor reconciles them into one `ThinkingPart` so you never have to hand-parse the raw events. If you use `useChat` from `@tanstack/ai-react` (or the Solid/Vue/Svelte equivalents), your `messages` array updates automatically with both thinking and text parts as they arrive.
 
 ## Next Steps
 

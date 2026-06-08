@@ -43,10 +43,11 @@ const stream = chat({
 - `adapter` - An AI adapter instance with model (e.g., `openaiText('gpt-5.2')`, `anthropicText('claude-sonnet-4-5')`)
 - `messages` - Array of chat messages. Accepts mixed `UIMessage | ModelMessage` arrays — internal conversion handles AG-UI fan-out dedup, drops `reasoning`/`activity`, and collapses `developer` → `system`
 - `tools?` - Array of tools for function calling
+- `context?` - Typed runtime context passed to server tools and middleware. If a tool or middleware declares a concrete context type, `chat()` requires a compatible value here
 - `systemPrompts?` - System prompts to prepend to messages
 - `agentLoopStrategy?` - Strategy for agent loops (default: `maxIterations(5)`)
 - `abortController?` - AbortController for cancellation
-- `modelOptions?` - Model-specific options (renamed from `providerOptions`)
+- `modelOptions?` - Provider-native model options. This is where sampling parameters live — `temperature`, `top_p`/`topP`, and the provider's token-limit key (`max_output_tokens`, `max_tokens`, `maxOutputTokens`, …) — under each provider's canonical name, rather than as generic root-level props. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options). (Renamed from `providerOptions`.)
 - `threadId?` - AG-UI thread identifier propagated into `RUN_STARTED` events for run correlation
 - `runId?` - AG-UI run identifier (auto-generated if omitted)
 - `parentRunId?` - AG-UI parent run identifier for nested runs
@@ -127,6 +128,29 @@ chat({
   adapter: openaiText("gpt-5.2"),
   tools: [myServerTool],
   messages: [{ role: "user", content: "..." }],
+});
+```
+
+Tools can declare typed runtime context for request-scoped dependencies:
+
+```typescript
+type AppContext = {
+  userId: string;
+  db: { users: { findName(id: string): Promise<string> } };
+};
+
+const currentUser = toolDefinition({
+  name: "current_user",
+  description: "Get the current user",
+}).server<AppContext>(async (_input, ctx) => {
+  return { name: await ctx.context.db.users.findName(ctx.context.userId) };
+});
+
+chat({
+  adapter: openaiText("gpt-5.2"),
+  messages,
+  tools: [currentUser],
+  context: { userId: session.user.id, db },
 });
 ```
 
@@ -219,7 +243,11 @@ export async function POST(req: Request) {
 
 ### Returns
 
-A promise resolving to `{ messages, threadId, runId, parentRunId?, tools, forwardedProps, state, context }`.
+A promise resolving to `{ messages, threadId, runId, parentRunId?, tools, forwardedProps, state, aguiContext, context }`.
+
+The returned `aguiContext` is the AG-UI protocol `RunAgentInput.context` field. It is not the same as TanStack AI runtime `chat({ context })`; validate and map it explicitly if you want those values available to tools or middleware.
+
+The returned `context` field is a deprecated alias of `aguiContext` kept for backward compatibility. Prefer `aguiContext` in new code.
 
 > **Framework note.** Next.js Route Handlers, SvelteKit, Hono, and raw Node do not auto-handle thrown `Response` objects. In those, wrap with try/catch or use `chatParamsFromRequestBody(await req.json())` directly.
 
@@ -329,17 +357,77 @@ Stream chunks represent different types of data in the stream:
 ### `Tool`
 
 ```typescript
-interface Tool {
-  type: "function";
-  function: {
-    name: string;
-    description: string;
-    parameters: Record<string, any>;
-  };
-  execute?: (args: any) => Promise<any> | any;
+interface Tool<TContext = unknown> {
+  name: string;
+  description: string;
+  inputSchema?: SchemaInput;
+  outputSchema?: SchemaInput;
+  execute?: (
+    args: any,
+    context?: ToolExecutionContext<TContext>
+  ) => Promise<any> | any;
   needsApproval?: boolean;
+  lazy?: boolean;
+  metadata?: Record<string, any>;
 }
 ```
+
+### `ToolExecutionContext<TContext>`
+
+```typescript
+type ToolExecutionContext<TContext = unknown> = {
+  toolCallId?: string;
+  emitCustomEvent: (eventName: string, value: Record<string, any>) => void;
+} & (unknown extends TContext ? { context?: TContext } : { context: TContext });
+```
+
+`context` is the runtime value from `chat({ context })` for server tools, or from `ChatClient` / framework hook options for client tools. It is required when a tool declares a concrete `TContext` and optional for untyped tools where the context type is `unknown`.
+
+### `ChatMiddleware<TContext>`
+
+```typescript
+interface ChatMiddleware<TContext = unknown> {
+  name?: string;
+  onStart?: (ctx: ChatMiddlewareContext<TContext>) => void | Promise<void>;
+  onChunk?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    chunk: StreamChunk
+  ) => void | StreamChunk | StreamChunk[] | null | Promise<void | StreamChunk | StreamChunk[] | null>;
+  onBeforeToolCall?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    hookCtx: ToolCallHookContext
+  ) => BeforeToolCallDecision | Promise<BeforeToolCallDecision>;
+  onAfterToolCall?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    info: AfterToolCallInfo
+  ) => void | Promise<void>;
+  onFinish?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    info: FinishInfo
+  ) => void | Promise<void>;
+  onAbort?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    info: AbortInfo
+  ) => void | Promise<void>;
+  onError?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    info: ErrorInfo
+  ) => void | Promise<void>;
+}
+
+interface ChatMiddlewareContext<TContext = unknown> {
+  requestId: string;
+  streamId: string;
+  threadId: string;
+  phase: ChatMiddlewarePhase;
+  iteration: number;
+  context: TContext;
+  abort(reason?: string): void;
+  defer(promise: Promise<unknown>): void;
+}
+```
+
+See [Runtime Context](../advanced/runtime-context) for the recommended context patterns.
 
 ## Usage Examples
 

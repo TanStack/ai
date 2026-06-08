@@ -106,7 +106,7 @@ Keep reading `body.messages` and pass it through. `chat()` accepts mixed `UIMess
 
 ```ts
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai/adapters'
+import { openaiText } from '@tanstack/ai-openai'
 
 export async function POST(req: Request) {
   const body = await req.json()
@@ -139,7 +139,7 @@ import {
   chatParamsFromRequest,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai/adapters'
+import { openaiText } from '@tanstack/ai-openai'
 
 export async function POST(req: Request) {
   const params = await chatParamsFromRequest(req)
@@ -171,7 +171,7 @@ import {
   mergeAgentTools,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai/adapters'
+import { openaiText } from '@tanstack/ai-openai'
 
 export async function POST(req: Request) {
   const params = await chatParamsFromRequest(req)
@@ -204,19 +204,47 @@ chat({
 Always destructure the specific fields you intend to forward:
 
 ```ts
-// ✅ SAFE — explicit allowlist
+// ✅ SAFE — explicit allowlist. Sampling params live in modelOptions under
+// each provider's native key (OpenAI: temperature / max_output_tokens).
 chat({
   adapter: openaiText('gpt-4o'),
   messages: params.messages,
   tools: mergeAgentTools(serverTools, params.tools),
-  temperature:
-    typeof params.forwardedProps.temperature === 'number'
-      ? params.forwardedProps.temperature
-      : undefined,
-  maxTokens:
-    typeof params.forwardedProps.maxTokens === 'number'
-      ? params.forwardedProps.maxTokens
-      : undefined,
+  modelOptions: {
+    temperature:
+      typeof params.forwardedProps.temperature === 'number'
+        ? params.forwardedProps.temperature
+        : undefined,
+    max_output_tokens:
+      typeof params.forwardedProps.maxTokens === 'number'
+        ? params.forwardedProps.maxTokens
+        : undefined,
+  },
+})
+```
+
+### Mapping forwarded values into runtime context
+
+TanStack AI's `chat({ context })` is typed runtime context for tools and middleware. It is separate from AG-UI `RunAgentInput.context` and is not populated automatically from protocol fields.
+
+If a client value should become available to server tools or middleware, validate it from `forwardedProps` and build the runtime context explicitly:
+
+```ts
+const params = await chatParamsFromRequest(req)
+
+const tenantId =
+  typeof params.forwardedProps.tenantId === 'string'
+    ? params.forwardedProps.tenantId
+    : defaultTenantId
+
+const stream = chat({
+  adapter: openaiText('gpt-4o'),
+  messages: params.messages,
+  tools: serverTools,
+  context: {
+    userId: session.user.id,
+    tenantId,
+  },
 })
 ```
 
@@ -291,5 +319,4 @@ Pure AG-UI `RunAgentInput` payloads (no TanStack `parts` field) work end-to-end:
 ## Out of scope (existing behavior preserved)
 
 - **Reasoning replay to LLM providers.** TanStack still drops `ThinkingPart` at the `UIMessage`→`ModelMessage` boundary (pre-existing behavior). Providers like Anthropic that require thinking blocks to be replayed for extended thinking continuation remain a separate concern, tracked outside this migration.
-- **AG-UI `state` and `context` fields.** Surfaced on `chatParamsFromRequestBody`'s return value but not yet wired into `chat()`. They're available for your endpoint to inspect/forward, but the runtime ignores them.
-- **PHP and Python server packages.** No `chatParamsFromRequestBody` parity yet. Their examples temporarily lag on the old shape until the matching helpers ship.
+- **AG-UI `state` and `context` fields.** Surfaced on `chatParamsFromRequestBody`'s return value as `state` and `aguiContext`, with `context` kept as a deprecated alias of `aguiContext` for backward compatibility. They are protocol-level fields available for your endpoint to inspect/forward. TanStack AI's typed runtime context is the separate `chat({ context })` option; validate and map AG-UI values into it yourself if you want tools or middleware to read them.

@@ -5,7 +5,7 @@ title: ToolCallStartEvent
 
 # Interface: ToolCallStartEvent
 
-Defined in: [packages/typescript/ai/src/types.ts:993](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L993)
+Defined in: [packages/ai/src/types.ts:1056](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1056)
 
 Emitted when a tool call starts.
 
@@ -30,7 +30,7 @@ TanStack AI adds: `model?`, `toolName` (deprecated alias), `index?`, `metadata?`
 optional index: number;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1002](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1002)
+Defined in: [packages/ai/src/types.ts:1065](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1065)
 
 Index for parallel tool calls
 
@@ -42,7 +42,7 @@ Index for parallel tool calls
 optional metadata: Record<string, unknown>;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1007](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1007)
+Defined in: [packages/ai/src/types.ts:1070](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1070)
 
 Provider-specific metadata to carry into the ToolCall.
 Untyped at the event layer because events flow through a discriminated
@@ -57,7 +57,7 @@ union that does not survive generics; adapters cast it to their typed
 optional model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:995](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L995)
+Defined in: [packages/ai/src/types.ts:1058](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1058)
 
 Model identifier for multi-model support
 
@@ -69,7 +69,7 @@ Model identifier for multi-model support
 toolName: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1000](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1000)
+Defined in: [packages/ai/src/types.ts:1063](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1063)
 
 #### Deprecated
 

@@ -1,0 +1,67 @@
+{
+  "name": "@tanstack/solid-ai-devtools",
+  "version": "0.2.51",
+  "description": "Solid Devtools plugin for inspecting TanStack AI chat messages, tool calls, streams, and errors.",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai"
+  },
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    },
+    "./production": {
+      "import": {
+        "types": "./dist/esm/production.d.ts",
+        "default": "./dist/esm/production.js"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:build": "publint --strict",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest --passWithNoTests",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "solid",
+    "solidjs",
+    "devtools",
+    "debugging",
+    "observability",
+    "chat",
+    "tool-calling"
+  ],
+  "dependencies": {
+    "@tanstack/ai-devtools-core": "workspace:*",
+    "@tanstack/devtools-utils": "^0.4.0"
+  },
+  "peerDependencies": {
+    "solid-js": ">=1.9.7"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "4.0.14",
+    "solid-js": "^1.9.10",
+    "vite": "^7.3.3",
+    "vite-plugin-solid": "^2.11.10"
+  }
+}

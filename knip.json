@@ -4,18 +4,19 @@
   "ignoreWorkspaces": [
     "examples/**",
     "testing/**",
-    "packages/typescript/ai-code-mode/models-eval"
+    "packages/ai-code-mode/models-eval"
   ],
   "ignore": [
     "scripts/**",
-    "packages/typescript/ai-code-mode-skills/test-cli/**",
+    "**/*.test-d.ts",
+    "packages/ai-code-mode-skills/test-cli/**",
     ".claude/worktrees/**",
-    "packages/typescript/ai-openai/live-tests/**",
-    "packages/typescript/ai-openai/src/**/*.test.ts",
-    "packages/typescript/ai-openai/src/audio/audio-provider-options.ts",
-    "packages/typescript/ai-openai/src/audio/transcribe-provider-options.ts",
-    "packages/typescript/ai-openai/src/image/image-provider-options.ts",
-    "packages/typescript/ai-devtools/src/production.ts",
+    "packages/ai-openai/live-tests/**",
+    "packages/ai-openai/src/**/*.test.ts",
+    "packages/ai-openai/src/audio/audio-provider-options.ts",
+    "packages/ai-openai/src/audio/transcribe-provider-options.ts",
+    "packages/ai-openai/src/image/image-provider-options.ts",
+    "packages/ai-devtools/src/production.ts",
     "codemods/**/__testfixtures__/**"
   ],
   "ignoreExportsUsedInFile": true,
@@ -23,25 +24,25 @@
     "packages/react-ai": {
       "ignore": []
     },
-    "packages/typescript/ai": {
+    "packages/ai": {
       "ignoreDependencies": ["@opentelemetry/api"]
     },
-    "packages/typescript/ai-anthropic": {
+    "packages/ai-anthropic": {
       "ignore": ["src/tools/**"]
     },
-    "packages/typescript/ai-gemini": {
+    "packages/ai-gemini": {
       "ignore": ["src/tools/**"]
     },
-    "packages/typescript/ai-openai": {
+    "packages/ai-openai": {
       "ignore": ["src/tools/**"]
     },
-    "packages/typescript/ai-client": {
+    "packages/ai-client": {
       "ignoreDependencies": ["@standard-schema/spec"]
     },
-    "packages/typescript/ai-react-ui": {
+    "packages/ai-react-ui": {
       "ignoreDependencies": ["react-dom"]
     },
-    "packages/typescript/ai-vue-ui": {
+    "packages/ai-vue-ui": {
       "ignore": ["src/use-chat-context.ts"]
     }
   }

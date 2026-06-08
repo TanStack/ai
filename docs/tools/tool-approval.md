@@ -13,13 +13,15 @@ keywords:
   - human-in-the-loop
 ---
 
-The tool approval flow allows you to require user approval before executing sensitive tools, giving users control over actions like sending emails, making purchases, or deleting data. Tools go through these states during approval:
+The tool approval flow allows you to require user approval before executing sensitive tools, giving users control over actions like sending emails, making purchases, or deleting data. A tool call moves through the `ToolCallState` lifecycle:
 
-1. **`approval-requested`** - Waiting for user approval
-2. **`executing`** - Approved, now executing
-3. **`output-available`** - Execution completed
-4. **`output-error`** - Execution failed
-5. **`cancelled`** - User denied approval
+1. **`awaiting-input`** — Tool call started, no arguments yet
+2. **`input-streaming`** — Arguments arriving incrementally
+3. **`input-complete`** — All arguments received
+4. **`approval-requested`** — Waiting for user approval (only if `needsApproval: true`)
+5. **`approval-responded`** — User approved or denied
+
+After `approval-responded` the call executes (if approved). Although `complete` exists in the `ToolCallState` union, the runtime never transitions the tool-call part to it — the result surfaces as a populated `part.output` plus a sibling `tool-result` part whose own state is `complete` or `error`.
 
 When a tool requires approval, the typical flow is:
 
@@ -74,7 +76,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: openaiText("gpt-5.2"),
+    adapter: openaiText("gpt-5.5"),
     messages,
     tools: [sendEmail],
   });
@@ -87,7 +89,7 @@ export async function POST(request: Request) {
 
 The client receives approval requests and can respond:
 
-```typescript
+```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
 function ChatComponent() {
@@ -109,7 +111,7 @@ function ChatComponent() {
               return (
                 <div key={part.id} className="approval-prompt">
                   <p>Approve: {part.name}</p>
-                  <pre>{JSON.stringify(part.arguments, null, 2)}</pre>
+                  <pre>{JSON.stringify(part.input, null, 2)}</pre>
                   <button
                     onClick={() =>
                       addToolApprovalResponse({
@@ -146,9 +148,21 @@ function ChatComponent() {
 
 Here's a more complete approval UI component:
 
-```typescript
-function ApprovalPrompt({ part, onApprove, onDeny }) {
-  const args = JSON.parse(part.arguments);
+```tsx
+import type { ToolCallPart } from "@tanstack/ai-client";
+
+function ApprovalPrompt({
+  part,
+  onApprove,
+  onDeny,
+}: {
+  part: ToolCallPart;
+  onApprove: () => void;
+  onDeny: () => void;
+}) {
+  // When tools are passed via `clientTools(...)`, `part.input` is the
+  // parsed, fully-typed argument object. Otherwise parse `part.arguments`.
+  const args = part.input ?? JSON.parse(part.arguments);
 
   return (
     <div className="border border-yellow-500 rounded-lg p-4 bg-yellow-50">
@@ -179,11 +193,34 @@ function ApprovalPrompt({ part, onApprove, onDeny }) {
 }
 ```
 
+Wire it up from your message renderer. Note the `id` you pass is the **approval id** (`part.approval.id`), not the tool call id:
+
+```tsx
+{part.type === "tool-call" &&
+  part.state === "approval-requested" &&
+  part.approval && (
+    <ApprovalPrompt
+      part={part}
+      onApprove={() =>
+        addToolApprovalResponse({ id: part.approval!.id, approved: true })
+      }
+      onDeny={() =>
+        addToolApprovalResponse({ id: part.approval!.id, approved: false })
+      }
+    />
+  )}
+```
+
 ## Client Tools with Approval
 
 Client tools can also require approval:
 
 ```typescript
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { clientTools } from "@tanstack/ai-client";
+
 // tools/definitions.ts
 const deleteLocalDataDef = toolDefinition({
   name: "delete_local_data",
@@ -206,7 +243,10 @@ const deleteLocalData = deleteLocalDataDef.client((input) => {
 
 const { messages, addToolApprovalResponse } = useChat({
   connection: fetchServerSentEvents("/api/chat"),
-  tools: [deleteLocalData], // Automatic execution after approval
+  // Wrap client tools in `clientTools(...)` so literal tool-name inference is
+  // preserved — this is what lets `part.name === "delete_local_data"` narrow
+  // `part.input` / `part.output` to this tool's types.
+  tools: clientTools(deleteLocalData), // Automatic execution after approval
 });
 ```
 

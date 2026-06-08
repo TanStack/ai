@@ -5,37 +5,15 @@ title: UsageInfo
 
 # Interface: UsageInfo
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:266](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L266)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:270](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L270)
 
 Token usage statistics passed to the onUsage hook.
 Extracted from the RUN_FINISHED chunk when usage data is present.
 
-## Properties
+Includes optional provider-reported `cost`/`costDetails` (see TokenUsage).
+Kept as an interface extending `TokenUsage` to preserve declaration merging for
+this publicly exported type.
 
-### completionTokens
+## Extends
 
-```ts
-completionTokens: number;
-```
-
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:268](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L268)
-
-***
-
-### promptTokens
-
-```ts
-promptTokens: number;
-```
-
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:267](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L267)
-
-***
-
-### totalTokens
-
-```ts
-totalTokens: number;
-```
-
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:269](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L269)
+- `TokenUsage`

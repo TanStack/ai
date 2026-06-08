@@ -134,6 +134,24 @@ const stream = chat({
 });
 ```
 
+## Model Options
+
+OpenRouter supports various provider-specific options. Sampling parameters live here too — `temperature`, `topP`, and `maxCompletionTokens` (OpenRouter's token-limit key for the chat adapter) — rather than as root-level props on `chat()`:
+
+```typescript
+const stream = chat({
+  adapter: openRouterText("openai/gpt-5"),
+  messages,
+  modelOptions: {
+    temperature: 0.7,
+    topP: 0.9,
+    maxCompletionTokens: 1024,
+  },
+});
+```
+
+> If you previously passed `temperature` / `topP` / `maxTokens` at the root of `chat()`, see [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
+
 ## Chat Completions vs Responses (beta)
 
 OpenRouter exposes two OpenAI-compatible wire formats, and the adapter
@@ -168,6 +186,38 @@ Caveats while the Responses adapter is in beta:
   `openRouterText` if you need those.
 - If in doubt, prefer `openRouterText`. The Chat Completions endpoint has
   broader provider coverage and feature parity today.
+
+## Cost Tracking
+
+OpenRouter reports the actual cost of each request inline on the streamed
+response. When present, the adapter forwards it on the terminal `RUN_FINISHED`
+event under `usage.cost`, with OpenRouter's per-request breakdown under
+`usage.costDetails`. This is the cost OpenRouter itself reports for the
+request — it is **not** computed locally from token counts, so it already
+accounts for routing, fallback providers, BYOK, and cached-token pricing. See
+OpenRouter's [Usage Accounting](https://openrouter.ai/docs/use-cases/usage-accounting)
+docs for the meaning and units of these fields.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openRouterText } from "@tanstack/ai-openrouter";
+
+for await (const chunk of chat({
+  adapter: openRouterText("openai/gpt-5"),
+  messages: [{ role: "user", content: "Hello!" }],
+})) {
+  if (chunk.type === "RUN_FINISHED") {
+    console.log("cost:", chunk.usage?.cost);
+    console.log("breakdown:", chunk.usage?.costDetails);
+  }
+}
+```
+
+The same `usage` (including `cost` / `costDetails`) is passed to middleware via
+the `onUsage` and `onFinish` hooks. When OpenRouter does not report a cost, the
+fields are simply absent and the stream completes normally. Both
+`openRouterText` and `openRouterResponsesText` populate cost when OpenRouter
+returns it.
 
 ## Next Steps
 
