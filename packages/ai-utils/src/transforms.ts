@@ -80,18 +80,24 @@ function allowsNull(schema: JsonSchemaNode): boolean {
  * For a composite (object/array) value under an `anyOf`/`oneOf` schema, pick the
  * non-null branch describing that value's real shape so recursion can follow it
  * (e.g. a `nullable(object({...}))` serializes as `anyOf: [object, null]`).
+ *
+ * Resolves only when EXACTLY ONE non-null branch matches the value's shape. If
+ * several could (e.g. a union of object types), the branch is ambiguous, so we
+ * keep the original schema and descend no further — better to leave a null in
+ * place than risk stripping one a sibling branch genuinely allows.
  */
 function resolveSchema(schema: JsonSchemaNode, value: unknown): JsonSchemaNode {
   const variants = schema.anyOf ?? schema.oneOf
   if (!variants) return schema
   const isArray = Array.isArray(value)
-  const match = variants.find((variant) => {
+  const matches = variants.filter((variant) => {
     if (variant.type === 'null') return false
     return isArray
       ? variant.type === 'array' || variant.items !== undefined
       : variant.type === 'object' || variant.properties !== undefined
   })
-  return match ?? schema
+  const [only] = matches
+  return matches.length === 1 && only ? only : schema
 }
 
 function walk(value: unknown, schema: JsonSchemaNode | undefined): unknown {
@@ -108,11 +114,12 @@ function walk(value: unknown, schema: JsonSchemaNode | undefined): unknown {
   if (!schema) return value
 
   if (Array.isArray(value)) {
-    const resolved = resolveSchema(schema, value)
-    const itemSchema = Array.isArray(resolved.items)
-      ? resolved.items[0]
-      : resolved.items
-    return value.map((item) => walk(item, itemSchema))
+    const { items } = resolveSchema(schema, value)
+    // Tuple schemas (`items: [a, b, …]`) describe each position separately;
+    // a single `items` schema applies to every element.
+    return Array.isArray(items)
+      ? value.map((item, index) => walk(item, items[index]))
+      : value.map((item) => walk(item, items))
   }
 
   const resolved = resolveSchema(schema, value)

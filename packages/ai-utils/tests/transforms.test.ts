@@ -1,9 +1,6 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
+import { transformNullsToUndefined, undoNullWidening } from '../src/transforms'
 import type { JsonSchemaNode } from '../src/transforms'
-import {
-  transformNullsToUndefined,
-  undoNullWidening,
-} from '../src/transforms'
 
 describe('transformNullsToUndefined', () => {
   it('should convert null values to undefined', () => {
@@ -98,7 +95,10 @@ describe('undoNullWidening', () => {
           anyOf: [
             {
               type: 'object',
-              properties: { inner: { type: 'string' }, note: { type: 'string' } },
+              properties: {
+                inner: { type: 'string' },
+                note: { type: 'string' },
+              },
               required: ['inner'],
             },
             { type: 'null' },
@@ -128,10 +128,75 @@ describe('undoNullWidening', () => {
       required: ['items'],
     }
     const result = undoNullWidening(
-      { items: [{ id: '1', label: null }, { id: '2', label: 'two' }] },
+      {
+        items: [
+          { id: '1', label: null },
+          { id: '2', label: 'two' },
+        ],
+      },
       arrSchema,
     )
     expect(result).toEqual({ items: [{ id: '1' }, { id: '2', label: 'two' }] })
+  })
+
+  it('applies tuple-style item schemas per index', () => {
+    const tupleSchema: JsonSchemaNode = {
+      type: 'object',
+      properties: {
+        pair: {
+          type: 'array',
+          // [ { name }, { note? } ] — only the second position is optional.
+          items: [
+            {
+              type: 'object',
+              properties: { name: { type: 'string' } },
+              required: ['name'],
+            },
+            {
+              type: 'object',
+              properties: { note: { type: 'string' } },
+              required: [],
+            },
+          ],
+        },
+      },
+      required: ['pair'],
+    }
+    const result = undoNullWidening(
+      { pair: [{ name: 'Ada' }, { note: null }] },
+      tupleSchema,
+    )
+    // The synthesized null in the second tuple position is dropped using that
+    // position's schema, not the first's.
+    expect(result).toEqual({ pair: [{ name: 'Ada' }, {}] })
+  })
+
+  it('keeps nulls when the anyOf branch is ambiguous (multiple object variants)', () => {
+    const ambiguous: JsonSchemaNode = {
+      type: 'object',
+      properties: {
+        node: {
+          anyOf: [
+            {
+              type: 'object',
+              properties: { a: { type: 'string' } },
+              required: [],
+            },
+            {
+              type: 'object',
+              properties: { b: { type: 'string' } },
+              required: [],
+            },
+            { type: 'null' },
+          ],
+        },
+      },
+      required: ['node'],
+    }
+    // Two object branches match, so we can't tell which applies — leave the
+    // value (and any nulls inside it) untouched rather than risk mis-stripping.
+    const value = { node: { a: null } }
+    expect(undoNullWidening(value, ambiguous)).toEqual({ node: { a: null } })
   })
 
   it('returns the value untouched when no schema is supplied', () => {
@@ -142,7 +207,7 @@ describe('undoNullWidening', () => {
   it('leaves nulls under unknown (schemaless) properties untouched', () => {
     // `extra` is not described by the schema — we cannot prove its null is
     // synthetic, so it is preserved.
-    const result = undoNullWidening({ req: 'a', extra: null } as object, schema)
+    const result = undoNullWidening({ req: 'a', extra: null }, schema)
     expect(result).toEqual({ req: 'a', extra: null })
   })
 })
