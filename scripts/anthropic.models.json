@@ -1,0 +1,148 @@
+{
+  "data": [
+    {
+      "type": "model",
+      "id": "claude-fable-5",
+      "display_name": "Claude Fable 5",
+      "max_input_tokens": 1000000,
+      "max_tokens": 128000,
+      "capabilities": {
+        "image_input": { "supported": true },
+        "structured_outputs": { "supported": true },
+        "thinking": {
+          "supported": true,
+          "types": {
+            "enabled": { "supported": false },
+            "adaptive": { "supported": true }
+          }
+        },
+        "effort": {
+          "supported": true,
+          "low": { "supported": true },
+          "medium": { "supported": true },
+          "high": { "supported": true },
+          "max": { "supported": true }
+        }
+      }
+    },
+    {
+      "type": "model",
+      "id": "claude-haiku-4-5",
+      "display_name": "Claude Haiku 4.5",
+      "max_input_tokens": 200000,
+      "max_tokens": 64000,
+      "capabilities": {
+        "image_input": { "supported": true },
+        "structured_outputs": { "supported": true },
+        "thinking": {
+          "supported": true,
+          "types": {
+            "enabled": { "supported": true },
+            "adaptive": { "supported": false }
+          }
+        },
+        "effort": { "supported": false }
+      }
+    },
+    {
+      "type": "model",
+      "id": "claude-opus-4-6",
+      "display_name": "Claude Opus 4.6",
+      "max_input_tokens": 1000000,
+      "max_tokens": 128000,
+      "capabilities": {
+        "image_input": { "supported": true },
+        "structured_outputs": { "supported": true },
+        "thinking": {
+          "supported": true,
+          "types": {
+            "enabled": { "supported": true },
+            "adaptive": { "supported": true }
+          }
+        },
+        "effort": {
+          "supported": true,
+          "low": { "supported": true },
+          "medium": { "supported": true },
+          "high": { "supported": true },
+          "max": { "supported": true }
+        }
+      }
+    },
+    {
+      "type": "model",
+      "id": "claude-opus-4-7",
+      "display_name": "Claude Opus 4.7",
+      "max_input_tokens": 1000000,
+      "max_tokens": 128000,
+      "capabilities": {
+        "image_input": { "supported": true },
+        "structured_outputs": { "supported": true },
+        "thinking": {
+          "supported": true,
+          "types": {
+            "enabled": { "supported": false },
+            "adaptive": { "supported": true }
+          }
+        },
+        "effort": {
+          "supported": true,
+          "low": { "supported": true },
+          "medium": { "supported": true },
+          "high": { "supported": true },
+          "max": { "supported": true }
+        }
+      }
+    },
+    {
+      "type": "model",
+      "id": "claude-opus-4-8",
+      "display_name": "Claude Opus 4.8",
+      "max_input_tokens": 1000000,
+      "max_tokens": 128000,
+      "capabilities": {
+        "image_input": { "supported": true },
+        "structured_outputs": { "supported": true },
+        "thinking": {
+          "supported": true,
+          "types": {
+            "enabled": { "supported": false },
+            "adaptive": { "supported": true }
+          }
+        },
+        "effort": {
+          "supported": true,
+          "low": { "supported": true },
+          "medium": { "supported": true },
+          "high": { "supported": true },
+          "max": { "supported": true }
+        }
+      }
+    },
+    {
+      "type": "model",
+      "id": "claude-sonnet-4-6",
+      "display_name": "Claude Sonnet 4.6",
+      "max_input_tokens": 1000000,
+      "max_tokens": 64000,
+      "capabilities": {
+        "image_input": { "supported": true },
+        "structured_outputs": { "supported": true },
+        "thinking": {
+          "supported": true,
+          "types": {
+            "enabled": { "supported": true },
+            "adaptive": { "supported": true }
+          }
+        },
+        "effort": {
+          "supported": true,
+          "low": { "supported": true },
+          "medium": { "supported": true },
+          "high": { "supported": true },
+          "max": { "supported": true }
+        }
+      }
+    }
+  ]
+}

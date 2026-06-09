@@ -717,7 +717,8 @@ const CLAUDE_FABLE_5 = {
   max_output_tokens: 128_000,
   supports: {
     input: ['text', 'image', 'document'],
-    extended_thinking: true,
+    extended_thinking: false,
+    adaptive_thinking: true,
     priority_tier: true,
     tools: [
       'web_search',

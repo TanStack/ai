@@ -87,26 +87,11 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
       'chatgpt-', // ChatGPT branded models
     ],
   },
-  'anthropic/': {
-    packageName: '@tanstack/ai-anthropic',
-    metaFile: resolve(ROOT, 'packages/ai-anthropic/src/model-meta.ts'),
-    arrayRef: '.id',
-    contextField: 'context_window',
-    chatArrayName: 'ANTHROPIC_MODELS',
-    providerOptionsTypeName: 'AnthropicChatModelProviderOptionsByName',
-    inputModalitiesTypeName: 'AnthropicModelInputModalitiesByName',
-    validInputModalities: ['text', 'image', 'audio', 'video', 'document'],
-    referenceSupportsBody: `    extended_thinking: true,
-    priority_tier: true,
-    tools: ['web_search', 'web_fetch', 'code_execution', 'computer_use', 'bash', 'text_editor', 'memory'],`,
-    referenceSatisfies:
-      'ModelMeta<AnthropicContainerOptions & AnthropicContextManagementOptions & AnthropicMCPOptions & AnthropicServiceTierOptions & AnthropicStopSequencesOptions & AnthropicThinkingOptions & AnthropicToolChoiceOptions & AnthropicSamplingOptions>',
-    referenceProviderOptionsEntry:
-      'AnthropicContainerOptions & AnthropicContextManagementOptions & AnthropicMCPOptions & AnthropicServiceTierOptions & AnthropicStopSequencesOptions & AnthropicThinkingOptions & AnthropicToolChoiceOptions & AnthropicSamplingOptions',
-    hasBothNameAndId: true,
-    providerOptionsIsMappedType: false,
-    skipPatterns: [],
-  },
+  // NOTE: 'anthropic/' is intentionally absent. The Anthropic adapter is
+  // synced from the first-party Models API instead (authoritative model IDs
+  // and capabilities; OpenRouter slugs like 'claude-opus-4.8' are not valid
+  // Anthropic API model IDs). See scripts/sync-anthropic-models.ts and the
+  // 'generate:anthropic-models' script.
   'google/': {
     packageName: '@tanstack/ai-gemini',
     metaFile: resolve(ROOT, 'packages/ai-gemini/src/model-meta.ts'),
