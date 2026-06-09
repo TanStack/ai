@@ -31,6 +31,7 @@ TanStack AI publishes skills inside its packages so the guidance travels with `n
 |---------|-------|-----------------|
 | `@tanstack/ai` | `ai-core` | Chat experience, tool calling, adapters, middleware, structured outputs, media generation, AG-UI protocol, custom backends |
 | `@tanstack/ai-code-mode` | `ai-code-mode` | Setting up Code Mode with a sandbox driver and registering server tools |
+| `@tanstack/ai-cli` | `ai-cli` | Driving the `ts-ai` CLI from a terminal or agent harness — JSON/stream output, exit codes, `--config`, `--output-dir`, `introspect`, and `mcp` |
 
 Each skill lives under `node_modules/<package>/skills/<skill-name>/SKILL.md` once the package is installed.
 

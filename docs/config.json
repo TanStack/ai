@@ -47,7 +47,8 @@
         {
           "label": "Agent Skills (TanStack Intent)",
           "to": "getting-started/agent-skills",
-          "addedAt": "2026-04-17"
+          "addedAt": "2026-04-17",
+          "updatedAt": "2026-06-07"
         }
       ]
     },
@@ -213,6 +214,17 @@
           "label": "Code Mode Isolate Drivers",
           "to": "code-mode/code-mode-isolates",
           "addedAt": "2026-04-15"
+        }
+      ]
+    },
+    {
+      "label": "CLI",
+      "children": [
+        {
+          "label": "ts-ai CLI",
+          "to": "cli/overview",
+          "addedAt": "2026-06-07",
+          "updatedAt": "2026-06-07"
         }
       ]
     },

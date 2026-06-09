@@ -8,6 +8,43 @@ trustPolicy: 'no-downgrade'
 # here. See https://github.com/pnpm/pnpm/releases/tag/v11.0.0.
 overrides:
   abbrev: ^3.0.0
+  # Force every workspace library under packages/ to resolve to its local
+  # workspace copy, even when a transitive/example dependency references a
+  # published version. When you add a new package under packages/, add it here.
+  '@tanstack/ai': workspace:*
+  '@tanstack/ai-anthropic': workspace:*
+  '@tanstack/ai-cli': workspace:*
+  '@tanstack/ai-client': workspace:*
+  '@tanstack/ai-code-mode': workspace:*
+  '@tanstack/ai-code-mode-models-eval': workspace:*
+  '@tanstack/ai-code-mode-skills': workspace:*
+  '@tanstack/ai-devtools-core': workspace:*
+  '@tanstack/ai-elevenlabs': workspace:*
+  '@tanstack/ai-event-client': workspace:*
+  '@tanstack/ai-fal': workspace:*
+  '@tanstack/ai-gemini': workspace:*
+  '@tanstack/ai-grok': workspace:*
+  '@tanstack/ai-groq': workspace:*
+  '@tanstack/ai-isolate-cloudflare': workspace:*
+  '@tanstack/ai-isolate-node': workspace:*
+  '@tanstack/ai-isolate-quickjs': workspace:*
+  '@tanstack/ai-mcp': workspace:*
+  '@tanstack/ai-ollama': workspace:*
+  '@tanstack/ai-openai': workspace:*
+  '@tanstack/ai-openrouter': workspace:*
+  '@tanstack/ai-preact': workspace:*
+  '@tanstack/ai-react': workspace:*
+  '@tanstack/ai-react-ui': workspace:*
+  '@tanstack/ai-solid': workspace:*
+  '@tanstack/ai-solid-ui': workspace:*
+  '@tanstack/ai-svelte': workspace:*
+  '@tanstack/ai-utils': workspace:*
+  '@tanstack/ai-vue': workspace:*
+  '@tanstack/ai-vue-ui': workspace:*
+  '@tanstack/openai-base': workspace:*
+  '@tanstack/preact-ai-devtools': workspace:*
+  '@tanstack/react-ai-devtools': workspace:*
+  '@tanstack/solid-ai-devtools': workspace:*
 
 patchedDependencies:
   '@changesets/assemble-release-plan@6.0.9': patches/@changesets__assemble-release-plan@6.0.9.patch
