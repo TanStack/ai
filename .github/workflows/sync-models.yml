@@ -29,6 +29,10 @@ jobs:
 
       - name: Fetch and sync model metadata
         run: pnpm generate:models
+        env:
+          # Required by generate:anthropic-models:fetch — Anthropic models are
+          # synced from the first-party Models API, not OpenRouter.
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Check for package changes
         id: changes
@@ -44,8 +48,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add packages/ scripts/openrouter.models.json scripts/.sync-models-last-run .changeset/
-          git commit -m "chore: sync model metadata from OpenRouter"
+          git add packages/ scripts/openrouter.models.json scripts/anthropic.models.json scripts/.sync-models-last-run .changeset/
+          git commit -m "chore: sync model metadata from provider APIs"
           git push --force origin HEAD:automated/sync-models
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -61,16 +65,19 @@ jobs:
 
           if [ -z "$EXISTING_PR" ] || [ "$EXISTING_PR" = "null" ]; then
             BODY=$(cat <<'PRBODY'
-          Automated daily sync of model metadata from the OpenRouter API.
+          Automated daily sync of model metadata from provider APIs.
 
           - Fetches the latest model list from OpenRouter
           - Converts to the internal adapter format
           - Syncs provider-specific model metadata for affected packages
+          - Fetches the Anthropic catalog from the first-party Models API and
+            adds any new models to `@tanstack/ai-anthropic` (new models fail
+            the job until a pricing row is added to `sync-anthropic-models.ts`)
           - Creates a patch changeset for all changed packages
           PRBODY
           )
             gh pr create \
-              --title "chore: sync model metadata from OpenRouter" \
+              --title "chore: sync model metadata from provider APIs" \
               --body "$BODY" \
               --base main \
               --head "$BRANCH"

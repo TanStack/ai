@@ -37,7 +37,7 @@
     "dev:chat": "pnpm --filter ts-react-chat dev",
     "format": "prettier --experimental-cli --ignore-unknown '**/*' --write",
     "generate-docs": "node scripts/generate-docs.ts && pnpm run copy:readme",
-    "generate:models": "pnpm generate:models:fetch && pnpm regenerate:models && tsx scripts/sync-provider-models.ts && pnpm format",
+    "generate:models": "pnpm generate:models:fetch && pnpm regenerate:models && tsx scripts/sync-provider-models.ts && pnpm generate:anthropic-models:fetch && pnpm regenerate:anthropic-models && pnpm format",
     "generate:models:fetch": "tsx scripts/fetch-openrouter-models.ts",
     "regenerate:models": "tsx scripts/convert-openrouter-models.ts",
     "generate:anthropic-models": "pnpm generate:anthropic-models:fetch && pnpm regenerate:anthropic-models && pnpm format",
