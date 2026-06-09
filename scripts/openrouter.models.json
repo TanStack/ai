@@ -1070,6 +1070,60 @@
     }
   },
   {
+    "id": "anthropic/claude-fable-5",
+    "canonical_slug": "anthropic/claude-fable-5",
+    "hugging_face_id": null,
+    "name": "Anthropic: Claude Fable 5",
+    "created": 1779905091,
+    "description": "Claude Fable 5 is Anthropic's most powerful, most intelligent model — a new tier above Opus. It supports text, image, and file inputs with text output, with reasoning support and a 1M-token context window.",
+    "context_length": 1000000,
+    "architecture": {
+      "modality": "text+image+file->text",
+      "input_modalities": ["text", "image", "file"],
+      "output_modalities": ["text"],
+      "tokenizer": "Claude",
+      "instruct_type": null
+    },
+    "pricing": {
+      "prompt": "0.00001",
+      "completion": "0.00005",
+      "web_search": "0.01",
+      "input_cache_read": "0.000001",
+      "input_cache_write": "0.0000125"
+    },
+    "top_provider": {
+      "context_length": 1000000,
+      "max_completion_tokens": 128000,
+      "is_moderated": false
+    },
+    "per_request_limits": null,
+    "supported_parameters": [
+      "include_reasoning",
+      "max_tokens",
+      "reasoning",
+      "response_format",
+      "stop",
+      "structured_outputs",
+      "tool_choice",
+      "tools",
+      "verbosity"
+    ],
+    "default_parameters": {
+      "temperature": null,
+      "top_p": null,
+      "top_k": null,
+      "frequency_penalty": null,
+      "presence_penalty": null,
+      "repetition_penalty": null
+    },
+    "supported_voices": null,
+    "knowledge_cutoff": null,
+    "expiration_date": null,
+    "links": {
+      "details": "/api/v1/models/anthropic/claude-fable-5/endpoints"
+    }
+  },
+  {
     "id": "anthropic/claude-haiku-4.5",
     "canonical_slug": "anthropic/claude-4.5-haiku-20251001",
     "hugging_face_id": "",
