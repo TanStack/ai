@@ -1,4 +1,5 @@
 export { generateId } from './id'
 export { getApiKeyFromEnv } from './env'
-export { transformNullsToUndefined } from './transforms'
+export { transformNullsToUndefined, undoNullWidening } from './transforms'
+export type { JsonSchemaNode } from './transforms'
 export { arrayBufferToBase64, base64ToArrayBuffer } from './base64'

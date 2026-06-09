@@ -6,6 +6,7 @@
  */
 
 import { devtoolsMiddleware } from '@tanstack/ai-event-client'
+import { undoNullWidening } from '@tanstack/ai-utils'
 import { stripToSpecMiddleware } from '../../strip-to-spec-middleware'
 import { streamToText } from '../../stream-to-response.js'
 import { resolveDebugOption } from '../../logger/resolve'
@@ -19,6 +20,7 @@ import {
 } from './tools/tool-calls'
 import {
   convertSchemaToJsonSchema,
+  isStandardJSONSchema,
   isStandardSchema,
   parseWithStandardSchema,
 } from './tools/schema-converter'
@@ -2699,13 +2701,27 @@ async function runAgenticStructuredOutput<
     throw new Error('Failed to convert output schema to JSON Schema')
   }
 
+  // The un-widened schema (no `forStructuredOutput`) still distinguishes
+  // genuinely-nullable fields from optional ones, so we can undo strict-mode's
+  // null-widening before validating: optional fields are widened to
+  // `required` + nullable for the provider, which then returns `null` for an
+  // absent optional — a `null` the original `.optional()` (`T | undefined`)
+  // schema would otherwise reject. `undoNullWidening` drops only those
+  // synthesized nulls, preserving the ones a `.nullable()` field allows.
+  const validationSchema = isStandardJSONSchema(outputSchema)
+    ? convertSchemaToJsonSchema(outputSchema)
+    : undefined
+
   // Validation runs INSIDE the engine (per spec §7.3) so validation failures
   // route through the engine's terminal-hook chooser as `onError`. We pass a
   // `validate` callback when the schema is a Standard Schema; otherwise we
   // pass through the raw data and the engine returns it unchanged.
   const validate = isStandardSchema(outputSchema)
     ? (data: unknown): unknown =>
-        parseWithStandardSchema<InferSchemaType<TSchema>>(outputSchema, data)
+        parseWithStandardSchema<InferSchemaType<TSchema>>(
+          outputSchema,
+          undoNullWidening(data, validationSchema),
+        )
     : undefined
 
   // Per issue #605: same capability check as the streaming path. When the

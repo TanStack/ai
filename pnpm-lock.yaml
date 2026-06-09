@@ -999,6 +999,9 @@ importers:
       '@tanstack/ai-event-client':
         specifier: workspace:*
         version: link:../ai-event-client
+      '@tanstack/ai-utils':
+        specifier: workspace:*
+        version: link:../ai-utils
       partial-json:
         specifier: ^0.1.7
         version: 0.1.7

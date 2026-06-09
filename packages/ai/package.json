@@ -80,6 +80,7 @@
     "@ag-ui/core": "^0.0.52",
     "@standard-schema/spec": "^1.1.0",
     "@tanstack/ai-event-client": "workspace:*",
+    "@tanstack/ai-utils": "workspace:*",
     "partial-json": "^0.1.7"
   },
   "peerDependencies": {
