@@ -34,7 +34,8 @@ const CHANGESET_FILE = resolve(ROOT, '.changeset/sync-anthropic-models.md')
 // Pricing (USD per million tokens)
 //
 // The Models API does not expose pricing, so this table is maintained by
-// hand from https://platform.claude.com/docs/en/pricing. When a new model
+// hand from https://platform.claude.com/docs/en/about-claude/pricing
+// ("Cache Hits & Refreshes" is the `cached` column). When a new model
 // appears in the catalog, add a row here — the sync fails with a clear
 // error until it has one.
 // ---------------------------------------------------------------------------
@@ -50,7 +51,7 @@ const PRICING: Record<string, Pricing> = {
   'claude-opus-4-8': { input: 5, cached: 0.5, output: 25 },
   'claude-opus-4-7': { input: 5, cached: 0.5, output: 25 },
   'claude-opus-4-6': { input: 5, cached: 0.5, output: 25 },
-  'claude-opus-4-5': { input: 15, cached: 1.5, output: 75 },
+  'claude-opus-4-5': { input: 5, cached: 0.5, output: 25 },
   'claude-opus-4-1': { input: 15, cached: 1.5, output: 75 },
   'claude-sonnet-4-6': { input: 3, cached: 0.3, output: 15 },
   'claude-sonnet-4-5': { input: 3, cached: 0.3, output: 15 },
@@ -366,6 +367,13 @@ async function main() {
     'AnthropicModelInputModalitiesByName',
     constNames.map(
       (constName) => `  [${constName}.id]: typeof ${constName}.supports.input`,
+    ),
+  )
+  content = addToTypeMap(
+    content,
+    'AnthropicChatModelToolCapabilitiesByName',
+    constNames.map(
+      (constName) => `  [${constName}.id]: typeof ${constName}.supports.tools`,
     ),
   )
   await writeFile(meta, content, 'utf-8')

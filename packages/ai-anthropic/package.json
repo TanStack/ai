@@ -58,7 +58,7 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.97.1",
+    "@anthropic-ai/sdk": "^0.104.0",
     "@tanstack/ai-utils": "workspace:*"
   },
   "peerDependencies": {

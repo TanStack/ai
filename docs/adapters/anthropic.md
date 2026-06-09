@@ -204,7 +204,7 @@ Creates an Anthropic chat adapter.
 
 **Parameters:**
 
-- `model` - Claude model id (e.g. `"claude-sonnet-4-6"`, `"claude-opus-4.8"`)
+- `model` - Claude model id (e.g. `"claude-sonnet-4-6"`, `"claude-opus-4-8"`)
 - `config?.baseURL` - Custom base URL (optional)
 
 ### `anthropicSummarize(model, config?)` / `createAnthropicSummarize(model, apiKey, config?)`
@@ -242,7 +242,7 @@ import { anthropicText } from "@tanstack/ai-anthropic";
 import { webSearchTool } from "@tanstack/ai-anthropic/tools";
 
 const stream = chat({
-  adapter: anthropicText("claude-opus-4.8"),
+  adapter: anthropicText("claude-opus-4-8"),
   messages: [{ role: "user", content: "What's new in AI this week?" }],
   tools: [
     webSearchTool({

@@ -60,12 +60,13 @@ interface ModelMeta<
 const CLAUDE_OPUS_4_6 = {
   name: 'claude-opus-4-6',
   id: 'claude-opus-4-6',
-  context_window: 200_000,
+  context_window: 1_000_000,
   max_output_tokens: 128_000,
   knowledge_cutoff: '2025-05-01',
   pricing: {
     input: {
       normal: 5,
+      cached: 0.5,
     },
     output: {
       normal: 25,
@@ -100,14 +101,15 @@ const CLAUDE_OPUS_4_5 = {
   name: 'claude-opus-4-5',
   id: 'claude-opus-4-5',
   context_window: 200_000,
-  max_output_tokens: 32_000,
+  max_output_tokens: 64_000,
   knowledge_cutoff: '2025-11-01',
   pricing: {
     input: {
-      normal: 15,
+      normal: 5,
+      cached: 0.5,
     },
     output: {
-      normal: 75,
+      normal: 25,
     },
   },
   supports: {
@@ -139,11 +141,12 @@ const CLAUDE_SONNET_4_6 = {
   name: 'claude-sonnet-4-6',
   id: 'claude-sonnet-4-6',
   context_window: 1_000_000,
-  max_output_tokens: 64_000,
+  max_output_tokens: 128_000,
   knowledge_cutoff: '2025-08-01',
   pricing: {
     input: {
       normal: 3,
+      cached: 0.3,
     },
     output: {
       normal: 15,
@@ -178,12 +181,13 @@ const CLAUDE_SONNET_4_6 = {
 const CLAUDE_SONNET_4_5 = {
   name: 'claude-sonnet-4-5',
   id: 'claude-sonnet-4-5',
-  context_window: 200_000,
+  context_window: 1_000_000,
   max_output_tokens: 64_000,
   knowledge_cutoff: '2025-09-29',
   pricing: {
     input: {
       normal: 3,
+      cached: 0.3,
     },
     output: {
       normal: 15,
@@ -223,6 +227,7 @@ const CLAUDE_HAIKU_4_5 = {
   pricing: {
     input: {
       normal: 1,
+      cached: 0.1,
     },
     output: {
       normal: 5,
@@ -257,11 +262,12 @@ const CLAUDE_OPUS_4_1 = {
   name: 'claude-opus-4-1',
   id: 'claude-opus-4-1',
   context_window: 200_000,
-  max_output_tokens: 64_000,
+  max_output_tokens: 32_000,
   knowledge_cutoff: '2025-08-05',
   pricing: {
     input: {
       normal: 15,
+      cached: 1.5,
     },
     output: {
       normal: 75,
@@ -295,12 +301,13 @@ const CLAUDE_OPUS_4_1 = {
 const CLAUDE_SONNET_4 = {
   name: 'claude-sonnet-4',
   id: 'claude-sonnet-4',
-  context_window: 200_000,
+  context_window: 1_000_000,
   max_output_tokens: 64_000,
   knowledge_cutoff: '2025-05-14',
   pricing: {
     input: {
       normal: 3,
+      cached: 0.3,
     },
     output: {
       normal: 15,
@@ -378,6 +385,7 @@ const CLAUDE_OPUS_4 = {
   pricing: {
     input: {
       normal: 15,
+      cached: 1.5,
     },
     output: {
       normal: 75,
@@ -417,6 +425,7 @@ const CLAUDE_HAIKU_3_5 = {
   pricing: {
     input: {
       normal: 0.8,
+      cached: 0.08,
     },
     output: {
       normal: 4,
@@ -633,8 +642,8 @@ const CLAUDE_OPUS_4_7_FAST = {
 >
 
 const CLAUDE_OPUS_4_8 = {
-  name: 'claude-opus-4.8',
-  id: 'claude-opus-4.8',
+  name: 'claude-opus-4-8',
+  id: 'claude-opus-4-8',
   context_window: 1_000_000,
   max_output_tokens: 128_000,
   supports: {
@@ -672,8 +681,8 @@ const CLAUDE_OPUS_4_8 = {
 >
 
 const CLAUDE_OPUS_4_8_FAST = {
-  name: 'claude-opus-4.8-fast',
-  id: 'claude-opus-4.8-fast',
+  name: 'claude-opus-4-8-fast',
+  id: 'claude-opus-4-8-fast',
   context_window: 1_000_000,
   max_output_tokens: 128_000,
   supports: {
@@ -957,6 +966,10 @@ export type AnthropicChatModelToolCapabilitiesByName = {
   [CLAUDE_HAIKU_3.id]: typeof CLAUDE_HAIKU_3.supports.tools
   [CLAUDE_OPUS_4_6_FAST.id]: typeof CLAUDE_OPUS_4_6_FAST.supports.tools
   [CLAUDE_OPUS_4_7.id]: typeof CLAUDE_OPUS_4_7.supports.tools
+  [CLAUDE_OPUS_4_7_FAST.id]: typeof CLAUDE_OPUS_4_7_FAST.supports.tools
+  [CLAUDE_OPUS_4_8.id]: typeof CLAUDE_OPUS_4_8.supports.tools
+  [CLAUDE_OPUS_4_8_FAST.id]: typeof CLAUDE_OPUS_4_8_FAST.supports.tools
+  [CLAUDE_FABLE_5.id]: typeof CLAUDE_FABLE_5.supports.tools
 }
 
 /**

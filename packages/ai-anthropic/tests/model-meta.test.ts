@@ -1,6 +1,8 @@
 import { describe, expectTypeOf, it } from 'vitest'
+import { ANTHROPIC_MODELS } from '../src/model-meta'
 import type {
   AnthropicChatModelProviderOptionsByName,
+  AnthropicChatModelToolCapabilitiesByName,
   AnthropicModelInputModalitiesByName,
 } from '../src/model-meta'
 import type { AnthropicMessageMetadataByModality } from '../src/message-types'
@@ -245,6 +247,20 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
       expectTypeOf<'claude-opus-4'>().toExtend<Keys>()
       expectTypeOf<'claude-3-5-haiku'>().toExtend<Keys>()
       expectTypeOf<'claude-3-haiku'>().toExtend<Keys>()
+    })
+
+    it('every model in ANTHROPIC_MODELS should have entries in all three type maps', () => {
+      type ModelId = (typeof ANTHROPIC_MODELS)[number]
+
+      expectTypeOf<ModelId>().toExtend<
+        keyof AnthropicChatModelProviderOptionsByName
+      >()
+      expectTypeOf<ModelId>().toExtend<
+        keyof AnthropicModelInputModalitiesByName
+      >()
+      expectTypeOf<ModelId>().toExtend<
+        keyof AnthropicChatModelToolCapabilitiesByName
+      >()
     })
   })
 

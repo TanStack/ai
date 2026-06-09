@@ -154,7 +154,7 @@ const docMessage = {
 ```
 
 **Supported modalities:**
-- Most Claude models (e.g. `claude-haiku-3`, `claude-haiku-4-5`, `claude-sonnet-4-6`, `claude-opus-4.8`): text, image, and document (PDF)
+- Most Claude models (e.g. `claude-haiku-3`, `claude-haiku-4-5`, `claude-sonnet-4-6`, `claude-opus-4-8`): text, image, and document (PDF)
 
 Check each model's `supports.input` in `@tanstack/ai-anthropic`'s `model-meta.ts` for the authoritative per-model list.
 
