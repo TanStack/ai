@@ -22,9 +22,7 @@ export type * from './types'
  *   .handler(async () => {
  *     return realtimeToken({
  *       adapter: openaiRealtimeToken({
- *         model: 'gpt-4o-realtime-preview',
- *         voice: 'alloy',
- *         instructions: 'You are a helpful assistant...',
+ *         model: 'gpt-realtime',
  *       }),
  *     })
  *   })
