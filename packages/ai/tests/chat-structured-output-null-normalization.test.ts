@@ -31,8 +31,9 @@ function completeValue(chunks: Array<StreamChunk>): {
       (c as { name?: string }).name === 'structured-output.complete',
   )
   expect(complete).toBeDefined()
-  return (complete as { value: { object: unknown; raw: string; reasoning?: string } })
-    .value
+  return (
+    complete as { value: { object: unknown; raw: string; reasoning?: string } }
+  ).value
 }
 
 const completeObject = (chunks: Array<StreamChunk>): unknown =>
@@ -248,7 +249,9 @@ describe('convertSchemaForStructuredOutput → undoNullWidening round trip', () 
       meta: z
         .object({ author: z.string(), rev: z.number().optional() })
         .optional(), // widened object with an inner widened field
-      items: z.array(z.object({ id: z.string(), label: z.string().optional() })),
+      items: z.array(
+        z.object({ id: z.string(), label: z.string().optional() }),
+      ),
     })
 
     const { nullWideningMap } = convertSchemaForStructuredOutput(outputSchema)
