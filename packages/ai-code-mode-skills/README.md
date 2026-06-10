@@ -39,15 +39,16 @@ const codeModeConfig = {
 }
 
 // Build a dynamic registry and system prompt with skills
-const { toolsRegistry, systemPrompt, selectedSkills } = await codeModeWithSkills({
-  config: codeModeConfig,
-  adapter: anthropic('claude-3-haiku'), // Cheap model for skill selection
-  skills: {
-    storage: skillStorage,
-    maxSkillsInContext: 5,
-  },
-  messages,
-})
+const { toolsRegistry, systemPrompt, selectedSkills } =
+  await codeModeWithSkills({
+    config: codeModeConfig,
+    adapter: anthropic('claude-3-haiku'), // Cheap model for skill selection
+    skills: {
+      storage: skillStorage,
+      maxSkillsInContext: 5,
+    },
+    messages,
+  })
 
 // Use in chat
 const stream = chat({
