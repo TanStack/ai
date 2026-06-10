@@ -269,6 +269,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
             toolCallId,
             toolCallName: actualToolCall.function.name || '',
             toolName: actualToolCall.function.name || '',
+            parentMessageId: messageId,
             model: chunk.model,
             timestamp: Date.now(),
             index: actualToolCall.function.index,

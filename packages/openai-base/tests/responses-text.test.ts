@@ -773,6 +773,84 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       }
     })
 
+    it('emits parentMessageId on tool-first tool calls matching the assistant message id', async () => {
+      // Tool call arrives before any text. parentMessageId must bind the tool
+      // call to the same assistant message id the eventual TEXT_MESSAGE_START
+      // uses, so consumers don't see the message id change mid-stream (#477).
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-tf',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: {
+            type: 'function_call',
+            id: 'call_tf',
+            name: 'lookup_weather',
+          },
+        },
+        {
+          type: 'response.function_call_arguments.delta',
+          item_id: 'call_tf',
+          delta: '{"location":"Berlin"}',
+        },
+        {
+          type: 'response.function_call_arguments.done',
+          item_id: 'call_tf',
+          arguments: '{"location":"Berlin"}',
+        },
+        { type: 'response.output_text.delta', delta: 'It is sunny.' },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-tf',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                type: 'function_call',
+                id: 'call_tf',
+                name: 'lookup_weather',
+                arguments: '{"location":"Berlin"}',
+              },
+            ],
+            usage: { input_tokens: 10, output_tokens: 7, total_tokens: 17 },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<StreamChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Weather in Berlin?' }],
+        tools: [weatherTool],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const textStart = chunks.find((c) => c.type === 'TEXT_MESSAGE_START')
+      const toolStart = chunks.find((c) => c.type === 'TOOL_CALL_START')
+
+      expect(textStart?.type).toBe('TEXT_MESSAGE_START')
+      expect(toolStart?.type).toBe('TOOL_CALL_START')
+      if (
+        textStart?.type === 'TEXT_MESSAGE_START' &&
+        toolStart?.type === 'TOOL_CALL_START'
+      ) {
+        expect(toolStart.parentMessageId).toBe(textStart.messageId)
+      }
+    })
+
     it('handles multiple parallel tool calls', async () => {
       const streamChunks = [
         {

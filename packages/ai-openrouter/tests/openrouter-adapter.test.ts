@@ -380,6 +380,73 @@ describe('OpenRouter adapter option mapping', () => {
     }
   })
 
+  it('emits parentMessageId on tool-first tool calls matching the assistant message id', async () => {
+    // Tool call streams before any text content. parentMessageId must bind the
+    // tool call to the same assistant message id the eventual TEXT_MESSAGE_START
+    // uses so the message id stays stable mid-stream (#477).
+    const streamChunks = [
+      {
+        id: 'chatcmpl-tf',
+        model: 'openai/gpt-4o-mini',
+        choices: [
+          {
+            delta: {
+              toolCalls: [
+                {
+                  index: 0,
+                  id: 'call_tf',
+                  type: 'function',
+                  function: {
+                    name: 'lookup_weather',
+                    arguments: '{"location":"Berlin"}',
+                  },
+                },
+              ],
+            },
+            finishReason: null,
+          },
+        ],
+      },
+      {
+        id: 'chatcmpl-tf',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'It is sunny.' }, finishReason: null }],
+      },
+      {
+        id: 'chatcmpl-tf',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: {}, finishReason: 'stop' }],
+        usage: { promptTokens: 10, completionTokens: 7, totalTokens: 17 },
+      },
+    ]
+
+    setupMockSdkClient(streamChunks)
+
+    const adapter = createAdapter()
+
+    const chunks: Array<StreamChunk> = []
+    for await (const chunk of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [{ role: 'user', content: 'What is the weather in Berlin?' }],
+      tools: [weatherTool],
+      logger: testLogger,
+    })) {
+      chunks.push(chunk)
+    }
+
+    const textStart = chunks.find((c) => c.type === 'TEXT_MESSAGE_START')
+    const toolStart = chunks.find((c) => c.type === 'TOOL_CALL_START')
+
+    expect(textStart?.type).toBe('TEXT_MESSAGE_START')
+    expect(toolStart?.type).toBe('TOOL_CALL_START')
+    if (
+      textStart?.type === 'TEXT_MESSAGE_START' &&
+      toolStart?.type === 'TOOL_CALL_START'
+    ) {
+      expect(toolStart.parentMessageId).toBe(textStart.messageId)
+    }
+  })
+
   it('handles multimodal input with text and image', async () => {
     const streamChunks = [
       {
