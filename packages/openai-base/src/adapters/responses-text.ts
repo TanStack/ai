@@ -4,7 +4,7 @@ import {
   toRunErrorPayload,
   toRunErrorRawEvent,
 } from '@tanstack/ai/adapter-internals'
-import { generateId, transformNullsToUndefined } from '@tanstack/ai-utils'
+import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../utils/request-options'
 import { makeStructuredOutputCompatible } from '../utils/schema-converter'
 import { buildResponsesUsage } from '../usage'
@@ -247,12 +247,8 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         )
       }
 
-      // Apply the provider-specific post-parse shaping (default: null →
-      // undefined to align with the original Zod schema's optional-field
-      // semantics; subclasses with different conventions can override
-      // `transformStructuredOutput`, mirroring the chat-completions base's
-      // hook so OpenRouter and other providers that preserve nulls in
-      // structured output can opt out without forking `structuredOutput`).
+      // Provider-specific post-parse shaping (default passthrough). Null-widening
+      // from strict mode is undone by the engine, not here.
       const transformed = this.transformStructuredOutput(parsed)
 
       return {
@@ -577,7 +573,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         return
       }
 
-      const transformed = transformNullsToUndefined(parsed)
+      // Route through the same hook as the non-streaming path (default
+      // passthrough). Engine un-widens nulls; the streaming path must not strip
+      // them blindly either.
+      const transformed = this.transformStructuredOutput(parsed)
 
       yield {
         type: EventType.CUSTOM,
@@ -673,15 +672,17 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
   /**
    * Final shaping pass applied to parsed structured-output JSON before it is
-   * returned to the caller. Default converts `null` values to `undefined` so
-   * the result aligns with the original Zod schema's optional-field
-   * semantics. Subclasses with different conventions (OpenRouter historically
-   * preserves nulls) can override — mirrors the chat-completions base's hook
-   * so a subclass that opts out of null-stripping doesn't have to fork the
-   * whole `structuredOutput` method.
+   * returned to the caller. Default is a passthrough.
+   *
+   * Provider `null`s are no longer stripped here: strict-mode null-widening is
+   * now undone precisely by the engine (`undoNullWidening`, driven by the
+   * schema's null-widening map) the moment the result is captured, so a blind
+   * `transformNullsToUndefined` at the adapter would only destroy genuine
+   * `.nullable()` nulls. Subclasses may still override to remap or reshape the
+   * provider's structured output.
    */
   protected transformStructuredOutput(parsed: unknown): unknown {
-    return transformNullsToUndefined(parsed)
+    return parsed
   }
 
   /**

@@ -167,7 +167,8 @@
         {
           "label": "Overview",
           "to": "structured-outputs/overview",
-          "addedAt": "2026-05-19"
+          "addedAt": "2026-05-19",
+          "updatedAt": "2026-06-10"
         },
         {
           "label": "One-Shot Extraction",

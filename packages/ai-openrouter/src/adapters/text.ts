@@ -5,7 +5,7 @@ import {
   toRunErrorPayload,
   toRunErrorRawEvent,
 } from '@tanstack/ai/adapter-internals'
-import { generateId, transformNullsToUndefined } from '@tanstack/ai-utils'
+import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../internal/request-options'
 import { makeStructuredOutputCompatible } from '../internal/schema-converter'
 import { convertToolsToProviderFormat } from '../tools'
@@ -624,14 +624,12 @@ export class OpenRouterTextAdapter<
    * Final shaping pass applied to parsed structured-output JSON before it is
    * returned to the caller. OpenRouter routes through a wide variety of
    * upstream providers; some return `null` as a distinct sentinel ("the field
-   * exists, the value is null") rather than collapsing it to absent. Stripping
-   * nulls would erase that distinction, so we passthrough.
-   *
-   * `transformNullsToUndefined` is imported for parity with the other
-   * provider adapters but intentionally not invoked here.
+   * exists, the value is null") rather than collapsing it to absent, so we
+   * passthrough and let the engine un-widen strict-mode nulls precisely. This
+   * now matches the base adapters' default — kept as an explicit override
+   * because OpenRouter extends `BaseTextAdapter` directly, not the OpenAI base.
    */
   protected transformStructuredOutput(parsed: unknown): unknown {
-    void transformNullsToUndefined
     return parsed
   }
 

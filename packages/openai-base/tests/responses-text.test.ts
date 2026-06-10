@@ -1720,7 +1720,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       )
     })
 
-    it('transforms null values to undefined', async () => {
+    it('passes provider nulls through unchanged (engine un-widens, not the adapter)', async () => {
       const nonStreamResponse = {
         output: [
           {
@@ -1755,9 +1755,11 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
         },
       })
 
-      // null should be transformed to undefined
+      // The adapter no longer strips nulls — strict-mode null-widening is undone
+      // precisely by the engine, which holds the schema's widening map. A blind
+      // adapter-level strip would also destroy genuine `.nullable()` nulls.
       expect((result.data as any).name).toBe('Alice')
-      expect((result.data as any).nickname).toBeUndefined()
+      expect((result.data as any).nickname).toBeNull()
     })
 
     it('throws on invalid JSON response', async () => {

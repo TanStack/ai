@@ -1249,7 +1249,13 @@ describe('OpenRouter structured output', () => {
       outputSchema,
     })
 
-    expect(result).toEqual({ name: 'Alice', age: 30, nickname: null })
+    // `nickname` was optional, so strict-mode widening made it `required` +
+    // nullable and the provider returned `null` for the absent value. The
+    // engine un-widens that synthesized null before returning, so the optional
+    // field reads back as absent — matching `.optional()` semantics — rather
+    // than leaking the synthetic `null` through.
+    expect(result).toEqual({ name: 'Alice', age: 30 })
+    expect('nickname' in (result as object)).toBe(false)
 
     // The structured-output streaming call carries the strict-transformed schema.
     const structuredCall = mockSend.mock.calls.find(
