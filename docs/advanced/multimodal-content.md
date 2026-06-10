@@ -181,7 +181,7 @@ const message = {
 ```
 
 **Supported modalities:**
-- `gemini-2.0-flash`: text, image, audio, video
+- `gemini-2.5-flash`: text, image, audio, video
 
 ### Ollama
 

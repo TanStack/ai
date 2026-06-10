@@ -203,7 +203,8 @@ interface ImageGenerationResult {
   images: GeneratedImage[] // Array of generated images
   // Canonical TokenUsage (same shape as chat). Token-billed models also surface
   // a per-modality breakdown on `promptTokensDetails` (e.g. text vs image input
-  // tokens for gpt-image-1).
+  // tokens for gpt-image-1). Usage-billed providers (fal) instead surface
+  // `usage.unitsBilled` — see the note below.
   usage?: TokenUsage
 }
 
@@ -211,6 +212,25 @@ interface GeneratedImage {
   b64Json?: string // Base64 encoded image data
   url?: string // URL to the image (OpenAI only)
   revisedPrompt?: string // Revised prompt (OpenAI only)
+}
+```
+
+> **Cost tracking (fal):** fal bills by usage-based units rather than tokens. The
+> fal image adapter surfaces the real billed quantity as `usage.unitsBilled`
+> (read from fal's `x-fal-billable-units` result header). Multiply it by the
+> endpoint's unit price from
+> `GET https://api.fal.ai/v1/models/pricing?endpoint_id=…` for the exact cost —
+> no `fetch` interceptor needed.
+
+```typescript
+const result = await generateImage({
+  adapter: falImage('fal-ai/flux/dev'),
+  prompt: 'a serene mountain lake',
+})
+
+if (result.usage?.unitsBilled != null) {
+  const cost = result.usage.unitsBilled * unitPrice // unitPrice from fal pricing API
+  console.log(`Billed ${result.usage.unitsBilled} units (~$${cost})`)
 }
 ```
 
@@ -233,7 +253,6 @@ interface GeneratedImage {
 | `gemini-3.1-flash-image-preview` | Latest and fastest Gemini native image generation |
 | `gemini-3-pro-image-preview` | Higher quality Gemini native image generation |
 | `gemini-2.5-flash-image` | Gemini 2.5 Flash with image generation |
-| `gemini-2.0-flash-preview-image-generation` | Gemini 2.0 Flash image generation |
 
 ### Gemini Imagen Models
 

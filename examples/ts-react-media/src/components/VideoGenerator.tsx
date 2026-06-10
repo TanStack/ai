@@ -20,7 +20,7 @@ type JobState =
       model: string
       progress?: number | undefined
     }
-  | { status: 'completed'; url: string }
+  | { status: 'completed'; url: string; unitsBilled?: number }
   | { status: 'error'; message: string }
 
 interface VideoGeneratorProps {
@@ -95,7 +95,11 @@ export default function VideoGenerator({
 
         setJobStates((prev) => ({
           ...prev,
-          [model]: { status: 'completed', url: url },
+          [model]: {
+            status: 'completed',
+            url: url,
+            unitsBilled: urlResult.usage?.unitsBilled,
+          },
         }))
       } else if (status.status === 'processing') {
         setJobStates((prev) => ({
@@ -387,15 +391,24 @@ export default function VideoGenerator({
                   </div>
                 )}
                 {state.status === 'completed' && (
-                  <div className="rounded-lg overflow-hidden border border-gray-700">
-                    <video
-                      src={state.url}
-                      controls
-                      autoPlay
-                      loop
-                      className="w-full h-auto"
-                    />
-                  </div>
+                  <>
+                    <div className="rounded-lg overflow-hidden border border-gray-700">
+                      <video
+                        src={state.url}
+                        controls
+                        autoPlay
+                        loop
+                        className="w-full h-auto"
+                      />
+                    </div>
+                    {state.unitsBilled != null && (
+                      <p className="text-xs text-gray-500">
+                        Billed {state.unitsBilled} fal unit
+                        {state.unitsBilled === 1 ? '' : 's'} — multiply by the
+                        endpoint unit price for USD cost
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
             )
