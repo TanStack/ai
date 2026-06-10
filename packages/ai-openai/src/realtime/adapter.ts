@@ -1,4 +1,5 @@
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
+import { buildSessionUpdate } from './session-update'
 import type {
   AnyClientTool,
   AudioVisualization,
@@ -47,7 +48,7 @@ export function openaiRealtime(
       token: RealtimeToken,
       _clientTools?: ReadonlyArray<AnyClientTool>,
     ): Promise<RealtimeConnection> {
-      const model = token.config.model ?? 'gpt-4o-realtime-preview'
+      const model = token.config.model ?? 'gpt-realtime'
       logger.request(`activity=realtime provider=openai model=${model}`, {
         provider: 'openai',
         model,
@@ -73,7 +74,6 @@ async function createWebRTCConnection(
   token: RealtimeToken,
   logger: InternalLogger,
 ): Promise<RealtimeConnection> {
-  const model = token.config.model ?? 'gpt-4o-realtime-preview'
   const eventHandlers = new Map<RealtimeEvent, Set<RealtimeEventHandler<any>>>()
 
   // WebRTC peer connection
@@ -187,9 +187,11 @@ async function createWebRTCConnection(
   const offer = await pc.createOffer()
   await pc.setLocalDescription(offer)
 
-  // Send SDP to OpenAI and get answer. `offer.sdp` is `string | undefined` per
-  // the WebRTC type definitions; coerce to `null` (which `RequestInit.body`
-  // accepts) under exactOptionalPropertyTypes.
+  // Send SDP to OpenAI's GA `/calls` endpoint and get the answer. The model
+  // is bound to the ephemeral token (minted via `/v1/realtime/client_secrets`),
+  // so it must NOT be passed as a query param — GA rejects `?model=` with a
+  // 400. `offer.sdp` is `string | undefined` per the WebRTC type definitions;
+  // coerce to `null`, which `RequestInit.body` accepts.
   const sdpResponse = await fetch(`${OPENAI_REALTIME_URL}/calls`, {
     method: 'POST',
     headers: {
@@ -260,7 +262,7 @@ async function createWebRTCConnection(
         break
       }
 
-      case 'response.audio_transcript.delta': {
+      case 'response.output_audio_transcript.delta': {
         const delta = event.delta as string
         emit('transcript', {
           role: 'assistant',
@@ -270,7 +272,7 @@ async function createWebRTCConnection(
         break
       }
 
-      case 'response.audio_transcript.done': {
+      case 'response.output_audio_transcript.done': {
         const transcript = event.transcript as string
         emit('transcript', { role: 'assistant', transcript, isFinal: true })
         break
@@ -296,14 +298,14 @@ async function createWebRTCConnection(
         break
       }
 
-      case 'response.audio.delta':
+      case 'response.output_audio.delta':
         if (currentMode !== 'speaking') {
           currentMode = 'speaking'
           emit('mode_change', { mode: 'speaking' })
         }
         break
 
-      case 'response.audio.done':
+      case 'response.output_audio.done':
         break
 
       case 'response.function_call_arguments.done': {
@@ -359,12 +361,14 @@ async function createWebRTCConnection(
             if (item.type === 'message' && item.content) {
               const content = item.content as Array<Record<string, unknown>>
               for (const part of content) {
-                if (part.type === 'audio' && part.transcript) {
+                // GA renamed assistant content types: `audio` -> `output_audio`,
+                // `text` -> `output_text`
+                if (part.type === 'output_audio' && part.transcript) {
                   message.parts.push({
                     type: 'audio',
                     transcript: part.transcript as string,
                   })
-                } else if (part.type === 'text' && part.text) {
+                } else if (part.type === 'output_text' && part.text) {
                   message.parts.push({
                     type: 'text',
                     content: part.text as string,
@@ -586,65 +590,19 @@ async function createWebRTCConnection(
     },
 
     updateSession(config: Partial<RealtimeSessionConfig>) {
-      const sessionUpdate: Record<string, unknown> = { type: 'realtime' }
-
-      if (config.instructions) {
-        sessionUpdate.instructions = config.instructions
-      }
-
-      if (config.voice) {
-        sessionUpdate.voice = config.voice
-      }
-
-      if (config.vadMode) {
-        if (config.vadMode === 'semantic') {
-          sessionUpdate.turn_detection = {
-            type: 'semantic_vad',
-            eagerness: config.semanticEagerness ?? 'medium',
-          }
-        } else if (config.vadMode === 'server') {
-          sessionUpdate.turn_detection = {
-            type: 'server_vad',
-            threshold: config.vadConfig?.threshold ?? 0.5,
-            prefix_padding_ms: config.vadConfig?.prefixPaddingMs ?? 300,
-            silence_duration_ms: config.vadConfig?.silenceDurationMs ?? 500,
-          }
-        } else {
-          sessionUpdate.turn_detection = null
-        }
-      }
-
-      if (config.tools !== undefined) {
-        sessionUpdate.tools = config.tools.map((t) => ({
-          type: 'function',
-          name: t.name,
-          description: t.description,
-          parameters: t.inputSchema ?? { type: 'object', properties: {} },
-        }))
-        sessionUpdate.tool_choice = 'auto'
-      }
-
-      if (config.outputModalities) {
-        sessionUpdate.modalities = config.outputModalities
-      }
-
       if (config.temperature !== undefined) {
-        sessionUpdate.temperature = config.temperature
+        // The GA API removed `temperature` from session config; sending it
+        // would get the whole update rejected with `unknown_parameter`.
+        logger.provider(
+          'provider=openai direction=out type=session.update dropped `temperature` (removed in the GA realtime API)',
+          { frame: { temperature: config.temperature } },
+        )
       }
 
-      if (config.maxOutputTokens !== undefined) {
-        sessionUpdate.max_response_output_tokens = config.maxOutputTokens
-      }
-
-      // Always enable input audio transcription so user speech is transcribed
-      sessionUpdate.input_audio_transcription = { model: 'whisper-1' }
-
-      if (Object.keys(sessionUpdate).length > 0) {
-        sendEvent({
-          type: 'session.update',
-          session: sessionUpdate,
-        })
-      }
+      sendEvent({
+        type: 'session.update',
+        session: buildSessionUpdate(config),
+      })
     },
 
     interrupt() {
