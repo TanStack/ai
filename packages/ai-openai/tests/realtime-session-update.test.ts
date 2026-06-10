@@ -64,6 +64,16 @@ describe('buildSessionUpdate (GA session.update shape)', () => {
     expect(session.max_output_tokens).toBe(4096)
   })
 
+  it('collapses ["audio", "text"] to ["audio"] (GA supports a single output modality)', () => {
+    expect(
+      buildSessionUpdate({ outputModalities: ['audio', 'text'] })
+        .output_modalities,
+    ).toEqual(['audio'])
+    expect(
+      buildSessionUpdate({ outputModalities: ['text'] }).output_modalities,
+    ).toEqual(['text'])
+  })
+
   it('maps tools to the realtime function shape with tool_choice auto', () => {
     const session = buildSessionUpdate({
       tools: [

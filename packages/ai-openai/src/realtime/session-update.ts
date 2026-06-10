@@ -65,7 +65,13 @@ export function buildSessionUpdate(
   }
 
   if (config.outputModalities) {
-    sessionUpdate.output_modalities = config.outputModalities
+    // GA only supports a single output modality: ['audio'] or ['text']
+    // (Beta accepted ['audio', 'text']). Audio replies still stream text
+    // via `response.output_audio_transcript.*` events, so collapsing
+    // ['audio', 'text'] to ['audio'] preserves the visible behavior.
+    sessionUpdate.output_modalities = config.outputModalities.includes('audio')
+      ? ['audio']
+      : ['text']
   }
 
   if (config.maxOutputTokens !== undefined) {
