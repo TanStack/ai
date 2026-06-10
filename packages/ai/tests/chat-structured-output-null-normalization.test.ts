@@ -19,15 +19,51 @@ import type { StreamChunk } from '../src/types'
 
 const messages = [{ role: 'user' as const, content: 'go' }]
 
-/** Find the terminal `structured-output.complete` event and return its object. */
-function completeObject(chunks: Array<StreamChunk>): unknown {
+/** Find the terminal `structured-output.complete` event and return its value. */
+function completeValue(chunks: Array<StreamChunk>): {
+  object: unknown
+  raw: string
+  reasoning?: string
+} {
   const complete = chunks.find(
     (c) =>
       c.type === EventType.CUSTOM &&
       (c as { name?: string }).name === 'structured-output.complete',
   )
   expect(complete).toBeDefined()
-  return (complete as { value: { object: unknown } }).value.object
+  return (complete as { value: { object: unknown; raw: string; reasoning?: string } })
+    .value
+}
+
+const completeObject = (chunks: Array<StreamChunk>): unknown =>
+  completeValue(chunks).object
+
+/** A native-combined turn: the schema-constrained JSON arrives as assistant text. */
+function textTurn(json: string): Array<StreamChunk> {
+  const timestamp = Date.now()
+  return [
+    { type: EventType.RUN_STARTED, runId: 'r1', threadId: 't1', timestamp },
+    {
+      type: EventType.TEXT_MESSAGE_START,
+      messageId: 'm1',
+      role: 'assistant',
+      timestamp,
+    },
+    {
+      type: EventType.TEXT_MESSAGE_CONTENT,
+      messageId: 'm1',
+      delta: json,
+      timestamp,
+    },
+    { type: EventType.TEXT_MESSAGE_END, messageId: 'm1', timestamp },
+    {
+      type: EventType.RUN_FINISHED,
+      runId: 'r1',
+      threadId: 't1',
+      finishReason: 'stop',
+      timestamp,
+    },
+  ] as Array<StreamChunk>
 }
 
 describe('structured output null normalization', () => {
@@ -99,6 +135,101 @@ describe('structured output null normalization', () => {
       expect(object).toEqual({ title: 'Ship it', tag: null })
       expect('note' in (object as object)).toBe(false)
     })
+
+    it('rewrites only `object`, preserving the event’s `raw` and `reasoning`', async () => {
+      const outputSchema = z.object({
+        title: z.string(),
+        note: z.string().optional(),
+      })
+      const raw = '{"title":"Ship it","note":null}'
+      // A NATIVE structuredOutputStream emits the terminal complete event with
+      // the widened object plus sibling `raw`/`reasoning` fields. The engine's
+      // outbound rewrite must replace `object` (un-widened) while spreading the
+      // rest of the value through untouched.
+      const { adapter } = createMockAdapter({
+        structuredOutputStream: () =>
+          (async function* () {
+            yield { type: EventType.RUN_STARTED, runId: 'r', threadId: 't' }
+            yield {
+              type: EventType.CUSTOM,
+              name: 'structured-output.complete',
+              value: {
+                object: { title: 'Ship it', note: null },
+                raw,
+                reasoning: 'thought about it',
+              },
+            }
+            yield {
+              type: EventType.RUN_FINISHED,
+              runId: 'r',
+              threadId: 't',
+              finishReason: 'stop',
+            }
+          })() as AsyncIterable<StreamChunk>,
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          messages,
+          outputSchema,
+          stream: true,
+        }) as unknown as AsyncIterable<StreamChunk>,
+      )
+
+      const value = completeValue(chunks)
+      expect(value.object).toEqual({ title: 'Ship it' })
+      expect('note' in (value.object as object)).toBe(false)
+      // Sibling fields survive the rewrite.
+      expect(value.raw).toBe(raw)
+      expect(value.reasoning).toBe('thought about it')
+    })
+  })
+
+  // Native-combined mode (adapter declares `supportsCombinedToolsAndSchema`):
+  // the engine harvests the JSON from the agent loop's accumulated final-turn
+  // text (`JSON.parse`, which preserves provider nulls) rather than from a
+  // separate structuredOutput call — a distinct capture site that must also
+  // un-widen. Covers both Promise<T> and streaming.
+  describe('native-combined mode', () => {
+    const outputSchema = z.object({
+      title: z.string(),
+      note: z.string().optional(),
+      tag: z.string().nullable(),
+    })
+    const json = '{"title":"Ship it","note":null,"tag":null}'
+
+    it('un-widens the harvested Promise<T> result', async () => {
+      const { adapter } = createMockAdapter({
+        iterations: [textTurn(json)],
+        supportsCombinedToolsAndSchema: true,
+      })
+
+      const result = await chat({ adapter, messages, outputSchema })
+
+      expect(result).toEqual({ title: 'Ship it', tag: null })
+      expect('note' in result).toBe(false)
+    })
+
+    it('un-widens the synthesized streaming complete event', async () => {
+      const { adapter } = createMockAdapter({
+        iterations: [textTurn(json)],
+        supportsCombinedToolsAndSchema: true,
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          messages,
+          outputSchema,
+          stream: true,
+        }) as unknown as AsyncIterable<StreamChunk>,
+      )
+
+      const object = completeObject(chunks)
+      expect(object).toEqual({ title: 'Ship it', tag: null })
+      expect('note' in (object as object)).toBe(false)
+    })
   })
 })
 
@@ -157,5 +288,24 @@ describe('convertSchemaForStructuredOutput → undoNullWidening round trip', () 
 
     expect(result).toEqual({ title: 'T' })
     expect('meta' in result).toBe(false)
+  })
+
+  it('keeps a genuine `.nullable()` null inside array items', () => {
+    // The widener does NOT touch `note` (it's `.nullable()`, not `.optional()`),
+    // so its null must survive even though it sits inside an array item — the
+    // exact spot the tuple/array handling could wrongly strip it.
+    const outputSchema = z.object({
+      items: z.array(z.object({ id: z.string(), note: z.string().nullable() })),
+    })
+
+    const { nullWideningMap } = convertSchemaForStructuredOutput(outputSchema)
+    const payload = {
+      items: [
+        { id: '1', note: null },
+        { id: '2', note: 'kept' },
+      ],
+    }
+
+    expect(undoNullWidening(payload, nullWideningMap)).toEqual(payload)
   })
 })

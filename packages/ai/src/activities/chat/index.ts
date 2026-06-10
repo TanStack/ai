@@ -2079,8 +2079,8 @@ class TextEngine<
           this.structuredOutputResult = { data: object, rawText: parsed.raw }
           // Rewrite the outbound event so the yielded chunk carries the
           // normalized object (the original `chunk.value` still holds the
-          // widened one). Preserve every other field — `messageId`,
-          // `reasoning` — by spreading the original value.
+          // widened one). Preserve every other field — `raw`, `reasoning` —
+          // by spreading the original value.
           const value = chunk.value
           if (object !== parsed.object && value && typeof value === 'object') {
             outboundChunk = { ...chunk, value: { ...value, object } }
