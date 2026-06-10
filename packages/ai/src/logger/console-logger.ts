@@ -58,7 +58,11 @@ function stringifyMetaSafely(value: unknown): string {
       (_key, entry: unknown) => {
         if (typeof entry === 'bigint') return entry.toString()
         if (entry instanceof Error) {
-          return { name: entry.name, message: entry.message, stack: entry.stack }
+          return {
+            name: entry.name,
+            message: entry.message,
+            stack: entry.stack,
+          }
         }
         if (typeof entry === 'object' && entry !== null) {
           if (seen.has(entry)) return '[Circular]'

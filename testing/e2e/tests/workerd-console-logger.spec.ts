@@ -73,9 +73,9 @@ test.describe('ConsoleLogger on real workerd', () => {
 
       const output = () => Buffer.concat(chunks).toString('utf8')
       // Logs flush asynchronously from the workerd process.
-      await expect.poll(output, { timeout: 10_000 }).toContain(
-        'E2E-WARN-HEADLINE',
-      )
+      await expect
+        .poll(output, { timeout: 10_000 })
+        .toContain('E2E-WARN-HEADLINE')
 
       // Headlines for every level.
       expect(output()).toContain('E2E-DEBUG-HEADLINE')
