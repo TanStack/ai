@@ -207,7 +207,8 @@
         {
           "label": "Code Mode with Skills",
           "to": "code-mode/code-mode-with-skills",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-06-10"
         },
         {
           "label": "Code Mode Isolate Drivers",
