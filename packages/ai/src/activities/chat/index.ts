@@ -19,8 +19,8 @@ import {
   executeToolCalls,
 } from './tools/tool-calls'
 import {
+  convertSchemaForStructuredOutput,
   convertSchemaToJsonSchema,
-  isStandardJSONSchema,
   isStandardSchema,
   parseWithStandardSchema,
 } from './tools/schema-converter'
@@ -2693,24 +2693,18 @@ async function runAgenticStructuredOutput<
 
   // Same strict-conversion as the streaming path (`forStructuredOutput: true`)
   // so the same Zod schema produces the same JSON Schema regardless of
-  // stream mode — Promise<T> and stream:true must not diverge here.
-  const jsonSchema = convertSchemaToJsonSchema(outputSchema, {
-    forStructuredOutput: true,
-  })
+  // stream mode — Promise<T> and stream:true must not diverge here. The same
+  // pass also records a `nullWideningMap`: optional fields are widened to
+  // `required` + nullable for the provider, which then returns `null` for an
+  // absent optional — a `null` the original `.optional()` (`T | undefined`)
+  // schema would otherwise reject. The map pinpoints exactly those synthesized
+  // nulls so `undoNullWidening` can drop them while preserving the ones a
+  // `.nullable()` field genuinely allows.
+  const { jsonSchema, nullWideningMap } =
+    convertSchemaForStructuredOutput(outputSchema)
   if (!jsonSchema) {
     throw new Error('Failed to convert output schema to JSON Schema')
   }
-
-  // The un-widened schema (no `forStructuredOutput`) still distinguishes
-  // genuinely-nullable fields from optional ones, so we can undo strict-mode's
-  // null-widening before validating: optional fields are widened to
-  // `required` + nullable for the provider, which then returns `null` for an
-  // absent optional — a `null` the original `.optional()` (`T | undefined`)
-  // schema would otherwise reject. `undoNullWidening` drops only those
-  // synthesized nulls, preserving the ones a `.nullable()` field allows.
-  const validationSchema = isStandardJSONSchema(outputSchema)
-    ? convertSchemaToJsonSchema(outputSchema)
-    : undefined
 
   // Validation runs INSIDE the engine (per spec §7.3) so validation failures
   // route through the engine's terminal-hook chooser as `onError`. We pass a
@@ -2720,7 +2714,7 @@ async function runAgenticStructuredOutput<
     ? (data: unknown): unknown =>
         parseWithStandardSchema<InferSchemaType<TSchema>>(
           outputSchema,
-          undoNullWidening(data, validationSchema),
+          undoNullWidening(data, nullWideningMap),
         )
     : undefined
 

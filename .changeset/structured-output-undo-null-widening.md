@@ -9,4 +9,5 @@ Strict-mode structured output widens optional fields to `required` + nullable, s
 
 The engine now undoes the widening before validation: it drops the synthesized nulls while preserving the ones a `.nullable()`/`.nullish()` field genuinely allows, so both optional and nullable fields round-trip correctly.
 
-- `@tanstack/ai-utils` adds `undoNullWidening(value, schema)` — a schema-aware counterpart to `transformNullsToUndefined` that only strips nulls the original JSON Schema disallows.
+- The strict-conversion pass now records a `NullWideningMap` marking exactly the positions where it added `null`, so the response can be un-widened precisely — no re-deriving or guessing which nulls were synthetic.
+- `@tanstack/ai-utils` adds `undoNullWidening(value, map)` — a counterpart to `transformNullsToUndefined` that strips only the nulls the widening pass synthesized, driven by that map.

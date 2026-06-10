@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { transformNullsToUndefined, undoNullWidening } from '../src/transforms'
-import type { JsonSchemaNode } from '../src/transforms'
+import type { NullWideningMap } from '../src/transforms'
 
 describe('transformNullsToUndefined', () => {
   it('should convert null values to undefined', () => {
@@ -52,80 +52,65 @@ describe('transformNullsToUndefined', () => {
 })
 
 describe('undoNullWidening', () => {
-  // Mirrors the un-widened JSON Schema a Valibot/Zod object produces:
-  //   req:  string (required)            -> v.string()
-  //   opt:  string, not required         -> v.optional(v.string())
-  //   nul:  anyOf[string, null]          -> v.nullable(v.string())
-  const schema: JsonSchemaNode = {
-    type: 'object',
+  // The widening pass records a map of the nulls it synthesized. For an object
+  // with one optional field (`opt`) and one nullable field (`nul`), only `opt`
+  // is widened — so only `opt` is marked:
+  //   req:  string (required)     -> not widened, absent from the map
+  //   opt:  optional(string)      -> widened to `required` + null
+  //   nul:  nullable(string)      -> already allowed null, not widened
+  const map: NullWideningMap = {
     properties: {
-      req: { type: 'string' },
-      opt: { type: 'string' },
-      nul: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+      opt: { widened: true },
     },
-    required: ['req', 'nul'],
   }
 
-  it('drops a synthesized null on an optional field (key becomes absent)', () => {
-    const result = undoNullWidening({ req: 'a', opt: null }, schema)
+  it('drops a synthesized null on a widened field (key becomes absent)', () => {
+    const result = undoNullWidening({ req: 'a', opt: null }, map)
     expect(result).toEqual({ req: 'a' })
     expect('opt' in (result as object)).toBe(false)
   })
 
-  it('keeps a genuine null on a nullable field', () => {
-    const result = undoNullWidening({ req: 'a', nul: null }, schema)
+  it('keeps a genuine null on a field the widener did not touch', () => {
+    const result = undoNullWidening({ req: 'a', nul: null }, map)
     expect(result).toEqual({ req: 'a', nul: null })
   })
 
-  it('handles optional and nullable nulls in the same object', () => {
-    const result = undoNullWidening({ req: 'a', opt: null, nul: null }, schema)
+  it('handles widened and genuine nulls in the same object', () => {
+    const result = undoNullWidening({ req: 'a', opt: null, nul: null }, map)
     expect(result).toEqual({ req: 'a', nul: null })
   })
 
   it('leaves present values untouched', () => {
-    const result = undoNullWidening({ req: 'a', opt: 'b', nul: 'c' }, schema)
+    const result = undoNullWidening({ req: 'a', opt: 'b', nul: 'c' }, map)
     expect(result).toEqual({ req: 'a', opt: 'b', nul: 'c' })
   })
 
-  it('recurses into a nullable object via its anyOf branch', () => {
-    const nested: JsonSchemaNode = {
-      type: 'object',
+  it('descends into a widened object to drop its inner synthesized null', () => {
+    // `obj` is itself optional (so it may come back null) AND has an inner
+    // optional `note`. The map marks both the object and the nested field.
+    const nested: NullWideningMap = {
       properties: {
         obj: {
-          anyOf: [
-            {
-              type: 'object',
-              properties: {
-                inner: { type: 'string' },
-                note: { type: 'string' },
-              },
-              required: ['inner'],
-            },
-            { type: 'null' },
-          ],
+          widened: true,
+          properties: { note: { widened: true } },
         },
       },
-      required: ['obj'],
     }
-    // obj itself is present (kept), but its optional `note` came back null.
+    // obj is present (kept), but its optional `note` came back null.
     const result = undoNullWidening({ obj: { inner: 'x', note: null } }, nested)
     expect(result).toEqual({ obj: { inner: 'x' } })
+
+    // …and when the whole object comes back null, the key drops out.
+    expect(undoNullWidening({ obj: null }, nested)).toEqual({})
   })
 
   it('strips synthesized nulls inside array items', () => {
-    const arrSchema: JsonSchemaNode = {
-      type: 'object',
+    const arrMap: NullWideningMap = {
       properties: {
         items: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: { id: { type: 'string' }, label: { type: 'string' } },
-            required: ['id'],
-          },
+          items: { properties: { label: { widened: true } } },
         },
       },
-      required: ['items'],
     }
     const result = undoNullWidening(
       {
@@ -134,80 +119,38 @@ describe('undoNullWidening', () => {
           { id: '2', label: 'two' },
         ],
       },
-      arrSchema,
+      arrMap,
     )
     expect(result).toEqual({ items: [{ id: '1' }, { id: '2', label: 'two' }] })
   })
 
-  it('applies tuple-style item schemas per index', () => {
-    const tupleSchema: JsonSchemaNode = {
-      type: 'object',
+  it('applies tuple-style item maps per index', () => {
+    // [ { name }, { note? } ] — only the second position has a widened field.
+    const tupleMap: NullWideningMap = {
       properties: {
         pair: {
-          type: 'array',
-          // [ { name }, { note? } ] — only the second position is optional.
-          items: [
-            {
-              type: 'object',
-              properties: { name: { type: 'string' } },
-              required: ['name'],
-            },
-            {
-              type: 'object',
-              properties: { note: { type: 'string' } },
-              required: [],
-            },
-          ],
+          items: [{}, { properties: { note: { widened: true } } }],
         },
       },
-      required: ['pair'],
     }
     const result = undoNullWidening(
       { pair: [{ name: 'Ada' }, { note: null }] },
-      tupleSchema,
+      tupleMap,
     )
     // The synthesized null in the second tuple position is dropped using that
-    // position's schema, not the first's.
+    // position's map, not the first's.
     expect(result).toEqual({ pair: [{ name: 'Ada' }, {}] })
   })
 
-  it('keeps nulls when the anyOf branch is ambiguous (multiple object variants)', () => {
-    const ambiguous: JsonSchemaNode = {
-      type: 'object',
-      properties: {
-        node: {
-          anyOf: [
-            {
-              type: 'object',
-              properties: { a: { type: 'string' } },
-              required: [],
-            },
-            {
-              type: 'object',
-              properties: { b: { type: 'string' } },
-              required: [],
-            },
-            { type: 'null' },
-          ],
-        },
-      },
-      required: ['node'],
-    }
-    // Two object branches match, so we can't tell which applies — leave the
-    // value (and any nulls inside it) untouched rather than risk mis-stripping.
-    const value = { node: { a: null } }
-    expect(undoNullWidening(value, ambiguous)).toEqual({ node: { a: null } })
-  })
-
-  it('returns the value untouched when no schema is supplied', () => {
+  it('returns the value untouched when no map is supplied', () => {
     const value = { a: null, b: 1 }
     expect(undoNullWidening(value)).toBe(value)
   })
 
-  it('leaves nulls under unknown (schemaless) properties untouched', () => {
-    // `extra` is not described by the schema — we cannot prove its null is
-    // synthetic, so it is preserved.
-    const result = undoNullWidening({ req: 'a', extra: null }, schema)
+  it('leaves nulls under positions the map does not describe', () => {
+    // `extra` carries no map entry — the widener never synthesized a null
+    // there, so it is preserved.
+    const result = undoNullWidening({ req: 'a', extra: null }, map)
     expect(result).toEqual({ req: 'a', extra: null })
   })
 })
