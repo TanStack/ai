@@ -9,7 +9,9 @@
 
 import { writeFile } from 'node:fs/promises'
 import { models } from './openrouter.models'
+import { videoModels as videoApiModels } from './openrouter.video-models'
 import type { OpenRouterModel } from './openrouter.models'
+import type { OpenRouterVideoApiModel } from './openrouter.video-models'
 
 type InputModality = 'text' | 'image' | 'audio' | 'video' | 'document'
 
@@ -88,13 +90,55 @@ function generateImageModelsArray(): string {
 }
 
 function generateVideoModelsArray(): string {
-  const modelIds = Array.from(videoModels)
-  if (modelIds.length === 0) {
+  // Video generation models come from the dedicated `GET /api/v1/videos/models`
+  // endpoint (openrouter.video-models.json) — they don't appear in the plain
+  // models listing. Models the main listing reports with a `video` output
+  // modality (none today) are merged in for completeness.
+  const ids = new Set(videoApiModels.map((m) => `'${m.id}'`))
+  for (const constRef of videoModels) ids.add(constRef)
+  if (ids.size === 0) {
     return ''
   }
-  return `export const OPENROUTER_VIDEO_MODELS = [\n${modelIds
+  return `export const OPENROUTER_VIDEO_MODELS = [\n${Array.from(ids)
     .map((id) => `  ${id},`)
     .join('\n')}\n] as const`
+}
+
+function videoMetaLiteral(value: Array<number | string> | null): string {
+  if (value === null) return 'null'
+  return `[${value
+    .map((v) => (typeof v === 'number' ? `${v}` : `'${v}'`))
+    .join(', ')}]`
+}
+
+/**
+ * Per-model capability metadata for the dedicated video generation API.
+ * `@tanstack/ai-openrouter/src/video/video-provider-options.ts` derives the
+ * per-model provider-option and size types from this const, and the video
+ * adapter validates sizes / durations / frame roles against it at runtime.
+ */
+function generateVideoModelMeta(): string {
+  if (videoApiModels.length === 0) {
+    return ''
+  }
+  const entries = videoApiModels.map((m: OpenRouterVideoApiModel) => {
+    const lines = [
+      `  '${m.id}': {`,
+      `    name: '${m.name.replace(/'/g, "\\'")}',`,
+      `    durations: ${videoMetaLiteral(m.supported_durations)},`,
+      `    resolutions: ${videoMetaLiteral(m.supported_resolutions)},`,
+      `    aspectRatios: ${videoMetaLiteral(m.supported_aspect_ratios)},`,
+      `    frameImages: ${videoMetaLiteral(m.supported_frame_images)},`,
+      `    sizes: ${videoMetaLiteral(m.supported_sizes)},`,
+      `    generateAudio: ${m.generate_audio},`,
+      `    seed: ${m.seed},`,
+      `  },`,
+    ]
+    return lines.join('\n')
+  })
+  return `export const OPENROUTER_VIDEO_MODEL_META = {\n${entries.join(
+    '\n',
+  )}\n} as const`
 }
 
 function createPerModelModelOptions(): string {
@@ -322,6 +366,7 @@ ${generateChatModelsArray()}
 
 ${generateChatToolCapabilitiesType()}
 ${generateVideoModelsArray()}
+${generateVideoModelMeta()}
 ${generateImageModelsArray()}
 `
 console.log(file)

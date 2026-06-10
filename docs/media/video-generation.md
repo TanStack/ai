@@ -2,17 +2,21 @@
 title: Video Generation
 id: video-generation
 order: 6
-description: "Generate video from text prompts with OpenAI Sora or Google Veo using TanStack AI's experimental generateVideo() jobs/polling API."
+description: "Generate video from text prompts with OpenAI Sora, Google Veo, fal.ai, or OpenRouter (Seedance, Veo, Wan) using TanStack AI's experimental generateVideo() jobs/polling API."
 keywords:
   - tanstack ai
   - video generation
   - sora
   - veo
   - gemini
+  - openrouter
+  - seedance
+  - fal
   - generateVideo
   - jobs api
   - experimental
   - text-to-video
+  - image-to-video
 ---
 
 # Video Generation (Experimental)
@@ -39,6 +43,8 @@ TanStack AI provides experimental support for video generation through dedicated
 Currently supported:
 - **OpenAI**: Sora-2 and Sora-2-Pro models (when available)
 - **Google Gemini**: Veo 3.1, Veo 3, and Veo 2 models (via the long-running operations API)
+- **fal.ai**: Kling, MiniMax, Hunyuan, and other fal-hosted video endpoints
+- **OpenRouter**: Seedance, Veo 3.1, Wan, Kling, Sora 2 Pro and others via the dedicated async video API (`POST /api/v1/videos`)
 
 ## Basic Usage
 
@@ -427,12 +433,12 @@ for the per-provider table.
 Each `ImagePart` can carry an optional `metadata.role` hint that the
 adapter uses to route the input to the provider-specific field:
 
-| Role            | Maps to                                                       |
-| --------------- | ------------------------------------------------------------- |
-| `'start_frame'` | fal `start_image_url`, Veo input `image` (positional default for the first input) |
-| `'end_frame'`   | fal `end_image_url`, Veo `lastFrame`                          |
-| `'reference'`   | fal `reference_image_urls`, Veo `referenceImages`             |
-| `'character'`   | Same as `'reference'` — character consistency images                    |
+| Role            | Maps to                                                                                                  |
+| --------------- | --------------------------------------------------------------------------------------------------------- |
+| `'start_frame'` | fal `start_image_url`; Veo input `image`; OpenRouter `frame_images[]` with `frame_type: 'first_frame'` (positional default for the first input) |
+| `'end_frame'`   | fal `end_image_url`; Veo `lastFrame`; OpenRouter `frame_images[]` with `frame_type: 'last_frame'` |
+| `'reference'`   | fal `reference_image_urls`; Veo `referenceImages`; OpenRouter `input_references[]`              |
+| `'character'`   | Same as `'reference'` — character consistency images                                                     |
 
 ```typescript
 import { generateVideo } from '@tanstack/ai'
@@ -460,6 +466,7 @@ await generateVideo({
 | **OpenAI**   | Sora-2 / Sora-2-Pro → the image part goes to `input_reference`; flattened text is the prompt. Single image only — throws if more than one. |
 | **fal.ai**   | Field names resolve per endpoint from a map generated from the fal SDK's endpoint types — e.g. `role: 'start_frame'` lands on `image_url` for Kling/Veo image-to-video, `first_frame_url` for first-last-frame endpoints, and `start_image_url` otherwise. Defaults: single input → `image_url` (start frame); `role: 'end_frame'` → `end_image_url`; `role: 'reference'` / `'character'` → `reference_image_urls`. Override per-endpoint via `modelOptions` — the media-conditioning fields are typed optional there (even when the endpoint requires them) since they usually arrive as prompt parts. |
 | **Gemini**   | Veo → the first un-roled / `'start_frame'` image becomes the input image; `'end_frame'` → `lastFrame`; `'reference'` / `'character'` → `referenceImages` (asset references, Veo 3.1). Throws on multiple starting images. |
+| **OpenRouter** | `role: 'start_frame'` / `'end_frame'` → `frame_images[]` with `frame_type: 'first_frame'` / `'last_frame'`; `role: 'reference'` / `'character'` → `input_references[]`; an unroled image defaults to the start frame. At most one start and one end frame; frame roles are validated against the model's `supported_frame_images` metadata (e.g. Hailuo only takes a first frame). When both frame images and references are present, OpenRouter treats the request as image-to-video and references take lower priority. URL image sources pass through verbatim and `data` sources become data URIs — OpenRouter does not fetch URLs behind redirects or bot checks, so use directly accessible URLs. |
 
 Adapters whose underlying API can't accept image inputs throw a clear
 runtime error so calls fail fast.
@@ -566,6 +573,45 @@ Adapters that haven't declared a per-model duration map keep the plain
 > **Note:** The video URL returned for Veo jobs is served by the Gemini
 > Files API and requires your API key to download (send it as an
 > `x-goog-api-key` header or `key` query parameter).
+
+### OpenRouter Model Options
+
+OpenRouter's [video generation API](https://openrouter.ai/docs/guides/overview/multimodal/video-generation)
+runs Seedance, Veo, Wan, Kling, Sora 2 Pro and others behind one async jobs
+API. `size`, `duration`, and the per-model options below are typed **and
+validated per model** from OpenRouter's published model capabilities (a size
+or duration the model doesn't support throws before the request is sent):
+
+```typescript
+import { generateVideo } from '@tanstack/ai'
+import { openRouterVideo } from '@tanstack/ai-openrouter'
+
+const { jobId } = await generateVideo({
+  adapter: openRouterVideo('bytedance/seedance-2.0'),
+  prompt: 'A beautiful sunset over the ocean',
+  size: '1280x720',          // per-model union from OpenRouter's model metadata
+  duration: 8,               // validated against the model's supported durations
+  modelOptions: {
+    resolution: '720p',      // alternative to size: resolution + aspectRatio
+    aspectRatio: '16:9',
+    generateAudio: true,     // omitted from the type for models that can't
+    seed: 42,                // omitted from the type for models that can't
+    callbackUrl: 'https://your-app.com/webhooks/openrouter-video',
+    provider: { options: { bytedance: { watermark: false } } }, // passthrough
+  },
+})
+```
+
+Two OpenRouter-specific behaviors to know about:
+
+- **The completed video arrives as a `data:` URL.** OpenRouter's download
+  URLs require your API key in an `Authorization` header, so the adapter
+  downloads the content server-side and returns a base64 data URL that can
+  be handed straight to a `<video>` tag. Videos over ~10 MiB log a warning —
+  prefer re-uploading to your own storage/CDN over passing large data URLs
+  around.
+- **Cost is reported on completion.** The gateway reports the real billed
+  cost for the job; it's surfaced as `usage.cost` on the completed result.
 
 ## Response Types
 
@@ -675,8 +721,10 @@ Check the [OpenAI documentation](https://platform.openai.com/docs) for current l
 The video adapters use the same environment variables as the other adapters
 for their provider:
 
-- `OPENAI_API_KEY`: Your OpenAI API key (Sora)
-- `GOOGLE_API_KEY` or `GEMINI_API_KEY`: Your Google API key (Veo)
+- `OPENAI_API_KEY`: Your OpenAI API key (`openaiVideo`, Sora)
+- `GOOGLE_API_KEY` or `GEMINI_API_KEY`: Your Google API key (`geminiVideo`, Veo)
+- `OPENROUTER_API_KEY`: Your OpenRouter API key (`openRouterVideo`)
+- `FAL_KEY`: Your fal.ai API key (`falVideo`)
 
 ## Explicit API Keys
 

@@ -1,0 +1,745 @@
+[
+  {
+    "id": "alibaba/wan-2.6",
+    "canonical_slug": "alibaba/wan-2.6-20260327",
+    "hugging_face_id": null,
+    "name": "Alibaba: Wan 2.6",
+    "created": 1774659190,
+    "description": "Alibaba's most advanced video generation model, supporting over 10 visual creation capabilities in a unified system. Wan 2.6 generates 1080p video at 24fps from text, images, reference videos, or audio,...",
+    "supported_resolutions": [
+      "720p",
+      "1080p"
+    ],
+    "supported_aspect_ratios": [
+      "16:9",
+      "9:16"
+    ],
+    "supported_sizes": [
+      "1280x720",
+      "1080x1920",
+      "720x1280",
+      "1920x1080"
+    ],
+    "supported_durations": [
+      5,
+      10
+    ],
+    "supported_frame_images": [
+      "first_frame"
+    ],
+    "generate_audio": true,
+    "seed": true,
+    "pricing_skus": {
+      "text_to_video_duration_seconds_480p": "0.04",
+      "text_to_video_duration_seconds_720p": "0.08",
+      "image_to_video_duration_seconds_720p": "0.10",
+      "text_to_video_duration_seconds_1080p": "0.12",
+      "image_to_video_duration_seconds_1080p": "0.15"
+    },
+    "allowed_passthrough_parameters": [
+      "negative_prompt",
+      "enable_prompt_expansion",
+      "shot_type",
+      "audio",
+      "size"
+    ]
+  },
+  {
+    "id": "alibaba/wan-2.7",
+    "canonical_slug": "alibaba/wan-2.7-20260414",
+    "hugging_face_id": null,
+    "name": "Alibaba: Wan 2.7",
+    "created": 1776211362,
+    "description": "Wan 2.7 is a video generation model from Alibaba. It supports text-to-video, image-to-video with first and last frame control, and reference-to-video, where multiple reference images guide the style and content...",
+    "supported_resolutions": [
+      "720p",
+      "1080p"
+    ],
+    "supported_aspect_ratios": [
+      "16:9",
+      "9:16",
+      "1:1",
+      "4:3",
+      "3:4"
+    ],
+    "supported_sizes": [
+      "1280x720",
+      "720x1280",
+      "1920x1080",
+      "1080x1920",
+      "720x720",
+      "1080x1080",
+      "960x720",
+      "720x960",
+      "1440x1080",
+      "1080x1440"
+    ],
+    "supported_durations": [
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10
+    ],
+    "supported_frame_images": [
+      "first_frame",
+      "last_frame"
+    ],
+    "generate_audio": true,
+    "seed": true,
+    "pricing_skus": {
+      "duration_seconds": "0.1"
+    },
+    "allowed_passthrough_parameters": [
+      "negative_prompt",
+      "prompt_extend",
+      "audio",
+      "ratio",
+      "last_image",
+      "video",
+      "videos",
+      "images"
+    ]
+  },
+  {
+    "id": "bytedance/seedance-1-5-pro",
+    "canonical_slug": "bytedance/seedance-1-5-pro-20260320",
+    "hugging_face_id": null,
+    "name": "ByteDance: Seedance 1.5 Pro",
+    "created": 1774277608,
+    "description": "ByteDance's next-generation audio-visual generation model with a 4.5B parameter Dual-Branch Diffusion Transformer architecture. Seedance 1.5 Pro generates video and audio simultaneously in a single unified pass — eliminating the timing...",
+    "supported_resolutions": [
+      "480p",
+      "720p",
+      "1080p"
+    ],
+    "supported_aspect_ratios": [
+      "1:1",
+      "3:4",
+      "9:16",
+      "9:21",
+      "4:3",
+      "16:9",
+      "21:9"
+    ],
+    "supported_sizes": [
+      "480x480",
+      "480x640",
+      "480x854",
+      "480x1120",
+      "640x480",
+      "720x720",
+      "720x960",
+      "720x1280",
+      "720x1680",
+      "854x480",
+      "960x720",
+      "1080x1080",
+      "1080x1440",
+      "1080x1920",
+      "1080x2520",
+      "1120x480",
+      "1280x720",
+      "1440x1080",
+      "1680x720",
+      "1920x1080",
+      "2520x1080"
+    ],
+    "supported_durations": [
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "supported_frame_images": [
+      "first_frame",
+      "last_frame"
+    ],
+    "generate_audio": true,
+    "seed": true,
+    "pricing_skus": {
+      "video_tokens": "0.0000024",
+      "video_tokens_without_audio": "0.0000012"
+    },
+    "allowed_passthrough_parameters": [
+      "watermark",
+      "req_key"
+    ]
+  },
+  {
+    "id": "bytedance/seedance-2.0",
+    "canonical_slug": "bytedance/seedance-2.0-20260414",
+    "hugging_face_id": null,
+    "name": "ByteDance: Seedance 2.0",
+    "created": 1776211362,
+    "description": "Seedance 2.0 is a video generation model from ByteDance. It supports text-to-video, image-to-video with first and last frame control, and multimodal reference-to-video. It is particularly strong at preserving character consistency,...",
+    "supported_resolutions": [
+      "480p",
+      "720p",
+      "1080p"
+    ],
+    "supported_aspect_ratios": [
+      "1:1",
+      "3:4",
+      "9:16",
+      "4:3",
+      "16:9",
+      "21:9",
+      "9:21"
+    ],
+    "supported_sizes": [
+      "480x480",
+      "480x640",
+      "480x854",
+      "640x480",
+      "854x480",
+      "1120x480",
+      "720x720",
+      "720x960",
+      "720x1280",
+      "720x1680",
+      "960x720",
+      "1280x720",
+      "1680x720",
+      "1080x1080",
+      "1080x1440",
+      "1080x1920",
+      "1440x1080",
+      "1920x1080",
+      "2520x1080"
+    ],
+    "supported_durations": [
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15
+    ],
+    "supported_frame_images": [
+      "first_frame",
+      "last_frame"
+    ],
+    "generate_audio": true,
+    "seed": true,
+    "pricing_skus": {
+      "video_tokens": "0.000007",
+      "video_tokens_without_audio": "0.000007"
+    },
+    "allowed_passthrough_parameters": [
+      "watermark",
+      "req_key"
+    ]
+  },
+  {
+    "id": "bytedance/seedance-2.0-fast",
+    "canonical_slug": "bytedance/seedance-2.0-fast-20260414",
+    "hugging_face_id": null,
+    "name": "ByteDance: Seedance 2.0 Fast",
+    "created": 1776211362,
+    "description": "Seedance 2.0 Fast is a video generation model from ByteDance. It supports text-to-video, image-to-video with first and last frame control, and multimodal reference-to-video. It prioritizes generation speed and lower cost...",
+    "supported_resolutions": [
+      "480p",
+      "720p"
+    ],
+    "supported_aspect_ratios": [
+      "1:1",
+      "3:4",
+      "9:16",
+      "4:3",
+      "16:9",
+      "21:9",
+      "9:21"
+    ],
+    "supported_sizes": [
+      "480x480",
+      "480x640",
+      "480x854",
+      "640x480",
+      "854x480",
+      "1120x480",
+      "720x720",
+      "720x960",
+      "720x1280",
+      "720x1680",
+      "960x720",
+      "1280x720",
+      "1680x720"
+    ],
+    "supported_durations": [
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15
+    ],
+    "supported_frame_images": [
+      "first_frame",
+      "last_frame"
+    ],
+    "generate_audio": true,
+    "seed": true,
+    "pricing_skus": {
+      "video_tokens": "0.0000056",
+      "video_tokens_without_audio": "0.0000056"
+    },
+    "allowed_passthrough_parameters": [
+      "watermark",
+      "req_key"
+    ]
+  },
+  {
+    "id": "google/veo-3.1",
+    "canonical_slug": "google/veo-3.1-20260320",
+    "hugging_face_id": null,
+    "name": "Google: Veo 3.1",
+    "created": 1774277148,
+    "description": "Google's state-of-the-art video generation model, built for maximum visual fidelity in final production cuts. Veo 3.1 generates high-quality 1080p video from text or image prompts with native synchronized audio —...",
+    "supported_resolutions": [
+      "720p",
+      "1080p",
+      "4K"
+    ],
+    "supported_aspect_ratios": [
+      "16:9",
+      "9:16"
+    ],
+    "supported_sizes": [
+      "1280x720",
+      "1080x1920",
+      "1920x1080",
+      "720x1280",
+      "3840x2160",
+      "2160x3840"
+    ],
+    "supported_durations": [
+      4,
+      6,
+      8
+    ],
+    "supported_frame_images": [
+      "first_frame",
+      "last_frame"
+    ],
+    "generate_audio": true,
+    "seed": true,
+    "pricing_skus": {
+      "duration_seconds_with_audio": "0.40",
+      "duration_seconds_with_audio_4k": "0.60",
+      "duration_seconds_without_audio": "0.20",
+      "duration_seconds_without_audio_4k": "0.40"
+    },
+    "allowed_passthrough_parameters": [
+      "personGeneration",
+      "aspectRatio",
+      "negativePrompt",
+      "conditioningScale",
+      "enhancePrompt"
+    ]
+  },
+  {
+    "id": "google/veo-3.1-fast",
+    "canonical_slug": "google/veo-3.1-fast-20260320",
+    "hugging_face_id": null,
+    "name": "Google: Veo 3.1 Fast",
+    "created": 1776994666,
+    "description": "Google's mid-tier video generation model balancing speed and quality. Veo 3.1 Fast generates high-quality video from text or image prompts with native synchronized audio, offering faster turnaround than Veo 3.1...",
+    "supported_resolutions": [
+      "720p",
+      "1080p",
+      "4K"
+    ],
+    "supported_aspect_ratios": [
+      "16:9",
+      "9:16"
+    ],
+    "supported_sizes": [
+      "1280x720",
+      "1080x1920",
+      "1920x1080",
+      "720x1280",
+      "3840x2160",
+      "2160x3840"
+    ],
+    "supported_durations": [
+      4,
+      6,
+      8
+    ],
+    "supported_frame_images": [
+      "first_frame",
+      "last_frame"
+    ],
+    "generate_audio": true,
+    "seed": true,
+    "pricing_skus": {
+      "duration_seconds_with_audio": "0.12",
+      "duration_seconds_with_audio_4k": "0.30",
+      "duration_seconds_without_audio": "0.10",
+      "duration_seconds_with_audio_720p": "0.10",
+      "duration_seconds_without_audio_4k": "0.25",
+      "duration_seconds_without_audio_720p": "0.08"
+    },
+    "allowed_passthrough_parameters": [
+      "personGeneration",
+      "aspectRatio",
+      "negativePrompt",
+      "conditioningScale",
+      "enhancePrompt"
+    ]
+  },
+  {
+    "id": "google/veo-3.1-lite",
+    "canonical_slug": "google/veo-3.1-lite-20260331",
+    "hugging_face_id": null,
+    "name": "Google: Veo 3.1 Lite",
+    "created": 1776978818,
+    "description": "Google's most cost-effective video generation model, designed for high-volume applications and rapid iteration. Veo 3.1 Lite generates 720p and 1080p video from text or image prompts with native synchronized audio...",
+    "supported_resolutions": [
+      "720p",
+      "1080p"
+    ],
+    "supported_aspect_ratios": [
+      "16:9",
+      "9:16"
+    ],
+    "supported_sizes": [
+      "1280x720",
+      "720x1280",
+      "1920x1080",
+      "1080x1920"
+    ],
+    "supported_durations": [
+      8,
+      4,
+      6
+    ],
+    "supported_frame_images": [
+      "first_frame",
+      "last_frame"
+    ],
+    "generate_audio": true,
+    "seed": true,
+    "pricing_skus": {
+      "duration_seconds_with_audio": "0.08",
+      "duration_seconds_without_audio": "0.05",
+      "duration_seconds_with_audio_720p": "0.05",
+      "duration_seconds_without_audio_720p": "0.03"
+    },
+    "allowed_passthrough_parameters": [
+      "personGeneration",
+      "aspectRatio",
+      "negativePrompt",
+      "conditioningScale",
+      "enhancePrompt"
+    ]
+  },
+  {
+    "id": "kwaivgi/kling-v3.0-pro",
+    "canonical_slug": "kwaivgi/kling-v3.0-pro-20260429",
+    "hugging_face_id": null,
+    "name": "Kling: Video v3.0 Pro",
+    "created": 1777496206,
+    "description": "Kling v3.0 Pro is Kuaishou's premium video generation model, offering higher visual quality than the Standard tier. It supports text-to-video and image-to-video workflows, with first-frame and last-frame control for precise...",
+    "supported_resolutions": [
+      "720p"
+    ],
+    "supported_aspect_ratios": [
+      "16:9",
+      "9:16",
+      "1:1"
+    ],
+    "supported_sizes": [
+      "1280x720",
+      "720x1280",
+      "720x720"
+    ],
+    "supported_durations": [
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15
+    ],
+    "supported_frame_images": [
+      "first_frame",
+      "last_frame"
+    ],
+    "generate_audio": true,
+    "seed": false,
+    "pricing_skus": {
+      "duration_seconds": "0.112",
+      "duration_seconds_with_audio": "0.168",
+      "text_to_video_duration_seconds_480p": "0.112",
+      "text_to_video_duration_seconds_720p": "0.112",
+      "image_to_video_duration_seconds_720p": "0.112",
+      "text_to_video_duration_seconds_1080p": "0.112",
+      "image_to_video_duration_seconds_1080p": "0.112"
+    },
+    "allowed_passthrough_parameters": [
+      "negative_prompt",
+      "cfg_scale"
+    ]
+  },
+  {
+    "id": "kwaivgi/kling-v3.0-std",
+    "canonical_slug": "kwaivgi/kling-v3.0-std-20260429",
+    "hugging_face_id": null,
+    "name": "Kling: Video v3.0 Standard",
+    "created": 1777496205,
+    "description": "Kling v3.0 Standard is a video generation model from Kuaishou. It supports text-to-video and image-to-video workflows, with first-frame and last-frame control for guided scene composition. Clips range from 3 to...",
+    "supported_resolutions": [
+      "720p"
+    ],
+    "supported_aspect_ratios": [
+      "16:9",
+      "9:16",
+      "1:1"
+    ],
+    "supported_sizes": [
+      "1280x720",
+      "720x1280",
+      "720x720"
+    ],
+    "supported_durations": [
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15
+    ],
+    "supported_frame_images": [
+      "first_frame",
+      "last_frame"
+    ],
+    "generate_audio": true,
+    "seed": false,
+    "pricing_skus": {
+      "duration_seconds": "0.084",
+      "duration_seconds_with_audio": "0.126",
+      "text_to_video_duration_seconds_480p": "0.084",
+      "text_to_video_duration_seconds_720p": "0.084",
+      "image_to_video_duration_seconds_720p": "0.084",
+      "text_to_video_duration_seconds_1080p": "0.084",
+      "image_to_video_duration_seconds_1080p": "0.084"
+    },
+    "allowed_passthrough_parameters": [
+      "negative_prompt",
+      "cfg_scale"
+    ]
+  },
+  {
+    "id": "kwaivgi/kling-video-o1",
+    "canonical_slug": "kwaivgi/kling-video-o1-20260420",
+    "hugging_face_id": null,
+    "name": "Kling: Video O1",
+    "created": 1776704777,
+    "description": "Kling Video O1 is a video generation model from Kuaishou. It supports text and image inputs with video output, enabling text-to-video and image-to-video workflows. It is suited for cinematic content...",
+    "supported_resolutions": [
+      "720p"
+    ],
+    "supported_aspect_ratios": [
+      "16:9",
+      "9:16",
+      "1:1"
+    ],
+    "supported_sizes": [
+      "1280x720",
+      "720x1280",
+      "720x720"
+    ],
+    "supported_durations": [
+      5,
+      10
+    ],
+    "supported_frame_images": [
+      "first_frame",
+      "last_frame"
+    ],
+    "generate_audio": true,
+    "seed": false,
+    "pricing_skus": {
+      "duration_seconds": "0.1120"
+    },
+    "allowed_passthrough_parameters": [
+      "negative_prompt"
+    ]
+  },
+  {
+    "id": "minimax/hailuo-2.3",
+    "canonical_slug": "minimax/hailuo-2.3-20260420",
+    "hugging_face_id": null,
+    "name": "MiniMax: Hailuo 2.3",
+    "created": 1776702740,
+    "description": "Hailuo 2.3 is a video generation model from MiniMax. It accepts text prompts and reference images as input and generates video output, supporting both text-to-video and image-to-video workflows. It is...",
+    "supported_resolutions": [
+      "1080p"
+    ],
+    "supported_aspect_ratios": [
+      "16:9"
+    ],
+    "supported_sizes": [
+      "1920x1080"
+    ],
+    "supported_durations": [
+      6,
+      10
+    ],
+    "supported_frame_images": [
+      "first_frame"
+    ],
+    "generate_audio": false,
+    "seed": null,
+    "pricing_skus": {
+      "duration_seconds": "0.0817"
+    },
+    "allowed_passthrough_parameters": [
+      "prompt_optimizer",
+      "fast_pretreatment"
+    ]
+  },
+  {
+    "id": "openai/sora-2-pro",
+    "canonical_slug": "openai/sora-2-pro-20260320",
+    "hugging_face_id": null,
+    "name": "OpenAI: Sora 2 Pro",
+    "created": 1774277521,
+    "description": "OpenAI's flagship video generation model, delivering production-quality video with physics-accurate motion, synchronized audio, and world-state persistence across shots. Sora 2 Pro follows intricate multi-shot instructions while maintaining consistent spatial relationships...",
+    "supported_resolutions": [
+      "720p",
+      "1080p"
+    ],
+    "supported_aspect_ratios": [
+      "16:9",
+      "9:16"
+    ],
+    "supported_sizes": [
+      "1280x720",
+      "1080x1920",
+      "1920x1080",
+      "720x1280"
+    ],
+    "supported_durations": [
+      4,
+      8,
+      12,
+      16,
+      20
+    ],
+    "supported_frame_images": null,
+    "generate_audio": true,
+    "seed": false,
+    "pricing_skus": {
+      "duration_seconds_720p": "0.30",
+      "duration_seconds_1024p": "0.50",
+      "duration_seconds_1080p": "0.50"
+    },
+    "allowed_passthrough_parameters": [
+      "quality",
+      "style"
+    ]
+  },
+  {
+    "id": "x-ai/grok-imagine-video",
+    "canonical_slug": "x-ai/grok-imagine-video-20260512",
+    "hugging_face_id": null,
+    "name": "xAI: Grok Imagine Video",
+    "created": 1779117586,
+    "description": "Grok Imagine Video is xAI's fast, text-, image-, and reference-conditioned video generation model. It produces short videos (1–15 seconds, 24 fps) at 480p or 720p across seven aspect ratios -...",
+    "supported_resolutions": [
+      "480p",
+      "720p"
+    ],
+    "supported_aspect_ratios": [
+      "16:9",
+      "9:16",
+      "1:1",
+      "4:3",
+      "3:4",
+      "3:2",
+      "2:3"
+    ],
+    "supported_sizes": [
+      "854x480",
+      "1280x720",
+      "480x854",
+      "720x1280",
+      "480x480",
+      "720x720",
+      "640x480",
+      "960x720",
+      "480x640",
+      "720x960",
+      "720x480",
+      "1080x720",
+      "480x720",
+      "720x1080"
+    ],
+    "supported_durations": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15
+    ],
+    "supported_frame_images": [
+      "first_frame"
+    ],
+    "generate_audio": null,
+    "seed": null,
+    "pricing_skus": {
+      "cents_per_image_input": "0.2",
+      "cents_per_video_output_second_480p": "5",
+      "cents_per_video_output_second_720p": "7"
+    },
+    "allowed_passthrough_parameters": []
+  }
+]
