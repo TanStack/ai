@@ -1533,16 +1533,39 @@ describe('OpenRouter modelOptions pass-through', () => {
     expect(params.maxCompletionTokens).toBe(9999)
   })
 
-  it('forwards root metadata to the request (same as the responses adapter)', async () => {
+  it('does not forward root observability metadata to the request (#735)', async () => {
     setupMockSdkClient(minimalStreamChunks)
     const adapter = createAdapter()
 
     for await (const _ of chat({
       adapter,
       messages: [{ role: 'user', content: 'test' }],
-      // Root `metadata` is still part of the contract; it must not be dropped
-      // by the chat-completions request builder.
-      metadata: { env: 'test' },
+      // Root `metadata` is observability-only (middleware, devtools, event
+      // client) and may carry structured values; the SDK validates wire
+      // `chatRequest.metadata` as `Record<string, string>`, so forwarding it
+      // fails client-side Zod validation on every call.
+      metadata: { tags: ['a', 'b'], prompt: { name: 'p', version: 1 } },
+    })) {
+      // consume
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const params = rawParams.chatRequest
+    expect(params).not.toHaveProperty('metadata')
+  })
+
+  it('root metadata does not clobber modelOptions.metadata (#735)', async () => {
+    setupMockSdkClient(minimalStreamChunks)
+    const adapter = createAdapter()
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'test' }],
+      metadata: { observationName: 'my-call' },
+      // `modelOptions.metadata` is the typed home for OpenRouter wire
+      // metadata; it must reach the request untouched even when root
+      // observability metadata is also present.
+      modelOptions: { metadata: { env: 'test' } } as OpenRouterTextModelOptions,
     })) {
       // consume
     }

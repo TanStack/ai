@@ -3,6 +3,7 @@ import { EventType, chat } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { ResponsesRequest$outboundSchema } from '@openrouter/sdk/models'
 import { createOpenRouterResponsesText } from '../src/adapters/responses-text'
+import type { OpenRouterResponsesTextProviderOptions } from '../src/adapters/responses-text'
 import { webSearchTool } from '../src/tools/web-search-tool'
 import { webFetchTool } from '../src/tools/web-fetch-tool'
 import type { StreamChunk, Tool } from '@tanstack/ai'
@@ -195,6 +196,62 @@ describe('OpenRouter responses adapter — request shape', () => {
     }
     const params = mockSend.mock.calls[0]![0].responsesRequest
     expect(params.model).toBe('openai/gpt-4o-mini:thinking')
+  })
+
+  it('does not forward root observability metadata; modelOptions.metadata reaches the wire (#735)', async () => {
+    setupMockSdkClient([
+      {
+        type: 'response.completed',
+        sequenceNumber: 1,
+        response: {
+          model: 'openai/gpt-4o-mini',
+          output: [],
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        },
+      },
+    ])
+    const adapter = createAdapter()
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'hi' }],
+      // Root `metadata` is observability-only and may carry structured
+      // values; the SDK validates wire `metadata` as `Record<string,
+      // string>`, so forwarding it fails client-side Zod validation.
+      metadata: { tags: ['a', 'b'], prompt: { name: 'p', version: 1 } },
+      // `modelOptions.metadata` is the typed home for wire metadata and
+      // must not be clobbered by root metadata.
+      modelOptions: {
+        metadata: { env: 'test' },
+      } as OpenRouterResponsesTextProviderOptions,
+    })) {
+      // consume
+    }
+    const params = mockSend.mock.calls[0]![0].responsesRequest
+    expect(params.metadata).toEqual({ env: 'test' })
+  })
+
+  it('omits wire metadata entirely when only root observability metadata is set (#735)', async () => {
+    setupMockSdkClient([
+      {
+        type: 'response.completed',
+        sequenceNumber: 1,
+        response: {
+          model: 'openai/gpt-4o-mini',
+          output: [],
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        },
+      },
+    ])
+    const adapter = createAdapter()
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'hi' }],
+      metadata: { observationName: 'my-call' },
+    })) {
+      // consume
+    }
+    const params = mockSend.mock.calls[0]![0].responsesRequest
+    expect(params).not.toHaveProperty('metadata')
   })
 
   it('rejects webSearchTool() as RUN_ERROR pointing at the chat adapter', async () => {

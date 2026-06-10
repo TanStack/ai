@@ -819,14 +819,14 @@ export interface TextOptions<
   systemPrompts?: Array<SystemPrompt>
   agentLoopStrategy?: AgentLoopStrategy
   /**
-   * Additional metadata to attach to the request.
-   * Can be used for tracking, debugging, or passing custom information.
-   * Structure and constraints vary by provider.
+   * Observability metadata attached to this call. Surfaced to middleware,
+   * devtools, and the event client; values may be arbitrarily structured
+   * (objects, arrays). Adapters never forward this field onto the provider
+   * wire request.
    *
-   * Provider usage:
-   * - OpenAI: `metadata` (Record<string, string>) - max 16 key-value pairs, keys max 64 chars, values max 512 chars
-   * - Anthropic: `metadata` (Record<string, any>) - includes optional user_id (max 256 chars)
-   * - Gemini: Not directly available in TextProviderOptions
+   * To send provider-side request metadata, use the provider's
+   * `modelOptions` field instead, where the provider supports one (e.g.
+   * OpenAI's and OpenRouter's `metadata` are both Record<string, string>).
    */
   metadata?: Record<string, any> | undefined
   modelOptions?: TProviderOptionsForModel

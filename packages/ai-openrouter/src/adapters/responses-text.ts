@@ -1580,7 +1580,11 @@ export class OpenRouterResponsesTextAdapter<
     > = {
       ...modelOptions,
       model: options.model + variantSuffix,
-      ...(options.metadata !== undefined && { metadata: options.metadata }),
+      // Root `metadata` is observability-only and intentionally not forwarded:
+      // the SDK validates wire `metadata` as `Record<string, string>`, while
+      // root metadata may carry arbitrarily structured values (#735). Callers
+      // set wire metadata via `modelOptions.metadata`, which flows through
+      // the spread.
       ...(() => {
         const prompts = normalizeSystemPrompts(options.systemPrompts)
         if (prompts.length === 0) return {}

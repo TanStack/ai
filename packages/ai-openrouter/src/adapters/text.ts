@@ -1156,16 +1156,15 @@ export class OpenRouterTextAdapter<
       ? convertToolsToProviderFormat(options.tools)
       : undefined
 
-    // `modelOptions` is the sole sampling surface: callers set provider-native
-    // wire names (`temperature`, `topP`, `maxCompletionTokens`, etc.) there and
-    // they flow through the spread below. The root `temperature`/`topP`/
-    // `maxTokens` fields are intentionally NOT read here. Root `metadata` is
-    // still part of the contract, so forward it the same way the responses
-    // adapter does.
+    // `modelOptions` is the sole wire surface: callers set provider-native
+    // names (`temperature`, `topP`, `maxCompletionTokens`, `metadata`, etc.)
+    // there and they flow through the spread below. Root `metadata` is
+    // observability-only (middleware, devtools, event client) and must NOT be
+    // forwarded here — it may carry arbitrarily structured values while the
+    // SDK validates `chatRequest.metadata` as `Record<string, string>` (#735).
     const request: Omit<ChatRequest, 'stream'> = {
       ...restModelOptions,
       model: options.model + variantSuffix,
-      ...(options.metadata !== undefined && { metadata: options.metadata }),
       messages,
       ...(tools && tools.length > 0 && { tools }),
     }
