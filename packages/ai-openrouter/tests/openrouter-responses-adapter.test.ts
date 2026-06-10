@@ -3,7 +3,6 @@ import { EventType, chat } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { ResponsesRequest$outboundSchema } from '@openrouter/sdk/models'
 import { createOpenRouterResponsesText } from '../src/adapters/responses-text'
-import type { OpenRouterResponsesTextProviderOptions } from '../src/adapters/responses-text'
 import { webSearchTool } from '../src/tools/web-search-tool'
 import { webFetchTool } from '../src/tools/web-fetch-tool'
 import type { StreamChunk, Tool } from '@tanstack/ai'
@@ -220,9 +219,7 @@ describe('OpenRouter responses adapter — request shape', () => {
       metadata: { tags: ['a', 'b'], prompt: { name: 'p', version: 1 } },
       // `modelOptions.metadata` is the typed home for wire metadata and
       // must not be clobbered by root metadata.
-      modelOptions: {
-        metadata: { env: 'test' },
-      } as OpenRouterResponsesTextProviderOptions,
+      modelOptions: { metadata: { env: 'test' } },
     })) {
       // consume
     }
