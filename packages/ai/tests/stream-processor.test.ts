@@ -2681,7 +2681,7 @@ describe('StreamProcessor', () => {
       const processor = new StreamProcessor()
 
       processor.processChunk(
-        chunk('TOOL_CALL_START', {
+        chunk(EventType.TOOL_CALL_START, {
           toolCallId: 'tc-1',
           toolCallName: 'lookupWeather',
           toolName: 'lookupWeather',
@@ -2697,7 +2697,7 @@ describe('StreamProcessor', () => {
       processor.processChunk(ev.toolEnd('tc-1', 'lookupWeather'))
 
       processor.processChunk(
-        chunk('TEXT_MESSAGE_START', {
+        chunk(EventType.TEXT_MESSAGE_START, {
           messageId: 'anthropic-msg-1',
           role: 'assistant' as const,
         }),

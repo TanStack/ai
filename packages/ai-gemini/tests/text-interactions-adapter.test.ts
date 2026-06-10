@@ -408,6 +408,77 @@ describe('GeminiTextInteractionsAdapter', () => {
     expect(finished.finishReason).toBe('tool_calls')
   })
 
+  it('emits parentMessageId on tool-first tool calls matching the assistant message id', async () => {
+    // The function_call content arrives before any text. parentMessageId must
+    // bind the tool call to the same assistant message id the eventual
+    // TEXT_MESSAGE_START uses so the message id stays stable mid-stream (#477).
+    mocks.interactionsCreateSpy.mockResolvedValue(
+      mkStream([
+        {
+          event_type: 'interaction.start',
+          interaction: { id: 'int_tf', status: 'in_progress' },
+        },
+        {
+          event_type: 'content.start',
+          index: 0,
+          content: { type: 'function_call' },
+        },
+        {
+          event_type: 'content.delta',
+          index: 0,
+          delta: {
+            type: 'function_call',
+            id: 'call_tf',
+            name: 'lookup_weather',
+            arguments: { location: 'Berlin' },
+          },
+        },
+        { event_type: 'content.stop', index: 0 },
+        {
+          event_type: 'content.start',
+          index: 1,
+          content: { type: 'text', text: '' },
+        },
+        {
+          event_type: 'content.delta',
+          index: 1,
+          delta: { type: 'text', text: 'It is sunny.' },
+        },
+        { event_type: 'content.stop', index: 1 },
+        {
+          event_type: 'interaction.complete',
+          interaction: { id: 'int_tf', status: 'completed' },
+        },
+      ]),
+    )
+
+    const weatherTool: Tool = {
+      name: 'lookup_weather',
+      description: 'Return the weather for a location',
+    }
+
+    const adapter = createAdapter()
+    const chunks = await collectChunks(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Weather in Berlin?' }],
+        tools: [weatherTool],
+      }),
+    )
+
+    const textStart = chunks.find((c) => c.type === 'TEXT_MESSAGE_START')
+    const toolStart = chunks.find((c) => c.type === 'TOOL_CALL_START')
+
+    expect(textStart?.type).toBe('TEXT_MESSAGE_START')
+    expect(toolStart?.type).toBe('TOOL_CALL_START')
+    if (
+      textStart?.type === 'TEXT_MESSAGE_START' &&
+      toolStart?.type === 'TOOL_CALL_START'
+    ) {
+      expect(toolStart.parentMessageId).toBe(textStart.messageId)
+    }
+  })
+
   it('serializes tool results as function_result content blocks', async () => {
     mocks.interactionsCreateSpy.mockResolvedValue(
       mkStream([

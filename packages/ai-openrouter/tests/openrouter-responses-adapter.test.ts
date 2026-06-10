@@ -657,6 +657,84 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     expect(finished.finishReason).toBe('tool_calls')
   })
 
+  it('emits parentMessageId on tool-first tool calls matching the assistant message id', async () => {
+    // The function call streams before any text. parentMessageId must bind the
+    // tool call to the same assistant message id the eventual TEXT_MESSAGE_START
+    // uses so the message id stays stable mid-stream (#477).
+    setupMockSdkClient([
+      {
+        type: 'response.created',
+        sequenceNumber: 0,
+        response: { model: 'm', output: [] },
+      },
+      {
+        type: 'response.output_item.added',
+        sequenceNumber: 1,
+        outputIndex: 0,
+        item: {
+          type: 'function_call',
+          id: 'item_tf',
+          callId: 'call_tf',
+          name: 'lookup_weather',
+          arguments: '',
+        },
+      },
+      {
+        type: 'response.function_call_arguments.delta',
+        sequenceNumber: 2,
+        itemId: 'item_tf',
+        outputIndex: 0,
+        delta: '{"location":"Berlin"}',
+      },
+      {
+        type: 'response.function_call_arguments.done',
+        sequenceNumber: 3,
+        itemId: 'item_tf',
+        outputIndex: 0,
+        arguments: '{"location":"Berlin"}',
+      },
+      {
+        type: 'response.output_text.delta',
+        sequenceNumber: 4,
+        itemId: 'msg_tf',
+        outputIndex: 1,
+        contentIndex: 0,
+        delta: 'It is sunny.',
+      },
+      {
+        type: 'response.completed',
+        sequenceNumber: 5,
+        response: {
+          model: 'm',
+          output: [{ type: 'function_call' }],
+          usage: { inputTokens: 1, outputTokens: 7, totalTokens: 8 },
+        },
+      },
+    ])
+
+    const adapter = createAdapter()
+    const chunks: Array<StreamChunk> = []
+    for await (const c of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'What is the weather in Berlin?' }],
+      tools: [weatherTool],
+    })) {
+      chunks.push(c)
+    }
+
+    const textStart = chunks.find((c) => c.type === 'TEXT_MESSAGE_START')
+    const toolStart = chunks.find((c) => c.type === 'TOOL_CALL_START')
+
+    expect(textStart?.type).toBe('TEXT_MESSAGE_START')
+    expect(toolStart?.type).toBe('TOOL_CALL_START')
+    if (
+      textStart?.type === 'TEXT_MESSAGE_START' &&
+      toolStart?.type === 'TOOL_CALL_START'
+    ) {
+      expect(toolStart.parentMessageId).toBe(textStart.messageId)
+    }
+  })
+
   it('surfaces response.failed with a RUN_ERROR carrying the error message + code', async () => {
     setupMockSdkClient([
       {

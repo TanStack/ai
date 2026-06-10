@@ -885,6 +885,7 @@ export class OpenRouterTextAdapter<
                 toolCallId: toolCall.id,
                 toolCallName: toolCall.name,
                 toolName: toolCall.name,
+                parentMessageId: aguiState.messageId,
                 model: chunk.model || options.model,
                 timestamp: Date.now(),
                 index,
