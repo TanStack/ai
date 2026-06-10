@@ -13,6 +13,14 @@ import { Miniflare } from 'miniflare'
  * Node detection) and assert the payloads actually reach the runtime's log
  * stream.
  *
+ * Policy exception — no aimock: this suite's aimock convention exists to
+ * mock provider LLM responses, but the unit under test here is console
+ * rendering inside the workerd runtime, a code path no provider HTTP ever
+ * reaches. Wiring aimock in would require bundling the full `chat()` +
+ * adapter stack into the Miniflare worker while adding no coverage of the
+ * behavior being fixed; the runtime itself (real workerd) is the thing
+ * being exercised instead.
+ *
  * Requires `@tanstack/ai` to be built (`pnpm build`), same as every other
  * spec in this suite.
  */
