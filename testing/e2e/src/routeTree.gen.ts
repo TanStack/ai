@@ -24,6 +24,7 @@ import { Route as ApiVideoRouteImport } from './routes/api.video'
 import { Route as ApiTtsRouteImport } from './routes/api.tts'
 import { Route as ApiTranscriptionRouteImport } from './routes/api.transcription'
 import { Route as ApiToolsTestRouteImport } from './routes/api.tools-test'
+import { Route as ApiToolCallLifecycleWireRouteImport } from './routes/api.tool-call-lifecycle-wire'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiOpenrouterWebToolsWireRouteImport } from './routes/api.openrouter-web-tools-wire'
 import { Route as ApiOpenrouterCostRouteImport } from './routes/api.openrouter-cost'
@@ -37,7 +38,6 @@ import { Route as ApiMcpServerRouteImport } from './routes/api.mcp-server'
 import { Route as ApiMcpManagedTestRouteImport } from './routes/api.mcp-managed-test'
 import { Route as ApiMcpLifecycleTestRouteImport } from './routes/api.mcp-lifecycle-test'
 import { Route as ApiImageRouteImport } from './routes/api.image'
-import { Route as ApiFalBillableUnitsRouteImport } from './routes/api.fal-billable-units'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
 import { Route as ApiArktypeToolWireRouteImport } from './routes/api.arktype-tool-wire'
@@ -125,6 +125,12 @@ const ApiToolsTestRoute = ApiToolsTestRouteImport.update({
   path: '/api/tools-test',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiToolCallLifecycleWireRoute =
+  ApiToolCallLifecycleWireRouteImport.update({
+    id: '/api/tool-call-lifecycle-wire',
+    path: '/api/tool-call-lifecycle-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiSummarizeRoute = ApiSummarizeRouteImport.update({
   id: '/api/summarize',
   path: '/api/summarize',
@@ -191,11 +197,6 @@ const ApiMcpLifecycleTestRoute = ApiMcpLifecycleTestRouteImport.update({
 const ApiImageRoute = ApiImageRouteImport.update({
   id: '/api/image',
   path: '/api/image',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiFalBillableUnitsRoute = ApiFalBillableUnitsRouteImport.update({
-  id: '/api/fal-billable-units',
-  path: '/api/fal-billable-units',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiChatRoute = ApiChatRouteImport.update({
@@ -271,7 +272,6 @@ export interface FileRoutesByFullPath {
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
-  '/api/fal-billable-units': typeof ApiFalBillableUnitsRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
@@ -285,6 +285,7 @@ export interface FileRoutesByFullPath {
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/summarize': typeof ApiSummarizeRoute
+  '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
@@ -313,7 +314,6 @@ export interface FileRoutesByTo {
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
-  '/api/fal-billable-units': typeof ApiFalBillableUnitsRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
@@ -327,6 +327,7 @@ export interface FileRoutesByTo {
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/summarize': typeof ApiSummarizeRoute
+  '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
@@ -356,7 +357,6 @@ export interface FileRoutesById {
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
-  '/api/fal-billable-units': typeof ApiFalBillableUnitsRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
@@ -370,6 +370,7 @@ export interface FileRoutesById {
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/summarize': typeof ApiSummarizeRoute
+  '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
@@ -400,7 +401,6 @@ export interface FileRouteTypes {
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/chat'
-    | '/api/fal-billable-units'
     | '/api/image'
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
@@ -414,6 +414,7 @@ export interface FileRouteTypes {
     | '/api/openrouter-cost'
     | '/api/openrouter-web-tools-wire'
     | '/api/summarize'
+    | '/api/tool-call-lifecycle-wire'
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
@@ -442,7 +443,6 @@ export interface FileRouteTypes {
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/chat'
-    | '/api/fal-billable-units'
     | '/api/image'
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
@@ -456,6 +456,7 @@ export interface FileRouteTypes {
     | '/api/openrouter-cost'
     | '/api/openrouter-web-tools-wire'
     | '/api/summarize'
+    | '/api/tool-call-lifecycle-wire'
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
@@ -484,7 +485,6 @@ export interface FileRouteTypes {
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/chat'
-    | '/api/fal-billable-units'
     | '/api/image'
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
@@ -498,6 +498,7 @@ export interface FileRouteTypes {
     | '/api/openrouter-cost'
     | '/api/openrouter-web-tools-wire'
     | '/api/summarize'
+    | '/api/tool-call-lifecycle-wire'
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
@@ -527,7 +528,6 @@ export interface RootRouteChildren {
   ApiArktypeToolWireRoute: typeof ApiArktypeToolWireRoute
   ApiAudioRoute: typeof ApiAudioRouteWithChildren
   ApiChatRoute: typeof ApiChatRoute
-  ApiFalBillableUnitsRoute: typeof ApiFalBillableUnitsRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
   ApiMcpLifecycleTestRoute: typeof ApiMcpLifecycleTestRoute
   ApiMcpManagedTestRoute: typeof ApiMcpManagedTestRoute
@@ -541,6 +541,7 @@ export interface RootRouteChildren {
   ApiOpenrouterCostRoute: typeof ApiOpenrouterCostRoute
   ApiOpenrouterWebToolsWireRoute: typeof ApiOpenrouterWebToolsWireRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
+  ApiToolCallLifecycleWireRoute: typeof ApiToolCallLifecycleWireRoute
   ApiToolsTestRoute: typeof ApiToolsTestRoute
   ApiTranscriptionRoute: typeof ApiTranscriptionRouteWithChildren
   ApiTtsRoute: typeof ApiTtsRouteWithChildren
@@ -655,6 +656,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiToolsTestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/tool-call-lifecycle-wire': {
+      id: '/api/tool-call-lifecycle-wire'
+      path: '/api/tool-call-lifecycle-wire'
+      fullPath: '/api/tool-call-lifecycle-wire'
+      preLoaderRoute: typeof ApiToolCallLifecycleWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/summarize': {
       id: '/api/summarize'
       path: '/api/summarize'
@@ -744,13 +752,6 @@ declare module '@tanstack/react-router' {
       path: '/api/image'
       fullPath: '/api/image'
       preLoaderRoute: typeof ApiImageRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/fal-billable-units': {
-      id: '/api/fal-billable-units'
-      path: '/api/fal-billable-units'
-      fullPath: '/api/fal-billable-units'
-      preLoaderRoute: typeof ApiFalBillableUnitsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/chat': {
@@ -908,7 +909,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiArktypeToolWireRoute: ApiArktypeToolWireRoute,
   ApiAudioRoute: ApiAudioRouteWithChildren,
   ApiChatRoute: ApiChatRoute,
-  ApiFalBillableUnitsRoute: ApiFalBillableUnitsRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
   ApiMcpLifecycleTestRoute: ApiMcpLifecycleTestRoute,
   ApiMcpManagedTestRoute: ApiMcpManagedTestRoute,
@@ -922,6 +922,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOpenrouterCostRoute: ApiOpenrouterCostRoute,
   ApiOpenrouterWebToolsWireRoute: ApiOpenrouterWebToolsWireRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
+  ApiToolCallLifecycleWireRoute: ApiToolCallLifecycleWireRoute,
   ApiToolsTestRoute: ApiToolsTestRoute,
   ApiTranscriptionRoute: ApiTranscriptionRouteWithChildren,
   ApiTtsRoute: ApiTtsRouteWithChildren,

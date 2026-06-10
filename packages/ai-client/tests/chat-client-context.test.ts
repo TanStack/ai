@@ -309,7 +309,7 @@ describe('ChatClient runtime context', () => {
     expect(
       findToolCallPart(client, 'tc-invalid-executable-output'),
     ).toMatchObject({
-      state: 'input-complete',
+      state: 'error',
       output: {
         error: expect.stringContaining('expected object'),
       },
@@ -317,6 +317,54 @@ describe('ChatClient runtime context', () => {
     expect(
       findToolResultPart(client, 'tc-invalid-executable-output'),
     ).toMatchObject({
+      state: 'error',
+    })
+  })
+
+  it('renders a client tool that throws an empty-message error as terminal "error" (issue #718)', async () => {
+    const firstChunks = createToolCallChunks([
+      {
+        id: 'tc-empty-error',
+        name: 'throwing_tool',
+        arguments: '{}',
+      },
+    ])
+    const secondChunks = createTextChunks('done', 'msg-empty-error')
+    let callIndex = 0
+
+    const adapter: ConnectConnectionAdapter = {
+      async *connect(_messages, _data, abortSignal) {
+        const chunks = callIndex === 0 ? firstChunks : secondChunks
+        callIndex++
+        for (const chunk of chunks) {
+          if (abortSignal?.aborted) {
+            return
+          }
+          yield chunk
+        }
+      },
+    }
+
+    const tool = toolDefinition({
+      name: 'throwing_tool',
+      description: 'Throws an error with no message',
+    }).client(() => {
+      // Empty message — error-ness must come from the output-error state, not
+      // from the truthiness of the message string.
+      throw new Error()
+    })
+
+    const client = new ChatClient({
+      connection: adapter,
+      tools: [tool],
+    })
+
+    await client.sendMessage('call throwing tool')
+
+    expect(findToolCallPart(client, 'tc-empty-error')).toMatchObject({
+      state: 'error',
+    })
+    expect(findToolResultPart(client, 'tc-empty-error')).toMatchObject({
       state: 'error',
     })
   })
@@ -359,7 +407,7 @@ describe('ChatClient runtime context', () => {
     })
 
     expect(findToolCallPart(client, 'tc-manual-invalid-output')).toMatchObject({
-      state: 'input-complete',
+      state: 'error',
       output: {
         error: expect.stringContaining('expected number'),
       },

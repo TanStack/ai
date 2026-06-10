@@ -253,7 +253,6 @@ if (result.usage?.unitsBilled != null) {
 | `gemini-3.1-flash-image-preview` | Latest and fastest Gemini native image generation |
 | `gemini-3-pro-image-preview` | Higher quality Gemini native image generation |
 | `gemini-2.5-flash-image` | Gemini 2.5 Flash with image generation |
-| `gemini-2.0-flash-preview-image-generation` | Gemini 2.0 Flash image generation |
 
 ### Gemini Imagen Models
 

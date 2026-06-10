@@ -66,14 +66,6 @@ export default async function globalSetup() {
   // `promptTokensDetails.cachedTokens` / `completionTokensDetails.reasoningTokens`.
   mock.mount('/openai-usage-details', openaiUsageDetailsMount())
 
-  // fal billable-units capture. aimock doesn't model fal's queue protocol
-  // (submit → poll status → fetch result) or its `x-fal-billable-units` /
-  // `x-fal-request-id` result headers, so this mount hand-rolls the three queue
-  // round-trips and stamps the billing headers on the result fetch. The
-  // companion api.fal-billable-units route redirects fal's hardcoded
-  // queue.fal.run URLs here and asserts the units reach `result.usage`.
-  mock.mount('/fal-queue', falQueueMount())
-
   await mock.start()
   console.log(`[aimock] started on port 4010`)
   ;(globalThis as any).__aimock = mock
@@ -470,83 +462,6 @@ function openaiUsageDetailsMount(): Mountable {
       res.write('data: [DONE]\n\n')
       res.end()
       return true
-    },
-  }
-}
-
-/**
- * Request id and billed quantity the fal queue mount reports. Exported-by-value
- * to the companion route/spec via the literal below — kept in one place so the
- * assertion and the mock can't drift.
- */
-const FAL_E2E_REQUEST_ID = 'fal-req-e2e'
-const FAL_E2E_BILLABLE_UNITS = '4'
-
-/**
- * Mimics fal's queue protocol for a single image generation:
- *   POST /{appId}                         → submit, returns request_id
- *   GET  /{appId}/requests/{id}/status    → poll, returns COMPLETED
- *   GET  /{appId}/requests/{id}           → result, returns the image payload
- *                                           with `x-fal-request-id` and
- *                                           `x-fal-billable-units` headers
- * The billing fetch installed by @tanstack/ai-fal reads those headers off the
- * result fetch and the adapter surfaces them as `result.usage.unitsBilled`.
- */
-function falQueueMount(): Mountable {
-  return {
-    async handleRequest(
-      req: http.IncomingMessage,
-      res: http.ServerResponse,
-      // Mount prefix (/fal-queue) is stripped; pathname is `/{appId}/...`.
-      pathname: string,
-    ): Promise<boolean> {
-      const isResultPath =
-        req.method === 'GET' && /\/requests\/[^/]+$/.test(pathname)
-      const isStatusPath = req.method === 'GET' && pathname.endsWith('/status')
-      const isSubmitPath =
-        req.method === 'POST' && !pathname.includes('/requests/')
-
-      if (isSubmitPath) {
-        await drainBody(req)
-        res.statusCode = 200
-        res.setHeader('Content-Type', 'application/json')
-        res.end(
-          JSON.stringify({
-            request_id: FAL_E2E_REQUEST_ID,
-            status: 'IN_QUEUE',
-          }),
-        )
-        return true
-      }
-
-      if (isStatusPath) {
-        res.statusCode = 200
-        res.setHeader('Content-Type', 'application/json')
-        res.end(
-          JSON.stringify({
-            status: 'COMPLETED',
-            request_id: FAL_E2E_REQUEST_ID,
-          }),
-        )
-        return true
-      }
-
-      if (isResultPath) {
-        res.statusCode = 200
-        res.setHeader('Content-Type', 'application/json')
-        // The two headers the feature hangs on: the billed quantity, and the
-        // request id the adapter correlates it against.
-        res.setHeader('x-fal-request-id', FAL_E2E_REQUEST_ID)
-        res.setHeader('x-fal-billable-units', FAL_E2E_BILLABLE_UNITS)
-        res.end(
-          JSON.stringify({
-            images: [{ url: 'https://fal.media/files/e2e-billed.png' }],
-          }),
-        )
-        return true
-      }
-
-      return false
     },
   }
 }

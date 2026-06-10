@@ -39,7 +39,7 @@ const adapterConfig = {
     }),
   gemini: () =>
     createChatOptions({
-      adapter: geminiText('gemini-2.0-flash'),
+      adapter: geminiText('gemini-2.5-flash'),
     }),
   ollama: () =>
     createChatOptions({
