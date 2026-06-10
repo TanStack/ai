@@ -315,7 +315,8 @@ export const matrix: Record<Feature, Set<Provider>> = {
   // shape from the OpenAI `/v1/videos` handler aimock 1.29 mocks. The
   // adapter's submit/poll/download lifecycle is covered by unit tests
   // (packages/ai-openrouter/tests/video-adapter.test.ts). Add it here when
-  // aimock learns the OpenRouter job endpoints.
+  // aimock learns the OpenRouter job endpoints
+  // (https://github.com/CopilotKit/aimock/issues/261).
   'video-gen': new Set(['openai', 'gemini', 'byteplus']),
   // image-to-video (image parts in the generateVideo prompt). aimock 1.29's
   // `/v1/videos` handler parses Sora's multipart upload (the SDK switches to
