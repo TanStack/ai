@@ -221,10 +221,12 @@ function computeOverrides(
     for (const role of ROLE_ORDER) {
       if (VIDEO_ONLY_ROLES.has(role) && !producesVideo) continue
       const chosen = CANDIDATES[role].find((candidate) => fields.has(candidate))
-      if (!chosen || chosen === DEFAULTS[role]) continue
+      if (!chosen) continue
 
       // Arity sanity check: the runtime mapper decides array-wrapping from
-      // the static LIST_FIELDS set, so the actual type must agree.
+      // the static LIST_FIELDS set, so the actual type must agree. Run this
+      // for default-selected fields too, otherwise a default field's type
+      // could drift silently.
       const actualIsList = isList.get(chosen) ?? false
       const assumedIsList = LIST_FIELDS.has(chosen)
       if (actualIsList !== assumedIsList) {
@@ -235,6 +237,7 @@ function computeOverrides(
             `and LIST_FIELDS in image-inputs.ts.`,
         )
       }
+      if (chosen === DEFAULTS[role]) continue
       entry[role] = chosen
     }
     if (Object.keys(entry).length > 0) overrides.set(endpointId, entry)

@@ -167,11 +167,13 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
       const audioFields = mapAudioInputsToFalFields(resolved.audios)
 
       const input = {
-        ...modelOptions,
         ...sizeParams,
         ...inputImageFields,
         ...videoFields,
         ...audioFields,
+        // modelOptions applied after derived media fields so explicit user
+        // overrides (video_url, reference_video_urls, audio_url, ...) win.
+        ...modelOptions,
         // Media-only prompts omit the prompt field rather than sending an
         // empty string (e.g. pure image-to-video endpoints).
         ...(resolved.text ? { prompt: resolved.text } : {}),

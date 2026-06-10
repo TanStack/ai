@@ -27,7 +27,12 @@ function fileToBase64(file: File): Promise<string> {
         reject(new Error('Unexpected FileReader result'))
         return
       }
-      resolve(result.split(',')[1] ?? '')
+      const base64 = result.split(',')[1]
+      if (!base64) {
+        reject(new Error(`Unexpected data URL format: ${result.slice(0, 32)}…`))
+        return
+      }
+      resolve(base64)
     }
     reader.onerror = () => reject(new Error('Failed to read file'))
     reader.readAsDataURL(file)

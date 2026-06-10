@@ -92,7 +92,8 @@ export class OpenAIVideoAdapter<
   ): Promise<VideoJobResult> {
     const { model, size, duration, modelOptions } = options
 
-    validateVideoSize(model, size)
+    const resolvedSize = size ?? modelOptions?.size
+    validateVideoSize(model, resolvedSize)
     const seconds = duration ?? modelOptions?.seconds
     validateVideoSeconds(model, seconds)
 
@@ -129,10 +130,8 @@ export class OpenAIVideoAdapter<
     }
     // `VideoCreateParams.size` is `size?: VideoSize` (no `| undefined`), so we
     // narrow before assignment instead of casting from a `T | undefined` source.
-    if (size) {
-      request.size = size
-    } else if (modelOptions?.size) {
-      request.size = modelOptions.size
+    if (resolvedSize) {
+      request.size = resolvedSize
     }
     if (seconds !== undefined) {
       // `toApiSeconds` returns `OpenAIVideoSeconds | undefined`; we already
