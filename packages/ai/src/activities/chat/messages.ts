@@ -211,6 +211,7 @@ function isToolCallIncluded(part: ToolCallPart): boolean {
     part.state === 'input-complete' ||
     part.state === 'complete' ||
     part.state === 'approval-responded' ||
+    part.state === 'error' ||
     part.output !== undefined
   )
 }
