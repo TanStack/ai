@@ -15,16 +15,16 @@ markdown report under `.agent/gap-analysis/`. **Do not edit source files.**
 
 ## Invocation
 
-| Args                             | Scope                                                  |
-| -------------------------------- | ------------------------------------------------------ |
-| `<provider>` (e.g. `openai`)     | One provider — all audit dimensions.                   |
-| `feature <feature>` (e.g. `tts`) | One feature row of the matrix across all providers.    |
-| `models`                         | New-model diff for every provider.                     |
-| `activities`                     | Activity-coverage diff: which of the 7 core activity   |
-|                                  | kinds each provider ships an adapter for, vs. what     |
-|                                  | upstream supports. (Dimension 6 only, all providers.)  |
-| `--all`                          | Full sweep (fan out subagents, one per provider).      |
-| _(none)_                         | Ask the user which scope via AskUserQuestion.          |
+| Args                             | Scope                                                 |
+| -------------------------------- | ----------------------------------------------------- |
+| `<provider>` (e.g. `openai`)     | One provider — all audit dimensions.                  |
+| `feature <feature>` (e.g. `tts`) | One feature row of the matrix across all providers.   |
+| `models`                         | New-model diff for every provider.                    |
+| `activities`                     | Activity-coverage diff: which of the 7 core activity  |
+|                                  | kinds each provider ships an adapter for, vs. what    |
+|                                  | upstream supports. (Dimension 6 only, all providers.) |
+| `--all`                          | Full sweep (fan out subagents, one per provider).     |
+| _(none)_                         | Ask the user which scope via AskUserQuestion.         |
 
 ## Workflow
 
@@ -110,15 +110,15 @@ union in `packages/ai/src/activities/index.ts` — always re-read it:
 A provider's activity surface is derived mechanically from its adapter files:
 `packages/ai-<provider>/src/adapters/`. Filename → activity-kind map:
 
-| Adapter file                          | Activity kind   |
-| ------------------------------------- | --------------- |
-| `text.ts` / `text-chat-completions.ts` / `responses-text.ts` | `text` |
-| `summarize.ts`                        | `summarize`     |
-| `image.ts`                            | `image`         |
-| `audio.ts`                            | `audio`         |
-| `video.ts`                            | `video`         |
-| `speech.ts` / `tts.ts`                | `tts`           |
-| `transcription.ts`                    | `transcription` |
+| Adapter file                                                 | Activity kind   |
+| ------------------------------------------------------------ | --------------- |
+| `text.ts` / `text-chat-completions.ts` / `responses-text.ts` | `text`          |
+| `summarize.ts`                                               | `summarize`     |
+| `image.ts`                                                   | `image`         |
+| `audio.ts`                                                   | `audio`         |
+| `video.ts`                                                   | `video`         |
+| `speech.ts` / `tts.ts`                                       | `tts`           |
+| `transcription.ts`                                           | `transcription` |
 
 (`cost.ts` is a helper, not an activity adapter.)
 

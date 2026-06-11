@@ -102,9 +102,9 @@ Replace every `{{placeholder}}`. Drop sections that have zero entries
 > each provider ships an adapter for, vs. what upstream offers. Derived from
 > `packages/ai-<provider>/src/adapters/`.
 
-| Provider | text | summarize | image | audio | video | tts | transcription |
-| -------- | :--: | :-------: | :---: | :---: | :---: | :-: | :-----------: |
-| {{provider}} | {{✅/❌/—}} | … | … | … | … | … | … |
+| Provider     |    text     | summarize | image | audio | video | tts | transcription |
+| ------------ | :---------: | :-------: | :---: | :---: | :---: | :-: | :-----------: |
+| {{provider}} | {{✅/❌/—}} |     …     |   …   |   …   |   …   |  …  |       …       |
 
 Legend: ✅ adapter shipped · ❌ upstream offers it, no adapter (gap) · — upstream doesn't offer it (by design).
 
