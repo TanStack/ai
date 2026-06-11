@@ -25,6 +25,7 @@ import {
 import { maxIterations as maxIterationsStrategy } from './agent-loop-strategies'
 import { convertMessagesToModelMessages, generateMessageId } from './messages'
 import { MiddlewareRunner } from './middleware/compose'
+import { MCPManager } from './mcp/manager'
 import type {
   ApprovalRequest,
   ClientToolRequest,
@@ -69,6 +70,7 @@ import type {
   MergeContext,
   UnionToIntersection,
 } from './runtime-context-types'
+import type { ChatMCPOptions } from './mcp/types'
 
 // ===========================
 // Activity Kind
@@ -208,12 +210,12 @@ export interface TextActivityOptions<
         | ProviderTool<string, TAdapter['~types']['toolCapabilities'][number]>
       >
     | undefined
-  /** Controls the randomness of the output. Higher values make output more random. Range: [0.0, 2.0] */
-  temperature?: TextOptions['temperature']
-  /** Nucleus sampling parameter. The model considers tokens with topP probability mass. */
-  topP?: TextOptions['topP']
-  /** The maximum number of tokens to generate in the response. */
-  maxTokens?: TextOptions['maxTokens']
+  /**
+   * Hand MCP clients/pools to chat(): their tools are discovered at run start
+   * and merged into the run; `connection` controls whether chat() closes them
+   * when the run ends. See docs/tools/mcp.md "Managing MCP clients with chat()".
+   */
+  mcp?: ChatMCPOptions
   /** Additional metadata to attach to the request. */
   metadata?: TextOptions['metadata']
   /** Model-specific provider options (type comes from adapter) */
@@ -438,6 +440,28 @@ interface TextEngineConfig<
 type ToolPhaseResult = 'continue' | 'stop' | 'wait'
 type CyclePhase = 'processText' | 'executeToolCalls'
 
+/**
+ * Combine two optional AbortSignals into one that aborts when either does.
+ * Returns the other signal directly when one is absent or already aborted.
+ * (Manual implementation — `AbortSignal.any` requires Node >= 20.3.)
+ */
+function combineAbortSignals(
+  a: AbortSignal | undefined,
+  b: AbortSignal | undefined,
+): AbortSignal | undefined {
+  if (!a) return b
+  if (!b) return a
+  if (a.aborted) return a
+  if (b.aborted) return b
+  const controller = new AbortController()
+  const onAbort = (source: AbortSignal) => () => {
+    controller.abort(source.reason)
+  }
+  a.addEventListener('abort', onAbort(a), { once: true })
+  b.addEventListener('abort', onAbort(b), { once: true })
+  return controller.signal
+}
+
 class TextEngine<
   TAdapter extends AnyTextAdapter,
   TContext = unknown,
@@ -492,6 +516,9 @@ class TextEngine<
   private readonly deferredPromises: Array<Promise<unknown>> = []
   private abortReason?: string
   private readonly middlewareAbortController?: AbortController
+  // Combines the caller's signal with middleware abort() so running tools
+  // observe both cancellation sources via ctx.abortSignal.
+  private readonly toolAbortSignal?: AbortSignal
   private terminalHookCalled = false
 
   private readonly logger: InternalLogger
@@ -589,6 +616,10 @@ class TextEngine<
     ]
     this.middlewareRunner = new MiddlewareRunner(allMiddleware, logger)
     this.middlewareAbortController = new AbortController()
+    this.toolAbortSignal = combineAbortSignals(
+      this.effectiveSignal,
+      this.middlewareAbortController.signal,
+    )
     this.middlewareCtx = {
       requestId: this.requestId,
       streamId: this.streamId,
@@ -844,13 +875,10 @@ class TextEngine<
 
   private beforeRun(): void {
     this.streamStartTime = Date.now()
-    const { tools, temperature, topP, maxTokens, metadata } = this.params
+    const { tools, metadata } = this.params
 
     // Gather flattened options into an object for context
     const options: Record<string, unknown> = {}
-    if (temperature !== undefined) options.temperature = temperature
-    if (topP !== undefined) options.topP = topP
-    if (maxTokens !== undefined) options.maxTokens = maxTokens
     if (metadata !== undefined) options.metadata = metadata
 
     this.eventOptions = Object.keys(options).length > 0 ? options : undefined
@@ -897,7 +925,7 @@ class TextEngine<
   }
 
   private async *streamModelResponse(): AsyncGenerator<StreamChunk> {
-    const { temperature, topP, maxTokens, metadata, modelOptions } = this.params
+    const { metadata, modelOptions } = this.params
     const tools = this.tools
 
     // Convert tool schemas to JSON Schema before passing to adapter
@@ -941,9 +969,6 @@ class TextEngine<
       model: this.params.model,
       messages: this.messages,
       tools: toolsWithJsonSchemas,
-      temperature,
-      topP,
-      maxTokens,
       metadata,
       request: this.effectiveRequest,
       modelOptions,
@@ -1237,6 +1262,7 @@ class TextEngine<
         },
       },
       this.middlewareCtx.context,
+      this.toolAbortSignal,
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -1398,6 +1424,7 @@ class TextEngine<
         },
       },
       this.middlewareCtx.context,
+      this.toolAbortSignal,
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -1651,8 +1678,9 @@ class TextEngine<
       const wireContent =
         typeof content === 'string' ? content : JSON.stringify(content)
 
-      // Emit TOOL_CALL_START + TOOL_CALL_ARGS before TOOL_CALL_END so that
-      // the client can reconstruct the full tool call during continuations.
+      // argsMap is set only on continuation re-executions, where the adapter
+      // never streamed these calls. Otherwise it already emitted END, so a
+      // second one here would be an orphan that fails verifyEvents (#519).
       if (argsMap) {
         chunks.push({
           type: 'TOOL_CALL_START',
@@ -1672,18 +1700,18 @@ class TextEngine<
           delta: args,
           args,
         } as StreamChunk)
-      }
 
-      chunks.push({
-        type: 'TOOL_CALL_END',
-        timestamp: Date.now(),
-        model: finishEvent.model,
-        toolCallId: result.toolCallId,
-        toolCallName: result.toolName,
-        toolName: result.toolName,
-        result: wireContent,
-        ...(result.state !== undefined && { state: result.state }),
-      } as StreamChunk)
+        chunks.push({
+          type: 'TOOL_CALL_END',
+          timestamp: Date.now(),
+          model: finishEvent.model,
+          toolCallId: result.toolCallId,
+          toolCallName: result.toolName,
+          toolName: result.toolName,
+          result: wireContent,
+          ...(result.state !== undefined && { state: result.state }),
+        } as StreamChunk)
+      }
 
       // AG-UI spec TOOL_CALL_RESULT event (content is string-only per spec)
       chunks.push({
@@ -1869,9 +1897,6 @@ class TextEngine<
       chatOptions: {
         model: this.params.model,
         messages: this.messages,
-        temperature: postOnConfig.temperature,
-        topP: postOnConfig.topP,
-        maxTokens: postOnConfig.maxTokens,
         metadata: postOnConfig.metadata,
         modelOptions: postOnConfig.modelOptions,
         systemPrompts: postOnConfig.systemPrompts,
@@ -2351,9 +2376,6 @@ class TextEngine<
       messages: this.messages,
       systemPrompts: [...this.systemPrompts],
       tools: [...this.tools],
-      temperature: this.params.temperature,
-      topP: this.params.topP,
-      maxTokens: this.params.maxTokens,
       metadata: this.params.metadata,
       modelOptions: this.params.modelOptions,
     }
@@ -2365,9 +2387,6 @@ class TextEngine<
     this.tools = config.tools
     this.params = {
       ...this.params,
-      temperature: config.temperature,
-      topP: config.topP,
-      maxTokens: config.maxTokens,
       metadata: config.metadata,
       modelOptions: config.modelOptions,
     }
@@ -2589,9 +2608,15 @@ export function chat<
 async function* runStreamingText<TContext = unknown>(
   options: TextActivityOptions<AnyTextAdapter, undefined, true, TContext>,
 ): AsyncIterable<StreamChunk> {
-  const { adapter, middleware, context, debug, ...textOptions } = options
+  const { adapter, middleware, context, debug, mcp, ...textOptions } = options
   const model = adapter.model
   const logger = resolveDebugOption(debug)
+
+  const mcpManager = MCPManager.from(mcp)
+  const mcpTools = await mcpManager.discover()
+  if (mcpTools.length > 0) {
+    textOptions.tools = [...(textOptions.tools ?? []), ...mcpTools]
+  }
 
   const engine = new TextEngine(
     {
@@ -2607,8 +2632,12 @@ async function* runStreamingText<TContext = unknown>(
     logger,
   )
 
-  for await (const chunk of engine.run()) {
-    yield chunk
+  try {
+    for await (const chunk of engine.run()) {
+      yield chunk
+    }
+  } finally {
+    await mcpManager.dispose()
   }
 }
 
@@ -2645,8 +2674,15 @@ async function runAgenticStructuredOutput<
 >(
   options: TextActivityOptions<AnyTextAdapter, TSchema, boolean, TContext>,
 ): Promise<InferSchemaType<TSchema>> {
-  const { adapter, outputSchema, middleware, context, debug, ...textOptions } =
-    options
+  const {
+    adapter,
+    outputSchema,
+    middleware,
+    context,
+    debug,
+    mcp,
+    ...textOptions
+  } = options
   const model = adapter.model
   const logger = resolveDebugOption(debug)
 
@@ -2680,6 +2716,12 @@ async function runAgenticStructuredOutput<
   const nativeCombined =
     adapter.supportsCombinedToolsAndSchema?.(options.modelOptions) === true
 
+  const mcpManager = MCPManager.from(mcp)
+  const mcpTools = await mcpManager.discover()
+  if (mcpTools.length > 0) {
+    textOptions.tools = [...(textOptions.tools ?? []), ...mcpTools]
+  }
+
   const engine = new TextEngine(
     {
       adapter,
@@ -2700,9 +2742,13 @@ async function runAgenticStructuredOutput<
     logger,
   )
 
-  // Consume the stream — chunks pipe through middleware but are not yielded externally
-  for await (const _chunk of engine.run()) {
-    // intentionally empty
+  try {
+    // Consume the stream — chunks pipe through middleware but are not yielded externally
+    for await (const _chunk of engine.run()) {
+      // intentionally empty
+    }
+  } finally {
+    await mcpManager.dispose()
   }
 
   const finalizationError = engine.getFinalizationError()
@@ -2933,8 +2979,15 @@ async function* runStreamingStructuredOutputImpl<
   options: TextActivityOptions<AnyTextAdapter, TSchema, true, TContext>,
   jsonSchema: NonNullable<ReturnType<typeof convertSchemaToJsonSchema>>,
 ): StructuredOutputStreamInternal<InferSchemaType<TSchema>> {
-  const { adapter, outputSchema, middleware, context, debug, ...textOptions } =
-    options
+  const {
+    adapter,
+    outputSchema,
+    middleware,
+    context,
+    debug,
+    mcp,
+    ...textOptions
+  } = options
   const model = adapter.model
   const logger = resolveDebugOption(debug)
 
@@ -2947,6 +3000,12 @@ async function* runStreamingStructuredOutputImpl<
   // does not fire.
   const nativeCombined =
     adapter.supportsCombinedToolsAndSchema?.(options.modelOptions) === true
+
+  const mcpManager = MCPManager.from(mcp)
+  const mcpTools = await mcpManager.discover()
+  if (mcpTools.length > 0) {
+    textOptions.tools = [...(textOptions.tools ?? []), ...mcpTools]
+  }
 
   // Inputs may be UIMessages (from useChat) or ModelMessages (from server-side
   // callers). TextEngine handles the conversion uniformly.
@@ -2969,8 +3028,12 @@ async function* runStreamingStructuredOutputImpl<
     logger,
   )
 
-  for await (const chunk of engine.run()) {
-    yield chunk
+  try {
+    for await (const chunk of engine.run()) {
+      yield chunk
+    }
+  } finally {
+    await mcpManager.dispose()
   }
 
   // Schema validation for the streaming variant remains the consumer's

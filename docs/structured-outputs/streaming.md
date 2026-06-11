@@ -38,7 +38,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: openaiText("gpt-5.2"),
+    adapter: openaiText("gpt-5.5"),
     messages,
     outputSchema: PersonSchema,
     stream: true,
@@ -184,7 +184,7 @@ const PersonSchema = z.object({
 });
 
 const stream = chat({
-  adapter: openaiText("gpt-5.2"),
+  adapter: openaiText("gpt-5.5"),
   messages: [{ role: "user", content: "Extract: John Doe is 30, john@example.com" }],
   outputSchema: PersonSchema,
   stream: true,

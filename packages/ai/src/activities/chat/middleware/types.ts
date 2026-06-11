@@ -2,9 +2,9 @@ import type {
   JSONSchema,
   ModelMessage,
   StreamChunk,
+  TokenUsage,
   Tool,
   ToolCall,
-  UsageTotals,
 } from '../../../types'
 import type { SystemPrompt } from '../../../system-prompts'
 
@@ -90,7 +90,7 @@ export interface ChatMiddlewareContext<TContext = unknown> {
   systemPrompts: Array<SystemPrompt>
   /** Names of configured tools, if any */
   toolNames?: Array<string>
-  /** Flattened generation options (temperature, topP, maxTokens, metadata) */
+  /** Flattened generation options (metadata) */
   options?: Record<string, unknown> | undefined
   /** Provider-specific model options */
   modelOptions?: Record<string, unknown> | undefined
@@ -130,9 +130,6 @@ export interface ChatMiddlewareConfig {
   messages: Array<ModelMessage>
   systemPrompts: Array<SystemPrompt>
   tools: Array<Tool>
-  temperature?: number
-  topP?: number
-  maxTokens?: number
   metadata?: Record<string, unknown> | undefined
   modelOptions?: Record<string, unknown> | undefined
 }
@@ -266,11 +263,11 @@ export interface ToolPhaseCompleteInfo {
  * Token usage statistics passed to the onUsage hook.
  * Extracted from the RUN_FINISHED chunk when usage data is present.
  *
- * Includes optional provider-reported `cost`/`costDetails` (see {@link UsageTotals}).
- * Kept as an interface extending `UsageTotals` to preserve declaration merging for
+ * Includes optional provider-reported `cost`/`costDetails` (see {@link TokenUsage}).
+ * Kept as an interface extending `TokenUsage` to preserve declaration merging for
  * this publicly exported type.
  */
-export interface UsageInfo extends UsageTotals {}
+export interface UsageInfo extends TokenUsage {}
 
 // ===========================
 // Terminal Hook Info
@@ -287,7 +284,7 @@ export interface FinishInfo {
   /** Final accumulated text content */
   content: string
   /** Final usage totals, if available (optionally including provider-reported cost) */
-  usage?: UsageTotals | undefined
+  usage?: TokenUsage | undefined
 }
 
 /**

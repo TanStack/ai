@@ -93,7 +93,7 @@ Events are keyed by `toolCallId` so each `execute_typescript` call gets its own 
 
 When rendering messages, check for `execute_typescript` tool calls and display their events:
 
-```typescript
+```tsx
 function MessageList({
   messages,
   toolCallEvents,
@@ -142,7 +142,7 @@ function MessageList({
 
 Here's a complete `CodeExecutionPanel` component that shows the generated code, live event stream, and final result:
 
-```typescript
+```tsx
 function CodeExecutionPanel({
   code,
   events,
@@ -211,8 +211,13 @@ function CodeExecutionPanel({
   );
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
 function EventLine({ event }: { event: VMEvent }) {
-  const data = event.data as Record<string, unknown>;
+  if (!isRecord(event.data)) return null;
+  const data = event.data;
 
   switch (event.eventType) {
     case "code_mode:console":

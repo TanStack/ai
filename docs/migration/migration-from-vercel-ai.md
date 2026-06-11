@@ -271,7 +271,7 @@ const stream = chat({
 
 #### Before (Vercel AI SDK v5+)
 
-```typescript
+```tsx
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import { useState } from 'react'
@@ -309,7 +309,7 @@ export function Chat() {
 
 #### After (TanStack AI)
 
-```typescript
+```tsx
 import { useState } from 'react'
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
 
@@ -442,7 +442,7 @@ type ToolResultState = 'streaming' | 'complete' | 'error'
 
 #### Before (Vercel AI SDK)
 
-```typescript
+```tsx
 {messages.map((m) => (
   <div key={m.id}>
     {m.role}: {m.content}
@@ -457,7 +457,7 @@ type ToolResultState = 'streaming' | 'complete' | 'error'
 
 #### After (TanStack AI)
 
-```typescript
+```tsx
 {messages.map((message) => (
   <div key={message.id}>
     {message.role}:{' '}
@@ -634,7 +634,7 @@ const { messages, addToolApprovalResponse } = useChat({
 
 #### After (TanStack AI)
 
-```typescript
+```tsx
 // Built-in approval support
 const bookFlightDef = toolDefinition({
   name: 'bookFlight',
@@ -1316,7 +1316,7 @@ Vercel's `maxRetries` / `timeout` options have no direct `chat()` equivalent. Us
 
 ### Before (Vercel AI SDK v5+)
 
-```typescript
+```tsx
 // server/api/chat.ts
 import { streamText, tool, convertToModelMessages } from 'ai'
 import { openai } from '@ai-sdk/openai'
@@ -1383,7 +1383,7 @@ export function Chat() {
 
 ### After (TanStack AI)
 
-```typescript
+```tsx
 // server/api/chat.ts
 import { chat, toServerSentEventsResponse, toolDefinition } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'

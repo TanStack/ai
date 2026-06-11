@@ -1,7 +1,12 @@
-import type { ModelMessage } from '@tanstack/ai'
-import { act, waitFor } from '@testing-library/preact'
+import type { ModelMessage, StreamChunk } from '@tanstack/ai'
+import { EventType } from '@tanstack/ai'
+import type { SubscribeConnectionAdapter } from '@tanstack/ai-client'
+import { act, renderHook, waitFor } from '@testing-library/preact'
+import { StrictMode } from 'preact/compat'
+import { useState } from 'preact/hooks'
 import { describe, expect, it, vi } from 'vitest'
 import type { UIMessage } from '../src/types'
+import { useChat } from '../src/use-chat'
 import {
   createMockConnectionAdapter,
   createTextChunks,
@@ -10,6 +15,14 @@ import {
 } from './test-utils'
 
 describe('useChat', () => {
+  function createDeferred<T>() {
+    let resolve!: (value: T) => void
+    const promise = new Promise<T>((promiseResolve) => {
+      resolve = promiseResolve
+    })
+    return { promise, resolve }
+  }
+
   describe('initialization', () => {
     it('should initialize with default state', () => {
       const adapter = createMockConnectionAdapter()
@@ -53,6 +66,118 @@ describe('useChat', () => {
       })
 
       expect(result.current.messages).toEqual(initialMessages)
+    })
+
+    it('should initialize with persisted messages', async () => {
+      const adapter = createMockConnectionAdapter()
+      const persistedMessages: Array<UIMessage> = [
+        {
+          id: 'persisted-1',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Persisted' }],
+          createdAt: new Date(),
+        },
+      ]
+      const persistence = {
+        getItem: vi.fn(() => persistedMessages),
+        setItem: vi.fn(),
+        removeItem: vi.fn(),
+      }
+
+      const { result } = renderUseChat({
+        connection: adapter,
+        id: 'persisted-chat',
+        persistence,
+      })
+
+      await waitFor(() => {
+        expect(result.current.messages).toEqual(persistedMessages)
+      })
+      expect(persistence.getItem).toHaveBeenCalledWith('persisted-chat')
+    })
+
+    it('should preserve persisted empty messages over provided initial messages', async () => {
+      const adapter = createMockConnectionAdapter()
+      const initialMessages: Array<UIMessage> = [
+        {
+          id: 'initial-1',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Initial' }],
+          createdAt: new Date(),
+        },
+      ]
+      const persistence = {
+        getItem: vi.fn(() => []),
+        setItem: vi.fn(),
+        removeItem: vi.fn(),
+      }
+
+      const { result } = renderUseChat({
+        connection: adapter,
+        id: 'persisted-empty-chat',
+        initialMessages,
+        persistence,
+      })
+
+      await waitFor(() => {
+        expect(persistence.getItem).toHaveBeenCalledWith('persisted-empty-chat')
+      })
+      expect(result.current.messages).toEqual([])
+    })
+
+    it('should ignore async persisted messages from a previous id', async () => {
+      const oldHydration = createDeferred<Array<UIMessage>>()
+      const oldMessages: Array<UIMessage> = [
+        {
+          id: 'old-persisted',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Old persisted' }],
+          createdAt: new Date(),
+        },
+      ]
+      const newMessages: Array<UIMessage> = [
+        {
+          id: 'new-persisted',
+          role: 'user',
+          parts: [{ type: 'text', content: 'New persisted' }],
+          createdAt: new Date(),
+        },
+      ]
+      const persistence = {
+        getItem: vi.fn((id: string) =>
+          id === 'old-chat' ? oldHydration.promise : newMessages,
+        ),
+        setItem: vi.fn(),
+        removeItem: vi.fn(),
+      }
+
+      function useChangingChat() {
+        const [id, setId] = useState('old-chat')
+        const chat = useChat({
+          connection: createMockConnectionAdapter(),
+          id,
+          persistence,
+        })
+
+        return { ...chat, setId }
+      }
+
+      const { result } = renderHook(() => useChangingChat())
+
+      act(() => {
+        result.current.setId('new-chat')
+      })
+
+      await waitFor(() => {
+        expect(result.current.messages).toEqual(newMessages)
+      })
+
+      await act(async () => {
+        oldHydration.resolve(oldMessages)
+        await oldHydration.promise
+      })
+
+      expect(result.current.messages).toEqual(newMessages)
     })
 
     it('should use provided id', async () => {
@@ -876,6 +1001,78 @@ describe('useChat', () => {
   })
 
   describe('edge cases and error handling', () => {
+    describe('callbacks', () => {
+      it('should ignore user callbacks from an old client after id changes', async () => {
+        const releaseOldStream = createDeferred<void>()
+        const oldOnChunk = vi.fn()
+        const newOnChunk = vi.fn()
+        const adapter = {
+          async *connect(): AsyncIterable<StreamChunk> {
+            await releaseOldStream.promise
+            yield* createTextChunks('stale old client')
+          },
+        }
+
+        const { result, rerender } = renderHook(
+          (opts: { id: string; onChunk: (chunk: StreamChunk) => void }) =>
+            useChat({
+              connection: adapter,
+              id: opts.id,
+              onChunk: opts.onChunk,
+            }),
+          {
+            initialProps: {
+              id: 'old-client',
+              onChunk: oldOnChunk,
+            },
+          },
+        )
+
+        let sendPromise: Promise<void>
+        act(() => {
+          sendPromise = result.current.sendMessage('Test')
+        })
+        await waitFor(() => {
+          expect(result.current.isLoading).toBe(true)
+        })
+
+        rerender({
+          id: 'new-client',
+          onChunk: newOnChunk,
+        })
+
+        releaseOldStream.resolve()
+        await sendPromise!
+
+        expect(oldOnChunk).not.toHaveBeenCalled()
+        expect(newOnChunk).not.toHaveBeenCalled()
+      })
+
+      it('should keep callbacks live across StrictMode effect replay for the same client', async () => {
+        const onChunk = vi.fn()
+        const adapter = createMockConnectionAdapter({
+          chunks: createTextChunks('strict response'),
+        })
+
+        const { result } = renderHook(
+          () =>
+            useChat({
+              connection: adapter,
+              onChunk,
+            }),
+          { wrapper: StrictMode },
+        )
+
+        await act(async () => {
+          await result.current.sendMessage('Test')
+        })
+
+        expect(onChunk).toHaveBeenCalledWith(
+          expect.objectContaining({ type: EventType.TEXT_MESSAGE_CONTENT }),
+        )
+      })
+    })
+
     describe('options changes', () => {
       it('should maintain client instance when options change', () => {
         const adapter1 = createMockConnectionAdapter()
@@ -923,6 +1120,93 @@ describe('useChat', () => {
 
         // Should not throw
         expect(result.current).toBeDefined()
+      })
+    })
+
+    describe('client recreation', () => {
+      it('should not pass previous id messages to a new client id without persisted messages', async () => {
+        const connectSpy = vi.fn()
+        const adapter = createMockConnectionAdapter({
+          chunks: createTextChunks('Reply'),
+          onConnect: connectSpy,
+        })
+
+        const { result } = renderHook(() => {
+          const [id, setId] = useState('client-A')
+          const chat = useChat({ connection: adapter, id })
+          return { ...chat, switchId: setId }
+        })
+
+        const messages: Array<UIMessage> = [
+          {
+            id: 'msg-1',
+            role: 'user',
+            parts: [{ type: 'text', content: 'Hello' }],
+            createdAt: new Date(),
+          },
+          {
+            id: 'msg-2',
+            role: 'assistant',
+            parts: [{ type: 'text', content: 'Hi there!' }],
+            createdAt: new Date(),
+          },
+        ]
+
+        act(() => {
+          result.current.setMessages(messages)
+          result.current.switchId('client-B')
+        })
+
+        await act(async () => {
+          await result.current.sendMessage('Follow-up')
+        })
+
+        await waitFor(() => {
+          expect(connectSpy).toHaveBeenCalled()
+        })
+
+        const sentMessages = connectSpy.mock.calls[0]![0] as Array<
+          ModelMessage | UIMessage
+        >
+        const sentText = sentMessages
+          .flatMap((message) => ('parts' in message ? message.parts : []))
+          .filter((part) => part.type === 'text')
+          .map((part) => part.content)
+          .join('')
+
+        expect(sentText).toContain('Follow-up')
+        expect(sentText).not.toContain('Hello')
+        expect(result.current.messages).not.toEqual(messages)
+      })
+
+      it('should return new client messages during the id change render', () => {
+        const adapter = createMockConnectionAdapter()
+        const oldMessages: Array<UIMessage> = [
+          {
+            id: 'old-message',
+            role: 'user',
+            parts: [{ type: 'text', content: 'Old client message' }],
+            createdAt: new Date(),
+          },
+        ]
+
+        const { result } = renderHook(() => {
+          const [id, setId] = useState('client-A')
+          const chat = useChat({ connection: adapter, id })
+          return { ...chat, switchId: setId }
+        })
+
+        act(() => {
+          result.current.setMessages(oldMessages)
+        })
+
+        expect(result.current.messages).toEqual(oldMessages)
+
+        act(() => {
+          result.current.switchId('client-B')
+        })
+
+        expect(result.current.messages).toEqual([])
       })
     })
 
@@ -1372,6 +1656,93 @@ describe('useChat', () => {
             }
           })
         }
+      })
+    })
+
+    describe('sessionGenerating', () => {
+      it('should keep receiving live updates and callbacks after live toggles for the same client', async () => {
+        const onChunk = vi.fn()
+        const chunks: Array<StreamChunk> = []
+        // Wrapped in an object so the assignment inside the generator closure
+        // is visible to TS control-flow analysis. A bare `let` would narrow to
+        // `null` at the call site, and `?.()` would then strip it to `never`.
+        const subscriberControl: { wake: (() => void) | null } = { wake: null }
+        const adapter: SubscribeConnectionAdapter = {
+          subscribe: async function* (_signal?: AbortSignal) {
+            while (true) {
+              if (chunks.length === 0) {
+                await new Promise<void>((resolve) => {
+                  subscriberControl.wake = resolve
+                })
+              }
+              const chunk = chunks.shift()
+              if (chunk) yield chunk
+            }
+          },
+          send: vi.fn(async () => {}),
+        }
+
+        const { result, rerender } = renderHook(
+          ({ live }) =>
+            useChat({
+              connection: adapter,
+              live,
+              onChunk,
+            }),
+          { initialProps: { live: true } },
+        )
+
+        await waitFor(() => {
+          expect(result.current.isSubscribed).toBe(true)
+        })
+
+        rerender({ live: false })
+        await waitFor(() => {
+          expect(result.current.isSubscribed).toBe(false)
+        })
+
+        rerender({ live: true })
+        await waitFor(() => {
+          expect(result.current.isSubscribed).toBe(true)
+        })
+
+        chunks.push(
+          {
+            type: EventType.RUN_STARTED,
+            runId: 'run-after-toggle',
+            threadId: 'thread-1',
+            timestamp: Date.now(),
+          },
+          {
+            type: EventType.TEXT_MESSAGE_CONTENT,
+            messageId: 'msg-after-toggle',
+            timestamp: Date.now(),
+            delta: 'after toggle',
+            content: 'after toggle',
+          },
+          {
+            type: EventType.RUN_FINISHED,
+            runId: 'run-after-toggle',
+            threadId: 'thread-1',
+            timestamp: Date.now(),
+          },
+        )
+        subscriberControl.wake?.()
+        subscriberControl.wake = null
+
+        await waitFor(() => {
+          expect(
+            result.current.messages.some((message) =>
+              message.parts.some(
+                (part) =>
+                  part.type === 'text' && part.content === 'after toggle',
+              ),
+            ),
+          ).toBe(true)
+        })
+        expect(onChunk).toHaveBeenCalledWith(
+          expect.objectContaining({ type: EventType.TEXT_MESSAGE_CONTENT }),
+        )
       })
     })
   })

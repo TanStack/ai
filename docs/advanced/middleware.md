@@ -127,14 +127,26 @@ const dynamicTemperature: ChatMiddleware = {
     }
 
     if (ctx.phase === "beforeModel" && ctx.iteration > 0) {
-      // Increase temperature on retries — other fields stay unchanged
+      // Increase temperature on retries. Sampling params live in the
+      // provider-native modelOptions object — `temperature` is universal,
+      // so it's the same key across providers. Spread the existing
+      // modelOptions so other model options stay unchanged.
+      const current =
+        typeof config.modelOptions?.temperature === "number"
+          ? config.modelOptions.temperature
+          : 0.7;
       return {
-        temperature: Math.min((config.temperature ?? 0.7) + 0.1, 1.0),
+        modelOptions: {
+          ...config.modelOptions,
+          temperature: Math.min(current + 0.1, 1.0),
+        },
       };
     }
   },
 };
 ```
+
+> Sampling parameters (`temperature`, `top_p` / `topP`, the various `max*Tokens` keys) live inside `modelOptions` under each provider's native name — they are no longer root config fields. `temperature` happens to be spelled the same across every provider, so the example above is provider-agnostic; if you mutate a token limit instead, use the provider-native key (e.g. `max_output_tokens` for OpenAI, `num_predict` nested under `modelOptions.options` for Ollama). See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
 
 **Config fields you can transform:**
 
@@ -143,11 +155,8 @@ const dynamicTemperature: ChatMiddleware = {
 | `messages` | `ModelMessage[]` | Conversation history |
 | `systemPrompts` | `string[]` | System prompts |
 | `tools` | `Tool[]` | Available tools |
-| `temperature` | `number` | Sampling temperature |
-| `topP` | `number` | Nucleus sampling |
-| `maxTokens` | `number` | Token limit |
 | `metadata` | `Record<string, unknown>` | Request metadata |
-| `modelOptions` | `Record<string, unknown>` | Provider-specific options |
+| `modelOptions` | `Record<string, unknown>` | Provider-native options — this is where sampling params (`temperature`, `top_p` / `topP`, the provider's `max*Tokens` key) now live, alongside every other model-specific knob. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options). |
 
 When multiple middleware define `onConfig`, the config is **piped** through them in order — each receives the merged config from the previous middleware.
 
@@ -180,11 +189,8 @@ const injectDefs: ChatMiddleware = {
 |-------|------|-------------|
 | `messages` | `ModelMessage[]` | Conversation history sent to the final call |
 | `systemPrompts` | `SystemPrompt[]` | System prompts on the final call |
-| `temperature` | `number` | Sampling temperature |
-| `topP` | `number` | Nucleus sampling |
-| `maxTokens` | `number` | Token limit |
 | `metadata` | `Record<string, unknown>` | Request metadata |
-| `modelOptions` | `Record<string, unknown>` | Provider-specific options |
+| `modelOptions` | `Record<string, unknown>` | Provider-native options — this is where sampling params (`temperature`, `top_p` / `topP`, the provider's `max*Tokens` key) now live, alongside every other model-specific knob. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options). |
 | `outputSchema` | `JSONSchema` | JSON Schema being sent to the provider for structured output |
 
 **Ordering at the structured-output boundary:**
@@ -237,6 +243,63 @@ const redactor: ChatMiddleware = {
 | `null` | Drops the chunk entirely |
 
 When multiple middleware define `onChunk`, chunks flow through them in order. If one middleware drops a chunk (returns `null`), subsequent middleware never see it.
+
+#### Chunk types you'll see
+
+`onChunk` receives every [AG-UI event](https://docs.ag-ui.com/introduction) the run produces — not just text. Narrow on `chunk.type` (a discriminated union) before reading type-specific fields. The common ones:
+
+| `chunk.type` | Meaning | Key fields |
+|--------------|---------|-----------|
+| `RUN_STARTED` / `RUN_FINISHED` / `RUN_ERROR` | Run lifecycle boundaries | `runId`, `finishReason`, `usage` (on finish), `message` (on error) |
+| `TEXT_MESSAGE_START` / `TEXT_MESSAGE_CONTENT` / `TEXT_MESSAGE_END` | Assistant text streaming | `messageId`, `delta` (content) |
+| `TOOL_CALL_START` / `TOOL_CALL_ARGS` / `TOOL_CALL_END` | Tool invocation streaming | `toolCallId`, `toolCallName`, `delta` (args), result on end |
+| `STEP_STARTED` / `STEP_FINISHED` | Thinking / reasoning steps | `delta`, `signature` |
+| `STATE_SNAPSHOT` / `STATE_DELTA` | Agent state sync | `snapshot`, `delta` |
+| `CUSTOM` | Extensibility events (incl. structured-output — see below) | `name`, `value` |
+
+See the [AG-UI protocol docs](https://docs.ag-ui.com/introduction) for the full event catalogue and exact field shapes.
+
+#### Transforming structured-output chunks
+
+There is **no separate `onStructuredOutputChunk` hook** — and you don't need one. When `chat()` is invoked with `outputSchema`, the structured-output chunks (the JSON `TEXT_MESSAGE_CONTENT` deltas, plus the `structured-output.start` / `structured-output.complete` CUSTOM events and any finalization `RUN_ERROR`) flow through the **same `onChunk` hook** as everything else. You transform, expand, or drop them exactly like any other chunk.
+
+How you distinguish them depends on which finalization path the adapter takes:
+
+- **Separate-finalization adapters** (the legacy path — adapters that don't declare `supportsCombinedToolsAndSchema()`): `ctx.phase === 'structuredOutput'` during the finalization call. Discriminate on the phase.
+- **Native-combined adapters** (modern OpenAI Chat Completions / Responses, Claude 4.5+, Gemini 3.x, Grok 4.x — see issue #605): the schema-constrained JSON is produced on the model's natural final turn, so **`ctx.phase` stays `'modelStream'`** — the `'structuredOutput'` phase never fires. Discriminate on the CUSTOM event name (`structured-output.start` / `structured-output.complete`) instead.
+
+```typescript
+const redactStructuredOutput: ChatMiddleware = {
+  name: "redact-structured-output",
+  onChunk: (ctx, chunk) => {
+    // Separate-finalization path: the JSON streams as TEXT_MESSAGE_CONTENT
+    // during the 'structuredOutput' phase. Transform the delta like any
+    // other text chunk — here, redact anything that looks like an SSN before
+    // it reaches the client.
+    if (
+      ctx.phase === "structuredOutput" &&
+      chunk.type === "TEXT_MESSAGE_CONTENT"
+    ) {
+      return {
+        ...chunk,
+        delta: chunk.delta.replace(/\b\d{3}-\d{2}-\d{4}\b/g, "[REDACTED]"),
+      };
+    }
+
+    // Both paths: the validated object arrives as a CUSTOM
+    // `structured-output.complete` event. On the native-combined path this is
+    // your only signal (ctx.phase never flips to 'structuredOutput'), so key
+    // off the event name, not the phase. `chunk.value` carries { object, raw }.
+    if (chunk.type === "CUSTOM" && chunk.name === "structured-output.complete") {
+      console.log("final structured output:", chunk.value);
+    }
+
+    // Return void to pass everything else through unchanged.
+  },
+};
+```
+
+> Why is there `onStructuredOutputConfig` but no `onStructuredOutputChunk`? Because the **config** shape genuinely differs at the structured-output boundary — it carries an `outputSchema` field that plain `ChatMiddlewareConfig` doesn't (see [onStructuredOutputConfig](#onstructuredoutputconfig)). **Chunks** are all just `StreamChunk` regardless of phase, so one `onChunk` plus `ctx.phase` (or the CUSTOM event name) covers every case — a parallel chunk hook would be redundant.
 
 ### onBeforeToolCall
 
@@ -506,127 +569,15 @@ const stream = chat({
 
 ## Built-in Middleware
 
-### toolCacheMiddleware
+TanStack AI ships ready-made middleware for common cases — caching tool results, redacting streamed text, and OpenTelemetry tracing:
 
-Caches tool call results based on tool name and arguments. When a tool is called with the same name and arguments as a previous call, the cached result is returned immediately without re-executing the tool.
+| Middleware | Import | What it does |
+|------------|--------|--------------|
+| `toolCacheMiddleware` | `@tanstack/ai/middlewares` | Cache tool-call results by name + arguments |
+| `contentGuardMiddleware` | `@tanstack/ai/middlewares` | Redact / transform / block streamed text content |
+| `otelMiddleware` | `@tanstack/ai/middlewares/otel` | Emit OpenTelemetry spans + GenAI metrics |
 
-```typescript
-import { chat } from "@tanstack/ai";
-import { toolCacheMiddleware } from "@tanstack/ai/middlewares";
-
-const stream = chat({
-  adapter: openaiText("gpt-4o"),
-  messages,
-  tools: [weatherTool, stockTool],
-  middleware: [
-    toolCacheMiddleware({
-      ttl: 60_000, // Cache entries expire after 60 seconds
-      maxSize: 50, // Keep at most 50 entries (LRU eviction)
-      toolNames: ["getWeather"], // Only cache specific tools
-    }),
-  ],
-});
-```
-
-**Options:**
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `maxSize` | `number` | `100` | Maximum cache entries. Oldest evicted first (LRU). Only applies to the default in-memory storage. |
-| `ttl` | `number` | `Infinity` | Time-to-live in milliseconds. Expired entries are not served. |
-| `toolNames` | `string[]` | All tools | Only cache these tools. Others pass through. |
-| `keyFn` | `(toolName, args) => string` | `JSON.stringify([toolName, args])` | Custom cache key derivation. |
-| `storage` | `ToolCacheStorage` | In-memory Map | Custom storage backend. When provided, `maxSize` is ignored — the storage manages its own capacity. |
-
-**Behaviors:**
-
-- Only successful tool calls are cached — errors are never stored
-- Cache hits trigger `{ type: 'skip', result }` via `onBeforeToolCall`
-- LRU eviction: when `maxSize` is reached, the oldest entry is removed (default storage only)
-- Cache hits refresh the entry's LRU position (moved to most-recently-used)
-
-**Custom key function** — useful when you want to ignore certain arguments:
-
-```typescript
-toolCacheMiddleware({
-  keyFn: (toolName, args) => {
-    // Ignore pagination, cache by query only
-    const { page, ...rest } = args as Record<string, unknown>;
-    return JSON.stringify([toolName, rest]);
-  },
-});
-```
-
-#### Custom Storage
-
-By default the cache lives in-memory and is scoped to a single `toolCacheMiddleware()` instance. Pass a `storage` option to use an external backend like Redis, localStorage, or a database. This also enables **sharing a cache across multiple `chat()` calls**.
-
-The storage interface:
-
-```typescript
-import type { ToolCacheStorage, ToolCacheEntry } from "@tanstack/ai/middlewares";
-
-interface ToolCacheStorage {
-  getItem: (key: string) => ToolCacheEntry | undefined | Promise<ToolCacheEntry | undefined>;
-  setItem: (key: string, value: ToolCacheEntry) => void | Promise<void>;
-  deleteItem: (key: string) => void | Promise<void>;
-}
-
-// ToolCacheEntry is { result: unknown, timestamp: number }
-```
-
-All methods may return a `Promise` for async backends. The middleware handles TTL checking — your storage just needs to store and retrieve entries.
-
-**Redis example:**
-
-```typescript
-import { createClient } from "redis";
-import { toolCacheMiddleware, type ToolCacheStorage } from "@tanstack/ai/middlewares";
-
-const redis = createClient();
-
-const redisStorage: ToolCacheStorage = {
-  getItem: async (key) => {
-    const raw = await redis.get(`tool-cache:${key}`);
-    return raw ? JSON.parse(raw) : undefined;
-  },
-  setItem: async (key, value) => {
-    await redis.set(`tool-cache:${key}`, JSON.stringify(value));
-  },
-  deleteItem: async (key) => {
-    await redis.del(`tool-cache:${key}`);
-  },
-};
-
-const stream = chat({
-  adapter,
-  messages,
-  tools: [weatherTool],
-  middleware: [toolCacheMiddleware({ storage: redisStorage, ttl: 60_000 })],
-});
-```
-
-**Sharing a cache across requests:**
-
-```typescript
-// Create storage once, reuse across chat() calls
-const sharedStorage: ToolCacheStorage = {
-  getItem: (key) => globalCache.get(key),
-  setItem: (key, value) => { globalCache.set(key, value); },
-  deleteItem: (key) => { globalCache.delete(key); },
-};
-
-// Both requests share the same cache
-app.post("/api/chat", async (req) => {
-  const stream = chat({
-    adapter,
-    messages: req.body.messages,
-    tools: [weatherTool],
-    middleware: [toolCacheMiddleware({ storage: sharedStorage })],
-  });
-  return toServerSentEventsResponse(stream);
-});
-```
+See [Built-in Middleware](./built-in-middleware) for full options and examples for each. The recipes below show how to build your own.
 
 ## Recipes
 
@@ -752,7 +703,7 @@ const errorRecovery: ChatMiddleware = {
 
 ## TypeScript Types
 
-All middleware types are exported from `@tanstack/ai`:
+The core middleware types are exported from `@tanstack/ai`:
 
 ```typescript
 import type {
@@ -764,19 +715,31 @@ import type {
   ToolCallHookContext,
   BeforeToolCallDecision,
   AfterToolCallInfo,
+  IterationInfo,
+  ToolPhaseCompleteInfo,
   UsageInfo,
   FinishInfo,
   AbortInfo,
   ErrorInfo,
+} from "@tanstack/ai";
+```
+
+The option/type surfaces for the [built-in middleware](./built-in-middleware) are exported from the `@tanstack/ai/middlewares` subpath (not the main barrel):
+
+```typescript
+import type {
   ToolCacheMiddlewareOptions,
   ToolCacheStorage,
   ToolCacheEntry,
-} from "@tanstack/ai";
+  ContentGuardMiddlewareOptions,
+  ContentGuardRule,
+  ContentFilteredInfo,
+} from "@tanstack/ai/middlewares";
 ```
 
 ## Next Steps
 
-- [Tools](../tools/tools) — Learn about the isomorphic tool system
+- [Built-in Middleware](./built-in-middleware) — `toolCacheMiddleware`, `contentGuardMiddleware`, `otelMiddleware`
+- [OpenTelemetry](./otel) — emit traces and metrics via `otelMiddleware`- [Tools](../tools/tools) — Learn about the isomorphic tool system
 - [Agentic Cycle](../chat/agentic-cycle) — Understand the multi-step agent loop
-- [Observability](./observability) — Event-driven observability with the event client
 - [Streaming](../chat/streaming) — How streaming works in TanStack AI

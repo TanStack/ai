@@ -3,12 +3,18 @@ id: ChatMiddlewareContext
 title: ChatMiddlewareContext
 ---
 
-# Interface: ChatMiddlewareContext
+# Interface: ChatMiddlewareContext\<TContext\>
 
 Defined in: [packages/ai/src/activities/chat/middleware/types.ts:37](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L37)
 
 Stable context object passed to all middleware hooks.
 Created once per chat() invocation and shared across all hooks.
+
+## Type Parameters
+
+### TContext
+
+`TContext` = `unknown`
 
 ## Properties
 
@@ -61,12 +67,12 @@ Running count of chunks yielded so far
 ### context
 
 ```ts
-context: unknown;
+context: TContext;
 ```
 
 Defined in: [packages/ai/src/activities/chat/middleware/types.ts:68](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L68)
 
-Opaque user-provided value from chat() options
+Runtime context provided by chat() options
 
 ***
 
@@ -227,7 +233,7 @@ optional options: Record<string, unknown>;
 
 Defined in: [packages/ai/src/activities/chat/middleware/types.ts:94](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L94)
 
-Flattened generation options (temperature, topP, maxTokens, metadata)
+Flattened generation options (metadata)
 
 ***
 
@@ -294,7 +300,7 @@ Abort signal from the chat request
 ### source
 
 ```ts
-source: "client" | "server";
+source: "server" | "client";
 ```
 
 Defined in: [packages/ai/src/activities/chat/middleware/types.ts:83](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L83)

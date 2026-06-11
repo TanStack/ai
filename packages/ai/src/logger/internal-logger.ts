@@ -104,4 +104,22 @@ export class InternalLogger {
   request(message: string, meta?: Record<string, unknown>): void {
     this.emit('debug', 'request', message, meta)
   }
+
+  /**
+   * Log a non-fatal misconfiguration or recoverable anomaly. Gated by the
+   * `errors` category — on by default (and when `debug` is unspecified), so
+   * silent-drop conditions surface, but still silenced by `debug: false`,
+   * which honors the "disable everything including errors" contract. Routes to
+   * the underlying logger's `warn` level.
+   */
+  warn(message: string, meta?: Record<string, unknown>): void {
+    if (!this.categories.errors) return
+    const prefixed = `⚠️ [tanstack-ai:warn] ⚠️ ${message}`
+    try {
+      this.logger.warn(prefixed, meta)
+    } catch {
+      // User-supplied logger threw; swallow so a broken logger never masks the
+      // condition we were trying to surface.
+    }
+  }
 }

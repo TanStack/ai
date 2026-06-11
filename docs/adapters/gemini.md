@@ -134,11 +134,14 @@ for await (const chunk of chat({
   adapter: geminiTextInteractions("gemini-3.5-flash"),
   messages: [{ role: "user", content: "Hi, my name is Amir." }],
 })) {
-  if (chunk.type === "CUSTOM" && chunk.name === "gemini.interactionId") {
-    const value = chunk.value as GeminiInteractionsCustomEventValue<
-      "gemini.interactionId"
-    >;
-    interactionId = value.interactionId;
+  if (
+    chunk.type === "CUSTOM" &&
+    chunk.name === "gemini.interactionId" &&
+    chunk.value &&
+    typeof chunk.value === "object" &&
+    "interactionId" in chunk.value
+  ) {
+    interactionId = String(chunk.value.interactionId);
   }
 }
 
@@ -304,7 +307,7 @@ for await (const chunk of stream) {
 
 ## Model Options
 
-Gemini supports various model-specific options:
+Gemini supports various model-specific options. Sampling parameters live here too — `temperature`, `topP`, and `maxOutputTokens` — rather than as root-level props on `chat()`:
 
 ```typescript
 const stream = chat({
@@ -319,6 +322,8 @@ const stream = chat({
   },
 });
 ```
+
+> If you previously passed `temperature` / `topP` / `maxTokens` at the root of `chat()`, see [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
 
 ### Thinking
 
@@ -501,7 +506,6 @@ These models use the `generateContent` API and support resolution tiers (1K, 2K,
 | `gemini-3.1-flash-image-preview` | Latest and fastest Gemini native image generation |
 | `gemini-3-pro-image-preview` | Higher quality Gemini native image generation |
 | `gemini-2.5-flash-image` | Gemini 2.5 Flash with image generation |
-| `gemini-2.0-flash-preview-image-generation` | Gemini 2.0 Flash image generation |
 
 ### Imagen Models
 

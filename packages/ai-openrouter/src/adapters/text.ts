@@ -10,6 +10,7 @@ import { extractRequestOptions } from '../internal/request-options'
 import { makeStructuredOutputCompatible } from '../internal/schema-converter'
 import { convertToolsToProviderFormat } from '../tools'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
+import { buildOpenRouterUsage } from '../usage'
 import { extractUsageCost } from './cost'
 import type { SDKOptions } from '@openrouter/sdk'
 import type {
@@ -545,6 +546,8 @@ export class OpenRouterTextAdapter<
         timestamp,
       }
 
+      const finalUsage = buildOpenRouterUsage(lastUsage)
+
       yield {
         type: EventType.RUN_FINISHED,
         runId: aguiState.runId,
@@ -552,13 +555,8 @@ export class OpenRouterTextAdapter<
         model: lastModel || chatOptions.model,
         timestamp,
         finishReason: 'stop',
-        ...(lastUsage && {
-          usage: {
-            promptTokens: lastUsage.promptTokens,
-            completionTokens: lastUsage.completionTokens,
-            totalTokens: lastUsage.totalTokens,
-            ...extractUsageCost(lastUsage),
-          },
+        ...(finalUsage && {
+          usage: { ...finalUsage, ...extractUsageCost(lastUsage) },
         }),
       }
     } catch (error: unknown) {
@@ -1084,19 +1082,16 @@ export class OpenRouterTextAdapter<
                 ? 'content_filter'
                 : 'stop'
 
+        const finalUsage = buildOpenRouterUsage(lastUsage)
+
         yield {
           type: EventType.RUN_FINISHED,
           runId: aguiState.runId,
           threadId: aguiState.threadId,
           model: lastModel || options.model,
           timestamp: Date.now(),
-          ...(lastUsage && {
-            usage: {
-              promptTokens: lastUsage.promptTokens || 0,
-              completionTokens: lastUsage.completionTokens || 0,
-              totalTokens: lastUsage.totalTokens || 0,
-              ...extractUsageCost(lastUsage),
-            },
+          ...(finalUsage && {
+            usage: { ...finalUsage, ...extractUsageCost(lastUsage) },
           }),
           finishReason,
         }
@@ -1140,12 +1135,11 @@ export class OpenRouterTextAdapter<
   protected mapOptionsToRequest(
     options: TextOptions<ResolveProviderOptions<TModel>>,
   ): Omit<ChatRequest, 'stream'> {
-    const modelOptions = options.modelOptions as
-      | (Record<string, any> & { variant?: string })
-      | undefined
-    const variantSuffix = modelOptions?.variant
-      ? `:${modelOptions.variant}`
-      : ''
+    // `variant` is OpenRouter metadata used only to build the `:variant` model
+    // suffix — it must NOT be spread into the request body. Destructure it out
+    // so the remaining sampling/provider options flow through `...restModelOptions`.
+    const { variant, ...restModelOptions } = options.modelOptions ?? {}
+    const variantSuffix = variant ? `:${variant}` : ''
 
     const messages: Array<ChatMessages> = []
     const systemPrompts = normalizeSystemPrompts(options.systemPrompts)
@@ -1163,20 +1157,17 @@ export class OpenRouterTextAdapter<
       ? convertToolsToProviderFormat(options.tools)
       : undefined
 
-    // Spread modelOptions first so explicit top-level options (set below) win
-    // when defined but `undefined` doesn't clobber values the caller set in
-    // modelOptions.
+    // `modelOptions` is the sole sampling surface: callers set provider-native
+    // wire names (`temperature`, `topP`, `maxCompletionTokens`, etc.) there and
+    // they flow through the spread below. The root `temperature`/`topP`/
+    // `maxTokens` fields are intentionally NOT read here. Root `metadata` is
+    // still part of the contract, so forward it the same way the responses
+    // adapter does.
     const request: Omit<ChatRequest, 'stream'> = {
-      ...modelOptions,
+      ...restModelOptions,
       model: options.model + variantSuffix,
+      ...(options.metadata !== undefined && { metadata: options.metadata }),
       messages,
-      ...(options.temperature !== undefined && {
-        temperature: options.temperature,
-      }),
-      ...(options.maxTokens !== undefined && {
-        maxCompletionTokens: options.maxTokens,
-      }),
-      ...(options.topP !== undefined && { topP: options.topP }),
       ...(tools && tools.length > 0 && { tools }),
     }
     return request

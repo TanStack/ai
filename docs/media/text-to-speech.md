@@ -53,7 +53,7 @@ import { geminiSpeech } from '@tanstack/ai-gemini'
 
 // Generate speech from text (uses GOOGLE_API_KEY or GEMINI_API_KEY from environment)
 const result = await generateSpeech({
-  adapter: geminiSpeech('gemini-2.5-flash-preview-tts'),
+  adapter: geminiSpeech('gemini-3.1-flash-tts-preview'),
   text: 'Hello from Gemini TTS!',
 })
 
@@ -94,8 +94,10 @@ console.log(result.format) // e.g. "wav"
 const result = await generateSpeech({
   adapter: falSpeech('fal-ai/elevenlabs/tts/eleven-v3'),
   text: 'Welcome to TanStack AI.',
+  // The fal adapter maps top-level `voice`/`speed` into the model input;
+  // `modelOptions` is reserved for model-specific keys.
+  voice: 'Rachel',
   modelOptions: {
-    voice: 'Rachel',
     stability: 0.5,
   },
 })
@@ -152,18 +154,20 @@ const result = await generateSpeech({
   text: 'High quality speech synthesis',
   voice: 'nova',
   format: 'mp3',
+  speed: 1.0, // top-level option, 0.25 to 4.0
   modelOptions: {
-    speed: 1.0, // 0.25 to 4.0
+    instructions: 'Speak in a calm, measured tone', // GPT-4o audio models only
   },
 })
 ```
 
+> **Note:** `voice`, `format`, and `speed` are top-level `generateSpeech` options, not `modelOptions` keys.
+
 | Option | Type | Description |
 |--------|------|-------------|
-| `speed` | `number` | Playback speed (0.25 to 4.0, default 1.0) |
 | `instructions` | `string` | Voice style instructions (GPT-4o audio models only) |
 
-> **Note:** The `instructions` and `stream_format` options are only available with `gpt-4o-audio-preview` and `gpt-4o-mini-audio-preview` models, not with `tts-1` or `tts-1-hd`.
+> **Note:** The `instructions` and `stream_format` options are only available with the `gpt-4o-audio-preview` model, not with `tts-1` or `tts-1-hd`.
 
 ## Response Format
 
@@ -451,7 +455,6 @@ TypeScript automatically infers the result type from your `onResult` return valu
 | `tts-1` | Standard | Fast | Real-time applications |
 | `tts-1-hd` | High | Slower | Production audio |
 | `gpt-4o-audio-preview` | Highest | Variable | Advanced voice control |
-| `gpt-4o-mini-audio-preview` | High | Fast | Balanced quality/speed |
 
 ### Gemini Models
 
@@ -501,7 +504,7 @@ import { createGeminiSpeech } from '@tanstack/ai-gemini'
 const openaiAdapter = createOpenaiSpeech('tts-1', 'your-openai-api-key')
 
 // Gemini
-const geminiAdapter = createGeminiSpeech('gemini-2.5-flash-preview-tts', 'your-google-api-key')
+const geminiAdapter = createGeminiSpeech('gemini-3.1-flash-tts-preview', 'your-google-api-key')
 ```
 
 ## Best Practices

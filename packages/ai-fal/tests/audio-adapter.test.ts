@@ -2,6 +2,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { generateAudio } from '@tanstack/ai'
 
 import { falAudio } from '../src/adapters/audio'
+import { recordBillableUnitsFromResponse } from '../src/utils/billing'
+
+function seedBillableUnits(requestId: string, units: string) {
+  recordBillableUnitsFromResponse(
+    new Response(null, {
+      headers: {
+        'x-fal-request-id': requestId,
+        'x-fal-billable-units': units,
+      },
+    }),
+  )
+}
 
 // Declare mocks at module level
 let mockSubscribe: any
@@ -255,6 +267,7 @@ describe('Fal Audio Adapter', () => {
 
     expect(mockConfig).toHaveBeenCalledWith({
       credentials: 'my-api-key',
+      fetch: expect.any(Function),
     })
   })
 
@@ -266,6 +279,7 @@ describe('Fal Audio Adapter', () => {
 
     expect(mockConfig).toHaveBeenCalledWith({
       credentials: 'my-api-key',
+      fetch: expect.any(Function),
       proxyUrl: '/api/fal/proxy',
     })
   })
@@ -328,5 +342,51 @@ describe('Fal Audio Adapter', () => {
     })
 
     expect(result.audio.contentType).toBe('audio/wav')
+  })
+
+  it('surfaces fal billable units as usage', async () => {
+    seedBillableUnits('req-billed-audio', '2.5')
+    mockSubscribe.mockResolvedValueOnce({
+      data: {
+        audio: {
+          url: 'https://fal.media/files/billed.mp3',
+          content_type: 'audio/mpeg',
+        },
+      },
+      requestId: 'req-billed-audio',
+    })
+
+    const result = await generateAudio({
+      adapter: createAdapter(),
+      prompt: 'billed track',
+      modelOptions: { lyrics_prompt: DEFAULT_LYRICS },
+    })
+
+    expect(result.usage).toEqual({
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      unitsBilled: 2.5,
+    })
+  })
+
+  it('omits usage when fal does not report billable units', async () => {
+    mockSubscribe.mockResolvedValueOnce({
+      data: {
+        audio: {
+          url: 'https://fal.media/files/unbilled.mp3',
+          content_type: 'audio/mpeg',
+        },
+      },
+      requestId: 'req-unbilled-audio',
+    })
+
+    const result = await generateAudio({
+      adapter: createAdapter(),
+      prompt: 'unbilled track',
+      modelOptions: { lyrics_prompt: DEFAULT_LYRICS },
+    })
+
+    expect(result.usage).toBeUndefined()
   })
 })

@@ -113,8 +113,13 @@ describe('OpenRouter adapter option mapping', () => {
 
     const adapter = createAdapter()
 
+    // Sampling options now live exclusively in `modelOptions` (provider-native
+    // camelCase wire names) rather than the root temperature/topP/maxTokens.
     const modelOptions: OpenRouterTextModelOptions = {
       toolChoice: 'auto',
+      temperature: 0.25,
+      topP: 0.6,
+      maxCompletionTokens: 1024,
     }
 
     const chunks: Array<StreamChunk> = []
@@ -137,9 +142,6 @@ describe('OpenRouter adapter option mapping', () => {
         { role: 'tool', toolCallId: 'call_weather', content: '{"temp":72}' },
       ],
       tools: [weatherTool],
-      temperature: 0.25,
-      topP: 0.6,
-      maxTokens: 1024,
       modelOptions,
     })) {
       chunks.push(chunk)
@@ -1487,6 +1489,58 @@ describe('OpenRouter modelOptions pass-through', () => {
     expect(params.responseFormat).toEqual({ type: 'json_object' })
   })
 
+  it('forwards temperature/topP/maxCompletionTokens from modelOptions', async () => {
+    setupMockSdkClient(minimalStreamChunks)
+    const adapter = createAdapter()
+
+    // Sampling now flows exclusively through `modelOptions` using the SDK's
+    // camelCase wire names — the root temperature/topP/maxTokens fields are no
+    // longer read by the adapter.
+    const modelOptions: OpenRouterTextModelOptions = {
+      temperature: 0.1,
+      topP: 0.5,
+      maxCompletionTokens: 64,
+    }
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'test' }],
+      modelOptions,
+    })) {
+      // consume
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const params = rawParams.chatRequest
+    expect(params.temperature).toBe(0.1)
+    expect(params.topP).toBe(0.5)
+    expect(params.maxCompletionTokens).toBe(64)
+  })
+
+  it('uses variant only for the model suffix and never sends it in the request body', async () => {
+    setupMockSdkClient(minimalStreamChunks)
+    const adapter = createAdapter()
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'test' }],
+      modelOptions: {
+        variant: 'free',
+        temperature: 0.2,
+      } as OpenRouterTextModelOptions,
+    })) {
+      // consume
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const params = rawParams.chatRequest
+    // `variant` is OpenRouter metadata used purely to build the model suffix;
+    // it must not leak into the request body alongside the real sampling field.
+    expect(params.model).toBe('openai/gpt-4o-mini:free')
+    expect(params).not.toHaveProperty('variant')
+    expect(params.temperature).toBe(0.2)
+  })
+
   it('forwards common options (provider, plugins, etc.) to the SDK request', async () => {
     setupMockSdkClient(minimalStreamChunks)
     const adapter = createAdapter()
@@ -1521,16 +1575,15 @@ describe('OpenRouter modelOptions pass-through', () => {
     expect(params.sessionId).toBe('session-abc')
   })
 
-  it('does not allow modelOptions to override top-level temperature/topP/maxTokens', async () => {
+  it('reads sampling from modelOptions; modelOptions is the sole sampling source', async () => {
     setupMockSdkClient(minimalStreamChunks)
     const adapter = createAdapter()
 
     for await (const _ of chat({
       adapter,
       messages: [{ role: 'user', content: 'test' }],
-      temperature: 0.5,
-      topP: 0.8,
-      maxTokens: 500,
+      // Root sampling fields no longer exist on TextOptions — only the
+      // provider-native modelOptions values reach the request.
       modelOptions: {
         temperature: 0.9,
         topP: 0.1,
@@ -1542,10 +1595,28 @@ describe('OpenRouter modelOptions pass-through', () => {
 
     const [rawParams] = mockSend.mock.calls[0]!
     const params = rawParams.chatRequest
-    // Top-level values should win because modelOptions has those keys Omitted
-    expect(params.temperature).toBe(0.5)
-    expect(params.topP).toBe(0.8)
-    expect(params.maxCompletionTokens).toBe(500)
+    expect(params.temperature).toBe(0.9)
+    expect(params.topP).toBe(0.1)
+    expect(params.maxCompletionTokens).toBe(9999)
+  })
+
+  it('forwards root metadata to the request (same as the responses adapter)', async () => {
+    setupMockSdkClient(minimalStreamChunks)
+    const adapter = createAdapter()
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'test' }],
+      // Root `metadata` is still part of the contract; it must not be dropped
+      // by the chat-completions request builder.
+      metadata: { env: 'test' },
+    })) {
+      // consume
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const params = rawParams.chatRequest
+    expect(params.metadata).toEqual({ env: 'test' })
   })
 
   it('appends variant to model name instead of passing it as a separate property', async () => {

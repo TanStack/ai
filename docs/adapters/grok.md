@@ -106,19 +106,24 @@ const stream = chat({
 
 ## Model Options
 
-Grok supports various provider-specific options:
+Grok supports various provider-specific options. Sampling parameters live here too — `temperature`, `top_p`, and `max_tokens` — rather than as root-level props on `chat()`:
 
 ```typescript
 const stream = chat({
   adapter: grokText("grok-4"),
   messages,
   modelOptions: {
+    temperature: 0.7,
+    top_p: 0.9,
+    max_tokens: 1024,
     frequency_penalty: 0.5,
     presence_penalty: 0.5,
     stop: ["END"],
   },
 });
 ```
+
+> If you previously passed `temperature` / `topP` / `maxTokens` at the root of `chat()`, see [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
 
 ## Summarization
 

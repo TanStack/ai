@@ -110,7 +110,7 @@ const stream = chat({
 
 ## Model Options
 
-Groq supports various provider-specific options:
+Groq supports various provider-specific options. Sampling parameters live here too — `temperature`, `top_p`, and `max_completion_tokens` (Groq's token-limit key) — rather than as root-level props on `chat()`:
 
 ```typescript
 const stream = chat({
@@ -123,6 +123,8 @@ const stream = chat({
   },
 });
 ```
+
+> If you previously passed `temperature` / `topP` / `maxTokens` at the root of `chat()`, see [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
 
 ### Reasoning
 

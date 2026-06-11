@@ -4,6 +4,16 @@ import type {
 } from '@standard-schema/spec'
 import type { InternalLogger } from './logger/internal-logger'
 import type { SystemPrompt } from './system-prompts'
+// The canonical usage types live in the leaf `@tanstack/ai-event-client`
+// package (which `@tanstack/ai` already depends on) so there is a single source
+// of truth without a dependency cycle. They are re-exported below.
+import type {
+  CompletionTokensDetails,
+  PromptTokensDetails,
+  ProviderUsageDetails,
+  TokenUsage,
+  UsageCostBreakdown,
+} from '@tanstack/ai-event-client'
 import type {
   BaseEvent as AGUIBaseEvent,
   CustomEvent as AGUICustomEvent,
@@ -41,6 +51,7 @@ export type ToolCallState =
   | 'approval-requested' // Waiting for user approval
   | 'approval-responded' // User has approved/denied
   | 'complete' // Result is complete
+  | 'error' // Tool execution failed (terminal)
 
 /**
  * Tool result states - track the lifecycle of a tool result
@@ -481,6 +492,12 @@ export type ToolExecutionContext<TContext = unknown> =
     /** The ID of the tool call being executed */
     toolCallId?: string
     /**
+     * Abort signal for the current chat run. Aborts when the run's
+     * `abortController` fires (or middleware aborts). Long-running tools —
+     * e.g. MCP `callTool` — should forward this to cancel in-flight work.
+     */
+    abortSignal?: AbortSignal
+    /**
      * Emit a custom event during tool execution.
      * Events are streamed to the client in real-time as AG-UI CUSTOM events.
      *
@@ -803,41 +820,6 @@ export interface TextOptions<
   systemPrompts?: Array<SystemPrompt>
   agentLoopStrategy?: AgentLoopStrategy
   /**
-   * Controls the randomness of the output.
-   * Higher values (e.g., 0.8) make output more random, lower values (e.g., 0.2) make it more focused and deterministic.
-   * Range: [0.0, 2.0]
-   *
-   * Note: Generally recommended to use either temperature or topP, but not both.
-   *
-   * Provider usage:
-   * - OpenAI: `temperature` (number) - in text.top_p field
-   * - Anthropic: `temperature` (number) - ranges from 0.0 to 1.0, default 1.0
-   * - Gemini: `generationConfig.temperature` (number) - ranges from 0.0 to 2.0
-   */
-  temperature?: number
-  /**
-   * Nucleus sampling parameter. An alternative to temperature sampling.
-   * The model considers the results of tokens with topP probability mass.
-   * For example, 0.1 means only tokens comprising the top 10% probability mass are considered.
-   *
-   * Note: Generally recommended to use either temperature or topP, but not both.
-   *
-   * Provider usage:
-   * - OpenAI: `text.top_p` (number)
-   * - Anthropic: `top_p` (number | null)
-   * - Gemini: `generationConfig.topP` (number)
-   */
-  topP?: number
-  /**
-   * The maximum number of tokens to generate in the response.
-   *
-   * Provider usage:
-   * - OpenAI: `max_output_tokens` (number) - includes visible output and reasoning tokens
-   * - Anthropic: `max_tokens` (number, required) - range x >= 1
-   * - Gemini: `generationConfig.maxOutputTokens` (number)
-   */
-  maxTokens?: number
-  /**
    * Additional metadata to attach to the request.
    * Can be used for tracking, debugging, or passing custom information.
    * Structure and constraints vary by provider.
@@ -978,38 +960,22 @@ export interface RunStartedEvent extends AGUIRunStartedEvent {
   model?: string
 }
 
-/**
- * Provider-reported cost breakdown for a single request, normalized onto a
- * canonical shape so consumer code is portable across gateways. Each adapter's
- * extractor maps its provider-specific wire keys (e.g. OpenRouter's
- * `upstream_inference_prompt_cost`, `upstream_inference_input_cost`) onto these
- * fields at runtime.
- */
-export interface UsageCostBreakdown {
-  /** Total cost the gateway paid the upstream provider. */
-  upstreamCost?: number
-  /** Upstream cost for input (prompt) tokens. */
-  upstreamInputCost?: number
-  /** Upstream cost for output (completion) tokens. */
-  upstreamOutputCost?: number
+// Re-export the canonical usage types (defined in `@tanstack/ai-event-client`)
+// so `@tanstack/ai` consumers keep importing them from here unchanged.
+export type {
+  CompletionTokensDetails,
+  PromptTokensDetails,
+  ProviderUsageDetails,
+  TokenUsage,
+  UsageCostBreakdown,
 }
 
 /**
- * Token usage totals for a run, optionally including provider-reported cost.
- *
- * `cost` and `costDetails` are populated only by adapters whose provider returns
- * authoritative per-request cost (e.g. OpenRouter). They are absent for adapters
- * that do not report cost, so consumers must treat them as optional.
+ * @deprecated Renamed to {@link TokenUsage}. Kept as an alias for backward
+ * compatibility with `@tanstack/ai@0.23` and earlier; will be removed in a
+ * future release.
  */
-export interface UsageTotals {
-  promptTokens: number
-  completionTokens: number
-  totalTokens: number
-  /** Provider-reported cost for the request, when available. */
-  cost?: number
-  /** Provider-reported cost breakdown, when available. */
-  costDetails?: UsageCostBreakdown
-}
+export type UsageTotals = TokenUsage
 
 /**
  * Emitted when a run completes successfully.
@@ -1022,8 +988,8 @@ export interface RunFinishedEvent extends AGUIRunFinishedEvent {
   model?: string
   /** Why the generation stopped */
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
-  /** Token usage statistics, optionally including provider-reported cost. */
-  usage?: UsageTotals
+  /** Token usage statistics with optional detailed breakdowns and provider-reported cost. */
+  usage?: TokenUsage
 }
 
 /**
@@ -1473,11 +1439,7 @@ export interface TextCompletionChunk {
   content: string
   role?: 'assistant'
   finishReason?: 'stop' | 'length' | 'content_filter' | null
-  usage?: {
-    promptTokens: number
-    completionTokens: number
-    totalTokens: number
-  }
+  usage?: TokenUsage
 }
 
 export interface SummarizationOptions<
@@ -1501,11 +1463,7 @@ export interface SummarizationResult {
   id: string
   model: string
   summary: string
-  usage: {
-    promptTokens: number
-    completionTokens: number
-    totalTokens: number
-  }
+  usage: TokenUsage
 }
 
 // ============================================================================
@@ -1574,11 +1532,7 @@ export interface ImageGenerationResult {
   /** Array of generated images */
   images: Array<GeneratedImage>
   /** Token usage information (if available) */
-  usage?: {
-    inputTokens?: number
-    outputTokens?: number
-    totalTokens?: number
-  }
+  usage?: TokenUsage
 }
 
 // ============================================================================
@@ -1629,11 +1583,7 @@ export interface AudioGenerationResult {
   /** The generated audio */
   audio: GeneratedAudio
   /** Token usage information (if available) */
-  usage?: {
-    inputTokens?: number
-    outputTokens?: number
-    totalTokens?: number
-  }
+  usage?: TokenUsage
 }
 
 // ============================================================================
@@ -1707,6 +1657,12 @@ export interface VideoUrlResult {
   url: string
   /** When the URL expires, if applicable */
   expiresAt?: Date
+  /**
+   * Usage information for the completed generation, when the adapter can report
+   * it. For usage-based providers (e.g. fal) this carries `unitsBilled` — the
+   * real billed quantity — so consumers can compute exact cost.
+   */
+  usage?: TokenUsage
 }
 
 // ============================================================================
@@ -1754,6 +1710,8 @@ export interface TTSResult {
   duration?: number
   /** Content type of the audio (e.g., 'audio/mp3') */
   contentType?: string
+  /** Token usage information (if provided by the adapter) */
+  usage?: TokenUsage
 }
 
 // ============================================================================
@@ -1835,6 +1793,8 @@ export interface TranscriptionResult {
   segments?: Array<TranscriptionSegment>
   /** Word-level timestamps, if available */
   words?: Array<TranscriptionWord>
+  /** Token usage information (if provided by the adapter) */
+  usage?: TokenUsage
 }
 
 /**

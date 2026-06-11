@@ -1,6 +1,7 @@
 import OpenAI from 'openai'
 import { BaseImageAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
+import { buildImagesUsage } from '@tanstack/openai-base'
 import { generateId } from '@tanstack/ai-utils'
 import { getOpenAIApiKeyFromEnv } from '../utils/client'
 import {
@@ -75,13 +76,7 @@ export class OpenAIImageAdapter<
       ...(modelOptions ?? {}),
     }
     if (size !== undefined) {
-      // Index into ImageGenerateParams['size'] gives `... | null | undefined`;
-      // strip `undefined` so the value matches the SDK's `size?: ... | null`
-      // shape under exactOptionalPropertyTypes.
-      request.size = size as Exclude<
-        OpenAI_SDK.Images.ImageGenerateParams['size'],
-        undefined
-      >
+      request.size = size
     }
 
     try {
@@ -113,20 +108,15 @@ export class OpenAIImageAdapter<
         },
       )
 
+      // `ImageGenerationResult.usage` is `usage?: TokenUsage` without
+      // `| undefined`, so spread the field only when the model reported usage.
+      const usage = buildImagesUsage(response.usage)
+
       return {
         id: generateId(this.name),
         model,
         images,
-        // `ImageGenerationResult.usage` is `usage?: {...}` without `| undefined`.
-        ...(response.usage
-          ? {
-              usage: {
-                inputTokens: response.usage.input_tokens,
-                outputTokens: response.usage.output_tokens,
-                totalTokens: response.usage.total_tokens,
-              },
-            }
-          : {}),
+        ...(usage ? { usage } : {}),
       }
     } catch (error: unknown) {
       // Narrow before logging: raw SDK errors can carry request metadata

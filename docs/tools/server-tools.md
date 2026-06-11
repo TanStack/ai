@@ -47,16 +47,17 @@ sequenceDiagram
    - Added to the conversation history
 5. **Continuation**: The chat continues with the tool result, allowing the LLM to generate a response based on the result
   
-## Automatic vs. Manual Execution
+## Automatic Execution and Approval Pauses
 
 **Automatic (Default):**
 - Server tools with an `execute` function run automatically
 - Results are added to the conversation immediately
 - No client-side handling required
 
-**Manual (Advanced):**
-- You can handle tool calls manually by intercepting the stream
-- Useful for custom orchestration or approval flows
+**Approval-gated:**
+- Tools marked `needsApproval: true` still execute automatically — but only *after* the user approves
+- The run pauses at the `approval-requested` state and resumes (executing the tool, or skipping it on denial) once the client sends an approval response
+- See [Tool Approval Flow](./tool-approval) for the full pattern
 
 ## Server Tool Definition
 
@@ -157,7 +158,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: openaiText("gpt-5.2"),
+    adapter: openaiText("gpt-5.5"),
     messages,
     tools: [getUserData, searchProducts],
   });
@@ -171,7 +172,7 @@ export async function POST(request: Request) {
 Server tools can receive typed runtime context as their second argument. Use this for request-scoped dependencies like authenticated users, database clients, tenant IDs, or audit loggers.
 
 ```typescript
-import { chat, toolDefinition } from "@tanstack/ai";
+import { chat, toolDefinition, toServerSentEventsResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { z } from "zod";
 
@@ -199,15 +200,25 @@ const getCurrentUser = toolDefinition({
   return { name: user?.name ?? null };
 });
 
-chat({
-  adapter: openaiText("gpt-5.2"),
-  messages,
-  tools: [getCurrentUser],
-  context: {
-    userId: session.user.id,
-    db,
-  },
-});
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+  // `session` and `db` come from your own app setup (auth middleware,
+  // a DB client, etc.) — they are not provided by TanStack AI.
+  const session = await getSession(request);
+  const db = getDb();
+
+  const stream = chat({
+    adapter: openaiText("gpt-5.5"),
+    messages,
+    tools: [getCurrentUser],
+    context: {
+      userId: session.user.id,
+      db,
+    },
+  });
+
+  return toServerSentEventsResponse(stream);
+}
 ```
 
 If a server tool declares a context generic, `chat()` requires a compatible `context` value. Untyped tools keep working and receive `unknown` context.
@@ -263,7 +274,7 @@ import { openaiText } from "@tanstack/ai-openai";
 import { getUserData, searchProducts } from "@/tools/server";
 
 const stream = chat({
-  adapter: openaiText("gpt-5.2"),
+  adapter: openaiText("gpt-5.5"),
   messages,
   tools: [getUserData, searchProducts],
 });
@@ -311,6 +322,8 @@ const getUserData = getUserDataDef.server(async ({ userId }) => {
 });
 ```
 
+**Throwing vs. returning an error:** if your `.server()` function throws, the SDK catches it and surfaces it as a tool-result *error* (the model sees the failure but you lose control over the message). Returning a structured `{ error }` shape keeps the model in control of how to recover and is usually preferable. Either way, when an `outputSchema` is defined the returned value is validated against it (Zod) before being added to the conversation — so include the `error` field in your `outputSchema` if you return it.
+
 ## Using JSON Schema
 
 If you have existing JSON Schema definitions or prefer not to use Zod, you can define tool schemas using raw JSON Schema objects:
@@ -346,9 +359,12 @@ const getUserDataDef = toolDefinition({
   outputSchema,
 });
 
-// When using JSON Schema, args is typed as `any`
+// With a raw JSON Schema, args is typed as `unknown` — narrow it before use
 const getUserData = getUserDataDef.server(async (args) => {
-  const user = await db.users.findUnique({ where: { id: args.userId } });
+  if (typeof args !== "object" || args === null || !("userId" in args)) {
+    throw new Error("Invalid input: expected a userId");
+  }
+  const user = await db.users.findUnique({ where: { id: String(args.userId) } });
   return { name: user.name, email: user.email };
 });
 ```

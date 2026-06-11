@@ -68,6 +68,13 @@ Every hook receives a `ChatMiddlewareContext` as its first argument, which provi
 Terminal hooks (`onFinish`, `onAbort`, `onError`) are **mutually exclusive** -- exactly
 one fires per `chat()` invocation.
 
+> **Sampling in `onConfig`:** `temperature`, `topP`, and `maxTokens` are **not**
+> first-class fields on `ChatMiddlewareConfig`. To adjust sampling from
+> middleware, return a partial that mutates `config.modelOptions` using the
+> provider's native key (e.g. OpenAI `temperature` / `max_output_tokens`,
+> Anthropic `max_tokens`, Ollama nested `options.num_predict`). Returning a
+> top-level `temperature`/`maxTokens` has no effect.
+
 ### Phase values
 
 `ctx.phase` is one of:
@@ -304,6 +311,10 @@ const configTransform: ChatMiddleware = {
     if (ctx.phase === 'init') {
       return {
         systemPrompts: [...config.systemPrompts, 'Always respond in JSON.'],
+        // Sampling options are NOT first-class config fields — mutate them
+        // through `config.modelOptions` using the provider's native key.
+        // (e.g. OpenAI `temperature` / `max_output_tokens`.)
+        modelOptions: { ...config.modelOptions, temperature: 0.2 },
       }
     }
   },

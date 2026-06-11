@@ -2,9 +2,11 @@
 name: ai-core/adapter-configuration
 description: >
   Provider adapter selection and configuration: openaiText, anthropicText,
-  geminiText, ollamaText, grokText, groqText, openRouterText. Per-model
+  geminiText, ollamaText, grokText, groqText, openRouterText, openaiCompatible. Per-model
   type safety with modelOptions, reasoning/thinking configuration,
   runtime adapter switching, extendAdapter() for custom models, createModel().
+  Generic OpenAI-compatible providers (DeepSeek, Together, Fireworks, etc.) via
+  openaiCompatible({ baseURL, apiKey, models }) from @tanstack/ai-openai/compatible.
   API key env vars: OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_API_KEY/GEMINI_API_KEY,
   XAI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY, OLLAMA_HOST.
 type: sub-skill
@@ -42,8 +44,10 @@ import { openaiText } from '@tanstack/ai-openai'
 const stream = chat({
   adapter: openaiText('gpt-5.2'),
   messages,
-  temperature: 0.7,
-  maxTokens: 1000,
+  modelOptions: {
+    temperature: 0.7,
+    max_output_tokens: 1000,
+  },
 })
 
 return toServerSentEventsResponse(stream)
@@ -53,6 +57,11 @@ The adapter factory function takes the model name as a string literal and an
 optional config object (API key, base URL, etc.). The model name is passed
 into the factory, not into `chat()`.
 
+Sampling options (`temperature`, token limits, `top_p`/`topP`, etc.) live
+inside `modelOptions` using each provider's native key — they are **not**
+top-level options on `chat()`. See the per-provider table in
+[Configuring Sampling](#5-configuring-sampling) below.
+
 ## Core Patterns
 
 ### 1. Adapter Selection
@@ -60,15 +69,16 @@ into the factory, not into `chat()`.
 Each provider has a dedicated package with tree-shakeable adapter factories.
 The text adapter is the primary one for chat/completions:
 
-| Provider   | Package                   | Factory          | Env Var                                           |
-| ---------- | ------------------------- | ---------------- | ------------------------------------------------- |
-| OpenAI     | `@tanstack/ai-openai`     | `openaiText`     | `OPENAI_API_KEY`                                  |
-| Anthropic  | `@tanstack/ai-anthropic`  | `anthropicText`  | `ANTHROPIC_API_KEY`                               |
-| Gemini     | `@tanstack/ai-gemini`     | `geminiText`     | `GOOGLE_API_KEY` or `GEMINI_API_KEY`              |
-| Grok (xAI) | `@tanstack/ai-grok`       | `grokText`       | `XAI_API_KEY`                                     |
-| Groq       | `@tanstack/ai-groq`       | `groqText`       | `GROQ_API_KEY`                                    |
-| OpenRouter | `@tanstack/ai-openrouter` | `openRouterText` | `OPENROUTER_API_KEY`                              |
-| Ollama     | `@tanstack/ai-ollama`     | `ollamaText`     | `OLLAMA_HOST` (default: `http://localhost:11434`) |
+| Provider          | Package                          | Factory                                     | Env Var                                           |
+| ----------------- | -------------------------------- | ------------------------------------------- | ------------------------------------------------- |
+| OpenAI            | `@tanstack/ai-openai`            | `openaiText`                                | `OPENAI_API_KEY`                                  |
+| Anthropic         | `@tanstack/ai-anthropic`         | `anthropicText`                             | `ANTHROPIC_API_KEY`                               |
+| Gemini            | `@tanstack/ai-gemini`            | `geminiText`                                | `GOOGLE_API_KEY` or `GEMINI_API_KEY`              |
+| Grok (xAI)        | `@tanstack/ai-grok`              | `grokText`                                  | `XAI_API_KEY`                                     |
+| Groq              | `@tanstack/ai-groq`              | `groqText`                                  | `GROQ_API_KEY`                                    |
+| OpenRouter        | `@tanstack/ai-openrouter`        | `openRouterText`                            | `OPENROUTER_API_KEY`                              |
+| Ollama            | `@tanstack/ai-ollama`            | `ollamaText`                                | `OLLAMA_HOST` (default: `http://localhost:11434`) |
+| OpenAI-compatible | `@tanstack/ai-openai/compatible` | `openaiCompatible` / `openaiCompatibleText` | provider-specific (passed via `apiKey`)           |
 
 ```typescript
 // Each factory takes model as first arg, optional config as second
@@ -155,11 +165,11 @@ const openaiStream = chat({
 const anthropicStream = chat({
   adapter: anthropicText('claude-sonnet-4-6'),
   messages,
-  maxTokens: 16000,
   modelOptions: {
+    max_tokens: 16000,
     thinking: {
       type: 'enabled',
-      budget_tokens: 8000, // must be >= 1024 and < maxTokens
+      budget_tokens: 8000, // must be >= 1024 and < max_tokens
     },
   },
 })
@@ -168,8 +178,8 @@ const anthropicStream = chat({
 const adaptiveStream = chat({
   adapter: anthropicText('claude-sonnet-4-6'),
   messages,
-  maxTokens: 16000,
   modelOptions: {
+    max_tokens: 16000,
     thinking: {
       type: 'adaptive',
     },
@@ -221,7 +231,61 @@ const custom = myOpenai('ft:gpt-5.2:my-org:custom-model:abc123')
 At runtime, `extendAdapter` simply passes through to the original factory.
 The `_customModels` parameter is only used for type inference.
 
-### 5. Capability Flag: `supportsCombinedToolsAndSchema`
+### 5. Configuring Sampling
+
+Sampling controls (`temperature`, token limits, nucleus sampling) are passed
+inside `modelOptions` using each provider's **native** key. They are not
+top-level fields on `chat()`/`ai()`/`generate()`.
+
+```typescript
+// OpenAI — native keys
+chat({
+  adapter: openaiText('gpt-5.2'),
+  messages,
+  modelOptions: { temperature: 0.7, top_p: 0.9, max_output_tokens: 1000 },
+})
+
+// Anthropic
+chat({
+  adapter: anthropicText('claude-sonnet-4-6'),
+  messages,
+  modelOptions: { temperature: 0.7, top_p: 0.9, max_tokens: 1000 },
+})
+
+// Gemini — camelCase
+chat({
+  adapter: geminiText('gemini-2.5-pro'),
+  messages,
+  modelOptions: { temperature: 0.7, topP: 0.9, maxOutputTokens: 1000 },
+})
+
+// Ollama — NESTED under modelOptions.options
+chat({
+  adapter: ollamaText('llama3.3'),
+  messages,
+  modelOptions: {
+    options: { temperature: 0.7, top_p: 0.9, num_predict: 1000 },
+  },
+})
+```
+
+Per-provider sampling keys (all live inside `modelOptions`):
+
+| Provider          | Temperature   | Nucleus | Max output tokens                   |
+| ----------------- | ------------- | ------- | ----------------------------------- |
+| OpenAI            | `temperature` | `top_p` | `max_output_tokens`                 |
+| Anthropic         | `temperature` | `top_p` | `max_tokens`                        |
+| Gemini            | `temperature` | `topP`  | `maxOutputTokens`                   |
+| Grok (xAI)        | `temperature` | `top_p` | `max_tokens`                        |
+| Groq              | `temperature` | `top_p` | `max_completion_tokens`             |
+| OpenRouter (chat) | `temperature` | `topP`  | `maxCompletionTokens`               |
+| Ollama            | `temperature` | `top_p` | `num_predict` (nested in `options`) |
+
+`temperature` is the one key every provider names identically; token limits and
+some sampling options use provider-native names. Ollama nests all sampling under
+`modelOptions.options`.
+
+### 6. Capability Flag: `supportsCombinedToolsAndSchema`
 
 Adapters can declare an optional capability method:
 
@@ -251,6 +315,63 @@ Current per-adapter status (#605):
 Subclasses can override to narrow the capability. When extending an
 adapter for a custom model that doesn't support the combination, return
 `false` explicitly.
+
+### 6. OpenAI-Compatible Providers
+
+Any provider that implements the OpenAI **Chat Completions** API (DeepSeek,
+Moonshot/Kimi, Together, Fireworks, Cerebras, Qwen/DashScope, Perplexity,
+NVIDIA NIM, LM Studio, etc.) can be used through the generic
+`openaiCompatible` factory from `@tanstack/ai-openai/compatible` — no
+dedicated package required.
+
+```typescript
+import { openaiCompatible } from '@tanstack/ai-openai/compatible'
+import { createModel } from '@tanstack/ai'
+
+// Provider-factory: configure baseURL + apiKey + models ONCE,
+// then select a model per call (the model arg is a type-safe union).
+const deepseek = openaiCompatible({
+  name: 'deepseek', // optional label for devtools/errors (default 'openai-compatible')
+  baseURL: 'https://api.deepseek.com/v1',
+  apiKey: process.env.DEEPSEEK_API_KEY!,
+  models: [
+    'deepseek-chat', // bare string → optimistic defaults: text/image in, streaming, tools, structured output
+    createModel('deepseek-reasoner', {
+      // rich def → precise per-model capabilities
+      input: ['text'],
+      features: ['reasoning', 'structured_outputs'],
+    }),
+  ],
+})
+
+chat({ adapter: deepseek('deepseek-chat'), messages })
+chat({ adapter: deepseek('deepseek-reasoner'), messages })
+```
+
+`config` also accepts any OpenAI SDK `ClientOptions` (notably `defaultHeaders`
+and `defaultQuery`) for providers that need extra auth headers or query params.
+
+For a single model, use the one-shot helper:
+
+```typescript
+import { openaiCompatibleText } from '@tanstack/ai-openai/compatible'
+
+chat({
+  adapter: openaiCompatibleText('deepseek-chat', {
+    baseURL: 'https://api.deepseek.com/v1',
+    apiKey: process.env.DEEPSEEK_API_KEY!,
+  }),
+  messages,
+})
+```
+
+Pass `api: 'responses'` to target the OpenAI **Responses** API instead of Chat
+Completions (only for the rare compatible provider that implements it, e.g.
+Azure OpenAI); the default is `'chat-completions'`, which is what nearly all
+compatible providers speak.
+
+> Verify the provider's current `baseURL` and model ids against its live docs —
+> they drift. See `docs/adapters/openai-compatible.md` for the full provider table.
 
 ## Common Mistakes
 

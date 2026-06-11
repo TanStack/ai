@@ -13,16 +13,6 @@ that middleware is allowed to modify.
 
 ## Properties
 
-### maxTokens?
-
-```ts
-optional maxTokens: number;
-```
-
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:135](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L135)
-
-***
-
 ### messages
 
 ```ts
@@ -42,7 +32,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:130](https://gi
 optional metadata: Record<string, unknown>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:136](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L136)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:133](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L133)
 
 ***
 
@@ -52,7 +42,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:136](https://gi
 optional modelOptions: Record<string, unknown>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:137](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L137)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:134](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L134)
 
 ***
 
@@ -66,30 +56,10 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:131](https://gi
 
 ***
 
-### temperature?
-
-```ts
-optional temperature: number;
-```
-
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:133](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L133)
-
-***
-
 ### tools
 
 ```ts
-tools: Tool<SchemaInput, SchemaInput, string>[];
+tools: Tool<SchemaInput, SchemaInput, string, unknown>[];
 ```
 
 Defined in: [packages/ai/src/activities/chat/middleware/types.ts:132](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L132)
-
-***
-
-### topP?
-
-```ts
-optional topP: number;
-```
-
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:134](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L134)

@@ -34,10 +34,7 @@ Image generation is handled by image adapters that follow the same tree-shakeabl
 import { generateImage } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 
-// Create an image adapter (uses OPENAI_API_KEY from environment)
-const adapter = openaiImage()
-
-// Generate an image
+// Generate an image (the adapter uses OPENAI_API_KEY from environment)
 const result = await generateImage({
   adapter: openaiImage('dall-e-3'),
   prompt: 'A beautiful sunset over mountains',
@@ -204,17 +201,36 @@ interface ImageGenerationResult {
   id: string // Unique identifier for this generation
   model: string // The model used
   images: GeneratedImage[] // Array of generated images
-  usage?: {
-    inputTokens: number
-    outputTokens: number
-    totalTokens: number
-  }
+  // Canonical TokenUsage (same shape as chat). Token-billed models also surface
+  // a per-modality breakdown on `promptTokensDetails` (e.g. text vs image input
+  // tokens for gpt-image-1). Usage-billed providers (fal) instead surface
+  // `usage.unitsBilled` — see the note below.
+  usage?: TokenUsage
 }
 
 interface GeneratedImage {
   b64Json?: string // Base64 encoded image data
   url?: string // URL to the image (OpenAI only)
   revisedPrompt?: string // Revised prompt (OpenAI only)
+}
+```
+
+> **Cost tracking (fal):** fal bills by usage-based units rather than tokens. The
+> fal image adapter surfaces the real billed quantity as `usage.unitsBilled`
+> (read from fal's `x-fal-billable-units` result header). Multiply it by the
+> endpoint's unit price from
+> `GET https://api.fal.ai/v1/models/pricing?endpoint_id=…` for the exact cost —
+> no `fetch` interceptor needed.
+
+```typescript
+const result = await generateImage({
+  adapter: falImage('fal-ai/flux/dev'),
+  prompt: 'a serene mountain lake',
+})
+
+if (result.usage?.unitsBilled != null) {
+  const cost = result.usage.unitsBilled * unitPrice // unitPrice from fal pricing API
+  console.log(`Billed ${result.usage.unitsBilled} units (~$${cost})`)
 }
 ```
 
@@ -237,7 +253,6 @@ interface GeneratedImage {
 | `gemini-3.1-flash-image-preview` | Latest and fastest Gemini native image generation |
 | `gemini-3-pro-image-preview` | Higher quality Gemini native image generation |
 | `gemini-2.5-flash-image` | Gemini 2.5 Flash with image generation |
-| `gemini-2.0-flash-preview-image-generation` | Gemini 2.0 Flash image generation |
 
 ### Gemini Imagen Models
 
@@ -438,7 +453,7 @@ The `useGenerateImage` hook accepts:
 | `fetcher` | `(input) => Promise<ImageGenerationResult \| Response>` | Direct async function, or server function returning an SSE `Response` |
 | `id` | `string` | Unique identifier for this instance |
 | `body` | `Record<string, any>` | Additional body parameters (connection mode) |
-| `onResult` | `(result) => void` | Callback when images are generated |
+| `onResult` | `(result) => TOutput \| null \| void` | Callback when images are generated. Optionally return a transformed value to store as `result` |
 | `onError` | `(error) => void` | Callback on error |
 | `onProgress` | `(progress, message?) => void` | Progress updates (0-100) |
 
@@ -472,8 +487,8 @@ import { createOpenaiImage } from '@tanstack/ai-openai'
 import { createGeminiImage } from '@tanstack/ai-gemini'
 
 // OpenAI
-const openaiAdapter = createOpenaiImage('your-openai-api-key')
+const openaiAdapter = createOpenaiImage('dall-e-3', 'your-openai-api-key')
 
 // Gemini
-const geminiAdapter = createGeminiImage('your-google-api-key')
+const geminiAdapter = createGeminiImage('imagen-4.0-generate-001', 'your-google-api-key')
 ```

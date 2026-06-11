@@ -4,6 +4,10 @@ import {
   context as otelContext,
   trace as otelTrace,
 } from '@opentelemetry/api'
+import {
+  MAX_TOKENS_KEYS,
+  NESTED_MAX_TOKENS_KEY,
+} from '../utilities/sampling-keys'
 import type {
   AttributeValue,
   Exception,
@@ -160,6 +164,19 @@ function messageEventName(role: string): string {
     default:
       return `gen_ai.${role}.message`
   }
+}
+
+/**
+ * Return the first candidate that is a finite `number`, or `undefined`. Used to
+ * pick a sampling attribute from among the several provider-native spellings.
+ */
+function firstNumber(...candidates: Array<unknown>): number | undefined {
+  for (const candidate of candidates) {
+    if (typeof candidate === 'number' && Number.isFinite(candidate)) {
+      return candidate
+    }
+  }
+  return undefined
 }
 
 function errorMessage(err: unknown): string | undefined {
@@ -333,12 +350,37 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
           'gen_ai.request.model': ctx.model,
           'tanstack.ai.iteration': ctx.iteration,
         }
-        if (config.temperature !== undefined)
-          baseAttrs['gen_ai.request.temperature'] = config.temperature
-        if (config.topP !== undefined)
-          baseAttrs['gen_ai.request.top_p'] = config.topP
-        if (config.maxTokens !== undefined)
-          baseAttrs['gen_ai.request.max_tokens'] = config.maxTokens
+        // Sampling options now live in provider-native `modelOptions`, and
+        // providers spell them differently (e.g. `max_output_tokens`,
+        // `max_completion_tokens`, `maxOutputTokens`, `num_predict`). Read the
+        // first numeric value among the known spellings — including Ollama's
+        // nested `options` — so gen_ai attributes populate across providers.
+        const sampling = config.modelOptions ?? {}
+        const nestedOptions =
+          sampling['options'] && typeof sampling['options'] === 'object'
+            ? (sampling['options'] as Record<string, unknown>)
+            : undefined
+        const samplingTemperature = firstNumber(
+          sampling['temperature'],
+          nestedOptions?.['temperature'],
+        )
+        const samplingTopP = firstNumber(
+          sampling['top_p'],
+          sampling['topP'],
+          nestedOptions?.['top_p'],
+        )
+        // Spellings come from the shared `MAX_TOKENS_KEYS` table so this stays
+        // in lockstep with the summarize wrapper's caller-limit detection.
+        const samplingMaxTokens = firstNumber(
+          ...MAX_TOKENS_KEYS.map((k) => sampling[k]),
+          nestedOptions?.[NESTED_MAX_TOKENS_KEY],
+        )
+        if (samplingTemperature !== undefined)
+          baseAttrs['gen_ai.request.temperature'] = samplingTemperature
+        if (samplingTopP !== undefined)
+          baseAttrs['gen_ai.request.top_p'] = samplingTopP
+        if (samplingMaxTokens !== undefined)
+          baseAttrs['gen_ai.request.max_tokens'] = samplingMaxTokens
 
         const baseOptions: SpanOptions = {
           kind: SpanKind.CLIENT,

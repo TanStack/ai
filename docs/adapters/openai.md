@@ -17,6 +17,8 @@ keywords:
 
 The OpenAI adapter provides access to OpenAI's models, including GPT-4o, GPT-5, image generation (DALL-E), text-to-speech (TTS), and audio transcription (Whisper).
 
+> Using a third-party provider that speaks the OpenAI API (DeepSeek, Moonshot/Kimi, Together, Fireworks, a local LM Studio/vLLM server, …)? See the [OpenAI-Compatible Adapter](./openai-compatible) for a generic `openaiCompatible({ baseURL, apiKey, models })` factory.
+
 ## Installation
 
 ```bash
@@ -155,7 +157,7 @@ const stream = chat({
 
 ## Model Options
 
-OpenAI supports various provider-specific options:
+OpenAI supports various provider-specific options. Sampling parameters live here too — `temperature`, `top_p`, and `max_output_tokens` (the Responses API token-limit key) — rather than as root-level props on `chat()`:
 
 ```typescript
 const stream = chat({
@@ -163,7 +165,7 @@ const stream = chat({
   messages,
   modelOptions: {
     temperature: 0.7,
-    max_tokens: 1000,
+    max_output_tokens: 1000,
     top_p: 0.9,
     frequency_penalty: 0.5,
     presence_penalty: 0.5,
@@ -171,6 +173,8 @@ const stream = chat({
   },
 });
 ```
+
+> The `openaiChatCompletions` adapter targets `/v1/chat/completions`, where the token-limit key is `max_tokens` (not `max_output_tokens`). If you previously passed `temperature` / `topP` / `maxTokens` at the root of `chat()`, see [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
 
 ### Reasoning
 
@@ -569,7 +573,8 @@ const stream = chat({
 ### `shellTool`
 
 A function-style shell tool that exposes shell execution as a structured
-function call. Takes no arguments.
+function call. Pass an `environment` object to attach container config and
+hosted skills.
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -583,7 +588,43 @@ const stream = chat({
 });
 ```
 
-**Supported models:** GPT-5.x and other agent-capable models. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+**Supported models:** GPT-5.x and other agent-capable models. Responses API
+only — Chat Completions does not support the shell tool. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+
+#### Attaching hosted skills
+
+Pass `environment.skills` to load provider-managed skill bundles into the
+shell's container (Responses API only).
+
+```typescript
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { shellTool } from "@tanstack/ai-openai/tools";
+
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter: openaiText("gpt-5.2"),
+    messages,
+    tools: [
+      shellTool({
+        environment: {
+          type: "container_auto",
+          skills: [
+            { type: "skill_reference", skill_id: "skill_abc", version: "2" },
+          ],
+        },
+      }),
+    ],
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+For the full reference — skill shape, `version` string format, and the
+Anthropic equivalent — see [Provider Skills](../tools/provider-skills.md).
 
 ### `applyPatchTool`
 

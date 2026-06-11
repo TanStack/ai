@@ -1,5 +1,109 @@
 # @tanstack/ai-client
 
+## 0.16.3
+
+### Patch Changes
+
+- Updated dependencies [[`496e814`](https://github.com/TanStack/ai/commit/496e8143435746965b10e0bbd12f26ebf04ae2a6), [`c0af426`](https://github.com/TanStack/ai/commit/c0af4262d269be67c69d6f878d9618f25fdeee19), [`00e0c93`](https://github.com/TanStack/ai/commit/00e0c932e6cb5e31f75f4b5e94486d7eb02b9ce1), [`496e814`](https://github.com/TanStack/ai/commit/496e8143435746965b10e0bbd12f26ebf04ae2a6)]:
+  - @tanstack/ai@0.28.0
+  - @tanstack/ai-event-client@0.5.4
+
+## 0.16.2
+
+### Patch Changes
+
+- Updated dependencies [[`6df32b5`](https://github.com/TanStack/ai/commit/6df32b53026673d159e6df0892ce89effcb5c7b8)]:
+  - @tanstack/ai@0.27.0
+  - @tanstack/ai-event-client@0.5.3
+
+## 0.16.1
+
+### Patch Changes
+
+- Updated dependencies [[`7adff0f`](https://github.com/TanStack/ai/commit/7adff0f192e50c081b569ffb80bf65df2a404a1f)]:
+  - @tanstack/ai-event-client@0.5.2
+  - @tanstack/ai@0.26.1
+
+## 0.16.0
+
+### Minor Changes
+
+- [#661](https://github.com/TanStack/ai/pull/661) [`755e995`](https://github.com/TanStack/ai/commit/755e9953a31e879c4b88df0e7672ce1224886c97) - Add persistence support for chat messages.
+
+## 0.15.2
+
+### Patch Changes
+
+- Updated dependencies [[`5d6cd28`](https://github.com/TanStack/ai/commit/5d6cd2834ba7ac1d7c7c1bd24ede202bf3e78010)]:
+  - @tanstack/ai@0.26.0
+  - @tanstack/ai-event-client@0.5.1
+
+## 0.15.1
+
+### Patch Changes
+
+- Updated dependencies [[`c251038`](https://github.com/TanStack/ai/commit/c251038c6d8aa84e498f89e314ce5bb233bc689f)]:
+  - @tanstack/ai@0.25.0
+  - @tanstack/ai-event-client@0.5.0
+
+## 0.15.0
+
+### Minor Changes
+
+- [#666](https://github.com/TanStack/ai/pull/666) [`c1ae8b9`](https://github.com/TanStack/ai/commit/c1ae8b94c83d70508975568eb4fc9b45f1af540b) - feat: support multimodal (image) tool results
+
+  Tools may now return an `Array<ContentPart>` (e.g. a text part plus an image part) and have it transmitted to the model as structured multimodal tool output instead of a `JSON.stringify`'d blob. This unblocks use cases like returning a screenshot from a tool so the model can see it (issue [#363](https://github.com/TanStack/ai/issues/363)).
+  - Detection is structural and opt-in by shape: a tool that returns a non-empty array whose every element is a valid `ContentPart` is passed through unchanged; strings and all other return values are serialized exactly as before, so there are no breaking changes.
+  - The OpenAI Responses, Anthropic, and Google Gemini adapters convert the content parts into their native multimodal tool-output formats (`function_call_output.output`, `tool_result` content blocks, and `functionResponse.parts` respectively). Providers on the Chat Completions path (Groq, Ollama, Grok, OpenRouter chat) fall back to stringifying, which their APIs require.
+  - AG-UI stream events (`TOOL_CALL_RESULT.content`, `TOOL_CALL_END.result`) remain string-only per the spec; the multimodal array travels on the tool message itself.
+
+- [#628](https://github.com/TanStack/ai/pull/628) [`8036b50`](https://github.com/TanStack/ai/commit/8036b5054330a180023c6e3225b8d2735a43a919) - Add typed runtime context for tools and middleware.
+
+  Tools and middleware can now declare the runtime context shape they require, and
+  `chat()`, `ChatClient`, and the framework `useChat` / `createChat` hooks infer
+  the merged requirement and type-check the `context` option you pass against it.
+
+  ```typescript
+  type AppContext = { userId: string; db: Db }
+
+  const listNotes = toolDefinition({
+    name: 'list_notes' /* ... */,
+  }).server<AppContext>((_input, ctx) =>
+    ctx.context.db.notes.findMany({ userId: ctx.context.userId }),
+  )
+
+  chat({
+    adapter,
+    messages,
+    tools: [listNotes],
+    context: { userId, db }, // required and type-checked because listNotes declares AppContext
+  })
+  ```
+
+  Runtime context is request-local application state for tool and middleware
+  implementations (authenticated users, database clients, tenancy, feature flags,
+  loggers, browser services). It is never sent to the model and is distinct from
+  the AG-UI `RunAgentInput.context` protocol field.
+
+  Untyped tools and middleware continue to receive `unknown` context and do not
+  force a `context` option. Client tools receive client-local context via
+  `ChatClient` / `useChat`; use `forwardedProps` to hand serializable client data
+  to the server and map it into server context explicitly. See the new Runtime
+  Context guide for details.
+
+  Behavior change: tool output validation now also runs when a tool returns
+  `undefined` or `null`. Previously these values bypassed `outputSchema`
+  validation entirely; now the schema decides whether they are valid, so a tool
+  whose schema forbids `undefined`/`null` surfaces a validation error
+  (`output-error`) instead of silently passing. Tools whose schema permits
+  `null`/`undefined` (e.g. nullable or void outputs) are unaffected.
+
+### Patch Changes
+
+- Updated dependencies [[`c1ae8b9`](https://github.com/TanStack/ai/commit/c1ae8b94c83d70508975568eb4fc9b45f1af540b), [`a452ae8`](https://github.com/TanStack/ai/commit/a452ae8bcda8abfdc6309983976ed0fbf6df1915), [`8036b50`](https://github.com/TanStack/ai/commit/8036b5054330a180023c6e3225b8d2735a43a919)]:
+  - @tanstack/ai@0.24.0
+  - @tanstack/ai-event-client@0.4.3
+
 ## 0.14.1
 
 ### Patch Changes

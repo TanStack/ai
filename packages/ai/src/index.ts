@@ -52,6 +52,16 @@ export {
   type InferToolOutput,
 } from './activities/chat/tools/tool-definition'
 
+// MCP chat option types
+export type {
+  MCPToolSource,
+  ChatMCPOptions,
+  MCPConnectionPolicy,
+} from './activities/chat/mcp/types'
+
+// MCP error classes (value exports — usable with instanceof)
+export { MCPDuplicateToolNameError } from './activities/chat/mcp/manager'
+
 // Schema conversion (Standard JSON Schema compliant)
 export {
   convertSchemaToJsonSchema,
@@ -110,6 +120,9 @@ export type {
 
 // All types
 export * from './types'
+
+// Usage utilities
+export { buildBaseUsage, type BaseUsageInput } from './utilities/usage'
 
 // System prompts (type + normaliser used by adapters)
 export type { SystemPrompt, NormalizedSystemPrompt } from './system-prompts'
@@ -197,7 +210,7 @@ export {
 
 // Adapter extension utilities
 export { createModel, extendAdapter } from './extend-adapter'
-export type { ExtendedModelDef } from './extend-adapter'
+export type { ExtendedModelDef, ModelCapabilities } from './extend-adapter'
 
 // Logger
 export type {

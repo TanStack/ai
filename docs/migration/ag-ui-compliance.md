@@ -106,7 +106,7 @@ Keep reading `body.messages` and pass it through. `chat()` accepts mixed `UIMess
 
 ```ts
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai/adapters'
+import { openaiText } from '@tanstack/ai-openai'
 
 export async function POST(req: Request) {
   const body = await req.json()
@@ -139,7 +139,7 @@ import {
   chatParamsFromRequest,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai/adapters'
+import { openaiText } from '@tanstack/ai-openai'
 
 export async function POST(req: Request) {
   const params = await chatParamsFromRequest(req)
@@ -171,7 +171,7 @@ import {
   mergeAgentTools,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai/adapters'
+import { openaiText } from '@tanstack/ai-openai'
 
 export async function POST(req: Request) {
   const params = await chatParamsFromRequest(req)
@@ -204,19 +204,22 @@ chat({
 Always destructure the specific fields you intend to forward:
 
 ```ts
-// ✅ SAFE — explicit allowlist
+// ✅ SAFE — explicit allowlist. Sampling params live in modelOptions under
+// each provider's native key (OpenAI: temperature / max_output_tokens).
 chat({
   adapter: openaiText('gpt-4o'),
   messages: params.messages,
   tools: mergeAgentTools(serverTools, params.tools),
-  temperature:
-    typeof params.forwardedProps.temperature === 'number'
-      ? params.forwardedProps.temperature
-      : undefined,
-  maxTokens:
-    typeof params.forwardedProps.maxTokens === 'number'
-      ? params.forwardedProps.maxTokens
-      : undefined,
+  modelOptions: {
+    temperature:
+      typeof params.forwardedProps.temperature === 'number'
+        ? params.forwardedProps.temperature
+        : undefined,
+    max_output_tokens:
+      typeof params.forwardedProps.maxTokens === 'number'
+        ? params.forwardedProps.maxTokens
+        : undefined,
+  },
 })
 ```
 

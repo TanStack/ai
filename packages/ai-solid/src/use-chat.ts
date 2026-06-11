@@ -83,7 +83,11 @@ export function useChat<
       ...(options.initialMessages !== undefined && {
         initialMessages: options.initialMessages,
       }),
+      ...(options.persistence !== undefined && {
+        persistence: options.persistence,
+      }),
       body: options.body,
+      ...(options.threadId !== undefined && { threadId: options.threadId }),
       ...(options.forwardedProps !== undefined && {
         forwardedProps: options.forwardedProps,
       }),
@@ -136,6 +140,8 @@ export function useChat<
     // Connection and other options are captured at creation time
   }, [clientId])
 
+  setMessages(client().getMessages())
+
   // Sync body / forwardedProps changes to the client.
   // Both populate the same wire payload; `forwardedProps` is preferred
   // and `body` is deprecated but still supported.
@@ -150,18 +156,6 @@ export function useChat<
       context: options.context,
     })
   })
-
-  // Sync initial messages on mount only
-  // Note: initialMessages are passed to ChatClient constructor, but we also
-  // set them here to ensure React state is in sync
-  createEffect(() => {
-    if (options.initialMessages && options.initialMessages.length > 0) {
-      // Only set if current messages are empty (initial state)
-      if (messages().length === 0) {
-        client().setMessagesManually(options.initialMessages)
-      }
-    }
-  }) // Only run on mount - initialMessages are handled by ChatClient constructor
 
   // Apply initial live mode immediately on hook creation.
   if (options.live) {

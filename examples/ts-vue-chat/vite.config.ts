@@ -230,7 +230,7 @@ export default defineConfig({
                 adapter = anthropicText(selectedModel)
                 break
               case 'gemini':
-                selectedModel = model || 'gemini-2.0-flash'
+                selectedModel = model || 'gemini-2.5-flash'
                 adapter = geminiText(selectedModel)
                 break
               case 'ollama':

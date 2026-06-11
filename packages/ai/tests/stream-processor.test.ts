@@ -1022,7 +1022,7 @@ describe('StreamProcessor', () => {
         .getMessages()[0]!
         .parts.find((p) => p.type === 'tool-call') as ToolCallPart
       expect((toolCallPart as any).output).toEqual({ error: 'Network error' })
-      expect(toolCallPart.state).toBe('input-complete')
+      expect(toolCallPart.state).toBe('error')
 
       const toolResultPart = processor
         .getMessages()[0]!
@@ -3439,13 +3439,50 @@ describe('StreamProcessor', () => {
         (p) => p.type === 'tool-call',
       ) as ToolCallPart
       expect(toolCallPart.output).toEqual({ error: 'boom' })
-      expect(toolCallPart.state).toBe('input-complete')
+      // The tool-call part reaches the terminal 'error' state, symmetric with
+      // its sibling tool-result part (see issue #718).
+      expect(toolCallPart.state).toBe('error')
 
       const toolResultPart = messages[0]?.parts.find(
         (p) => p.type === 'tool-result',
       ) as ToolResultPart
       expect(toolResultPart.state).toBe('error')
       expect(toolResultPart.error).toBe('boom')
+    })
+
+    it('keeps the tool-call part terminal at "error" through RUN_FINISHED even when output-error arrives before TOOL_CALL_END', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.textStart())
+      processor.processChunk(ev.toolStart('tc-1', 'get_weather'))
+      // output-error result arrives WITHOUT a preceding TOOL_CALL_END
+      processor.processChunk(
+        chunk(EventType.TOOL_CALL_RESULT, {
+          messageId: 'tool-result-1',
+          toolCallId: 'tc-1',
+          content: '{"error":"boom"}',
+          role: 'tool',
+          state: 'output-error',
+        }),
+      )
+      // RUN_FINISHED runs the completeAllToolCalls safety net
+      processor.processChunk(ev.runFinished())
+
+      const messages = processor.getMessages()
+      const toolCallPart = messages[0]?.parts.find(
+        (p) => p.type === 'tool-call',
+      ) as ToolCallPart
+      // Safety net must NOT downgrade the rendered failed call back to
+      // 'input-complete'
+      expect(toolCallPart.state).toBe('error')
+
+      // ...but the internal bookkeeping must still finalize the call so it is
+      // surfaced by getCompletedToolCalls()/getState() — consistent with the
+      // END-first ordering and unchanged from before the #718 fix.
+      expect(processor.getState().toolCalls.get('tc-1')?.state).toBe(
+        'input-complete',
+      )
     })
   })
 

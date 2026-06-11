@@ -7,6 +7,7 @@ import {
 import { generateId, transformNullsToUndefined } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../utils/request-options'
 import { makeStructuredOutputCompatible } from '../utils/schema-converter'
+import { buildChatCompletionsUsage } from '../usage'
 import { convertToolsToChatCompletionsFormat } from './chat-completions-tool-converter'
 import type OpenAI from 'openai'
 import type {
@@ -506,11 +507,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         timestamp,
         finishReason: 'stop',
         ...(lastUsage && {
-          usage: {
-            promptTokens: lastUsage.prompt_tokens,
-            completionTokens: lastUsage.completion_tokens,
-            totalTokens: lastUsage.total_tokens,
-          },
+          usage: buildChatCompletionsUsage(lastUsage),
         }),
       }
     } catch (error: unknown) {
@@ -1064,11 +1061,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           model: lastModel || options.model,
           timestamp: Date.now(),
           ...(lastUsage && {
-            usage: {
-              promptTokens: lastUsage.prompt_tokens || 0,
-              completionTokens: lastUsage.completion_tokens || 0,
-              totalTokens: lastUsage.total_tokens || 0,
-            },
+            usage: buildChatCompletionsUsage(lastUsage),
           }),
           finishReason,
         }
@@ -1165,22 +1158,14 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         }
       : undefined
 
-    // Build the request so explicit top-level options win over modelOptions
-    // when set, but `undefined` top-level options do NOT clobber values the
-    // caller put in modelOptions. Keeping the merge nullish-aware fixes the
-    // silent regression where a `modelOptions: { temperature: 0.7 }` setting
-    // was overwritten with `temperature: undefined`.
+    // `modelOptions` is the sole sampling surface: callers set provider-native
+    // wire names (`temperature`, `top_p`, `max_tokens`/`max_completion_tokens`)
+    // there and they flow through the spread below. The root
+    // `temperature`/`topP`/`maxTokens` fields are intentionally NOT read here.
     return {
       ...modelOptions,
       model: options.model,
       messages,
-      ...(options.temperature !== undefined && {
-        temperature: options.temperature,
-      }),
-      ...(options.maxTokens !== undefined && {
-        max_tokens: options.maxTokens,
-      }),
-      ...(options.topP !== undefined && { top_p: options.topP }),
       // Conditional spread: `tools: undefined` would clobber any
       // modelOptions.tools the caller set above.
       ...(tools &&

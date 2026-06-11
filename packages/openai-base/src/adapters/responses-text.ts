@@ -7,6 +7,7 @@ import {
 import { generateId, transformNullsToUndefined } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../utils/request-options'
 import { makeStructuredOutputCompatible } from '../utils/schema-converter'
+import { buildResponsesUsage } from '../usage'
 import { convertToolsToResponsesFormat } from './responses-tool-converter'
 import type OpenAI from 'openai'
 import type {
@@ -598,11 +599,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         timestamp,
         finishReason: 'stop',
         ...(usage && {
-          usage: {
-            promptTokens: usage.input_tokens,
-            completionTokens: usage.output_tokens,
-            totalTokens: usage.total_tokens,
-          },
+          usage: buildResponsesUsage(usage),
         }),
       }
     } catch (error: unknown) {
@@ -1514,11 +1511,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             threadId: aguiState.threadId,
             model: model || options.model,
             timestamp: Date.now(),
-            usage: {
-              promptTokens: chunk.response.usage?.input_tokens || 0,
-              completionTokens: chunk.response.usage?.output_tokens || 0,
-              totalTokens: chunk.response.usage?.total_tokens || 0,
-            },
+            // Omit usage entirely when the provider reported none rather than
+            // emitting fabricated zeros (also satisfies exactOptionalPropertyTypes).
+            ...(chunk.response.usage && {
+              usage: buildResponsesUsage(chunk.response.usage),
+            }),
             finishReason,
           }
           runFinishedEmitted = true
@@ -1651,23 +1648,15 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         }
       : undefined
 
-    // Spread modelOptions first, then explicit top-level options when set.
-    // Mirrors the chat-completions base adapter's precedence so callers
-    // tuning either backend get identical behaviour. Leaving `modelOptions`
-    // last (its previous behavior) silently shadowed the canonical
-    // `options.temperature`/`maxTokens` fields, while spreading first
-    // without nullish-aware merge would clobber `modelOptions.temperature`
-    // with `undefined` whenever the caller didn't set the top-level option.
+    // `modelOptions` is the sole sampling surface: `temperature`, `top_p`, and
+    // `max_output_tokens` live there (typed via OpenAISamplingOptions) and are
+    // spread first. Engine-managed fields (`model`, `metadata`, `instructions`,
+    // `input`, `tools`, `textFormat`) are layered on top afterward so they
+    // always win over any same-named key a caller happened to put in
+    // `modelOptions`.
     return {
       ...modelOptions,
       model: options.model,
-      ...(options.temperature !== undefined && {
-        temperature: options.temperature,
-      }),
-      ...(options.maxTokens !== undefined && {
-        max_output_tokens: options.maxTokens,
-      }),
-      ...(options.topP !== undefined && { top_p: options.topP }),
       ...(options.metadata !== undefined && { metadata: options.metadata }),
       ...(() => {
         const prompts = normalizeSystemPrompts(options.systemPrompts)

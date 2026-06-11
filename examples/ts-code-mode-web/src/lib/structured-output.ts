@@ -4,6 +4,7 @@ import {
   createSkillsSystemPrompt,
   skillsToTools,
 } from '@tanstack/ai-code-mode-skills'
+import { maxTokensModelOptions } from './max-tokens-model-options'
 import type { AnyTextAdapter, AnyTool, SchemaInput } from '@tanstack/ai'
 import type { CodeModeTool, IsolateDriver } from '@tanstack/ai-code-mode'
 import type { SkillStorage, TrustStrategy } from '@tanstack/ai-code-mode-skills'
@@ -110,7 +111,9 @@ ${skillGuidance}`
     tools: allTools,
     systemPrompts,
     agentLoopStrategy: maxIterations(maxIter),
-    maxTokens: maxTok,
+    // Sampling lives in provider-native `modelOptions` now; map the generic
+    // cap to the resolved adapter's wire key.
+    modelOptions: maxTokensModelOptions(adapter, maxTok),
     outputSchema,
   })
 

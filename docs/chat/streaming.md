@@ -24,7 +24,7 @@ import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
-  adapter: openaiText("gpt-5.2"),
+  adapter: openaiText("gpt-5.5"),
   messages,
 });
 
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: openaiText("gpt-5.2"),
+    adapter: openaiText("gpt-5.5"),
     messages,
   });
 
@@ -89,18 +89,17 @@ TanStack AI implements the [AG-UI Protocol](https://docs.ag-ui.com/introduction)
 
 ### Thinking Chunks
 
-Thinking/reasoning is represented by AG-UI events `STEP_STARTED` and `STEP_FINISHED`. They stream separately from the final response text:
+Adapters emit reasoning as both the canonical `REASONING_MESSAGE_*` events and the older `STEP_STARTED` / `STEP_FINISHED` events. Rather than parsing those raw events yourself, read the reconciled `ThinkingPart` from `message.parts` — the stream processor merges both event families into a single part for you:
 
 ```typescript
-for await (const chunk of stream) {
-  if (chunk.type === "STEP_FINISHED") {
-    console.log("Thinking:", chunk.content); // Accumulated thinking content
-    console.log("Delta:", chunk.delta); // Incremental thinking token
+for (const part of message.parts) {
+  if (part.type === "thinking") {
+    console.log("Thinking:", part.content); // Accumulated thinking content
   }
 }
 ```
 
-Thinking content is automatically converted to `ThinkingPart` in `UIMessage` objects. It is UI-only and excluded from messages sent back to the model.
+Thinking content is automatically converted to `ThinkingPart` in `UIMessage` objects. It is UI-only and excluded from messages sent back to the model. See [Thinking & Reasoning](./thinking-content) for the full rendering pattern.
 
 ## Connection Adapters
 
@@ -128,22 +127,20 @@ const { messages } = useChat({
 
 ### Custom Stream
 
-```typescript
-import { stream } from "@tanstack/ai-react";
+For a fully custom request, use the `fetcher` transport. The fetcher receives the request input plus an `AbortSignal`, and returns a `Response` (whose SSE body the client parses) or an `AsyncIterable<StreamChunk>`. It may return that value synchronously, as a `Promise`, or as an `async function*`:
 
+```typescript
 const { messages } = useChat({
-  connection: stream(async (messages, data, signal) => {
-    // Custom streaming implementation
-    const response = await fetch("/api/chat", {
+  fetcher: ({ messages, data }, { signal }) =>
+    fetch("/api/chat", {
       method: "POST",
       body: JSON.stringify({ messages, ...data }),
       signal,
-    });
-    // Return async iterable
-    return processStream(response);
-  }),
+    }),
 });
 ```
+
+> **Note:** The lower-level `stream()` connection adapter takes a factory that must return an `AsyncIterable<StreamChunk>` **synchronously** (e.g. a generator) — it does not accept an `async (...) => {...}` function that returns a `Promise`. Prefer the `fetcher` transport above unless you specifically need the connection adapter.
 
 ## Monitoring Stream Progress
 
@@ -172,6 +169,15 @@ const { stop } = useChat({
 
 // Cancel the current stream
 stop();
+```
+
+Calling `stop()` aborts the underlying fetch; the resulting `AbortError` is expected and normal. This differs from a connection being cut mid-line: a truncated stream throws a `StreamTruncatedError` and moves the client into its `error` state. See [Connection Adapters](./connection-adapters) for the underlying behavior.
+
+On the server, pass an `AbortController` to `toServerSentEventsResponse(stream, { abortController })` so the chat run is cancelled when the client disconnects:
+
+```typescript
+const abortController = new AbortController();
+return toServerSentEventsResponse(stream, { abortController });
 ```
 
 ## Best Practices

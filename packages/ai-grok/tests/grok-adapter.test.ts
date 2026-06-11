@@ -5,6 +5,7 @@ import { createGrokImage, grokImage } from '../src/adapters/image'
 import { createGrokSummarize, grokSummarize } from '../src/adapters/summarize'
 import { EventType } from '@tanstack/ai'
 import type { StreamChunk, Tool } from '@tanstack/ai'
+import type { GrokTextProviderOptions } from '../src/index'
 
 // Test helper: a silent logger for test chatStream calls.
 const testLogger = resolveDebugOption(false)
@@ -123,6 +124,42 @@ describe('Grok adapters', () => {
       expect(grok4FastReasoning.supportsCombinedToolsAndSchema()).toBe(true)
       expect(grok3.supportsCombinedToolsAndSchema()).toBe(false)
       expect(grok3Mini.supportsCombinedToolsAndSchema()).toBe(false)
+    })
+
+    it('forwards sampling options from modelOptions with Grok wire names', async () => {
+      const streamChunks = [
+        {
+          id: 'chatcmpl-sampling',
+          model: 'grok-3',
+          choices: [{ delta: {}, finish_reason: 'stop' }],
+          usage: { prompt_tokens: 1, completion_tokens: 0, total_tokens: 1 },
+        },
+      ]
+
+      const adapter = createGrokText('grok-3', 'test-api-key')
+      const mockCreate = injectMockClient(adapter, streamChunks)
+
+      const modelOptions: GrokTextProviderOptions = {
+        temperature: 0.5,
+        top_p: 0.8,
+        max_tokens: 128,
+      }
+
+      for await (const _ of adapter.chatStream({
+        model: 'grok-3',
+        messages: [{ role: 'user', content: 'Hello' }],
+        modelOptions,
+        logger: testLogger,
+      })) {
+        // consume stream
+      }
+
+      expect(mockCreate).toHaveBeenCalledTimes(1)
+      expect(mockCreate.mock.calls[0]?.[0]).toMatchObject({
+        temperature: 0.5,
+        top_p: 0.8,
+        max_tokens: 128,
+      })
     })
   })
 

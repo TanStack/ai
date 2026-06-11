@@ -7,6 +7,7 @@ import { createGeminiTextInteractions } from '@tanstack/ai-gemini/experimental'
 import { createOllamaChat } from '@tanstack/ai-ollama'
 import { createGroqText } from '@tanstack/ai-groq'
 import { createGrokText } from '@tanstack/ai-grok'
+import { openaiCompatibleText } from '@tanstack/ai-openai/compatible'
 import {
   createOpenRouterResponsesText,
   createOpenRouterText,
@@ -20,12 +21,13 @@ const DUMMY_KEY = 'sk-e2e-test-dummy-key'
 const defaultModels: Record<Provider, string> = {
   openai: 'gpt-4o',
   anthropic: 'claude-sonnet-4-5',
-  gemini: 'gemini-2.0-flash',
+  gemini: 'gemini-2.5-flash',
   ollama: 'mistral',
   groq: 'llama-3.3-70b-versatile',
   grok: 'grok-3',
   openrouter: 'openai/gpt-4o',
   'openrouter-responses': 'openai/gpt-4o',
+  'openai-compatible': 'gpt-4o',
   // ElevenLabs has no chat/text model — the support matrix already filters
   // it out of text features, but we still need an entry to satisfy the
   // Record<Provider, …> constraint.
@@ -55,7 +57,7 @@ export function createTextAdapter(
   if (provider === 'gemini' && feature === 'stateful-interactions') {
     return createChatOptions({
       adapter: createGeminiTextInteractions(
-        model as 'gemini-2.0-flash',
+        model as 'gemini-2.5-flash',
         DUMMY_KEY,
         {
           httpOptions: {
@@ -84,7 +86,7 @@ export function createTextAdapter(
       }),
     gemini: () =>
       createChatOptions({
-        adapter: createGeminiChat(model as 'gemini-2.0-flash', DUMMY_KEY, {
+        adapter: createGeminiChat(model as 'gemini-2.5-flash', DUMMY_KEY, {
           httpOptions: {
             baseUrl: base,
             headers: testHeaders,
@@ -154,6 +156,14 @@ export function createTextAdapter(
         ),
       })
     },
+    'openai-compatible': () =>
+      createChatOptions({
+        adapter: openaiCompatibleText(model, {
+          baseURL: openaiUrl,
+          apiKey: DUMMY_KEY,
+          defaultHeaders: testHeaders,
+        }),
+      }),
     elevenlabs: () => {
       throw new Error(
         'ElevenLabs has no text/chat adapter — use createTTSAdapter or createTranscriptionAdapter.',

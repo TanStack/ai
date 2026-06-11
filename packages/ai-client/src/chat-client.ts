@@ -9,8 +9,10 @@ import {
 import { createNoOpChatDevtoolsBridge } from './devtools-noop'
 import {
   fetcherToConnectionAdapter,
+  getChunkRunId,
   normalizeConnectionAdapter,
 } from './connection-adapters'
+import { ChatPersistor } from './client-persistor'
 import type {
   AnyClientTool,
   ContentPart,
@@ -95,6 +97,11 @@ export class ChatClient<
   private connection: SubscribeConnectionAdapter
   private readonly uniqueId: string
   private readonly threadId: string
+  // All persistence concerns (hydrate / save / clear, plus suppression of late
+  // chunks after a mid-stream clear) live in ChatPersistor so this class stays
+  // focused on streaming. Undefined when no `persistence` adapter is configured.
+  private readonly persistor?: ChatPersistor
+  private currentRunId: string | null = null
   // Track the legacy `body` option and the canonical `forwardedProps`
   // option as separate slots so that `updateOptions({ forwardedProps })`
   // doesn't wipe a previously-set `body` (and vice versa). They are
@@ -163,6 +170,13 @@ export class ChatClient<
   constructor(options: ChatClientOptions<TTools, TContext>) {
     this.uniqueId = options.id || this.generateUniqueId('chat')
     this.threadId = options.threadId || this.generateUniqueId('thread')
+    if (options.persistence) {
+      this.persistor = new ChatPersistor(
+        options.persistence,
+        this.uniqueId,
+        (messages) => this.processor.setMessages(messages),
+      )
+    }
     // Both `body` (deprecated) and `forwardedProps` populate the AG-UI
     // `RunAgentInput.forwardedProps` wire field. They are stored
     // separately so `updateOptions` can replace one without touching the
@@ -208,15 +222,19 @@ export class ChatClient<
     // Create StreamProcessor with event handlers.
     // Use conditional spreads so we don't pass `undefined` into
     // `StreamProcessorOptions` fields under `exactOptionalPropertyTypes`.
+    const persistedMessages = this.persistor?.readInitial()
+    const initialMessages = Array.isArray(persistedMessages)
+      ? persistedMessages
+      : options.initialMessages
+
     this.processor = new StreamProcessor({
       ...(options.streamProcessor?.chunkStrategy
         ? { chunkStrategy: options.streamProcessor.chunkStrategy }
         : {}),
-      ...(options.initialMessages
-        ? { initialMessages: options.initialMessages }
-        : {}),
+      ...(initialMessages ? { initialMessages } : {}),
       events: {
         onMessagesChange: (messages: Array<UIMessage>) => {
+          this.persistor?.notifyMessagesChanged(messages)
           this.callbacksRef.current.onMessagesChange(messages)
         },
         onStreamStart: () => {
@@ -413,6 +431,8 @@ export class ChatClient<
         },
       },
     })
+
+    this.persistor?.hydrateAsync(persistedMessages)
   }
 
   mountDevtools(): void {
@@ -422,6 +442,51 @@ export class ChatClient<
 
     this.devtoolsMounted = true
     this.devtoolsBridge.mountWithTools(this.processor.getMessages().length)
+  }
+
+  /**
+   * Drain a runId-less RUN_ERROR that belongs to a cleared run the client is
+   * still tracking. The persistor owns the cleared-run bookkeeping; the client
+   * owns the active-run / session / processing state.
+   */
+  private drainIgnoredRunlessChunk(chunk: StreamChunk): void {
+    if (chunk.type !== 'RUN_ERROR') return
+    const runId = this.persistor?.takeRunlessRunId()
+    if (!runId) return
+    this.activeRunIds.delete(runId)
+    this.setSessionGenerating(this.activeRunIds.size > 0)
+    this.resolveProcessing()
+  }
+
+  private updateRunLifecycle(
+    chunk: StreamChunk,
+    options?: { resolveProcessing?: boolean },
+  ): void {
+    if (chunk.type === 'RUN_STARTED') {
+      const chunkRunId = getChunkRunId(chunk) ?? chunk.runId
+      this.activeRunIds.add(chunkRunId)
+      this.persistor?.onRunStarted(chunkRunId)
+      this.setSessionGenerating(true)
+      return
+    }
+
+    if (chunk.type !== 'RUN_FINISHED' && chunk.type !== 'RUN_ERROR') {
+      return
+    }
+
+    const runId = getChunkRunId(chunk)
+    if (runId) {
+      this.activeRunIds.delete(runId)
+      this.persistor?.onRunSettled(runId)
+    } else if (chunk.type === 'RUN_ERROR') {
+      // RUN_ERROR without runId is a session-level error; clear all runs.
+      this.activeRunIds.clear()
+      this.persistor?.onSessionRunError()
+    }
+    this.setSessionGenerating(this.activeRunIds.size > 0)
+    if (options?.resolveProcessing !== false) {
+      this.resolveProcessing()
+    }
   }
 
   private generateUniqueId(prefix: string): string {
@@ -461,6 +526,7 @@ export class ChatClient<
 
   private resetSessionGenerating(): void {
     this.activeRunIds.clear()
+    this.persistor?.resetIgnored()
     this.setSessionGenerating(false)
   }
 
@@ -609,33 +675,27 @@ export class ChatClient<
       if (this.connectionStatus === 'connecting') {
         this.setConnectionStatus('connected')
       }
-      this.callbacksRef.current.onChunk(chunk)
-      if (chunk.type === 'RUN_STARTED') {
-        this.activeRunIds.add(chunk.runId)
-        this.setSessionGenerating(true)
+      const shouldIgnore = this.persistor?.shouldIgnoreChunk(chunk) ?? false
+      if (shouldIgnore) {
+        if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
+          if (getChunkRunId(chunk)) {
+            this.updateRunLifecycle(chunk, { resolveProcessing: false })
+          } else {
+            this.drainIgnoredRunlessChunk(chunk)
+          }
+        }
+        continue
       }
+      this.callbacksRef.current.onChunk(chunk)
       this.devtoolsBridge.observeChunk(chunk)
       this.processor.processChunk(chunk)
-      // RUN_FINISHED / RUN_ERROR signal run completion — resolve processing
-      // (redundant if onStreamEnd already resolved it, harmless)
-      if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
-        // RUN_FINISHED has runId in its schema; RUN_ERROR carries it via the
-        // AG-UI passthrough so adapters can correlate per-run errors. Extract
-        // both so a RUN_ERROR with a runId only clears that run, not every
-        // active run in the session.
-        const runId =
-          'runId' in chunk && typeof chunk.runId === 'string'
-            ? chunk.runId
-            : undefined
-        if (runId) {
-          this.activeRunIds.delete(runId)
-        } else if (chunk.type === 'RUN_ERROR') {
-          // RUN_ERROR without runId is a session-level error; clear all runs
-          this.activeRunIds.clear()
-        }
-        this.setSessionGenerating(this.activeRunIds.size > 0)
-        this.resolveProcessing()
-      }
+      // Run lifecycle (active-run tracking, session-generating state, and
+      // processing resolution for RUN_FINISHED / RUN_ERROR) is handled in a
+      // single place so the ignored-chunk path above and this path can't
+      // diverge. RUN_ERROR carries its runId via the AG-UI passthrough so a
+      // per-run error only clears that run, while a runId-less RUN_ERROR is
+      // treated as a session-level error that clears every active run.
+      this.updateRunLifecycle(chunk)
       // Yield control back to event loop for UI updates
       await new Promise((resolve) => setTimeout(resolve, 0))
     }
@@ -794,6 +854,8 @@ export class ChatClient<
 
     // Track generation so a superseded stream's cleanup doesn't clobber the new one
     const generation = ++this.streamGeneration
+    const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    this.currentRunId = runId
 
     this.setIsLoading(true)
     this.setStatus('submitted')
@@ -874,7 +936,7 @@ export class ChatClient<
       // serialize to an unusable shape.
       const runContext = {
         threadId: this.threadId,
-        runId: `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        runId,
         clientTools: Array.from(clientTools.values()).map((t) => ({
           name: t.name,
           description: t.description,
@@ -967,6 +1029,7 @@ export class ChatClient<
         this.currentStreamId = null
         this.devtoolsBridge.setCurrentStreamId(null)
         this.currentMessageId = null
+        this.currentRunId = null
         this.activeClientTools = null
         this.activeContext = undefined
         this.abortController = null
@@ -1084,7 +1147,11 @@ export class ChatClient<
    * Stop the current stream
    */
   stop(): void {
+    const hadLocalStream = this.abortController !== null
     this.cancelInFlightStream({ setReadyStatus: true })
+    if (hadLocalStream) {
+      this.resetSessionGenerating()
+    }
     this.events.stopped()
   }
 
@@ -1092,7 +1159,24 @@ export class ChatClient<
    * Clear all messages
    */
   clear(): void {
+    if (this.persistor) {
+      this.persistor.snapshotClear({
+        messages: this.processor.getMessages(),
+        activeRunIds: this.activeRunIds,
+        currentRunId: this.currentRunId,
+      })
+      if (this.isLoading) {
+        this.cancelInFlightStream({ setReadyStatus: true })
+        this.resetSessionGenerating()
+      } else if (this.activeRunIds.size > 0) {
+        this.resetSessionGenerating()
+      }
+      // Suppress persisting the empty snapshot that clearMessages emits, then
+      // remove the stored conversation outright.
+      this.persistor.beginClear()
+    }
     this.processor.clearMessages()
+    this.persistor?.remove()
     this.setError(undefined)
     this.events.messagesCleared()
   }
@@ -1134,11 +1218,19 @@ export class ChatClient<
       context,
     )
 
-    // Add result via processor
+    // Add result via processor. `result.state` is the authoritative error
+    // signal; `addToolResult` infers error-ness from the error message being
+    // truthy. Pass an error message ONLY for output-error results (falling back
+    // to a default so an empty message like `throw new Error()` still reaches
+    // the terminal 'error' state), and `undefined` otherwise — so error
+    // signalling derives solely from `result.state`, never from a stray
+    // `result.errorText` on a successful result.
     this.processor.addToolResult(
       result.toolCallId,
       result.output,
-      result.errorText,
+      result.state === 'output-error'
+        ? result.errorText || 'Tool execution failed'
+        : undefined,
     )
 
     // If stream is in progress, queue continuation check for after it ends

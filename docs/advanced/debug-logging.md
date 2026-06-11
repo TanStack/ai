@@ -164,4 +164,4 @@ The chat-only categories (`middleware`, `tools`, `agentLoop`, `config`) simply n
 
 ## Related
 
-If you're building middleware and want to see chunks flow through it, `debug: { middleware: true }` is faster than writing a logging middleware. See [Middleware](./middleware) for writing your own middleware, or [Observability](./observability) for the programmatic event client.
+If you're building middleware and want to see chunks flow through it, `debug: { middleware: true }` is faster than writing a logging middleware. See [Middleware](./middleware) for writing your own middleware.

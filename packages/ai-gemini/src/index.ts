@@ -97,3 +97,6 @@ export type {
   GeminiDocumentMetadata,
   GeminiMessageMetadataByModality,
 } from './message-types'
+
+// Export provider usage types
+export type { GeminiProviderUsageDetails } from './usage'

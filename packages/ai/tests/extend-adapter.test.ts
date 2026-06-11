@@ -10,6 +10,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { createModel, extendAdapter } from '../src/extend-adapter'
 import { BaseTextAdapter } from '../src/activities/chat/adapter'
+import type { ExtendedModelDef } from '../src/extend-adapter'
 import { chat } from '../src/activities/chat'
 import { EventType } from '../src/types'
 import type { StreamChunk, TextOptions } from '../src/types'
@@ -242,6 +243,38 @@ describe('extendAdapter', () => {
     })
   })
 
+  describe('Factories with required args after model (#407)', () => {
+    // Mimics createAnthropicChat(model, apiKey, config?)
+    function mockChat<TModel extends MockModel>(
+      model: TModel,
+      apiKey: string,
+      config?: MockAdapterConfig,
+    ): MockTextAdapter<TModel> {
+      void apiKey
+      return new MockTextAdapter(model, config)
+    }
+
+    it('should preserve required apiKey and optional config parameters', () => {
+      const extendedMock = extendAdapter(mockChat, customModels)
+
+      expectTypeOf(extendedMock).parameter(1).toEqualTypeOf<string>()
+
+      const adapter = extendedMock('my-fine-tuned-model', 'sk-test', {
+        baseURL: 'https://custom.api.com',
+      })
+      expect(adapter.model).toBe('my-fine-tuned-model')
+
+      // config stays optional
+      void extendedMock('mock-gpt-4', 'sk-test')
+
+      // @ts-expect-error - apiKey is required
+      void extendedMock('mock-gpt-4')
+
+      // @ts-expect-error - invalid model names still rejected
+      void extendedMock('not-a-model', 'sk-test')
+    })
+  })
+
   describe('Empty custom models', () => {
     it('should work with empty custom models array', () => {
       const extendedMock = extendAdapter(mockText, [] as const)
@@ -250,5 +283,43 @@ describe('extendAdapter', () => {
       const adapter = extendedMock('mock-gpt-4')
       expect(adapter.model).toBe('mock-gpt-4')
     })
+  })
+})
+
+describe('createModel capabilities overload', () => {
+  it('(name, inputArray) still infers name + input (backward compat)', () => {
+    const m = createModel('legacy-model', ['text', 'image'])
+    expectTypeOf(m.name).toEqualTypeOf<'legacy-model'>()
+    expectTypeOf(m.input).toEqualTypeOf<readonly ['text', 'image']>()
+  })
+
+  it('(name, capabilities) captures features and tools', () => {
+    const m = createModel('reasoner', {
+      input: ['text'],
+      features: ['reasoning', 'structured_outputs'],
+      tools: ['web_search'],
+    })
+    expectTypeOf(m.name).toEqualTypeOf<'reasoner'>()
+    expectTypeOf(m.input).toEqualTypeOf<readonly ['text']>()
+    expectTypeOf(m.features).toEqualTypeOf<
+      readonly ['reasoning', 'structured_outputs'] | undefined
+    >()
+    expectTypeOf(m.tools).toEqualTypeOf<readonly ['web_search'] | undefined>()
+  })
+
+  it('capabilities-form model is still an ExtendedModelDef', () => {
+    const m = createModel('reasoner', { input: ['text'] })
+    expectTypeOf(m).toMatchTypeOf<ExtendedModelDef>()
+  })
+
+  it('maps modelOptions through to the def', () => {
+    interface MyOpts {
+      reasoningEffort: 'low' | 'high'
+    }
+    const m = createModel('reasoner', {
+      input: ['text'],
+      modelOptions: {} as MyOpts,
+    })
+    expectTypeOf(m.modelOptions).toEqualTypeOf<MyOpts>()
   })
 })

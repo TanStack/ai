@@ -1,6 +1,6 @@
 import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
-
+import { buildOllamaUsage } from '../usage'
 import { createOllamaClient, generateId, getOllamaHostFromEnv } from '../utils'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import type { OllamaClientConfig } from '../utils/client'
@@ -37,52 +37,6 @@ type ResolveModelOptions<TModel extends string> =
   TModel extends keyof OllamaChatModelOptionsByName
     ? OllamaChatModelOptionsByName[TModel]
     : ChatRequest
-
-/**
- * Ollama-specific provider options
- */
-export interface OllamaTextProviderOptions {
-  /** Number of tokens to keep from the prompt */
-  num_keep?: number
-  /** Number of tokens from context to consider for next token prediction */
-  top_k?: number
-  /** Minimum probability for nucleus sampling */
-  min_p?: number
-  /** Tail-free sampling parameter */
-  tfs_z?: number
-  /** Typical probability sampling parameter */
-  typical_p?: number
-  /** Number of previous tokens to consider for repetition penalty */
-  repeat_last_n?: number
-  /** Penalty for repeating tokens */
-  repeat_penalty?: number
-  /** Enable Mirostat sampling (0=disabled, 1=Mirostat, 2=Mirostat 2.0) */
-  mirostat?: number
-  /** Target entropy for Mirostat */
-  mirostat_tau?: number
-  /** Learning rate for Mirostat */
-  mirostat_eta?: number
-  /** Enable penalize_newline */
-  penalize_newline?: boolean
-  /** Enable NUMA support */
-  numa?: boolean
-  /** Context window size */
-  num_ctx?: number
-  /** Batch size for prompt processing */
-  num_batch?: number
-  /** Number of GQA groups (for some models) */
-  num_gqa?: number
-  /** Number of GPU layers to use */
-  num_gpu?: number
-  /** GPU to use for inference */
-  main_gpu?: number
-  /** Use memory-mapped model */
-  use_mmap?: boolean
-  /** Use memory-locked model */
-  use_mlock?: boolean
-  /** Number of threads to use */
-  num_thread?: number
-}
 
 export interface OllamaTextAdapterOptions {
   model?: OllamaTextModel
@@ -142,7 +96,9 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
     }
   }
 
-  async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
+  async *chatStream(
+    options: TextOptions<ResolveModelOptions<TModel>>,
+  ): AsyncIterable<StreamChunk> {
     const mappedOptions = this.mapCommonOptionsToOllama(options)
     const { logger } = options
     try {
@@ -204,6 +160,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
       return {
         data: parsed,
         rawText,
+        usage: buildOllamaUsage(response),
       }
     } catch (error: unknown) {
       const err = error as Error
@@ -350,6 +307,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
           }
         }
 
+        const finishUsage = buildOllamaUsage(chunk)
         yield {
           type: EventType.RUN_FINISHED,
           runId,
@@ -357,12 +315,9 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
           model: chunk.model,
           timestamp: Date.now(),
           finishReason: toolCallsEmitted.size > 0 ? 'tool_calls' : 'stop',
-          usage: {
-            promptTokens: chunk.prompt_eval_count || 0,
-            completionTokens: chunk.eval_count || 0,
-            totalTokens:
-              (chunk.prompt_eval_count || 0) + (chunk.eval_count || 0),
-          },
+          // usage is optional under exactOptionalPropertyTypes; omit the key
+          // entirely when Ollama reported no token counts.
+          ...(finishUsage && { usage: finishUsage }),
         }
         continue
       }
@@ -551,22 +506,11 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
     })
   }
 
-  private mapCommonOptionsToOllama(options: TextOptions): ChatRequest {
+  private mapCommonOptionsToOllama(
+    options: TextOptions<ResolveModelOptions<TModel>>,
+  ): ChatRequest {
     const model = options.model
-    const modelOptions = options.modelOptions as
-      | OllamaTextProviderOptions
-      | undefined
-
-    const ollamaOptions = {
-      ...(options.temperature !== undefined && {
-        temperature: options.temperature,
-      }),
-      ...(options.topP !== undefined && { top_p: options.topP }),
-      ...(options.maxTokens !== undefined && {
-        num_predict: options.maxTokens,
-      }),
-      ...modelOptions,
-    }
+    const modelOptions = options.modelOptions
 
     const formattedMessages = this.formatMessages(options.messages)
 
@@ -582,8 +526,34 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
 
     return {
       model,
-      options: ollamaOptions,
       messages: formattedMessages,
+      // Sampling and runner params (temperature, top_p, num_predict, top_k,
+      // seed, penalties, etc.) live under the nested `options` key — the same
+      // shape the Ollama SDK's ChatRequest.options expects. Spreading a fresh
+      // object avoids aliasing the caller's modelOptions.options.
+      options: { ...modelOptions?.options },
+      // Request-level fields the nested modelOptions surface exposes
+      // (OllamaChatRequest): format / keep_alive / logprobs / top_logprobs, plus
+      // `think` for models whose options type includes OllamaChatRequestThinking.
+      // Read structurally and only forwarded when present. `stream` is set by
+      // the call sites (chatStream / structuredOutput), so it is not forwarded.
+      ...(modelOptions?.format !== undefined && {
+        format: modelOptions.format,
+      }),
+      ...(modelOptions?.keep_alive !== undefined && {
+        keep_alive: modelOptions.keep_alive,
+      }),
+      ...(modelOptions?.logprobs !== undefined && {
+        logprobs: modelOptions.logprobs,
+      }),
+      ...(modelOptions?.top_logprobs !== undefined && {
+        top_logprobs: modelOptions.top_logprobs,
+      }),
+      ...(modelOptions &&
+      'think' in modelOptions &&
+      modelOptions.think !== undefined
+        ? { think: modelOptions.think }
+        : {}),
       ...(convertedTools !== undefined && { tools: convertedTools }),
     }
   }

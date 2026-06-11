@@ -24,7 +24,7 @@ function chatParamsFromRequest(req): Promise<{
 }>;
 ```
 
-Defined in: [packages/ai/src/utilities/chat-params.ts:121](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/chat-params.ts#L121)
+Defined in: [packages/ai/src/utilities/chat-params.ts:134](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/chat-params.ts#L134)
 
 Read an HTTP `Request`, parse its JSON body, and validate it as an
 AG-UI `RunAgentInput` — collapsing the standard `req.json()` +
@@ -47,9 +47,6 @@ In frameworks that do not auto-handle thrown `Response` objects
 (Next.js Route Handlers, SvelteKit, Hono, raw Node), wrap the call
 with try/catch and return the caught Response yourself, or use
 `chatParamsFromRequestBody` directly with your own JSON-parsing.
-
-`context` is a deprecated alias of `aguiContext` kept for backward
-compatibility.
 
 ## Parameters
 

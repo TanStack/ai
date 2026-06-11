@@ -47,6 +47,28 @@ each of these and confirm they're green before pushing:
 
 Do **not** rely on CI as your first signal. Run locally, fix, then push.
 
+## Documentation
+
+When editing docs under `docs/`:
+
+- **No `as` type-assertion casts in code samples.** Examples must type-check
+  without `as SomeType` — narrow `unknown` values with `typeof` / `in`
+  checks, type guards, or Standard Schema validation instead. (`as const` is
+  fine — it's a const assertion, not a type cast.)
+- **Show both sides of the coin.** When a doc spans server and client,
+  include snippets for both halves (server endpoint AND client consumption).
+- **Use the latest model per provider**, sourced from each adapter's
+  `model-meta.ts` (newest `gpt-*`, `claude-*`, `gemini-*`, …), in example code.
+- **Maintain `addedAt` / `updatedAt` on docs entries in `docs/config.json`.**
+  Every page entry carries an `addedAt` (ISO `YYYY-MM-DD`) and, once edited, an
+  `updatedAt`. When you touch a docs page, update its entry: add a new entry
+  with `addedAt` set to today's date for a **new page**, or set/refresh
+  `updatedAt` to today's date when you make a **content change** to an existing
+  page (new section, capability, reworked guidance, new examples). **Bug fixes
+  don't bump anything** — typos, broken links, code-fence languages,
+  formatting, and factual fixes must not touch `addedAt` or `updatedAt`.
+- Run `pnpm test:docs` (link verification) before pushing.
+
 ## Everything Else
 
 For package manager (`pnpm@10.17.0`), monorepo layout, adapter architecture,

@@ -343,9 +343,37 @@ const { generate, result, jobId, videoStatus, isLoading } = useGenerateVideo({
     console.log(`${status.status} (${status.progress}%)`),
 })
 
-// videoStatus: { jobId, status, progress?, url?, error? }
+// videoStatus: { jobId, status, progress?, url?, error?, usage? }
 // result (on completion): { url }
 ```
+
+### 6. Cost tracking (fal billable units)
+
+fal bills media generation by usage-based units, not tokens. Every fal media
+adapter (`falImage`, `falAudio`, `falSpeech`, `falTranscription`, `falVideo`)
+surfaces the real billed quantity on the result as `usage.unitsBilled`, read
+from fal's `x-fal-billable-units` response header — no `fetch` interceptor
+needed. It rides on the canonical `TokenUsage` shape (token fields are `0` for
+media), mirroring how duration-billed transcription surfaces `durationSeconds`.
+
+```typescript
+import { generateImage } from '@tanstack/ai'
+import { falImage } from '@tanstack/ai-fal'
+
+const result = await generateImage({
+  adapter: falImage('fal-ai/flux/dev'),
+  prompt: 'a serene mountain lake',
+})
+
+// usage.unitsBilled is the priced quantity. Multiply by the endpoint unit
+// price (GET https://api.fal.ai/v1/models/pricing?endpoint_id=…) for exact cost.
+if (result.usage?.unitsBilled != null) {
+  const cost = result.usage.unitsBilled * unitPrice
+}
+```
+
+For video, the units arrive with the completed result: `getVideoJobStatus()`
+returns `usage` and emits a `video:usage` devtools event when fal reports it.
 
 ---
 

@@ -342,8 +342,8 @@ describe('Gemini Image Adapter', () => {
       })
 
       expect(result.usage).toEqual({
-        inputTokens: 12,
-        outputTokens: 34,
+        promptTokens: 12,
+        completionTokens: 34,
         totalTokens: 46,
       })
     })

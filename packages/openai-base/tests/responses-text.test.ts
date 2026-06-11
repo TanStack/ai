@@ -1995,9 +1995,13 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
-        temperature: 0.5,
-        topP: 0.9,
-        maxTokens: 1024,
+        // Sampling options now flow through modelOptions with provider-native
+        // wire names; the base no longer reads root temperature/topP/maxTokens.
+        modelOptions: {
+          temperature: 0.5,
+          top_p: 0.9,
+          max_output_tokens: 1024,
+        },
         systemPrompts: ['Be helpful'],
         tools: [weatherTool],
       })) {

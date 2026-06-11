@@ -471,15 +471,6 @@ function buildInteractionsRequest(
   const generationConfig: Interactions.GenerationConfig = {
     ...modelOpts?.generation_config,
   }
-  if (options.temperature !== undefined) {
-    generationConfig.temperature = options.temperature
-  }
-  if (options.topP !== undefined) {
-    generationConfig.top_p = options.topP
-  }
-  if (options.maxTokens !== undefined) {
-    generationConfig.max_output_tokens = options.maxTokens
-  }
 
   const hasGenerationConfig = Object.keys(generationConfig).length > 0
 
