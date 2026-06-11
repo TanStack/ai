@@ -28,6 +28,7 @@ const config = defineConfig({
       '@jitl/quickjs-wasmfile-release-sync',
       '@jitl/quickjs-wasmfile-debug-asyncify',
       '@jitl/quickjs-wasmfile-debug-sync',
+      'quickjs-bun',
       'esbuild',
       // Google/Gemini related CJS packages
       'google-auth-library',
@@ -45,7 +46,7 @@ const config = defineConfig({
     ],
   },
   optimizeDeps: {
-    exclude: ['isolated-vm', 'quickjs-emscripten'],
+    exclude: ['isolated-vm', 'quickjs-emscripten', 'quickjs-bun'],
   },
 })
 

@@ -211,7 +211,8 @@
         {
           "label": "Code Mode",
           "to": "code-mode/code-mode",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-06-11"
         },
         {
           "label": "Showing Code Mode in the UI",
@@ -227,7 +228,8 @@
         {
           "label": "Code Mode Isolate Drivers",
           "to": "code-mode/code-mode-isolates",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-06-11"
         },
         {
           "label": "Lazy Tools",

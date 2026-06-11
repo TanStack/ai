@@ -51,7 +51,7 @@ Versions referenced below: TanStack AI as of this writing; Vercel AI SDK `ai@6.x
 | Transcription | Stable API with word timestamps and diarization (OpenAI, Grok, ElevenLabs, fal.ai) | `transcribe()` (experimental) |
 | Audio / Music Generation | `generateAudio()` for music & sound effects (Gemini, ElevenLabs, fal.ai) | - |
 | Summarization | Dedicated `summarize()` with streaming and style options | - |
-| Code Execution | Node.js, Cloudflare Workers, QuickJS sandboxes you run yourself | Provider-hosted code-execution tools (Anthropic, xAI, OpenAI) |
+| Code Execution | Node.js, Cloudflare Workers, QuickJS (WASM + Bun-native) sandboxes you run yourself | Provider-hosted code-execution tools (Anthropic, xAI, OpenAI) |
 | Code Mode Skills | LLM-writable persistent skill library | - |
 | Coding Agent Sandboxes | First-party Grok Build, Claude Code, Codex, OpenCode harnesses **+ any ACP agent** via `acpCompatible`; runs on local-process, Docker, Daytona, Vercel, Sprites, or Cloudflare | `HarnessAgent` (experimental) — Claude Code, Codex, Pi, OpenCode, Deep Agents; centered on Vercel Sandbox |
 | Realtime Voice | OpenAI, Grok, and ElevenLabs with VAD modes and tool support | - |
@@ -439,13 +439,14 @@ This isn't just philosophical - it means no accidental dependencies on platform-
 
 ### Code Execution Sandboxes
 
-TanStack AI provides three isolate drivers for safe code execution in AI workflows:
+TanStack AI provides four isolate drivers for safe code execution in AI workflows:
 
 - **`@tanstack/ai-isolate-node`** - Node.js sandbox via `isolated-vm`
 - **`@tanstack/ai-isolate-cloudflare`** - Cloudflare Workers sandbox
 - **`@tanstack/ai-isolate-quickjs`** - QuickJS lightweight sandbox
+- **`@tanstack/ai-isolate-quickjs-bun`** - Native QuickJS sandbox for Bun via `bun:ffi`
 
-All three implement the same `IsolateDriver` interface, so you can swap execution environments without changing application code. This powers TanStack AI's code mode - where the LLM writes and executes code as part of the agent loop. A companion `@tanstack/ai-code-mode-skills` package lets you give code mode a persistent, reusable library of runtime skills. Skills are LLM-writable: the model can save working TypeScript snippets, list and reuse them across sessions, with trust strategies controlling what gets promoted to a first-class tool. The closest AI SDK analogues - Anthropic's provider-hosted code execution and developer-uploaded skills, or pre-authored file skills loaded into a sandbox - are provider-specific and static; none give the model a persistent, provider-agnostic skill library it builds itself.
+All four implement the same `IsolateDriver` interface, so you can swap execution environments without changing application code. This powers TanStack AI's code mode - where the LLM writes and executes code as part of the agent loop. A companion `@tanstack/ai-code-mode-skills` package lets you give code mode a persistent, reusable library of runtime skills. Skills are LLM-writable: the model can save working TypeScript snippets, list and reuse them across sessions, with trust strategies controlling what gets promoted to a first-class tool. The closest AI SDK analogues - Anthropic's provider-hosted code execution and developer-uploaded skills, or pre-authored file skills loaded into a sandbox - are provider-specific and static; none give the model a persistent, provider-agnostic skill library it builds itself.
 
 Vercel AI SDK does not provide built-in code execution sandboxes (though some providers expose their own server-side code execution as provider-executed tools).
 

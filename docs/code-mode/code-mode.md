@@ -35,7 +35,7 @@ Tools you pass to Code Mode are converted to typed function stubs that appear in
 
 ### Secure sandboxing
 
-Generated code runs in an isolated environment (V8 isolate, QuickJS WASM, or Cloudflare Worker) with no access to the host file system, network, or process. The sandbox has configurable timeouts and memory limits.
+Generated code runs in an isolated environment (V8 isolate, QuickJS WASM, native QuickJS on Bun, or Cloudflare Worker) with no access to the host file system, network, or process. The sandbox has configurable timeouts and memory limits.
 
 ## Getting Started
 
@@ -53,6 +53,9 @@ pnpm add @tanstack/ai-isolate-node
 
 # QuickJS WASM — no native deps, works in browsers and edge runtimes
 pnpm add @tanstack/ai-isolate-quickjs
+
+# QuickJS Bun — native QuickJS via bun:ffi, fastest option on Bun
+bun add @tanstack/ai-isolate-quickjs-bun
 
 # Cloudflare Workers — run on the edge
 pnpm add @tanstack/ai-isolate-cloudflare
@@ -210,6 +213,7 @@ interface IsolateDriver {
 |---------|-----------------|-------------|
 | `@tanstack/ai-isolate-node` | `createNodeIsolateDriver()` | Node.js |
 | `@tanstack/ai-isolate-quickjs` | `createQuickJSIsolateDriver()` | Node.js, browser, edge |
+| `@tanstack/ai-isolate-quickjs-bun` | `createQuickJSBunIsolateDriver()` | Bun |
 | `@tanstack/ai-isolate-cloudflare` | `createCloudflareIsolateDriver()` | Cloudflare Workers |
 
 For full configuration options for each driver, see [Isolate Drivers](./code-mode-isolates.md).
@@ -226,7 +230,7 @@ These utilities are used internally and are exported for custom pipelines:
 
 For a full comparison of drivers with all configuration options, see [Isolate Drivers](./code-mode-isolates.md).
 
-In brief: use the **Node driver** for server-side Node.js (fastest, V8 JIT), **QuickJS** for browsers or portable edge deployments (no native deps), and the **Cloudflare driver** when you deploy to Cloudflare Workers.
+In brief: use the **Node driver** for server-side Node.js (fastest, V8 JIT), **QuickJS** for browsers or portable edge deployments (no native deps), **QuickJS Bun** for Bun servers (native QuickJS via `bun:ffi`), and the **Cloudflare driver** when you deploy to Cloudflare Workers.
 
 ## Custom Events
 
@@ -292,4 +296,4 @@ pnpm eval -- --no-judge      # skip Anthropic-based judging
 
 - [Showing Code Mode in the UI](./client-integration) — Display execution progress in your React app
 - [Code Mode with Skills](./code-mode-with-skills) — Add persistent, reusable skill libraries
-- [Isolate Drivers](./code-mode-isolates) — Compare Node, QuickJS, and Cloudflare sandbox runtimes
+- [Isolate Drivers](./code-mode-isolates) — Compare Node, QuickJS, QuickJS Bun, and Cloudflare sandbox runtimes
