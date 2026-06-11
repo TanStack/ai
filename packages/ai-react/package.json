@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-react",
-  "version": "0.15.4",
+  "version": "0.15.5",
   "description": "React hooks for TanStack AI streaming chat, realtime voice, structured outputs, and media generation.",
   "author": "",
   "license": "MIT",
