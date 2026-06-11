@@ -1700,6 +1700,7 @@ export interface AudioGenerationResult {
 export interface VideoGenerationOptions<
   TProviderOptions extends object = object,
   TSize extends string | undefined = string,
+  TDuration extends string | number | undefined = number,
 > {
   /** The model to use for video generation */
   model: string
@@ -1714,8 +1715,12 @@ export interface VideoGenerationOptions<
   prompt: MediaPrompt
   /** Video size — format depends on the provider (e.g., "16:9", "1280x720") */
   size?: TSize
-  /** Video duration in seconds */
-  duration?: number
+  /**
+   * Video duration in seconds. Adapters that declare a per-model duration
+   * map narrow this to the model's valid union; use
+   * `adapter.snapDuration(seconds)` to coerce raw seconds to a valid value.
+   */
+  duration?: TDuration
   /** Model-specific options for video generation */
   modelOptions?: TProviderOptions
   /**

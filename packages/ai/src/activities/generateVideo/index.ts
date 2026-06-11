@@ -67,6 +67,25 @@ export type VideoPromptForAdapter<TAdapter> =
         : MediaPrompt
     : MediaPrompt
 
+/**
+ * Extract the duration type for a VideoAdapter's model via ~types.
+ * Mirrors `VideoSizeForAdapter`. Falls back to `number` for adapters that
+ * haven't declared per-model duration constraints.
+ */
+export type VideoDurationForAdapter<TAdapter> =
+  TAdapter extends VideoAdapter<
+    infer TModel,
+    any,
+    any,
+    any,
+    any,
+    infer TDurationMap
+  >
+    ? TModel extends keyof TDurationMap
+      ? TDurationMap[TModel]
+      : number
+    : number
+
 // ===========================
 // Activity Options Types
 
@@ -113,8 +132,13 @@ export type VideoCreateOptions<
   prompt: VideoPromptForAdapter<TAdapter>
   /** Video size — format depends on the provider (e.g., "16:9", "1280x720") */
   size?: VideoSizeForAdapter<TAdapter>
-  /** Video duration in seconds */
-  duration?: number
+  /**
+   * Video duration in seconds. Adapters that declare a per-model duration
+   * map narrow this to the model's valid union (e.g. `4 | 6 | 8` for Veo 3).
+   * Pass `adapter.snapDuration(seconds)` to coerce raw seconds to a valid
+   * value.
+   */
+  duration?: VideoDurationForAdapter<TAdapter>
   /**
    * Whether to stream the video generation lifecycle.
    * When true, returns an AsyncIterable<StreamChunk> that handles the full

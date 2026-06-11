@@ -3,8 +3,9 @@ name: ai-core/media-generation
 description: >
   Image, audio, video, speech (TTS), and transcription generation using
   activity-specific adapters: generateImage() with openaiImage/geminiImage,
-  generateAudio() with geminiAudio/falAudio, generateVideo() with async
-  polling, generateSpeech() with openaiSpeech, generateTranscription() with
+  generateAudio() with geminiAudio/falAudio, generateVideo() with
+  openaiVideo/geminiVideo (async polling, per-model typed durations),
+  generateSpeech() with openaiSpeech, generateTranscription() with
   openaiTranscription. React hooks: useGenerateImage, useGenerateAudio,
   useGenerateSpeech, useTranscription, useGenerateVideo.
   TanStack Start server function integration with toServerSentEventsResponse.
@@ -426,6 +427,31 @@ const stream = generateVideo({
   maxDuration: 600_000,
 })
 return toServerSentEventsResponse(stream)
+```
+
+Google Veo (`@tanstack/ai-gemini`) uses the same jobs/polling flow. Its
+`duration` option is typed per model (e.g. `4 | 6 | 8` for Veo 3.x,
+`5 | 6 | 8` for Veo 2); use `adapter.snapDuration(seconds)` to coerce raw
+seconds and `adapter.availableDurations()` to enumerate the valid set.
+Image prompt parts route by `metadata.role`: first un-roled /
+`'start_frame'` image → input image, `'end_frame'` → `lastFrame`,
+`'reference'` / `'character'` → `referenceImages`:
+
+```typescript
+import { geminiVideo } from '@tanstack/ai-gemini'
+
+const adapter = geminiVideo('veo-3.1-generate-preview')
+adapter.availableDurations() // { kind: 'discrete', values: [4, 6, 8] }
+
+const { jobId } = await generateVideo({
+  adapter,
+  prompt: 'A golden retriever playing in sunflowers',
+  size: '16:9', // Veo sizes are aspect ratios: '16:9' | '9:16'
+  duration: adapter.snapDuration(7), // 6
+  modelOptions: { resolution: '1080p', generateAudio: true },
+})
+// Note: Veo result URLs require the Google API key to download
+// (x-goog-api-key header or ?key= query parameter).
 ```
 
 Client hook with job tracking:
