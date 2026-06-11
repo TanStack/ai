@@ -1,8 +1,10 @@
 import { fal } from '@fal-ai/client'
 import { BaseTranscriptionAdapter } from '@tanstack/ai/adapters'
 import {
+  buildFalUsage,
   configureFalClient,
   dataUrlToBlob,
+  takeBillableUnits,
   generateId as utilGenerateId,
 } from '../utils'
 import type { OutputType, Result } from '@fal-ai/client'
@@ -151,12 +153,15 @@ export class FalTranscriptionAdapter<
       (data.inferred_languages as Array<string> | undefined)?.[0] ||
       (data.languages as Array<string> | undefined)?.[0]
 
+    const usage = buildFalUsage(takeBillableUnits(response.requestId))
+
     return {
       id: response.requestId || this.generateId(),
       model: this.model,
       text,
       ...(language !== undefined ? { language } : {}),
       ...(segments !== undefined ? { segments } : {}),
+      ...(usage ? { usage } : {}),
     }
   }
 }

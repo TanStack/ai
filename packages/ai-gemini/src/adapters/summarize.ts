@@ -20,7 +20,7 @@ export type GeminiSummarizeModel = (typeof GEMINI_MODELS)[number]
  *
  * @example
  * ```typescript
- * const adapter = createGeminiSummarize('AIza...', 'gemini-2.0-flash');
+ * const adapter = createGeminiSummarize('AIza...', 'gemini-2.5-flash');
  * ```
  */
 export function createGeminiSummarize<TModel extends GeminiSummarizeModel>(
@@ -44,7 +44,7 @@ export function createGeminiSummarize<TModel extends GeminiSummarizeModel>(
  *
  * @example
  * ```typescript
- * const adapter = geminiSummarize('gemini-2.0-flash');
+ * const adapter = geminiSummarize('gemini-2.5-flash');
  * await summarize({ adapter, text: 'Long article text...' });
  * ```
  */

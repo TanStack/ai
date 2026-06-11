@@ -317,7 +317,7 @@ export class StreamProcessor {
       this.messages,
       toolCallId,
       output,
-      error ? 'input-complete' : undefined,
+      error ? 'error' : undefined,
       error,
     )
 
@@ -1192,7 +1192,7 @@ export class StreamProcessor {
         this.messages,
         chunk.toolCallId,
         output,
-        chunk.state === 'output-error' ? 'input-complete' : undefined,
+        chunk.state === 'output-error' ? 'error' : undefined,
       )
 
       // Step 2: Create/update the tool-result part (for LLM conversation history)
@@ -1248,7 +1248,7 @@ export class StreamProcessor {
       this.messages,
       chunk.toolCallId,
       output,
-      chunk.state === 'output-error' ? 'input-complete' : undefined,
+      chunk.state === 'output-error' ? 'error' : undefined,
     )
 
     // Step 2: Create/update the tool-result part
@@ -1698,10 +1698,21 @@ export class StreamProcessor {
     _index: number,
     toolCall: InternalToolCallState,
   ): void {
+    // Finalize the internal bookkeeping: the call's input arguments ARE
+    // complete regardless of whether execution later failed, so the call still
+    // counts as a completed tool call in getCompletedToolCalls()/getState().
     toolCall.state = 'input-complete'
 
     // Try final parse
     toolCall.parsedArguments = this.jsonParser.parse(toolCall.arguments)
+
+    // Don't downgrade the rendered part of a call that already reached the
+    // terminal 'error' state (e.g. an output-error TOOL_CALL_RESULT arrived
+    // without a preceding TOOL_CALL_END). The RUN_FINISHED / finalizeStream
+    // safety net must not clobber a failed call back to 'input-complete'.
+    if (this.isToolCallPartErrored(toolCall.id)) {
+      return
+    }
 
     // Update UIMessage
     this.messages = updateToolCallPart(this.messages, messageId, {
@@ -1719,6 +1730,22 @@ export class StreamProcessor {
       toolCall.id,
       'input-complete',
       toolCall.arguments,
+    )
+  }
+
+  /**
+   * Whether the rendered tool-call part for the given id has reached the
+   * terminal 'error' state. Used to prevent the completion safety net from
+   * downgrading a failed call back to 'input-complete'.
+   */
+  private isToolCallPartErrored(toolCallId: string): boolean {
+    return this.messages.some((msg) =>
+      msg.parts.some(
+        (part) =>
+          part.type === 'tool-call' &&
+          part.id === toolCallId &&
+          part.state === 'error',
+      ),
     )
   }
 

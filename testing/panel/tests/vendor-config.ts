@@ -59,7 +59,7 @@ export const PROVIDERS: ProviderConfig[] = [
     id: 'gemini',
     name: 'Gemini',
     envKey: 'GEMINI_API_KEY',
-    defaultModel: 'gemini-2.0-flash',
+    defaultModel: 'gemini-2.5-flash',
     supportsBasicInference: true,
     supportsTools: true,
     supportsSummarization: true,

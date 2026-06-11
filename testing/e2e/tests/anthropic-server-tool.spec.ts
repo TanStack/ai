@@ -34,9 +34,7 @@ test.describe('anthropic — webFetchTool() streaming (#604)', () => {
     expect(error).toBeNull()
 
     const toolCallStarts = chunks.filter((c) => c.type === 'TOOL_CALL_START')
-    // `TOOL_CALL_END` is emitted twice per call: once by the adapter with
-    // the parsed `input`, and once by the tool runner with the execution
-    // `result`. The bug shape lived in the first one — that's where the
+    // The adapter's `TOOL_CALL_END` carries the parsed `input` — where the
     // pre-fix `JSON.parse(concatenatedArgs)` blew up.
     const toolCallArgEnds = chunks.filter(
       (c) =>

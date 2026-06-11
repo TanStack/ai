@@ -55,7 +55,7 @@ OpenRouter provides access to 300+ models from various providers. Models use the
 ```typescript
 model: "openai/gpt-5.1"
 model: "anthropic/claude-sonnet-4.5"
-model: "google/gemini-3-pro-preview"
+model: "google/gemini-3.1-pro-preview"
 model: "meta-llama/llama-4-maverick"
 model: "deepseek/deepseek-v3.2"
 ```

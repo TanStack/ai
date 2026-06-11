@@ -24,6 +24,7 @@ import { Route as ApiVideoRouteImport } from './routes/api.video'
 import { Route as ApiTtsRouteImport } from './routes/api.tts'
 import { Route as ApiTranscriptionRouteImport } from './routes/api.transcription'
 import { Route as ApiToolsTestRouteImport } from './routes/api.tools-test'
+import { Route as ApiToolCallLifecycleWireRouteImport } from './routes/api.tool-call-lifecycle-wire'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiOpenrouterWebToolsWireRouteImport } from './routes/api.openrouter-web-tools-wire'
 import { Route as ApiOpenrouterCostRouteImport } from './routes/api.openrouter-cost'
@@ -124,6 +125,12 @@ const ApiToolsTestRoute = ApiToolsTestRouteImport.update({
   path: '/api/tools-test',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiToolCallLifecycleWireRoute =
+  ApiToolCallLifecycleWireRouteImport.update({
+    id: '/api/tool-call-lifecycle-wire',
+    path: '/api/tool-call-lifecycle-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiSummarizeRoute = ApiSummarizeRouteImport.update({
   id: '/api/summarize',
   path: '/api/summarize',
@@ -278,6 +285,7 @@ export interface FileRoutesByFullPath {
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/summarize': typeof ApiSummarizeRoute
+  '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
@@ -319,6 +327,7 @@ export interface FileRoutesByTo {
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/summarize': typeof ApiSummarizeRoute
+  '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
@@ -361,6 +370,7 @@ export interface FileRoutesById {
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/summarize': typeof ApiSummarizeRoute
+  '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
@@ -404,6 +414,7 @@ export interface FileRouteTypes {
     | '/api/openrouter-cost'
     | '/api/openrouter-web-tools-wire'
     | '/api/summarize'
+    | '/api/tool-call-lifecycle-wire'
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
@@ -445,6 +456,7 @@ export interface FileRouteTypes {
     | '/api/openrouter-cost'
     | '/api/openrouter-web-tools-wire'
     | '/api/summarize'
+    | '/api/tool-call-lifecycle-wire'
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
@@ -486,6 +498,7 @@ export interface FileRouteTypes {
     | '/api/openrouter-cost'
     | '/api/openrouter-web-tools-wire'
     | '/api/summarize'
+    | '/api/tool-call-lifecycle-wire'
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
@@ -528,6 +541,7 @@ export interface RootRouteChildren {
   ApiOpenrouterCostRoute: typeof ApiOpenrouterCostRoute
   ApiOpenrouterWebToolsWireRoute: typeof ApiOpenrouterWebToolsWireRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
+  ApiToolCallLifecycleWireRoute: typeof ApiToolCallLifecycleWireRoute
   ApiToolsTestRoute: typeof ApiToolsTestRoute
   ApiTranscriptionRoute: typeof ApiTranscriptionRouteWithChildren
   ApiTtsRoute: typeof ApiTtsRouteWithChildren
@@ -640,6 +654,13 @@ declare module '@tanstack/react-router' {
       path: '/api/tools-test'
       fullPath: '/api/tools-test'
       preLoaderRoute: typeof ApiToolsTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/tool-call-lifecycle-wire': {
+      id: '/api/tool-call-lifecycle-wire'
+      path: '/api/tool-call-lifecycle-wire'
+      fullPath: '/api/tool-call-lifecycle-wire'
+      preLoaderRoute: typeof ApiToolCallLifecycleWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/summarize': {
@@ -901,6 +922,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOpenrouterCostRoute: ApiOpenrouterCostRoute,
   ApiOpenrouterWebToolsWireRoute: ApiOpenrouterWebToolsWireRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
+  ApiToolCallLifecycleWireRoute: ApiToolCallLifecycleWireRoute,
   ApiToolsTestRoute: ApiToolsTestRoute,
   ApiTranscriptionRoute: ApiTranscriptionRouteWithChildren,
   ApiTtsRoute: ApiTtsRouteWithChildren,

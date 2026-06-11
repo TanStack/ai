@@ -226,7 +226,7 @@ export function updateToolCallWithOutput(
       parts[index] = {
         ...toolCallPart,
         output: errorText ? { error: errorText } : output,
-        state: state ?? (errorText ? 'input-complete' : 'complete'),
+        state: state ?? (errorText ? 'error' : 'complete'),
       }
     }
 

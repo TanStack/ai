@@ -1,6 +1,11 @@
 import { fal } from '@fal-ai/client'
 import { BaseImageAdapter } from '@tanstack/ai/adapters'
-import { configureFalClient, generateId as utilGenerateId } from '../utils'
+import {
+  buildFalUsage,
+  configureFalClient,
+  takeBillableUnits,
+  generateId as utilGenerateId,
+} from '../utils'
 import { mapSizeToFalFormat } from '../image/image-provider-options'
 import type { OutputType, Result } from '@fal-ai/client'
 import type { FalClientConfig } from '../utils'
@@ -120,10 +125,13 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
       )
     }
 
+    const usage = buildFalUsage(takeBillableUnits(response.requestId))
+
     return {
       id: response.requestId || this.generateId(),
       model: this.model,
       images,
+      ...(usage ? { usage } : {}),
     }
   }
 

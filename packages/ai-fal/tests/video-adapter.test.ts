@@ -2,6 +2,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { generateVideo } from '@tanstack/ai'
 
 import { falVideo } from '../src/adapters/video'
+import { recordBillableUnitsFromResponse } from '../src/utils/billing'
+
+function seedBillableUnits(requestId: string, units: string) {
+  recordBillableUnitsFromResponse(
+    new Response(null, {
+      headers: {
+        'x-fal-request-id': requestId,
+        'x-fal-billable-units': units,
+      },
+    }),
+  )
+}
 
 // Declare mocks at module level
 let mockQueueSubmit: any
@@ -282,6 +294,39 @@ describe('Fal Video Adapter', () => {
         'Video URL not found in response',
       )
     })
+
+    it('surfaces fal billable units as usage', async () => {
+      seedBillableUnits('job-billed', '12')
+      mockQueueResult.mockResolvedValueOnce({
+        data: {
+          video: { url: 'https://fal.media/files/billed.mp4' },
+        },
+        requestId: 'job-billed',
+      })
+
+      const result = await createAdapter().getVideoUrl('job-billed')
+
+      expect(result.url).toBe('https://fal.media/files/billed.mp4')
+      expect(result.usage).toEqual({
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+        unitsBilled: 12,
+      })
+    })
+
+    it('omits usage when fal does not report billable units', async () => {
+      mockQueueResult.mockResolvedValueOnce({
+        data: {
+          video: { url: 'https://fal.media/files/unbilled.mp4' },
+        },
+        requestId: 'job-unbilled',
+      })
+
+      const result = await createAdapter().getVideoUrl('job-unbilled')
+
+      expect(result.usage).toBeUndefined()
+    })
   })
 
   describe('client configuration', () => {
@@ -290,6 +335,7 @@ describe('Fal Video Adapter', () => {
 
       expect(mockConfig).toHaveBeenCalledWith({
         credentials: 'my-api-key',
+        fetch: expect.any(Function),
       })
     })
 
@@ -301,6 +347,7 @@ describe('Fal Video Adapter', () => {
 
       expect(mockConfig).toHaveBeenCalledWith({
         credentials: 'my-api-key',
+        fetch: expect.any(Function),
         proxyUrl: '/api/fal/proxy',
       })
     })
