@@ -26,6 +26,7 @@ import { Route as ApiTranscriptionRouteImport } from './routes/api.transcription
 import { Route as ApiToolsTestRouteImport } from './routes/api.tools-test'
 import { Route as ApiToolCallLifecycleWireRouteImport } from './routes/api.tool-call-lifecycle-wire'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
+import { Route as ApiOtelUsageRouteImport } from './routes/api.otel-usage'
 import { Route as ApiOpenrouterWebToolsWireRouteImport } from './routes/api.openrouter-web-tools-wire'
 import { Route as ApiOpenrouterCostRouteImport } from './routes/api.openrouter-cost'
 import { Route as ApiOpenaiUsageDetailsRouteImport } from './routes/api.openai-usage-details'
@@ -134,6 +135,11 @@ const ApiToolCallLifecycleWireRoute =
 const ApiSummarizeRoute = ApiSummarizeRouteImport.update({
   id: '/api/summarize',
   path: '/api/summarize',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOtelUsageRoute = ApiOtelUsageRouteImport.update({
+  id: '/api/otel-usage',
+  path: '/api/otel-usage',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiOpenrouterWebToolsWireRoute =
@@ -284,6 +290,7 @@ export interface FileRoutesByFullPath {
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
+  '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
@@ -326,6 +333,7 @@ export interface FileRoutesByTo {
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
+  '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
@@ -369,6 +377,7 @@ export interface FileRoutesById {
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
+  '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
@@ -413,6 +422,7 @@ export interface FileRouteTypes {
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
     | '/api/openrouter-web-tools-wire'
+    | '/api/otel-usage'
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
     | '/api/tools-test'
@@ -455,6 +465,7 @@ export interface FileRouteTypes {
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
     | '/api/openrouter-web-tools-wire'
+    | '/api/otel-usage'
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
     | '/api/tools-test'
@@ -497,6 +508,7 @@ export interface FileRouteTypes {
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
     | '/api/openrouter-web-tools-wire'
+    | '/api/otel-usage'
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
     | '/api/tools-test'
@@ -540,6 +552,7 @@ export interface RootRouteChildren {
   ApiOpenaiUsageDetailsRoute: typeof ApiOpenaiUsageDetailsRoute
   ApiOpenrouterCostRoute: typeof ApiOpenrouterCostRoute
   ApiOpenrouterWebToolsWireRoute: typeof ApiOpenrouterWebToolsWireRoute
+  ApiOtelUsageRoute: typeof ApiOtelUsageRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
   ApiToolCallLifecycleWireRoute: typeof ApiToolCallLifecycleWireRoute
   ApiToolsTestRoute: typeof ApiToolsTestRoute
@@ -668,6 +681,13 @@ declare module '@tanstack/react-router' {
       path: '/api/summarize'
       fullPath: '/api/summarize'
       preLoaderRoute: typeof ApiSummarizeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/otel-usage': {
+      id: '/api/otel-usage'
+      path: '/api/otel-usage'
+      fullPath: '/api/otel-usage'
+      preLoaderRoute: typeof ApiOtelUsageRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/openrouter-web-tools-wire': {
@@ -921,6 +941,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOpenaiUsageDetailsRoute: ApiOpenaiUsageDetailsRoute,
   ApiOpenrouterCostRoute: ApiOpenrouterCostRoute,
   ApiOpenrouterWebToolsWireRoute: ApiOpenrouterWebToolsWireRoute,
+  ApiOtelUsageRoute: ApiOtelUsageRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
   ApiToolCallLifecycleWireRoute: ApiToolCallLifecycleWireRoute,
   ApiToolsTestRoute: ApiToolsTestRoute,

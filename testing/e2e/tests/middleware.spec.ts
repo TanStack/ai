@@ -193,6 +193,77 @@ test.describe('Middleware Lifecycle', () => {
     }
   })
 
+  test('otel middleware emits total/cache/reasoning usage details on spans', async ({
+    request,
+  }) => {
+    // `/api/otel-usage` drives the OpenAI adapter against the
+    // `/openai-usage-details` aimock mount (total_tokens + cached_tokens +
+    // reasoning_tokens) with otelMiddleware attached, and returns the
+    // captured spans. End-to-end proof for #721: the full TokenUsage reaches
+    // span attributes, not just input/output tokens.
+    const res = await request.post('/api/otel-usage', {
+      data: { provider: 'openai' },
+    })
+    expect(res.ok()).toBe(true)
+    const { ok, error, spans } = await res.json()
+    expect(error ?? null).toBeNull()
+    expect(ok).toBe(true)
+
+    const iterationSpans = spans.filter(
+      (s: any) => s.kind === SpanKind.CLIENT && s.ended,
+    )
+    expect(iterationSpans.length).toBeGreaterThanOrEqual(1)
+    expect(iterationSpans[0].attributes).toMatchObject({
+      'gen_ai.usage.input_tokens': 100,
+      'gen_ai.usage.output_tokens': 50,
+      'gen_ai.usage.total_tokens': 150,
+      'gen_ai.usage.cache_read.input_tokens': 80,
+      'gen_ai.usage.reasoning.output_tokens': 30,
+    })
+
+    // The root span rolls up the final usage on onFinish.
+    const rootSpans = spans.filter((s: any) => s.kind === SpanKind.INTERNAL)
+    expect(rootSpans).toHaveLength(1)
+    expect(rootSpans[0].attributes).toMatchObject({
+      'gen_ai.usage.total_tokens': 150,
+      'gen_ai.usage.cache_read.input_tokens': 80,
+      'gen_ai.usage.reasoning.output_tokens': 30,
+    })
+  })
+
+  test('otel middleware emits provider-reported cost on spans', async ({
+    request,
+  }) => {
+    // OpenRouter adapter against the `/openrouter-cost` mount, whose trailing
+    // usage chunk carries `cost` / `cost_details`. Backends like PostHog read
+    // `gen_ai.usage.cost` directly instead of re-deriving from price tables.
+    const res = await request.post('/api/otel-usage', {
+      data: { provider: 'openrouter' },
+    })
+    expect(res.ok()).toBe(true)
+    const { ok, error, spans } = await res.json()
+    expect(error ?? null).toBeNull()
+    expect(ok).toBe(true)
+
+    const iterationSpans = spans.filter(
+      (s: any) => s.kind === SpanKind.CLIENT && s.ended,
+    )
+    expect(iterationSpans.length).toBeGreaterThanOrEqual(1)
+    expect(iterationSpans[0].attributes).toMatchObject({
+      'gen_ai.usage.input_tokens': 11,
+      'gen_ai.usage.output_tokens': 3,
+      'gen_ai.usage.total_tokens': 14,
+      'gen_ai.usage.cost': 0.0042,
+      'tanstack.ai.usage.upstream_cost': 0.0038,
+      'tanstack.ai.usage.upstream_input_cost': 0.0012,
+      'tanstack.ai.usage.upstream_output_cost': 0.0026,
+    })
+
+    const rootSpans = spans.filter((s: any) => s.kind === SpanKind.INTERNAL)
+    expect(rootSpans).toHaveLength(1)
+    expect(rootSpans[0].attributes['gen_ai.usage.cost']).toBe(0.0042)
+  })
+
   test('no middleware passes content through unchanged', async ({
     page,
     testId,

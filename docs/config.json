@@ -280,7 +280,8 @@
         {
           "label": "OpenTelemetry",
           "to": "advanced/otel",
-          "addedAt": "2026-05-08"
+          "addedAt": "2026-05-08",
+          "updatedAt": "2026-06-11"
         }
       ]
     },
