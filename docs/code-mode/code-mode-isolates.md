@@ -114,7 +114,7 @@ QuickJS WASM uses an asyncified execution model — the WASM module can pause wh
 
 ## QuickJS Bun Driver (`@tanstack/ai-isolate-quickjs-bun`)
 
-Runs [QuickJS](https://bellard.org/quickjs/) natively on the [Bun](https://bun.sh/) runtime through `bun:ffi`, via the `[quickjs-bun](https://github.com/superpowerdotcom/quickjs-bun)` package. There are no native dependencies and no build step — the vendored QuickJS C sources are compiled on the fly with Bun's embedded TinyCC, once per process. This makes it the fastest sandboxed option for Code Mode on Bun.
+Runs [QuickJS](https://bellard.org/quickjs/) natively on the [Bun](https://bun.sh/) runtime through `bun:ffi`, via the [`quickjs-bun`](https://github.com/superpowerdotcom/quickjs-bun) package. There are no native dependencies and no build step — the vendored QuickJS C sources are compiled on the fly with Bun's embedded TinyCC, once per process. This makes it the fastest sandboxed option for Code Mode on Bun.
 
 ### Installation
 
