@@ -53,6 +53,24 @@ for (const provider of providersFor('chat')) {
   })
 }
 
+test.describe('openrouter root metadata', () => {
+  test('streams when root observability metadata is structured', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await page.goto(
+      `${featureUrl('openrouter', 'chat', testId, aimockPort)}&rootMetadata=structured`,
+    )
+
+    await sendMessage(page, '[chat] recommend a guitar')
+    await waitForResponse(page)
+
+    const response = await getLastAssistantMessage(page)
+    expect(response).toContain('Fender Stratocaster')
+  })
+})
+
 test.describe('openai chat persistence', () => {
   test('persists chat messages across browser reload with localStorage', async ({
     page,

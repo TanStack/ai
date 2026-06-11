@@ -1160,12 +1160,12 @@ export class OpenRouterTextAdapter<
     // wire names (`temperature`, `topP`, `maxCompletionTokens`, etc.) there and
     // they flow through the spread below. The root `temperature`/`topP`/
     // `maxTokens` fields are intentionally NOT read here. Root `metadata` is
-    // still part of the contract, so forward it the same way the responses
-    // adapter does.
+    // observability context for middleware/devtools, not OpenRouter request
+    // metadata. Provider-native request metadata still flows through
+    // `modelOptions.metadata` via `...restModelOptions`.
     const request: Omit<ChatRequest, 'stream'> = {
       ...restModelOptions,
       model: options.model + variantSuffix,
-      ...(options.metadata !== undefined && { metadata: options.metadata }),
       messages,
       ...(tools && tools.length > 0 && { tools }),
     }

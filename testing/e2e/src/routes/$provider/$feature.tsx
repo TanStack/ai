@@ -36,6 +36,8 @@ export const Route = createFileRoute('/$provider/$feature')({
           : undefined,
       persistence:
         search.persistence === 'localStorage' ? 'localStorage' : undefined,
+      rootMetadata:
+        search.rootMetadata === 'structured' ? 'structured' : undefined,
     }
   },
 })
@@ -190,7 +192,7 @@ function ChatFeature({
 
   const tools = needsApproval ? clientTools(addToCartClient) : undefined
 
-  const { testId, aimockPort, persistence } = Route.useSearch()
+  const { testId, aimockPort, persistence, rootMetadata } = Route.useSearch()
   const persistenceEnabled = persistence === 'localStorage'
   const baseChatId = `e2e-chat-${testId ?? `${provider}-${feature}`}`
   // When persistence is on, expose a tiny thread switcher so e2e can verify that
@@ -267,6 +269,7 @@ function ChatFeature({
       testId,
       aimockPort,
       previousInteractionId: interactionId,
+      rootMetadata,
     },
     persistence:
       persistence === 'localStorage' ? localStoragePersistence : undefined,
