@@ -13,7 +13,7 @@ Sources:
 - Gemini: Google Generative Language Discovery doc, converted to OpenAPI in-pipeline
 - ElevenLabs: `api.elevenlabs.io/openapi.json`
 - xAI Grok: `docs.x.ai/openapi.json`
-- OpenRouter: `openrouter.ai/openapi.json`
+- OpenRouter: `openrouter.ai/openapi.json` + `api/v1/videos/models` metadata (per-video-model constrained schemas)
 - FAL: per-model OpenAPI from the FAL models API (requires `FAL_KEY`)
 
 The `.github/workflows/sync-schemas.yml` workflow runs daily and opens a PR when any provider's spec changes. Resolves #619.

@@ -74,8 +74,14 @@ function extractEndpointsFromSpec(
         resultGet?.responses?.['200']?.content?.['application/json']?.schema
           ?.$ref
     } else {
-      outputRef =
-        post.responses?.['200']?.content?.['application/json']?.schema?.$ref
+      // Some endpoints ack with 201 (ElevenLabs dubbing) or 202 (OpenRouter
+      // video jobs) instead of 200 — take the first success response that
+      // carries a JSON schema.
+      for (const status of ['200', '201', '202']) {
+        outputRef =
+          post.responses?.[status]?.content?.['application/json']?.schema?.$ref
+        if (typeof outputRef === 'string') break
+      }
     }
 
     const inputType = inputRef.replace(/^#\/components\/schemas\//, '')

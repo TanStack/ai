@@ -264,6 +264,535 @@ export const zVideoGenerationRequest = z.object({
 })
 
 /**
+ * Alibaba: Wan 2.6 (alibaba/wan-2.6) — model-constrained video generation request. Alibaba's most advanced video generation model, supporting over 10 visual creation capabilities in a unified system. Wan 2.6 generates 1080p video at 24fps from text, images, reference videos, or audio,...
+ */
+export const zVideoGenerationRequestAlibabaWan26 = z.object({
+  aspect_ratio: z.enum(['16:9', '9:16']).optional(),
+  callback_url: z.url().optional(),
+  duration: z.union([z.literal(5), z.literal(10)]).optional(),
+  frame_images: z.array(zFrameImage).optional(),
+  generate_audio: z.boolean().optional(),
+  input_references: z.array(zContentPartImage).optional(),
+  model: z.enum(['alibaba/wan-2.6']),
+  prompt: z.string(),
+  provider: z
+    .object({
+      options: zProviderOptions.and(z.unknown()).optional(),
+    })
+    .optional(),
+  resolution: z.enum(['720p', '1080p']).optional(),
+  seed: z.int().optional(),
+  size: z.enum(['1280x720', '1080x1920', '720x1280', '1920x1080']).optional(),
+})
+
+/**
+ * Alibaba: Wan 2.7 (alibaba/wan-2.7) — model-constrained video generation request. Wan 2.7 is a video generation model from Alibaba. It supports text-to-video, image-to-video with first and last frame control, and reference-to-video, where multiple reference images guide the style and content...
+ */
+export const zVideoGenerationRequestAlibabaWan27 = z.object({
+  aspect_ratio: z.enum(['16:9', '9:16', '1:1', '4:3', '3:4']).optional(),
+  callback_url: z.url().optional(),
+  duration: z
+    .union([
+      z.literal(2),
+      z.literal(3),
+      z.literal(4),
+      z.literal(5),
+      z.literal(6),
+      z.literal(7),
+      z.literal(8),
+      z.literal(9),
+      z.literal(10),
+    ])
+    .optional(),
+  frame_images: z.array(zFrameImage).optional(),
+  generate_audio: z.boolean().optional(),
+  input_references: z.array(zContentPartImage).optional(),
+  model: z.enum(['alibaba/wan-2.7']),
+  prompt: z.string(),
+  provider: z
+    .object({
+      options: zProviderOptions.and(z.unknown()).optional(),
+    })
+    .optional(),
+  resolution: z.enum(['720p', '1080p']).optional(),
+  seed: z.int().optional(),
+  size: z
+    .enum([
+      '1280x720',
+      '720x1280',
+      '1920x1080',
+      '1080x1920',
+      '720x720',
+      '1080x1080',
+      '960x720',
+      '720x960',
+      '1440x1080',
+      '1080x1440',
+    ])
+    .optional(),
+})
+
+/**
+ * ByteDance: Seedance 1.5 Pro (bytedance/seedance-1-5-pro) — model-constrained video generation request. ByteDance's next-generation audio-visual generation model with a 4.5B parameter Dual-Branch Diffusion Transformer architecture. Seedance 1.5 Pro generates video and audio simultaneously in a single unified pass — eliminating the timing...
+ */
+export const zVideoGenerationRequestBytedanceSeedance15Pro = z.object({
+  aspect_ratio: z
+    .enum(['1:1', '3:4', '9:16', '9:21', '4:3', '16:9', '21:9'])
+    .optional(),
+  callback_url: z.url().optional(),
+  duration: z
+    .union([
+      z.literal(4),
+      z.literal(5),
+      z.literal(6),
+      z.literal(7),
+      z.literal(8),
+      z.literal(9),
+      z.literal(10),
+      z.literal(11),
+      z.literal(12),
+    ])
+    .optional(),
+  frame_images: z.array(zFrameImage).optional(),
+  generate_audio: z.boolean().optional(),
+  input_references: z.array(zContentPartImage).optional(),
+  model: z.enum(['bytedance/seedance-1-5-pro']),
+  prompt: z.string(),
+  provider: z
+    .object({
+      options: zProviderOptions.and(z.unknown()).optional(),
+    })
+    .optional(),
+  resolution: z.enum(['480p', '720p', '1080p']).optional(),
+  seed: z.int().optional(),
+  size: z
+    .enum([
+      '480x480',
+      '480x640',
+      '480x854',
+      '480x1120',
+      '640x480',
+      '720x720',
+      '720x960',
+      '720x1280',
+      '720x1680',
+      '854x480',
+      '960x720',
+      '1080x1080',
+      '1080x1440',
+      '1080x1920',
+      '1080x2520',
+      '1120x480',
+      '1280x720',
+      '1440x1080',
+      '1680x720',
+      '1920x1080',
+      '2520x1080',
+    ])
+    .optional(),
+})
+
+/**
+ * ByteDance: Seedance 2.0 (bytedance/seedance-2.0) — model-constrained video generation request. Seedance 2.0 is a video generation model from ByteDance. It supports text-to-video, image-to-video with first and last frame control, and multimodal reference-to-video. It is particularly strong at preserving character consistency,...
+ */
+export const zVideoGenerationRequestBytedanceSeedance20 = z.object({
+  aspect_ratio: z
+    .enum(['1:1', '3:4', '9:16', '4:3', '16:9', '21:9', '9:21'])
+    .optional(),
+  callback_url: z.url().optional(),
+  duration: z
+    .union([
+      z.literal(4),
+      z.literal(5),
+      z.literal(6),
+      z.literal(7),
+      z.literal(8),
+      z.literal(9),
+      z.literal(10),
+      z.literal(11),
+      z.literal(12),
+      z.literal(13),
+      z.literal(14),
+      z.literal(15),
+    ])
+    .optional(),
+  frame_images: z.array(zFrameImage).optional(),
+  generate_audio: z.boolean().optional(),
+  input_references: z.array(zContentPartImage).optional(),
+  model: z.enum(['bytedance/seedance-2.0']),
+  prompt: z.string(),
+  provider: z
+    .object({
+      options: zProviderOptions.and(z.unknown()).optional(),
+    })
+    .optional(),
+  resolution: z.enum(['480p', '720p', '1080p']).optional(),
+  seed: z.int().optional(),
+  size: z
+    .enum([
+      '480x480',
+      '480x640',
+      '480x854',
+      '640x480',
+      '854x480',
+      '1120x480',
+      '720x720',
+      '720x960',
+      '720x1280',
+      '720x1680',
+      '960x720',
+      '1280x720',
+      '1680x720',
+      '1080x1080',
+      '1080x1440',
+      '1080x1920',
+      '1440x1080',
+      '1920x1080',
+      '2520x1080',
+    ])
+    .optional(),
+})
+
+/**
+ * ByteDance: Seedance 2.0 Fast (bytedance/seedance-2.0-fast) — model-constrained video generation request. Seedance 2.0 Fast is a video generation model from ByteDance. It supports text-to-video, image-to-video with first and last frame control, and multimodal reference-to-video. It prioritizes generation speed and lower cost...
+ */
+export const zVideoGenerationRequestBytedanceSeedance20Fast = z.object({
+  aspect_ratio: z
+    .enum(['1:1', '3:4', '9:16', '4:3', '16:9', '21:9', '9:21'])
+    .optional(),
+  callback_url: z.url().optional(),
+  duration: z
+    .union([
+      z.literal(4),
+      z.literal(5),
+      z.literal(6),
+      z.literal(7),
+      z.literal(8),
+      z.literal(9),
+      z.literal(10),
+      z.literal(11),
+      z.literal(12),
+      z.literal(13),
+      z.literal(14),
+      z.literal(15),
+    ])
+    .optional(),
+  frame_images: z.array(zFrameImage).optional(),
+  generate_audio: z.boolean().optional(),
+  input_references: z.array(zContentPartImage).optional(),
+  model: z.enum(['bytedance/seedance-2.0-fast']),
+  prompt: z.string(),
+  provider: z
+    .object({
+      options: zProviderOptions.and(z.unknown()).optional(),
+    })
+    .optional(),
+  resolution: z.enum(['480p', '720p']).optional(),
+  seed: z.int().optional(),
+  size: z
+    .enum([
+      '480x480',
+      '480x640',
+      '480x854',
+      '640x480',
+      '854x480',
+      '1120x480',
+      '720x720',
+      '720x960',
+      '720x1280',
+      '720x1680',
+      '960x720',
+      '1280x720',
+      '1680x720',
+    ])
+    .optional(),
+})
+
+/**
+ * Google: Veo 3.1 (google/veo-3.1) — model-constrained video generation request. Google's state-of-the-art video generation model, built for maximum visual fidelity in final production cuts. Veo 3.1 generates high-quality 1080p video from text or image prompts with native synchronized audio —...
+ */
+export const zVideoGenerationRequestGoogleVeo31 = z.object({
+  aspect_ratio: z.enum(['16:9', '9:16']).optional(),
+  callback_url: z.url().optional(),
+  duration: z.union([z.literal(4), z.literal(6), z.literal(8)]).optional(),
+  frame_images: z.array(zFrameImage).optional(),
+  generate_audio: z.boolean().optional(),
+  input_references: z.array(zContentPartImage).optional(),
+  model: z.enum(['google/veo-3.1']),
+  prompt: z.string(),
+  provider: z
+    .object({
+      options: zProviderOptions.and(z.unknown()).optional(),
+    })
+    .optional(),
+  resolution: z.enum(['720p', '1080p', '4K']).optional(),
+  seed: z.int().optional(),
+  size: z
+    .enum([
+      '1280x720',
+      '1080x1920',
+      '1920x1080',
+      '720x1280',
+      '3840x2160',
+      '2160x3840',
+    ])
+    .optional(),
+})
+
+/**
+ * Google: Veo 3.1 Fast (google/veo-3.1-fast) — model-constrained video generation request. Google's mid-tier video generation model balancing speed and quality. Veo 3.1 Fast generates high-quality video from text or image prompts with native synchronized audio, offering faster turnaround than Veo 3.1...
+ */
+export const zVideoGenerationRequestGoogleVeo31Fast = z.object({
+  aspect_ratio: z.enum(['16:9', '9:16']).optional(),
+  callback_url: z.url().optional(),
+  duration: z.union([z.literal(4), z.literal(6), z.literal(8)]).optional(),
+  frame_images: z.array(zFrameImage).optional(),
+  generate_audio: z.boolean().optional(),
+  input_references: z.array(zContentPartImage).optional(),
+  model: z.enum(['google/veo-3.1-fast']),
+  prompt: z.string(),
+  provider: z
+    .object({
+      options: zProviderOptions.and(z.unknown()).optional(),
+    })
+    .optional(),
+  resolution: z.enum(['720p', '1080p', '4K']).optional(),
+  seed: z.int().optional(),
+  size: z
+    .enum([
+      '1280x720',
+      '1080x1920',
+      '1920x1080',
+      '720x1280',
+      '3840x2160',
+      '2160x3840',
+    ])
+    .optional(),
+})
+
+/**
+ * Google: Veo 3.1 Lite (google/veo-3.1-lite) — model-constrained video generation request. Google's most cost-effective video generation model, designed for high-volume applications and rapid iteration. Veo 3.1 Lite generates 720p and 1080p video from text or image prompts with native synchronized audio...
+ */
+export const zVideoGenerationRequestGoogleVeo31Lite = z.object({
+  aspect_ratio: z.enum(['16:9', '9:16']).optional(),
+  callback_url: z.url().optional(),
+  duration: z.union([z.literal(8), z.literal(4), z.literal(6)]).optional(),
+  frame_images: z.array(zFrameImage).optional(),
+  generate_audio: z.boolean().optional(),
+  input_references: z.array(zContentPartImage).optional(),
+  model: z.enum(['google/veo-3.1-lite']),
+  prompt: z.string(),
+  provider: z
+    .object({
+      options: zProviderOptions.and(z.unknown()).optional(),
+    })
+    .optional(),
+  resolution: z.enum(['720p', '1080p']).optional(),
+  seed: z.int().optional(),
+  size: z.enum(['1280x720', '720x1280', '1920x1080', '1080x1920']).optional(),
+})
+
+/**
+ * Kling: Video v3.0 Pro (kwaivgi/kling-v3.0-pro) — model-constrained video generation request. Kling v3.0 Pro is Kuaishou's premium video generation model, offering higher visual quality than the Standard tier. It supports text-to-video and image-to-video workflows, with first-frame and last-frame control for precise...
+ */
+export const zVideoGenerationRequestKwaivgiKlingV30Pro = z.object({
+  aspect_ratio: z.enum(['16:9', '9:16', '1:1']).optional(),
+  callback_url: z.url().optional(),
+  duration: z
+    .union([
+      z.literal(3),
+      z.literal(4),
+      z.literal(5),
+      z.literal(6),
+      z.literal(7),
+      z.literal(8),
+      z.literal(9),
+      z.literal(10),
+      z.literal(11),
+      z.literal(12),
+      z.literal(13),
+      z.literal(14),
+      z.literal(15),
+    ])
+    .optional(),
+  frame_images: z.array(zFrameImage).optional(),
+  generate_audio: z.boolean().optional(),
+  input_references: z.array(zContentPartImage).optional(),
+  model: z.enum(['kwaivgi/kling-v3.0-pro']),
+  prompt: z.string(),
+  provider: z
+    .object({
+      options: zProviderOptions.and(z.unknown()).optional(),
+    })
+    .optional(),
+  resolution: z.enum(['720p']).optional(),
+  size: z.enum(['1280x720', '720x1280', '720x720']).optional(),
+})
+
+/**
+ * Kling: Video v3.0 Standard (kwaivgi/kling-v3.0-std) — model-constrained video generation request. Kling v3.0 Standard is a video generation model from Kuaishou. It supports text-to-video and image-to-video workflows, with first-frame and last-frame control for guided scene composition. Clips range from 3 to...
+ */
+export const zVideoGenerationRequestKwaivgiKlingV30Std = z.object({
+  aspect_ratio: z.enum(['16:9', '9:16', '1:1']).optional(),
+  callback_url: z.url().optional(),
+  duration: z
+    .union([
+      z.literal(3),
+      z.literal(4),
+      z.literal(5),
+      z.literal(6),
+      z.literal(7),
+      z.literal(8),
+      z.literal(9),
+      z.literal(10),
+      z.literal(11),
+      z.literal(12),
+      z.literal(13),
+      z.literal(14),
+      z.literal(15),
+    ])
+    .optional(),
+  frame_images: z.array(zFrameImage).optional(),
+  generate_audio: z.boolean().optional(),
+  input_references: z.array(zContentPartImage).optional(),
+  model: z.enum(['kwaivgi/kling-v3.0-std']),
+  prompt: z.string(),
+  provider: z
+    .object({
+      options: zProviderOptions.and(z.unknown()).optional(),
+    })
+    .optional(),
+  resolution: z.enum(['720p']).optional(),
+  size: z.enum(['1280x720', '720x1280', '720x720']).optional(),
+})
+
+/**
+ * Kling: Video O1 (kwaivgi/kling-video-o1) — model-constrained video generation request. Kling Video O1 is a video generation model from Kuaishou. It supports text and image inputs with video output, enabling text-to-video and image-to-video workflows. It is suited for cinematic content...
+ */
+export const zVideoGenerationRequestKwaivgiKlingVideoO1 = z.object({
+  aspect_ratio: z.enum(['16:9', '9:16', '1:1']).optional(),
+  callback_url: z.url().optional(),
+  duration: z.union([z.literal(5), z.literal(10)]).optional(),
+  frame_images: z.array(zFrameImage).optional(),
+  generate_audio: z.boolean().optional(),
+  input_references: z.array(zContentPartImage).optional(),
+  model: z.enum(['kwaivgi/kling-video-o1']),
+  prompt: z.string(),
+  provider: z
+    .object({
+      options: zProviderOptions.and(z.unknown()).optional(),
+    })
+    .optional(),
+  resolution: z.enum(['720p']).optional(),
+  size: z.enum(['1280x720', '720x1280', '720x720']).optional(),
+})
+
+/**
+ * MiniMax: Hailuo 2.3 (minimax/hailuo-2.3) — model-constrained video generation request. Hailuo 2.3 is a video generation model from MiniMax. It accepts text prompts and reference images as input and generates video output, supporting both text-to-video and image-to-video workflows. It is...
+ */
+export const zVideoGenerationRequestMinimaxHailuo23 = z.object({
+  aspect_ratio: z.enum(['16:9']).optional(),
+  callback_url: z.url().optional(),
+  duration: z.union([z.literal(6), z.literal(10)]).optional(),
+  frame_images: z.array(zFrameImage).optional(),
+  input_references: z.array(zContentPartImage).optional(),
+  model: z.enum(['minimax/hailuo-2.3']),
+  prompt: z.string(),
+  provider: z
+    .object({
+      options: zProviderOptions.and(z.unknown()).optional(),
+    })
+    .optional(),
+  resolution: z.enum(['1080p']).optional(),
+  size: z.enum(['1920x1080']).optional(),
+})
+
+/**
+ * OpenAI: Sora 2 Pro (openai/sora-2-pro) — model-constrained video generation request. OpenAI's flagship video generation model, delivering production-quality video with physics-accurate motion, synchronized audio, and world-state persistence across shots. Sora 2 Pro follows intricate multi-shot instructions while maintaining consistent spatial relationships...
+ */
+export const zVideoGenerationRequestOpenaiSora2Pro = z.object({
+  aspect_ratio: z.enum(['16:9', '9:16']).optional(),
+  callback_url: z.url().optional(),
+  duration: z
+    .union([
+      z.literal(4),
+      z.literal(8),
+      z.literal(12),
+      z.literal(16),
+      z.literal(20),
+    ])
+    .optional(),
+  generate_audio: z.boolean().optional(),
+  input_references: z.array(zContentPartImage).optional(),
+  model: z.enum(['openai/sora-2-pro']),
+  prompt: z.string(),
+  provider: z
+    .object({
+      options: zProviderOptions.and(z.unknown()).optional(),
+    })
+    .optional(),
+  resolution: z.enum(['720p', '1080p']).optional(),
+  size: z.enum(['1280x720', '1080x1920', '1920x1080', '720x1280']).optional(),
+})
+
+/**
+ * xAI: Grok Imagine Video (x-ai/grok-imagine-video) — model-constrained video generation request. Grok Imagine Video is xAI's fast, text-, image-, and reference-conditioned video generation model. It produces short videos (1–15 seconds, 24 fps) at 480p or 720p across seven aspect ratios -...
+ */
+export const zVideoGenerationRequestXAiGrokImagineVideo = z.object({
+  aspect_ratio: z
+    .enum(['16:9', '9:16', '1:1', '4:3', '3:4', '3:2', '2:3'])
+    .optional(),
+  callback_url: z.url().optional(),
+  duration: z
+    .union([
+      z.literal(1),
+      z.literal(2),
+      z.literal(3),
+      z.literal(4),
+      z.literal(5),
+      z.literal(6),
+      z.literal(7),
+      z.literal(8),
+      z.literal(9),
+      z.literal(10),
+      z.literal(11),
+      z.literal(12),
+      z.literal(13),
+      z.literal(14),
+      z.literal(15),
+    ])
+    .optional(),
+  frame_images: z.array(zFrameImage).optional(),
+  input_references: z.array(zContentPartImage).optional(),
+  model: z.enum(['x-ai/grok-imagine-video']),
+  prompt: z.string(),
+  provider: z
+    .object({
+      options: zProviderOptions.and(z.unknown()).optional(),
+    })
+    .optional(),
+  resolution: z.enum(['480p', '720p']).optional(),
+  size: z
+    .enum([
+      '854x480',
+      '1280x720',
+      '480x854',
+      '720x1280',
+      '480x480',
+      '720x720',
+      '640x480',
+      '960x720',
+      '480x640',
+      '720x960',
+      '720x480',
+      '1080x720',
+      '480x720',
+      '720x1080',
+    ])
+    .optional(),
+})
+
+/**
  * Usage and cost information for the video generation. Available once the job has completed.
  */
 export const zVideoGenerationUsage = z.object({
@@ -294,3 +823,114 @@ export const zCreateVideosBody = zVideoGenerationRequest
  * Video generation request accepted
  */
 export const zCreateVideosResponse = zVideoGenerationResponse
+
+export const zCreateVideoAlibabaWan26Body = zVideoGenerationRequestAlibabaWan26
+
+/**
+ * Video generation request accepted
+ */
+export const zCreateVideoAlibabaWan26Response = zVideoGenerationResponse
+
+export const zCreateVideoAlibabaWan27Body = zVideoGenerationRequestAlibabaWan27
+
+/**
+ * Video generation request accepted
+ */
+export const zCreateVideoAlibabaWan27Response = zVideoGenerationResponse
+
+export const zCreateVideoBytedanceSeedance15ProBody =
+  zVideoGenerationRequestBytedanceSeedance15Pro
+
+/**
+ * Video generation request accepted
+ */
+export const zCreateVideoBytedanceSeedance15ProResponse =
+  zVideoGenerationResponse
+
+export const zCreateVideoBytedanceSeedance20Body =
+  zVideoGenerationRequestBytedanceSeedance20
+
+/**
+ * Video generation request accepted
+ */
+export const zCreateVideoBytedanceSeedance20Response = zVideoGenerationResponse
+
+export const zCreateVideoBytedanceSeedance20FastBody =
+  zVideoGenerationRequestBytedanceSeedance20Fast
+
+/**
+ * Video generation request accepted
+ */
+export const zCreateVideoBytedanceSeedance20FastResponse =
+  zVideoGenerationResponse
+
+export const zCreateVideoGoogleVeo31Body = zVideoGenerationRequestGoogleVeo31
+
+/**
+ * Video generation request accepted
+ */
+export const zCreateVideoGoogleVeo31Response = zVideoGenerationResponse
+
+export const zCreateVideoGoogleVeo31FastBody =
+  zVideoGenerationRequestGoogleVeo31Fast
+
+/**
+ * Video generation request accepted
+ */
+export const zCreateVideoGoogleVeo31FastResponse = zVideoGenerationResponse
+
+export const zCreateVideoGoogleVeo31LiteBody =
+  zVideoGenerationRequestGoogleVeo31Lite
+
+/**
+ * Video generation request accepted
+ */
+export const zCreateVideoGoogleVeo31LiteResponse = zVideoGenerationResponse
+
+export const zCreateVideoKwaivgiKlingV30ProBody =
+  zVideoGenerationRequestKwaivgiKlingV30Pro
+
+/**
+ * Video generation request accepted
+ */
+export const zCreateVideoKwaivgiKlingV30ProResponse = zVideoGenerationResponse
+
+export const zCreateVideoKwaivgiKlingV30StdBody =
+  zVideoGenerationRequestKwaivgiKlingV30Std
+
+/**
+ * Video generation request accepted
+ */
+export const zCreateVideoKwaivgiKlingV30StdResponse = zVideoGenerationResponse
+
+export const zCreateVideoKwaivgiKlingVideoO1Body =
+  zVideoGenerationRequestKwaivgiKlingVideoO1
+
+/**
+ * Video generation request accepted
+ */
+export const zCreateVideoKwaivgiKlingVideoO1Response = zVideoGenerationResponse
+
+export const zCreateVideoMinimaxHailuo23Body =
+  zVideoGenerationRequestMinimaxHailuo23
+
+/**
+ * Video generation request accepted
+ */
+export const zCreateVideoMinimaxHailuo23Response = zVideoGenerationResponse
+
+export const zCreateVideoOpenaiSora2ProBody =
+  zVideoGenerationRequestOpenaiSora2Pro
+
+/**
+ * Video generation request accepted
+ */
+export const zCreateVideoOpenaiSora2ProResponse = zVideoGenerationResponse
+
+export const zCreateVideoXAiGrokImagineVideoBody =
+  zVideoGenerationRequestXAiGrokImagineVideo
+
+/**
+ * Video generation request accepted
+ */
+export const zCreateVideoXAiGrokImagineVideoResponse = zVideoGenerationResponse

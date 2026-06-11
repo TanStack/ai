@@ -880,13 +880,19 @@ export const zTokenizeRequest = z.object({
 export const zTokenizeResponseToken = z.object({
   string_token: z.string(),
   token_bytes: z.array(
-    z.int().gte(0).max(2147483647, {
+    z
+      .int()
+      .gte(0)
+      .max(2147483647, {
+        error: 'Invalid value: Expected int32 to be <= 2147483647',
+      }),
+  ),
+  token_id: z
+    .int()
+    .gte(0)
+    .max(2147483647, {
       error: 'Invalid value: Expected int32 to be <= 2147483647',
     }),
-  ),
-  token_id: z.int().gte(0).max(2147483647, {
-    error: 'Invalid value: Expected int32 to be <= 2147483647',
-  }),
 })
 
 export const zTokenizeResponse = z.object({

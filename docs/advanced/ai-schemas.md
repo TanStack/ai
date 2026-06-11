@@ -83,6 +83,25 @@ KlingVideoO3ProTextToVideoInputSchema.properties.aspect_ratio.enum
 // ['16:9', '9:16', '1:1']
 ```
 
+## Per-model OpenRouter video constraints
+
+OpenRouter exposes one generic `/videos` endpoint, but each video model accepts different durations, resolutions, aspect ratios, and sizes. The package synthesises one model-constrained schema per video model from OpenRouter's public `videos/models` metadata, keyed `videos/{model-id}` alongside the generic `videos` entry. Capabilities a model lacks (audio generation, deterministic seed, frame images) are absent from its schema entirely:
+
+```ts
+import { openrouterVideoEndpointZodMap } from '@tanstack/ai-schemas/openrouter/video/zod'
+
+const result = openrouterVideoEndpointZodMap[
+  'videos/x-ai/grok-imagine-video'
+].input.safeParse({
+  model: 'x-ai/grok-imagine-video',
+  prompt: 'A mecha lands on the ground to save the city',
+  duration: 8, // validated against the model's supported durations
+  resolution: '720p', // validated against the model's supported resolutions
+})
+
+if (!result.success) console.error(result.error.issues)
+```
+
 ## OpenAI structured-outputs strict mode
 
 ```ts
@@ -121,5 +140,5 @@ Provider sources:
 | Gemini     | `generativelanguage.googleapis.com/$discovery/rest?version=v1beta`              | Google Discovery doc converted to OpenAPI in pipeline. |
 | ElevenLabs | `api.elevenlabs.io/openapi.json`                                                | Public.                                              |
 | xAI Grok   | `docs.x.ai/openapi.json`                                                        | Public.                                              |
-| OpenRouter | `openrouter.ai/openapi.json`                                                    | Public.                                              |
+| OpenRouter | `openrouter.ai/openapi.json` + `api/v1/videos/models` metadata                  | Public. Per-video-model schemas synthesised from the metadata. |
 | FAL        | `api.fal.ai/v1/models?status=active&expand=openapi-3.0` (per-model)             | Needs `FAL_KEY`. Model categories regroup into the shared activities. |

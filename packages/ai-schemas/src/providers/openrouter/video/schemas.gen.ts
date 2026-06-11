@@ -870,6 +870,4986 @@ export const VideoGenerationRequestSchema = {
   },
 } as const
 
+export const VideoGenerationRequestAlibabaWan26Schema = {
+  example: {
+    aspect_ratio: '16:9',
+    duration: 8,
+    model: 'google/veo-3.1',
+    prompt: 'A serene mountain landscape at sunset',
+    resolution: '720p',
+  },
+  properties: {
+    aspect_ratio: {
+      description: 'Aspect ratio of the generated video',
+      enum: ['16:9', '9:16'],
+      example: '16:9',
+      type: 'string',
+      'x-speakeasy-unknown-values': 'allow',
+    },
+    callback_url: {
+      description:
+        'URL to receive a webhook notification when the video generation job completes. Overrides the workspace-level default callback URL if set. Must be HTTPS.',
+      example: 'https://example.com/webhook',
+      format: 'uri',
+      type: 'string',
+    },
+    duration: {
+      description: 'Duration of the generated video in seconds',
+      example: 8,
+      minimum: 1,
+      type: 'integer',
+      enum: [5, 10],
+    },
+    frame_images: {
+      description:
+        'Images to use as the first and/or last frame of the generated video. Each image must specify a frame_type of first_frame or last_frame. Frame types supported by this model: first_frame.',
+      items: { $ref: '#/$defs/FrameImage' },
+      type: 'array',
+    },
+    generate_audio: {
+      description:
+        "Whether to generate audio alongside the video. Defaults to the endpoint's generate_audio capability flag, false if not set.",
+      example: true,
+      type: 'boolean',
+    },
+    input_references: {
+      description: 'Reference images to guide video generation',
+      items: { $ref: '#/$defs/ContentPartImage' },
+      type: 'array',
+    },
+    model: {
+      type: 'string',
+      enum: ['alibaba/wan-2.6'],
+      description: 'Model id (fixed for this model-constrained schema)',
+    },
+    prompt: { type: 'string' },
+    provider: {
+      description:
+        'Provider-specific passthrough configuration Passthrough parameters allowed for this model: negative_prompt, enable_prompt_expansion, shot_type, audio, size.',
+      properties: {
+        options: {
+          allOf: [
+            { $ref: '#/$defs/ProviderOptions' },
+            {
+              example: {
+                'google-vertex': { output_config: { effort: 'low' } },
+              },
+            },
+          ],
+        },
+      },
+      type: 'object',
+    },
+    resolution: {
+      description: 'Resolution of the generated video',
+      enum: ['720p', '1080p'],
+      example: '720p',
+      type: 'string',
+      'x-speakeasy-unknown-values': 'allow',
+    },
+    seed: {
+      description:
+        'If specified, the generation will sample deterministically, such that repeated requests with the same seed and parameters should return the same result. Determinism is not guaranteed for all providers.',
+      type: 'integer',
+    },
+    size: {
+      description:
+        'Exact pixel dimensions of the generated video in "WIDTHxHEIGHT" format (e.g. "1280x720"). Interchangeable with resolution + aspect_ratio.',
+      example: '1280x720',
+      type: 'string',
+      enum: ['1280x720', '1080x1920', '720x1280', '1920x1080'],
+    },
+  },
+  required: ['prompt', 'model'],
+  type: 'object',
+  description:
+    "Alibaba: Wan 2.6 (alibaba/wan-2.6) — model-constrained video generation request. Alibaba's most advanced video generation model, supporting over 10 visual creation capabilities in a unified system. Wan 2.6 generates 1080p video at 24fps from text, images, reference videos, or audio,...",
+  $defs: {
+    ContentPartImage: {
+      example: {
+        image_url: { url: 'https://example.com/image.png' },
+        type: 'image_url',
+      },
+      properties: {
+        image_url: {
+          properties: { url: { type: 'string' } },
+          required: ['url'],
+          type: 'object',
+        },
+        type: { enum: ['image_url'], type: 'string' },
+      },
+      required: ['type', 'image_url'],
+      type: 'object',
+    },
+    FrameImage: {
+      allOf: [
+        { $ref: '#/$defs/ContentPartImage' },
+        {
+          properties: {
+            frame_type: {
+              description:
+                'Whether this image represents the first or last frame of the video',
+              enum: ['first_frame', 'last_frame'],
+              example: 'first_frame',
+              type: 'string',
+              'x-speakeasy-unknown-values': 'allow',
+            },
+          },
+          required: ['frame_type'],
+          type: 'object',
+        },
+      ],
+      example: {
+        image_url: { url: 'https://example.com/image.png' },
+        type: 'image_url',
+      },
+    },
+    ProviderOptions: {
+      description:
+        'Provider-specific options keyed by provider slug. The options for the matched provider are spread into the upstream request body.',
+      example: { openai: { max_tokens: 1000 } },
+      properties: {
+        '01ai': { additionalProperties: { nullable: true }, type: 'object' },
+        ai21: { additionalProperties: { nullable: true }, type: 'object' },
+        'aion-labs': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        akashml: { additionalProperties: { nullable: true }, type: 'object' },
+        alibaba: { additionalProperties: { nullable: true }, type: 'object' },
+        'amazon-bedrock': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'amazon-nova': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        ambient: { additionalProperties: { nullable: true }, type: 'object' },
+        anthropic: { additionalProperties: { nullable: true }, type: 'object' },
+        anyscale: { additionalProperties: { nullable: true }, type: 'object' },
+        'arcee-ai': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'atlas-cloud': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        atoma: { additionalProperties: { nullable: true }, type: 'object' },
+        avian: { additionalProperties: { nullable: true }, type: 'object' },
+        azure: { additionalProperties: { nullable: true }, type: 'object' },
+        baidu: { additionalProperties: { nullable: true }, type: 'object' },
+        baseten: { additionalProperties: { nullable: true }, type: 'object' },
+        'black-forest-labs': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        byteplus: { additionalProperties: { nullable: true }, type: 'object' },
+        centml: { additionalProperties: { nullable: true }, type: 'object' },
+        cerebras: { additionalProperties: { nullable: true }, type: 'object' },
+        chutes: { additionalProperties: { nullable: true }, type: 'object' },
+        cirrascale: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        clarifai: { additionalProperties: { nullable: true }, type: 'object' },
+        cloudflare: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        cohere: { additionalProperties: { nullable: true }, type: 'object' },
+        crofai: { additionalProperties: { nullable: true }, type: 'object' },
+        crucible: { additionalProperties: { nullable: true }, type: 'object' },
+        crusoe: { additionalProperties: { nullable: true }, type: 'object' },
+        darkbloom: { additionalProperties: { nullable: true }, type: 'object' },
+        deepinfra: { additionalProperties: { nullable: true }, type: 'object' },
+        deepseek: { additionalProperties: { nullable: true }, type: 'object' },
+        dekallm: { additionalProperties: { nullable: true }, type: 'object' },
+        digitalocean: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        enfer: { additionalProperties: { nullable: true }, type: 'object' },
+        'fake-provider': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        featherless: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        fireworks: { additionalProperties: { nullable: true }, type: 'object' },
+        friendli: { additionalProperties: { nullable: true }, type: 'object' },
+        gmicloud: { additionalProperties: { nullable: true }, type: 'object' },
+        'google-ai-studio': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'google-vertex': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        gopomelo: { additionalProperties: { nullable: true }, type: 'object' },
+        groq: { additionalProperties: { nullable: true }, type: 'object' },
+        huggingface: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        hyperbolic: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'hyperbolic-quantized': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inception: { additionalProperties: { nullable: true }, type: 'object' },
+        inceptron: { additionalProperties: { nullable: true }, type: 'object' },
+        'inference-net': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        infermatic: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inflection: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inocloud: { additionalProperties: { nullable: true }, type: 'object' },
+        'io-net': { additionalProperties: { nullable: true }, type: 'object' },
+        ionstream: { additionalProperties: { nullable: true }, type: 'object' },
+        klusterai: { additionalProperties: { nullable: true }, type: 'object' },
+        lambda: { additionalProperties: { nullable: true }, type: 'object' },
+        lepton: { additionalProperties: { nullable: true }, type: 'object' },
+        liquid: { additionalProperties: { nullable: true }, type: 'object' },
+        lynn: { additionalProperties: { nullable: true }, type: 'object' },
+        'lynn-private': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        mancer: { additionalProperties: { nullable: true }, type: 'object' },
+        'mancer-old': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        mara: { additionalProperties: { nullable: true }, type: 'object' },
+        meta: { additionalProperties: { nullable: true }, type: 'object' },
+        minimax: { additionalProperties: { nullable: true }, type: 'object' },
+        mistral: { additionalProperties: { nullable: true }, type: 'object' },
+        modal: { additionalProperties: { nullable: true }, type: 'object' },
+        modelrun: { additionalProperties: { nullable: true }, type: 'object' },
+        modular: { additionalProperties: { nullable: true }, type: 'object' },
+        moonshotai: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        morph: { additionalProperties: { nullable: true }, type: 'object' },
+        ncompass: { additionalProperties: { nullable: true }, type: 'object' },
+        nebius: { additionalProperties: { nullable: true }, type: 'object' },
+        'nex-agi': { additionalProperties: { nullable: true }, type: 'object' },
+        nextbit: { additionalProperties: { nullable: true }, type: 'object' },
+        nineteen: { additionalProperties: { nullable: true }, type: 'object' },
+        novita: { additionalProperties: { nullable: true }, type: 'object' },
+        nvidia: { additionalProperties: { nullable: true }, type: 'object' },
+        octoai: { additionalProperties: { nullable: true }, type: 'object' },
+        'open-inference': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        openai: { additionalProperties: { nullable: true }, type: 'object' },
+        parasail: { additionalProperties: { nullable: true }, type: 'object' },
+        perceptron: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        perplexity: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        phala: { additionalProperties: { nullable: true }, type: 'object' },
+        poolside: { additionalProperties: { nullable: true }, type: 'object' },
+        recraft: { additionalProperties: { nullable: true }, type: 'object' },
+        recursal: { additionalProperties: { nullable: true }, type: 'object' },
+        reflection: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        reka: { additionalProperties: { nullable: true }, type: 'object' },
+        relace: { additionalProperties: { nullable: true }, type: 'object' },
+        replicate: { additionalProperties: { nullable: true }, type: 'object' },
+        sambanova: { additionalProperties: { nullable: true }, type: 'object' },
+        'sambanova-cloaked': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        seed: { additionalProperties: { nullable: true }, type: 'object' },
+        'sf-compute': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        siliconflow: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        sourceful: { additionalProperties: { nullable: true }, type: 'object' },
+        stealth: { additionalProperties: { nullable: true }, type: 'object' },
+        stepfun: { additionalProperties: { nullable: true }, type: 'object' },
+        streamlake: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        switchpoint: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        targon: { additionalProperties: { nullable: true }, type: 'object' },
+        together: { additionalProperties: { nullable: true }, type: 'object' },
+        'together-lite': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        ubicloud: { additionalProperties: { nullable: true }, type: 'object' },
+        upstage: { additionalProperties: { nullable: true }, type: 'object' },
+        venice: { additionalProperties: { nullable: true }, type: 'object' },
+        wandb: { additionalProperties: { nullable: true }, type: 'object' },
+        xai: { additionalProperties: { nullable: true }, type: 'object' },
+        xiaomi: { additionalProperties: { nullable: true }, type: 'object' },
+        'z-ai': { additionalProperties: { nullable: true }, type: 'object' },
+      },
+      type: 'object',
+    },
+  },
+} as const
+
+export const VideoGenerationRequestAlibabaWan27Schema = {
+  example: {
+    aspect_ratio: '16:9',
+    duration: 8,
+    model: 'google/veo-3.1',
+    prompt: 'A serene mountain landscape at sunset',
+    resolution: '720p',
+  },
+  properties: {
+    aspect_ratio: {
+      description: 'Aspect ratio of the generated video',
+      enum: ['16:9', '9:16', '1:1', '4:3', '3:4'],
+      example: '16:9',
+      type: 'string',
+      'x-speakeasy-unknown-values': 'allow',
+    },
+    callback_url: {
+      description:
+        'URL to receive a webhook notification when the video generation job completes. Overrides the workspace-level default callback URL if set. Must be HTTPS.',
+      example: 'https://example.com/webhook',
+      format: 'uri',
+      type: 'string',
+    },
+    duration: {
+      description: 'Duration of the generated video in seconds',
+      example: 8,
+      minimum: 1,
+      type: 'integer',
+      enum: [2, 3, 4, 5, 6, 7, 8, 9, 10],
+    },
+    frame_images: {
+      description:
+        'Images to use as the first and/or last frame of the generated video. Each image must specify a frame_type of first_frame or last_frame. Frame types supported by this model: first_frame, last_frame.',
+      items: { $ref: '#/$defs/FrameImage' },
+      type: 'array',
+    },
+    generate_audio: {
+      description:
+        "Whether to generate audio alongside the video. Defaults to the endpoint's generate_audio capability flag, false if not set.",
+      example: true,
+      type: 'boolean',
+    },
+    input_references: {
+      description: 'Reference images to guide video generation',
+      items: { $ref: '#/$defs/ContentPartImage' },
+      type: 'array',
+    },
+    model: {
+      type: 'string',
+      enum: ['alibaba/wan-2.7'],
+      description: 'Model id (fixed for this model-constrained schema)',
+    },
+    prompt: { type: 'string' },
+    provider: {
+      description:
+        'Provider-specific passthrough configuration Passthrough parameters allowed for this model: negative_prompt, prompt_extend, audio, ratio, last_image, video, videos, images.',
+      properties: {
+        options: {
+          allOf: [
+            { $ref: '#/$defs/ProviderOptions' },
+            {
+              example: {
+                'google-vertex': { output_config: { effort: 'low' } },
+              },
+            },
+          ],
+        },
+      },
+      type: 'object',
+    },
+    resolution: {
+      description: 'Resolution of the generated video',
+      enum: ['720p', '1080p'],
+      example: '720p',
+      type: 'string',
+      'x-speakeasy-unknown-values': 'allow',
+    },
+    seed: {
+      description:
+        'If specified, the generation will sample deterministically, such that repeated requests with the same seed and parameters should return the same result. Determinism is not guaranteed for all providers.',
+      type: 'integer',
+    },
+    size: {
+      description:
+        'Exact pixel dimensions of the generated video in "WIDTHxHEIGHT" format (e.g. "1280x720"). Interchangeable with resolution + aspect_ratio.',
+      example: '1280x720',
+      type: 'string',
+      enum: [
+        '1280x720',
+        '720x1280',
+        '1920x1080',
+        '1080x1920',
+        '720x720',
+        '1080x1080',
+        '960x720',
+        '720x960',
+        '1440x1080',
+        '1080x1440',
+      ],
+    },
+  },
+  required: ['prompt', 'model'],
+  type: 'object',
+  description:
+    'Alibaba: Wan 2.7 (alibaba/wan-2.7) — model-constrained video generation request. Wan 2.7 is a video generation model from Alibaba. It supports text-to-video, image-to-video with first and last frame control, and reference-to-video, where multiple reference images guide the style and content...',
+  $defs: {
+    ContentPartImage: {
+      example: {
+        image_url: { url: 'https://example.com/image.png' },
+        type: 'image_url',
+      },
+      properties: {
+        image_url: {
+          properties: { url: { type: 'string' } },
+          required: ['url'],
+          type: 'object',
+        },
+        type: { enum: ['image_url'], type: 'string' },
+      },
+      required: ['type', 'image_url'],
+      type: 'object',
+    },
+    FrameImage: {
+      allOf: [
+        { $ref: '#/$defs/ContentPartImage' },
+        {
+          properties: {
+            frame_type: {
+              description:
+                'Whether this image represents the first or last frame of the video',
+              enum: ['first_frame', 'last_frame'],
+              example: 'first_frame',
+              type: 'string',
+              'x-speakeasy-unknown-values': 'allow',
+            },
+          },
+          required: ['frame_type'],
+          type: 'object',
+        },
+      ],
+      example: {
+        image_url: { url: 'https://example.com/image.png' },
+        type: 'image_url',
+      },
+    },
+    ProviderOptions: {
+      description:
+        'Provider-specific options keyed by provider slug. The options for the matched provider are spread into the upstream request body.',
+      example: { openai: { max_tokens: 1000 } },
+      properties: {
+        '01ai': { additionalProperties: { nullable: true }, type: 'object' },
+        ai21: { additionalProperties: { nullable: true }, type: 'object' },
+        'aion-labs': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        akashml: { additionalProperties: { nullable: true }, type: 'object' },
+        alibaba: { additionalProperties: { nullable: true }, type: 'object' },
+        'amazon-bedrock': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'amazon-nova': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        ambient: { additionalProperties: { nullable: true }, type: 'object' },
+        anthropic: { additionalProperties: { nullable: true }, type: 'object' },
+        anyscale: { additionalProperties: { nullable: true }, type: 'object' },
+        'arcee-ai': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'atlas-cloud': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        atoma: { additionalProperties: { nullable: true }, type: 'object' },
+        avian: { additionalProperties: { nullable: true }, type: 'object' },
+        azure: { additionalProperties: { nullable: true }, type: 'object' },
+        baidu: { additionalProperties: { nullable: true }, type: 'object' },
+        baseten: { additionalProperties: { nullable: true }, type: 'object' },
+        'black-forest-labs': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        byteplus: { additionalProperties: { nullable: true }, type: 'object' },
+        centml: { additionalProperties: { nullable: true }, type: 'object' },
+        cerebras: { additionalProperties: { nullable: true }, type: 'object' },
+        chutes: { additionalProperties: { nullable: true }, type: 'object' },
+        cirrascale: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        clarifai: { additionalProperties: { nullable: true }, type: 'object' },
+        cloudflare: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        cohere: { additionalProperties: { nullable: true }, type: 'object' },
+        crofai: { additionalProperties: { nullable: true }, type: 'object' },
+        crucible: { additionalProperties: { nullable: true }, type: 'object' },
+        crusoe: { additionalProperties: { nullable: true }, type: 'object' },
+        darkbloom: { additionalProperties: { nullable: true }, type: 'object' },
+        deepinfra: { additionalProperties: { nullable: true }, type: 'object' },
+        deepseek: { additionalProperties: { nullable: true }, type: 'object' },
+        dekallm: { additionalProperties: { nullable: true }, type: 'object' },
+        digitalocean: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        enfer: { additionalProperties: { nullable: true }, type: 'object' },
+        'fake-provider': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        featherless: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        fireworks: { additionalProperties: { nullable: true }, type: 'object' },
+        friendli: { additionalProperties: { nullable: true }, type: 'object' },
+        gmicloud: { additionalProperties: { nullable: true }, type: 'object' },
+        'google-ai-studio': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'google-vertex': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        gopomelo: { additionalProperties: { nullable: true }, type: 'object' },
+        groq: { additionalProperties: { nullable: true }, type: 'object' },
+        huggingface: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        hyperbolic: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'hyperbolic-quantized': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inception: { additionalProperties: { nullable: true }, type: 'object' },
+        inceptron: { additionalProperties: { nullable: true }, type: 'object' },
+        'inference-net': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        infermatic: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inflection: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inocloud: { additionalProperties: { nullable: true }, type: 'object' },
+        'io-net': { additionalProperties: { nullable: true }, type: 'object' },
+        ionstream: { additionalProperties: { nullable: true }, type: 'object' },
+        klusterai: { additionalProperties: { nullable: true }, type: 'object' },
+        lambda: { additionalProperties: { nullable: true }, type: 'object' },
+        lepton: { additionalProperties: { nullable: true }, type: 'object' },
+        liquid: { additionalProperties: { nullable: true }, type: 'object' },
+        lynn: { additionalProperties: { nullable: true }, type: 'object' },
+        'lynn-private': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        mancer: { additionalProperties: { nullable: true }, type: 'object' },
+        'mancer-old': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        mara: { additionalProperties: { nullable: true }, type: 'object' },
+        meta: { additionalProperties: { nullable: true }, type: 'object' },
+        minimax: { additionalProperties: { nullable: true }, type: 'object' },
+        mistral: { additionalProperties: { nullable: true }, type: 'object' },
+        modal: { additionalProperties: { nullable: true }, type: 'object' },
+        modelrun: { additionalProperties: { nullable: true }, type: 'object' },
+        modular: { additionalProperties: { nullable: true }, type: 'object' },
+        moonshotai: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        morph: { additionalProperties: { nullable: true }, type: 'object' },
+        ncompass: { additionalProperties: { nullable: true }, type: 'object' },
+        nebius: { additionalProperties: { nullable: true }, type: 'object' },
+        'nex-agi': { additionalProperties: { nullable: true }, type: 'object' },
+        nextbit: { additionalProperties: { nullable: true }, type: 'object' },
+        nineteen: { additionalProperties: { nullable: true }, type: 'object' },
+        novita: { additionalProperties: { nullable: true }, type: 'object' },
+        nvidia: { additionalProperties: { nullable: true }, type: 'object' },
+        octoai: { additionalProperties: { nullable: true }, type: 'object' },
+        'open-inference': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        openai: { additionalProperties: { nullable: true }, type: 'object' },
+        parasail: { additionalProperties: { nullable: true }, type: 'object' },
+        perceptron: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        perplexity: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        phala: { additionalProperties: { nullable: true }, type: 'object' },
+        poolside: { additionalProperties: { nullable: true }, type: 'object' },
+        recraft: { additionalProperties: { nullable: true }, type: 'object' },
+        recursal: { additionalProperties: { nullable: true }, type: 'object' },
+        reflection: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        reka: { additionalProperties: { nullable: true }, type: 'object' },
+        relace: { additionalProperties: { nullable: true }, type: 'object' },
+        replicate: { additionalProperties: { nullable: true }, type: 'object' },
+        sambanova: { additionalProperties: { nullable: true }, type: 'object' },
+        'sambanova-cloaked': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        seed: { additionalProperties: { nullable: true }, type: 'object' },
+        'sf-compute': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        siliconflow: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        sourceful: { additionalProperties: { nullable: true }, type: 'object' },
+        stealth: { additionalProperties: { nullable: true }, type: 'object' },
+        stepfun: { additionalProperties: { nullable: true }, type: 'object' },
+        streamlake: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        switchpoint: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        targon: { additionalProperties: { nullable: true }, type: 'object' },
+        together: { additionalProperties: { nullable: true }, type: 'object' },
+        'together-lite': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        ubicloud: { additionalProperties: { nullable: true }, type: 'object' },
+        upstage: { additionalProperties: { nullable: true }, type: 'object' },
+        venice: { additionalProperties: { nullable: true }, type: 'object' },
+        wandb: { additionalProperties: { nullable: true }, type: 'object' },
+        xai: { additionalProperties: { nullable: true }, type: 'object' },
+        xiaomi: { additionalProperties: { nullable: true }, type: 'object' },
+        'z-ai': { additionalProperties: { nullable: true }, type: 'object' },
+      },
+      type: 'object',
+    },
+  },
+} as const
+
+export const VideoGenerationRequestBytedanceSeedance15ProSchema = {
+  example: {
+    aspect_ratio: '16:9',
+    duration: 8,
+    model: 'google/veo-3.1',
+    prompt: 'A serene mountain landscape at sunset',
+    resolution: '720p',
+  },
+  properties: {
+    aspect_ratio: {
+      description: 'Aspect ratio of the generated video',
+      enum: ['1:1', '3:4', '9:16', '9:21', '4:3', '16:9', '21:9'],
+      example: '16:9',
+      type: 'string',
+      'x-speakeasy-unknown-values': 'allow',
+    },
+    callback_url: {
+      description:
+        'URL to receive a webhook notification when the video generation job completes. Overrides the workspace-level default callback URL if set. Must be HTTPS.',
+      example: 'https://example.com/webhook',
+      format: 'uri',
+      type: 'string',
+    },
+    duration: {
+      description: 'Duration of the generated video in seconds',
+      example: 8,
+      minimum: 1,
+      type: 'integer',
+      enum: [4, 5, 6, 7, 8, 9, 10, 11, 12],
+    },
+    frame_images: {
+      description:
+        'Images to use as the first and/or last frame of the generated video. Each image must specify a frame_type of first_frame or last_frame. Frame types supported by this model: first_frame, last_frame.',
+      items: { $ref: '#/$defs/FrameImage' },
+      type: 'array',
+    },
+    generate_audio: {
+      description:
+        "Whether to generate audio alongside the video. Defaults to the endpoint's generate_audio capability flag, false if not set.",
+      example: true,
+      type: 'boolean',
+    },
+    input_references: {
+      description: 'Reference images to guide video generation',
+      items: { $ref: '#/$defs/ContentPartImage' },
+      type: 'array',
+    },
+    model: {
+      type: 'string',
+      enum: ['bytedance/seedance-1-5-pro'],
+      description: 'Model id (fixed for this model-constrained schema)',
+    },
+    prompt: { type: 'string' },
+    provider: {
+      description:
+        'Provider-specific passthrough configuration Passthrough parameters allowed for this model: watermark, req_key.',
+      properties: {
+        options: {
+          allOf: [
+            { $ref: '#/$defs/ProviderOptions' },
+            {
+              example: {
+                'google-vertex': { output_config: { effort: 'low' } },
+              },
+            },
+          ],
+        },
+      },
+      type: 'object',
+    },
+    resolution: {
+      description: 'Resolution of the generated video',
+      enum: ['480p', '720p', '1080p'],
+      example: '720p',
+      type: 'string',
+      'x-speakeasy-unknown-values': 'allow',
+    },
+    seed: {
+      description:
+        'If specified, the generation will sample deterministically, such that repeated requests with the same seed and parameters should return the same result. Determinism is not guaranteed for all providers.',
+      type: 'integer',
+    },
+    size: {
+      description:
+        'Exact pixel dimensions of the generated video in "WIDTHxHEIGHT" format (e.g. "1280x720"). Interchangeable with resolution + aspect_ratio.',
+      example: '1280x720',
+      type: 'string',
+      enum: [
+        '480x480',
+        '480x640',
+        '480x854',
+        '480x1120',
+        '640x480',
+        '720x720',
+        '720x960',
+        '720x1280',
+        '720x1680',
+        '854x480',
+        '960x720',
+        '1080x1080',
+        '1080x1440',
+        '1080x1920',
+        '1080x2520',
+        '1120x480',
+        '1280x720',
+        '1440x1080',
+        '1680x720',
+        '1920x1080',
+        '2520x1080',
+      ],
+    },
+  },
+  required: ['prompt', 'model'],
+  type: 'object',
+  description:
+    "ByteDance: Seedance 1.5 Pro (bytedance/seedance-1-5-pro) — model-constrained video generation request. ByteDance's next-generation audio-visual generation model with a 4.5B parameter Dual-Branch Diffusion Transformer architecture. Seedance 1.5 Pro generates video and audio simultaneously in a single unified pass — eliminating the timing...",
+  $defs: {
+    ContentPartImage: {
+      example: {
+        image_url: { url: 'https://example.com/image.png' },
+        type: 'image_url',
+      },
+      properties: {
+        image_url: {
+          properties: { url: { type: 'string' } },
+          required: ['url'],
+          type: 'object',
+        },
+        type: { enum: ['image_url'], type: 'string' },
+      },
+      required: ['type', 'image_url'],
+      type: 'object',
+    },
+    FrameImage: {
+      allOf: [
+        { $ref: '#/$defs/ContentPartImage' },
+        {
+          properties: {
+            frame_type: {
+              description:
+                'Whether this image represents the first or last frame of the video',
+              enum: ['first_frame', 'last_frame'],
+              example: 'first_frame',
+              type: 'string',
+              'x-speakeasy-unknown-values': 'allow',
+            },
+          },
+          required: ['frame_type'],
+          type: 'object',
+        },
+      ],
+      example: {
+        image_url: { url: 'https://example.com/image.png' },
+        type: 'image_url',
+      },
+    },
+    ProviderOptions: {
+      description:
+        'Provider-specific options keyed by provider slug. The options for the matched provider are spread into the upstream request body.',
+      example: { openai: { max_tokens: 1000 } },
+      properties: {
+        '01ai': { additionalProperties: { nullable: true }, type: 'object' },
+        ai21: { additionalProperties: { nullable: true }, type: 'object' },
+        'aion-labs': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        akashml: { additionalProperties: { nullable: true }, type: 'object' },
+        alibaba: { additionalProperties: { nullable: true }, type: 'object' },
+        'amazon-bedrock': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'amazon-nova': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        ambient: { additionalProperties: { nullable: true }, type: 'object' },
+        anthropic: { additionalProperties: { nullable: true }, type: 'object' },
+        anyscale: { additionalProperties: { nullable: true }, type: 'object' },
+        'arcee-ai': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'atlas-cloud': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        atoma: { additionalProperties: { nullable: true }, type: 'object' },
+        avian: { additionalProperties: { nullable: true }, type: 'object' },
+        azure: { additionalProperties: { nullable: true }, type: 'object' },
+        baidu: { additionalProperties: { nullable: true }, type: 'object' },
+        baseten: { additionalProperties: { nullable: true }, type: 'object' },
+        'black-forest-labs': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        byteplus: { additionalProperties: { nullable: true }, type: 'object' },
+        centml: { additionalProperties: { nullable: true }, type: 'object' },
+        cerebras: { additionalProperties: { nullable: true }, type: 'object' },
+        chutes: { additionalProperties: { nullable: true }, type: 'object' },
+        cirrascale: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        clarifai: { additionalProperties: { nullable: true }, type: 'object' },
+        cloudflare: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        cohere: { additionalProperties: { nullable: true }, type: 'object' },
+        crofai: { additionalProperties: { nullable: true }, type: 'object' },
+        crucible: { additionalProperties: { nullable: true }, type: 'object' },
+        crusoe: { additionalProperties: { nullable: true }, type: 'object' },
+        darkbloom: { additionalProperties: { nullable: true }, type: 'object' },
+        deepinfra: { additionalProperties: { nullable: true }, type: 'object' },
+        deepseek: { additionalProperties: { nullable: true }, type: 'object' },
+        dekallm: { additionalProperties: { nullable: true }, type: 'object' },
+        digitalocean: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        enfer: { additionalProperties: { nullable: true }, type: 'object' },
+        'fake-provider': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        featherless: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        fireworks: { additionalProperties: { nullable: true }, type: 'object' },
+        friendli: { additionalProperties: { nullable: true }, type: 'object' },
+        gmicloud: { additionalProperties: { nullable: true }, type: 'object' },
+        'google-ai-studio': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'google-vertex': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        gopomelo: { additionalProperties: { nullable: true }, type: 'object' },
+        groq: { additionalProperties: { nullable: true }, type: 'object' },
+        huggingface: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        hyperbolic: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'hyperbolic-quantized': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inception: { additionalProperties: { nullable: true }, type: 'object' },
+        inceptron: { additionalProperties: { nullable: true }, type: 'object' },
+        'inference-net': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        infermatic: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inflection: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inocloud: { additionalProperties: { nullable: true }, type: 'object' },
+        'io-net': { additionalProperties: { nullable: true }, type: 'object' },
+        ionstream: { additionalProperties: { nullable: true }, type: 'object' },
+        klusterai: { additionalProperties: { nullable: true }, type: 'object' },
+        lambda: { additionalProperties: { nullable: true }, type: 'object' },
+        lepton: { additionalProperties: { nullable: true }, type: 'object' },
+        liquid: { additionalProperties: { nullable: true }, type: 'object' },
+        lynn: { additionalProperties: { nullable: true }, type: 'object' },
+        'lynn-private': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        mancer: { additionalProperties: { nullable: true }, type: 'object' },
+        'mancer-old': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        mara: { additionalProperties: { nullable: true }, type: 'object' },
+        meta: { additionalProperties: { nullable: true }, type: 'object' },
+        minimax: { additionalProperties: { nullable: true }, type: 'object' },
+        mistral: { additionalProperties: { nullable: true }, type: 'object' },
+        modal: { additionalProperties: { nullable: true }, type: 'object' },
+        modelrun: { additionalProperties: { nullable: true }, type: 'object' },
+        modular: { additionalProperties: { nullable: true }, type: 'object' },
+        moonshotai: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        morph: { additionalProperties: { nullable: true }, type: 'object' },
+        ncompass: { additionalProperties: { nullable: true }, type: 'object' },
+        nebius: { additionalProperties: { nullable: true }, type: 'object' },
+        'nex-agi': { additionalProperties: { nullable: true }, type: 'object' },
+        nextbit: { additionalProperties: { nullable: true }, type: 'object' },
+        nineteen: { additionalProperties: { nullable: true }, type: 'object' },
+        novita: { additionalProperties: { nullable: true }, type: 'object' },
+        nvidia: { additionalProperties: { nullable: true }, type: 'object' },
+        octoai: { additionalProperties: { nullable: true }, type: 'object' },
+        'open-inference': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        openai: { additionalProperties: { nullable: true }, type: 'object' },
+        parasail: { additionalProperties: { nullable: true }, type: 'object' },
+        perceptron: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        perplexity: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        phala: { additionalProperties: { nullable: true }, type: 'object' },
+        poolside: { additionalProperties: { nullable: true }, type: 'object' },
+        recraft: { additionalProperties: { nullable: true }, type: 'object' },
+        recursal: { additionalProperties: { nullable: true }, type: 'object' },
+        reflection: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        reka: { additionalProperties: { nullable: true }, type: 'object' },
+        relace: { additionalProperties: { nullable: true }, type: 'object' },
+        replicate: { additionalProperties: { nullable: true }, type: 'object' },
+        sambanova: { additionalProperties: { nullable: true }, type: 'object' },
+        'sambanova-cloaked': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        seed: { additionalProperties: { nullable: true }, type: 'object' },
+        'sf-compute': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        siliconflow: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        sourceful: { additionalProperties: { nullable: true }, type: 'object' },
+        stealth: { additionalProperties: { nullable: true }, type: 'object' },
+        stepfun: { additionalProperties: { nullable: true }, type: 'object' },
+        streamlake: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        switchpoint: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        targon: { additionalProperties: { nullable: true }, type: 'object' },
+        together: { additionalProperties: { nullable: true }, type: 'object' },
+        'together-lite': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        ubicloud: { additionalProperties: { nullable: true }, type: 'object' },
+        upstage: { additionalProperties: { nullable: true }, type: 'object' },
+        venice: { additionalProperties: { nullable: true }, type: 'object' },
+        wandb: { additionalProperties: { nullable: true }, type: 'object' },
+        xai: { additionalProperties: { nullable: true }, type: 'object' },
+        xiaomi: { additionalProperties: { nullable: true }, type: 'object' },
+        'z-ai': { additionalProperties: { nullable: true }, type: 'object' },
+      },
+      type: 'object',
+    },
+  },
+} as const
+
+export const VideoGenerationRequestBytedanceSeedance20Schema = {
+  example: {
+    aspect_ratio: '16:9',
+    duration: 8,
+    model: 'google/veo-3.1',
+    prompt: 'A serene mountain landscape at sunset',
+    resolution: '720p',
+  },
+  properties: {
+    aspect_ratio: {
+      description: 'Aspect ratio of the generated video',
+      enum: ['1:1', '3:4', '9:16', '4:3', '16:9', '21:9', '9:21'],
+      example: '16:9',
+      type: 'string',
+      'x-speakeasy-unknown-values': 'allow',
+    },
+    callback_url: {
+      description:
+        'URL to receive a webhook notification when the video generation job completes. Overrides the workspace-level default callback URL if set. Must be HTTPS.',
+      example: 'https://example.com/webhook',
+      format: 'uri',
+      type: 'string',
+    },
+    duration: {
+      description: 'Duration of the generated video in seconds',
+      example: 8,
+      minimum: 1,
+      type: 'integer',
+      enum: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    },
+    frame_images: {
+      description:
+        'Images to use as the first and/or last frame of the generated video. Each image must specify a frame_type of first_frame or last_frame. Frame types supported by this model: first_frame, last_frame.',
+      items: { $ref: '#/$defs/FrameImage' },
+      type: 'array',
+    },
+    generate_audio: {
+      description:
+        "Whether to generate audio alongside the video. Defaults to the endpoint's generate_audio capability flag, false if not set.",
+      example: true,
+      type: 'boolean',
+    },
+    input_references: {
+      description: 'Reference images to guide video generation',
+      items: { $ref: '#/$defs/ContentPartImage' },
+      type: 'array',
+    },
+    model: {
+      type: 'string',
+      enum: ['bytedance/seedance-2.0'],
+      description: 'Model id (fixed for this model-constrained schema)',
+    },
+    prompt: { type: 'string' },
+    provider: {
+      description:
+        'Provider-specific passthrough configuration Passthrough parameters allowed for this model: watermark, req_key.',
+      properties: {
+        options: {
+          allOf: [
+            { $ref: '#/$defs/ProviderOptions' },
+            {
+              example: {
+                'google-vertex': { output_config: { effort: 'low' } },
+              },
+            },
+          ],
+        },
+      },
+      type: 'object',
+    },
+    resolution: {
+      description: 'Resolution of the generated video',
+      enum: ['480p', '720p', '1080p'],
+      example: '720p',
+      type: 'string',
+      'x-speakeasy-unknown-values': 'allow',
+    },
+    seed: {
+      description:
+        'If specified, the generation will sample deterministically, such that repeated requests with the same seed and parameters should return the same result. Determinism is not guaranteed for all providers.',
+      type: 'integer',
+    },
+    size: {
+      description:
+        'Exact pixel dimensions of the generated video in "WIDTHxHEIGHT" format (e.g. "1280x720"). Interchangeable with resolution + aspect_ratio.',
+      example: '1280x720',
+      type: 'string',
+      enum: [
+        '480x480',
+        '480x640',
+        '480x854',
+        '640x480',
+        '854x480',
+        '1120x480',
+        '720x720',
+        '720x960',
+        '720x1280',
+        '720x1680',
+        '960x720',
+        '1280x720',
+        '1680x720',
+        '1080x1080',
+        '1080x1440',
+        '1080x1920',
+        '1440x1080',
+        '1920x1080',
+        '2520x1080',
+      ],
+    },
+  },
+  required: ['prompt', 'model'],
+  type: 'object',
+  description:
+    'ByteDance: Seedance 2.0 (bytedance/seedance-2.0) — model-constrained video generation request. Seedance 2.0 is a video generation model from ByteDance. It supports text-to-video, image-to-video with first and last frame control, and multimodal reference-to-video. It is particularly strong at preserving character consistency,...',
+  $defs: {
+    ContentPartImage: {
+      example: {
+        image_url: { url: 'https://example.com/image.png' },
+        type: 'image_url',
+      },
+      properties: {
+        image_url: {
+          properties: { url: { type: 'string' } },
+          required: ['url'],
+          type: 'object',
+        },
+        type: { enum: ['image_url'], type: 'string' },
+      },
+      required: ['type', 'image_url'],
+      type: 'object',
+    },
+    FrameImage: {
+      allOf: [
+        { $ref: '#/$defs/ContentPartImage' },
+        {
+          properties: {
+            frame_type: {
+              description:
+                'Whether this image represents the first or last frame of the video',
+              enum: ['first_frame', 'last_frame'],
+              example: 'first_frame',
+              type: 'string',
+              'x-speakeasy-unknown-values': 'allow',
+            },
+          },
+          required: ['frame_type'],
+          type: 'object',
+        },
+      ],
+      example: {
+        image_url: { url: 'https://example.com/image.png' },
+        type: 'image_url',
+      },
+    },
+    ProviderOptions: {
+      description:
+        'Provider-specific options keyed by provider slug. The options for the matched provider are spread into the upstream request body.',
+      example: { openai: { max_tokens: 1000 } },
+      properties: {
+        '01ai': { additionalProperties: { nullable: true }, type: 'object' },
+        ai21: { additionalProperties: { nullable: true }, type: 'object' },
+        'aion-labs': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        akashml: { additionalProperties: { nullable: true }, type: 'object' },
+        alibaba: { additionalProperties: { nullable: true }, type: 'object' },
+        'amazon-bedrock': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'amazon-nova': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        ambient: { additionalProperties: { nullable: true }, type: 'object' },
+        anthropic: { additionalProperties: { nullable: true }, type: 'object' },
+        anyscale: { additionalProperties: { nullable: true }, type: 'object' },
+        'arcee-ai': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'atlas-cloud': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        atoma: { additionalProperties: { nullable: true }, type: 'object' },
+        avian: { additionalProperties: { nullable: true }, type: 'object' },
+        azure: { additionalProperties: { nullable: true }, type: 'object' },
+        baidu: { additionalProperties: { nullable: true }, type: 'object' },
+        baseten: { additionalProperties: { nullable: true }, type: 'object' },
+        'black-forest-labs': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        byteplus: { additionalProperties: { nullable: true }, type: 'object' },
+        centml: { additionalProperties: { nullable: true }, type: 'object' },
+        cerebras: { additionalProperties: { nullable: true }, type: 'object' },
+        chutes: { additionalProperties: { nullable: true }, type: 'object' },
+        cirrascale: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        clarifai: { additionalProperties: { nullable: true }, type: 'object' },
+        cloudflare: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        cohere: { additionalProperties: { nullable: true }, type: 'object' },
+        crofai: { additionalProperties: { nullable: true }, type: 'object' },
+        crucible: { additionalProperties: { nullable: true }, type: 'object' },
+        crusoe: { additionalProperties: { nullable: true }, type: 'object' },
+        darkbloom: { additionalProperties: { nullable: true }, type: 'object' },
+        deepinfra: { additionalProperties: { nullable: true }, type: 'object' },
+        deepseek: { additionalProperties: { nullable: true }, type: 'object' },
+        dekallm: { additionalProperties: { nullable: true }, type: 'object' },
+        digitalocean: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        enfer: { additionalProperties: { nullable: true }, type: 'object' },
+        'fake-provider': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        featherless: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        fireworks: { additionalProperties: { nullable: true }, type: 'object' },
+        friendli: { additionalProperties: { nullable: true }, type: 'object' },
+        gmicloud: { additionalProperties: { nullable: true }, type: 'object' },
+        'google-ai-studio': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'google-vertex': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        gopomelo: { additionalProperties: { nullable: true }, type: 'object' },
+        groq: { additionalProperties: { nullable: true }, type: 'object' },
+        huggingface: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        hyperbolic: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'hyperbolic-quantized': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inception: { additionalProperties: { nullable: true }, type: 'object' },
+        inceptron: { additionalProperties: { nullable: true }, type: 'object' },
+        'inference-net': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        infermatic: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inflection: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inocloud: { additionalProperties: { nullable: true }, type: 'object' },
+        'io-net': { additionalProperties: { nullable: true }, type: 'object' },
+        ionstream: { additionalProperties: { nullable: true }, type: 'object' },
+        klusterai: { additionalProperties: { nullable: true }, type: 'object' },
+        lambda: { additionalProperties: { nullable: true }, type: 'object' },
+        lepton: { additionalProperties: { nullable: true }, type: 'object' },
+        liquid: { additionalProperties: { nullable: true }, type: 'object' },
+        lynn: { additionalProperties: { nullable: true }, type: 'object' },
+        'lynn-private': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        mancer: { additionalProperties: { nullable: true }, type: 'object' },
+        'mancer-old': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        mara: { additionalProperties: { nullable: true }, type: 'object' },
+        meta: { additionalProperties: { nullable: true }, type: 'object' },
+        minimax: { additionalProperties: { nullable: true }, type: 'object' },
+        mistral: { additionalProperties: { nullable: true }, type: 'object' },
+        modal: { additionalProperties: { nullable: true }, type: 'object' },
+        modelrun: { additionalProperties: { nullable: true }, type: 'object' },
+        modular: { additionalProperties: { nullable: true }, type: 'object' },
+        moonshotai: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        morph: { additionalProperties: { nullable: true }, type: 'object' },
+        ncompass: { additionalProperties: { nullable: true }, type: 'object' },
+        nebius: { additionalProperties: { nullable: true }, type: 'object' },
+        'nex-agi': { additionalProperties: { nullable: true }, type: 'object' },
+        nextbit: { additionalProperties: { nullable: true }, type: 'object' },
+        nineteen: { additionalProperties: { nullable: true }, type: 'object' },
+        novita: { additionalProperties: { nullable: true }, type: 'object' },
+        nvidia: { additionalProperties: { nullable: true }, type: 'object' },
+        octoai: { additionalProperties: { nullable: true }, type: 'object' },
+        'open-inference': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        openai: { additionalProperties: { nullable: true }, type: 'object' },
+        parasail: { additionalProperties: { nullable: true }, type: 'object' },
+        perceptron: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        perplexity: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        phala: { additionalProperties: { nullable: true }, type: 'object' },
+        poolside: { additionalProperties: { nullable: true }, type: 'object' },
+        recraft: { additionalProperties: { nullable: true }, type: 'object' },
+        recursal: { additionalProperties: { nullable: true }, type: 'object' },
+        reflection: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        reka: { additionalProperties: { nullable: true }, type: 'object' },
+        relace: { additionalProperties: { nullable: true }, type: 'object' },
+        replicate: { additionalProperties: { nullable: true }, type: 'object' },
+        sambanova: { additionalProperties: { nullable: true }, type: 'object' },
+        'sambanova-cloaked': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        seed: { additionalProperties: { nullable: true }, type: 'object' },
+        'sf-compute': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        siliconflow: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        sourceful: { additionalProperties: { nullable: true }, type: 'object' },
+        stealth: { additionalProperties: { nullable: true }, type: 'object' },
+        stepfun: { additionalProperties: { nullable: true }, type: 'object' },
+        streamlake: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        switchpoint: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        targon: { additionalProperties: { nullable: true }, type: 'object' },
+        together: { additionalProperties: { nullable: true }, type: 'object' },
+        'together-lite': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        ubicloud: { additionalProperties: { nullable: true }, type: 'object' },
+        upstage: { additionalProperties: { nullable: true }, type: 'object' },
+        venice: { additionalProperties: { nullable: true }, type: 'object' },
+        wandb: { additionalProperties: { nullable: true }, type: 'object' },
+        xai: { additionalProperties: { nullable: true }, type: 'object' },
+        xiaomi: { additionalProperties: { nullable: true }, type: 'object' },
+        'z-ai': { additionalProperties: { nullable: true }, type: 'object' },
+      },
+      type: 'object',
+    },
+  },
+} as const
+
+export const VideoGenerationRequestBytedanceSeedance20FastSchema = {
+  example: {
+    aspect_ratio: '16:9',
+    duration: 8,
+    model: 'google/veo-3.1',
+    prompt: 'A serene mountain landscape at sunset',
+    resolution: '720p',
+  },
+  properties: {
+    aspect_ratio: {
+      description: 'Aspect ratio of the generated video',
+      enum: ['1:1', '3:4', '9:16', '4:3', '16:9', '21:9', '9:21'],
+      example: '16:9',
+      type: 'string',
+      'x-speakeasy-unknown-values': 'allow',
+    },
+    callback_url: {
+      description:
+        'URL to receive a webhook notification when the video generation job completes. Overrides the workspace-level default callback URL if set. Must be HTTPS.',
+      example: 'https://example.com/webhook',
+      format: 'uri',
+      type: 'string',
+    },
+    duration: {
+      description: 'Duration of the generated video in seconds',
+      example: 8,
+      minimum: 1,
+      type: 'integer',
+      enum: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    },
+    frame_images: {
+      description:
+        'Images to use as the first and/or last frame of the generated video. Each image must specify a frame_type of first_frame or last_frame. Frame types supported by this model: first_frame, last_frame.',
+      items: { $ref: '#/$defs/FrameImage' },
+      type: 'array',
+    },
+    generate_audio: {
+      description:
+        "Whether to generate audio alongside the video. Defaults to the endpoint's generate_audio capability flag, false if not set.",
+      example: true,
+      type: 'boolean',
+    },
+    input_references: {
+      description: 'Reference images to guide video generation',
+      items: { $ref: '#/$defs/ContentPartImage' },
+      type: 'array',
+    },
+    model: {
+      type: 'string',
+      enum: ['bytedance/seedance-2.0-fast'],
+      description: 'Model id (fixed for this model-constrained schema)',
+    },
+    prompt: { type: 'string' },
+    provider: {
+      description:
+        'Provider-specific passthrough configuration Passthrough parameters allowed for this model: watermark, req_key.',
+      properties: {
+        options: {
+          allOf: [
+            { $ref: '#/$defs/ProviderOptions' },
+            {
+              example: {
+                'google-vertex': { output_config: { effort: 'low' } },
+              },
+            },
+          ],
+        },
+      },
+      type: 'object',
+    },
+    resolution: {
+      description: 'Resolution of the generated video',
+      enum: ['480p', '720p'],
+      example: '720p',
+      type: 'string',
+      'x-speakeasy-unknown-values': 'allow',
+    },
+    seed: {
+      description:
+        'If specified, the generation will sample deterministically, such that repeated requests with the same seed and parameters should return the same result. Determinism is not guaranteed for all providers.',
+      type: 'integer',
+    },
+    size: {
+      description:
+        'Exact pixel dimensions of the generated video in "WIDTHxHEIGHT" format (e.g. "1280x720"). Interchangeable with resolution + aspect_ratio.',
+      example: '1280x720',
+      type: 'string',
+      enum: [
+        '480x480',
+        '480x640',
+        '480x854',
+        '640x480',
+        '854x480',
+        '1120x480',
+        '720x720',
+        '720x960',
+        '720x1280',
+        '720x1680',
+        '960x720',
+        '1280x720',
+        '1680x720',
+      ],
+    },
+  },
+  required: ['prompt', 'model'],
+  type: 'object',
+  description:
+    'ByteDance: Seedance 2.0 Fast (bytedance/seedance-2.0-fast) — model-constrained video generation request. Seedance 2.0 Fast is a video generation model from ByteDance. It supports text-to-video, image-to-video with first and last frame control, and multimodal reference-to-video. It prioritizes generation speed and lower cost...',
+  $defs: {
+    ContentPartImage: {
+      example: {
+        image_url: { url: 'https://example.com/image.png' },
+        type: 'image_url',
+      },
+      properties: {
+        image_url: {
+          properties: { url: { type: 'string' } },
+          required: ['url'],
+          type: 'object',
+        },
+        type: { enum: ['image_url'], type: 'string' },
+      },
+      required: ['type', 'image_url'],
+      type: 'object',
+    },
+    FrameImage: {
+      allOf: [
+        { $ref: '#/$defs/ContentPartImage' },
+        {
+          properties: {
+            frame_type: {
+              description:
+                'Whether this image represents the first or last frame of the video',
+              enum: ['first_frame', 'last_frame'],
+              example: 'first_frame',
+              type: 'string',
+              'x-speakeasy-unknown-values': 'allow',
+            },
+          },
+          required: ['frame_type'],
+          type: 'object',
+        },
+      ],
+      example: {
+        image_url: { url: 'https://example.com/image.png' },
+        type: 'image_url',
+      },
+    },
+    ProviderOptions: {
+      description:
+        'Provider-specific options keyed by provider slug. The options for the matched provider are spread into the upstream request body.',
+      example: { openai: { max_tokens: 1000 } },
+      properties: {
+        '01ai': { additionalProperties: { nullable: true }, type: 'object' },
+        ai21: { additionalProperties: { nullable: true }, type: 'object' },
+        'aion-labs': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        akashml: { additionalProperties: { nullable: true }, type: 'object' },
+        alibaba: { additionalProperties: { nullable: true }, type: 'object' },
+        'amazon-bedrock': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'amazon-nova': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        ambient: { additionalProperties: { nullable: true }, type: 'object' },
+        anthropic: { additionalProperties: { nullable: true }, type: 'object' },
+        anyscale: { additionalProperties: { nullable: true }, type: 'object' },
+        'arcee-ai': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'atlas-cloud': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        atoma: { additionalProperties: { nullable: true }, type: 'object' },
+        avian: { additionalProperties: { nullable: true }, type: 'object' },
+        azure: { additionalProperties: { nullable: true }, type: 'object' },
+        baidu: { additionalProperties: { nullable: true }, type: 'object' },
+        baseten: { additionalProperties: { nullable: true }, type: 'object' },
+        'black-forest-labs': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        byteplus: { additionalProperties: { nullable: true }, type: 'object' },
+        centml: { additionalProperties: { nullable: true }, type: 'object' },
+        cerebras: { additionalProperties: { nullable: true }, type: 'object' },
+        chutes: { additionalProperties: { nullable: true }, type: 'object' },
+        cirrascale: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        clarifai: { additionalProperties: { nullable: true }, type: 'object' },
+        cloudflare: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        cohere: { additionalProperties: { nullable: true }, type: 'object' },
+        crofai: { additionalProperties: { nullable: true }, type: 'object' },
+        crucible: { additionalProperties: { nullable: true }, type: 'object' },
+        crusoe: { additionalProperties: { nullable: true }, type: 'object' },
+        darkbloom: { additionalProperties: { nullable: true }, type: 'object' },
+        deepinfra: { additionalProperties: { nullable: true }, type: 'object' },
+        deepseek: { additionalProperties: { nullable: true }, type: 'object' },
+        dekallm: { additionalProperties: { nullable: true }, type: 'object' },
+        digitalocean: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        enfer: { additionalProperties: { nullable: true }, type: 'object' },
+        'fake-provider': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        featherless: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        fireworks: { additionalProperties: { nullable: true }, type: 'object' },
+        friendli: { additionalProperties: { nullable: true }, type: 'object' },
+        gmicloud: { additionalProperties: { nullable: true }, type: 'object' },
+        'google-ai-studio': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'google-vertex': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        gopomelo: { additionalProperties: { nullable: true }, type: 'object' },
+        groq: { additionalProperties: { nullable: true }, type: 'object' },
+        huggingface: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        hyperbolic: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'hyperbolic-quantized': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inception: { additionalProperties: { nullable: true }, type: 'object' },
+        inceptron: { additionalProperties: { nullable: true }, type: 'object' },
+        'inference-net': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        infermatic: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inflection: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inocloud: { additionalProperties: { nullable: true }, type: 'object' },
+        'io-net': { additionalProperties: { nullable: true }, type: 'object' },
+        ionstream: { additionalProperties: { nullable: true }, type: 'object' },
+        klusterai: { additionalProperties: { nullable: true }, type: 'object' },
+        lambda: { additionalProperties: { nullable: true }, type: 'object' },
+        lepton: { additionalProperties: { nullable: true }, type: 'object' },
+        liquid: { additionalProperties: { nullable: true }, type: 'object' },
+        lynn: { additionalProperties: { nullable: true }, type: 'object' },
+        'lynn-private': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        mancer: { additionalProperties: { nullable: true }, type: 'object' },
+        'mancer-old': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        mara: { additionalProperties: { nullable: true }, type: 'object' },
+        meta: { additionalProperties: { nullable: true }, type: 'object' },
+        minimax: { additionalProperties: { nullable: true }, type: 'object' },
+        mistral: { additionalProperties: { nullable: true }, type: 'object' },
+        modal: { additionalProperties: { nullable: true }, type: 'object' },
+        modelrun: { additionalProperties: { nullable: true }, type: 'object' },
+        modular: { additionalProperties: { nullable: true }, type: 'object' },
+        moonshotai: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        morph: { additionalProperties: { nullable: true }, type: 'object' },
+        ncompass: { additionalProperties: { nullable: true }, type: 'object' },
+        nebius: { additionalProperties: { nullable: true }, type: 'object' },
+        'nex-agi': { additionalProperties: { nullable: true }, type: 'object' },
+        nextbit: { additionalProperties: { nullable: true }, type: 'object' },
+        nineteen: { additionalProperties: { nullable: true }, type: 'object' },
+        novita: { additionalProperties: { nullable: true }, type: 'object' },
+        nvidia: { additionalProperties: { nullable: true }, type: 'object' },
+        octoai: { additionalProperties: { nullable: true }, type: 'object' },
+        'open-inference': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        openai: { additionalProperties: { nullable: true }, type: 'object' },
+        parasail: { additionalProperties: { nullable: true }, type: 'object' },
+        perceptron: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        perplexity: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        phala: { additionalProperties: { nullable: true }, type: 'object' },
+        poolside: { additionalProperties: { nullable: true }, type: 'object' },
+        recraft: { additionalProperties: { nullable: true }, type: 'object' },
+        recursal: { additionalProperties: { nullable: true }, type: 'object' },
+        reflection: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        reka: { additionalProperties: { nullable: true }, type: 'object' },
+        relace: { additionalProperties: { nullable: true }, type: 'object' },
+        replicate: { additionalProperties: { nullable: true }, type: 'object' },
+        sambanova: { additionalProperties: { nullable: true }, type: 'object' },
+        'sambanova-cloaked': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        seed: { additionalProperties: { nullable: true }, type: 'object' },
+        'sf-compute': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        siliconflow: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        sourceful: { additionalProperties: { nullable: true }, type: 'object' },
+        stealth: { additionalProperties: { nullable: true }, type: 'object' },
+        stepfun: { additionalProperties: { nullable: true }, type: 'object' },
+        streamlake: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        switchpoint: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        targon: { additionalProperties: { nullable: true }, type: 'object' },
+        together: { additionalProperties: { nullable: true }, type: 'object' },
+        'together-lite': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        ubicloud: { additionalProperties: { nullable: true }, type: 'object' },
+        upstage: { additionalProperties: { nullable: true }, type: 'object' },
+        venice: { additionalProperties: { nullable: true }, type: 'object' },
+        wandb: { additionalProperties: { nullable: true }, type: 'object' },
+        xai: { additionalProperties: { nullable: true }, type: 'object' },
+        xiaomi: { additionalProperties: { nullable: true }, type: 'object' },
+        'z-ai': { additionalProperties: { nullable: true }, type: 'object' },
+      },
+      type: 'object',
+    },
+  },
+} as const
+
+export const VideoGenerationRequestGoogleVeo31Schema = {
+  example: {
+    aspect_ratio: '16:9',
+    duration: 8,
+    model: 'google/veo-3.1',
+    prompt: 'A serene mountain landscape at sunset',
+    resolution: '720p',
+  },
+  properties: {
+    aspect_ratio: {
+      description: 'Aspect ratio of the generated video',
+      enum: ['16:9', '9:16'],
+      example: '16:9',
+      type: 'string',
+      'x-speakeasy-unknown-values': 'allow',
+    },
+    callback_url: {
+      description:
+        'URL to receive a webhook notification when the video generation job completes. Overrides the workspace-level default callback URL if set. Must be HTTPS.',
+      example: 'https://example.com/webhook',
+      format: 'uri',
+      type: 'string',
+    },
+    duration: {
+      description: 'Duration of the generated video in seconds',
+      example: 8,
+      minimum: 1,
+      type: 'integer',
+      enum: [4, 6, 8],
+    },
+    frame_images: {
+      description:
+        'Images to use as the first and/or last frame of the generated video. Each image must specify a frame_type of first_frame or last_frame. Frame types supported by this model: first_frame, last_frame.',
+      items: { $ref: '#/$defs/FrameImage' },
+      type: 'array',
+    },
+    generate_audio: {
+      description:
+        "Whether to generate audio alongside the video. Defaults to the endpoint's generate_audio capability flag, false if not set.",
+      example: true,
+      type: 'boolean',
+    },
+    input_references: {
+      description: 'Reference images to guide video generation',
+      items: { $ref: '#/$defs/ContentPartImage' },
+      type: 'array',
+    },
+    model: {
+      type: 'string',
+      enum: ['google/veo-3.1'],
+      description: 'Model id (fixed for this model-constrained schema)',
+    },
+    prompt: { type: 'string' },
+    provider: {
+      description:
+        'Provider-specific passthrough configuration Passthrough parameters allowed for this model: personGeneration, aspectRatio, negativePrompt, conditioningScale, enhancePrompt.',
+      properties: {
+        options: {
+          allOf: [
+            { $ref: '#/$defs/ProviderOptions' },
+            {
+              example: {
+                'google-vertex': { output_config: { effort: 'low' } },
+              },
+            },
+          ],
+        },
+      },
+      type: 'object',
+    },
+    resolution: {
+      description: 'Resolution of the generated video',
+      enum: ['720p', '1080p', '4K'],
+      example: '720p',
+      type: 'string',
+      'x-speakeasy-unknown-values': 'allow',
+    },
+    seed: {
+      description:
+        'If specified, the generation will sample deterministically, such that repeated requests with the same seed and parameters should return the same result. Determinism is not guaranteed for all providers.',
+      type: 'integer',
+    },
+    size: {
+      description:
+        'Exact pixel dimensions of the generated video in "WIDTHxHEIGHT" format (e.g. "1280x720"). Interchangeable with resolution + aspect_ratio.',
+      example: '1280x720',
+      type: 'string',
+      enum: [
+        '1280x720',
+        '1080x1920',
+        '1920x1080',
+        '720x1280',
+        '3840x2160',
+        '2160x3840',
+      ],
+    },
+  },
+  required: ['prompt', 'model'],
+  type: 'object',
+  description:
+    "Google: Veo 3.1 (google/veo-3.1) — model-constrained video generation request. Google's state-of-the-art video generation model, built for maximum visual fidelity in final production cuts. Veo 3.1 generates high-quality 1080p video from text or image prompts with native synchronized audio —...",
+  $defs: {
+    ContentPartImage: {
+      example: {
+        image_url: { url: 'https://example.com/image.png' },
+        type: 'image_url',
+      },
+      properties: {
+        image_url: {
+          properties: { url: { type: 'string' } },
+          required: ['url'],
+          type: 'object',
+        },
+        type: { enum: ['image_url'], type: 'string' },
+      },
+      required: ['type', 'image_url'],
+      type: 'object',
+    },
+    FrameImage: {
+      allOf: [
+        { $ref: '#/$defs/ContentPartImage' },
+        {
+          properties: {
+            frame_type: {
+              description:
+                'Whether this image represents the first or last frame of the video',
+              enum: ['first_frame', 'last_frame'],
+              example: 'first_frame',
+              type: 'string',
+              'x-speakeasy-unknown-values': 'allow',
+            },
+          },
+          required: ['frame_type'],
+          type: 'object',
+        },
+      ],
+      example: {
+        image_url: { url: 'https://example.com/image.png' },
+        type: 'image_url',
+      },
+    },
+    ProviderOptions: {
+      description:
+        'Provider-specific options keyed by provider slug. The options for the matched provider are spread into the upstream request body.',
+      example: { openai: { max_tokens: 1000 } },
+      properties: {
+        '01ai': { additionalProperties: { nullable: true }, type: 'object' },
+        ai21: { additionalProperties: { nullable: true }, type: 'object' },
+        'aion-labs': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        akashml: { additionalProperties: { nullable: true }, type: 'object' },
+        alibaba: { additionalProperties: { nullable: true }, type: 'object' },
+        'amazon-bedrock': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'amazon-nova': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        ambient: { additionalProperties: { nullable: true }, type: 'object' },
+        anthropic: { additionalProperties: { nullable: true }, type: 'object' },
+        anyscale: { additionalProperties: { nullable: true }, type: 'object' },
+        'arcee-ai': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'atlas-cloud': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        atoma: { additionalProperties: { nullable: true }, type: 'object' },
+        avian: { additionalProperties: { nullable: true }, type: 'object' },
+        azure: { additionalProperties: { nullable: true }, type: 'object' },
+        baidu: { additionalProperties: { nullable: true }, type: 'object' },
+        baseten: { additionalProperties: { nullable: true }, type: 'object' },
+        'black-forest-labs': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        byteplus: { additionalProperties: { nullable: true }, type: 'object' },
+        centml: { additionalProperties: { nullable: true }, type: 'object' },
+        cerebras: { additionalProperties: { nullable: true }, type: 'object' },
+        chutes: { additionalProperties: { nullable: true }, type: 'object' },
+        cirrascale: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        clarifai: { additionalProperties: { nullable: true }, type: 'object' },
+        cloudflare: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        cohere: { additionalProperties: { nullable: true }, type: 'object' },
+        crofai: { additionalProperties: { nullable: true }, type: 'object' },
+        crucible: { additionalProperties: { nullable: true }, type: 'object' },
+        crusoe: { additionalProperties: { nullable: true }, type: 'object' },
+        darkbloom: { additionalProperties: { nullable: true }, type: 'object' },
+        deepinfra: { additionalProperties: { nullable: true }, type: 'object' },
+        deepseek: { additionalProperties: { nullable: true }, type: 'object' },
+        dekallm: { additionalProperties: { nullable: true }, type: 'object' },
+        digitalocean: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        enfer: { additionalProperties: { nullable: true }, type: 'object' },
+        'fake-provider': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        featherless: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        fireworks: { additionalProperties: { nullable: true }, type: 'object' },
+        friendli: { additionalProperties: { nullable: true }, type: 'object' },
+        gmicloud: { additionalProperties: { nullable: true }, type: 'object' },
+        'google-ai-studio': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'google-vertex': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        gopomelo: { additionalProperties: { nullable: true }, type: 'object' },
+        groq: { additionalProperties: { nullable: true }, type: 'object' },
+        huggingface: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        hyperbolic: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'hyperbolic-quantized': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inception: { additionalProperties: { nullable: true }, type: 'object' },
+        inceptron: { additionalProperties: { nullable: true }, type: 'object' },
+        'inference-net': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        infermatic: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inflection: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inocloud: { additionalProperties: { nullable: true }, type: 'object' },
+        'io-net': { additionalProperties: { nullable: true }, type: 'object' },
+        ionstream: { additionalProperties: { nullable: true }, type: 'object' },
+        klusterai: { additionalProperties: { nullable: true }, type: 'object' },
+        lambda: { additionalProperties: { nullable: true }, type: 'object' },
+        lepton: { additionalProperties: { nullable: true }, type: 'object' },
+        liquid: { additionalProperties: { nullable: true }, type: 'object' },
+        lynn: { additionalProperties: { nullable: true }, type: 'object' },
+        'lynn-private': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        mancer: { additionalProperties: { nullable: true }, type: 'object' },
+        'mancer-old': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        mara: { additionalProperties: { nullable: true }, type: 'object' },
+        meta: { additionalProperties: { nullable: true }, type: 'object' },
+        minimax: { additionalProperties: { nullable: true }, type: 'object' },
+        mistral: { additionalProperties: { nullable: true }, type: 'object' },
+        modal: { additionalProperties: { nullable: true }, type: 'object' },
+        modelrun: { additionalProperties: { nullable: true }, type: 'object' },
+        modular: { additionalProperties: { nullable: true }, type: 'object' },
+        moonshotai: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        morph: { additionalProperties: { nullable: true }, type: 'object' },
+        ncompass: { additionalProperties: { nullable: true }, type: 'object' },
+        nebius: { additionalProperties: { nullable: true }, type: 'object' },
+        'nex-agi': { additionalProperties: { nullable: true }, type: 'object' },
+        nextbit: { additionalProperties: { nullable: true }, type: 'object' },
+        nineteen: { additionalProperties: { nullable: true }, type: 'object' },
+        novita: { additionalProperties: { nullable: true }, type: 'object' },
+        nvidia: { additionalProperties: { nullable: true }, type: 'object' },
+        octoai: { additionalProperties: { nullable: true }, type: 'object' },
+        'open-inference': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        openai: { additionalProperties: { nullable: true }, type: 'object' },
+        parasail: { additionalProperties: { nullable: true }, type: 'object' },
+        perceptron: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        perplexity: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        phala: { additionalProperties: { nullable: true }, type: 'object' },
+        poolside: { additionalProperties: { nullable: true }, type: 'object' },
+        recraft: { additionalProperties: { nullable: true }, type: 'object' },
+        recursal: { additionalProperties: { nullable: true }, type: 'object' },
+        reflection: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        reka: { additionalProperties: { nullable: true }, type: 'object' },
+        relace: { additionalProperties: { nullable: true }, type: 'object' },
+        replicate: { additionalProperties: { nullable: true }, type: 'object' },
+        sambanova: { additionalProperties: { nullable: true }, type: 'object' },
+        'sambanova-cloaked': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        seed: { additionalProperties: { nullable: true }, type: 'object' },
+        'sf-compute': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        siliconflow: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        sourceful: { additionalProperties: { nullable: true }, type: 'object' },
+        stealth: { additionalProperties: { nullable: true }, type: 'object' },
+        stepfun: { additionalProperties: { nullable: true }, type: 'object' },
+        streamlake: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        switchpoint: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        targon: { additionalProperties: { nullable: true }, type: 'object' },
+        together: { additionalProperties: { nullable: true }, type: 'object' },
+        'together-lite': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        ubicloud: { additionalProperties: { nullable: true }, type: 'object' },
+        upstage: { additionalProperties: { nullable: true }, type: 'object' },
+        venice: { additionalProperties: { nullable: true }, type: 'object' },
+        wandb: { additionalProperties: { nullable: true }, type: 'object' },
+        xai: { additionalProperties: { nullable: true }, type: 'object' },
+        xiaomi: { additionalProperties: { nullable: true }, type: 'object' },
+        'z-ai': { additionalProperties: { nullable: true }, type: 'object' },
+      },
+      type: 'object',
+    },
+  },
+} as const
+
+export const VideoGenerationRequestGoogleVeo31FastSchema = {
+  example: {
+    aspect_ratio: '16:9',
+    duration: 8,
+    model: 'google/veo-3.1',
+    prompt: 'A serene mountain landscape at sunset',
+    resolution: '720p',
+  },
+  properties: {
+    aspect_ratio: {
+      description: 'Aspect ratio of the generated video',
+      enum: ['16:9', '9:16'],
+      example: '16:9',
+      type: 'string',
+      'x-speakeasy-unknown-values': 'allow',
+    },
+    callback_url: {
+      description:
+        'URL to receive a webhook notification when the video generation job completes. Overrides the workspace-level default callback URL if set. Must be HTTPS.',
+      example: 'https://example.com/webhook',
+      format: 'uri',
+      type: 'string',
+    },
+    duration: {
+      description: 'Duration of the generated video in seconds',
+      example: 8,
+      minimum: 1,
+      type: 'integer',
+      enum: [4, 6, 8],
+    },
+    frame_images: {
+      description:
+        'Images to use as the first and/or last frame of the generated video. Each image must specify a frame_type of first_frame or last_frame. Frame types supported by this model: first_frame, last_frame.',
+      items: { $ref: '#/$defs/FrameImage' },
+      type: 'array',
+    },
+    generate_audio: {
+      description:
+        "Whether to generate audio alongside the video. Defaults to the endpoint's generate_audio capability flag, false if not set.",
+      example: true,
+      type: 'boolean',
+    },
+    input_references: {
+      description: 'Reference images to guide video generation',
+      items: { $ref: '#/$defs/ContentPartImage' },
+      type: 'array',
+    },
+    model: {
+      type: 'string',
+      enum: ['google/veo-3.1-fast'],
+      description: 'Model id (fixed for this model-constrained schema)',
+    },
+    prompt: { type: 'string' },
+    provider: {
+      description:
+        'Provider-specific passthrough configuration Passthrough parameters allowed for this model: personGeneration, aspectRatio, negativePrompt, conditioningScale, enhancePrompt.',
+      properties: {
+        options: {
+          allOf: [
+            { $ref: '#/$defs/ProviderOptions' },
+            {
+              example: {
+                'google-vertex': { output_config: { effort: 'low' } },
+              },
+            },
+          ],
+        },
+      },
+      type: 'object',
+    },
+    resolution: {
+      description: 'Resolution of the generated video',
+      enum: ['720p', '1080p', '4K'],
+      example: '720p',
+      type: 'string',
+      'x-speakeasy-unknown-values': 'allow',
+    },
+    seed: {
+      description:
+        'If specified, the generation will sample deterministically, such that repeated requests with the same seed and parameters should return the same result. Determinism is not guaranteed for all providers.',
+      type: 'integer',
+    },
+    size: {
+      description:
+        'Exact pixel dimensions of the generated video in "WIDTHxHEIGHT" format (e.g. "1280x720"). Interchangeable with resolution + aspect_ratio.',
+      example: '1280x720',
+      type: 'string',
+      enum: [
+        '1280x720',
+        '1080x1920',
+        '1920x1080',
+        '720x1280',
+        '3840x2160',
+        '2160x3840',
+      ],
+    },
+  },
+  required: ['prompt', 'model'],
+  type: 'object',
+  description:
+    "Google: Veo 3.1 Fast (google/veo-3.1-fast) — model-constrained video generation request. Google's mid-tier video generation model balancing speed and quality. Veo 3.1 Fast generates high-quality video from text or image prompts with native synchronized audio, offering faster turnaround than Veo 3.1...",
+  $defs: {
+    ContentPartImage: {
+      example: {
+        image_url: { url: 'https://example.com/image.png' },
+        type: 'image_url',
+      },
+      properties: {
+        image_url: {
+          properties: { url: { type: 'string' } },
+          required: ['url'],
+          type: 'object',
+        },
+        type: { enum: ['image_url'], type: 'string' },
+      },
+      required: ['type', 'image_url'],
+      type: 'object',
+    },
+    FrameImage: {
+      allOf: [
+        { $ref: '#/$defs/ContentPartImage' },
+        {
+          properties: {
+            frame_type: {
+              description:
+                'Whether this image represents the first or last frame of the video',
+              enum: ['first_frame', 'last_frame'],
+              example: 'first_frame',
+              type: 'string',
+              'x-speakeasy-unknown-values': 'allow',
+            },
+          },
+          required: ['frame_type'],
+          type: 'object',
+        },
+      ],
+      example: {
+        image_url: { url: 'https://example.com/image.png' },
+        type: 'image_url',
+      },
+    },
+    ProviderOptions: {
+      description:
+        'Provider-specific options keyed by provider slug. The options for the matched provider are spread into the upstream request body.',
+      example: { openai: { max_tokens: 1000 } },
+      properties: {
+        '01ai': { additionalProperties: { nullable: true }, type: 'object' },
+        ai21: { additionalProperties: { nullable: true }, type: 'object' },
+        'aion-labs': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        akashml: { additionalProperties: { nullable: true }, type: 'object' },
+        alibaba: { additionalProperties: { nullable: true }, type: 'object' },
+        'amazon-bedrock': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'amazon-nova': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        ambient: { additionalProperties: { nullable: true }, type: 'object' },
+        anthropic: { additionalProperties: { nullable: true }, type: 'object' },
+        anyscale: { additionalProperties: { nullable: true }, type: 'object' },
+        'arcee-ai': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'atlas-cloud': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        atoma: { additionalProperties: { nullable: true }, type: 'object' },
+        avian: { additionalProperties: { nullable: true }, type: 'object' },
+        azure: { additionalProperties: { nullable: true }, type: 'object' },
+        baidu: { additionalProperties: { nullable: true }, type: 'object' },
+        baseten: { additionalProperties: { nullable: true }, type: 'object' },
+        'black-forest-labs': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        byteplus: { additionalProperties: { nullable: true }, type: 'object' },
+        centml: { additionalProperties: { nullable: true }, type: 'object' },
+        cerebras: { additionalProperties: { nullable: true }, type: 'object' },
+        chutes: { additionalProperties: { nullable: true }, type: 'object' },
+        cirrascale: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        clarifai: { additionalProperties: { nullable: true }, type: 'object' },
+        cloudflare: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        cohere: { additionalProperties: { nullable: true }, type: 'object' },
+        crofai: { additionalProperties: { nullable: true }, type: 'object' },
+        crucible: { additionalProperties: { nullable: true }, type: 'object' },
+        crusoe: { additionalProperties: { nullable: true }, type: 'object' },
+        darkbloom: { additionalProperties: { nullable: true }, type: 'object' },
+        deepinfra: { additionalProperties: { nullable: true }, type: 'object' },
+        deepseek: { additionalProperties: { nullable: true }, type: 'object' },
+        dekallm: { additionalProperties: { nullable: true }, type: 'object' },
+        digitalocean: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        enfer: { additionalProperties: { nullable: true }, type: 'object' },
+        'fake-provider': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        featherless: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        fireworks: { additionalProperties: { nullable: true }, type: 'object' },
+        friendli: { additionalProperties: { nullable: true }, type: 'object' },
+        gmicloud: { additionalProperties: { nullable: true }, type: 'object' },
+        'google-ai-studio': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'google-vertex': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        gopomelo: { additionalProperties: { nullable: true }, type: 'object' },
+        groq: { additionalProperties: { nullable: true }, type: 'object' },
+        huggingface: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        hyperbolic: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'hyperbolic-quantized': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inception: { additionalProperties: { nullable: true }, type: 'object' },
+        inceptron: { additionalProperties: { nullable: true }, type: 'object' },
+        'inference-net': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        infermatic: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inflection: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inocloud: { additionalProperties: { nullable: true }, type: 'object' },
+        'io-net': { additionalProperties: { nullable: true }, type: 'object' },
+        ionstream: { additionalProperties: { nullable: true }, type: 'object' },
+        klusterai: { additionalProperties: { nullable: true }, type: 'object' },
+        lambda: { additionalProperties: { nullable: true }, type: 'object' },
+        lepton: { additionalProperties: { nullable: true }, type: 'object' },
+        liquid: { additionalProperties: { nullable: true }, type: 'object' },
+        lynn: { additionalProperties: { nullable: true }, type: 'object' },
+        'lynn-private': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        mancer: { additionalProperties: { nullable: true }, type: 'object' },
+        'mancer-old': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        mara: { additionalProperties: { nullable: true }, type: 'object' },
+        meta: { additionalProperties: { nullable: true }, type: 'object' },
+        minimax: { additionalProperties: { nullable: true }, type: 'object' },
+        mistral: { additionalProperties: { nullable: true }, type: 'object' },
+        modal: { additionalProperties: { nullable: true }, type: 'object' },
+        modelrun: { additionalProperties: { nullable: true }, type: 'object' },
+        modular: { additionalProperties: { nullable: true }, type: 'object' },
+        moonshotai: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        morph: { additionalProperties: { nullable: true }, type: 'object' },
+        ncompass: { additionalProperties: { nullable: true }, type: 'object' },
+        nebius: { additionalProperties: { nullable: true }, type: 'object' },
+        'nex-agi': { additionalProperties: { nullable: true }, type: 'object' },
+        nextbit: { additionalProperties: { nullable: true }, type: 'object' },
+        nineteen: { additionalProperties: { nullable: true }, type: 'object' },
+        novita: { additionalProperties: { nullable: true }, type: 'object' },
+        nvidia: { additionalProperties: { nullable: true }, type: 'object' },
+        octoai: { additionalProperties: { nullable: true }, type: 'object' },
+        'open-inference': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        openai: { additionalProperties: { nullable: true }, type: 'object' },
+        parasail: { additionalProperties: { nullable: true }, type: 'object' },
+        perceptron: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        perplexity: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        phala: { additionalProperties: { nullable: true }, type: 'object' },
+        poolside: { additionalProperties: { nullable: true }, type: 'object' },
+        recraft: { additionalProperties: { nullable: true }, type: 'object' },
+        recursal: { additionalProperties: { nullable: true }, type: 'object' },
+        reflection: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        reka: { additionalProperties: { nullable: true }, type: 'object' },
+        relace: { additionalProperties: { nullable: true }, type: 'object' },
+        replicate: { additionalProperties: { nullable: true }, type: 'object' },
+        sambanova: { additionalProperties: { nullable: true }, type: 'object' },
+        'sambanova-cloaked': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        seed: { additionalProperties: { nullable: true }, type: 'object' },
+        'sf-compute': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        siliconflow: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        sourceful: { additionalProperties: { nullable: true }, type: 'object' },
+        stealth: { additionalProperties: { nullable: true }, type: 'object' },
+        stepfun: { additionalProperties: { nullable: true }, type: 'object' },
+        streamlake: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        switchpoint: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        targon: { additionalProperties: { nullable: true }, type: 'object' },
+        together: { additionalProperties: { nullable: true }, type: 'object' },
+        'together-lite': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        ubicloud: { additionalProperties: { nullable: true }, type: 'object' },
+        upstage: { additionalProperties: { nullable: true }, type: 'object' },
+        venice: { additionalProperties: { nullable: true }, type: 'object' },
+        wandb: { additionalProperties: { nullable: true }, type: 'object' },
+        xai: { additionalProperties: { nullable: true }, type: 'object' },
+        xiaomi: { additionalProperties: { nullable: true }, type: 'object' },
+        'z-ai': { additionalProperties: { nullable: true }, type: 'object' },
+      },
+      type: 'object',
+    },
+  },
+} as const
+
+export const VideoGenerationRequestGoogleVeo31LiteSchema = {
+  example: {
+    aspect_ratio: '16:9',
+    duration: 8,
+    model: 'google/veo-3.1',
+    prompt: 'A serene mountain landscape at sunset',
+    resolution: '720p',
+  },
+  properties: {
+    aspect_ratio: {
+      description: 'Aspect ratio of the generated video',
+      enum: ['16:9', '9:16'],
+      example: '16:9',
+      type: 'string',
+      'x-speakeasy-unknown-values': 'allow',
+    },
+    callback_url: {
+      description:
+        'URL to receive a webhook notification when the video generation job completes. Overrides the workspace-level default callback URL if set. Must be HTTPS.',
+      example: 'https://example.com/webhook',
+      format: 'uri',
+      type: 'string',
+    },
+    duration: {
+      description: 'Duration of the generated video in seconds',
+      example: 8,
+      minimum: 1,
+      type: 'integer',
+      enum: [8, 4, 6],
+    },
+    frame_images: {
+      description:
+        'Images to use as the first and/or last frame of the generated video. Each image must specify a frame_type of first_frame or last_frame. Frame types supported by this model: first_frame, last_frame.',
+      items: { $ref: '#/$defs/FrameImage' },
+      type: 'array',
+    },
+    generate_audio: {
+      description:
+        "Whether to generate audio alongside the video. Defaults to the endpoint's generate_audio capability flag, false if not set.",
+      example: true,
+      type: 'boolean',
+    },
+    input_references: {
+      description: 'Reference images to guide video generation',
+      items: { $ref: '#/$defs/ContentPartImage' },
+      type: 'array',
+    },
+    model: {
+      type: 'string',
+      enum: ['google/veo-3.1-lite'],
+      description: 'Model id (fixed for this model-constrained schema)',
+    },
+    prompt: { type: 'string' },
+    provider: {
+      description:
+        'Provider-specific passthrough configuration Passthrough parameters allowed for this model: personGeneration, aspectRatio, negativePrompt, conditioningScale, enhancePrompt.',
+      properties: {
+        options: {
+          allOf: [
+            { $ref: '#/$defs/ProviderOptions' },
+            {
+              example: {
+                'google-vertex': { output_config: { effort: 'low' } },
+              },
+            },
+          ],
+        },
+      },
+      type: 'object',
+    },
+    resolution: {
+      description: 'Resolution of the generated video',
+      enum: ['720p', '1080p'],
+      example: '720p',
+      type: 'string',
+      'x-speakeasy-unknown-values': 'allow',
+    },
+    seed: {
+      description:
+        'If specified, the generation will sample deterministically, such that repeated requests with the same seed and parameters should return the same result. Determinism is not guaranteed for all providers.',
+      type: 'integer',
+    },
+    size: {
+      description:
+        'Exact pixel dimensions of the generated video in "WIDTHxHEIGHT" format (e.g. "1280x720"). Interchangeable with resolution + aspect_ratio.',
+      example: '1280x720',
+      type: 'string',
+      enum: ['1280x720', '720x1280', '1920x1080', '1080x1920'],
+    },
+  },
+  required: ['prompt', 'model'],
+  type: 'object',
+  description:
+    "Google: Veo 3.1 Lite (google/veo-3.1-lite) — model-constrained video generation request. Google's most cost-effective video generation model, designed for high-volume applications and rapid iteration. Veo 3.1 Lite generates 720p and 1080p video from text or image prompts with native synchronized audio...",
+  $defs: {
+    ContentPartImage: {
+      example: {
+        image_url: { url: 'https://example.com/image.png' },
+        type: 'image_url',
+      },
+      properties: {
+        image_url: {
+          properties: { url: { type: 'string' } },
+          required: ['url'],
+          type: 'object',
+        },
+        type: { enum: ['image_url'], type: 'string' },
+      },
+      required: ['type', 'image_url'],
+      type: 'object',
+    },
+    FrameImage: {
+      allOf: [
+        { $ref: '#/$defs/ContentPartImage' },
+        {
+          properties: {
+            frame_type: {
+              description:
+                'Whether this image represents the first or last frame of the video',
+              enum: ['first_frame', 'last_frame'],
+              example: 'first_frame',
+              type: 'string',
+              'x-speakeasy-unknown-values': 'allow',
+            },
+          },
+          required: ['frame_type'],
+          type: 'object',
+        },
+      ],
+      example: {
+        image_url: { url: 'https://example.com/image.png' },
+        type: 'image_url',
+      },
+    },
+    ProviderOptions: {
+      description:
+        'Provider-specific options keyed by provider slug. The options for the matched provider are spread into the upstream request body.',
+      example: { openai: { max_tokens: 1000 } },
+      properties: {
+        '01ai': { additionalProperties: { nullable: true }, type: 'object' },
+        ai21: { additionalProperties: { nullable: true }, type: 'object' },
+        'aion-labs': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        akashml: { additionalProperties: { nullable: true }, type: 'object' },
+        alibaba: { additionalProperties: { nullable: true }, type: 'object' },
+        'amazon-bedrock': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'amazon-nova': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        ambient: { additionalProperties: { nullable: true }, type: 'object' },
+        anthropic: { additionalProperties: { nullable: true }, type: 'object' },
+        anyscale: { additionalProperties: { nullable: true }, type: 'object' },
+        'arcee-ai': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'atlas-cloud': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        atoma: { additionalProperties: { nullable: true }, type: 'object' },
+        avian: { additionalProperties: { nullable: true }, type: 'object' },
+        azure: { additionalProperties: { nullable: true }, type: 'object' },
+        baidu: { additionalProperties: { nullable: true }, type: 'object' },
+        baseten: { additionalProperties: { nullable: true }, type: 'object' },
+        'black-forest-labs': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        byteplus: { additionalProperties: { nullable: true }, type: 'object' },
+        centml: { additionalProperties: { nullable: true }, type: 'object' },
+        cerebras: { additionalProperties: { nullable: true }, type: 'object' },
+        chutes: { additionalProperties: { nullable: true }, type: 'object' },
+        cirrascale: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        clarifai: { additionalProperties: { nullable: true }, type: 'object' },
+        cloudflare: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        cohere: { additionalProperties: { nullable: true }, type: 'object' },
+        crofai: { additionalProperties: { nullable: true }, type: 'object' },
+        crucible: { additionalProperties: { nullable: true }, type: 'object' },
+        crusoe: { additionalProperties: { nullable: true }, type: 'object' },
+        darkbloom: { additionalProperties: { nullable: true }, type: 'object' },
+        deepinfra: { additionalProperties: { nullable: true }, type: 'object' },
+        deepseek: { additionalProperties: { nullable: true }, type: 'object' },
+        dekallm: { additionalProperties: { nullable: true }, type: 'object' },
+        digitalocean: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        enfer: { additionalProperties: { nullable: true }, type: 'object' },
+        'fake-provider': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        featherless: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        fireworks: { additionalProperties: { nullable: true }, type: 'object' },
+        friendli: { additionalProperties: { nullable: true }, type: 'object' },
+        gmicloud: { additionalProperties: { nullable: true }, type: 'object' },
+        'google-ai-studio': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'google-vertex': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        gopomelo: { additionalProperties: { nullable: true }, type: 'object' },
+        groq: { additionalProperties: { nullable: true }, type: 'object' },
+        huggingface: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        hyperbolic: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'hyperbolic-quantized': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inception: { additionalProperties: { nullable: true }, type: 'object' },
+        inceptron: { additionalProperties: { nullable: true }, type: 'object' },
+        'inference-net': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        infermatic: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inflection: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inocloud: { additionalProperties: { nullable: true }, type: 'object' },
+        'io-net': { additionalProperties: { nullable: true }, type: 'object' },
+        ionstream: { additionalProperties: { nullable: true }, type: 'object' },
+        klusterai: { additionalProperties: { nullable: true }, type: 'object' },
+        lambda: { additionalProperties: { nullable: true }, type: 'object' },
+        lepton: { additionalProperties: { nullable: true }, type: 'object' },
+        liquid: { additionalProperties: { nullable: true }, type: 'object' },
+        lynn: { additionalProperties: { nullable: true }, type: 'object' },
+        'lynn-private': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        mancer: { additionalProperties: { nullable: true }, type: 'object' },
+        'mancer-old': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        mara: { additionalProperties: { nullable: true }, type: 'object' },
+        meta: { additionalProperties: { nullable: true }, type: 'object' },
+        minimax: { additionalProperties: { nullable: true }, type: 'object' },
+        mistral: { additionalProperties: { nullable: true }, type: 'object' },
+        modal: { additionalProperties: { nullable: true }, type: 'object' },
+        modelrun: { additionalProperties: { nullable: true }, type: 'object' },
+        modular: { additionalProperties: { nullable: true }, type: 'object' },
+        moonshotai: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        morph: { additionalProperties: { nullable: true }, type: 'object' },
+        ncompass: { additionalProperties: { nullable: true }, type: 'object' },
+        nebius: { additionalProperties: { nullable: true }, type: 'object' },
+        'nex-agi': { additionalProperties: { nullable: true }, type: 'object' },
+        nextbit: { additionalProperties: { nullable: true }, type: 'object' },
+        nineteen: { additionalProperties: { nullable: true }, type: 'object' },
+        novita: { additionalProperties: { nullable: true }, type: 'object' },
+        nvidia: { additionalProperties: { nullable: true }, type: 'object' },
+        octoai: { additionalProperties: { nullable: true }, type: 'object' },
+        'open-inference': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        openai: { additionalProperties: { nullable: true }, type: 'object' },
+        parasail: { additionalProperties: { nullable: true }, type: 'object' },
+        perceptron: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        perplexity: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        phala: { additionalProperties: { nullable: true }, type: 'object' },
+        poolside: { additionalProperties: { nullable: true }, type: 'object' },
+        recraft: { additionalProperties: { nullable: true }, type: 'object' },
+        recursal: { additionalProperties: { nullable: true }, type: 'object' },
+        reflection: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        reka: { additionalProperties: { nullable: true }, type: 'object' },
+        relace: { additionalProperties: { nullable: true }, type: 'object' },
+        replicate: { additionalProperties: { nullable: true }, type: 'object' },
+        sambanova: { additionalProperties: { nullable: true }, type: 'object' },
+        'sambanova-cloaked': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        seed: { additionalProperties: { nullable: true }, type: 'object' },
+        'sf-compute': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        siliconflow: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        sourceful: { additionalProperties: { nullable: true }, type: 'object' },
+        stealth: { additionalProperties: { nullable: true }, type: 'object' },
+        stepfun: { additionalProperties: { nullable: true }, type: 'object' },
+        streamlake: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        switchpoint: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        targon: { additionalProperties: { nullable: true }, type: 'object' },
+        together: { additionalProperties: { nullable: true }, type: 'object' },
+        'together-lite': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        ubicloud: { additionalProperties: { nullable: true }, type: 'object' },
+        upstage: { additionalProperties: { nullable: true }, type: 'object' },
+        venice: { additionalProperties: { nullable: true }, type: 'object' },
+        wandb: { additionalProperties: { nullable: true }, type: 'object' },
+        xai: { additionalProperties: { nullable: true }, type: 'object' },
+        xiaomi: { additionalProperties: { nullable: true }, type: 'object' },
+        'z-ai': { additionalProperties: { nullable: true }, type: 'object' },
+      },
+      type: 'object',
+    },
+  },
+} as const
+
+export const VideoGenerationRequestKwaivgiKlingV30ProSchema = {
+  example: {
+    aspect_ratio: '16:9',
+    duration: 8,
+    model: 'google/veo-3.1',
+    prompt: 'A serene mountain landscape at sunset',
+    resolution: '720p',
+  },
+  properties: {
+    aspect_ratio: {
+      description: 'Aspect ratio of the generated video',
+      enum: ['16:9', '9:16', '1:1'],
+      example: '16:9',
+      type: 'string',
+      'x-speakeasy-unknown-values': 'allow',
+    },
+    callback_url: {
+      description:
+        'URL to receive a webhook notification when the video generation job completes. Overrides the workspace-level default callback URL if set. Must be HTTPS.',
+      example: 'https://example.com/webhook',
+      format: 'uri',
+      type: 'string',
+    },
+    duration: {
+      description: 'Duration of the generated video in seconds',
+      example: 8,
+      minimum: 1,
+      type: 'integer',
+      enum: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    },
+    frame_images: {
+      description:
+        'Images to use as the first and/or last frame of the generated video. Each image must specify a frame_type of first_frame or last_frame. Frame types supported by this model: first_frame, last_frame.',
+      items: { $ref: '#/$defs/FrameImage' },
+      type: 'array',
+    },
+    generate_audio: {
+      description:
+        "Whether to generate audio alongside the video. Defaults to the endpoint's generate_audio capability flag, false if not set.",
+      example: true,
+      type: 'boolean',
+    },
+    input_references: {
+      description: 'Reference images to guide video generation',
+      items: { $ref: '#/$defs/ContentPartImage' },
+      type: 'array',
+    },
+    model: {
+      type: 'string',
+      enum: ['kwaivgi/kling-v3.0-pro'],
+      description: 'Model id (fixed for this model-constrained schema)',
+    },
+    prompt: { type: 'string' },
+    provider: {
+      description:
+        'Provider-specific passthrough configuration Passthrough parameters allowed for this model: negative_prompt, cfg_scale.',
+      properties: {
+        options: {
+          allOf: [
+            { $ref: '#/$defs/ProviderOptions' },
+            {
+              example: {
+                'google-vertex': { output_config: { effort: 'low' } },
+              },
+            },
+          ],
+        },
+      },
+      type: 'object',
+    },
+    resolution: {
+      description: 'Resolution of the generated video',
+      enum: ['720p'],
+      example: '720p',
+      type: 'string',
+      'x-speakeasy-unknown-values': 'allow',
+    },
+    size: {
+      description:
+        'Exact pixel dimensions of the generated video in "WIDTHxHEIGHT" format (e.g. "1280x720"). Interchangeable with resolution + aspect_ratio.',
+      example: '1280x720',
+      type: 'string',
+      enum: ['1280x720', '720x1280', '720x720'],
+    },
+  },
+  required: ['prompt', 'model'],
+  type: 'object',
+  description:
+    "Kling: Video v3.0 Pro (kwaivgi/kling-v3.0-pro) — model-constrained video generation request. Kling v3.0 Pro is Kuaishou's premium video generation model, offering higher visual quality than the Standard tier. It supports text-to-video and image-to-video workflows, with first-frame and last-frame control for precise...",
+  $defs: {
+    ContentPartImage: {
+      example: {
+        image_url: { url: 'https://example.com/image.png' },
+        type: 'image_url',
+      },
+      properties: {
+        image_url: {
+          properties: { url: { type: 'string' } },
+          required: ['url'],
+          type: 'object',
+        },
+        type: { enum: ['image_url'], type: 'string' },
+      },
+      required: ['type', 'image_url'],
+      type: 'object',
+    },
+    FrameImage: {
+      allOf: [
+        { $ref: '#/$defs/ContentPartImage' },
+        {
+          properties: {
+            frame_type: {
+              description:
+                'Whether this image represents the first or last frame of the video',
+              enum: ['first_frame', 'last_frame'],
+              example: 'first_frame',
+              type: 'string',
+              'x-speakeasy-unknown-values': 'allow',
+            },
+          },
+          required: ['frame_type'],
+          type: 'object',
+        },
+      ],
+      example: {
+        image_url: { url: 'https://example.com/image.png' },
+        type: 'image_url',
+      },
+    },
+    ProviderOptions: {
+      description:
+        'Provider-specific options keyed by provider slug. The options for the matched provider are spread into the upstream request body.',
+      example: { openai: { max_tokens: 1000 } },
+      properties: {
+        '01ai': { additionalProperties: { nullable: true }, type: 'object' },
+        ai21: { additionalProperties: { nullable: true }, type: 'object' },
+        'aion-labs': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        akashml: { additionalProperties: { nullable: true }, type: 'object' },
+        alibaba: { additionalProperties: { nullable: true }, type: 'object' },
+        'amazon-bedrock': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'amazon-nova': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        ambient: { additionalProperties: { nullable: true }, type: 'object' },
+        anthropic: { additionalProperties: { nullable: true }, type: 'object' },
+        anyscale: { additionalProperties: { nullable: true }, type: 'object' },
+        'arcee-ai': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'atlas-cloud': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        atoma: { additionalProperties: { nullable: true }, type: 'object' },
+        avian: { additionalProperties: { nullable: true }, type: 'object' },
+        azure: { additionalProperties: { nullable: true }, type: 'object' },
+        baidu: { additionalProperties: { nullable: true }, type: 'object' },
+        baseten: { additionalProperties: { nullable: true }, type: 'object' },
+        'black-forest-labs': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        byteplus: { additionalProperties: { nullable: true }, type: 'object' },
+        centml: { additionalProperties: { nullable: true }, type: 'object' },
+        cerebras: { additionalProperties: { nullable: true }, type: 'object' },
+        chutes: { additionalProperties: { nullable: true }, type: 'object' },
+        cirrascale: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        clarifai: { additionalProperties: { nullable: true }, type: 'object' },
+        cloudflare: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        cohere: { additionalProperties: { nullable: true }, type: 'object' },
+        crofai: { additionalProperties: { nullable: true }, type: 'object' },
+        crucible: { additionalProperties: { nullable: true }, type: 'object' },
+        crusoe: { additionalProperties: { nullable: true }, type: 'object' },
+        darkbloom: { additionalProperties: { nullable: true }, type: 'object' },
+        deepinfra: { additionalProperties: { nullable: true }, type: 'object' },
+        deepseek: { additionalProperties: { nullable: true }, type: 'object' },
+        dekallm: { additionalProperties: { nullable: true }, type: 'object' },
+        digitalocean: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        enfer: { additionalProperties: { nullable: true }, type: 'object' },
+        'fake-provider': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        featherless: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        fireworks: { additionalProperties: { nullable: true }, type: 'object' },
+        friendli: { additionalProperties: { nullable: true }, type: 'object' },
+        gmicloud: { additionalProperties: { nullable: true }, type: 'object' },
+        'google-ai-studio': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'google-vertex': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        gopomelo: { additionalProperties: { nullable: true }, type: 'object' },
+        groq: { additionalProperties: { nullable: true }, type: 'object' },
+        huggingface: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        hyperbolic: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'hyperbolic-quantized': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inception: { additionalProperties: { nullable: true }, type: 'object' },
+        inceptron: { additionalProperties: { nullable: true }, type: 'object' },
+        'inference-net': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        infermatic: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inflection: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inocloud: { additionalProperties: { nullable: true }, type: 'object' },
+        'io-net': { additionalProperties: { nullable: true }, type: 'object' },
+        ionstream: { additionalProperties: { nullable: true }, type: 'object' },
+        klusterai: { additionalProperties: { nullable: true }, type: 'object' },
+        lambda: { additionalProperties: { nullable: true }, type: 'object' },
+        lepton: { additionalProperties: { nullable: true }, type: 'object' },
+        liquid: { additionalProperties: { nullable: true }, type: 'object' },
+        lynn: { additionalProperties: { nullable: true }, type: 'object' },
+        'lynn-private': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        mancer: { additionalProperties: { nullable: true }, type: 'object' },
+        'mancer-old': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        mara: { additionalProperties: { nullable: true }, type: 'object' },
+        meta: { additionalProperties: { nullable: true }, type: 'object' },
+        minimax: { additionalProperties: { nullable: true }, type: 'object' },
+        mistral: { additionalProperties: { nullable: true }, type: 'object' },
+        modal: { additionalProperties: { nullable: true }, type: 'object' },
+        modelrun: { additionalProperties: { nullable: true }, type: 'object' },
+        modular: { additionalProperties: { nullable: true }, type: 'object' },
+        moonshotai: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        morph: { additionalProperties: { nullable: true }, type: 'object' },
+        ncompass: { additionalProperties: { nullable: true }, type: 'object' },
+        nebius: { additionalProperties: { nullable: true }, type: 'object' },
+        'nex-agi': { additionalProperties: { nullable: true }, type: 'object' },
+        nextbit: { additionalProperties: { nullable: true }, type: 'object' },
+        nineteen: { additionalProperties: { nullable: true }, type: 'object' },
+        novita: { additionalProperties: { nullable: true }, type: 'object' },
+        nvidia: { additionalProperties: { nullable: true }, type: 'object' },
+        octoai: { additionalProperties: { nullable: true }, type: 'object' },
+        'open-inference': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        openai: { additionalProperties: { nullable: true }, type: 'object' },
+        parasail: { additionalProperties: { nullable: true }, type: 'object' },
+        perceptron: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        perplexity: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        phala: { additionalProperties: { nullable: true }, type: 'object' },
+        poolside: { additionalProperties: { nullable: true }, type: 'object' },
+        recraft: { additionalProperties: { nullable: true }, type: 'object' },
+        recursal: { additionalProperties: { nullable: true }, type: 'object' },
+        reflection: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        reka: { additionalProperties: { nullable: true }, type: 'object' },
+        relace: { additionalProperties: { nullable: true }, type: 'object' },
+        replicate: { additionalProperties: { nullable: true }, type: 'object' },
+        sambanova: { additionalProperties: { nullable: true }, type: 'object' },
+        'sambanova-cloaked': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        seed: { additionalProperties: { nullable: true }, type: 'object' },
+        'sf-compute': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        siliconflow: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        sourceful: { additionalProperties: { nullable: true }, type: 'object' },
+        stealth: { additionalProperties: { nullable: true }, type: 'object' },
+        stepfun: { additionalProperties: { nullable: true }, type: 'object' },
+        streamlake: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        switchpoint: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        targon: { additionalProperties: { nullable: true }, type: 'object' },
+        together: { additionalProperties: { nullable: true }, type: 'object' },
+        'together-lite': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        ubicloud: { additionalProperties: { nullable: true }, type: 'object' },
+        upstage: { additionalProperties: { nullable: true }, type: 'object' },
+        venice: { additionalProperties: { nullable: true }, type: 'object' },
+        wandb: { additionalProperties: { nullable: true }, type: 'object' },
+        xai: { additionalProperties: { nullable: true }, type: 'object' },
+        xiaomi: { additionalProperties: { nullable: true }, type: 'object' },
+        'z-ai': { additionalProperties: { nullable: true }, type: 'object' },
+      },
+      type: 'object',
+    },
+  },
+} as const
+
+export const VideoGenerationRequestKwaivgiKlingV30StdSchema = {
+  example: {
+    aspect_ratio: '16:9',
+    duration: 8,
+    model: 'google/veo-3.1',
+    prompt: 'A serene mountain landscape at sunset',
+    resolution: '720p',
+  },
+  properties: {
+    aspect_ratio: {
+      description: 'Aspect ratio of the generated video',
+      enum: ['16:9', '9:16', '1:1'],
+      example: '16:9',
+      type: 'string',
+      'x-speakeasy-unknown-values': 'allow',
+    },
+    callback_url: {
+      description:
+        'URL to receive a webhook notification when the video generation job completes. Overrides the workspace-level default callback URL if set. Must be HTTPS.',
+      example: 'https://example.com/webhook',
+      format: 'uri',
+      type: 'string',
+    },
+    duration: {
+      description: 'Duration of the generated video in seconds',
+      example: 8,
+      minimum: 1,
+      type: 'integer',
+      enum: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    },
+    frame_images: {
+      description:
+        'Images to use as the first and/or last frame of the generated video. Each image must specify a frame_type of first_frame or last_frame. Frame types supported by this model: first_frame, last_frame.',
+      items: { $ref: '#/$defs/FrameImage' },
+      type: 'array',
+    },
+    generate_audio: {
+      description:
+        "Whether to generate audio alongside the video. Defaults to the endpoint's generate_audio capability flag, false if not set.",
+      example: true,
+      type: 'boolean',
+    },
+    input_references: {
+      description: 'Reference images to guide video generation',
+      items: { $ref: '#/$defs/ContentPartImage' },
+      type: 'array',
+    },
+    model: {
+      type: 'string',
+      enum: ['kwaivgi/kling-v3.0-std'],
+      description: 'Model id (fixed for this model-constrained schema)',
+    },
+    prompt: { type: 'string' },
+    provider: {
+      description:
+        'Provider-specific passthrough configuration Passthrough parameters allowed for this model: negative_prompt, cfg_scale.',
+      properties: {
+        options: {
+          allOf: [
+            { $ref: '#/$defs/ProviderOptions' },
+            {
+              example: {
+                'google-vertex': { output_config: { effort: 'low' } },
+              },
+            },
+          ],
+        },
+      },
+      type: 'object',
+    },
+    resolution: {
+      description: 'Resolution of the generated video',
+      enum: ['720p'],
+      example: '720p',
+      type: 'string',
+      'x-speakeasy-unknown-values': 'allow',
+    },
+    size: {
+      description:
+        'Exact pixel dimensions of the generated video in "WIDTHxHEIGHT" format (e.g. "1280x720"). Interchangeable with resolution + aspect_ratio.',
+      example: '1280x720',
+      type: 'string',
+      enum: ['1280x720', '720x1280', '720x720'],
+    },
+  },
+  required: ['prompt', 'model'],
+  type: 'object',
+  description:
+    'Kling: Video v3.0 Standard (kwaivgi/kling-v3.0-std) — model-constrained video generation request. Kling v3.0 Standard is a video generation model from Kuaishou. It supports text-to-video and image-to-video workflows, with first-frame and last-frame control for guided scene composition. Clips range from 3 to...',
+  $defs: {
+    ContentPartImage: {
+      example: {
+        image_url: { url: 'https://example.com/image.png' },
+        type: 'image_url',
+      },
+      properties: {
+        image_url: {
+          properties: { url: { type: 'string' } },
+          required: ['url'],
+          type: 'object',
+        },
+        type: { enum: ['image_url'], type: 'string' },
+      },
+      required: ['type', 'image_url'],
+      type: 'object',
+    },
+    FrameImage: {
+      allOf: [
+        { $ref: '#/$defs/ContentPartImage' },
+        {
+          properties: {
+            frame_type: {
+              description:
+                'Whether this image represents the first or last frame of the video',
+              enum: ['first_frame', 'last_frame'],
+              example: 'first_frame',
+              type: 'string',
+              'x-speakeasy-unknown-values': 'allow',
+            },
+          },
+          required: ['frame_type'],
+          type: 'object',
+        },
+      ],
+      example: {
+        image_url: { url: 'https://example.com/image.png' },
+        type: 'image_url',
+      },
+    },
+    ProviderOptions: {
+      description:
+        'Provider-specific options keyed by provider slug. The options for the matched provider are spread into the upstream request body.',
+      example: { openai: { max_tokens: 1000 } },
+      properties: {
+        '01ai': { additionalProperties: { nullable: true }, type: 'object' },
+        ai21: { additionalProperties: { nullable: true }, type: 'object' },
+        'aion-labs': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        akashml: { additionalProperties: { nullable: true }, type: 'object' },
+        alibaba: { additionalProperties: { nullable: true }, type: 'object' },
+        'amazon-bedrock': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'amazon-nova': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        ambient: { additionalProperties: { nullable: true }, type: 'object' },
+        anthropic: { additionalProperties: { nullable: true }, type: 'object' },
+        anyscale: { additionalProperties: { nullable: true }, type: 'object' },
+        'arcee-ai': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'atlas-cloud': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        atoma: { additionalProperties: { nullable: true }, type: 'object' },
+        avian: { additionalProperties: { nullable: true }, type: 'object' },
+        azure: { additionalProperties: { nullable: true }, type: 'object' },
+        baidu: { additionalProperties: { nullable: true }, type: 'object' },
+        baseten: { additionalProperties: { nullable: true }, type: 'object' },
+        'black-forest-labs': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        byteplus: { additionalProperties: { nullable: true }, type: 'object' },
+        centml: { additionalProperties: { nullable: true }, type: 'object' },
+        cerebras: { additionalProperties: { nullable: true }, type: 'object' },
+        chutes: { additionalProperties: { nullable: true }, type: 'object' },
+        cirrascale: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        clarifai: { additionalProperties: { nullable: true }, type: 'object' },
+        cloudflare: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        cohere: { additionalProperties: { nullable: true }, type: 'object' },
+        crofai: { additionalProperties: { nullable: true }, type: 'object' },
+        crucible: { additionalProperties: { nullable: true }, type: 'object' },
+        crusoe: { additionalProperties: { nullable: true }, type: 'object' },
+        darkbloom: { additionalProperties: { nullable: true }, type: 'object' },
+        deepinfra: { additionalProperties: { nullable: true }, type: 'object' },
+        deepseek: { additionalProperties: { nullable: true }, type: 'object' },
+        dekallm: { additionalProperties: { nullable: true }, type: 'object' },
+        digitalocean: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        enfer: { additionalProperties: { nullable: true }, type: 'object' },
+        'fake-provider': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        featherless: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        fireworks: { additionalProperties: { nullable: true }, type: 'object' },
+        friendli: { additionalProperties: { nullable: true }, type: 'object' },
+        gmicloud: { additionalProperties: { nullable: true }, type: 'object' },
+        'google-ai-studio': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'google-vertex': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        gopomelo: { additionalProperties: { nullable: true }, type: 'object' },
+        groq: { additionalProperties: { nullable: true }, type: 'object' },
+        huggingface: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        hyperbolic: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'hyperbolic-quantized': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inception: { additionalProperties: { nullable: true }, type: 'object' },
+        inceptron: { additionalProperties: { nullable: true }, type: 'object' },
+        'inference-net': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        infermatic: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inflection: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inocloud: { additionalProperties: { nullable: true }, type: 'object' },
+        'io-net': { additionalProperties: { nullable: true }, type: 'object' },
+        ionstream: { additionalProperties: { nullable: true }, type: 'object' },
+        klusterai: { additionalProperties: { nullable: true }, type: 'object' },
+        lambda: { additionalProperties: { nullable: true }, type: 'object' },
+        lepton: { additionalProperties: { nullable: true }, type: 'object' },
+        liquid: { additionalProperties: { nullable: true }, type: 'object' },
+        lynn: { additionalProperties: { nullable: true }, type: 'object' },
+        'lynn-private': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        mancer: { additionalProperties: { nullable: true }, type: 'object' },
+        'mancer-old': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        mara: { additionalProperties: { nullable: true }, type: 'object' },
+        meta: { additionalProperties: { nullable: true }, type: 'object' },
+        minimax: { additionalProperties: { nullable: true }, type: 'object' },
+        mistral: { additionalProperties: { nullable: true }, type: 'object' },
+        modal: { additionalProperties: { nullable: true }, type: 'object' },
+        modelrun: { additionalProperties: { nullable: true }, type: 'object' },
+        modular: { additionalProperties: { nullable: true }, type: 'object' },
+        moonshotai: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        morph: { additionalProperties: { nullable: true }, type: 'object' },
+        ncompass: { additionalProperties: { nullable: true }, type: 'object' },
+        nebius: { additionalProperties: { nullable: true }, type: 'object' },
+        'nex-agi': { additionalProperties: { nullable: true }, type: 'object' },
+        nextbit: { additionalProperties: { nullable: true }, type: 'object' },
+        nineteen: { additionalProperties: { nullable: true }, type: 'object' },
+        novita: { additionalProperties: { nullable: true }, type: 'object' },
+        nvidia: { additionalProperties: { nullable: true }, type: 'object' },
+        octoai: { additionalProperties: { nullable: true }, type: 'object' },
+        'open-inference': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        openai: { additionalProperties: { nullable: true }, type: 'object' },
+        parasail: { additionalProperties: { nullable: true }, type: 'object' },
+        perceptron: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        perplexity: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        phala: { additionalProperties: { nullable: true }, type: 'object' },
+        poolside: { additionalProperties: { nullable: true }, type: 'object' },
+        recraft: { additionalProperties: { nullable: true }, type: 'object' },
+        recursal: { additionalProperties: { nullable: true }, type: 'object' },
+        reflection: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        reka: { additionalProperties: { nullable: true }, type: 'object' },
+        relace: { additionalProperties: { nullable: true }, type: 'object' },
+        replicate: { additionalProperties: { nullable: true }, type: 'object' },
+        sambanova: { additionalProperties: { nullable: true }, type: 'object' },
+        'sambanova-cloaked': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        seed: { additionalProperties: { nullable: true }, type: 'object' },
+        'sf-compute': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        siliconflow: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        sourceful: { additionalProperties: { nullable: true }, type: 'object' },
+        stealth: { additionalProperties: { nullable: true }, type: 'object' },
+        stepfun: { additionalProperties: { nullable: true }, type: 'object' },
+        streamlake: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        switchpoint: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        targon: { additionalProperties: { nullable: true }, type: 'object' },
+        together: { additionalProperties: { nullable: true }, type: 'object' },
+        'together-lite': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        ubicloud: { additionalProperties: { nullable: true }, type: 'object' },
+        upstage: { additionalProperties: { nullable: true }, type: 'object' },
+        venice: { additionalProperties: { nullable: true }, type: 'object' },
+        wandb: { additionalProperties: { nullable: true }, type: 'object' },
+        xai: { additionalProperties: { nullable: true }, type: 'object' },
+        xiaomi: { additionalProperties: { nullable: true }, type: 'object' },
+        'z-ai': { additionalProperties: { nullable: true }, type: 'object' },
+      },
+      type: 'object',
+    },
+  },
+} as const
+
+export const VideoGenerationRequestKwaivgiKlingVideoO1Schema = {
+  example: {
+    aspect_ratio: '16:9',
+    duration: 8,
+    model: 'google/veo-3.1',
+    prompt: 'A serene mountain landscape at sunset',
+    resolution: '720p',
+  },
+  properties: {
+    aspect_ratio: {
+      description: 'Aspect ratio of the generated video',
+      enum: ['16:9', '9:16', '1:1'],
+      example: '16:9',
+      type: 'string',
+      'x-speakeasy-unknown-values': 'allow',
+    },
+    callback_url: {
+      description:
+        'URL to receive a webhook notification when the video generation job completes. Overrides the workspace-level default callback URL if set. Must be HTTPS.',
+      example: 'https://example.com/webhook',
+      format: 'uri',
+      type: 'string',
+    },
+    duration: {
+      description: 'Duration of the generated video in seconds',
+      example: 8,
+      minimum: 1,
+      type: 'integer',
+      enum: [5, 10],
+    },
+    frame_images: {
+      description:
+        'Images to use as the first and/or last frame of the generated video. Each image must specify a frame_type of first_frame or last_frame. Frame types supported by this model: first_frame, last_frame.',
+      items: { $ref: '#/$defs/FrameImage' },
+      type: 'array',
+    },
+    generate_audio: {
+      description:
+        "Whether to generate audio alongside the video. Defaults to the endpoint's generate_audio capability flag, false if not set.",
+      example: true,
+      type: 'boolean',
+    },
+    input_references: {
+      description: 'Reference images to guide video generation',
+      items: { $ref: '#/$defs/ContentPartImage' },
+      type: 'array',
+    },
+    model: {
+      type: 'string',
+      enum: ['kwaivgi/kling-video-o1'],
+      description: 'Model id (fixed for this model-constrained schema)',
+    },
+    prompt: { type: 'string' },
+    provider: {
+      description:
+        'Provider-specific passthrough configuration Passthrough parameters allowed for this model: negative_prompt.',
+      properties: {
+        options: {
+          allOf: [
+            { $ref: '#/$defs/ProviderOptions' },
+            {
+              example: {
+                'google-vertex': { output_config: { effort: 'low' } },
+              },
+            },
+          ],
+        },
+      },
+      type: 'object',
+    },
+    resolution: {
+      description: 'Resolution of the generated video',
+      enum: ['720p'],
+      example: '720p',
+      type: 'string',
+      'x-speakeasy-unknown-values': 'allow',
+    },
+    size: {
+      description:
+        'Exact pixel dimensions of the generated video in "WIDTHxHEIGHT" format (e.g. "1280x720"). Interchangeable with resolution + aspect_ratio.',
+      example: '1280x720',
+      type: 'string',
+      enum: ['1280x720', '720x1280', '720x720'],
+    },
+  },
+  required: ['prompt', 'model'],
+  type: 'object',
+  description:
+    'Kling: Video O1 (kwaivgi/kling-video-o1) — model-constrained video generation request. Kling Video O1 is a video generation model from Kuaishou. It supports text and image inputs with video output, enabling text-to-video and image-to-video workflows. It is suited for cinematic content...',
+  $defs: {
+    ContentPartImage: {
+      example: {
+        image_url: { url: 'https://example.com/image.png' },
+        type: 'image_url',
+      },
+      properties: {
+        image_url: {
+          properties: { url: { type: 'string' } },
+          required: ['url'],
+          type: 'object',
+        },
+        type: { enum: ['image_url'], type: 'string' },
+      },
+      required: ['type', 'image_url'],
+      type: 'object',
+    },
+    FrameImage: {
+      allOf: [
+        { $ref: '#/$defs/ContentPartImage' },
+        {
+          properties: {
+            frame_type: {
+              description:
+                'Whether this image represents the first or last frame of the video',
+              enum: ['first_frame', 'last_frame'],
+              example: 'first_frame',
+              type: 'string',
+              'x-speakeasy-unknown-values': 'allow',
+            },
+          },
+          required: ['frame_type'],
+          type: 'object',
+        },
+      ],
+      example: {
+        image_url: { url: 'https://example.com/image.png' },
+        type: 'image_url',
+      },
+    },
+    ProviderOptions: {
+      description:
+        'Provider-specific options keyed by provider slug. The options for the matched provider are spread into the upstream request body.',
+      example: { openai: { max_tokens: 1000 } },
+      properties: {
+        '01ai': { additionalProperties: { nullable: true }, type: 'object' },
+        ai21: { additionalProperties: { nullable: true }, type: 'object' },
+        'aion-labs': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        akashml: { additionalProperties: { nullable: true }, type: 'object' },
+        alibaba: { additionalProperties: { nullable: true }, type: 'object' },
+        'amazon-bedrock': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'amazon-nova': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        ambient: { additionalProperties: { nullable: true }, type: 'object' },
+        anthropic: { additionalProperties: { nullable: true }, type: 'object' },
+        anyscale: { additionalProperties: { nullable: true }, type: 'object' },
+        'arcee-ai': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'atlas-cloud': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        atoma: { additionalProperties: { nullable: true }, type: 'object' },
+        avian: { additionalProperties: { nullable: true }, type: 'object' },
+        azure: { additionalProperties: { nullable: true }, type: 'object' },
+        baidu: { additionalProperties: { nullable: true }, type: 'object' },
+        baseten: { additionalProperties: { nullable: true }, type: 'object' },
+        'black-forest-labs': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        byteplus: { additionalProperties: { nullable: true }, type: 'object' },
+        centml: { additionalProperties: { nullable: true }, type: 'object' },
+        cerebras: { additionalProperties: { nullable: true }, type: 'object' },
+        chutes: { additionalProperties: { nullable: true }, type: 'object' },
+        cirrascale: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        clarifai: { additionalProperties: { nullable: true }, type: 'object' },
+        cloudflare: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        cohere: { additionalProperties: { nullable: true }, type: 'object' },
+        crofai: { additionalProperties: { nullable: true }, type: 'object' },
+        crucible: { additionalProperties: { nullable: true }, type: 'object' },
+        crusoe: { additionalProperties: { nullable: true }, type: 'object' },
+        darkbloom: { additionalProperties: { nullable: true }, type: 'object' },
+        deepinfra: { additionalProperties: { nullable: true }, type: 'object' },
+        deepseek: { additionalProperties: { nullable: true }, type: 'object' },
+        dekallm: { additionalProperties: { nullable: true }, type: 'object' },
+        digitalocean: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        enfer: { additionalProperties: { nullable: true }, type: 'object' },
+        'fake-provider': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        featherless: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        fireworks: { additionalProperties: { nullable: true }, type: 'object' },
+        friendli: { additionalProperties: { nullable: true }, type: 'object' },
+        gmicloud: { additionalProperties: { nullable: true }, type: 'object' },
+        'google-ai-studio': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'google-vertex': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        gopomelo: { additionalProperties: { nullable: true }, type: 'object' },
+        groq: { additionalProperties: { nullable: true }, type: 'object' },
+        huggingface: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        hyperbolic: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'hyperbolic-quantized': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inception: { additionalProperties: { nullable: true }, type: 'object' },
+        inceptron: { additionalProperties: { nullable: true }, type: 'object' },
+        'inference-net': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        infermatic: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inflection: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inocloud: { additionalProperties: { nullable: true }, type: 'object' },
+        'io-net': { additionalProperties: { nullable: true }, type: 'object' },
+        ionstream: { additionalProperties: { nullable: true }, type: 'object' },
+        klusterai: { additionalProperties: { nullable: true }, type: 'object' },
+        lambda: { additionalProperties: { nullable: true }, type: 'object' },
+        lepton: { additionalProperties: { nullable: true }, type: 'object' },
+        liquid: { additionalProperties: { nullable: true }, type: 'object' },
+        lynn: { additionalProperties: { nullable: true }, type: 'object' },
+        'lynn-private': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        mancer: { additionalProperties: { nullable: true }, type: 'object' },
+        'mancer-old': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        mara: { additionalProperties: { nullable: true }, type: 'object' },
+        meta: { additionalProperties: { nullable: true }, type: 'object' },
+        minimax: { additionalProperties: { nullable: true }, type: 'object' },
+        mistral: { additionalProperties: { nullable: true }, type: 'object' },
+        modal: { additionalProperties: { nullable: true }, type: 'object' },
+        modelrun: { additionalProperties: { nullable: true }, type: 'object' },
+        modular: { additionalProperties: { nullable: true }, type: 'object' },
+        moonshotai: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        morph: { additionalProperties: { nullable: true }, type: 'object' },
+        ncompass: { additionalProperties: { nullable: true }, type: 'object' },
+        nebius: { additionalProperties: { nullable: true }, type: 'object' },
+        'nex-agi': { additionalProperties: { nullable: true }, type: 'object' },
+        nextbit: { additionalProperties: { nullable: true }, type: 'object' },
+        nineteen: { additionalProperties: { nullable: true }, type: 'object' },
+        novita: { additionalProperties: { nullable: true }, type: 'object' },
+        nvidia: { additionalProperties: { nullable: true }, type: 'object' },
+        octoai: { additionalProperties: { nullable: true }, type: 'object' },
+        'open-inference': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        openai: { additionalProperties: { nullable: true }, type: 'object' },
+        parasail: { additionalProperties: { nullable: true }, type: 'object' },
+        perceptron: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        perplexity: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        phala: { additionalProperties: { nullable: true }, type: 'object' },
+        poolside: { additionalProperties: { nullable: true }, type: 'object' },
+        recraft: { additionalProperties: { nullable: true }, type: 'object' },
+        recursal: { additionalProperties: { nullable: true }, type: 'object' },
+        reflection: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        reka: { additionalProperties: { nullable: true }, type: 'object' },
+        relace: { additionalProperties: { nullable: true }, type: 'object' },
+        replicate: { additionalProperties: { nullable: true }, type: 'object' },
+        sambanova: { additionalProperties: { nullable: true }, type: 'object' },
+        'sambanova-cloaked': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        seed: { additionalProperties: { nullable: true }, type: 'object' },
+        'sf-compute': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        siliconflow: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        sourceful: { additionalProperties: { nullable: true }, type: 'object' },
+        stealth: { additionalProperties: { nullable: true }, type: 'object' },
+        stepfun: { additionalProperties: { nullable: true }, type: 'object' },
+        streamlake: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        switchpoint: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        targon: { additionalProperties: { nullable: true }, type: 'object' },
+        together: { additionalProperties: { nullable: true }, type: 'object' },
+        'together-lite': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        ubicloud: { additionalProperties: { nullable: true }, type: 'object' },
+        upstage: { additionalProperties: { nullable: true }, type: 'object' },
+        venice: { additionalProperties: { nullable: true }, type: 'object' },
+        wandb: { additionalProperties: { nullable: true }, type: 'object' },
+        xai: { additionalProperties: { nullable: true }, type: 'object' },
+        xiaomi: { additionalProperties: { nullable: true }, type: 'object' },
+        'z-ai': { additionalProperties: { nullable: true }, type: 'object' },
+      },
+      type: 'object',
+    },
+  },
+} as const
+
+export const VideoGenerationRequestMinimaxHailuo23Schema = {
+  example: {
+    aspect_ratio: '16:9',
+    duration: 8,
+    model: 'google/veo-3.1',
+    prompt: 'A serene mountain landscape at sunset',
+    resolution: '720p',
+  },
+  properties: {
+    aspect_ratio: {
+      description: 'Aspect ratio of the generated video',
+      enum: ['16:9'],
+      example: '16:9',
+      type: 'string',
+      'x-speakeasy-unknown-values': 'allow',
+    },
+    callback_url: {
+      description:
+        'URL to receive a webhook notification when the video generation job completes. Overrides the workspace-level default callback URL if set. Must be HTTPS.',
+      example: 'https://example.com/webhook',
+      format: 'uri',
+      type: 'string',
+    },
+    duration: {
+      description: 'Duration of the generated video in seconds',
+      example: 8,
+      minimum: 1,
+      type: 'integer',
+      enum: [6, 10],
+    },
+    frame_images: {
+      description:
+        'Images to use as the first and/or last frame of the generated video. Each image must specify a frame_type of first_frame or last_frame. Frame types supported by this model: first_frame.',
+      items: { $ref: '#/$defs/FrameImage' },
+      type: 'array',
+    },
+    input_references: {
+      description: 'Reference images to guide video generation',
+      items: { $ref: '#/$defs/ContentPartImage' },
+      type: 'array',
+    },
+    model: {
+      type: 'string',
+      enum: ['minimax/hailuo-2.3'],
+      description: 'Model id (fixed for this model-constrained schema)',
+    },
+    prompt: { type: 'string' },
+    provider: {
+      description:
+        'Provider-specific passthrough configuration Passthrough parameters allowed for this model: prompt_optimizer, fast_pretreatment.',
+      properties: {
+        options: {
+          allOf: [
+            { $ref: '#/$defs/ProviderOptions' },
+            {
+              example: {
+                'google-vertex': { output_config: { effort: 'low' } },
+              },
+            },
+          ],
+        },
+      },
+      type: 'object',
+    },
+    resolution: {
+      description: 'Resolution of the generated video',
+      enum: ['1080p'],
+      example: '720p',
+      type: 'string',
+      'x-speakeasy-unknown-values': 'allow',
+    },
+    size: {
+      description:
+        'Exact pixel dimensions of the generated video in "WIDTHxHEIGHT" format (e.g. "1280x720"). Interchangeable with resolution + aspect_ratio.',
+      example: '1280x720',
+      type: 'string',
+      enum: ['1920x1080'],
+    },
+  },
+  required: ['prompt', 'model'],
+  type: 'object',
+  description:
+    'MiniMax: Hailuo 2.3 (minimax/hailuo-2.3) — model-constrained video generation request. Hailuo 2.3 is a video generation model from MiniMax. It accepts text prompts and reference images as input and generates video output, supporting both text-to-video and image-to-video workflows. It is...',
+  $defs: {
+    ContentPartImage: {
+      example: {
+        image_url: { url: 'https://example.com/image.png' },
+        type: 'image_url',
+      },
+      properties: {
+        image_url: {
+          properties: { url: { type: 'string' } },
+          required: ['url'],
+          type: 'object',
+        },
+        type: { enum: ['image_url'], type: 'string' },
+      },
+      required: ['type', 'image_url'],
+      type: 'object',
+    },
+    FrameImage: {
+      allOf: [
+        { $ref: '#/$defs/ContentPartImage' },
+        {
+          properties: {
+            frame_type: {
+              description:
+                'Whether this image represents the first or last frame of the video',
+              enum: ['first_frame', 'last_frame'],
+              example: 'first_frame',
+              type: 'string',
+              'x-speakeasy-unknown-values': 'allow',
+            },
+          },
+          required: ['frame_type'],
+          type: 'object',
+        },
+      ],
+      example: {
+        image_url: { url: 'https://example.com/image.png' },
+        type: 'image_url',
+      },
+    },
+    ProviderOptions: {
+      description:
+        'Provider-specific options keyed by provider slug. The options for the matched provider are spread into the upstream request body.',
+      example: { openai: { max_tokens: 1000 } },
+      properties: {
+        '01ai': { additionalProperties: { nullable: true }, type: 'object' },
+        ai21: { additionalProperties: { nullable: true }, type: 'object' },
+        'aion-labs': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        akashml: { additionalProperties: { nullable: true }, type: 'object' },
+        alibaba: { additionalProperties: { nullable: true }, type: 'object' },
+        'amazon-bedrock': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'amazon-nova': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        ambient: { additionalProperties: { nullable: true }, type: 'object' },
+        anthropic: { additionalProperties: { nullable: true }, type: 'object' },
+        anyscale: { additionalProperties: { nullable: true }, type: 'object' },
+        'arcee-ai': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'atlas-cloud': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        atoma: { additionalProperties: { nullable: true }, type: 'object' },
+        avian: { additionalProperties: { nullable: true }, type: 'object' },
+        azure: { additionalProperties: { nullable: true }, type: 'object' },
+        baidu: { additionalProperties: { nullable: true }, type: 'object' },
+        baseten: { additionalProperties: { nullable: true }, type: 'object' },
+        'black-forest-labs': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        byteplus: { additionalProperties: { nullable: true }, type: 'object' },
+        centml: { additionalProperties: { nullable: true }, type: 'object' },
+        cerebras: { additionalProperties: { nullable: true }, type: 'object' },
+        chutes: { additionalProperties: { nullable: true }, type: 'object' },
+        cirrascale: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        clarifai: { additionalProperties: { nullable: true }, type: 'object' },
+        cloudflare: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        cohere: { additionalProperties: { nullable: true }, type: 'object' },
+        crofai: { additionalProperties: { nullable: true }, type: 'object' },
+        crucible: { additionalProperties: { nullable: true }, type: 'object' },
+        crusoe: { additionalProperties: { nullable: true }, type: 'object' },
+        darkbloom: { additionalProperties: { nullable: true }, type: 'object' },
+        deepinfra: { additionalProperties: { nullable: true }, type: 'object' },
+        deepseek: { additionalProperties: { nullable: true }, type: 'object' },
+        dekallm: { additionalProperties: { nullable: true }, type: 'object' },
+        digitalocean: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        enfer: { additionalProperties: { nullable: true }, type: 'object' },
+        'fake-provider': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        featherless: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        fireworks: { additionalProperties: { nullable: true }, type: 'object' },
+        friendli: { additionalProperties: { nullable: true }, type: 'object' },
+        gmicloud: { additionalProperties: { nullable: true }, type: 'object' },
+        'google-ai-studio': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'google-vertex': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        gopomelo: { additionalProperties: { nullable: true }, type: 'object' },
+        groq: { additionalProperties: { nullable: true }, type: 'object' },
+        huggingface: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        hyperbolic: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'hyperbolic-quantized': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inception: { additionalProperties: { nullable: true }, type: 'object' },
+        inceptron: { additionalProperties: { nullable: true }, type: 'object' },
+        'inference-net': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        infermatic: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inflection: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inocloud: { additionalProperties: { nullable: true }, type: 'object' },
+        'io-net': { additionalProperties: { nullable: true }, type: 'object' },
+        ionstream: { additionalProperties: { nullable: true }, type: 'object' },
+        klusterai: { additionalProperties: { nullable: true }, type: 'object' },
+        lambda: { additionalProperties: { nullable: true }, type: 'object' },
+        lepton: { additionalProperties: { nullable: true }, type: 'object' },
+        liquid: { additionalProperties: { nullable: true }, type: 'object' },
+        lynn: { additionalProperties: { nullable: true }, type: 'object' },
+        'lynn-private': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        mancer: { additionalProperties: { nullable: true }, type: 'object' },
+        'mancer-old': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        mara: { additionalProperties: { nullable: true }, type: 'object' },
+        meta: { additionalProperties: { nullable: true }, type: 'object' },
+        minimax: { additionalProperties: { nullable: true }, type: 'object' },
+        mistral: { additionalProperties: { nullable: true }, type: 'object' },
+        modal: { additionalProperties: { nullable: true }, type: 'object' },
+        modelrun: { additionalProperties: { nullable: true }, type: 'object' },
+        modular: { additionalProperties: { nullable: true }, type: 'object' },
+        moonshotai: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        morph: { additionalProperties: { nullable: true }, type: 'object' },
+        ncompass: { additionalProperties: { nullable: true }, type: 'object' },
+        nebius: { additionalProperties: { nullable: true }, type: 'object' },
+        'nex-agi': { additionalProperties: { nullable: true }, type: 'object' },
+        nextbit: { additionalProperties: { nullable: true }, type: 'object' },
+        nineteen: { additionalProperties: { nullable: true }, type: 'object' },
+        novita: { additionalProperties: { nullable: true }, type: 'object' },
+        nvidia: { additionalProperties: { nullable: true }, type: 'object' },
+        octoai: { additionalProperties: { nullable: true }, type: 'object' },
+        'open-inference': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        openai: { additionalProperties: { nullable: true }, type: 'object' },
+        parasail: { additionalProperties: { nullable: true }, type: 'object' },
+        perceptron: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        perplexity: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        phala: { additionalProperties: { nullable: true }, type: 'object' },
+        poolside: { additionalProperties: { nullable: true }, type: 'object' },
+        recraft: { additionalProperties: { nullable: true }, type: 'object' },
+        recursal: { additionalProperties: { nullable: true }, type: 'object' },
+        reflection: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        reka: { additionalProperties: { nullable: true }, type: 'object' },
+        relace: { additionalProperties: { nullable: true }, type: 'object' },
+        replicate: { additionalProperties: { nullable: true }, type: 'object' },
+        sambanova: { additionalProperties: { nullable: true }, type: 'object' },
+        'sambanova-cloaked': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        seed: { additionalProperties: { nullable: true }, type: 'object' },
+        'sf-compute': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        siliconflow: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        sourceful: { additionalProperties: { nullable: true }, type: 'object' },
+        stealth: { additionalProperties: { nullable: true }, type: 'object' },
+        stepfun: { additionalProperties: { nullable: true }, type: 'object' },
+        streamlake: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        switchpoint: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        targon: { additionalProperties: { nullable: true }, type: 'object' },
+        together: { additionalProperties: { nullable: true }, type: 'object' },
+        'together-lite': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        ubicloud: { additionalProperties: { nullable: true }, type: 'object' },
+        upstage: { additionalProperties: { nullable: true }, type: 'object' },
+        venice: { additionalProperties: { nullable: true }, type: 'object' },
+        wandb: { additionalProperties: { nullable: true }, type: 'object' },
+        xai: { additionalProperties: { nullable: true }, type: 'object' },
+        xiaomi: { additionalProperties: { nullable: true }, type: 'object' },
+        'z-ai': { additionalProperties: { nullable: true }, type: 'object' },
+      },
+      type: 'object',
+    },
+  },
+} as const
+
+export const VideoGenerationRequestOpenaiSora2ProSchema = {
+  example: {
+    aspect_ratio: '16:9',
+    duration: 8,
+    model: 'google/veo-3.1',
+    prompt: 'A serene mountain landscape at sunset',
+    resolution: '720p',
+  },
+  properties: {
+    aspect_ratio: {
+      description: 'Aspect ratio of the generated video',
+      enum: ['16:9', '9:16'],
+      example: '16:9',
+      type: 'string',
+      'x-speakeasy-unknown-values': 'allow',
+    },
+    callback_url: {
+      description:
+        'URL to receive a webhook notification when the video generation job completes. Overrides the workspace-level default callback URL if set. Must be HTTPS.',
+      example: 'https://example.com/webhook',
+      format: 'uri',
+      type: 'string',
+    },
+    duration: {
+      description: 'Duration of the generated video in seconds',
+      example: 8,
+      minimum: 1,
+      type: 'integer',
+      enum: [4, 8, 12, 16, 20],
+    },
+    generate_audio: {
+      description:
+        "Whether to generate audio alongside the video. Defaults to the endpoint's generate_audio capability flag, false if not set.",
+      example: true,
+      type: 'boolean',
+    },
+    input_references: {
+      description: 'Reference images to guide video generation',
+      items: { $ref: '#/$defs/ContentPartImage' },
+      type: 'array',
+    },
+    model: {
+      type: 'string',
+      enum: ['openai/sora-2-pro'],
+      description: 'Model id (fixed for this model-constrained schema)',
+    },
+    prompt: { type: 'string' },
+    provider: {
+      description:
+        'Provider-specific passthrough configuration Passthrough parameters allowed for this model: quality, style.',
+      properties: {
+        options: {
+          allOf: [
+            { $ref: '#/$defs/ProviderOptions' },
+            {
+              example: {
+                'google-vertex': { output_config: { effort: 'low' } },
+              },
+            },
+          ],
+        },
+      },
+      type: 'object',
+    },
+    resolution: {
+      description: 'Resolution of the generated video',
+      enum: ['720p', '1080p'],
+      example: '720p',
+      type: 'string',
+      'x-speakeasy-unknown-values': 'allow',
+    },
+    size: {
+      description:
+        'Exact pixel dimensions of the generated video in "WIDTHxHEIGHT" format (e.g. "1280x720"). Interchangeable with resolution + aspect_ratio.',
+      example: '1280x720',
+      type: 'string',
+      enum: ['1280x720', '1080x1920', '1920x1080', '720x1280'],
+    },
+  },
+  required: ['prompt', 'model'],
+  type: 'object',
+  description:
+    "OpenAI: Sora 2 Pro (openai/sora-2-pro) — model-constrained video generation request. OpenAI's flagship video generation model, delivering production-quality video with physics-accurate motion, synchronized audio, and world-state persistence across shots. Sora 2 Pro follows intricate multi-shot instructions while maintaining consistent spatial relationships...",
+  $defs: {
+    ContentPartImage: {
+      example: {
+        image_url: { url: 'https://example.com/image.png' },
+        type: 'image_url',
+      },
+      properties: {
+        image_url: {
+          properties: { url: { type: 'string' } },
+          required: ['url'],
+          type: 'object',
+        },
+        type: { enum: ['image_url'], type: 'string' },
+      },
+      required: ['type', 'image_url'],
+      type: 'object',
+    },
+    ProviderOptions: {
+      description:
+        'Provider-specific options keyed by provider slug. The options for the matched provider are spread into the upstream request body.',
+      example: { openai: { max_tokens: 1000 } },
+      properties: {
+        '01ai': { additionalProperties: { nullable: true }, type: 'object' },
+        ai21: { additionalProperties: { nullable: true }, type: 'object' },
+        'aion-labs': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        akashml: { additionalProperties: { nullable: true }, type: 'object' },
+        alibaba: { additionalProperties: { nullable: true }, type: 'object' },
+        'amazon-bedrock': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'amazon-nova': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        ambient: { additionalProperties: { nullable: true }, type: 'object' },
+        anthropic: { additionalProperties: { nullable: true }, type: 'object' },
+        anyscale: { additionalProperties: { nullable: true }, type: 'object' },
+        'arcee-ai': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'atlas-cloud': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        atoma: { additionalProperties: { nullable: true }, type: 'object' },
+        avian: { additionalProperties: { nullable: true }, type: 'object' },
+        azure: { additionalProperties: { nullable: true }, type: 'object' },
+        baidu: { additionalProperties: { nullable: true }, type: 'object' },
+        baseten: { additionalProperties: { nullable: true }, type: 'object' },
+        'black-forest-labs': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        byteplus: { additionalProperties: { nullable: true }, type: 'object' },
+        centml: { additionalProperties: { nullable: true }, type: 'object' },
+        cerebras: { additionalProperties: { nullable: true }, type: 'object' },
+        chutes: { additionalProperties: { nullable: true }, type: 'object' },
+        cirrascale: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        clarifai: { additionalProperties: { nullable: true }, type: 'object' },
+        cloudflare: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        cohere: { additionalProperties: { nullable: true }, type: 'object' },
+        crofai: { additionalProperties: { nullable: true }, type: 'object' },
+        crucible: { additionalProperties: { nullable: true }, type: 'object' },
+        crusoe: { additionalProperties: { nullable: true }, type: 'object' },
+        darkbloom: { additionalProperties: { nullable: true }, type: 'object' },
+        deepinfra: { additionalProperties: { nullable: true }, type: 'object' },
+        deepseek: { additionalProperties: { nullable: true }, type: 'object' },
+        dekallm: { additionalProperties: { nullable: true }, type: 'object' },
+        digitalocean: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        enfer: { additionalProperties: { nullable: true }, type: 'object' },
+        'fake-provider': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        featherless: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        fireworks: { additionalProperties: { nullable: true }, type: 'object' },
+        friendli: { additionalProperties: { nullable: true }, type: 'object' },
+        gmicloud: { additionalProperties: { nullable: true }, type: 'object' },
+        'google-ai-studio': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'google-vertex': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        gopomelo: { additionalProperties: { nullable: true }, type: 'object' },
+        groq: { additionalProperties: { nullable: true }, type: 'object' },
+        huggingface: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        hyperbolic: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'hyperbolic-quantized': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inception: { additionalProperties: { nullable: true }, type: 'object' },
+        inceptron: { additionalProperties: { nullable: true }, type: 'object' },
+        'inference-net': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        infermatic: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inflection: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inocloud: { additionalProperties: { nullable: true }, type: 'object' },
+        'io-net': { additionalProperties: { nullable: true }, type: 'object' },
+        ionstream: { additionalProperties: { nullable: true }, type: 'object' },
+        klusterai: { additionalProperties: { nullable: true }, type: 'object' },
+        lambda: { additionalProperties: { nullable: true }, type: 'object' },
+        lepton: { additionalProperties: { nullable: true }, type: 'object' },
+        liquid: { additionalProperties: { nullable: true }, type: 'object' },
+        lynn: { additionalProperties: { nullable: true }, type: 'object' },
+        'lynn-private': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        mancer: { additionalProperties: { nullable: true }, type: 'object' },
+        'mancer-old': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        mara: { additionalProperties: { nullable: true }, type: 'object' },
+        meta: { additionalProperties: { nullable: true }, type: 'object' },
+        minimax: { additionalProperties: { nullable: true }, type: 'object' },
+        mistral: { additionalProperties: { nullable: true }, type: 'object' },
+        modal: { additionalProperties: { nullable: true }, type: 'object' },
+        modelrun: { additionalProperties: { nullable: true }, type: 'object' },
+        modular: { additionalProperties: { nullable: true }, type: 'object' },
+        moonshotai: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        morph: { additionalProperties: { nullable: true }, type: 'object' },
+        ncompass: { additionalProperties: { nullable: true }, type: 'object' },
+        nebius: { additionalProperties: { nullable: true }, type: 'object' },
+        'nex-agi': { additionalProperties: { nullable: true }, type: 'object' },
+        nextbit: { additionalProperties: { nullable: true }, type: 'object' },
+        nineteen: { additionalProperties: { nullable: true }, type: 'object' },
+        novita: { additionalProperties: { nullable: true }, type: 'object' },
+        nvidia: { additionalProperties: { nullable: true }, type: 'object' },
+        octoai: { additionalProperties: { nullable: true }, type: 'object' },
+        'open-inference': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        openai: { additionalProperties: { nullable: true }, type: 'object' },
+        parasail: { additionalProperties: { nullable: true }, type: 'object' },
+        perceptron: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        perplexity: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        phala: { additionalProperties: { nullable: true }, type: 'object' },
+        poolside: { additionalProperties: { nullable: true }, type: 'object' },
+        recraft: { additionalProperties: { nullable: true }, type: 'object' },
+        recursal: { additionalProperties: { nullable: true }, type: 'object' },
+        reflection: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        reka: { additionalProperties: { nullable: true }, type: 'object' },
+        relace: { additionalProperties: { nullable: true }, type: 'object' },
+        replicate: { additionalProperties: { nullable: true }, type: 'object' },
+        sambanova: { additionalProperties: { nullable: true }, type: 'object' },
+        'sambanova-cloaked': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        seed: { additionalProperties: { nullable: true }, type: 'object' },
+        'sf-compute': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        siliconflow: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        sourceful: { additionalProperties: { nullable: true }, type: 'object' },
+        stealth: { additionalProperties: { nullable: true }, type: 'object' },
+        stepfun: { additionalProperties: { nullable: true }, type: 'object' },
+        streamlake: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        switchpoint: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        targon: { additionalProperties: { nullable: true }, type: 'object' },
+        together: { additionalProperties: { nullable: true }, type: 'object' },
+        'together-lite': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        ubicloud: { additionalProperties: { nullable: true }, type: 'object' },
+        upstage: { additionalProperties: { nullable: true }, type: 'object' },
+        venice: { additionalProperties: { nullable: true }, type: 'object' },
+        wandb: { additionalProperties: { nullable: true }, type: 'object' },
+        xai: { additionalProperties: { nullable: true }, type: 'object' },
+        xiaomi: { additionalProperties: { nullable: true }, type: 'object' },
+        'z-ai': { additionalProperties: { nullable: true }, type: 'object' },
+      },
+      type: 'object',
+    },
+  },
+} as const
+
+export const VideoGenerationRequestXAiGrokImagineVideoSchema = {
+  example: {
+    aspect_ratio: '16:9',
+    duration: 8,
+    model: 'google/veo-3.1',
+    prompt: 'A serene mountain landscape at sunset',
+    resolution: '720p',
+  },
+  properties: {
+    aspect_ratio: {
+      description: 'Aspect ratio of the generated video',
+      enum: ['16:9', '9:16', '1:1', '4:3', '3:4', '3:2', '2:3'],
+      example: '16:9',
+      type: 'string',
+      'x-speakeasy-unknown-values': 'allow',
+    },
+    callback_url: {
+      description:
+        'URL to receive a webhook notification when the video generation job completes. Overrides the workspace-level default callback URL if set. Must be HTTPS.',
+      example: 'https://example.com/webhook',
+      format: 'uri',
+      type: 'string',
+    },
+    duration: {
+      description: 'Duration of the generated video in seconds',
+      example: 8,
+      minimum: 1,
+      type: 'integer',
+      enum: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    },
+    frame_images: {
+      description:
+        'Images to use as the first and/or last frame of the generated video. Each image must specify a frame_type of first_frame or last_frame. Frame types supported by this model: first_frame.',
+      items: { $ref: '#/$defs/FrameImage' },
+      type: 'array',
+    },
+    input_references: {
+      description: 'Reference images to guide video generation',
+      items: { $ref: '#/$defs/ContentPartImage' },
+      type: 'array',
+    },
+    model: {
+      type: 'string',
+      enum: ['x-ai/grok-imagine-video'],
+      description: 'Model id (fixed for this model-constrained schema)',
+    },
+    prompt: { type: 'string' },
+    provider: {
+      description: 'Provider-specific passthrough configuration',
+      properties: {
+        options: {
+          allOf: [
+            { $ref: '#/$defs/ProviderOptions' },
+            {
+              example: {
+                'google-vertex': { output_config: { effort: 'low' } },
+              },
+            },
+          ],
+        },
+      },
+      type: 'object',
+    },
+    resolution: {
+      description: 'Resolution of the generated video',
+      enum: ['480p', '720p'],
+      example: '720p',
+      type: 'string',
+      'x-speakeasy-unknown-values': 'allow',
+    },
+    size: {
+      description:
+        'Exact pixel dimensions of the generated video in "WIDTHxHEIGHT" format (e.g. "1280x720"). Interchangeable with resolution + aspect_ratio.',
+      example: '1280x720',
+      type: 'string',
+      enum: [
+        '854x480',
+        '1280x720',
+        '480x854',
+        '720x1280',
+        '480x480',
+        '720x720',
+        '640x480',
+        '960x720',
+        '480x640',
+        '720x960',
+        '720x480',
+        '1080x720',
+        '480x720',
+        '720x1080',
+      ],
+    },
+  },
+  required: ['prompt', 'model'],
+  type: 'object',
+  description:
+    "xAI: Grok Imagine Video (x-ai/grok-imagine-video) — model-constrained video generation request. Grok Imagine Video is xAI's fast, text-, image-, and reference-conditioned video generation model. It produces short videos (1–15 seconds, 24 fps) at 480p or 720p across seven aspect ratios -...",
+  $defs: {
+    ContentPartImage: {
+      example: {
+        image_url: { url: 'https://example.com/image.png' },
+        type: 'image_url',
+      },
+      properties: {
+        image_url: {
+          properties: { url: { type: 'string' } },
+          required: ['url'],
+          type: 'object',
+        },
+        type: { enum: ['image_url'], type: 'string' },
+      },
+      required: ['type', 'image_url'],
+      type: 'object',
+    },
+    FrameImage: {
+      allOf: [
+        { $ref: '#/$defs/ContentPartImage' },
+        {
+          properties: {
+            frame_type: {
+              description:
+                'Whether this image represents the first or last frame of the video',
+              enum: ['first_frame', 'last_frame'],
+              example: 'first_frame',
+              type: 'string',
+              'x-speakeasy-unknown-values': 'allow',
+            },
+          },
+          required: ['frame_type'],
+          type: 'object',
+        },
+      ],
+      example: {
+        image_url: { url: 'https://example.com/image.png' },
+        type: 'image_url',
+      },
+    },
+    ProviderOptions: {
+      description:
+        'Provider-specific options keyed by provider slug. The options for the matched provider are spread into the upstream request body.',
+      example: { openai: { max_tokens: 1000 } },
+      properties: {
+        '01ai': { additionalProperties: { nullable: true }, type: 'object' },
+        ai21: { additionalProperties: { nullable: true }, type: 'object' },
+        'aion-labs': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        akashml: { additionalProperties: { nullable: true }, type: 'object' },
+        alibaba: { additionalProperties: { nullable: true }, type: 'object' },
+        'amazon-bedrock': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'amazon-nova': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        ambient: { additionalProperties: { nullable: true }, type: 'object' },
+        anthropic: { additionalProperties: { nullable: true }, type: 'object' },
+        anyscale: { additionalProperties: { nullable: true }, type: 'object' },
+        'arcee-ai': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'atlas-cloud': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        atoma: { additionalProperties: { nullable: true }, type: 'object' },
+        avian: { additionalProperties: { nullable: true }, type: 'object' },
+        azure: { additionalProperties: { nullable: true }, type: 'object' },
+        baidu: { additionalProperties: { nullable: true }, type: 'object' },
+        baseten: { additionalProperties: { nullable: true }, type: 'object' },
+        'black-forest-labs': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        byteplus: { additionalProperties: { nullable: true }, type: 'object' },
+        centml: { additionalProperties: { nullable: true }, type: 'object' },
+        cerebras: { additionalProperties: { nullable: true }, type: 'object' },
+        chutes: { additionalProperties: { nullable: true }, type: 'object' },
+        cirrascale: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        clarifai: { additionalProperties: { nullable: true }, type: 'object' },
+        cloudflare: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        cohere: { additionalProperties: { nullable: true }, type: 'object' },
+        crofai: { additionalProperties: { nullable: true }, type: 'object' },
+        crucible: { additionalProperties: { nullable: true }, type: 'object' },
+        crusoe: { additionalProperties: { nullable: true }, type: 'object' },
+        darkbloom: { additionalProperties: { nullable: true }, type: 'object' },
+        deepinfra: { additionalProperties: { nullable: true }, type: 'object' },
+        deepseek: { additionalProperties: { nullable: true }, type: 'object' },
+        dekallm: { additionalProperties: { nullable: true }, type: 'object' },
+        digitalocean: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        enfer: { additionalProperties: { nullable: true }, type: 'object' },
+        'fake-provider': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        featherless: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        fireworks: { additionalProperties: { nullable: true }, type: 'object' },
+        friendli: { additionalProperties: { nullable: true }, type: 'object' },
+        gmicloud: { additionalProperties: { nullable: true }, type: 'object' },
+        'google-ai-studio': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'google-vertex': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        gopomelo: { additionalProperties: { nullable: true }, type: 'object' },
+        groq: { additionalProperties: { nullable: true }, type: 'object' },
+        huggingface: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        hyperbolic: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        'hyperbolic-quantized': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inception: { additionalProperties: { nullable: true }, type: 'object' },
+        inceptron: { additionalProperties: { nullable: true }, type: 'object' },
+        'inference-net': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        infermatic: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inflection: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        inocloud: { additionalProperties: { nullable: true }, type: 'object' },
+        'io-net': { additionalProperties: { nullable: true }, type: 'object' },
+        ionstream: { additionalProperties: { nullable: true }, type: 'object' },
+        klusterai: { additionalProperties: { nullable: true }, type: 'object' },
+        lambda: { additionalProperties: { nullable: true }, type: 'object' },
+        lepton: { additionalProperties: { nullable: true }, type: 'object' },
+        liquid: { additionalProperties: { nullable: true }, type: 'object' },
+        lynn: { additionalProperties: { nullable: true }, type: 'object' },
+        'lynn-private': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        mancer: { additionalProperties: { nullable: true }, type: 'object' },
+        'mancer-old': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        mara: { additionalProperties: { nullable: true }, type: 'object' },
+        meta: { additionalProperties: { nullable: true }, type: 'object' },
+        minimax: { additionalProperties: { nullable: true }, type: 'object' },
+        mistral: { additionalProperties: { nullable: true }, type: 'object' },
+        modal: { additionalProperties: { nullable: true }, type: 'object' },
+        modelrun: { additionalProperties: { nullable: true }, type: 'object' },
+        modular: { additionalProperties: { nullable: true }, type: 'object' },
+        moonshotai: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        morph: { additionalProperties: { nullable: true }, type: 'object' },
+        ncompass: { additionalProperties: { nullable: true }, type: 'object' },
+        nebius: { additionalProperties: { nullable: true }, type: 'object' },
+        'nex-agi': { additionalProperties: { nullable: true }, type: 'object' },
+        nextbit: { additionalProperties: { nullable: true }, type: 'object' },
+        nineteen: { additionalProperties: { nullable: true }, type: 'object' },
+        novita: { additionalProperties: { nullable: true }, type: 'object' },
+        nvidia: { additionalProperties: { nullable: true }, type: 'object' },
+        octoai: { additionalProperties: { nullable: true }, type: 'object' },
+        'open-inference': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        openai: { additionalProperties: { nullable: true }, type: 'object' },
+        parasail: { additionalProperties: { nullable: true }, type: 'object' },
+        perceptron: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        perplexity: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        phala: { additionalProperties: { nullable: true }, type: 'object' },
+        poolside: { additionalProperties: { nullable: true }, type: 'object' },
+        recraft: { additionalProperties: { nullable: true }, type: 'object' },
+        recursal: { additionalProperties: { nullable: true }, type: 'object' },
+        reflection: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        reka: { additionalProperties: { nullable: true }, type: 'object' },
+        relace: { additionalProperties: { nullable: true }, type: 'object' },
+        replicate: { additionalProperties: { nullable: true }, type: 'object' },
+        sambanova: { additionalProperties: { nullable: true }, type: 'object' },
+        'sambanova-cloaked': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        seed: { additionalProperties: { nullable: true }, type: 'object' },
+        'sf-compute': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        siliconflow: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        sourceful: { additionalProperties: { nullable: true }, type: 'object' },
+        stealth: { additionalProperties: { nullable: true }, type: 'object' },
+        stepfun: { additionalProperties: { nullable: true }, type: 'object' },
+        streamlake: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        switchpoint: {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        targon: { additionalProperties: { nullable: true }, type: 'object' },
+        together: { additionalProperties: { nullable: true }, type: 'object' },
+        'together-lite': {
+          additionalProperties: { nullable: true },
+          type: 'object',
+        },
+        ubicloud: { additionalProperties: { nullable: true }, type: 'object' },
+        upstage: { additionalProperties: { nullable: true }, type: 'object' },
+        venice: { additionalProperties: { nullable: true }, type: 'object' },
+        wandb: { additionalProperties: { nullable: true }, type: 'object' },
+        xai: { additionalProperties: { nullable: true }, type: 'object' },
+        xiaomi: { additionalProperties: { nullable: true }, type: 'object' },
+        'z-ai': { additionalProperties: { nullable: true }, type: 'object' },
+      },
+      type: 'object',
+    },
+  },
+} as const
+
 export const VideoGenerationResponseSchema = {
   example: {
     generation_id: 'gen-xyz789',

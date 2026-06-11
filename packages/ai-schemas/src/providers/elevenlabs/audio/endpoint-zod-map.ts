@@ -41,7 +41,9 @@ import {
   zEditVoiceSettingsResponseModel,
   zForcedAlignmentResponseModel,
   zGetLibraryVoicesResponseModel,
+  zLanguageAddedResponse,
   zSegmentCreatePayload,
+  zSegmentCreateResponse,
   zSegmentDubResponse,
   zSegmentMigrationResponse,
   zSegmentTranscriptionResponse,
@@ -79,6 +81,7 @@ export const elevenlabsAudioEndpointZodMap: {
   }
   readonly 'v1/dubbing/resource/{dubbing_id}/language': {
     readonly input: typeof zBodyAddALanguageToTheResourceV1DubbingResourceDubbingIdLanguagePost
+    readonly output: typeof zLanguageAddedResponse
   }
   readonly 'v1/dubbing/resource/{dubbing_id}/migrate-segments': {
     readonly input: typeof zBodyMoveSegmentsBetweenSpeakersV1DubbingResourceDubbingIdMigrateSegmentsPost
@@ -94,6 +97,7 @@ export const elevenlabsAudioEndpointZodMap: {
   }
   readonly 'v1/dubbing/resource/{dubbing_id}/speaker/{speaker_id}/segment': {
     readonly input: typeof zSegmentCreatePayload
+    readonly output: typeof zSegmentCreateResponse
   }
   readonly 'v1/dubbing/resource/{dubbing_id}/transcribe': {
     readonly input: typeof zBodyTranscribesSegmentsV1DubbingResourceDubbingIdTranscribePost
@@ -202,6 +206,7 @@ export const elevenlabsAudioEndpointZodMap: {
   },
   'v1/dubbing/resource/{dubbing_id}/language': {
     input: zBodyAddALanguageToTheResourceV1DubbingResourceDubbingIdLanguagePost,
+    output: zLanguageAddedResponse,
   },
   'v1/dubbing/resource/{dubbing_id}/migrate-segments': {
     input:
@@ -219,6 +224,7 @@ export const elevenlabsAudioEndpointZodMap: {
   },
   'v1/dubbing/resource/{dubbing_id}/speaker/{speaker_id}/segment': {
     input: zSegmentCreatePayload,
+    output: zSegmentCreateResponse,
   },
   'v1/dubbing/resource/{dubbing_id}/transcribe': {
     input: zBodyTranscribesSegmentsV1DubbingResourceDubbingIdTranscribePost,

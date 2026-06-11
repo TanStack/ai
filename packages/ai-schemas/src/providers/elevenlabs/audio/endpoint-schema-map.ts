@@ -41,7 +41,9 @@ import {
   EditVoiceSettingsResponseModelSchema,
   ForcedAlignmentResponseModelSchema,
   GetLibraryVoicesResponseModelSchema,
+  LanguageAddedResponseSchema,
   SegmentCreatePayloadSchema,
+  SegmentCreateResponseSchema,
   SegmentDubResponseSchema,
   SegmentMigrationResponseSchema,
   SegmentTranscriptionResponseSchema,
@@ -81,6 +83,7 @@ export const elevenlabsAudioEndpointSchemaMap: {
   }
   readonly 'v1/dubbing/resource/{dubbing_id}/language': {
     readonly input: typeof Body_Add_a_language_to_the_resource_v1_dubbing_resource__dubbing_id__language_postSchema
+    readonly output: typeof LanguageAddedResponseSchema
   }
   readonly 'v1/dubbing/resource/{dubbing_id}/migrate-segments': {
     readonly input: typeof Body_Move_segments_between_speakers_v1_dubbing_resource__dubbing_id__migrate_segments_postSchema
@@ -96,6 +99,7 @@ export const elevenlabsAudioEndpointSchemaMap: {
   }
   readonly 'v1/dubbing/resource/{dubbing_id}/speaker/{speaker_id}/segment': {
     readonly input: typeof SegmentCreatePayloadSchema
+    readonly output: typeof SegmentCreateResponseSchema
   }
   readonly 'v1/dubbing/resource/{dubbing_id}/transcribe': {
     readonly input: typeof Body_Transcribes_segments_v1_dubbing_resource__dubbing_id__transcribe_postSchema
@@ -207,6 +211,7 @@ export const elevenlabsAudioEndpointSchemaMap: {
   'v1/dubbing/resource/{dubbing_id}/language': {
     input:
       Body_Add_a_language_to_the_resource_v1_dubbing_resource__dubbing_id__language_postSchema,
+    output: LanguageAddedResponseSchema,
   },
   'v1/dubbing/resource/{dubbing_id}/migrate-segments': {
     input:
@@ -225,6 +230,7 @@ export const elevenlabsAudioEndpointSchemaMap: {
   },
   'v1/dubbing/resource/{dubbing_id}/speaker/{speaker_id}/segment': {
     input: SegmentCreatePayloadSchema,
+    output: SegmentCreateResponseSchema,
   },
   'v1/dubbing/resource/{dubbing_id}/transcribe': {
     input:

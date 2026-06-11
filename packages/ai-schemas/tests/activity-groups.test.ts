@@ -7,6 +7,9 @@ import { openaiImageEndpointSchemaMap } from '../src/providers/openai/image/endp
 import { anthropicChatEndpointZodMap } from '../src/providers/anthropic/chat/endpoint-zod-map.js'
 import { elevenlabsAudioEndpointZodMap } from '../src/providers/elevenlabs/audio/endpoint-zod-map.js'
 import { geminiVideoEndpointSchemaMap } from '../src/providers/gemini/video/endpoint-schema-map.js'
+import { openrouterEmbeddingsEndpointZodMap } from '../src/providers/openrouter/embeddings/endpoint-zod-map.js'
+import { openrouterVideoEndpointSchemaMap } from '../src/providers/openrouter/video/endpoint-schema-map.js'
+import { openrouterVideoEndpointZodMap } from '../src/providers/openrouter/video/endpoint-zod-map.js'
 
 describe('activity grouping', () => {
   it('groups OpenAI endpoints by activity', () => {
@@ -109,5 +112,75 @@ describe('activity grouping', () => {
     expect(geminiVideoEndpointSchemaMap).toHaveProperty([
       'v1beta/models/{modelsId}:predictLongRunning',
     ])
+  })
+
+  it('maps OpenRouter embeddings via lifted inline schemas', () => {
+    const entry = openrouterEmbeddingsEndpointZodMap.embeddings
+    expect(entry.input).toBeDefined()
+    expect(entry.output).toBeDefined()
+    expect(
+      entry.input.safeParse({
+        model: 'openai/text-embedding-3-small',
+        input: 'hello',
+      }).success,
+    ).toBe(true)
+    expect(entry.input.safeParse({ input: 'hello' }).success).toBe(false)
+  })
+
+  it('captures non-200 success outputs (202 video ack, 201 dubbing)', () => {
+    expect(openrouterVideoEndpointSchemaMap.videos).toHaveProperty('output')
+    expect(
+      elevenlabsAudioEndpointZodMap[
+        'v1/dubbing/resource/{dubbing_id}/language'
+      ],
+    ).toHaveProperty('output')
+  })
+
+  it('synthesises per-model OpenRouter video endpoints with constrained enums', () => {
+    // The model list refreshes nightly, so assert over whatever per-model
+    // entries exist rather than naming specific models.
+    const modelKeys = Object.keys(openrouterVideoEndpointSchemaMap).filter(
+      (k) => k !== 'videos',
+    ) as Array<keyof typeof openrouterVideoEndpointSchemaMap>
+    expect(modelKeys.length).toBeGreaterThan(0)
+
+    for (const key of modelKeys) {
+      const modelId = key.replace(/^videos\//, '')
+      const input = openrouterVideoEndpointSchemaMap[key].input as unknown as {
+        properties: {
+          model: { enum?: Array<string> }
+          duration?: { enum?: Array<number> }
+        }
+      }
+      // `model` pins to exactly the model the entry is keyed by.
+      expect(input.properties.model.enum).toEqual([modelId])
+
+      const zodInput = openrouterVideoEndpointZodMap[key].input
+      expect(
+        zodInput.safeParse({ model: modelId, prompt: 'a cat' }).success,
+      ).toBe(true)
+      expect(
+        zodInput.safeParse({ model: 'wrong/model', prompt: 'a cat' }).success,
+      ).toBe(false)
+
+      // Where the metadata constrains durations, out-of-range values fail.
+      const durations = input.properties.duration?.enum
+      if (durations && durations.length > 0) {
+        expect(
+          zodInput.safeParse({
+            model: modelId,
+            prompt: 'a cat',
+            duration: durations[0],
+          }).success,
+        ).toBe(true)
+        expect(
+          zodInput.safeParse({
+            model: modelId,
+            prompt: 'a cat',
+            duration: 86400,
+          }).success,
+        ).toBe(false)
+      }
+    }
   })
 })

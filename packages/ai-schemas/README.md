@@ -21,7 +21,7 @@ pnpm add zod
 | Gemini     | `generativelanguage.googleapis.com/$discovery/rest?version=v1beta`          | Google Discovery doc converted to OpenAPI in-pipeline. |
 | ElevenLabs | `api.elevenlabs.io/openapi.json`                                            | Public.                                                |
 | xAI Grok   | `docs.x.ai/openapi.json`                                                    | Public.                                                |
-| OpenRouter | `openrouter.ai/openapi.json`                                                | Public.                                                |
+| OpenRouter | `openrouter.ai/openapi.json` + `api/v1/videos/models` metadata              | Public.                                                |
 | FAL        | `api.fal.ai/v1/models?status=active&expand=openapi-3.0` (per-model OpenAPI) | Needs `FAL_KEY` to fetch.                              |
 
 Other OpenAI-compatible providers (e.g. Groq) reuse the OpenAI schemas.
@@ -95,6 +95,20 @@ import { KlingVideoO3ProTextToVideoInputSchema } from '@tanstack/ai-schemas/fal/
 
 KlingVideoO3ProTextToVideoInputSchema.properties.duration.enum
 // ['3', '4', …, '15']
+```
+
+OpenRouter's video endpoint maps include one model-constrained entry per video model (synthesised from OpenRouter's public `videos/models` metadata) alongside the generic `videos` entry — durations, resolutions, aspect ratios, and sizes become per-model enums, and capabilities a model lacks (audio, seed, frame images) drop out of its schema:
+
+```ts
+import { openrouterVideoEndpointZodMap } from '@tanstack/ai-schemas/openrouter/video/zod'
+
+openrouterVideoEndpointZodMap['videos/x-ai/grok-imagine-video'].input.safeParse(
+  {
+    model: 'x-ai/grok-imagine-video',
+    prompt: 'A mecha lands on the ground to save the city',
+    duration: 8, // validated against the model's supported durations
+  },
+)
 ```
 
 Media generation endpoints that stream binary audio/video (e.g. ElevenLabs `v1/text-to-speech/{voice_id}`) map only an `input` schema — there is no JSON output to describe.
