@@ -217,6 +217,65 @@ Steps:
 
 ---
 
+## 6. Activity coverage
+
+**Input:** each provider's `packages/ai-<provider>/src/adapters/` directory.
+**Reference:** the `AdapterKind` union in `packages/ai/src/activities/index.ts`
+(7 kinds: `text`, `summarize`, `image`, `audio`, `video`, `tts`,
+`transcription`).
+**Upstream:** each provider's API reference / models page.
+
+This dimension answers a coarser question than dimension 2: not "which
+behaviour within chat is exercised" but **"which whole activity kinds does the
+provider's API offer that we ship no adapter for at all."**
+
+Steps:
+
+1. For every provider, list its adapter files and map each to an activity kind
+   using the filename→kind table in `SKILL.md` (§ Known activities). That
+   yields the local provider×activity matrix. `text.ts`,
+   `text-chat-completions.ts`, and `responses-text.ts` all count as `text`;
+   `speech.ts` and `tts.ts` both count as `tts`; ignore `cost.ts` and other
+   helpers.
+2. Build the full grid (rows = 9 providers, cols = 7 activity kinds). A cell is
+   ✅ if an adapter file of that kind exists, ❌ otherwise.
+3. For each ❌ cell, WebFetch the provider's API reference and check whether
+   upstream offers that activity:
+   - **Real gap** — upstream offers it, we ship no adapter, and there is no
+     documented reason. High if it's a flagship activity for that provider
+     (e.g. a TTS provider missing `transcription`), medium otherwise.
+   - **Not a gap** — upstream genuinely doesn't offer that activity (e.g.
+     Anthropic has no image/audio/video/tts/transcription endpoints; Groq has
+     no image/video generation). Mark the cell ❌-by-design and omit from the
+     gap list, but keep it in the grid so the report is self-contained.
+4. Note the inverse too: any **local adapter for an activity the provider no
+   longer offers upstream** (rare; surface as a stale-adapter finding).
+
+Map activity kind → upstream capability to look for:
+
+| Activity kind   | Upstream capability                                  |
+| --------------- | ---------------------------------------------------- |
+| `text`          | Chat / messages / completions endpoint               |
+| `summarize`     | Any text completion (summarize is built on chat)     |
+| `image`         | Image generation endpoint                            |
+| `audio`         | Music / sound / general audio generation endpoint    |
+| `video`         | Video generation endpoint                            |
+| `tts`           | Text-to-speech endpoint                              |
+| `transcription` | Speech-to-text endpoint                              |
+
+**Priority rubric:**
+
+- Missing a core activity the provider's API clearly offers (e.g. OpenAI-class
+  provider with no `image`/`tts`/`transcription`) → **high**.
+- Missing a secondary/media activity → **medium**.
+- ❌-by-design (upstream doesn't offer it) → **out-of-scope**, keep in grid only.
+- Local adapter for a now-removed upstream activity → **medium** (deprecate).
+
+Render the grid in the report under its own "Activity coverage" section, with
+one bullet per real gap citing the upstream URL.
+
+---
+
 ## Subagent dispatch (for `--all` scope)
 
 When fan-out is needed, launch one `Explore` subagent per provider with a
@@ -225,12 +284,17 @@ prompt of this shape:
 > Audit the `<provider>` adapter at `packages/ai-<provider>/`
 > against upstream docs at the URLs in
 > `.claude/skills/gap-analysis/references/provider-doc-urls.md`. Walk
-> dimensions 1, 3, 4, and 5 from `audit-checklist.md`. Skip dimension 2
-> (the orchestrator handles cross-provider parity centrally) — but do
-> emit dimension-5 telemetry rows in the per-provider format; the
-> orchestrator stitches them into the cross-adapter table. Return
-> findings as markdown sections matching the report template — High /
-> Medium / Low / Out-of-scope — with upstream URLs cited for every claim.
+> dimensions 1, 3, 4, and 5 from `audit-checklist.md`. Skip dimensions 2
+> and 6 (the orchestrator handles cross-provider parity and the
+> activity-coverage grid centrally) — but do emit dimension-5 telemetry
+> rows in the per-provider format; the orchestrator stitches them into the
+> cross-adapter table. Return findings as markdown sections matching the
+> report template — High / Medium / Low / Out-of-scope — with upstream
+> URLs cited for every claim.
+
+The orchestrator builds the dimension-6 activity-coverage grid itself from
+the adapter-file listing (a one-shot `ls packages/ai-*/src/adapters/`), then
+WebFetches each provider's API reference only for the ❌ cells.
 
 Run at most 3 in parallel. Aggregate their returned markdown into the
 combined report.

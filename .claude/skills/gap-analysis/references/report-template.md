@@ -95,6 +95,29 @@ Replace every `{{placeholder}}`. Drop sections that have zero entries
 
 ---
 
+## Activity coverage
+
+> Per dimension 6 in audit-checklist.md. Which of the 7 core activity kinds
+> (`text`, `summarize`, `image`, `audio`, `video`, `tts`, `transcription`)
+> each provider ships an adapter for, vs. what upstream offers. Derived from
+> `packages/ai-<provider>/src/adapters/`.
+
+| Provider | text | summarize | image | audio | video | tts | transcription |
+| -------- | :--: | :-------: | :---: | :---: | :---: | :-: | :-----------: |
+| {{provider}} | {{✅/❌/—}} | … | … | … | … | … | … |
+
+Legend: ✅ adapter shipped · ❌ upstream offers it, no adapter (gap) · — upstream doesn't offer it (by design).
+
+- **[{{provider}}] missing `{{activity}}` activity**
+  - Upstream: [{{doc-title}}]({{doc-url}})
+  - Current state: no `{{file}}.ts` under `packages/ai-{{provider}}/src/adapters/`
+  - Suggested change: add a `{{provider}}{{Activity}}` adapter (mirror {{sibling provider that has it}}).
+  - Effort: {{S / M / L}}
+
+{{repeat per real activity gap}}
+
+---
+
 ## Out-of-scope — documented exclusions
 
 > Listed for completeness; no action required. Each links to the comment
