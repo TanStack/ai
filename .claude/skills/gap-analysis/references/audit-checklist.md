@@ -253,15 +253,15 @@ Steps:
 
 Map activity kind → upstream capability to look for:
 
-| Activity kind   | Upstream capability                                  |
-| --------------- | ---------------------------------------------------- |
-| `text`          | Chat / messages / completions endpoint               |
-| `summarize`     | Any text completion (summarize is built on chat)     |
-| `image`         | Image generation endpoint                            |
-| `audio`         | Music / sound / general audio generation endpoint    |
-| `video`         | Video generation endpoint                            |
-| `tts`           | Text-to-speech endpoint                              |
-| `transcription` | Speech-to-text endpoint                              |
+| Activity kind   | Upstream capability                               |
+| --------------- | ------------------------------------------------- |
+| `text`          | Chat / messages / completions endpoint            |
+| `summarize`     | Any text completion (summarize is built on chat)  |
+| `image`         | Image generation endpoint                         |
+| `audio`         | Music / sound / general audio generation endpoint |
+| `video`         | Video generation endpoint                         |
+| `tts`           | Text-to-speech endpoint                           |
+| `transcription` | Speech-to-text endpoint                           |
 
 **Priority rubric:**
 
