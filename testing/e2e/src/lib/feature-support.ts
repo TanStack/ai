@@ -180,7 +180,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
   'image-gen': new Set(['openai', 'grok']),
   'audio-gen': new Set(['gemini', 'elevenlabs']),
   'sound-effects': new Set(['elevenlabs']),
-  tts: new Set(['openai', 'grok', 'elevenlabs']),
+  tts: new Set(['openai', 'gemini', 'grok', 'elevenlabs']),
   transcription: new Set(['openai', 'grok', 'elevenlabs']),
   'video-gen': new Set(['openai']),
   // Only Gemini currently surfaces a first-class stateful conversation API via
