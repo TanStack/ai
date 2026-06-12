@@ -231,7 +231,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
   'image-to-image': new Set(['openai']),
   'audio-gen': new Set(['gemini', 'elevenlabs']),
   'sound-effects': new Set(['elevenlabs']),
-  tts: new Set(['openai', 'grok', 'elevenlabs']),
+  tts: new Set(['openai', 'gemini', 'grok', 'elevenlabs']),
   transcription: new Set(['openai', 'grok', 'groq', 'elevenlabs']),
   'transcription-diarization': new Set(['openai']),
   // Gemini Veo runs through a custom aimock mount (see geminiVeoMount in
