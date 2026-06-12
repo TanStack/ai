@@ -393,7 +393,7 @@ const result = await generateTranscription({
 ```
 
 For speaker diarization, use `openaiTranscription('gpt-4o-transcribe-diarize')`.
-It defaults to `responseFormat: 'diarized_json'` and `chunking_strategy: 'auto'`;
+It defaults to `modelOptions.response_format: 'diarized_json'` and `chunking_strategy: 'auto'`;
 do not pass `prompt`, `include`, or `timestamp_granularities` with this model.
 
 Client hook:

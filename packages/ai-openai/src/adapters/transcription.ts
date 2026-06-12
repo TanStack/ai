@@ -11,16 +11,22 @@ import type {
 } from '@tanstack/ai'
 import type OpenAI_SDK from 'openai'
 import type { OpenAITranscriptionModel } from '../model-meta'
-import type { OpenAITranscriptionProviderOptions } from '../audio/transcription-provider-options'
+import type {
+  OpenAITranscriptionProviderOptions,
+  OpenAITranscriptionResponseFormat,
+} from '../audio/transcription-provider-options'
 import type { OpenAIClientConfig } from '../utils/client'
 
 const DIARIZE_MODELS = ['gpt-4o-transcribe-diarize'] as const
 const DIARIZE_RESPONSE_FORMATS = ['json', 'text', 'diarized_json'] as const
 
 type DiarizeModel = (typeof DIARIZE_MODELS)[number]
-type OpenAITranscriptionResponseFormat = NonNullable<
-  TranscriptionOptions<OpenAITranscriptionProviderOptions>['responseFormat']
->
+type OpenAITranscriptionResponseMode = 'diarized' | 'verbose' | 'plain'
+
+interface OpenAITranscriptionRequestPlan {
+  request: OpenAI_SDK.Audio.TranscriptionCreateParamsNonStreaming
+  responseMode: OpenAITranscriptionResponseMode
+}
 
 function isDiarizeModel(model: string): model is DiarizeModel {
   return DIARIZE_MODELS.includes(model as DiarizeModel)
@@ -134,58 +140,15 @@ export class OpenAITranscriptionAdapter<
   async transcribe(
     options: TranscriptionOptions<OpenAITranscriptionProviderOptions>,
   ): Promise<TranscriptionResult> {
-    const { model, audio, language, prompt, responseFormat, modelOptions } =
-      options
-
-    const file = this.prepareAudioFile(audio)
-    const isDiarizeTranscriptionModel = isDiarizeModel(model)
-    const useDiarized =
-      responseFormat === 'diarized_json' ||
-      (isDiarizeTranscriptionModel && responseFormat === undefined)
-    this.validateDiarizationOptions({
-      model,
-      prompt,
-      responseFormat,
-      modelOptions,
-    })
-
-    // With exactOptionalPropertyTypes, vendor SDK request shapes reject
-    // `T | undefined` in optional fields. Build the request incrementally and
-    // only set optional fields when they're actually defined.
-    const responseFormatValue = useDiarized
-      ? 'diarized_json'
-      : this.mapResponseFormat(responseFormat)
-    const request: OpenAI_SDK.Audio.TranscriptionCreateParamsNonStreaming = {
-      model,
-      file,
-      ...(modelOptions ?? {}),
-    }
-    if (language !== undefined) {
-      request.language = language
-    }
-    if (prompt !== undefined) {
-      request.prompt = prompt
-    }
-    if (
-      isDiarizeTranscriptionModel &&
-      modelOptions?.chunking_strategy === undefined
-    ) {
-      request.chunking_strategy = 'auto'
-    }
-    request.response_format = responseFormatValue
-
-    // Only Whisper supports verbose_json. The gpt-4o-* transcribe models
-    // accept only json/text and reject verbose_json with HTTP 400.
-    const useVerbose =
-      (!useDiarized && responseFormat === 'verbose_json') ||
-      (!responseFormat && model === 'whisper-1')
+    const { model, language } = options
+    const { request, responseMode } = this.buildTranscriptionRequest(options)
 
     try {
       options.logger.request(
-        `activity=transcription provider=${this.name} model=${model} verbose=${useVerbose} diarized=${useDiarized}`,
+        `activity=transcription provider=${this.name} model=${model} verbose=${responseMode === 'verbose'} diarized=${responseMode === 'diarized'}`,
         { provider: this.name, model },
       )
-      if (useDiarized) {
+      if (responseMode === 'diarized') {
         const response = (await this.client.audio.transcriptions.create(
           request,
         )) as OpenAI_SDK.Audio.TranscriptionDiarized
@@ -215,7 +178,7 @@ export class OpenAITranscriptionAdapter<
         }
       }
 
-      if (useVerbose) {
+      if (responseMode === 'verbose') {
         const response = (await this.client.audio.transcriptions.create({
           ...request,
           response_format: 'verbose_json',
@@ -280,6 +243,89 @@ export class OpenAITranscriptionAdapter<
     }
   }
 
+  private buildTranscriptionRequest(
+    options: TranscriptionOptions<OpenAITranscriptionProviderOptions>,
+  ): OpenAITranscriptionRequestPlan {
+    const { model, audio, language, prompt, responseFormat, modelOptions } =
+      options
+    const file = this.prepareAudioFile(audio)
+    const isDiarizeTranscriptionModel = isDiarizeModel(model)
+    const topLevelResponseFormat = responseFormat as
+      | OpenAITranscriptionResponseFormat
+      | undefined
+    const effectiveResponseFormat =
+      topLevelResponseFormat ?? modelOptions?.response_format
+
+    this.validateDiarizationOptions({
+      model,
+      prompt,
+      responseFormat: topLevelResponseFormat,
+      modelOptions,
+    })
+
+    const responseMode = this.resolveResponseMode({
+      model,
+      isDiarizeTranscriptionModel,
+      effectiveResponseFormat,
+    })
+    const responseFormatValue =
+      responseMode === 'diarized'
+        ? 'diarized_json'
+        : this.mapResponseFormat(effectiveResponseFormat)
+
+    // With exactOptionalPropertyTypes, vendor SDK request shapes reject
+    // `T | undefined` in optional fields. Build the request incrementally and
+    // only set optional fields when they're actually defined.
+    const request: OpenAI_SDK.Audio.TranscriptionCreateParamsNonStreaming = {
+      model,
+      file,
+      ...(modelOptions ?? {}),
+    }
+    if (language !== undefined) {
+      request.language = language
+    }
+    if (prompt !== undefined) {
+      request.prompt = prompt
+    }
+    if (
+      isDiarizeTranscriptionModel &&
+      modelOptions?.chunking_strategy === undefined
+    ) {
+      request.chunking_strategy = 'auto'
+    }
+    request.response_format = responseFormatValue
+
+    return { request, responseMode }
+  }
+
+  private resolveResponseMode({
+    model,
+    isDiarizeTranscriptionModel,
+    effectiveResponseFormat,
+  }: {
+    model: string
+    isDiarizeTranscriptionModel: boolean
+    effectiveResponseFormat?: OpenAITranscriptionResponseFormat
+  }): OpenAITranscriptionResponseMode {
+    if (
+      effectiveResponseFormat === 'diarized_json' ||
+      (isDiarizeTranscriptionModel && effectiveResponseFormat === undefined)
+    ) {
+      return 'diarized'
+    }
+
+    // Only Whisper supports verbose_json. The gpt-4o-* transcribe models
+    // accept only json/text and reject verbose_json with HTTP 400.
+    if (
+      effectiveResponseFormat === 'verbose_json' ||
+      (effectiveResponseFormat === undefined && model === 'whisper-1')
+    ) {
+      return 'verbose'
+    }
+
+    return 'plain'
+  }
+
   protected prepareAudioFile(audio: string | File | Blob | ArrayBuffer): File {
     if (typeof File !== 'undefined' && audio instanceof File) {
       return audio
@@ -332,13 +378,18 @@ export class OpenAITranscriptionAdapter<
     modelOptions,
   }: Pick<
     TranscriptionOptions<OpenAITranscriptionProviderOptions>,
-    'model' | 'prompt' | 'responseFormat' | 'modelOptions'
-  >): void {
+    'model' | 'prompt' | 'modelOptions'
+  > & {
+    responseFormat?: OpenAITranscriptionResponseFormat
+  }): void {
     const isDiarizeTranscriptionModel = isDiarizeModel(model)
+    const modelOptionsResponseFormat = modelOptions?.response_format
 
     if (
       !isDiarizeTranscriptionModel &&
       (responseFormat === 'diarized_json' ||
+        modelOptionsResponseFormat === 'diarized_json' ||
+        modelOptions?.chunking_strategy !== undefined ||
         modelOptions?.known_speaker_names !== undefined ||
         modelOptions?.known_speaker_references !== undefined)
     ) {
@@ -349,11 +400,6 @@ export class OpenAITranscriptionAdapter<
 
     if (!isDiarizeTranscriptionModel) return
 
-    const modelOptionsResponseFormat = (
-      modelOptions as
-        | { responseFormat?: OpenAITranscriptionResponseFormat }
-        | undefined
-    )?.responseFormat
     const requestedResponseFormats = [
       this.mapResponseFormat(responseFormat),
       ...(modelOptionsResponseFormat !== undefined
@@ -372,7 +418,7 @@ export class OpenAITranscriptionAdapter<
       )
     }
 
-    if (prompt !== undefined) {
+    if (prompt !== undefined || modelOptions?.prompt !== undefined) {
       throw new Error(
         'OpenAI diarization transcription models do not support prompts.',
       )

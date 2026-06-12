@@ -348,7 +348,7 @@ for (const segment of result.segments ?? []) {
 }
 ```
 
-`gpt-4o-transcribe-diarize` defaults to `responseFormat: "diarized_json"` and `chunking_strategy: "auto"`. OpenAI does not support `prompt`, `include`, or `timestamp_granularities` with diarized transcription.
+`gpt-4o-transcribe-diarize` defaults to `modelOptions.response_format: "diarized_json"` and `chunking_strategy: "auto"`. OpenAI does not support `prompt`, `include`, or `timestamp_granularities` with diarized transcription.
 
 ## Environment Variables
 

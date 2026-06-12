@@ -233,6 +233,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
   'sound-effects': new Set(['elevenlabs']),
   tts: new Set(['openai', 'grok', 'elevenlabs']),
   transcription: new Set(['openai', 'grok', 'groq', 'elevenlabs']),
+  'transcription-diarization': new Set(['openai']),
   // Gemini Veo runs through a custom aimock mount (see geminiVeoMount in
   // global-setup.ts) — aimock 1.29 doesn't model the long-running
   // `:predictLongRunning` + operations-polling pair natively.
