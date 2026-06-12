@@ -119,8 +119,8 @@ describe('OpenAI transcription adapter', () => {
     const result = await adapter.transcribe({
       model: 'gpt-4o-transcribe-diarize',
       audio: new File([], 'meeting.wav', { type: 'audio/wav' }),
-      responseFormat: 'diarized_json',
       modelOptions: {
+        response_format: 'diarized_json',
         chunking_strategy: {
           type: 'server_vad',
           threshold: 0.5,
@@ -147,6 +147,49 @@ describe('OpenAI transcription adapter', () => {
       }),
     )
     expect(result.segments?.[0]?.id).toBe(0)
+  })
+
+  it('uses snake_case modelOptions response_format for diarized output', async () => {
+    const mockResponse: OpenAI.Audio.TranscriptionDiarized = {
+      text: 'Agent: Hello',
+      duration: 1,
+      task: 'transcribe',
+      segments: [
+        {
+          id: 'seg_0',
+          type: 'transcript.text.segment',
+          start: 0,
+          end: 1,
+          text: 'Hello',
+          speaker: 'agent',
+        },
+      ],
+    }
+    const adapter = new TestOpenAITranscriptionAdapter(
+      { apiKey: 'test-api-key' },
+      'gpt-4o-transcribe-diarize',
+    )
+    const mockCreate = adapter
+      .spyOnTranscriptionsCreate()
+      .mockResolvedValueOnce(mockResponse)
+
+    const result = await adapter.transcribe({
+      model: 'gpt-4o-transcribe-diarize',
+      audio: new File([], 'meeting.wav', { type: 'audio/wav' }),
+      modelOptions: {
+        response_format: 'diarized_json',
+        chunking_strategy: null,
+      },
+      logger: testLogger,
+    })
+
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        response_format: 'diarized_json',
+        chunking_strategy: null,
+      }),
+    )
+    expect(result.segments?.[0]?.speaker).toBe('agent')
   })
 
   it('respects explicit null chunking for short diarization inputs', async () => {
@@ -229,9 +272,22 @@ describe('OpenAI transcription adapter', () => {
         'diarization transcription models only support json, text, and diarized_json',
       )
     }
+
+    await expect(
+      adapter.transcribe({
+        model: 'gpt-4o-transcribe-diarize',
+        audio: new File([], 'audio.wav', { type: 'audio/wav' }),
+        modelOptions: {
+          response_format: 'verbose_json',
+        },
+        logger: testLogger,
+      }),
+    ).rejects.toThrow(
+      'diarization transcription models only support json, text, and diarized_json',
+    )
   })
 
-  it('rejects diarized_json with non-diarization models', async () => {
+  it('rejects diarization-only options with non-diarization models', async () => {
     const adapter = new TestOpenAITranscriptionAdapter(
       { apiKey: 'test-api-key' },
       'whisper-1',
@@ -241,7 +297,29 @@ describe('OpenAI transcription adapter', () => {
       adapter.transcribe({
         model: 'whisper-1',
         audio: new File([], 'audio.wav', { type: 'audio/wav' }),
-        responseFormat: 'diarized_json',
+        responseFormat: 'diarized_json' as never,
+        logger: testLogger,
+      }),
+    ).rejects.toThrow('speaker diarization options')
+
+    await expect(
+      adapter.transcribe({
+        model: 'whisper-1',
+        audio: new File([], 'audio.wav', { type: 'audio/wav' }),
+        modelOptions: {
+          response_format: 'diarized_json',
+        },
+        logger: testLogger,
+      }),
+    ).rejects.toThrow('speaker diarization options')
+
+    await expect(
+      adapter.transcribe({
+        model: 'whisper-1',
+        audio: new File([], 'audio.wav', { type: 'audio/wav' }),
+        modelOptions: {
+          chunking_strategy: 'auto',
+        },
         logger: testLogger,
       }),
     ).rejects.toThrow('speaker diarization options')
@@ -258,6 +336,17 @@ describe('OpenAI transcription adapter', () => {
         model: 'gpt-4o-transcribe-diarize',
         audio: new File([], 'audio.wav', { type: 'audio/wav' }),
         prompt: 'Use product vocabulary',
+        logger: testLogger,
+      }),
+    ).rejects.toThrow('do not support prompts')
+
+    await expect(
+      adapter.transcribe({
+        model: 'gpt-4o-transcribe-diarize',
+        audio: new File([], 'audio.wav', { type: 'audio/wav' }),
+        modelOptions: {
+          prompt: 'Use product vocabulary',
+        },
         logger: testLogger,
       }),
     ).rejects.toThrow('do not support prompts')

@@ -96,11 +96,16 @@ export function createTranscriptionAdapter(
   provider: Provider,
   aimockPort?: number,
   testId?: string,
+  feature: Feature = 'transcription',
 ) {
   const headers = testHeaders(testId)
+  const openaiTranscriptionModel =
+    feature === 'transcription-diarization'
+      ? 'gpt-4o-transcribe-diarize'
+      : 'whisper-1'
   const factories: Record<string, () => any> = {
     openai: () =>
-      createOpenaiTranscription('whisper-1', DUMMY_KEY, {
+      createOpenaiTranscription(openaiTranscriptionModel, DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),

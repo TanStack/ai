@@ -11,7 +11,11 @@ import { resolveDebugOption } from '../../logger/resolve'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
 import type { TranscriptionAdapter } from './adapter'
-import type { StreamChunk, TranscriptionResult } from '../../types'
+import type {
+  StreamChunk,
+  TranscriptionResponseFormat,
+  TranscriptionResult,
+} from '../../types'
 
 // ===========================
 // Activity Kind
@@ -59,13 +63,7 @@ export interface TranscriptionActivityOptions<
   /** An optional prompt to guide the transcription */
   prompt?: string
   /** The format of the transcription output */
-  responseFormat?:
-    | 'json'
-    | 'text'
-    | 'srt'
-    | 'verbose_json'
-    | 'vtt'
-    | 'diarized_json'
+  responseFormat?: TranscriptionResponseFormat
   /** Provider-specific options for transcription */
   modelOptions?: TranscriptionProviderOptions<TAdapter>
   /**

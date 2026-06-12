@@ -105,7 +105,7 @@ for (const segment of result.segments ?? []) {
 | `audio` | `File \| string` | Audio data (File object or base64 string) - required |
 | `language` | `string` | Language code (e.g., "en", "es", "fr") |
 | `prompt` | `string` | Optional prompt to guide transcription style or terms. Not supported with `gpt-4o-transcribe-diarize`. |
-| `responseFormat` | `'json' \| 'text' \| 'srt' \| 'verbose_json' \| 'vtt' \| 'diarized_json'` | Output format |
+| `responseFormat` | `'json' \| 'text' \| 'srt' \| 'verbose_json' \| 'vtt'` | Common output format |
 
 ### Supported Languages
 
@@ -148,6 +148,7 @@ const result = await generateTranscription({
 | `temperature` | `number` | Sampling temperature (0 to 1) |
 | `timestamp_granularities` | `Array<'word' \| 'segment'>` | Timestamp granularity to populate (`whisper-1` only; requires top-level `responseFormat: 'verbose_json'`) |
 | `include` | `string[]` | Additional values to include in the response (e.g., `logprobs`) |
+| `response_format` | `'json' \| 'text' \| 'srt' \| 'verbose_json' \| 'vtt' \| 'diarized_json'` | Raw OpenAI response format. Use `diarized_json` here for speaker-labeled diarization output. |
 | `chunking_strategy` | `'auto' \| { type: 'server_vad', ... } \| null` | Audio chunking strategy for `gpt-4o-transcribe-diarize`; required by OpenAI for diarization inputs longer than 30 seconds |
 | `known_speaker_names` | `string[]` | Up to four speaker labels for diarization |
 | `known_speaker_references` | `string[]` | 2-10 second data URL audio samples matching `known_speaker_names` |
@@ -163,11 +164,12 @@ const result = await generateTranscription({
 | `srt` | SubRip subtitle format |
 | `verbose_json` | Detailed JSON with timestamps and segments |
 | `vtt` | WebVTT subtitle format |
-| `diarized_json` | JSON with speaker-labeled segments. Only supported by `gpt-4o-transcribe-diarize`. |
+
+OpenAI's `gpt-4o-transcribe-diarize` also supports `modelOptions.response_format: 'diarized_json'` for speaker-labeled segments.
 
 ### Speaker Diarization
 
-Use `gpt-4o-transcribe-diarize` when you need speaker labels. TanStack AI defaults this model to `responseFormat: 'diarized_json'` and sends `chunking_strategy: 'auto'` unless you provide a chunking strategy yourself.
+Use `gpt-4o-transcribe-diarize` when you need speaker labels. TanStack AI defaults this model to `modelOptions.response_format: 'diarized_json'` and sends `chunking_strategy: 'auto'` unless you provide a chunking strategy yourself.
 
 ```typescript
 const result = await generateTranscription({
@@ -573,6 +575,6 @@ const adapter = createOpenaiTranscription('whisper-1', 'your-openai-api-key')
 
 5. **Prompting**: Use the `prompt` option to provide context or expected vocabulary (e.g., technical terms, names).
 
-6. **Timestamps**: Request `verbose_json` format and enable `timestamp_granularities: ['word', 'segment']` when you need timing information for captions or synchronization.
+6. **Timestamps**: Request `responseFormat: 'verbose_json'` and set `modelOptions.timestamp_granularities` when you need timing information for captions or synchronization.
 
-7. **Diarization**: Use `gpt-4o-transcribe-diarize` with `diarized_json` output for multi-speaker audio. Keep `chunking_strategy: 'auto'` unless you need custom VAD tuning.
+7. **Diarization**: Use `gpt-4o-transcribe-diarize` with `modelOptions.response_format: 'diarized_json'` output for multi-speaker audio. Keep `chunking_strategy: 'auto'` unless you need custom VAD tuning.

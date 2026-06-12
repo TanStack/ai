@@ -1,4 +1,9 @@
 import type OpenAI from 'openai'
+import type { TranscriptionResponseFormat } from '@tanstack/ai'
+
+export type OpenAITranscriptionResponseFormat =
+  | TranscriptionResponseFormat
+  | 'diarized_json'
 
 /**
  * Provider-specific options for OpenAI Transcription
@@ -30,6 +35,18 @@ export interface OpenAITranscriptionProviderOptions {
    * Either or both of these options are supported: word, or segment.
    */
   timestamp_granularities?: Array<'word' | 'segment'>
+  /**
+   * Raw OpenAI response_format option. Prefer the top-level responseFormat
+   * argument for common transcription formats when using
+   * generateTranscription(). Use `diarized_json` here for OpenAI diarization
+   * output.
+   */
+  response_format?: OpenAITranscriptionResponseFormat
+  /**
+   * Raw OpenAI prompt option. Prefer the top-level prompt argument when using
+   * generateTranscription().
+   */
+  prompt?: string
   /**
    * Optional list of speaker names that correspond to the audio samples provided in known_speaker_references[]. Each entry should be a short identifier (for example customer or agent). Up to 4 speakers are supported.
    */

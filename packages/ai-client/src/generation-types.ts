@@ -1,4 +1,5 @@
 import type { StreamChunk } from '@tanstack/ai/client'
+import type { TranscriptionResponseFormat } from '@tanstack/ai'
 import type { ConnectConnectionAdapter } from './connection-adapters'
 import type { AIDevtoolsClientMetadata } from './devtools'
 import type {
@@ -265,13 +266,7 @@ export interface TranscriptionGenerateInput {
   /** An optional prompt to guide the transcription */
   prompt?: string
   /** The format of the transcription output */
-  responseFormat?:
-    | 'json'
-    | 'text'
-    | 'srt'
-    | 'verbose_json'
-    | 'vtt'
-    | 'diarized_json'
+  responseFormat?: TranscriptionResponseFormat
   /** Model-specific options */
   modelOptions?: Record<string, any>
 }

@@ -7,6 +7,7 @@ import {
   generateVideo,
   getVideoJobStatus,
 } from '@tanstack/ai'
+import type { TranscriptionResponseFormat } from '@tanstack/ai'
 import type { Feature, Provider } from '@/lib/types'
 import {
   createAudioAdapter,
@@ -77,7 +78,10 @@ export const generateTranscriptionFn = createServerFn({ method: 'POST' })
     (data: {
       audio: string
       language?: string
+      responseFormat?: TranscriptionResponseFormat
+      modelOptions?: Record<string, any>
       provider: Provider
+      feature?: Feature
       aimockPort?: number
       testId?: string
     }) => {
@@ -92,11 +96,14 @@ export const generateTranscriptionFn = createServerFn({ method: 'POST' })
       data.provider,
       data.aimockPort,
       data.testId,
+      data.feature,
     )
     return generateTranscription({
       adapter,
       audio: data.audio,
       language: data.language,
+      responseFormat: data.responseFormat,
+      modelOptions: data.modelOptions,
     })
   })
 
