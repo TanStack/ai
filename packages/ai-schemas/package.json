@@ -47,7 +47,8 @@
     "fetch-schemas": "tsx scripts/fetch-schemas.ts",
     "generate-schemas": "openapi-ts",
     "generate-endpoint-maps": "tsx scripts/generate-endpoint-maps.ts",
-    "update-schemas": "pnpm fetch-schemas && pnpm generate-schemas && pnpm generate-endpoint-maps"
+    "verify-generated": "tsx scripts/verify-generated.ts",
+    "update-schemas": "pnpm fetch-schemas && pnpm generate-schemas && pnpm generate-endpoint-maps && pnpm verify-generated"
   },
   "keywords": [
     "ai",
@@ -75,6 +76,7 @@
     "@vitest/coverage-v8": "4.0.14",
     "prettier": "^3.7.4",
     "tsx": "^4.21.0",
+    "typescript": "5.9.3",
     "vite": "^7.3.3",
     "yaml": "^2.7.0",
     "zod": "^4.2.0"

@@ -124,8 +124,9 @@ The `.github/workflows/sync-schemas.yml` workflow runs nightly:
 1. `fetch-schemas` — pulls upstream OpenAPI specs (or equivalents) per provider.
 2. `generate-schemas` — runs `@hey-api/openapi-ts` to emit per-(provider, activity) `schemas.gen.ts` (JSON Schemas) and `zod.gen.ts` (Zod).
 3. `generate-endpoint-maps` — emits endpoint-id-keyed maps and bundles `$defs` closures into each JSON Schema.
+4. `verify-generated` — AST-checks that every generated module is **data-only** (literals and Zod builder chains, no executable code). Upstream specs are third-party input, so this guards against a codegen escaping bug becoming a code-injection vector.
 
-If any provider's spec changes, the workflow bumps the package version, creates a changeset, and opens an automated PR.
+If any provider's spec changes, the workflow commits a patch changeset and opens an automated PR. A PR-side gate (`verify-sync-schemas.yml`) re-runs the data-only check and enforces that the diff stays within the sync-owned paths (`src/providers/`, `scripts/specs/`, the changeset). Version bump and npm publish happen through the repo's normal changesets release flow after the PR merges.
 
 ## Local development
 

@@ -1,0 +1,51 @@
+name: Verify Schema Sync PR
+
+# Security gate for the nightly schema-sync PRs (automated/sync-schemas).
+# The sync pipeline runs third-party-controlled OpenAPI specs (notably
+# per-model FAL metadata) through codegen into modules that execute on
+# import, so before such a PR can merge — especially with auto-merge —
+# this workflow enforces:
+#   1. the diff touches only sync-owned paths, and
+#   2. every generated module is data-only TypeScript (no executable code).
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  verify:
+    name: Verify Sync Diff
+    # Only the sync bot's PRs; on all other PRs this job is skipped, which
+    # branch protection treats as passing if the check is made required.
+    if: github.head_ref == 'automated/sync-schemas'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Enforce path allowlist
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          CHANGED=$(git diff --name-only "origin/${BASE_REF}...HEAD")
+          DISALLOWED=$(echo "$CHANGED" | grep -v '^$' \
+            | grep -vE '^(packages/ai-schemas/(src/providers|scripts/specs)/|\.changeset/automated-sync-schemas\.md$)' || true)
+          if [ -n "$DISALLOWED" ]; then
+            echo "::error::Sync PR touches files outside the allowlist; manual review required:"
+            echo "$DISALLOWED"
+            exit 1
+          fi
+          echo "All changed files are within the sync allowlist."
+
+      - name: Setup Tools
+        uses: TanStack/config/.github/setup@e4b48f16568324f76f467aa4c2aac2f05db632c3 # main
+
+      - name: Verify generated output is data-only
+        run: pnpm --filter @tanstack/ai-schemas verify-generated

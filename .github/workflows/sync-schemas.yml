@@ -40,13 +40,26 @@ jobs:
       - name: Generate endpoint maps and barrels
         run: pnpm --filter @tanstack/ai-schemas generate-endpoint-maps
 
+      - name: Verify generated output is data-only
+        run: pnpm --filter @tanstack/ai-schemas verify-generated
+
       - name: Check for package changes
         id: changes
         run: |
-          if git diff --quiet -- packages/ai-schemas/; then
-            echo "changed=false" >> $GITHUB_OUTPUT
-          else
+          # Generation must only touch the sync-owned paths — these are the
+          # only paths the PR-side gate (verify-sync-schemas.yml) accepts.
+          UNEXPECTED=$(git status --porcelain -- packages/ai-schemas/ \
+            | grep -vE '^.. packages/ai-schemas/(src/providers|scripts/specs)/' || true)
+          if [ -n "$UNEXPECTED" ]; then
+            echo "::error::Generation changed files outside the sync allowlist:"
+            echo "$UNEXPECTED"
+            exit 1
+          fi
+          # git status (not git diff) so brand-new untracked files also count.
+          if [ -n "$(git status --porcelain -- packages/ai-schemas/src/providers packages/ai-schemas/scripts/specs)" ]; then
             echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Write changeset and commit
@@ -62,7 +75,7 @@ jobs:
 
           Nightly sync of provider OpenAPI schemas.
           EOF
-          git add packages/ai-schemas/ .changeset/
+          git add packages/ai-schemas/src/providers packages/ai-schemas/scripts/specs .changeset/automated-sync-schemas.md
           git commit -m "chore(schemas): sync provider OpenAPI schemas"
           git push --force origin HEAD:automated/sync-schemas
 
