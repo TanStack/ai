@@ -18,6 +18,7 @@ import { Route as DevtoolsRouteBRouteImport } from './routes/devtools-route-b'
 import { Route as DevtoolsRouteARouteImport } from './routes/devtools-route-a'
 import { Route as DevtoolsGenerationHooksRouteImport } from './routes/devtools-generation-hooks'
 import { Route as DevtoolsChatRouteImport } from './routes/devtools-chat'
+import { Route as ChatClientDefaultBridgeRouteImport } from './routes/chat-client-default-bridge'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProviderIndexRouteImport } from './routes/$provider/index'
 import { Route as ApiVideoRouteImport } from './routes/api.video'
@@ -93,6 +94,11 @@ const DevtoolsGenerationHooksRoute = DevtoolsGenerationHooksRouteImport.update({
 const DevtoolsChatRoute = DevtoolsChatRouteImport.update({
   id: '/devtools-chat',
   path: '/devtools-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChatClientDefaultBridgeRoute = ChatClientDefaultBridgeRouteImport.update({
+  id: '/chat-client-default-bridge',
+  path: '/chat-client-default-bridge',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -257,6 +263,7 @@ const ApiAudioStreamRoute = ApiAudioStreamRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/devtools-chat': typeof DevtoolsChatRoute
   '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
   '/devtools-route-a': typeof DevtoolsRouteARoute
@@ -299,6 +306,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/devtools-chat': typeof DevtoolsChatRoute
   '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
   '/devtools-route-a': typeof DevtoolsRouteARoute
@@ -342,6 +350,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/devtools-chat': typeof DevtoolsChatRoute
   '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
   '/devtools-route-a': typeof DevtoolsRouteARoute
@@ -386,6 +395,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/chat-client-default-bridge'
     | '/devtools-chat'
     | '/devtools-generation-hooks'
     | '/devtools-route-a'
@@ -428,6 +438,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/chat-client-default-bridge'
     | '/devtools-chat'
     | '/devtools-generation-hooks'
     | '/devtools-route-a'
@@ -470,6 +481,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/chat-client-default-bridge'
     | '/devtools-chat'
     | '/devtools-generation-hooks'
     | '/devtools-route-a'
@@ -513,6 +525,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ChatClientDefaultBridgeRoute: typeof ChatClientDefaultBridgeRoute
   DevtoolsChatRoute: typeof DevtoolsChatRoute
   DevtoolsGenerationHooksRoute: typeof DevtoolsGenerationHooksRoute
   DevtoolsRouteARoute: typeof DevtoolsRouteARoute
@@ -612,6 +625,13 @@ declare module '@tanstack/react-router' {
       path: '/devtools-chat'
       fullPath: '/devtools-chat'
       preLoaderRoute: typeof DevtoolsChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/chat-client-default-bridge': {
+      id: '/chat-client-default-bridge'
+      path: '/chat-client-default-bridge'
+      fullPath: '/chat-client-default-bridge'
+      preLoaderRoute: typeof ChatClientDefaultBridgeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -894,6 +914,7 @@ const ApiVideoRouteWithChildren = ApiVideoRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ChatClientDefaultBridgeRoute: ChatClientDefaultBridgeRoute,
   DevtoolsChatRoute: DevtoolsChatRoute,
   DevtoolsGenerationHooksRoute: DevtoolsGenerationHooksRoute,
   DevtoolsRouteARoute: DevtoolsRouteARoute,
