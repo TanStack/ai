@@ -20,10 +20,16 @@ import {
   createElevenLabsSpeech,
   createElevenLabsTranscription,
 } from '@tanstack/ai-elevenlabs'
+import type { TranscriptionResponseFormat } from '@tanstack/ai'
 import type { Feature, Provider } from '@/lib/types'
 
 const LLMOCK_DEFAULT_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
 const DUMMY_KEY = 'sk-e2e-test-dummy-key'
+
+type TranscriptionAdapterOptions = {
+  responseFormat?: TranscriptionResponseFormat
+  modelOptions?: Record<string, any>
+}
 
 function llmockBase(aimockPort?: number): string {
   if (aimockPort) return `http://127.0.0.1:${aimockPort}`
@@ -36,6 +42,19 @@ function openaiUrl(aimockPort?: number): string {
 
 function testHeaders(testId?: string): Record<string, string> | undefined {
   return testId ? { 'X-Test-Id': testId } : undefined
+}
+
+function getOpenaiTranscriptionModel(options: TranscriptionAdapterOptions) {
+  const modelOptions = options.modelOptions
+  const isDiarizationRequest =
+    options.responseFormat === 'diarized_json' ||
+    modelOptions?.response_format === 'diarized_json' ||
+    modelOptions?.diarize === true ||
+    modelOptions?.chunking_strategy !== undefined ||
+    modelOptions?.known_speaker_names !== undefined ||
+    modelOptions?.known_speaker_references !== undefined
+
+  return isDiarizationRequest ? 'gpt-4o-transcribe-diarize' : 'whisper-1'
 }
 
 export function createImageAdapter(
@@ -97,13 +116,10 @@ export function createTranscriptionAdapter(
   provider: Provider,
   aimockPort?: number,
   testId?: string,
-  feature: Feature = 'transcription',
+  options: TranscriptionAdapterOptions = {},
 ) {
   const headers = testHeaders(testId)
-  const openaiTranscriptionModel =
-    feature === 'transcription-diarization'
-      ? 'gpt-4o-transcribe-diarize'
-      : 'whisper-1'
+  const openaiTranscriptionModel = getOpenaiTranscriptionModel(options)
   const factories: Record<string, () => any> = {
     openai: () =>
       createOpenaiTranscription(openaiTranscriptionModel, DUMMY_KEY, {

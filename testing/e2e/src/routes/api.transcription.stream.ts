@@ -1,8 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { generateTranscription, toHttpResponse } from '@tanstack/ai'
-import { createTranscriptionAdapter } from '@/lib/media-providers'
 import type { TranscriptionResponseFormat } from '@tanstack/ai'
-import type { Feature, Provider } from '@/lib/types'
+import type { Provider } from '@/lib/types'
+import { createTranscriptionAdapter } from '@/lib/media-providers'
 
 export const Route = createFileRoute('/api/transcription/stream')({
   server: {
@@ -18,7 +18,6 @@ export const Route = createFileRoute('/api/transcription/stream')({
           responseFormat,
           modelOptions,
           provider,
-          feature,
           testId,
           aimockPort,
         } = data as {
@@ -27,7 +26,6 @@ export const Route = createFileRoute('/api/transcription/stream')({
           responseFormat?: TranscriptionResponseFormat
           modelOptions?: Record<string, any>
           provider: Provider
-          feature?: Feature
           testId?: string
           aimockPort?: number
         }
@@ -36,7 +34,7 @@ export const Route = createFileRoute('/api/transcription/stream')({
           provider,
           aimockPort,
           testId,
-          feature,
+          { responseFormat, modelOptions },
         )
 
         try {

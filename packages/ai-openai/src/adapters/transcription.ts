@@ -279,7 +279,7 @@ export class OpenAITranscriptionAdapter<
     const request: OpenAI_SDK.Audio.TranscriptionCreateParamsNonStreaming = {
       model,
       file,
-      ...(modelOptions ?? {}),
+      ...modelOptions,
     }
     if (language !== undefined) {
       request.language = language

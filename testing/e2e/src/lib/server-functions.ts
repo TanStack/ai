@@ -100,7 +100,10 @@ export const generateTranscriptionFn = createServerFn({ method: 'POST' })
       data.provider,
       data.aimockPort,
       data.testId,
-      data.feature,
+      {
+        responseFormat: data.responseFormat,
+        modelOptions: data.modelOptions,
+      },
     )
     return generateTranscription({
       adapter,

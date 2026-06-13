@@ -82,7 +82,7 @@ const TRANSCRIPTION_PROVIDER_SCHEMA = z
   .optional()
 
 const TRANSCRIPTION_RESPONSE_FORMAT_SCHEMA = z
-  .enum(['json', 'text', 'srt', 'verbose_json', 'vtt'])
+  .enum(['json', 'text', 'srt', 'verbose_json', 'vtt', 'diarized_json'])
   .optional()
 
 const AUDIO_PROVIDER_SCHEMA = z
