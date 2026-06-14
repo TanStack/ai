@@ -77,5 +77,9 @@
     "typescript": "5.9.3",
     "vite": "^7.3.3",
     "vitest": "^4.0.14"
-  }
+  },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
+  "homepage": "https://github.com/TanStack/ai#readme"
 }
