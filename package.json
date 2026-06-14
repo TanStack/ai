@@ -77,5 +77,10 @@
     "typescript": "5.9.3",
     "vite": "^7.3.3",
     "vitest": "^4.0.14"
-  }
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "git+https://github.com/TanStack/ai/issues"
+  },
+  "homepage": "git+https://github.com/TanStack/ai#readme"
 }
