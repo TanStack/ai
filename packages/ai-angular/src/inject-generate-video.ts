@@ -4,13 +4,14 @@ import {
   DestroyRef,
   Injector,
   afterNextRender,
+  assertInInjectionContext,
   effect,
   inject,
   signal,
 } from '@angular/core'
 import { toReactive } from './internal/to-reactive'
 import type { Signal } from '@angular/core'
-import type { StreamChunk } from '@tanstack/ai'
+import type { ReactiveOption } from './internal/to-reactive'
 import type {
   AIDevtoolsDisplayOptions,
   ConnectConnectionAdapter,
@@ -21,7 +22,7 @@ import type {
   VideoGenerateResult,
   VideoStatusInfo,
 } from '@tanstack/ai-client'
-import type { ReactiveOption } from './internal/to-reactive'
+import type { StreamChunk } from '@tanstack/ai'
 
 let nextId = 0
 
@@ -61,6 +62,8 @@ export function injectGenerateVideo<
 ): InjectGenerateVideoResult<
   InferGenerationOutput<VideoGenerateResult, TOnResult>
 > {
+  assertInInjectionContext(injectGenerateVideo)
+
   type TOutput = InferGenerationOutput<VideoGenerateResult, TOnResult>
 
   const destroyRef = inject(DestroyRef)

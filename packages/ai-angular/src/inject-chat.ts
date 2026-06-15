@@ -4,6 +4,7 @@ import {
   DestroyRef,
   Injector,
   afterNextRender,
+  assertInInjectionContext,
   computed,
   effect,
   inject,
@@ -44,6 +45,8 @@ export function injectChat<
     TContext
   > = {} as InjectChatOptions<TTools, TSchema, TContext>,
 ): InjectChatResult<TTools, TSchema> {
+  assertInInjectionContext(injectChat)
+
   type Partial = DeepPartial<InferSchemaType<NonNullable<TSchema>>>
   type Final = InferSchemaType<NonNullable<TSchema>>
 

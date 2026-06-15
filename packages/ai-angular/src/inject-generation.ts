@@ -4,6 +4,7 @@ import {
   DestroyRef,
   Injector,
   afterNextRender,
+  assertInInjectionContext,
   effect,
   inject,
   signal,
@@ -76,6 +77,8 @@ export function injectGeneration<
     onResult?: TOnResult
   },
 ): InjectGenerationResult<InferGenerationOutput<TResult, TOnResult>> {
+  assertInInjectionContext(injectGeneration)
+
   type TOutput = InferGenerationOutput<TResult, TOnResult>
 
   const destroyRef = inject(DestroyRef)

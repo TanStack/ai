@@ -13,7 +13,7 @@ export type ReactiveOption<T> = T | Signal<T> | (() => T)
  *
  * - A `Signal` is returned as-is (already a getter that tracks reads).
  * - A zero-arg function is wrapped in `computed` so reads inside it are tracked.
- * - A plain value becomes a constant `computed` (never re-fires).
+ * - A plain value becomes a constant non-reactive fn (never re-fires).
  */
 export function toReactive<T>(value: ReactiveOption<T>): () => T {
   if (isSignal(value)) {
@@ -22,5 +22,5 @@ export function toReactive<T>(value: ReactiveOption<T>): () => T {
   if (typeof value === 'function') {
     return computed(value as () => T)
   }
-  return computed(() => value)
+  return () => value
 }
