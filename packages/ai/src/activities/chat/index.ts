@@ -25,6 +25,7 @@ import {
 import { maxIterations as maxIterationsStrategy } from './agent-loop-strategies'
 import { convertMessagesToModelMessages, generateMessageId } from './messages'
 import { MiddlewareRunner } from './middleware/compose'
+import { CapabilityRegistry } from './middleware/capabilities'
 import { MCPManager } from './mcp/manager'
 import type {
   ApprovalRequest,
@@ -659,6 +660,8 @@ class TextEngine<
       // References
       messages: this.messages,
       createId: (prefix: string) => this.createId(prefix),
+      // Capability bookkeeping for this request (populated by middleware setup)
+      capabilities: new CapabilityRegistry(),
     }
   }
 

@@ -7,6 +7,7 @@ import type {
   ToolCall,
 } from '../../../types'
 import type { SystemPrompt } from '../../../system-prompts'
+import type { CapabilityHandle, CapabilityRegistry } from './capabilities'
 
 // ===========================
 // Middleware Context
@@ -115,6 +116,13 @@ export interface ChatMiddlewareContext<TContext = unknown> {
   messages: ReadonlyArray<ModelMessage>
   /** Generate a unique ID with the given prefix */
   createId: (prefix: string) => string
+  /**
+   * Capability bookkeeping for this request. Populated by middleware `setup`
+   * hooks (via `provide` accessors) and read by later middleware (via `get`
+   * accessors). Prefer the accessors returned by `createCapability` over using
+   * this directly. Orthogonal to `context` (the user runtime context).
+   */
+  capabilities: CapabilityRegistry
 }
 
 // ===========================
@@ -345,6 +353,36 @@ export interface ChatMiddleware<TContext = unknown> {
   name?: string
 
   /**
+   * Capabilities this middleware requires. `chat()` validates that some
+   * middleware (or the adapter) provides each one; unsatisfied requirements are
+   * a compile-time error (array coverage / builder) and a runtime error before
+   * the adapter runs.
+   */
+  requires?: ReadonlyArray<CapabilityHandle>
+
+  /**
+   * Capabilities this middleware provides. Each declared capability MUST be
+   * provided (via its `provide` accessor) inside `setup`, or `chat()` throws
+   * after the setup phase.
+   */
+  provides?: ReadonlyArray<CapabilityHandle>
+
+  /**
+   * Capabilities this middleware uses if present but does not require.
+   * Non-gating: never causes a validation error. Read with
+   * `getX(ctx, { optional: true })`.
+   */
+  optionalRequires?: ReadonlyArray<CapabilityHandle>
+
+  /**
+   * Provisioning hook. Runs FIRST — before `onConfig` (init) — across all
+   * middleware in array order. Use it to call `provide` accessors so later
+   * middleware (`onConfig` onward) can consume the capabilities. Receives the
+   * stable context; does NOT receive the mutable config.
+   */
+  setup?: (ctx: ChatMiddlewareContext<TContext>) => void | Promise<void>
+
+  /**
    * Called to observe or transform the chat configuration.
    * Called at init and at the beginning of each agent iteration.
    *
@@ -476,3 +514,6 @@ export interface ChatMiddleware<TContext = unknown> {
     info: ErrorInfo,
   ) => void | Promise<void>
 }
+
+/** A `ChatMiddleware` with a permissive context — for use as a constraint. */
+export type AnyChatMiddleware = ChatMiddleware<any>
