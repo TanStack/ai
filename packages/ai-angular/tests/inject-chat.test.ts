@@ -9,7 +9,6 @@ import {
   createTextChunks,
   renderInjectChat,
 } from './test-utils'
-import type { ConnectConnectionAdapter } from '@tanstack/ai-client'
 
 const tick = () => new Promise((r) => setTimeout(r, 0))
 
@@ -122,31 +121,108 @@ describe('injectChat — reactive options', () => {
 })
 
 describe('injectChat — structured output', () => {
-  it('exposes partial then final when outputSchema is supplied', async () => {
-    const schema = z.object({ title: z.string() })
-    const adapter: ConnectConnectionAdapter = createMockConnectionAdapter({
-      chunks: createTextChunks('{"title":"Hi"}'),
-    })
+  // Mount injectChat directly so the `outputSchema` generic flows through and
+  // the schema-gated `partial` / `final` signals are present on the result.
+  // The shared renderInjectChat harness erases the schema type.
+  function mountStructuredHost(schema: z.ZodTypeAny) {
+    const adapter = createMockConnectionAdapter()
 
-    // Mount injectChat directly so the `outputSchema` generic flows through and
-    // the schema-gated `partial` / `final` signals are present on the result.
-    // The shared renderInjectChat harness erases the schema type.
     @Component({ standalone: true, template: '' })
     class StructuredHost {
       chat = injectChat({ connection: adapter, outputSchema: schema })
     }
     const fixture = TestBed.createComponent(StructuredHost)
     fixture.detectChanges()
-    const result = fixture.componentInstance.chat
+    return {
+      result: fixture.componentInstance.chat,
+      flush: () => fixture.detectChanges(),
+    }
+  }
 
-    await result.sendMessage('go')
-    await tick()
-    fixture.detectChanges()
+  it('partial → final transition via setMessages', () => {
+    const schema = z.object({ title: z.string() })
+    const { result, flush } = mountStructuredHost(schema)
 
-    expect(result.partial).toBeDefined()
-    expect(result.final).toBeDefined()
-    // partial is always an object (possibly empty); final is the validated
-    // value once the structured-output part reports complete, else null.
-    expect(typeof result.partial()).toBe('object')
+    // Feed a partial structured-output part (status: 'streaming').
+    result.setMessages([
+      {
+        id: 'u1',
+        role: 'user',
+        parts: [{ type: 'text', content: 'go' }],
+        createdAt: new Date(),
+      },
+      {
+        id: 'a1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'structured-output',
+            status: 'streaming',
+            partial: { title: 'Hi' },
+            raw: '{"title":"Hi"',
+          },
+        ],
+        createdAt: new Date(),
+      },
+    ])
+    flush()
+
+    expect(result.partial()).toEqual({ title: 'Hi' })
+    expect(result.final()).toBeNull()
+
+    // Transition to complete: status becomes 'complete' and data is populated.
+    result.setMessages([
+      {
+        id: 'u1',
+        role: 'user',
+        parts: [{ type: 'text', content: 'go' }],
+        createdAt: new Date(),
+      },
+      {
+        id: 'a1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'structured-output',
+            status: 'complete',
+            partial: { title: 'Hi' },
+            data: { title: 'Hi' },
+            raw: '{"title":"Hi"}',
+          },
+        ],
+        createdAt: new Date(),
+      },
+    ])
+    flush()
+
+    expect(result.final()).toEqual({ title: 'Hi' })
+    // partial() falls back to data when status is complete
+    expect(result.partial()).toMatchObject({ title: 'Hi' })
+  })
+
+  it('guard case: no preceding user message → final() is null', () => {
+    const schema = z.object({ title: z.string() })
+    const { result, flush } = mountStructuredHost(schema)
+
+    // Only an assistant message — no preceding user message.
+    result.setMessages([
+      {
+        id: 'a1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'structured-output',
+            status: 'complete',
+            data: { title: 'Hi' },
+            raw: '{"title":"Hi"}',
+          },
+        ],
+        createdAt: new Date(),
+      },
+    ])
+    flush()
+
+    // activeStructuredPart returns null when lastUserIndex === -1, so final() must be null.
+    expect(result.final()).toBeNull()
   })
 })
