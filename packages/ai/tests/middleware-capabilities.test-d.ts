@@ -63,3 +63,26 @@ chat({
   // @ts-expect-error sandbox capability is required but never provided.
   middleware: [providesPersistence, needsSandbox],
 })
+
+// ===========================
+// Task 9: order-aware createChatMiddleware builder
+// ===========================
+import { createChatMiddleware } from '../src/activities/chat/middleware/builder'
+
+const builderCap = createCapability<number>()('builder-cap')
+const buProvides = defineChatMiddleware({
+  name: 'p',
+  provides: [builderCap],
+  setup: (ctx) => builderCap[1](ctx, 1),
+})
+const buConsumes = defineChatMiddleware({ name: 'c', requires: [builderCap] })
+
+// OK: provider used before consumer.
+const built = createChatMiddleware().use(buProvides).use(buConsumes).build()
+expectTypeOf(built).toMatchTypeOf<ReadonlyArray<unknown>>()
+
+// @ts-expect-error consumer used before its requirement is provided.
+createChatMiddleware().use(buConsumes)
+
+// The fully-built array satisfies chat()'s coverage check.
+chat({ adapter: mockAdapter, messages: [], middleware: built })

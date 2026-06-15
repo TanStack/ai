@@ -4,6 +4,8 @@ import {
   CapabilityRegistry,
 } from '../src/activities/chat/middleware/capabilities'
 import { validateCapabilities } from '../src/activities/chat/middleware/validate'
+import { createChatMiddleware } from '../src/activities/chat/middleware/builder'
+import { defineChatMiddleware } from '../src/activities/chat/middleware/define'
 import type { CapabilityContext } from '../src/activities/chat/middleware/capabilities'
 import { MiddlewareRunner } from '../src/activities/chat/middleware/compose'
 import { resolveDebugOption } from '../src/logger/resolve'
@@ -221,5 +223,19 @@ describe('chat() capability integration', () => {
         middleware: [needsSandbox],
       }),
     ).toThrowError(/requires capability "sandbox-int"/i)
+  })
+})
+
+describe('createChatMiddleware builder', () => {
+  it('build() returns the middleware in use() order', () => {
+    const cap = createCapability<number>()('built-order')
+    const a = defineChatMiddleware({
+      name: 'a',
+      provides: [cap],
+      setup: (ctx) => cap[1](ctx, 1),
+    })
+    const b = defineChatMiddleware({ name: 'b', requires: [cap] })
+    const built = createChatMiddleware().use(a).use(b).build()
+    expect(built.map((m) => m.name)).toEqual(['a', 'b'])
   })
 })
