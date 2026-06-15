@@ -1083,7 +1083,7 @@ importers:
         specifier: workspace:*
         version: link:../ai-client
       tslib:
-        specifier: ^2.3.0
+        specifier: ^2.8.1
         version: 2.8.1
     devDependencies:
       '@analogjs/vite-plugin-angular':
@@ -1107,9 +1107,6 @@ importers:
       '@angular/platform-browser-dynamic':
         specifier: ^21.2.0
         version: 21.2.17(@angular/common@21.2.17(@angular/core@21.2.17(@angular/compiler@21.2.17)(rxjs@7.8.2)(zone.js@0.15.1))(rxjs@7.8.2))(@angular/compiler@21.2.17)(@angular/core@21.2.17(@angular/compiler@21.2.17)(rxjs@7.8.2)(zone.js@0.15.1))(@angular/platform-browser@21.2.17(@angular/common@21.2.17(@angular/core@21.2.17(@angular/compiler@21.2.17)(rxjs@7.8.2)(zone.js@0.15.1))(rxjs@7.8.2))(@angular/core@21.2.17(@angular/compiler@21.2.17)(rxjs@7.8.2)(zone.js@0.15.1)))
-      '@standard-schema/spec':
-        specifier: ^1.1.0
-        version: 1.1.0
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
