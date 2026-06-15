@@ -111,9 +111,15 @@ export function injectGeneration<
 
   let client: GenerationClient<TInput, TResult, TOutput>
   if (options.connection) {
-    client = new GenerationClient({ ...clientOptions, connection: options.connection })
+    client = new GenerationClient({
+      ...clientOptions,
+      connection: options.connection,
+    })
   } else if (options.fetcher) {
-    client = new GenerationClient({ ...clientOptions, fetcher: options.fetcher })
+    client = new GenerationClient({
+      ...clientOptions,
+      fetcher: options.fetcher,
+    })
   } else {
     throw new Error(
       'injectGeneration requires either a connection or fetcher option',

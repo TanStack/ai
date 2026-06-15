@@ -9,7 +9,11 @@ import type {
 import type { InjectGenerationOptions } from './inject-generation'
 
 export type InjectTranscriptionOptions<TOutput = TranscriptionResult> = Omit<
-  InjectGenerationOptions<TranscriptionGenerateInput, TranscriptionResult, TOutput>,
+  InjectGenerationOptions<
+    TranscriptionGenerateInput,
+    TranscriptionResult,
+    TOutput
+  >,
   'onResult'
 > & {
   onResult?: (result: TranscriptionResult) => TOutput | null | void
@@ -42,7 +46,11 @@ export function injectTranscription<
     outputKind: 'text' as const,
   }
   const { generate, result, isLoading, error, status, stop, reset } =
-    injectGeneration<TranscriptionGenerateInput, TranscriptionResult, TOnResult>({
+    injectGeneration<
+      TranscriptionGenerateInput,
+      TranscriptionResult,
+      TOnResult
+    >({
       ...options,
       devtools,
     })

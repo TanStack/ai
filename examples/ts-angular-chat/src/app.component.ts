@@ -18,7 +18,11 @@ import { getTimeTool } from './lib/chat-tools'
         @for (message of chat.messages(); track message.id) {
           <div
             class="rounded-lg px-3 py-2"
-            [class]="message.role === 'user' ? 'bg-orange-600/30 ml-auto max-w-[80%]' : 'bg-gray-800 max-w-[80%]'"
+            [class]="
+              message.role === 'user'
+                ? 'bg-orange-600/30 ml-auto max-w-[80%]'
+                : 'bg-gray-800 max-w-[80%]'
+            "
           >
             @for (part of message.parts; track $index) {
               @if (part.type === 'text') {
@@ -44,9 +48,20 @@ import { getTimeTool } from './lib/chat-tools'
           placeholder="Ask something…"
         />
         @if (chat.isLoading()) {
-          <button type="button" class="rounded-lg bg-gray-700 px-4 py-2 text-sm" (click)="chat.stop()">Stop</button>
+          <button
+            type="button"
+            class="rounded-lg bg-gray-700 px-4 py-2 text-sm"
+            (click)="chat.stop()"
+          >
+            Stop
+          </button>
         } @else {
-          <button type="submit" class="rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium">Send</button>
+          <button
+            type="submit"
+            class="rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium"
+          >
+            Send
+          </button>
         }
       </form>
     </div>

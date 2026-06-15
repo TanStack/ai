@@ -19,7 +19,10 @@ export {
 // when the Angular plugin creates separate ESM module instances for compiled
 // and setup files in Vitest).
 const testBedInstance = getTestBed() as any
-if (testBedInstance._compiler === null || testBedInstance._compiler === undefined) {
+if (
+  testBedInstance._compiler === null ||
+  testBedInstance._compiler === undefined
+) {
   getTestBed().initTestEnvironment(
     BrowserDynamicTestingModule,
     platformBrowserDynamicTesting(),

@@ -26,9 +26,7 @@ describe('injectChat() return type (angular)', () => {
   describe('with outputSchema', () => {
     it('exposes typed partial + final signals', () => {
       type R = InjectChatResult<NoTools, ConcretePersonSchema>
-      expectTypeOf<R['partial']>().toEqualTypeOf<
-        Signal<DeepPartial<Person>>
-      >()
+      expectTypeOf<R['partial']>().toEqualTypeOf<Signal<DeepPartial<Person>>>()
       expectTypeOf<R['final']>().toEqualTypeOf<Signal<Person | null>>()
     })
 

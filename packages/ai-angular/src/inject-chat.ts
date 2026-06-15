@@ -38,11 +38,11 @@ export function injectChat<
   TSchema extends SchemaInput | undefined = undefined,
   TContext = InferredClientContext<TTools>,
 >(
-  options: InjectChatOptions<TTools, TSchema, TContext> = {} as InjectChatOptions<
+  options: InjectChatOptions<
     TTools,
     TSchema,
     TContext
-  >,
+  > = {} as InjectChatOptions<TTools, TSchema, TContext>,
 ): InjectChatResult<TTools, TSchema> {
   type Partial = DeepPartial<InferSchemaType<NonNullable<TSchema>>>
   type Final = InferSchemaType<NonNullable<TSchema>>

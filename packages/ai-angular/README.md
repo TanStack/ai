@@ -79,14 +79,14 @@ export class ChatComponent {
 
 All state is exposed as Angular `Signal`s. Read them by calling them as functions:
 
-| Signal | Type | Description |
-| --- | --- | --- |
-| `chat.messages()` | `UIMessage[]` | Current message list |
-| `chat.isLoading()` | `boolean` | Whether a response is streaming |
-| `chat.error()` | `Error \| undefined` | Last error, if any |
-| `chat.status()` | `ChatClientState` | `'ready'`, `'streaming'`, `'error'`, ... |
-| `chat.isSubscribed()` | `boolean` | Whether a live (SSE push) session is active |
-| `chat.connectionStatus()` | `ConnectionStatus` | Transport connection status |
+| Signal                    | Type                 | Description                                 |
+| ------------------------- | -------------------- | ------------------------------------------- |
+| `chat.messages()`         | `UIMessage[]`        | Current message list                        |
+| `chat.isLoading()`        | `boolean`            | Whether a response is streaming             |
+| `chat.error()`            | `Error \| undefined` | Last error, if any                          |
+| `chat.status()`           | `ChatClientState`    | `'ready'`, `'streaming'`, `'error'`, ...    |
+| `chat.isSubscribed()`     | `boolean`            | Whether a live (SSE push) session is active |
+| `chat.connectionStatus()` | `ConnectionStatus`   | Transport connection status                 |
 
 Available methods on the return value: `sendMessage`, `append`, `reload`, `stop`, `clear`, `setMessages`, `addToolResult`, `addToolApprovalResponse`.
 
@@ -112,16 +112,16 @@ export async function POST(request: Request) {
 
 ## Available Functions
 
-| Function | Description |
-| --- | --- |
-| `injectChat` | Streaming chat with messages, tool calls, and structured outputs |
-| `injectGeneration` | Generic generation client (streaming or one-shot) |
-| `injectGenerateImage` | Image generation |
-| `injectGenerateAudio` | Audio generation |
-| `injectGenerateVideo` | Video generation |
-| `injectGenerateSpeech` | Text-to-speech |
-| `injectSummarize` | Summarization |
-| `injectTranscription` | Audio transcription |
+| Function               | Description                                                      |
+| ---------------------- | ---------------------------------------------------------------- |
+| `injectChat`           | Streaming chat with messages, tool calls, and structured outputs |
+| `injectGeneration`     | Generic generation client (streaming or one-shot)                |
+| `injectGenerateImage`  | Image generation                                                 |
+| `injectGenerateAudio`  | Audio generation                                                 |
+| `injectGenerateVideo`  | Video generation                                                 |
+| `injectGenerateSpeech` | Text-to-speech                                                   |
+| `injectSummarize`      | Summarization                                                    |
+| `injectTranscription`  | Audio transcription                                              |
 
 All generation functions return signals (`result`, `isLoading`, `error`, `status`) and methods (`generate`, `stop`, `reset`).
 
