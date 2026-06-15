@@ -39,7 +39,7 @@ export type Capability<TValue = unknown, TName extends string = string> = readon
 ] & {
   readonly capabilityName: TName
   /** @internal Presence check for the post-setup assertion. */
-  has(ctx: CapabilityContext): boolean
+  has: (ctx: CapabilityContext) => boolean
 }
 
 /**
