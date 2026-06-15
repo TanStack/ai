@@ -9,6 +9,10 @@
     "url": "git+https://github.com/TanStack/ai.git",
     "directory": "packages/ai-openai"
   },
+  "homepage": "https://github.com/TanStack/ai/tree/main/packages/ai-openai#readme",
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
   "type": "module",
   "module": "./dist/esm/index.js",
   "types": "./dist/esm/index.d.ts",
