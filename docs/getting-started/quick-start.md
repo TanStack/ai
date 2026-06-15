@@ -142,7 +142,7 @@ export async function POST(request: Request) {
 
 To use the chat API from your React frontend, create a `Chat` component:
 
-```typescript
+```tsx
 // components/Chat.tsx
 import { useState } from "react";
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";

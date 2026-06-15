@@ -16,15 +16,12 @@ export type OpenAIRealtimeVoice =
   | 'cedar'
 
 /**
- * OpenAI realtime model options
+ * OpenAI realtime model options.
+ *
+ * The `gpt-4o-(mini-)realtime-preview` models were shut down by OpenAI on
+ * 2026-05-07 and are no longer listed here.
  */
-export type OpenAIRealtimeModel =
-  | 'gpt-4o-realtime-preview'
-  | 'gpt-4o-realtime-preview-2024-10-01'
-  | 'gpt-4o-mini-realtime-preview'
-  | 'gpt-4o-mini-realtime-preview-2024-12-17'
-  | 'gpt-realtime'
-  | 'gpt-realtime-mini'
+export type OpenAIRealtimeModel = 'gpt-realtime' | 'gpt-realtime-mini'
 
 /**
  * OpenAI semantic VAD configuration
@@ -54,7 +51,7 @@ export type OpenAITurnDetection =
  * Options for the OpenAI realtime token adapter
  */
 export interface OpenAIRealtimeTokenOptions {
-  /** Model to use (default: 'gpt-4o-realtime-preview') */
+  /** Model to use (default: 'gpt-realtime') */
   model?: OpenAIRealtimeModel
 }
 
@@ -74,38 +71,18 @@ export interface OpenAIRealtimeOptions {
 }
 
 /**
- * OpenAI realtime session response from the API
+ * OpenAI GA realtime client secret response from
+ * `POST /v1/realtime/client_secrets`. Minimal shape — only the fields the
+ * token adapter reads.
  */
-export interface OpenAIRealtimeSessionResponse {
-  id: string
-  object: 'realtime.session'
-  model: string
-  modalities: Array<string>
-  instructions: string
-  voice: string
-  input_audio_format: string
-  output_audio_format: string
-  input_audio_transcription: {
+export interface OpenAIRealtimeClientSecretResponse {
+  /** Ephemeral key (`ek_…`) used as the bearer token for the WebRTC SDP exchange */
+  value: string
+  /** Unix timestamp (seconds) when the ephemeral key expires */
+  expires_at: number
+  /** Effective session config the key was minted for */
+  session: {
+    type: string
     model: string
-  } | null
-  turn_detection: {
-    type: string
-    threshold?: number
-    prefix_padding_ms?: number
-    silence_duration_ms?: number
-    eagerness?: string
-  } | null
-  tools: Array<{
-    type: string
-    name: string
-    description: string
-    parameters: Record<string, unknown>
-  }>
-  tool_choice: string
-  temperature: number
-  max_response_output_tokens: number | string
-  client_secret: {
-    value: string
-    expires_at: number
   }
 }

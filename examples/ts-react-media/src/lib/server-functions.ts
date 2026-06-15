@@ -29,11 +29,17 @@ export const generateImageFn = createServerFn({ method: 'POST' })
         })
       }
       case 'xai/grok-imagine-image': {
+        // NOTE: fal's generated `size` type for this model only offers
+        // `16:9_1K` / `16:9_4K`, but the live API rejects those resolutions
+        // ("Input should be '1k' or '2k'") — fal's published enum is out of
+        // sync with its API, so `'16:9_4K'` type-checks yet 422s at runtime.
+        // Pass aspect_ratio via modelOptions and let the endpoint pick its
+        // default resolution, which both type-checks and works at runtime.
         return generateImage({
           adapter: falImage('xai/grok-imagine-image'),
           prompt: data.prompt,
           numberOfImages: 1,
-          size: '16:9_4K',
+          modelOptions: { aspect_ratio: '16:9' },
         })
       }
       case 'fal-ai/flux-2/klein/9b': {

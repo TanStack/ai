@@ -1,6 +1,11 @@
 import { fal } from '@fal-ai/client'
 import { BaseVideoAdapter } from '@tanstack/ai/adapters'
-import { configureFalClient, generateId as utilGenerateId } from '../utils'
+import {
+  buildFalUsage,
+  configureFalClient,
+  takeBillableUnits,
+  generateId as utilGenerateId,
+} from '../utils'
 import { mapVideoSizeToFalFormat } from '../video/video-provider-options'
 import type {
   VideoGenerationOptions,
@@ -163,9 +168,12 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
       throw new Error('Video URL not found in response')
     }
 
+    const usage = buildFalUsage(takeBillableUnits(result.requestId))
+
     return {
       jobId,
       url,
+      ...(usage ? { usage } : {}),
     }
   }
 

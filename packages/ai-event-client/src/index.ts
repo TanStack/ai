@@ -223,6 +223,18 @@ export interface TokenUsage<TProviderDetails = ProviderUsageDetails> {
   completionTokensDetails?: CompletionTokensDetails
   /** Duration in seconds for duration-based billing (e.g., Whisper transcription) */
   durationSeconds?: number
+  /**
+   * Number of priced units actually billed, for usage-based (non-token) billing.
+   * This is a bare count, not a cost and not a unit name — the unit itself
+   * (megapixels, seconds, images, …) is provider-defined and not carried here;
+   * providers typically expose it via a separate pricing API. Surfaced for media
+   * generation, where there are no tokens: fal returns this count in its
+   * `x-fal-billable-units` response header. Multiply by the unit price to get the
+   * exact cost (`unitsBilled * unitPrice`). The unit-priced analogue of
+   * `durationSeconds` (the time-priced case); both are quantities, distinct from
+   * the monetary `cost` / `costDetails`.
+   */
+  unitsBilled?: number
   /** Provider-specific usage details not covered by standard fields */
   providerUsageDetails?: TProviderDetails
   /** Provider-reported cost for the request, when available. */
@@ -242,6 +254,7 @@ export type ToolCallState =
   | 'approval-requested' // Waiting for user approval
   | 'approval-responded' // User has approved/denied
   | 'complete' // Result is complete
+  | 'error' // Tool execution failed (terminal)
 
 /**
  * Tool result states - track the lifecycle of a tool result

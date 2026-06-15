@@ -29,5 +29,9 @@ test.describe('Tool Error Handling', () => {
       (tc: { name: string }) => tc.name === 'failing_tool',
     )
     expect(failingCall).toBeDefined()
+    // The failed tool-call part reaches the terminal 'error' state, so UIs can
+    // distinguish "failed" from "still executing" without reverse-engineering
+    // the output shape (issue #718).
+    expect(failingCall?.state).toBe('error')
   })
 })

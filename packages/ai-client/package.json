@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-client",
-  "version": "0.16.2",
+  "version": "0.17.0",
   "description": "Framework-agnostic headless client for TanStack AI chat, realtime sessions, streaming transports, and media generations.",
   "author": "",
   "license": "MIT",

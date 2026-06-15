@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-preact",
-  "version": "0.9.3",
+  "version": "0.9.5",
   "description": "Preact hooks for TanStack AI streaming chat and typed messages.",
   "author": "",
   "license": "MIT",

@@ -1,5 +1,30 @@
 # @tanstack/ai-openai
 
+## 0.14.2
+
+### Patch Changes
+
+- [#699](https://github.com/TanStack/ai/pull/699) [`215b6b4`](https://github.com/TanStack/ai/commit/215b6b401aa95d1d38da342aa09603cb1d616929) - Migrate the OpenAI realtime adapters from the retired Beta API (shut down 2026-05-12) to the GA API:
+  - `openaiRealtime()` now exchanges WebRTC SDP via `POST /v1/realtime/calls` (the Beta `?model=` shape returned `beta_api_shape_disabled`).
+  - `openaiRealtimeToken()` now mints ephemeral keys via `POST /v1/realtime/client_secrets` instead of the retired `/v1/realtime/sessions`, and parses the GA top-level `value`/`expires_at` response shape.
+  - `session.update` payloads use the GA shape: required `session.type`, `audio.input.transcription`, `audio.input.turn_detection`, `audio.output.voice`, `output_modalities`, and `max_output_tokens`. `temperature` was removed from the GA session config and is no longer sent (a debug log notes when it is dropped).
+  - Server events are handled under their GA names (`response.output_audio_transcript.*`, `response.output_audio.*`, `output_text`/`output_audio` content parts).
+  - The default realtime model is now `gpt-realtime`; the `gpt-4o-(mini-)realtime-preview` ids (shut down by OpenAI on 2026-05-07) were removed from `OpenAIRealtimeModel`.
+
+- Updated dependencies [[`ff267a5`](https://github.com/TanStack/ai/commit/ff267a5536327b006979f9f28ce2df7cc27f6e23), [`570c08a`](https://github.com/TanStack/ai/commit/570c08a8d1a35746c3d31a63188249cba2d2475a), [`22c9b42`](https://github.com/TanStack/ai/commit/22c9b42baec74914b720e440f29bd02be04eb164), [`215b6b4`](https://github.com/TanStack/ai/commit/215b6b401aa95d1d38da342aa09603cb1d616929), [`7d44569`](https://github.com/TanStack/ai/commit/7d445693ea079d7a85498a4465179ddd5f548cb0)]:
+  - @tanstack/ai@0.29.0
+  - @tanstack/ai-client@0.17.0
+  - @tanstack/openai-base@0.8.2
+
+## 0.14.1
+
+### Patch Changes
+
+- Updated dependencies [[`496e814`](https://github.com/TanStack/ai/commit/496e8143435746965b10e0bbd12f26ebf04ae2a6), [`c0af426`](https://github.com/TanStack/ai/commit/c0af4262d269be67c69d6f878d9618f25fdeee19), [`00e0c93`](https://github.com/TanStack/ai/commit/00e0c932e6cb5e31f75f4b5e94486d7eb02b9ce1), [`496e814`](https://github.com/TanStack/ai/commit/496e8143435746965b10e0bbd12f26ebf04ae2a6), [`496e814`](https://github.com/TanStack/ai/commit/496e8143435746965b10e0bbd12f26ebf04ae2a6)]:
+  - @tanstack/ai@0.28.0
+  - @tanstack/openai-base@0.8.1
+  - @tanstack/ai-client@0.16.3
+
 ## 0.14.0
 
 ### Minor Changes

@@ -30,7 +30,7 @@ npm install @tanstack/ai-react
 
 Main hook for managing chat state in React with full type safety.
 
-```typescript
+```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import { 
   clientTools, 
@@ -144,7 +144,7 @@ For error narrowing, import `UnsupportedResponseStreamError` and
 
 ## Example: Basic Chat
 
-```typescript
+```tsx
 import { useState } from "react";
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
@@ -202,7 +202,7 @@ export function Chat() {
 
 ## Example: Tool Approval
 
-```typescript
+```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
 export function ChatWithApproval() {
@@ -255,7 +255,7 @@ export function ChatWithApproval() {
 
 ## Example: Client Tools with Type Safety
 
-```typescript
+```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import { 
   clientTools, 

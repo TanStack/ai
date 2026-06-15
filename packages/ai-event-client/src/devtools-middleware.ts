@@ -39,6 +39,11 @@ interface DevtoolsToolCallEndChunk {
   toolCallId: string
   result?: string
 }
+interface DevtoolsToolCallResultChunk {
+  type: 'TOOL_CALL_RESULT'
+  toolCallId: string
+  content?: string
+}
 interface DevtoolsRunFinishedChunk {
   type: 'RUN_FINISHED'
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
@@ -60,6 +65,7 @@ type DevtoolsKnownChunk =
   | DevtoolsToolCallStartChunk
   | DevtoolsToolCallArgsChunk
   | DevtoolsToolCallEndChunk
+  | DevtoolsToolCallResultChunk
   | DevtoolsRunFinishedChunk
   | DevtoolsRunErrorChunk
   | DevtoolsStepFinishedChunk
@@ -75,6 +81,7 @@ const KNOWN_CHUNK_TYPES: ReadonlySet<DevtoolsKnownChunk['type']> = new Set([
   'TOOL_CALL_START',
   'TOOL_CALL_ARGS',
   'TOOL_CALL_END',
+  'TOOL_CALL_RESULT',
   'RUN_FINISHED',
   'RUN_ERROR',
   'STEP_FINISHED',
@@ -381,6 +388,21 @@ export function devtoolsMiddleware(): DevtoolsChatMiddleware {
             messageId: localMessageId || undefined,
             toolCallId: chunk.toolCallId,
             result: chunk.result || '',
+            timestamp: Date.now(),
+          })
+          break
+        }
+        case 'TOOL_CALL_RESULT': {
+          // Server-executed tool results arrive on the spec-compliant
+          // TOOL_CALL_RESULT event (the adapter's TOOL_CALL_END carries only
+          // the parsed input). Surface them to devtools from here so results
+          // still show up now that the post-execution END is no longer
+          // re-emitted (#519).
+          safeEmit('text:chunk:tool-result', {
+            ...base,
+            messageId: localMessageId || undefined,
+            toolCallId: chunk.toolCallId,
+            result: chunk.content || '',
             timestamp: Date.now(),
           })
           break

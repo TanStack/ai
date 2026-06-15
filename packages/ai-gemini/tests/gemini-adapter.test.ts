@@ -54,7 +54,7 @@ vi.mock('@google/genai', async () => {
 const createTextAdapter = () =>
   new GeminiTextAdapter({ apiKey: 'test-key' }, 'gemini-2.5-pro')
 const createSummarizeAdapter = () =>
-  createGeminiSummarize('test-key', 'gemini-2.0-flash')
+  createGeminiSummarize('test-key', 'gemini-2.5-flash')
 
 const weatherTool: Tool = {
   name: 'lookup_weather',
@@ -859,7 +859,7 @@ describe('GeminiAdapter through AI', () => {
 
     const adapter = new GeminiTextAdapter(
       { apiKey: 'test-key' },
-      'gemini-3-pro-preview',
+      'gemini-3.1-pro-preview',
     )
     expect(adapter.supportsCombinedToolsAndSchema()).toBe(true)
 
@@ -879,7 +879,7 @@ describe('GeminiAdapter through AI', () => {
 
     expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
     const [payload] = mocks.generateContentStreamSpy.mock.calls[0]!
-    expect(payload.model).toBe('gemini-3-pro-preview')
+    expect(payload.model).toBe('gemini-3.1-pro-preview')
     expect(payload.config).toMatchObject({
       responseMimeType: 'application/json',
       responseSchema: expect.objectContaining({ type: 'object' }),
@@ -933,7 +933,7 @@ describe('GeminiAdapter through AI', () => {
 
     expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
     const [payload] = mocks.generateContentStreamSpy.mock.calls[0]!
-    expect(payload.model).toBe('gemini-2.0-flash')
+    expect(payload.model).toBe('gemini-2.5-flash')
     expect(payload.config.systemInstruction).toContain(
       'professional summarizer',
     )

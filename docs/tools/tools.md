@@ -217,7 +217,7 @@ export async function POST(request: Request) {
 
 ### Client-Side with Type Safety
 
-```typescript
+```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import { 
   clientTools, 

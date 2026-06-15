@@ -8,3 +8,5 @@ export {
   deriveAudioContentType,
   type FalClientConfig,
 } from './client'
+
+export { takeBillableUnits, buildFalUsage } from './billing'

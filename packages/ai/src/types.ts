@@ -51,6 +51,7 @@ export type ToolCallState =
   | 'approval-requested' // Waiting for user approval
   | 'approval-responded' // User has approved/denied
   | 'complete' // Result is complete
+  | 'error' // Tool execution failed (terminal)
 
 /**
  * Tool result states - track the lifecycle of a tool result
@@ -1656,6 +1657,12 @@ export interface VideoUrlResult {
   url: string
   /** When the URL expires, if applicable */
   expiresAt?: Date
+  /**
+   * Usage information for the completed generation, when the adapter can report
+   * it. For usage-based providers (e.g. fal) this carries `unitsBilled` — the
+   * real billed quantity — so consumers can compute exact cost.
+   */
+  usage?: TokenUsage
 }
 
 // ============================================================================
