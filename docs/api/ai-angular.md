@@ -30,11 +30,6 @@ Main injectable for managing chat state in Angular with full type safety.
 ```typescript
 import { Component } from "@angular/core";
 import { injectChat, fetchServerSentEvents } from "@tanstack/ai-angular";
-import {
-  clientTools,
-  createChatClientOptions,
-  type InferChatMessages,
-} from "@tanstack/ai-client";
 
 @Component({
   selector: "app-chat",
@@ -45,12 +40,8 @@ export class ChatComponent {
   // injectChat is called in a field initializer — valid injection context.
   chat = injectChat({
     connection: fetchServerSentEvents("/api/chat"),
-    tools: clientTools(updateUI),
   });
 }
-
-// Fully typed messages!
-type ChatMessages = InferChatMessages<typeof chatOptions>;
 ```
 
 ### Options
@@ -526,11 +517,6 @@ type Messages = InferChatMessages<typeof chatOptions>;
 Re-exported from `@tanstack/ai-angular` (sourced from `@tanstack/ai-client`):
 
 - `UIMessage<TTools>` - Message type with tool type parameter
-- `MessagePart<TTools>` - Message part with tool type parameter
-- `TextPart` - Text content part
-- `ThinkingPart` - Thinking content part
-- `ToolCallPart<TTools>` - Tool call part (discriminated union)
-- `ToolResultPart` - Tool result part
 - `InjectChatOptions<TTools, TSchema, TContext>` - Chat injectable options
 - `InjectChatResult<TTools, TSchema>` - Chat injectable return type
 - `ReactiveOption<T>` - Union of `T | Signal<T> | (() => T)` for reactive option fields
@@ -549,7 +535,7 @@ Re-exported from `@tanstack/ai-angular` (sourced from `@tanstack/ai-client`):
 - `VideoGenerateResult` - Video generation result type
 - `VideoStatusInfo` - Video job status info
 
-Re-exported from `@tanstack/ai`:
+Tool authoring types — import directly from `@tanstack/ai` (not re-exported by `@tanstack/ai-angular`):
 
 - `toolDefinition()` - Create isomorphic tool definition
 - `ToolDefinitionInstance` - Tool definition type
