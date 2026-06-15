@@ -34,6 +34,10 @@
           "to": "getting-started/quick-start-svelte"
         },
         {
+          "label": "Quick Start: Angular",
+          "to": "getting-started/quick-start-angular"
+        },
+        {
           "label": "Quick Start: Server Only",
           "to": "getting-started/quick-start-server"
         },
@@ -318,6 +322,10 @@
         {
           "label": "@tanstack/ai-svelte",
           "to": "api/ai-svelte"
+        },
+        {
+          "label": "@tanstack/ai-angular",
+          "to": "api/ai-angular"
         }
       ]
     },
