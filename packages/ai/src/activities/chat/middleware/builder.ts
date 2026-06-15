@@ -47,10 +47,11 @@ type MissingNames<TList extends ReadonlyArray<AnyChatMiddleware>> =
  * marker (not assignable to a middleware array) — producing a compile error at
  * the `middleware` option that names the missing capability.
  */
-export type CheckCoverage<TList extends ReadonlyArray<AnyChatMiddleware>> =
-  [MissingNames<TList>] extends [never]
-    ? TList
-    : MissingCapabilities<MissingNames<TList>>
+export type CheckCoverage<TList extends ReadonlyArray<AnyChatMiddleware>> = [
+  MissingNames<TList>,
+] extends [never]
+  ? TList
+  : MissingCapabilities<MissingNames<TList>>
 
 /**
  * Order-aware middleware builder. Each `.use()` requires that the middleware's

@@ -33,7 +33,10 @@ export type CapabilityProvider<TValue> = (
  * used for diagnostics and COMPILE-TIME tracking only — capability names MUST be
  * unique across an app or the type-level coverage check conflates them.
  */
-export type Capability<TValue = unknown, TName extends string = string> = readonly [
+export type Capability<
+  TValue = unknown,
+  TName extends string = string,
+> = readonly [
   get: CapabilityGetter<TValue>,
   provide: CapabilityProvider<TValue>,
 ] & {
@@ -110,14 +113,21 @@ export class CapabilityRegistry {
  */
 export function createCapability<TValue = unknown>(): <
   const TName extends string,
->(name: TName) => Capability<TValue, TName> {
-  return <const TName extends string>(name: TName): Capability<TValue, TName> => {
+>(
+  name: TName,
+) => Capability<TValue, TName> {
+  return <const TName extends string>(
+    name: TName,
+  ): Capability<TValue, TName> => {
     // Each capability owns a typed WeakMap keyed by the context object. Because
     // the value type is TValue, reads are typed with no assertion.
     const values = new WeakMap<CapabilityContext, TValue>()
 
     function get(ctx: CapabilityContext): TValue
-    function get(ctx: CapabilityContext, opts: { optional: true }): TValue | undefined
+    function get(
+      ctx: CapabilityContext,
+      opts: { optional: true },
+    ): TValue | undefined
     function get(
       ctx: CapabilityContext,
       opts?: CapabilityGetOptions,
@@ -137,10 +147,10 @@ export function createCapability<TValue = unknown>(): <
       ctx.capabilities.markProvided(handle)
     }
 
-    const pair: readonly [CapabilityGetter<TValue>, CapabilityProvider<TValue>] = [
-      get,
-      provide,
-    ]
+    const pair: readonly [
+      CapabilityGetter<TValue>,
+      CapabilityProvider<TValue>,
+    ] = [get, provide]
     // Object.assign's return type is the intersection of the tuple and the
     // props, which IS Capability<TValue, TName> — no cast needed.
     const handle = Object.assign(pair, {

@@ -34,7 +34,9 @@ describe('createCapability + CapabilityRegistry', () => {
   it('get throws a named error when absent', () => {
     const [getThing] = createCapability<number>()('counter')
     const ctx = makeCtx()
-    expect(() => getThing(ctx)).toThrowError(/capability "counter".*never provided/i)
+    expect(() => getThing(ctx)).toThrowError(
+      /capability "counter".*never provided/i,
+    )
   })
 
   it('get with { optional: true } returns undefined when absent', () => {
@@ -214,7 +216,10 @@ describe('chat() capability integration', () => {
 
   it('throws synchronously when a required capability is unprovided', () => {
     const sandbox = createCapability<number>()('sandbox-int')
-    const needsSandbox: ChatMiddleware = { name: 'needs-sandbox', requires: [sandbox] }
+    const needsSandbox: ChatMiddleware = {
+      name: 'needs-sandbox',
+      requires: [sandbox],
+    }
     const { adapter } = createMockAdapter({ iterations: [[]] })
     expect(() =>
       chat({
