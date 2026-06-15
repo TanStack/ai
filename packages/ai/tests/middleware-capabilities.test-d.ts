@@ -4,8 +4,8 @@ import { createCapability } from '../src/activities/chat/middleware/capabilities
 import { defineChatMiddleware } from '../src/activities/chat/middleware/define'
 import type { AnyTextAdapter } from '../src/activities/chat/adapter'
 
-const aCap = createCapability<{ a: number }>('a')
-const bCap = createCapability<{ b: string }>('b')
+const aCap = createCapability<{ a: number }>()('a')
+const bCap = createCapability<{ b: string }>()('b')
 
 const mw = defineChatMiddleware({
   name: 'demo',
@@ -31,17 +31,9 @@ expectTypeOf(mw.requires).toEqualTypeOf<readonly [typeof bCap] | undefined>()
 // the repo's existing permissive adapter alias.
 declare const mockAdapter: AnyTextAdapter
 
-// NOTE: both type args are supplied explicitly. Passing only `<number>`
-// suppresses inference of the `const TName` parameter (TS falls back to its
-// `string` default once any type arg is given), which would erase the name
-// literal the coverage check keys on. Supplying the name type too keeps the
-// precise literal. See task report for the broader `createCapability` gap.
-const sandboxCap = createCapability<number, 'sandbox-typecheck'>(
-  'sandbox-typecheck',
-)
-const persistenceCap = createCapability<number, 'persistence-typecheck'>(
-  'persistence-typecheck',
-)
+// Curried form: value type explicit, name literal inferred from the argument.
+const sandboxCap = createCapability<number>()('sandbox-typecheck')
+const persistenceCap = createCapability<number>()('persistence-typecheck')
 
 const providesPersistence = defineChatMiddleware({
   name: 'persistence',

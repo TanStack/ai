@@ -79,49 +79,57 @@ export class CapabilityRegistry {
  * Create a capability. Returns a hybrid handle that destructures to
  * `[get, provide]` and is itself the identity for `requires`/`provides`.
  *
- * @param name Diagnostics label. MUST be unique across your app — compile-time
- *   coverage tracking keys on this literal (runtime keys on reference).
+ * Curried so the value type is supplied explicitly while the name literal is
+ * INFERRED from the argument: `createCapability<T>()('name')`. (A single call
+ * `createCapability<T>('name')` cannot work — supplying `T` explicitly stops
+ * TypeScript inferring the name, collapsing it to `string` and defeating the
+ * compile-time coverage check that keys on the literal name.)
  *
  * @example
  * ```ts
- * const persistenceCapability = createCapability<ChatPersistence>('persistence')
+ * const persistenceCapability = createCapability<ChatPersistence>()('persistence')
  * const [getPersistence, providePersistence] = persistenceCapability
  * ```
  */
-export function createCapability<TValue, const TName extends string = string>(
-  name: TName,
-): Capability<TValue, TName> {
-  // Each capability owns a typed WeakMap keyed by the context object. Because
-  // the value type is TValue, reads are typed with no assertion.
-  const values = new WeakMap<CapabilityContext, TValue>()
+export function createCapability<TValue = unknown>(): <
+  const TName extends string,
+>(name: TName) => Capability<TValue, TName> {
+  return <const TName extends string>(name: TName): Capability<TValue, TName> => {
+    // Each capability owns a typed WeakMap keyed by the context object. Because
+    // the value type is TValue, reads are typed with no assertion.
+    const values = new WeakMap<CapabilityContext, TValue>()
 
-  function get(ctx: CapabilityContext): TValue
-  function get(ctx: CapabilityContext, opts: { optional: true }): TValue | undefined
-  function get(ctx: CapabilityContext, opts?: CapabilityGetOptions): TValue | undefined {
-    if (!values.has(ctx)) {
-      if (opts?.optional) return undefined
-      throw new Error(
-        `Capability "${name}" was requested but never provided. Ensure a ` +
-          `middleware provides it in setup(), ordered before this consumer.`,
-      )
+    function get(ctx: CapabilityContext): TValue
+    function get(ctx: CapabilityContext, opts: { optional: true }): TValue | undefined
+    function get(
+      ctx: CapabilityContext,
+      opts?: CapabilityGetOptions,
+    ): TValue | undefined {
+      if (!values.has(ctx)) {
+        if (opts?.optional) return undefined
+        throw new Error(
+          `Capability "${name}" was requested but never provided. Ensure a ` +
+            `middleware provides it in setup(), ordered before this consumer.`,
+        )
+      }
+      return values.get(ctx)
     }
-    return values.get(ctx)
-  }
 
-  const provide: CapabilityProvider<TValue> = (ctx, value) => {
-    values.set(ctx, value)
-    ctx.capabilities.markProvided(handle)
-  }
+    const provide: CapabilityProvider<TValue> = (ctx, value) => {
+      values.set(ctx, value)
+      ctx.capabilities.markProvided(handle)
+    }
 
-  const pair: readonly [CapabilityGetter<TValue>, CapabilityProvider<TValue>] = [
-    get,
-    provide,
-  ]
-  // Object.assign's return type is the intersection of the tuple and the props,
-  // which IS Capability<TValue, TName> — no cast needed.
-  const handle = Object.assign(pair, {
-    capabilityName: name,
-    has: (ctx: CapabilityContext) => values.has(ctx),
-  })
-  return handle
+    const pair: readonly [CapabilityGetter<TValue>, CapabilityProvider<TValue>] = [
+      get,
+      provide,
+    ]
+    // Object.assign's return type is the intersection of the tuple and the
+    // props, which IS Capability<TValue, TName> — no cast needed.
+    const handle = Object.assign(pair, {
+      capabilityName: name,
+      has: (ctx: CapabilityContext) => values.has(ctx),
+    })
+    return handle
+  }
 }

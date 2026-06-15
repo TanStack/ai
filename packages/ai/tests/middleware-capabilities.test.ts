@@ -22,7 +22,7 @@ function makeCtx(): CapabilityContext {
 
 describe('createCapability + CapabilityRegistry', () => {
   it('provides and gets a value by handle reference', () => {
-    const cap = createCapability<{ n: number }>('thing')
+    const cap = createCapability<{ n: number }>()('thing')
     const [getThing, provideThing] = cap
     const ctx = makeCtx()
     provideThing(ctx, { n: 1 })
@@ -30,20 +30,20 @@ describe('createCapability + CapabilityRegistry', () => {
   })
 
   it('get throws a named error when absent', () => {
-    const [getThing] = createCapability<number>('counter')
+    const [getThing] = createCapability<number>()('counter')
     const ctx = makeCtx()
     expect(() => getThing(ctx)).toThrowError(/capability "counter".*never provided/i)
   })
 
   it('get with { optional: true } returns undefined when absent', () => {
-    const [getThing] = createCapability<number>('counter')
+    const [getThing] = createCapability<number>()('counter')
     const ctx = makeCtx()
     expect(getThing(ctx, { optional: true })).toBeUndefined()
   })
 
   it('two capabilities with the same name are distinct identities', () => {
-    const [getA, provideA] = createCapability<string>('dup')
-    const [getB] = createCapability<string>('dup')
+    const [getA, provideA] = createCapability<string>()('dup')
+    const [getB] = createCapability<string>()('dup')
     const ctx = makeCtx()
     provideA(ctx, 'a')
     expect(getA(ctx)).toBe('a')
@@ -51,12 +51,12 @@ describe('createCapability + CapabilityRegistry', () => {
   })
 
   it('exposes capabilityName for diagnostics', () => {
-    const cap = createCapability<number>('labelled')
+    const cap = createCapability<number>()('labelled')
     expect(cap.capabilityName).toBe('labelled')
   })
 
   it('duplicate provide is last-wins and notifies the registry', () => {
-    const [getThing, provideThing] = createCapability<number>('over')
+    const [getThing, provideThing] = createCapability<number>()('over')
     const ctx = makeCtx()
     const warn = vi.fn()
     ctx.capabilities.setOnDuplicate(warn)
@@ -99,7 +99,7 @@ function makeRunnerCtx(): ChatMiddlewareContext {
 
 describe('MiddlewareRunner.runSetup', () => {
   it('runs setup hooks in array order before consumers can read', async () => {
-    const aCap = createCapability<number>('order-a')
+    const aCap = createCapability<number>()('order-a')
     const [getA, provideA] = aCap
     const order: Array<string> = []
     const provider: ChatMiddleware = {
@@ -127,7 +127,7 @@ describe('MiddlewareRunner.runSetup', () => {
   })
 
   it('throws if a middleware declares provides but never provides in setup', async () => {
-    const cap = createCapability<number>('declared-not-provided')
+    const cap = createCapability<number>()('declared-not-provided')
     const broken: ChatMiddleware = {
       name: 'broken',
       provides: [cap],
@@ -142,7 +142,7 @@ describe('MiddlewareRunner.runSetup', () => {
 
 describe('validateCapabilities', () => {
   it('passes when all middleware + adapter requires are provided', () => {
-    const cap = createCapability<number>('ok-cap')
+    const cap = createCapability<number>()('ok-cap')
     const provider: ChatMiddleware = { name: 'p', provides: [cap] }
     const consumer: ChatMiddleware = { name: 'c', requires: [cap] }
     expect(() =>
@@ -151,8 +151,8 @@ describe('validateCapabilities', () => {
   })
 
   it('throws naming the missing capability and listing provided ones', () => {
-    const sandbox = createCapability<number>('sandbox')
-    const persistence = createCapability<number>('persistence')
+    const sandbox = createCapability<number>()('sandbox')
+    const persistence = createCapability<number>()('persistence')
     const adapter = { name: 'claude-code', requires: [sandbox] }
     const mw: ChatMiddleware = { name: 'persistence', provides: [persistence] }
     expect(() => validateCapabilities([mw], adapter)).toThrowError(
@@ -161,7 +161,7 @@ describe('validateCapabilities', () => {
   })
 
   it('ignores optionalRequires when computing missing', () => {
-    const opt = createCapability<number>('opt')
+    const opt = createCapability<number>()('opt')
     const mw: ChatMiddleware = { name: 'x', optionalRequires: [opt] }
     expect(() => validateCapabilities([mw], { name: 'a' })).not.toThrow()
   })
@@ -169,7 +169,7 @@ describe('validateCapabilities', () => {
 
 describe('chat() capability integration', () => {
   it('runs setup before onConfig and lets onConfig consume a capability', async () => {
-    const cap = createCapability<{ greeting: string }>('greeter')
+    const cap = createCapability<{ greeting: string }>()('greeter')
     const [getGreeting, provideGreeting] = cap
     const seen: Array<string> = []
     const provider: ChatMiddleware = {
@@ -211,7 +211,7 @@ describe('chat() capability integration', () => {
   })
 
   it('throws synchronously when a required capability is unprovided', () => {
-    const sandbox = createCapability<number>('sandbox-int')
+    const sandbox = createCapability<number>()('sandbox-int')
     const needsSandbox: ChatMiddleware = { name: 'needs-sandbox', requires: [sandbox] }
     const { adapter } = createMockAdapter({ iterations: [[]] })
     expect(() =>
