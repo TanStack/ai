@@ -630,6 +630,35 @@ and piping into a custom logger.
 
 ---
 
+## Validating inputs before submitting
+
+Media endpoints reject many invalid inputs silently (a `duration: "10"` that
+the model doesn't support, an `image_size` outside the allowed set). The
+companion `@tanstack/ai-schemas` package ships per-endpoint JSON Schema +
+Zod definitions, generated nightly from each provider's official OpenAPI
+spec. Parse the request before sending and surface the issues client-side
+instead of paying for a round-trip:
+
+```ts
+import { falVideoEndpointZodMap } from '@tanstack/ai-schemas/fal/video/zod'
+
+const validated =
+  falVideoEndpointZodMap[
+    'fal-ai/kling-video/o3/pro/text-to-video'
+  ].input.safeParse(requestBody)
+if (!validated.success) throw validated.error
+```
+
+Schemas are grouped per provider by activity (`chat`, `image`, `video`,
+`audio`, `embeddings`, `moderation`); all audio endpoints (TTS,
+transcription, music, sound effects) live in the single `audio` group. Use
+the JSON Schema side (`{provider}/{activity}/json-schema`) when building
+dropdowns or exposing allowed values to an LLM — each schema bundles its
+`$defs` closure so it can be handed straight to a tool-use API. There is no
+aggregator barrel: importing `@tanstack/ai-schemas/gemini/chat/json-schema`
+ships only Gemini's chat schemas, no other provider's or activity's bytes.
+Binary-response endpoints (e.g. ElevenLabs TTS) map only an `input` schema.
+
 ## Cross-References
 
 - See also: **ai-core/adapter-configuration/SKILL.md** -- Each media
@@ -641,3 +670,5 @@ and piping into a custom logger.
   returns unexpected output or fails mid-stream, toggle `debug: true` on
   any `generate*()` call to see request metadata, raw provider chunks, and
   errors. Covers per-category toggling and piping into pino/winston.
+- See also: `@tanstack/ai-schemas` package -- runtime JSON Schema + Zod for
+  every provider endpoint, generated nightly from upstream OpenAPI.

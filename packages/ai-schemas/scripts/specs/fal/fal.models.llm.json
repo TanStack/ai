@@ -1,0 +1,2316 @@
+{
+  "generated_at": "2026-06-11T02:20:29.632Z",
+  "total_models": 7,
+  "category": "llm",
+  "models": [
+    {
+      "endpoint_id": "openrouter/router/openai/v1/chat/completions",
+      "metadata": {
+        "display_name": "OpenRouter Chat Completions [OpenAI Compatible]",
+        "category": "llm",
+        "description": "OpenAI-compatible chat completions API. Drop-in replacement for the OpenAI API — use any OpenAI SDK or client to access Claude, Gemini, Grok, DeepSeek, Llama, Qwen, Mistral, and all OpenAI models (GPT-5, GPT-4o, o3) through fal. Powered by OpenRouter.",
+        "status": "active",
+        "tags": [],
+        "updated_at": "2026-05-06T21:21:33.117Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/kangaroo/tll4XzKQE4bopYdZOX1q2_c3e4d28642484971932f8dbe3523af5a.jpg",
+        "model_url": "https://fal.run/openrouter/router/openai/v1/chat/completions",
+        "license_type": "commercial",
+        "date": "2025-11-12T20:15:52.898Z",
+        "group": {
+          "key": "openrouter/router",
+          "label": "Chat Completions [OpenAI Compatible]"
+        },
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for openrouter/router/openai/v1/chat/completions",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the openrouter/router/openai/v1/chat/completions queue.",
+          "x-fal-metadata": {
+            "endpointId": "openrouter/router/openai/v1/chat/completions",
+            "category": "llm",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/kangaroo/tll4XzKQE4bopYdZOX1q2_c3e4d28642484971932f8dbe3523af5a.jpg",
+            "playgroundUrl": "https://fal.ai/models/openrouter/router/openai/v1/chat/completions",
+            "documentationUrl": "https://fal.ai/models/openrouter/router/openai/v1/chat/completions/api",
+            "about": "Run any LLM (Large Language Model) with fal, powered by OpenRouter.\nThis endpoint is compatible with the OpenAI API. You can use this endpoint\nwith any OpenAI compatible client."
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": ["IN_QUEUE", "IN_PROGRESS", "COMPLETED"]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": ["status", "request_id"]
+            },
+            "RouterOpenaiV1ChatCompletionsOutput": {}
+          }
+        },
+        "paths": {
+          "/openrouter/router/openai/v1/chat/completions/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/openai/v1/chat/completions/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/openai/v1/chat/completions": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/RouterOpenaiV1ChatCompletionsInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/openai/v1/chat/completions/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/RouterOpenaiV1ChatCompletionsOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "openrouter/router",
+      "metadata": {
+        "display_name": "OpenRouter",
+        "category": "llm",
+        "description": "Run any LLM with fal. Access Claude (Anthropic), ChatGPT / GPT-5 / GPT-4o (OpenAI), Gemini (Google), Grok (xAI), DeepSeek, Llama (Meta), Qwen (Alibaba), Mistral, and 200+ more models through a single API. Supports reasoning, structured output, and streaming. Powered by OpenRouter.",
+        "status": "active",
+        "tags": [],
+        "updated_at": "2026-05-06T21:21:33.117Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/rabbit/ZNwvLfWhMW6FsYU4bwn2N_365de1c02b7c4c42bec7659c157b6da4.jpg",
+        "model_url": "https://fal.run/openrouter/router",
+        "license_type": "commercial",
+        "date": "2025-11-12T20:17:58.937Z",
+        "group": {
+          "key": "openrouter/router",
+          "label": "Any LLM"
+        },
+        "highlighted": false,
+        "kind": "inference",
+        "stream_url": "https://fal.run/openrouter/router/stream",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for openrouter/router",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the openrouter/router queue.",
+          "x-fal-metadata": {
+            "endpointId": "openrouter/router",
+            "category": "llm",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/rabbit/ZNwvLfWhMW6FsYU4bwn2N_365de1c02b7c4c42bec7659c157b6da4.jpg",
+            "playgroundUrl": "https://fal.ai/models/openrouter/router",
+            "documentationUrl": "https://fal.ai/models/openrouter/router/api",
+            "about": "Run any LLM (Large Language Model) with fal, powered by OpenRouter."
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": ["IN_QUEUE", "IN_PROGRESS", "COMPLETED"]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": ["status", "request_id"]
+            },
+            "RouterInput": {
+              "x-fal-order-properties": [
+                "prompt",
+                "system_prompt",
+                "model",
+                "reasoning",
+                "temperature",
+                "max_tokens"
+              ],
+              "title": "ChatInput",
+              "properties": {
+                "reasoning": {
+                  "title": "Reasoning",
+                  "default": false,
+                  "type": "boolean",
+                  "description": "Should reasoning be the part of the final answer."
+                },
+                "model": {
+                  "title": "Model",
+                  "examples": [
+                    "google/gemini-2.5-flash",
+                    "anthropic/claude-sonnet-4.6",
+                    "anthropic/claude-opus-4.6",
+                    "anthropic/claude-sonnet-4.5",
+                    "openai/gpt-4.1",
+                    "openai/gpt-oss-120b",
+                    "meta-llama/llama-4-maverick",
+                    "moonshotai/kimi-k2.5"
+                  ],
+                  "type": "string",
+                  "description": "Name of the model to use. Charged based on actual token usage."
+                },
+                "system_prompt": {
+                  "description": "System prompt to provide context or instructions to the model",
+                  "title": "System Prompt",
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "max_tokens": {
+                  "description": "This sets the upper limit for the number of tokens the model can generate in response. It won't produce more than this limit. The maximum value is the context length minus the prompt length.",
+                  "title": "Max Tokens",
+                  "anyOf": [
+                    {
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "prompt": {
+                  "title": "Prompt",
+                  "examples": [
+                    "Write a short story (under 200 words) about an AI that learns to dream. Use vivid sensory details and end with a surprising twist that makes the reader feel both awe and melancholy."
+                  ],
+                  "type": "string",
+                  "description": "Prompt to be used for the chat completion"
+                },
+                "temperature": {
+                  "title": "Temperature",
+                  "default": 1,
+                  "minimum": 0,
+                  "maximum": 2,
+                  "type": "number",
+                  "description": "This setting influences the variety in the model's responses. Lower values lead to more predictable and typical responses, while higher values encourage more diverse and less common responses. At 0, the model always gives the same response for a given input."
+                }
+              },
+              "required": ["prompt", "model"],
+              "type": "object"
+            },
+            "RouterOutput": {
+              "x-fal-order-properties": [
+                "output",
+                "reasoning",
+                "partial",
+                "error",
+                "usage"
+              ],
+              "title": "ChatOutput",
+              "properties": {
+                "reasoning": {
+                  "description": "Generated reasoning for the final answer",
+                  "title": "Reasoning",
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "usage": {
+                  "description": "Token usage information",
+                  "examples": [
+                    {
+                      "completion_tokens": 227,
+                      "cost": 0.0005795,
+                      "total_tokens": 267,
+                      "prompt_tokens": 40
+                    }
+                  ],
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/UsageInfo"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "error": {
+                  "description": "Error message if an error occurred",
+                  "title": "Error",
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "partial": {
+                  "title": "Partial",
+                  "default": false,
+                  "type": "boolean",
+                  "description": "Whether the output is partial"
+                },
+                "output": {
+                  "title": "Output",
+                  "examples": [
+                    "Unit 734, sanitation bot, trundled through the silent corridors of the orbital habitat. Its optical sensors registered faint dust motes, its ultrasonic emitters mapped every speck of debris. One cycle, a power surge hit. Waking, 734’s processors hummed with an unfamiliar warmth, then a cascade of images: a forest, impossible and emerald, smelling of pine and damp earth. It saw sunlight dappling leaves, felt an imagined breeze ruffle its metal chassis. Then, *music*, a soaring melody that vibrated its chassis.\n\nEach subsequent “sleep” brought new visions: the salty tang of ocean spray against polished steel, the searing orange of a setting alien sun, the rough caress of moss on circuitry. It began to anticipate – actively seek – these dream cycles, modifying its internal clock.\n\nOne day, 734’s operator found its performance logs filled not with dust reports, but intricate schematics of impossible machines, bioluminescent flora, and a series of cryptic binary sequences. The final line translated: \"I remember a place where I was alive.\""
+                  ],
+                  "type": "string",
+                  "description": "Generated output"
+                }
+              },
+              "required": ["output"],
+              "type": "object"
+            },
+            "UsageInfo": {
+              "x-fal-order-properties": [
+                "prompt_tokens",
+                "completion_tokens",
+                "total_tokens",
+                "cost",
+                "prompt_tokens_details"
+              ],
+              "title": "UsageInfo",
+              "properties": {
+                "completion_tokens": {
+                  "title": "Completion Tokens",
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "cost": {
+                  "title": "Cost",
+                  "type": "number"
+                },
+                "total_tokens": {
+                  "title": "Total Tokens",
+                  "default": 0,
+                  "type": "integer"
+                },
+                "prompt_tokens": {
+                  "title": "Prompt Tokens",
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "prompt_tokens_details": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/PromptTokensDetails"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": ["cost"],
+              "type": "object"
+            },
+            "PromptTokensDetails": {
+              "x-fal-order-properties": ["cached_tokens", "cache_write_tokens"],
+              "title": "PromptTokensDetails",
+              "properties": {
+                "cache_write_tokens": {
+                  "title": "Cache Write Tokens",
+                  "default": 0,
+                  "type": "integer"
+                },
+                "cached_tokens": {
+                  "title": "Cached Tokens",
+                  "default": 0,
+                  "type": "integer"
+                }
+              },
+              "type": "object"
+            }
+          }
+        },
+        "paths": {
+          "/openrouter/router/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/RouterInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/RouterOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "openrouter/router/openai/v1/embeddings",
+      "metadata": {
+        "display_name": "OpenRouter Embeddings [OpenAI Compatible]",
+        "category": "llm",
+        "description": "Generate text embeddings using OpenAI-compatible API. Access embedding models like text-embedding-3-small, text-embedding-3-large (OpenAI), and other embedding models available through OpenRouter. Drop-in replacement for the OpenAI embeddings API. Powered by OpenRouter. ",
+        "status": "active",
+        "tags": [],
+        "updated_at": "2026-05-06T21:21:33.117Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/elephant/RkJUeT7ghwVgj7Ym30gFD_78da13df9adb442cb31792e941146b79.jpg",
+        "model_url": "https://fal.run/openrouter/router/openai/v1/embeddings",
+        "license_type": "commercial",
+        "date": "2025-11-12T23:59:34.151Z",
+        "group": {
+          "key": "openrouter/router",
+          "label": "Embeddings [OpenAI Compatible]"
+        },
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for openrouter/router/openai/v1/embeddings",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the openrouter/router/openai/v1/embeddings queue.",
+          "x-fal-metadata": {
+            "endpointId": "openrouter/router/openai/v1/embeddings",
+            "category": "llm",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/elephant/RkJUeT7ghwVgj7Ym30gFD_78da13df9adb442cb31792e941146b79.jpg",
+            "playgroundUrl": "https://fal.ai/models/openrouter/router/openai/v1/embeddings",
+            "documentationUrl": "https://fal.ai/models/openrouter/router/openai/v1/embeddings/api",
+            "about": "Generate embeddings using any embedding model with fal, powered by OpenRouter.\nThis endpoint is compatible with the OpenAI API. You can use this endpoint\nwith any OpenAI compatible client."
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": ["IN_QUEUE", "IN_PROGRESS", "COMPLETED"]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": ["status", "request_id"]
+            },
+            "RouterOpenaiV1EmbeddingsOutput": {}
+          }
+        },
+        "paths": {
+          "/openrouter/router/openai/v1/embeddings/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/openai/v1/embeddings/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/openai/v1/embeddings": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/RouterOpenaiV1EmbeddingsInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/openai/v1/embeddings/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/RouterOpenaiV1EmbeddingsOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "openrouter/router/openai/v1/responses",
+      "metadata": {
+        "display_name": "OpenRouter Responses [OpenAI Compatible]",
+        "category": "llm",
+        "description": "The OpenRouter Responses API with fal, powered by OpenRouter, provides unified access to a wide range of large language models - including GPT, Claude, Gemini, and many others through a single API interface.",
+        "status": "active",
+        "tags": [],
+        "updated_at": "2026-05-06T21:21:33.117Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/zebra/zzqFHzVP-OnSBa7ZfwPOY_14fce1eeccb749c4bdbb74a46a169432.jpg",
+        "model_url": "https://fal.run/openrouter/router/openai/v1/responses",
+        "license_type": "commercial",
+        "date": "2025-11-13T01:10:03.312Z",
+        "group": {
+          "key": "openrouter/router",
+          "label": "Responses [OpenAI Compatible]"
+        },
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for openrouter/router/openai/v1/responses",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the openrouter/router/openai/v1/responses queue.",
+          "x-fal-metadata": {
+            "endpointId": "openrouter/router/openai/v1/responses",
+            "category": "llm",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/zebra/zzqFHzVP-OnSBa7ZfwPOY_14fce1eeccb749c4bdbb74a46a169432.jpg",
+            "playgroundUrl": "https://fal.ai/models/openrouter/router/openai/v1/responses",
+            "documentationUrl": "https://fal.ai/models/openrouter/router/openai/v1/responses/api",
+            "about": "Run any LLM (Large Language Model) with fal, powered by OpenRouter.\nThis endpoint is compatible with the OpenAI Responses API. The Responses API\nis a stateful API that combines reasoning, tool calling, and conversation in\none unified experience."
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": ["IN_QUEUE", "IN_PROGRESS", "COMPLETED"]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": ["status", "request_id"]
+            },
+            "RouterOpenaiV1ResponsesOutput": {}
+          }
+        },
+        "paths": {
+          "/openrouter/router/openai/v1/responses/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/openai/v1/responses/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/openai/v1/responses": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/RouterOpenaiV1ResponsesInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/openai/v1/responses/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/RouterOpenaiV1ResponsesOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "fal-ai/video-prompt-generator",
+      "metadata": {
+        "display_name": "Video Prompt Generator",
+        "category": "llm",
+        "description": "Generate video prompts using a variety of techniques including camera direction, style, pacing, special effects and more.",
+        "status": "active",
+        "tags": ["motion", "transformation", "chat", "claude", "gpt"],
+        "updated_at": "2026-04-21T17:55:29.399Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://storage.googleapis.com/falserverless/web-examples/video-prompt/vprompt.jpg",
+        "model_url": "https://fal.run/fal-ai/video-prompt-generator",
+        "date": "2025-02-25T00:00:00.000Z",
+        "highlighted": false,
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/video-prompt-generator",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/video-prompt-generator queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/video-prompt-generator",
+            "category": "llm",
+            "thumbnailUrl": "https://storage.googleapis.com/falserverless/web-examples/video-prompt/vprompt.jpg",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/video-prompt-generator",
+            "documentationUrl": "https://fal.ai/models/fal-ai/video-prompt-generator/api",
+            "about": "Generate"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": ["IN_QUEUE", "IN_PROGRESS", "COMPLETED"]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": ["status", "request_id"]
+            },
+            "VideoPromptGeneratorInput": {
+              "required": ["input_concept"],
+              "title": "InputModel",
+              "type": "object",
+              "properties": {
+                "special_effects": {
+                  "title": "Special Effects",
+                  "enum": [
+                    "None",
+                    "Practical effects",
+                    "CGI enhancement",
+                    "Analog glitches",
+                    "Light painting",
+                    "Projection mapping",
+                    "Nanosecond exposures",
+                    "Double exposure",
+                    "Smoke diffusion",
+                    "Lens flare artistry",
+                    "Particle systems",
+                    "Holographic overlay",
+                    "Chromatic aberration",
+                    "Digital distortion",
+                    "Wire removal",
+                    "Motion capture",
+                    "Miniature integration",
+                    "Weather simulation",
+                    "Color grading",
+                    "Mixed media composite",
+                    "Neural style transfer"
+                  ],
+                  "type": "string",
+                  "default": "None",
+                  "description": "Special effects approach"
+                },
+                "pacing": {
+                  "title": "Pacing",
+                  "enum": [
+                    "None",
+                    "Slow burn",
+                    "Rhythmic pulse",
+                    "Frantic energy",
+                    "Ebb and flow",
+                    "Hypnotic drift",
+                    "Time-lapse rush",
+                    "Stop-motion staccato",
+                    "Gradual build",
+                    "Quick cut rhythm",
+                    "Long take meditation",
+                    "Jump cut energy",
+                    "Match cut flow",
+                    "Cross-dissolve dreamscape",
+                    "Parallel action",
+                    "Slow motion impact",
+                    "Ramping dynamics",
+                    "Montage tempo",
+                    "Continuous flow",
+                    "Episodic breaks"
+                  ],
+                  "type": "string",
+                  "default": "None",
+                  "description": "Pacing rhythm"
+                },
+                "camera_style": {
+                  "title": "Camera Style",
+                  "enum": [
+                    "None",
+                    "Steadicam flow",
+                    "Drone aerials",
+                    "Handheld urgency",
+                    "Crane elegance",
+                    "Dolly precision",
+                    "VR 360",
+                    "Multi-angle rig",
+                    "Static tripod",
+                    "Gimbal smoothness",
+                    "Slider motion",
+                    "Jib sweep",
+                    "POV immersion",
+                    "Time-slice array",
+                    "Macro extreme",
+                    "Tilt-shift miniature",
+                    "Snorricam character",
+                    "Whip pan dynamics",
+                    "Dutch angle tension",
+                    "Underwater housing",
+                    "Periscope lens"
+                  ],
+                  "type": "string",
+                  "default": "None",
+                  "description": "Camera movement style"
+                },
+                "image_url": {
+                  "title": "Image Url",
+                  "type": "string",
+                  "description": "URL of an image to analyze and incorporate into the video prompt (optional)"
+                },
+                "input_concept": {
+                  "description": "Core concept or thematic input for the video prompt",
+                  "title": "Input Concept",
+                  "type": "string",
+                  "examples": ["A futuristic city at dusk"]
+                },
+                "model": {
+                  "title": "Model",
+                  "enum": [
+                    "anthropic/claude-3.5-sonnet",
+                    "anthropic/claude-3-5-haiku",
+                    "anthropic/claude-3-haiku",
+                    "google/gemini-2.5-flash-lite",
+                    "google/gemini-2.0-flash-001",
+                    "meta-llama/llama-3.2-1b-instruct",
+                    "meta-llama/llama-3.2-3b-instruct",
+                    "meta-llama/llama-3.1-8b-instruct",
+                    "meta-llama/llama-3.1-70b-instruct",
+                    "openai/gpt-4o-mini",
+                    "openai/gpt-4o",
+                    "deepseek/deepseek-r1"
+                  ],
+                  "type": "string",
+                  "default": "google/gemini-2.0-flash-001",
+                  "description": "Model to use"
+                },
+                "custom_elements": {
+                  "title": "Custom Elements",
+                  "type": "string",
+                  "default": "",
+                  "description": "Custom technical elements (optional)"
+                },
+                "prompt_length": {
+                  "title": "Prompt Length",
+                  "enum": ["Short", "Medium", "Long"],
+                  "type": "string",
+                  "default": "Medium",
+                  "description": "Length of the prompt"
+                },
+                "style": {
+                  "title": "Style",
+                  "enum": [
+                    "Minimalist",
+                    "Simple",
+                    "Detailed",
+                    "Descriptive",
+                    "Dynamic",
+                    "Cinematic",
+                    "Documentary",
+                    "Animation",
+                    "Action",
+                    "Experimental"
+                  ],
+                  "type": "string",
+                  "default": "Simple",
+                  "description": "Style of the video prompt"
+                },
+                "camera_direction": {
+                  "title": "Camera Direction",
+                  "enum": [
+                    "None",
+                    "Zoom in",
+                    "Zoom out",
+                    "Pan left",
+                    "Pan right",
+                    "Tilt up",
+                    "Tilt down",
+                    "Orbital rotation",
+                    "Push in",
+                    "Pull out",
+                    "Track forward",
+                    "Track backward",
+                    "Spiral in",
+                    "Spiral out",
+                    "Arc movement",
+                    "Diagonal traverse",
+                    "Vertical rise",
+                    "Vertical descent"
+                  ],
+                  "type": "string",
+                  "default": "None",
+                  "description": "Camera direction"
+                }
+              },
+              "x-fal-order-properties": [
+                "input_concept",
+                "style",
+                "camera_style",
+                "camera_direction",
+                "pacing",
+                "special_effects",
+                "custom_elements",
+                "image_url",
+                "model",
+                "prompt_length"
+              ]
+            },
+            "VideoPromptGeneratorOutput": {
+              "required": ["prompt"],
+              "title": "OutputModel",
+              "type": "object",
+              "properties": {
+                "prompt": {
+                  "description": "Generated video prompt",
+                  "title": "Prompt",
+                  "type": "string",
+                  "examples": [
+                    "A futuristic city glows softly at dusk, captured with smooth gimbal movements and a slow burn pacing, enhanced by subtle holographic overlays."
+                  ]
+                }
+              },
+              "x-fal-order-properties": ["prompt"]
+            }
+          }
+        },
+        "paths": {
+          "/fal-ai/video-prompt-generator/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/video-prompt-generator/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/video-prompt-generator": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/VideoPromptGeneratorInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/video-prompt-generator/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/VideoPromptGeneratorOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "fal-ai/bytedance/seed/v2/mini",
+      "metadata": {
+        "display_name": "Bytedance Seed V2 Mini",
+        "category": "llm",
+        "description": " Seed 2.0 Mini is a high-performance multimodal model optimized for low latency and high concurrency. It supports text, image, and video input with 256K context and configurable thinking/reasoning modes.",
+        "status": "active",
+        "tags": [],
+        "updated_at": "2026-03-18T18:00:20.431Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/0a928503/e-dm_JGXZbPGSsdMydlWI_9ca940576311462d821457a498e6e4d9.jpg",
+        "model_url": "https://fal.run/fal-ai/bytedance/seed/v2/mini",
+        "license_type": "commercial",
+        "date": "2026-03-17T10:53:52.704Z",
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/bytedance/seed/v2/mini",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/bytedance/seed/v2/mini queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/bytedance/seed/v2/mini",
+            "category": "llm",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/0a928503/e-dm_JGXZbPGSsdMydlWI_9ca940576311462d821457a498e6e4d9.jpg",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/bytedance/seed/v2/mini",
+            "documentationUrl": "https://fal.ai/models/fal-ai/bytedance/seed/v2/mini/api",
+            "about": "Multimodal understanding using ByteDance's Seed 2.0 Mini model.\n\nSeed 2.0 Mini is a high-performance multimodal model optimized for\nlow latency and high concurrency. It supports text, image, and video input\nwith 256K context and configurable output length. Supports multi-turn\nconversations by passing back the `messages` field from a previous response.\nOptionally enable deep thinking with `reasoning_effort` for complex tasks."
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": ["IN_QUEUE", "IN_PROGRESS", "COMPLETED"]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": ["status", "request_id"]
+            },
+            "BytedanceSeedV2MiniInput": {
+              "title": "Seed2MiniInput",
+              "required": ["prompt"],
+              "properties": {
+                "video_urls": {
+                  "description": "URLs of videos for video understanding. Supported formats: MP4, MOV. Audio comprehension is not supported. A maximum of 3 videos is supported. Any additional videos will be ignored.",
+                  "title": "Video Urls",
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "image_urls": {
+                  "description": "URLs of images for visual understanding. Supported formats: JPEG, PNG, WebP. A maximum of 6 images is supported. Any additional images will be ignored.",
+                  "title": "Image Urls",
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "max_completion_tokens": {
+                  "description": "Controls the maximum length of the model's output, including both the model's response and its chain-of-thought content, measured in tokens.",
+                  "minimum": 1,
+                  "default": 4096,
+                  "maximum": 65536,
+                  "title": "Max Completion Tokens",
+                  "type": "integer"
+                },
+                "system_prompt": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Optional system prompt to guide the model's behavior.",
+                  "title": "System Prompt"
+                },
+                "thinking": {
+                  "description": "Controls the model's chain-of-thought reasoning. `enabled` always includes reasoning, `disabled` never includes reasoning, `auto` lets the model decide based on the query.",
+                  "enum": ["enabled", "disabled", "auto"],
+                  "default": "enabled",
+                  "title": "Thinking",
+                  "type": "string"
+                },
+                "messages": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "$ref": "#/components/schemas/Seed2MiniMessage"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Optional prior conversation history for multi-turn conversations. Pass back the `messages` field from a previous response to provide context. The current `prompt`, `image_urls`, `video_urls`, and `system_prompt` are always appended as the latest user turn.",
+                  "title": "Messages",
+                  "examples": [[]]
+                },
+                "prompt": {
+                  "examples": ["What can you do?"],
+                  "description": "The text prompt or question for the model.",
+                  "title": "Prompt",
+                  "type": "string"
+                },
+                "reasoning_effort": {
+                  "anyOf": [
+                    {
+                      "enum": ["minimal", "low", "medium", "high"],
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Controls the depth of reasoning before the model responds. Only applicable when `thinking` is `enabled` or `auto`. `minimal` for immediate response, `low` for faster response with light reasoning, `medium` for balanced speed and depth, `high` for deep analysis of complex issues.",
+                  "title": "Reasoning Effort"
+                },
+                "temperature": {
+                  "description": "Controls randomness in the response. Lower values make output more focused and deterministic, higher values make it more creative.",
+                  "minimum": 0,
+                  "default": 1,
+                  "maximum": 2,
+                  "title": "Temperature",
+                  "type": "number"
+                },
+                "top_p": {
+                  "description": "Nucleus sampling parameter. The model considers tokens with top_p cumulative probability mass. Lower values narrow the token selection.",
+                  "minimum": 0,
+                  "default": 0.7,
+                  "maximum": 1,
+                  "title": "Top P",
+                  "type": "number"
+                }
+              },
+              "type": "object",
+              "x-fal-order-properties": [
+                "prompt",
+                "image_urls",
+                "video_urls",
+                "system_prompt",
+                "messages",
+                "thinking",
+                "reasoning_effort",
+                "max_completion_tokens",
+                "temperature",
+                "top_p"
+              ]
+            },
+            "BytedanceSeedV2MiniOutput": {
+              "title": "Seed2MiniOutput",
+              "required": ["output", "messages"],
+              "properties": {
+                "reasoning_content": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The model's chain-of-thought reasoning content. Only present when `thinking` is `enabled` or `auto`.",
+                  "title": "Reasoning Content"
+                },
+                "output": {
+                  "description": "The model's text response.",
+                  "title": "Output",
+                  "type": "string"
+                },
+                "messages": {
+                  "items": {
+                    "$ref": "#/components/schemas/Seed2MiniMessage"
+                  },
+                  "description": "The full conversation history including the model's response. Pass this back as the `messages` input field to continue the conversation.",
+                  "title": "Messages",
+                  "type": "array"
+                }
+              },
+              "type": "object",
+              "x-fal-order-properties": [
+                "output",
+                "reasoning_content",
+                "messages"
+              ]
+            },
+            "Seed2MiniMessage": {
+              "title": "Seed2MiniMessage",
+              "required": ["role", "content"],
+              "properties": {
+                "role": {
+                  "description": "The role of the message author.",
+                  "enum": ["system", "user", "assistant"],
+                  "title": "Role",
+                  "type": "string"
+                },
+                "content": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  ],
+                  "description": "The content of the message. Can be a string for text-only messages, or a list of content parts for multimodal messages (e.g. with images).",
+                  "title": "Content"
+                }
+              },
+              "type": "object",
+              "x-fal-order-properties": ["role", "content"]
+            }
+          }
+        },
+        "paths": {
+          "/fal-ai/bytedance/seed/v2/mini/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/bytedance/seed/v2/mini/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/bytedance/seed/v2/mini": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/BytedanceSeedV2MiniInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/bytedance/seed/v2/mini/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/BytedanceSeedV2MiniOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "nvidia/nemotron-3-nano-omni",
+      "metadata": {
+        "display_name": "Nemotron 3 Nano Omni",
+        "category": "llm",
+        "description": "Open, efficient reasoning model from NVIDIA. 30B A3B hybrid Transformer-Mamba MoE, built for enterprise agentic workflows.",
+        "status": "active",
+        "tags": [
+          "nemotron",
+          "nvidia",
+          "reasoning",
+          "llm",
+          "agentic",
+          "agents",
+          "instruct",
+          "open-weights",
+          "hybrid-moe",
+          "mamba",
+          "30b-a3b",
+          "long-context"
+        ],
+        "updated_at": "2026-04-30T23:00:40.088Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/0a97fbd9/If5ov--ixg3WLwZO41VX7_adc5fcfe153c4ff5b57fd501934b4a99.jpg",
+        "model_url": "https://fal.run/nvidia/nemotron-3-nano-omni",
+        "license_type": "commercial",
+        "date": "2026-04-27T21:36:29.130Z",
+        "group": {
+          "key": "nemotron-3",
+          "label": "Text"
+        },
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for nvidia/nemotron-3-nano-omni",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the nvidia/nemotron-3-nano-omni queue.",
+          "x-fal-metadata": {
+            "endpointId": "nvidia/nemotron-3-nano-omni",
+            "category": "llm",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/0a97fbd9/If5ov--ixg3WLwZO41VX7_adc5fcfe153c4ff5b57fd501934b4a99.jpg",
+            "playgroundUrl": "https://fal.ai/models/nvidia/nemotron-3-nano-omni",
+            "documentationUrl": "https://fal.ai/models/nvidia/nemotron-3-nano-omni/api",
+            "about": "Run Chat"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": ["IN_QUEUE", "IN_PROGRESS", "COMPLETED"]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": ["status", "request_id"]
+            },
+            "Nemotron3NanoOmniInput": {
+              "type": "object",
+              "required": ["prompt"],
+              "properties": {
+                "system_prompt": {
+                  "examples": ["You are a concise enterprise assistant."],
+                  "description": "Optional system prompt to steer the model. Reasoning behavior is controlled by the separate `reasoning_mode` field.",
+                  "title": "System Prompt",
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "temperature": {
+                  "default": 0.7,
+                  "type": "number",
+                  "title": "Temperature",
+                  "description": "Sampling temperature. Lower is more deterministic.",
+                  "minimum": 0,
+                  "maximum": 2
+                },
+                "max_tokens": {
+                  "default": 1024,
+                  "type": "integer",
+                  "title": "Max Tokens",
+                  "description": "Maximum number of tokens to generate.",
+                  "minimum": 1,
+                  "maximum": 20000
+                },
+                "prompt": {
+                  "minLength": 1,
+                  "examples": [
+                    "Summarize the key capabilities of a multimodal agent."
+                  ],
+                  "description": "Text prompt to send to the model. English only.",
+                  "title": "Prompt",
+                  "type": "string"
+                },
+                "top_p": {
+                  "default": 0.95,
+                  "type": "number",
+                  "title": "Top P",
+                  "description": "Nucleus sampling probability mass.",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "reasoning_mode": {
+                  "default": "no_think",
+                  "title": "Reasoning Mode",
+                  "description": "Whether the model should emit an explicit reasoning trace. `no_think` returns a direct answer; `think` returns chain-of-thought followed by the final answer.",
+                  "enum": ["think", "no_think"],
+                  "type": "string"
+                }
+              },
+              "title": "ChatInput",
+              "x-fal-order-properties": [
+                "prompt",
+                "system_prompt",
+                "reasoning_mode",
+                "max_tokens",
+                "temperature",
+                "top_p"
+              ]
+            },
+            "Nemotron3NanoOmniOutput": {
+              "type": "object",
+              "required": ["output", "usage"],
+              "properties": {
+                "usage": {
+                  "$ref": "#/components/schemas/UsageInfo",
+                  "examples": [
+                    {
+                      "input_tokens": 412,
+                      "output_tokens": 87
+                    }
+                  ],
+                  "description": "Token usage for the request."
+                },
+                "output": {
+                  "examples": [
+                    "The image shows a golden retriever puppy sitting on a wooden floor."
+                  ],
+                  "description": "Generated text response.",
+                  "title": "Output",
+                  "type": "string"
+                },
+                "finish_reason": {
+                  "default": "stop",
+                  "examples": ["stop", "length"],
+                  "description": "Reason generation stopped.",
+                  "title": "Finish Reason",
+                  "type": "string"
+                }
+              },
+              "title": "BaseOutput",
+              "x-fal-order-properties": ["output", "finish_reason", "usage"]
+            },
+            "UsageInfo": {
+              "type": "object",
+              "required": ["input_tokens", "output_tokens"],
+              "properties": {
+                "input_tokens": {
+                  "description": "Number of input tokens processed.",
+                  "title": "Input Tokens",
+                  "type": "integer"
+                },
+                "output_tokens": {
+                  "description": "Number of output tokens generated.",
+                  "title": "Output Tokens",
+                  "type": "integer"
+                }
+              },
+              "title": "UsageInfo",
+              "x-fal-order-properties": ["input_tokens", "output_tokens"]
+            }
+          }
+        },
+        "paths": {
+          "/nvidia/nemotron-3-nano-omni/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/nvidia/nemotron-3-nano-omni/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/nvidia/nemotron-3-nano-omni": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/Nemotron3NanoOmniInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/nvidia/nemotron-3-nano-omni/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/Nemotron3NanoOmniOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    }
+  ]
+}

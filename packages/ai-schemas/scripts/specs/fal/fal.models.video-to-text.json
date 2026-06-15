@@ -1,0 +1,1240 @@
+{
+  "generated_at": "2026-06-11T02:20:29.649Z",
+  "total_models": 3,
+  "category": "video-to-text",
+  "models": [
+    {
+      "endpoint_id": "openrouter/router/video",
+      "metadata": {
+        "display_name": "OpenRouter [Video]",
+        "category": "video-to-text",
+        "description": "Run any video-capable LLM with fal. Analyze, summarize, and understand video files using Gemini (Google) models. Supports mp4, mpeg, mov, webm, and YouTube links. Powered by OpenRouter.",
+        "status": "active",
+        "tags": [],
+        "updated_at": "2026-05-06T21:21:33.117Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/0a8a4887/4urYAt4UGIT4KfbwEdL6R_f0b95609b9e241468dbaf34bf3229f91.jpg",
+        "model_url": "https://fal.run/openrouter/router/video",
+        "license_type": "commercial",
+        "date": "2026-01-13T23:31:16.485Z",
+        "group": {
+          "key": "openrouter/router",
+          "label": "Any Video LM"
+        },
+        "highlighted": false,
+        "kind": "inference",
+        "stream_url": "https://fal.run/openrouter/router/video/stream",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for openrouter/router/video",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the openrouter/router/video queue.",
+          "x-fal-metadata": {
+            "endpointId": "openrouter/router/video",
+            "category": "video-to-text",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/0a8a4887/4urYAt4UGIT4KfbwEdL6R_f0b95609b9e241468dbaf34bf3229f91.jpg",
+            "playgroundUrl": "https://fal.ai/models/openrouter/router/video",
+            "documentationUrl": "https://fal.ai/models/openrouter/router/video/api",
+            "about": "Run any video-capable LLM with fal, powered by OpenRouter.\n\nProcess video files (analysis, summarization, etc.) using models that support\nvideo input. Video files can be provided as URLs, YouTube links, or data URIs.\nSupported formats: mp4, mpeg, mov, webm."
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": ["IN_QUEUE", "IN_PROGRESS", "COMPLETED"]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": ["status", "request_id"]
+            },
+            "RouterVideoInput": {
+              "x-fal-order-properties": [
+                "video_urls",
+                "prompt",
+                "system_prompt",
+                "model",
+                "reasoning",
+                "temperature",
+                "max_tokens"
+              ],
+              "title": "VideoInput",
+              "properties": {
+                "reasoning": {
+                  "title": "Reasoning",
+                  "default": false,
+                  "type": "boolean",
+                  "description": "Should reasoning be the part of the final answer."
+                },
+                "model": {
+                  "title": "Model",
+                  "examples": [
+                    "google/gemini-2.5-flash",
+                    "google/gemini-2.5-pro",
+                    "google/gemini-3-flash-preview",
+                    "google/gemini-3-pro-preview",
+                    "google/gemini-3.1-pro-preview"
+                  ],
+                  "type": "string",
+                  "description": "Name of the model to use. Charged based on actual token usage."
+                },
+                "system_prompt": {
+                  "description": "System prompt to provide context or instructions to the model",
+                  "title": "System Prompt",
+                  "examples": [
+                    "Please look at the videos in order and answer the question."
+                  ],
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "max_tokens": {
+                  "description": "This sets the upper limit for the number of tokens the model can generate in response. It won't produce more than this limit. The maximum value is the context length minus the prompt length.",
+                  "title": "Max Tokens",
+                  "anyOf": [
+                    {
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "prompt": {
+                  "title": "Prompt",
+                  "examples": ["Please transcribe the videos respectively."],
+                  "type": "string",
+                  "description": "Prompt to be used for the video processing"
+                },
+                "temperature": {
+                  "title": "Temperature",
+                  "default": 1,
+                  "minimum": 0,
+                  "maximum": 2,
+                  "type": "number",
+                  "description": "This setting influences the variety in the model's responses. Lower values lead to more predictable and typical responses, while higher values encourage more diverse and less common responses. At 0, the model always gives the same response for a given input."
+                },
+                "video_urls": {
+                  "description": "List of URLs or data URIs of video files to process. Supported formats: mp4, mpeg, mov, webm. For Google Gemini on AI Studio, YouTube links are also supported. Mutually exclusive with video_url.",
+                  "title": "Video Urls",
+                  "examples": [
+                    [
+                      "https://v3b.fal.media/files/b/0a8b3081/t4Jsy53x-Q8iQqg78_Vj__vid01.mp4",
+                      "https://v3b.fal.media/files/b/0a8b3085/xWtbpb6pf4i-BSvR2oWbi_vid06.mp4"
+                    ]
+                  ],
+                  "anyOf": [
+                    {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": ["prompt", "model"],
+              "type": "object"
+            },
+            "RouterVideoOutput": {
+              "x-fal-order-properties": ["output", "usage"],
+              "title": "VideoOutput",
+              "properties": {
+                "usage": {
+                  "description": "Token usage information",
+                  "examples": [
+                    {
+                      "completion_tokens": 100,
+                      "cost": 0.0005,
+                      "total_tokens": 1100,
+                      "prompt_tokens": 1000
+                    }
+                  ],
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/UsageInfo"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "output": {
+                  "title": "Output",
+                  "examples": [
+                    "that's the way I look at it and I don't know what you would say. Sooner or later the child gets run over.\nThey seem to be too local, too provincial."
+                  ],
+                  "type": "string",
+                  "description": "Generated output from video processing"
+                }
+              },
+              "required": ["output", "usage"],
+              "type": "object"
+            },
+            "UsageInfo": {
+              "x-fal-order-properties": [
+                "prompt_tokens",
+                "completion_tokens",
+                "total_tokens",
+                "cost",
+                "prompt_tokens_details"
+              ],
+              "title": "UsageInfo",
+              "properties": {
+                "completion_tokens": {
+                  "title": "Completion Tokens",
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "cost": {
+                  "title": "Cost",
+                  "type": "number"
+                },
+                "total_tokens": {
+                  "title": "Total Tokens",
+                  "default": 0,
+                  "type": "integer"
+                },
+                "prompt_tokens": {
+                  "title": "Prompt Tokens",
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "prompt_tokens_details": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/PromptTokensDetails"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": ["cost"],
+              "type": "object"
+            },
+            "PromptTokensDetails": {
+              "x-fal-order-properties": ["cached_tokens", "cache_write_tokens"],
+              "title": "PromptTokensDetails",
+              "properties": {
+                "cache_write_tokens": {
+                  "title": "Cache Write Tokens",
+                  "default": 0,
+                  "type": "integer"
+                },
+                "cached_tokens": {
+                  "title": "Cached Tokens",
+                  "default": 0,
+                  "type": "integer"
+                }
+              },
+              "type": "object"
+            }
+          }
+        },
+        "paths": {
+          "/openrouter/router/video/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/video/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/video": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/RouterVideoInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/video/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/RouterVideoOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "nvidia/nemotron-3-nano-omni/video",
+      "metadata": {
+        "display_name": "Nemotron 3 Nano Omni",
+        "category": "video-to-text",
+        "description": "Video reasoning variant of NVIDIA's Nemotron 3 Nano Omni. 30B A3B hybrid Transformer-Mamba MoE - accepts video plus a prompt and returns text.",
+        "status": "active",
+        "tags": [
+          "nemotron",
+          "nvidia",
+          "video-to-text",
+          "video-understanding",
+          "video-reasoning",
+          "reasoning",
+          "agentic",
+          "agents",
+          "open-weights",
+          "hybrid-moe",
+          "mamba",
+          "30b-a3b"
+        ],
+        "updated_at": "2026-05-13T14:51:21.172Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/0a97fc0c/IvpJSkmN4FKa3qtjq1cwG_c50977be73724e55afe22e21c722e382.jpg",
+        "model_url": "https://fal.run/nvidia/nemotron-3-nano-omni/video",
+        "license_type": "commercial",
+        "date": "2026-04-27T21:44:33.078Z",
+        "group": {
+          "key": "nemotron-3",
+          "label": "Video"
+        },
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for nvidia/nemotron-3-nano-omni/video",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the nvidia/nemotron-3-nano-omni/video queue.",
+          "x-fal-metadata": {
+            "endpointId": "nvidia/nemotron-3-nano-omni/video",
+            "category": "video-to-text",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/0a97fc0c/IvpJSkmN4FKa3qtjq1cwG_c50977be73724e55afe22e21c722e382.jpg",
+            "playgroundUrl": "https://fal.ai/models/nvidia/nemotron-3-nano-omni/video",
+            "documentationUrl": "https://fal.ai/models/nvidia/nemotron-3-nano-omni/video/api",
+            "about": "Run Video"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": ["IN_QUEUE", "IN_PROGRESS", "COMPLETED"]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": ["status", "request_id"]
+            },
+            "Nemotron3NanoOmniVideoInput": {
+              "type": "object",
+              "required": ["prompt", "video_url"],
+              "properties": {
+                "system_prompt": {
+                  "examples": ["You are a concise enterprise assistant."],
+                  "description": "Optional system prompt to steer the model. Reasoning behavior is controlled by the separate `reasoning_mode` field.",
+                  "title": "System Prompt",
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "video_url": {
+                  "title": "Video URL",
+                  "examples": [
+                    "https://storage.googleapis.com/falserverless/example_inputs/nemotron-3-nano-omni/video_in.mp4"
+                  ],
+                  "description": "URL of the video to reason about. mp4, up to 1080p, max 2 minutes.",
+                  "type": "string"
+                },
+                "temperature": {
+                  "default": 0.7,
+                  "type": "number",
+                  "title": "Temperature",
+                  "description": "Sampling temperature. Lower is more deterministic.",
+                  "minimum": 0,
+                  "maximum": 2
+                },
+                "max_tokens": {
+                  "default": 1024,
+                  "type": "integer",
+                  "title": "Max Tokens",
+                  "description": "Maximum number of tokens to generate.",
+                  "minimum": 1,
+                  "maximum": 20000
+                },
+                "prompt": {
+                  "minLength": 1,
+                  "examples": [
+                    "Summarize the key capabilities of a multimodal agent."
+                  ],
+                  "description": "Text prompt to send to the model. English only.",
+                  "title": "Prompt",
+                  "type": "string"
+                },
+                "top_p": {
+                  "default": 0.95,
+                  "type": "number",
+                  "title": "Top P",
+                  "description": "Nucleus sampling probability mass.",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "reasoning_mode": {
+                  "default": "no_think",
+                  "title": "Reasoning Mode",
+                  "description": "Whether the model should emit an explicit reasoning trace. `no_think` returns a direct answer; `think` returns chain-of-thought followed by the final answer.",
+                  "enum": ["think", "no_think"],
+                  "type": "string"
+                }
+              },
+              "title": "VideoInput",
+              "x-fal-order-properties": [
+                "prompt",
+                "system_prompt",
+                "reasoning_mode",
+                "max_tokens",
+                "temperature",
+                "top_p",
+                "video_url"
+              ]
+            },
+            "Nemotron3NanoOmniVideoOutput": {
+              "type": "object",
+              "required": ["output", "usage"],
+              "properties": {
+                "usage": {
+                  "$ref": "#/components/schemas/UsageInfo",
+                  "examples": [
+                    {
+                      "input_tokens": 412,
+                      "output_tokens": 87
+                    }
+                  ],
+                  "description": "Token usage for the request."
+                },
+                "output": {
+                  "examples": [
+                    "The image shows a golden retriever puppy sitting on a wooden floor."
+                  ],
+                  "description": "Generated text response.",
+                  "title": "Output",
+                  "type": "string"
+                },
+                "finish_reason": {
+                  "default": "stop",
+                  "examples": ["stop", "length"],
+                  "description": "Reason generation stopped.",
+                  "title": "Finish Reason",
+                  "type": "string"
+                }
+              },
+              "title": "BaseOutput",
+              "x-fal-order-properties": ["output", "finish_reason", "usage"]
+            },
+            "UsageInfo": {
+              "type": "object",
+              "required": ["input_tokens", "output_tokens"],
+              "properties": {
+                "input_tokens": {
+                  "description": "Number of input tokens processed.",
+                  "title": "Input Tokens",
+                  "type": "integer"
+                },
+                "output_tokens": {
+                  "description": "Number of output tokens generated.",
+                  "title": "Output Tokens",
+                  "type": "integer"
+                }
+              },
+              "title": "UsageInfo",
+              "x-fal-order-properties": ["input_tokens", "output_tokens"]
+            }
+          }
+        },
+        "paths": {
+          "/nvidia/nemotron-3-nano-omni/video/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/nvidia/nemotron-3-nano-omni/video/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/nvidia/nemotron-3-nano-omni/video": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/Nemotron3NanoOmniVideoInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/nvidia/nemotron-3-nano-omni/video/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/Nemotron3NanoOmniVideoOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "openrouter/router/video/enterprise",
+      "metadata": {
+        "display_name": "OpenRouter [Video][Enterprise]",
+        "category": "video-to-text",
+        "description": "Run any VLM (Video Language Model) with fal, powered by OpenRouter.",
+        "status": "active",
+        "tags": [],
+        "updated_at": "2026-05-06T21:21:33.117Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/0a8a491c/S5EO4nTWCnQl8LBj3j-pb_d972f9018895443e8d8f7a4bb0f08050.jpg",
+        "model_url": "https://fal.run/openrouter/router/video/enterprise",
+        "license_type": "commercial",
+        "date": "2026-01-13T23:57:11.907Z",
+        "group": {
+          "key": "openrouter/router",
+          "label": "Any Video LM [Enterprise]"
+        },
+        "highlighted": false,
+        "kind": "inference",
+        "stream_url": "https://fal.run/openrouter/router/video/enterprise/stream",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for openrouter/router/video/enterprise",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the openrouter/router/video/enterprise queue.",
+          "x-fal-metadata": {
+            "endpointId": "openrouter/router/video/enterprise",
+            "category": "video-to-text",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/0a8a491c/S5EO4nTWCnQl8LBj3j-pb_d972f9018895443e8d8f7a4bb0f08050.jpg",
+            "playgroundUrl": "https://fal.ai/models/openrouter/router/video/enterprise",
+            "documentationUrl": "https://fal.ai/models/openrouter/router/video/enterprise/api",
+            "about": "Run Video Enterprise"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": ["IN_QUEUE", "IN_PROGRESS", "COMPLETED"]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": ["status", "request_id"]
+            },
+            "RouterVideoEnterpriseInput": {
+              "x-fal-order-properties": [
+                "video_urls",
+                "prompt",
+                "system_prompt",
+                "model",
+                "reasoning",
+                "temperature",
+                "max_tokens"
+              ],
+              "title": "VideoEnterpriseInput",
+              "properties": {
+                "reasoning": {
+                  "title": "Reasoning",
+                  "default": false,
+                  "type": "boolean",
+                  "description": "Should reasoning be the part of the final answer."
+                },
+                "model": {
+                  "title": "Model",
+                  "examples": [
+                    "google/gemini-2.5-flash",
+                    "google/gemini-2.5-flash-lite",
+                    "google/gemini-2.5-flash-preview-09-2025",
+                    "google/gemini-2.5-flash-lite-preview-09-2025",
+                    "google/gemini-2.5-pro",
+                    "google/gemini-2.5-pro-preview",
+                    "google/gemini-2.5-pro-preview-05-06",
+                    "google/gemini-2.0-flash-001",
+                    "google/gemini-2.0-flash-lite-001",
+                    "google/gemini-3-flash-preview",
+                    "google/gemini-3-pro-preview",
+                    "google/gemini-3.1-pro-preview"
+                  ],
+                  "type": "string",
+                  "description": "Name of the model to use. Charged based on actual token usage."
+                },
+                "system_prompt": {
+                  "description": "System prompt to provide context or instructions to the model",
+                  "title": "System Prompt",
+                  "examples": [
+                    "Please look at the videos in order and answer the question."
+                  ],
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "max_tokens": {
+                  "description": "This sets the upper limit for the number of tokens the model can generate in response. It won't produce more than this limit. The maximum value is the context length minus the prompt length.",
+                  "title": "Max Tokens",
+                  "anyOf": [
+                    {
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "prompt": {
+                  "title": "Prompt",
+                  "examples": ["Please transcribe the videos respectively."],
+                  "type": "string",
+                  "description": "Prompt to be used for the video processing"
+                },
+                "temperature": {
+                  "title": "Temperature",
+                  "default": 1,
+                  "minimum": 0,
+                  "maximum": 2,
+                  "type": "number",
+                  "description": "This setting influences the variety in the model's responses. Lower values lead to more predictable and typical responses, while higher values encourage more diverse and less common responses. At 0, the model always gives the same response for a given input."
+                },
+                "video_urls": {
+                  "description": "List of URLs or data URIs of video files to process. Supported formats: mp4, mpeg, mov, webm. For Google Gemini on AI Studio, YouTube links are also supported. Mutually exclusive with video_url.",
+                  "title": "Video Urls",
+                  "examples": [
+                    [
+                      "https://v3b.fal.media/files/b/0a8b3081/t4Jsy53x-Q8iQqg78_Vj__vid01.mp4",
+                      "https://v3b.fal.media/files/b/0a8b3085/xWtbpb6pf4i-BSvR2oWbi_vid06.mp4"
+                    ]
+                  ],
+                  "anyOf": [
+                    {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": ["prompt", "model"],
+              "type": "object"
+            },
+            "RouterVideoEnterpriseOutput": {
+              "x-fal-order-properties": ["output", "usage"],
+              "title": "VideoOutput",
+              "properties": {
+                "usage": {
+                  "description": "Token usage information",
+                  "examples": [
+                    {
+                      "completion_tokens": 100,
+                      "cost": 0.0005,
+                      "total_tokens": 1100,
+                      "prompt_tokens": 1000
+                    }
+                  ],
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/UsageInfo"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "output": {
+                  "title": "Output",
+                  "examples": [
+                    "that's the way I look at it and I don't know what you would say. Sooner or later the child gets run over.\nThey seem to be too local, too provincial."
+                  ],
+                  "type": "string",
+                  "description": "Generated output from video processing"
+                }
+              },
+              "required": ["output", "usage"],
+              "type": "object"
+            },
+            "UsageInfo": {
+              "x-fal-order-properties": [
+                "prompt_tokens",
+                "completion_tokens",
+                "total_tokens",
+                "cost",
+                "prompt_tokens_details"
+              ],
+              "title": "UsageInfo",
+              "properties": {
+                "completion_tokens": {
+                  "title": "Completion Tokens",
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "cost": {
+                  "title": "Cost",
+                  "type": "number"
+                },
+                "total_tokens": {
+                  "title": "Total Tokens",
+                  "default": 0,
+                  "type": "integer"
+                },
+                "prompt_tokens": {
+                  "title": "Prompt Tokens",
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "prompt_tokens_details": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/PromptTokensDetails"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": ["cost"],
+              "type": "object"
+            },
+            "PromptTokensDetails": {
+              "x-fal-order-properties": ["cached_tokens", "cache_write_tokens"],
+              "title": "PromptTokensDetails",
+              "properties": {
+                "cache_write_tokens": {
+                  "title": "Cache Write Tokens",
+                  "default": 0,
+                  "type": "integer"
+                },
+                "cached_tokens": {
+                  "title": "Cached Tokens",
+                  "default": 0,
+                  "type": "integer"
+                }
+              },
+              "type": "object"
+            }
+          }
+        },
+        "paths": {
+          "/openrouter/router/video/enterprise/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/video/enterprise/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/video/enterprise": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/RouterVideoEnterpriseInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/openrouter/router/video/enterprise/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/RouterVideoEnterpriseOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    }
+  ]
+}

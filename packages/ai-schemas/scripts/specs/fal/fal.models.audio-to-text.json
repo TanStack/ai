@@ -1,0 +1,662 @@
+{
+  "generated_at": "2026-06-11T02:20:29.653Z",
+  "total_models": 2,
+  "category": "audio-to-text",
+  "models": [
+    {
+      "endpoint_id": "fal-ai/silero-vad",
+      "metadata": {
+        "display_name": "Silero VAD",
+        "category": "audio-to-text",
+        "description": "Detect speech presence and timestamps with accuracy and speed using the ultra-lightweight Silero VAD model",
+        "status": "active",
+        "tags": ["vad", "silero", "voice-activity-detection"],
+        "updated_at": "2026-04-21T17:54:36.226Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/0a8999ea/LpSxj3lpoR_1RIxsAw4Z0_bfe5fc31ca6442679cefa0d11a486833.jpg",
+        "model_url": "https://fal.run/fal-ai/silero-vad",
+        "license_type": "commercial",
+        "date": "2026-01-08T19:19:45.098Z",
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/silero-vad",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/silero-vad queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/silero-vad",
+            "category": "audio-to-text",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/0a8999ea/LpSxj3lpoR_1RIxsAw4Z0_bfe5fc31ca6442679cefa0d11a486833.jpg",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/silero-vad",
+            "documentationUrl": "https://fal.ai/models/fal-ai/silero-vad/api",
+            "about": "Get speech timestamps from an audio file using Silero VAD."
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": ["IN_QUEUE", "IN_PROGRESS", "COMPLETED"]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": ["status", "request_id"]
+            },
+            "SileroVadInput": {
+              "type": "object",
+              "properties": {
+                "audio_url": {
+                  "type": "string",
+                  "examples": [
+                    "https://v3b.fal.media/files/b/0a89994c/X3-06RFibRfBu-FS1AI8y_speech.mp3"
+                  ],
+                  "title": "Audio URL",
+                  "description": "The URL of the audio to get speech timestamps from."
+                }
+              },
+              "x-fal-order-properties": ["audio_url"],
+              "title": "SileroVADInput",
+              "required": ["audio_url"]
+            },
+            "SileroVadOutput": {
+              "type": "object",
+              "properties": {
+                "timestamps": {
+                  "type": "array",
+                  "examples": [
+                    [
+                      {
+                        "start": 0.13,
+                        "end": 1.982
+                      },
+                      {
+                        "start": 2.434,
+                        "end": 3.998
+                      }
+                    ]
+                  ],
+                  "items": {
+                    "$ref": "#/components/schemas/SpeechTimestamp"
+                  },
+                  "title": "Speech Timestamps",
+                  "description": "The speech timestamps."
+                },
+                "has_speech": {
+                  "type": "boolean",
+                  "examples": [true],
+                  "title": "Has Speech",
+                  "description": "Whether the audio has speech."
+                }
+              },
+              "x-fal-order-properties": ["has_speech", "timestamps"],
+              "title": "SileroVADOutput",
+              "required": ["has_speech", "timestamps"]
+            },
+            "SpeechTimestamp": {
+              "type": "object",
+              "properties": {
+                "start": {
+                  "type": "number",
+                  "title": "Start Time",
+                  "description": "The start time of the speech in seconds."
+                },
+                "end": {
+                  "type": "number",
+                  "title": "End Time",
+                  "description": "The end time of the speech in seconds."
+                }
+              },
+              "x-fal-order-properties": ["start", "end"],
+              "title": "SpeechTimestamp",
+              "required": ["start", "end"]
+            }
+          }
+        },
+        "paths": {
+          "/fal-ai/silero-vad/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/silero-vad/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/silero-vad": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/SileroVadInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/silero-vad/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/SileroVadOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
+    {
+      "endpoint_id": "nvidia/nemotron-3-nano-omni/audio",
+      "metadata": {
+        "display_name": "Nemotron 3 Nano Omni",
+        "category": "audio-to-text",
+        "description": "Audio reasoning variant of NVIDIA's Nemotron 3 Nano Omni. 30B A3B hybrid Transformer-Mamba MoE - accepts audio plus a prompt and returns text.",
+        "status": "active",
+        "tags": [
+          "nemotron",
+          "nvidia",
+          "audio-to-text",
+          "audio-understanding",
+          "audio-reasoning",
+          "reasoning",
+          "agentic",
+          "agents",
+          "open-weights",
+          "hybrid-moe",
+          "mamba",
+          "30b-a3b"
+        ],
+        "updated_at": "2026-04-30T23:00:50.731Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/0a97fbf3/g_W4YFr0ezicmk-_sAhsr_58513a223d514f269d222988f86de3ce.jpg",
+        "model_url": "https://fal.run/nvidia/nemotron-3-nano-omni/audio",
+        "license_type": "commercial",
+        "date": "2026-04-27T21:40:05.103Z",
+        "group": {
+          "key": "nemotron-3",
+          "label": "Audio"
+        },
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for nvidia/nemotron-3-nano-omni/audio",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the nvidia/nemotron-3-nano-omni/audio queue.",
+          "x-fal-metadata": {
+            "endpointId": "nvidia/nemotron-3-nano-omni/audio",
+            "category": "audio-to-text",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/0a97fbf3/g_W4YFr0ezicmk-_sAhsr_58513a223d514f269d222988f86de3ce.jpg",
+            "playgroundUrl": "https://fal.ai/models/nvidia/nemotron-3-nano-omni/audio",
+            "documentationUrl": "https://fal.ai/models/nvidia/nemotron-3-nano-omni/audio/api",
+            "about": "Run Audio"
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": ["IN_QUEUE", "IN_PROGRESS", "COMPLETED"]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": ["status", "request_id"]
+            },
+            "Nemotron3NanoOmniAudioInput": {
+              "type": "object",
+              "required": ["prompt", "audio_url"],
+              "properties": {
+                "system_prompt": {
+                  "examples": ["You are a concise enterprise assistant."],
+                  "description": "Optional system prompt to steer the model. Reasoning behavior is controlled by the separate `reasoning_mode` field.",
+                  "title": "System Prompt",
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "temperature": {
+                  "default": 0.7,
+                  "type": "number",
+                  "title": "Temperature",
+                  "description": "Sampling temperature. Lower is more deterministic.",
+                  "minimum": 0,
+                  "maximum": 2
+                },
+                "max_tokens": {
+                  "default": 1024,
+                  "type": "integer",
+                  "title": "Max Tokens",
+                  "description": "Maximum number of tokens to generate.",
+                  "minimum": 1,
+                  "maximum": 20000
+                },
+                "prompt": {
+                  "minLength": 1,
+                  "examples": [
+                    "Summarize the key capabilities of a multimodal agent."
+                  ],
+                  "description": "Text prompt to send to the model. English only.",
+                  "title": "Prompt",
+                  "type": "string"
+                },
+                "top_p": {
+                  "default": 0.95,
+                  "type": "number",
+                  "title": "Top P",
+                  "description": "Nucleus sampling probability mass.",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "audio_url": {
+                  "title": "Audio URL",
+                  "examples": [
+                    "https://storage.googleapis.com/falserverless/example_inputs/nemotron-3-nano-omni/audio_in.mp3"
+                  ],
+                  "description": "URL of the audio clip to reason about. wav or mp3, max 1 hour.",
+                  "type": "string"
+                },
+                "reasoning_mode": {
+                  "default": "no_think",
+                  "title": "Reasoning Mode",
+                  "description": "Whether the model should emit an explicit reasoning trace. `no_think` returns a direct answer; `think` returns chain-of-thought followed by the final answer.",
+                  "enum": ["think", "no_think"],
+                  "type": "string"
+                }
+              },
+              "title": "AudioInput",
+              "x-fal-order-properties": [
+                "prompt",
+                "system_prompt",
+                "reasoning_mode",
+                "max_tokens",
+                "temperature",
+                "top_p",
+                "audio_url"
+              ]
+            },
+            "Nemotron3NanoOmniAudioOutput": {
+              "type": "object",
+              "required": ["output", "usage"],
+              "properties": {
+                "usage": {
+                  "$ref": "#/components/schemas/UsageInfo",
+                  "examples": [
+                    {
+                      "input_tokens": 412,
+                      "output_tokens": 87
+                    }
+                  ],
+                  "description": "Token usage for the request."
+                },
+                "output": {
+                  "examples": [
+                    "The image shows a golden retriever puppy sitting on a wooden floor."
+                  ],
+                  "description": "Generated text response.",
+                  "title": "Output",
+                  "type": "string"
+                },
+                "finish_reason": {
+                  "default": "stop",
+                  "examples": ["stop", "length"],
+                  "description": "Reason generation stopped.",
+                  "title": "Finish Reason",
+                  "type": "string"
+                }
+              },
+              "title": "BaseOutput",
+              "x-fal-order-properties": ["output", "finish_reason", "usage"]
+            },
+            "UsageInfo": {
+              "type": "object",
+              "required": ["input_tokens", "output_tokens"],
+              "properties": {
+                "input_tokens": {
+                  "description": "Number of input tokens processed.",
+                  "title": "Input Tokens",
+                  "type": "integer"
+                },
+                "output_tokens": {
+                  "description": "Number of output tokens generated.",
+                  "title": "Output Tokens",
+                  "type": "integer"
+                }
+              },
+              "title": "UsageInfo",
+              "x-fal-order-properties": ["input_tokens", "output_tokens"]
+            }
+          }
+        },
+        "paths": {
+          "/nvidia/nemotron-3-nano-omni/audio/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/nvidia/nemotron-3-nano-omni/audio/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/nvidia/nemotron-3-nano-omni/audio": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/Nemotron3NanoOmniAudioInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/nvidia/nemotron-3-nano-omni/audio/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/Nemotron3NanoOmniAudioOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    }
+  ]
+}

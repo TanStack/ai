@@ -1,0 +1,387 @@
+{
+  "generated_at": "2026-06-11T02:20:29.653Z",
+  "total_models": 1,
+  "category": "workflow",
+  "models": [
+    {
+      "endpoint_id": "fal-ai/workflow-utilities/pick-image-by-index",
+      "metadata": {
+        "display_name": "Workflow Utilities Pick Image By Index",
+        "category": "workflow",
+        "description": "Choose the Nth image from an image URL list for workflows.\n\n",
+        "status": "active",
+        "tags": [],
+        "updated_at": "2026-04-30T17:56:42.719Z",
+        "is_favorited": false,
+        "thumbnail_url": "https://v3b.fal.media/files/b/0a983b72/2jJcszb7aMncZ6AKlkBM-_8378b055ba694a09a3bc9a2bea5f60e9.jpg",
+        "model_url": "https://fal.run/fal-ai/workflow-utilities/pick-image-by-index",
+        "license_type": "commercial",
+        "date": "2026-04-29T18:49:30.952Z",
+        "highlighted": false,
+        "kind": "inference",
+        "pinned": false
+      },
+      "openapi": {
+        "openapi": "3.0.4",
+        "info": {
+          "title": "Queue OpenAPI for fal-ai/workflow-utilities/pick-image-by-index",
+          "version": "1.0.0",
+          "description": "The OpenAPI schema for the fal-ai/workflow-utilities/pick-image-by-index queue.",
+          "x-fal-metadata": {
+            "endpointId": "fal-ai/workflow-utilities/pick-image-by-index",
+            "category": "workflow",
+            "thumbnailUrl": "https://v3b.fal.media/files/b/0a983b72/2jJcszb7aMncZ6AKlkBM-_8378b055ba694a09a3bc9a2bea5f60e9.jpg",
+            "playgroundUrl": "https://fal.ai/models/fal-ai/workflow-utilities/pick-image-by-index",
+            "documentationUrl": "https://fal.ai/models/fal-ai/workflow-utilities/pick-image-by-index/api",
+            "about": "Select a single image from an `image_urls` array by 1-based index.\n\nReturns the URL at the requested position without fetching or\nre-uploading the image. The output exposes both an `image` object\nand a single-element `images` array so downstream nodes can\nreference `image.url` or `images.0.url` interchangeably.\n\nThis unblocks workflows that need to parameterize array selection\nbeyond hardcoded position 0 references such as `$node-X.images.0.url`.\n\nOut-of-range fallback:\nWhen `index` exceeds the length of `image_urls`, the response falls\nback to the image specified by `fallback_index` (default `first-image`)\ninstead of failing. This lets workflow authors safely request \"the\nnth image\" without knowing the array length up front.\n\nValidation:\n- `image_urls` empty: 422 \"image_urls cannot be empty\" (no fallback;\nthere is nothing to pick)\n- `index < 1`: 422 \"Index must be 1 or greater. Received: {value}\""
+          }
+        },
+        "components": {
+          "securitySchemes": {
+            "apiKeyAuth": {
+              "type": "apiKey",
+              "in": "header",
+              "name": "Authorization",
+              "description": "Fal Key"
+            }
+          },
+          "schemas": {
+            "QueueStatus": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": ["IN_QUEUE", "IN_PROGRESS", "COMPLETED"]
+                },
+                "request_id": {
+                  "type": "string",
+                  "description": "The request id."
+                },
+                "response_url": {
+                  "type": "string",
+                  "description": "The response url."
+                },
+                "status_url": {
+                  "type": "string",
+                  "description": "The status url."
+                },
+                "cancel_url": {
+                  "type": "string",
+                  "description": "The cancel url."
+                },
+                "logs": {
+                  "type": "object",
+                  "description": "The logs.",
+                  "additionalProperties": true
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "The metrics.",
+                  "additionalProperties": true
+                },
+                "queue_position": {
+                  "type": "integer",
+                  "description": "The queue position."
+                }
+              },
+              "required": ["status", "request_id"]
+            },
+            "WorkflowUtilitiesPickImageByIndexInput": {
+              "description": "Input model for selecting a single image from an array by 1-based index.\n\nPass-through utility: the URL is returned as provided in the input,\nwithout fetching or re-uploading the image.",
+              "type": "object",
+              "properties": {
+                "image_urls": {
+                  "title": "Image Urls",
+                  "description": "Array of image URLs to select from",
+                  "type": "array",
+                  "examples": [
+                    [
+                      "https://storage.googleapis.com/falserverless/example_inputs/ltxv-image-input.jpg",
+                      "https://storage.googleapis.com/falserverless/example_inputs/wan_s2v_cat.png"
+                    ]
+                  ],
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "fallback_index": {
+                  "enum": ["first-image", "last-image"],
+                  "description": "Behavior when `index` exceeds the length of `image_urls`. When `first-image`, returns the first image in the array. When `last-image`, returns the last image in the array. This input has no effect when `index` is within range, when `index` is below 1, or when `image_urls` is empty (the latter two cases still return validation errors). Default is `first-image`.",
+                  "type": "string",
+                  "default": "first-image",
+                  "title": "Fallback Index"
+                },
+                "index": {
+                  "description": "1-based position of the image to return. Value 1 returns the first image, 2 returns the second, and so on.",
+                  "type": "integer",
+                  "examples": [1],
+                  "title": "Index"
+                }
+              },
+              "required": ["image_urls", "index"],
+              "x-fal-order-properties": [
+                "image_urls",
+                "index",
+                "fallback_index"
+              ],
+              "title": "PickImageByIndexInput"
+            },
+            "WorkflowUtilitiesPickImageByIndexOutput": {
+              "description": "Output model for the picked image.",
+              "type": "object",
+              "properties": {
+                "image": {
+                  "description": "The image at the requested position",
+                  "examples": [
+                    {
+                      "url": "https://storage.googleapis.com/falserverless/example_inputs/ltxv-image-input.jpg"
+                    }
+                  ],
+                  "$ref": "#/components/schemas/Image"
+                },
+                "images": {
+                  "title": "Images",
+                  "description": "Single-element array containing the selected image. Included so downstream nodes that expect an `images` reference (matching merge and other utilities) work without changes.",
+                  "type": "array",
+                  "examples": [
+                    [
+                      {
+                        "url": "https://storage.googleapis.com/falserverless/example_inputs/ltxv-image-input.jpg"
+                      }
+                    ]
+                  ],
+                  "items": {
+                    "$ref": "#/components/schemas/Image"
+                  }
+                }
+              },
+              "required": ["image", "images"],
+              "x-fal-order-properties": ["image", "images"],
+              "title": "PickImageByIndexOutput"
+            },
+            "Image": {
+              "x-fal-order-properties": [
+                "url",
+                "content_type",
+                "file_name",
+                "file_size",
+                "width",
+                "height"
+              ],
+              "description": "Represents an image file.",
+              "type": "object",
+              "properties": {
+                "width": {
+                  "description": "The width of the image in pixels.",
+                  "examples": [1024],
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Width"
+                },
+                "height": {
+                  "description": "The height of the image in pixels.",
+                  "examples": [1024],
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Height"
+                },
+                "file_size": {
+                  "description": "The size of the file in bytes.",
+                  "examples": [4404019],
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "File Size"
+                },
+                "content_type": {
+                  "description": "The mime type of the file.",
+                  "examples": ["image/png"],
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Content Type"
+                },
+                "url": {
+                  "description": "The URL where the file can be downloaded from.",
+                  "type": "string",
+                  "title": "Url"
+                },
+                "file_name": {
+                  "description": "The name of the file. It will be auto-generated if not provided.",
+                  "examples": ["z9RV14K95DvU.png"],
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "File Name"
+                }
+              },
+              "required": ["url"],
+              "title": "Image"
+            }
+          }
+        },
+        "paths": {
+          "/fal-ai/workflow-utilities/pick-image-by-index/requests/{request_id}/status": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                },
+                {
+                  "name": "logs",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "number",
+                    "description": "Whether to include logs (`1`) in the response or not (`0`)."
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/workflow-utilities/pick-image-by-index/requests/{request_id}/cancel": {
+            "put": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "The request was cancelled.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "success": {
+                            "type": "boolean",
+                            "description": "Whether the request was cancelled successfully."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/workflow-utilities/pick-image-by-index": {
+            "post": {
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/WorkflowUtilitiesPickImageByIndexInput"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "The request status.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/QueueStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/fal-ai/workflow-utilities/pick-image-by-index/requests/{request_id}": {
+            "get": {
+              "parameters": [
+                {
+                  "name": "request_id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string",
+                    "description": "Request ID"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "Result of the request.",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/WorkflowUtilitiesPickImageByIndexOutput"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "servers": [
+          {
+            "url": "https://queue.fal.run"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    }
+  ]
+}
