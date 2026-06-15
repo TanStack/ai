@@ -567,6 +567,130 @@ const stream = chat({
 | `onUsage` | Sequential | All run in order |
 | `onFinish/onAbort/onError` | Sequential | All run in order |
 
+## Capabilities
+
+Middleware often need to **share state**. A provider middleware sets something up (a database handle, a per-request counter, a sandbox), and a consumer middleware reads it back later in the same run. Capabilities make that hand-off **type-safe and order-checked**: the consumer declares what it needs, the provider declares what it offers, and `chat()` refuses to run (at compile time _and_ at runtime) if a required capability was never provided.
+
+### Creating a capability
+
+A capability is created with `createCapability<TValue>()('name')` — a **curried** call:
+
+```typescript
+import { createCapability } from "@tanstack/ai";
+
+const counterCapability = createCapability<{ value: number }>()("counter");
+const [getCounter, provideCounter] = counterCapability;
+```
+
+The currying is deliberate: you supply the **value type** explicitly (`<{ value: number }>`) while the **name literal** is inferred from the argument (`"counter"`). A single `createCapability<T>('name')` call can't do both — supplying `T` explicitly stops TypeScript inferring the name, collapsing it to `string` and defeating the compile-time coverage check that keys on the literal name.
+
+The returned `counterCapability` is a hybrid value:
+
+- It **destructures to `[get, provide]`** — the two accessors you use inside hooks.
+- It **is itself the identity** you list in `requires` / `provides`. There is no separate token to import.
+
+The accessors:
+
+| Accessor | Behavior |
+|----------|----------|
+| `getCounter(ctx)` | Returns the value. **Throws** if the capability was never provided. |
+| `getCounter(ctx, { optional: true })` | Returns `TValue \| undefined` — no throw when absent. |
+| `provideCounter(ctx, value)` | Sets the value for this run. Call it from `setup`. |
+
+> **Capability names must be unique across your app.** The compile-time coverage check keys on the name literal (runtime keys on the handle reference), so two capabilities sharing a name will conflate in the type-level check.
+
+### The `setup` hook
+
+Provisioning happens in a dedicated `setup(ctx)` hook. It **runs first** — before any `onConfig` (init), across all middleware in array order — so that by the time the rest of the lifecycle begins, every capability is in place. `setup` receives the stable `ChatMiddlewareContext` (not the mutable config), and may be async.
+
+### `requires` / `provides` / `optionalRequires`
+
+Three array fields on a middleware declare its capability contract. Each is a `ReadonlyArray<CapabilityHandle>` — you list the capability handles themselves:
+
+| Field | Meaning |
+|-------|---------|
+| `provides` | Capabilities this middleware sets up. Each one **must** be `provide`d inside `setup`, or `chat()` throws after the setup phase. |
+| `requires` | Capabilities this middleware reads. `chat()` validates (compile time + runtime) that some earlier middleware provides each one. |
+| `optionalRequires` | Capabilities used **if present** but not required. Non-gating — never causes a validation error. Read with `getX(ctx, { optional: true })`. |
+
+### Array example
+
+Author middleware with `defineChatMiddleware` — it sharpens the `requires` / `provides` tuple types so the coverage check and builder can read them precisely. Here a **provider** sets up a counter in `setup`, and a **consumer** reads it in a hook:
+
+```typescript
+import {
+  chat,
+  createCapability,
+  defineChatMiddleware,
+} from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+const counterCapability = createCapability<{ value: number }>()("counter");
+const [getCounter, provideCounter] = counterCapability;
+
+// Provider: declares `provides` and provisions the value in `setup`.
+const withCounter = defineChatMiddleware({
+  name: "with-counter",
+  provides: [counterCapability],
+  setup(ctx) {
+    provideCounter(ctx, { value: 0 });
+  },
+});
+
+// Consumer: declares `requires` and reads the value via `get` in a hook.
+const countsChunks = defineChatMiddleware({
+  name: "counts-chunks",
+  requires: [counterCapability],
+  onChunk(ctx) {
+    getCounter(ctx).value++;
+  },
+  onFinish(ctx) {
+    console.log(`Saw ${getCounter(ctx).value} chunks`);
+  },
+});
+
+const stream = chat({
+  adapter: openaiText("gpt-5.5"),
+  messages: [{ role: "user", content: "Hello" }],
+  // Provider must come before the consumer.
+  middleware: [withCounter, countsChunks],
+});
+```
+
+If you drop `withCounter` from the array, `chat()` reports a compile-time error at the `middleware` option naming the missing `"counter"` capability — and throws at runtime before the adapter is ever called.
+
+### Builder example
+
+`createChatMiddleware()` builds the array through chained `.use()` calls and enforces **provider-before-consumer ordering at compile time**: each `.use()` requires that the middleware's `requires` are already covered by capabilities provided by earlier `.use()` calls.
+
+```typescript
+import { chat, createChatMiddleware } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+const middleware = createChatMiddleware()
+  .use(withCounter) // provides "counter"
+  .use(countsChunks) // requires "counter" — OK, already provided above
+  .build();
+
+const stream = chat({
+  adapter: openaiText("gpt-5.5"),
+  messages: [{ role: "user", content: "Hello" }],
+  middleware,
+});
+```
+
+Swap the two `.use()` calls (`.use(countsChunks).use(withCounter)`) and the builder rejects it at the `.use(countsChunks)` line — the consumer is ordered before its provider, so `"counter"` isn't in the provided set yet.
+
+### Validation guarantees
+
+The capability system fails loudly and early:
+
+- **Compile-time coverage.** A required capability that nothing provides surfaces as a type error at the `middleware` option. This is enforced two ways: an **array coverage check** on `middleware: [...]`, and the order-aware **`createChatMiddleware()` builder** (which additionally enforces ordering).
+- **Runtime coverage.** Even if types are bypassed, `chat()` validates coverage and **throws before the adapter runs** if a required capability is missing.
+- **Post-`setup` assertion.** If a middleware declares a capability in `provides` but never calls its `provide` accessor during `setup`, `chat()` throws after the setup phase — you can't silently forget to provision.
+- **Duplicate provide → last-wins + warning.** If two middleware provide the same capability, the last write wins and a development warning is emitted.
+- **Unique names.** Capability `name`s must be unique across your app; the compile-time coverage check keys on the name literal (runtime keys on the handle reference).
+
 ## Built-in Middleware
 
 TanStack AI ships ready-made middleware for common cases — caching tool results, redacting streamed text, and OpenTelemetry tracing:
