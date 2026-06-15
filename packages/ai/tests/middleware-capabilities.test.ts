@@ -3,6 +3,7 @@ import {
   createCapability,
   CapabilityRegistry,
 } from '../src/activities/chat/middleware/capabilities'
+import { validateCapabilities } from '../src/activities/chat/middleware/validate'
 import type { CapabilityContext } from '../src/activities/chat/middleware/capabilities'
 import { MiddlewareRunner } from '../src/activities/chat/middleware/compose'
 import { resolveDebugOption } from '../src/logger/resolve'
@@ -134,5 +135,32 @@ describe('MiddlewareRunner.runSetup', () => {
     await expect(runner.runSetup(makeRunnerCtx())).rejects.toThrow(
       /middleware "broken".*declares.*"declared-not-provided".*never called provide/i,
     )
+  })
+})
+
+describe('validateCapabilities', () => {
+  it('passes when all middleware + adapter requires are provided', () => {
+    const cap = createCapability<number>('ok-cap')
+    const provider: ChatMiddleware = { name: 'p', provides: [cap] }
+    const consumer: ChatMiddleware = { name: 'c', requires: [cap] }
+    expect(() =>
+      validateCapabilities([provider, consumer], { name: 'openai' }),
+    ).not.toThrow()
+  })
+
+  it('throws naming the missing capability and listing provided ones', () => {
+    const sandbox = createCapability<number>('sandbox')
+    const persistence = createCapability<number>('persistence')
+    const adapter = { name: 'claude-code', requires: [sandbox] }
+    const mw: ChatMiddleware = { name: 'persistence', provides: [persistence] }
+    expect(() => validateCapabilities([mw], adapter)).toThrowError(
+      /adapter "claude-code" requires capability "sandbox"/i,
+    )
+  })
+
+  it('ignores optionalRequires when computing missing', () => {
+    const opt = createCapability<number>('opt')
+    const mw: ChatMiddleware = { name: 'x', optionalRequires: [opt] }
+    expect(() => validateCapabilities([mw], { name: 'a' })).not.toThrow()
   })
 })
