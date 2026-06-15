@@ -1,0 +1,80 @@
+{
+  "name": "@tanstack/ai-angular",
+  "version": "0.0.1",
+  "description": "Angular signals integration for TanStack AI streaming chat, structured outputs, and media generation.",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-angular"
+  },
+  "homepage": "https://tanstack.com/ai",
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "angular",
+    "signals",
+    "chat",
+    "streaming",
+    "tool-calling",
+    "structured-outputs",
+    "media-generation"
+  ],
+  "type": "module",
+  "module": "dist/fesm2022/tanstack-ai-angular.mjs",
+  "types": "./dist/types/tanstack-ai-angular.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/tanstack-ai-angular.d.ts",
+      "default": "./dist/fesm2022/tanstack-ai-angular.mjs"
+    },
+    "./package.json": {
+      "default": "./package.json"
+    }
+  },
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "clean": "premove ./build ./dist",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest run",
+    "test:lib:dev": "vitest",
+    "test:types": "tsc",
+    "test:build": "publint --strict",
+    "build": "ng-packagr -p ng-package.json -c tsconfig.build.json && rm -rf ./dist/package.json"
+  },
+  "dependencies": {
+    "@tanstack/ai-client": "workspace:*",
+    "tslib": "^2.3.0"
+  },
+  "peerDependencies": {
+    "@angular/core": ">=21.0.0",
+    "@tanstack/ai": "workspace:^"
+  },
+  "devDependencies": {
+    "@analogjs/vite-plugin-angular": "^1.10.0",
+    "@angular/common": "^21.2.0",
+    "@angular/compiler": "^21.2.0",
+    "@angular/core": "^21.2.0",
+    "@angular/platform-browser": "^21.2.0",
+    "@angular/platform-browser-dynamic": "^21.2.0",
+    "@standard-schema/spec": "^1.1.0",
+    "@tanstack/ai": "workspace:*",
+    "@types/node": "^24.10.1",
+    "jsdom": "^27.2.0",
+    "ng-packagr": "^21.2.0",
+    "typescript": "5.9.3",
+    "vitest": "^4.0.14",
+    "zod": "^4.2.0",
+    "zone.js": "^0.15.0"
+  }
+}
