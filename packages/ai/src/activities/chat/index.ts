@@ -56,11 +56,13 @@ import type {
   UIMessage,
 } from '../../types'
 import type {
+  AnyChatMiddleware,
   ChatMiddleware,
   ChatMiddlewareConfig,
   ChatMiddlewareContext,
   StructuredOutputMiddlewareConfig,
 } from './middleware/types'
+import type { CheckCoverage } from './middleware/builder'
 import type { SystemPrompt } from '../../system-prompts'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
@@ -143,7 +145,8 @@ type TextActivityOptionsWithContext<
   'tools' | 'middleware' | 'context'
 > & {
   tools?: TTools
-  middleware?: TMiddleware
+  middleware?: TMiddleware &
+    CheckCoverage<Extract<TMiddleware, ReadonlyArray<AnyChatMiddleware>>>
 } & RequiredContextFromInputs<TTools, TMiddleware>
 
 // ===========================
