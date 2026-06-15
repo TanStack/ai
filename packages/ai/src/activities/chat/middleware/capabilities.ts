@@ -85,11 +85,28 @@ export class CapabilityRegistry {
  * TypeScript inferring the name, collapsing it to `string` and defeating the
  * compile-time coverage check that keys on the literal name.)
  *
- * @example
+ * @example Provider + consumer middleware
  * ```ts
- * const persistenceCapability = createCapability<ChatPersistence>()('persistence')
- * const [getPersistence, providePersistence] = persistenceCapability
+ * const counterCapability = createCapability<{ value: number }>()('counter')
+ * const [getCounter, provideCounter] = counterCapability
+ *
+ * const withCounter = defineChatMiddleware({
+ *   name: 'counter',
+ *   provides: [counterCapability],
+ *   setup(ctx) { provideCounter(ctx, { value: 0 }) },
+ * })
+ *
+ * const readsCounter = defineChatMiddleware({
+ *   name: 'reads-counter',
+ *   requires: [counterCapability],
+ *   onChunk(ctx) { getCounter(ctx).value++ },
+ * })
+ *
+ * chat({ adapter, messages, middleware: [withCounter, readsCounter] })
  * ```
+ *
+ * @remarks Capability `name`s must be unique across your app: compile-time
+ * coverage tracking keys on the name literal (runtime keys on reference).
  */
 export function createCapability<TValue = unknown>(): <
   const TName extends string,
