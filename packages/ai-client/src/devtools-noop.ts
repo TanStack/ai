@@ -73,6 +73,9 @@ export class NoOpChatDevtoolsBridge {
 
   // chat-specific surface
   setCurrentStreamId(_streamId: string | null): void {}
+  recordStreamId(_streamId: string): void {}
+  mountWithTools(_initialMessageCount: number): void {}
+  notifyToolsChanged(): void {}
   getCurrentStreamId(): string | null {
     return null
   }
@@ -150,9 +153,15 @@ export class NoOpVideoDevtoolsBridge<
 
 // Compile-time parity checks. If a public method is added to the real
 // bridge class without a matching stub on the no-op, the corresponding
-// `Exclude<...>` will resolve to a non-`never` union and the `as never`
-// assignment below will fail to typecheck — surfacing the drift at build
-// time instead of as a runtime TypeError later.
+// `Exclude<...>` resolves to a non-`never` union, the conditional below
+// resolves to a string-literal type, and the assignment to `never` fails
+// to typecheck — surfacing the drift at build time instead of as a
+// runtime TypeError later.
+//
+// (An earlier version did `const x: Missing = undefined as never` which
+// is the *wrong* direction: `never` is assignable to everything, so the
+// check was a no-op and silently let new public methods slip through.)
+type _AssertBridgeParity<T extends never> = T
 type _ChatBridgeMissing = Exclude<
   keyof ChatDevtoolsBridge,
   keyof NoOpChatDevtoolsBridge
@@ -165,12 +174,16 @@ type _VideoBridgeMissing = Exclude<
   keyof VideoDevtoolsBridge<unknown>,
   keyof NoOpVideoDevtoolsBridge<unknown>
 >
-const _chatBridgeParity: _ChatBridgeMissing = undefined as never
-const _generationBridgeParity: _GenerationBridgeMissing = undefined as never
-const _videoBridgeParity: _VideoBridgeMissing = undefined as never
-void _chatBridgeParity
-void _generationBridgeParity
-void _videoBridgeParity
+type _ChatBridgeParity = _AssertBridgeParity<_ChatBridgeMissing>
+type _GenerationBridgeParity = _AssertBridgeParity<_GenerationBridgeMissing>
+type _VideoBridgeParity = _AssertBridgeParity<_VideoBridgeMissing>
+// Reference the aliases so they aren't pruned as unused types — the
+// generic constraint on `_AssertBridgeParity` does the real check.
+export type {
+  _ChatBridgeParity,
+  _GenerationBridgeParity,
+  _VideoBridgeParity,
+}
 
 // ===========================================================================
 // Factories — these are what the clients call when no real factory was
