@@ -59,4 +59,9 @@
     "vue": "^3.5.25",
     "vue-tsc": "^2.2.10"
   }
+,
+  "homepage": "https://tanstack.com/ai",
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  }
 }

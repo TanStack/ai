@@ -65,4 +65,9 @@
     "@tanstack/ai": "workspace:^",
     "zod": "^4.0.0"
   }
+,
+  "homepage": "https://tanstack.com/ai",
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  }
 }

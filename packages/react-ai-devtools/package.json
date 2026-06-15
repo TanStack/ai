@@ -73,4 +73,8 @@
     "chat",
     "tool-calling"
   ]
+,
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  }
 }

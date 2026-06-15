@@ -63,4 +63,9 @@
     "solid-js": "^1.9.10",
     "vite": "^7.3.3"
   }
+,
+  "homepage": "https://tanstack.com/ai",
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  }
 }

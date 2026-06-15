@@ -63,4 +63,9 @@
     "typescript": "5.9.3",
     "vitest": "^4.0.14"
   }
+,
+  "homepage": "https://tanstack.com/ai",
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  }
 }

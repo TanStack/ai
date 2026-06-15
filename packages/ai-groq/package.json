@@ -62,4 +62,9 @@
     "@tanstack/openai-base": "workspace:*",
     "openai": "^6.41.0"
   }
+,
+  "homepage": "https://tanstack.com/ai",
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  }
 }

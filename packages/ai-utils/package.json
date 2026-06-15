@@ -46,4 +46,9 @@
     "@vitest/coverage-v8": "4.0.14",
     "vite": "^7.3.3"
   }
+,
+  "homepage": "https://tanstack.com/ai",
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  }
 }

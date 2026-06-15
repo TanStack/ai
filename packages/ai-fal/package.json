@@ -61,4 +61,9 @@
   "peerDependencies": {
     "@tanstack/ai": "workspace:*"
   }
+,
+  "homepage": "https://tanstack.com/ai",
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  }
 }

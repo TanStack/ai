@@ -57,4 +57,9 @@
     "@tanstack/ai": "workspace:^",
     "preact": ">=10.11.0"
   }
+,
+  "homepage": "https://tanstack.com/ai",
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  }
 }

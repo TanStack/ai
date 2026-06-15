@@ -65,4 +65,9 @@
     "@vitest/coverage-v8": "4.0.14",
     "wrangler": "^4.88.0"
   }
+,
+  "homepage": "https://tanstack.com/ai",
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  }
 }

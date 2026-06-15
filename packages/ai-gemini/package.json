@@ -68,4 +68,9 @@
     "vite": "^7.3.3",
     "zod": "^4.2.0"
   }
+,
+  "homepage": "https://tanstack.com/ai",
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  }
 }

@@ -54,4 +54,9 @@
   "devDependencies": {
     "@vitest/coverage-v8": "4.0.14"
   }
+,
+  "homepage": "https://tanstack.com/ai",
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  }
 }
