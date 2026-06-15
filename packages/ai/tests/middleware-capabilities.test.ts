@@ -7,6 +7,8 @@ import { validateCapabilities } from '../src/activities/chat/middleware/validate
 import type { CapabilityContext } from '../src/activities/chat/middleware/capabilities'
 import { MiddlewareRunner } from '../src/activities/chat/middleware/compose'
 import { resolveDebugOption } from '../src/logger/resolve'
+import { chat } from '../src'
+import { createMockAdapter, ev, collectChunks } from './test-utils'
 import type {
   ChatMiddleware,
   ChatMiddlewareContext,
@@ -162,5 +164,62 @@ describe('validateCapabilities', () => {
     const opt = createCapability<number>('opt')
     const mw: ChatMiddleware = { name: 'x', optionalRequires: [opt] }
     expect(() => validateCapabilities([mw], { name: 'a' })).not.toThrow()
+  })
+})
+
+describe('chat() capability integration', () => {
+  it('runs setup before onConfig and lets onConfig consume a capability', async () => {
+    const cap = createCapability<{ greeting: string }>('greeter')
+    const [getGreeting, provideGreeting] = cap
+    const seen: Array<string> = []
+    const provider: ChatMiddleware = {
+      name: 'greeter-provider',
+      provides: [cap],
+      setup(ctx) {
+        seen.push('setup')
+        provideGreeting(ctx, { greeting: 'hi' })
+      },
+    }
+    const consumer: ChatMiddleware = {
+      name: 'greeter-consumer',
+      requires: [cap],
+      onConfig(ctx) {
+        seen.push('onConfig')
+        expect(getGreeting(ctx).greeting).toBe('hi')
+      },
+    }
+    const { adapter } = createMockAdapter({
+      iterations: [
+        [
+          ev.runStarted(),
+          ev.textStart(),
+          ev.textContent('hi'),
+          ev.textEnd(),
+          ev.runFinished(),
+        ],
+      ],
+    })
+    await collectChunks(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'hello' }],
+        middleware: [provider, consumer],
+      }),
+    )
+    expect(seen[0]).toBe('setup')
+    expect(seen).toContain('onConfig')
+  })
+
+  it('throws synchronously when a required capability is unprovided', () => {
+    const sandbox = createCapability<number>('sandbox-int')
+    const needsSandbox: ChatMiddleware = { name: 'needs-sandbox', requires: [sandbox] }
+    const { adapter } = createMockAdapter({ iterations: [[]] })
+    expect(() =>
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'x' }],
+        middleware: [needsSandbox],
+      }),
+    ).toThrowError(/requires capability "sandbox-int"/i)
   })
 })

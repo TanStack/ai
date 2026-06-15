@@ -26,6 +26,7 @@ import { maxIterations as maxIterationsStrategy } from './agent-loop-strategies'
 import { convertMessagesToModelMessages, generateMessageId } from './messages'
 import { MiddlewareRunner } from './middleware/compose'
 import { CapabilityRegistry } from './middleware/capabilities'
+import { validateCapabilities } from './middleware/validate'
 import { MCPManager } from './mcp/manager'
 import type {
   ApprovalRequest,
@@ -709,6 +710,9 @@ class TextEngine<
     })
 
     try {
+      // Provision capabilities before any consumer (onConfig onward) can read them
+      await this.middlewareRunner.runSetup(this.middlewareCtx)
+
       // Run initial onConfig (phase = init)
       this.middlewareCtx.phase = 'init'
       const initialConfig = this.buildMiddlewareConfig()
@@ -2567,6 +2571,8 @@ export function chat<
     TMiddleware
   >,
 ): TextActivityResult<TSchema, TStream> {
+  validateCapabilities(options.middleware ?? [], options.adapter)
+
   const { outputSchema, stream } = options
 
   // outputSchema + stream:true is the only branch that streams structured
