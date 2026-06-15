@@ -9,6 +9,10 @@
     "url": "git+https://github.com/TanStack/ai.git",
     "directory": "packages/ai"
   },
+  "homepage": "https://tanstack.com/ai",
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
   "type": "module",
   "module": "./dist/esm/index.js",
   "types": "./dist/esm/index.d.ts",
