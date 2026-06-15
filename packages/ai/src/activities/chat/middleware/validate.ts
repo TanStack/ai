@@ -11,6 +11,11 @@ interface CapabilityRequiringAdapter {
  * Runtime validation: every required capability (from middleware `requires` and
  * the adapter's `requires`) must be provided by some middleware's `provides`.
  * `optionalRequires` is never gating. Throws a clear error otherwise.
+ *
+ * Presence only — ORDER is not validated here (a provider may appear after its
+ * consumer in the array and still pass). Use the `createChatMiddleware()`
+ * builder for compile-time order enforcement; at runtime, a consumer that reads
+ * a not-yet-provided capability during `setup` fails loud via its getter.
  */
 export function validateCapabilities(
   middlewares: ReadonlyArray<AnyChatMiddleware>,

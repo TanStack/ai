@@ -63,7 +63,7 @@ export interface ChatMiddlewareBuilder<
   TList extends ReadonlyArray<AnyChatMiddleware>,
   TProvided extends string,
 > {
-  use<
+  use: <
     TRequires extends ReadonlyArray<CapabilityHandle>,
     TProvides extends ReadonlyArray<CapabilityHandle>,
     TContext = unknown,
@@ -72,12 +72,12 @@ export interface ChatMiddlewareBuilder<
       ? DefinedChatMiddleware<TContext, TRequires, TProvides>
       : DefinedChatMiddleware<TContext, TRequires, TProvides> &
           MissingCapabilities<Exclude<NamesOf<TRequires>, TProvided>>,
-  ): ChatMiddlewareBuilder<
+  ) => ChatMiddlewareBuilder<
     readonly [...TList, DefinedChatMiddleware<TContext, TRequires, TProvides>],
     TProvided | NamesOf<TProvides>
   >
 
-  build(): [...TList]
+  build: () => [...TList]
 }
 
 /** Create an order-aware middleware builder. */
@@ -97,6 +97,8 @@ export function createChatMiddleware(): ChatMiddlewareBuilder<
   }
   // The only sanctioned assertion in this PR: the runtime `builder` is a single
   // object reused across `.use()` calls, but the type accumulates `TProvided`
-  // and `TList` per call — TypeScript cannot derive that from runtime values.
+  // and `TList` per call — TypeScript cannot derive that from runtime values, so
+  // a structural `as` is impossible and the double assertion is irreducible.
+  // eslint-disable-next-line no-restricted-syntax -- irreducible: type-level accumulation cannot be expressed from a single runtime object
   return builder as unknown as ChatMiddlewareBuilder<readonly [], never>
 }

@@ -2,6 +2,7 @@ import { expectTypeOf } from 'vitest'
 import { chat } from '../src'
 import { createCapability } from '../src/activities/chat/middleware/capabilities'
 import { defineChatMiddleware } from '../src/activities/chat/middleware/define'
+import { createChatMiddleware } from '../src/activities/chat/middleware/builder'
 import type { AnyTextAdapter } from '../src/activities/chat/adapter'
 
 const aCap = createCapability<{ a: number }>()('a')
@@ -67,7 +68,6 @@ chat({
 // ===========================
 // Task 9: order-aware createChatMiddleware builder
 // ===========================
-import { createChatMiddleware } from '../src/activities/chat/middleware/builder'
 
 const builderCap = createCapability<number>()('builder-cap')
 const buProvides = defineChatMiddleware({
