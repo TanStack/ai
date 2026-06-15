@@ -6,6 +6,7 @@ const MIDDLEWARE_MODES = [
   { id: 'none', label: 'No Middleware' },
   { id: 'chunk-transform', label: 'Chunk Transform (prefix text)' },
   { id: 'tool-skip', label: 'Tool Skip (skip with custom result)' },
+  { id: 'capability', label: 'Capability (provide/consume prefix)' },
   { id: 'phase-recorder', label: 'Phase Recorder (capture phase + chunks)' },
   { id: 'otel', label: 'OpenTelemetry (capture spans/metrics)' },
 ] as const
@@ -144,6 +145,7 @@ function MiddlewareTestPage() {
           }}
         >
           <option value="basic-text">Basic Text</option>
+          <option value="capability">Capability</option>
           <option value="with-tool">With Tool</option>
           <option value="structured-output">Structured Output</option>
           <option value="structured-output-stream">
