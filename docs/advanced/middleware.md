@@ -597,6 +597,8 @@ The accessors:
 | `getCounter(ctx, { optional: true })` | Returns `TValue \| undefined` — no throw when absent. |
 | `provideCounter(ctx, value)` | Sets the value for this run. Call it from `setup`. |
 
+Equivalently, the context exposes `ctx.get(capability)`, `ctx.getOptional(capability)`, and `ctx.provide(capability, value)` — pass the capability handle directly. These are typed by the handle you pass (`ctx.get(counterCapability)` returns the value type), so `getCounter(ctx)` and `ctx.get(counterCapability)` are interchangeable — use whichever reads better in your hook.
+
 > **Capability names must be unique across your app.** The compile-time coverage check keys on the name literal (runtime keys on the handle reference), so two capabilities sharing a name will conflate in the type-level check.
 
 ### The `setup` hook

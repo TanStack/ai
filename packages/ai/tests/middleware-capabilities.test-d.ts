@@ -4,6 +4,7 @@ import { createCapability } from '../src/activities/chat/middleware/capabilities
 import { defineChatMiddleware } from '../src/activities/chat/middleware/define'
 import { createChatMiddleware } from '../src/activities/chat/middleware/builder'
 import type { AnyTextAdapter } from '../src/activities/chat/adapter'
+import type { ChatMiddlewareContext } from '../src/activities/chat/middleware/types'
 
 const aCap = createCapability<{ a: number }>()('a')
 const bCap = createCapability<{ b: string }>()('b')
@@ -86,3 +87,17 @@ createChatMiddleware().use(buConsumes)
 
 // The fully-built array satisfies chat()'s coverage check.
 chat({ adapter: mockAdapter, messages: [], middleware: built })
+
+// ===========================
+// ctx.get / ctx.getOptional are typed by the capability identity passed
+// ===========================
+declare const ctx: ChatMiddlewareContext
+
+// `persistenceCap` is Capability<number, ...> → get returns number.
+expectTypeOf(ctx.get(persistenceCap)).toEqualTypeOf<number>()
+expectTypeOf(ctx.getOptional(persistenceCap)).toEqualTypeOf<
+  number | undefined
+>()
+
+// @ts-expect-error a middleware is not a capability identity.
+ctx.get(providesPersistence)

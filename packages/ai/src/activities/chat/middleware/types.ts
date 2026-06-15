@@ -7,7 +7,11 @@ import type {
   ToolCall,
 } from '../../../types'
 import type { SystemPrompt } from '../../../system-prompts'
-import type { CapabilityHandle, CapabilityRegistry } from './capabilities'
+import type {
+  Capability,
+  CapabilityHandle,
+  CapabilityRegistry,
+} from './capabilities'
 
 // ===========================
 // Middleware Context
@@ -123,6 +127,21 @@ export interface ChatMiddlewareContext<TContext = unknown> {
    * this directly. Orthogonal to `context` (the user runtime context).
    */
   capabilities: CapabilityRegistry
+  /**
+   * Read a provided capability by its handle. Equivalent to the handle's own
+   * `get` accessor (`getX(ctx)`); throws if the capability was never provided.
+   */
+  get: <TValue>(capability: Capability<TValue>) => TValue
+  /**
+   * Read a capability by its handle, returning `undefined` if it was never
+   * provided (never throws).
+   */
+  getOptional: <TValue>(capability: Capability<TValue>) => TValue | undefined
+  /**
+   * Provide a capability value. Equivalent to the handle's own `provide`
+   * accessor (`provideX(ctx, value)`). Typically called from `setup`.
+   */
+  provide: <TValue>(capability: Capability<TValue>, value: TValue) => void
 }
 
 // ===========================

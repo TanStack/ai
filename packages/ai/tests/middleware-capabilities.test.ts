@@ -75,7 +75,7 @@ describe('createCapability + CapabilityRegistry', () => {
 // instrumentation, so the test builds a complete (inert) ChatMiddlewareContext
 // — typed against the real interface, no casts.
 function makeRunnerCtx(): ChatMiddlewareContext {
-  return {
+  const ctx: ChatMiddlewareContext = {
     requestId: 'r',
     streamId: 's',
     runId: 'run',
@@ -98,7 +98,11 @@ function makeRunnerCtx(): ChatMiddlewareContext {
     messages: [],
     createId: (prefix) => `${prefix}-id`,
     capabilities: new CapabilityRegistry(),
+    get: (capability) => capability[0](ctx),
+    getOptional: (capability) => capability[0](ctx, { optional: true }),
+    provide: (capability, value) => capability[1](ctx, value),
   }
+  return ctx
 }
 
 describe('MiddlewareRunner.runSetup', () => {
@@ -212,6 +216,40 @@ describe('chat() capability integration', () => {
     )
     expect(seen[0]).toBe('setup')
     expect(seen).toContain('onConfig')
+  })
+
+  it('supports ctx.provide / ctx.get / ctx.getOptional by handle', async () => {
+    const cap = createCapability<{ greeting: string }>()('ctx-greeter')
+    const absent = createCapability<number>()('ctx-absent')
+    let read: { greeting: string } | undefined
+    let optionalMissing: number | undefined = 1
+    const provider: ChatMiddleware = {
+      name: 'ctx-provider',
+      provides: [cap],
+      setup(ctx) {
+        ctx.provide(cap, { greeting: 'hey' })
+      },
+    }
+    const consumer: ChatMiddleware = {
+      name: 'ctx-consumer',
+      requires: [cap],
+      onConfig(ctx) {
+        read = ctx.get(cap)
+        optionalMissing = ctx.getOptional(absent)
+      },
+    }
+    const { adapter } = createMockAdapter({
+      iterations: [[ev.runStarted(), ev.runFinished()]],
+    })
+    await collectChunks(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'hello' }],
+        middleware: [provider, consumer],
+      }),
+    )
+    expect(read).toEqual({ greeting: 'hey' })
+    expect(optionalMissing).toBeUndefined()
   })
 
   it('throws synchronously when a required capability is unprovided', () => {
