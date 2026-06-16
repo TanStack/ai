@@ -33,5 +33,8 @@ export type {
 } from './process/server'
 export { buildPrompt } from './messages/prompt'
 export type { BuiltPrompt } from './messages/prompt'
-export { startToolBridge } from './tools/bridge'
-export type { ToolBridgeHandle } from './tools/bridge'
+export { startOpencodeServerInSandbox } from './process/sandbox-server'
+export type {
+  SandboxOpencodeServer,
+  StartServerOptions,
+} from './process/sandbox-server'
