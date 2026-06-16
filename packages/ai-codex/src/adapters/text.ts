@@ -159,9 +159,8 @@ export class CodexTextAdapter<
       ...(reasoning ? { model_reasoning_effort: `"${reasoning}"` } : {}),
       ...(networkAccessEnabled !== undefined
         ? {
-            'sandbox_workspace_write.network_access': String(
-              networkAccessEnabled,
-            ),
+            'sandbox_workspace_write.network_access':
+              String(networkAccessEnabled),
           }
         : {}),
       ...(config.webSearchMode

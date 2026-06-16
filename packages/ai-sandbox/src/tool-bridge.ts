@@ -111,11 +111,16 @@ function buildServer(
 
   server.server.setRequestHandler(CallToolRequestSchema, async (request) => {
     // Permission-prompt tool: return the host's allow/deny decision.
-    if (options.permission && request.params.name === options.permission.toolName) {
+    if (
+      options.permission &&
+      request.params.name === options.permission.toolName
+    ) {
       const result = await options.permission.resolve(
         request.params.arguments ?? {},
       )
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] }
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+      }
     }
     const tool = toolsByName.get(request.params.name)
     if (!tool?.execute) {

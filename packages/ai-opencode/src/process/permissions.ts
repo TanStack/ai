@@ -95,8 +95,13 @@ export function resolveInteractivePermission(
   mode: OpencodePermissionMode,
   bridgedToolNames: ReadonlySet<string> | undefined,
   approvals: ReadonlyMap<string, boolean> | undefined,
-): { response: OpencodePermissionResponse; approvalId?: string; title?: string } {
-  if (matchBridgedToolName(request, bridgedToolNames)) return { response: 'once' }
+): {
+  response: OpencodePermissionResponse
+  approvalId?: string
+  title?: string
+} {
+  if (matchBridgedToolName(request, bridgedToolNames))
+    return { response: 'once' }
   if (mode === 'bypassPermissions') return { response: 'once' }
   if (mode === 'acceptEdits' && EDIT_TYPES.has(request.type)) {
     return { response: 'once' }

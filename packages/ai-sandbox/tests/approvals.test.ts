@@ -9,10 +9,20 @@ import { defineSandboxPolicy } from '../src/policy'
 
 describe('approvalId', () => {
   it('is stable for the same action across runs', () => {
-    const a = approvalId({ provider: 'codex', kind: 'command', target: 'rm -rf x' })
-    const b = approvalId({ provider: 'codex', kind: 'command', target: 'rm -rf x' })
+    const a = approvalId({
+      provider: 'codex',
+      kind: 'command',
+      target: 'rm -rf x',
+    })
+    const b = approvalId({
+      provider: 'codex',
+      kind: 'command',
+      target: 'rm -rf x',
+    })
     expect(a).toBe(b)
-    expect(a).not.toBe(approvalId({ provider: 'codex', kind: 'command', target: 'ls' }))
+    expect(a).not.toBe(
+      approvalId({ provider: 'codex', kind: 'command', target: 'ls' }),
+    )
   })
 })
 
@@ -24,43 +34,82 @@ describe('resolveApproval', () => {
   })
 
   it('allows / denies per command policy without asking', () => {
-    expect(resolveApproval({ policy, approvals: undefined, id: 'x', command: 'ls' })).toEqual({
+    expect(
+      resolveApproval({ policy, approvals: undefined, id: 'x', command: 'ls' }),
+    ).toEqual({
       decision: 'allow',
       needsApproval: false,
     })
     expect(
-      resolveApproval({ policy, approvals: undefined, id: 'x', command: 'sudo reboot' }),
+      resolveApproval({
+        policy,
+        approvals: undefined,
+        id: 'x',
+        command: 'sudo reboot',
+      }),
     ).toEqual({ decision: 'deny', needsApproval: false })
   })
 
   it('asks (deny + needsApproval) when policy says ask and no decision yet', () => {
     expect(
-      resolveApproval({ policy, approvals: undefined, id: 'rm', command: 'rm file' }),
+      resolveApproval({
+        policy,
+        approvals: undefined,
+        id: 'rm',
+        command: 'rm file',
+      }),
     ).toEqual({ decision: 'deny', needsApproval: true })
   })
 
   it('honors the client decision on the resumed run', () => {
     const granted = new Map([['rm', true]])
     expect(
-      resolveApproval({ policy, approvals: granted, id: 'rm', command: 'rm file' }),
+      resolveApproval({
+        policy,
+        approvals: granted,
+        id: 'rm',
+        command: 'rm file',
+      }),
     ).toEqual({ decision: 'allow', needsApproval: false })
     const denied = new Map([['rm', false]])
     expect(
-      resolveApproval({ policy, approvals: denied, id: 'rm', command: 'rm file' }),
+      resolveApproval({
+        policy,
+        approvals: denied,
+        id: 'rm',
+        command: 'rm file',
+      }),
     ).toEqual({ decision: 'deny', needsApproval: false })
   })
 
   it('resolves coarse capability rules (fileWrite ask, network deny)', () => {
     expect(
-      resolveApproval({ policy, approvals: undefined, id: 'w', capability: 'fileWrite' }),
+      resolveApproval({
+        policy,
+        approvals: undefined,
+        id: 'w',
+        capability: 'fileWrite',
+      }),
     ).toEqual({ decision: 'deny', needsApproval: true })
     expect(
-      resolveApproval({ policy, approvals: undefined, id: 'n', capability: 'network' }),
+      resolveApproval({
+        policy,
+        approvals: undefined,
+        id: 'n',
+        capability: 'network',
+      }),
     ).toEqual({ decision: 'deny', needsApproval: false })
   })
 
   it('defaults to ask when no policy', () => {
-    expect(resolveApproval({ policy: undefined, approvals: undefined, id: 'x', command: 'anything' })).toEqual({
+    expect(
+      resolveApproval({
+        policy: undefined,
+        approvals: undefined,
+        id: 'x',
+        command: 'anything',
+      }),
+    ).toEqual({
       decision: 'deny',
       needsApproval: true,
     })

@@ -333,7 +333,9 @@ export class ClaudeCodeTextAdapter<
         resume,
         mapPolicyToClaudeFlags(policy),
         bridge ? bridgeToMcpConfig(bridge) : undefined,
-        bridge && permission ? `mcp__${bridge.name}__${permission.toolName}` : undefined,
+        bridge && permission
+          ? `mcp__${bridge.name}__${permission.toolName}`
+          : undefined,
       )
 
       logger.request(
