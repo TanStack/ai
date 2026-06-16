@@ -1,0 +1,56 @@
+{
+  "name": "@tanstack/ai-sandbox-cloudflare",
+  "version": "0.1.0",
+  "description": "Cloudflare sandbox provider for TanStack AI — run harness adapters inside Cloudflare Containers (edge) through the uniform SandboxHandle.",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-sandbox-cloudflare"
+  },
+  "keywords": [
+    "ai",
+    "tanstack",
+    "sandbox",
+    "cloudflare",
+    "workers",
+    "edge",
+    "harness",
+    "agent"
+  ],
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:build": "publint --strict",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "dependencies": {
+    "@cloudflare/sandbox": "^0.12.1"
+  },
+  "peerDependencies": {
+    "@tanstack/ai-sandbox": "workspace:^"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241230.0",
+    "@tanstack/ai-sandbox": "workspace:*",
+    "@vitest/coverage-v8": "4.0.14"
+  }
+}
