@@ -164,7 +164,8 @@ export class GeminiCliTextAdapter<
         cwd,
         ...((modelOptions?.authMethodId ?? this.adapterConfig.authMethodId) !==
           undefined && {
-          authMethodId: modelOptions?.authMethodId ?? this.adapterConfig.authMethodId,
+          authMethodId:
+            modelOptions?.authMethodId ?? this.adapterConfig.authMethodId,
         }),
         ...(sessionId !== undefined && { resumeSessionId: sessionId }),
         onUpdate: (update) => queue.push({ kind: 'update', update }),
