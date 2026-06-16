@@ -1,5 +1,11 @@
 # @tanstack/ai-client
 
+## 0.17.2
+
+### Patch Changes
+
+- [#752](https://github.com/TanStack/ai/pull/752) [`4d5141c`](https://github.com/TanStack/ai/commit/4d5141c128c0e9bd33cdbf36a5402811cefc3f8b) - Fix `ChatClient` throwing `TypeError: this.devtoolsBridge.mountWithTools is not a function` on the first `sendMessage()` (and on `updateOptions({ tools })`) when no devtools bridge factory is supplied. The default `NoOpChatDevtoolsBridge` was missing the `mountWithTools`, `notifyToolsChanged`, and `recordStreamId` methods of the real bridge; the throw happened before the user message was appended, so the first message was silently lost. The compile-time parity check between the real and no-op bridges now fails the build when the surfaces drift.
+
 ## 0.17.1
 
 ### Patch Changes
