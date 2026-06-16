@@ -1,13 +1,13 @@
-import { query } from '@anthropic-ai/claude-agent-sdk'
 import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
-import { buildPrompt } from '../messages/prompt'
-import { createToolBridge } from '../tools/bridge'
 import {
-  BRIDGED_MCP_SERVER_NAME,
-  translateSdkStream,
-} from '../stream/translate'
+  SandboxCapability,
+  getSandbox,
+  spawnNdjson,
+} from '@tanstack/ai-sandbox'
+import { buildPrompt } from '../messages/prompt'
+import { translateSdkStream } from '../stream/translate'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
@@ -19,85 +19,69 @@ import type {
   StreamChunk,
   TextOptions,
 } from '@tanstack/ai'
-import type { Options } from '@anthropic-ai/claude-agent-sdk'
+import type { SandboxHandle } from '@tanstack/ai-sandbox'
 import type { ClaudeCodeModel } from '../model-meta'
 import type { ClaudeCodeTextProviderOptions } from '../provider-options'
-import type { AgentSdkMessage, SdkResultMessage } from '../stream/sdk-types'
+import type { AgentSdkMessage } from '../stream/sdk-types'
 
-type PermissionMode = NonNullable<Options['permissionMode']>
+export type ClaudeCodePermissionMode =
+  | 'default'
+  | 'acceptEdits'
+  | 'bypassPermissions'
+  | 'plan'
+
+const DEFAULT_WORKDIR = '/workspace'
 
 export interface ClaudeCodeTextConfig {
-  /** Working directory for the harness session. Defaults to `process.cwd()`. */
+  /**
+   * Working directory inside the sandbox where `claude` runs. Defaults to
+   * `/workspace` (the conventional sandbox workspace root).
+   */
   cwd?: string
   /**
-   * Claude Code permission mode. Without an explicit mode or a custom
-   * `canUseTool`, the adapter's default permission handler auto-allows
-   * bridged TanStack tools and denies anything else that would normally
-   * prompt — set `'acceptEdits'` / `'bypassPermissions'` (or `allowedTools`)
-   * to let the harness edit files and run commands on a headless server.
+   * Claude Code permission mode passed via `--permission-mode`. Defaults to
+   * `'bypassPermissions'` — a sandbox is isolated, so the agent is allowed to
+   * edit files and run commands without prompting. Tighten via `defineSandboxPolicy`
+   * / this option for less autonomy.
    */
-  permissionMode?: PermissionMode
-  /** Built-in tools the harness may use without prompting. */
+  permissionMode?: ClaudeCodePermissionMode
+  /** Built-in tools the harness may use (`--allowedTools`). */
   allowedTools?: Array<string>
-  /** Built-in tools removed from the harness entirely. */
+  /** Built-in tools removed from the harness (`--disallowedTools`). */
   disallowedTools?: Array<string>
-  /** Maximum harness-internal turns per run. */
+  /** Extra directories the agent may access (`--add-dir`). */
+  addDirs?: Array<string>
+  /** Maximum harness-internal turns (`--max-turns`). */
   maxTurns?: number
   /**
    * How `systemPrompts` from `chat()` are applied:
-   * - `'append'` (default): kept on top of the Claude Code preset prompt
-   * - `'replace'`: sent as the entire system prompt
+   * - `'append'` (default): `--append-system-prompt` on top of the preset.
+   * - `'replace'`: `--system-prompt` as the entire system prompt.
    */
   systemPromptMode?: 'append' | 'replace'
-  /** Extra MCP servers passed through to the harness untouched. */
-  mcpServers?: Options['mcpServers']
-  /**
-   * Anthropic API key for the harness subprocess. Falls back to the
-   * process environment / the local Claude Code login when omitted.
-   */
-  apiKey?: string
-  /** Extra environment variables for the harness subprocess. */
-  env?: Record<string, string>
-  /** Path to a Claude Code executable (defaults to the SDK's bundled one). */
-  pathToClaudeCodeExecutable?: string
-  /** JavaScript runtime used to execute Claude Code. */
-  executable?: Options['executable']
-  /** Emit true token-level deltas via partial messages (default true). */
+  /** Path/name of the claude executable inside the sandbox. Defaults to `claude`. */
+  claudeExecutable?: string
+  /** Emit token-level deltas via `--include-partial-messages` (default true). */
   streamPartials?: boolean
-  /** Custom permission handler; replaces the adapter's default handler. */
-  canUseTool?: Options['canUseTool']
-  /**
-   * Which Claude Code settings tiers the harness loads. Defaults to
-   * `['project']`: the working directory's CLAUDE.md and project settings
-   * apply, but user-level config on the host machine (personal plugins,
-   * hooks, skills under `~/.claude`) is ignored — a server adapter
-   * shouldn't inherit whoever happens to be logged in on the box. Pass
-   * `['user', 'project', 'local']` to match CLI behavior, or `[]` for full
-   * isolation.
-   */
-  settingSources?: Options['settingSources']
+  /** Extra environment variables for the claude process inside the sandbox. */
+  env?: Record<string, string>
+  /** Emit a `file.changed` CUSTOM event with the git diff after the run (default true). */
+  emitDiff?: boolean
+}
+
+/** POSIX single-quote escape for embedding values in the `claude …` command. */
+function q(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
 function validateTools(tools: Array<AnyTool> | undefined): void {
-  if (!tools || tools.length === 0) return
-  const unsupported = tools.filter(
-    (tool) => typeof tool.execute !== 'function' || tool.needsApproval === true,
-  )
-  if (unsupported.length > 0) {
+  if (tools && tools.length > 0) {
     throw new Error(
-      `Claude Code harness cannot execute client-side or approval-gated tools: ${unsupported
-        .map((tool) => tool.name)
-        .join(
-          ', ',
-        )}. Provide server execute() implementations without needsApproval, or run these tools outside the harness.`,
+      'The in-sandbox Claude Code adapter does not yet bridge chat()-provided tools ' +
+        '(MCP tool-proxy is pending). The agent uses its own native tools (Bash/Edit/Read/…) ' +
+        'inside the sandbox. Remove `tools` from chat(), or run those tools outside the harness.',
     )
   }
-}
-
-function getResultError(result: SdkResultMessage): string {
-  return result.errors && result.errors.length > 0
-    ? result.errors.join('; ')
-    : `Claude Code run failed: ${result.subtype}`
 }
 
 export class ClaudeCodeTextAdapter<
@@ -113,11 +97,83 @@ export class ClaudeCodeTextAdapter<
 > {
   readonly name = 'claude-code' as const
 
+  // Harness adapter: requires a sandbox to run the agent CLI inside.
+  override readonly requires = [SandboxCapability] as const
+
   private readonly adapterConfig: ClaudeCodeTextConfig
 
   constructor(config: ClaudeCodeTextConfig, model: TModel) {
     super({}, model)
     this.adapterConfig = config
+  }
+
+  private sandboxFrom(options: TextOptions<ClaudeCodeTextProviderOptions>): SandboxHandle {
+    const ctx = options.capabilities
+    if (!ctx) {
+      throw new Error(
+        'Adapter "claude-code" requires a sandbox. Add withSandbox(defineSandbox({ ... })) ' +
+          'to chat() middleware (e.g. with the local-process or docker provider).',
+      )
+    }
+    return getSandbox(ctx)
+  }
+
+  private workdir(options: TextOptions<ClaudeCodeTextProviderOptions>): string {
+    return options.modelOptions?.cwd ?? this.adapterConfig.cwd ?? DEFAULT_WORKDIR
+  }
+
+  /** Build the `claude` command line (prompt goes via stdin, not argv). */
+  private buildCommand(
+    options: TextOptions<ClaudeCodeTextProviderOptions>,
+    resume: string | undefined,
+  ): string {
+    const config = this.adapterConfig
+    const modelOptions = options.modelOptions
+    const exe = config.claudeExecutable ?? 'claude'
+
+    const args: Array<string> = [
+      '-p',
+      '--output-format',
+      'stream-json',
+      '--verbose',
+      '--model',
+      q(this.model),
+    ]
+
+    if (config.streamPartials !== false) args.push('--include-partial-messages')
+    if (resume !== undefined) args.push('--resume', q(resume))
+
+    const permissionMode =
+      modelOptions?.permissionMode ?? config.permissionMode ?? 'bypassPermissions'
+    args.push('--permission-mode', q(permissionMode))
+
+    const maxTurns = modelOptions?.maxTurns ?? config.maxTurns
+    if (maxTurns !== undefined) args.push('--max-turns', String(maxTurns))
+
+    for (const dir of config.addDirs ?? []) args.push('--add-dir', q(dir))
+
+    const allowedTools = modelOptions?.allowedTools ?? config.allowedTools
+    if (allowedTools && allowedTools.length > 0) {
+      args.push('--allowedTools', q(allowedTools.join(',')))
+    }
+    const disallowedTools = modelOptions?.disallowedTools ?? config.disallowedTools
+    if (disallowedTools && disallowedTools.length > 0) {
+      args.push('--disallowedTools', q(disallowedTools.join(',')))
+    }
+
+    const systemPrompts = normalizeSystemPrompts(options.systemPrompts)
+      .map((prompt) => prompt.content)
+      .filter((content) => content.trim() !== '')
+    if (systemPrompts.length > 0) {
+      const joined = systemPrompts.join('\n\n')
+      const flag =
+        config.systemPromptMode === 'replace'
+          ? '--system-prompt'
+          : '--append-system-prompt'
+      args.push(flag, q(joined))
+    }
+
+    return `${exe} ${args.join(' ')}`
   }
 
   async *chatStream(
@@ -126,25 +182,48 @@ export class ClaudeCodeTextAdapter<
     const { logger } = options
     try {
       validateTools(options.tools)
+      const sandbox = this.sandboxFrom(options)
+      const cwd = this.workdir(options)
 
-      const modelOptions = options.modelOptions
       const { prompt, resume } = buildPrompt(
         options.messages,
-        modelOptions?.sessionId,
+        options.modelOptions?.sessionId,
       )
-      const sdkOptions = this.buildSdkOptions(options, resume)
+      const command = this.buildCommand(options, resume)
 
       logger.request(
-        `activity=chat provider=claude-code model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} resume=${resume ?? 'none'}`,
+        `activity=chat provider=claude-code model=${this.model} sandbox=${sandbox.provider} messages=${options.messages.length} resume=${resume ?? 'none'}`,
         { provider: 'claude-code', model: this.model },
       )
 
-      const sdkStream = query({ prompt, options: sdkOptions })
+      const runId = options.runId ?? this.generateId()
+      const threadId = options.threadId ?? this.generateId()
 
-      yield* translateSdkStream(sdkStream as AsyncIterable<AgentSdkMessage>, {
+      const rawEvents = spawnNdjson(sandbox, command, {
+        cwd,
+        input: prompt,
+        ...(options.modelOptions === undefined && this.adapterConfig.env === undefined
+          ? {}
+          : { env: this.adapterConfig.env }),
+        ...(options.abortController?.signal
+          ? { signal: options.abortController.signal }
+          : options.request?.signal
+            ? { signal: options.request.signal }
+            : {}),
+        onNonJsonLine: (line) =>
+          logger.provider(`provider=claude-code non-json line: ${line}`, {
+            chunk: line,
+          }),
+      })
+
+      async function* asMessages(): AsyncIterable<AgentSdkMessage> {
+        for await (const event of rawEvents) yield event as AgentSdkMessage
+      }
+
+      yield* translateSdkStream(asMessages(), {
         model: this.model,
-        runId: options.runId ?? this.generateId(),
-        threadId: options.threadId ?? this.generateId(),
+        runId,
+        threadId,
         ...(options.parentRunId !== undefined && {
           parentRunId: options.parentRunId,
         }),
@@ -154,6 +233,25 @@ export class ClaudeCodeTextAdapter<
             chunk: message,
           }),
       })
+
+      // Surface the working-tree diff so UIs can render what the agent changed.
+      if (this.adapterConfig.emitDiff !== false) {
+        try {
+          const diff = await sandbox.process.exec(`git -C ${q(cwd)} diff`, { cwd })
+          if (diff.exitCode === 0 && diff.stdout.trim() !== '') {
+            yield {
+              type: EventType.CUSTOM,
+              name: 'file.changed',
+              value: { path: '.', diff: diff.stdout },
+              timestamp: Date.now(),
+              threadId,
+              runId,
+            }
+          }
+        } catch {
+          // not a git repo / git unavailable — skip the diff event
+        }
+      }
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
       const rawEvent = toRunErrorRawEvent(error)
@@ -176,193 +274,30 @@ export class ClaudeCodeTextAdapter<
     }
   }
 
-  /**
-   * Structured output via the harness's native `outputFormat` support: a
-   * one-shot run (no tools, single turn) whose final result carries
-   * `structured_output` matching the schema.
-   */
-  async structuredOutput(
-    options: StructuredOutputOptions<ClaudeCodeTextProviderOptions>,
+  structuredOutput(
+    _options: StructuredOutputOptions<ClaudeCodeTextProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
-    const { chatOptions, outputSchema } = options
-    const { logger } = chatOptions
-
-    // Fresh one-shot run: deliberately no `resume`, so finalization never
-    // mutates the caller's interactive session.
-    const { prompt } = buildPrompt(chatOptions.messages, undefined)
-
-    const sdkOptions: Options = {
-      ...this.buildBaseSdkOptions(),
-      model: this.model,
-      maxTurns: 1,
-      tools: [],
-      includePartialMessages: false,
-      outputFormat: {
-        type: 'json_schema',
-        schema: outputSchema,
-      },
-    }
-
-    logger.request(
-      `activity=structured-output provider=claude-code model=${this.model}`,
-      { provider: 'claude-code', model: this.model },
+    return Promise.reject(
+      new Error(
+        'Structured output is not yet supported by the in-sandbox Claude Code adapter. ' +
+          'Use a model adapter (e.g. anthropic) for structured output, or omit outputSchema.',
+      ),
     )
-
-    for await (const message of query({ prompt, options: sdkOptions })) {
-      logger.provider(`provider=claude-code type=${message.type}`, {
-        chunk: message,
-      })
-      if (message.type !== 'result') continue
-      const result = message as SdkResultMessage
-      if (result.subtype !== 'success') {
-        throw new Error(getResultError(result))
-      }
-      const rawText = result.result ?? ''
-      const data =
-        result.structured_output !== undefined
-          ? result.structured_output
-          : JSON.parse(rawText)
-      const usage = result.usage
-      const promptTokens = usage?.input_tokens ?? 0
-      const completionTokens = usage?.output_tokens ?? 0
-      return {
-        data,
-        rawText,
-        usage: {
-          promptTokens,
-          completionTokens,
-          totalTokens: promptTokens + completionTokens,
-        },
-      }
-    }
-
-    throw new Error(
-      'Claude Code run ended without a result message during structured output generation.',
-    )
-  }
-
-  /** Options derived from adapter config alone (shared by both entry points). */
-  private buildBaseSdkOptions(): Options {
-    const config = this.adapterConfig
-    const env =
-      config.apiKey !== undefined || config.env !== undefined
-        ? {
-            ...process.env,
-            ...config.env,
-            ...(config.apiKey !== undefined && {
-              ANTHROPIC_API_KEY: config.apiKey,
-            }),
-          }
-        : undefined
-
-    return {
-      settingSources: config.settingSources ?? ['project'],
-      ...(config.cwd !== undefined && { cwd: config.cwd }),
-      ...(env !== undefined && { env }),
-      ...(config.pathToClaudeCodeExecutable !== undefined && {
-        pathToClaudeCodeExecutable: config.pathToClaudeCodeExecutable,
-      }),
-      ...(config.executable !== undefined && { executable: config.executable }),
-    }
-  }
-
-  private buildSdkOptions(
-    options: TextOptions<ClaudeCodeTextProviderOptions>,
-    resume: string | undefined,
-  ): Options {
-    const config = this.adapterConfig
-    const modelOptions = options.modelOptions
-
-    const permissionMode = modelOptions?.permissionMode ?? config.permissionMode
-    const maxTurns = modelOptions?.maxTurns ?? config.maxTurns
-    const allowedTools = modelOptions?.allowedTools ?? config.allowedTools
-    const disallowedTools =
-      modelOptions?.disallowedTools ?? config.disallowedTools
-    const cwd = modelOptions?.cwd ?? config.cwd
-
-    const bridged =
-      options.tools && options.tools.length > 0
-        ? createToolBridge(options.tools)
-        : undefined
-    const mcpServers = {
-      ...config.mcpServers,
-      ...(bridged && { [BRIDGED_MCP_SERVER_NAME]: bridged }),
-    }
-
-    const systemPrompts = normalizeSystemPrompts(options.systemPrompts)
-      .map((prompt) => prompt.content)
-      .filter((content) => content.trim() !== '')
-    const joinedPrompts = systemPrompts.join('\n\n')
-    const systemPrompt: Options['systemPrompt'] =
-      systemPrompts.length === 0
-        ? undefined
-        : config.systemPromptMode === 'replace'
-          ? joinedPrompts
-          : { type: 'preset', preset: 'claude_code', append: joinedPrompts }
-
-    const abortController = new AbortController()
-    const externalSignal =
-      options.abortController?.signal ?? options.request?.signal
-    if (externalSignal) {
-      if (externalSignal.aborted) abortController.abort()
-      else {
-        externalSignal.addEventListener(
-          'abort',
-          () => abortController.abort(),
-          { once: true },
-        )
-      }
-    }
-
-    // Default permission handler: bridged TanStack tools always run; any
-    // other call that would prompt is denied with guidance instead of
-    // hanging a headless server.
-    const canUseTool: Options['canUseTool'] =
-      config.canUseTool ??
-      ((toolName) => {
-        if (toolName.startsWith(`mcp__${BRIDGED_MCP_SERVER_NAME}__`)) {
-          return Promise.resolve({ behavior: 'allow' as const })
-        }
-        return Promise.resolve({
-          behavior: 'deny' as const,
-          message: `Tool "${toolName}" denied by the @tanstack/ai-claude-code default permission policy. Configure permissionMode, allowedTools, or canUseTool on claudeCodeText() to allow it.`,
-        })
-      })
-
-    return {
-      ...this.buildBaseSdkOptions(),
-      model: this.model,
-      includePartialMessages: config.streamPartials !== false,
-      abortController,
-      canUseTool,
-      ...(cwd !== undefined && { cwd }),
-      ...(resume !== undefined && { resume }),
-      ...(modelOptions?.forkSession !== undefined && {
-        forkSession: modelOptions.forkSession,
-      }),
-      ...(maxTurns !== undefined && { maxTurns }),
-      ...(permissionMode !== undefined && { permissionMode }),
-      ...(permissionMode === 'bypassPermissions' && {
-        allowDangerouslySkipPermissions: true,
-      }),
-      ...(allowedTools !== undefined && { allowedTools }),
-      ...(disallowedTools !== undefined && { disallowedTools }),
-      ...(Object.keys(mcpServers).length > 0 && { mcpServers }),
-      ...(systemPrompt !== undefined && { systemPrompt }),
-    }
   }
 }
 
 /**
- * Creates a Claude Code text adapter.
+ * Creates a Claude Code harness adapter that runs **inside a sandbox**.
  *
- * Unlike HTTP provider adapters, this is a *harness* adapter: Claude Code
- * runs its own agent loop and executes its own tools (bash, file edits,
- * search, ...) locally, server-side. Each `chat()` call runs one full
- * harness turn; harness tool activity streams back as already-resolved
- * tool-call events, and the session id is surfaced via a CUSTOM
- * `claude-code.session-id` event so follow-up calls can resume the session
- * through `modelOptions.sessionId`.
+ * Unlike HTTP provider adapters, this is a *harness* adapter: it spawns the
+ * `claude` CLI inside the sandbox provided by `withSandbox(...)` (the adapter
+ * declares `requires: [SandboxCapability]`), streams its `stream-json` stdout
+ * back as AG-UI events, and lets Claude Code run its own agent loop and native
+ * tools (Bash, file edits, search, …) against the sandbox workspace. The
+ * sandbox image must provide the `claude` executable and `ANTHROPIC_API_KEY`
+ * in its environment (e.g. via `workspace.secrets`). The session id is
+ * surfaced via a CUSTOM `claude-code.session-id` event so follow-up calls can
+ * resume through `modelOptions.sessionId`.
  */
 export function claudeCodeText<TModel extends ClaudeCodeModel>(
   model: TModel,

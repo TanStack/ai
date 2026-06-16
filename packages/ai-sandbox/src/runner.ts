@@ -15,6 +15,11 @@ export interface SpawnNdjsonOptions extends ProcessOptions {
    * (e.g. a CLI banner). Defaults to ignoring it. Stderr is never parsed.
    */
   onNonJsonLine?: (line: string) => void
+  /**
+   * Written to the process stdin (then stdin is closed) right after spawn —
+   * e.g. the agent prompt for `claude -p`. Avoids putting the prompt in argv.
+   */
+  input?: string
 }
 
 /** Split a stream of arbitrary string chunks into complete lines. */
@@ -45,8 +50,13 @@ export async function* spawnNdjson(
   command: string,
   options: SpawnNdjsonOptions = {},
 ): AsyncIterable<unknown> {
-  const { onNonJsonLine, ...processOptions } = options
+  const { onNonJsonLine, input, ...processOptions } = options
   const proc = await handle.process.spawn(command, processOptions)
+
+  if (input !== undefined) {
+    await proc.stdin.write(input)
+    await proc.stdin.end()
+  }
 
   for await (const line of toLines(proc.stdout)) {
     const trimmed = line.trim()

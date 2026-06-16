@@ -1,6 +1,4 @@
-import type { Options } from '@anthropic-ai/claude-agent-sdk'
-
-type PermissionMode = NonNullable<Options['permissionMode']>
+type PermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan'
 
 /**
  * Per-call provider options for the Claude Code adapter, passed via

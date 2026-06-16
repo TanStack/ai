@@ -1,370 +1,149 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { query } from '@anthropic-ai/claude-agent-sdk'
-import { claudeCodeText } from '../src/adapters/text'
-import type { AgentSdkMessage } from '../src/stream/sdk-types'
+/**
+ * Deterministic test of the in-sandbox Claude Code adapter.
+ *
+ * Instead of the real `claude` CLI (nondeterministic, needs an API key — see
+ * the gated live smoke in testing/e2e), this runs a FAKE agent CLI: a tiny node
+ * script that reads the prompt from stdin and emits canned `stream-json`
+ * messages on stdout, exactly as `claude -p --output-format stream-json` would.
+ * It runs inside a real local-process sandbox, exercising the full
+ * spawn → stdout NDJSON → translate → StreamChunk path.
+ */
+import { afterAll, describe, expect, it } from 'vitest'
+import * as fsp from 'node:fs/promises'
+import * as os from 'node:os'
+import * as path from 'node:path'
+import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
+import { SandboxCapability } from '@tanstack/ai-sandbox'
+import { claudeCodeText } from '../src/index'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
-import type { StreamChunk, TextOptions } from '@tanstack/ai'
+import type { CapabilityContext, StreamChunk } from '@tanstack/ai'
+import type { SandboxHandle } from '@tanstack/ai-sandbox'
 
-vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
-  query: vi.fn(),
-}))
+const baseDir = path.join(os.tmpdir(), `tanstack-ai-cc-test-${Date.now()}`)
+const provider = localProcessSandbox({ baseDir, removeOnDestroy: true })
 
-const queryMock = vi.mocked(query)
+afterAll(async () => {
+  await fsp.rm(baseDir, { recursive: true, force: true })
+})
 
-const init: AgentSdkMessage = {
-  type: 'system',
-  subtype: 'init',
-  session_id: 'sess-1',
-  model: 'claude-opus-4-6',
-  tools: ['Bash'],
-}
-
-const textTurn: Array<AgentSdkMessage> = [
-  init,
-  {
-    type: 'assistant',
-    message: { id: 'msg-1', content: [{ type: 'text', text: 'hi there' }] },
-    parent_tool_use_id: null,
-  },
-  {
-    type: 'result',
-    subtype: 'success',
-    result: 'hi there',
-    usage: { input_tokens: 10, output_tokens: 5 },
-    total_cost_usd: 0.01,
-  },
-]
-
-function mockQueryReturning(messages: Array<AgentSdkMessage>) {
-  queryMock.mockImplementation(() => {
-    async function* generate() {
-      for (const message of messages) yield message
-    }
-    return generate() as ReturnType<typeof query>
-  })
-}
+// A stand-in for the `claude` CLI: ignores its flags, reads the prompt from
+// stdin, then emits stream-json (system/init → assistant text → result).
+const FAKE_CLAUDE = [
+  `let input = ''`,
+  `process.stdin.on('data', (d) => { input += d })`,
+  `process.stdin.on('end', () => {`,
+  `  const w = (o) => process.stdout.write(JSON.stringify(o) + '\\n')`,
+  `  w({ type: 'system', subtype: 'init', session_id: 'sess-abc', model: 'haiku', tools: [] })`,
+  `  w({ type: 'assistant', message: { id: 'msg-1', content: [{ type: 'text', text: 'pong' }] }, parent_tool_use_id: null })`,
+  `  w({ type: 'result', subtype: 'success', result: 'pong', usage: { input_tokens: 1, output_tokens: 1 } })`,
+  `})`,
+].join('\n')
 
 const noopLogger = {
-  request: vi.fn(),
-  provider: vi.fn(),
-  output: vi.fn(),
-  errors: vi.fn(),
-  middleware: vi.fn(),
-  tools: vi.fn(),
-  agentLoop: vi.fn(),
-  config: vi.fn(),
-  isEnabled: () => false,
+  request: () => {},
+  provider: () => {},
+  errors: () => {},
+  agentLoop: () => {},
+  warnings: () => {},
+  debug: () => {},
 } as unknown as InternalLogger
 
-function makeOptions(
-  overrides: Partial<TextOptions<Record<string, any>>> = {},
-): TextOptions<Record<string, any>> {
-  return {
-    model: 'claude-opus-4-6',
-    messages: [{ role: 'user', content: 'hello' }],
-    logger: noopLogger,
-    ...overrides,
-  } as TextOptions<Record<string, any>>
+/** Build a capability context that hands the adapter the given sandbox. */
+function capabilityContextWith(handle: SandboxHandle): CapabilityContext {
+  const [, provideSandbox] = SandboxCapability
+  const ctx = {
+    capabilities: { markProvided: () => {}, has: () => true },
+  } as unknown as CapabilityContext
+  provideSandbox(ctx, handle)
+  return ctx
 }
 
-async function collect(
-  stream: AsyncIterable<StreamChunk>,
-): Promise<Array<StreamChunk>> {
-  const chunks: Array<StreamChunk> = []
-  for await (const chunk of stream) chunks.push(chunk)
-  return chunks
+async function collect(stream: AsyncIterable<StreamChunk>): Promise<Array<StreamChunk>> {
+  const out: Array<StreamChunk> = []
+  for await (const chunk of stream) out.push(chunk)
+  return out
 }
 
-beforeEach(() => {
-  queryMock.mockReset()
-})
+describe('claude-code in-sandbox adapter', () => {
+  it('spawns the agent CLI in the sandbox and streams translated events', async () => {
+    const sbx = await provider.create({})
+    await sbx.fs.write('/workspace/fake-claude.mjs', FAKE_CLAUDE)
 
-describe('claudeCodeText', () => {
-  it('creates an adapter with the claude-code provider name', () => {
-    const adapter = claudeCodeText('claude-opus-4-6')
-    expect(adapter.kind).toBe('text')
-    expect(adapter.name).toBe('claude-code')
-    expect(adapter.model).toBe('claude-opus-4-6')
-  })
-})
-
-describe('chatStream', () => {
-  it('streams translated AG-UI events for a simple turn', async () => {
-    mockQueryReturning(textTurn)
-    const adapter = claudeCodeText('claude-opus-4-6')
-    const chunks = await collect(adapter.chatStream(makeOptions()))
-    expect(chunks.map((c) => c.type)).toEqual([
-      'RUN_STARTED',
-      'CUSTOM',
-      'TEXT_MESSAGE_START',
-      'TEXT_MESSAGE_CONTENT',
-      'TEXT_MESSAGE_END',
-      'RUN_FINISHED',
-    ])
-    expect(chunks.at(-1)).toMatchObject({ finishReason: 'stop' })
-  })
-
-  it('passes prompt, model, and resume to query()', async () => {
-    mockQueryReturning(textTurn)
-    const adapter = claudeCodeText('claude-opus-4-6')
-    await collect(
-      adapter.chatStream(
-        makeOptions({
-          messages: [
-            { role: 'user', content: 'first' },
-            { role: 'assistant', content: 'answer' },
-            { role: 'user', content: 'follow-up' },
-          ],
-          modelOptions: { sessionId: 'sess-prior' },
-        }),
-      ),
-    )
-
-    expect(queryMock).toHaveBeenCalledTimes(1)
-    const call = queryMock.mock.calls[0]![0]
-    expect(call.prompt).toBe('follow-up')
-    expect(call.options).toMatchObject({
-      model: 'claude-opus-4-6',
-      resume: 'sess-prior',
-      includePartialMessages: true,
+    const adapter = claudeCodeText('haiku', {
+      // Relative executable + cwd=/workspace (mapped to the sandbox root).
+      claudeExecutable: 'node fake-claude.mjs',
+      streamPartials: false,
+      emitDiff: false,
     })
-  })
 
-  it('isolates the harness from user-level settings by default (project only)', async () => {
-    mockQueryReturning(textTurn)
-    const adapter = claudeCodeText('claude-opus-4-6')
-    await collect(adapter.chatStream(makeOptions()))
-    const options = queryMock.mock.calls[0]![0].options!
-    expect(options.settingSources).toEqual(['project'])
-  })
-
-  it('honors a settingSources override', async () => {
-    mockQueryReturning(textTurn)
-    const adapter = claudeCodeText('claude-opus-4-6', {
-      settingSources: ['user', 'project', 'local'],
-    })
-    await collect(adapter.chatStream(makeOptions()))
-    const options = queryMock.mock.calls[0]![0].options!
-    expect(options.settingSources).toEqual(['user', 'project', 'local'])
-  })
-
-  it('bridges executable tools into an mcpServers entry named tanstack', async () => {
-    mockQueryReturning(textTurn)
-    const adapter = claudeCodeText('claude-opus-4-6')
-    await collect(
-      adapter.chatStream(
-        makeOptions({
-          tools: [
-            {
-              name: 'lookup_user',
-              description: 'Look up a user',
-              inputSchema: { type: 'object', properties: {} },
-              execute: async () => ({ ok: true }),
-            } as never,
-          ],
-        }),
-      ),
-    )
-
-    const options = queryMock.mock.calls[0]![0].options!
-    expect(options.mcpServers).toMatchObject({
-      tanstack: { type: 'sdk', name: 'tanstack' },
-    })
-  })
-
-  it('does not create the bridge server when no tools are passed', async () => {
-    mockQueryReturning(textTurn)
-    const adapter = claudeCodeText('claude-opus-4-6')
-    await collect(adapter.chatStream(makeOptions()))
-    const options = queryMock.mock.calls[0]![0].options!
-    expect(options.mcpServers ?? {}).toEqual({})
-  })
-
-  it('emits RUN_ERROR for client-side tools (no execute)', async () => {
-    mockQueryReturning(textTurn)
-    const adapter = claudeCodeText('claude-opus-4-6')
     const chunks = await collect(
-      adapter.chatStream(
-        makeOptions({
-          tools: [
-            {
-              name: 'client_only',
-              description: 'runs in browser',
-              inputSchema: { type: 'object', properties: {} },
-            } as never,
-          ],
-        }),
-      ),
-    )
-    expect(queryMock).not.toHaveBeenCalled()
-    expect(chunks.at(-1)).toMatchObject({ type: 'RUN_ERROR' })
-    expect((chunks.at(-1) as { message: string }).message).toMatch(
-      /client-side/i,
-    )
-  })
-
-  it('emits RUN_ERROR for approval-gated tools', async () => {
-    mockQueryReturning(textTurn)
-    const adapter = claudeCodeText('claude-opus-4-6')
-    const chunks = await collect(
-      adapter.chatStream(
-        makeOptions({
-          tools: [
-            {
-              name: 'needs_ok',
-              description: 'requires approval',
-              inputSchema: { type: 'object', properties: {} },
-              execute: async () => 'x',
-              needsApproval: true,
-            } as never,
-          ],
-        }),
-      ),
-    )
-    expect(chunks.at(-1)).toMatchObject({ type: 'RUN_ERROR' })
-  })
-
-  it('appends system prompts to the claude_code preset by default', async () => {
-    mockQueryReturning(textTurn)
-    const adapter = claudeCodeText('claude-opus-4-6')
-    await collect(
-      adapter.chatStream(
-        makeOptions({ systemPrompts: ['Be terse.', 'Use tabs.'] }),
-      ),
-    )
-    const options = queryMock.mock.calls[0]![0].options!
-    expect(options.systemPrompt).toEqual({
-      type: 'preset',
-      preset: 'claude_code',
-      append: 'Be terse.\n\nUse tabs.',
-    })
-  })
-
-  it('replaces the system prompt entirely in replace mode', async () => {
-    mockQueryReturning(textTurn)
-    const adapter = claudeCodeText('claude-opus-4-6', {
-      systemPromptMode: 'replace',
-    })
-    await collect(
-      adapter.chatStream(makeOptions({ systemPrompts: ['Only this.'] })),
-    )
-    const options = queryMock.mock.calls[0]![0].options!
-    expect(options.systemPrompt).toBe('Only this.')
-  })
-
-  it('wires permissionMode bypassPermissions with the required safety flag', async () => {
-    mockQueryReturning(textTurn)
-    const adapter = claudeCodeText('claude-opus-4-6', {
-      permissionMode: 'bypassPermissions',
-    })
-    await collect(adapter.chatStream(makeOptions()))
-    const options = queryMock.mock.calls[0]![0].options!
-    expect(options.permissionMode).toBe('bypassPermissions')
-    expect(options.allowDangerouslySkipPermissions).toBe(true)
-  })
-
-  it('passes an abort controller that follows the request signal', async () => {
-    mockQueryReturning(textTurn)
-    const adapter = claudeCodeText('claude-opus-4-6')
-    const controller = new AbortController()
-    await collect(
-      adapter.chatStream(
-        makeOptions({ request: { signal: controller.signal } }),
-      ),
-    )
-    const options = queryMock.mock.calls[0]![0].options!
-    expect(options.abortController).toBeInstanceOf(AbortController)
-    expect(options.abortController!.signal.aborted).toBe(false)
-    controller.abort()
-    expect(options.abortController!.signal.aborted).toBe(true)
-  })
-
-  it('emits RUN_ERROR when query() throws', async () => {
-    queryMock.mockImplementation(() => {
-      throw new Error('spawn failed')
-    })
-    const adapter = claudeCodeText('claude-opus-4-6')
-    const chunks = await collect(adapter.chatStream(makeOptions()))
-    expect(chunks.at(-1)).toMatchObject({
-      type: 'RUN_ERROR',
-      message: 'spawn failed',
-    })
-  })
-})
-
-describe('structuredOutput', () => {
-  it('uses the native outputFormat and returns structured_output', async () => {
-    mockQueryReturning([
-      init,
-      {
-        type: 'result',
-        subtype: 'success',
-        result: '{"answer":42}',
-        structured_output: { answer: 42 },
-        usage: { input_tokens: 7, output_tokens: 3 },
-        total_cost_usd: 0,
-      },
-    ])
-    const adapter = claudeCodeText('claude-opus-4-6')
-    const result = await adapter.structuredOutput({
-      chatOptions: makeOptions(),
-      outputSchema: {
-        type: 'object',
-        properties: { answer: { type: 'number' } },
-      },
-    })
-
-    expect(result.data).toEqual({ answer: 42 })
-    expect(result.rawText).toBe('{"answer":42}')
-    expect(result.usage).toMatchObject({ promptTokens: 7, completionTokens: 3 })
-
-    const options = queryMock.mock.calls[0]![0].options!
-    expect(options.outputFormat).toEqual({
-      type: 'json_schema',
-      schema: {
-        type: 'object',
-        properties: { answer: { type: 'number' } },
-      },
-    })
-    expect(options.maxTurns).toBe(1)
-  })
-
-  it('falls back to parsing result text when structured_output is missing', async () => {
-    mockQueryReturning([
-      init,
-      {
-        type: 'result',
-        subtype: 'success',
-        result: '{"answer":7}',
-        usage: { input_tokens: 1, output_tokens: 1 },
-        total_cost_usd: 0,
-      },
-    ])
-    const adapter = claudeCodeText('claude-opus-4-6')
-    const result = await adapter.structuredOutput({
-      chatOptions: makeOptions(),
-      outputSchema: { type: 'object' },
-    })
-    expect(result.data).toEqual({ answer: 7 })
-  })
-
-  it('throws a descriptive error when the run fails', async () => {
-    mockQueryReturning([
-      init,
-      {
-        type: 'result',
-        subtype: 'error_during_execution',
-        errors: ['harness exploded'],
-        usage: {},
-        total_cost_usd: 0,
-      },
-    ])
-    const adapter = claudeCodeText('claude-opus-4-6')
-    await expect(
-      adapter.structuredOutput({
-        chatOptions: makeOptions(),
-        outputSchema: { type: 'object' },
+      adapter.chatStream({
+        model: 'haiku',
+        messages: [{ role: 'user', content: 'say pong' }],
+        logger: noopLogger,
+        capabilities: capabilityContextWith(sbx),
       }),
-    ).rejects.toThrow(/harness exploded/)
+    )
+
+    const types = chunks.map((c) => c.type as string)
+    expect(types[0]).toBe('RUN_STARTED')
+
+    const sessionEvent = chunks.find(
+      (c) =>
+        c.type === 'CUSTOM' &&
+        (c as { name?: string }).name === 'claude-code.session-id',
+    )
+    expect(sessionEvent).toBeDefined()
+    expect((sessionEvent as { value: { sessionId: string } }).value.sessionId).toBe(
+      'sess-abc',
+    )
+
+    const text = chunks
+      .filter((c) => c.type === 'TEXT_MESSAGE_CONTENT')
+      .map((c) => (c as { delta?: string }).delta ?? '')
+      .join('')
+    expect(text).toContain('pong')
+
+    expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(true)
+
+    await sbx.destroy()
+  })
+
+  it('requires a sandbox capability', async () => {
+    const adapter = claudeCodeText('haiku', { emitDiff: false })
+    const chunks = await collect(
+      adapter.chatStream({
+        model: 'haiku',
+        messages: [{ role: 'user', content: 'hi' }],
+        logger: noopLogger,
+        // no capabilities provided
+      }),
+    )
+    const err = chunks.find((c) => c.type === 'RUN_ERROR')
+    expect(err).toBeDefined()
+    expect((err as { message?: string }).message).toMatch(/requires a sandbox/i)
+  })
+
+  it('rejects chat()-provided tools (MCP tool-proxy pending)', async () => {
+    const sbx = await provider.create({})
+    const adapter = claudeCodeText('haiku', { emitDiff: false })
+    const chunks = await collect(
+      adapter.chatStream({
+        model: 'haiku',
+        messages: [{ role: 'user', content: 'hi' }],
+        logger: noopLogger,
+        capabilities: capabilityContextWith(sbx),
+        tools: [
+          {
+            name: 'getTime',
+            description: 'x',
+            execute: () => Promise.resolve('now'),
+          } as never,
+        ],
+      }),
+    )
+    const err = chunks.find((c) => c.type === 'RUN_ERROR')
+    expect((err as { message?: string }).message).toMatch(/does not yet bridge/i)
+    await sbx.destroy()
   })
 })
