@@ -4,10 +4,13 @@ import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   SandboxCapability,
   getSandbox,
+  getSandboxPolicy,
   spawnNdjson,
 } from '@tanstack/ai-sandbox'
 import { buildPrompt } from '../messages/prompt'
 import { translateSdkStream } from '../stream/translate'
+import { mapPolicyToClaudeFlags } from './policy-map'
+import type { ClaudePolicyFlags } from './policy-map'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
@@ -130,6 +133,7 @@ export class ClaudeCodeTextAdapter<
   private buildCommand(
     options: TextOptions<ClaudeCodeTextProviderOptions>,
     resume: string | undefined,
+    policyFlags: ClaudePolicyFlags,
   ): string {
     const config = this.adapterConfig
     const modelOptions = options.modelOptions
@@ -147,9 +151,11 @@ export class ClaudeCodeTextAdapter<
     if (config.streamPartials !== false) args.push('--include-partial-messages')
     if (resume !== undefined) args.push('--resume', q(resume))
 
+    // Precedence: per-call modelOptions > adapter config > policy > sandbox default.
     const permissionMode =
       modelOptions?.permissionMode ??
       config.permissionMode ??
+      policyFlags.permissionMode ??
       'bypassPermissions'
     args.push('--permission-mode', q(permissionMode))
 
@@ -158,14 +164,19 @@ export class ClaudeCodeTextAdapter<
 
     for (const dir of config.addDirs ?? []) args.push('--add-dir', q(dir))
 
-    const allowedTools = modelOptions?.allowedTools ?? config.allowedTools
-    if (allowedTools && allowedTools.length > 0) {
-      args.push('--allowedTools', q(allowedTools.join(',')))
+    const allowedTools = [
+      ...(modelOptions?.allowedTools ?? config.allowedTools ?? []),
+      ...policyFlags.allowedTools,
+    ]
+    if (allowedTools.length > 0) {
+      args.push('--allowedTools', q([...new Set(allowedTools)].join(',')))
     }
-    const disallowedTools =
-      modelOptions?.disallowedTools ?? config.disallowedTools
-    if (disallowedTools && disallowedTools.length > 0) {
-      args.push('--disallowedTools', q(disallowedTools.join(',')))
+    const disallowedTools = [
+      ...(modelOptions?.disallowedTools ?? config.disallowedTools ?? []),
+      ...policyFlags.disallowedTools,
+    ]
+    if (disallowedTools.length > 0) {
+      args.push('--disallowedTools', q([...new Set(disallowedTools)].join(',')))
     }
 
     const systemPrompts = normalizeSystemPrompts(options.systemPrompts)
@@ -196,7 +207,10 @@ export class ClaudeCodeTextAdapter<
         options.messages,
         options.modelOptions?.sessionId,
       )
-      const command = this.buildCommand(options, resume)
+      const policy = options.capabilities
+        ? getSandboxPolicy(options.capabilities, { optional: true })
+        : undefined
+      const command = this.buildCommand(options, resume, mapPolicyToClaudeFlags(policy))
 
       logger.request(
         `activity=chat provider=claude-code model=${this.model} sandbox=${sandbox.provider} messages=${options.messages.length} resume=${resume ?? 'none'}`,

@@ -18,6 +18,7 @@ import {
   SandboxCapability,
   SandboxStoreCapability,
   provideSandbox,
+  provideSandboxPolicy,
 } from './capabilities'
 import type { ChatMiddlewareContext, DefinedChatMiddleware } from '@tanstack/ai'
 import type { SandboxHandle } from './contracts'
@@ -64,12 +65,16 @@ export function withSandbox(
   return defineChatMiddleware({
     name: 'sandbox',
     provides: [SandboxCapability],
+    // SandboxPolicyCapability is provided conditionally (only when the
+    // definition has a policy), so it is intentionally NOT declared here —
+    // consumers read it via `getOptional`.
     optionalRequires: [SandboxStoreCapability, LocksCapability],
 
     async setup(ctx) {
       const ensureCtx = buildEnsureCtx(ctx)
       const handle = await definition.ensure(ensureCtx)
       provideSandbox(ctx, handle)
+      if (definition.policy) provideSandboxPolicy(ctx, definition.policy)
       runState.set(ctx, { handle, ensureCtx })
     },
 

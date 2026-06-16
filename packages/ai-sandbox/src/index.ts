@@ -3,12 +3,15 @@ export {
   SandboxCapability,
   SandboxStoreCapability,
   LocksCapability,
+  SandboxPolicyCapability,
   getSandbox,
   provideSandbox,
   getSandboxStore,
   provideSandboxStore,
   getLocks,
   provideLocks,
+  getSandboxPolicy,
+  provideSandboxPolicy,
 } from './capabilities'
 
 // Middleware
