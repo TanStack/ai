@@ -199,12 +199,11 @@ describe('OpenRouter adapter option mapping', () => {
       systemPrompts: [
         'plain',
         { content: 'object-form' },
-        // `metadata` is `never` for OpenRouter at the type level; the cast
-        // simulates a stale JS / `as any` caller. The adapter must still
-        // produce the joined system message and never leak the foreign
-        // field to the wire.
+        // A foreign metadata field (anything other than `cache_control`) must
+        // still be dropped and the system message kept as a plain joined
+        // string. The cast simulates a stale JS / `as any` caller.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        { content: 'with-meta', metadata: { cache_control: {} } } as any,
+        { content: 'with-meta', metadata: { foreign: 'x' } } as any,
       ],
     })) {
       /* consume */
@@ -221,7 +220,105 @@ describe('OpenRouter adapter option mapping', () => {
       content: 'plain\nobject-form\nwith-meta',
     })
     expect(messages[1]).toMatchObject({ role: 'user' })
-    expect(JSON.stringify(params)).not.toContain('cache_control')
+    expect(JSON.stringify(params)).not.toContain('foreign')
+  })
+
+  it('forwards a system-prompt cache_control breakpoint as a content-array part', async () => {
+    setupMockSdkClient([
+      {
+        id: 'chatcmpl-cache',
+        model: 'anthropic/claude-sonnet-4.5',
+        choices: [{ delta: { content: 'ok' }, finishReason: 'stop' }],
+        usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+      },
+    ])
+
+    const adapter = createOpenRouterText('anthropic/claude-sonnet-4.5', 'k')
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'hi' }],
+      systemPrompts: [
+        {
+          content: 'Stable cached instructions.',
+          metadata: { cache_control: { type: 'ephemeral' } },
+        },
+      ],
+    })) {
+      /* consume */
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const params = rawParams.chatRequest
+
+    // The system message becomes a content array carrying the directive
+    // (camelCase pre-serialization).
+    expect(params.messages[0]).toEqual({
+      role: 'system',
+      content: [
+        {
+          type: 'text',
+          text: 'Stable cached instructions.',
+          cacheControl: { type: 'ephemeral' },
+        },
+      ],
+    })
+
+    // And it survives the SDK's outbound (snake_case wire) serialization.
+    const serialized = ChatRequest$outboundSchema.parse(params)
+    const wireSystem = (serialized.messages as Array<Record<string, unknown>>)[0]
+    expect(wireSystem).toEqual({
+      role: 'system',
+      content: [
+        {
+          type: 'text',
+          text: 'Stable cached instructions.',
+          cache_control: { type: 'ephemeral' },
+        },
+      ],
+    })
+  })
+
+  it('puts the cache_control breakpoint only on the prompt that declared it; others are plain text parts in the same array', async () => {
+    setupMockSdkClient([
+      {
+        id: 'chatcmpl-mixed',
+        model: 'anthropic/claude-sonnet-4.5',
+        choices: [{ delta: { content: 'ok' }, finishReason: 'stop' }],
+        usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+      },
+    ])
+
+    const adapter = createOpenRouterText('anthropic/claude-sonnet-4.5', 'k')
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'hi' }],
+      systemPrompts: [
+        {
+          content: 'Cached prefix.',
+          metadata: { cache_control: { type: 'ephemeral' } },
+        },
+        'Volatile suffix.',
+      ],
+    })) {
+      /* consume */
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const params = rawParams.chatRequest
+
+    expect(params.messages[0]).toEqual({
+      role: 'system',
+      content: [
+        {
+          type: 'text',
+          text: 'Cached prefix.',
+          cacheControl: { type: 'ephemeral' },
+        },
+        { type: 'text', text: 'Volatile suffix.' },
+      ],
+    })
   })
 
   it('streams chat chunks with content and usage', async () => {
