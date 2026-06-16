@@ -47,7 +47,12 @@ class CloudflareProvider implements SandboxProvider {
       await sandbox.setEnvVars(input.env)
     }
     await sandbox.mkdir(this.workdir, { recursive: true })
-    return new CloudflareHandle(id, sandbox, this.workdir, this.config.previewHostname)
+    return new CloudflareHandle(
+      id,
+      sandbox,
+      this.workdir,
+      this.config.previewHostname,
+    )
   }
 
   resume(input: SandboxResumeInput): Promise<SandboxHandle | null> {
@@ -56,7 +61,12 @@ class CloudflareProvider implements SandboxProvider {
     // re-bootstraps under the same identity when durableFilesystem is false.)
     const sandbox = getSandbox(this.config.binding, input.id)
     return Promise.resolve(
-      new CloudflareHandle(input.id, sandbox, this.workdir, this.config.previewHostname),
+      new CloudflareHandle(
+        input.id,
+        sandbox,
+        this.workdir,
+        this.config.previewHostname,
+      ),
     )
   }
 

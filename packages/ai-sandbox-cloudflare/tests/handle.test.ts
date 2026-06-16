@@ -19,15 +19,25 @@ function mockSandbox(): { sandbox: Sandbox; files: Map<string, string> } {
   const files = new Map<string, string>()
 
   const exec = (command: string): Promise<ExecResult> => {
-    const ok = (stdout = ''): ExecResult => ({ stdout, stderr: '', exitCode: 0 })
-    const fail = (stderr: string): ExecResult => ({ stdout: '', stderr, exitCode: 1 })
+    const ok = (stdout = ''): ExecResult => ({
+      stdout,
+      stderr: '',
+      exitCode: 0,
+    })
+    const fail = (stderr: string): ExecResult => ({
+      stdout: '',
+      stderr,
+      exitCode: 1,
+    })
 
     // base64 '<path>'  -> read
     const read = command.match(/^base64 '([^']+)'$/)
     if (read) {
       const path = read[1]!
       if (!files.has(path)) return Promise.resolve(fail('no such file'))
-      return Promise.resolve(ok(Buffer.from(files.get(path)!, 'utf8').toString('base64')))
+      return Promise.resolve(
+        ok(Buffer.from(files.get(path)!, 'utf8').toString('base64')),
+      )
     }
     // mkdir -p '<dir>' && printf %s '<b64>' | base64 -d > '<path>'  -> write
     const write = command.match(/base64 -d > '([^']+)'$/)
@@ -42,7 +52,8 @@ function mockSandbox(): { sandbox: Sandbox; files: Map<string, string> } {
       return Promise.resolve(files.has(exists[1]!) ? ok() : fail(''))
     }
     if (command.startsWith('mkdir -p')) return Promise.resolve(ok())
-    if (command.startsWith('echo ')) return Promise.resolve(ok(command.slice(5)))
+    if (command.startsWith('echo '))
+      return Promise.resolve(ok(command.slice(5)))
     return Promise.resolve(ok())
   }
 
@@ -109,7 +120,12 @@ describe('CloudflareHandle', () => {
 
   it('exposes a port to a preview URL when a previewHostname is configured', async () => {
     const { sandbox } = mockSandbox()
-    const handle = new CloudflareHandle('sbx-1', sandbox, '/workspace', 'my.worker.dev')
+    const handle = new CloudflareHandle(
+      'sbx-1',
+      sandbox,
+      '/workspace',
+      'my.worker.dev',
+    )
     const channel = await handle.ports.connect(3000)
     expect(channel.url).toContain('3000')
   })

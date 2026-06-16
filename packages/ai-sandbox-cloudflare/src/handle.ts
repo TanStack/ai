@@ -132,7 +132,8 @@ export class CloudflareHandle implements SandboxHandle {
         const r = await this.exec(
           `mkdir -p ${q(dir)} && printf %s ${q(b64)} | base64 -d > ${q(abs)}`,
         )
-        if (r.exitCode !== 0) throw new Error(`write failed: ${r.stderr.trim()}`)
+        if (r.exitCode !== 0)
+          throw new Error(`write failed: ${r.stderr.trim()}`)
       },
       list: async (p) => {
         const r = await this.exec(`ls -1Ap ${q(this.abs(p))}`)
@@ -185,7 +186,10 @@ export class CloudflareHandle implements SandboxHandle {
     return p
   }
 
-  private async exec(command: string, opts?: ProcessOptions): Promise<ExecResult> {
+  private async exec(
+    command: string,
+    opts?: ProcessOptions,
+  ): Promise<ExecResult> {
     const result = await this.sandbox.exec(command, {
       ...(opts?.cwd ? { cwd: this.abs(opts.cwd) } : { cwd: this.workdir }),
       ...(opts?.env ? { env: opts.env } : {}),
@@ -236,7 +240,8 @@ export class CloudflareHandle implements SandboxHandle {
         end: () => Promise.resolve(),
       },
       wait: () => exitPromise,
-      kill: (signal) => proc.kill(typeof signal === 'string' ? signal : undefined),
+      kill: (signal) =>
+        proc.kill(typeof signal === 'string' ? signal : undefined),
     }
   }
 
