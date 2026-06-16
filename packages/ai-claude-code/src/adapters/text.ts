@@ -9,14 +9,15 @@ import {
 } from '@tanstack/ai-sandbox'
 import { buildPrompt } from '../messages/prompt'
 import { translateSdkStream } from '../stream/translate'
+import { startHostToolBridge } from '../tools/mcp-bridge'
 import { mapPolicyToClaudeFlags } from './policy-map'
 import type { ClaudePolicyFlags } from './policy-map'
+import type { HostToolBridge } from '../tools/mcp-bridge'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
 import type {
-  AnyTool,
   DefaultMessageMetadataByModality,
   Modality,
   StreamChunk,
@@ -77,14 +78,9 @@ function q(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
-function validateTools(tools: Array<AnyTool> | undefined): void {
-  if (tools && tools.length > 0) {
-    throw new Error(
-      'The in-sandbox Claude Code adapter does not yet bridge chat()-provided tools ' +
-        '(MCP tool-proxy is pending). The agent uses its own native tools (Bash/Edit/Read/…) ' +
-        'inside the sandbox. Remove `tools` from chat(), or run those tools outside the harness.',
-    )
-  }
+/** Hostname the sandbox uses to reach a host-side server, per provider. */
+function hostForSandbox(provider: string): string {
+  return provider === 'docker' ? 'host.docker.internal' : '127.0.0.1'
 }
 
 export class ClaudeCodeTextAdapter<
@@ -134,6 +130,7 @@ export class ClaudeCodeTextAdapter<
     options: TextOptions<ClaudeCodeTextProviderOptions>,
     resume: string | undefined,
     policyFlags: ClaudePolicyFlags,
+    mcpConfigJson: string | undefined,
   ): string {
     const config = this.adapterConfig
     const modelOptions = options.modelOptions
@@ -191,6 +188,8 @@ export class ClaudeCodeTextAdapter<
       args.push(flag, q(joined))
     }
 
+    if (mcpConfigJson !== undefined) args.push('--mcp-config', q(mcpConfigJson))
+
     return `${exe} ${args.join(' ')}`
   }
 
@@ -198,10 +197,22 @@ export class ClaudeCodeTextAdapter<
     options: TextOptions<ClaudeCodeTextProviderOptions>,
   ): AsyncIterable<StreamChunk> {
     const { logger } = options
+    let bridge: HostToolBridge | undefined
     try {
-      validateTools(options.tools)
       const sandbox = this.sandboxFrom(options)
       const cwd = this.workdir(options)
+
+      // Bridge chat()-provided server tools into the sandbox over MCP, proxying
+      // calls back to the host where each tool's execute() runs.
+      if (options.tools && options.tools.length > 0) {
+        bridge = await startHostToolBridge(options.tools, {
+          hostForSandbox: hostForSandbox(sandbox.provider),
+          context: options.context,
+          ...(options.abortController?.signal
+            ? { signal: options.abortController.signal }
+            : {}),
+        })
+      }
 
       const { prompt, resume } = buildPrompt(
         options.messages,
@@ -214,6 +225,7 @@ export class ClaudeCodeTextAdapter<
         options,
         resume,
         mapPolicyToClaudeFlags(policy),
+        bridge?.mcpConfigJson,
       )
 
       logger.request(
@@ -299,6 +311,8 @@ export class ClaudeCodeTextAdapter<
           ...(err.code !== undefined && { code: err.code }),
         },
       }
+    } finally {
+      if (bridge) await bridge.close()
     }
   }
 

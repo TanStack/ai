@@ -122,6 +122,26 @@ const policy = defineSandboxPolicy({
 const sandbox = defineSandbox({ id: 'repo', provider, policy /* … */ })
 ```
 
+## Tools
+
+The agent always has its own native tools (Bash, file edits, search) inside the
+sandbox. In addition, `chat()`-provided server tools are **bridged** to the
+in-sandbox agent over a host-side MCP tool-proxy: the agent calls them, each call
+is proxied back to the host where the tool's `execute()` runs (keeping its
+DB/secrets/closures), and the result is returned into the sandbox. The bridge is
+gated by a per-run bearer token; the sandbox reaches the host on `localhost`
+(local-process) or `host.docker.internal` (Docker).
+
+```ts
+chat({
+  threadId,
+  adapter: claudeCodeText('sonnet'),
+  messages,
+  tools: [getTodos.server(async ({ userId }) => db.todos.find({ userId }))],
+  middleware: [withSandbox(sandbox)],
+})
+```
+
 ## Lifecycle &amp; resume
 
 ```ts

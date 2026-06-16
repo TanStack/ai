@@ -101,6 +101,11 @@ fresh. Ensure order: resume running → restore snapshot → create + bootstrap.
 - **Secrets** (`workspace.secrets`, e.g. `ANTHROPIC_API_KEY`) are injected into
   the sandbox env and never persisted. The agent binary (`claude`) must exist in
   the sandbox image (install it in `setup` or bake it into the image).
-- **chat()-provided `tools` are not yet bridged** into the in-sandbox Claude
-  Code adapter — the agent uses its own native tools. Passing `tools` errors.
+- **chat()-provided `tools` are bridged** into the in-sandbox agent over a
+  host-side MCP tool-proxy: the agent calls them as `mcp__tanstack__<tool>` and
+  each call is proxied back to the host where the tool's `execute()` runs (with
+  its closures / DB / secrets). The agent also has its own native tools
+  (Bash/Edit/Read/…). The host bridge binds on the host; the sandbox reaches it
+  (localhost, or `host.docker.internal` for Docker), gated by a per-run bearer
+  token.
 - Use `localProcessSandbox()` only in trusted/dev contexts (no isolation).

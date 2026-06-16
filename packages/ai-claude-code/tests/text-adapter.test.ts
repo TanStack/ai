@@ -126,28 +126,34 @@ describe('claude-code in-sandbox adapter', () => {
     expect((err as { message?: string }).message).toMatch(/requires a sandbox/i)
   })
 
-  it('rejects chat()-provided tools (MCP tool-proxy pending)', async () => {
+  it('bridges chat()-provided tools (starts + tears down the MCP bridge)', async () => {
     const sbx = await provider.create({})
-    const adapter = claudeCodeText('haiku', { emitDiff: false })
+    await sbx.fs.write('/workspace/fake-claude.mjs', FAKE_CLAUDE)
+    const adapter = claudeCodeText('haiku', {
+      claudeExecutable: 'node fake-claude.mjs',
+      streamPartials: false,
+      emitDiff: false,
+    })
+    // The fake claude ignores the injected --mcp-config; this checks that
+    // passing tools no longer errors and the bridge lifecycle is clean.
     const chunks = await collect(
       adapter.chatStream({
         model: 'haiku',
-        messages: [{ role: 'user', content: 'hi' }],
+        messages: [{ role: 'user', content: 'say pong' }],
         logger: noopLogger,
         capabilities: capabilityContextWith(sbx),
         tools: [
           {
             name: 'getTime',
             description: 'x',
+            inputSchema: { type: 'object', properties: {} },
             execute: () => Promise.resolve('now'),
           } as never,
         ],
       }),
     )
-    const err = chunks.find((c) => c.type === 'RUN_ERROR')
-    expect((err as { message?: string }).message).toMatch(
-      /does not yet bridge/i,
-    )
+    expect(chunks.some((c) => c.type === 'RUN_ERROR')).toBe(false)
+    expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(true)
     await sbx.destroy()
   })
 })
