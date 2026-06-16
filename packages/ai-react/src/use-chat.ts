@@ -176,9 +176,12 @@ export function useChat<
       ...(options.forwardedProps !== undefined && {
         forwardedProps: options.forwardedProps,
       }),
+      ...(options.tools !== undefined && {
+        tools: options.tools,
+      }),
       context: options.context,
     })
-  }, [client, options.body, options.forwardedProps, options.context])
+  }, [client, options.body, options.forwardedProps, options.tools, options.context])
 
   useEffect(() => {
     if (options.live) {
