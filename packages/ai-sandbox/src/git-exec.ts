@@ -4,8 +4,19 @@
  * `process.exec("git …")`. Providers WITH native git (Daytona, Cloudflare) may
  * supply their own implementation instead.
  *
- * Arguments are single-quote escaped before interpolation so repo URLs, refs,
- * and commit messages can't break out of the command.
+ * Security:
+ * - Every interpolated value is single-quote escaped (no shell injection).
+ * - A `--` end-of-options separator precedes untrusted positionals and values
+ *   are rejected if they begin with `-`, so a repo URL / ref / path can't
+ *   smuggle a git flag (e.g. `--upload-pack=…`).
+ * - Auth tokens NEVER appear in argv (they'd leak via `ps` / process logs).
+ *   Instead a one-shot `credential.helper` reads the token from the child
+ *   process ENV. The helper string is single-quoted so the OUTER shell never
+ *   expands the env var — only git's own helper subshell does, at use time.
+ *
+ * NOTE: `SandboxProcess.exec` takes a command STRING by design (the sandbox
+ * runs shell commands), so we mitigate flag smuggling with `--` + validation
+ * rather than an argv array.
  */
 import type { SandboxGit, SandboxProcess } from './contracts'
 
@@ -14,37 +25,61 @@ function q(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
-/** Inject basic credentials into an https URL for a one-shot clone. */
-function withAuth(
-  url: string,
-  auth?: { username?: string; token: string },
-): string {
-  if (!auth?.token) return url
-  const user = auth.username ? `${encodeURIComponent(auth.username)}:` : ''
-  return url.replace(
-    /^https:\/\//,
-    `https://${user}${encodeURIComponent(auth.token)}@`,
-  )
+/** Reject values that could be parsed as a git flag when used as a positional. */
+function assertNoLeadingDash(value: string, name: string): void {
+  if (value.startsWith('-')) {
+    throw new Error(
+      `git-exec: ${name} "${value}" must not begin with "-" (argument-injection guard).`,
+    )
+  }
 }
+
+// Credential helper that prints creds read from the child ENV. Single-quoted at
+// the call site so the outer shell passes it literally; git expands the vars in
+// its own helper subshell, keeping the token out of argv.
+const CREDENTIAL_HELPER =
+  '!f() { echo "username=${GIT_ASKPASS_USER}"; echo "password=${GIT_ASKPASS_TOKEN}"; }; f'
 
 export function createExecBackedGit(
   process: SandboxProcess,
   defaultRoot: string,
 ): SandboxGit {
-  const at = (dir?: string): string => q(dir ?? defaultRoot)
+  const at = (dir?: string): string => {
+    const d = dir ?? defaultRoot
+    assertNoLeadingDash(d, 'dir')
+    return q(d)
+  }
 
   return {
     clone: async ({ url, dir, ref, auth }) => {
+      assertNoLeadingDash(url, 'url')
       const target = dir ?? defaultRoot
+      assertNoLeadingDash(target, 'dir')
+      if (ref !== undefined) assertNoLeadingDash(ref, 'ref')
       const refArg = ref ? `--branch ${q(ref)} ` : ''
-      await process.exec(
-        `git clone ${refArg}${q(withAuth(url, auth))} ${q(target)}`,
-      )
+
+      if (auth?.token) {
+        await process.exec(
+          `git -c credential.helper=${q(CREDENTIAL_HELPER)} clone ${refArg}-- ${q(url)} ${q(target)}`,
+          {
+            // Token lives only in the child env, never in argv.
+            env: {
+              GIT_ASKPASS_USER: auth.username ?? 'x-access-token',
+              GIT_ASKPASS_TOKEN: auth.token,
+              GIT_TERMINAL_PROMPT: '0',
+            },
+          },
+        )
+        return
+      }
+
+      await process.exec(`git clone ${refArg}-- ${q(url)} ${q(target)}`)
     },
     status: async (dir) =>
       (await process.exec(`git -C ${at(dir)} status --porcelain`)).stdout,
     add: async (paths, dir) => {
-      await process.exec(`git -C ${at(dir)} add ${paths.map(q).join(' ')}`)
+      paths.forEach((p, i) => assertNoLeadingDash(p, `path[${i}]`))
+      await process.exec(`git -C ${at(dir)} add -- ${paths.map(q).join(' ')}`)
     },
     commit: async (message, dir) => {
       await process.exec(`git -C ${at(dir)} commit -m ${q(message)}`)
