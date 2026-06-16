@@ -24,8 +24,15 @@ import type { CodexModel } from '../model-meta'
 import type { CodexTextProviderOptions } from '../provider-options'
 import type { CodexThreadEvent } from '../stream/sdk-types'
 
-export type CodexSandboxMode = 'read-only' | 'workspace-write' | 'danger-full-access'
-export type CodexApprovalMode = 'never' | 'on-failure' | 'on-request' | 'untrusted'
+export type CodexSandboxMode =
+  | 'read-only'
+  | 'workspace-write'
+  | 'danger-full-access'
+export type CodexApprovalMode =
+  | 'never'
+  | 'on-failure'
+  | 'on-request'
+  | 'untrusted'
 
 const DEFAULT_WORKDIR = '/workspace'
 
@@ -93,7 +100,9 @@ export class CodexTextAdapter<
     this.adapterConfig = config
   }
 
-  private sandboxFrom(options: TextOptions<CodexTextProviderOptions>): SandboxHandle {
+  private sandboxFrom(
+    options: TextOptions<CodexTextProviderOptions>,
+  ): SandboxHandle {
     const ctx = options.capabilities
     if (!ctx) {
       throw new Error(
@@ -122,10 +131,14 @@ export class CodexTextAdapter<
     const exe = config.codexExecutable ?? 'codex'
     const args: Array<string> = ['exec', '--experimental-json']
 
-    const sandboxMode = modelOptions?.sandboxMode ?? config.sandboxMode ?? 'workspace-write'
-    const approvalPolicy = modelOptions?.approvalPolicy ?? config.approvalPolicy ?? 'never'
-    const reasoning = modelOptions?.modelReasoningEffort ?? config.modelReasoningEffort
-    const skipGitRepoCheck = modelOptions?.skipGitRepoCheck ?? config.skipGitRepoCheck
+    const sandboxMode =
+      modelOptions?.sandboxMode ?? config.sandboxMode ?? 'workspace-write'
+    const approvalPolicy =
+      modelOptions?.approvalPolicy ?? config.approvalPolicy ?? 'never'
+    const reasoning =
+      modelOptions?.modelReasoningEffort ?? config.modelReasoningEffort
+    const skipGitRepoCheck =
+      modelOptions?.skipGitRepoCheck ?? config.skipGitRepoCheck
 
     args.push('--model', q(this.model))
     args.push('--sandbox', q(sandboxMode))
@@ -145,7 +158,9 @@ export class CodexTextAdapter<
             ),
           }
         : {}),
-      ...(config.webSearchMode ? { web_search: `"${config.webSearchMode}"` } : {}),
+      ...(config.webSearchMode
+        ? { web_search: `"${config.webSearchMode}"` }
+        : {}),
       ...config.config,
     }
     for (const [key, value] of Object.entries(cfg)) {
@@ -175,7 +190,9 @@ export class CodexTextAdapter<
         .map((p) => p.content)
         .filter((c) => c.trim() !== '')
       const fullPrompt =
-        systemPrompts.length > 0 ? `${systemPrompts.join('\n\n')}\n\n${prompt}` : prompt
+        systemPrompts.length > 0
+          ? `${systemPrompts.join('\n\n')}\n\n${prompt}`
+          : prompt
 
       const command = this.buildCommand(options, resume, cwd)
 
@@ -194,7 +211,9 @@ export class CodexTextAdapter<
             ? { signal: options.request.signal }
             : {}),
         onNonJsonLine: (line) =>
-          logger.provider(`provider=codex non-json line: ${line}`, { chunk: line }),
+          logger.provider(`provider=codex non-json line: ${line}`, {
+            chunk: line,
+          }),
       })
 
       async function* asEvents(): AsyncIterable<CodexThreadEvent> {
@@ -210,12 +229,17 @@ export class CodexTextAdapter<
         }),
         genId: () => this.generateId(),
         onThreadEvent: (event) =>
-          logger.provider(`provider=codex type=${event.type}`, { chunk: event }),
+          logger.provider(`provider=codex type=${event.type}`, {
+            chunk: event,
+          }),
       })
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
       const rawEvent = toRunErrorRawEvent(error)
-      logger.errors('codex.chatStream fatal', { error, source: 'codex.chatStream' })
+      logger.errors('codex.chatStream fatal', {
+        error,
+        source: 'codex.chatStream',
+      })
       yield {
         type: EventType.RUN_ERROR,
         model: options.model,

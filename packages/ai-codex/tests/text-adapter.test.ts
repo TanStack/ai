@@ -56,7 +56,9 @@ function capabilityContextWith(handle: SandboxHandle): CapabilityContext {
   return ctx
 }
 
-async function collect(stream: AsyncIterable<StreamChunk>): Promise<Array<StreamChunk>> {
+async function collect(
+  stream: AsyncIterable<StreamChunk>,
+): Promise<Array<StreamChunk>> {
   const out: Array<StreamChunk> = []
   for await (const chunk of stream) out.push(chunk)
   return out
