@@ -42,7 +42,7 @@ export default defineConfig({
             const abortController = new AbortController()
             const stream = chat({
               adapter: openaiText('gpt-5.5'),
-              tools: Object.values(mergeAgentTools({}, params.tools)),
+              tools: mergeAgentTools([], params.tools),
               systemPrompts: ['You are a helpful assistant.'],
               agentLoopStrategy: maxIterations(10),
               messages: params.messages,
