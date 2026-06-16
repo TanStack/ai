@@ -118,6 +118,20 @@ export type {
   ErrorInfo,
 } from './activities/chat/middleware/index'
 
+// Capability primitives + middleware builder
+export {
+  createCapability,
+  defineChatMiddleware,
+  createChatMiddleware,
+} from './activities/chat/middleware/index'
+export type {
+  Capability,
+  CapabilityHandle,
+  CapabilityContext,
+  CapabilityGetter,
+  CapabilityProvider,
+} from './activities/chat/middleware/index'
+
 // All types
 export * from './types'
 
