@@ -25,6 +25,8 @@ import {
 import { maxIterations as maxIterationsStrategy } from './agent-loop-strategies'
 import { convertMessagesToModelMessages, generateMessageId } from './messages'
 import { MiddlewareRunner } from './middleware/compose'
+import { CapabilityRegistry } from './middleware/capabilities'
+import { validateCapabilities } from './middleware/validate'
 import { MCPManager } from './mcp/manager'
 import type {
   ApprovalRequest,
@@ -54,11 +56,13 @@ import type {
   UIMessage,
 } from '../../types'
 import type {
+  AnyChatMiddleware,
   ChatMiddleware,
   ChatMiddlewareConfig,
   ChatMiddlewareContext,
   StructuredOutputMiddlewareConfig,
 } from './middleware/types'
+import type { CheckCoverage } from './middleware/builder'
 import type { SystemPrompt } from '../../system-prompts'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
@@ -141,7 +145,8 @@ type TextActivityOptionsWithContext<
   'tools' | 'middleware' | 'context'
 > & {
   tools?: TTools
-  middleware?: TMiddleware
+  middleware?: TMiddleware &
+    CheckCoverage<Extract<TMiddleware, ReadonlyArray<AnyChatMiddleware>>>
 } & RequiredContextFromInputs<TTools, TMiddleware>
 
 // ===========================
@@ -659,6 +664,15 @@ class TextEngine<
       // References
       messages: this.messages,
       createId: (prefix: string) => this.createId(prefix),
+      // Capability bookkeeping for this request (populated by middleware setup)
+      capabilities: new CapabilityRegistry(),
+      // Convenience accessors that delegate to a capability handle's own
+      // tuple getter/provider, keyed by this context. `getX(ctx)` and
+      // `ctx.get(X)` are interchangeable.
+      get: (capability) => capability[0](this.middlewareCtx),
+      getOptional: (capability) =>
+        capability[0](this.middlewareCtx, { optional: true }),
+      provide: (capability, value) => capability[1](this.middlewareCtx, value),
     }
   }
 
@@ -706,6 +720,9 @@ class TextEngine<
     })
 
     try {
+      // Provision capabilities before any consumer (onConfig onward) can read them
+      await this.middlewareRunner.runSetup(this.middlewareCtx)
+
       // Run initial onConfig (phase = init)
       this.middlewareCtx.phase = 'init'
       const initialConfig = this.buildMiddlewareConfig()
@@ -2564,6 +2581,8 @@ export function chat<
     TMiddleware
   >,
 ): TextActivityResult<TSchema, TStream> {
+  validateCapabilities(options.middleware ?? [], options.adapter)
+
   const { outputSchema, stream } = options
 
   // outputSchema + stream:true is the only branch that streams structured

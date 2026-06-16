@@ -82,6 +82,41 @@ test.describe('Middleware Lifecycle', () => {
     expect(toolResults[0].content).toContain('skipped')
   })
 
+  test('capability provide/consume flow surfaces the consumed value in the stream', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    const params = new URLSearchParams()
+    if (testId) params.set('testId', testId)
+    if (aimockPort) params.set('aimockPort', String(aimockPort))
+    const qs = params.toString()
+    await page.goto(`/middleware-test${qs ? '?' + qs : ''}`)
+    await page.waitForTimeout(2000) // hydration
+    await page.locator('#mw-scenario-select').selectOption('capability')
+    await page.locator('#mw-mode-select').selectOption('capability')
+    await page.locator('#mw-run-button').click()
+
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector('#mw-metadata')
+          ?.getAttribute('data-test-complete') === 'true',
+      { timeout: 10000 },
+    )
+
+    const messagesJson = await page.locator('#mw-messages-json').textContent()
+    const messages = JSON.parse(messagesJson || '[]')
+    const assistantMsg = messages.find((m: any) => m.role === 'assistant')
+    const textPart = assistantMsg?.parts?.find((p: any) => p.type === 'text')
+    // The provider middleware provides "[CAP]" in setup(); the consumer
+    // middleware reads it via the capability getter in onChunk and prefixes
+    // each text delta. Seeing "[CAP]" in the streamed text proves the provided
+    // capability value flowed across middleware to the consumer.
+    expect(textPart?.content).toContain('[CAP]')
+    expect(textPart?.content).toContain('Hello')
+  })
+
   test('otel middleware emits chat span + per-iteration token histograms', async ({
     page,
     testId,
