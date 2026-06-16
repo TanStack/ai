@@ -13,7 +13,7 @@ import { buildPrompt } from '../messages/prompt'
 import { translateSdkStream } from '../stream/translate'
 import { mapPolicyToClaudeFlags } from './policy-map'
 import type { ClaudePolicyFlags } from './policy-map'
-import type { HostToolBridge, SandboxHandle  } from '@tanstack/ai-sandbox'
+import type { HostToolBridge, SandboxHandle } from '@tanstack/ai-sandbox'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,

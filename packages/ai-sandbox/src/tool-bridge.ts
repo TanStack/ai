@@ -84,10 +84,13 @@ function buildServer(
       throw new Error(`Unknown tool: ${request.params.name}`)
     }
     try {
-      const result: unknown = await tool.execute(request.params.arguments ?? {}, {
-        context: options.context,
-        abortSignal: options.signal,
-      })
+      const result: unknown = await tool.execute(
+        request.params.arguments ?? {},
+        {
+          context: options.context,
+          abortSignal: options.signal,
+        },
+      )
       const text = typeof result === 'string' ? result : JSON.stringify(result)
       return { content: [{ type: 'text' as const, text }] }
     } catch (error) {

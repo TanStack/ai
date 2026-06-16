@@ -10,7 +10,7 @@ import {
 } from '@tanstack/ai-sandbox'
 import { buildPrompt } from '../messages/prompt'
 import { translateThreadEvents } from '../stream/translate'
-import type { HostToolBridge, SandboxHandle  } from '@tanstack/ai-sandbox'
+import type { HostToolBridge, SandboxHandle } from '@tanstack/ai-sandbox'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,

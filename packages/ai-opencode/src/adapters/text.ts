@@ -13,7 +13,7 @@ import { startOpencodeServerInSandbox } from '../process/sandbox-server'
 import { resolvePermission } from '../process/permissions'
 import { AsyncQueue } from '../stream/queue'
 import { translateOpencodeStream } from '../stream/translate'
-import type { HostToolBridge, SandboxHandle  } from '@tanstack/ai-sandbox'
+import type { HostToolBridge, SandboxHandle } from '@tanstack/ai-sandbox'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
