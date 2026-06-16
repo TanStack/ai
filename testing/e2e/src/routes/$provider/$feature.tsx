@@ -44,6 +44,7 @@ const MEDIA_FEATURES = new Set<Feature>([
   'image-gen',
   'tts',
   'transcription',
+  'transcription-diarization',
   'video-gen',
   'audio-gen',
   'sound-effects',
@@ -142,9 +143,11 @@ function MediaFeature({
         />
       )
     case 'transcription':
+    case 'transcription-diarization':
       return (
         <TranscriptionUI
           provider={provider}
+          feature={feature}
           mode={mode}
           testId={testId}
           aimockPort={aimockPort}

@@ -298,16 +298,42 @@ console.log(result.text); // Transcribed text
 const result = await generateTranscription({
   adapter: openaiTranscription("whisper-1"),
   audio: audioFile,
+  responseFormat: "verbose_json",
+  prompt: "Technical terms: API, SDK",
   modelOptions: {
-    response_format: "verbose_json", // Get timestamps
     temperature: 0,
-    prompt: "Technical terms: API, SDK",
+    timestamp_granularities: ["word", "segment"],
   },
 });
 
 // Access segments with timestamps
 console.log(result.segments);
 ```
+
+### Speaker Diarization
+
+Use `gpt-4o-transcribe-diarize` for speaker-labeled transcripts:
+
+```typescript
+const result = await generateTranscription({
+  adapter: openaiTranscription("gpt-4o-transcribe-diarize"),
+  audio: meetingAudioFile,
+  modelOptions: {
+    chunking_strategy: "auto",
+    known_speaker_names: ["agent", "customer"],
+    known_speaker_references: [
+      "data:audio/wav;base64,...",
+      "data:audio/wav;base64,...",
+    ],
+  },
+});
+
+for (const segment of result.segments ?? []) {
+  console.log(segment.speaker, segment.start, segment.end, segment.text);
+}
+```
+
+`gpt-4o-transcribe-diarize` defaults to `modelOptions.response_format: "diarized_json"` and `chunking_strategy: "auto"`. OpenAI does not support `prompt`, `include`, or `timestamp_granularities` with diarized transcription.
 
 ## Environment Variables
 
@@ -357,7 +383,7 @@ Creates an OpenAI text-to-speech adapter.
 
 ### `openaiTranscription(model, config?)` / `createOpenaiTranscription(model, apiKey, config?)`
 
-Creates an OpenAI transcription adapter (Whisper).
+Creates an OpenAI transcription adapter for Whisper, GPT-4o transcription, and GPT-4o diarized transcription models.
 
 ### `openaiVideo(model, config?)` / `createOpenaiVideo(model, apiKey, config?)`
 

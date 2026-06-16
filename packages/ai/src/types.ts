@@ -1722,6 +1722,14 @@ export interface TTSResult {
  * Options for audio transcription.
  * These are the common options supported across providers.
  */
+export type TranscriptionResponseFormat =
+  | 'json'
+  | 'text'
+  | 'srt'
+  | 'verbose_json'
+  | 'vtt'
+  | 'diarized_json'
+
 export interface TranscriptionOptions<
   TProviderOptions extends object = object,
 > {
@@ -1734,7 +1742,7 @@ export interface TranscriptionOptions<
   /** An optional prompt to guide the transcription */
   prompt?: string
   /** The format of the transcription output */
-  responseFormat?: 'json' | 'text' | 'srt' | 'verbose_json' | 'vtt'
+  responseFormat?: TranscriptionResponseFormat
   /** Model-specific options for transcription */
   modelOptions?: TProviderOptions
   /**

@@ -259,7 +259,7 @@ const { generate, result, isLoading } = useGenerateSpeech({
 ### 4. Audio Transcription
 
 Adapter: `openaiTranscription` (whisper-1, gpt-4o-transcribe,
-gpt-4o-mini-transcribe).
+gpt-4o-mini-transcribe, gpt-4o-transcribe-diarize).
 
 ```typescript
 import { generateTranscription } from '@tanstack/ai'
@@ -271,7 +271,7 @@ const result = await generateTranscription({
   language: 'en',
   responseFormat: 'verbose_json',
   modelOptions: {
-    include: ['segment', 'word'],
+    timestamp_granularities: ['word', 'segment'],
   },
 })
 
@@ -280,6 +280,10 @@ const result = await generateTranscription({
 // result.duration   -- audio duration in seconds
 // result.segments   -- timestamped segments with optional word-level timestamps
 ```
+
+For speaker diarization, use `openaiTranscription('gpt-4o-transcribe-diarize')`.
+It defaults to `modelOptions.response_format: 'diarized_json'` and `chunking_strategy: 'auto'`;
+do not pass `prompt`, `include`, or `timestamp_granularities` with this model.
 
 Client hook:
 

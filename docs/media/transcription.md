@@ -2,7 +2,7 @@
 title: Transcription
 id: transcription
 order: 4
-description: "Transcribe audio to text with OpenAI Whisper and GPT-4o-transcribe via TanStack AI's generateTranscription() API."
+description: "Transcribe audio to text with OpenAI Whisper and GPT-4o transcription models, including speaker diarization, via TanStack AI's generateTranscription() API."
 keywords:
   - tanstack ai
   - transcription
@@ -22,7 +22,7 @@ TanStack AI provides support for audio transcription (speech-to-text) through de
 Audio transcription is handled by transcription adapters that follow the same tree-shakeable architecture as other adapters in TanStack AI.
 
 Currently supported:
-- **OpenAI**: Whisper-1, GPT-4o-transcribe, GPT-4o-mini-transcribe
+- **OpenAI**: Whisper-1, GPT-4o-transcribe, GPT-4o-mini-transcribe, GPT-4o-transcribe-diarize
 - **fal.ai**: Whisper, Wizper, speech-to-text turbo, ElevenLabs speech-to-text
 
 ## Basic Usage
@@ -104,6 +104,8 @@ for (const segment of result.segments ?? []) {
 |--------|------|-------------|
 | `audio` | `File \| string` | Audio data (File object or base64 string) - required |
 | `language` | `string` | Language code (e.g., "en", "es", "fr") |
+| `prompt` | `string` | Optional prompt to guide transcription style or terms. Not supported with `gpt-4o-transcribe-diarize`. |
+| `responseFormat` | `'json' \| 'text' \| 'srt' \| 'verbose_json' \| 'vtt'` | Common output format |
 
 ### Supported Languages
 
@@ -136,6 +138,7 @@ const result = await generateTranscription({
   prompt: 'Technical terms: API, SDK, CLI', // Top-level: guide transcription
   modelOptions: {
     temperature: 0, // Lower = more deterministic (provider option)
+    timestamp_granularities: ['word', 'segment'],
   },
 })
 ```
@@ -143,8 +146,12 @@ const result = await generateTranscription({
 | Option | Type | Description |
 |--------|------|-------------|
 | `temperature` | `number` | Sampling temperature (0 to 1) |
-| `timestamp_granularities` | `Array<'word' \| 'segment'>` | Timestamp granularity to populate (requires top-level `responseFormat: 'verbose_json'`) |
+| `timestamp_granularities` | `Array<'word' \| 'segment'>` | Timestamp granularity to populate (`whisper-1` only; requires top-level `responseFormat: 'verbose_json'`) |
 | `include` | `string[]` | Additional values to include in the response (e.g., `logprobs`) |
+| `response_format` | `'json' \| 'text' \| 'srt' \| 'verbose_json' \| 'vtt' \| 'diarized_json'` | Raw OpenAI response format. Use `diarized_json` here for speaker-labeled diarization output. |
+| `chunking_strategy` | `'auto' \| { type: 'server_vad', ... } \| null` | Audio chunking strategy for `gpt-4o-transcribe-diarize`; required by OpenAI for diarization inputs longer than 30 seconds |
+| `known_speaker_names` | `string[]` | Up to four speaker labels for diarization |
+| `known_speaker_references` | `string[]` | 2-10 second data URL audio samples matching `known_speaker_names` |
 
 > `responseFormat` and `prompt` are **top-level** options on `generateTranscription`, not `modelOptions` keys.
 
@@ -157,6 +164,33 @@ const result = await generateTranscription({
 | `srt` | SubRip subtitle format |
 | `verbose_json` | Detailed JSON with timestamps and segments |
 | `vtt` | WebVTT subtitle format |
+
+OpenAI's `gpt-4o-transcribe-diarize` also supports `modelOptions.response_format: 'diarized_json'` for speaker-labeled segments.
+
+### Speaker Diarization
+
+Use `gpt-4o-transcribe-diarize` when you need speaker labels. TanStack AI defaults this model to `modelOptions.response_format: 'diarized_json'` and sends `chunking_strategy: 'auto'` unless you provide a chunking strategy yourself.
+
+```typescript
+const result = await generateTranscription({
+  adapter: openaiTranscription('gpt-4o-transcribe-diarize'),
+  audio: meetingAudioFile,
+  modelOptions: {
+    chunking_strategy: 'auto',
+    known_speaker_names: ['agent', 'customer'],
+    known_speaker_references: [
+      'data:audio/wav;base64,...',
+      'data:audio/wav;base64,...',
+    ],
+  },
+})
+
+for (const segment of result.segments ?? []) {
+  console.log(segment.speaker, segment.start, segment.end, segment.text)
+}
+```
+
+OpenAI accepts up to four known speaker references. The diarization model does not support `prompt`, `include`, or `timestamp_granularities`; the adapter rejects those combinations before making the API request.
 
 ## Response Format
 
@@ -541,5 +575,6 @@ const adapter = createOpenaiTranscription('whisper-1', 'your-openai-api-key')
 
 5. **Prompting**: Use the `prompt` option to provide context or expected vocabulary (e.g., technical terms, names).
 
-6. **Timestamps**: Request `verbose_json` format and enable `timestamp_granularities: ['word', 'segment']` when you need timing information for captions or synchronization.
+6. **Timestamps**: Request `responseFormat: 'verbose_json'` and set `modelOptions.timestamp_granularities` when you need timing information for captions or synchronization.
 
+7. **Diarization**: Use `gpt-4o-transcribe-diarize` with `modelOptions.response_format: 'diarized_json'` output for multi-speaker audio. Keep `chunking_strategy: 'auto'` unless you need custom VAD tuning.
