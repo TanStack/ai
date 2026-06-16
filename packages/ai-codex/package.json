@@ -45,15 +45,14 @@
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
   },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
-    "@openai/codex-sdk": "^0.139.0"
-  },
   "peerDependencies": {
-    "@tanstack/ai": "workspace:^"
+    "@tanstack/ai": "workspace:^",
+    "@tanstack/ai-sandbox": "workspace:^"
   },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-sandbox": "workspace:*",
+    "@tanstack/ai-sandbox-local-process": "workspace:*",
     "@vitest/coverage-v8": "4.0.14"
   }
 }

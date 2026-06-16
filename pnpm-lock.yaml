@@ -1381,17 +1381,16 @@ importers:
         version: 4.21.0
 
   packages/ai-codex:
-    dependencies:
-      '@modelcontextprotocol/sdk':
-        specifier: ^1.29.0
-        version: 1.29.0(zod@4.3.6)
-      '@openai/codex-sdk':
-        specifier: ^0.139.0
-        version: 0.139.0
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
+      '@tanstack/ai-sandbox':
+        specifier: workspace:*
+        version: link:../ai-sandbox
+      '@tanstack/ai-sandbox-local-process':
+        specifier: workspace:*
+        version: link:../ai-sandbox-local-process
       '@vitest/coverage-v8':
         specifier: 4.0.14
         version: 4.0.14(vitest@4.0.14(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.15))(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
@@ -5116,51 +5115,6 @@ packages:
   '@oozcitak/util@8.3.8':
     resolution: {integrity: sha512-T8TbSnGsxo6TDBJx/Sgv/BlVJL3tshxZP7Aq5R1mSnM5OcHY2dQaxLMu2+E8u3gN0MLOzdjurqN4ZRVuzQycOQ==}
     engines: {node: '>=8.0'}
-
-  '@openai/codex-sdk@0.139.0':
-    resolution: {integrity: sha512-r4lDckaVx4mVZy1v/7ykEhkeWjVfM/4oGJfhG0AP4+zN3Sa+jcf5hdY4EHfJasofBcp0tIF/7JCKHpv534R+tw==}
-    engines: {node: '>=18'}
-
-  '@openai/codex@0.139.0':
-    resolution: {integrity: sha512-wr2fRE+fzW0CjEbfFsLh1ftarVEcw0CMLWS7QyA0nyOz5qacQPVq3cq2+/U7oEbwm1TOqoi0Fm1nxniB5FkpmA==}
-    engines: {node: '>=16'}
-    hasBin: true
-
-  '@openai/codex@0.139.0-darwin-arm64':
-    resolution: {integrity: sha512-o+0ZKWwgDFMMLO7rwinzO0PQsgK+Vme1pMN2GeAxsX29ZgGZcyPICfpJbeGSUO1mb2a36Skjx6nfdRnxMY0r7w==}
-    engines: {node: '>=16'}
-    cpu: [arm64]
-    os: [darwin]
-
-  '@openai/codex@0.139.0-darwin-x64':
-    resolution: {integrity: sha512-9gkBWzu6DB2rqU4DbpxD3DE5bofGpsK46Lp0h0I+bKWc2IIcxvSi8K2utKmBLoJCbKrn4JQu7dFNGRqEfENung==}
-    engines: {node: '>=16'}
-    cpu: [x64]
-    os: [darwin]
-
-  '@openai/codex@0.139.0-linux-arm64':
-    resolution: {integrity: sha512-tBQE5lZciRHeWZGuURgjP9S717MvTIpQMc593+DNxY2LQxozkngOkzFSQd1+/UmQKGrCqdFLu5irIwPXpSZyEw==}
-    engines: {node: '>=16'}
-    cpu: [arm64]
-    os: [linux]
-
-  '@openai/codex@0.139.0-linux-x64':
-    resolution: {integrity: sha512-14UgzDS+X4crkvdt6S02A/ZZOrS8ZyWiuTRpguCtnhNamb7unSuDxy86BWgpAl3sqiTaN2CP8VLyp2ohQ8Nbzw==}
-    engines: {node: '>=16'}
-    cpu: [x64]
-    os: [linux]
-
-  '@openai/codex@0.139.0-win32-arm64':
-    resolution: {integrity: sha512-nlwRjsYotH1Rtqu/Q0VwQbIeO2UX1mkHK84Ov9qn/hl29QqqoBtno0tRyqIPbkXFIVQuWiAYXlV3ugLwH5fTrQ==}
-    engines: {node: '>=16'}
-    cpu: [arm64]
-    os: [win32]
-
-  '@openai/codex@0.139.0-win32-x64':
-    resolution: {integrity: sha512-lQrVLNz+90wdvWVNFDvCkHQRiAK9ZllmkTka3c8eqSDqdJk35Gpgppfv9Xtw5M2ZBtTq0sBdWBiCMyzGDBSpmQ==}
-    engines: {node: '>=16'}
-    cpu: [x64]
-    os: [win32]
 
   '@opencode-ai/sdk@1.17.7':
     resolution: {integrity: sha512-7q7StGM+N0OwUgRsmDc8Gyz3hMIH1XGig+qZ4lzWUpmSgFEjLx8U7R14GXY7KiMJVdbVf6FeaYloRz2Rcsma4A==}
@@ -18133,37 +18087,6 @@ snapshots:
   '@oozcitak/util@10.0.0': {}
 
   '@oozcitak/util@8.3.8': {}
-
-  '@openai/codex-sdk@0.139.0':
-    dependencies:
-      '@openai/codex': 0.139.0
-
-  '@openai/codex@0.139.0':
-    optionalDependencies:
-      '@openai/codex-darwin-arm64': '@openai/codex@0.139.0-darwin-arm64'
-      '@openai/codex-darwin-x64': '@openai/codex@0.139.0-darwin-x64'
-      '@openai/codex-linux-arm64': '@openai/codex@0.139.0-linux-arm64'
-      '@openai/codex-linux-x64': '@openai/codex@0.139.0-linux-x64'
-      '@openai/codex-win32-arm64': '@openai/codex@0.139.0-win32-arm64'
-      '@openai/codex-win32-x64': '@openai/codex@0.139.0-win32-x64'
-
-  '@openai/codex@0.139.0-darwin-arm64':
-    optional: true
-
-  '@openai/codex@0.139.0-darwin-x64':
-    optional: true
-
-  '@openai/codex@0.139.0-linux-arm64':
-    optional: true
-
-  '@openai/codex@0.139.0-linux-x64':
-    optional: true
-
-  '@openai/codex@0.139.0-win32-arm64':
-    optional: true
-
-  '@openai/codex@0.139.0-win32-x64':
-    optional: true
 
   '@opencode-ai/sdk@1.17.7':
     dependencies:
