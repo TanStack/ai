@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { createExecBackedGit } from '../src/git-exec'
-import type { ExecResult, ProcessOptions, SandboxProcess } from '../src/contracts'
+import type {
+  ExecResult,
+  ProcessOptions,
+  SandboxProcess,
+} from '../src/contracts'
 
 interface ExecCall {
   command: string
@@ -58,7 +62,9 @@ describe('createExecBackedGit security', () => {
     await expect(git.add(['--output=/etc/x'])).rejects.toThrow(
       /argument-injection guard/,
     )
-    await expect(git.status('-C/evil')).rejects.toThrow(/argument-injection guard/)
+    await expect(git.status('-C/evil')).rejects.toThrow(
+      /argument-injection guard/,
+    )
   })
 
   it('escapes embedded single quotes in values', async () => {
