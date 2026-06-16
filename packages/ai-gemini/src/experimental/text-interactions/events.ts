@@ -15,55 +15,60 @@ export interface GeminiInteractionIdEvent extends Omit<
 }
 
 /**
- * `CUSTOM` event carrying a raw `google_search_call` content delta from the
+ * `CUSTOM` event carrying a raw `google_search_call` Step from the
  * Interactions API. Payload shape is owned by `@google/genai`.
+ *
+ * SDK 2.x: server-side tool activity is now first-class `Step`s (emitted
+ * via `step.start`) rather than content deltas, so each variant below
+ * carries the full Step (with its `id` / `call_id`) instead of a delta
+ * fragment.
  */
 export interface GeminiGoogleSearchCallEvent extends Omit<
   CustomEvent,
   'name' | 'value'
 > {
   name: 'gemini.googleSearchCall'
-  value: Interactions.ContentDelta.GoogleSearchCallDelta
+  value: Interactions.GoogleSearchCallStep
 }
 
 /**
- * `CUSTOM` event carrying a raw `google_search_result` content delta from
- * the Interactions API.
+ * `CUSTOM` event carrying a raw `google_search_result` Step from the
+ * Interactions API.
  */
 export interface GeminiGoogleSearchResultEvent extends Omit<
   CustomEvent,
   'name' | 'value'
 > {
   name: 'gemini.googleSearchResult'
-  value: Interactions.ContentDelta.GoogleSearchResultDelta
+  value: Interactions.GoogleSearchResultStep
 }
 
 /**
- * `CUSTOM` event carrying a raw `code_execution_call` content delta from
- * the Interactions API.
+ * `CUSTOM` event carrying a raw `code_execution_call` Step from the
+ * Interactions API.
  */
 export interface GeminiCodeExecutionCallEvent extends Omit<
   CustomEvent,
   'name' | 'value'
 > {
   name: 'gemini.codeExecutionCall'
-  value: Interactions.ContentDelta.CodeExecutionCallDelta
+  value: Interactions.CodeExecutionCallStep
 }
 
 /**
- * `CUSTOM` event carrying a raw `code_execution_result` content delta from
- * the Interactions API.
+ * `CUSTOM` event carrying a raw `code_execution_result` Step from the
+ * Interactions API.
  */
 export interface GeminiCodeExecutionResultEvent extends Omit<
   CustomEvent,
   'name' | 'value'
 > {
   name: 'gemini.codeExecutionResult'
-  value: Interactions.ContentDelta.CodeExecutionResultDelta
+  value: Interactions.CodeExecutionResultStep
 }
 
 /**
- * `CUSTOM` event carrying a raw `url_context_call` content delta from the
+ * `CUSTOM` event carrying a raw `url_context_call` Step from the
  * Interactions API.
  */
 export interface GeminiUrlContextCallEvent extends Omit<
@@ -71,11 +76,11 @@ export interface GeminiUrlContextCallEvent extends Omit<
   'name' | 'value'
 > {
   name: 'gemini.urlContextCall'
-  value: Interactions.ContentDelta.URLContextCallDelta
+  value: Interactions.URLContextCallStep
 }
 
 /**
- * `CUSTOM` event carrying a raw `url_context_result` content delta from the
+ * `CUSTOM` event carrying a raw `url_context_result` Step from the
  * Interactions API.
  */
 export interface GeminiUrlContextResultEvent extends Omit<
@@ -83,11 +88,11 @@ export interface GeminiUrlContextResultEvent extends Omit<
   'name' | 'value'
 > {
   name: 'gemini.urlContextResult'
-  value: Interactions.ContentDelta.URLContextResultDelta
+  value: Interactions.URLContextResultStep
 }
 
 /**
- * `CUSTOM` event carrying a raw `file_search_call` content delta from the
+ * `CUSTOM` event carrying a raw `file_search_call` Step from the
  * Interactions API.
  */
 export interface GeminiFileSearchCallEvent extends Omit<
@@ -95,11 +100,11 @@ export interface GeminiFileSearchCallEvent extends Omit<
   'name' | 'value'
 > {
   name: 'gemini.fileSearchCall'
-  value: Interactions.ContentDelta.FileSearchCallDelta
+  value: Interactions.FileSearchCallStep
 }
 
 /**
- * `CUSTOM` event carrying a raw `file_search_result` content delta from the
+ * `CUSTOM` event carrying a raw `file_search_result` Step from the
  * Interactions API.
  */
 export interface GeminiFileSearchResultEvent extends Omit<
@@ -107,7 +112,7 @@ export interface GeminiFileSearchResultEvent extends Omit<
   'name' | 'value'
 > {
   name: 'gemini.fileSearchResult'
-  value: Interactions.ContentDelta.FileSearchResultDelta
+  value: Interactions.FileSearchResultStep
 }
 
 /**
@@ -127,12 +132,13 @@ export interface GeminiFileSearchResultEvent extends Omit<
  * }
  * ```
  *
- * The four tool-delta variant pairs (`google_search`, `code_execution`,
+ * The four tool variant pairs (`google_search`, `code_execution`,
  * `url_context`, `file_search`) forward the raw
- * `Interactions.ContentDelta.*Delta` payload from `@google/genai` so
- * consumers stay in sync with SDK shape changes automatically.
+ * `Interactions.*CallStep` / `Interactions.*ResultStep` payload from
+ * `@google/genai`. SDK 2.x emits these as full Steps via `step.start`
+ * (carrying the call's `id` / `call_id`) rather than as content deltas.
  * `computer_use` is accepted as a request tool but the API does not
- * stream per-delta CUSTOM events for it.
+ * surface a dedicated CUSTOM event for it.
  */
 export type GeminiInteractionsCustomEvent =
   | GeminiInteractionIdEvent

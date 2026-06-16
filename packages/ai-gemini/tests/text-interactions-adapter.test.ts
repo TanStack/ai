@@ -67,27 +67,27 @@ describe('GeminiTextInteractionsAdapter', () => {
     mocks.interactionsCreateSpy.mockResolvedValue(
       mkStream([
         {
-          event_type: 'interaction.start',
+          event_type: 'interaction.created',
           interaction: { id: 'int_1', status: 'in_progress' },
         },
         {
-          event_type: 'content.start',
+          event_type: 'step.start',
           index: 0,
-          content: { type: 'text', text: '' },
+          step: { type: 'model_output' },
         },
         {
-          event_type: 'content.delta',
+          event_type: 'step.delta',
           index: 0,
           delta: { type: 'text', text: 'Hello' },
         },
         {
-          event_type: 'content.delta',
+          event_type: 'step.delta',
           index: 0,
           delta: { type: 'text', text: ', world!' },
         },
-        { event_type: 'content.stop', index: 0 },
+        { event_type: 'step.stop', index: 0 },
         {
-          event_type: 'interaction.complete',
+          event_type: 'interaction.completed',
           interaction: {
             id: 'int_1',
             status: 'completed',
@@ -150,11 +150,11 @@ describe('GeminiTextInteractionsAdapter', () => {
     mocks.interactionsCreateSpy.mockResolvedValue(
       mkStream([
         {
-          event_type: 'interaction.start',
+          event_type: 'interaction.created',
           interaction: { id: 'int_3', status: 'in_progress' },
         },
         {
-          event_type: 'interaction.complete',
+          event_type: 'interaction.completed',
           interaction: { id: 'int_3', status: 'completed' },
         },
       ]),
@@ -185,11 +185,11 @@ describe('GeminiTextInteractionsAdapter', () => {
     mocks.interactionsCreateSpy.mockResolvedValue(
       mkStream([
         {
-          event_type: 'interaction.start',
+          event_type: 'interaction.created',
           interaction: { id: 'int_2', status: 'in_progress' },
         },
         {
-          event_type: 'interaction.complete',
+          event_type: 'interaction.completed',
           interaction: { id: 'int_2', status: 'completed' },
         },
       ]),
@@ -233,11 +233,11 @@ describe('GeminiTextInteractionsAdapter', () => {
     mocks.interactionsCreateSpy.mockResolvedValue(
       mkStream([
         {
-          event_type: 'interaction.start',
+          event_type: 'interaction.created',
           interaction: { id: 'int_gen', status: 'in_progress' },
         },
         {
-          event_type: 'interaction.complete',
+          event_type: 'interaction.completed',
           interaction: { id: 'int_gen', status: 'completed' },
         },
       ]),
@@ -273,11 +273,11 @@ describe('GeminiTextInteractionsAdapter', () => {
     mocks.interactionsCreateSpy.mockResolvedValue(
       mkStream([
         {
-          event_type: 'interaction.start',
+          event_type: 'interaction.created',
           interaction: { id: 'int_followup', status: 'in_progress' },
         },
         {
-          event_type: 'interaction.complete',
+          event_type: 'interaction.completed',
           interaction: { id: 'int_followup', status: 'completed' },
         },
       ]),
@@ -355,11 +355,11 @@ describe('GeminiTextInteractionsAdapter', () => {
     mocks.interactionsCreateSpy.mockResolvedValue(
       mkStream([
         {
-          event_type: 'interaction.start',
+          event_type: 'interaction.created',
           interaction: { id: 'int_fresh', status: 'in_progress' },
         },
         {
-          event_type: 'interaction.complete',
+          event_type: 'interaction.completed',
           interaction: { id: 'int_fresh', status: 'completed' },
         },
       ]),
@@ -384,27 +384,22 @@ describe('GeminiTextInteractionsAdapter', () => {
     mocks.interactionsCreateSpy.mockResolvedValue(
       mkStream([
         {
-          event_type: 'interaction.start',
+          event_type: 'interaction.created',
           interaction: { id: 'int_tool', status: 'in_progress' },
         },
         {
-          event_type: 'content.start',
+          event_type: 'step.start',
           index: 0,
-          content: { type: 'function_call' },
-        },
-        {
-          event_type: 'content.delta',
-          index: 0,
-          delta: {
+          step: {
             type: 'function_call',
             id: 'call_1',
             name: 'lookup_weather',
             arguments: { location: 'Madrid' },
           },
         },
-        { event_type: 'content.stop', index: 0 },
+        { event_type: 'step.stop', index: 0 },
         {
-          event_type: 'interaction.complete',
+          event_type: 'interaction.completed',
           interaction: { id: 'int_tool', status: 'completed' },
         },
       ]),
@@ -452,11 +447,11 @@ describe('GeminiTextInteractionsAdapter', () => {
     mocks.interactionsCreateSpy.mockResolvedValue(
       mkStream([
         {
-          event_type: 'interaction.start',
+          event_type: 'interaction.created',
           interaction: { id: 'int_followup', status: 'in_progress' },
         },
         {
-          event_type: 'interaction.complete',
+          event_type: 'interaction.completed',
           interaction: { id: 'int_followup', status: 'completed' },
         },
       ]),
@@ -543,11 +538,11 @@ describe('GeminiTextInteractionsAdapter', () => {
     mocks.interactionsCreateSpy.mockResolvedValue(
       mkStream([
         {
-          event_type: 'interaction.start',
+          event_type: 'interaction.created',
           interaction: { id: 'int_builtins', status: 'in_progress' },
         },
         {
-          event_type: 'interaction.complete',
+          event_type: 'interaction.completed',
           interaction: { id: 'int_builtins', status: 'completed' },
         },
       ]),
@@ -582,11 +577,11 @@ describe('GeminiTextInteractionsAdapter', () => {
     mocks.interactionsCreateSpy.mockResolvedValue(
       mkStream([
         {
-          event_type: 'interaction.start',
+          event_type: 'interaction.created',
           interaction: { id: 'int_fs', status: 'in_progress' },
         },
         {
-          event_type: 'interaction.complete',
+          event_type: 'interaction.completed',
           interaction: { id: 'int_fs', status: 'completed' },
         },
       ]),
@@ -630,11 +625,11 @@ describe('GeminiTextInteractionsAdapter', () => {
     mocks.interactionsCreateSpy.mockResolvedValue(
       mkStream([
         {
-          event_type: 'interaction.start',
+          event_type: 'interaction.created',
           interaction: { id: 'int_strip', status: 'in_progress' },
         },
         {
-          event_type: 'interaction.complete',
+          event_type: 'interaction.completed',
           interaction: { id: 'int_strip', status: 'completed' },
         },
       ]),
@@ -694,40 +689,42 @@ describe('GeminiTextInteractionsAdapter', () => {
     mocks.interactionsCreateSpy.mockResolvedValue(
       mkStream([
         {
-          event_type: 'interaction.start',
+          event_type: 'interaction.created',
           interaction: { id: 'int_search', status: 'in_progress' },
         },
         {
-          event_type: 'content.start',
+          event_type: 'step.start',
           index: 0,
-          content: { type: 'google_search_call' },
-        },
-        {
-          event_type: 'content.delta',
-          index: 0,
-          delta: {
+          step: {
             type: 'google_search_call',
             id: 'call_gs_1',
             arguments: { queries: ['weather madrid'] },
           },
         },
+        { event_type: 'step.stop', index: 0 },
         {
-          event_type: 'content.delta',
-          index: 0,
-          delta: {
+          event_type: 'step.start',
+          index: 1,
+          step: {
             type: 'google_search_result',
             call_id: 'call_gs_1',
-            result: [{ title: 'Madrid weather', uri: 'https://example.com' }],
+            result: [{ search_suggestions: '<div>Madrid weather</div>' }],
           },
         },
-        { event_type: 'content.stop', index: 0 },
+        { event_type: 'step.stop', index: 1 },
         {
-          event_type: 'content.delta',
-          index: 0,
-          delta: { type: 'text', text: 'It is sunny.' },
+          event_type: 'step.start',
+          index: 2,
+          step: { type: 'model_output' },
         },
         {
-          event_type: 'interaction.complete',
+          event_type: 'step.delta',
+          index: 2,
+          delta: { type: 'text', text: 'It is sunny.' },
+        },
+        { event_type: 'step.stop', index: 2 },
+        {
+          event_type: 'interaction.completed',
           interaction: { id: 'int_search', status: 'completed' },
         },
       ]),
@@ -808,7 +805,7 @@ describe('GeminiTextInteractionsAdapter', () => {
     mocks.interactionsCreateSpy.mockResolvedValue(
       mkStream([
         {
-          event_type: 'interaction.start',
+          event_type: 'interaction.created',
           interaction: { id: 'int_err', status: 'in_progress' },
         },
         {
@@ -839,7 +836,12 @@ describe('GeminiTextInteractionsAdapter', () => {
     mocks.interactionsCreateSpy.mockResolvedValueOnce({
       id: 'int_structured',
       status: 'completed',
-      outputs: [{ type: 'text', text: '{"foo":"bar"}' }],
+      steps: [
+        {
+          type: 'model_output',
+          content: [{ type: 'text', text: '{"foo":"bar"}' }],
+        },
+      ],
     })
 
     const adapter = createAdapter()
@@ -853,8 +855,12 @@ describe('GeminiTextInteractionsAdapter', () => {
 
     expect(mocks.interactionsCreateSpy).toHaveBeenCalledTimes(1)
     const structuredPayload = mocks.interactionsCreateSpy.mock.calls[0]![0]
-    expect(structuredPayload.response_mime_type).toBe('application/json')
-    expect(structuredPayload.response_format).toBeDefined()
+    // SDK 2.x: `response_mime_type` was removed; mime + schema now live
+    // inside `response_format`.
+    expect(structuredPayload.response_format).toMatchObject({
+      type: 'text',
+      mime_type: 'application/json',
+    })
     expect(structuredPayload.stream).toBeUndefined()
   })
 
@@ -879,21 +885,22 @@ describe('GeminiTextInteractionsAdapter', () => {
     mocks.interactionsCreateSpy.mockResolvedValueOnce(
       mkStream([
         {
-          event_type: 'interaction.start',
+          event_type: 'interaction.created',
           interaction: { id: 'int_tool_chain', status: 'in_progress' },
         },
         {
-          event_type: 'content.delta',
+          event_type: 'step.start',
           index: 0,
-          delta: {
+          step: {
             type: 'function_call',
             id: 'call_x',
             name: 'lookup',
             arguments: { q: 'madrid' },
           },
         },
+        { event_type: 'step.stop', index: 0 },
         {
-          event_type: 'interaction.complete',
+          event_type: 'interaction.completed',
           interaction: {
             id: 'int_tool_chain',
             status: 'requires_action',
@@ -906,11 +913,11 @@ describe('GeminiTextInteractionsAdapter', () => {
     mocks.interactionsCreateSpy.mockResolvedValueOnce(
       mkStream([
         {
-          event_type: 'interaction.start',
+          event_type: 'interaction.created',
           interaction: { id: 'int_after_tool', status: 'in_progress' },
         },
         {
-          event_type: 'interaction.complete',
+          event_type: 'interaction.completed',
           interaction: { id: 'int_after_tool', status: 'completed' },
         },
       ]),
@@ -955,16 +962,22 @@ describe('GeminiTextInteractionsAdapter', () => {
     mocks.interactionsCreateSpy.mockResolvedValueOnce(
       mkStream([
         {
-          event_type: 'interaction.start',
+          event_type: 'interaction.created',
           interaction: { id: 'int_done', status: 'in_progress' },
         },
         {
-          event_type: 'content.delta',
+          event_type: 'step.start',
+          index: 0,
+          step: { type: 'model_output' },
+        },
+        {
+          event_type: 'step.delta',
           index: 0,
           delta: { type: 'text', text: 'done' },
         },
+        { event_type: 'step.stop', index: 0 },
         {
-          event_type: 'interaction.complete',
+          event_type: 'interaction.completed',
           interaction: { id: 'int_done', status: 'completed' },
         },
       ]),
@@ -972,11 +985,11 @@ describe('GeminiTextInteractionsAdapter', () => {
     mocks.interactionsCreateSpy.mockResolvedValueOnce(
       mkStream([
         {
-          event_type: 'interaction.start',
+          event_type: 'interaction.created',
           interaction: { id: 'int_fresh', status: 'in_progress' },
         },
         {
-          event_type: 'interaction.complete',
+          event_type: 'interaction.completed',
           interaction: { id: 'int_fresh', status: 'completed' },
         },
       ]),
@@ -1006,7 +1019,7 @@ describe('GeminiTextInteractionsAdapter', () => {
     mocks.interactionsCreateSpy.mockResolvedValueOnce(
       mkStream([
         {
-          event_type: 'interaction.start',
+          event_type: 'interaction.created',
           interaction: { id: 'int_err', status: 'in_progress' },
         },
         { event_type: 'error', error: { code: 500, message: 'boom' } },
@@ -1015,11 +1028,11 @@ describe('GeminiTextInteractionsAdapter', () => {
     mocks.interactionsCreateSpy.mockResolvedValueOnce(
       mkStream([
         {
-          event_type: 'interaction.start',
+          event_type: 'interaction.created',
           interaction: { id: 'int_recovery', status: 'in_progress' },
         },
         {
-          event_type: 'interaction.complete',
+          event_type: 'interaction.completed',
           interaction: { id: 'int_recovery', status: 'completed' },
         },
       ]),
@@ -1054,35 +1067,40 @@ describe('GeminiTextInteractionsAdapter', () => {
     mocks.interactionsCreateSpy.mockResolvedValueOnce(
       mkStream([
         {
-          event_type: 'interaction.start',
+          event_type: 'interaction.created',
           interaction: { id: 'int_trunc', status: 'in_progress' },
         },
         {
-          event_type: 'content.delta',
+          event_type: 'step.start',
+          index: 0,
+          step: { type: 'model_output' },
+        },
+        {
+          event_type: 'step.delta',
           index: 0,
           delta: { type: 'text', text: 'partial' },
         },
         {
-          event_type: 'content.delta',
-          index: 0,
-          delta: {
+          event_type: 'step.start',
+          index: 1,
+          step: {
             type: 'function_call',
             id: 'call_trunc',
             name: 'lookup',
             arguments: { q: 'x' },
           },
         },
-        // (no interaction.complete, no error)
+        // (no interaction.complete, no error — also no step.stop for index 1)
       ]),
     )
     mocks.interactionsCreateSpy.mockResolvedValueOnce(
       mkStream([
         {
-          event_type: 'interaction.start',
+          event_type: 'interaction.created',
           interaction: { id: 'int_after_trunc', status: 'in_progress' },
         },
         {
-          event_type: 'interaction.complete',
+          event_type: 'interaction.completed',
           interaction: { id: 'int_after_trunc', status: 'completed' },
         },
       ]),
@@ -1141,17 +1159,22 @@ describe('GeminiTextInteractionsAdapter', () => {
     mocks.interactionsCreateSpy.mockResolvedValueOnce(
       mkStream([
         {
-          event_type: 'interaction.start',
+          event_type: 'interaction.created',
           interaction: { id: 'int_abandon', status: 'in_progress' },
         },
         {
-          event_type: 'content.delta',
+          event_type: 'step.start',
+          index: 0,
+          step: { type: 'model_output' },
+        },
+        {
+          event_type: 'step.delta',
           index: 0,
           delta: { type: 'text', text: 'first chunk' },
         },
         // (never reached — consumer breaks before this)
         {
-          event_type: 'interaction.complete',
+          event_type: 'interaction.completed',
           interaction: { id: 'int_abandon', status: 'completed' },
         },
       ]),
@@ -1159,11 +1182,11 @@ describe('GeminiTextInteractionsAdapter', () => {
     mocks.interactionsCreateSpy.mockResolvedValueOnce(
       mkStream([
         {
-          event_type: 'interaction.start',
+          event_type: 'interaction.created',
           interaction: { id: 'int_fresh_after_abandon', status: 'in_progress' },
         },
         {
-          event_type: 'interaction.complete',
+          event_type: 'interaction.completed',
           interaction: {
             id: 'int_fresh_after_abandon',
             status: 'completed',
@@ -1209,16 +1232,22 @@ describe('GeminiTextInteractionsAdapter', () => {
       .mockResolvedValueOnce(
         mkStream([
           {
-            event_type: 'interaction.start',
+            event_type: 'interaction.created',
             interaction: { id: 'int_seed', status: 'in_progress' },
           },
           {
-            event_type: 'content.delta',
+            event_type: 'step.start',
+            index: 0,
+            step: { type: 'model_output' },
+          },
+          {
+            event_type: 'step.delta',
             index: 0,
             delta: { type: 'text', text: 'ack' },
           },
+          { event_type: 'step.stop', index: 0 },
           {
-            event_type: 'interaction.complete',
+            event_type: 'interaction.completed',
             interaction: { id: 'int_seed', status: 'completed' },
           },
         ]),
@@ -1226,7 +1255,12 @@ describe('GeminiTextInteractionsAdapter', () => {
       .mockResolvedValueOnce({
         id: 'int_struct',
         status: 'completed',
-        outputs: [{ type: 'text', text: '{"answer":"42"}' }],
+        steps: [
+          {
+            type: 'model_output',
+            content: [{ type: 'text', text: '{"answer":"42"}' }],
+          },
+        ],
       })
 
     const adapter = createAdapter()
@@ -1267,7 +1301,10 @@ describe('GeminiTextInteractionsAdapter', () => {
     expect(result).toEqual({ answer: '42' })
     const structuredPayload = mocks.interactionsCreateSpy.mock.calls[1]![0]
     expect(structuredPayload.previous_interaction_id).toBe('int_seed')
-    expect(structuredPayload.response_mime_type).toBe('application/json')
+    expect(structuredPayload.response_format).toMatchObject({
+      type: 'text',
+      mime_type: 'application/json',
+    })
   })
 
   it('evicts on consumer abandonment AFTER RUN_FINISHED(tool_calls) — the tool-iteration that never happens', async () => {
@@ -1279,21 +1316,22 @@ describe('GeminiTextInteractionsAdapter', () => {
     mocks.interactionsCreateSpy.mockResolvedValueOnce(
       mkStream([
         {
-          event_type: 'interaction.start',
+          event_type: 'interaction.created',
           interaction: { id: 'int_tool_abandon', status: 'in_progress' },
         },
         {
-          event_type: 'content.delta',
+          event_type: 'step.start',
           index: 0,
-          delta: {
+          step: {
             type: 'function_call',
             id: 'call_y',
             name: 'lookup',
             arguments: { q: 'x' },
           },
         },
+        { event_type: 'step.stop', index: 0 },
         {
-          event_type: 'interaction.complete',
+          event_type: 'interaction.completed',
           interaction: {
             id: 'int_tool_abandon',
             status: 'requires_action',
@@ -1304,14 +1342,14 @@ describe('GeminiTextInteractionsAdapter', () => {
     mocks.interactionsCreateSpy.mockResolvedValueOnce(
       mkStream([
         {
-          event_type: 'interaction.start',
+          event_type: 'interaction.created',
           interaction: {
             id: 'int_recovery_after_tool_abandon',
             status: 'in_progress',
           },
         },
         {
-          event_type: 'interaction.complete',
+          event_type: 'interaction.completed',
           interaction: {
             id: 'int_recovery_after_tool_abandon',
             status: 'completed',

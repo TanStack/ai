@@ -1247,8 +1247,8 @@ importers:
   packages/ai-gemini:
     dependencies:
       '@google/genai':
-        specifier: ^1.43.0
-        version: 1.43.0(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))
+        specifier: ^2.8.0
+        version: 2.8.0(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))
       '@tanstack/ai-utils':
         specifier: workspace:*
         version: link:../ai-utils
@@ -3914,8 +3914,8 @@ packages:
   '@gerrit0/mini-shiki@3.19.0':
     resolution: {integrity: sha512-ZSlWfLvr8Nl0T4iA3FF/8VH8HivYF82xQts2DY0tJxZd4wtXJ8AA0nmdW9lmO4hlrh3f9xNwEPtOgqETPqKwDA==}
 
-  '@google/genai@1.43.0':
-    resolution: {integrity: sha512-hklCsJNdMlDM1IwcCVcGQFBg2izY0+t5BIGbRsxi2UnKi6AGKL7pqJqmBDNRbw0bYCs4y3NA7TB+fkKfP/Nrdw==}
+  '@google/genai@2.8.0':
+    resolution: {integrity: sha512-pc2ayxqO5+O7AvnHBqpNHIk7PAZkHZgL31tbyx0gJZBSS9qPYiQoqwK7oYOw/ePmG6QY4EMSu+304vD5QlhXAw==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
       '@modelcontextprotocol/sdk': ^1.25.2
@@ -15812,12 +15812,12 @@ snapshots:
       '@shikijs/types': 3.20.0
       '@shikijs/vscode-textmate': 10.0.2
 
-  '@google/genai@1.43.0(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))':
+  '@google/genai@2.8.0(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))':
     dependencies:
       google-auth-library: 10.5.0
       p-retry: 4.6.2
       protobufjs: 7.5.4
-      ws: 8.18.3
+      ws: 8.20.1
     optionalDependencies:
       '@modelcontextprotocol/sdk': 1.29.0(zod@4.3.6)
     transitivePeerDependencies:
