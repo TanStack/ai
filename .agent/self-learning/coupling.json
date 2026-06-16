@@ -61,6 +61,50 @@
           "why": "Per CLAUDE.md, every feature / bug fix / behavior change MUST include E2E test coverage. When a new public capability is added, a corresponding spec under testing/e2e/tests/ plus a fixture under testing/e2e/fixtures/ are required — often plus a new entry in feature-support.ts and types.ts. The full pattern is: add the Feature flag, decide provider support, optionally add a per-feature config (system prompt, schema, tools), wire it through src/routes/api.chat.ts (or the relevant route), write the fixture(s), write the spec iterating `providersFor(feature)`. Spec must run against every supported provider so non-native-streaming providers exercise the fallback path. Skip only for refactors that don't change observable behavior."
         }
       ]
+    },
+    {
+      "id": "sandbox-core-contract-touches-providers",
+      "trigger": "packages/ai-sandbox/src/**/*.ts",
+      "impacts": [
+        {
+          "target": [
+            "packages/ai-sandbox-local-process/src/**/*.ts",
+            "packages/ai-sandbox-docker/src/**/*.ts",
+            "packages/ai-sandbox-cloudflare/src/**/*.ts"
+          ],
+          "kind": "change-required",
+          "why": "The SandboxProvider / SandboxHandle / SandboxCapabilities contracts in @tanstack/ai-sandbox are the seam every provider package implements. When a method, capability flag, lifecycle field, or the ensure/resume algorithm changes in core, every provider package must be updated in the same PR or it falls out of contract (silent type breaks, missing capability handling, broken resume). Also re-check capability degradation: a provider that returns capabilities().snapshots===false must keep working when core adds a snapshot-dependent path."
+        }
+      ]
+    },
+    {
+      "id": "harness-adapter-sandbox-execution",
+      "trigger": "packages/ai-claude-code/src/**/*.ts",
+      "impacts": [
+        {
+          "target": [
+            "packages/ai-codex/src/**/*.ts",
+            "packages/ai-gemini-cli/src/**/*.ts",
+            "packages/ai-opencode/src/**/*.ts",
+            "packages/ai-sandbox/src/**/*.ts"
+          ],
+          "kind": "change-required",
+          "why": "All four harness adapters share one execution contract: declare requires:[SandboxCapability], spawn the agent CLI via sandbox.process (never local child_process), pipe its native stream-json/ACP stdout through the per-adapter translate layer, and proxy host tools via the MCP-over-channel bridge. When the sandbox-execution pattern, the host MCP tool-bridge shape, the per-run bearer-token/channel contract, or the policy->native-permission mapping changes in one adapter (or in @tanstack/ai-sandbox), mirror it across the other harness adapters so they don't diverge into incompatible execution paths."
+        }
+      ]
+    },
+    {
+      "id": "sandbox-source-persistence-ready",
+      "trigger": "packages/ai-sandbox*/src/**/*.ts",
+      "impacts": [
+        {
+          "target": [
+            "packages/ai-sandbox/src/**/*.ts"
+          ],
+          "kind": "change-required",
+          "why": "The sandbox layer ships with zero persistence package but MUST stay persistence-ready so the persistence proposal drops in without re-architecture. Invariant to preserve on any sandbox change: SandboxStore and LockStore stay PLUGGABLE optional capabilities (in-memory defaults only - never hardcode storage), emitted chunks stay conceptually offset-addressable ({runId, seq, ts, chunk}) so a future EventLog/DurableRunStream can capture+replay by cursor, and approvals keep using the existing resume-based approval-requested flow. Do not introduce a sandbox-owned durable store, a bespoke replay buffer, or a non-AG-UI event type that the persistence layer would later have to rip out."
+        }
+      ]
     }
   ]
 }

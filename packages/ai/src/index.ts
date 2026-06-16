@@ -130,6 +130,8 @@ export type {
   CapabilityContext,
   CapabilityGetter,
   CapabilityProvider,
+  DefinedChatMiddleware,
+  AnyChatMiddleware,
 } from './activities/chat/middleware/index'
 
 // All types
