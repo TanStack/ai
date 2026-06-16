@@ -4,6 +4,7 @@ import type {
 } from '@standard-schema/spec'
 import type { InternalLogger } from './logger/internal-logger'
 import type { SystemPrompt } from './system-prompts'
+import type { CapabilityContext } from './activities/chat/middleware/capabilities'
 // The canonical usage types live in the leaf `@tanstack/ai-event-client`
 // package (which `@tanstack/ai` already depends on) so there is a single source
 // of truth without a dependency cycle. They are re-exported below.
@@ -906,6 +907,16 @@ export interface TextOptions<
    * Surfaced for observability/middleware; not consumed by the LLM call.
    */
   parentRunId?: string
+
+  /**
+   * Middleware capability context for this run. The engine populates it with
+   * the live middleware context so harness adapters that declare
+   * `requires: [SomeCapability]` can read provided capabilities from inside
+   * `chatStream` — e.g. `getSandbox(options.capabilities)`. Capabilities are
+   * provisioned by middleware `setup` before the adapter runs. Undefined for
+   * direct adapter usage outside the chat engine.
+   */
+  capabilities?: CapabilityContext
 }
 
 // ============================================================================

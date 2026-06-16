@@ -90,6 +90,10 @@ export type { BootstrapResult } from './bootstrap'
 // Exec-backed git helper (for providers without native git)
 export { createExecBackedGit } from './git-exec'
 
+// Harness runner: spawn an agent CLI in a sandbox + stream NDJSON stdout
+export { spawnNdjson, toLines } from './runner'
+export type { SpawnNdjsonOptions } from './runner'
+
 // Keying
 export { computeSandboxKey, computeWorkspaceHash } from './key'
 export type { SandboxKeyInput } from './key'

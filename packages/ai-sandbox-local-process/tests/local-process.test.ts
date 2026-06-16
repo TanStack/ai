@@ -7,6 +7,7 @@ import {
   defineSandbox,
   defineWorkspace,
   detectPackageManager,
+  spawnNdjson,
 } from '@tanstack/ai-sandbox'
 import { localProcessSandbox } from '../src/index'
 import type { SandboxHandle } from '@tanstack/ai-sandbox'
@@ -83,6 +84,31 @@ describe('local-process process', () => {
     const code = await proc.wait()
     expect(out.trim()).toContain('streamed')
     expect(code).toBe(0)
+    await sbx.destroy()
+  })
+})
+
+describe('local-process + spawnNdjson (real agent-CLI streaming)', () => {
+  it('streams NDJSON events emitted by a spawned process', async () => {
+    const sbx = await fresh()
+    // A stand-in "agent CLI": emits stream-json on stdout, like `claude -p`.
+    await sbx.fs.write(
+      '/workspace/fake-agent.mjs',
+      [
+        `process.stdout.write(JSON.stringify({ type: 'text', delta: 'pong' }) + '\\n')`,
+        `process.stdout.write(JSON.stringify({ type: 'result', ok: true }) + '\\n')`,
+      ].join('\n'),
+    )
+    const events: Array<unknown> = []
+    for await (const ev of spawnNdjson(sbx, 'node fake-agent.mjs', {
+      cwd: '/workspace',
+    })) {
+      events.push(ev)
+    }
+    expect(events).toEqual([
+      { type: 'text', delta: 'pong' },
+      { type: 'result', ok: true },
+    ])
     await sbx.destroy()
   })
 })

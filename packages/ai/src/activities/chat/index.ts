@@ -994,6 +994,8 @@ class TextEngine<
       threadId: this.threadId,
       runId: this.runIdOverride,
       parentRunId: this.parentRunIdOverride,
+      // Expose provided capabilities (e.g. sandbox) to harness adapters.
+      capabilities: this.middlewareCtx,
       ...(combinedSchema ? { outputSchema: combinedSchema } : {}),
     })) {
       if (this.isCancelled()) {
