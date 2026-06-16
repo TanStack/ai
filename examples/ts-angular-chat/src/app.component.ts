@@ -26,9 +26,7 @@ import { chatTools } from './lib/chat-tools'
           @if (chat.messages().length === 0) {
             <section class="hero">
               <p class="hero__eyebrow">Powered by signals · 5 client tools</p>
-              <h2 class="hero__title">
-                What can I help you <em>ship</em>?
-              </h2>
+              <h2 class="hero__title">What can I help you <em>ship</em>?</h2>
               <p class="hero__sub">
                 A streaming chat built with injectChat and the OpenAI adapter.
                 The model can call browser-side tools — try one below.
@@ -114,7 +112,12 @@ import { chatTools } from './lib/chat-tools'
                 aria-label="Stop"
                 (click)="chat.stop()"
               >
-                <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 14 14"
+                  aria-hidden="true"
+                >
                   <rect width="14" height="14" rx="3" fill="currentColor" />
                 </svg>
               </button>
@@ -125,7 +128,12 @@ import { chatTools } from './lib/chat-tools'
                 aria-label="Send"
                 [disabled]="draft.trim().length === 0"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
                   <path
                     d="M12 19V5M12 5l-6 6M12 5l6 6"
                     fill="none"
@@ -139,7 +147,8 @@ import { chatTools } from './lib/chat-tools'
             }
           </div>
           <p class="composer__hint">
-            TanStack AI · Angular · responses are generated and may be inaccurate
+            TanStack AI · Angular · responses are generated and may be
+            inaccurate
           </p>
         </form>
       </footer>
