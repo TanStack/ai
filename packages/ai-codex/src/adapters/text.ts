@@ -4,12 +4,15 @@ import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   SandboxCapability,
   getSandbox,
+  getSandboxPolicy,
   hostForSandbox,
   spawnNdjson,
   startHostToolBridge,
 } from '@tanstack/ai-sandbox'
 import { buildPrompt } from '../messages/prompt'
 import { translateThreadEvents } from '../stream/translate'
+import { mapPolicyToCodexFlags } from './policy-map'
+import type { CodexPolicyFlags } from './policy-map'
 import type { HostToolBridge, SandboxHandle } from '@tanstack/ai-sandbox'
 import type {
   StructuredOutputOptions,
@@ -118,16 +121,26 @@ export class CodexTextAdapter<
     resume: string | undefined,
     cwd: string,
     bridge: HostToolBridge | undefined,
+    policyFlags: CodexPolicyFlags,
   ): string {
     const config = this.adapterConfig
     const modelOptions = options.modelOptions
     const exe = config.codexExecutable ?? 'codex'
     const args: Array<string> = ['exec', '--experimental-json']
 
+    // Precedence: per-call modelOptions > adapter config > sandbox policy > default.
     const sandboxMode =
-      modelOptions?.sandboxMode ?? config.sandboxMode ?? 'workspace-write'
+      modelOptions?.sandboxMode ??
+      config.sandboxMode ??
+      policyFlags.sandboxMode ??
+      'workspace-write'
     const approvalPolicy =
-      modelOptions?.approvalPolicy ?? config.approvalPolicy ?? 'never'
+      modelOptions?.approvalPolicy ??
+      config.approvalPolicy ??
+      policyFlags.approvalPolicy ??
+      'never'
+    const networkAccessEnabled =
+      config.networkAccessEnabled ?? policyFlags.networkAccessEnabled
     const reasoning =
       modelOptions?.modelReasoningEffort ?? config.modelReasoningEffort
     const skipGitRepoCheck =
@@ -144,10 +157,10 @@ export class CodexTextAdapter<
     const cfg: Record<string, string> = {
       approval_policy: `"${approvalPolicy}"`,
       ...(reasoning ? { model_reasoning_effort: `"${reasoning}"` } : {}),
-      ...(config.networkAccessEnabled !== undefined
+      ...(networkAccessEnabled !== undefined
         ? {
             'sandbox_workspace_write.network_access': String(
-              config.networkAccessEnabled,
+              networkAccessEnabled,
             ),
           }
         : {}),
@@ -204,7 +217,16 @@ export class CodexTextAdapter<
           ? `${systemPrompts.join('\n\n')}\n\n${prompt}`
           : prompt
 
-      const command = this.buildCommand(options, resume, cwd, bridge)
+      const policy = options.capabilities
+        ? getSandboxPolicy(options.capabilities, { optional: true })
+        : undefined
+      const command = this.buildCommand(
+        options,
+        resume,
+        cwd,
+        bridge,
+        mapPolicyToCodexFlags(policy),
+      )
 
       logger.request(
         `activity=chat provider=codex model=${this.model} sandbox=${sandbox.provider} messages=${options.messages.length} resume=${resume ?? 'none'}`,

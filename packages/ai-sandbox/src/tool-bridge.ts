@@ -48,6 +48,13 @@ export interface HostToolBridge {
   close: () => Promise<void>
 }
 
+/** Result of a permission decision returned to the harness's prompt tool. */
+export interface PermissionToolResult {
+  behavior: 'allow' | 'deny'
+  message?: string
+  updatedInput?: unknown
+}
+
 export interface StartBridgeOptions {
   /** Hostname the sandbox uses to reach the host (e.g. `host.docker.internal`). */
   hostForSandbox: string
@@ -55,6 +62,18 @@ export interface StartBridgeOptions {
   context?: unknown
   /** Abort signal forwarded to each tool's `execute()`. */
   signal?: AbortSignal
+  /**
+   * Optional permission-prompt tool (e.g. for Claude Code's
+   * `--permission-prompt-tool`). When set, the bridge exposes an extra MCP tool
+   * `<name>` whose handler returns the host's allow/deny decision for an action.
+   */
+  permission?: {
+    toolName: string
+    resolve: (input: {
+      tool_name?: string
+      input?: unknown
+    }) => PermissionToolResult | Promise<PermissionToolResult>
+  }
 }
 
 function buildServer(
@@ -67,18 +86,37 @@ function buildServer(
   )
   const toolsByName = new Map(tools.map((tool) => [tool.name, tool]))
 
+  const permissionTool = options.permission
+    ? {
+        name: options.permission.toolName,
+        description:
+          'Permission prompt: returns {behavior:"allow"|"deny"} for a requested action.',
+        inputSchema: { type: 'object' as const, properties: {} },
+      }
+    : undefined
+
   server.server.setRequestHandler(ListToolsRequestSchema, () => ({
-    tools: tools.map((tool) => ({
-      name: tool.name,
-      description: tool.description,
-      inputSchema: (tool.inputSchema ?? {
-        type: 'object',
-        properties: {},
-      }) as { type: 'object'; [key: string]: unknown },
-    })),
+    tools: [
+      ...tools.map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        inputSchema: (tool.inputSchema ?? {
+          type: 'object',
+          properties: {},
+        }) as { type: 'object'; [key: string]: unknown },
+      })),
+      ...(permissionTool ? [permissionTool] : []),
+    ],
   }))
 
   server.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    // Permission-prompt tool: return the host's allow/deny decision.
+    if (options.permission && request.params.name === options.permission.toolName) {
+      const result = await options.permission.resolve(
+        request.params.arguments ?? {},
+      )
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] }
+    }
     const tool = toolsByName.get(request.params.name)
     if (!tool?.execute) {
       throw new Error(`Unknown tool: ${request.params.name}`)

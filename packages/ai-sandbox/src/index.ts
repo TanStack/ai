@@ -100,7 +100,11 @@ export {
   hostForSandbox,
   BRIDGED_MCP_SERVER_NAME,
 } from './tool-bridge'
-export type { HostToolBridge, StartBridgeOptions } from './tool-bridge'
+export type {
+  HostToolBridge,
+  StartBridgeOptions,
+  PermissionToolResult,
+} from './tool-bridge'
 
 // Interactive approvals (shared by harness adapters)
 export {

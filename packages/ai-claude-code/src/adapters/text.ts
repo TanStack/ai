@@ -3,9 +3,12 @@ import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   SandboxCapability,
+  approvalId,
+  buildApprovalRequestedEvent,
   getSandbox,
   getSandboxPolicy,
   hostForSandbox,
+  resolveApproval,
   spawnNdjson,
   startHostToolBridge,
 } from '@tanstack/ai-sandbox'
@@ -13,7 +16,12 @@ import { buildPrompt } from '../messages/prompt'
 import { translateSdkStream } from '../stream/translate'
 import { mapPolicyToClaudeFlags } from './policy-map'
 import type { ClaudePolicyFlags } from './policy-map'
-import type { HostToolBridge, SandboxHandle } from '@tanstack/ai-sandbox'
+import type {
+  HostToolBridge,
+  PermissionToolResult,
+  SandboxHandle,
+  SandboxPolicy,
+} from '@tanstack/ai-sandbox'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
@@ -139,6 +147,7 @@ export class ClaudeCodeTextAdapter<
     resume: string | undefined,
     policyFlags: ClaudePolicyFlags,
     mcpConfigJson: string | undefined,
+    permissionPromptTool: string | undefined,
   ): string {
     const config = this.adapterConfig
     const modelOptions = options.modelOptions
@@ -197,8 +206,76 @@ export class ClaudeCodeTextAdapter<
     }
 
     if (mcpConfigJson !== undefined) args.push('--mcp-config', q(mcpConfigJson))
+    if (permissionPromptTool !== undefined) {
+      args.push('--permission-prompt-tool', q(permissionPromptTool))
+    }
 
     return `${exe} ${args.join(' ')}`
+  }
+
+  /**
+   * Build the permission-prompt resolver the host MCP bridge exposes to claude
+   * (`--permission-prompt-tool`). Maps claude's permission request onto the
+   * sandbox policy + client approvals; on an `ask` action with no decision yet,
+   * records an approval-requested event and denies (the client re-runs to grant).
+   */
+  private buildPermissionResolver(
+    policy: SandboxPolicy | undefined,
+    approvals: ReadonlyMap<string, boolean> | undefined,
+    sink: Array<StreamChunk>,
+    threadId: string,
+    runId: string,
+  ): (input: { tool_name?: string; input?: unknown }) => PermissionToolResult {
+    const writeTools = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit'])
+    const networkTools = new Set(['WebFetch', 'WebSearch'])
+    return (request) => {
+      const toolName = request.tool_name ?? 'tool'
+      const cmdInput = request.input
+      const command =
+        toolName === 'Bash' &&
+        cmdInput !== null &&
+        typeof cmdInput === 'object' &&
+        'command' in cmdInput &&
+        typeof (cmdInput as { command?: unknown }).command === 'string'
+          ? (cmdInput as { command: string }).command
+          : undefined
+      const capability = writeTools.has(toolName)
+        ? 'fileWrite'
+        : networkTools.has(toolName)
+          ? 'network'
+          : undefined
+      const id = approvalId({
+        provider: 'claude-code',
+        kind: command !== undefined ? 'command' : (capability ?? 'tool'),
+        target: command ?? toolName,
+      })
+      const outcome = resolveApproval({
+        policy,
+        approvals,
+        id,
+        ...(command !== undefined ? { command } : {}),
+        ...(capability !== undefined ? { capability } : {}),
+      })
+      if (outcome.needsApproval) {
+        sink.push(
+          buildApprovalRequestedEvent({
+            approvalId: id,
+            title: `Approve ${toolName}${command !== undefined ? `: ${command}` : ''}`,
+            threadId,
+            runId,
+            detail: { provider: 'claude-code', toolName },
+          }),
+        )
+        return {
+          behavior: 'deny',
+          message:
+            'Awaiting client approval. Approve in the UI and re-run to continue.',
+        }
+      }
+      return outcome.decision === 'allow'
+        ? { behavior: 'allow' }
+        : { behavior: 'deny', message: 'Denied by sandbox policy.' }
+    }
   }
 
   async *chatStream(
@@ -206,16 +283,41 @@ export class ClaudeCodeTextAdapter<
   ): AsyncIterable<StreamChunk> {
     const { logger } = options
     let bridge: HostToolBridge | undefined
+    const approvalRequests: Array<StreamChunk> = []
     try {
       const sandbox = this.sandboxFrom(options)
       const cwd = this.workdir(options)
+      const runId = options.runId ?? this.generateId()
+      const threadId = options.threadId ?? this.generateId()
 
-      // Bridge chat()-provided server tools into the sandbox over MCP, proxying
-      // calls back to the host where each tool's execute() runs.
-      if (options.tools && options.tools.length > 0) {
-        bridge = await startHostToolBridge(options.tools, {
+      const policy = options.capabilities
+        ? getSandboxPolicy(options.capabilities, { optional: true })
+        : undefined
+
+      // A permission-prompt tool gates the agent's native tools when a policy
+      // can `ask`/`deny` (interactive approvals).
+      const permission =
+        policy !== undefined
+          ? {
+              toolName: 'approval_prompt',
+              resolve: this.buildPermissionResolver(
+                policy,
+                options.approvals,
+                approvalRequests,
+                threadId,
+                runId,
+              ),
+            }
+          : undefined
+
+      // Bridge chat()-provided server tools (and/or the permission tool) into
+      // the sandbox over MCP.
+      const hasTools = options.tools !== undefined && options.tools.length > 0
+      if (hasTools || permission !== undefined) {
+        bridge = await startHostToolBridge(options.tools ?? [], {
           hostForSandbox: hostForSandbox(sandbox.provider),
           context: options.context,
+          ...(permission !== undefined ? { permission } : {}),
           ...(options.abortController?.signal
             ? { signal: options.abortController.signal }
             : {}),
@@ -226,23 +328,18 @@ export class ClaudeCodeTextAdapter<
         options.messages,
         options.modelOptions?.sessionId,
       )
-      const policy = options.capabilities
-        ? getSandboxPolicy(options.capabilities, { optional: true })
-        : undefined
       const command = this.buildCommand(
         options,
         resume,
         mapPolicyToClaudeFlags(policy),
         bridge ? bridgeToMcpConfig(bridge) : undefined,
+        bridge && permission ? `mcp__${bridge.name}__${permission.toolName}` : undefined,
       )
 
       logger.request(
         `activity=chat provider=claude-code model=${this.model} sandbox=${sandbox.provider} messages=${options.messages.length} resume=${resume ?? 'none'}`,
         { provider: 'claude-code', model: this.model },
       )
-
-      const runId = options.runId ?? this.generateId()
-      const threadId = options.threadId ?? this.generateId()
 
       const rawEvents = spawnNdjson(sandbox, command, {
         cwd,
@@ -300,6 +397,10 @@ export class ClaudeCodeTextAdapter<
           // not a git repo / git unavailable — skip the diff event
         }
       }
+
+      // Surface any pending approval requests (policy `ask` actions awaiting a
+      // client decision); the client approves and re-runs to continue.
+      for (const event of approvalRequests) yield event
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
       const rawEvent = toRunErrorRawEvent(error)

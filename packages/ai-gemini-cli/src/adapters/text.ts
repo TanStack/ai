@@ -3,13 +3,14 @@ import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   SandboxCapability,
+  buildApprovalRequestedEvent,
   getSandbox,
   hostForSandbox,
   startHostToolBridge,
 } from '@tanstack/ai-sandbox'
 import { buildPrompt } from '../messages/prompt'
 import { startAcpSession } from '../process/acp-client'
-import { resolvePermission } from '../process/permissions'
+import { resolveInteractivePermission } from '../process/permissions'
 import { AsyncQueue } from '../stream/queue'
 import { translateAcpStream } from '../stream/translate'
 import type { HostToolBridge, SandboxHandle } from '@tanstack/ai-sandbox'
@@ -146,6 +147,13 @@ export class GeminiCliTextAdapter<
         })
       }
 
+      const runId = options.runId ?? this.generateId()
+      const threadId = options.threadId ?? this.generateId()
+      // Approval-requested events collected during the run (an `ask` action with
+      // no client decision yet) and emitted after the stream so the client can
+      // approve and re-run.
+      const approvalRequests: Array<StreamChunk> = []
+
       const queue = new AsyncQueue<AcpStreamEvent>()
       const mode =
         modelOptions?.permissionMode ??
@@ -153,7 +161,29 @@ export class GeminiCliTextAdapter<
         'default'
       const permissionHandler: PermissionHandler =
         this.adapterConfig.onPermissionRequest ??
-        ((request) => resolvePermission(request, mode, bridgedToolNames))
+        ((request) => {
+          const result = resolveInteractivePermission(
+            request,
+            mode,
+            bridgedToolNames,
+            options.approvals,
+          )
+          if (result.approvalId !== undefined) {
+            approvalRequests.push(
+              buildApprovalRequestedEvent({
+                approvalId: result.approvalId,
+                title:
+                  result.title ??
+                  request.toolCall.title ??
+                  request.toolCall.toolCallId,
+                threadId,
+                runId,
+                detail: { provider: 'gemini-cli' },
+              }),
+            )
+          }
+          return result.outcome
+        })
 
       logger.request(
         `activity=chat provider=gemini-cli model=${this.model} sandbox=${sandbox.provider} messages=${options.messages.length} resume=${sessionId ?? 'none'}`,
@@ -220,8 +250,8 @@ export class GeminiCliTextAdapter<
 
       yield* translateAcpStream(queue, {
         model: this.model,
-        runId: options.runId ?? this.generateId(),
-        threadId: options.threadId ?? this.generateId(),
+        runId,
+        threadId,
         ...(options.parentRunId !== undefined && {
           parentRunId: options.parentRunId,
         }),
@@ -232,6 +262,10 @@ export class GeminiCliTextAdapter<
             chunk: event,
           }),
       })
+
+      // Surface any pending approval requests (ask-policy actions awaiting a
+      // client decision); the client approves and re-runs to continue.
+      for (const event of approvalRequests) yield event
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
       const rawEvent = toRunErrorRawEvent(error)

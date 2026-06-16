@@ -1,3 +1,4 @@
+import { approvalId } from '@tanstack/ai-sandbox'
 import { matchBridgedToolName } from '../stream/translate'
 import type {
   AcpPermissionOutcome,
@@ -63,4 +64,38 @@ export function resolvePermission(
     return allow()
   }
   return reject()
+}
+
+/**
+ * Interactive variant: when the mode/bridge policy would reject, consult the
+ * client's approval decisions. Returns the ACP outcome plus, when the action
+ * still needs a client decision, the `approvalId`/`title` the adapter should
+ * surface via an `approval-requested` event (the client re-runs to grant it).
+ */
+export function resolveInteractivePermission(
+  request: AcpPermissionRequest,
+  mode: GeminiCliPermissionMode,
+  bridgedToolNames: ReadonlySet<string> | undefined,
+  approvals: ReadonlyMap<string, boolean> | undefined,
+): { outcome: AcpPermissionOutcome; approvalId?: string; title?: string } {
+  const allow = (): AcpPermissionOutcome =>
+    pickOption(request, ['allow_once', 'allow_always'])
+  const reject = (): AcpPermissionOutcome =>
+    pickOption(request, ['reject_once', 'reject_always'])
+  const title = request.toolCall.title ?? request.toolCall.toolCallId
+
+  if (matchBridgedToolName(title, bridgedToolNames) !== undefined) {
+    return { outcome: allow() }
+  }
+  if (mode === 'bypassPermissions') return { outcome: allow() }
+  if (mode === 'acceptEdits' && EDIT_KINDS.has(request.toolCall.kind ?? '')) {
+    return { outcome: allow() }
+  }
+
+  // Would reject — offer client-in-the-loop approval.
+  const id = approvalId({ provider: 'gemini-cli', kind: 'tool', target: title })
+  const granted = approvals?.get(id)
+  if (granted === true) return { outcome: allow() }
+  if (granted === false) return { outcome: reject() }
+  return { outcome: reject(), approvalId: id, title }
 }

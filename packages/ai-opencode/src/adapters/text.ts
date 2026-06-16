@@ -3,6 +3,7 @@ import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   SandboxCapability,
+  buildApprovalRequestedEvent,
   getSandbox,
   hostForSandbox,
   startHostToolBridge,
@@ -10,7 +11,7 @@ import {
 import { buildPrompt } from '../messages/prompt'
 import { startOpencodeSession } from '../process/server'
 import { startOpencodeServerInSandbox } from '../process/sandbox-server'
-import { resolvePermission } from '../process/permissions'
+import { resolveInteractivePermission } from '../process/permissions'
 import { AsyncQueue } from '../stream/queue'
 import { translateOpencodeStream } from '../stream/translate'
 import type { HostToolBridge, SandboxHandle } from '@tanstack/ai-sandbox'
@@ -151,6 +152,12 @@ export class OpencodeTextAdapter<
         })
       }
 
+      const runId = options.runId ?? this.generateId()
+      const threadId = options.threadId ?? this.generateId()
+      // Approval-requested events for `ask`-policy actions with no client
+      // decision yet, emitted after the stream so the client can approve + re-run.
+      const approvalRequests: Array<StreamChunk> = []
+
       const queue = new AsyncQueue<OpencodeStreamEvent>()
       const mode =
         modelOptions?.permissionMode ??
@@ -158,7 +165,26 @@ export class OpencodeTextAdapter<
         'default'
       const permissionHandler: PermissionHandler =
         this.adapterConfig.onPermissionRequest ??
-        ((request) => resolvePermission(request, mode, bridgedToolNames))
+        ((request) => {
+          const result = resolveInteractivePermission(
+            request,
+            mode,
+            bridgedToolNames,
+            options.approvals,
+          )
+          if (result.approvalId !== undefined) {
+            approvalRequests.push(
+              buildApprovalRequestedEvent({
+                approvalId: result.approvalId,
+                title: result.title ?? request.title,
+                threadId,
+                runId,
+                detail: { provider: 'opencode' },
+              }),
+            )
+          }
+          return result.response
+        })
 
       logger.request(
         `activity=chat provider=opencode model=${this.model} sandbox=${sandbox.provider} messages=${options.messages.length} resume=${sessionId ?? 'none'}`,
@@ -227,8 +253,8 @@ export class OpencodeTextAdapter<
 
       yield* translateOpencodeStream(queue, {
         model: this.model,
-        runId: options.runId ?? this.generateId(),
-        threadId: options.threadId ?? this.generateId(),
+        runId,
+        threadId,
         ...(options.parentRunId !== undefined && {
           parentRunId: options.parentRunId,
         }),
@@ -239,6 +265,10 @@ export class OpencodeTextAdapter<
             chunk: event,
           }),
       })
+
+      // Surface pending approval requests (ask-policy actions awaiting a client
+      // decision); the client approves and re-runs to continue.
+      for (const event of approvalRequests) yield event
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
       const rawEvent = toRunErrorRawEvent(error)
