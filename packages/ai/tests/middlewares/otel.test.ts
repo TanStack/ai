@@ -334,15 +334,11 @@ describe('otelMiddleware — full usage emission', () => {
     expect(span.attributes['gen_ai.usage.total_tokens']).toBe(165)
     expect(span.attributes['gen_ai.usage.cost']).toBe(0.0123)
     expect(span.attributes['gen_ai.usage.cache_read.input_tokens']).toBe(80)
-    expect(span.attributes['gen_ai.usage.cache_creation.input_tokens']).toBe(
-      10,
-    )
+    expect(span.attributes['gen_ai.usage.cache_creation.input_tokens']).toBe(10)
     expect(span.attributes['gen_ai.usage.reasoning.output_tokens']).toBe(15)
     expect(span.attributes['tanstack.ai.usage.duration_seconds']).toBe(2.5)
     expect(span.attributes['tanstack.ai.usage.upstream_cost']).toBe(0.01)
-    expect(span.attributes['tanstack.ai.usage.upstream_input_cost']).toBe(
-      0.004,
-    )
+    expect(span.attributes['tanstack.ai.usage.upstream_input_cost']).toBe(0.004)
     expect(span.attributes['tanstack.ai.usage.upstream_output_cost']).toBe(
       0.006,
     )
