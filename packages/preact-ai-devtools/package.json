@@ -10,6 +10,9 @@
     "url": "git+https://github.com/TanStack/ai.git",
     "directory": "packages/preact-ai-devtools"
   },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
   "funding": {
     "type": "github",
     "url": "https://github.com/sponsors/tannerlinsley"
