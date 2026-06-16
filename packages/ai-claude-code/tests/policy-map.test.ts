@@ -9,15 +9,18 @@ describe('mapPolicyToClaudeFlags', () => {
   })
 
   it('maps the default decision to a permission mode', () => {
-    expect(mapPolicyToClaudeFlags(defineSandboxPolicy({ default: 'allow' })).permissionMode).toBe(
-      'bypassPermissions',
-    )
-    expect(mapPolicyToClaudeFlags(defineSandboxPolicy({ default: 'deny' })).permissionMode).toBe(
-      'default',
-    )
-    expect(mapPolicyToClaudeFlags(defineSandboxPolicy({ default: 'ask' })).permissionMode).toBe(
-      'acceptEdits',
-    )
+    expect(
+      mapPolicyToClaudeFlags(defineSandboxPolicy({ default: 'allow' }))
+        .permissionMode,
+    ).toBe('bypassPermissions')
+    expect(
+      mapPolicyToClaudeFlags(defineSandboxPolicy({ default: 'deny' }))
+        .permissionMode,
+    ).toBe('default')
+    expect(
+      mapPolicyToClaudeFlags(defineSandboxPolicy({ default: 'ask' }))
+        .permissionMode,
+    ).toBe('acceptEdits')
   })
 
   it('disallows write tools when fileWrite is denied', () => {

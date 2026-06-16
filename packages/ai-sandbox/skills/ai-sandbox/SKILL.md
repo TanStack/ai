@@ -25,7 +25,11 @@ agent CLI **inside** the sandbox and streams its events back.
 ```typescript
 import { chat } from '@tanstack/ai'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
-import { defineSandbox, defineWorkspace, withSandbox } from '@tanstack/ai-sandbox'
+import {
+  defineSandbox,
+  defineWorkspace,
+  withSandbox,
+} from '@tanstack/ai-sandbox'
 import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
 
 const sandbox = defineSandbox({
@@ -67,7 +71,11 @@ rename/exists), `git` (clone/status/add/commit/push/pull/branch), `process`
 import { defineSandboxPolicy } from '@tanstack/ai-sandbox'
 
 const policy = defineSandboxPolicy({
-  commands: { allow: ['pnpm test'], ask: ['curl *'], deny: ['sudo *', 'rm -rf *'] },
+  commands: {
+    allow: ['pnpm test'],
+    ask: ['curl *'],
+    deny: ['sudo *', 'rm -rf *'],
+  },
   capabilities: { fileWrite: 'allow', network: 'ask' },
   default: 'ask', // deny > ask > allow
 })

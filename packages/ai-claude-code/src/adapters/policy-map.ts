@@ -59,8 +59,10 @@ export function mapPolicyToClaudeFlags(
   const disallowedTools: Array<string> = []
   if (!policy) return { allowedTools, disallowedTools }
 
-  if (policy.capabilities?.fileWrite === 'deny') disallowedTools.push(...WRITE_TOOLS)
-  if (policy.capabilities?.network === 'deny') disallowedTools.push(...NETWORK_TOOLS)
+  if (policy.capabilities?.fileWrite === 'deny')
+    disallowedTools.push(...WRITE_TOOLS)
+  if (policy.capabilities?.network === 'deny')
+    disallowedTools.push(...NETWORK_TOOLS)
 
   // Tool-name-level command rules map directly; everything else is left to the
   // permission-prompt tool.
@@ -75,6 +77,7 @@ export function mapPolicyToClaudeFlags(
     allowedTools: [...new Set(allowedTools)],
     disallowedTools: [...new Set(disallowedTools)],
   }
-  if (policy.default !== undefined) result.permissionMode = modeFor(policy.default)
+  if (policy.default !== undefined)
+    result.permissionMode = modeFor(policy.default)
   return result
 }

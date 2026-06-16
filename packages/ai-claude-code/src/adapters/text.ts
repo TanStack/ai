@@ -210,7 +210,11 @@ export class ClaudeCodeTextAdapter<
       const policy = options.capabilities
         ? getSandboxPolicy(options.capabilities, { optional: true })
         : undefined
-      const command = this.buildCommand(options, resume, mapPolicyToClaudeFlags(policy))
+      const command = this.buildCommand(
+        options,
+        resume,
+        mapPolicyToClaudeFlags(policy),
+      )
 
       logger.request(
         `activity=chat provider=claude-code model=${this.model} sandbox=${sandbox.provider} messages=${options.messages.length} resume=${resume ?? 'none'}`,
