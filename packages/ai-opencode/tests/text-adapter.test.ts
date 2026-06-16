@@ -193,7 +193,9 @@ describe('chatStream', () => {
 
   it('uses the configured directory and a default permission policy', async () => {
     await collect(
-      opencodeText(MODEL, { directory: '/workspace' }).chatStream(makeOptions()),
+      opencodeText(MODEL, { directory: '/workspace' }).chatStream(
+        makeOptions(),
+      ),
     )
     expect(captured?.directory).toBe('/workspace')
     expect(captured?.permission).toMatchObject({
@@ -278,7 +280,9 @@ describe('chatStream', () => {
     )
     expect(startSessionMock).not.toHaveBeenCalled()
     expect(chunks.at(-1)).toMatchObject({ type: 'RUN_ERROR' })
-    expect((chunks.at(-1) as { message: string }).message).toMatch(/client-side/i)
+    expect((chunks.at(-1) as { message: string }).message).toMatch(
+      /client-side/i,
+    )
   })
 
   it('emits RUN_ERROR for approval-gated tools', async () => {
@@ -304,7 +308,9 @@ describe('chatStream', () => {
     const controller = new AbortController()
     controller.abort()
     await collect(
-      opencodeText(MODEL).chatStream(makeOptions({ abortController: controller })),
+      opencodeText(MODEL).chatStream(
+        makeOptions({ abortController: controller }),
+      ),
     )
     expect(abortMock).toHaveBeenCalledTimes(1)
   })
@@ -339,7 +345,10 @@ describe('structuredOutput', () => {
     })
     const result = await opencodeText(MODEL).structuredOutput({
       chatOptions: makeOptions(),
-      outputSchema: { type: 'object', properties: { answer: { type: 'number' } } },
+      outputSchema: {
+        type: 'object',
+        properties: { answer: { type: 'number' } },
+      },
     })
     expect(result.data).toEqual({ answer: 42 })
     expect(result.rawText).toBe('{"answer":42}')

@@ -73,10 +73,7 @@ export type {
 } from './contracts'
 
 // Stores (interfaces + in-memory defaults)
-export {
-  InMemorySandboxStore,
-  InMemoryLockStore,
-} from './store'
+export { InMemorySandboxStore, InMemoryLockStore } from './store'
 export type { SandboxStore, LockStore, SandboxRecord } from './store'
 
 // Bootstrap engine (exported for provider/adapter authors + tests)

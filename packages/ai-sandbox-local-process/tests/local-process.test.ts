@@ -47,7 +47,9 @@ describe('local-process fs', () => {
   it('reads/writes bytes', async () => {
     const sbx = await fresh()
     await sbx.fs.write('/workspace/bin', new Uint8Array([1, 2, 3]))
-    expect(Array.from(await sbx.fs.readBytes('/workspace/bin'))).toEqual([1, 2, 3])
+    expect(Array.from(await sbx.fs.readBytes('/workspace/bin'))).toEqual([
+      1, 2, 3,
+    ])
     await sbx.destroy()
   })
 
@@ -118,7 +120,9 @@ describe('local-process lifecycle', () => {
     const sbx = await fresh()
     const resumed = await provider.resume({ id: sbx.id })
     expect(resumed?.id).toBe(sbx.id)
-    expect(await provider.resume({ id: path.join(baseDir, 'does-not-exist') })).toBeNull()
+    expect(
+      await provider.resume({ id: path.join(baseDir, 'does-not-exist') }),
+    ).toBeNull()
     await sbx.destroy()
   })
 
@@ -145,7 +149,9 @@ describe('local-process + bootstrap + ensure', () => {
     const result = await bootstrapWorkspace(sbx, workspace)
     expect(result.ranSetup).toEqual(['echo setup-ran'])
     expect(result.packageManager).toBe('pnpm')
-    expect(await detectPackageManager(sbx, workspace, '/workspace')).toBe('pnpm')
+    expect(await detectPackageManager(sbx, workspace, '/workspace')).toBe(
+      'pnpm',
+    )
     await sbx.destroy()
   })
 

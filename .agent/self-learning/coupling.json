@@ -98,9 +98,7 @@
       "trigger": "packages/ai-sandbox*/src/**/*.ts",
       "impacts": [
         {
-          "target": [
-            "packages/ai-sandbox/src/**/*.ts"
-          ],
+          "target": ["packages/ai-sandbox/src/**/*.ts"],
           "kind": "change-required",
           "why": "The sandbox layer ships with zero persistence package but MUST stay persistence-ready so the persistence proposal drops in without re-architecture. Invariant to preserve on any sandbox change: SandboxStore and LockStore stay PLUGGABLE optional capabilities (in-memory defaults only - never hardcode storage), emitted chunks stay conceptually offset-addressable ({runId, seq, ts, chunk}) so a future EventLog/DurableRunStream can capture+replay by cursor, and approvals keep using the existing resume-based approval-requested flow. Do not introduce a sandbox-owned durable store, a bespoke replay buffer, or a non-AG-UI event type that the persistence layer would later have to rip out."
         }

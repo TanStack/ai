@@ -30,7 +30,10 @@ export function makeFakeHandle(
 ): SandboxHandle & { destroyed: boolean; files: Map<string, string> } {
   const files = new Map<string, string>()
   let snapshotCounter = 0
-  const handle: SandboxHandle & { destroyed: boolean; files: Map<string, string> } = {
+  const handle: SandboxHandle & {
+    destroyed: boolean
+    files: Map<string, string>
+  } = {
     id,
     provider,
     capabilities: caps,
@@ -38,7 +41,8 @@ export function makeFakeHandle(
     files,
     fs: {
       read: (p) => Promise.resolve(files.get(p) ?? ''),
-      readBytes: (p) => Promise.resolve(new TextEncoder().encode(files.get(p) ?? '')),
+      readBytes: (p) =>
+        Promise.resolve(new TextEncoder().encode(files.get(p) ?? '')),
       write: (p, d) => {
         files.set(p, typeof d === 'string' ? d : new TextDecoder().decode(d))
         return Promise.resolve()
@@ -69,11 +73,16 @@ export function makeFakeHandle(
         Promise.resolve({ stdout: '', stderr: '', exitCode: 0 }),
       spawn: () => Promise.reject(new Error('not used in this fake')),
     },
-    ports: { connect: (port) => Promise.resolve({ url: `http://localhost:${port}` }) },
+    ports: {
+      connect: (port) => Promise.resolve({ url: `http://localhost:${port}` }),
+    },
     env: { set: () => Promise.resolve() },
     snapshot: caps.snapshots
       ? (label) =>
-          Promise.resolve<SnapshotRef>({ id: `snap-${id}-${++snapshotCounter}`, label })
+          Promise.resolve<SnapshotRef>({
+            id: `snap-${id}-${++snapshotCounter}`,
+            label,
+          })
       : undefined,
     destroy: () => {
       handle.destroyed = true
@@ -100,7 +109,9 @@ export interface FakeProvider extends SandboxProvider {
   readonly created: Array<SandboxHandle>
 }
 
-export function makeFakeProvider(options: FakeProviderOptions = {}): FakeProvider {
+export function makeFakeProvider(
+  options: FakeProviderOptions = {},
+): FakeProvider {
   const name = options.name ?? 'fake'
   const caps = options.caps ?? FULL_CAPS
   const calls = { create: 0, resume: 0, restoreSnapshot: 0, destroy: 0 }
@@ -127,7 +138,11 @@ export function makeFakeProvider(options: FakeProviderOptions = {}): FakeProvide
     restoreSnapshot: caps.snapshots
       ? (_input: SandboxRestoreInput) => {
           calls.restoreSnapshot++
-          const handle = makeFakeHandle(`${name}-restored-${++counter}`, name, caps)
+          const handle = makeFakeHandle(
+            `${name}-restored-${++counter}`,
+            name,
+            caps,
+          )
           created.push(handle)
           return Promise.resolve(handle)
         }

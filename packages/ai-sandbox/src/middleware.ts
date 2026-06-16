@@ -32,7 +32,9 @@ interface SandboxRunState {
 const runState = new WeakMap<object, SandboxRunState>()
 
 /** Defensively pull tenant scoping out of the runtime context, if present. */
-function tenantFrom(context: unknown): { userId?: string; orgId?: string } | undefined {
+function tenantFrom(
+  context: unknown,
+): { userId?: string; orgId?: string } | undefined {
   if (context === null || typeof context !== 'object') return undefined
   const c = context as Record<string, unknown>
   const userId = typeof c.userId === 'string' ? c.userId : undefined
@@ -54,7 +56,11 @@ function buildEnsureCtx(ctx: ChatMiddlewareContext): SandboxEnsureContext {
 
 export function withSandbox(
   definition: SandboxDefinition,
-): DefinedChatMiddleware<unknown, readonly [], readonly [typeof SandboxCapability]> {
+): DefinedChatMiddleware<
+  unknown,
+  readonly [],
+  readonly [typeof SandboxCapability]
+> {
   return defineChatMiddleware({
     name: 'sandbox',
     provides: [SandboxCapability],

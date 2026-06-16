@@ -38,7 +38,10 @@ function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`
   const keys = Object.keys(value).sort()
   return `{${keys
-    .map((k) => `${JSON.stringify(k)}:${canonical((value as Record<string, unknown>)[k])}`)
+    .map(
+      (k) =>
+        `${JSON.stringify(k)}:${canonical((value as Record<string, unknown>)[k])}`,
+    )
     .join(',')}}`
 }
 
@@ -46,7 +49,9 @@ function canonical(value: unknown): string {
  * Hash of the parts of a workspace that change what the agent sees. Secrets are
  * intentionally excluded (rotating a token must not orphan the sandbox).
  */
-export function computeWorkspaceHash(workspace: WorkspaceDefinition | undefined): string {
+export function computeWorkspaceHash(
+  workspace: WorkspaceDefinition | undefined,
+): string {
   if (!workspace) return fnv1a('no-workspace')
   const { secrets: _secrets, ...rest } = workspace
   return fnv1a(canonical(rest))

@@ -15,10 +15,16 @@ function q(value: string): string {
 }
 
 /** Inject basic credentials into an https URL for a one-shot clone. */
-function withAuth(url: string, auth?: { username?: string; token: string }): string {
+function withAuth(
+  url: string,
+  auth?: { username?: string; token: string },
+): string {
   if (!auth?.token) return url
   const user = auth.username ? `${encodeURIComponent(auth.username)}:` : ''
-  return url.replace(/^https:\/\//, `https://${user}${encodeURIComponent(auth.token)}@`)
+  return url.replace(
+    /^https:\/\//,
+    `https://${user}${encodeURIComponent(auth.token)}@`,
+  )
 }
 
 export function createExecBackedGit(
@@ -31,7 +37,9 @@ export function createExecBackedGit(
     clone: async ({ url, dir, ref, auth }) => {
       const target = dir ?? defaultRoot
       const refArg = ref ? `--branch ${q(ref)} ` : ''
-      await process.exec(`git clone ${refArg}${q(withAuth(url, auth))} ${q(target)}`)
+      await process.exec(
+        `git clone ${refArg}${q(withAuth(url, auth))} ${q(target)}`,
+      )
     },
     status: async (dir) =>
       (await process.exec(`git -C ${at(dir)} status --porcelain`)).stdout,
@@ -48,6 +56,8 @@ export function createExecBackedGit(
       await process.exec(`git -C ${at(dir)} pull`)
     },
     branch: async (dir) =>
-      (await process.exec(`git -C ${at(dir)} rev-parse --abbrev-ref HEAD`)).stdout.trim(),
+      (
+        await process.exec(`git -C ${at(dir)} rev-parse --abbrev-ref HEAD`)
+      ).stdout.trim(),
   }
 }

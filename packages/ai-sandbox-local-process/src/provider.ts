@@ -50,14 +50,17 @@ class LocalProcessProvider implements SandboxProvider {
         return new LocalProcessHandle({
           root: dest,
           removeOnDestroy: true,
-          forkFactory: () => Promise.reject(new Error('nested fork unsupported')),
+          forkFactory: () =>
+            Promise.reject(new Error('nested fork unsupported')),
         })
       },
     })
   }
 
   private baseDir(): string {
-    return this.config.baseDir ?? path.join(os.tmpdir(), 'tanstack-ai-sandboxes')
+    return (
+      this.config.baseDir ?? path.join(os.tmpdir(), 'tanstack-ai-sandboxes')
+    )
   }
 
   async create(_input: SandboxCreateInput): Promise<SandboxHandle> {

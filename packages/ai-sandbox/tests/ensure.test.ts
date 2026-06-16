@@ -76,7 +76,10 @@ describe('ensureSandbox algorithm', () => {
       snapshots: false,
       durableFilesystem: false,
     }
-    const provider = makeFakeProvider({ resumeReturnsNull: true, caps: ephemeralCaps })
+    const provider = makeFakeProvider({
+      resumeReturnsNull: true,
+      caps: ephemeralCaps,
+    })
     const def = defineSandbox({
       id: 'repo',
       provider,

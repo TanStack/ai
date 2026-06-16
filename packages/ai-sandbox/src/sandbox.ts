@@ -70,7 +70,10 @@ const fallbackLocks = new InMemoryLockStore()
 
 export function defineSandbox(config: SandboxConfig): SandboxDefinition {
   const keyInputFor = (ctx: SandboxEnsureContext): SandboxKeyInput => ({
-    threadId: config.lifecycle?.reuse === 'none' ? `${ctx.threadId}:${ctx.runId}` : ctx.threadId,
+    threadId:
+      config.lifecycle?.reuse === 'none'
+        ? `${ctx.threadId}:${ctx.runId}`
+        : ctx.threadId,
     sandboxId: config.id,
     providerName: config.provider.name,
     workspace: config.workspace,
@@ -92,11 +95,19 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
           signal: ctx.signal,
         })
         if (resumed) {
-          await store.upsert({ ...existing, latestRunId: ctx.runId, updatedAt: Date.now() })
+          await store.upsert({
+            ...existing,
+            latestRunId: ctx.runId,
+            updatedAt: Date.now(),
+          })
           return resumed
         }
         // 2) Else restore from the latest snapshot, if supported.
-        if (existing.latestSnapshotId && caps.snapshots && config.provider.restoreSnapshot) {
+        if (
+          existing.latestSnapshotId &&
+          caps.snapshots &&
+          config.provider.restoreSnapshot
+        ) {
           const restored = await config.provider.restoreSnapshot({
             snapshotId: existing.latestSnapshotId,
             workspace: config.workspace,
@@ -124,11 +135,17 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
       })
 
       if (config.workspace) {
-        await bootstrapWorkspace(created, config.workspace, { signal: ctx.signal })
+        await bootstrapWorkspace(created, config.workspace, {
+          signal: ctx.signal,
+        })
       }
 
       let latestSnapshotId: string | undefined
-      if (config.lifecycle?.snapshot === 'after-setup' && caps.snapshots && created.snapshot) {
+      if (
+        config.lifecycle?.snapshot === 'after-setup' &&
+        caps.snapshots &&
+        created.snapshot
+      ) {
         latestSnapshotId = (await created.snapshot('after-setup')).id
       }
 
@@ -150,7 +167,10 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
     const key = computeSandboxKey(keyInputFor(ctx))
     const existing = await store.get(key)
     if (!existing) return
-    await config.provider.destroy({ id: existing.providerSandboxId, signal: ctx.signal })
+    await config.provider.destroy({
+      id: existing.providerSandboxId,
+      signal: ctx.signal,
+    })
     await store.delete(key)
   }
 

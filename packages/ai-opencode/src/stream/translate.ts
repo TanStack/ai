@@ -51,7 +51,9 @@ export function resolveToolName(
   return tool
 }
 
-function buildUsage(tokens: OpencodeTokens | undefined): TokenUsage | undefined {
+function buildUsage(
+  tokens: OpencodeTokens | undefined,
+): TokenUsage | undefined {
   if (!tokens) return undefined
   const promptTokens = tokens.input ?? 0
   const completionTokens = tokens.output ?? 0

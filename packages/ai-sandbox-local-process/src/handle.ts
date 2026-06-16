@@ -12,7 +12,11 @@
 import { spawn } from 'node:child_process'
 import * as fsp from 'node:fs/promises'
 import * as path from 'node:path'
-import { DEFAULT_WORKSPACE_ROOT, UnsupportedCapabilityError, createExecBackedGit  } from '@tanstack/ai-sandbox'
+import {
+  DEFAULT_WORKSPACE_ROOT,
+  UnsupportedCapabilityError,
+  createExecBackedGit,
+} from '@tanstack/ai-sandbox'
 import type { Readable } from 'node:stream'
 import type {
   ExecResult,
@@ -71,7 +75,8 @@ export class LocalProcessHandle implements SandboxHandle {
 
     this.fs = {
       read: async (p) => fsp.readFile(this.resolve(p), 'utf8'),
-      readBytes: async (p) => new Uint8Array(await fsp.readFile(this.resolve(p))),
+      readBytes: async (p) =>
+        new Uint8Array(await fsp.readFile(this.resolve(p))),
       write: async (p, data) => {
         const target = this.resolve(p)
         await fsp.mkdir(path.dirname(target), { recursive: true })
@@ -81,7 +86,9 @@ export class LocalProcessHandle implements SandboxHandle {
         )
       },
       list: async (p) => {
-        const entries = await fsp.readdir(this.resolve(p), { withFileTypes: true })
+        const entries = await fsp.readdir(this.resolve(p), {
+          withFileTypes: true,
+        })
         return entries.map((e) => ({
           name: e.name,
           path: `${p.replace(/\/$/, '')}/${e.name}`,
@@ -137,7 +144,9 @@ export class LocalProcessHandle implements SandboxHandle {
     else rel = p
     const resolved = path.resolve(this.root, rel)
     // Containment: never let an agent's path escape the sandbox dir.
-    const rootWithSep = this.root.endsWith(path.sep) ? this.root : this.root + path.sep
+    const rootWithSep = this.root.endsWith(path.sep)
+      ? this.root
+      : this.root + path.sep
     if (resolved !== this.root && !resolved.startsWith(rootWithSep)) {
       throw new Error(
         `local-process: path "${p}" resolves outside the sandbox root "${this.root}".`,
@@ -177,7 +186,10 @@ export class LocalProcessHandle implements SandboxHandle {
     })
   }
 
-  private spawnProcess(command: string, opts?: ProcessOptions): Promise<SpawnHandle> {
+  private spawnProcess(
+    command: string,
+    opts?: ProcessOptions,
+  ): Promise<SpawnHandle> {
     const child = spawn(command, {
       shell: true,
       cwd: this.resolveCwd(opts?.cwd),

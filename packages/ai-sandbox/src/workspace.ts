@@ -7,7 +7,12 @@
 
 /** Where the working tree comes from. */
 export type WorkspaceSource =
-  | { type: 'git'; url: string; ref?: string; auth?: { username?: string; token: string } }
+  | {
+      type: 'git'
+      url: string
+      ref?: string
+      auth?: { username?: string; token: string }
+    }
   | { type: 'local'; path: string }
   | { type: 'none' }
 
@@ -46,7 +51,10 @@ export type WorkspaceSkill =
     }
 
 /** Write a file (e.g. CLAUDE.md) into the workspace / harness config. */
-export function fileSkill(input: { path: string; content: string }): WorkspaceSkill {
+export function fileSkill(input: {
+  path: string
+  content: string
+}): WorkspaceSkill {
   return { kind: 'file', ...input }
 }
 
@@ -56,7 +64,10 @@ export function agentSkill(name: string): WorkspaceSkill {
 }
 
 /** Project an MCP server into the harness. */
-export function mcpSkill(name: string, config: Record<string, unknown>): WorkspaceSkill {
+export function mcpSkill(
+  name: string,
+  config: Record<string, unknown>,
+): WorkspaceSkill {
   return { kind: 'mcp', name, config }
 }
 
@@ -82,6 +93,8 @@ export interface WorkspaceDefinition {
   root?: string
 }
 
-export function defineWorkspace(definition: WorkspaceDefinition): WorkspaceDefinition {
+export function defineWorkspace(
+  definition: WorkspaceDefinition,
+): WorkspaceDefinition {
   return definition
 }

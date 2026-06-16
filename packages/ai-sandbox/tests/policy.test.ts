@@ -36,7 +36,9 @@ describe('evaluateCommand', () => {
     })
     expect(evaluateCommand('git status', overlap)).toBe('allow')
     expect(evaluateCommand('git push origin main', overlap)).toBe('ask')
-    expect(evaluateCommand('git push --force origin main', overlap)).toBe('deny')
+    expect(evaluateCommand('git push --force origin main', overlap)).toBe(
+      'deny',
+    )
   })
 
   it('falls back to default for unmatched commands', () => {

@@ -41,7 +41,9 @@ describe('InMemoryLockStore', () => {
       locks.withLock('k', () => Promise.reject(new Error('boom'))),
     ).rejects.toThrow('boom')
     // subsequent acquire still works
-    await expect(locks.withLock('k', () => Promise.resolve('ok'))).resolves.toBe('ok')
+    await expect(
+      locks.withLock('k', () => Promise.resolve('ok')),
+    ).resolves.toBe('ok')
   })
 
   it('runs different keys concurrently', async () => {

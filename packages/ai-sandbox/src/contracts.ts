@@ -66,7 +66,10 @@ export interface SpawnHandle {
   readonly pid: number
   readonly stdout: AsyncIterable<string>
   readonly stderr: AsyncIterable<string>
-  readonly stdin: { write: (data: string) => Promise<void>; end: () => Promise<void> }
+  readonly stdin: {
+    write: (data: string) => Promise<void>
+    end: () => Promise<void>
+  }
   /** Resolves with the exit code when the process exits. */
   wait: () => Promise<number>
   kill: (signal?: NodeJS.Signals | number) => Promise<void>
@@ -84,7 +87,9 @@ export interface SandboxFs {
   read: (path: string) => Promise<string>
   readBytes: (path: string) => Promise<Uint8Array>
   write: (path: string, data: string | Uint8Array) => Promise<void>
-  list: (path: string) => Promise<Array<{ name: string; path: string; type: 'file' | 'dir' }>>
+  list: (
+    path: string,
+  ) => Promise<Array<{ name: string; path: string; type: 'file' | 'dir' }>>
   mkdir: (path: string) => Promise<void>
   remove: (path: string) => Promise<void>
   rename: (from: string, to: string) => Promise<void>

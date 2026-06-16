@@ -55,7 +55,9 @@ function handleSpawning(chunks: Array<string>): SandboxHandle {
 
 describe('toLines', () => {
   it('reassembles lines split across chunk boundaries', async () => {
-    const lines = await collect(toLines(fromChunks(['{"a":', '1}\n{"b":2', '}\n'])))
+    const lines = await collect(
+      toLines(fromChunks(['{"a":', '1}\n{"b":2', '}\n'])),
+    )
     expect(lines).toEqual(['{"a":1}', '{"b":2}'])
   })
 
