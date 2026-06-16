@@ -17,10 +17,7 @@ afterEach(async () => {
   bridge = undefined
 })
 
-function tool(
-  name: string,
-  execute: (args: unknown) => unknown,
-): AnyTool {
+function tool(name: string, execute: (args: unknown) => unknown): AnyTool {
   return {
     name,
     description: `${name} tool`,
@@ -51,7 +48,10 @@ describe('startHostToolBridge', () => {
     const list = await client.listTools()
     expect(list.tools.map((t) => t.name)).toContain('getTime')
 
-    const result = await client.callTool({ name: 'getTime', arguments: { tz: 'utc' } })
+    const result = await client.callTool({
+      name: 'getTime',
+      arguments: { tz: 'utc' },
+    })
     expect(calledWith).toEqual({ tz: 'utc' })
     expect(JSON.stringify(result.content)).toContain('high noon')
 

@@ -48,7 +48,10 @@ export interface StartBridgeOptions {
   signal?: AbortSignal
 }
 
-function buildServer(tools: Array<AnyTool>, options: StartBridgeOptions): McpServer {
+function buildServer(
+  tools: Array<AnyTool>,
+  options: StartBridgeOptions,
+): McpServer {
   const server = new McpServer(
     { name: BRIDGED_MCP_SERVER_NAME, version: '1.0.0' },
     { capabilities: { tools: {} } },
@@ -72,17 +75,22 @@ function buildServer(tools: Array<AnyTool>, options: StartBridgeOptions): McpSer
       throw new Error(`Unknown tool: ${request.params.name}`)
     }
     try {
-      const result: unknown = await tool.execute(request.params.arguments ?? {}, {
-        context: options.context,
-        abortSignal: options.signal,
-      })
+      const result: unknown = await tool.execute(
+        request.params.arguments ?? {},
+        {
+          context: options.context,
+          abortSignal: options.signal,
+        },
+      )
       const text = typeof result === 'string' ? result : JSON.stringify(result)
       return { content: [{ type: 'text' as const, text }] }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       return {
         isError: true,
-        content: [{ type: 'text' as const, text: `Tool execution failed: ${message}` }],
+        content: [
+          { type: 'text' as const, text: `Tool execution failed: ${message}` },
+        ],
       }
     }
   })
