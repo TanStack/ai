@@ -32,5 +32,5 @@ export type {
 } from './process/acp-client'
 export { buildPrompt } from './messages/prompt'
 export type { BuiltPrompt } from './messages/prompt'
-export { startToolBridge } from './tools/bridge'
-export type { ToolBridgeHandle } from './tools/bridge'
+export { spawnHandleToAcpTransport } from './process/sandbox-transport'
+export type { AcpTransport } from './process/sandbox-transport'

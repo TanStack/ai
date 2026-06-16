@@ -47,14 +47,15 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "@agentclientprotocol/sdk": "^0.25.0",
-    "@modelcontextprotocol/sdk": "^1.29.0"
+    "@agentclientprotocol/sdk": "^0.25.0"
   },
   "peerDependencies": {
-    "@tanstack/ai": "workspace:^"
+    "@tanstack/ai": "workspace:^",
+    "@tanstack/ai-sandbox": "workspace:^"
   },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-sandbox": "workspace:*",
     "@vitest/coverage-v8": "4.0.14"
   }
 }
