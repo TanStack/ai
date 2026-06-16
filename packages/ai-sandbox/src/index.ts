@@ -87,6 +87,9 @@ export {
 } from './bootstrap'
 export type { BootstrapResult } from './bootstrap'
 
+// Exec-backed git helper (for providers without native git)
+export { createExecBackedGit } from './git-exec'
+
 // Keying
 export { computeSandboxKey, computeWorkspaceHash } from './key'
 export type { SandboxKeyInput } from './key'

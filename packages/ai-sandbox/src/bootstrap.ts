@@ -58,13 +58,15 @@ export async function bootstrapWorkspace(
     await handle.env.set(workspace.secrets)
   }
 
-  // Land the source.
+  // Land the source. Clone into the handle's own default root (each provider
+  // maps the conventional `/workspace` virtual root to its real backing dir),
+  // rather than passing a virtual `dir` that can't be remapped inside a shell
+  // command string.
   if (workspace.source.type === 'git') {
     const alreadyCloned = await handle.fs.exists(`${root}/.git`)
     if (!alreadyCloned) {
       await handle.git.clone({
         url: workspace.source.url,
-        dir: root,
         ref: workspace.source.ref,
         auth: workspace.source.auth,
       })
