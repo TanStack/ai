@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import {
   chat,
   chatParamsFromRequestBody,
+  createCapability,
   maxIterations,
   toServerSentEventsResponse,
   toolDefinition,
@@ -78,6 +79,49 @@ const toolSkipMiddleware: ChatMiddleware = {
       }
     }
     return undefined
+  },
+}
+
+/**
+ * Capability provide/consume flow (`capability` mode).
+ *
+ * Exercises the server-side middleware capability primitive end-to-end:
+ *
+ * - `prefixCapability` is a typed handle created via `createCapability`. It is
+ *   simultaneously a `[get, provide]` tuple and the identity referenced in the
+ *   middleware `provides`/`requires` declarations.
+ * - `prefixProviderMiddleware` declares `provides: [prefixCapability]` and calls
+ *   `providePrefix(ctx, ...)` in `setup` — the hook that runs first, before any
+ *   `onConfig`/`onChunk`.
+ * - `prefixConsumerMiddleware` declares `requires: [prefixCapability]` and reads
+ *   the value with `getPrefix(ctx)` inside `onChunk`, using it to prefix every
+ *   text delta. The consumed value therefore shows up verbatim in the streamed
+ *   assistant text, which the spec asserts against the deterministic fixture.
+ */
+const prefixCapability = createCapability<string>()('capability-prefix')
+const [getPrefix, providePrefix] = prefixCapability
+
+const prefixProviderMiddleware: ChatMiddleware = {
+  name: 'prefix-provider',
+  provides: [prefixCapability],
+  setup(ctx) {
+    providePrefix(ctx, '[CAP]')
+  },
+}
+
+const prefixConsumerMiddleware: ChatMiddleware = {
+  name: 'prefix-consumer',
+  requires: [prefixCapability],
+  onChunk(ctx, chunk) {
+    if (chunk.type === 'TEXT_MESSAGE_CONTENT' && chunk.delta) {
+      const prefix = getPrefix(ctx)
+      return {
+        ...chunk,
+        delta: prefix + ' ' + chunk.delta,
+        content: prefix + ' ' + (chunk.content || ''),
+      }
+    }
+    return chunk
   },
 }
 
@@ -289,6 +333,11 @@ export const Route = createFileRoute('/api/middleware-test')({
             middleware.push(chunkTransformMiddleware)
           if (middlewareMode === 'tool-skip')
             middleware.push(toolSkipMiddleware)
+          if (middlewareMode === 'capability') {
+            // Order matters: the provider's setup() must run before the
+            // consumer reads the capability. Array order is preserved.
+            middleware.push(prefixProviderMiddleware, prefixConsumerMiddleware)
+          }
           if (middlewareMode === 'phase-recorder') {
             if (!testId) {
               return new Response(

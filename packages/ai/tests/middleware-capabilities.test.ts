@@ -1,0 +1,284 @@
+import { describe, it, expect, vi } from 'vitest'
+import {
+  createCapability,
+  CapabilityRegistry,
+} from '../src/activities/chat/middleware/capabilities'
+import { validateCapabilities } from '../src/activities/chat/middleware/validate'
+import { createChatMiddleware } from '../src/activities/chat/middleware/builder'
+import { defineChatMiddleware } from '../src/activities/chat/middleware/define'
+import type { CapabilityContext } from '../src/activities/chat/middleware/capabilities'
+import { MiddlewareRunner } from '../src/activities/chat/middleware/compose'
+import { resolveDebugOption } from '../src/logger/resolve'
+import { chat } from '../src'
+import { createMockAdapter, ev, collectChunks } from './test-utils'
+import type {
+  ChatMiddleware,
+  ChatMiddlewareContext,
+} from '../src/activities/chat/middleware/types'
+
+// A capability accessor only needs `ctx.capabilities`, so test contexts are
+// typed against the minimal CapabilityContext — no casts.
+function makeCtx(): CapabilityContext {
+  return { capabilities: new CapabilityRegistry() }
+}
+
+describe('createCapability + CapabilityRegistry', () => {
+  it('provides and gets a value by handle reference', () => {
+    const cap = createCapability<{ n: number }>()('thing')
+    const [getThing, provideThing] = cap
+    const ctx = makeCtx()
+    provideThing(ctx, { n: 1 })
+    expect(getThing(ctx)).toEqual({ n: 1 })
+  })
+
+  it('get throws a named error when absent', () => {
+    const [getThing] = createCapability<number>()('counter')
+    const ctx = makeCtx()
+    expect(() => getThing(ctx)).toThrowError(
+      /capability "counter".*never provided/i,
+    )
+  })
+
+  it('get with { optional: true } returns undefined when absent', () => {
+    const [getThing] = createCapability<number>()('counter')
+    const ctx = makeCtx()
+    expect(getThing(ctx, { optional: true })).toBeUndefined()
+  })
+
+  it('two capabilities with the same name are distinct identities', () => {
+    const [getA, provideA] = createCapability<string>()('dup')
+    const [getB] = createCapability<string>()('dup')
+    const ctx = makeCtx()
+    provideA(ctx, 'a')
+    expect(getA(ctx)).toBe('a')
+    expect(getB(ctx, { optional: true })).toBeUndefined()
+  })
+
+  it('exposes capabilityName for diagnostics', () => {
+    const cap = createCapability<number>()('labelled')
+    expect(cap.capabilityName).toBe('labelled')
+  })
+
+  it('duplicate provide is last-wins and notifies the registry', () => {
+    const [getThing, provideThing] = createCapability<number>()('over')
+    const ctx = makeCtx()
+    const warn = vi.fn()
+    ctx.capabilities.setOnDuplicate(warn)
+    provideThing(ctx, 1)
+    provideThing(ctx, 2)
+    expect(getThing(ctx)).toBe(2)
+    expect(warn).toHaveBeenCalledWith('over')
+  })
+})
+
+// runSetup forwards the full stable context to each setup hook and to
+// instrumentation, so the test builds a complete (inert) ChatMiddlewareContext
+// — typed against the real interface, no casts.
+function makeRunnerCtx(): ChatMiddlewareContext {
+  const ctx: ChatMiddlewareContext = {
+    requestId: 'r',
+    streamId: 's',
+    runId: 'run',
+    threadId: 't',
+    phase: 'init',
+    iteration: 0,
+    chunkIndex: 0,
+    abort: () => {},
+    context: undefined,
+    defer: () => {},
+    provider: 'test',
+    model: 'test-model',
+    source: 'server',
+    streaming: true,
+    systemPrompts: [],
+    messageCount: 0,
+    hasTools: false,
+    currentMessageId: null,
+    accumulatedContent: '',
+    messages: [],
+    createId: (prefix) => `${prefix}-id`,
+    capabilities: new CapabilityRegistry(),
+    get: (capability) => capability[0](ctx),
+    getOptional: (capability) => capability[0](ctx, { optional: true }),
+    provide: (capability, value) => capability[1](ctx, value),
+  }
+  return ctx
+}
+
+describe('MiddlewareRunner.runSetup', () => {
+  it('runs setup hooks in array order before consumers can read', async () => {
+    const aCap = createCapability<number>()('order-a')
+    const [getA, provideA] = aCap
+    const order: Array<string> = []
+    const provider: ChatMiddleware = {
+      name: 'provider',
+      provides: [aCap],
+      setup(ctx) {
+        order.push('provider')
+        provideA(ctx, 7)
+      },
+    }
+    const consumer: ChatMiddleware = {
+      name: 'consumer',
+      requires: [aCap],
+      setup(ctx) {
+        order.push('consumer')
+        expect(getA(ctx)).toBe(7)
+      },
+    }
+    const runner = new MiddlewareRunner(
+      [provider, consumer],
+      resolveDebugOption(false),
+    )
+    await runner.runSetup(makeRunnerCtx())
+    expect(order).toEqual(['provider', 'consumer'])
+  })
+
+  it('throws if a middleware declares provides but never provides in setup', async () => {
+    const cap = createCapability<number>()('declared-not-provided')
+    const broken: ChatMiddleware = {
+      name: 'broken',
+      provides: [cap],
+      setup() {},
+    }
+    const runner = new MiddlewareRunner([broken], resolveDebugOption(false))
+    await expect(runner.runSetup(makeRunnerCtx())).rejects.toThrow(
+      /middleware "broken".*declares.*"declared-not-provided".*never called provide/i,
+    )
+  })
+})
+
+describe('validateCapabilities', () => {
+  it('passes when all middleware + adapter requires are provided', () => {
+    const cap = createCapability<number>()('ok-cap')
+    const provider: ChatMiddleware = { name: 'p', provides: [cap] }
+    const consumer: ChatMiddleware = { name: 'c', requires: [cap] }
+    expect(() =>
+      validateCapabilities([provider, consumer], { name: 'openai' }),
+    ).not.toThrow()
+  })
+
+  it('throws naming the missing capability and listing provided ones', () => {
+    const sandbox = createCapability<number>()('sandbox')
+    const persistence = createCapability<number>()('persistence')
+    const adapter = { name: 'claude-code', requires: [sandbox] }
+    const mw: ChatMiddleware = { name: 'persistence', provides: [persistence] }
+    expect(() => validateCapabilities([mw], adapter)).toThrowError(
+      /adapter "claude-code" requires capability "sandbox"/i,
+    )
+  })
+
+  it('ignores optionalRequires when computing missing', () => {
+    const opt = createCapability<number>()('opt')
+    const mw: ChatMiddleware = { name: 'x', optionalRequires: [opt] }
+    expect(() => validateCapabilities([mw], { name: 'a' })).not.toThrow()
+  })
+})
+
+describe('chat() capability integration', () => {
+  it('runs setup before onConfig and lets onConfig consume a capability', async () => {
+    const cap = createCapability<{ greeting: string }>()('greeter')
+    const [getGreeting, provideGreeting] = cap
+    const seen: Array<string> = []
+    const provider: ChatMiddleware = {
+      name: 'greeter-provider',
+      provides: [cap],
+      setup(ctx) {
+        seen.push('setup')
+        provideGreeting(ctx, { greeting: 'hi' })
+      },
+    }
+    const consumer: ChatMiddleware = {
+      name: 'greeter-consumer',
+      requires: [cap],
+      onConfig(ctx) {
+        seen.push('onConfig')
+        expect(getGreeting(ctx).greeting).toBe('hi')
+      },
+    }
+    const { adapter } = createMockAdapter({
+      iterations: [
+        [
+          ev.runStarted(),
+          ev.textStart(),
+          ev.textContent('hi'),
+          ev.textEnd(),
+          ev.runFinished(),
+        ],
+      ],
+    })
+    await collectChunks(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'hello' }],
+        middleware: [provider, consumer],
+      }),
+    )
+    expect(seen[0]).toBe('setup')
+    expect(seen).toContain('onConfig')
+  })
+
+  it('supports ctx.provide / ctx.get / ctx.getOptional by handle', async () => {
+    const cap = createCapability<{ greeting: string }>()('ctx-greeter')
+    const absent = createCapability<number>()('ctx-absent')
+    let read: { greeting: string } | undefined
+    let optionalMissing: number | undefined = 1
+    const provider: ChatMiddleware = {
+      name: 'ctx-provider',
+      provides: [cap],
+      setup(ctx) {
+        ctx.provide(cap, { greeting: 'hey' })
+      },
+    }
+    const consumer: ChatMiddleware = {
+      name: 'ctx-consumer',
+      requires: [cap],
+      onConfig(ctx) {
+        read = ctx.get(cap)
+        optionalMissing = ctx.getOptional(absent)
+      },
+    }
+    const { adapter } = createMockAdapter({
+      iterations: [[ev.runStarted(), ev.runFinished()]],
+    })
+    await collectChunks(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'hello' }],
+        middleware: [provider, consumer],
+      }),
+    )
+    expect(read).toEqual({ greeting: 'hey' })
+    expect(optionalMissing).toBeUndefined()
+  })
+
+  it('throws synchronously when a required capability is unprovided', () => {
+    const sandbox = createCapability<number>()('sandbox-int')
+    const needsSandbox: ChatMiddleware = {
+      name: 'needs-sandbox',
+      requires: [sandbox],
+    }
+    const { adapter } = createMockAdapter({ iterations: [[]] })
+    expect(() =>
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'x' }],
+        middleware: [needsSandbox],
+      }),
+    ).toThrowError(/requires capability "sandbox-int"/i)
+  })
+})
+
+describe('createChatMiddleware builder', () => {
+  it('build() returns the middleware in use() order', () => {
+    const cap = createCapability<number>()('built-order')
+    const a = defineChatMiddleware({
+      name: 'a',
+      provides: [cap],
+      setup: (ctx) => cap[1](ctx, 1),
+    })
+    const b = defineChatMiddleware({ name: 'b', requires: [cap] })
+    const built = createChatMiddleware().use(a).use(b).build()
+    expect(built.map((m) => m.name)).toEqual(['a', 'b'])
+  })
+})

@@ -20,6 +20,7 @@ import type {
   ChatMiddleware,
   ChatMiddlewareContext,
 } from '../activities/chat/middleware/types'
+import type { TokenUsage } from '../types'
 
 /**
  * Scope (role) of an OTel span emitted by this middleware.
@@ -177,6 +178,59 @@ function firstNumber(...candidates: Array<unknown>): number | undefined {
     }
   }
   return undefined
+}
+
+/**
+ * Build the full set of `gen_ai.usage.*` span attributes from a `TokenUsage`.
+ *
+ * Beyond input/output tokens, this emits provider-reported cost, total tokens,
+ * cache and reasoning breakdowns, and duration-based billing — every field is
+ * guarded so spans stay clean when a provider doesn't report it. Cache and
+ * reasoning use the official GenAI semconv names; `gen_ai.usage.cost` and
+ * `gen_ai.usage.total_tokens` are de-facto extensions consumed by backends
+ * like PostHog (which otherwise re-derive cost from their own price tables,
+ * losing cache discounts and gateway markup). Fields with no semconv or
+ * de-facto convention (`costDetails`, `durationSeconds`) are
+ * TanStack-namespaced. Deliberately not emitted: `unitsBilled`,
+ * `providerUsageDetails`, and the per-modality token breakdowns — those are
+ * media-oriented; media-activity observability is tracked in #720.
+ */
+function usageAttributes(usage: TokenUsage): Record<string, AttributeValue> {
+  const attrs: Record<string, AttributeValue> = {
+    'gen_ai.usage.input_tokens': usage.promptTokens,
+    'gen_ai.usage.output_tokens': usage.completionTokens,
+  }
+  const optional: Array<[key: string, value: unknown]> = [
+    ['gen_ai.usage.total_tokens', usage.totalTokens],
+    ['gen_ai.usage.cost', usage.cost],
+    [
+      'gen_ai.usage.cache_read.input_tokens',
+      usage.promptTokensDetails?.cachedTokens,
+    ],
+    [
+      'gen_ai.usage.cache_creation.input_tokens',
+      usage.promptTokensDetails?.cacheWriteTokens,
+    ],
+    [
+      'gen_ai.usage.reasoning.output_tokens',
+      usage.completionTokensDetails?.reasoningTokens,
+    ],
+    ['tanstack.ai.usage.duration_seconds', usage.durationSeconds],
+    ['tanstack.ai.usage.upstream_cost', usage.costDetails?.upstreamCost],
+    [
+      'tanstack.ai.usage.upstream_input_cost',
+      usage.costDetails?.upstreamInputCost,
+    ],
+    [
+      'tanstack.ai.usage.upstream_output_cost',
+      usage.costDetails?.upstreamOutputCost,
+    ],
+  ]
+  for (const [key, value] of optional) {
+    const num = firstNumber(value)
+    if (num !== undefined) attrs[key] = num
+  }
+  return attrs
 }
 
 function errorMessage(err: unknown): string | undefined {
@@ -524,10 +578,7 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
         // `runOnUsage` when `chunk.usage` is present, and `onUsage` is the
         // canonical place for the metric. Recording in both would double-count.
         if (chunk.usage) {
-          span.setAttributes({
-            'gen_ai.usage.input_tokens': chunk.usage.promptTokens,
-            'gen_ai.usage.output_tokens': chunk.usage.completionTokens,
-          })
+          span.setAttributes(usageAttributes(chunk.usage))
         }
 
         if (captureContent && state.assistantTextBuffer.length > 0) {
@@ -584,10 +635,7 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
         }
 
         const span = state.currentIterationSpan ?? state.rootSpan
-        span.setAttributes({
-          'gen_ai.usage.input_tokens': usage.promptTokens,
-          'gen_ai.usage.output_tokens': usage.completionTokens,
-        })
+        span.setAttributes(usageAttributes(usage))
       })
     },
 
@@ -905,10 +953,7 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
         }
 
         if (info.usage) {
-          state.rootSpan.setAttributes({
-            'gen_ai.usage.input_tokens': info.usage.promptTokens,
-            'gen_ai.usage.output_tokens': info.usage.completionTokens,
-          })
+          state.rootSpan.setAttributes(usageAttributes(info.usage))
         }
         if (info.finishReason) {
           state.rootSpan.setAttribute('gen_ai.response.finish_reasons', [
