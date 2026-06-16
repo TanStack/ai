@@ -1,5 +1,16 @@
 # @tanstack/ai
 
+## 0.31.0
+
+### Minor Changes
+
+- [#763](https://github.com/TanStack/ai/pull/763) [`07aaf8b`](https://github.com/TanStack/ai/commit/07aaf8b9e5a8e699be25f936cc9cd651a46c16c5) - Add a type-safe capability system to chat middleware. `createCapability<T>()('name')` returns a `[get, provide]` accessor tuple that is also its own identity for `requires`/`provides` declarations — no separate token import. The middleware context also exposes `ctx.get(capability)` / `ctx.getOptional(capability)` / `ctx.provide(capability, value)`, typed by the handle you pass. Middleware gain a `setup` provisioning hook (runs first, before `onConfig`) plus `requires`/`provides`/`optionalRequires`. `chat()` validates that every required capability is provided, at compile time (an array coverage check and the new order-aware `createChatMiddleware()` builder) and at runtime (clear errors before the adapter runs). Adapters can now declare `requires`. This is the primitive layer for upcoming persistence and sandbox middleware; no concrete capabilities ship yet.
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.6.2
+
 ## 0.30.0
 
 ### Minor Changes
