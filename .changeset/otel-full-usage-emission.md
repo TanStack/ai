@@ -1,5 +1,0 @@
----
-'@tanstack/ai': minor
----
-
-`otelMiddleware` now emits the rest of the reported `TokenUsage` on spans instead of only input/output tokens (#721). When the provider reports them, spans carry `gen_ai.usage.total_tokens`, `gen_ai.usage.cost` (provider-reported cost — cache discounts and gateway markup included, so backends like PostHog no longer re-derive cost from price tables), the official semconv cache/reasoning breakdowns (`gen_ai.usage.cache_read.input_tokens`, `gen_ai.usage.cache_creation.input_tokens`, `gen_ai.usage.reasoning.output_tokens`), and TanStack-namespaced attributes for duration-based billing (`tanstack.ai.usage.duration_seconds`) and the upstream cost split (`tanstack.ai.usage.upstream_cost` / `upstream_input_cost` / `upstream_output_cost`). All attributes are guarded — spans stay unchanged when a provider doesn't report a field. Media-oriented fields (`unitsBilled`, per-modality token breakdowns) and the provider-shaped `providerUsageDetails` bag are intentionally not emitted; media-activity observability is tracked in #720.
