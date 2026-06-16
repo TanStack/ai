@@ -59,7 +59,9 @@ function waitForReady(proc: SpawnHandle, timeoutMs: number): Promise<void> {
       () =>
         settle(() =>
           reject(
-            new Error(`opencode serve did not become ready within ${timeoutMs}ms`),
+            new Error(
+              `opencode serve did not become ready within ${timeoutMs}ms`,
+            ),
           ),
         ),
       timeoutMs,

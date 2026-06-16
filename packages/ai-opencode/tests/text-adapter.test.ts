@@ -59,7 +59,9 @@ function mockSandbox(stdout: Array<string>): SandboxHandle {
   }
 }
 
-async function collect(stream: AsyncIterable<StreamChunk>): Promise<Array<StreamChunk>> {
+async function collect(
+  stream: AsyncIterable<StreamChunk>,
+): Promise<Array<StreamChunk>> {
   const out: Array<StreamChunk> = []
   for await (const chunk of stream) out.push(chunk)
   return out
@@ -82,7 +84,11 @@ describe('startOpencodeServerInSandbox', () => {
   it('rejects if the server exits before becoming ready', async () => {
     const sandbox = mockSandbox(['fatal: cannot bind port\n'])
     await expect(
-      startOpencodeServerInSandbox(sandbox, { port: 4096, cwd: '/workspace', timeoutMs: 1000 }),
+      startOpencodeServerInSandbox(sandbox, {
+        port: 4096,
+        cwd: '/workspace',
+        timeoutMs: 1000,
+      }),
     ).rejects.toThrow(/before becoming ready/i)
   })
 })

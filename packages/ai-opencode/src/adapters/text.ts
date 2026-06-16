@@ -122,7 +122,9 @@ export class OpencodeTextAdapter<
     options: TextOptions<OpencodeTextProviderOptions>,
   ): AsyncIterable<StreamChunk> {
     const { logger } = options
-    let server: Awaited<ReturnType<typeof startOpencodeServerInSandbox>> | undefined
+    let server:
+      | Awaited<ReturnType<typeof startOpencodeServerInSandbox>>
+      | undefined
     let handle: OpencodeSessionHandle | undefined
     const externalSignal =
       options.abortController?.signal ?? options.request?.signal ?? undefined
