@@ -996,6 +996,8 @@ class TextEngine<
       parentRunId: this.parentRunIdOverride,
       // Expose provided capabilities (e.g. sandbox) to harness adapters.
       capabilities: this.middlewareCtx,
+      // Client approval decisions, for harness interactive-approval resolution.
+      approvals: this.initialApprovals,
       ...(combinedSchema ? { outputSchema: combinedSchema } : {}),
     })) {
       if (this.isCancelled()) {

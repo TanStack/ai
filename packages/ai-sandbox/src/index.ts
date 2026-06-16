@@ -102,6 +102,15 @@ export {
 } from './tool-bridge'
 export type { HostToolBridge, StartBridgeOptions } from './tool-bridge'
 
+// Interactive approvals (shared by harness adapters)
+export {
+  resolveApproval,
+  approvalId,
+  buildApprovalRequestedEvent,
+  APPROVAL_REQUESTED_EVENT,
+} from './approvals'
+export type { ResolveApprovalInput, ApprovalOutcome } from './approvals'
+
 // Keying
 export { computeSandboxKey, computeWorkspaceHash } from './key'
 export type { SandboxKeyInput } from './key'

@@ -917,6 +917,15 @@ export interface TextOptions<
    * direct adapter usage outside the chat engine.
    */
   capabilities?: CapabilityContext
+
+  /**
+   * Client approval decisions for this run, keyed by approval id. The engine
+   * populates this from approvals carried on the incoming messages. Harness
+   * adapters consult it to resolve `ask`-policy permission requests (the agent
+   * pauses on a risky action; the client re-runs with a decision recorded
+   * here). Undefined for direct adapter usage outside the chat engine.
+   */
+  approvals?: ReadonlyMap<string, boolean>
 }
 
 // ============================================================================
