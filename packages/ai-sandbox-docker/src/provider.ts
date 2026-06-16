@@ -63,14 +63,18 @@ class DockerProvider implements SandboxProvider {
     })
   }
 
-  private readonly forkFactory = async (sourceContainerId: string): Promise<SandboxHandle> => {
+  private readonly forkFactory = async (
+    sourceContainerId: string,
+  ): Promise<SandboxHandle> => {
     const source = this.docker.getContainer(sourceContainerId)
     const image = await source.commit({
       repo: 'tanstack-ai-sandbox-fork',
       tag: `${sourceContainerId.slice(0, 12)}-${Date.now()}`,
     })
     const imageRef =
-      typeof image.Id === 'string' ? image.Id : `tanstack-ai-sandbox-fork:latest`
+      typeof image.Id === 'string'
+        ? image.Id
+        : `tanstack-ai-sandbox-fork:latest`
     return this.startContainer(imageRef)
   }
 

@@ -65,7 +65,7 @@ const sandbox = defineSandbox({
   provider: dockerSandbox({ image: 'node:22' }), // or localProcessSandbox()
   workspace: defineWorkspace({
     source: { type: 'none' },
-    setup: ['npm install -g @anthropic-ai/claude-code', /* scaffold repo */],
+    setup: ['npm install -g @anthropic-ai/claude-code' /* scaffold repo */],
     secrets: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY! },
   }),
   lifecycle: { reuse: 'thread' },

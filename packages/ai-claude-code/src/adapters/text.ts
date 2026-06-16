@@ -107,7 +107,9 @@ export class ClaudeCodeTextAdapter<
     this.adapterConfig = config
   }
 
-  private sandboxFrom(options: TextOptions<ClaudeCodeTextProviderOptions>): SandboxHandle {
+  private sandboxFrom(
+    options: TextOptions<ClaudeCodeTextProviderOptions>,
+  ): SandboxHandle {
     const ctx = options.capabilities
     if (!ctx) {
       throw new Error(
@@ -119,7 +121,9 @@ export class ClaudeCodeTextAdapter<
   }
 
   private workdir(options: TextOptions<ClaudeCodeTextProviderOptions>): string {
-    return options.modelOptions?.cwd ?? this.adapterConfig.cwd ?? DEFAULT_WORKDIR
+    return (
+      options.modelOptions?.cwd ?? this.adapterConfig.cwd ?? DEFAULT_WORKDIR
+    )
   }
 
   /** Build the `claude` command line (prompt goes via stdin, not argv). */
@@ -144,7 +148,9 @@ export class ClaudeCodeTextAdapter<
     if (resume !== undefined) args.push('--resume', q(resume))
 
     const permissionMode =
-      modelOptions?.permissionMode ?? config.permissionMode ?? 'bypassPermissions'
+      modelOptions?.permissionMode ??
+      config.permissionMode ??
+      'bypassPermissions'
     args.push('--permission-mode', q(permissionMode))
 
     const maxTurns = modelOptions?.maxTurns ?? config.maxTurns
@@ -156,7 +162,8 @@ export class ClaudeCodeTextAdapter<
     if (allowedTools && allowedTools.length > 0) {
       args.push('--allowedTools', q(allowedTools.join(',')))
     }
-    const disallowedTools = modelOptions?.disallowedTools ?? config.disallowedTools
+    const disallowedTools =
+      modelOptions?.disallowedTools ?? config.disallowedTools
     if (disallowedTools && disallowedTools.length > 0) {
       args.push('--disallowedTools', q(disallowedTools.join(',')))
     }
@@ -202,7 +209,8 @@ export class ClaudeCodeTextAdapter<
       const rawEvents = spawnNdjson(sandbox, command, {
         cwd,
         input: prompt,
-        ...(options.modelOptions === undefined && this.adapterConfig.env === undefined
+        ...(options.modelOptions === undefined &&
+        this.adapterConfig.env === undefined
           ? {}
           : { env: this.adapterConfig.env }),
         ...(options.abortController?.signal
@@ -237,7 +245,9 @@ export class ClaudeCodeTextAdapter<
       // Surface the working-tree diff so UIs can render what the agent changed.
       if (this.adapterConfig.emitDiff !== false) {
         try {
-          const diff = await sandbox.process.exec(`git -C ${q(cwd)} diff`, { cwd })
+          const diff = await sandbox.process.exec(`git -C ${q(cwd)} diff`, {
+            cwd,
+          })
           if (diff.exitCode === 0 && diff.stdout.trim() !== '') {
             yield {
               type: EventType.CUSTOM,

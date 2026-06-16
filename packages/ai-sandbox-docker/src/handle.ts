@@ -8,7 +8,10 @@
  * (true for node:* / debian-based images).
  */
 import { PassThrough, Writable } from 'node:stream'
-import { UnsupportedCapabilityError, createExecBackedGit  } from '@tanstack/ai-sandbox'
+import {
+  UnsupportedCapabilityError,
+  createExecBackedGit,
+} from '@tanstack/ai-sandbox'
 import type Dockerode from 'dockerode'
 import type { Readable } from 'node:stream'
 import type {
@@ -102,7 +105,8 @@ export class DockerHandle implements SandboxHandle {
         const r = await this.exec(
           `mkdir -p ${q(dir)} && printf %s ${q(b64)} | base64 -d > ${q(abs)}`,
         )
-        if (r.exitCode !== 0) throw new Error(`write failed: ${r.stderr.trim()}`)
+        if (r.exitCode !== 0)
+          throw new Error(`write failed: ${r.stderr.trim()}`)
       },
       list: async (p) => {
         const r = await this.exec(`ls -1Ap ${q(this.abs(p))}`)
@@ -153,15 +157,21 @@ export class DockerHandle implements SandboxHandle {
   private abs(p: string): string {
     if (this.workdir === '/workspace') return p
     if (p === '/workspace') return this.workdir
-    if (p.startsWith('/workspace/')) return `${this.workdir}/${p.slice('/workspace/'.length)}`
+    if (p.startsWith('/workspace/'))
+      return `${this.workdir}/${p.slice('/workspace/'.length)}`
     return p
   }
 
   private envArray(extra?: Record<string, string>): Array<string> {
-    return Object.entries({ ...this.envVars, ...extra }).map(([k, v]) => `${k}=${v}`)
+    return Object.entries({ ...this.envVars, ...extra }).map(
+      ([k, v]) => `${k}=${v}`,
+    )
   }
 
-  private async exec(command: string, opts?: ProcessOptions): Promise<ExecResult> {
+  private async exec(
+    command: string,
+    opts?: ProcessOptions,
+  ): Promise<ExecResult> {
     const exec = await this.container.exec({
       Cmd: ['sh', '-c', command],
       AttachStdout: true,
@@ -188,7 +198,9 @@ export class DockerHandle implements SandboxHandle {
     this.docker.modem.demuxStream(stream, outW, errW)
 
     if (opts?.signal) {
-      opts.signal.addEventListener('abort', () => stream.destroy(), { once: true })
+      opts.signal.addEventListener('abort', () => stream.destroy(), {
+        once: true,
+      })
     }
 
     await new Promise<void>((resolve, reject) => {
@@ -225,7 +237,9 @@ export class DockerHandle implements SandboxHandle {
       errPT.end()
     })
     if (opts?.signal) {
-      opts.signal.addEventListener('abort', () => stream.destroy(), { once: true })
+      opts.signal.addEventListener('abort', () => stream.destroy(), {
+        once: true,
+      })
     }
 
     return {

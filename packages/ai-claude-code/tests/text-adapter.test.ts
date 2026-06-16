@@ -58,7 +58,9 @@ function capabilityContextWith(handle: SandboxHandle): CapabilityContext {
   return ctx
 }
 
-async function collect(stream: AsyncIterable<StreamChunk>): Promise<Array<StreamChunk>> {
+async function collect(
+  stream: AsyncIterable<StreamChunk>,
+): Promise<Array<StreamChunk>> {
   const out: Array<StreamChunk> = []
   for await (const chunk of stream) out.push(chunk)
   return out
@@ -94,9 +96,9 @@ describe('claude-code in-sandbox adapter', () => {
         (c as { name?: string }).name === 'claude-code.session-id',
     )
     expect(sessionEvent).toBeDefined()
-    expect((sessionEvent as { value: { sessionId: string } }).value.sessionId).toBe(
-      'sess-abc',
-    )
+    expect(
+      (sessionEvent as { value: { sessionId: string } }).value.sessionId,
+    ).toBe('sess-abc')
 
     const text = chunks
       .filter((c) => c.type === 'TEXT_MESSAGE_CONTENT')
@@ -143,7 +145,9 @@ describe('claude-code in-sandbox adapter', () => {
       }),
     )
     const err = chunks.find((c) => c.type === 'RUN_ERROR')
-    expect((err as { message?: string }).message).toMatch(/does not yet bridge/i)
+    expect((err as { message?: string }).message).toMatch(
+      /does not yet bridge/i,
+    )
     await sbx.destroy()
   })
 })
