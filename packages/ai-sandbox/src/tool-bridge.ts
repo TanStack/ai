@@ -1,8 +1,8 @@
 /**
- * Host-side MCP tool-proxy bridge.
+ * Host-side MCP tool-proxy bridge, shared by all harness adapters.
  *
- * Exposes chat()-provided server tools to the in-sandbox `claude` process as an
- * MCP server reachable over HTTP. The agent (inside the sandbox) calls
+ * Exposes chat()-provided server tools to an in-sandbox agent as an MCP server
+ * reachable over HTTP. The agent (inside the sandbox) calls
  * `mcp__tanstack__<tool>`; the call is proxied OUT to this host server, where
  * the tool's `execute()` runs in the host process (with its closures / DB /
  * secrets), and the result is returned into the sandbox.
@@ -11,9 +11,9 @@
  * request), bound on all interfaces so a Docker container can reach it via
  * `host.docker.internal`, and gated by a per-run bearer token.
  *
- * The engine has already converted each tool's `inputSchema` to JSON Schema, so
- * the low-level `tools/list` / `tools/call` handlers pass schemas through
- * verbatim (no zod round-trip).
+ * Each harness adapter formats the bridge into its own MCP config shape
+ * (`claude --mcp-config`, ACP `mcpServers`, opencode `OPENCODE_CONFIG_CONTENT`,
+ * `codex --config mcp_servers.*`).
  */
 import { createServer } from 'node:http'
 import { randomBytes } from 'node:crypto'
@@ -23,9 +23,20 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js'
-import { BRIDGED_MCP_SERVER_NAME } from '../stream/translate'
 import type { AddressInfo } from 'node:net'
 import type { AnyTool } from '@tanstack/ai'
+
+/**
+ * Name of the bridged MCP server. The agent sees tools as
+ * `mcp__tanstack__<tool>`; each adapter's stream translator strips this prefix
+ * so tool-call events match the names the application registered.
+ */
+export const BRIDGED_MCP_SERVER_NAME = 'tanstack'
+
+/** Hostname the sandbox uses to reach a host-side server, per provider. */
+export function hostForSandbox(provider: string): string {
+  return provider === 'docker' ? 'host.docker.internal' : '127.0.0.1'
+}
 
 export interface HostToolBridge {
   /** MCP server name; tools appear to the agent as `mcp__<name>__<tool>`. */
@@ -34,8 +45,6 @@ export interface HostToolBridge {
   url: string
   /** Per-run bearer token gating the endpoint. */
   token: string
-  /** `--mcp-config` JSON for the claude CLI. */
-  mcpConfigJson: string
   close: () => Promise<void>
 }
 
@@ -75,13 +84,10 @@ function buildServer(
       throw new Error(`Unknown tool: ${request.params.name}`)
     }
     try {
-      const result: unknown = await tool.execute(
-        request.params.arguments ?? {},
-        {
-          context: options.context,
-          abortSignal: options.signal,
-        },
-      )
+      const result: unknown = await tool.execute(request.params.arguments ?? {}, {
+        context: options.context,
+        abortSignal: options.signal,
+      })
       const text = typeof result === 'string' ? result : JSON.stringify(result)
       return { content: [{ type: 'text' as const, text }] }
     } catch (error) {
@@ -111,7 +117,6 @@ export async function startHostToolBridge(
         res.writeHead(401).end('unauthorized')
         return
       }
-      // Stateless: a fresh server + transport per request.
       const server = buildServer(tools, options)
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
@@ -134,26 +139,14 @@ export async function startHostToolBridge(
     })
   })
 
-  // Bind on all interfaces so a Docker container reaches it via host-gateway.
   await new Promise<void>((resolve) => httpServer.listen(0, '0.0.0.0', resolve))
   const port = (httpServer.address() as AddressInfo).port
   const url = `http://${options.hostForSandbox}:${port}/mcp`
-
-  const mcpConfigJson = JSON.stringify({
-    mcpServers: {
-      [BRIDGED_MCP_SERVER_NAME]: {
-        type: 'http',
-        url,
-        headers: { Authorization: `Bearer ${token}` },
-      },
-    },
-  })
 
   return {
     name: BRIDGED_MCP_SERVER_NAME,
     url,
     token,
-    mcpConfigJson,
     close: () =>
       new Promise<void>((resolve) => httpServer.close(() => resolve())),
   }

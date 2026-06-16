@@ -4,22 +4,23 @@ import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   SandboxCapability,
   getSandbox,
+  hostForSandbox,
   spawnNdjson,
+  startHostToolBridge,
 } from '@tanstack/ai-sandbox'
 import { buildPrompt } from '../messages/prompt'
 import { translateThreadEvents } from '../stream/translate'
+import type { HostToolBridge, SandboxHandle  } from '@tanstack/ai-sandbox'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
 import type {
-  AnyTool,
   DefaultMessageMetadataByModality,
   Modality,
   StreamChunk,
   TextOptions,
 } from '@tanstack/ai'
-import type { SandboxHandle } from '@tanstack/ai-sandbox'
 import type { CodexModel } from '../model-meta'
 import type { CodexTextProviderOptions } from '../provider-options'
 import type { CodexThreadEvent } from '../stream/sdk-types'
@@ -69,15 +70,6 @@ function q(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
-function rejectTools(tools: Array<AnyTool> | undefined): void {
-  if (tools && tools.length > 0) {
-    throw new Error(
-      'The in-sandbox Codex adapter does not yet bridge chat()-provided tools. ' +
-        'The agent uses its own native tools inside the sandbox. Remove `tools` from chat().',
-    )
-  }
-}
-
 export class CodexTextAdapter<
   TModel extends CodexModel,
 > extends BaseTextAdapter<
@@ -125,6 +117,7 @@ export class CodexTextAdapter<
     options: TextOptions<CodexTextProviderOptions>,
     resume: string | undefined,
     cwd: string,
+    bridge: HostToolBridge | undefined,
   ): string {
     const config = this.adapterConfig
     const modelOptions = options.modelOptions
@@ -161,6 +154,13 @@ export class CodexTextAdapter<
       ...(config.webSearchMode
         ? { web_search: `"${config.webSearchMode}"` }
         : {}),
+      // Bridge chat()-provided tools via a streamable-HTTP MCP server.
+      ...(bridge
+        ? {
+            [`mcp_servers.${bridge.name}.url`]: `"${bridge.url}"`,
+            [`mcp_servers.${bridge.name}.bearer_token`]: `"${bridge.token}"`,
+          }
+        : {}),
       ...config.config,
     }
     for (const [key, value] of Object.entries(cfg)) {
@@ -177,10 +177,20 @@ export class CodexTextAdapter<
     options: TextOptions<CodexTextProviderOptions>,
   ): AsyncIterable<StreamChunk> {
     const { logger } = options
+    let bridge: HostToolBridge | undefined
     try {
-      rejectTools(options.tools)
       const sandbox = this.sandboxFrom(options)
       const cwd = this.workdir(options)
+
+      if (options.tools && options.tools.length > 0) {
+        bridge = await startHostToolBridge(options.tools, {
+          hostForSandbox: hostForSandbox(sandbox.provider),
+          context: options.context,
+          ...(options.abortController?.signal
+            ? { signal: options.abortController.signal }
+            : {}),
+        })
+      }
 
       const { prompt, resume } = buildPrompt(
         options.messages,
@@ -194,7 +204,7 @@ export class CodexTextAdapter<
           ? `${systemPrompts.join('\n\n')}\n\n${prompt}`
           : prompt
 
-      const command = this.buildCommand(options, resume, cwd)
+      const command = this.buildCommand(options, resume, cwd, bridge)
 
       logger.request(
         `activity=chat provider=codex model=${this.model} sandbox=${sandbox.provider} messages=${options.messages.length} resume=${resume ?? 'none'}`,
@@ -252,6 +262,8 @@ export class CodexTextAdapter<
           ...(err.code !== undefined && { code: err.code }),
         },
       }
+    } finally {
+      await bridge?.close()
     }
   }
 

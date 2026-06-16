@@ -47,7 +47,11 @@ export interface StartAcpSessionOptions {
    */
   authMethodId?: string
   /** MCP servers (e.g. a host tool bridge) for the session. */
-  mcpServers?: Array<{ name: string; url: string }>
+  mcpServers?: Array<{
+    name: string
+    url: string
+    headers?: Array<{ name: string; value: string }>
+  }>
   /** Session id to resume via `session/load`, when supported by the CLI. */
   resumeSessionId?: string
   onUpdate: (update: AcpSessionUpdate) => void
@@ -128,7 +132,7 @@ export async function startAcpSession(
         type: 'http' as const,
         name: server.name,
         url: server.url,
-        headers: [],
+        headers: server.headers ?? [],
       }),
     )
 

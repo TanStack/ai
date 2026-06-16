@@ -19,6 +19,8 @@ export interface StartServerOptions {
   port: number
   hostname?: string
   cwd: string
+  /** Extra env for the server process (e.g. `OPENCODE_CONFIG_CONTENT`). */
+  env?: Record<string, string>
   timeoutMs?: number
   signal?: AbortSignal
 }
@@ -31,6 +33,7 @@ export async function startOpencodeServerInSandbox(
   const command = `opencode serve --hostname=${hostname} --port=${options.port}`
   const proc: SpawnHandle = await sandbox.process.spawn(command, {
     cwd: options.cwd,
+    ...(options.env ? { env: options.env } : {}),
     ...(options.signal ? { signal: options.signal } : {}),
   })
 

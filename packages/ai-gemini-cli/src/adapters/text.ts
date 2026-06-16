@@ -1,24 +1,28 @@
 import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
-import { SandboxCapability, getSandbox } from '@tanstack/ai-sandbox'
+import {
+  SandboxCapability,
+  getSandbox,
+  hostForSandbox,
+  startHostToolBridge,
+} from '@tanstack/ai-sandbox'
 import { buildPrompt } from '../messages/prompt'
 import { startAcpSession } from '../process/acp-client'
 import { resolvePermission } from '../process/permissions'
 import { AsyncQueue } from '../stream/queue'
 import { translateAcpStream } from '../stream/translate'
+import type { HostToolBridge, SandboxHandle  } from '@tanstack/ai-sandbox'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
 import type {
-  AnyTool,
   DefaultMessageMetadataByModality,
   Modality,
   StreamChunk,
   TextOptions,
 } from '@tanstack/ai'
-import type { SandboxHandle } from '@tanstack/ai-sandbox'
 import type { AcpSessionHandle } from '../process/acp-client'
 import type {
   GeminiCliPermissionMode,
@@ -57,15 +61,6 @@ export interface GeminiCliTextConfig {
 
 function q(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
-}
-
-function rejectTools(tools: Array<AnyTool> | undefined): void {
-  if (tools && tools.length > 0) {
-    throw new Error(
-      'The in-sandbox Gemini CLI adapter does not yet bridge chat()-provided tools. ' +
-        'The agent uses its own native tools inside the sandbox. Remove `tools` from chat().',
-    )
-  }
 }
 
 export class GeminiCliTextAdapter<
@@ -125,12 +120,12 @@ export class GeminiCliTextAdapter<
   ): AsyncIterable<StreamChunk> {
     const { logger } = options
     let handle: AcpSessionHandle | undefined
+    let bridge: HostToolBridge | undefined
     const externalSignal =
       options.abortController?.signal ?? options.request?.signal ?? undefined
     let onAbort: (() => void) | undefined
 
     try {
-      rejectTools(options.tools)
       const sandbox = this.sandboxFrom(options)
       const cwd =
         options.modelOptions?.cwd ?? this.adapterConfig.cwd ?? DEFAULT_WORKDIR
@@ -139,6 +134,18 @@ export class GeminiCliTextAdapter<
       const sessionId = modelOptions?.sessionId
       const { prompt: resumePrompt } = buildPrompt(options.messages, sessionId)
 
+      // Bridge chat()-provided tools into the agent over MCP (ACP http server).
+      const bridgedToolNames = new Set(
+        (options.tools ?? []).map((tool) => tool.name),
+      )
+      if (options.tools && options.tools.length > 0) {
+        bridge = await startHostToolBridge(options.tools, {
+          hostForSandbox: hostForSandbox(sandbox.provider),
+          context: options.context,
+          ...(externalSignal ? { signal: externalSignal } : {}),
+        })
+      }
+
       const queue = new AsyncQueue<AcpStreamEvent>()
       const mode =
         modelOptions?.permissionMode ??
@@ -146,7 +153,7 @@ export class GeminiCliTextAdapter<
         'default'
       const permissionHandler: PermissionHandler =
         this.adapterConfig.onPermissionRequest ??
-        ((request) => resolvePermission(request, mode, new Set<string>()))
+        ((request) => resolvePermission(request, mode, bridgedToolNames))
 
       logger.request(
         `activity=chat provider=gemini-cli model=${this.model} sandbox=${sandbox.provider} messages=${options.messages.length} resume=${sessionId ?? 'none'}`,
@@ -168,6 +175,15 @@ export class GeminiCliTextAdapter<
             modelOptions?.authMethodId ?? this.adapterConfig.authMethodId,
         }),
         ...(sessionId !== undefined && { resumeSessionId: sessionId }),
+        ...(bridge !== undefined && {
+          mcpServers: [
+            {
+              name: bridge.name,
+              url: bridge.url,
+              headers: [{ name: 'Authorization', value: `Bearer ${bridge.token}` }],
+            },
+          ],
+        }),
         onUpdate: (update) => queue.push({ kind: 'update', update }),
         onPermissionRequest: permissionHandler,
       })
@@ -208,7 +224,7 @@ export class GeminiCliTextAdapter<
           parentRunId: options.parentRunId,
         }),
         genId: () => this.generateId(),
-        bridgedToolNames: new Set<string>(),
+        bridgedToolNames,
         onAcpEvent: (event) =>
           logger.provider(`provider=gemini-cli kind=${event.kind}`, {
             chunk: event,
@@ -238,6 +254,7 @@ export class GeminiCliTextAdapter<
         externalSignal.removeEventListener('abort', onAbort)
       }
       await handle?.dispose()
+      await bridge?.close()
     }
   }
 

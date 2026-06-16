@@ -46,9 +46,6 @@
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
   },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0"
-  },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
     "@tanstack/ai-sandbox": "workspace:^"

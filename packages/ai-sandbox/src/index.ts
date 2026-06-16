@@ -94,6 +94,14 @@ export { createExecBackedGit } from './git-exec'
 export { spawnNdjson, toLines } from './runner'
 export type { SpawnNdjsonOptions } from './runner'
 
+// Host-side MCP tool-proxy bridge (shared by harness adapters)
+export {
+  startHostToolBridge,
+  hostForSandbox,
+  BRIDGED_MCP_SERVER_NAME,
+} from './tool-bridge'
+export type { HostToolBridge, StartBridgeOptions } from './tool-bridge'
+
 // Keying
 export { computeSandboxKey, computeWorkspaceHash } from './key'
 export type { SandboxKeyInput } from './key'

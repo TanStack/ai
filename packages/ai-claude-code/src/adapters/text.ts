@@ -5,14 +5,15 @@ import {
   SandboxCapability,
   getSandbox,
   getSandboxPolicy,
+  hostForSandbox,
   spawnNdjson,
+  startHostToolBridge,
 } from '@tanstack/ai-sandbox'
 import { buildPrompt } from '../messages/prompt'
 import { translateSdkStream } from '../stream/translate'
-import { startHostToolBridge } from '../tools/mcp-bridge'
 import { mapPolicyToClaudeFlags } from './policy-map'
 import type { ClaudePolicyFlags } from './policy-map'
-import type { HostToolBridge } from '../tools/mcp-bridge'
+import type { HostToolBridge, SandboxHandle  } from '@tanstack/ai-sandbox'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
@@ -23,7 +24,6 @@ import type {
   StreamChunk,
   TextOptions,
 } from '@tanstack/ai'
-import type { SandboxHandle } from '@tanstack/ai-sandbox'
 import type { ClaudeCodeModel } from '../model-meta'
 import type { ClaudeCodeTextProviderOptions } from '../provider-options'
 import type { AgentSdkMessage } from '../stream/sdk-types'
@@ -78,9 +78,17 @@ function q(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
-/** Hostname the sandbox uses to reach a host-side server, per provider. */
-function hostForSandbox(provider: string): string {
-  return provider === 'docker' ? 'host.docker.internal' : '127.0.0.1'
+/** Format a host tool-bridge as claude's `--mcp-config` JSON. */
+function bridgeToMcpConfig(bridge: HostToolBridge): string {
+  return JSON.stringify({
+    mcpServers: {
+      [bridge.name]: {
+        type: 'http',
+        url: bridge.url,
+        headers: { Authorization: `Bearer ${bridge.token}` },
+      },
+    },
+  })
 }
 
 export class ClaudeCodeTextAdapter<
@@ -225,7 +233,7 @@ export class ClaudeCodeTextAdapter<
         options,
         resume,
         mapPolicyToClaudeFlags(policy),
-        bridge?.mcpConfigJson,
+        bridge ? bridgeToMcpConfig(bridge) : undefined,
       )
 
       logger.request(

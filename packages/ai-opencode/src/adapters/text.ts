@@ -1,25 +1,29 @@
 import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
-import { SandboxCapability, getSandbox } from '@tanstack/ai-sandbox'
+import {
+  SandboxCapability,
+  getSandbox,
+  hostForSandbox,
+  startHostToolBridge,
+} from '@tanstack/ai-sandbox'
 import { buildPrompt } from '../messages/prompt'
 import { startOpencodeSession } from '../process/server'
 import { startOpencodeServerInSandbox } from '../process/sandbox-server'
 import { resolvePermission } from '../process/permissions'
 import { AsyncQueue } from '../stream/queue'
 import { translateOpencodeStream } from '../stream/translate'
+import type { HostToolBridge, SandboxHandle  } from '@tanstack/ai-sandbox'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
 import type {
-  AnyTool,
   DefaultMessageMetadataByModality,
   Modality,
   StreamChunk,
   TextOptions,
 } from '@tanstack/ai'
-import type { SandboxHandle } from '@tanstack/ai-sandbox'
 import type { OpencodeSessionHandle } from '../process/server'
 import type {
   OpencodePermissionMode,
@@ -51,15 +55,6 @@ export interface OpencodeTextConfig {
   permissionMode?: OpencodePermissionMode
   /** Custom permission handler; replaces the adapter's default policy. */
   onPermissionRequest?: PermissionHandler
-}
-
-function rejectTools(tools: Array<AnyTool> | undefined): void {
-  if (tools && tools.length > 0) {
-    throw new Error(
-      'The in-sandbox OpenCode adapter does not yet bridge chat()-provided tools. ' +
-        'The agent uses its own native tools inside the sandbox. Remove `tools` from chat().',
-    )
-  }
 }
 
 /** Split a `provider/model` id into its provider and model halves. */
@@ -126,12 +121,12 @@ export class OpencodeTextAdapter<
       | Awaited<ReturnType<typeof startOpencodeServerInSandbox>>
       | undefined
     let handle: OpencodeSessionHandle | undefined
+    let bridge: HostToolBridge | undefined
     const externalSignal =
       options.abortController?.signal ?? options.request?.signal ?? undefined
     let onAbort: (() => void) | undefined
 
     try {
-      rejectTools(options.tools)
       const sandbox = this.sandboxFrom(options)
       const directory =
         options.modelOptions?.directory ??
@@ -143,6 +138,19 @@ export class OpencodeTextAdapter<
       const { prompt: resumePrompt } = buildPrompt(options.messages, sessionId)
       const { providerID, modelID } = splitModel(this.model)
 
+      // Bridge chat()-provided tools into the in-sandbox server over MCP
+      // (configured via OPENCODE_CONFIG_CONTENT at server spawn).
+      const bridgedToolNames = new Set(
+        (options.tools ?? []).map((tool) => tool.name),
+      )
+      if (options.tools && options.tools.length > 0) {
+        bridge = await startHostToolBridge(options.tools, {
+          hostForSandbox: hostForSandbox(sandbox.provider),
+          context: options.context,
+          ...(externalSignal ? { signal: externalSignal } : {}),
+        })
+      }
+
       const queue = new AsyncQueue<OpencodeStreamEvent>()
       const mode =
         modelOptions?.permissionMode ??
@@ -150,12 +158,27 @@ export class OpencodeTextAdapter<
         'default'
       const permissionHandler: PermissionHandler =
         this.adapterConfig.onPermissionRequest ??
-        ((request) => resolvePermission(request, mode, new Set<string>()))
+        ((request) => resolvePermission(request, mode, bridgedToolNames))
 
       logger.request(
         `activity=chat provider=opencode model=${this.model} sandbox=${sandbox.provider} messages=${options.messages.length} resume=${sessionId ?? 'none'}`,
         { provider: 'opencode', model: this.model },
       )
+
+      const serverEnv = bridge
+        ? {
+            OPENCODE_CONFIG_CONTENT: JSON.stringify({
+              mcp: {
+                [bridge.name]: {
+                  type: 'remote',
+                  url: bridge.url,
+                  enabled: true,
+                  headers: { Authorization: `Bearer ${bridge.token}` },
+                },
+              },
+            }),
+          }
+        : undefined
 
       server = await startOpencodeServerInSandbox(sandbox, {
         port: this.adapterConfig.port ?? DEFAULT_PORT,
@@ -163,6 +186,7 @@ export class OpencodeTextAdapter<
           hostname: this.adapterConfig.hostname,
         }),
         cwd: directory,
+        ...(serverEnv ? { env: serverEnv } : {}),
         ...(externalSignal ? { signal: externalSignal } : {}),
       })
 
@@ -209,7 +233,7 @@ export class OpencodeTextAdapter<
           parentRunId: options.parentRunId,
         }),
         genId: () => this.generateId(),
-        bridgedToolNames: new Set<string>(),
+        bridgedToolNames,
         onStreamEvent: (event) =>
           logger.provider(`provider=opencode kind=${event.kind}`, {
             chunk: event,
@@ -240,6 +264,7 @@ export class OpencodeTextAdapter<
       }
       await handle?.dispose()
       await server?.dispose()
+      await bridge?.close()
     }
   }
 

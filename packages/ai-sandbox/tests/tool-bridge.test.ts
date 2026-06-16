@@ -6,8 +6,8 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
-import { startHostToolBridge } from '../src/tools/mcp-bridge'
-import type { HostToolBridge } from '../src/tools/mcp-bridge'
+import { startHostToolBridge } from '../src/tool-bridge'
+import type { HostToolBridge } from '../src/tool-bridge'
 import type { AnyTool } from '@tanstack/ai'
 
 let bridge: HostToolBridge | undefined
