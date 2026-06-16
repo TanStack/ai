@@ -292,6 +292,16 @@
       ]
     },
     {
+      "label": "Sandboxes",
+      "children": [
+        {
+          "label": "Overview",
+          "to": "sandbox/overview",
+          "addedAt": "2026-06-16"
+        }
+      ]
+    },
+    {
       "label": "Advanced",
       "children": [
         {
