@@ -1,5 +1,13 @@
 # @tanstack/ai-solid-ui
 
+## 0.7.9
+
+### Patch Changes
+
+- Updated dependencies [[`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f)]:
+  - @tanstack/ai-client@0.18.0
+  - @tanstack/ai-solid@0.13.9
+
 ## 0.7.8
 
 ### Patch Changes
