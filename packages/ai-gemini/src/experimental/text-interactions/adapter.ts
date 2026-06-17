@@ -1302,8 +1302,8 @@ async function* translateInteractionEvents(
             const state = toolCalls.get(toolCallId)
             if (!state) break
             const fragment = delta.arguments ?? ''
-            const buffer = (argStringByToolCallId.get(toolCallId) ?? '') +
-              fragment
+            const buffer =
+              (argStringByToolCallId.get(toolCallId) ?? '') + fragment
             argStringByToolCallId.set(toolCallId, buffer)
             // Try to parse the accumulated buffer; if it's not yet a
             // complete JSON object, keep `state.args` whatever the last

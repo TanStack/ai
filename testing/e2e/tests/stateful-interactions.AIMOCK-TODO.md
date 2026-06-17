@@ -15,20 +15,20 @@ the mock's text/tool deltas (empty assistant message → test fails).
 
 Unit coverage for the 2.x adapter is comprehensive and green
 (`packages/ai-gemini/tests/text-interactions-adapter.test.ts`, 25 tests) — those
-feed hand-written 2.x `step.*` events. The fixme'd e2e test is the *only* gap, and
+feed hand-written 2.x `step.*` events. The fixme'd e2e test is the _only_ gap, and
 it is purely a mock-vs-adapter format mismatch.
 
 ---
 
 ## Root cause: zero event-type overlap
 
-| Concern | aimock emits today (**SDK 1.x**) | adapter expects (**SDK 2.x**) |
-| --- | --- | --- |
-| interaction opened | `interaction.start` | `interaction.created` |
-| content block opened | `content.start` | `step.start` |
-| streamed delta | `content.delta` | `step.delta` |
-| content block closed | `content.stop` | `step.stop` |
-| interaction finished | `interaction.complete` | `interaction.completed` |
+| Concern              | aimock emits today (**SDK 1.x**) | adapter expects (**SDK 2.x**) |
+| -------------------- | -------------------------------- | ----------------------------- |
+| interaction opened   | `interaction.start`              | `interaction.created`         |
+| content block opened | `content.start`                  | `step.start`                  |
+| streamed delta       | `content.delta`                  | `step.delta`                  |
+| content block closed | `content.stop`                   | `step.stop`                   |
+| interaction finished | `interaction.complete`           | `interaction.completed`       |
 
 Because **no `event_type` matches**, the adapter's `switch` (in
 `translateInteractionEvents`, `packages/ai-gemini/src/experimental/text-interactions/adapter.ts`)
@@ -84,7 +84,7 @@ envelope `event_type` changes, plus an optional `step.start`/`step.stop` wrapper
 + { event_type: "step.stop", index: 0 }
 ```
 
-Minimum viable fix for *this* test: the adapter lazily opens the assistant
+Minimum viable fix for _this_ test: the adapter lazily opens the assistant
 message on the first `step.delta { type: "text" }`, so renaming
 `content.delta` → `step.delta` alone is enough to make text render. Emitting the
 `step.start { type: "model_output" }` / `step.stop` wrapper is the
@@ -112,6 +112,7 @@ fragment (not a parsed object).
 ```
 
 Adapter contract for tool calls:
+
 - `step.start.step.id` is the tool-call id; the adapter maps `index → id` so
   later `arguments_delta` / `step.stop` at the same `index` resolve correctly.
 - `step.start.step.arguments` may be `{}` (placeholder) when streaming; the real
