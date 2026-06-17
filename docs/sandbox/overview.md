@@ -142,6 +142,67 @@ chat({
 })
 ```
 
+## File-event hooks
+
+Listen to files being created, changed, or deleted inside a sandbox — e.g. to
+watch what the agent edits as it works. The watcher is provider-agnostic: it
+uses native OS watching where the provider supports it (local-process) and falls
+back to a portable `find` poll everywhere else (Docker and other exec-only
+providers), with no extra dependencies or image changes.
+
+Use `watchWorkspace()` as a standalone building block:
+
+```ts
+import { watchWorkspace } from '@tanstack/ai-sandbox'
+
+const handle = await sandbox.ensure({ threadId, runId })
+const watcher = await watchWorkspace(handle, {
+  onEvent: (event) => {
+    // event.type is 'create' | 'change' | 'delete'
+    console.log(`${event.type} ${event.path}`)
+  },
+  ignore: ['.git', 'node_modules'], // default
+})
+// …run the agent…
+await watcher.stop()
+```
+
+Or dispatch to per-type callbacks with `watchWithHooks()`:
+
+```ts
+import { watchWithHooks } from '@tanstack/ai-sandbox'
+
+const watcher = await watchWithHooks(handle, {
+  onCreate: (e) => console.log('created', e.path),
+  onChange: (e) => console.log('changed', e.path),
+  onDelete: (e) => console.log('deleted', e.path),
+})
+```
+
+To surface these into the `chat()` stream so any UI sees edits live, add the
+`withSandboxFileEvents()` middleware alongside `withSandbox(...)`. It emits one
+`CUSTOM` `sandbox.file` event per change, interleaved with the agent's output:
+
+```ts
+import { withSandbox, withSandboxFileEvents } from '@tanstack/ai-sandbox'
+
+const stream = chat({
+  threadId,
+  adapter: claudeCodeText('sonnet'),
+  messages,
+  middleware: [withSandbox(sandbox), withSandboxFileEvents()],
+})
+
+for await (const chunk of stream) {
+  if (chunk.type === 'CUSTOM' && chunk.name === 'sandbox.file') {
+    const value = chunk.value
+    if (value !== null && typeof value === 'object' && 'path' in value) {
+      console.log('file event', value)
+    }
+  }
+}
+```
+
 ## Lifecycle &amp; resume
 
 ```ts
@@ -169,6 +230,8 @@ in-sandbox Claude Code adapter emits:
 
 - `claude-code.session-id` — the resumable harness session id.
 - `file.changed` — the working-tree `git diff` after the run.
+- `sandbox.file` — emitted per file create/change/delete when the
+  `withSandboxFileEvents()` middleware is added (see [File-event hooks](#file-event-hooks)).
 
 ```ts
 for await (const chunk of stream) {
@@ -187,6 +250,11 @@ A runnable end-to-end demo lives at `examples/sandbox-coding-agent`: it clones a
 tiny repo with a deliberate bug into a sandbox, asks Claude Code to fix it,
 streams the agent's output, and prints the resulting diff. Run it with Docker or
 with `SANDBOX=local` on your host (requires `ANTHROPIC_API_KEY`).
+
+`examples/sandbox-issue-triage` goes further: it fetches the first open issue on
+`TanStack/ai`, clones the repo into a sandbox, runs Claude Code to triage it, and
+writes a Markdown report locally — using **file-event hooks** to log the agent's
+edits live. It ships two entrypoints, `pnpm start:process` and `pnpm start:docker`.
 
 > **Persistence-ready:** the sandbox layer ships with in-memory stores for
 > resume bookkeeping. A future persistence package can provide durable

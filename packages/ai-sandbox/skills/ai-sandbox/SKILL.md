@@ -5,8 +5,10 @@ description: >
   defineSandbox + withSandbox + a provider (localProcessSandbox / dockerSandbox).
   Covers defineWorkspace (git/setup/scripts/skills/secrets), defineSandboxPolicy
   (allow/ask/deny), lifecycle/resume, the SandboxHandle (fs/git/process/ports),
-  capability tokens, and the file.changed / claude-code.session-id events. Use
-  whenever a harness adapter needs a sandbox or when building sandbox providers.
+  capability tokens, file-event hooks (watchWorkspace / watchWithHooks /
+  withSandboxFileEvents), and the file.changed / sandbox.file /
+  claude-code.session-id events. Use whenever a harness adapter needs a sandbox
+  or when building sandbox providers.
 type: sub-skill
 library: tanstack-ai
 library_version: '0.1.0'
@@ -88,11 +90,40 @@ const policy = defineSandboxPolicy({
 provider + workspace hash + tenant so changing the repo/setup/image starts
 fresh. Ensure order: resume running → restore snapshot → create + bootstrap.
 
+## File-event hooks
+
+Watch the workspace for create/change/delete events. Provider-agnostic: native
+`fs.watch` on local-process, a portable `find` poll on Docker/exec-only
+providers (no extra deps or image changes).
+
+```typescript
+import {
+  watchWorkspace,
+  watchWithHooks,
+  withSandbox,
+  withSandboxFileEvents,
+} from '@tanstack/ai-sandbox'
+
+// Standalone building block (get the handle via sandbox.ensure):
+const watcher = await watchWorkspace(handle, {
+  onEvent: (e) => console.log(e.type, e.path), // 'create' | 'change' | 'delete'
+  ignore: ['.git', 'node_modules'], // default
+})
+await watcher.stop()
+
+// Or per-type callbacks: watchWithHooks(handle, { onCreate, onChange, onDelete })
+
+// Surface events into the chat() stream as CUSTOM `sandbox.file` events:
+chat({ threadId, adapter, messages, middleware: [withSandbox(sandbox), withSandboxFileEvents()] })
+```
+
 ## Events
 
 - `claude-code.session-id` (CUSTOM) — resumable session id → pass back via
   `modelOptions.sessionId`.
 - `file.changed` (CUSTOM) — `{ path, diff }` working-tree diff after the run.
+- `sandbox.file` (CUSTOM) — `{ type, path, timestamp }` per file event, emitted
+  when `withSandboxFileEvents()` middleware is added.
 
 ## Critical rules
 

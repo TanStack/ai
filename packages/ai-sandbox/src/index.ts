@@ -115,6 +115,21 @@ export {
 } from './approvals'
 export type { ResolveApprovalInput, ApprovalOutcome } from './approvals'
 
+// File-event hooks (watch the workspace for create/change/delete)
+export { watchWorkspace, watchWithHooks, diffSnapshots } from './watch'
+export type {
+  FileEvent,
+  FileEventType,
+  WatchOptions,
+  SandboxWatchHandle,
+  SandboxHooks,
+} from './watch'
+export {
+  withSandboxFileEvents,
+  SANDBOX_FILE_EVENT,
+} from './file-events-middleware'
+export type { SandboxFileEventsOptions } from './file-events-middleware'
+
 // Keying
 export { computeSandboxKey, computeWorkspaceHash } from './key'
 export type { SandboxKeyInput } from './key'

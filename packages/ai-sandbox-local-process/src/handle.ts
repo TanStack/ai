@@ -10,6 +10,7 @@
  * Cloudflare providers.
  */
 import { spawn } from 'node:child_process'
+import { watch as watchFs } from 'node:fs'
 import * as fsp from 'node:fs/promises'
 import * as path from 'node:path'
 import {
@@ -112,6 +113,34 @@ export class LocalProcessHandle implements SandboxHandle {
           return false
         }
       },
+    }
+
+    // Native recursive file watching is supported on Windows/macOS but not
+    // Linux (Node throws ERR_FEATURE_UNAVAILABLE_ON_PLATFORM). Expose the
+    // optional `fs.watch` seam only where it works; on Linux it stays
+    // undefined so `watchWorkspace` falls back to the portable exec-poll path.
+    if (process.platform !== 'linux') {
+      this.fs.watch = (p, onEvent) => {
+        const dir = this.resolve(p)
+        // Emit paths under the requested watch root `p` (not a hardcoded
+        // `/workspace`), so callers watching a sub-path get consistent paths.
+        const base = p.replace(/\/+$/, '')
+        const watcher = watchFs(
+          dir,
+          { recursive: true },
+          (eventType, filename) => {
+            if (filename === null) return
+            const rel = filename.toString().split(path.sep).join('/')
+            onEvent({ type: eventType, path: `${base}/${rel}` })
+          },
+        )
+        return Promise.resolve({
+          stop: () => {
+            watcher.close()
+            return Promise.resolve()
+          },
+        })
+      }
     }
 
     this.process = {
