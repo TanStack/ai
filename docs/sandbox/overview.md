@@ -27,12 +27,12 @@ const repoSandbox = defineSandbox({
   lifecycle: { reuse: 'thread', snapshot: 'after-setup', keepAlive: '30m' },
 })
 
-return chat({
+chat({
   threadId,
   adapter: claudeCodeText('sonnet'),
   messages,
   middleware: [withSandbox(repoSandbox)],
-}).toResponse()
+})
 ```
 
 ## Mental model
@@ -85,6 +85,8 @@ unsupported optional method throws `UnsupportedCapabilityError`.
 adapter projects it into its own native format.
 
 ```ts
+import { defineWorkspace } from '@tanstack/ai-sandbox'
+
 defineWorkspace({
   // Where the working tree comes from.
   source: { type: 'git', url: 'https://github.com/owner/repo', ref: 'main' },
@@ -106,8 +108,8 @@ defineWorkspace({
 harness adapter maps onto its native permission system. Precedence is
 `deny` > `ask` > `allow`, with a configurable `default`.
 
-```ts
-import { defineSandboxPolicy } from '@tanstack/ai-sandbox'
+```ts group=overview
+import { defineSandboxPolicy,  defineSandbox } from '@tanstack/ai-sandbox'
 
 const policy = defineSandboxPolicy({
   commands: {
@@ -150,7 +152,88 @@ uses native OS watching where the provider supports it (local-process) and falls
 back to a portable `find` poll everywhere else (Docker and other exec-only
 providers), with no extra dependencies or image changes.
 
-Use `watchWorkspace()` as a standalone building block:
+Hooks are declared directly on `defineSandbox({ hooks })` (sandbox-scoped, fire
+once per file event regardless of how many runs share the sandbox) or on any
+chat middleware via the `sandbox` group (run-scoped, fired per-run):
+
+```ts
+import { defineSandbox, defineChatMiddleware, withSandbox } from '@tanstack/ai-sandbox'
+import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
+
+// Sandbox-scoped hooks — declared once on the definition.
+const repoSandbox = defineSandbox({
+  id: 'repo-agent',
+  provider: dockerSandbox({ image: 'node:22' }),
+  hooks: {
+    // catch-all: fires for every event
+    onFile:       (e) => console.log(`[${e.type}] ${e.path}`),
+    // type-specific variants
+    onFileCreate: (e) => console.log('created', e.path),
+    onFileChange: (e) => console.log('changed', e.path),
+    onFileDelete: (e) => console.log('deleted', e.path),
+    // lifecycle
+    onReady:   (handle) => console.log('sandbox ready', handle.id),
+    onError:   (err)    => console.error('sandbox error', err),
+    onDestroy: ()       => console.log('sandbox destroyed'),
+  },
+})
+```
+
+To handle file events inside a run-scoped middleware (e.g. for per-request
+audit logging), use the `sandbox` hook group on `defineChatMiddleware`:
+
+```ts
+const auditMiddleware = defineChatMiddleware({
+  name: 'audit',
+  // ctx is the ChatMiddlewareContext for the current run
+  sandbox: {
+    onFile:       (ctx, e) => console.log(ctx.runId, e.type, e.path),
+    onFileCreate: (ctx, e) => db.log({ run: ctx.runId, event: e }),
+  },
+})
+```
+
+Both hook groups fire server-side. The engine automatically emits one `CUSTOM`
+`sandbox.file` event per change into the stream — no extra middleware needed.
+Read it from the `parts` array on the client:
+
+```ts
+for await (const chunk of stream) {
+  if (chunk.type === 'CUSTOM' && chunk.name === 'sandbox.file') {
+    const value = chunk.value
+    if (
+      value !== null &&
+      typeof value === 'object' &&
+      'type' in value &&
+      'path' in value
+    ) {
+      console.log('file event', value) // { type, path, timestamp }
+    }
+  }
+}
+```
+
+To disable file watching for a sandbox entirely, set `fileEvents: false`:
+
+```ts
+const sandbox = defineSandbox({
+  id: 'quiet-agent',
+  provider: dockerSandbox({ image: 'node:22' }),
+  fileEvents: false, // watcher not started; no sandbox.file events emitted
+})
+```
+
+To log sandbox internals (watcher start/stop, event dispatch, lifecycle
+transitions), pass the `sandbox` debug category:
+
+```ts
+chat({ threadId, adapter, messages, debug: true })
+// or selectively:
+chat({ threadId, adapter, messages, debug: { sandbox: true } })
+```
+
+`watchWorkspace()` remains available as a low-level building block for using
+the watcher outside a `chat()` run:
 
 ```ts
 import { watchWorkspace } from '@tanstack/ai-sandbox'
@@ -163,44 +246,8 @@ const watcher = await watchWorkspace(handle, {
   },
   ignore: ['.git', 'node_modules'], // default
 })
-// …run the agent…
+// …do work outside a chat run…
 await watcher.stop()
-```
-
-Or dispatch to per-type callbacks with `watchWithHooks()`:
-
-```ts
-import { watchWithHooks } from '@tanstack/ai-sandbox'
-
-const watcher = await watchWithHooks(handle, {
-  onCreate: (e) => console.log('created', e.path),
-  onChange: (e) => console.log('changed', e.path),
-  onDelete: (e) => console.log('deleted', e.path),
-})
-```
-
-To surface these into the `chat()` stream so any UI sees edits live, add the
-`withSandboxFileEvents()` middleware alongside `withSandbox(...)`. It emits one
-`CUSTOM` `sandbox.file` event per change, interleaved with the agent's output:
-
-```ts
-import { withSandbox, withSandboxFileEvents } from '@tanstack/ai-sandbox'
-
-const stream = chat({
-  threadId,
-  adapter: claudeCodeText('sonnet'),
-  messages,
-  middleware: [withSandbox(sandbox), withSandboxFileEvents()],
-})
-
-for await (const chunk of stream) {
-  if (chunk.type === 'CUSTOM' && chunk.name === 'sandbox.file') {
-    const value = chunk.value
-    if (value !== null && typeof value === 'object' && 'path' in value) {
-      console.log('file event', value)
-    }
-  }
-}
 ```
 
 ## Lifecycle &amp; resume
@@ -230,8 +277,8 @@ in-sandbox Claude Code adapter emits:
 
 - `claude-code.session-id` — the resumable harness session id.
 - `file.changed` — the working-tree `git diff` after the run.
-- `sandbox.file` — emitted per file create/change/delete when the
-  `withSandboxFileEvents()` middleware is added (see [File-event hooks](#file-event-hooks)).
+- `sandbox.file` — emitted per file create/change/delete automatically when a
+  sandbox is active (see [File-event hooks](#file-event-hooks)).
 
 ```ts
 for await (const chunk of stream) {

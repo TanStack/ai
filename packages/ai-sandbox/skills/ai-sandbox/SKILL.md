@@ -5,10 +5,12 @@ description: >
   defineSandbox + withSandbox + a provider (localProcessSandbox / dockerSandbox).
   Covers defineWorkspace (git/setup/scripts/skills/secrets), defineSandboxPolicy
   (allow/ask/deny), lifecycle/resume, the SandboxHandle (fs/git/process/ports),
-  capability tokens, file-event hooks (watchWorkspace / watchWithHooks /
-  withSandboxFileEvents), and the file.changed / sandbox.file /
-  claude-code.session-id events. Use whenever a harness adapter needs a sandbox
-  or when building sandbox providers.
+  capability tokens, defineSandbox hooks (onFile/onFileCreate/onFileChange/
+  onFileDelete/onReady/onError/onDestroy) + fileEvents flag, chat middleware
+  sandbox group (defineChatMiddleware sandbox hooks), the sandbox debug category,
+  watchWorkspace as a low-level building block, and the file.changed /
+  sandbox.file / claude-code.session-id events. Use whenever a harness adapter
+  needs a sandbox or when building sandbox providers.
 type: sub-skill
 library: tanstack-ai
 library_version: '0.1.0'
@@ -96,30 +98,71 @@ Watch the workspace for create/change/delete events. Provider-agnostic: native
 `fs.watch` on local-process, a portable `find` poll on Docker/exec-only
 providers (no extra deps or image changes).
 
-```typescript
-import {
-  watchWorkspace,
-  watchWithHooks,
-  withSandbox,
-  withSandboxFileEvents,
-} from '@tanstack/ai-sandbox'
+Declare hooks on `defineSandbox({ hooks })` (sandbox-scoped) or on any chat
+middleware via the `sandbox` group (run-scoped):
 
-// Standalone building block (get the handle via sandbox.ensure):
+```typescript
+import { defineSandbox, defineChatMiddleware, withSandbox } from '@tanstack/ai-sandbox'
+import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
+
+// Sandbox-scoped hooks (all optional):
+const sandbox = defineSandbox({
+  id: 'repo-agent',
+  provider: dockerSandbox({ image: 'node:22' }),
+  hooks: {
+    onFile:       (e) => console.log(e.type, e.path), // catch-all
+    onFileCreate: (e) => console.log('created', e.path),
+    onFileChange: (e) => console.log('changed', e.path),
+    onFileDelete: (e) => console.log('deleted', e.path),
+    onReady:      (handle) => console.log('ready', handle.id),
+    onError:      (err) => console.error(err),
+    onDestroy:    () => console.log('destroyed'),
+  },
+  fileEvents: true, // default; set false to disable watching entirely
+})
+
+// Run-scoped hooks via chat middleware (ctx is ChatMiddlewareContext):
+const auditMiddleware = defineChatMiddleware({
+  name: 'audit',
+  sandbox: {
+    onFile:       (ctx, e) => console.log(ctx.runId, e.type, e.path),
+    onFileCreate: (ctx, e) => db.log({ run: ctx.runId, event: e }),
+    onFileChange: (ctx, e) => metrics.increment('file.change'),
+    onFileDelete: (ctx, e) => console.warn('deleted', e.path),
+  },
+})
+
+// No extra middleware needed — sandbox.file CUSTOM events are emitted
+// automatically. Read them from the stream:
+for await (const chunk of stream) {
+  if (chunk.type === 'CUSTOM' && chunk.name === 'sandbox.file') {
+    const value = chunk.value
+    if (value !== null && typeof value === 'object' && 'type' in value && 'path' in value) {
+      console.log('file event', value) // { type, path, timestamp }
+    }
+  }
+}
+```
+
+`watchWorkspace()` is available as a low-level building block for watching
+outside a `chat()` run:
+
+```typescript
+import { watchWorkspace } from '@tanstack/ai-sandbox'
+
 const watcher = await watchWorkspace(handle, {
-  onEvent: (e) => console.log(e.type, e.path), // 'create' | 'change' | 'delete'
+  onEvent: (e) => console.log(e.type, e.path),
   ignore: ['.git', 'node_modules'], // default
 })
 await watcher.stop()
+```
 
-// Or per-type callbacks: watchWithHooks(handle, { onCreate, onChange, onDelete })
+Enable the `sandbox` debug category to log watcher start/stop, event dispatch,
+and lifecycle transitions:
 
-// Surface events into the chat() stream as CUSTOM `sandbox.file` events:
-chat({
-  threadId,
-  adapter,
-  messages,
-  middleware: [withSandbox(sandbox), withSandboxFileEvents()],
-})
+```typescript
+chat({ threadId, adapter, messages, debug: { sandbox: true } })
+// or debug: true to enable all categories
 ```
 
 ## Events
@@ -127,8 +170,8 @@ chat({
 - `claude-code.session-id` (CUSTOM) — resumable session id → pass back via
   `modelOptions.sessionId`.
 - `file.changed` (CUSTOM) — `{ path, diff }` working-tree diff after the run.
-- `sandbox.file` (CUSTOM) — `{ type, path, timestamp }` per file event, emitted
-  when `withSandboxFileEvents()` middleware is added.
+- `sandbox.file` (CUSTOM) — `{ type, path, timestamp }` per file create/change/
+  delete, emitted automatically when a sandbox is active.
 
 ## Critical rules
 
