@@ -245,6 +245,9 @@ export function makeCtx(
   const base = {
     requestId: 'req-1',
     streamId: 'stream-1',
+    // Chat contexts always report `activity: 'chat'`; otelMiddleware branches
+    // on it to choose the chat span tree over the single media span.
+    activity: 'chat' as const,
     phase: 'init' as const,
     iteration: 0,
     chunkIndex: 0,

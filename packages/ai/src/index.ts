@@ -118,6 +118,21 @@ export type {
   ErrorInfo,
 } from './activities/chat/middleware/index'
 
+// Base, activity-agnostic middleware. The observe-only superset that media
+// activities accept via their `middleware` option; `ChatMiddleware` adds the
+// chat-only hooks on top. Pure types only — the `otelMiddleware` value lives at
+// `@tanstack/ai/middlewares/otel` so the root barrel never requires the
+// optional `@opentelemetry/api` peer dependency.
+export type {
+  GenerationMiddleware,
+  GenerationMiddlewareContext,
+  GenerationActivity,
+  GenerationUsageInfo,
+  GenerationFinishInfo,
+  GenerationAbortInfo,
+  GenerationErrorInfo,
+  AnyGenerationMiddleware,
+} from './activities/middleware/index'
 // Capability primitives + middleware builder
 export {
   createCapability,

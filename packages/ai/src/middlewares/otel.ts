@@ -8,6 +8,9 @@ import {
   MAX_TOKENS_KEYS,
   NESTED_MAX_TOKENS_KEY,
 } from '../utilities/sampling-keys'
+import { firstNumber } from '../utilities/numbers'
+import { errorMessage, errorTypeName } from '../utilities/errors'
+import { usageAttributes } from './usage-attributes'
 import type {
   AttributeValue,
   Exception,
@@ -20,7 +23,11 @@ import type {
   ChatMiddleware,
   ChatMiddlewareContext,
 } from '../activities/chat/middleware/types'
-import type { TokenUsage } from '../types'
+import type {
+  GenerationActivity,
+  GenerationMiddleware,
+  GenerationMiddlewareContext,
+} from '../activities/middleware/types'
 
 /**
  * Scope (role) of an OTel span emitted by this middleware.
@@ -28,8 +35,10 @@ import type { TokenUsage } from '../types'
  * - `chat` — the root span for a single `chat()` call
  * - `iteration` — one per agent-loop iteration (one model call)
  * - `tool` — one per tool execution inside an iteration
+ * - `generation` — the single span for a media activity call
+ *   (`generateImage`, `generateVideo`, `generateSpeech`, …)
  */
-export type OtelSpanScope = 'chat' | 'iteration' | 'tool'
+export type OtelSpanScope = 'chat' | 'iteration' | 'tool' | 'generation'
 
 /**
  * Alias retained for backwards compatibility. Prefer {@link OtelSpanScope}.
@@ -57,7 +66,24 @@ export type OtelSpanInfo<TScope extends OtelSpanScope = OtelSpanScope> =
             toolName: string
             toolCallId: string
           }
-        : never
+        : TScope extends 'generation'
+          ? { kind: 'generation'; ctx: GenerationMiddlewareContext }
+          : never
+
+/**
+ * `gen_ai.operation.name` per activity. Chat uses the GenAI semconv value;
+ * media operations have no semconv entry yet, so these are the de-facto names
+ * consumed by GenAI backends (PostHog, Langfuse, …). Documented in
+ * `docs/advanced/otel.md`.
+ */
+const OPERATION_NAME: Record<GenerationActivity, string> = {
+  chat: 'chat',
+  image: 'image_generation',
+  video: 'video_generation',
+  audio: 'audio_generation',
+  tts: 'text_to_speech',
+  transcription: 'transcription',
+}
 
 export interface OtelMiddlewareOptions {
   /** OTel `Tracer` used to start root, iteration, and tool spans. */
@@ -106,6 +132,12 @@ interface RequestState {
   assistantTextBuffer: string
   assistantTextBufferTruncated: boolean
   startTime: number
+  /**
+   * Finish reason from the most recent `RUN_FINISHED` chunk. Captured in
+   * `onChunk` so `onFinish` can stamp it on the root span without reading it
+   * from the (base-shaped) finish info, which doesn't carry it.
+   */
+  lastFinishReason: string | null
 }
 
 const stateByCtx = new WeakMap<ChatMiddlewareContext, RequestState>()
@@ -167,91 +199,6 @@ function messageEventName(role: string): string {
   }
 }
 
-/**
- * Return the first candidate that is a finite `number`, or `undefined`. Used to
- * pick a sampling attribute from among the several provider-native spellings.
- */
-function firstNumber(...candidates: Array<unknown>): number | undefined {
-  for (const candidate of candidates) {
-    if (typeof candidate === 'number' && Number.isFinite(candidate)) {
-      return candidate
-    }
-  }
-  return undefined
-}
-
-/**
- * Build the full set of `gen_ai.usage.*` span attributes from a `TokenUsage`.
- *
- * Beyond input/output tokens, this emits provider-reported cost, total tokens,
- * cache and reasoning breakdowns, and duration-based billing — every field is
- * guarded so spans stay clean when a provider doesn't report it. Cache and
- * reasoning use the official GenAI semconv names; `gen_ai.usage.cost` and
- * `gen_ai.usage.total_tokens` are de-facto extensions consumed by backends
- * like PostHog (which otherwise re-derive cost from their own price tables,
- * losing cache discounts and gateway markup). Fields with no semconv or
- * de-facto convention (`costDetails`, `durationSeconds`) are
- * TanStack-namespaced. Deliberately not emitted: `unitsBilled`,
- * `providerUsageDetails`, and the per-modality token breakdowns — those are
- * media-oriented; media-activity observability is tracked in #720.
- */
-function usageAttributes(usage: TokenUsage): Record<string, AttributeValue> {
-  const attrs: Record<string, AttributeValue> = {
-    'gen_ai.usage.input_tokens': usage.promptTokens,
-    'gen_ai.usage.output_tokens': usage.completionTokens,
-  }
-  const optional: Array<[key: string, value: unknown]> = [
-    ['gen_ai.usage.total_tokens', usage.totalTokens],
-    ['gen_ai.usage.cost', usage.cost],
-    [
-      'gen_ai.usage.cache_read.input_tokens',
-      usage.promptTokensDetails?.cachedTokens,
-    ],
-    [
-      'gen_ai.usage.cache_creation.input_tokens',
-      usage.promptTokensDetails?.cacheWriteTokens,
-    ],
-    [
-      'gen_ai.usage.reasoning.output_tokens',
-      usage.completionTokensDetails?.reasoningTokens,
-    ],
-    ['tanstack.ai.usage.duration_seconds', usage.durationSeconds],
-    ['tanstack.ai.usage.upstream_cost', usage.costDetails?.upstreamCost],
-    [
-      'tanstack.ai.usage.upstream_input_cost',
-      usage.costDetails?.upstreamInputCost,
-    ],
-    [
-      'tanstack.ai.usage.upstream_output_cost',
-      usage.costDetails?.upstreamOutputCost,
-    ],
-  ]
-  for (const [key, value] of optional) {
-    const num = firstNumber(value)
-    if (num !== undefined) attrs[key] = num
-  }
-  return attrs
-}
-
-function errorMessage(err: unknown): string | undefined {
-  if (err instanceof Error) return err.message
-  if (typeof err === 'string') return err
-  if (err && typeof err === 'object' && 'message' in err) {
-    const m = (err as { message?: unknown }).message
-    if (typeof m === 'string') return m
-  }
-  return undefined
-}
-
-function errorTypeName(err: unknown): string {
-  if (err instanceof Error) return err.name || 'Error'
-  if (err && typeof err === 'object' && 'name' in err) {
-    const n = (err as { name?: unknown }).name
-    if (typeof n === 'string') return n
-  }
-  return 'Error'
-}
-
 function safeCall<T>(label: string, fn: () => T): T | undefined {
   try {
     return fn()
@@ -264,7 +211,9 @@ function safeCall<T>(label: string, fn: () => T): T | undefined {
   }
 }
 
-export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
+export function otelMiddleware(
+  options: OtelMiddlewareOptions,
+): GenerationMiddleware & ChatMiddleware {
   const {
     tracer,
     meter,
@@ -333,20 +282,89 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
     state.currentIterationSpan = null
   }
 
+  // --- Media activities -----------------------------------------------------
+  // Media calls (image/video/audio/tts/transcription) are single request →
+  // response, so they get exactly one CLIENT span — opened in `onStart` and
+  // closed in the terminal hook. Keyed by the per-call context object, which is
+  // distinct from the chat state map above so the two paths never collide.
+  const mediaSpans = new WeakMap<GenerationMiddlewareContext, Span>()
+
+  const recordMediaDuration = (
+    ctx: GenerationMiddlewareContext,
+    durationMs: number,
+    errorType?: string,
+  ): void => {
+    if (!durationHistogram) return
+    durationHistogram.record(durationMs / 1000, {
+      'gen_ai.system': ctx.provider,
+      'gen_ai.operation.name': OPERATION_NAME[ctx.activity],
+      'gen_ai.request.model': ctx.model,
+      ...(errorType ? { 'error.type': errorType } : {}),
+    })
+  }
+
+  const startMediaSpan = (ctx: GenerationMiddlewareContext): void => {
+    safeCall('otel.onStart', () => {
+      const operationName = OPERATION_NAME[ctx.activity]
+      const info: OtelSpanInfo<'generation'> = { kind: 'generation', ctx }
+      const name =
+        safeCall('otel.spanNameFormatter', () => spanNameFormatter?.(info)) ??
+        `${operationName} ${ctx.model}`
+      const baseOptions: SpanOptions = {
+        kind: SpanKind.CLIENT,
+        attributes: {
+          'gen_ai.system': ctx.provider,
+          'gen_ai.operation.name': operationName,
+          'gen_ai.request.model': ctx.model,
+        },
+      }
+      const spanOptions =
+        safeCall('otel.onBeforeSpanStart', () =>
+          onBeforeSpanStart?.(info, baseOptions),
+        ) ?? baseOptions
+      const span = tracer.startSpan(name, spanOptions)
+      const enriched = safeCall('otel.attributeEnricher', () =>
+        attributeEnricher?.(info),
+      )
+      if (enriched) span.setAttributes(enriched)
+      mediaSpans.set(ctx, span)
+    })
+  }
+
+  const endMediaSpan = (
+    ctx: GenerationMiddlewareContext,
+    finalize: (span: Span) => void,
+  ): void => {
+    const span = mediaSpans.get(ctx)
+    mediaSpans.delete(ctx)
+    if (!span) return
+    finalize(span)
+    safeCall('otel.onSpanEnd', () => onSpanEnd?.({ kind: 'generation', ctx }, span))
+    span.end()
+  }
+
   return {
     name: 'otel',
 
     onStart(ctx) {
+      // Media activities get one CLIENT span; chat builds the root/iteration
+      // tree below. The cast is sound: the chat runner only ever passes a
+      // ChatMiddlewareContext, which `activity: 'chat'` narrows to at runtime.
+      if (ctx.activity !== 'chat') {
+        startMediaSpan(ctx)
+        return
+      }
+      const chatCtx = ctx as ChatMiddlewareContext
       safeCall('otel.onStart', () => {
-        const info: OtelSpanInfo<'chat'> = { kind: 'chat', ctx }
+        const info: OtelSpanInfo<'chat'> = { kind: 'chat', ctx: chatCtx }
         const name =
           safeCall('otel.spanNameFormatter', () => spanNameFormatter?.(info)) ??
-          `chat ${ctx.model}`
+          `chat ${chatCtx.model}`
         const baseOptions: SpanOptions = {
           kind: SpanKind.INTERNAL,
           attributes: {
-            'gen_ai.system': ctx.provider,
-            'gen_ai.request.model': ctx.model,
+            'gen_ai.system': chatCtx.provider,
+            'gen_ai.request.model': chatCtx.model,
             // NOTE: `gen_ai.operation.name` is deliberately NOT set on the
             // root span. The root represents a `chat()` invocation that may
             // span multiple model calls; only iteration spans correspond to
@@ -366,7 +384,7 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
         )
         if (enriched) rootSpan.setAttributes(enriched)
 
-        stateByCtx.set(ctx, {
+        stateByCtx.set(chatCtx, {
           rootSpan,
           currentIterationSpan: null,
           toolSpans: new Map(),
@@ -374,6 +392,7 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
           assistantTextBuffer: '',
           assistantTextBufferTruncated: false,
           startTime: Date.now(),
+          lastFinishReason: null,
         })
       })
     },
@@ -562,6 +581,9 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
         }
 
         if (chunk.type !== 'RUN_FINISHED') return
+        // Capture for the root-span finish_reasons attribute set in onFinish,
+        // which receives base-shaped info without a finishReason field.
+        if (chunk.finishReason) state.lastFinishReason = chunk.finishReason
         const span = state.currentIterationSpan
         if (!span) return
 
@@ -611,8 +633,19 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
     },
 
     onUsage(ctx, usage) {
+      if (ctx.activity !== 'chat') {
+        // Media: stamp usage on the single span. No token histogram — media
+        // unit billing lands as span attributes via usageAttributes, matching
+        // prior media behavior and avoiding chat-shaped token metrics.
+        safeCall('otel.onUsage', () => {
+          const span = mediaSpans.get(ctx)
+          if (span) span.setAttributes(usageAttributes(usage))
+        })
+        return
+      }
+      const chatCtx = ctx as ChatMiddlewareContext
       safeCall('otel.onUsage', () => {
-        const state = stateByCtx.get(ctx)
+        const state = stateByCtx.get(chatCtx)
         if (!state) return
 
         // Always record the token histogram — metrics don't depend on having
@@ -620,9 +653,9 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
         // adapter emits `onUsage` outside the iteration window.
         if (tokenHistogram) {
           const metricAttrs = {
-            'gen_ai.system': ctx.provider,
+            'gen_ai.system': chatCtx.provider,
             'gen_ai.operation.name': 'chat',
-            'gen_ai.request.model': ctx.model,
+            'gen_ai.request.model': chatCtx.model,
           }
           tokenHistogram.record(usage.promptTokens, {
             ...metricAttrs,
@@ -773,8 +806,23 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
     },
 
     onError(ctx, info) {
+      if (ctx.activity !== 'chat') {
+        safeCall('otel.onError', () => {
+          const message = errorMessage(info.error)
+          endMediaSpan(ctx, (span) => {
+            span.recordException(info.error as Exception)
+            span.setStatus({
+              code: SpanStatusCode.ERROR,
+              ...(message !== undefined ? { message } : {}),
+            })
+          })
+          recordMediaDuration(ctx, info.duration, errorTypeName(info.error))
+        })
+        return
+      }
+      const chatCtx = ctx as ChatMiddlewareContext
       safeCall('otel.onError', () => {
-        const state = stateByCtx.get(ctx)
+        const state = stateByCtx.get(chatCtx)
         if (!state) return
 
         const errType = errorTypeName(info.error)
@@ -794,7 +842,7 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
             onSpanEnd?.(
               {
                 kind: 'iteration',
-                ctx,
+                ctx: chatCtx,
                 iteration: state.iterationCount - 1,
               },
               iterationSpan,
@@ -812,7 +860,7 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
             onSpanEnd?.(
               {
                 kind: 'tool',
-                ctx,
+                ctx: chatCtx,
                 toolCallId: id,
                 toolName,
                 iteration: state.iterationCount - 1,
@@ -832,24 +880,39 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
 
         if (durationHistogram) {
           durationHistogram.record(info.duration / 1000, {
-            'gen_ai.system': ctx.provider,
+            'gen_ai.system': chatCtx.provider,
             'gen_ai.operation.name': 'chat',
-            'gen_ai.request.model': ctx.model,
+            'gen_ai.request.model': chatCtx.model,
             'error.type': errType,
           })
         }
 
         safeCall('otel.onSpanEnd', () =>
-          onSpanEnd?.({ kind: 'chat', ctx }, state.rootSpan),
+          onSpanEnd?.({ kind: 'chat', ctx: chatCtx }, state.rootSpan),
         )
         state.rootSpan.end()
-        stateByCtx.delete(ctx)
+        stateByCtx.delete(chatCtx)
       })
     },
 
     onAbort(ctx, info) {
+      if (ctx.activity !== 'chat') {
+        // Media abandonment (e.g. a video stream dropped before completion).
+        safeCall('otel.onAbort', () => {
+          endMediaSpan(ctx, (span) => {
+            span.setAttribute('tanstack.ai.completion.reason', 'cancelled')
+            span.setStatus({
+              code: SpanStatusCode.ERROR,
+              message: info.reason ?? 'cancelled',
+            })
+          })
+          recordMediaDuration(ctx, info.duration, 'cancelled')
+        })
+        return
+      }
+      const chatCtx = ctx as ChatMiddlewareContext
       safeCall('otel.onAbort', () => {
-        const state = stateByCtx.get(ctx)
+        const state = stateByCtx.get(chatCtx)
         if (!state) return
 
         const closeCancelled = (span: Span): void => {
@@ -867,7 +930,7 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
             onSpanEnd?.(
               {
                 kind: 'iteration',
-                ctx,
+                ctx: chatCtx,
                 iteration: state.iterationCount - 1,
               },
               iterationSpan,
@@ -883,7 +946,7 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
             onSpanEnd?.(
               {
                 kind: 'tool',
-                ctx,
+                ctx: chatCtx,
                 toolCallId: id,
                 toolName,
                 iteration: state.iterationCount - 1,
@@ -898,24 +961,34 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
 
         if (durationHistogram) {
           durationHistogram.record(info.duration / 1000, {
-            'gen_ai.system': ctx.provider,
+            'gen_ai.system': chatCtx.provider,
             'gen_ai.operation.name': 'chat',
-            'gen_ai.request.model': ctx.model,
+            'gen_ai.request.model': chatCtx.model,
             'error.type': 'cancelled',
           })
         }
 
         safeCall('otel.onSpanEnd', () =>
-          onSpanEnd?.({ kind: 'chat', ctx }, state.rootSpan),
+          onSpanEnd?.({ kind: 'chat', ctx: chatCtx }, state.rootSpan),
         )
         state.rootSpan.end()
-        stateByCtx.delete(ctx)
+        stateByCtx.delete(chatCtx)
       })
     },
 
     onFinish(ctx, info) {
+      if (ctx.activity !== 'chat') {
+        safeCall('otel.onFinish', () => {
+          endMediaSpan(ctx, (span) => {
+            if (info.usage) span.setAttributes(usageAttributes(info.usage))
+          })
+          recordMediaDuration(ctx, info.duration)
+        })
+        return
+      }
+      const chatCtx = ctx as ChatMiddlewareContext
       safeCall('otel.onFinish', () => {
-        const state = stateByCtx.get(ctx)
+        const state = stateByCtx.get(chatCtx)
         if (!state) return
 
         // Close any tool spans that never received `onAfterToolCall` (adapter
@@ -928,7 +1001,7 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
             onSpanEnd?.(
               {
                 kind: 'tool',
-                ctx,
+                ctx: chatCtx,
                 toolCallId: id,
                 toolName,
                 iteration: state.iterationCount - 1,
@@ -942,22 +1015,22 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
 
         // The final iteration's span is still open because we keep it open
         // through tool execution and `onUsage`. Close it now.
-        closeIterationSpan(state, ctx)
+        closeIterationSpan(state, chatCtx)
 
         if (durationHistogram) {
           durationHistogram.record(info.duration / 1000, {
-            'gen_ai.system': ctx.provider,
+            'gen_ai.system': chatCtx.provider,
             'gen_ai.operation.name': 'chat',
-            'gen_ai.request.model': ctx.model,
+            'gen_ai.request.model': chatCtx.model,
           })
         }
 
         if (info.usage) {
           state.rootSpan.setAttributes(usageAttributes(info.usage))
         }
-        if (info.finishReason) {
+        if (state.lastFinishReason) {
           state.rootSpan.setAttribute('gen_ai.response.finish_reasons', [
-            info.finishReason,
+            state.lastFinishReason,
           ])
         }
         state.rootSpan.setAttribute(
@@ -966,10 +1039,10 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
         )
 
         safeCall('otel.onSpanEnd', () =>
-          onSpanEnd?.({ kind: 'chat', ctx }, state.rootSpan),
+          onSpanEnd?.({ kind: 'chat', ctx: chatCtx }, state.rootSpan),
         )
         state.rootSpan.end()
-        stateByCtx.delete(ctx)
+        stateByCtx.delete(chatCtx)
       })
     },
   }

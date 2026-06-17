@@ -80,6 +80,7 @@ function makeRunnerCtx(): ChatMiddlewareContext {
     streamId: 's',
     runId: 'run',
     threadId: 't',
+    activity: 'chat',
     phase: 'init',
     iteration: 0,
     chunkIndex: 0,

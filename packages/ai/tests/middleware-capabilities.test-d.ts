@@ -3,8 +3,14 @@ import { chat } from '../src'
 import { createCapability } from '../src/activities/chat/middleware/capabilities'
 import { defineChatMiddleware } from '../src/activities/chat/middleware/define'
 import { createChatMiddleware } from '../src/activities/chat/middleware/builder'
+import { otelMiddleware } from '../src/middlewares/otel'
+import type { Tracer } from '@opentelemetry/api'
 import type { AnyTextAdapter } from '../src/activities/chat/adapter'
-import type { ChatMiddlewareContext } from '../src/activities/chat/middleware/types'
+import type {
+  ChatMiddleware,
+  ChatMiddlewareContext,
+} from '../src/activities/chat/middleware/types'
+import type { GenerationMiddleware } from '../src/activities/middleware'
 
 const aCap = createCapability<{ a: number }>()('a')
 const bCap = createCapability<{ b: string }>()('b')
@@ -101,3 +107,35 @@ expectTypeOf(ctx.getOptional(persistenceCap)).toEqualTypeOf<
 
 // @ts-expect-error a middleware is not a capability identity.
 ctx.get(providesPersistence)
+
+// ===========================
+// Base GenerationMiddleware ↔ ChatMiddleware boundary
+// ===========================
+
+declare const tracer: Tracer
+
+// otelMiddleware is a superset value: one instance satisfies BOTH the base
+// generation contract (so it drops into a media `middleware: []` slot) and the
+// chat contract. Its shared hooks are authored against the base context, so
+// parameter contravariance lets the single value flow to either slot.
+expectTypeOf(otelMiddleware({ tracer })).toMatchTypeOf<GenerationMiddleware>()
+expectTypeOf(otelMiddleware({ tracer })).toMatchTypeOf<ChatMiddleware>()
+
+// A media activity's `middleware` slot accepts the same otel value.
+const mediaMiddleware: Array<GenerationMiddleware> = [otelMiddleware({ tracer })]
+expectTypeOf(mediaMiddleware).toEqualTypeOf<Array<GenerationMiddleware>>()
+
+// The boundary the design depends on: a chat middleware that reads a chat-only
+// context field (`ctx.messages`) is NOT assignable to the base contract. Its
+// hooks require the richer ChatMiddlewareContext, and parameter contravariance
+// rejects passing a base context to them — this is what keeps chat-only hooks
+// from being silently invoked on a media activity.
+const chatReadsMessages = defineChatMiddleware({
+  name: 'reads-messages',
+  onStart(c) {
+    void c.messages.length
+  },
+})
+// @ts-expect-error chat middleware is not assignable to GenerationMiddleware.
+const _baseSlot: GenerationMiddleware = chatReadsMessages
+void _baseSlot
