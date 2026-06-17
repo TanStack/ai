@@ -42,3 +42,4 @@ allowBuilds:
   unrs-resolver: false
   workerd: false
   '@google/genai': false
+  lmdb: true

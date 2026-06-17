@@ -5,6 +5,7 @@ import {
   fetchHttpStream,
 } from '@tanstack/ai-react'
 import { generateVideoFn } from '@/lib/server-functions'
+import type { MediaPrompt } from '@tanstack/ai'
 import type { Mode, Provider } from '@/lib/types'
 import type { VideoGenerateResult } from '@tanstack/ai-client'
 
@@ -13,6 +14,29 @@ interface VideoGenUIProps {
   mode: Mode
   testId?: string
   aimockPort?: number
+  /** Show a file input and send the prompt as multimodal parts (image-to-video). */
+  withImageInput?: boolean
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = reader.result
+      if (typeof result !== 'string') {
+        reject(new Error('Unexpected FileReader result'))
+        return
+      }
+      const base64 = result.split(',')[1]
+      if (!base64) {
+        reject(new Error(`Unexpected data URL format: ${result.slice(0, 32)}…`))
+        return
+      }
+      resolve(base64)
+    }
+    reader.onerror = () => reject(new Error('Failed to read file'))
+    reader.readAsDataURL(file)
+  })
 }
 
 export function VideoGenUI({
@@ -20,8 +44,10 @@ export function VideoGenUI({
   mode,
   testId,
   aimockPort,
+  withImageInput,
 }: VideoGenUIProps) {
   const [prompt, setPrompt] = useState('')
+  const [imageFile, setImageFile] = useState<File | null>(null)
 
   const connectionOptions = () => {
     const body = { provider, testId, aimockPort }
@@ -33,7 +59,7 @@ export function VideoGenUI({
       return { connection: fetchHttpStream('/api/video/stream'), body }
     }
     return {
-      fetcher: async (input: { prompt: string }) => {
+      fetcher: async (input: { prompt: MediaPrompt }) => {
         return generateVideoFn({
           data: { prompt: input.prompt, provider, aimockPort, testId },
         }) as Promise<VideoGenerateResult>
@@ -43,6 +69,23 @@ export function VideoGenUI({
 
   const { generate, result, videoStatus, isLoading, error, status } =
     useGenerateVideo(connectionOptions())
+
+  const handleGenerate = async () => {
+    if (!imageFile) {
+      await generate({ prompt })
+      return
+    }
+    const base64 = await fileToBase64(imageFile)
+    await generate({
+      prompt: [
+        { type: 'text', content: prompt },
+        {
+          type: 'image',
+          source: { type: 'data', value: base64, mimeType: imageFile.type },
+        },
+      ],
+    })
+  }
 
   return (
     <div className="p-4 space-y-4">
@@ -57,13 +100,22 @@ export function VideoGenUI({
         />
         <button
           data-testid="generate-button"
-          onClick={() => generate({ prompt })}
+          onClick={handleGenerate}
           disabled={!prompt.trim() || isLoading}
           className="px-4 py-2 bg-orange-500 text-white rounded text-sm font-medium disabled:opacity-50"
         >
           Generate
         </button>
       </div>
+      {withImageInput && (
+        <input
+          data-testid="image-input"
+          type="file"
+          accept="image/*"
+          onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
+          className="text-sm text-gray-400"
+        />
+      )}
       <div data-testid="generation-status">
         {status === 'idle'
           ? 'idle'

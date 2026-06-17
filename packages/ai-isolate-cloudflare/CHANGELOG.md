@@ -1,5 +1,28 @@
 # @tanstack/ai-isolate-cloudflare
 
+## 0.2.24
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-code-mode@0.2.8
+
+## 0.2.23
+
+### Patch Changes
+
+- [#769](https://github.com/TanStack/ai/pull/769) [`1d1bb52`](https://github.com/TanStack/ai/commit/1d1bb5219a38d9718cc926148e93fc27d5d2305b) - Add repository metadata (`homepage`, `bugs`, `funding`), fix `repository.directory` to point at each package, and include an MIT `LICENSE` file in every published package.
+
+- Updated dependencies [[`1d1bb52`](https://github.com/TanStack/ai/commit/1d1bb5219a38d9718cc926148e93fc27d5d2305b)]:
+  - @tanstack/ai-code-mode@0.2.7
+
+## 0.2.22
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-code-mode@0.2.6
+
 ## 0.2.21
 
 ### Patch Changes

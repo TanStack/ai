@@ -1,5 +1,51 @@
 # @tanstack/ai-client
 
+## 0.17.3
+
+### Patch Changes
+
+- Updated dependencies [[`07aaf8b`](https://github.com/TanStack/ai/commit/07aaf8b9e5a8e699be25f936cc9cd651a46c16c5)]:
+  - @tanstack/ai@0.31.0
+  - @tanstack/ai-event-client@0.6.2
+
+## 0.17.2
+
+### Patch Changes
+
+- [#752](https://github.com/TanStack/ai/pull/752) [`4d5141c`](https://github.com/TanStack/ai/commit/4d5141c128c0e9bd33cdbf36a5402811cefc3f8b) - Fix `ChatClient` throwing `TypeError: this.devtoolsBridge.mountWithTools is not a function` on the first `sendMessage()` (and on `updateOptions({ tools })`) when no devtools bridge factory is supplied. The default `NoOpChatDevtoolsBridge` was missing the `mountWithTools`, `notifyToolsChanged`, and `recordStreamId` methods of the real bridge; the throw happened before the user message was appended, so the first message was silently lost. The compile-time parity check between the real and no-op bridges now fails the build when the surfaces drift.
+
+## 0.17.1
+
+### Patch Changes
+
+- [#769](https://github.com/TanStack/ai/pull/769) [`1d1bb52`](https://github.com/TanStack/ai/commit/1d1bb5219a38d9718cc926148e93fc27d5d2305b) - Add repository metadata (`homepage`, `bugs`, `funding`), fix `repository.directory` to point at each package, and include an MIT `LICENSE` file in every published package.
+
+- Updated dependencies [[`7103348`](https://github.com/TanStack/ai/commit/71033488212bff05dcccc857e721ab9262ebc2a6), [`1d1bb52`](https://github.com/TanStack/ai/commit/1d1bb5219a38d9718cc926148e93fc27d5d2305b)]:
+  - @tanstack/ai@0.30.0
+  - @tanstack/ai-event-client@0.6.1
+
+## 0.17.0
+
+### Minor Changes
+
+- [#727](https://github.com/TanStack/ai/pull/727) [`7d44569`](https://github.com/TanStack/ai/commit/7d445693ea079d7a85498a4465179ddd5f548cb0) - Add an `'error'` terminal to `ToolCallState`. When a tool execution produces an output error, the StreamProcessor now transitions the `tool-call` part to `state: 'error'` instead of parking it at `'input-complete'`.
+
+  Previously an errored tool call left the tool-call part at `'input-complete'` forever, so UIs that render lifecycle from the part's `state` could not distinguish "still executing" from "failed" without reverse-engineering the error-shaped `output` or the sibling `tool-result` part. The new terminal makes the tool-call state machine self-describing and symmetric with `ToolResultState` (which already has `'error'`):
+
+  ```ts
+  if (part.type === 'tool-call' && part.state === 'error') {
+    // render failure — no more inferring from output shape
+  }
+  ```
+
+  The completion safety net (`RUN_FINISHED` / stream finalization) no longer downgrades a failed tool call back to `'input-complete'`, including when an `output-error` result arrives before `TOOL_CALL_END`.
+
+### Patch Changes
+
+- Updated dependencies [[`ff267a5`](https://github.com/TanStack/ai/commit/ff267a5536327b006979f9f28ce2df7cc27f6e23), [`570c08a`](https://github.com/TanStack/ai/commit/570c08a8d1a35746c3d31a63188249cba2d2475a), [`ff267a5`](https://github.com/TanStack/ai/commit/ff267a5536327b006979f9f28ce2df7cc27f6e23), [`22c9b42`](https://github.com/TanStack/ai/commit/22c9b42baec74914b720e440f29bd02be04eb164), [`215b6b4`](https://github.com/TanStack/ai/commit/215b6b401aa95d1d38da342aa09603cb1d616929), [`7d44569`](https://github.com/TanStack/ai/commit/7d445693ea079d7a85498a4465179ddd5f548cb0)]:
+  - @tanstack/ai@0.29.0
+  - @tanstack/ai-event-client@0.6.0
+
 ## 0.16.3
 
 ### Patch Changes

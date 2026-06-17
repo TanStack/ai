@@ -1,13 +1,21 @@
 {
   "name": "@tanstack/ai-openai",
-  "version": "0.14.1",
+  "version": "0.14.4",
   "description": "OpenAI adapter for TanStack AI chat, tools, images, video, speech, transcription, realtime, and structured outputs.",
-  "author": "",
+  "author": "Tanner Linsley",
   "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/TanStack/ai.git",
     "directory": "packages/ai-openai"
+  },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
   },
   "type": "module",
   "module": "./dist/esm/index.js",

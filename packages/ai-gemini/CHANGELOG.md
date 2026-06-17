@@ -1,5 +1,48 @@
 # @tanstack/ai-gemini
 
+## 0.16.2
+
+### Patch Changes
+
+- Updated dependencies [[`07aaf8b`](https://github.com/TanStack/ai/commit/07aaf8b9e5a8e699be25f936cc9cd651a46c16c5)]:
+  - @tanstack/ai@0.31.0
+
+## 0.16.1
+
+### Patch Changes
+
+- [#769](https://github.com/TanStack/ai/pull/769) [`1d1bb52`](https://github.com/TanStack/ai/commit/1d1bb5219a38d9718cc926148e93fc27d5d2305b) - Add repository metadata (`homepage`, `bugs`, `funding`), fix `repository.directory` to point at each package, and include an MIT `LICENSE` file in every published package.
+
+- Updated dependencies [[`7103348`](https://github.com/TanStack/ai/commit/71033488212bff05dcccc857e721ab9262ebc2a6), [`1d1bb52`](https://github.com/TanStack/ai/commit/1d1bb5219a38d9718cc926148e93fc27d5d2305b)]:
+  - @tanstack/ai@0.30.0
+  - @tanstack/ai-utils@0.2.2
+
+## 0.16.0
+
+### Minor Changes
+
+- [#714](https://github.com/TanStack/ai/pull/714) [`efa76c8`](https://github.com/TanStack/ai/commit/efa76c8cdac37f402a0b35d74538ed2ae477e45c) - Sync Gemini model metadata with Google's current published model list ([#620](https://github.com/TanStack/ai/issues/620), [#621](https://github.com/TanStack/ai/issues/621)).
+
+  **Added**
+  - `gemini-3.1-flash-lite` (stable GA) — joins the existing `gemini-3.1-flash-lite-preview` entry and qualifies for the native combined tools + `responseSchema` streaming path (`GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS`).
+
+  **Removed (retired by Google — these ids now 404 against the Gemini API or are no longer published)**
+  - `gemini-3-pro-preview` (verified 404; superseded by `gemini-3.1-pro-preview`)
+  - `gemini-2.5-flash-preview-09-2025` (superseded by stable `gemini-2.5-flash`)
+  - `gemini-2.5-flash-lite-preview-09-2025` (superseded by stable `gemini-2.5-flash-lite`)
+  - `gemini-2.0-flash` and `gemini-2.0-flash-lite` (2.0 line retired from Google's published list)
+  - `gemini-2.0-flash-preview-image-generation` (image; superseded by `gemini-2.5-flash-image`)
+
+  **Fixed**
+  - `gemini-3.5-flash` was missing from `GeminiChatModelToolCapabilitiesByName`, leaving its provider-tool typing broken.
+
+  If you were passing a removed id to `geminiText()` / `geminiSummarize()`, switch to the listed successor (e.g. `gemini-2.0-flash` → `gemini-2.5-flash`).
+
+### Patch Changes
+
+- Updated dependencies [[`ff267a5`](https://github.com/TanStack/ai/commit/ff267a5536327b006979f9f28ce2df7cc27f6e23), [`570c08a`](https://github.com/TanStack/ai/commit/570c08a8d1a35746c3d31a63188249cba2d2475a), [`22c9b42`](https://github.com/TanStack/ai/commit/22c9b42baec74914b720e440f29bd02be04eb164), [`215b6b4`](https://github.com/TanStack/ai/commit/215b6b401aa95d1d38da342aa09603cb1d616929), [`7d44569`](https://github.com/TanStack/ai/commit/7d445693ea079d7a85498a4465179ddd5f548cb0)]:
+  - @tanstack/ai@0.29.0
+
 ## 0.15.1
 
 ### Patch Changes

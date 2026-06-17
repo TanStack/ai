@@ -1,5 +1,23 @@
 # @tanstack/ai-solid-ui
 
+## 0.7.8
+
+### Patch Changes
+
+- [#769](https://github.com/TanStack/ai/pull/769) [`1d1bb52`](https://github.com/TanStack/ai/commit/1d1bb5219a38d9718cc926148e93fc27d5d2305b) - Add repository metadata (`homepage`, `bugs`, `funding`), fix `repository.directory` to point at each package, and include an MIT `LICENSE` file in every published package.
+
+- Updated dependencies [[`1d1bb52`](https://github.com/TanStack/ai/commit/1d1bb5219a38d9718cc926148e93fc27d5d2305b)]:
+  - @tanstack/ai-client@0.17.1
+  - @tanstack/ai-solid@0.13.6
+
+## 0.7.7
+
+### Patch Changes
+
+- Updated dependencies [[`7d44569`](https://github.com/TanStack/ai/commit/7d445693ea079d7a85498a4465179ddd5f548cb0)]:
+  - @tanstack/ai-client@0.17.0
+  - @tanstack/ai-solid@0.13.5
+
 ## 0.7.6
 
 ### Patch Changes

@@ -118,11 +118,29 @@ export type {
   ErrorInfo,
 } from './activities/chat/middleware/index'
 
+// Capability primitives + middleware builder
+export {
+  createCapability,
+  defineChatMiddleware,
+  createChatMiddleware,
+} from './activities/chat/middleware/index'
+export type {
+  Capability,
+  CapabilityHandle,
+  CapabilityContext,
+  CapabilityGetter,
+  CapabilityProvider,
+} from './activities/chat/middleware/index'
+
 // All types
 export * from './types'
 
 // Usage utilities
 export { buildBaseUsage, type BaseUsageInput } from './utilities/usage'
+
+// Media-generation prompt resolution (used by image / video adapters)
+export { resolveMediaPrompt } from './utilities/media-prompt'
+export type { ResolvedMediaPrompt } from './utilities/media-prompt'
 
 // System prompts (type + normaliser used by adapters)
 export type { SystemPrompt, NormalizedSystemPrompt } from './system-prompts'

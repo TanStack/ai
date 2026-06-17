@@ -25,6 +25,9 @@ class TestOpenAIImageAdapter<
   spyOnImagesGenerate() {
     return vi.spyOn(this.client.images, 'generate')
   }
+  spyOnImagesEdit() {
+    return vi.spyOn(this.client.images, 'edit')
+  }
 }
 
 describe('OpenAI Image Adapter', () => {
@@ -205,6 +208,24 @@ describe('OpenAI Image Adapter', () => {
       })
     })
 
+    it('throws when the response contains no usable images', async () => {
+      const adapter = new TestOpenAIImageAdapter(
+        { apiKey: 'test-api-key' },
+        'gpt-image-1',
+      )
+      adapter
+        .spyOnImagesGenerate()
+        .mockResolvedValueOnce({ created: 0, data: [{}] })
+
+      await expect(
+        adapter.generateImages({
+          model: 'gpt-image-1',
+          prompt: 'A cat',
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/image response contained no images/)
+    })
+
     it('generates a unique ID for each response', async () => {
       const mockResponse: OpenAI.Images.ImagesResponse = {
         created: 0,
@@ -232,6 +253,190 @@ describe('OpenAI Image Adapter', () => {
       expect(result1.id).not.toBe(result2.id)
       expect(result1.id).toMatch(/^openai-/)
       expect(result2.id).toMatch(/^openai-/)
+    })
+  })
+
+  describe('multimodal prompt (image-conditioned generation)', () => {
+    const imagesEditResponse: OpenAI.Images.ImagesResponse = {
+      created: 0,
+      data: [{ b64_json: 'edited-base64' }],
+    }
+
+    it('routes to images.edit() for gpt-image-1 when the prompt has image parts', async () => {
+      const adapter = new TestOpenAIImageAdapter(
+        { apiKey: 'test-api-key' },
+        'gpt-image-1',
+      )
+      const editSpy = adapter
+        .spyOnImagesEdit()
+        .mockResolvedValueOnce(imagesEditResponse)
+      const generateSpy = adapter.spyOnImagesGenerate()
+
+      const result = await adapter.generateImages({
+        model: 'gpt-image-1',
+        prompt: [
+          { type: 'text', content: 'Make it cinematic' },
+          {
+            type: 'image',
+            source: {
+              type: 'data',
+              value: 'aGVsbG8=',
+              mimeType: 'image/png',
+            },
+          },
+        ],
+        logger: testLogger,
+      })
+
+      expect(generateSpy).not.toHaveBeenCalled()
+      expect(editSpy).toHaveBeenCalledTimes(1)
+      const editArgs = editSpy.mock.calls[0]![0]
+      expect(editArgs.model).toBe('gpt-image-1')
+      expect(editArgs.prompt).toBe('Make it cinematic')
+      expect(editArgs.image).toBeInstanceOf(File)
+      expect(result.images[0]!.b64Json).toBe('edited-base64')
+    })
+
+    it('rejects dall-e-3 with a clear error when the prompt has image parts', async () => {
+      const adapter = new TestOpenAIImageAdapter(
+        { apiKey: 'test-api-key' },
+        'dall-e-3',
+      )
+
+      await expect(
+        adapter.generateImages({
+          model: 'dall-e-3',
+          prompt: [
+            { type: 'text', content: 'edit' },
+            {
+              type: 'image',
+              source: { type: 'data', value: 'aGk=', mimeType: 'image/png' },
+            },
+          ],
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/does not support image prompt parts/)
+    })
+
+    it('rejects dall-e-2 when more than one source image is provided', async () => {
+      const adapter = new TestOpenAIImageAdapter(
+        { apiKey: 'test-api-key' },
+        'dall-e-2',
+      )
+
+      await expect(
+        adapter.generateImages({
+          model: 'dall-e-2',
+          prompt: [
+            { type: 'text', content: 'edit' },
+            {
+              type: 'image',
+              source: { type: 'data', value: 'aGk=', mimeType: 'image/png' },
+            },
+            {
+              type: 'image',
+              source: {
+                type: 'data',
+                value: 'YnllCg==',
+                mimeType: 'image/png',
+              },
+            },
+          ],
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/at most 1 source image/)
+    })
+
+    it('routes metadata.role==="mask" to the mask param', async () => {
+      const adapter = new TestOpenAIImageAdapter(
+        { apiKey: 'test-api-key' },
+        'gpt-image-1',
+      )
+      const editSpy = adapter
+        .spyOnImagesEdit()
+        .mockResolvedValueOnce(imagesEditResponse)
+
+      await adapter.generateImages({
+        model: 'gpt-image-1',
+        prompt: [
+          { type: 'text', content: 'replace masked region' },
+          {
+            type: 'image',
+            source: { type: 'data', value: 'aGk=', mimeType: 'image/png' },
+          },
+          {
+            type: 'image',
+            source: { type: 'data', value: 'bWFzaw==', mimeType: 'image/png' },
+            metadata: { role: 'mask' },
+          },
+        ],
+        logger: testLogger,
+      })
+
+      const editArgs = editSpy.mock.calls[0]![0]
+      expect(editArgs.mask).toBeInstanceOf(File)
+      expect(editArgs.image).toBeInstanceOf(File)
+    })
+
+    it('throws when the edit response contains no usable images', async () => {
+      const adapter = new TestOpenAIImageAdapter(
+        { apiKey: 'test-api-key' },
+        'gpt-image-1',
+      )
+      // Items with neither b64_json nor url (e.g. moderation blocks) must
+      // surface as an error, not resolve to `{ images: [] }`.
+      adapter
+        .spyOnImagesEdit()
+        .mockResolvedValueOnce({ created: 0, data: [{}] })
+
+      await expect(
+        adapter.generateImages({
+          model: 'gpt-image-1',
+          prompt: [
+            { type: 'text', content: 'edit' },
+            {
+              type: 'image',
+              source: { type: 'data', value: 'aGk=', mimeType: 'image/png' },
+            },
+          ],
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/image edit response contained no images/)
+    })
+
+    it('rejects video or audio prompt parts', async () => {
+      const adapter = new TestOpenAIImageAdapter(
+        { apiKey: 'test-api-key' },
+        'gpt-image-1',
+      )
+
+      await expect(
+        adapter.generateImages({
+          model: 'gpt-image-1',
+          prompt: [
+            { type: 'text', content: 'x' },
+            {
+              type: 'video',
+              source: { type: 'url', value: 'https://example.com/v.mp4' },
+            },
+          ],
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/video prompt parts/)
+
+      await expect(
+        adapter.generateImages({
+          model: 'gpt-image-1',
+          prompt: [
+            { type: 'text', content: 'x' },
+            {
+              type: 'audio',
+              source: { type: 'url', value: 'https://example.com/a.mp3' },
+            },
+          ],
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/audio prompt parts/)
     })
   })
 })

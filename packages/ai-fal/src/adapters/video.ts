@@ -1,4 +1,5 @@
 import { fal } from '@fal-ai/client'
+import { resolveMediaPrompt } from '@tanstack/ai'
 import { BaseVideoAdapter } from '@tanstack/ai/adapters'
 import {
   buildFalUsage,
@@ -7,9 +8,13 @@ import {
   generateId as utilGenerateId,
 } from '../utils'
 import { mapVideoSizeToFalFormat } from '../video/video-provider-options'
+import { mapImageInputsToFalVideoFields } from '../image/image-inputs'
 import type {
+  AudioPart,
+  MediaInputMetadata,
   VideoGenerationOptions,
   VideoJobResult,
+  VideoPart,
   VideoStatusResult,
   VideoUrlResult,
 } from '@tanstack/ai'
@@ -17,9 +22,67 @@ import type {
   FalModel,
   FalModelInput,
   FalModelVideoSize,
+  FalVideoPromptModalitiesFor,
   FalVideoProviderOptions,
 } from '../model-meta'
 import type { FalClientConfig } from '../utils'
+
+/**
+ * Map video conditioning inputs onto fal field names.
+ * Video-to-video endpoints on fal almost universally use `video_url`; the
+ * occasional model takes `video_urls` (rare). Mirror the image-input logic
+ * positionally with a `reference` role escape hatch via `reference_video_urls`.
+ */
+function mapVideoInputsToFalFields(
+  videoInputs?: ReadonlyArray<VideoPart<MediaInputMetadata>>,
+): Record<string, unknown> {
+  if (!videoInputs || videoInputs.length === 0) return {}
+  const references: Array<string> = []
+  const sources: Array<string> = []
+  for (const part of videoInputs) {
+    const url = videoPartToUrl(part)
+    if (
+      part.metadata?.role === 'reference' ||
+      part.metadata?.role === 'character'
+    ) {
+      references.push(url)
+    } else {
+      sources.push(url)
+    }
+  }
+  const out: Record<string, unknown> = {}
+  if (references.length > 0) out.reference_video_urls = references
+  if (sources.length === 1) {
+    out.video_url = sources[0]
+  } else if (sources.length > 1) {
+    out.video_urls = sources
+  }
+  return out
+}
+
+function mapAudioInputsToFalFields(
+  audioInputs?: ReadonlyArray<AudioPart<MediaInputMetadata>>,
+): Record<string, unknown> {
+  if (!audioInputs || audioInputs.length === 0) return {}
+  const [part, ...rest] = audioInputs
+  if (!part || rest.length > 0) {
+    throw new Error(
+      `fal: exactly one audio prompt part is supported (received ${audioInputs.length}).`,
+    )
+  }
+  return {
+    audio_url:
+      part.source.type === 'url'
+        ? part.source.value
+        : `data:${part.source.mimeType};base64,${part.source.value}`,
+  }
+}
+
+function videoPartToUrl(part: VideoPart<MediaInputMetadata>): string {
+  return part.source.type === 'url'
+    ? part.source.value
+    : `data:${part.source.mimeType};base64,${part.source.value}`
+}
 
 type FalQueueStatus = 'IN_QUEUE' | 'IN_PROGRESS' | 'COMPLETED'
 
@@ -69,7 +132,8 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
   TModel,
   FalVideoProviderOptions<TModel>,
   Record<TModel, FalVideoProviderOptions<TModel>>,
-  Record<TModel, FalModelVideoSize<TModel>>
+  Record<TModel, FalModelVideoSize<TModel>>,
+  Record<TModel, FalVideoPromptModalitiesFor<TModel>>
 > {
   override readonly kind = 'video' as const
   readonly name = 'fal' as const
@@ -85,7 +149,7 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
       FalModelVideoSize<TModel>
     >,
   ): Promise<VideoJobResult> {
-    const { prompt, size, duration, modelOptions, logger } = options
+    const { size, duration, modelOptions, logger } = options
 
     logger.request(`activity=generateVideo provider=fal model=${this.model}`, {
       provider: 'fal',
@@ -93,12 +157,26 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
     })
 
     try {
+      const resolved = resolveMediaPrompt(options.prompt)
       const sizeParams = mapVideoSizeToFalFormat(size)
+      const inputImageFields = mapImageInputsToFalVideoFields(
+        this.model,
+        resolved.images,
+      )
+      const videoFields = mapVideoInputsToFalFields(resolved.videos)
+      const audioFields = mapAudioInputsToFalFields(resolved.audios)
 
       const input = {
-        ...modelOptions,
         ...sizeParams,
-        prompt,
+        ...inputImageFields,
+        ...videoFields,
+        ...audioFields,
+        // modelOptions applied after derived media fields so explicit user
+        // overrides (video_url, reference_video_urls, audio_url, ...) win.
+        ...modelOptions,
+        // Media-only prompts omit the prompt field rather than sending an
+        // empty string (e.g. pure image-to-video endpoints).
+        ...(resolved.text ? { prompt: resolved.text } : {}),
         ...(duration ? { duration } : {}),
       } as FalModelInput<TModel>
 
