@@ -9,11 +9,26 @@
 import { bootstrapWorkspace } from './bootstrap'
 import { computeSandboxKey } from './key'
 import { InMemoryLockStore, InMemorySandboxStore } from './store'
+import type { SandboxFileEvent } from '@tanstack/ai'
 import type { SandboxHandle, SandboxProvider } from './contracts'
 import type { SandboxKeyInput } from './key'
 import type { LockStore, SandboxStore } from './store'
 import type { SandboxPolicy } from './policy'
 import type { WorkspaceDefinition } from './workspace'
+
+/**
+ * Sandbox-scoped hooks declared on `defineSandbox`. File hooks fire for every
+ * create/change/delete during a chat run; lifecycle hooks fire server-side.
+ */
+export interface SandboxHooks {
+  onFile?: (e: SandboxFileEvent) => void | Promise<void>
+  onFileCreate?: (e: SandboxFileEvent) => void | Promise<void>
+  onFileChange?: (e: SandboxFileEvent) => void | Promise<void>
+  onFileDelete?: (e: SandboxFileEvent) => void | Promise<void>
+  onReady?: (handle: SandboxHandle) => void | Promise<void>
+  onError?: (err: unknown) => void | Promise<void>
+  onDestroy?: () => void | Promise<void>
+}
 
 export type ReuseStrategy = 'thread' | 'none'
 export type SnapshotStrategy = 'after-setup' | 'after-run' | 'none'
@@ -35,6 +50,10 @@ export interface SandboxConfig {
   workspace?: WorkspaceDefinition
   policy?: SandboxPolicy
   lifecycle?: SandboxLifecycle
+  /** Sandbox-scoped file/lifecycle hooks. */
+  hooks?: SandboxHooks
+  /** Watch the workspace for file events (default true). Set false to disable. */
+  fileEvents?: boolean
 }
 
 /** Context passed to `ensure()` by `withSandbox` (or advanced callers). */
@@ -55,6 +74,10 @@ export interface SandboxDefinition {
   readonly workspace?: WorkspaceDefinition
   readonly policy?: SandboxPolicy
   readonly lifecycle?: SandboxLifecycle
+  /** Sandbox-scoped file/lifecycle hooks. */
+  readonly hooks?: SandboxHooks
+  /** Watch the workspace for file events (default true). Set false to disable. */
+  readonly fileEvents?: boolean
   /** Compound instance key for a given run context. */
   key: (ctx: SandboxEnsureContext) => string
   /** Resume-or-create the sandbox for this thread/run. */
@@ -180,6 +203,8 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
     workspace: config.workspace,
     policy: config.policy,
     lifecycle: config.lifecycle,
+    hooks: config.hooks,
+    fileEvents: config.fileEvents,
     key: (ctx) => computeSandboxKey(keyInputFor(ctx)),
     ensure,
     destroy,

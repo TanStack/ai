@@ -18,19 +18,16 @@
  */
 import { DEFAULT_WORKSPACE_ROOT } from './bootstrap'
 import type { SandboxHandle } from './contracts'
+import type { SandboxFileEvent } from '@tanstack/ai'
 
-export type FileEventType = 'create' | 'change' | 'delete'
-
-export interface FileEvent {
-  type: FileEventType
-  /** Absolute path inside the sandbox (under the workspace root). */
-  path: string
-  timestamp: number
-}
+export type { SandboxFileEvent } from '@tanstack/ai'
+/** @deprecated alias retained for the low-level watch API. */
+export type FileEvent = SandboxFileEvent
+export type FileEventType = SandboxFileEvent['type']
 
 export interface WatchOptions {
   /** Called for every observed file event. */
-  onEvent: (event: FileEvent) => void
+  onEvent: (event: SandboxFileEvent) => void
   /** Workspace root to watch. Defaults to `/workspace`. */
   root?: string
   /** Poll interval for the exec-poll fallback, in ms. Defaults to 700. */
@@ -49,18 +46,6 @@ export interface SandboxWatchHandle {
   stop: () => Promise<void>
 }
 
-/** Ergonomic callback bag dispatched by {@link watchWithHooks}. */
-export interface SandboxHooks {
-  onCreate?: (event: FileEvent) => void
-  onChange?: (event: FileEvent) => void
-  onDelete?: (event: FileEvent) => void
-  /** Called for every event regardless of type. */
-  onAny?: (event: FileEvent) => void
-  root?: string
-  intervalMs?: number
-  ignore?: Array<string>
-}
-
 const DEFAULT_INTERVAL_MS = 700
 const DEFAULT_IGNORE = ['.git', 'node_modules']
 
@@ -77,8 +62,8 @@ export function diffSnapshots(
   prev: Map<string, string>,
   next: Map<string, string>,
   timestamp: number,
-): Array<FileEvent> {
-  const events: Array<FileEvent> = []
+): Array<SandboxFileEvent> {
+  const events: Array<SandboxFileEvent> = []
   for (const [path, sig] of next) {
     const before = prev.get(path)
     if (before === undefined) events.push({ type: 'create', path, timestamp })
@@ -270,24 +255,3 @@ async function collectPaths(
   return files
 }
 
-/**
- * Convenience wrapper over {@link watchWorkspace} that dispatches events to
- * per-type callbacks. `onAny` fires for every event.
- */
-export function watchWithHooks(
-  handle: SandboxHandle,
-  hooks: SandboxHooks & { signal?: AbortSignal },
-): Promise<SandboxWatchHandle> {
-  return watchWorkspace(handle, {
-    onEvent: (event) => {
-      hooks.onAny?.(event)
-      if (event.type === 'create') hooks.onCreate?.(event)
-      else if (event.type === 'change') hooks.onChange?.(event)
-      else hooks.onDelete?.(event)
-    },
-    ...(hooks.root !== undefined && { root: hooks.root }),
-    ...(hooks.intervalMs !== undefined && { intervalMs: hooks.intervalMs }),
-    ...(hooks.ignore !== undefined && { ignore: hooks.ignore }),
-    ...(hooks.signal !== undefined && { signal: hooks.signal }),
-  })
-}

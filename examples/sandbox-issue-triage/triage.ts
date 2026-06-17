@@ -4,7 +4,7 @@
  * Flow:
  *   1. Fetch the first OPEN issue on TanStack/ai from the GitHub API.
  *   2. Spin up a sandbox with the repo cloned in.
- *   3. Attach a file-event watcher (sandbox hooks) so we see the agent's edits live.
+ *   3. Attach file-event hooks on the sandbox definition so we see the agent's edits live.
  *   4. Run Claude Code INSIDE the sandbox to investigate the issue and write
  *      `ISSUE-REPORT.md` at the repo root.
  *   5. Read that report back out of the sandbox and persist it to ./reports/
@@ -19,9 +19,7 @@ import {
   defineSandbox,
   defineWorkspace,
   githubRepo,
-  watchWorkspace,
   withSandbox,
-  withSandboxFileEvents,
 } from '@tanstack/ai-sandbox'
 import type { FileEvent, SandboxProvider } from '@tanstack/ai-sandbox'
 import type { StreamChunk } from '@tanstack/ai'
@@ -113,6 +111,8 @@ export async function runTriage(options: RunTriageOptions): Promise<string> {
     `\n▶ [${options.providerLabel}] Triaging issue #${issue.number}: ${issue.title}\n  ${issue.url}\n`,
   )
 
+  // Collect file events via declarative hooks on the sandbox definition.
+  const fileEvents: Array<FileEvent> = []
   const sandbox = defineSandbox({
     id: `issue-triage-${options.providerLabel}`,
     provider: options.provider,
@@ -122,67 +122,62 @@ export async function runTriage(options: RunTriageOptions): Promise<string> {
       secrets: options.secrets,
     }),
     lifecycle: { reuse: 'thread' },
-  })
-
-  const threadId = `triage-${options.providerLabel}-${issue.number}`
-  const ensureCtx = { threadId, runId: 'triage-setup' }
-
-  console.log('  ⧗ Bootstrapping sandbox (clone + setup)…')
-  const handle = await sandbox.ensure(ensureCtx)
-
-  // Sandbox hooks: log + collect the agent's file changes live.
-  const fileEvents: Array<FileEvent> = []
-  const watcher = await watchWorkspace(handle, {
-    onEvent: (event) => {
-      fileEvents.push(event)
-      const mark =
-        event.type === 'create' ? '+' : event.type === 'delete' ? '-' : '~'
-      console.log(`    [${mark}] ${event.type} ${event.path}`)
+    hooks: {
+      onFile: (e) => {
+        fileEvents.push(e)
+        const mark =
+          e.type === 'create' ? '+' : e.type === 'delete' ? '-' : '~'
+        console.log(`    [${mark}] ${e.type} ${e.path}`)
+      },
     },
   })
 
-  let assistantText = ''
-  try {
-    const stream = chat({
-      threadId,
-      adapter: claudeCodeText('sonnet'),
-      messages: [{ role: 'user', content: buildPrompt(issue) }],
-      // withSandbox provides the handle; withSandboxFileEvents surfaces file
-      // events into the stream as CUSTOM `sandbox.file` events too.
-      middleware: [withSandbox(sandbox), withSandboxFileEvents()],
-    }) as AsyncIterable<StreamChunk>
+  const threadId = `triage-${options.providerLabel}-${issue.number}`
 
-    for await (const chunk of stream) {
-      const c = chunk as Record<string, unknown> & { type: string }
-      switch (c.type) {
-        case 'TEXT_MESSAGE_CONTENT': {
-          const delta = (c.delta as string) ?? ''
-          assistantText += delta
-          process.stdout.write(delta)
-          break
-        }
-        case 'TOOL_CALL_START':
-          console.log(`\n  ↳ [tool] ${(c.toolCallName as string) ?? ''}`)
-          break
-        case 'CUSTOM':
-          if (c.name === 'sandbox.file') {
-            const value = c.value as FileEvent
-            console.log(`  ⟳ [stream] ${value.type} ${value.path}`)
-          }
-          break
-        case 'RUN_FINISHED':
-          console.log('\n\n✅ agent finished')
-          break
-        case 'RUN_ERROR':
-          console.error('\n\n❌ error:', c.message)
-          break
-        default:
-          break
+  console.log('  ⧗ Bootstrapping sandbox (clone + setup)…')
+
+  let assistantText = ''
+  const stream = chat({
+    threadId,
+    adapter: claudeCodeText('sonnet'),
+    messages: [{ role: 'user', content: buildPrompt(issue) }],
+    // withSandbox provides the handle and starts the file-event watcher;
+    // file events are forwarded to the hooks declared above.
+    middleware: [withSandbox(sandbox)],
+  }) as AsyncIterable<StreamChunk>
+
+  for await (const chunk of stream) {
+    const c = chunk as Record<string, unknown> & { type: string }
+    switch (c.type) {
+      case 'TEXT_MESSAGE_CONTENT': {
+        const delta = (c.delta as string) ?? ''
+        assistantText += delta
+        process.stdout.write(delta)
+        break
       }
+      case 'TOOL_CALL_START':
+        console.log(`\n  ↳ [tool] ${(c.toolCallName as string) ?? ''}`)
+        break
+      case 'CUSTOM':
+        if (c.name === 'sandbox.file') {
+          const value = c.value as FileEvent
+          console.log(`  ⟳ [stream] ${value.type} ${value.path}`)
+        }
+        break
+      case 'RUN_FINISHED':
+        console.log('\n\n✅ agent finished')
+        break
+      case 'RUN_ERROR':
+        console.error('\n\n❌ error:', c.message)
+        break
+      default:
+        break
     }
-  } finally {
-    await watcher.stop()
   }
+
+  // Obtain the handle after the run (reuse:'thread' returns the same sandbox).
+  const ensureCtx = { threadId, runId: 'triage-read' }
+  const handle = await sandbox.ensure(ensureCtx)
 
   // Read the report back out of the sandbox; fall back to the streamed text.
   let report: string

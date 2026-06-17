@@ -5,14 +5,17 @@
  * - `setup`: resume-or-create the sandbox (via the definition's ensure
  *   algorithm), provide the handle, using the optional SandboxStore/Locks
  *   capabilities when a persistence middleware supplied them (in-memory
- *   fallback otherwise).
- * - `onFinish`/`onError`: snapshot (`after-run`) and/or destroy per lifecycle.
+ *   fallback otherwise). If `fileEvents` is not false, starts a watcher
+ *   that dispatches to sandbox-scoped hooks and forwards to the runtime sink.
+ * - `onFinish`/`onError`: stop the watcher, snapshot (`after-run`) and/or
+ *   destroy per lifecycle.
  *
  * NOTE: streamed sandbox lifecycle events (sandbox.created, workspace.setup.*)
  * are emitted by the harness adapter's chatStream (which can yield CUSTOM
  * chunks), not from here — middleware setup runs before streaming begins.
  */
 import { defineChatMiddleware } from '@tanstack/ai'
+import { getSandboxRuntime } from '@tanstack/ai/adapter-internals'
 import {
   LocksCapability,
   SandboxCapability,
@@ -20,14 +23,17 @@ import {
   provideSandbox,
   provideSandboxPolicy,
 } from './capabilities'
-import type { ChatMiddlewareContext, DefinedChatMiddleware } from '@tanstack/ai'
+import { watchWorkspace } from './watch'
+import type { ChatMiddlewareContext, DefinedChatMiddleware, SandboxFileEvent } from '@tanstack/ai'
 import type { SandboxHandle } from './contracts'
-import type { SandboxDefinition, SandboxEnsureContext } from './sandbox'
+import type { SandboxDefinition, SandboxEnsureContext, SandboxHooks } from './sandbox'
+import type { SandboxWatchHandle } from './watch'
 
 /** Per-request state we need to carry from `setup` to the terminal hooks. */
 interface SandboxRunState {
   handle: SandboxHandle
   ensureCtx: SandboxEnsureContext
+  watcher?: SandboxWatchHandle
 }
 
 const runState = new WeakMap<object, SandboxRunState>()
@@ -55,6 +61,24 @@ function buildEnsureCtx(ctx: ChatMiddlewareContext): SandboxEnsureContext {
   }
 }
 
+/**
+ * Dispatch a sandbox file event to the per-type hooks declared on the
+ * definition. Errors in individual hooks are swallowed so one bad hook
+ * cannot break the run.
+ */
+async function dispatchDefinitionHooks(
+  hooks: SandboxHooks | undefined,
+  event: SandboxFileEvent,
+): Promise<void> {
+  if (!hooks) return
+  const typed = (
+    { create: 'onFileCreate', change: 'onFileChange', delete: 'onFileDelete' } as const
+  )[event.type]
+  for (const fn of [hooks.onFile, hooks[typed]]) {
+    if (fn) await fn(event)
+  }
+}
+
 export function withSandbox(
   definition: SandboxDefinition,
 ): DefinedChatMiddleware<
@@ -75,13 +99,32 @@ export function withSandbox(
       const handle = await definition.ensure(ensureCtx)
       provideSandbox(ctx, handle)
       if (definition.policy) provideSandboxPolicy(ctx, definition.policy)
-      runState.set(ctx, { handle, ensureCtx })
+
+      const hooks = definition.hooks
+      await hooks?.onReady?.(handle)
+
+      let watcher: SandboxWatchHandle | undefined
+      if (definition.fileEvents !== false) {
+        const runtime = getSandboxRuntime(ctx, { optional: true })
+        watcher = await watchWorkspace(handle, {
+          onEvent: (event: SandboxFileEvent) => {
+            void dispatchDefinitionHooks(hooks, event)
+            runtime?.emit(event)
+          },
+          ...(ctx.signal !== undefined ? { signal: ctx.signal } : {}),
+        })
+      }
+
+      runState.set(ctx, { handle, ensureCtx, ...(watcher ? { watcher } : {}) })
     },
 
     async onFinish(ctx) {
       const state = runState.get(ctx)
       if (!state) return
       const { handle, ensureCtx } = state
+
+      await state.watcher?.stop()
+
       const lifecycle = definition.lifecycle
 
       if (
@@ -106,16 +149,22 @@ export function withSandbox(
 
       if (lifecycle?.destroyOnComplete) {
         await definition.destroy(ensureCtx)
+        await definition.hooks?.onDestroy?.()
       }
     },
 
-    async onError(ctx) {
+    async onError(ctx, info) {
       const state = runState.get(ctx)
       if (!state) return
+
+      await state.watcher?.stop()
+      await definition.hooks?.onError?.(info.error)
+
       // On failure, only tear down when the lifecycle says so; otherwise leave
       // the sandbox for a resumed retry.
       if (definition.lifecycle?.destroyOnComplete) {
         await definition.destroy(state.ensureCtx)
+        await definition.hooks?.onDestroy?.()
       }
     },
   })
