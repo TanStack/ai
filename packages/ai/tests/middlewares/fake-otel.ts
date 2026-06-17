@@ -1,10 +1,12 @@
+import { SpanStatusCode, trace as otelTrace } from '@opentelemetry/api'
+import { CapabilityRegistry } from '../../src/activities/chat/middleware/capabilities'
 import type {
-  Attributes,
   AttributeValue,
+  Attributes,
   Context,
   Histogram,
-  MetricOptions,
   Meter,
+  MetricOptions,
   Span,
   SpanContext,
   SpanOptions,
@@ -12,7 +14,6 @@ import type {
   TimeInput,
   Tracer,
 } from '@opentelemetry/api'
-import { SpanStatusCode, trace as otelTrace } from '@opentelemetry/api'
 import type { ChatMiddlewareContext } from '../../src/activities/chat/middleware/types'
 import type { ToolCall } from '../../src/types'
 
@@ -86,7 +87,7 @@ function makeSpan(
       }
     },
     setAttribute(key, value) {
-      this.attributes[key] = value as AttributeValue
+      this.attributes[key] = value
       return this
     },
     setAttributes(attrs) {
@@ -95,8 +96,11 @@ function makeSpan(
       }
       return this
     },
-    addEvent(name, attrs) {
-      this.events.push({ name, attributes: attrs as Attributes | undefined })
+    addEvent(eventName, attrs) {
+      this.events.push({
+        name: eventName,
+        attributes: attrs as Attributes | undefined,
+      })
       return this
     },
     addLink() {
@@ -130,6 +134,10 @@ function makeSpan(
   return span
 }
 
+function isFakeSpan(span: Span | undefined): span is FakeSpan {
+  return span !== undefined && 'startTimeMs' in span
+}
+
 export function createFakeTracer(): FakeTracer {
   const spans: Array<FakeSpan> = []
   const activeStack: Array<FakeSpan> = []
@@ -142,8 +150,8 @@ export function createFakeTracer(): FakeTracer {
       let parent: FakeSpan | null = null
       if (ctx) {
         const fromCtx = otelTrace.getSpan(ctx)
-        if (fromCtx && (fromCtx as FakeSpan).startTimeMs !== undefined) {
-          parent = fromCtx as FakeSpan
+        if (isFakeSpan(fromCtx)) {
+          parent = fromCtx
         }
       }
       if (!parent) parent = activeStack[activeStack.length - 1] ?? null
@@ -151,8 +159,7 @@ export function createFakeTracer(): FakeTracer {
       spans.push(span)
       return span
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    startActiveSpan(...args: any[]) {
+    startActiveSpan(...args: Array<any>) {
       const name = args[0] as string
       const fn = args[args.length - 1] as (span: Span) => unknown
       const options = (
@@ -208,7 +215,7 @@ export function createFakeMeter(): FakeMeter {
     },
     addBatchObservableCallback() {},
     removeBatchObservableCallback() {},
-  } as Meter
+  }
 
   return { meter, records }
 }
@@ -242,13 +249,15 @@ export function makeToolCall(
 export function makeCtx(
   overrides: Partial<ChatMiddlewareContext> = {},
 ): ChatMiddlewareContext {
-  const base = {
+  const ctx: ChatMiddlewareContext = {
     requestId: 'req-1',
     streamId: 'stream-1',
+    runId: 'run-1',
+    threadId: 'thread-1',
     // Chat contexts always report `activity: 'chat'`; otelMiddleware branches
     // on it to choose the chat span tree over the single media span.
-    activity: 'chat' as const,
-    phase: 'init' as const,
+    activity: 'chat',
+    phase: 'init',
     iteration: 0,
     chunkIndex: 0,
     abort: () => {},
@@ -256,7 +265,7 @@ export function makeCtx(
     defer: () => {},
     provider: 'openai',
     model: 'gpt-4o',
-    source: 'server' as const,
+    source: 'server',
     streaming: true,
     systemPrompts: [],
     options: {},
@@ -267,9 +276,11 @@ export function makeCtx(
     accumulatedContent: '',
     messages: [],
     createId: (prefix: string) => `${prefix}-1`,
-  }
-  return {
-    ...base,
+    capabilities: new CapabilityRegistry(),
+    get: (capability) => capability[0](ctx),
+    getOptional: (capability) => capability[0](ctx, { optional: true }),
+    provide: (capability, value) => capability[1](ctx, value),
     ...overrides,
-  } as ChatMiddlewareContext
+  }
+  return ctx
 }
