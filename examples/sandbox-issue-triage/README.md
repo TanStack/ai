@@ -17,10 +17,10 @@ It demonstrates three pieces of the sandbox layer together:
 
 Two entrypoints, same logic ([`triage.ts`](./triage.ts)):
 
-| Command | Sandbox | Isolation |
-| --- | --- | --- |
+| Command              | Sandbox              | Isolation            |
+| -------------------- | -------------------- | -------------------- |
 | `pnpm start:process` | local-process (host) | none — fast dev loop |
-| `pnpm start:docker` | Docker container | full |
+| `pnpm start:docker`  | Docker container     | full                 |
 
 ## Prerequisites
 

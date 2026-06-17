@@ -145,7 +145,9 @@ describe('watchWorkspace (native fs.watch)', () => {
     })
 
     const events: Array<FileEvent> = []
-    const watcher = await watchWorkspace(handle, { onEvent: (e) => events.push(e) })
+    const watcher = await watchWorkspace(handle, {
+      onEvent: (e) => events.push(e),
+    })
 
     present.add('/workspace/x.js')
     onRaw({ type: 'rename', path: '/workspace/x.js' })
@@ -171,7 +173,9 @@ describe('watchWorkspace (native fs.watch)', () => {
       },
     })
     const events: Array<FileEvent> = []
-    const watcher = await watchWorkspace(handle, { onEvent: (e) => events.push(e) })
+    const watcher = await watchWorkspace(handle, {
+      onEvent: (e) => events.push(e),
+    })
 
     onRaw({ type: 'change', path: '/workspace/.git/index' })
     onRaw({ type: 'change', path: '/workspace/node_modules/x/index.js' })

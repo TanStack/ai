@@ -114,7 +114,12 @@ await watcher.stop()
 // Or per-type callbacks: watchWithHooks(handle, { onCreate, onChange, onDelete })
 
 // Surface events into the chat() stream as CUSTOM `sandbox.file` events:
-chat({ threadId, adapter, messages, middleware: [withSandbox(sandbox), withSandboxFileEvents()] })
+chat({
+  threadId,
+  adapter,
+  messages,
+  middleware: [withSandbox(sandbox), withSandboxFileEvents()],
+})
 ```
 
 ## Events

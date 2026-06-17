@@ -198,9 +198,7 @@ export async function runTriage(options: RunTriageOptions): Promise<string> {
   const observed =
     fileEvents.length === 0
       ? '_(none observed)_'
-      : fileEvents
-          .map((e) => `- \`${e.type}\` ${e.path}`)
-          .join('\n')
+      : fileEvents.map((e) => `- \`${e.type}\` ${e.path}`).join('\n')
 
   const stamp = new Date().toISOString()
   const out = [
