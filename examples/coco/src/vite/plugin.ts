@@ -82,9 +82,7 @@ const wrapHtmlResponse = (res: ServerResponse): void => {
   ): boolean {
     if (intercepting && isHtml() && chunk != null) {
       chunks.push(
-        Buffer.isBuffer(chunk)
-          ? chunk
-          : Buffer.from(chunk as string, 'utf8'),
+        Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as string, 'utf8'),
       )
       return true
     }
@@ -96,7 +94,7 @@ const wrapHtmlResponse = (res: ServerResponse): void => {
       for (const c of chunks) origWrite(c)
       chunks.length = 0
     }
-     
+
     return (origWrite as any)(chunk, ...rest)
   } as typeof res.write
 
@@ -107,9 +105,7 @@ const wrapHtmlResponse = (res: ServerResponse): void => {
     if (intercepting && isHtml()) {
       if (chunk != null) {
         chunks.push(
-          Buffer.isBuffer(chunk)
-            ? chunk
-            : Buffer.from(chunk as string, 'utf8'),
+          Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as string, 'utf8'),
         )
       }
       const original = Buffer.concat(chunks).toString('utf8')
@@ -126,7 +122,7 @@ const wrapHtmlResponse = (res: ServerResponse): void => {
       for (const c of chunks) origWrite(c)
       chunks.length = 0
     }
-     
+
     return (origEnd as any)(chunk, ...rest)
   } as typeof res.end
 }

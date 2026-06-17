@@ -129,4 +129,3 @@ export const AGENT_SETUP: Record<AgentId, AgentSetup> = {
     docsUrl: 'https://opencode.ai/docs',
   },
 }
-

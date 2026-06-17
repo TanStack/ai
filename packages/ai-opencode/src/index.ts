@@ -19,10 +19,7 @@ export type {
   OpencodeTokens,
   OpencodeToolState,
 } from './stream/sdk-types'
-export {
-  resolvePermission,
-  matchBridgedToolName,
-} from './process/permissions'
+export { resolvePermission, matchBridgedToolName } from './process/permissions'
 export type {
   OpencodePermissionMode,
   OpencodePermissionRequest,

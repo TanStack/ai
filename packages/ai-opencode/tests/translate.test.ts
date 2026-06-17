@@ -104,7 +104,9 @@ describe('translateOpencodeStream', () => {
     expect(contents[0]).toMatchObject({ delta: 'Hel', content: 'Hel' })
     expect(contents[1]).toMatchObject({ delta: 'lo', content: 'Hello' })
     // A single START/END pair for the one part id.
-    expect(chunks.filter((c) => c.type === 'TEXT_MESSAGE_START')).toHaveLength(1)
+    expect(chunks.filter((c) => c.type === 'TEXT_MESSAGE_START')).toHaveLength(
+      1,
+    )
     expect(chunks.filter((c) => c.type === 'TEXT_MESSAGE_END')).toHaveLength(1)
   })
 
@@ -228,7 +230,10 @@ describe('translateOpencodeStream', () => {
       'TOOL_CALL_RESULT',
       'RUN_FINISHED',
     ])
-    expect(chunks[2]).toMatchObject({ toolCallId: 'call-1', toolCallName: 'bash' })
+    expect(chunks[2]).toMatchObject({
+      toolCallId: 'call-1',
+      toolCallName: 'bash',
+    })
     expect(chunks[3]).toMatchObject({ args: JSON.stringify({ command: 'ls' }) })
     expect(chunks[5]).toMatchObject({ content: 'file.txt' })
     expect((chunks[5] as { state?: string }).state).toBeUndefined()
@@ -335,7 +340,9 @@ describe('translateOpencodeStream', () => {
       },
       done(),
     ])
-    expect(chunks.find((c) => c.type === 'CUSTOM' && c.name === TODO_EVENT)).toBeDefined()
+    expect(
+      chunks.find((c) => c.type === 'CUSTOM' && c.name === TODO_EVENT),
+    ).toBeDefined()
   })
 
   it('forwards raw stream events to onStreamEvent', async () => {
@@ -396,8 +403,8 @@ describe('resolveToolName', () => {
   })
 
   it('leaves foreign tool names untouched', () => {
-    expect(resolveToolName('github_create_issue', new Set(['lookup_user']))).toBe(
-      'github_create_issue',
-    )
+    expect(
+      resolveToolName('github_create_issue', new Set(['lookup_user'])),
+    ).toBe('github_create_issue')
   })
 })

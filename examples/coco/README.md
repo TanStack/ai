@@ -94,13 +94,13 @@ Windows).
 
 ### Flags
 
-| Flag             | Default     | Description                                                  |
-| ---------------- | ----------- | ------------------------------------------------------------ |
-| `--port`         | `7777`      | Port Coco listens on.                                        |
-| `--command`      | `pnpm dev`  | Command Coco uses to start the dev server.                   |
-| `--target`       | (auto)      | Existing dev-server URL — skips spawning `--command`.        |
-| `--agent`        | `claude-code` | Default agent (`claude-code`, `codex`, `gemini-cli`, `opencode`). |
-| `--mode`         | `edit`      | `edit` or `read-only` — default agent permission mode.       |
+| Flag        | Default       | Description                                                       |
+| ----------- | ------------- | ----------------------------------------------------------------- |
+| `--port`    | `7777`        | Port Coco listens on.                                             |
+| `--command` | `pnpm dev`    | Command Coco uses to start the dev server.                        |
+| `--target`  | (auto)        | Existing dev-server URL — skips spawning `--command`.             |
+| `--agent`   | `claude-code` | Default agent (`claude-code`, `codex`, `gemini-cli`, `opencode`). |
+| `--mode`    | `edit`        | `edit` or `read-only` — default agent permission mode.            |
 
 The panel itself has dropdowns for agent + mode, so flags only set defaults.
 

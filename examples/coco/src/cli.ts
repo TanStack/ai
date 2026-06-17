@@ -72,7 +72,9 @@ const parseFlags = () => {
   const portStr = values.port ?? String(DEFAULT_PORT)
   const port = Number.parseInt(portStr, 10)
   if (!Number.isFinite(port) || port <= 0 || port > 65535) {
-    throw new Error(`--port must be a valid TCP port, got ${JSON.stringify(portStr)}`)
+    throw new Error(
+      `--port must be a valid TCP port, got ${JSON.stringify(portStr)}`,
+    )
   }
 
   const command = values.command ?? DEFAULT_COMMAND
@@ -129,7 +131,7 @@ const handleSubcommand = async (): Promise<boolean> => {
     if (values.help) {
       process.stdout.write(
         'Usage: coco init [--dry-run]\n\n' +
-          'Adds the `coco/vite` plugin to your project\'s vite config and prints\n' +
+          "Adds the `coco/vite` plugin to your project's vite config and prints\n" +
           'next steps. Idempotent — safe to re-run.\n',
       )
       process.exit(0)
@@ -169,7 +171,9 @@ const main = async () => {
 
   process.stdout.write(`[coco] cwd = ${projectCwd}\n`)
   if (flags.fixedTarget) {
-    process.stdout.write(`[coco] using existing dev server at ${flags.fixedTarget}\n`)
+    process.stdout.write(
+      `[coco] using existing dev server at ${flags.fixedTarget}\n`,
+    )
   } else {
     process.stdout.write(`[coco] starting dev server: ${flags.command}\n`)
   }
@@ -212,13 +216,17 @@ const main = async () => {
   process.on('SIGTERM', () => void shutdown(0))
   if (dev.child) {
     dev.child.on('exit', (code) => {
-      process.stdout.write(`[coco] dev server exited (${code}); stopping coco.\n`)
+      process.stdout.write(
+        `[coco] dev server exited (${code}); stopping coco.\n`,
+      )
       void shutdown(code ?? 0)
     })
   }
 }
 
 main().catch((err) => {
-  process.stderr.write(`[coco] fatal: ${err instanceof Error ? err.stack : String(err)}\n`)
+  process.stderr.write(
+    `[coco] fatal: ${err instanceof Error ? err.stack : String(err)}\n`,
+  )
   process.exit(1)
 })

@@ -155,10 +155,7 @@ export async function startOpencodeSession(
     const resolvedSessionId = sessionId
 
     const handlePermission = async (
-      permission: Extract<
-        Event,
-        { type: 'permission.updated' }
-      >['properties'],
+      permission: Extract<Event, { type: 'permission.updated' }>['properties'],
     ): Promise<void> => {
       try {
         const response = await options.onPermissionRequest({
@@ -218,8 +215,9 @@ export async function startOpencodeSession(
         const data = result.data
         const message = data.info as OpencodeAssistantMessage
         const responseText = data.parts
-          .filter((part): part is Extract<Part, { type: 'text' }> =>
-            part.type === 'text',
+          .filter(
+            (part): part is Extract<Part, { type: 'text' }> =>
+              part.type === 'text',
           )
           .map((part) => part.text)
           .join('')

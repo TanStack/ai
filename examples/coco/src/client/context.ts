@@ -41,10 +41,7 @@ export const watchRoute = (cb: (route: string) => void): (() => void) => {
     return result
   }
   history.replaceState = function (...args) {
-    const result = origReplace.apply(
-      this,
-      args,
-    )
+    const result = origReplace.apply(this, args)
     queueMicrotask(fire)
     return result
   }
@@ -69,7 +66,9 @@ const buildSelector = (el: Element): string => {
   while (current && current.nodeType === 1 && depth < 4) {
     let part = current.tagName.toLowerCase()
     if (current.classList.length) {
-      part += '.' + Array.from(current.classList).slice(0, 2).map(CSS.escape).join('.')
+      part +=
+        '.' +
+        Array.from(current.classList).slice(0, 2).map(CSS.escape).join('.')
     } else {
       const parent = current.parentElement
       if (parent) {
@@ -96,7 +95,10 @@ const truncate = (s: string, n: number) =>
 const describeElement = (el: Element): SelectedElement => ({
   selector: buildSelector(el),
   tagName: el.tagName.toLowerCase(),
-  textSnippet: truncate((el.textContent ?? '').trim().replace(/\s+/g, ' '), 200),
+  textSnippet: truncate(
+    (el.textContent ?? '').trim().replace(/\s+/g, ' '),
+    200,
+  ),
   outerHTMLTruncated: truncate(el.outerHTML, 1500),
 })
 

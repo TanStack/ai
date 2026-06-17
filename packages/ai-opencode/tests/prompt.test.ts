@@ -52,7 +52,11 @@ describe('buildPrompt', () => {
         role: 'assistant',
         content: null,
         toolCalls: [
-          { id: 't1', type: 'function', function: { name: 'ls', arguments: '{}' } },
+          {
+            id: 't1',
+            type: 'function',
+            function: { name: 'ls', arguments: '{}' },
+          },
         ],
       } as unknown as ModelMessage,
       { role: 'tool', content: 'file-a', toolCallId: 't1' },

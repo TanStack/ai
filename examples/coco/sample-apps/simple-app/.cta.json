@@ -12,7 +12,5 @@
   "routerOnly": false,
   "version": 1,
   "framework": "react",
-  "chosenAddOns": [
-    "nitro"
-  ]
+  "chosenAddOns": ["nitro"]
 }

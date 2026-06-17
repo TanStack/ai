@@ -71,10 +71,7 @@ const MANUAL_SNIPPET = `Add the Coco plugin to your vite config manually:
  */
 export const applyCocoToConfig = (source: string): string | null => {
   // Idempotency: already wired up?
-  if (
-    /from\s+['"]coco\/vite['"]/.test(source) ||
-    /\bcoco\(\)/.test(source)
-  ) {
+  if (/from\s+['"]coco\/vite['"]/.test(source) || /\bcoco\(\)/.test(source)) {
     return source
   }
 
@@ -86,7 +83,8 @@ export const applyCocoToConfig = (source: string): string | null => {
   let withImport: string
   if (importMatch && typeof importMatch.index === 'number') {
     const end = importMatch.index + importMatch[0].length
-    withImport = source.slice(0, end) + COCO_IMPORT_LINE + '\n' + source.slice(end)
+    withImport =
+      source.slice(0, end) + COCO_IMPORT_LINE + '\n' + source.slice(end)
   } else {
     withImport = COCO_IMPORT_LINE + '\n' + source
   }
@@ -117,9 +115,7 @@ export const applyCocoToConfig = (source: string): string | null => {
 
   // Inline: `plugins: [foo, bar]`
   return (
-    withImport.slice(0, bracketEnd) +
-    'coco(), ' +
-    withImport.slice(bracketEnd)
+    withImport.slice(0, bracketEnd) + 'coco(), ' + withImport.slice(bracketEnd)
   )
 }
 
@@ -148,11 +144,16 @@ export const runInit = async (options: InitOptions): Promise<number> => {
   if (project.isStart) {
     log('detected TanStack Start (imports @tanstack/react-start).')
   } else {
-    log('no @tanstack/react-start import detected — plugging in anyway; Coco works with any Vite dev server.')
+    log(
+      'no @tanstack/react-start import detected — plugging in anyway; Coco works with any Vite dev server.',
+    )
   }
 
   const original = await fs.readFile(project.configPath, 'utf8')
-  if (/from\s+['"]coco\/vite['"]/.test(original) || /\bcoco\(\)/.test(original)) {
+  if (
+    /from\s+['"]coco\/vite['"]/.test(original) ||
+    /\bcoco\(\)/.test(original)
+  ) {
     log('vite config already imports coco/vite — nothing to do.')
   } else {
     const updated = applyCocoToConfig(original)

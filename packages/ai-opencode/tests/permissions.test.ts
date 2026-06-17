@@ -21,18 +21,18 @@ describe('matchBridgedToolName', () => {
   const bridged = new Set(['lookup_user'])
 
   it('returns false without bridged tools', () => {
-    expect(matchBridgedToolName(request({ type: 'lookup_user' }), undefined)).toBe(
-      false,
-    )
-    expect(matchBridgedToolName(request({ type: 'lookup_user' }), new Set())).toBe(
-      false,
-    )
+    expect(
+      matchBridgedToolName(request({ type: 'lookup_user' }), undefined),
+    ).toBe(false)
+    expect(
+      matchBridgedToolName(request({ type: 'lookup_user' }), new Set()),
+    ).toBe(false)
   })
 
   it('matches a bare registered tool name in type or title', () => {
-    expect(matchBridgedToolName(request({ type: 'lookup_user' }), bridged)).toBe(
-      true,
-    )
+    expect(
+      matchBridgedToolName(request({ type: 'lookup_user' }), bridged),
+    ).toBe(true)
     expect(
       matchBridgedToolName(
         request({ type: 'tool', title: 'lookup_user' }),
@@ -61,20 +61,28 @@ describe('resolvePermission', () => {
   const bridged = new Set(['lookup_user'])
 
   it('always allows bridged tools regardless of mode', () => {
-    for (const mode of ['default', 'acceptEdits', 'bypassPermissions'] as const) {
+    for (const mode of [
+      'default',
+      'acceptEdits',
+      'bypassPermissions',
+    ] as const) {
       expect(
-        resolvePermission(request({ type: 'tanstack_lookup_user' }), mode, bridged),
+        resolvePermission(
+          request({ type: 'tanstack_lookup_user' }),
+          mode,
+          bridged,
+        ),
       ).toBe('once')
     }
   })
 
   it('rejects everything else in default mode', () => {
-    expect(resolvePermission(request({ type: 'bash' }), 'default', bridged)).toBe(
-      'reject',
-    )
-    expect(resolvePermission(request({ type: 'edit' }), 'default', bridged)).toBe(
-      'reject',
-    )
+    expect(
+      resolvePermission(request({ type: 'bash' }), 'default', bridged),
+    ).toBe('reject')
+    expect(
+      resolvePermission(request({ type: 'edit' }), 'default', bridged),
+    ).toBe('reject')
     expect(
       resolvePermission(request({ type: 'webfetch' }), 'default', bridged),
     ).toBe('reject')
@@ -86,17 +94,25 @@ describe('resolvePermission', () => {
         'once',
       )
     }
-    expect(resolvePermission(request({ type: 'bash' }), 'acceptEdits', bridged)).toBe(
-      'reject',
-    )
+    expect(
+      resolvePermission(request({ type: 'bash' }), 'acceptEdits', bridged),
+    ).toBe('reject')
   })
 
   it('approves everything in bypassPermissions mode', () => {
     expect(
-      resolvePermission(request({ type: 'bash' }), 'bypassPermissions', bridged),
+      resolvePermission(
+        request({ type: 'bash' }),
+        'bypassPermissions',
+        bridged,
+      ),
     ).toBe('once')
     expect(
-      resolvePermission(request({ type: 'webfetch' }), 'bypassPermissions', undefined),
+      resolvePermission(
+        request({ type: 'webfetch' }),
+        'bypassPermissions',
+        undefined,
+      ),
     ).toBe('once')
   })
 })
