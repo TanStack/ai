@@ -35,7 +35,21 @@ import { providersFor } from './test-matrix'
 // tests in `packages/ai-gemini/tests/text-interactions-adapter.test.ts`.
 for (const provider of providersFor('stateful-interactions')) {
   test.describe(`${provider} — stateful-interactions`, () => {
-    test('two-turn conversation chained via previous_interaction_id', async ({
+    // DISABLED — blocked on aimock. The gemini-upgrade branch migrated
+    // `geminiTextInteractions` to the @google/genai v2 (SDK 2.x) Interactions
+    // event protocol, which streams `step.start` / `step.delta` / `step.stop`
+    // and `interaction.created` / `interaction.completed`. Every published
+    // `@copilotkit/aimock` (≤1.31.0) still emits the SDK 1.x shapes
+    // (`content.*` / `interaction.start` / `interaction.complete`), so the
+    // adapter consumes none of the mock's deltas and the assistant message
+    // comes back empty. This is a mock/adapter format mismatch, not an adapter
+    // bug — 2.x behaviour is covered by unit tests in
+    // packages/ai-gemini/tests/text-interactions-adapter.test.ts.
+    //
+    // Re-enable (test.fixme → test) once aimock emits SDK 2.x events. The exact
+    // required event shapes and migration steps are documented in
+    // ./stateful-interactions.AIMOCK-TODO.md
+    test.fixme('two-turn conversation chained via previous_interaction_id', async ({
       page,
       testId,
       aimockPort,
