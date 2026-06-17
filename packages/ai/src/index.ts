@@ -116,6 +116,8 @@ export type {
   FinishInfo,
   AbortInfo,
   ErrorInfo,
+  SandboxFileEvent,
+  ChatSandboxHooks,
 } from './activities/chat/middleware/index'
 
 // Capability primitives + middleware builder
