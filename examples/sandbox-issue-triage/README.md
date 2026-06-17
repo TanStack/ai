@@ -10,10 +10,11 @@ It demonstrates three pieces of the sandbox layer together:
 - **`@tanstack/ai-sandbox`** workspace bootstrap (`githubRepo` source → clone).
 - The **`@tanstack/ai-claude-code`** harness adapter running the `claude` CLI
   inside the sandbox.
-- **Sandbox file-event hooks** — `watchWorkspace()` logs the agent's
-  create/change/delete events live, and `withSandboxFileEvents()` surfaces them
-  into the `chat()` stream as CUSTOM `sandbox.file` events. The observed events
-  are appended to the report.
+- **Sandbox file-event hooks** — `defineSandbox({ hooks })` logs the agent's
+  create/change/delete events live; `withSandbox` owns the watcher and forwards
+  events to those hooks. File events are also automatically streamed to clients
+  as CUSTOM `sandbox.file` chunks. The observed events are appended to the
+  report.
 
 Two entrypoints, same logic ([`triage.ts`](./triage.ts)):
 

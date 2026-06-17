@@ -7,8 +7,8 @@
  *   capabilities when a persistence middleware supplied them (in-memory
  *   fallback otherwise). If `fileEvents` is not false, starts a watcher
  *   that dispatches to sandbox-scoped hooks and forwards to the runtime sink.
- * - `onFinish`/`onError`: stop the watcher, snapshot (`after-run`) and/or
- *   destroy per lifecycle.
+ * - `onFinish`/`onAbort`/`onError`: stop the watcher, snapshot (`after-run`)
+ *   and/or destroy per lifecycle.
  *
  * NOTE: streamed sandbox lifecycle events (sandbox.created, workspace.setup.*)
  * are emitted by the harness adapter's chatStream (which can yield CUSTOM
@@ -24,7 +24,7 @@ import {
   provideSandboxPolicy,
 } from './capabilities'
 import { watchWorkspace } from './watch'
-import type { ChatMiddlewareContext, DefinedChatMiddleware, SandboxFileEvent } from '@tanstack/ai'
+import type { AbortInfo, ChatMiddlewareContext, DefinedChatMiddleware, SandboxFileEvent } from '@tanstack/ai'
 import type { SandboxHandle } from './contracts'
 import type { SandboxDefinition, SandboxEnsureContext, SandboxHooks } from './sandbox'
 import type { SandboxWatchHandle } from './watch'
@@ -75,7 +75,12 @@ async function dispatchDefinitionHooks(
     { create: 'onFileCreate', change: 'onFileChange', delete: 'onFileDelete' } as const
   )[event.type]
   for (const fn of [hooks.onFile, hooks[typed]]) {
-    if (fn) await fn(event)
+    if (!fn) continue
+    try {
+      await fn(event)
+    } catch {
+      // swallowed — one bad hook must not break the run
+    }
   }
 }
 
@@ -149,6 +154,18 @@ export function withSandbox(
 
       if (lifecycle?.destroyOnComplete) {
         await definition.destroy(ensureCtx)
+        await definition.hooks?.onDestroy?.()
+      }
+    },
+
+    async onAbort(ctx, _info: AbortInfo) {
+      const state = runState.get(ctx)
+      if (!state) return
+
+      await state.watcher?.stop()
+
+      if (definition.lifecycle?.destroyOnComplete) {
+        await definition.destroy(state.ensureCtx)
         await definition.hooks?.onDestroy?.()
       }
     },
