@@ -43,9 +43,9 @@ describe('responses tool converter — strict fallback', () => {
   it('uses strict:true for strict-subset schemas', () => {
     const out = convertFunctionToolToResponsesFormat(strictSafeTool)
     expect(out.strict).toBe(true)
-    expect((out.parameters as Record<string, unknown>).additionalProperties).toBe(
-      false,
-    )
+    expect(
+      (out.parameters as Record<string, unknown>).additionalProperties,
+    ).toBe(false)
   })
 
   it('falls back to strict:false for schemas with unsupported keywords', () => {

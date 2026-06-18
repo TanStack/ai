@@ -387,7 +387,9 @@ describe('isStrictModeCompatible', () => {
       isStrictModeCompatible({
         type: 'object',
         properties: { user: { $ref: '#/$defs/user' } },
-        $defs: { user: { type: 'object', properties: { id: { type: 'string' } } } },
+        $defs: {
+          user: { type: 'object', properties: { id: { type: 'string' } } },
+        },
       }),
     ).toBe(false)
   })
