@@ -31,13 +31,12 @@ export interface SandboxStore {
 }
 
 /**
- * Mutual exclusion around sandbox ensure so two concurrent runs for the same
- * thread don't both create a sandbox. The in-memory default is single-process;
- * the persistence layer provides a distributed lock (e.g. a Durable Object).
+ * The lock primitive (`LockStore` + `InMemoryLockStore`) now lives in core
+ * (`@tanstack/ai`) so the `'locks'` capability is a single shared token across
+ * the sandbox and persistence layers. Re-exported here for back-compat.
  */
-export interface LockStore {
-  withLock: <T>(key: string, fn: () => Promise<T>) => Promise<T>
-}
+export { InMemoryLockStore } from '@tanstack/ai'
+export type { LockStore } from '@tanstack/ai'
 
 /** In-memory {@link SandboxStore}. Resume works only within one process. */
 export class InMemorySandboxStore implements SandboxStore {
@@ -55,29 +54,5 @@ export class InMemorySandboxStore implements SandboxStore {
   delete(key: string): Promise<void> {
     this.map.delete(key)
     return Promise.resolve()
-  }
-}
-
-/**
- * In-memory {@link LockStore} — a per-key promise chain. Correct within a
- * single process; multi-instance correctness needs a distributed lock from the
- * persistence layer.
- */
-export class InMemoryLockStore implements LockStore {
-  private readonly chains = new Map<string, Promise<unknown>>()
-
-  withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
-    const prior = this.chains.get(key) ?? Promise.resolve()
-    // Chain after the prior holder regardless of how it settled.
-    const run = prior.then(fn, fn)
-    // Keep the chain alive but swallow rejections so one failure doesn't poison the lock.
-    this.chains.set(
-      key,
-      run.then(
-        () => undefined,
-        () => undefined,
-      ),
-    )
-    return run
   }
 }
