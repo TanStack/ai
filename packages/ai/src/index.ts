@@ -155,6 +155,36 @@ export type {
   AnyChatMiddleware,
 } from './activities/chat/middleware/index'
 
+// Shared lock primitive (one global 'locks' capability; see locks.ts)
+export {
+  LocksCapability,
+  getLocks,
+  provideLocks,
+  InMemoryLockStore,
+} from './locks'
+export type { LockStore } from './locks'
+
+// Resume-source capability (consumed by chat()'s resume seam; provided by persistence)
+export {
+  ResumeSourceCapability,
+  getResumeSource,
+  provideResumeSource,
+} from './resume'
+export type { ResumeSource, RunStatus } from './resume'
+
+// Well-known AG-UI CUSTOM event catalog (agent activity rides on CUSTOM events)
+export { CUSTOM_EVENT, isCustomEvent } from './custom-events'
+export type {
+  WellKnownCustomEventName,
+  FileChangedPayload,
+  ProcessOutputPayload,
+  PortOpenedPayload,
+  ApprovalRequestedPayload,
+  ApprovalResolvedPayload,
+  ArtifactCreatedPayload,
+  SandboxLifecyclePayload,
+} from './custom-events'
+
 // All types
 export * from './types'
 
