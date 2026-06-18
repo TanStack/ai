@@ -23,6 +23,8 @@ import type { DebugOption } from '../../logger/types'
 import type { GenerationMiddleware } from '../middleware'
 import type { VideoAdapter } from './adapter'
 import type {
+  MediaPrompt,
+  MediaPromptFor,
   StreamChunk,
   TokenUsage,
   VideoJobResult,
@@ -59,6 +61,40 @@ export type VideoSizeForAdapter<TAdapter> =
       : string
     : string
 
+/**
+ * Extract the prompt type a model accepts from a VideoAdapter via ~types.
+ * Mirrors `ImagePromptForModel`: models in the adapter's input-modality map
+ * get a `prompt` narrowed to text + their supported part types; adapters
+ * without a map fall back to the full MediaPrompt.
+ */
+export type VideoPromptForAdapter<TAdapter> =
+  TAdapter extends VideoAdapter<infer TModel, any, any, any, infer ModsByName>
+    ? string extends keyof ModsByName
+      ? MediaPrompt
+      : TModel extends keyof ModsByName
+        ? MediaPromptFor<ModsByName[TModel][number]>
+        : MediaPrompt
+    : MediaPrompt
+
+/**
+ * Extract the duration type for a VideoAdapter's model via ~types.
+ * Mirrors `VideoSizeForAdapter`. Falls back to `number` for adapters that
+ * haven't declared per-model duration constraints.
+ */
+export type VideoDurationForAdapter<TAdapter> =
+  TAdapter extends VideoAdapter<
+    infer TModel,
+    any,
+    any,
+    any,
+    any,
+    infer TDurationMap
+  >
+    ? TModel extends keyof TDurationMap
+      ? TDurationMap[TModel]
+      : number
+    : number
+
 // ===========================
 // Activity Options Types
 
@@ -93,12 +129,25 @@ export type VideoCreateOptions<
 > = VideoActivityBaseOptions<TAdapter> & {
   /** Request type - create a new job (default if not specified) */
   request?: 'create'
-  /** Text description of the desired video */
-  prompt: string
+  /**
+   * Description of the desired video. Either a plain string, or — for models
+   * that support image-conditioned generation — an ordered array of content
+   * parts interleaving text with image inputs. Image parts may carry
+   * `metadata.role` (`'start_frame' | 'end_frame' | 'reference' |
+   * 'character'`) to disambiguate intent; positional fallback otherwise. The
+   * accepted part types are narrowed per model via the adapter's
+   * input-modality map.
+   */
+  prompt: VideoPromptForAdapter<TAdapter>
   /** Video size — format depends on the provider (e.g., "16:9", "1280x720") */
   size?: VideoSizeForAdapter<TAdapter>
-  /** Video duration in seconds */
-  duration?: number
+  /**
+   * Video duration in seconds. Adapters that declare a per-model duration
+   * map narrow this to the model's valid union (e.g. `4 | 6 | 8` for Veo 3).
+   * Pass `adapter.snapDuration(seconds)` to coerce raw seconds to a valid
+   * value.
+   */
+  duration?: VideoDurationForAdapter<TAdapter>
   /**
    * Whether to stream the video generation lifecycle.
    * When true, returns an AsyncIterable<StreamChunk> that handles the full

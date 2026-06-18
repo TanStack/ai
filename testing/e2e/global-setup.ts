@@ -43,6 +43,13 @@ export default async function globalSetup() {
   mock.mount('/v1/text-to-speech', elevenLabsTTSMount())
   mock.mount('/v1/speech-to-text', elevenLabsSTTMount())
 
+  // Gemini Veo video generation. aimock 1.29 mocks Gemini's `:predict`
+  // (Imagen) endpoint but not the long-running `:predictLongRunning` +
+  // operations-polling pair Veo uses, so mount both here. Non-Veo paths
+  // under /v1beta/models (chat, images) return false and fall through to
+  // aimock's native Gemini handlers.
+  mock.mount('/v1beta/models', geminiVeoMount())
+
   // Anthropic server_tool_use bug reproduction (issue #604). aimock can't
   // natively synthesize `server_tool_use` / `web_fetch_tool_result` content
   // blocks, so this mount hand-crafts the raw SSE Claude would emit when a
@@ -88,6 +95,19 @@ function registerMediaFixtures(mock: LLMock) {
       url: 'https://example.com/guitar-store.mp4',
       duration: 10,
       id: 'video-job-e2e',
+      status: 'completed',
+    },
+  })
+
+  // Image-to-video: the Sora adapter uploads the image part as
+  // `input_reference`, which makes the OpenAI SDK switch to a multipart
+  // POST /v1/videos. aimock 1.29 extracts the `prompt` form field from
+  // multipart bodies, so matching works the same as the JSON case above.
+  mock.onVideo('animate this product photo', {
+    video: {
+      url: 'https://example.com/product-animated.mp4',
+      duration: 5,
+      id: 'video-job-i2v-e2e',
       status: 'completed',
     },
   })
@@ -250,6 +270,67 @@ function elevenLabsSTTMount(): Mountable {
         }),
       )
       return true
+    },
+  }
+}
+
+/**
+ * Mounts Gemini Veo's long-running video generation endpoints:
+ *
+ * - `POST /v1beta/models/{model}:predictLongRunning` — starts the job and
+ *   returns the operation name.
+ * - `GET /v1beta/models/{model}/operations/{id}` — polls the operation. The
+ *   mock completes immediately with the raw MLDev wire shape
+ *   (`response.generateVideoResponse.generatedSamples[0].video.uri`), which
+ *   the `@google/genai` SDK maps to `response.generatedVideos[0].video.uri`.
+ *
+ * Mirrors the openai `onVideo` fixture: same prompt-agnostic completed job,
+ * same target video URL.
+ */
+function geminiVeoMount(): Mountable {
+  const VIDEO_URL = 'https://example.com/guitar-store.mp4'
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      // aimock strips the mount prefix ('/v1beta/models') and any query
+      // string, so pathname looks like '/{model}:predictLongRunning' or
+      // '/{model}/operations/{id}'.
+      pathname: string,
+    ): Promise<boolean> {
+      const createMatch = pathname.match(/^\/([^/:]+):predictLongRunning$/)
+      if (createMatch && req.method === 'POST') {
+        await drainBody(req)
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            name: `models/${createMatch[1]}/operations/veo-job-e2e`,
+          }),
+        )
+        return true
+      }
+
+      const pollMatch = pathname.match(/^\/([^/:]+)\/operations\/([^/]+)$/)
+      if (pollMatch && req.method === 'GET') {
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            name: `models/${pollMatch[1]}/operations/${pollMatch[2]}`,
+            done: true,
+            response: {
+              generateVideoResponse: {
+                generatedSamples: [{ video: { uri: VIDEO_URL } }],
+              },
+            },
+          }),
+        )
+        return true
+      }
+
+      // Not a Veo path — fall through to aimock's native Gemini handlers.
+      return false
     },
   }
 }

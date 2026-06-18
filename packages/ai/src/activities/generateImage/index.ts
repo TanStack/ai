@@ -15,11 +15,17 @@ import {
   runGenerationStart,
   runGenerationUsage,
 } from '../middleware'
+import { resolveMediaPrompt } from '../../utilities/media-prompt'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
 import type { GenerationMiddleware } from '../middleware'
 import type { ImageAdapter } from './adapter'
-import type { ImageGenerationResult, StreamChunk } from '../../types'
+import type {
+  ImageGenerationResult,
+  MediaPrompt,
+  MediaPromptFor,
+  StreamChunk,
+} from '../../types'
 
 // ===========================
 // Activity Kind
@@ -63,6 +69,23 @@ export type ImageSizeForModel<TAdapter, TModel extends string> =
         : string
     : string
 
+/**
+ * Extract the prompt type a model accepts from an ImageAdapter via ~types.
+ * Adapters declare a per-model input-modality map; models in the map get a
+ * `prompt` narrowed to text + their supported part types (text-only models
+ * accept `string | Array<TextPart>`), so unsupported media parts fail at
+ * compile time. Adapters without a map fall back to the full MediaPrompt.
+ */
+export type ImagePromptForModel<TAdapter, TModel extends string> =
+  TAdapter extends ImageAdapter<any, any, any, any, infer ModsByName>
+    ? string extends keyof ModsByName
+      ? // No explicit map - accept the full union
+        MediaPrompt
+      : TModel extends keyof ModsByName
+        ? MediaPromptFor<ModsByName[TModel][number]>
+        : MediaPrompt
+    : MediaPrompt
+
 // ===========================
 // Activity Options Type
 // ===========================
@@ -80,8 +103,16 @@ export type ImageActivityOptions<
 > = {
   /** The image adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
-  /** Text description of the desired image(s) */
-  prompt: string
+  /**
+   * Description of the desired image(s). Either a plain string, or — for
+   * models that support image-conditioned generation — an ordered array of
+   * content parts interleaving text with image inputs (image-to-image,
+   * reference-guided, edit, multi-reference). Media parts may carry
+   * `metadata.role` (`'reference' | 'mask' | 'control' | 'character'`) to
+   * disambiguate intent. The accepted part types are narrowed per model via
+   * the adapter's input-modality map.
+   */
+  prompt: ImagePromptForModel<TAdapter, TAdapter['model']>
   /** Number of images to generate (default: 1) */
   numberOfImages?: number
   /** Image size in WIDTHxHEIGHT format (e.g., "1024x1024") */
@@ -229,13 +260,26 @@ async function runGenerateImage<
 
   await runGenerationStart(middleware, mwCtx)
 
+  // Devtools events carry the flattened prompt text plus media-part counts —
+  // the wire payload stays `prompt: string` regardless of the prompt shape.
+  const resolved = resolveMediaPrompt(rest.prompt)
+
   aiEventClient.emit('image:request:started', {
     requestId,
     provider: adapter.name,
     model,
-    prompt: rest.prompt,
+    prompt: resolved.text,
     numberOfImages: rest.numberOfImages,
     size: rest.size,
+    ...(resolved.images.length > 0 && {
+      imageInputCount: resolved.images.length,
+    }),
+    ...(resolved.videos.length > 0 && {
+      videoInputCount: resolved.videos.length,
+    }),
+    ...(resolved.audios.length > 0 && {
+      audioInputCount: resolved.audios.length,
+    }),
     modelOptions: rest.modelOptions,
     timestamp: startTime,
   })

@@ -219,6 +219,39 @@ const GROK_2_IMAGE = {
   },
 } as const satisfies ModelMeta
 
+// Imagine API image models. Pricing is per generated image (output only).
+const GROK_IMAGINE_IMAGE = {
+  name: 'grok-imagine-image',
+  supports: {
+    input: ['text', 'image'],
+    output: ['image'],
+  },
+  pricing: {
+    input: {
+      normal: 0,
+    },
+    output: {
+      normal: 0.02,
+    },
+  },
+} as const satisfies ModelMeta
+
+const GROK_IMAGINE_IMAGE_QUALITY = {
+  name: 'grok-imagine-image-quality',
+  supports: {
+    input: ['text', 'image'],
+    output: ['image'],
+  },
+  pricing: {
+    input: {
+      normal: 0,
+    },
+    output: {
+      normal: 0.05,
+    },
+  },
+} as const satisfies ModelMeta
+
 /**
  * Grok Chat Models
  * Based on xAI's available models as of 2025
@@ -349,7 +382,11 @@ export const GROK_COMBINED_TOOLS_AND_SCHEMA_MODELS = new Set<string>([
 /**
  * Grok Image Generation Models
  */
-export const GROK_IMAGE_MODELS = [GROK_2_IMAGE.name] as const
+export const GROK_IMAGE_MODELS = [
+  GROK_2_IMAGE.name,
+  GROK_IMAGINE_IMAGE.name,
+  GROK_IMAGINE_IMAGE_QUALITY.name,
+] as const
 
 // xAI's `/v1/tts` endpoint is endpoint-addressed and does not take a `model`
 // parameter. This synthetic identifier satisfies the SDK's `TTSOptions.model`
