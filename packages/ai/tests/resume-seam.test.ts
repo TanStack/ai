@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { chat } from '../src/activities/chat/index'
 import { defineChatMiddleware } from '../src/activities/chat/middleware/index'
-import {
-  ResumeSourceCapability,
-  provideResumeSource,
-} from '../src/resume'
+import { ResumeSourceCapability, provideResumeSource } from '../src/resume'
 import type { ResumeSource } from '../src/resume'
 import type { StreamChunk } from '../src/types'
 import { ev, createMockAdapter, collectChunks, getDeltas } from './test-utils'

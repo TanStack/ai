@@ -9,7 +9,7 @@ import type { PrismaRawClient } from '../src/index'
 function fakePrisma(): PrismaRawClient {
   const db = new DatabaseSync(':memory:')
   const client: PrismaRawClient = {
-    $queryRawUnsafe: <T,>(sql: string, ...params: Array<unknown>) =>
+    $queryRawUnsafe: <T>(sql: string, ...params: Array<unknown>) =>
       Promise.resolve(db.prepare(sql).all(...(params as Array<never>)) as T),
     $executeRawUnsafe: (sql: string, ...params: Array<unknown>) => {
       db.prepare(sql).run(...(params as Array<never>))

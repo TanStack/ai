@@ -79,9 +79,9 @@ describe('withPersistence (no sandbox)', () => {
     // Events are in the log, run is completed, transcript saved.
     expect(await persistence.events!.hasRun('r1')).toBe(true)
     expect((await persistence.runs!.get('r1'))?.status).toBe('completed')
-    expect((await persistence.messages!.loadThread('t1')).length).toBeGreaterThan(
-      0,
-    )
+    expect(
+      (await persistence.messages!.loadThread('t1')).length,
+    ).toBeGreaterThan(0)
   })
 
   it('resumes by replaying events after the cursor without running the adapter', async () => {

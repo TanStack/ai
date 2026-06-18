@@ -10,10 +10,7 @@
  */
 import { createSqlPersistence } from '@tanstack/ai-persistence-sql'
 import type { Dialect, SqlDriver, SqlRow } from '@tanstack/ai-persistence-sql'
-import type {
-  ChatPersistence,
-  PersistenceMode,
-} from '@tanstack/ai-persistence'
+import type { ChatPersistence, PersistenceMode } from '@tanstack/ai-persistence'
 
 /** The PrismaClient surface this adapter relies on. */
 export interface PrismaRawClient {
@@ -61,5 +58,8 @@ export function prismaPersistence(
   opts: PrismaPersistenceOptions,
 ): ChatPersistence {
   const driver = createPrismaDriver(opts.prisma, opts.dialect)
-  return createSqlPersistence(driver, { mode: opts.mode, migrate: opts.migrate })
+  return createSqlPersistence(driver, {
+    mode: opts.mode,
+    migrate: opts.migrate,
+  })
 }

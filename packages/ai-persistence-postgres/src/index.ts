@@ -9,10 +9,7 @@
  */
 import { createSqlPersistence } from '@tanstack/ai-persistence-sql'
 import type { SqlDriver, SqlRow } from '@tanstack/ai-persistence-sql'
-import type {
-  ChatPersistence,
-  PersistenceMode,
-} from '@tanstack/ai-persistence'
+import type { ChatPersistence, PersistenceMode } from '@tanstack/ai-persistence'
 
 /** Minimal node-postgres surface the driver relies on. */
 export interface PgQueryable {
@@ -126,5 +123,8 @@ export function postgresPersistence(
     connectionString: opts.connectionString,
     client: opts.client,
   })
-  return createSqlPersistence(driver, { mode: opts.mode, migrate: opts.migrate })
+  return createSqlPersistence(driver, {
+    mode: opts.mode,
+    migrate: opts.migrate,
+  })
 }

@@ -20,7 +20,9 @@ describe('loadRunHistory', () => {
 
     const timeline = await loadRunHistory(events!, 'r1')
     expect(
-      timeline.map((c) => (c.type === 'TEXT_MESSAGE_CONTENT' ? c.delta : c.type)),
+      timeline.map((c) =>
+        c.type === 'TEXT_MESSAGE_CONTENT' ? c.delta : c.type,
+      ),
     ).toEqual(['a', 'b', 'c'])
   })
 

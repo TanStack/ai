@@ -4,13 +4,32 @@
   "description": "SQLite backend for TanStack AI persistence — durable runs, messages, event log, approvals, and artifacts over node:sqlite (zero-dep, Node 22+) or a bring-your-own better-sqlite3 handle.",
   "author": "",
   "license": "MIT",
-  "repository": { "type": "git", "url": "git+https://github.com/TanStack/ai.git", "directory": "packages/ai-persistence-sqlite" },
-  "keywords": ["ai","tanstack","persistence","sqlite","node-sqlite","better-sqlite3"],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-persistence-sqlite"
+  },
+  "keywords": [
+    "ai",
+    "tanstack",
+    "persistence",
+    "sqlite",
+    "node-sqlite",
+    "better-sqlite3"
+  ],
   "type": "module",
   "module": "./dist/esm/index.js",
   "types": "./dist/esm/index.d.ts",
-  "exports": { ".": { "types": "./dist/esm/index.d.ts", "import": "./dist/esm/index.js" } },
-  "files": ["dist","src"],
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
   "scripts": {
     "build": "vite build",
     "clean": "premove ./build ./dist",

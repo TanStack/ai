@@ -45,7 +45,10 @@ import { anthropicText } from '@tanstack/ai-anthropic/adapters'
 import { withPersistence } from '@tanstack/ai-persistence'
 import { sqlitePersistence } from '@tanstack/ai-persistence-sqlite'
 
-const persistence = sqlitePersistence({ path: '.tanstack-ai/state.sqlite', mode: 'chat' })
+const persistence = sqlitePersistence({
+  path: '.tanstack-ai/state.sqlite',
+  mode: 'chat',
+})
 
 export async function POST(request: Request) {
   const { messages, threadId, runId, cursor } = await request.json()
@@ -69,11 +72,11 @@ client tracks the cursor; `chat.maybeAutoResume()` (call on mount / online),
 ## Backends
 
 ```ts
-import { memoryPersistence } from '@tanstack/ai-persistence'          // tests/prototypes
-import { sqlitePersistence } from '@tanstack/ai-persistence-sqlite'   // { path } | { db }
+import { memoryPersistence } from '@tanstack/ai-persistence' // tests/prototypes
+import { sqlitePersistence } from '@tanstack/ai-persistence-sqlite' // { path } | { db }
 import { postgresPersistence } from '@tanstack/ai-persistence-postgres' // { connectionString } | { client }
 import { drizzlePersistence } from '@tanstack/ai-persistence-drizzle' // { db, dialect }
-import { prismaPersistence } from '@tanstack/ai-persistence-prisma'   // { prisma, dialect }
+import { prismaPersistence } from '@tanstack/ai-persistence-prisma' // { prisma, dialect }
 import { cloudflarePersistence } from '@tanstack/ai-persistence-cloudflare' // { d1, durableObjects?, r2? }
 ```
 

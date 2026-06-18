@@ -15,7 +15,10 @@ export function createTestSqliteDriver(path = ':memory:'): SqlDriver {
       db.prepare(sql).run(...(params as Array<never>))
       return Promise.resolve()
     },
-    query<T extends SqlRow = SqlRow>(sql: string, params: ReadonlyArray<unknown> = []) {
+    query<T extends SqlRow = SqlRow>(
+      sql: string,
+      params: ReadonlyArray<unknown> = [],
+    ) {
       const rows = db.prepare(sql).all(...(params as Array<never>))
       return Promise.resolve(rows as Array<T>)
     },

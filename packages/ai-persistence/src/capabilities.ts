@@ -13,10 +13,12 @@ import type { ApprovalStore, ChatPersistence, EventLog } from './types'
 export const PersistenceCapability =
   createCapability<ChatPersistence>()('persistence')
 
-export const EventsCapability = createCapability<EventLog>()('persistence.events')
+export const EventsCapability =
+  createCapability<EventLog>()('persistence.events')
 
-export const ApprovalsCapability =
-  createCapability<ApprovalStore>()('persistence.approvals')
+export const ApprovalsCapability = createCapability<ApprovalStore>()(
+  'persistence.approvals',
+)
 
 export const [getPersistence, providePersistence] = PersistenceCapability
 export const [getEvents, provideEvents] = EventsCapability

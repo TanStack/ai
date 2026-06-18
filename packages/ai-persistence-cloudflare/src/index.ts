@@ -11,10 +11,7 @@
  */
 import { createSqlPersistence } from '@tanstack/ai-persistence-sql'
 import type { SqlDriver, SqlRow } from '@tanstack/ai-persistence-sql'
-import type {
-  ChatPersistence,
-  PersistenceMode,
-} from '@tanstack/ai-persistence'
+import type { ChatPersistence, PersistenceMode } from '@tanstack/ai-persistence'
 import type { LockStore } from '@tanstack/ai'
 
 /** Build a {@link SqlDriver} over a Cloudflare D1 database (SQLite dialect). */

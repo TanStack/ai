@@ -12,8 +12,15 @@
  * This package depends on both sides so neither core package has to: persistence
  * stays sandbox-free, and ai-sandbox doesn't force a SQL dependency.
  */
-import { LocksCapability, defineChatMiddleware, provideLocks } from '@tanstack/ai'
-import { SandboxStoreCapability, provideSandboxStore } from '@tanstack/ai-sandbox'
+import {
+  LocksCapability,
+  defineChatMiddleware,
+  provideLocks,
+} from '@tanstack/ai'
+import {
+  SandboxStoreCapability,
+  provideSandboxStore,
+} from '@tanstack/ai-sandbox'
 import { param } from '@tanstack/ai-persistence-sql'
 import type { SqlDriver } from '@tanstack/ai-persistence-sql'
 import type { SandboxRecord, SandboxStore } from '@tanstack/ai-sandbox'
@@ -91,10 +98,9 @@ export function createSqlSandboxStore(driver: SqlDriver): SandboxStore {
     },
     async delete(key) {
       await ensure()
-      await driver.exec(
-        `DELETE FROM sandbox_instances WHERE key = ${p(1)}`,
-        [key],
-      )
+      await driver.exec(`DELETE FROM sandbox_instances WHERE key = ${p(1)}`, [
+        key,
+      ])
     },
   }
 }

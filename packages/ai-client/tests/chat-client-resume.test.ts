@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { EventType } from '@tanstack/ai/client'
 import { ChatClient } from '../src/chat-client'
-import type { ConnectConnectionAdapter, RunAgentInputContext } from '../src/connection-adapters'
+import type {
+  ConnectConnectionAdapter,
+  RunAgentInputContext,
+} from '../src/connection-adapters'
 import type { StreamChunk } from '@tanstack/ai/client'
 
 /**
@@ -22,7 +25,8 @@ function recordingAdapter(scripts: Array<Script>) {
       contexts.push(runContext)
       const script = scripts[i]
       i++
-      const chunks = typeof script === 'function' ? script(runContext) : script ?? []
+      const chunks =
+        typeof script === 'function' ? script(runContext) : (script ?? [])
       for (const c of chunks) yield c
     },
   }

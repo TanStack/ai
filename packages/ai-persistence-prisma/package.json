@@ -4,13 +4,29 @@
   "description": "Prisma backend for TanStack AI persistence — bring your own PrismaClient; persists via $queryRawUnsafe/$executeRawUnsafe (sqlite or postgres dialect).",
   "author": "",
   "license": "MIT",
-  "repository": { "type": "git", "url": "git+https://github.com/TanStack/ai.git", "directory": "packages/ai-persistence-prisma" },
-  "keywords": ["ai","tanstack","persistence"],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-persistence-prisma"
+  },
+  "keywords": [
+    "ai",
+    "tanstack",
+    "persistence"
+  ],
   "type": "module",
   "module": "./dist/esm/index.js",
   "types": "./dist/esm/index.d.ts",
-  "exports": { ".": { "types": "./dist/esm/index.d.ts", "import": "./dist/esm/index.js" } },
-  "files": ["dist","src"],
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
   "scripts": {
     "build": "vite build",
     "clean": "premove ./build ./dist",

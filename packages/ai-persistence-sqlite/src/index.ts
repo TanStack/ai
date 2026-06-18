@@ -11,10 +11,7 @@
 import { DatabaseSync } from 'node:sqlite'
 import { createSqlPersistence } from '@tanstack/ai-persistence-sql'
 import type { SqlDriver, SqlRow } from '@tanstack/ai-persistence-sql'
-import type {
-  ChatPersistence,
-  PersistenceMode,
-} from '@tanstack/ai-persistence'
+import type { ChatPersistence, PersistenceMode } from '@tanstack/ai-persistence'
 
 /** The subset of a SQLite client the driver needs (node:sqlite & better-sqlite3 both satisfy it). */
 interface SqliteClient {

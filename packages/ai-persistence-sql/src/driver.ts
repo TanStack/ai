@@ -31,9 +31,9 @@ export function param(dialect: Dialect, index: number): string {
 
 /** Build N placeholders starting at `start` (1-based), e.g. `?, ?, ?`. */
 export function params(dialect: Dialect, count: number, start = 1): string {
-  return Array.from({ length: count }, (_, i) => param(dialect, start + i)).join(
-    ', ',
-  )
+  return Array.from({ length: count }, (_, i) =>
+    param(dialect, start + i),
+  ).join(', ')
 }
 
 /** Auto-incrementing integer primary-key column definition for the dialect. */
