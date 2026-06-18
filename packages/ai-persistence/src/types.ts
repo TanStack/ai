@@ -32,10 +32,7 @@ export interface PersistedEvent {
 /** Conversation history, keyed by threadId. Holds server-canonical messages. */
 export interface MessageStore {
   loadThread: (threadId: string) => Promise<Array<ModelMessage>>
-  saveThread: (
-    threadId: string,
-    messages: Array<ModelMessage>,
-  ) => Promise<void>
+  saveThread: (threadId: string, messages: Array<ModelMessage>) => Promise<void>
 }
 
 /** Lifecycle status of a run. */
@@ -62,7 +59,9 @@ export interface RunStore {
   ) => Promise<RunRecord>
   update: (
     runId: string,
-    patch: Partial<Pick<RunRecord, 'status' | 'finishedAt' | 'error' | 'usage'>>,
+    patch: Partial<
+      Pick<RunRecord, 'status' | 'finishedAt' | 'error' | 'usage'>
+    >,
   ) => Promise<void>
   get: (runId: string) => Promise<RunRecord | null>
 }

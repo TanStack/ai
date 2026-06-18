@@ -19,8 +19,13 @@ function sqliteDriver(): SqlDriver {
       db.prepare(sql).run(...(params as Array<never>))
       return Promise.resolve()
     },
-    query<T extends SqlRow = SqlRow>(sql: string, params: ReadonlyArray<unknown> = []) {
-      return Promise.resolve(db.prepare(sql).all(...(params as Array<never>)) as Array<T>)
+    query<T extends SqlRow = SqlRow>(
+      sql: string,
+      params: ReadonlyArray<unknown> = [],
+    ) {
+      return Promise.resolve(
+        db.prepare(sql).all(...(params as Array<never>)) as Array<T>,
+      )
     },
     transaction(fn) {
       return fn(driver)
@@ -68,7 +73,9 @@ describe('withPersistenceBridge', () => {
     const sandboxStore = createSqlSandboxStore(sqliteDriver())
 
     const mw = withPersistenceBridge({ persistence, sandboxStore })
-    const ctx = fakeCtx() as unknown as Parameters<NonNullable<typeof mw.setup>>[0]
+    const ctx = fakeCtx() as unknown as Parameters<
+      NonNullable<typeof mw.setup>
+    >[0]
     await mw.setup!(ctx)
 
     expect(getLocks(ctx)).toBe(lock)

@@ -133,7 +133,10 @@ export function withPersistence(
       const state = runState.get(ctx)
       if (!state) return
       const seq = state.seq.next()
-      const stamped: StreamChunk = { ...chunk, cursor: encodeCursor(ctx.runId, seq) }
+      const stamped: StreamChunk = {
+        ...chunk,
+        cursor: encodeCursor(ctx.runId, seq),
+      }
       await persistence.events.append(ctx.runId, seq, stamped)
       await persistence.stream?.publish(ctx.runId, seq, stamped)
       return stamped
@@ -155,9 +158,7 @@ export function withPersistence(
         status: 'failed',
         finishedAt: Date.now(),
         error:
-          info.error instanceof Error
-            ? info.error.message
-            : String(info.error),
+          info.error instanceof Error ? info.error.message : String(info.error),
       })
     },
 

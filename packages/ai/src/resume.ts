@@ -30,10 +30,7 @@ export interface ResumeSource {
    * `afterCursor` (or from the beginning when omitted). Each yielded chunk
    * carries its stamped `cursor`.
    */
-  replay: (
-    runId: string,
-    afterCursor?: string,
-  ) => AsyncIterable<StreamChunk>
+  replay: (runId: string, afterCursor?: string) => AsyncIterable<StreamChunk>
   /** Current status of `runId`, or null when unknown. */
   getStatus: (runId: string) => Promise<RunStatus | null>
 }

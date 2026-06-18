@@ -12,10 +12,7 @@
  */
 import { createSqlPersistence, ddl } from '@tanstack/ai-persistence-sql'
 import type { Dialect, SqlDriver, SqlRow } from '@tanstack/ai-persistence-sql'
-import type {
-  ChatPersistence,
-  PersistenceMode,
-} from '@tanstack/ai-persistence'
+import type { ChatPersistence, PersistenceMode } from '@tanstack/ai-persistence'
 
 export { ddl }
 
@@ -96,5 +93,8 @@ export function drizzlePersistence(
     opts.dialect === 'postgres'
       ? pgDriver(opts.db.$client as PgClient)
       : sqliteDriver(opts.db.$client as SqliteClient)
-  return createSqlPersistence(driver, { mode: opts.mode, migrate: opts.migrate })
+  return createSqlPersistence(driver, {
+    mode: opts.mode,
+    migrate: opts.migrate,
+  })
 }

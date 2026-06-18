@@ -8,7 +8,12 @@
  *   `withSandbox`. v1 falls back to in-memory defaults; the future persistence
  *   package PROVIDES durable implementations.
  */
-import { LocksCapability, createCapability, getLocks, provideLocks } from '@tanstack/ai'
+import {
+  LocksCapability,
+  createCapability,
+  getLocks,
+  provideLocks,
+} from '@tanstack/ai'
 import type { SandboxHandle } from './contracts'
 import type { SandboxStore } from './store'
 import type { SandboxPolicy } from './policy'

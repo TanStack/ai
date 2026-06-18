@@ -102,7 +102,11 @@ Declare hooks on `defineSandbox({ hooks })` (sandbox-scoped) or on any chat
 middleware via the `sandbox` group (run-scoped):
 
 ```typescript
-import { defineSandbox, defineChatMiddleware, withSandbox } from '@tanstack/ai-sandbox'
+import {
+  defineSandbox,
+  defineChatMiddleware,
+  withSandbox,
+} from '@tanstack/ai-sandbox'
 import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
 
 // Sandbox-scoped hooks (all optional):
@@ -110,13 +114,13 @@ const sandbox = defineSandbox({
   id: 'repo-agent',
   provider: dockerSandbox({ image: 'node:22' }),
   hooks: {
-    onFile:       (e) => console.log(e.type, e.path), // catch-all
+    onFile: (e) => console.log(e.type, e.path), // catch-all
     onFileCreate: (e) => console.log('created', e.path),
     onFileChange: (e) => console.log('changed', e.path),
     onFileDelete: (e) => console.log('deleted', e.path),
-    onReady:      (handle) => console.log('ready', handle.id),
-    onError:      (err) => console.error(err),
-    onDestroy:    () => console.log('destroyed'),
+    onReady: (handle) => console.log('ready', handle.id),
+    onError: (err) => console.error(err),
+    onDestroy: () => console.log('destroyed'),
   },
   fileEvents: true, // default; set false to disable watching entirely
 })
@@ -125,7 +129,7 @@ const sandbox = defineSandbox({
 const auditMiddleware = defineChatMiddleware({
   name: 'audit',
   sandbox: {
-    onFile:       (ctx, e) => console.log(ctx.runId, e.type, e.path),
+    onFile: (ctx, e) => console.log(ctx.runId, e.type, e.path),
     onFileCreate: (ctx, e) => db.log({ run: ctx.runId, event: e }),
     onFileChange: (ctx, e) => metrics.increment('file.change'),
     onFileDelete: (ctx, e) => console.warn('deleted', e.path),
@@ -137,7 +141,12 @@ const auditMiddleware = defineChatMiddleware({
 for await (const chunk of stream) {
   if (chunk.type === 'CUSTOM' && chunk.name === 'sandbox.file') {
     const value = chunk.value
-    if (value !== null && typeof value === 'object' && 'type' in value && 'path' in value) {
+    if (
+      value !== null &&
+      typeof value === 'object' &&
+      'type' in value &&
+      'path' in value
+    ) {
       console.log('file event', value) // { type, path, timestamp }
     }
   }

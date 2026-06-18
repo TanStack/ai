@@ -24,7 +24,12 @@ export type { WithPersistenceOptions } from './middleware'
 export { memoryPersistence } from './memory'
 
 // Cursor utilities
-export { encodeCursor, decodeCursor, isValidCursor, RunSequence } from './cursor'
+export {
+  encodeCursor,
+  decodeCursor,
+  isValidCursor,
+  RunSequence,
+} from './cursor'
 
 // Resume-source adapter (EventLog + RunStore -> core ResumeSource)
 export { createResumeSource } from './resume-source'

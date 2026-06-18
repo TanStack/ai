@@ -17,4 +17,5 @@ export interface SandboxRuntime {
 export const SandboxRuntimeCapability =
   createCapability<SandboxRuntime>()('sandbox-runtime')
 
-export const [getSandboxRuntime, provideSandboxRuntime] = SandboxRuntimeCapability
+export const [getSandboxRuntime, provideSandboxRuntime] =
+  SandboxRuntimeCapability
