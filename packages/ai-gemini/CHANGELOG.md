@@ -1,5 +1,76 @@
 # @tanstack/ai-gemini
 
+## 0.17.0
+
+### Minor Changes
+
+- [#624](https://github.com/TanStack/ai/pull/624) [`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f) - Add a Google Veo video adapter (`geminiVideo` / `createGeminiVideo`) and the
+  per-model typed-duration video contract it is built on ([#534](https://github.com/TanStack/ai/issues/534), [#634](https://github.com/TanStack/ai/issues/634)).
+
+  **`@tanstack/ai`** (additive, non-breaking): `VideoAdapter` /
+  `BaseVideoAdapter` gain a `TModelDurationByName` generic (defaulting to
+  `Record<string, number>`, preserving today's `duration?: number` typing for
+  adapters without a map) plus two introspection methods with safe defaults:
+  - `availableDurations()` — a `DurationOptions` tagged union
+    (`discrete | range | mixed | none`) describing the durations the current
+    model accepts. Default: `{ kind: 'none' }`.
+  - `snapDuration(seconds)` — coerce raw seconds to the closest valid duration
+    (`snapToDurationOption` is exported for adapter authors). Default:
+    `undefined`.
+
+  `generateVideo({ duration })` is now typed per model via
+  `VideoDurationForAdapter<TAdapter>`.
+
+  **`@tanstack/ai-gemini`**: new Veo adapter over the long-running
+  `:predictLongRunning` operation, supporting `veo-3.1-generate-preview`,
+  `veo-3.1-fast-generate-preview`, `veo-3.0-generate-001`,
+  `veo-3.0-fast-generate-001`, and `veo-2.0-generate-001`:
+  - `geminiVideo('veo-3.0-generate-001')` → `duration?: 4 | 6 | 8`
+    (Veo 2: `5 | 6 | 8`); `adapter.snapDuration(7)` → `6`.
+  - Multimodal prompts: the first un-roled / `'start_frame'` image part
+    becomes the input image, `'end_frame'` → `lastFrame`, `'reference'` /
+    `'character'` → `referenceImages`.
+  - `size` takes Veo aspect ratios (`'16:9' | '9:16'`); everything else from
+    the SDK's `GenerateVideosConfig` (e.g. `resolution`, `generateAudio`,
+    `negativePrompt`) is available through `modelOptions`.
+  - Responsible-AI filtering is surfaced as a failed job with the filter
+    reasons.
+
+  Note: Veo result URLs are served by the Gemini Files API and require the
+  Google API key to download (`x-goog-api-key` header or `key` query
+  parameter).
+
+- [#624](https://github.com/TanStack/ai/pull/624) [`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f) - `generateImage()` and `generateVideo()` now accept a multimodal `prompt`: a plain string, or an ordered array of content parts (`TextPart` / `ImagePart` / `VideoPart` / `AudioPart`) for image-conditioned generation, image-to-image, multi-reference, image-to-video, and edit / inpaint flows. Part order is meaningful — "not like this _(image)_, more like this _(image)_" — and each media part may carry a `metadata.role` hint (`'reference' | 'mask' | 'control' | 'start_frame' | 'end_frame' | 'character'`) that adapters use to route to the provider-specific field, plus an informational `metadata.tag` label for your own bookkeeping. The accepted part types are narrowed per model at compile time via each adapter's input-modality map, so passing an image part to a text-only model is a type error (with a clear runtime throw as backstop).
+
+  Prompt text is always sent **verbatim** — the SDK never injects or rewrites in-prompt referencing markers. To reference inputs from your prompt, write the provider's own convention (fal Kling / Seedance `@Image1`, OpenAI / FLUX.2 `"image 1"` prose, Gemini content descriptions); see the image-generation docs for the per-provider table.
+
+  Provider behavior in this release:
+  - **OpenAI image** — Prompts with image parts route `gpt-image-2` / `gpt-image-1` / `gpt-image-1-mini` to `images.edit()` (up to 16 source images plus optional mask); `dall-e-2` routes to `images.edit()` with one source image; `dall-e-3` rejects image parts at compile time and at runtime.
+  - **OpenAI video** — Sora-2 / Sora-2-Pro accept a single image part as `input_reference`; passing more than one throws.
+  - **Gemini image** — Native models (`gemini-*-flash-image`, "nano-banana") map prompt parts 1:1 onto multimodal `contents`, preserving interleaved order. Imagen is text-only (compile-time + runtime rejection).
+  - **fal.ai** — Field names resolve per endpoint from a map generated from the fal SDK's endpoint types (362 endpoints with nonstandard fields, e.g. nano-banana edit → `image_urls`, Kling i2v start frame → `image_url`, Veo first-last-frame → `first_frame_url` / `last_frame_url`). Defaults for endpoints not in the map: single → `image_url`, multiple → `image_urls`; `role: 'mask'` → `mask_url`; `role: 'control'` → `control_image_url`; `role: 'reference'` / `'character'` → `reference_image_urls`; video `role: 'start_frame'` / `'end_frame'` → `start_image_url` / `end_image_url`. Per-model prompt modalities are derived at the type level from the SDK's endpoint input types. Regenerate the map after a fal SDK bump with `pnpm generate:fal-image-fields` (a unit test fails when it goes stale). In `FalImageProviderOptions` / `FalVideoProviderOptions`, media-conditioning fields the mappers can populate (`image_url`, `start_image_url`, `video_url`, `audio_url`, …) are demoted from required to optional — supply them as prompt parts, or keep passing them explicitly via `modelOptions`.
+  - **Grok** — New `grok-imagine-image` / `grok-imagine-image-quality` models. Prompts with image parts route to xAI's JSON `/v1/images/edits` endpoint (up to 3 source images, addressed by xAI in request order; the prompt is sent verbatim). `role: 'mask'` / `'control'` throw. Their `size` uses an `aspectRatio_resolution` template (`'16:9_2k'`, suffix optional) mirroring Gemini's native image models. `grok-2-image-1212` remains text-to-image only.
+  - **OpenRouter** — Prompt parts map 1:1 onto multimodal `text` / `image_url` chat content parts, preserving interleaved order, and are forwarded to the underlying image model. URL sources pass through verbatim (no fetching or re-encoding in your process); `data` sources become data URIs.
+  - **Anthropic** — Unchanged (no image generation API).
+
+  A new `resolveMediaPrompt()` utility (exported from `@tanstack/ai`) is the single downrev point from the canonical interleaved prompt shape to flattened text + per-modality part buckets, for adapter authors.
+
+  On the client side, `ImageGenerateInput.prompt` and `VideoGenerateInput.prompt` (`@tanstack/ai-client`, and the `useGenerateImage` / `useGenerateVideo` hooks built on them) are widened from `string` to the same `MediaPrompt` shape, so prompt parts can be sent from the browser through your server route to `generateImage()` / `generateVideo()`.
+
+  Closes [#618](https://github.com/TanStack/ai/issues/618).
+
+### Patch Changes
+
+- Updated dependencies [[`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f), [`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f)]:
+  - @tanstack/ai@0.32.0
+
+## 0.16.2
+
+### Patch Changes
+
+- Updated dependencies [[`07aaf8b`](https://github.com/TanStack/ai/commit/07aaf8b9e5a8e699be25f936cc9cd651a46c16c5)]:
+  - @tanstack/ai@0.31.0
+
 ## 0.16.1
 
 ### Patch Changes

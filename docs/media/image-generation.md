@@ -22,7 +22,7 @@ TanStack AI provides support for image generation through dedicated image adapte
 
 Image generation is handled by image adapters that follow the same tree-shakeable architecture as other adapters in TanStack AI. The image adapters support:
 
-- **OpenAI**: DALL-E 2, DALL-E 3, GPT-Image-1, and GPT-Image-1-Mini models
+- **OpenAI**: DALL-E 2, DALL-E 3, GPT-Image-1, GPT-Image-1-Mini, and GPT-Image-2 models
 - **Gemini**: Gemini native image models (NanoBanana) and Imagen 3/4 models
 - **fal.ai**: 600+ models including Nano Banana Pro, FLUX, and more
 
@@ -76,7 +76,7 @@ All image adapters support these common options:
 | Option | Type | Description |
 |--------|------|-------------|
 | `adapter` | `ImageAdapter` | Image adapter instance with model (required) |
-| `prompt` | `string` | Text description of the image to generate (required) |
+| `prompt` | `string \| MediaPromptPart[]` | Description of the image to generate (required). A plain string, or — on models that support image-conditioned generation — an ordered array of content parts interleaving text with image inputs. See [Image-Conditioned Generation](#image-conditioned-generation) below. |
 | `numberOfImages` | `number` | Number of images to generate |
 | `size` | `string` | Size of the generated image in WIDTHxHEIGHT format |
 | `modelOptions?` | `object` | Model-specific options (renamed from `providerOptions`) |
@@ -129,6 +129,169 @@ const result = await generateImage({
   }
 })
 ```
+
+## Image-Conditioned Generation
+
+For image-to-image, reference-guided, multi-reference, and edit / inpaint
+flows, pass the `prompt` as an ordered array of content parts — the same
+`TextPart` / `ImagePart` shapes used elsewhere for multimodal content:
+
+```typescript
+import { generateImage } from '@tanstack/ai'
+import { openaiImage } from '@tanstack/ai-openai'
+
+await generateImage({
+  adapter: openaiImage('gpt-image-2'),
+  prompt: [
+    { type: 'text', content: 'Turn this into a cinematic product photo' },
+    {
+      type: 'image',
+      source: { type: 'url', value: 'https://example.com/product.png' },
+    },
+  ],
+})
+```
+
+Part order is meaningful. Providers with natively multimodal prompts
+(Gemini image models, OpenRouter) receive the parts exactly as written, so
+text can refer to its neighbouring images:
+
+```typescript
+await generateImage({
+  adapter: geminiImage('gemini-3.1-flash-image-preview'),
+  prompt: [
+    { type: 'text', content: 'Not like this' },
+    { type: 'image', source: { type: 'url', value: badExampleUrl } },
+    { type: 'text', content: 'more like this' },
+    { type: 'image', source: { type: 'url', value: goodExampleUrl } },
+  ],
+})
+```
+
+Providers with named request fields (OpenAI, fal, xAI) extract the image
+parts and flatten the text (text parts are joined verbatim, paragraph
+separated).
+
+The accepted part types are narrowed **per model at compile time**: passing
+an image part to a text-only model (e.g. `dall-e-3`, Imagen) is a type
+error, not just a runtime throw.
+
+### Referencing images from your prompt
+
+**Your prompt text is always sent verbatim — the SDK never injects or
+rewrites referencing markers.** When you want the text to refer to specific
+input images, write the provider's own convention yourself:
+
+| Provider | Convention | Example |
+| -------- | ---------- | ------- |
+| **OpenAI** (gpt-image) | Indexed prose, per OpenAI's prompting guide | `"apply the style of image 2 to image 1"` |
+| **FLUX.2 on fal / BFL** | Indexed prose (BFL's docs parse `image N`) | `"subject from image 1, style from image 2"` |
+| **Gemini** (native image models) | Describe the reference by content/role | `"using the attached fabric sample as the texture"` |
+| **fal Kling / Seedance endpoints** | `@`-tags, 1-indexed by input order | `"Put @Image1 in the style of @Image2"` |
+| **xAI grok-imagine** | No in-prompt syntax — images addressed in request order | `"render the product in the style of the second image"` |
+
+To keep track of which part you meant by "image 2" or `@Image2`, you can
+label parts with the informational `metadata.tag` field — the SDK ignores
+it, but it keeps your code self-documenting:
+
+```typescript
+prompt: [
+  { type: 'text', content: 'Put @Image1 in the style of @Image2' },
+  { type: 'image', source: { type: 'url', value: productUrl },
+    metadata: { tag: 'product' } },
+  { type: 'image', source: { type: 'url', value: styleUrl },
+    metadata: { tag: 'style' } },
+]
+```
+
+### Source format
+
+`ImagePart.source` is a discriminated union supporting both URLs and inline
+base64 data — pass whichever you have:
+
+```typescript
+// URL source
+{ type: 'image', source: { type: 'url', value: 'https://example.com/img.png' } }
+
+// Inline base64 data (mimeType required)
+{ type: 'image', source: { type: 'data', value: base64String, mimeType: 'image/png' } }
+```
+
+OpenAI's edit endpoint requires file uploads; the adapter fetches URL sources
+and converts base64 to a `File` automatically.
+
+### Role hints via `metadata.role`
+
+When a generation has multiple inputs with different roles (mask vs reference
+vs start/end frame), set `metadata.role` on each part. Adapters route by role
+to the provider-specific field; parts without a role fall back to positional
+mapping.
+
+| Role            | Maps to                                                                                |
+| --------------- | -------------------------------------------------------------------------------------- |
+| `'reference'`   | fal `reference_image_urls`; Gemini multimodal part; positional fallback                |
+| `'character'`   | Same as `'reference'`; Veo `referenceImages` slot (planned — no Veo adapter yet)       |
+| `'mask'`        | OpenAI `mask` (gpt-image-2, gpt-image-1, dall-e-2); fal `mask_url`                     |
+| `'control'`     | fal `control_image_url` (ControlNet / depth / pose conditioning)                       |
+| `'start_frame'` | fal `start_image_url`; Veo `image` (planned) (used by `generateVideo`)                 |
+| `'end_frame'`   | fal `end_image_url`; Veo `lastFrame` (planned) (used by `generateVideo`)               |
+
+#### Inpaint / edit with a mask
+
+```typescript
+await generateImage({
+  adapter: openaiImage('gpt-image-2'),
+  prompt: [
+    { type: 'text', content: 'Replace the masked region with a tree' },
+    {
+      type: 'image',
+      source: { type: 'url', value: photoUrl },
+    },
+    {
+      type: 'image',
+      source: { type: 'url', value: maskUrl },
+      metadata: { role: 'mask' },
+    },
+  ],
+})
+```
+
+#### Multi-reference composition
+
+```typescript
+await generateImage({
+  adapter: geminiImage('gemini-3.1-flash-image-preview'),
+  prompt: [
+    {
+      type: 'text',
+      content:
+        'Generate a new image of the product using the style of the second reference',
+    },
+    {
+      type: 'image',
+      source: { type: 'url', value: 'https://example.com/product.png' },
+    },
+    {
+      type: 'image',
+      source: { type: 'url', value: 'https://example.com/style.png' },
+    },
+  ],
+})
+```
+
+### Provider support
+
+| Provider     | Behavior                                                                                                  |
+| ------------ | --------------------------------------------------------------------------------------------------------- |
+| **OpenAI**   | `gpt-image-2` / `gpt-image-1` / `gpt-image-1-mini` → routes to `images.edit()`, up to 16 source images plus optional mask.<br>`dall-e-2` → `images.edit()` with 1 source image only.<br>`dall-e-3` → throws (no edit support). |
+| **Gemini**   | Native models (`gemini-*-flash-image`, "nano-banana", etc.) → prompt parts map 1:1 onto multimodal `contents`, preserving interleaved order. Up to ~14 input images (provider limit, not enforced by the SDK).<br>Imagen models → throws (text-to-image only). |
+| **fal.ai**   | Field names resolve per endpoint from a map generated from the fal SDK's endpoint types (e.g. nano-banana edit gets `image_urls`, Fooocus masks get `mask_image_url`). Defaults for unknown endpoints: 1 input → `image_url`; multiple → `image_urls`; `role: 'mask'` → `mask_url`; `role: 'control'` → `control_image_url`; `role: 'reference'` / `'character'` → `reference_image_urls`. Override with `modelOptions` for endpoint-specific fields. |
+| **Grok**     | grok-imagine models → xAI's `/v1/images/edits` (up to 3 source images, addressed by xAI in request order; prompt sent verbatim). `role: 'mask'` / `'control'` throw (no Imagine API equivalent). `grok-2-image-1212` throws (text-to-image only). |
+| **OpenRouter** | Prompt parts map 1:1 onto multimodal `image_url` / `text` content parts, preserving interleaved order, and are forwarded to the underlying image model.                                                                                    |
+| **Anthropic** | n/a — no image generation API.                                                                                                                                                                          |
+
+Adapters that don't support image-conditioned generation throw a clear
+runtime error so calls fail fast rather than silently dropping the inputs.
 
 ## Model Options
 

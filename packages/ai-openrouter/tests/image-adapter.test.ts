@@ -242,6 +242,88 @@ describe('OpenRouter Image Adapter', () => {
     )
   })
 
+  it('maps image prompt parts onto content parts preserving interleaved order', async () => {
+    const mockResponse = createMockImageResponse([
+      { url: 'https://example.com/edited.png' },
+    ])
+
+    mockSend = vi.fn().mockResolvedValueOnce(mockResponse)
+
+    const adapter = createAdapter()
+
+    const result = await adapter.generateImages({
+      model: 'google/gemini-2.5-flash-image',
+      prompt: [
+        {
+          type: 'image',
+          source: { type: 'url', value: 'https://example.com/source.png' },
+        },
+        { type: 'text', content: 'Turn this into a cinematic product photo' },
+        {
+          type: 'image',
+          source: { type: 'data', value: 'c3R5bGU=', mimeType: 'image/png' },
+          metadata: { role: 'reference' },
+        },
+      ],
+      logger: testLogger,
+    })
+
+    const callArgs = mockSend.mock.calls[0]![0].chatRequest
+    expect(callArgs.messages).toEqual([
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'image_url',
+            imageUrl: { url: 'https://example.com/source.png' },
+          },
+          { type: 'text', text: 'Turn this into a cinematic product photo' },
+          {
+            type: 'image_url',
+            imageUrl: { url: 'data:image/png;base64,c3R5bGU=' },
+          },
+        ],
+      },
+    ])
+    expect(result.images).toHaveLength(1)
+  })
+
+  it('keeps a plain string prompt when no image parts are given', async () => {
+    const mockResponse = createMockImageResponse([
+      { url: 'https://example.com/image.png' },
+    ])
+
+    mockSend = vi.fn().mockResolvedValueOnce(mockResponse)
+
+    const adapter = createAdapter()
+    await adapter.generateImages({
+      model: 'google/gemini-2.5-flash-image',
+      prompt: 'A plain prompt',
+      logger: testLogger,
+    })
+
+    const callArgs = mockSend.mock.calls[0]![0].chatRequest
+    expect(callArgs.messages[0].content).toBe('A plain prompt')
+  })
+
+  it('throws for video / audio prompt parts', async () => {
+    const adapter = createAdapter()
+
+    await expect(
+      adapter.generateImages({
+        model: 'google/gemini-2.5-flash-image',
+        prompt: [
+          { type: 'text', content: 'Test' },
+          {
+            type: 'video',
+            source: { type: 'url', value: 'https://example.com/v.mp4' },
+          },
+        ],
+        logger: testLogger,
+      }),
+    ).rejects.toThrow(/does not support video \/ audio prompt parts/)
+  })
+
   it('passes imageConfig correctly', async () => {
     const mockResponse = createMockImageResponse([
       { url: 'https://example.com/image.png' },

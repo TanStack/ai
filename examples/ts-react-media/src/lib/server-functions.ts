@@ -4,10 +4,72 @@ import { geminiImage } from '@tanstack/ai-gemini'
 import { generateImage, generateVideo, getVideoJobStatus } from '@tanstack/ai'
 
 import type { FalModel } from '@tanstack/ai-fal'
+import type {
+  ImagePart,
+  MediaInputMetadata,
+  MediaPrompt,
+  TextPart,
+} from '@tanstack/ai/client'
+
+/** A prompt restricted to text — accepted by every (incl. text-only) model. */
+type TextPrompt = string | Array<TextPart>
+/** A prompt of text + image parts — accepted by image-conditioned models. */
+type ImagePrompt = string | Array<TextPart | ImagePart<MediaInputMetadata>>
+
+/** True when the prompt carries text — a non-empty string or any prompt part. */
+function hasPromptContent(prompt: MediaPrompt): boolean {
+  return typeof prompt === 'string'
+    ? prompt.trim().length > 0
+    : prompt.length > 0
+}
+
+/**
+ * Narrows a wire `MediaPrompt` to a text + image prompt for image-conditioned
+ * models, throwing on any other part kind (video/audio) so unsupported inputs
+ * fail fast rather than being silently dropped.
+ */
+function asImagePrompt(prompt: MediaPrompt): ImagePrompt {
+  if (typeof prompt === 'string') return prompt
+  return prompt.map((part) => {
+    if (part.type === 'text' || part.type === 'image') return part
+    throw new Error(`Unsupported prompt part for image model: ${part.type}`)
+  })
+}
+
+/**
+ * Narrows a wire `MediaPrompt` to a text-only prompt, throwing if any image /
+ * video / audio part is present (text-to-image models can't accept inputs).
+ */
+function asTextPrompt(prompt: MediaPrompt): TextPrompt {
+  if (typeof prompt === 'string') return prompt
+  return prompt.map((part) => {
+    if (part.type === 'text') return part
+    throw new Error(
+      `Model does not support image inputs (received ${part.type} part)`,
+    )
+  })
+}
+
+/**
+ * Like `asImagePrompt`, but additionally requires at least one image part —
+ * image-to-video endpoints need a start frame.
+ */
+function asImageToVideoPrompt(
+  prompt: MediaPrompt,
+): Array<TextPart | ImagePart<MediaInputMetadata>> {
+  const narrowed = asImagePrompt(prompt)
+  if (
+    typeof narrowed === 'string' ||
+    !narrowed.some((part) => part.type === 'image')
+  ) {
+    throw new Error('Start image is required for image-to-video')
+  }
+  return narrowed
+}
 
 export const generateImageFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: { prompt: string; model: string }) => {
-    if (!data.prompt.trim()) throw new Error('Prompt is required')
+  .inputValidator((data: { prompt: MediaPrompt; model: string }) => {
+    if (!hasPromptContent(data.prompt)) throw new Error('Prompt is required')
     if (!data.model) throw new Error('Model is required')
     return data
   })
@@ -20,7 +82,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
       case 'fal-ai/nano-banana-pro': {
         return generateImage({
           adapter: falImage('fal-ai/nano-banana-pro'),
-          prompt: data.prompt,
+          prompt: asTextPrompt(data.prompt),
           numberOfImages: 1,
           size: '16:9_4K',
           modelOptions: {
@@ -37,7 +99,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
         // default resolution, which both type-checks and works at runtime.
         return generateImage({
           adapter: falImage('xai/grok-imagine-image'),
-          prompt: data.prompt,
+          prompt: asTextPrompt(data.prompt),
           numberOfImages: 1,
           modelOptions: { aspect_ratio: '16:9' },
         })
@@ -46,7 +108,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
         // NOTE: Newer models are untyped (at the moment)
         return generateImage({
           adapter: falImage('fal-ai/flux-2/klein/9b'),
-          prompt: data.prompt,
+          prompt: asTextPrompt(data.prompt),
           numberOfImages: 1,
           size: 'landscape_16_9',
         })
@@ -54,7 +116,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
       case 'fal-ai/z-image/turbo': {
         return generateImage({
           adapter: falImage('fal-ai/z-image/turbo'),
-          prompt: data.prompt,
+          prompt: asTextPrompt(data.prompt),
           numberOfImages: 1,
           size: 'landscape_16_9',
           modelOptions: {
@@ -66,7 +128,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
       case 'gemini-3.1-flash-image-preview': {
         return generateImage({
           adapter: geminiImage('gemini-3.1-flash-image-preview'),
-          prompt: data.prompt,
+          prompt: asImagePrompt(data.prompt),
           numberOfImages: 1,
           size: '16:9_4K',
         })
@@ -74,7 +136,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
       case 'gemini-3-pro-image-preview': {
         return generateImage({
           adapter: geminiImage('gemini-3-pro-image-preview'),
-          prompt: data.prompt,
+          prompt: asImagePrompt(data.prompt),
           numberOfImages: 1,
           size: '16:9_4K',
         })
@@ -82,7 +144,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
       case 'imagen-4.0-ultra-generate-001': {
         return generateImage({
           adapter: geminiImage('imagen-4.0-ultra-generate-001'),
-          prompt: data.prompt,
+          prompt: asTextPrompt(data.prompt),
           numberOfImages: 1,
           size: '1024x1024',
         })
@@ -90,7 +152,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
       case 'imagen-4.0-generate-001': {
         return generateImage({
           adapter: geminiImage('imagen-4.0-generate-001'),
-          prompt: data.prompt,
+          prompt: asTextPrompt(data.prompt),
           numberOfImages: 1,
           size: '1024x1024',
         })
@@ -98,7 +160,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
       case 'imagen-4.0-fast-generate-001': {
         return generateImage({
           adapter: geminiImage('imagen-4.0-fast-generate-001'),
-          prompt: data.prompt,
+          prompt: asTextPrompt(data.prompt),
           numberOfImages: 1,
           size: '1024x1024',
         })
@@ -109,20 +171,21 @@ export const generateImageFn = createServerFn({ method: 'POST' })
   })
 
 export const createVideoJobFn = createServerFn({ method: 'POST' })
-  .inputValidator(
-    (data: { prompt: string; model: string; imageUrl?: string }) => {
-      if (!data.prompt.trim()) throw new Error('Prompt is required')
-      if (!data.model) throw new Error('Model is required')
-      return data
-    },
-  )
+  .inputValidator((data: { prompt: MediaPrompt; model: string }) => {
+    if (!hasPromptContent(data.prompt)) throw new Error('Prompt is required')
+    if (!data.model) throw new Error('Model is required')
+    return data
+  })
   .handler(async ({ data }) => {
+    // Image-to-video models receive the start frame as a prompt part
+    // (role: 'start_frame') — the fal adapter routes it to the endpoint's
+    // start-image field. Text-to-video models take the text prompt only.
     switch (data.model) {
       // Text-to-video models
       case 'fal-ai/kling-video/v3/pro/text-to-video': {
         return generateVideo({
           adapter: falVideo('fal-ai/kling-video/v3/pro/text-to-video'),
-          prompt: data.prompt,
+          prompt: asTextPrompt(data.prompt),
           size: '16:9',
           modelOptions: {
             duration: '5',
@@ -134,7 +197,7 @@ export const createVideoJobFn = createServerFn({ method: 'POST' })
         // This makes use of existing types and avoids type errors
         return generateVideo({
           adapter: falVideo('fal-ai/veo3.1'),
-          prompt: data.prompt,
+          prompt: asTextPrompt(data.prompt),
           size: '16:9_1080p',
           modelOptions: {
             duration: '4s',
@@ -144,7 +207,7 @@ export const createVideoJobFn = createServerFn({ method: 'POST' })
       case 'xai/grok-imagine-video/text-to-video': {
         return generateVideo({
           adapter: falVideo('xai/grok-imagine-video/text-to-video'),
-          prompt: data.prompt,
+          prompt: asTextPrompt(data.prompt),
           size: '16:9_720p',
           modelOptions: {
             duration: 5,
@@ -154,61 +217,46 @@ export const createVideoJobFn = createServerFn({ method: 'POST' })
       case 'fal-ai/ltx-2.3/text-to-video/fast': {
         return generateVideo({
           adapter: falVideo('fal-ai/ltx-2.3/text-to-video/fast'),
-          prompt: data.prompt,
+          prompt: asTextPrompt(data.prompt),
           size: '16:9_2160p',
         })
       }
       // Image-to-video models
       case 'fal-ai/kling-video/v3/pro/image-to-video': {
-        if (!data.imageUrl)
-          throw new Error('Image URL is required for image-to-video')
         return generateVideo({
           adapter: falVideo('fal-ai/kling-video/v3/pro/image-to-video'),
-          prompt: data.prompt,
+          prompt: asImageToVideoPrompt(data.prompt),
           modelOptions: {
-            start_image_url: data.imageUrl,
             generate_audio: true,
             duration: '5',
           },
         })
       }
       case 'fal-ai/veo3.1/image-to-video': {
-        if (!data.imageUrl) {
-          throw new Error('Image URL is required for image-to-video')
-        }
         return generateVideo({
           adapter: falVideo('fal-ai/veo3.1/image-to-video'),
-          prompt: data.prompt,
+          prompt: asImageToVideoPrompt(data.prompt),
           size: '16:9_1080p',
           modelOptions: {
-            image_url: data.imageUrl,
             duration: '4s',
           },
         })
       }
       case 'xai/grok-imagine-video/image-to-video': {
-        if (!data.imageUrl)
-          throw new Error('Image URL is required for image-to-video')
         return generateVideo({
           adapter: falVideo('xai/grok-imagine-video/image-to-video'),
-          prompt: data.prompt,
+          prompt: asImageToVideoPrompt(data.prompt),
           size: '16:9_720p',
           modelOptions: {
-            image_url: data.imageUrl,
             duration: 5,
           },
         })
       }
       case 'fal-ai/ltx-2.3/image-to-video/fast': {
-        if (!data.imageUrl)
-          throw new Error('Image URL is required for image-to-video')
         return generateVideo({
           adapter: falVideo('fal-ai/ltx-2.3/image-to-video/fast'),
-          prompt: data.prompt,
+          prompt: asImageToVideoPrompt(data.prompt),
           size: '16:9_2160p',
-          modelOptions: {
-            image_url: data.imageUrl,
-          },
         })
       }
       default:

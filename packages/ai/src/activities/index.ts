@@ -119,6 +119,7 @@ export {
   type VideoCreateOptions,
   type VideoStatusOptions,
   type VideoUrlOptions,
+  type VideoDurationForAdapter,
 } from './generateVideo/index'
 
 export {
@@ -126,7 +127,10 @@ export {
   type VideoAdapter,
   type VideoAdapterConfig,
   type AnyVideoAdapter,
+  type DurationOptions,
 } from './generateVideo/adapter'
+
+export { snapToDurationOption } from './generateVideo/snap'
 
 // ===========================
 // TTS Activity
