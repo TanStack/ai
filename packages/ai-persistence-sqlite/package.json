@@ -1,0 +1,35 @@
+{
+  "name": "@tanstack/ai-persistence-sqlite",
+  "version": "0.1.0",
+  "description": "SQLite backend for TanStack AI persistence — durable runs, messages, event log, approvals, and artifacts over node:sqlite (zero-dep, Node 22+) or a bring-your-own better-sqlite3 handle.",
+  "author": "",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "git+https://github.com/TanStack/ai.git", "directory": "packages/ai-persistence-sqlite" },
+  "keywords": ["ai","tanstack","persistence","sqlite","node-sqlite","better-sqlite3"],
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": { ".": { "types": "./dist/esm/index.d.ts", "import": "./dist/esm/index.js" } },
+  "files": ["dist","src"],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:build": "publint --strict",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:^",
+    "@tanstack/ai-persistence": "workspace:^",
+    "@tanstack/ai-persistence-sql": "workspace:^"
+  },
+  "devDependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-persistence": "workspace:*",
+    "@tanstack/ai-persistence-sql": "workspace:*",
+    "@vitest/coverage-v8": "4.0.14"
+  }
+}
