@@ -6,6 +6,7 @@ import {
   generateId as utilGenerateId,
 } from '../utils'
 import { buildOpenRouterUsage } from '../usage'
+import { extractUsageCost } from './cost'
 import type { OpenRouterClientConfig } from '../utils'
 import type {
   OpenRouterImageModelInputModalitiesByName,
@@ -203,10 +204,10 @@ export class OpenRouterImageAdapter<
 
     // OpenRouter routes image generation through the chat surface, so the
     // response carries the same `usage` shape as text. Surface it (with any
-    // detail breakdowns) when present.
-    const usage = response.usage
-      ? buildOpenRouterUsage(response.usage)
-      : undefined
+    // detail breakdowns and provider-reported cost) when present.
+    const baseUsage = buildOpenRouterUsage(response.usage)
+    const usage =
+      baseUsage && { ...baseUsage, ...extractUsageCost(response.usage) }
 
     return {
       id: response.id || this.generateId(),
