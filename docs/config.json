@@ -381,6 +381,16 @@
       ]
     },
     {
+      "label": "Persistence",
+      "children": [
+        {
+          "label": "Overview",
+          "to": "persistence/overview",
+          "addedAt": "2026-06-18"
+        }
+      ]
+    },
+    {
       "label": "Advanced",
       "children": [
         {
