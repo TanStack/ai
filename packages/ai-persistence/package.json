@@ -1,0 +1,54 @@
+{
+  "name": "@tanstack/ai-persistence",
+  "version": "0.1.0",
+  "description": "Headless persistence layer for TanStack AI — durable runs, message history, an append-only AG-UI event log, durable streams, approvals, artifacts, and resumable runs (runId + cursor) as composable chat() middleware (withPersistence, defineChatPersistence, memoryPersistence).",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-persistence"
+  },
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "persistence",
+    "durable",
+    "resume",
+    "event-log",
+    "chat-history",
+    "ag-ui"
+  ],
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:build": "publint --strict",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:^"
+  },
+  "devDependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@vitest/coverage-v8": "4.0.14"
+  }
+}

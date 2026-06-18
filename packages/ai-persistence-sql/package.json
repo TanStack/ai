@@ -1,0 +1,55 @@
+{
+  "name": "@tanstack/ai-persistence-sql",
+  "version": "0.1.0",
+  "description": "Shared SQL store core for TanStack AI persistence — one SQL implementation of the message/run/event/approval/artifact stores behind a minimal SqlDriver (sqlite | postgres dialect), with versioned migrations. Consumed by the sqlite/postgres/cloudflare/drizzle/prisma backends.",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-persistence-sql"
+  },
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "persistence",
+    "sql",
+    "sqlite",
+    "postgres",
+    "migrations"
+  ],
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:build": "publint --strict",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:^",
+    "@tanstack/ai-persistence": "workspace:^"
+  },
+  "devDependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-persistence": "workspace:*",
+    "@vitest/coverage-v8": "4.0.14"
+  }
+}
