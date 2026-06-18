@@ -44,6 +44,9 @@
     },
     "packages/ai-vue-ui": {
       "ignore": ["src/use-chat-context.ts"]
+    },
+    "packages/ai-persistence-postgres": {
+      "ignoreDependencies": ["pg"]
     }
   }
 }
