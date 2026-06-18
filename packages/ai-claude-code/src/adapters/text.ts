@@ -115,6 +115,12 @@ export class ClaudeCodeTextAdapter<
   // Harness adapter: requires a sandbox to run the agent CLI inside.
   override readonly requires = [SandboxCapability] as const
 
+  // The agent runs inside the (persistent) sandbox, so on resume the engine can
+  // re-attach to the still-running process and continue live after replaying the
+  // persisted event tail (rather than ending at replay). Live re-attach behavior
+  // is verified with the real CLI; the engine seam is unit-tested.
+  readonly supportsReattach = true
+
   private readonly adapterConfig: ClaudeCodeTextConfig
 
   constructor(config: ClaudeCodeTextConfig, model: TModel) {

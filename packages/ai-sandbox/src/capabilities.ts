@@ -8,9 +8,14 @@
  *   `withSandbox`. v1 falls back to in-memory defaults; the future persistence
  *   package PROVIDES durable implementations.
  */
-import { createCapability } from '@tanstack/ai'
+import {
+  LocksCapability,
+  createCapability,
+  getLocks,
+  provideLocks,
+} from '@tanstack/ai'
 import type { SandboxHandle } from './contracts'
-import type { LockStore, SandboxStore } from './store'
+import type { SandboxStore } from './store'
 import type { SandboxPolicy } from './policy'
 
 export const SandboxCapability = createCapability<SandboxHandle>()('sandbox')
@@ -18,7 +23,13 @@ export const SandboxCapability = createCapability<SandboxHandle>()('sandbox')
 export const SandboxStoreCapability =
   createCapability<SandboxStore>()('sandbox-store')
 
-export const LocksCapability = createCapability<LockStore>()('locks')
+/**
+ * The lock capability now lives in core (`@tanstack/ai`) so there is exactly
+ * ONE global `'locks'` token shared by `withSandbox` (optional require) and
+ * `withPersistence` (durable provider). Re-exported here for back-compat so
+ * existing `@tanstack/ai-sandbox` imports keep working.
+ */
+export { LocksCapability, getLocks, provideLocks }
 
 /**
  * The active sandbox policy, provided by `withSandbox` from the definition.
@@ -31,5 +42,4 @@ export const SandboxPolicyCapability =
 /** Destructured accessors for adapters: `getSandbox(ctx)` reads the handle. */
 export const [getSandbox, provideSandbox] = SandboxCapability
 export const [getSandboxStore, provideSandboxStore] = SandboxStoreCapability
-export const [getLocks, provideLocks] = LocksCapability
 export const [getSandboxPolicy, provideSandboxPolicy] = SandboxPolicyCapability

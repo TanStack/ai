@@ -392,6 +392,14 @@ export interface ChatClientBaseOptions<
   threadId?: string
 
   /**
+   * Whether to auto-resume an interrupted run when {@link maybeAutoResume} is
+   * called (e.g. by a framework integration on mount / when the tab comes back
+   * online). Requires server-side persistence so the run's events can be
+   * replayed by `runId + cursor`. Defaults to `true`; set `false` to opt out.
+   */
+  autoResume?: boolean
+
+  /**
    * Arbitrary client-controlled JSON forwarded to the server in the
    * AG-UI `RunAgentInput.forwardedProps` field. Use this for per-session
    * options like provider/model selection or feature flags that the

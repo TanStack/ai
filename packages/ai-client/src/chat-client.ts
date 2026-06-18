@@ -102,6 +102,14 @@ export class ChatClient<
   // focused on streaming. Undefined when no `persistence` adapter is configured.
   private readonly persistor?: ChatPersistor
   private currentRunId: string | null = null
+  // Resume tracking: the latest in-band cursor seen for the active run, so a
+  // reconnect can replay events after it. Cleared when the run terminates.
+  private lastResume: { runId: string; cursor: string } | null = null
+  private readonly autoResume: boolean
+  // When set, the next streamResponse() resumes this run/cursor instead of
+  // starting a fresh run (consumed once).
+  private pendingResumeRunId: string | null = null
+  private pendingResumeCursor: string | null = null
   // Track the legacy `body` option and the canonical `forwardedProps`
   // option as separate slots so that `updateOptions({ forwardedProps })`
   // doesn't wipe a previously-set `body` (and vice versa). They are
@@ -170,6 +178,7 @@ export class ChatClient<
   constructor(options: ChatClientOptions<TTools, TContext>) {
     this.uniqueId = options.id || this.generateUniqueId('chat')
     this.threadId = options.threadId || this.generateUniqueId('thread')
+    this.autoResume = options.autoResume ?? true
     if (options.persistence) {
       this.persistor = new ChatPersistor(
         options.persistence,
@@ -489,6 +498,66 @@ export class ChatClient<
     }
   }
 
+  /**
+   * Observe the in-band resume cursor on each chunk so a reconnect can replay
+   * after the last seen event. Cleared when the run reaches a terminal event.
+   */
+  private observeResumeCursor(chunk: StreamChunk): void {
+    if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
+      // A server-signaled terminal event completes the run — drop its resume
+      // state. (A stream that merely ends without a terminal is an interruption
+      // and keeps its resume state so it can be continued.)
+      const runId = getChunkRunId(chunk)
+      if (!runId || this.lastResume?.runId === runId) {
+        this.lastResume = null
+      }
+      return
+    }
+    const cursor =
+      'cursor' in chunk && typeof chunk.cursor === 'string'
+        ? chunk.cursor
+        : undefined
+    if (cursor && this.currentRunId) {
+      this.lastResume = { runId: this.currentRunId, cursor }
+    }
+  }
+
+  /**
+   * The resume state for the active/interrupted run (the run id plus the last
+   * cursor seen), or null when there is nothing to resume. Apps can persist this
+   * to resume across a full reload; in-session reconnects use it automatically
+   * via {@link maybeAutoResume}.
+   */
+  getResumeState(): { runId: string; cursor: string } | null {
+    return this.lastResume ? { ...this.lastResume } : null
+  }
+
+  /**
+   * Resume a run by replaying its persisted events after the last cursor, then
+   * continuing live — without re-sending messages. Uses the supplied state, or
+   * the tracked in-session state. No-op (returns false) when there is nothing to
+   * resume or a stream is already in flight.
+   */
+  resume(state?: { runId: string; cursor: string }): Promise<boolean> {
+    const target = state ?? this.lastResume
+    if (!target || this.isLoading) return Promise.resolve(false)
+    this.pendingResumeRunId = target.runId
+    this.pendingResumeCursor = target.cursor
+    return this.streamResponse()
+  }
+
+  /**
+   * Auto-resume hook for framework integrations to call on mount / when the tab
+   * comes back online. Honors the `autoResume` option (default true) and only
+   * fires when an interrupted run is tracked and no stream is in flight.
+   */
+  maybeAutoResume(): Promise<boolean> {
+    if (!this.autoResume || this.isLoading || !this.lastResume) {
+      return Promise.resolve(false)
+    }
+    return this.resume()
+  }
+
   private generateUniqueId(prefix: string): string {
     return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(7)}`
   }
@@ -696,6 +765,7 @@ export class ChatClient<
       // per-run error only clears that run, while a runId-less RUN_ERROR is
       // treated as a session-level error that clears every active run.
       this.updateRunLifecycle(chunk)
+      this.observeResumeCursor(chunk)
       // Yield control back to event loop for UI updates
       await new Promise((resolve) => setTimeout(resolve, 0))
     }
@@ -854,7 +924,14 @@ export class ChatClient<
 
     // Track generation so a superseded stream's cleanup doesn't clobber the new one
     const generation = ++this.streamGeneration
-    const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    // Resuming reuses the original runId so the server replays that run's events.
+    const resumeRunId = this.pendingResumeRunId
+    const resumeCursor = this.pendingResumeCursor
+    this.pendingResumeRunId = null
+    this.pendingResumeCursor = null
+    const runId =
+      resumeRunId ??
+      `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     this.currentRunId = runId
 
     this.setIsLoading(true)
@@ -945,6 +1022,7 @@ export class ChatClient<
             : { type: 'object' },
         })),
         forwardedProps: { ...mergedBody },
+        ...(resumeCursor ? { cursor: resumeCursor } : {}),
       }
       this.devtoolsBridge.beginRun(runContext.runId, this.threadId)
       activeDevtoolsRunId = runContext.runId

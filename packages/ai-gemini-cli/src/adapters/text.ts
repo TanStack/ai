@@ -79,6 +79,11 @@ export class GeminiCliTextAdapter<
 
   override readonly requires = [SandboxCapability] as const
 
+  // Agent runs inside the persistent sandbox; the engine can re-attach to the
+  // still-running process on resume (live re-attach verified with the real CLI;
+  // the engine seam is unit-tested).
+  readonly supportsReattach = true
+
   private readonly adapterConfig: GeminiCliTextConfig
 
   constructor(config: GeminiCliTextConfig, model: TModel) {

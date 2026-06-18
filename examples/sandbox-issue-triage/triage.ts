@@ -125,8 +125,7 @@ export async function runTriage(options: RunTriageOptions): Promise<string> {
     hooks: {
       onFile: (e) => {
         fileEvents.push(e)
-        const mark =
-          e.type === 'create' ? '+' : e.type === 'delete' ? '-' : '~'
+        const mark = e.type === 'create' ? '+' : e.type === 'delete' ? '-' : '~'
         console.log(`    [${mark}] ${e.type} ${e.path}`)
       },
     },

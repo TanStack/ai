@@ -199,6 +199,12 @@ export interface RunAgentInputContext {
   threadId: string
   runId: string
   parentRunId?: string
+  /**
+   * Resume cursor. When set, the request resumes `runId` — the server replays
+   * persisted events after this cursor (see `chat({ cursor })`). On a resume the
+   * client sends no new messages.
+   */
+  cursor?: string
   /** Client-declared tools to advertise in the request payload. */
   clientTools?: Array<{
     name: string
@@ -443,6 +449,7 @@ function buildRunAgentInputBody(
     ...(runContext?.parentRunId !== undefined && {
       parentRunId: runContext.parentRunId,
     }),
+    ...(runContext?.cursor !== undefined && { cursor: runContext.cursor }),
     state: {},
     messages: wireMessages,
     tools: runContext?.clientTools ?? [],

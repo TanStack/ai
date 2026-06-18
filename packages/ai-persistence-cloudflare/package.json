@@ -1,0 +1,52 @@
+{
+  "name": "@tanstack/ai-persistence-cloudflare",
+  "version": "0.1.0",
+  "description": "Cloudflare backend for TanStack AI persistence — D1-backed SQL stores (compile-verified), with optional Durable Object locks and R2 artifact storage.",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-persistence-cloudflare"
+  },
+  "keywords": [
+    "ai",
+    "tanstack",
+    "persistence"
+  ],
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:build": "publint --strict",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:^",
+    "@tanstack/ai-persistence": "workspace:^",
+    "@tanstack/ai-persistence-sql": "workspace:^"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241230.0",
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-persistence": "workspace:*",
+    "@tanstack/ai-persistence-sql": "workspace:*",
+    "@vitest/coverage-v8": "4.0.14"
+  }
+}
