@@ -232,10 +232,21 @@ export class DockerHandle implements SandboxHandle {
     const outPT = new PassThrough()
     const errPT = new PassThrough()
     this.docker.modem.demuxStream(stream, outPT, errPT)
-    stream.on('end', () => {
+    /*
+     * Close the demuxed output streams when the hijacked exec stream finishes,
+     * so consumers iterating `stdout`/`stderr` (for await ... of) terminate.
+     * A normal EOF emits `end`, but a destroyed stream (e.g. from kill()) emits
+     * only `close` and never `end` — so we must also end the PassThroughs on
+     * `close`/`error`, or the consumer hangs forever waiting for the iterator to
+     * complete. `end()` is idempotent, so handling multiple events is safe.
+     */
+    const endOutputs = (): void => {
       outPT.end()
       errPT.end()
-    })
+    }
+    stream.on('end', endOutputs)
+    stream.on('close', endOutputs)
+    stream.on('error', endOutputs)
     if (opts?.signal) {
       opts.signal.addEventListener('abort', () => stream.destroy(), {
         once: true,
@@ -258,8 +269,16 @@ export class DockerHandle implements SandboxHandle {
       },
       wait: async () => {
         await new Promise<void>((resolve) => {
-          if (outPT.readableEnded) resolve()
-          else stream.on('end', resolve)
+          if (outPT.readableEnded) {
+            resolve()
+            return
+          }
+          // Resolve on whichever of these fires first. A clean exit emits
+          // `end`; a destroyed/killed stream emits only `close` (never `end`),
+          // so wait on both or this hangs after kill().
+          stream.once('end', resolve)
+          stream.once('close', resolve)
+          stream.once('error', resolve)
         })
         const info = await exec.inspect()
         return info.ExitCode ?? 0

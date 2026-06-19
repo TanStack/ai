@@ -75,7 +75,9 @@ interface FakeHandle {
   closeStdout: () => void
 }
 
-function makeFakeHandle(): FakeHandle {
+function makeFakeHandle(
+  options: { closeStdoutOnKill?: boolean } = {},
+): FakeHandle {
   const counts = { spawn: 0, kill: 0, end: 0 }
   const stdinWrites: Array<string> = []
 
@@ -98,6 +100,11 @@ function makeFakeHandle(): FakeHandle {
     wait: () => Promise.resolve(0),
     kill: () => {
       counts.kill += 1
+      // Mirror real providers (e.g. docker exec): the stdout async-iterable
+      // only terminates when the underlying stream is destroyed by kill().
+      // Nothing else closes it. The bootstrap shell's dispose() must rely on
+      // this to unblock its stdout drain loop, or it hangs forever.
+      if (options.closeStdoutOnKill === true) closeStdout()
       return Promise.resolve()
     },
   }
@@ -224,6 +231,35 @@ describe('createBootstrapShell', () => {
 
     expect(fake.counts.end).toBe(1)
     expect(fake.counts.kill).toBe(1)
+  })
+
+  it('dispose() completes when stdout only closes as a result of kill()', async () => {
+    /*
+     * Regression for the docker-exec hang: the spawned stdout async-iterable
+     * never ends on its own — only when the process is killed (its underlying
+     * stream destroyed). dispose() must drive that close itself and not block
+     * forever on the stdout drain loop. The test deliberately never calls
+     * closeStdout(); the only thing that ends the stream is dispose()'s kill().
+     */
+    const fake = makeFakeHandle({ closeStdoutOnKill: true })
+    const shell = await createBootstrapShell(fake.handle)
+
+    const p = shell.run('echo hi')
+    fake.pushStdout('hi\n')
+    fake.pushStdout('__BSSH_0__ 0\n')
+    await p
+
+    // If dispose() blocks on the never-self-closing stdout iterator, this race
+    // rejects; the fix lets kill() close stdout so the drain loop completes.
+    await Promise.race([
+      shell.dispose(),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('dispose() hung')), 2000),
+      ),
+    ])
+
+    expect(fake.counts.kill).toBe(1)
+    expect(fake.counts.end).toBe(1)
   })
 
   it('forkState() returns the current cwd and parsed exported env vars', async () => {
