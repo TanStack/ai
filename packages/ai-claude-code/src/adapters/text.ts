@@ -7,6 +7,7 @@ import {
   buildApprovalRequestedEvent,
   getSandbox,
   getSandboxPolicy,
+  getWorkspaceProjection,
   hostForSandbox,
   resolveApproval,
   spawnNdjson,
@@ -15,6 +16,7 @@ import {
 import { buildPrompt } from '../messages/prompt'
 import { translateSdkStream } from '../stream/translate'
 import { mapPolicyToClaudeFlags } from './policy-map'
+import { projectClaudeWorkspace } from './projection'
 import type { ClaudePolicyFlags } from './policy-map'
 import type {
   HostToolBridge,
@@ -289,6 +291,13 @@ export class ClaudeCodeTextAdapter<
       const cwd = this.workdir(options)
       const runId = options.runId ?? this.generateId()
       const threadId = options.threadId ?? this.generateId()
+
+      // Idempotently project workspace skills/plugins/MCP into the sandbox in
+      // claude's native format (guarded by the projection marker file).
+      const projection = options.capabilities
+        ? getWorkspaceProjection(options.capabilities, { optional: true })
+        : undefined
+      if (projection) await projectClaudeWorkspace(sandbox, projection)
 
       const policy = options.capabilities
         ? getSandboxPolicy(options.capabilities, { optional: true })
