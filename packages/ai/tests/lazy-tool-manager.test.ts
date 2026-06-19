@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import type { Tool } from '../src/types'
-import { LazyToolManager } from '../src/activities/chat/tools/lazy-tool-manager'
-
-const DISCOVERY_TOOL_NAME = '__lazy__tool__discovery__'
+import {
+  DISCOVERY_TOOL_NAME,
+  LazyToolManager,
+} from '../src/activities/chat/tools/lazy-tool-manager'
 
 function makeTool(
   name: string,
@@ -232,6 +233,92 @@ describe('LazyToolManager', () => {
       expect(errorMsg).toContain('lazyA')
       expect(errorMsg).toContain(DISCOVERY_TOOL_NAME)
       expect(errorMsg).toContain('must be discovered first')
+    })
+  })
+
+  describe('executable tools (re-discovery robustness)', () => {
+    it('keeps the discovery tool executable after all lazy tools are discovered', async () => {
+      const tools = [makeTool('lazyA', { lazy: true })]
+      const manager = new LazyToolManager(tools, [])
+
+      // Discover the only lazy tool -> discovery tool removed from advertised set.
+      const discovery = findDiscoveryTool(manager)
+      await discovery!.execute!({ toolNames: ['lazyA'] })
+
+      const active = manager.getActiveTools()
+      expect(active.map((t) => t.name)).not.toContain(DISCOVERY_TOOL_NAME)
+
+      // A re-discovery call should still resolve the discovery tool for execution.
+      const exec = manager.getExecutableTools(active, [DISCOVERY_TOOL_NAME])
+      expect(exec.map((t) => t.name)).toContain(DISCOVERY_TOOL_NAME)
+    })
+
+    it('does not change the set when no pending call references discovery', () => {
+      const tools = [makeTool('lazyA', { lazy: true })]
+      const manager = new LazyToolManager(tools, [])
+
+      const active = manager.getActiveTools()
+      const exec = manager.getExecutableTools(active, ['somethingElse'])
+      expect(exec).toEqual(active)
+    })
+
+    it('does not duplicate the discovery tool while it is still advertised', () => {
+      const tools = [
+        makeTool('lazyA', { lazy: true }),
+        makeTool('lazyB', { lazy: true }),
+      ]
+      const manager = new LazyToolManager(tools, [])
+
+      const active = manager.getActiveTools()
+      expect(active.map((t) => t.name)).toContain(DISCOVERY_TOOL_NAME)
+
+      const exec = manager.getExecutableTools(active, [DISCOVERY_TOOL_NAME])
+      const discoveryCount = exec.filter(
+        (t) => t.name === DISCOVERY_TOOL_NAME,
+      ).length
+      expect(discoveryCount).toBe(1)
+    })
+
+    it('no-ops when there are no lazy tools', () => {
+      const tools = [makeTool('a'), makeTool('b')]
+      const manager = new LazyToolManager(tools, [])
+
+      const active = manager.getActiveTools()
+      const exec = manager.getExecutableTools(active, [DISCOVERY_TOOL_NAME])
+      expect(exec).toEqual(active)
+    })
+  })
+
+  describe('idempotent discovery', () => {
+    it('re-discovering an already-discovered tool returns its schema but does not flag a new discovery', async () => {
+      const tools = [
+        {
+          name: 'weather',
+          description: 'Get weather info',
+          lazy: true,
+          execute: async () => ({}),
+          inputSchema: {
+            type: 'object',
+            properties: { location: { type: 'string' } },
+            required: ['location'],
+          },
+        } satisfies Tool,
+      ]
+      const manager = new LazyToolManager(tools, [])
+      // Capture the discovery tool instance while it is still advertised; its
+      // execute closure stays valid even after it leaves the advertised set.
+      const discovery = findDiscoveryTool(manager)
+
+      // First discovery flags a new discovery.
+      await discovery!.execute!({ toolNames: ['weather'] })
+      expect(manager.hasNewlyDiscoveredTools()).toBe(true)
+      manager.getActiveTools() // resets the flag
+
+      // Re-discovery still returns the schema, but does NOT flag a refresh.
+      const result = await discovery!.execute!({ toolNames: ['weather'] })
+      expect(result.tools).toHaveLength(1)
+      expect(result.tools[0].name).toBe('weather')
+      expect(manager.hasNewlyDiscoveredTools()).toBe(false)
     })
   })
 
