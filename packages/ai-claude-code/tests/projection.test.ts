@@ -5,10 +5,13 @@
  * `fs.write` / `process.exec`) and a `WorkspaceProjection` carrying one of each
  * skill kind plus a plugin. Asserts the native projection (`.mcp.json` with the
  * secret RESOLVED, gitSkill linked under `.claude/skills`, plugin installed,
- * marker written) and that a second call is a no-op once the marker exists.
+ * marker written), that a second call still REWRITES `.mcp.json` with the
+ * current secret but does NOT re-run the marker-gated gitSkill links / plugin
+ * installs, and that a `bearer(ref)` header resolves to `Bearer <value>`.
  */
 import { describe, expect, it, vi } from 'vitest'
 import {
+  bearer,
   createSecrets,
   mcpSkill,
   agentSkill,
@@ -155,19 +158,56 @@ describe('projectClaudeWorkspace', () => {
     expect(mcp.mcpServers.issues.headers['X-Plain']).toBe('literal-value')
   })
 
-  it('is a no-op on a second call once the marker exists', async () => {
+  it('resolves a bearer(ref) header to "Bearer <resolved-value>"', async () => {
+    const fake = makeFakeHandle({ stdout: '', stderr: '', exitCode: 0 })
+    const secrets = createSecrets({ LIN: 'lin-token' })
+    const projection: WorkspaceProjection = {
+      skills: [
+        mcpSkill('issues', {
+          url: 'https://mcp.example.com/mcp',
+          headers: { Authorization: bearer(secrets.LIN) },
+        }),
+      ],
+      plugins: [],
+      resolveSecret: (ref) => {
+        if (ref.__secretName === 'LIN') return 'lin-token'
+        throw new Error(`unknown secret "${ref.__secretName}"`)
+      },
+      markerPath: MARKER,
+      root: ROOT,
+    }
+
+    await projectClaudeWorkspace(fake.handle, projection)
+
+    const mcpRaw = fake.writes.get(`${ROOT}/.mcp.json`)
+    const mcp = JSON.parse(mcpRaw ?? '{}')
+    expect(mcp.mcpServers.issues.headers.Authorization).toBe('Bearer lin-token')
+    expect(mcpRaw).not.toContain('__secretName')
+    expect(mcpRaw).not.toContain('__bearerRef')
+  })
+
+  it('rewrites .mcp.json on a second call but does not re-run gitSkill links / plugin installs', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const fake = makeFakeHandle({ stdout: '', stderr: '', exitCode: 0 })
     const { projection } = buildScenario()
 
     await projectClaudeWorkspace(fake.handle, projection)
-    const writesAfterFirst = fake.writes.size
     const execsAfterFirst = fake.execs.length
+    expect(fake.writes.get(`${ROOT}/.mcp.json`)).toContain('super-secret')
+
+    // Clear the recorded MCP write so we can prove the second call rewrites it.
+    fake.writes.delete(`${ROOT}/.mcp.json`)
 
     await projectClaudeWorkspace(fake.handle, projection)
 
-    // Second call short-circuits on the marker: no new writes or execs.
-    expect(fake.writes.size).toBe(writesAfterFirst)
+    // The secret-bearing MCP config is rewritten every call, with the current
+    // secret resolved fresh, so a rotated secret always re-applies.
+    const rewritten = fake.writes.get(`${ROOT}/.mcp.json`)
+    expect(rewritten).toBeDefined()
+    expect(rewritten).toContain('super-secret')
+
+    // The safe, idempotent, non-secret operations (gitSkill links, plugin
+    // installs) are marker-gated and do NOT run again on the second call.
     expect(fake.execs.length).toBe(execsAfterFirst)
 
     warn.mockRestore()

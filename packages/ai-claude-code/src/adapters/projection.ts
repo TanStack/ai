@@ -13,9 +13,11 @@
  *                      bare name, so we warn and skip rather than invent one.
  *   - plugins        → `claude plugin install <name>` (best-effort).
  *
- * Projection is idempotent: a marker file under the workspace guards it, so a
- * resumed sandbox re-projects only when the marker is absent (the marker is
- * never snapshotted, so secret-bearing files are always re-written fresh).
+ * The secret-bearing `.mcp.json` is (re)written on EVERY call, re-resolving
+ * secrets each time, so claude always reads current values and a snapshot can
+ * never serve a stale or rotated secret. Only the safe, idempotent, non-secret
+ * operations (gitSkill links, plugin installs, agentSkill handling) are guarded
+ * by a one-time marker file under the workspace.
  *
  * External-convention caveat: the `.mcp.json` location/shape, the skills dir,
  * and the plugin-install command are verified against the installed `claude`
@@ -24,16 +26,12 @@
  */
 import { isSecretRef, resolveGitSkillDir } from '@tanstack/ai-sandbox'
 import type {
+  BearerRef,
   SandboxHandle,
   SecretRef,
   WorkspaceProjection,
   WorkspaceSkill,
 } from '@tanstack/ai-sandbox'
-
-/** Structural shape of a `bearer(ref)` marker (`@tanstack/ai-sandbox`'s BearerRef). */
-interface BearerMarker {
-  readonly __bearerRef: SecretRef
-}
 
 /** POSIX single-quote escape for embedding a value in a shell command. */
 function shellQuote(value: string): string {
@@ -47,7 +45,7 @@ function basenameOf(path: string): string {
 }
 
 /** True when `value` is a `bearer(ref)` marker created by `@tanstack/ai-sandbox`. */
-function isBearerMarker(value: unknown): value is BearerMarker {
+function isBearerMarker(value: unknown): value is BearerRef {
   return (
     typeof value === 'object' &&
     value !== null &&
@@ -61,7 +59,7 @@ function isBearerMarker(value: unknown): value is BearerMarker {
  * passed through unchanged.
  */
 function resolveHeaderValue(
-  value: string | SecretRef,
+  value: string | SecretRef | BearerRef,
   resolveSecret: (ref: SecretRef) => string,
 ): string {
   if (isSecretRef(value)) return resolveSecret(value)
@@ -103,9 +101,12 @@ function buildMcpConfig(
 }
 
 /**
- * Write the project-scoped `.mcp.json` with resolved secrets. This file lives
- * only in the running sandbox (never snapshotted); it is re-written whenever
- * the marker is absent, so resumed snapshots always get fresh secrets.
+ * Write the project-scoped `.mcp.json`, re-resolving every secret. This runs on
+ * EVERY projection call (never gated by the marker) so claude always reads the
+ * current secret values and a snapshot can never serve a stale or rotated one.
+ * With `snapshot:'after-run'` the file may still be captured in the image, so
+ * secret-bearing MCP material is best used with the default `after-setup`
+ * strategy. When there are no MCP skills the write is skipped.
  */
 async function projectMcpServers(
   handle: SandboxHandle,
@@ -195,10 +196,13 @@ async function projectPlugins(
 }
 
 /**
- * Project a `WorkspaceProjection` into the Claude Code sandbox. Idempotent: a
- * marker file under the workspace short-circuits re-projection, so this is safe
- * to call on every `chatStream` (only the first run after create/restore does
- * work).
+ * Project a `WorkspaceProjection` into the Claude Code sandbox. Safe to call on
+ * every `chatStream`. The secret-bearing `.mcp.json` is (re)written on every
+ * call, re-resolving secrets, so claude always reads current values and a
+ * snapshot can never serve a stale or rotated secret. The safe, idempotent,
+ * non-secret operations (gitSkill links, plugin installs, agentSkill handling)
+ * are guarded by a one-time marker so they run only on the first call after
+ * create/restore.
  *
  * @param handle     - The sandbox handle (`fs` + `process`).
  * @param projection - The portable workspace inputs from `withSandbox`.
@@ -207,9 +211,13 @@ export async function projectClaudeWorkspace(
   handle: SandboxHandle,
   projection: WorkspaceProjection,
 ): Promise<void> {
+  // Always re-resolve and rewrite the secret-bearing MCP config so rotated
+  // secrets re-apply and snapshots can't serve stale values.
+  await projectMcpServers(handle, projection)
+
+  // Gate only the safe, idempotent, non-secret operations on the marker.
   if (await handle.fs.exists(projection.markerPath)) return
 
-  await projectMcpServers(handle, projection)
   await projectGitSkills(handle, projection)
   projectAgentSkills(projection)
   await projectPlugins(handle, projection)

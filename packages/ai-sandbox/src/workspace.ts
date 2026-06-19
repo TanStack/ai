@@ -1,5 +1,5 @@
 import type { SetupInput } from './setup-plan'
-import type { SecretRef, Secrets } from './secrets'
+import type { BearerRef, SecretRef, Secrets } from './secrets'
 
 /**
  * Workspace definition — the portable description of what the agent sees
@@ -56,7 +56,7 @@ export function localSource(path: string): WorkspaceSource {
  * at projection time — never at definition time.
  */
 export type McpConfig = {
-  headers?: Record<string, string | SecretRef>
+  headers?: Record<string, string | SecretRef | BearerRef>
   [key: string]: unknown
 }
 
