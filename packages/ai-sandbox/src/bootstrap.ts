@@ -76,6 +76,9 @@ export async function bootstrapWorkspace(
         url: workspace.source.url,
         ref: workspace.source.ref,
         auth: workspace.source.auth,
+        ...(workspace.source.depth !== undefined
+          ? { depth: workspace.source.depth }
+          : {}),
       })
     }
   }

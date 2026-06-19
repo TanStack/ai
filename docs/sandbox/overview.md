@@ -11,7 +11,7 @@ in CI, in a Docker container, or on the edge: only the **provider** changes.
 ```ts
 import { chat } from '@tanstack/ai'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
-import { defineSandbox, defineWorkspace, withSandbox } from '@tanstack/ai-sandbox'
+import { createSecrets, defineSandbox, defineWorkspace, withSandbox } from '@tanstack/ai-sandbox'
 import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
 
 const repoSandbox = defineSandbox({
@@ -22,7 +22,7 @@ const repoSandbox = defineSandbox({
     packageManager: 'pnpm',
     setup: ['corepack enable', 'pnpm install'],
     scripts: { test: 'pnpm test', typecheck: 'pnpm test:types' },
-    secrets: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '' },
+    secrets: createSecrets({ ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '' }),
   }),
   lifecycle: { reuse: 'thread', snapshot: 'after-setup', keepAlive: '30m' },
 })
@@ -85,7 +85,7 @@ unsupported optional method throws `UnsupportedCapabilityError`.
 adapter projects it into its own native format.
 
 ```ts
-import { defineWorkspace } from '@tanstack/ai-sandbox'
+import { createSecrets, defineWorkspace } from '@tanstack/ai-sandbox'
 
 defineWorkspace({
   // Where the working tree comes from.
@@ -98,7 +98,7 @@ defineWorkspace({
   scripts: { test: 'pnpm test', build: 'pnpm build' },
   // Injected into the sandbox env at create/resume — never persisted to
   // snapshots, the sandbox store, or the event log.
-  secrets: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '' },
+  secrets: createSecrets({ ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '' }),
 })
 ```
 

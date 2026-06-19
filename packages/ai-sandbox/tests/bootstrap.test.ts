@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { bootstrapWorkspace } from '../src/bootstrap'
 import { createSecrets } from '../src/secrets'
 import { resolveGitSkillDir } from '../src/agents-file'
-import { gitSkill, fileSkill } from '../src/workspace'
+import { gitSkill, gitSource, fileSkill } from '../src/workspace'
 import type {
   ExecResult,
   ProcessOptions,
@@ -493,6 +493,111 @@ describe('bootstrapWorkspace gitSkill cloning', () => {
     await bootstrapWorkspace(handle, workspace)
 
     expect(cloneCalls[0]?.url).toBe('https://example.com/org/repo.git')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Source clone depth forwarding tests
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a fake handle where `fs.exists` returns FALSE for the `.git` sentinel,
+ * so `bootstrapWorkspace` runs the source git clone. Records all clone calls.
+ */
+function makeUnclonedHandle(): {
+  handle: SandboxHandle
+  cloneCalls: Array<CloneCall>
+} {
+  const cloneCalls: Array<CloneCall> = []
+
+  const handle: SandboxHandle = {
+    id: 'uncloned',
+    provider: 'fake',
+    capabilities: {
+      fs: true,
+      exec: true,
+      env: true,
+      ports: false,
+      backgroundProcesses: false,
+      snapshots: false,
+      networkPolicy: false,
+      durableFilesystem: false,
+      fork: false,
+    },
+    fs: {
+      read: () => Promise.resolve(''),
+      readBytes: () => Promise.resolve(new Uint8Array()),
+      write: () => Promise.resolve(),
+      list: () => Promise.resolve([]),
+      mkdir: () => Promise.resolve(),
+      remove: () => Promise.resolve(),
+      rename: () => Promise.resolve(),
+      // Never cloned — source clone should run.
+      exists: () => Promise.resolve(false),
+    },
+    git: {
+      clone: (opts) => {
+        cloneCalls.push(opts as CloneCall)
+        return Promise.resolve()
+      },
+      status: () => Promise.resolve(''),
+      add: () => Promise.resolve(),
+      commit: () => Promise.resolve(),
+      push: () => Promise.resolve(),
+      pull: () => Promise.resolve(),
+      branch: () => Promise.resolve('main'),
+    },
+    process: {
+      exec: () => Promise.resolve(ok),
+      spawn: () => Promise.reject(new Error('spawn not expected')),
+    },
+    ports: { connect: () => Promise.reject(new Error('ports not used')) },
+    env: { set: () => Promise.resolve() },
+    destroy: () => Promise.resolve(),
+  }
+
+  return { handle, cloneCalls }
+}
+
+describe('bootstrapWorkspace source clone depth', () => {
+  it('forwards depth: "full" from gitSource to git.clone', async () => {
+    const { handle, cloneCalls } = makeUnclonedHandle()
+
+    const workspace: WorkspaceDefinition = {
+      source: gitSource({ url: 'https://github.com/me/app', depth: 'full' }),
+    }
+
+    await bootstrapWorkspace(handle, workspace)
+
+    expect(cloneCalls).toHaveLength(1)
+    expect(cloneCalls[0]?.url).toBe('https://github.com/me/app')
+    expect(cloneCalls[0]?.depth).toBe('full')
+  })
+
+  it('forwards a numeric depth from gitSource to git.clone', async () => {
+    const { handle, cloneCalls } = makeUnclonedHandle()
+
+    const workspace: WorkspaceDefinition = {
+      source: gitSource({ url: 'https://github.com/me/app', depth: 10 }),
+    }
+
+    await bootstrapWorkspace(handle, workspace)
+
+    expect(cloneCalls).toHaveLength(1)
+    expect(cloneCalls[0]?.depth).toBe(10)
+  })
+
+  it('omits depth from git.clone when not specified on the source', async () => {
+    const { handle, cloneCalls } = makeUnclonedHandle()
+
+    const workspace: WorkspaceDefinition = {
+      source: gitSource({ url: 'https://github.com/me/app' }),
+    }
+
+    await bootstrapWorkspace(handle, workspace)
+
+    expect(cloneCalls).toHaveLength(1)
+    expect(cloneCalls[0]?.depth).toBeUndefined()
   })
 })
 
