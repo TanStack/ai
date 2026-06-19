@@ -90,24 +90,30 @@ describe('createExecBackedGit security', () => {
 })
 
 it('defaults to a shallow single-branch clone', async () => {
-  const calls: Array<string> = []
-  const git = createExecBackedGit(
-    { exec: (c) => { calls.push(c); return Promise.resolve({ stdout: '', stderr: '', exitCode: 0 }) } } as never,
-    '/workspace',
-  )
+  const { process, calls } = recordingProcess()
+  const git = createExecBackedGit(process, '/workspace')
   await git.clone({ url: 'https://github.com/me/app' })
-  expect(calls[0]).toContain('--depth 1')
-  expect(calls[0]).toContain('--single-branch')
+  const first = calls[0]
+  expect(first).toBeDefined()
+  if (first !== undefined) {
+    expect(first.command).toContain('--depth 1')
+    expect(first.command).toContain('--single-branch')
+  }
 })
 
 it('omits depth for depth: "full" and uses N for a number', async () => {
-  const calls: Array<string> = []
-  const git = createExecBackedGit(
-    { exec: (c) => { calls.push(c); return Promise.resolve({ stdout: '', stderr: '', exitCode: 0 }) } } as never,
-    '/workspace',
-  )
+  const { process, calls } = recordingProcess()
+  const git = createExecBackedGit(process, '/workspace')
   await git.clone({ url: 'https://github.com/me/app', depth: 'full' })
   await git.clone({ url: 'https://github.com/me/app', depth: 50 })
-  expect(calls[0]).not.toContain('--depth')
-  expect(calls[1]).toContain('--depth 50')
+  const full = calls[0]
+  const numeric = calls[1]
+  expect(full).toBeDefined()
+  expect(numeric).toBeDefined()
+  if (full !== undefined) {
+    expect(full.command).not.toContain('--depth')
+  }
+  if (numeric !== undefined) {
+    expect(numeric.command).toContain('--depth 50')
+  }
 })

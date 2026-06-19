@@ -13,7 +13,7 @@ export type SecretRef = { readonly __secretName: string }
  * A map of named SecretRef properties. The underlying value registry is stored
  * under a non-enumerable symbol so iterating the object never exposes it.
  */
-export type Secrets<K extends string = string> = { readonly [P in K]: SecretRef }
+export type Secrets<TKeys extends string = string> = { readonly [P in TKeys]: SecretRef }
 
 /** Internal symbol used to store the value registry on a Secrets object. */
 const REGISTRY = Symbol('secrets.registry')
@@ -58,9 +58,9 @@ export function isSecretRef(x: unknown): x is SecretRef {
 
 /** Resolve a SecretRef to its plaintext value using the secrets object. */
 export function resolveSecret(secrets: Secrets, ref: SecretRef): string {
-  const registry = (secrets as unknown as Record<symbol, Map<string, string>>)[REGISTRY]
+  const registry = Reflect.get(secrets, REGISTRY) as Map<string, string> | undefined
   if (registry === undefined) {
-    throw new Error('resolveSecret: secrets object has no registry')
+    throw new Error('resolveSecret: secrets object was not created by createSecrets')
   }
   const value = registry.get(ref.__secretName)
   if (value === undefined) {

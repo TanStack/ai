@@ -226,6 +226,42 @@ describe('createBootstrapShell', () => {
     expect(fake.counts.kill).toBe(1)
   })
 
+  it('forkState() returns the current cwd and parsed exported env vars', async () => {
+    const fake = makeFakeHandle()
+    const shellPromise = createBootstrapShell(fake.handle)
+
+    const result = await new Promise<{ cwd: string; env: Record<string, string> }>(
+      async (resolve) => {
+        const shell = await shellPromise
+
+        const p = shell.forkState()
+
+        // forkState runs `pwd` first, then `export -p`.
+        // Sentinel for pwd (counter 0): __BSSH_0__ 0
+        fake.pushStdout('/home/sandbox\n')
+        fake.pushStdout('__BSSH_0__ 0\n')
+
+        // Sentinel for export -p (counter 1): __BSSH_1__ 0
+        // Include declare -x form, export form, and one unparseable junk line.
+        fake.pushStdout('declare -x FOO="bar"\n')
+        fake.pushStdout('export BAZ="qux"\n')
+        fake.pushStdout('THIS LINE IS JUNK\n')
+        fake.pushStdout('__BSSH_1__ 0\n')
+
+        const r = await p
+        fake.closeStdout()
+        await shell.dispose()
+        resolve(r)
+      },
+    )
+
+    expect(result.cwd).toBe('/home/sandbox')
+    expect(result.env['FOO']).toBe('bar')
+    expect(result.env['BAZ']).toBe('qux')
+    // The junk line must be silently skipped — no extra keys.
+    expect(Object.keys(result.env)).toHaveLength(2)
+  })
+
   it('captures stdout lines from run() correctly across chunk boundaries', async () => {
     const fake = makeFakeHandle()
 
