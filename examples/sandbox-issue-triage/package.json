@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start:process": "tsx process.ts",
-    "start:docker": "tsx docker.ts"
+    "start:process": "tsx --env-file=.env process.ts",
+    "start:docker": "tsx --env-file=.env docker.ts"
   },
   "dependencies": {
     "@tanstack/ai": "workspace:*",
