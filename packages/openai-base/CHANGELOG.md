@@ -1,5 +1,11 @@
 # @tanstack/openai-base
 
+## 0.8.7
+
+### Patch Changes
+
+- [#790](https://github.com/TanStack/ai/pull/790) [`22ccaaa`](https://github.com/TanStack/ai/commit/22ccaaa4fe018af5a1f34bfabc0480246b11bd14) - Apply the strict-mode fallback in the provider-path `function-tool` converter. A tool whose input JSON Schema can't satisfy OpenAI's strict function-calling constraints now falls back to a non-strict tool definition (matching the converter's other path) instead of emitting an invalid strict tool, so such tools work across the OpenAI-based adapters (`@tanstack/ai-openai`, `@tanstack/ai-grok`, `@tanstack/ai-groq`).
+
 ## 0.8.6
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @tanstack/ai-groq
 
+## 0.4.8
+
+### Patch Changes
+
+- Updated dependencies [[`22ccaaa`](https://github.com/TanStack/ai/commit/22ccaaa4fe018af5a1f34bfabc0480246b11bd14)]:
+  - @tanstack/openai-base@0.8.7
+
 ## 0.4.7
 
 ### Patch Changes
