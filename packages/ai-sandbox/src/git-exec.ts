@@ -58,6 +58,15 @@ export function createExecBackedGit(
       if (ref !== undefined) assertNoLeadingDash(ref, 'ref')
       const refArg = ref ? `--branch ${q(ref)} ` : ''
       const resolvedDepth = depth ?? 1
+      // `depth` is interpolated unquoted into the command, so validate it the
+      // same way other positionals are guarded — a non-positive-integer (e.g. an
+      // untyped caller passing a string) must never reach the shell.
+      if (
+        resolvedDepth !== 'full' &&
+        (!Number.isInteger(resolvedDepth) || resolvedDepth <= 0)
+      ) {
+        throw new Error('git-exec: depth must be a positive integer or "full".')
+      }
       const depthArg =
         resolvedDepth === 'full' ? '' : `--depth ${resolvedDepth} --single-branch `
 

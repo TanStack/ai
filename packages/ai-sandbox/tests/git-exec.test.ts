@@ -27,6 +27,19 @@ function recordingProcess(stdout = ''): {
 }
 
 describe('createExecBackedGit security', () => {
+  it('rejects a non-positive-integer depth before it reaches the shell', async () => {
+    const { process, calls } = recordingProcess()
+    const git = createExecBackedGit(process, '/workspace')
+    await expect(
+      // An untyped caller could smuggle shell metacharacters via `depth`.
+      git.clone({ url: 'https://github.com/me/app', depth: '1; rm -rf /' as never }),
+    ).rejects.toThrow(/depth must be a positive integer/)
+    await expect(
+      git.clone({ url: 'https://github.com/me/app', depth: 0 }),
+    ).rejects.toThrow(/depth must be a positive integer/)
+    expect(calls).toHaveLength(0)
+  })
+
   it('keeps the auth token out of argv (env-only credential helper)', async () => {
     const { process, calls } = recordingProcess()
     const git = createExecBackedGit(process, '/workspace')
