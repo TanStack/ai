@@ -7,7 +7,7 @@
  * adapter reads it in its `chatStream` setup and projects those inputs into the
  * CLI's native format. For Codex that means:
  *
- *   - MCP servers   → `[mcp_servers.<name>]` tables in `~/.codex/config.toml`
+ *   - MCP servers   → `[mcp_servers.<name>]` tables in `<root>/.codex/config.toml`
  *                     (TOML), reusing the same `mcp_servers.*` key shape the
  *                     adapter already uses to wire the host tool-bridge.
  *   - gitSkill repos → linked under codex's skills dir when one exists; Codex
@@ -23,7 +23,7 @@
  * one-time marker file under the workspace.
  *
  * Codex specifics (verified against the codex config schema):
- *   - Codex reads `[mcp_servers.<name>]` from `~/.codex/config.toml`, with a
+ *   - Codex reads `[mcp_servers.<name>]` from `<root>/.codex/config.toml`, with a
  *     streamable-HTTP server taking `url` plus optional `http_headers`
  *     (a literal header table). We write resolved header values directly into
  *     `http_headers` so a rotated secret re-applies on every projection.
@@ -142,7 +142,7 @@ function renderMcpToml(servers: Record<string, CodexMcpServer>): string {
 }
 
 /**
- * Write codex's `~/.codex/config.toml`, re-resolving every secret. This runs on
+ * Write codex's `<root>/.codex/config.toml`, re-resolving every secret. This runs on
  * EVERY projection call (never gated by the marker) so codex always reads the
  * current secret values and a snapshot can never serve a stale or rotated one.
  * When there are no MCP skills the write is skipped.

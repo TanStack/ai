@@ -71,7 +71,7 @@ export type WorkspaceSkill =
       repo: string
       /** Optional SecretRef for private-repo authentication. */
       secret?: SecretRef
-      /** Directory to clone into, relative to the skills root. Defaults to the repo name. */
+      /** Absolute path inside the sandbox to clone into. Defaults to a `.tanstack-skills/<repo>` dir under the workspace root. */
       into?: string
     }
 

@@ -1,13 +1,19 @@
 ---
 name: ai-sandbox
 description: >
-  Run harness adapters (Claude Code) INSIDE isolated sandboxes via
-  defineSandbox + withSandbox + a provider (localProcessSandbox / dockerSandbox).
-  Covers defineWorkspace (git/setup/scripts/skills/secrets), defineSandboxPolicy
-  (allow/ask/deny), lifecycle/resume, the SandboxHandle (fs/git/process/ports),
-  capability tokens, defineSandbox hooks (onFile/onFileCreate/onFileChange/
-  onFileDelete/onReady/onError/onDestroy) + fileEvents flag, chat middleware
-  sandbox group (defineChatMiddleware sandbox hooks), the sandbox debug category,
+  Run harness adapters (Claude Code, Codex, Gemini CLI, OpenCode) INSIDE
+  isolated sandboxes via defineSandbox + withSandbox + a provider
+  (localProcessSandbox / dockerSandbox). Covers declarative provisioning:
+  createSecrets + secret/bearer, skills (agentSkill/gitSkill/mcpSkill/
+  fileSkill), plugins, instructions → canonical AGENTS.md + symlinks projected
+  per harness; shallow-clone default with depth opt-out; serial/parallel setup
+  callback over a persistent shell; snapshot-after-setup default with
+  snapshotMaxAge TTL; defineWorkspace (git/setup/scripts/skills/secrets/
+  instructions/plugins), defineSandboxPolicy (allow/ask/deny), lifecycle/resume,
+  the SandboxHandle (fs/git/process/ports), capability tokens, defineSandbox
+  hooks (onFile/onFileCreate/onFileChange/onFileDelete/onReady/onError/
+  onDestroy) + fileEvents flag, chat middleware sandbox group
+  (defineChatMiddleware sandbox hooks), the sandbox debug category,
   watchWorkspace as a low-level building block, and the file.changed /
   sandbox.file / claude-code.session-id events. Use whenever a harness adapter
   needs a sandbox or when building sandbox providers.
@@ -56,6 +62,114 @@ const stream = chat({
   middleware: [withSandbox(sandbox)],
 })
 ```
+
+## Type-safe secrets
+
+```typescript
+import { createSecrets, bearer } from '@tanstack/ai-sandbox'
+
+const secrets = createSecrets({
+  GH: process.env.GH_TOKEN ?? '',
+  SENTRY: process.env.SENTRY_TOKEN ?? '',
+})
+// secrets.GH is a SecretRef — the underlying string is stored in a
+// non-enumerable symbol-keyed registry and never logged, snapshotted,
+// or written to the sandbox store.
+```
+
+Pass `secrets` to `defineWorkspace({ secrets })` so skill and MCP projectors
+can resolve them. Use `secret: secrets.GH` in `gitSkill` for private-repo auth
+and `secrets.GH` / `bearer(secrets.GH)` in MCP header values:
+
+- `secrets.GH` — resolves to the raw token value.
+- `bearer(secrets.GH)` — resolves to `"Bearer <value>"`.
+
+## Declarative provisioning (skills, plugins, MCP, instructions)
+
+```typescript
+import {
+  agentSkill, gitSkill, mcpSkill, fileSkill,
+  bearer, createSecrets, defineWorkspace,
+} from '@tanstack/ai-sandbox'
+
+const secrets = createSecrets({ GH: process.env.GH_TOKEN ?? '' })
+
+defineWorkspace({
+  source: { type: 'git', url: 'https://github.com/owner/repo' },
+  secrets,
+  skills: [
+    agentSkill('tanstack'),           // named skill (no-op with warning on CLIs that lack the concept)
+    gitSkill({
+      repo: 'owner/private-skills',
+      secret: secrets.GH,             // resolved at bootstrap time, never stored
+      // into: '/abs/path/inside/sandbox'  // optional; defaults to .tanstack-skills/<repo>
+    }),
+    mcpSkill('my-mcp', {
+      url: 'https://mcp.example.com',
+      headers: { Authorization: bearer(secrets.GH) },
+    }),
+    fileSkill({ path: '.hints.md', content: 'Prefer pnpm.' }),
+  ],
+  plugins: ['@anthropic/plugin-foo'], // no-op with warning on CLIs without a plugin concept
+  instructions: 'Always run `pnpm test` before proposing a change.',
+})
+```
+
+Each skill type is projected per harness (Claude Code → `.mcp.json`; Codex →
+`.codex/config.toml`; Gemini CLI → settings JSON; OpenCode → `opencode.json`).
+`instructions` is written as `AGENTS.md` at the workspace root; `CLAUDE.md` and
+`GEMINI.md` are created as symlinks (falling back to copies on symlink failure).
+Skills/plugins that a CLI lacks emit a `console.warn` and are skipped.
+
+**`gitSkill` `into` field:** an **absolute path inside the sandbox** where the
+repo is cloned. Defaults to `<root>/.tanstack-skills/<repo-basename>`.
+
+## Fast init
+
+### Shallow clone (`depth`)
+
+`githubRepo` / `gitSource` default to `--depth 1 --single-branch`. Override:
+
+```typescript
+import { githubRepo, defineWorkspace } from '@tanstack/ai-sandbox'
+
+defineWorkspace({ source: githubRepo({ repo: 'owner/app' }) })               // depth 1 (default)
+defineWorkspace({ source: githubRepo({ repo: 'owner/app', depth: 10 }) })    // 10 commits
+defineWorkspace({ source: githubRepo({ repo: 'owner/app', depth: 'full' }) }) // full history
+```
+
+### Serial / parallel `setup` callback
+
+`setup` accepts a plain `Array<string>` (all serial) or a callback that records
+serial and parallel groups over a **persistent shell** whose cwd/env carry over
+between serial steps:
+
+```typescript
+defineWorkspace({
+  source: githubRepo({ repo: 'owner/app' }),
+  setup: ({ serial, parallel }) => {
+    serial('corepack enable')
+    serial('pnpm install')
+    parallel(['pnpm build', 'pnpm typecheck']) // concurrent; inherit cwd+env from shell
+    serial('echo done')
+  },
+})
+```
+
+### Snapshot-after-setup and `snapshotMaxAge`
+
+When the provider supports snapshots, bootstrap takes one automatically after
+`setup` completes. Subsequent runs resume from the snapshot (skipping setup).
+Override or add a TTL:
+
+```typescript
+lifecycle: {
+  snapshot: 'after-setup', // default when provider.capabilities().snapshots
+  snapshotMaxAge: '24h',   // re-create when the snapshot is older than this
+}
+```
+
+Providers without snapshot support skip the step silently.
 
 ## Providers
 
@@ -177,9 +291,14 @@ chat({ threadId, adapter, messages, debug: { sandbox: true } })
 
 - **Harness adapters require a sandbox.** Always include `withSandbox(...)` in
   `middleware` — without it `chat()` throws a missing-capability error.
-- **Secrets** (`workspace.secrets`, e.g. `ANTHROPIC_API_KEY`) are injected into
-  the sandbox env and never persisted. The agent binary (`claude`) must exist in
-  the sandbox image (install it in `setup` or bake it into the image).
+- **Secrets** (`workspace.secrets`) are injected into the sandbox env and never
+  persisted (no snapshots, no sandbox store, no event log). Always create them
+  with `createSecrets(...)` so the values stay hidden behind `SecretRef` tokens.
+  The agent binary (`claude`) must exist in the sandbox image (install it in
+  `setup` or bake it into the image).
+- **Secret-bearing projected files** (e.g. MCP config with resolved header
+  values) are re-written on every projection call so rotated secrets re-apply;
+  they are never included in a snapshot.
 - **chat()-provided `tools` are bridged** into the in-sandbox agent over a
   host-side MCP tool-proxy: the agent calls them as `mcp__tanstack__<tool>` and
   each call is proxied back to the host where the tool's `execute()` runs (with
@@ -188,3 +307,5 @@ chat({ threadId, adapter, messages, debug: { sandbox: true } })
   (localhost, or `host.docker.internal` for Docker), gated by a per-run bearer
   token.
 - Use `localProcessSandbox()` only in trusted/dev contexts (no isolation).
+- Skills/plugins that a CLI lacks (e.g. `agentSkill` on Codex, `plugins` on
+  Codex) warn and skip — they do not throw.

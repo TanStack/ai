@@ -102,6 +102,100 @@ defineWorkspace({
 })
 ```
 
+## Provisioning (secrets, skills, plugins, MCP, instructions)
+
+`defineWorkspace()` supports declarative provisioning of the agent environment:
+secrets, third-party MCP servers, skill repos, plugins, and a universal
+`AGENTS.md` instruction file — all portable across harnesses.
+
+### Type-safe secrets
+
+`createSecrets` wraps environment values into opaque `SecretRef` tokens.
+The underlying strings are stored in a non-enumerable symbol-keyed registry on
+the returned object, so `Object.keys(secrets)` never exposes them and they are
+never written to snapshots, the sandbox store, or the event log.
+
+```ts
+import { createSecrets, bearer, defineWorkspace } from '@tanstack/ai-sandbox'
+
+const secrets = createSecrets({
+  GH: process.env.GH_TOKEN ?? '',
+  SENTRY: process.env.SENTRY_TOKEN ?? '',
+})
+
+defineWorkspace({
+  source: { type: 'git', url: 'https://github.com/owner/repo', ref: 'main' },
+  secrets,
+  // ...
+})
+```
+
+Pass `secret: secrets.GH` wherever a `SecretRef` is accepted (e.g. `gitSkill`
+auth). In MCP header values use the ref directly or wrap it with `bearer(ref)`
+to produce a `Bearer <value>` string at resolution time:
+
+```ts
+import { mcpSkill } from '@tanstack/ai-sandbox'
+
+mcpSkill('my-mcp', {
+  url: 'https://mcp.example.com',
+  headers: {
+    Authorization: bearer(secrets.SENTRY), // resolves to "Bearer <value>"
+    'X-Token': secrets.GH,                 // resolves to the raw token value
+  },
+})
+```
+
+### Skills, plugins, and MCP servers
+
+`skills` is an array of `WorkspaceSkill` values. During bootstrap each harness
+projector maps them to its native format (Claude Code `.mcp.json`, Codex
+`.codex/config.toml`, Gemini CLI settings JSON, OpenCode `opencode.json`).
+Concepts that a given CLI lacks (e.g. plugins in Codex) emit a warning and are
+silently skipped rather than throwing.
+
+```ts
+import {
+  agentSkill,
+  gitSkill,
+  mcpSkill,
+  fileSkill,
+  defineWorkspace,
+} from '@tanstack/ai-sandbox'
+
+defineWorkspace({
+  source: { type: 'git', url: 'https://github.com/owner/repo' },
+  secrets,
+  skills: [
+    // Load a public agent skill by name (Claude Code only; no-op with warning on others).
+    agentSkill('tanstack'),
+    // Clone a private skill repo; `secret` is resolved from the secrets registry.
+    gitSkill({ repo: 'owner/private-skills', secret: secrets.GH }),
+    // Wire an MCP server with a resolved bearer token in the Authorization header.
+    mcpSkill('my-mcp', {
+      url: 'https://mcp.example.com',
+      headers: { Authorization: bearer(secrets.SENTRY) },
+    }),
+    // Write an arbitrary file into the workspace.
+    fileSkill({ path: '.agent-hints.md', content: '# Hints\nPrefer pnpm.' }),
+  ],
+  plugins: ['@anthropic/plugin-foo'],
+  instructions: 'Always run `pnpm test` before proposing a change.',
+})
+```
+
+`gitSkill` has an optional `into` field (an **absolute path inside the sandbox**;
+defaults to `.tanstack-skills/<repo-basename>`) that controls where the repo is
+cloned.
+
+### AGENTS.md and per-harness symlinks
+
+`instructions` is written to `AGENTS.md` at the workspace root during bootstrap.
+Harness-specific counterparts (`CLAUDE.md`, `GEMINI.md`) are created as symlinks;
+if the sandbox process layer cannot symlink, they are written as copies. The
+instruction content is therefore read natively by every supported CLI without
+extra config.
+
 ## Policy
 
 `defineSandboxPolicy()` is a portable allow/ask/deny description that each
@@ -123,6 +217,101 @@ const policy = defineSandboxPolicy({
 
 const sandbox = defineSandbox({ id: 'repo', provider, policy /* … */ })
 ```
+
+## Fast init (shallow clone, serial/parallel setup, snapshots)
+
+### Shallow clone by default
+
+`githubRepo` and `gitSource` default to a shallow single-branch clone
+(`--depth 1 --single-branch`). Pass a `depth` number for a specific history
+depth, or `'full'` to fetch everything:
+
+```ts
+import { githubRepo, defineWorkspace } from '@tanstack/ai-sandbox'
+
+defineWorkspace({
+  // Shallow clone (depth 1) — the default.
+  source: githubRepo({ repo: 'owner/app' }),
+})
+
+defineWorkspace({
+  // Explicit depth — fetches last 10 commits.
+  source: githubRepo({ repo: 'owner/app', depth: 10 }),
+})
+
+defineWorkspace({
+  // Full history — disables the depth flag entirely.
+  source: githubRepo({ repo: 'owner/app', depth: 'full' }),
+})
+```
+
+### Serial and parallel setup
+
+`setup` accepts either a plain string array (all steps run serially) or a
+callback that records serial and parallel groups over a **persistent shell** —
+the shell's working directory and environment carry over between steps, so a
+`cd` or `export` in a serial step is visible to the next one.
+
+```ts
+import { defineWorkspace } from '@tanstack/ai-sandbox'
+
+defineWorkspace({
+  source: githubRepo({ repo: 'owner/app' }),
+  setup: ({ serial, parallel }) => {
+    // Runs in order on the persistent shell; cwd/env carry over.
+    serial('corepack enable')
+    serial('pnpm install')
+    // Both commands launch concurrently, inheriting cwd+env from the shell.
+    parallel(['pnpm build', 'pnpm typecheck'])
+    // Runs after both parallel steps complete.
+    serial('echo bootstrap done')
+  },
+})
+```
+
+A plain string array is equivalent to all-serial and remains the simplest form:
+
+```ts
+defineWorkspace({
+  source: githubRepo({ repo: 'owner/app' }),
+  setup: ['corepack enable', 'pnpm install'],
+})
+```
+
+### Snapshot-after-setup
+
+When the sandbox provider supports snapshots (e.g. Docker), bootstrap
+automatically takes a snapshot after `setup` completes. Subsequent runs resume
+from the snapshot instead of re-running the setup steps, dramatically reducing
+cold-start time.
+
+Control snapshot behaviour via `lifecycle`:
+
+```ts
+import { defineSandbox, defineWorkspace } from '@tanstack/ai-sandbox'
+import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
+
+const sandbox = defineSandbox({
+  id: 'repo-agent',
+  provider: dockerSandbox({ image: 'node:22' }),
+  workspace: defineWorkspace({
+    source: githubRepo({ repo: 'owner/app' }),
+    setup: ['corepack enable', 'pnpm install'],
+  }),
+  lifecycle: {
+    reuse: 'thread',
+    // 'after-setup' is the default when the provider supports snapshots.
+    snapshot: 'after-setup',
+    // Optional: re-create (re-bootstrap) when the snapshot is older than this.
+    snapshotMaxAge: '24h',
+  },
+})
+```
+
+`snapshotMaxAge` accepts a duration string (`'24h'`, `'30m'`, etc.). When the
+stored snapshot is older than the limit, `withSandbox` treats it as stale and
+re-creates the sandbox from scratch. Providers without snapshot support
+(e.g. `localProcessSandbox`) skip the snapshot step silently.
 
 ## Tools
 
