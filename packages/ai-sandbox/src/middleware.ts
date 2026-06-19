@@ -23,7 +23,11 @@ import {
   provideSandbox,
   provideSandboxPolicy,
 } from './capabilities'
+import { computeWorkspaceHash } from './key'
+import { ProjectionCapability, provideWorkspaceProjection } from './projection'
+import { resolveSecret } from './secrets'
 import { watchWorkspace } from './watch'
+import { DEFAULT_WORKSPACE_ROOT } from './bootstrap'
 import type { AbortInfo, ChatMiddlewareContext, DefinedChatMiddleware, SandboxFileEvent } from '@tanstack/ai'
 import type { SandboxHandle } from './contracts'
 import type { SandboxDefinition, SandboxEnsureContext, SandboxHooks } from './sandbox'
@@ -89,11 +93,11 @@ export function withSandbox(
 ): DefinedChatMiddleware<
   unknown,
   readonly [],
-  readonly [typeof SandboxCapability]
+  readonly [typeof SandboxCapability, typeof ProjectionCapability]
 > {
   return defineChatMiddleware({
     name: 'sandbox',
-    provides: [SandboxCapability],
+    provides: [SandboxCapability, ProjectionCapability],
     // SandboxPolicyCapability is provided conditionally (only when the
     // definition has a policy), so it is intentionally NOT declared here —
     // consumers read it via `getOptional`.
@@ -104,6 +108,27 @@ export function withSandbox(
       const handle = await definition.ensure(ensureCtx)
       provideSandbox(ctx, handle)
       if (definition.policy) provideSandboxPolicy(ctx, definition.policy)
+
+      const workspace = definition.workspace
+      if (workspace !== undefined) {
+        const root = workspace.root ?? DEFAULT_WORKSPACE_ROOT
+        const workspaceHash = computeWorkspaceHash(workspace)
+        const secrets = workspace.secrets
+        provideWorkspaceProjection(ctx, {
+          skills: workspace.skills ?? [],
+          plugins: workspace.plugins ?? [],
+          resolveSecret: (ref) => {
+            if (secrets === undefined) {
+              throw new Error(
+                `resolveSecret: no secrets defined on this workspace (ref: "${ref.__secretName}")`,
+              )
+            }
+            return resolveSecret(secrets, ref)
+          },
+          markerPath: `${root}/.tanstack-projected-${workspaceHash}`,
+          root,
+        })
+      }
 
       const hooks = definition.hooks
       await hooks?.onReady?.(handle)

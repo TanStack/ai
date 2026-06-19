@@ -14,6 +14,14 @@ export {
   provideSandboxPolicy,
 } from './capabilities'
 
+// Workspace projection capability (provided by withSandbox, consumed by harness adapters)
+export {
+  ProjectionCapability,
+  getWorkspaceProjection,
+  provideWorkspaceProjection,
+} from './projection'
+export type { WorkspaceProjection } from './projection'
+
 // Middleware
 export { withSandbox } from './middleware'
 
