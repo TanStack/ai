@@ -4,6 +4,7 @@
 '@tanstack/ai-codex': minor
 '@tanstack/ai-gemini-cli': minor
 '@tanstack/ai-opencode': minor
+'@tanstack/ai-sandbox-docker': patch
 ---
 
 Declarative sandbox provisioning + faster headless init.
@@ -32,3 +33,7 @@ Declarative sandbox provisioning + faster headless init.
   bootstrap takes one automatically after `setup` completes. Add
   `lifecycle.snapshotMaxAge` (e.g. `'24h'`) to re-create the sandbox when the
   snapshot is older than the TTL.
+- **`@tanstack/ai-sandbox-docker` fix**: a spawned process's demuxed
+  stdout/stderr now end on the exec stream's `close`/`error` (not only `end`),
+  so disposing a long-lived process (e.g. the bootstrap shell) no longer hangs
+  after `kill()`.
