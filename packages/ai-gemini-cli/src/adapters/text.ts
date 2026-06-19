@@ -5,6 +5,7 @@ import {
   SandboxCapability,
   buildApprovalRequestedEvent,
   getSandbox,
+  getWorkspaceProjection,
   hostForSandbox,
   startHostToolBridge,
 } from '@tanstack/ai-sandbox'
@@ -13,6 +14,7 @@ import { startAcpSession } from '../process/acp-client'
 import { resolveInteractivePermission } from '../process/permissions'
 import { AsyncQueue } from '../stream/queue'
 import { translateAcpStream } from '../stream/translate'
+import { projectGeminiWorkspace } from './projection'
 import type { HostToolBridge, SandboxHandle } from '@tanstack/ai-sandbox'
 import type {
   StructuredOutputOptions,
@@ -128,6 +130,15 @@ export class GeminiCliTextAdapter<
 
     try {
       const sandbox = this.sandboxFrom(options)
+
+      // Project workspace skills (MCP servers, gitSkills, …) into the sandbox
+      // before spawning gemini. The MCP config is always re-written so rotated
+      // secrets re-apply; the marker gates the idempotent non-secret ops.
+      const projection = options.capabilities
+        ? getWorkspaceProjection(options.capabilities, { optional: true })
+        : undefined
+      if (projection !== undefined) await projectGeminiWorkspace(sandbox, projection)
+
       const cwd =
         options.modelOptions?.cwd ?? this.adapterConfig.cwd ?? DEFAULT_WORKDIR
 
