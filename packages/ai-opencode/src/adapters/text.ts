@@ -5,6 +5,7 @@ import {
   SandboxCapability,
   buildApprovalRequestedEvent,
   getSandbox,
+  getWorkspaceProjection,
   hostForSandbox,
   startHostToolBridge,
 } from '@tanstack/ai-sandbox'
@@ -14,6 +15,7 @@ import { startOpencodeServerInSandbox } from '../process/sandbox-server'
 import { resolveInteractivePermission } from '../process/permissions'
 import { AsyncQueue } from '../stream/queue'
 import { translateOpencodeStream } from '../stream/translate'
+import { projectOpencodeWorkspace } from './projection'
 import type { HostToolBridge, SandboxHandle } from '@tanstack/ai-sandbox'
 import type {
   StructuredOutputOptions,
@@ -133,6 +135,17 @@ export class OpencodeTextAdapter<
         options.modelOptions?.directory ??
         this.adapterConfig.directory ??
         DEFAULT_WORKDIR
+
+      // Project workspace skills / MCP servers into the sandbox before starting
+      // the opencode server so the workspace config is in place for the session.
+      if (options.capabilities !== undefined) {
+        const projection = getWorkspaceProjection(options.capabilities, {
+          optional: true,
+        })
+        if (projection !== undefined) {
+          await projectOpencodeWorkspace(sandbox, projection)
+        }
+      }
 
       const modelOptions = options.modelOptions
       const sessionId = modelOptions?.sessionId
