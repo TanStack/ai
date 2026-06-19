@@ -18,7 +18,7 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { chat } from '../src/activities/chat/index'
 import { EventType } from '../src/types'
-import type { StreamChunk } from '../src/types'
+import type { RunFinishedEvent, StreamChunk, TokenUsage } from '../src/types'
 import type { AnyTextAdapter } from '../src/activities/chat/adapter'
 import { collectChunks } from './test-utils'
 
@@ -42,7 +42,9 @@ const validPerson: Person = {
  */
 function makeAdapter(opts: {
   structuredOutputStream?: (o: unknown) => AsyncIterable<StreamChunk>
-  structuredOutput?: (o: unknown) => Promise<{ data: unknown; rawText: string }>
+  structuredOutput?: (
+    o: unknown,
+  ) => Promise<{ data: unknown; rawText: string; usage?: TokenUsage }>
 }): AnyTextAdapter {
   return {
     kind: 'text' as const,
@@ -374,6 +376,72 @@ describe('chat({ outputSchema, stream: true })', () => {
       ) as { value: { object: unknown } } | undefined
       expect(complete).toBeDefined()
       expect(complete!.value.object).toEqual(invalidObject)
+    })
+
+    it('forwards adapter-reported usage onto RUN_FINISHED (#758)', async () => {
+      // Regression for #758: the fallback wraps the non-streaming
+      // `structuredOutput`, whose `{ data, rawText, usage }` result includes
+      // token usage. Before the fix the synthesized RUN_FINISHED dropped
+      // `usage`, so consumers (and the `runOnUsage` middleware hook) saw
+      // `undefined` on every fallback-path provider (Anthropic, Gemini, Ollama).
+      const usage: TokenUsage = {
+        promptTokens: 125,
+        completionTokens: 1346,
+        totalTokens: 1471,
+        promptTokensDetails: { cachedTokens: 5760 },
+      }
+      const adapter = makeAdapter({
+        structuredOutput: async () => ({
+          data: validPerson,
+          rawText: JSON.stringify(validPerson),
+          usage,
+        }),
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'extract' }],
+        outputSchema: PersonSchema,
+        stream: true,
+      })
+
+      const chunks = await collectChunks(
+        stream as unknown as AsyncIterable<StreamChunk>,
+      )
+
+      const finished = chunks.find(
+        (c) => c.type === EventType.RUN_FINISHED,
+      ) as RunFinishedEvent | undefined
+      expect(finished).toBeDefined()
+      expect(finished!.usage).toEqual(usage)
+    })
+
+    it('omits usage on RUN_FINISHED when the adapter does not report it', async () => {
+      // The conditional spread must not synthesize `usage: undefined` for
+      // adapters whose `structuredOutput` returns no usage.
+      const adapter = makeAdapter({
+        structuredOutput: async () => ({
+          data: validPerson,
+          rawText: JSON.stringify(validPerson),
+        }),
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'extract' }],
+        outputSchema: PersonSchema,
+        stream: true,
+      })
+
+      const chunks = await collectChunks(
+        stream as unknown as AsyncIterable<StreamChunk>,
+      )
+
+      const finished = chunks.find(
+        (c) => c.type === EventType.RUN_FINISHED,
+      ) as RunFinishedEvent | undefined
+      expect(finished).toBeDefined()
+      expect('usage' in finished!).toBe(false)
     })
   })
 

@@ -43,6 +43,7 @@ import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
 import { Route as ApiArktypeToolWireRouteImport } from './routes/api.arktype-tool-wire'
+import { Route as ApiAnthropicStructuredUsageRouteImport } from './routes/api.anthropic-structured-usage'
 import { Route as ApiAnthropicSkillsWireRouteImport } from './routes/api.anthropic-skills-wire'
 import { Route as ApiAnthropicBugTestRouteImport } from './routes/api.anthropic-bug-test'
 import { Route as ProviderFeatureRouteImport } from './routes/$provider/$feature'
@@ -226,6 +227,12 @@ const ApiArktypeToolWireRoute = ApiArktypeToolWireRouteImport.update({
   path: '/api/arktype-tool-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAnthropicStructuredUsageRoute =
+  ApiAnthropicStructuredUsageRouteImport.update({
+    id: '/api/anthropic-structured-usage',
+    path: '/api/anthropic-structured-usage',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAnthropicSkillsWireRoute = ApiAnthropicSkillsWireRouteImport.update({
   id: '/api/anthropic-skills-wire',
   path: '/api/anthropic-skills-wire',
@@ -282,6 +289,7 @@ export interface FileRoutesByFullPath {
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
+  '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
@@ -326,6 +334,7 @@ export interface FileRoutesByTo {
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
+  '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
@@ -371,6 +380,7 @@ export interface FileRoutesById {
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
+  '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
@@ -417,6 +427,7 @@ export interface FileRouteTypes {
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-skills-wire'
+    | '/api/anthropic-structured-usage'
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/chat'
@@ -461,6 +472,7 @@ export interface FileRouteTypes {
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-skills-wire'
+    | '/api/anthropic-structured-usage'
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/chat'
@@ -505,6 +517,7 @@ export interface FileRouteTypes {
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-skills-wire'
+    | '/api/anthropic-structured-usage'
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/chat'
@@ -550,6 +563,7 @@ export interface RootRouteChildren {
   ProviderFeatureRoute: typeof ProviderFeatureRoute
   ApiAnthropicBugTestRoute: typeof ApiAnthropicBugTestRoute
   ApiAnthropicSkillsWireRoute: typeof ApiAnthropicSkillsWireRoute
+  ApiAnthropicStructuredUsageRoute: typeof ApiAnthropicStructuredUsageRoute
   ApiArktypeToolWireRoute: typeof ApiArktypeToolWireRoute
   ApiAudioRoute: typeof ApiAudioRouteWithChildren
   ApiChatRoute: typeof ApiChatRoute
@@ -815,6 +829,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiArktypeToolWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/anthropic-structured-usage': {
+      id: '/api/anthropic-structured-usage'
+      path: '/api/anthropic-structured-usage'
+      fullPath: '/api/anthropic-structured-usage'
+      preLoaderRoute: typeof ApiAnthropicStructuredUsageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/anthropic-skills-wire': {
       id: '/api/anthropic-skills-wire'
       path: '/api/anthropic-skills-wire'
@@ -947,6 +968,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProviderFeatureRoute: ProviderFeatureRoute,
   ApiAnthropicBugTestRoute: ApiAnthropicBugTestRoute,
   ApiAnthropicSkillsWireRoute: ApiAnthropicSkillsWireRoute,
+  ApiAnthropicStructuredUsageRoute: ApiAnthropicStructuredUsageRoute,
   ApiArktypeToolWireRoute: ApiArktypeToolWireRoute,
   ApiAudioRoute: ApiAudioRouteWithChildren,
   ApiChatRoute: ApiChatRoute,
