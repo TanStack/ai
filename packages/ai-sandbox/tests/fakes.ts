@@ -5,10 +5,72 @@ import type {
   SandboxDestroyInput,
   SandboxHandle,
   SandboxProvider,
-  SandboxResumeInput,
   SandboxRestoreInput,
+  SandboxResumeInput,
   SnapshotRef,
+  SpawnHandle,
 } from '../src/contracts'
+
+/**
+ * A minimal sentinel-driven fake `sh` for driving the persistent bootstrap
+ * shell (see src/shell.ts). Every command succeeds; `pwd` answers
+ * `/workspace`, `export -p` answers an empty env, so `forkState()` resolves.
+ */
+function makeFakeShellSpawn(): SpawnHandle {
+  const queue: Array<string> = []
+  const waiters: Array<(result: IteratorResult<string>) => void> = []
+  let done = false
+
+  function emit(chunk: string): void {
+    const waiter = waiters.shift()
+    if (waiter !== undefined) {
+      waiter({ value: chunk, done: false })
+    } else {
+      queue.push(chunk)
+    }
+  }
+
+  const stdout: AsyncIterable<string> = {
+    [Symbol.asyncIterator](): AsyncIterator<string> {
+      return {
+        next(): Promise<IteratorResult<string>> {
+          const queued = queue.shift()
+          if (queued !== undefined) {
+            return Promise.resolve({ value: queued, done: false })
+          }
+          if (done) return Promise.resolve({ value: '', done: true })
+          return new Promise<IteratorResult<string>>((resolve) => {
+            waiters.push(resolve)
+          })
+        },
+      }
+    },
+  }
+
+  let counter = 0
+  return {
+    pid: 1,
+    stdout,
+    stderr: (async function* empty() {})(),
+    stdin: {
+      write: (data: string) => {
+        const sentinel = `__BSSH_${counter}__`
+        counter += 1
+        if (data.startsWith('pwd;')) emit('/workspace\n')
+        emit(`${sentinel} 0\n`)
+        return Promise.resolve()
+      },
+      end: () => {
+        done = true
+        for (const waiter of waiters) waiter({ value: '', done: true })
+        waiters.length = 0
+        return Promise.resolve()
+      },
+    },
+    wait: () => Promise.resolve(0),
+    kill: () => Promise.resolve(),
+  }
+}
 
 export const FULL_CAPS: SandboxCapabilities = {
   fs: true,
@@ -71,7 +133,10 @@ export function makeFakeHandle(
     process: {
       exec: (): Promise<ExecResult> =>
         Promise.resolve({ stdout: '', stderr: '', exitCode: 0 }),
-      spawn: () => Promise.reject(new Error('not used in this fake')),
+      // A sentinel-driven `sh` good enough to drive the persistent bootstrap
+      // shell: every command succeeds (exit 0), `pwd`/`export -p` answer so
+      // forkState resolves. Mirrors the protocol in src/shell.ts.
+      spawn: () => Promise.resolve(makeFakeShellSpawn()),
     },
     ports: {
       connect: (port) => Promise.resolve({ url: `http://localhost:${port}` }),

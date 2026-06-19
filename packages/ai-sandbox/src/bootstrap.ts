@@ -9,6 +9,7 @@
  * differs per harness.
  */
 import { buildSetupPlan } from './setup-plan'
+import { createBootstrapShell } from './shell'
 import { resolveAllSecrets } from './secrets'
 import type { SandboxHandle } from './contracts'
 import type { PackageManager, WorkspaceDefinition } from './workspace'
@@ -81,18 +82,47 @@ export async function bootstrapWorkspace(
 
   const packageManager = await detectPackageManager(handle, workspace, root)
 
+  // Run setup over a single persistent shell so `cd`/exports persist across
+  // serial steps. Parallel groups fork the shell's current cwd+env into
+  // concurrent one-shot exec calls.
   const ranSetup: Array<string> = []
-  for (const group of buildSetupPlan(workspace.setup)) {
-    if (group.kind === 'serial') {
-      await handle.process.exec(group.command, { cwd: root, signal: options.signal })
-      ranSetup.push(group.command)
-    } else {
-      await Promise.all(
-        group.commands.map((cmd) =>
-          handle.process.exec(cmd, { cwd: root, signal: options.signal }),
-        ),
-      )
-      ranSetup.push(...group.commands)
+  const plan = buildSetupPlan(workspace.setup)
+  if (plan.length > 0) {
+    const shell = await createBootstrapShell(handle, { cwd: root })
+    try {
+      for (const group of plan) {
+        if (group.kind === 'serial') {
+          const result = await shell.run(group.command)
+          if (result.exitCode !== 0) {
+            throw new Error(
+              `setup step failed: ${group.command} (exit ${result.exitCode})`,
+            )
+          }
+          ranSetup.push(group.command)
+        } else {
+          const { cwd, env } = await shell.forkState()
+          const results = await Promise.all(
+            group.commands.map((command) =>
+              handle.process
+                .exec(command, {
+                  cwd,
+                  env,
+                  ...(options.signal ? { signal: options.signal } : {}),
+                })
+                .then((res) => ({ command, res })),
+            ),
+          )
+          const failed = results.find((entry) => entry.res.exitCode !== 0)
+          if (failed !== undefined) {
+            throw new Error(
+              `setup step failed: ${failed.command} (exit ${failed.res.exitCode})`,
+            )
+          }
+          ranSetup.push(...group.commands)
+        }
+      }
+    } finally {
+      await shell.dispose()
     }
   }
 
