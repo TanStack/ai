@@ -409,9 +409,9 @@ describe('chat({ outputSchema, stream: true })', () => {
         stream as unknown as AsyncIterable<StreamChunk>,
       )
 
-      const finished = chunks.find(
-        (c) => c.type === EventType.RUN_FINISHED,
-      ) as RunFinishedEvent | undefined
+      const finished = chunks.find((c) => c.type === EventType.RUN_FINISHED) as
+        | RunFinishedEvent
+        | undefined
       expect(finished).toBeDefined()
       expect(finished!.usage).toEqual(usage)
     })
@@ -437,9 +437,9 @@ describe('chat({ outputSchema, stream: true })', () => {
         stream as unknown as AsyncIterable<StreamChunk>,
       )
 
-      const finished = chunks.find(
-        (c) => c.type === EventType.RUN_FINISHED,
-      ) as RunFinishedEvent | undefined
+      const finished = chunks.find((c) => c.type === EventType.RUN_FINISHED) as
+        | RunFinishedEvent
+        | undefined
       expect(finished).toBeDefined()
       expect('usage' in finished!).toBe(false)
     })
