@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { chat, createChatOptions } from '../src/activities/chat/index'
+import { DISCOVERY_TOOL_NAME } from '../src/activities/chat/tools/lazy-tool-manager'
 import { EventType } from '../src/types'
 import type { StreamChunk, Tool } from '../src/types'
 import {
@@ -1783,7 +1784,7 @@ describe('chat()', () => {
             // tool is dropped from the advertised set.
             return (async function* () {
               yield ev.runStarted()
-              yield ev.toolStart('c1', '__lazy__tool__discovery__')
+              yield ev.toolStart('c1', DISCOVERY_TOOL_NAME)
               yield ev.toolArgs(
                 'c1',
                 JSON.stringify({ toolNames: ['getWeather'] }),
@@ -1796,7 +1797,7 @@ describe('chat()', () => {
             // advertised.
             return (async function* () {
               yield ev.runStarted()
-              yield ev.toolStart('c2', '__lazy__tool__discovery__')
+              yield ev.toolStart('c2', DISCOVERY_TOOL_NAME)
               yield ev.toolArgs(
                 'c2',
                 JSON.stringify({ toolNames: ['getWeather'] }),
@@ -1824,7 +1825,7 @@ describe('chat()', () => {
 
       // The discovery tool was removed from the advertised set on the 2nd call,
       // proving we fixed execution without re-advertising it.
-      expect(toolNamesPerCall[1]).not.toContain('__lazy__tool__discovery__')
+      expect(toolNamesPerCall[1]).not.toContain(DISCOVERY_TOOL_NAME)
       expect(toolNamesPerCall[1]).toContain('getWeather')
 
       // Re-requesting discovery must NOT produce an "Unknown tool" error.
@@ -1860,7 +1861,7 @@ describe('chat()', () => {
             // Discover lazyA only (lazyB stays undiscovered).
             return (async function* () {
               yield ev.runStarted()
-              yield ev.toolStart('d1', '__lazy__tool__discovery__')
+              yield ev.toolStart('d1', DISCOVERY_TOOL_NAME)
               yield ev.toolArgs('d1', JSON.stringify({ toolNames: ['lazyA'] }))
               yield ev.runFinished('tool_calls')
             })()
@@ -1870,7 +1871,7 @@ describe('chat()', () => {
               yield ev.runStarted()
               yield ev.toolStart('a1', 'lazyA')
               yield ev.toolArgs('a1', '{}')
-              yield ev.toolStart('d2', '__lazy__tool__discovery__')
+              yield ev.toolStart('d2', DISCOVERY_TOOL_NAME)
               yield ev.toolArgs('d2', JSON.stringify({ toolNames: ['lazyB'] }))
               yield ev.runFinished('tool_calls')
             })()

@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import type { Tool } from '../src/types'
 import {
   DISCOVERY_TOOL_NAME,
   LazyToolManager,
 } from '../src/activities/chat/tools/lazy-tool-manager'
+import type { Tool } from '../src/types'
 
 function makeTool(
   name: string,
