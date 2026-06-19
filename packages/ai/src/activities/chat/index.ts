@@ -33,7 +33,11 @@ import type {
   ClientToolRequest,
   ToolResult,
 } from './tools/tool-calls'
-import type { AnyTextAdapter, StructuredOutputOptions } from './adapter'
+import type {
+  AnyTextAdapter,
+  StructuredOutputOptions,
+  StructuredOutputResult,
+} from './adapter'
 import type {
   AgentLoopStrategy,
   AnyTool,
@@ -646,6 +650,7 @@ class TextEngine<
         this.deferredPromises.push(promise)
       },
       // Provider / adapter info
+      activity: 'chat',
       provider: config.adapter.name,
       model: config.params.model,
       source: 'server',
@@ -2861,7 +2866,7 @@ async function* fallbackStructuredOutputStream(
     timestamp,
   }
 
-  let result: { data: unknown; rawText: string }
+  let result: StructuredOutputResult<unknown>
   try {
     result = await adapter.structuredOutput(options)
   } catch (error) {
@@ -2917,6 +2922,12 @@ async function* fallbackStructuredOutputStream(
     model,
     timestamp,
     finishReason: 'stop',
+    // Forward adapter-reported token usage so consumers reading
+    // `RUN_FINISHED.usage` (and the engine's `runOnUsage` middleware hook) see
+    // it on the fallback path, mirroring the native streaming path. The
+    // conditional spread avoids emitting `usage: undefined` for adapters that
+    // don't report it. See #758.
+    ...(result.usage ? { usage: result.usage } : {}),
   }
 }
 

@@ -299,6 +299,42 @@ test.describe('Middleware Lifecycle', () => {
     expect(rootSpans[0].attributes['gen_ai.usage.cost']).toBe(0.0042)
   })
 
+  test('otelMiddleware emits an image_generation span for generateImage', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    // `/api/otel-media` drives generateImage with otelMiddleware against the
+    // image-gen aimock mount and returns the captured spans. End-to-end proof
+    // that the unified middleware tags a non-chat activity with the right
+    // `gen_ai.operation.name` — the same `otelMiddleware` value used for chat,
+    // passed through the media `middleware` slot.
+    const res = await request.post('/api/otel-media', {
+      data: {
+        prompt: 'a guitar in a music store',
+        provider: 'openai',
+        testId,
+        aimockPort,
+      },
+    })
+    expect(res.ok()).toBe(true)
+    const { ok, error, spans } = await res.json()
+    expect(error ?? null).toBeNull()
+    expect(ok).toBe(true)
+
+    const mediaSpans = spans.filter(
+      (s: any) => s.attributes['gen_ai.operation.name'] === 'image_generation',
+    )
+    expect(mediaSpans).toHaveLength(1)
+    expect(mediaSpans[0].kind).toBe(SpanKind.CLIENT)
+    expect(mediaSpans[0].ended).toBe(true)
+    expect(mediaSpans[0].attributes).toMatchObject({
+      'gen_ai.system': 'openai',
+      'gen_ai.operation.name': 'image_generation',
+      'gen_ai.request.model': 'gpt-image-1',
+    })
+  })
+
   test('no middleware passes content through unchanged', async ({
     page,
     testId,
