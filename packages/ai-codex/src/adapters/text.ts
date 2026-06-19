@@ -5,12 +5,14 @@ import {
   SandboxCapability,
   getSandbox,
   getSandboxPolicy,
+  getWorkspaceProjection,
   hostForSandbox,
   spawnNdjson,
   startHostToolBridge,
 } from '@tanstack/ai-sandbox'
 import { buildPrompt } from '../messages/prompt'
 import { translateThreadEvents } from '../stream/translate'
+import { projectCodexWorkspace } from './projection'
 import { mapPolicyToCodexFlags } from './policy-map'
 import type { CodexPolicyFlags } from './policy-map'
 import type { HostToolBridge, SandboxHandle } from '@tanstack/ai-sandbox'
@@ -193,6 +195,14 @@ export class CodexTextAdapter<
     try {
       const sandbox = this.sandboxFrom(options)
       const cwd = this.workdir(options)
+
+      // Project declarative workspace inputs (MCP/skills) into codex's native
+      // format. Re-runs each call so rotated secrets re-apply; idempotent ops
+      // are marker-gated inside the projector.
+      const projection = options.capabilities
+        ? getWorkspaceProjection(options.capabilities, { optional: true })
+        : undefined
+      if (projection) await projectCodexWorkspace(sandbox, projection)
 
       if (options.tools && options.tools.length > 0) {
         bridge = await startHostToolBridge(options.tools, {
