@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { convertFunctionToolToResponsesFormat } from '../src/adapters/responses-tool-converter'
 import { convertFunctionToolToChatCompletionsFormat } from '../src/adapters/chat-completions-tool-converter'
+import { convertFunctionToolToAdapterFormat } from '../src/tools/function-tool'
 import type { Tool } from '@tanstack/ai'
 
 /** A schema fully inside OpenAI's strict Structured Outputs subset. */
@@ -72,5 +73,29 @@ describe('chat-completions tool converter — strict fallback', () => {
     const params = out.function.parameters as any
     expect(params.$defs.parent.oneOf).toBeDefined()
     expect(params.properties.site.format).toBeUndefined()
+  })
+})
+
+// This is the converter the provider tool-dispatcher (`convertToolsToProviderFormat`)
+// actually uses for MCP / function tools on the Responses + Chat Completions
+// adapters, so the same strict fallback must apply here.
+describe('function-tool adapter converter — strict fallback', () => {
+  it('uses strict:true for strict-subset schemas', () => {
+    const out = convertFunctionToolToAdapterFormat(strictSafeTool)
+    expect(out.strict).toBe(true)
+    expect(
+      (out.parameters as Record<string, unknown>).additionalProperties,
+    ).toBe(false)
+  })
+
+  it('falls back to strict:false for schemas with unsupported keywords', () => {
+    const out = convertFunctionToolToAdapterFormat(gnarlyTool)
+    expect(out.strict).toBe(false)
+    // Schema is preserved (not corrupted) so the tool stays callable...
+    const params = out.parameters as any
+    expect(params.$defs.parent.oneOf).toBeDefined()
+    // ...but unsupported `format` keywords are still stripped.
+    expect(params.properties.site.format).toBeUndefined()
+    expect(params.properties.user_id.format).toBe('uuid')
   })
 })
