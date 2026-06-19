@@ -112,6 +112,7 @@ export interface SandboxGit {
     dir?: string
     ref?: string
     auth?: { username?: string; token: string }
+    depth?: number | 'full'
   }) => Promise<void>
   status: (dir?: string) => Promise<string>
   add: (paths: Array<string>, dir?: string) => Promise<void>

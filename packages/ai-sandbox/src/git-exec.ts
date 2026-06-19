@@ -51,16 +51,19 @@ export function createExecBackedGit(
   }
 
   return {
-    clone: async ({ url, dir, ref, auth }) => {
+    clone: async ({ url, dir, ref, auth, depth }) => {
       assertNoLeadingDash(url, 'url')
       const target = dir ?? defaultRoot
       assertNoLeadingDash(target, 'dir')
       if (ref !== undefined) assertNoLeadingDash(ref, 'ref')
       const refArg = ref ? `--branch ${q(ref)} ` : ''
+      const resolvedDepth = depth ?? 1
+      const depthArg =
+        resolvedDepth === 'full' ? '' : `--depth ${resolvedDepth} --single-branch `
 
       if (auth?.token) {
         await process.exec(
-          `git -c credential.helper=${q(CREDENTIAL_HELPER)} clone ${refArg}-- ${q(url)} ${q(target)}`,
+          `git -c credential.helper=${q(CREDENTIAL_HELPER)} clone ${refArg}${depthArg}-- ${q(url)} ${q(target)}`,
           {
             // Token lives only in the child env, never in argv.
             env: {
@@ -73,7 +76,7 @@ export function createExecBackedGit(
         return
       }
 
-      await process.exec(`git clone ${refArg}-- ${q(url)} ${q(target)}`)
+      await process.exec(`git clone ${refArg}${depthArg}-- ${q(url)} ${q(target)}`)
     },
     status: async (dir) =>
       (await process.exec(`git -C ${at(dir)} status --porcelain`)).stdout,

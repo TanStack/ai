@@ -48,7 +48,7 @@ describe('createExecBackedGit security', () => {
     const { process, calls } = recordingProcess()
     const git = createExecBackedGit(process, '/workspace')
     await git.clone({ url: 'https://example.com/r.git', dir: '/workspace' })
-    expect(calls[0]!.command).toContain('clone -- ')
+    expect(calls[0]!.command).toContain(' -- ')
     await git.add(['a.ts', 'b.ts'])
     expect(calls[1]!.command).toContain('add -- ')
   })
@@ -74,4 +74,27 @@ describe('createExecBackedGit security', () => {
     // The command runs without throwing and the message is single-quote escaped.
     expect(calls[0]!.command).toContain(`commit -m 'it'\\''s done'`)
   })
+})
+
+it('defaults to a shallow single-branch clone', async () => {
+  const calls: Array<string> = []
+  const git = createExecBackedGit(
+    { exec: (c) => { calls.push(c); return Promise.resolve({ stdout: '', stderr: '', exitCode: 0 }) } } as never,
+    '/workspace',
+  )
+  await git.clone({ url: 'https://github.com/me/app' })
+  expect(calls[0]).toContain('--depth 1')
+  expect(calls[0]).toContain('--single-branch')
+})
+
+it('omits depth for depth: "full" and uses N for a number', async () => {
+  const calls: Array<string> = []
+  const git = createExecBackedGit(
+    { exec: (c) => { calls.push(c); return Promise.resolve({ stdout: '', stderr: '', exitCode: 0 }) } } as never,
+    '/workspace',
+  )
+  await git.clone({ url: 'https://github.com/me/app', depth: 'full' })
+  await git.clone({ url: 'https://github.com/me/app', depth: 50 })
+  expect(calls[0]).not.toContain('--depth')
+  expect(calls[1]).toContain('--depth 50')
 })
