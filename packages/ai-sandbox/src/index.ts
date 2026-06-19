@@ -101,6 +101,9 @@ export {
 } from './bootstrap'
 export type { BootstrapResult } from './bootstrap'
 
+// AGENTS.md writer + gitSkill path helper (used by bootstrap + harness adapters)
+export { writeAgentsFile, resolveGitSkillDir } from './agents-file'
+
 // Exec-backed git helper (for providers without native git)
 export { createExecBackedGit } from './git-exec'
 

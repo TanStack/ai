@@ -1,5 +1,6 @@
 /**
- * Universal AGENTS.md writer with per-CLI symlink projection.
+ * Universal AGENTS.md writer with per-CLI symlink projection, plus the
+ * canonical helper for locating cloned gitSkill repositories inside a sandbox.
  *
  * The known-names set below lists the canonical instruction-file names for
  * each AI coding assistant CLI. Keep the list in one place so it is easy to
@@ -11,9 +12,36 @@
  * We write a single authoritative AGENTS.md and point each name at it.
  */
 import type { SandboxHandle } from './contracts'
+import type { WorkspaceSkill } from './workspace'
 
 /** CLI instruction-file names that should resolve to AGENTS.md. */
 const SYMLINK_NAMES: ReadonlyArray<string> = ['CLAUDE.md', 'GEMINI.md']
+
+/**
+ * Resolve the directory a `gitSkill` repo is cloned into when no explicit
+ * `into` override is provided. The convention is:
+ *
+ *   `<root>/.tanstack-skills/<basename>`
+ *
+ * where `basename` is derived from the `repo` field by taking the last
+ * path segment and stripping a trailing `.git` suffix.
+ *
+ * Per-harness projectors (e.g. the Claude Code adapter) import this helper
+ * so they can locate cloned skill repos consistently.
+ *
+ * @param root  - Workspace root inside the sandbox (e.g. `/workspace`).
+ * @param skill - A `WorkspaceSkill` of `kind === 'git'`.
+ */
+export function resolveGitSkillDir(
+  root: string,
+  skill: Extract<WorkspaceSkill, { kind: 'git' }>,
+): string {
+  const rawBasename = skill.repo.split('/').pop() ?? skill.repo
+  const basename = rawBasename.endsWith('.git')
+    ? rawBasename.slice(0, -4)
+    : rawBasename
+  return `${root}/.tanstack-skills/${basename}`
+}
 
 /** Escape a string for safe use as a single-quoted shell argument. */
 function sqEscape(value: string): string {

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { bootstrapWorkspace } from '../src/bootstrap'
+import { createSecrets } from '../src/secrets'
+import { resolveGitSkillDir } from '../src/agents-file'
+import { gitSkill, fileSkill } from '../src/workspace'
 import type {
   ExecResult,
   ProcessOptions,
@@ -337,3 +340,318 @@ function makeFailingSerialHandle(execCalls: Array<ExecCall>): SandboxHandle {
   }
   return handle
 }
+
+// ---------------------------------------------------------------------------
+// Helpers for the new provisioning tests
+// ---------------------------------------------------------------------------
+
+interface CloneCall {
+  url: string
+  dir?: string
+  auth?: { username?: string; token: string }
+  depth?: number | 'full'
+}
+
+interface WriteCall {
+  path: string
+  content: string
+}
+
+/**
+ * Build a fake handle that:
+ * - Reports the source repo as already cloned (`fs.exists` → true for `/.git`).
+ * - Records git.clone and fs.write calls.
+ * - exec always resolves with exit 0 (symlinks succeed).
+ * - No persistent shell needed: workspace has no `setup`.
+ */
+function makeProvisioningHandle(): {
+  handle: SandboxHandle
+  cloneCalls: Array<CloneCall>
+  writeCalls: Array<WriteCall>
+  execCalls: Array<ExecCall>
+} {
+  const cloneCalls: Array<CloneCall> = []
+  const writeCalls: Array<WriteCall> = []
+  const execCalls: Array<ExecCall> = []
+
+  const handle: SandboxHandle = {
+    id: 'prov',
+    provider: 'fake',
+    capabilities: {
+      fs: true,
+      exec: true,
+      env: true,
+      ports: false,
+      backgroundProcesses: false,
+      snapshots: false,
+      networkPolicy: false,
+      durableFilesystem: false,
+      fork: false,
+    },
+    fs: {
+      read: () => Promise.resolve(''),
+      readBytes: () => Promise.resolve(new Uint8Array()),
+      write: (path, content) => {
+        writeCalls.push({ path, content: String(content) })
+        return Promise.resolve()
+      },
+      list: () => Promise.resolve([]),
+      mkdir: () => Promise.resolve(),
+      remove: () => Promise.resolve(),
+      rename: () => Promise.resolve(),
+      // Source is already cloned; skill dirs are not yet present.
+      exists: (path) => Promise.resolve(path.endsWith('/.git')),
+    },
+    git: {
+      clone: (opts) => {
+        cloneCalls.push(opts as CloneCall)
+        return Promise.resolve()
+      },
+      status: () => Promise.resolve(''),
+      add: () => Promise.resolve(),
+      commit: () => Promise.resolve(),
+      push: () => Promise.resolve(),
+      pull: () => Promise.resolve(),
+      branch: () => Promise.resolve('main'),
+    },
+    process: {
+      exec: (command, options) => {
+        execCalls.push({ command, options })
+        return Promise.resolve(ok)
+      },
+      spawn: () => Promise.reject(new Error('spawn not expected in these tests')),
+    },
+    ports: { connect: () => Promise.reject(new Error('ports not used')) },
+    env: { set: () => Promise.resolve() },
+    destroy: () => Promise.resolve(),
+  }
+
+  return { handle, cloneCalls, writeCalls, execCalls }
+}
+
+// ---------------------------------------------------------------------------
+// gitSkill clone tests
+// ---------------------------------------------------------------------------
+
+describe('bootstrapWorkspace gitSkill cloning', () => {
+  it('clones a short owner/repo reference to the default skill dir', async () => {
+    const { handle, cloneCalls } = makeProvisioningHandle()
+
+    const workspace: WorkspaceDefinition = {
+      source: { type: 'git', url: 'https://github.com/me/app' },
+      skills: [gitSkill({ repo: 'me/x' })],
+    }
+
+    await bootstrapWorkspace(handle, workspace)
+
+    expect(cloneCalls).toHaveLength(1)
+    expect(cloneCalls[0]?.url).toBe('https://github.com/me/x.git')
+    expect(cloneCalls[0]?.dir).toBe('/workspace/.tanstack-skills/x')
+    expect(cloneCalls[0]?.depth).toBe(1)
+    expect(cloneCalls[0]?.auth).toBeUndefined()
+  })
+
+  it('resolves a secret token into auth when secret is provided', async () => {
+    const secrets = createSecrets({ GH: 'ghp_tok' })
+    const { handle, cloneCalls } = makeProvisioningHandle()
+
+    const workspace: WorkspaceDefinition = {
+      source: { type: 'git', url: 'https://github.com/me/app' },
+      secrets,
+      skills: [gitSkill({ repo: 'me/x', secret: secrets.GH })],
+    }
+
+    await bootstrapWorkspace(handle, workspace)
+
+    expect(cloneCalls).toHaveLength(1)
+    expect(cloneCalls[0]?.auth?.token).toBe('ghp_tok')
+    expect(cloneCalls[0]?.url).toBe('https://github.com/me/x.git')
+    expect(cloneCalls[0]?.dir).toBe('/workspace/.tanstack-skills/x')
+  })
+
+  it('respects the explicit into override', async () => {
+    const { handle, cloneCalls } = makeProvisioningHandle()
+
+    const workspace: WorkspaceDefinition = {
+      source: { type: 'git', url: 'https://github.com/me/app' },
+      skills: [gitSkill({ repo: 'me/x', into: '/opt/myskill' })],
+    }
+
+    await bootstrapWorkspace(handle, workspace)
+
+    expect(cloneCalls[0]?.dir).toBe('/opt/myskill')
+  })
+
+  it('passes a full HTTPS url through unchanged', async () => {
+    const { handle, cloneCalls } = makeProvisioningHandle()
+
+    const workspace: WorkspaceDefinition = {
+      source: { type: 'git', url: 'https://github.com/me/app' },
+      skills: [gitSkill({ repo: 'https://example.com/org/repo.git' })],
+    }
+
+    await bootstrapWorkspace(handle, workspace)
+
+    expect(cloneCalls[0]?.url).toBe('https://example.com/org/repo.git')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// resolveGitSkillDir unit tests
+// ---------------------------------------------------------------------------
+
+describe('resolveGitSkillDir', () => {
+  it('strips .git suffix from basename', () => {
+    const skill = gitSkill({ repo: 'me/x' }) as Extract<
+      ReturnType<typeof gitSkill>,
+      { kind: 'git' }
+    >
+    // repo has no .git suffix here — should still work
+    expect(resolveGitSkillDir('/workspace', skill)).toBe(
+      '/workspace/.tanstack-skills/x',
+    )
+  })
+
+  it('strips trailing .git when the repo url ends with .git', () => {
+    const skill = gitSkill({ repo: 'me/repo.git' }) as Extract<
+      ReturnType<typeof gitSkill>,
+      { kind: 'git' }
+    >
+    expect(resolveGitSkillDir('/workspace', skill)).toBe(
+      '/workspace/.tanstack-skills/repo',
+    )
+  })
+
+  it('uses last path segment for full https urls', () => {
+    const skill = gitSkill({
+      repo: 'https://github.com/org/myskill.git',
+    }) as Extract<ReturnType<typeof gitSkill>, { kind: 'git' }>
+    expect(resolveGitSkillDir('/workspace', skill)).toBe(
+      '/workspace/.tanstack-skills/myskill',
+    )
+  })
+})
+
+// ---------------------------------------------------------------------------
+// AGENTS.md + instructions tests
+// ---------------------------------------------------------------------------
+
+describe('bootstrapWorkspace AGENTS.md + instructions', () => {
+  it('writes AGENTS.md via fs.write when instructions is set', async () => {
+    const { handle, writeCalls } = makeProvisioningHandle()
+
+    const workspace: WorkspaceDefinition = {
+      source: { type: 'git', url: 'https://github.com/me/app' },
+      instructions: 'You are a helpful assistant.',
+    }
+
+    await bootstrapWorkspace(handle, workspace)
+
+    const agentsWrite = writeCalls.find((w) => w.path === '/workspace/AGENTS.md')
+    expect(agentsWrite).toBeDefined()
+    expect(agentsWrite?.content).toBe('You are a helpful assistant.')
+  })
+
+  it('writes AGENTS.md from a fileSkill when instructions is absent', async () => {
+    const { handle, writeCalls } = makeProvisioningHandle()
+
+    const workspace: WorkspaceDefinition = {
+      source: { type: 'git', url: 'https://github.com/me/app' },
+      skills: [fileSkill({ path: 'AGENTS.md', content: 'Skill instructions.' })],
+    }
+
+    await bootstrapWorkspace(handle, workspace)
+
+    const agentsWrite = writeCalls.find((w) => w.path === '/workspace/AGENTS.md')
+    expect(agentsWrite).toBeDefined()
+    expect(agentsWrite?.content).toBe('Skill instructions.')
+  })
+
+  it('prefers instructions over a fileSkill AGENTS.md', async () => {
+    const { handle, writeCalls } = makeProvisioningHandle()
+
+    const workspace: WorkspaceDefinition = {
+      source: { type: 'git', url: 'https://github.com/me/app' },
+      instructions: 'Direct instructions.',
+      skills: [fileSkill({ path: 'AGENTS.md', content: 'Skill instructions.' })],
+    }
+
+    await bootstrapWorkspace(handle, workspace)
+
+    const agentsWrites = writeCalls.filter(
+      (w) => w.path === '/workspace/AGENTS.md',
+    )
+    // Only one AGENTS.md write; it should use the direct instructions.
+    expect(agentsWrites).toHaveLength(1)
+    expect(agentsWrites[0]?.content).toBe('Direct instructions.')
+  })
+
+  it('does not write AGENTS.md when instructions is empty and no fileSkill', async () => {
+    const { handle, writeCalls } = makeProvisioningHandle()
+
+    const workspace: WorkspaceDefinition = {
+      source: { type: 'git', url: 'https://github.com/me/app' },
+    }
+
+    await bootstrapWorkspace(handle, workspace)
+
+    const agentsWrite = writeCalls.find((w) => w.path.endsWith('AGENTS.md'))
+    expect(agentsWrite).toBeUndefined()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Non-AGENTS fileSkill tests
+// ---------------------------------------------------------------------------
+
+describe('bootstrapWorkspace non-AGENTS fileSkills', () => {
+  it('writes a non-AGENTS fileSkill to the workspace root', async () => {
+    const { handle, writeCalls } = makeProvisioningHandle()
+
+    const workspace: WorkspaceDefinition = {
+      source: { type: 'git', url: 'https://github.com/me/app' },
+      skills: [fileSkill({ path: '.env.example', content: 'KEY=value' })],
+    }
+
+    await bootstrapWorkspace(handle, workspace)
+
+    const fileWrite = writeCalls.find((w) => w.path === '/workspace/.env.example')
+    expect(fileWrite).toBeDefined()
+    expect(fileWrite?.content).toBe('KEY=value')
+  })
+
+  it('writes multiple non-AGENTS fileSkills', async () => {
+    const { handle, writeCalls } = makeProvisioningHandle()
+
+    const workspace: WorkspaceDefinition = {
+      source: { type: 'git', url: 'https://github.com/me/app' },
+      skills: [
+        fileSkill({ path: 'a.txt', content: 'aaa' }),
+        fileSkill({ path: 'b.txt', content: 'bbb' }),
+      ],
+    }
+
+    await bootstrapWorkspace(handle, workspace)
+
+    const paths = writeCalls.map((w) => w.path)
+    expect(paths).toContain('/workspace/a.txt')
+    expect(paths).toContain('/workspace/b.txt')
+  })
+
+  it('does not re-write an AGENTS.md fileSkill through the generic path', async () => {
+    const { handle, writeCalls } = makeProvisioningHandle()
+
+    const workspace: WorkspaceDefinition = {
+      source: { type: 'git', url: 'https://github.com/me/app' },
+      skills: [fileSkill({ path: 'AGENTS.md', content: 'Skill instructions.' })],
+    }
+
+    await bootstrapWorkspace(handle, workspace)
+
+    // Should appear exactly once (via writeAgentsFile, not the generic loop).
+    const agentsWrites = writeCalls.filter(
+      (w) => w.path === '/workspace/AGENTS.md',
+    )
+    expect(agentsWrites).toHaveLength(1)
+  })
+})

@@ -10,7 +10,8 @@
  */
 import { buildSetupPlan } from './setup-plan'
 import { createBootstrapShell } from './shell'
-import { resolveAllSecrets } from './secrets'
+import { resolveGitSkillDir, writeAgentsFile } from './agents-file'
+import { resolveAllSecrets, resolveSecret } from './secrets'
 import type { SandboxHandle } from './contracts'
 import type { PackageManager, WorkspaceDefinition } from './workspace'
 
@@ -79,6 +80,54 @@ export async function bootstrapWorkspace(
     }
   }
   // 'local' is provider-pre-populated at create; 'none' starts empty.
+
+  // Clone git-skill repos so setup steps (and the harness projector) can use
+  // them. gitSkill clones are always shallow (depth 1) unless the skill's own
+  // repo entry carries a depth override — the WorkspaceSkill `git` variant
+  // does not expose one, so depth always defaults to 1 inside git.clone.
+  const skills = workspace.skills ?? []
+  for (const skill of skills) {
+    if (skill.kind === 'git') {
+      const url = skill.repo.startsWith('http')
+        ? skill.repo
+        : `https://github.com/${skill.repo}.git`
+      const dir = skill.into ?? resolveGitSkillDir(root, skill)
+      const auth =
+        skill.secret !== undefined && workspace.secrets !== undefined
+          ? { token: resolveSecret(workspace.secrets, skill.secret) }
+          : undefined
+      await handle.git.clone({
+        url,
+        dir,
+        ...(auth !== undefined ? { auth } : {}),
+        depth: 1,
+      })
+    }
+  }
+
+  // Write AGENTS.md (and its per-CLI symlinks) when instructions are provided
+  // directly on the workspace, or via a fileSkill whose path is `AGENTS.md`.
+  if (
+    workspace.instructions !== undefined &&
+    workspace.instructions.length > 0
+  ) {
+    await writeAgentsFile(handle, root, workspace.instructions)
+  } else {
+    const agentsFileSkill = skills.find(
+      (s): s is Extract<typeof s, { kind: 'file' }> =>
+        s.kind === 'file' && s.path === 'AGENTS.md',
+    )
+    if (agentsFileSkill !== undefined) {
+      await writeAgentsFile(handle, root, agentsFileSkill.content)
+    }
+  }
+
+  // Write all other fileSkills directly into the workspace root.
+  for (const skill of skills) {
+    if (skill.kind === 'file' && skill.path !== 'AGENTS.md') {
+      await handle.fs.write(`${root}/${skill.path}`, skill.content)
+    }
+  }
 
   const packageManager = await detectPackageManager(handle, workspace, root)
 
