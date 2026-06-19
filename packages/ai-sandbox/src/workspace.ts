@@ -1,3 +1,5 @@
+import type { SetupInput } from './setup-plan'
+
 /**
  * Workspace definition — the portable description of what the agent sees
  * inside the sandbox. Each harness adapter PROJECTS this into its own native
@@ -12,6 +14,11 @@ export type WorkspaceSource =
       url: string
       ref?: string
       auth?: { username?: string; token: string }
+      /**
+       * Clone depth. Defaults to `1` (shallow). Pass a number for a specific
+       * depth, or `'full'` to fetch the entire history.
+       */
+      depth?: number | 'full'
     }
   | { type: 'local'; path: string }
   | { type: 'none' }
@@ -21,6 +28,7 @@ export function gitSource(input: {
   url: string
   ref?: string
   auth?: { username?: string; token: string }
+  depth?: number | 'full'
 }): WorkspaceSource {
   return { type: 'git', ...input }
 }
@@ -29,11 +37,12 @@ export function githubRepo(input: {
   repo: string
   ref?: string
   auth?: { username?: string; token: string }
+  depth?: number | 'full'
 }): WorkspaceSource {
   const url = input.repo.startsWith('http')
     ? input.repo
     : `https://github.com/${input.repo}.git`
-  return { type: 'git', url, ref: input.ref, auth: input.auth }
+  return { type: 'git', url, ref: input.ref, auth: input.auth, depth: input.depth }
 }
 
 export function localSource(path: string): WorkspaceSource {
@@ -77,8 +86,8 @@ export interface WorkspaceDefinition {
   source: WorkspaceSource
   /** Defaults to `'auto'` — detect from the lockfile after the source lands. */
   packageManager?: PackageManager
-  /** Commands run once during bootstrap, in order (e.g. install). */
-  setup?: Array<string>
+  /** Commands run once during bootstrap. Accepts a string array (serial) or a builder function for serial/parallel groups. */
+  setup?: SetupInput
   /** Named commands the agent/user can invoke (e.g. { test: 'pnpm test' }). */
   scripts?: Record<string, string>
   /** Guidance/config projected into the harness. */

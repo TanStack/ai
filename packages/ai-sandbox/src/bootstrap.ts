@@ -8,6 +8,7 @@
  * here — that's each adapter's `projectWorkspace()` hook, since the format
  * differs per harness.
  */
+import { buildSetupPlan } from './setup-plan'
 import type { SandboxHandle } from './contracts'
 import type { PackageManager, WorkspaceDefinition } from './workspace'
 
@@ -77,9 +78,18 @@ export async function bootstrapWorkspace(
   const packageManager = await detectPackageManager(handle, workspace, root)
 
   const ranSetup: Array<string> = []
-  for (const command of workspace.setup ?? []) {
-    await handle.process.exec(command, { cwd: root, signal: options.signal })
-    ranSetup.push(command)
+  for (const group of buildSetupPlan(workspace.setup)) {
+    if (group.kind === 'serial') {
+      await handle.process.exec(group.command, { cwd: root, signal: options.signal })
+      ranSetup.push(group.command)
+    } else {
+      await Promise.all(
+        group.commands.map((cmd) =>
+          handle.process.exec(cmd, { cwd: root, signal: options.signal }),
+        ),
+      )
+      ranSetup.push(...group.commands)
+    }
   }
 
   return { packageManager, ranSetup }
