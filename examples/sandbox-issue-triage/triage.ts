@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url'
 import { chat } from '@tanstack/ai'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
 import {
+  createSecrets,
   defineSandbox,
   defineWorkspace,
   githubRepo,
@@ -113,13 +114,22 @@ export async function runTriage(options: RunTriageOptions): Promise<string> {
 
   // Collect file events via declarative hooks on the sandbox definition.
   const fileEvents: Array<FileEvent> = []
+  // createSecrets wraps the plain record so the runtime can resolve values
+  // without ever serialising them into snapshots or logs.
+  const secrets = createSecrets(options.secrets)
+
   const sandbox = defineSandbox({
     id: `issue-triage-${options.providerLabel}`,
     provider: options.provider,
     workspace: defineWorkspace({
       source: githubRepo({ repo: REPO }),
-      setup: options.setup,
-      secrets: options.secrets,
+      // Callback form: serial() records each command; empty options.setup → no-op.
+      setup: ({ serial }) => {
+        for (const cmd of options.setup) serial(cmd)
+      },
+      // Instructions are projected into AGENTS.md (and CLAUDE.md) inside the sandbox.
+      instructions: 'Investigate read-only; do not modify source files unless explicitly asked.',
+      secrets,
     }),
     lifecycle: { reuse: 'thread' },
     hooks: {
