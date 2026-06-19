@@ -206,8 +206,10 @@ export class OpenRouterImageAdapter<
     // response carries the same `usage` shape as text. Surface it (with any
     // detail breakdowns and provider-reported cost) when present.
     const baseUsage = buildOpenRouterUsage(response.usage)
-    const usage =
-      baseUsage && { ...baseUsage, ...extractUsageCost(response.usage) }
+    const usage = baseUsage && {
+      ...baseUsage,
+      ...extractUsageCost(response.usage),
+    }
 
     return {
       id: response.id || this.generateId(),
