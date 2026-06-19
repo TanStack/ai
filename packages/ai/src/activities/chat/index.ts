@@ -650,6 +650,7 @@ class TextEngine<
         this.deferredPromises.push(promise)
       },
       // Provider / adapter info
+      activity: 'chat',
       provider: config.adapter.name,
       model: config.params.model,
       source: 'server',
