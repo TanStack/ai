@@ -157,8 +157,13 @@ export function generateSpeech<
 async function runGenerateSpeech<
   TAdapter extends TTSAdapter<string, TTSProviderOptions<TAdapter>>,
 >(options: TTSActivityOptions<TAdapter, boolean>): Promise<TTSResult> {
-  const { adapter, stream: _stream, debug: _debug, middleware, ...rest } =
-    options
+  const {
+    adapter,
+    stream: _stream,
+    debug: _debug,
+    middleware,
+    ...rest
+  } = options
   const model = adapter.model
   const requestId = createId('speech')
   const startTime = Date.now()

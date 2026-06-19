@@ -87,7 +87,7 @@ function createLocalCaptureTracer(): {
       }
       return span
     },
-     
+
     startActiveSpan(...args: Array<any>) {
       const fn = args[args.length - 1] as (span: Span) => unknown
       const name = args[0] as string
@@ -141,10 +141,15 @@ export const Route = createFileRoute('/api/otel-media')({
             throw new Error('Missing required fields: prompt/provider')
           }
 
-          const testId = typeof data.testId === 'string' ? data.testId : undefined
+          const testId =
+            typeof data.testId === 'string' ? data.testId : undefined
           const aimockPort =
             typeof data.aimockPort === 'number' ? data.aimockPort : undefined
-          const adapter = createImageAdapter(provider as Provider, aimockPort, testId)
+          const adapter = createImageAdapter(
+            provider as Provider,
+            aimockPort,
+            testId,
+          )
           const { tracer, spans } = createLocalCaptureTracer()
 
           await generateImage({

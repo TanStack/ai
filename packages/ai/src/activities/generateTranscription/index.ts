@@ -188,8 +188,13 @@ async function runGenerateTranscription<
 >(
   options: TranscriptionActivityOptions<TAdapter, boolean>,
 ): Promise<TranscriptionResult> {
-  const { adapter, stream: _stream, debug: _debug, middleware, ...rest } =
-    options
+  const {
+    adapter,
+    stream: _stream,
+    debug: _debug,
+    middleware,
+    ...rest
+  } = options
   const model = adapter.model
   const requestId = createId('transcription')
   const startTime = Date.now()

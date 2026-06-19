@@ -339,7 +339,9 @@ export function otelMiddleware(
     mediaSpans.delete(ctx)
     if (!span) return
     finalize(span)
-    safeCall('otel.onSpanEnd', () => onSpanEnd?.({ kind: 'generation', ctx }, span))
+    safeCall('otel.onSpanEnd', () =>
+      onSpanEnd?.({ kind: 'generation', ctx }, span),
+    )
     span.end()
   }
 

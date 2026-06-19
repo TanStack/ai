@@ -149,8 +149,13 @@ async function runGenerateAudio<
 >(
   options: AudioActivityOptions<TAdapter, boolean>,
 ): Promise<AudioGenerationResult> {
-  const { adapter, stream: _stream, debug: _debug, middleware, ...rest } =
-    options
+  const {
+    adapter,
+    stream: _stream,
+    debug: _debug,
+    middleware,
+    ...rest
+  } = options
   const model = adapter.model
   const requestId = createId('audio')
   const startTime = Date.now()

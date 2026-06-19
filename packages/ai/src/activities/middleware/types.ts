@@ -146,9 +146,7 @@ export interface GenerationMiddleware<TContext = unknown> {
   /** Optional name, surfaced in diagnostics. */
   name?: string
   /** Called before the adapter request begins. */
-  onStart?: (
-    ctx: GenerationMiddlewareContext<TContext>,
-  ) => void | Promise<void>
+  onStart?: (ctx: GenerationMiddlewareContext<TContext>) => void | Promise<void>
   /** Called when the provider reports usage, before `onFinish`. */
   onUsage?: (
     ctx: GenerationMiddlewareContext<TContext>,

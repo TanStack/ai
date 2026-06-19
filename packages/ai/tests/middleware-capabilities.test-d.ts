@@ -122,7 +122,9 @@ expectTypeOf(otelMiddleware({ tracer })).toMatchTypeOf<GenerationMiddleware>()
 expectTypeOf(otelMiddleware({ tracer })).toMatchTypeOf<ChatMiddleware>()
 
 // A media activity's `middleware` slot accepts the same otel value.
-const mediaMiddleware: Array<GenerationMiddleware> = [otelMiddleware({ tracer })]
+const mediaMiddleware: Array<GenerationMiddleware> = [
+  otelMiddleware({ tracer }),
+]
 expectTypeOf(mediaMiddleware).toEqualTypeOf<Array<GenerationMiddleware>>()
 
 // The boundary the design depends on: a chat middleware that reads a chat-only

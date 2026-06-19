@@ -242,8 +242,13 @@ async function runGenerateImage<
 >(
   options: ImageActivityOptions<TAdapter, boolean>,
 ): Promise<ImageGenerationResult> {
-  const { adapter, stream: _stream, debug: _debug, middleware, ...rest } =
-    options
+  const {
+    adapter,
+    stream: _stream,
+    debug: _debug,
+    middleware,
+    ...rest
+  } = options
   const model = adapter.model
   const requestId = createId('image')
   const startTime = Date.now()
