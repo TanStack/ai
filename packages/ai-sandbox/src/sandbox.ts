@@ -42,6 +42,12 @@ export interface SandboxLifecycle {
   keepAlive?: string
   /** Destroy the sandbox after the run completes. */
   destroyOnComplete?: boolean
+  /**
+   * Maximum age of a sandbox record before it is discarded and re-created
+   * instead of resumed. Accepts `'<n>h'` (hours) or `'<n>m'` (minutes),
+   * e.g. `'2h'` or `'30m'`.
+   */
+  snapshotMaxAge?: string
 }
 
 export interface SandboxConfig {
@@ -86,6 +92,20 @@ export interface SandboxDefinition {
   destroy: (ctx: SandboxEnsureContext) => Promise<void>
 }
 
+/**
+ * Parse a human-readable duration string into milliseconds.
+ * Supports `'<n>h'` (hours) and `'<n>m'` (minutes).
+ * Returns `undefined` when the input is undefined or the format is unrecognised.
+ */
+function parseMaxAgeMs(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined
+  const hourMatch = /^(\d+)h$/.exec(value)
+  if (hourMatch) return Number(hourMatch[1]) * 60 * 60 * 1000
+  const minuteMatch = /^(\d+)m$/.exec(value)
+  if (minuteMatch) return Number(minuteMatch[1]) * 60 * 1000
+  return undefined
+}
+
 // Process-lifetime fallbacks shared across all definitions so concurrent
 // ensures for the same key serialize even without an injected store/lock.
 const fallbackStore = new InMemorySandboxStore()
@@ -110,44 +130,57 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
     const caps = config.provider.capabilities()
 
     return locks.withLock(`sandbox:${key}`, async () => {
+      const effectiveSnapshot: SnapshotStrategy =
+        config.lifecycle?.snapshot ?? (caps.snapshots ? 'after-setup' : 'none')
+      const maxAgeMs = parseMaxAgeMs(config.lifecycle?.snapshotMaxAge)
+
       const existing = await store.get(key)
       if (existing) {
-        // 1) Try to reconnect to the still-running sandbox.
-        const resumed = await config.provider.resume({
-          id: existing.providerSandboxId,
-          signal: ctx.signal,
-        })
-        if (resumed) {
-          await store.upsert({
-            ...existing,
-            latestRunId: ctx.runId,
-            updatedAt: Date.now(),
-          })
-          return resumed
-        }
-        // 2) Else restore from the latest snapshot, if supported.
-        if (
-          existing.latestSnapshotId &&
-          caps.snapshots &&
-          config.provider.restoreSnapshot
-        ) {
-          const restored = await config.provider.restoreSnapshot({
-            snapshotId: existing.latestSnapshotId,
-            workspace: config.workspace,
-            policy: config.policy,
-            env: config.workspace?.secrets,
+        // Check whether the record has exceeded snapshotMaxAge; if so,
+        // discard and fall through to a fresh create.
+        const tooOld =
+          maxAgeMs !== undefined &&
+          Date.now() - existing.updatedAt > maxAgeMs
+
+        if (!tooOld) {
+          // 1) Try to reconnect to the still-running sandbox.
+          const resumed = await config.provider.resume({
+            id: existing.providerSandboxId,
             signal: ctx.signal,
           })
-          await store.upsert({
-            ...existing,
-            providerSandboxId: restored.id,
-            latestRunId: ctx.runId,
-            updatedAt: Date.now(),
-          })
-          return restored
+          if (resumed) {
+            await store.upsert({
+              ...existing,
+              latestRunId: ctx.runId,
+              updatedAt: Date.now(),
+            })
+            return resumed
+          }
+          // 2) Else restore from the latest snapshot, if supported.
+          if (
+            existing.latestSnapshotId &&
+            caps.snapshots &&
+            config.provider.restoreSnapshot
+          ) {
+            const restored = await config.provider.restoreSnapshot({
+              snapshotId: existing.latestSnapshotId,
+              workspace: config.workspace,
+              policy: config.policy,
+              env: config.workspace?.secrets,
+              signal: ctx.signal,
+            })
+            await store.upsert({
+              ...existing,
+              providerSandboxId: restored.id,
+              latestRunId: ctx.runId,
+              updatedAt: Date.now(),
+            })
+            return restored
+          }
         }
         // 3) Else fall through and re-create under the same identity
-        //    (capability-aware degradation for ephemeral-disk providers).
+        //    (capability-aware degradation for ephemeral-disk providers, or
+        //    snapshotMaxAge TTL exceeded).
       }
 
       const created = await config.provider.create({
@@ -165,7 +198,7 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
 
       let latestSnapshotId: string | undefined
       if (
-        config.lifecycle?.snapshot === 'after-setup' &&
+        effectiveSnapshot === 'after-setup' &&
         caps.snapshots &&
         created.snapshot
       ) {

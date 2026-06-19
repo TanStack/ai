@@ -140,4 +140,45 @@ describe('ensureSandbox algorithm', () => {
     expect(provider.calls.resume).toBe(1)
     expect(a.id).toBe(b.id)
   })
+
+  it('defaults to snapshot after-setup when provider supports snapshots and no lifecycle.snapshot set', async () => {
+    // caps.snapshots = true, no explicit lifecycle.snapshot → effectiveSnapshot should be 'after-setup'
+    const provider = makeFakeProvider() // FULL_CAPS has snapshots: true
+    const def = defineSandbox({ id: 'repo', provider, workspace })
+    const ctx = baseCtx()
+
+    await def.ensure(ctx)
+
+    // Verify snapshot was called with 'after-setup' by checking the store record:
+    // the fake handle populates latestSnapshotId only when snapshot() is invoked.
+    const rec = await ctx.store.get(def.key(ctx))
+    expect(rec?.latestSnapshotId).toMatch(/^snap-/)
+  })
+
+  it('re-creates instead of resuming when snapshotMaxAge has elapsed', async () => {
+    const provider = makeFakeProvider()
+    const def = defineSandbox({
+      id: 'repo',
+      provider,
+      workspace,
+      lifecycle: { reuse: 'thread', snapshotMaxAge: '1h' },
+    })
+    const ctx = baseCtx()
+
+    // First ensure: creates the sandbox and records it.
+    await def.ensure(ctx)
+    expect(provider.calls.create).toBe(1)
+
+    // Backdate the stored record so it appears older than 1 hour.
+    const key = def.key(ctx)
+    const rec = await ctx.store.get(key)
+    if (rec) {
+      await ctx.store.upsert({ ...rec, updatedAt: Date.now() - 2 * 60 * 60 * 1000 })
+    }
+
+    // Second ensure: record exists but is too old → must re-create, not resume.
+    await def.ensure({ ...ctx, runId: 'run-2' })
+    expect(provider.calls.create).toBe(2)
+    expect(provider.calls.resume).toBe(0)
+  })
 })
