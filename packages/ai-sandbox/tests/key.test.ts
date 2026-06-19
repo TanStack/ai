@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { computeSandboxKey, computeWorkspaceHash } from '../src/key'
+import { createSecrets } from '../src/secrets'
 import { defineWorkspace, githubRepo } from '../src/workspace'
 import type { SandboxKeyInput } from '../src/key'
 
@@ -46,13 +47,13 @@ describe('computeWorkspaceHash', () => {
     const a = computeWorkspaceHash(
       defineWorkspace({
         source: githubRepo({ repo: 'TanStack/ai' }),
-        secrets: { A: '1' },
+        secrets: createSecrets({ A: '1' }),
       }),
     )
     const b = computeWorkspaceHash(
       defineWorkspace({
         source: githubRepo({ repo: 'TanStack/ai' }),
-        secrets: { A: '2' },
+        secrets: createSecrets({ A: '2' }),
       }),
     )
     expect(a).toBe(b)

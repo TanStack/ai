@@ -38,13 +38,26 @@ export {
   fileSkill,
   agentSkill,
   mcpSkill,
+  gitSkill,
 } from './workspace'
 export type {
   WorkspaceDefinition,
   WorkspaceSource,
   WorkspaceSkill,
   PackageManager,
+  McpConfig,
 } from './workspace'
+
+// Secrets
+export {
+  createSecrets,
+  bearer,
+  isSecretRef,
+  resolveSecret,
+  resolveBearer,
+  resolveAllSecrets,
+} from './secrets'
+export type { SecretRef, Secrets, BearerRef } from './secrets'
 
 // Policy
 export { defineSandboxPolicy, evaluateCommand } from './policy'

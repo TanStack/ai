@@ -73,3 +73,19 @@ export function resolveSecret(secrets: Secrets, ref: SecretRef): string {
 export function resolveBearer(secrets: Secrets, ref: BearerRef): string {
   return `Bearer ${resolveSecret(secrets, ref.__bearerRef)}`
 }
+
+/**
+ * Resolve all secrets in a Secrets object to a plain `Record<string, string>`
+ * suitable for injecting into a process environment.
+ */
+export function resolveAllSecrets(secrets: Secrets): Record<string, string> {
+  const registry = Reflect.get(secrets, REGISTRY) as Map<string, string> | undefined
+  if (registry === undefined) {
+    throw new Error('resolveAllSecrets: secrets object was not created by createSecrets')
+  }
+  const result: Record<string, string> = {}
+  for (const [key, value] of registry.entries()) {
+    result[key] = value
+  }
+  return result
+}

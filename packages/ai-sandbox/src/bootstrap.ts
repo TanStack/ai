@@ -9,6 +9,7 @@
  * differs per harness.
  */
 import { buildSetupPlan } from './setup-plan'
+import { resolveAllSecrets } from './secrets'
 import type { SandboxHandle } from './contracts'
 import type { PackageManager, WorkspaceDefinition } from './workspace'
 
@@ -55,8 +56,11 @@ export async function bootstrapWorkspace(
   const root = workspace.root ?? DEFAULT_WORKSPACE_ROOT
 
   // Secrets live only in the running sandbox env (never persisted).
-  if (workspace.secrets && Object.keys(workspace.secrets).length > 0) {
-    await handle.env.set(workspace.secrets)
+  if (workspace.secrets !== undefined) {
+    const resolved = resolveAllSecrets(workspace.secrets)
+    if (Object.keys(resolved).length > 0) {
+      await handle.env.set(resolved)
+    }
   }
 
   // Land the source. Clone into the handle's own default root (each provider

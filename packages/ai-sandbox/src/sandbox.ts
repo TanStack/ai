@@ -7,6 +7,7 @@
  * sandbox stores.
  */
 import { bootstrapWorkspace } from './bootstrap'
+import { resolveAllSecrets } from './secrets'
 import { computeSandboxKey } from './key'
 import { InMemoryLockStore, InMemorySandboxStore } from './store'
 import type { SandboxFileEvent } from '@tanstack/ai'
@@ -166,7 +167,10 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
               snapshotId: existing.latestSnapshotId,
               workspace: config.workspace,
               policy: config.policy,
-              env: config.workspace?.secrets,
+              env:
+                config.workspace?.secrets !== undefined
+                  ? resolveAllSecrets(config.workspace.secrets)
+                  : undefined,
               signal: ctx.signal,
             })
             await store.upsert({
@@ -186,7 +190,10 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
       const created = await config.provider.create({
         workspace: config.workspace,
         policy: config.policy,
-        env: config.workspace?.secrets,
+        env:
+          config.workspace?.secrets !== undefined
+            ? resolveAllSecrets(config.workspace.secrets)
+            : undefined,
         signal: ctx.signal,
       })
 
