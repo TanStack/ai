@@ -68,8 +68,7 @@ With an explicit API key:
 import { chat } from "@tanstack/ai";
 import { createOpenaiChatCompletions } from "@tanstack/ai-openai";
 
-const adapter = createOpenaiChatCompletions("gpt-5.2", {
-  apiKey: process.env.OPENAI_API_KEY!,
+const adapter = createOpenaiChatCompletions("gpt-5.2", process.env.OPENAI_API_KEY!, {
   // organization, baseURL, headers — all optional
 });
 
