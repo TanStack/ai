@@ -82,6 +82,10 @@ export {
 // Tool call management
 export { ToolCallManager } from './activities/chat/tools/tool-calls'
 
+// Lazy tool discovery (name of the synthetic discovery tool, for custom
+// message-compaction logic that needs to reference it)
+export { DISCOVERY_TOOL_NAME } from './activities/chat/tools/lazy-tool-manager'
+
 // Provider tool type
 export type { ProviderTool } from './tools/provider-tool'
 export { brandProviderTool } from './tools/provider-tool'

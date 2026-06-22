@@ -1202,6 +1202,23 @@ class TextEngine<
     }
   }
 
+  /**
+   * Tools available for execution this turn. The discovery tool is dropped
+   * from the advertised set (`this.tools`) once every lazy tool is discovered,
+   * but a model may still re-request discovery; this widens execution lookup
+   * to include it so such calls don't fail with "Unknown tool". Centralised so
+   * both execution sites (`processToolCalls` and `checkForPendingToolCalls`)
+   * stay in sync.
+   */
+  private resolveExecutableTools(
+    toolCalls: ReadonlyArray<ToolCall>,
+  ): ReadonlyArray<AnyTool> {
+    return this.lazyToolManager.getExecutableTools(
+      this.tools,
+      toolCalls.map((tc) => tc.function.name),
+    )
+  }
+
   private async *checkForPendingToolCalls(): AsyncGenerator<
     StreamChunk,
     ToolPhaseResult,
@@ -1250,7 +1267,7 @@ class TextEngine<
 
     const generator = executeToolCalls(
       executablePendingCalls,
-      this.tools,
+      this.resolveExecutableTools(executablePendingCalls),
       approvals,
       clientToolResults,
       (eventName, data) => this.createCustomEventChunk(eventName, data),
@@ -1412,7 +1429,7 @@ class TextEngine<
 
     const generator = executeToolCalls(
       executableToolCalls,
-      this.tools,
+      this.resolveExecutableTools(executableToolCalls),
       approvals,
       clientToolResults,
       (eventName, data) => this.createCustomEventChunk(eventName, data),
