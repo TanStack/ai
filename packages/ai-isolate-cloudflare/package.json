@@ -69,7 +69,7 @@
     "@tanstack/ai-code-mode": "workspace:*"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20241230.0",
+    "@cloudflare/workers-types": "^4.20260317.1",
     "@vitest/coverage-v8": "4.0.14",
     "wrangler": "^4.88.0"
   }

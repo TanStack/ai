@@ -12,7 +12,8 @@
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-claude-code": "workspace:*",
     "@tanstack/ai-sandbox": "workspace:*",
-    "@tanstack/ai-sandbox-cloudflare": "workspace:*"
+    "@tanstack/ai-sandbox-cloudflare": "workspace:*",
+    "zod": "^4.2.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260317.1",

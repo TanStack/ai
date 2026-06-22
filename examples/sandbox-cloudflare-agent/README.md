@@ -1,10 +1,31 @@
 # Cloudflare Workers + Durable Objects + Containers agent (TanStack AI)
 
-A reference architecture for running a **TanStack AI sandbox agent on the edge**:
-a stateless Worker _triggers_ a run and returns immediately, a Durable Object
-_coordinator_ drives the run to completion (surviving hibernation), and clients
-_stream_ the result over a WebSocket with **resumable cursors** so a reconnect
-never loses or replays an event.
+A reference app for running a **TanStack AI sandbox agent on the edge** — and the
+whole app is **one function call**. `createCloudflareSandboxAgent()` (from
+`@tanstack/ai-sandbox-cloudflare/agent`) returns the run coordinator Durable
+Object, the `@cloudflare/sandbox` Sandbox DO, and the Worker fetch handler, so
+`src/worker.ts` is just config + export wiring:
+
+```ts
+import { createCloudflareSandboxAgent } from '@tanstack/ai-sandbox-cloudflare/agent'
+import { claudeCodeText } from '@tanstack/ai-claude-code'
+
+const agent = createCloudflareSandboxAgent({
+  adapter: () => claudeCodeText('sonnet'),
+  tools: () => [lookup], // optional chat() server tools, bridged over MCP
+})
+
+export const RunCoordinator = agent.Coordinator
+export const Sandbox = agent.Sandbox
+export default agent.worker
+```
+
+Under the hood: a stateless Worker _triggers_ a run and returns immediately, a
+Durable Object _coordinator_ drives the run to completion (surviving
+hibernation), and clients _stream_ the result over a WebSocket with **resumable
+cursors** so a reconnect never loses or replays an event. All of that now lives
+inside the package — this example used to hand-write `src/coordinator.ts` and
+`src/run-log-do.ts` for it; both are gone.
 
 > **Status: runnable reference, not runtime-verified in this repo.** This
 > example compiles against the real `@cloudflare/workers-types`,
@@ -23,14 +44,15 @@ never loses or replays an event.
 A normal request/response handler holds the HTTP connection open for the whole
 agent run. That does not work at the edge: a Worker invocation is short-lived
 and tied to one request, and a multi-minute agent loop will outlive it. The fix
-is to **invert** the model — separate _triggering_ a run from _driving_ it:
+is to **invert** the model — separate _triggering_ a run from _driving_ it. The
+factory builds exactly this topology for you:
 
 ```
                       POST /runs  (trigger)            GET /runs/:id/stream  (tail)
                            │                                   │
                            ▼                                   ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  Worker  (src/worker.ts)  — STATELESS router. Never drives a run.            │
+│  Worker  (agent.worker)  — STATELESS router. Never drives a run.             │
 │   • POST /runs            → coordinator.startRun(...)  → 202 { runId }  ◀──┐  │
 │   • GET  /runs/:id        → coordinator.status(...)    → run record        │  │
 │   • GET  /runs/:id/stream → hand the WebSocket to the DO                   │  │
@@ -39,15 +61,15 @@ is to **invert** the model — separate _triggering_ a run from _driving_ it:
                                 │ DO RPC / fetch                            202 returns
                                 ▼                                        immediately;
 ┌─────────────────────────────────────────────────────────────────────────────┐│ Worker
-│  RunCoordinator Durable Object  (src/coordinator.ts) — OWNS the run.        ││ invocation
-│   • startRun: chat() + withSandbox + claudeCodeText, piped into the         ││ ENDS here.
-│     durable run-log via RunController.start (returns immediately).          │┘
+│  RunCoordinator Durable Object  (agent.Coordinator) — OWNS the run.         ││ invocation
+│   • startRun: chat() + the sandbox + the configured adapter, piped into the ││ ENDS here.
+│     durable run-log (returns immediately).                                  │┘
 │   • Kept alive across hibernation by ctx.waitUntil(done) + a watchdog alarm.│
 │   • WebSocket tails: replay persisted events after the client cursor, then  │
 │     live-tail (hibernatable via ctx.acceptWebSocket).                       │
 │   • /_bridge/:runId: serves MCP from its OWN fetch handler (no TCP listener),│
 │     gated by a per-run bearer token (constant-time Web Crypto compare).     │
-│   • run-log persisted in DO storage  (src/run-log-do.ts)                    │
+│   • run-log persisted in DO storage.                                        │
 └───────────────────────────────┬───────────────────────────────────────────┘
                                 │ @cloudflare/sandbox  (exec / files / ports)
                                 ▼
@@ -58,34 +80,30 @@ is to **invert** the model — separate _triggering_ a run from _driving_ it:
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
+Everything in the two boxes above is implemented in
+`@tanstack/ai-sandbox-cloudflare`; the sections below explain how it behaves.
+
 ---
 
 ## How the Worker does NOT hang
 
-`POST /runs` makes a single RPC into the coordinator:
+`POST /runs` makes a single RPC into the coordinator, which opens the run-log,
+kicks off `chat()` **without awaiting it**, registers the driving promise with
+`ctx.waitUntil(done)`, arms a watchdog alarm, and returns `{ runId }`. The agent
+loop is **not** awaited by the Worker: the `202` is sent the moment the run is
+_registered_, and the Worker invocation ends. The Durable Object keeps running
+the agent in the background because the outstanding `ctx.waitUntil` promise keeps
+the instance alive until the run is terminal.
 
-```ts
-await coordinatorFor(env, body.threadId).startRun(input)
-return jsonResponse({ runId }, 202)
-```
-
-`startRun` opens the run-log, kicks off `chat()` through `RunController.start`
-(which calls `pipeToRunLog` **without awaiting it**), registers the driving
-promise with `ctx.waitUntil(done)`, arms a watchdog alarm, and returns
-`{ runId }`. The agent loop is **not** awaited by the Worker. The `202` is sent
-the moment the run is _registered_, and the Worker invocation ends. The Durable
-Object keeps running the agent in the background because the outstanding
-`ctx.waitUntil` promise keeps the instance alive until the run is terminal.
-
-`pipeToRunLog` (from `@tanstack/ai-sandbox`) **never rejects**: a thrown stream
-error is recorded as a `RUN_ERROR` event plus the run record's `error` field, so
-there is nothing to throw back to a caller that no longer exists — failures are
-always observable by tailing clients.
+The run-log pump **never rejects**: a thrown stream error is recorded as a
+`RUN_ERROR` event plus the run record's `error` field, so there is nothing to
+throw back to a caller that no longer exists — failures are always observable by
+tailing clients.
 
 ## How streaming resumes from a cursor
 
 Every `StreamChunk` the agent emits is appended to a durable, `seq`-indexed log
-(`DurableObjectRunEventLog`, persisted in DO storage). A client tails it:
+persisted in DO storage. A client tails it:
 
 ```
 GET /runs/:id/stream?threadId=<thread>&lastSeq=<n>
@@ -102,36 +120,34 @@ tab, or an evicted coordinator all reconnect cleanly. `GET /runs/:id` (without
 
 ## How the tool-bridge is served from the DO (no TCP listener)
 
-`chat()`-provided **server tools** are exposed to the in-sandbox agent as an MCP
-server. On a long-running host that bridge is a `node:http` listener — which is
-exactly what you _cannot_ open in a Worker/DO. So instead:
+`chat()`-provided **server tools** (the `tools` you pass the factory) are exposed
+to the in-sandbox agent as an MCP server. On a long-running host that bridge is a
+`node:http` listener — which is exactly what you _cannot_ open in a Worker/DO. So
+instead:
 
-1. A tiny middleware provides a **DO-backed `ToolBridgeProvisioner`**
-   (`provideToolBridgeProvisioner` via the `ToolBridgeProvisionerCapability`).
-   The Claude Code adapter reads it via `getOptional` and uses it instead of the
-   default `node:http` provisioner.
-2. The provisioner builds a `createToolBridgeCore(tools, …)`, mints a per-run
-   bearer token, and returns a URL on the Worker's public hostname:
-   `https://<PUBLIC_HOSTNAME>/_bridge/:runId?threadId=…`.
+1. A DO-backed `ToolBridgeProvisioner` is provided to `chat()`. The Claude Code
+   adapter uses it instead of the default `node:http` provisioner.
+2. The provisioner mints a per-run bearer token and returns a URL on the Worker's
+   public hostname: `https://<PUBLIC_HOSTNAME>/_bridge/:runId?threadId=…`.
 3. The agent's MCP calls hit that URL → the Worker forwards to the coordinator →
    the DO's `fetch` handler checks the token (constant-time **Web Crypto**
    compare, since `node:crypto.timingSafeEqual` is unavailable at the edge) and
-   serves the JSON-RPC via `handleBridgeJsonRpc(core, message)`.
+   serves the JSON-RPC from the in-memory tool core.
 
-No raw socket is ever opened; the bridge rides the same fetch surface as the
-rest of the DO.
+No raw socket is ever opened; the bridge rides the same fetch surface as the rest
+of the DO. The demo `lookup` tool in `src/worker.ts` exercises this path.
 
 ---
 
 ## Files
 
-| File                 | Role                                                                                                                                               |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/worker.ts`      | Stateless entry Worker: routes, returns `202` immediately, exports the DO classes.                                                                 |
-| `src/coordinator.ts` | `RunCoordinator` Durable Object: drives the run, hibernatable WebSocket tails, the `/_bridge` MCP endpoint, the DO-backed tool-bridge provisioner. |
-| `src/run-log-do.ts`  | `DurableObjectRunEventLog` — the resumable run event-log over DO storage (mirrors `InMemoryRunEventLog`).                                          |
-| `wrangler.jsonc`     | DO + Container + Sandbox bindings, migrations, `nodejs_compat`.                                                                                    |
-| `Dockerfile`         | Container image: `@cloudflare/sandbox` base + the `claude` CLI.                                                                                    |
+The agent itself is the package; this app is one file plus its Cloudflare config.
+
+| File             | Role                                                                                                       |
+| ---------------- | ---------------------------------------------------------------------------------------------------------- |
+| `src/worker.ts`  | The whole app: `createCloudflareSandboxAgent()` + one demo host tool, exporting the DO classes + the Worker. |
+| `wrangler.jsonc` | DO + Container + Sandbox bindings (`RUN_COORDINATOR` + `Sandbox`), migrations, `nodejs_compat`.            |
+| `Dockerfile`     | Container image: `@cloudflare/sandbox` base + the `claude` CLI.                                            |
 
 ## Run it locally
 
@@ -144,7 +160,7 @@ and an `ANTHROPIC_API_KEY`.
 pnpm install
 
 # 2) From THIS directory, provide your key for local dev. `wrangler dev` reads
-#    .dev.vars; it is injected into the sandbox env for the `claude` CLI.
+#    .dev.vars; the factory injects it into the sandbox env for the `claude` CLI.
 cd examples/sandbox-cloudflare-agent
 cp .dev.vars.example .dev.vars      # then edit .dev.vars and set ANTHROPIC_API_KEY
 
@@ -173,12 +189,7 @@ curl -s "http://localhost:8787/runs/<runId>?threadId=t1"
 **Deploying:** `pnpm deploy`, set the production key with
 `wrangler secret put ANTHROPIC_API_KEY`, and set `PUBLIC_HOSTNAME` in
 `wrangler.jsonc` `vars` to your `*.workers.dev` / custom domain (the in-sandbox
-agent uses it to reach the `/_bridge` MCP endpoint when you pass `chat()` tools).
-
-> Local note: the demo `startRun` passes no `chat()` tools, so the MCP
-> tool-bridge isn't engaged — the in-sandbox agent uses only its own native
-> tools. Add `tools` to `chat()` to exercise the DO-served bridge (it needs a
-> `PUBLIC_HOSTNAME` the container can reach).
+agent uses it to reach the `/_bridge` MCP endpoint for the `tools` you pass).
 
 ---
 
@@ -188,7 +199,7 @@ Read these before treating this as production-ready. They are specific and
 honest.
 
 1. **Compile-only / not runtime-verified in this repo.** There is no Workers
-   runtime in this monorepo's CI, and examples are not built by Nx. This package
+   runtime in this monorepo's CI, and examples are not built by Nx. This app
    type-checks (`pnpm typecheck`) against the real Cloudflare + TanStack AI
    types and follows the contracts proven by the package unit tests, but it has
    not been executed end-to-end here. Treat it as the _architecture blueprint_.

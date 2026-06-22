@@ -1,12 +1,9 @@
 {
   // Worker + Durable Object code. Runs on the Cloudflare edge; uses
-  // @cloudflare/workers-types globals (no node:http here).
-  "include": [
-    "src/worker.ts",
-    "src/coordinator.ts",
-    "src/run-log-do.ts",
-    "src/protocol.ts"
-  ],
+  // @cloudflare/workers-types globals (no node:http here). The coordinator, the
+  // run-log, and the `POST /run` wire contract now ship from the package's
+  // `/agent` entry — this app's worker is just config + export wiring.
+  "include": ["src/worker.ts"],
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",

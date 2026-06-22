@@ -1,39 +1,23 @@
 /**
- * A durable {@link RunEventLog} backed by Durable Object storage.
+ * A durable {@link RunEventLog} backed by Durable Object storage — the storage
+ * half of the serverless/edge run model. The coordinator appends every
+ * {@link StreamChunk} the agent emits under a monotonic `seq`; clients tail from
+ * a cursor. Because events are PERSISTED (not held in a caller's open stream), a
+ * reconnecting tab, a dropped WebSocket, or a coordinator that hibernated
+ * between chunks all resume cleanly: replay everything after the client's
+ * `lastSeq`, then live-tail to terminal.
  *
- * This is the storage half of the serverless/edge run model. The coordinator DO
- * appends every {@link StreamChunk} the agent emits under a monotonic `seq`, and
- * clients tail from a cursor. Because the events are PERSISTED (not held in a
- * caller's open stream), a reconnecting browser tab, a dropped WebSocket, or a
- * coordinator that hibernated between chunks all resume cleanly: replay
- * everything after the client's `lastSeq`, then live-tail to terminal.
+ * Mirrors {@link InMemoryRunEventLog} from `@tanstack/ai-sandbox` exactly.
+ * Storage layout (keys scoped by `runId` so one DO can host many runs):
+ * - `rec:<runId>`        → the {@link RunRecord}
+ * - `evt:<runId>:<seq8>` → the chunk for that seq (seq zero-padded to 8 digits
+ *                          so `list({ prefix })` returns events in seq order).
  *
- * Mirrors {@link InMemoryRunEventLog} from `@tanstack/ai-sandbox` exactly:
- * - `append` assigns the next gap-free `seq` (0, 1, 2, …) and returns it.
- * - `read` replays the backlog after `fromSeq` in order, then live-tails new
- *   events, and RETURNS once the run is terminal and the cursor has caught up.
- * - all methods reject for an unknown `runId` except `get`, which resolves null.
+ * The live-tail wake-up (the in-memory waiter set) is per-INSTANCE; if the
+ * instance is evicted mid-run, a reader re-reads the persisted backlog and the
+ * `TAIL_POLL_MS` fallback poll keeps it progressing. No event is ever lost.
  *
- * Storage layout (all keys scoped by `runId` so one DO can host many runs):
- * - `rec:<runId>`            → the {@link RunRecord} (status, lastSeq, error…)
- * - `evt:<runId>:<seq8>`     → the {@link StreamChunk} for that seq, where
- *                              `seq8` is the seq zero-padded to 8 digits so the
- *                              storage `list({ prefix })` returns events in seq
- *                              order for an efficient ranged backlog replay.
- *
- * HIBERNATION / RESUME. The record and every event survive hibernation because
- * they live in storage, not memory. The live-tail wake-up (the in-memory waiter
- * set) is intentionally per-INSTANCE: it only has to wake readers attached to
- * the SAME running DO instance that is appending — which is the case here, since
- * the coordinator both drives the run and serves the WebSocket tails from one
- * instance. If the instance is evicted mid-run, the next `read` simply re-reads
- * the persisted backlog from storage and polls until the record turns terminal;
- * no event is ever lost. We therefore keep a short fallback poll in `read` so a
- * reader that outlived its waiter (post-eviction) still makes progress.
- *
- * NOTE: compile-only reference — not runtime-verified in this repo (no Workers
- * runtime here). It compiles against the real `@cloudflare/workers-types` and
- * implements the proven {@link RunEventLog} contract.
+ * NOTE: Workers-runtime code — compiles against `@cloudflare/workers-types`.
  */
 import { isTerminalRunStatus } from '@tanstack/ai-sandbox'
 import type {
@@ -99,7 +83,7 @@ export class DurableObjectRunEventLog implements RunEventLog {
     }
     const seq = record.lastSeq + 1
     const next: RunRecord = { ...record, lastSeq: seq, updatedAt: Date.now() }
-    // One transaction so an appended event and its bumped record commit
+    // One transaction so the appended event and its bumped record commit
     // together — a reader never sees a lastSeq pointing at a missing event.
     await this.storage.transaction(async (txn) => {
       await txn.put(evtKey(runId, seq), chunk)
@@ -138,10 +122,8 @@ export class DurableObjectRunEventLog implements RunEventLog {
     const signal = options?.signal
     let cursor = options?.fromSeq ?? -1
 
-    while (true) {
-      if (signal?.aborted) return
+    while (!signal?.aborted) {
       const record = await this.require(runId)
-
       // Drain the persisted backlog after the cursor in seq order. The
       // zero-padded keys make the prefix list naturally ordered.
       if (cursor < record.lastSeq) {
@@ -156,7 +138,6 @@ export class DurableObjectRunEventLog implements RunEventLog {
         }
         continue
       }
-
       if (isTerminalRunStatus(record.status)) return
       await this.waitForChange(runId, signal)
     }
@@ -164,9 +145,8 @@ export class DurableObjectRunEventLog implements RunEventLog {
 
   /**
    * Resolve when an append/finish wakes this run, the signal aborts, or the
-   * fallback poll fires. The poll is what lets a reader that outlived its
-   * in-memory waiter (e.g. after the appending instance was evicted) keep
-   * making progress against persisted storage.
+   * fallback poll fires (the poll lets a reader that outlived its in-memory
+   * waiter — e.g. after the appending instance was evicted — keep progressing).
    */
   private waitForChange(runId: string, signal?: AbortSignal): Promise<void> {
     return new Promise<void>((resolve) => {
@@ -176,13 +156,12 @@ export class DurableObjectRunEventLog implements RunEventLog {
         this.waiters.set(runId, set)
       }
       const localSet = set
-      const settle = (): void => {
+      const wake = (): void => {
         localSet.delete(wake)
         clearTimeout(timer)
         if (signal) signal.removeEventListener('abort', wake)
         resolve()
       }
-      const wake = (): void => settle()
       const timer = setTimeout(wake, TAIL_POLL_MS)
       localSet.add(wake)
       if (signal) signal.addEventListener('abort', wake, { once: true })
