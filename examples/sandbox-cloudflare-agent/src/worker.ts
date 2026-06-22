@@ -37,10 +37,18 @@ function parseCreateRunBody(value: unknown): CreateRunBody {
   if (value === null || typeof value !== 'object') {
     throw new Error('body must be a JSON object')
   }
-  if (!('threadId' in value) || typeof value.threadId !== 'string' || value.threadId === '') {
+  if (
+    !('threadId' in value) ||
+    typeof value.threadId !== 'string' ||
+    value.threadId === ''
+  ) {
     throw new Error('body.threadId must be a non-empty string')
   }
-  if (!('messages' in value) || !Array.isArray(value.messages) || value.messages.length === 0) {
+  if (
+    !('messages' in value) ||
+    !Array.isArray(value.messages) ||
+    value.messages.length === 0
+  ) {
     throw new Error('body.messages must be a non-empty array')
   }
   // The chat engine validates message shape; we only assert it is an array of
@@ -79,7 +87,11 @@ export default {
     const parts = url.pathname.split('/').filter(Boolean)
 
     // POST /runs — trigger a run, return 202 immediately.
-    if (request.method === 'POST' && parts.length === 1 && parts[0] === 'runs') {
+    if (
+      request.method === 'POST' &&
+      parts.length === 1 &&
+      parts[0] === 'runs'
+    ) {
       let body: CreateRunBody
       try {
         body = parseCreateRunBody(await request.json())

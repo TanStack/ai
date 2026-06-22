@@ -28,9 +28,18 @@ import { ProjectionCapability, provideWorkspaceProjection } from './projection'
 import { resolveSecret } from './secrets'
 import { watchWorkspace } from './watch'
 import { DEFAULT_WORKSPACE_ROOT } from './bootstrap'
-import type { AbortInfo, ChatMiddlewareContext, DefinedChatMiddleware, SandboxFileEvent } from '@tanstack/ai'
+import type {
+  AbortInfo,
+  ChatMiddlewareContext,
+  DefinedChatMiddleware,
+  SandboxFileEvent,
+} from '@tanstack/ai'
 import type { SandboxHandle } from './contracts'
-import type { SandboxDefinition, SandboxEnsureContext, SandboxHooks } from './sandbox'
+import type {
+  SandboxDefinition,
+  SandboxEnsureContext,
+  SandboxHooks,
+} from './sandbox'
 import type { SandboxWatchHandle } from './watch'
 
 /** Per-request state we need to carry from `setup` to the terminal hooks. */
@@ -76,7 +85,11 @@ async function dispatchDefinitionHooks(
 ): Promise<void> {
   if (!hooks) return
   const typed = (
-    { create: 'onFileCreate', change: 'onFileChange', delete: 'onFileDelete' } as const
+    {
+      create: 'onFileCreate',
+      change: 'onFileChange',
+      delete: 'onFileDelete',
+    } as const
   )[event.type]
   for (const fn of [hooks.onFile, hooks[typed]]) {
     if (!fn) continue

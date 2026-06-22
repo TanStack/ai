@@ -140,8 +140,7 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
         // Check whether the record has exceeded snapshotMaxAge; if so,
         // discard and fall through to a fresh create.
         const tooOld =
-          maxAgeMs !== undefined &&
-          Date.now() - existing.updatedAt > maxAgeMs
+          maxAgeMs !== undefined && Date.now() - existing.updatedAt > maxAgeMs
 
         if (!tooOld) {
           // 1) Try to reconnect to the still-running sandbox.

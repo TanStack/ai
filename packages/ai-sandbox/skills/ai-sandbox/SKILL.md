@@ -88,8 +88,13 @@ and `secrets.GH` / `bearer(secrets.GH)` in MCP header values:
 
 ```typescript
 import {
-  agentSkill, gitSkill, mcpSkill, fileSkill,
-  bearer, createSecrets, defineWorkspace,
+  agentSkill,
+  gitSkill,
+  mcpSkill,
+  fileSkill,
+  bearer,
+  createSecrets,
+  defineWorkspace,
 } from '@tanstack/ai-sandbox'
 
 const secrets = createSecrets({ GH: process.env.GH_TOKEN ?? '' })
@@ -98,10 +103,10 @@ defineWorkspace({
   source: { type: 'git', url: 'https://github.com/owner/repo' },
   secrets,
   skills: [
-    agentSkill('tanstack'),           // named skill (no-op with warning on CLIs that lack the concept)
+    agentSkill('tanstack'), // named skill (no-op with warning on CLIs that lack the concept)
     gitSkill({
       repo: 'owner/private-skills',
-      secret: secrets.GH,             // resolved at bootstrap time, never stored
+      secret: secrets.GH, // resolved at bootstrap time, never stored
       // into: '/abs/path/inside/sandbox'  // optional; defaults to .tanstack-skills/<repo>
     }),
     mcpSkill('my-mcp', {
@@ -133,8 +138,8 @@ repo is cloned. Defaults to `<root>/.tanstack-skills/<repo-basename>`.
 ```typescript
 import { githubRepo, defineWorkspace } from '@tanstack/ai-sandbox'
 
-defineWorkspace({ source: githubRepo({ repo: 'owner/app' }) })               // depth 1 (default)
-defineWorkspace({ source: githubRepo({ repo: 'owner/app', depth: 10 }) })    // 10 commits
+defineWorkspace({ source: githubRepo({ repo: 'owner/app' }) }) // depth 1 (default)
+defineWorkspace({ source: githubRepo({ repo: 'owner/app', depth: 10 }) }) // 10 commits
 defineWorkspace({ source: githubRepo({ repo: 'owner/app', depth: 'full' }) }) // full history
 ```
 
@@ -216,7 +221,11 @@ Declare hooks on `defineSandbox({ hooks })` (sandbox-scoped) or on any chat
 middleware via the `sandbox` group (run-scoped):
 
 ```typescript
-import { defineSandbox, defineChatMiddleware, withSandbox } from '@tanstack/ai-sandbox'
+import {
+  defineSandbox,
+  defineChatMiddleware,
+  withSandbox,
+} from '@tanstack/ai-sandbox'
 import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
 
 // Sandbox-scoped hooks (all optional):
@@ -224,13 +233,13 @@ const sandbox = defineSandbox({
   id: 'repo-agent',
   provider: dockerSandbox({ image: 'node:22' }),
   hooks: {
-    onFile:       (e) => console.log(e.type, e.path), // catch-all
+    onFile: (e) => console.log(e.type, e.path), // catch-all
     onFileCreate: (e) => console.log('created', e.path),
     onFileChange: (e) => console.log('changed', e.path),
     onFileDelete: (e) => console.log('deleted', e.path),
-    onReady:      (handle) => console.log('ready', handle.id),
-    onError:      (err) => console.error(err),
-    onDestroy:    () => console.log('destroyed'),
+    onReady: (handle) => console.log('ready', handle.id),
+    onError: (err) => console.error(err),
+    onDestroy: () => console.log('destroyed'),
   },
   fileEvents: true, // default; set false to disable watching entirely
 })
@@ -239,7 +248,7 @@ const sandbox = defineSandbox({
 const auditMiddleware = defineChatMiddleware({
   name: 'audit',
   sandbox: {
-    onFile:       (ctx, e) => console.log(ctx.runId, e.type, e.path),
+    onFile: (ctx, e) => console.log(ctx.runId, e.type, e.path),
     onFileCreate: (ctx, e) => db.log({ run: ctx.runId, event: e }),
     onFileChange: (ctx, e) => metrics.increment('file.change'),
     onFileDelete: (ctx, e) => console.warn('deleted', e.path),
@@ -251,7 +260,12 @@ const auditMiddleware = defineChatMiddleware({
 for await (const chunk of stream) {
   if (chunk.type === 'CUSTOM' && chunk.name === 'sandbox.file') {
     const value = chunk.value
-    if (value !== null && typeof value === 'object' && 'type' in value && 'path' in value) {
+    if (
+      value !== null &&
+      typeof value === 'object' &&
+      'type' in value &&
+      'path' in value
+    ) {
       console.log('file event', value) // { type, path, timestamp }
     }
   }

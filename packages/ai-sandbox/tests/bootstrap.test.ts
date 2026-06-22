@@ -419,7 +419,8 @@ function makeProvisioningHandle(): {
         execCalls.push({ command, options })
         return Promise.resolve(ok)
       },
-      spawn: () => Promise.reject(new Error('spawn not expected in these tests')),
+      spawn: () =>
+        Promise.reject(new Error('spawn not expected in these tests')),
     },
     ports: { connect: () => Promise.reject(new Error('ports not used')) },
     env: { set: () => Promise.resolve() },
@@ -652,7 +653,9 @@ describe('bootstrapWorkspace AGENTS.md + instructions', () => {
 
     await bootstrapWorkspace(handle, workspace)
 
-    const agentsWrite = writeCalls.find((w) => w.path === '/workspace/AGENTS.md')
+    const agentsWrite = writeCalls.find(
+      (w) => w.path === '/workspace/AGENTS.md',
+    )
     expect(agentsWrite).toBeDefined()
     expect(agentsWrite?.content).toBe('You are a helpful assistant.')
   })
@@ -662,12 +665,16 @@ describe('bootstrapWorkspace AGENTS.md + instructions', () => {
 
     const workspace: WorkspaceDefinition = {
       source: { type: 'git', url: 'https://github.com/me/app' },
-      skills: [fileSkill({ path: 'AGENTS.md', content: 'Skill instructions.' })],
+      skills: [
+        fileSkill({ path: 'AGENTS.md', content: 'Skill instructions.' }),
+      ],
     }
 
     await bootstrapWorkspace(handle, workspace)
 
-    const agentsWrite = writeCalls.find((w) => w.path === '/workspace/AGENTS.md')
+    const agentsWrite = writeCalls.find(
+      (w) => w.path === '/workspace/AGENTS.md',
+    )
     expect(agentsWrite).toBeDefined()
     expect(agentsWrite?.content).toBe('Skill instructions.')
   })
@@ -678,7 +685,9 @@ describe('bootstrapWorkspace AGENTS.md + instructions', () => {
     const workspace: WorkspaceDefinition = {
       source: { type: 'git', url: 'https://github.com/me/app' },
       instructions: 'Direct instructions.',
-      skills: [fileSkill({ path: 'AGENTS.md', content: 'Skill instructions.' })],
+      skills: [
+        fileSkill({ path: 'AGENTS.md', content: 'Skill instructions.' }),
+      ],
     }
 
     await bootstrapWorkspace(handle, workspace)
@@ -720,7 +729,9 @@ describe('bootstrapWorkspace non-AGENTS fileSkills', () => {
 
     await bootstrapWorkspace(handle, workspace)
 
-    const fileWrite = writeCalls.find((w) => w.path === '/workspace/.env.example')
+    const fileWrite = writeCalls.find(
+      (w) => w.path === '/workspace/.env.example',
+    )
     expect(fileWrite).toBeDefined()
     expect(fileWrite?.content).toBe('KEY=value')
   })
@@ -748,7 +759,9 @@ describe('bootstrapWorkspace non-AGENTS fileSkills', () => {
 
     const workspace: WorkspaceDefinition = {
       source: { type: 'git', url: 'https://github.com/me/app' },
-      skills: [fileSkill({ path: 'AGENTS.md', content: 'Skill instructions.' })],
+      skills: [
+        fileSkill({ path: 'AGENTS.md', content: 'Skill instructions.' }),
+      ],
     }
 
     await bootstrapWorkspace(handle, workspace)

@@ -10,10 +10,14 @@ import type { CapabilityContext } from '@tanstack/ai'
 
 /** Minimal capability context sufficient for testing capability round-trips. */
 function makeCtx(): CapabilityContext {
-  return { capabilities: { markProvided: () => undefined } } as unknown as CapabilityContext
+  return {
+    capabilities: { markProvided: () => undefined },
+  } as unknown as CapabilityContext
 }
 
-function makeProjection(overrides?: Partial<WorkspaceProjection>): WorkspaceProjection {
+function makeProjection(
+  overrides?: Partial<WorkspaceProjection>,
+): WorkspaceProjection {
   return {
     skills: [],
     plugins: [],

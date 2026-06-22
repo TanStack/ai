@@ -182,7 +182,9 @@ export class RunCoordinator extends DurableObject<Env> {
         source: { type: 'none' },
         // The container image ships `node` + the `claude` CLI (see Dockerfile).
         // Secrets are injected into the sandbox env, never persisted to logs.
-        secrets: createSecrets({ ANTHROPIC_API_KEY: this.env.ANTHROPIC_API_KEY }),
+        secrets: createSecrets({
+          ANTHROPIC_API_KEY: this.env.ANTHROPIC_API_KEY,
+        }),
       }),
       // One sandbox per thread, so a follow-up run resumes the same workspace.
       lifecycle: { reuse: 'thread' },
@@ -198,7 +200,10 @@ export class RunCoordinator extends DurableObject<Env> {
       // Order matters only in that BOTH run `setup` before streaming begins:
       // our middleware provides the DO-backed bridge provisioner, and
       // `withSandbox` provides the sandbox handle the Claude Code adapter needs.
-      middleware: [this.bridgeProvisionerMiddleware(input), withSandbox(sandbox)],
+      middleware: [
+        this.bridgeProvisionerMiddleware(input),
+        withSandbox(sandbox),
+      ],
     })
   }
 
@@ -231,9 +236,12 @@ export class RunCoordinator extends DurableObject<Env> {
     const { runId, threadId } = input
     return {
       provision(tools, options): Promise<ProvisionedBridge> {
-        const token = crypto.randomUUID() + crypto.randomUUID().replace(/-/g, '')
+        const token =
+          crypto.randomUUID() + crypto.randomUUID().replace(/-/g, '')
         const core = createToolBridgeCore(tools, {
-          ...(options.context !== undefined ? { context: options.context } : {}),
+          ...(options.context !== undefined
+            ? { context: options.context }
+            : {}),
           ...(options.signal !== undefined ? { signal: options.signal } : {}),
           ...(options.permission !== undefined
             ? { permission: options.permission }
@@ -272,7 +280,11 @@ export class RunCoordinator extends DurableObject<Env> {
     }
 
     // /runs/:id/stream — hibernatable WebSocket tail.
-    if (parts[0] === 'runs' && typeof parts[1] === 'string' && parts[2] === 'stream') {
+    if (
+      parts[0] === 'runs' &&
+      typeof parts[1] === 'string' &&
+      parts[2] === 'stream'
+    ) {
       return this.acceptStream(parts[1], request)
     }
 
@@ -280,10 +292,19 @@ export class RunCoordinator extends DurableObject<Env> {
   }
 
   /** Serve one MCP JSON-RPC request for a run after a constant-time token check. */
-  private async serveBridge(runId: string, request: Request): Promise<Response> {
+  private async serveBridge(
+    runId: string,
+    request: Request,
+  ): Promise<Response> {
     const bridge = this.bridges.get(runId)
-    if (!bridge) return new Response('no active bridge for run', { status: 404 })
-    if (!timingSafeBearerEqualWeb(request.headers.get('authorization') ?? undefined, bridge.token)) {
+    if (!bridge)
+      return new Response('no active bridge for run', { status: 404 })
+    if (
+      !timingSafeBearerEqualWeb(
+        request.headers.get('authorization') ?? undefined,
+        bridge.token,
+      )
+    ) {
       return new Response('unauthorized', { status: 401 })
     }
     const message: unknown = await request.json()
@@ -308,7 +329,10 @@ export class RunCoordinator extends DurableObject<Env> {
    * We accept the socket through `ctx.acceptWebSocket` (hibernation API) and
    * stash the cursor as a serialized attachment so it survives eviction.
    */
-  private async acceptStream(runId: string, request: Request): Promise<Response> {
+  private async acceptStream(
+    runId: string,
+    request: Request,
+  ): Promise<Response> {
     if (request.headers.get('upgrade') !== 'websocket') {
       return new Response('expected websocket upgrade', { status: 426 })
     }
@@ -317,7 +341,8 @@ export class RunCoordinator extends DurableObject<Env> {
 
     const url = new URL(request.url)
     const lastSeqParam = url.searchParams.get('lastSeq')
-    const lastSeq = lastSeqParam !== null ? Number.parseInt(lastSeqParam, 10) : -1
+    const lastSeq =
+      lastSeqParam !== null ? Number.parseInt(lastSeqParam, 10) : -1
     if (Number.isNaN(lastSeq)) {
       return new Response('lastSeq must be an integer', { status: 400 })
     }
@@ -344,7 +369,10 @@ export class RunCoordinator extends DurableObject<Env> {
       try {
         for await (const event of this.controller.attach(runId, { fromSeq })) {
           socket.send(JSON.stringify(event))
-          socket.serializeAttachment({ runId, lastSeq: event.seq } satisfies SocketAttachment)
+          socket.serializeAttachment({
+            runId,
+            lastSeq: event.seq,
+          } satisfies SocketAttachment)
         }
         // Terminal: tell the client the final status, then close cleanly.
         const record = await this.log.get(runId)
@@ -363,14 +391,21 @@ export class RunCoordinator extends DurableObject<Env> {
    * the runtime re-instantiates us and delivers the socket here. Resume the
    * tail from the cursor we serialized onto it.
    */
-  override webSocketMessage(ws: WebSocket, _message: string | ArrayBuffer): void {
+  override webSocketMessage(
+    ws: WebSocket,
+    _message: string | ArrayBuffer,
+  ): void {
     const attachment: unknown = ws.deserializeAttachment()
     if (isSocketAttachment(attachment)) {
       this.pump(ws, attachment.runId, attachment.lastSeq)
     }
   }
 
-  override webSocketClose(_ws: WebSocket, _code: number, _reason: string): void {
+  override webSocketClose(
+    _ws: WebSocket,
+    _code: number,
+    _reason: string,
+  ): void {
     // Nothing to clean up: the run-log is durable and independent of any
     // socket, and the pump observes the closed socket on its next `send`.
   }

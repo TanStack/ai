@@ -254,4 +254,3 @@ async function collectPaths(
   await walk(root)
   return files
 }
-

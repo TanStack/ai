@@ -43,7 +43,10 @@ describe('defineWorkspace', () => {
       source: localSource('/workspace'),
       plugins: ['@anthropic/plugin-foo', '@anthropic/plugin-bar'],
     })
-    expect(ws.plugins).toEqual(['@anthropic/plugin-foo', '@anthropic/plugin-bar'])
+    expect(ws.plugins).toEqual([
+      '@anthropic/plugin-foo',
+      '@anthropic/plugin-bar',
+    ])
   })
 
   it('round-trips secrets (Secrets object)', () => {

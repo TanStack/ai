@@ -1,9 +1,9 @@
 # Cloudflare Workers + Durable Objects + Containers agent (TanStack AI)
 
 A reference architecture for running a **TanStack AI sandbox agent on the edge**:
-a stateless Worker *triggers* a run and returns immediately, a Durable Object
-*coordinator* drives the run to completion (surviving hibernation), and clients
-*stream* the result over a WebSocket with **resumable cursors** so a reconnect
+a stateless Worker _triggers_ a run and returns immediately, a Durable Object
+_coordinator_ drives the run to completion (surviving hibernation), and clients
+_stream_ the result over a WebSocket with **resumable cursors** so a reconnect
 never loses or replays an event.
 
 > **Status: runnable reference, not runtime-verified in this repo.** This
@@ -23,7 +23,7 @@ never loses or replays an event.
 A normal request/response handler holds the HTTP connection open for the whole
 agent run. That does not work at the edge: a Worker invocation is short-lived
 and tied to one request, and a multi-minute agent loop will outlive it. The fix
-is to **invert** the model — separate *triggering* a run from *driving* it:
+is to **invert** the model — separate _triggering_ a run from _driving_ it:
 
 ```
                       POST /runs  (trigger)            GET /runs/:id/stream  (tail)
@@ -73,7 +73,7 @@ return jsonResponse({ runId }, 202)
 (which calls `pipeToRunLog` **without awaiting it**), registers the driving
 promise with `ctx.waitUntil(done)`, arms a watchdog alarm, and returns
 `{ runId }`. The agent loop is **not** awaited by the Worker. The `202` is sent
-the moment the run is *registered*, and the Worker invocation ends. The Durable
+the moment the run is _registered_, and the Worker invocation ends. The Durable
 Object keeps running the agent in the background because the outstanding
 `ctx.waitUntil` promise keeps the instance alive until the run is terminal.
 
@@ -104,7 +104,7 @@ tab, or an evicted coordinator all reconnect cleanly. `GET /runs/:id` (without
 
 `chat()`-provided **server tools** are exposed to the in-sandbox agent as an MCP
 server. On a long-running host that bridge is a `node:http` listener — which is
-exactly what you *cannot* open in a Worker/DO. So instead:
+exactly what you _cannot_ open in a Worker/DO. So instead:
 
 1. A tiny middleware provides a **DO-backed `ToolBridgeProvisioner`**
    (`provideToolBridgeProvisioner` via the `ToolBridgeProvisionerCapability`).
@@ -125,13 +125,13 @@ rest of the DO.
 
 ## Files
 
-| File | Role |
-| ---- | ---- |
-| `src/worker.ts` | Stateless entry Worker: routes, returns `202` immediately, exports the DO classes. |
+| File                 | Role                                                                                                                                               |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/worker.ts`      | Stateless entry Worker: routes, returns `202` immediately, exports the DO classes.                                                                 |
 | `src/coordinator.ts` | `RunCoordinator` Durable Object: drives the run, hibernatable WebSocket tails, the `/_bridge` MCP endpoint, the DO-backed tool-bridge provisioner. |
-| `src/run-log-do.ts` | `DurableObjectRunEventLog` — the resumable run event-log over DO storage (mirrors `InMemoryRunEventLog`). |
-| `wrangler.jsonc` | DO + Container + Sandbox bindings, migrations, `nodejs_compat`. |
-| `Dockerfile` | Container image: `@cloudflare/sandbox` base + the `claude` CLI. |
+| `src/run-log-do.ts`  | `DurableObjectRunEventLog` — the resumable run event-log over DO storage (mirrors `InMemoryRunEventLog`).                                          |
+| `wrangler.jsonc`     | DO + Container + Sandbox bindings, migrations, `nodejs_compat`.                                                                                    |
+| `Dockerfile`         | Container image: `@cloudflare/sandbox` base + the `claude` CLI.                                                                                    |
 
 ## Run it locally
 
@@ -191,7 +191,7 @@ honest.
    runtime in this monorepo's CI, and examples are not built by Nx. This package
    type-checks (`pnpm typecheck`) against the real Cloudflare + TanStack AI
    types and follows the contracts proven by the package unit tests, but it has
-   not been executed end-to-end here. Treat it as the *architecture blueprint*.
+   not been executed end-to-end here. Treat it as the _architecture blueprint_.
 
 2. **The Cloudflare sandbox has no writable host→process stdin (handled).**
    Cloudflare background processes don't expose a writable stdin —

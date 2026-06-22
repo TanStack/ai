@@ -143,7 +143,9 @@ export function createToolBridgeCore(
         const message = error instanceof Error ? error.message : String(error)
         return {
           isError: true,
-          content: [{ type: 'text', text: `Tool execution failed: ${message}` }],
+          content: [
+            { type: 'text', text: `Tool execution failed: ${message}` },
+          ],
         }
       }
     },
@@ -161,7 +163,11 @@ export async function handleBridgeJsonRpc(
   message: unknown,
 ): Promise<unknown> {
   if (message === null || typeof message !== 'object') {
-    return { jsonrpc: '2.0', id: null, error: { code: -32600, message: 'Invalid Request' } }
+    return {
+      jsonrpc: '2.0',
+      id: null,
+      error: { code: -32600, message: 'Invalid Request' },
+    }
   }
   const rpc = message as { id?: unknown; method?: unknown; params?: unknown }
   const id = rpc.id ?? null
@@ -178,14 +184,25 @@ export async function handleBridgeJsonRpc(
     case 'tools/list':
       return respond({ tools: core.listTools() })
     case 'tools/call': {
-      const params = (rpc.params ?? {}) as { name?: unknown; arguments?: unknown }
+      const params = (rpc.params ?? {}) as {
+        name?: unknown
+        arguments?: unknown
+      }
       if (typeof params.name !== 'string') {
-        return { jsonrpc: '2.0', id, error: { code: -32602, message: 'Invalid params: name' } }
+        return {
+          jsonrpc: '2.0',
+          id,
+          error: { code: -32602, message: 'Invalid params: name' },
+        }
       }
       return respond(await core.callTool(params.name, params.arguments ?? {}))
     }
     default:
-      return { jsonrpc: '2.0', id, error: { code: -32601, message: 'Method not found' } }
+      return {
+        jsonrpc: '2.0',
+        id,
+        error: { code: -32601, message: 'Method not found' },
+      }
   }
 }
 
@@ -263,7 +280,9 @@ export async function startHostToolBridge(
   // which a container reaches via host.docker.internal (host gateway).
   const bindAddress =
     options.bindAddress ??
-    (options.hostForSandbox === 'host.docker.internal' ? '0.0.0.0' : '127.0.0.1')
+    (options.hostForSandbox === 'host.docker.internal'
+      ? '0.0.0.0'
+      : '127.0.0.1')
 
   const httpServer = createServer((req, res) => {
     void (async () => {
@@ -293,7 +312,9 @@ export async function startHostToolBridge(
     })
   })
 
-  await new Promise<void>((resolve) => httpServer.listen(0, bindAddress, resolve))
+  await new Promise<void>((resolve) =>
+    httpServer.listen(0, bindAddress, resolve),
+  )
   const port = (httpServer.address() as AddressInfo).port
   const url = `http://${options.hostForSandbox}:${port}/mcp`
 

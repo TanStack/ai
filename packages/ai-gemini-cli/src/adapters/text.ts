@@ -137,7 +137,8 @@ export class GeminiCliTextAdapter<
       const projection = options.capabilities
         ? getWorkspaceProjection(options.capabilities, { optional: true })
         : undefined
-      if (projection !== undefined) await projectGeminiWorkspace(sandbox, projection)
+      if (projection !== undefined)
+        await projectGeminiWorkspace(sandbox, projection)
 
       const cwd =
         options.modelOptions?.cwd ?? this.adapterConfig.cwd ?? DEFAULT_WORKDIR

@@ -81,7 +81,11 @@ function makeFakeHandle(
   const counts = { spawn: 0, kill: 0, end: 0 }
   const stdinWrites: Array<string> = []
 
-  const { iterable, push: pushStdout, close: closeStdout } = createPushIterable()
+  const {
+    iterable,
+    push: pushStdout,
+    close: closeStdout,
+  } = createPushIterable()
 
   const spawnHandle: SpawnHandle = {
     pid: 1,
@@ -266,30 +270,31 @@ describe('createBootstrapShell', () => {
     const fake = makeFakeHandle()
     const shellPromise = createBootstrapShell(fake.handle)
 
-    const result = await new Promise<{ cwd: string; env: Record<string, string> }>(
-      async (resolve) => {
-        const shell = await shellPromise
+    const result = await new Promise<{
+      cwd: string
+      env: Record<string, string>
+    }>(async (resolve) => {
+      const shell = await shellPromise
 
-        const p = shell.forkState()
+      const p = shell.forkState()
 
-        // forkState runs `pwd` first, then `export -p`.
-        // Sentinel for pwd (counter 0): __BSSH_0__ 0
-        fake.pushStdout('/home/sandbox\n')
-        fake.pushStdout('__BSSH_0__ 0\n')
+      // forkState runs `pwd` first, then `export -p`.
+      // Sentinel for pwd (counter 0): __BSSH_0__ 0
+      fake.pushStdout('/home/sandbox\n')
+      fake.pushStdout('__BSSH_0__ 0\n')
 
-        // Sentinel for export -p (counter 1): __BSSH_1__ 0
-        // Include declare -x form, export form, and one unparseable junk line.
-        fake.pushStdout('declare -x FOO="bar"\n')
-        fake.pushStdout('export BAZ="qux"\n')
-        fake.pushStdout('THIS LINE IS JUNK\n')
-        fake.pushStdout('__BSSH_1__ 0\n')
+      // Sentinel for export -p (counter 1): __BSSH_1__ 0
+      // Include declare -x form, export form, and one unparseable junk line.
+      fake.pushStdout('declare -x FOO="bar"\n')
+      fake.pushStdout('export BAZ="qux"\n')
+      fake.pushStdout('THIS LINE IS JUNK\n')
+      fake.pushStdout('__BSSH_1__ 0\n')
 
-        const r = await p
-        fake.closeStdout()
-        await shell.dispose()
-        resolve(r)
-      },
-    )
+      const r = await p
+      fake.closeStdout()
+      await shell.dispose()
+      resolve(r)
+    })
 
     expect(result.cwd).toBe('/home/sandbox')
     expect(result.env['FOO']).toBe('bar')
