@@ -33,10 +33,14 @@ const FORBIDDEN = [
 // One matcher per forbidden module, compiled once. Matches the real import
 // forms — `from 'mod'`, `import('mod')`, `require('mod')` — tolerating the
 // `node:` prefix and a `/subpath` (so `node:fs/promises` is still caught).
+// `mod` is escaped before interpolation: the current FORBIDDEN entries have no
+// regex metacharacters (so this is a no-op today), but it keeps the pattern
+// correct if a future entry contains one and silences a static-analysis warning.
+const escapeRegex = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 const FORBIDDEN_PATTERNS = FORBIDDEN.map((mod) => ({
   mod,
   pattern: new RegExp(
-    `(?:from|import|require)\\s*\\(?\\s*['"](?:node:)?${mod}(?:/[^'"]*)?['"]`,
+    `(?:from|import|require)\\s*\\(?\\s*['"](?:node:)?${escapeRegex(mod)}(?:/[^'"]*)?['"]`,
   ),
 }))
 
