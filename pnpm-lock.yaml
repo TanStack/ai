@@ -1175,9 +1175,9 @@ importers:
 
   packages/ai-code-mode:
     dependencies:
-      esbuild:
-        specifier: ^0.25.12
-        version: 0.25.12
+      sucrase:
+        specifier: ^3.35.0
+        version: 3.35.1
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*

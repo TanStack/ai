@@ -60,7 +60,7 @@
     "tanstack-intent"
   ],
   "dependencies": {
-    "esbuild": "^0.25.12"
+    "sucrase": "^3.35.0"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:*",
