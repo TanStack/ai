@@ -1,5 +1,21 @@
 # @tanstack/ai-openrouter
 
+## 0.14.1
+
+### Patch Changes
+
+- [#782](https://github.com/TanStack/ai/pull/782) [`1047e40`](https://github.com/TanStack/ai/commit/1047e40856e09f1df070223068210eaf1157d33c) - Surface OpenRouter provider-reported cost on image generation usage, matching
+  the existing text adapter behavior.
+
+- [#737](https://github.com/TanStack/ai/pull/737) [`243b8fa`](https://github.com/TanStack/ai/commit/243b8fad7e8a48b68a1a96962ee1443cbd6a0ced) - fix(ai-openrouter): stop forwarding root observability `metadata` to the provider wire request ([#735](https://github.com/TanStack/ai/issues/735))
+
+  The OpenRouter chat-completions adapter (since 0.13.0) and responses adapter (since 0.9.0) copied `chat()`'s root-level observability `metadata` onto the wire as `chatRequest.metadata` / `responsesRequest.metadata`. The `@openrouter/sdk` validates those fields as `Record<string, string>`, so structured observability metadata (objects, arrays — the documented usage for middleware/devtools consumers) failed client-side Zod validation with `Input validation failed` on every call. The spread also clobbered an intentional, correctly-typed `modelOptions.metadata`.
+
+  Root `metadata` is observability-only again (middleware, devtools, event client) and `modelOptions.metadata` is the sole source for OpenRouter wire metadata, matching every other adapter. The `TextOptions.metadata` doc comment in `@tanstack/ai` now states this contract explicitly.
+
+- Updated dependencies [[`2cb0313`](https://github.com/TanStack/ai/commit/2cb0313c1f13e1db37c5550308e36bb0b9b73b98), [`18e5f4d`](https://github.com/TanStack/ai/commit/18e5f4d9746a26c3194929ea4b49673728e8eaa5), [`21720dd`](https://github.com/TanStack/ai/commit/21720dd73524d624594a6dfb7e4669c03cc08af0), [`243b8fa`](https://github.com/TanStack/ai/commit/243b8fad7e8a48b68a1a96962ee1443cbd6a0ced)]:
+  - @tanstack/ai@0.33.0
+
 ## 0.14.0
 
 ### Minor Changes

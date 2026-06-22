@@ -1,5 +1,59 @@
 # @tanstack/ai
 
+## 0.33.0
+
+### Minor Changes
+
+- [#760](https://github.com/TanStack/ai/pull/760) [`2cb0313`](https://github.com/TanStack/ai/commit/2cb0313c1f13e1db37c5550308e36bb0b9b73b98) - Add activity-agnostic observability to the media activities through the unified middleware system ([#720](https://github.com/TanStack/ai/issues/720)). `generateImage`, `generateVideo`, `generateAudio`, `generateSpeech`, and `generateTranscription` now accept a `middleware` option taking `GenerationMiddleware`s — the base, activity-agnostic contract whose lifecycle hooks (`onStart` / `onUsage` / `onFinish` / `onAbort` / `onError`) receive a `GenerationMiddlewareContext`. `ChatMiddleware` is a superset of this base, so a single `otelMiddleware()` value satisfies both and can be passed to `chat()` and any media activity alike. Like chat middleware, hooks are awaited in order and propagate exceptions (a throwing hook surfaces, rather than being silently swallowed).
+
+  `otelMiddleware()` (on the existing `@tanstack/ai/middlewares/otel` subpath) now emits one `gen_ai.*` span per media call, tagged with the correct `gen_ai.operation.name` (`image_generation`, `video_generation`, `audio_generation`, `text_to_speech`, `transcription`), reusing the same `gen_ai.usage.*` attribute set as chat — now including `tanstack.ai.usage.units_billed` for unit-billed media. With a `Meter` it records the `gen_ai.client.operation.duration` histogram per activity. An abandoned streaming-video consumer ends the span via `onAbort` (status `ERROR`, `tanstack.ai.completion.reason = cancelled`) instead of leaking it. The `GenerationMiddleware` types are exported from the package root; the `otelMiddleware` value stays on the subpath so importing `@tanstack/ai` never requires the optional `@opentelemetry/api` peer.
+
+### Patch Changes
+
+- [#789](https://github.com/TanStack/ai/pull/789) [`18e5f4d`](https://github.com/TanStack/ai/commit/18e5f4d9746a26c3194929ea4b49673728e8eaa5) - fix: forward token usage on the structured-output fallback path
+
+  `fallbackStructuredOutputStream` — used by `chat({ outputSchema, stream: true })`
+  whenever an adapter resolves the schema through the non-streaming
+  `structuredOutput()` rather than a native streaming or combined path (in practice
+  Ollama, plus Anthropic and Gemini models that predate combined tools+schema
+  support) — wrapped `structuredOutput()` but dropped the `usage` from its result.
+  Consumers reading `RUN_FINISHED.usage` saw `undefined`, and the engine's
+  `runOnUsage` middleware hook (gated on `chunk.usage`) never fired, so
+  cost-tracking and observability layers reported zero token counts on that path.
+
+  The synthesized `RUN_FINISHED` now carries the adapter-reported `usage`, matching
+  the native streaming path. Adapters that don't report usage are unaffected (no
+  `usage` key is emitted).
+
+- [#795](https://github.com/TanStack/ai/pull/795) [`21720dd`](https://github.com/TanStack/ai/commit/21720dd73524d624594a6dfb7e4669c03cc08af0) - fix: don't error when an already-discovered lazy tool's discovery is re-requested
+
+  Lazy tools use progressive disclosure: a synthetic `__lazy__tool__discovery__`
+  tool is advertised so the model can reveal a lazy tool's schema on demand. Once
+  **every** lazy tool has been discovered, that discovery tool is (intentionally)
+  dropped from the set advertised to the model to save tokens. But if the model
+  then re-requested discovery anyway — common in long-context or when it overlooks
+  that a tool is already available — the call fell through to tool execution and
+  came back as `Unknown tool: __lazy__tool__discovery__`.
+
+  The discovery tool is now kept _executable_ for the turn whenever a pending call
+  references it, even after it leaves the advertised set, so re-discovery returns
+  the schemas again instead of erroring. The advertised set is unchanged. The
+  discovery tool is also now idempotent — re-requesting an already-discovered tool
+  returns its schema without triggering a redundant tool-list refresh.
+
+  Additionally, `DISCOVERY_TOOL_NAME` is now exported from `@tanstack/ai` so custom
+  message-compaction / history-trimming logic can reference the discovery tool by
+  constant instead of hard-coding the string.
+
+- [#737](https://github.com/TanStack/ai/pull/737) [`243b8fa`](https://github.com/TanStack/ai/commit/243b8fad7e8a48b68a1a96962ee1443cbd6a0ced) - fix(ai-openrouter): stop forwarding root observability `metadata` to the provider wire request ([#735](https://github.com/TanStack/ai/issues/735))
+
+  The OpenRouter chat-completions adapter (since 0.13.0) and responses adapter (since 0.9.0) copied `chat()`'s root-level observability `metadata` onto the wire as `chatRequest.metadata` / `responsesRequest.metadata`. The `@openrouter/sdk` validates those fields as `Record<string, string>`, so structured observability metadata (objects, arrays — the documented usage for middleware/devtools consumers) failed client-side Zod validation with `Input validation failed` on every call. The spread also clobbered an intentional, correctly-typed `modelOptions.metadata`.
+
+  Root `metadata` is observability-only again (middleware, devtools, event client) and `modelOptions.metadata` is the sole source for OpenRouter wire metadata, matching every other adapter. The `TextOptions.metadata` doc comment in `@tanstack/ai` now states this contract explicitly.
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.6.4
+
 ## 0.32.0
 
 ### Minor Changes
