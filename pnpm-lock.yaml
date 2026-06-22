@@ -130,6 +130,37 @@ importers:
         specifier: ^4.88.0
         version: 4.88.0(@cloudflare/workers-types@4.20260317.1)
 
+  examples/sandbox-cloudflare-agent-colocated:
+    dependencies:
+      '@cloudflare/sandbox':
+        specifier: ^0.12.1
+        version: 0.12.1(@opencode-ai/sdk@1.17.7)
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
+      '@tanstack/ai-claude-code':
+        specifier: workspace:*
+        version: link:../../packages/ai-claude-code
+      '@tanstack/ai-sandbox':
+        specifier: workspace:*
+        version: link:../../packages/ai-sandbox
+      '@tanstack/ai-sandbox-local-process':
+        specifier: workspace:*
+        version: link:../../packages/ai-sandbox-local-process
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: ^4.20260317.1
+        version: 4.20260317.1
+      '@types/node':
+        specifier: ^24.10.3
+        version: 24.10.3
+      esbuild:
+        specifier: ^0.25.0
+        version: 0.25.12
+      wrangler:
+        specifier: ^4.88.0
+        version: 4.88.0(@cloudflare/workers-types@4.20260317.1)
+
   examples/sandbox-coding-agent:
     dependencies:
       '@tanstack/ai':
@@ -22550,9 +22581,9 @@ snapshots:
   buildcheck@0.0.7:
     optional: true
 
-  bundle-require@5.1.0(esbuild@0.27.3):
+  bundle-require@5.1.0(esbuild@0.27.7):
     dependencies:
-      esbuild: 0.27.3
+      esbuild: 0.27.7
       load-tsconfig: 0.2.5
 
   bytes@3.1.2: {}
@@ -28749,12 +28780,12 @@ snapshots:
 
   tsup@8.5.1(@microsoft/api-extractor@7.47.7(@types/node@24.10.3))(jiti@2.6.1)(postcss@8.5.15)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2):
     dependencies:
-      bundle-require: 5.1.0(esbuild@0.27.3)
+      bundle-require: 5.1.0(esbuild@0.27.7)
       cac: 6.7.14
       chokidar: 4.0.3
       consola: 3.4.2
       debug: 4.4.3
-      esbuild: 0.27.3
+      esbuild: 0.27.7
       fix-dts-default-cjs-exports: 1.0.1
       joycon: 3.1.1
       picocolors: 1.1.1

@@ -1,0 +1,56 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tanstack-ai-sandbox-cloudflare-agent-colocated",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-05-01",
+  // node:crypto/node:buffer used transitively by the TanStack AI packages + the
+  // MCP SDK. The DO/Worker code itself uses Web Crypto for the bearer check.
+  "compatibility_flags": ["nodejs_compat"],
+
+  // The container image the @cloudflare/sandbox Sandbox DO runs. Beyond the
+  // `claude` CLI it ships the BUNDLED in-container harness runner
+  // (dist/container-runner.mjs) — run `pnpm build:runner` before `wrangler dev`
+  // / `deploy` so the bundle exists for the COPY in the Dockerfile.
+  "containers": [
+    {
+      "class_name": "Sandbox",
+      "image": "./Dockerfile",
+      // One warm instance for the demo; raise for concurrency.
+      "max_instances": 1,
+    },
+  ],
+
+  "durable_objects": {
+    "bindings": [
+      // The coordinator that owns each run (drives the container, the run-log,
+      // the WebSocket tails, and the /tool-exec host-tool execution endpoint).
+      { "name": "RUN_COORDINATOR", "class_name": "RunCoordinator" },
+      // The @cloudflare/sandbox container host DO.
+      { "name": "Sandbox", "class_name": "Sandbox" },
+    ],
+  },
+
+  "migrations": [
+    {
+      "tag": "v1",
+      // Both DO classes use the SQLite-backed storage backend (required for the
+      // sandbox SDK, and what DurableObjectRunEventLog persists run events to).
+      "new_sqlite_classes": ["RunCoordinator", "Sandbox"],
+    },
+  ],
+
+  "vars": {
+    // The Worker's public hostname — the CONTAINER uses it to reach the DO's
+    // /tool-exec endpoint (host-tool execution callback). Override per
+    // environment; e.g. set to your *.workers.dev or custom domain after first
+    // deploy.
+    "PUBLIC_HOSTNAME": "tanstack-ai-sandbox-cloudflare-agent-colocated.example.workers.dev",
+  },
+
+  // ANTHROPIC_API_KEY is a SECRET, not a var. Set it with:
+  //   wrangler secret put ANTHROPIC_API_KEY
+  // The coordinator injects it into the CONTAINER env (sandbox.setEnvVars) for
+  // the in-container `claude` CLI — never persisted to logs/snapshots.
+
+  "observability": { "enabled": true },
+}

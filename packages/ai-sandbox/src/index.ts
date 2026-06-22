@@ -147,6 +147,16 @@ export type {
   ProvisionedBridge,
 } from './tool-bridge'
 
+// Host-tool delegation for the co-located ("combined") model: harness + bridge
+// run in-container; only chat()-tool EXECUTION crosses back to the orchestrator.
+export {
+  remoteToolStubs,
+  toolDescriptors,
+  httpRemoteToolExecutor,
+  executeHostTool,
+} from './remote-tools'
+export type { RemoteToolExecutor } from './remote-tools'
+
 // Resumable run event-log — the primitive that lets a trigger start a run and
 // return while a durable orchestrator drives it and clients tail from a cursor.
 export { InMemoryRunEventLog, isTerminalRunStatus } from './run-log'
