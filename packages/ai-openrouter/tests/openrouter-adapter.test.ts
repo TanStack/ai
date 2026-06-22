@@ -1508,6 +1508,34 @@ describe('OpenRouter modelOptions pass-through', () => {
     expect(params.sessionId).toBe('session-abc')
   })
 
+  it('keeps root observability metadata out of the SDK request', async () => {
+    setupMockSdkClient(minimalStreamChunks)
+    const adapter = createAdapter()
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'test' }],
+      metadata: {
+        observationName: 'my-call',
+        tags: ['a', 'b'],
+        prompt: { name: 'prompt', version: 1 },
+        sessionId: undefined,
+      },
+      modelOptions: {
+        metadata: { env: 'test' },
+      } as OpenRouterTextModelOptions,
+    })) {
+      // consume
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const params = rawParams.chatRequest
+    expect(params.metadata).toEqual({ env: 'test' })
+
+    const serialized = ChatRequest$outboundSchema.parse(params)
+    expect(serialized).toHaveProperty('metadata', { env: 'test' })
+  })
+
   it('reads sampling from modelOptions; modelOptions is the sole sampling source', async () => {
     setupMockSdkClient(minimalStreamChunks)
     const adapter = createAdapter()
@@ -1533,15 +1561,16 @@ describe('OpenRouter modelOptions pass-through', () => {
     expect(params.maxCompletionTokens).toBe(9999)
   })
 
-  it('forwards root metadata to the request (same as the responses adapter)', async () => {
+  it('does not forward root metadata to the request', async () => {
     setupMockSdkClient(minimalStreamChunks)
     const adapter = createAdapter()
 
     for await (const _ of chat({
       adapter,
       messages: [{ role: 'user', content: 'test' }],
-      // Root `metadata` is still part of the contract; it must not be dropped
-      // by the chat-completions request builder.
+      // Root `metadata` is observability context. OpenRouter request metadata
+      // belongs in modelOptions.metadata, where the SDK's Record<string,string>
+      // schema can validate provider-native values.
       metadata: { env: 'test' },
     })) {
       // consume
@@ -1549,7 +1578,7 @@ describe('OpenRouter modelOptions pass-through', () => {
 
     const [rawParams] = mockSend.mock.calls[0]!
     const params = rawParams.chatRequest
-    expect(params.metadata).toEqual({ env: 'test' })
+    expect(params).not.toHaveProperty('metadata')
   })
 
   it('appends variant to model name instead of passing it as a separate property', async () => {

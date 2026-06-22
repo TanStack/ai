@@ -90,6 +90,16 @@ export const Route = createFileRoute('/api/chat')({
               ]
             : [systemPrompt]
 
+          const rootMetadata =
+            fp.rootMetadata === 'structured'
+              ? {
+                  observationName: 'openrouter-root-metadata',
+                  tags: ['e2e', 'openrouter'],
+                  prompt: { name: 'chat', version: 1 },
+                  sessionId: undefined,
+                }
+              : undefined
+
           // Two structured-output-streaming features differ only in which
           // schema they bind to. Branched per-feature so TS can pick the
           // right `chat<TSchema>()` overload without a `never` cast.
@@ -105,6 +115,7 @@ export const Route = createFileRoute('/api/chat')({
                   outputSchema: guitarRecommendationSchema,
                   stream: true,
                   abortController,
+                  ...(rootMetadata && { metadata: rootMetadata }),
                 })
               : feature === 'multi-turn-structured'
                 ? chat({
@@ -117,6 +128,7 @@ export const Route = createFileRoute('/api/chat')({
                     outputSchema: recipeSchema,
                     stream: true,
                     abortController,
+                    ...(rootMetadata && { metadata: rootMetadata }),
                   })
                 : feature === 'agentic-structured-stream'
                   ? chat({
@@ -131,6 +143,7 @@ export const Route = createFileRoute('/api/chat')({
                       outputSchema: guitarRecommendationSchema,
                       stream: true,
                       abortController,
+                      ...(rootMetadata && { metadata: rootMetadata }),
                     })
                   : chat({
                       ...adapterOptions,
@@ -142,6 +155,7 @@ export const Route = createFileRoute('/api/chat')({
                       threadId: params.threadId,
                       runId: params.runId,
                       abortController,
+                      ...(rootMetadata && { metadata: rootMetadata }),
                     })
 
           // Cast: `chat()` returns `AsyncIterable<StreamChunk> |
