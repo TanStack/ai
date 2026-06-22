@@ -36,7 +36,8 @@ const FORBIDDEN = [
 // `mod` is escaped before interpolation: the current FORBIDDEN entries have no
 // regex metacharacters (so this is a no-op today), but it keeps the pattern
 // correct if a future entry contains one and silences a static-analysis warning.
-const escapeRegex = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+const escapeRegex = (s: string): string =>
+  s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 const FORBIDDEN_PATTERNS = FORBIDDEN.map((mod) => ({
   mod,
   pattern: new RegExp(
@@ -69,7 +70,9 @@ function stripComments(text: string): string {
 
 describe('edge-safety (#487)', () => {
   it('does not depend on esbuild in any install-facing bucket', () => {
-    const pkg = JSON.parse(readFileSync(join(pkgRoot, 'package.json'), 'utf8')) as {
+    const pkg = JSON.parse(
+      readFileSync(join(pkgRoot, 'package.json'), 'utf8'),
+    ) as {
       dependencies?: Record<string, string>
       peerDependencies?: Record<string, string>
       optionalDependencies?: Record<string, string>
