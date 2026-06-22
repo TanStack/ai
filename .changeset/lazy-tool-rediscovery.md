@@ -12,7 +12,7 @@ then re-requested discovery anyway — common in long-context or when it overloo
 that a tool is already available — the call fell through to tool execution and
 came back as `Unknown tool: __lazy__tool__discovery__`.
 
-The discovery tool is now kept *executable* for the turn whenever a pending call
+The discovery tool is now kept _executable_ for the turn whenever a pending call
 references it, even after it leaves the advertised set, so re-discovery returns
 the schemas again instead of erroring. The advertised set is unchanged. The
 discovery tool is also now idempotent — re-requesting an already-discovered tool
