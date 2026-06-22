@@ -37,10 +37,14 @@ import {
   createChatClientOptions, 
   type InferChatMessages 
 } from "@tanstack/ai-client";
+import { updateUIDef } from "./tool-definitions";
+import { useState } from "react";
 
 function ChatComponent() {
+  const [notification, setNotification] = useState<string | null>(null);
+
   // Create client tool implementations
-  const updateUI = updateUIDef.client((input) => {
+  const updateUI = updateUIDef.client((input: { message: string }) => {
     setNotification(input.message);
     return { success: true };
   });
@@ -86,6 +90,9 @@ Extends `ChatClientOptions` from `@tanstack/ai-client`:
 ### Returns
 
 ```typescript
+import type { UIMessage } from "@tanstack/ai-react";
+import type { ModelMessage } from "@tanstack/ai";
+
 interface UseChatReturn {
   messages: UIMessage[];
   sendMessage: (content: string) => Promise<void>;
@@ -266,16 +273,16 @@ import { updateUIDef, saveToStorageDef } from "./tool-definitions";
 import { useState } from "react";
 
 export function ChatWithClientTools() {
-  const [notification, setNotification] = useState(null);
+  const [notification, setNotification] = useState<{ message: string; type: string } | null>(null);
 
   // Create client implementations
-  const updateUI = updateUIDef.client((input) => {
+  const updateUI = updateUIDef.client((input: { message: string; type: string }) => {
     // ✅ input is fully typed!
     setNotification({ message: input.message, type: input.type });
     return { success: true };
   });
 
-  const saveToStorage = saveToStorageDef.client((input) => {
+  const saveToStorage = saveToStorageDef.client((input: { key: string; value: string }) => {
     localStorage.setItem(input.key, input.value);
     return { saved: true };
   });
@@ -294,8 +301,9 @@ export function ChatWithClientTools() {
         message.parts.map((part) => {
           if (part.type === "tool-call" && part.name === "updateUI") {
             // ✅ part.input and part.output are fully typed!
-            return <div>Tool executed: {part.name}</div>;
+            return <div key={part.id}>Tool executed: {part.name}</div>;
           }
+          return null;
         })
       )}
     </div>
@@ -311,8 +319,10 @@ Helper to create typed chat options (re-exported from `@tanstack/ai-client`).
 import { 
   clientTools, 
   createChatClientOptions, 
+  fetchServerSentEvents,
   type InferChatMessages 
 } from "@tanstack/ai-client";
+import { tool1, tool2 } from "./tools";
 
 // Create typed tools array (no 'as const' needed!)
 const tools = clientTools(tool1, tool2);

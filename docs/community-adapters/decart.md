@@ -21,7 +21,7 @@ npm install @decartai/tanstack-ai-adapter
 
 ## Basic Usage
 
-```typescript
+```typescript ignore
 import { generateImage } from "@tanstack/ai";
 import { decartImage } from "@decartai/tanstack-ai-adapter";
 
@@ -33,7 +33,7 @@ const result = await generateImage({
 
 ## Basic Usage - Custom API Key
 
-```typescript
+```typescript ignore
 import { generateImage } from "@tanstack/ai";
 import { createDecartImage } from "@decartai/tanstack-ai-adapter";
 
@@ -47,7 +47,7 @@ const result = await generateImage({
 
 ## Configuration
 
-```typescript
+```typescript ignore
 import { createDecartImage, type DecartImageConfig } from "@decartai/tanstack-ai-adapter";
 
 const config: Omit<DecartImageConfig, "apiKey"> = {
@@ -61,7 +61,7 @@ const adapter = createDecartImage("lucy-pro-t2i", process.env.DECART_API_KEY!, c
 
 Generate images with `lucy-pro-t2i`:
 
-```typescript
+```typescript ignore
 import { generateImage } from "@tanstack/ai";
 import { decartImage } from "@decartai/tanstack-ai-adapter";
 
@@ -75,7 +75,7 @@ console.log(result.images[0].b64Json);
 
 ### Image Model Options
 
-```typescript
+```typescript ignore
 const result = await generateImage({
   adapter: decartImage("lucy-pro-t2i"),
   prompt: "A portrait of a robot artist",
@@ -99,7 +99,7 @@ Video generation uses an async job/polling architecture.
 
 ### Creating a Video Job
 
-```typescript
+```typescript ignore
 import { generateVideo } from "@tanstack/ai";
 import { decartVideo } from "@decartai/tanstack-ai-adapter";
 
@@ -113,7 +113,7 @@ console.log("Job started:", jobId);
 
 ### Polling for Status
 
-```typescript
+```typescript ignore
 import { getVideoJobStatus } from "@tanstack/ai";
 import { decartVideo } from "@decartai/tanstack-ai-adapter";
 
@@ -131,7 +131,7 @@ if (status.status === "completed" && status.url) {
 
 ### Complete Example with Polling
 
-```typescript
+```typescript ignore
 import { generateVideo, getVideoJobStatus } from "@tanstack/ai";
 import { decartVideo } from "@decartai/tanstack-ai-adapter";
 
@@ -166,7 +166,7 @@ const videoUrl = await createVideo("A drone shot over a tropical beach");
 
 ### Video Model Options
 
-```typescript
+```typescript ignore
 const { jobId } = await generateVideo({
   adapter: decartVideo("lucy-pro-t2v"),
   prompt: "A timelapse of a blooming flower",

@@ -32,7 +32,7 @@ yarn add @tanstack/ai @tanstack/ai-vue @tanstack/ai-openai
 
 Vue apps typically use a separate backend. Here's an Express server that streams chat responses:
 
-```typescript
+```typescript ignore
 import express from 'express'
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'

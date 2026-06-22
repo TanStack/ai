@@ -25,11 +25,11 @@ You have a live [MCP client](./mcp) and want to do more than auto-discover tools
 
 Pass `toolDefinition()` instances to `client.tools([...])` to get Zod-validated, TypeScript-typed arguments ([Mode 2](./mcp#mode-2--explicit-definitions-clienttoolsdefs)), then spread the result into `chat()`'s `tools` option. You own the client, so you must close it — but **not before the stream is consumed**: `chat()` executes tools lazily while the response streams, so closing in a `finally` around the `return` would kill in-flight tool calls. Close in a middleware terminal hook instead (exactly one of `onFinish`/`onAbort`/`onError` fires per run).
 
-```ts
+```ts ignore
 // src/routes/api.chat.ts
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, toServerSentEventsResponse, toolDefinition } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai/adapters'
+import { openaiText } from '@tanstack/ai-openai'
 import { createMCPClient } from '@tanstack/ai-mcp'
 import { z } from 'zod'
 
@@ -78,12 +78,18 @@ export const Route = createFileRoute('/api/chat')({
 MCP resources are context documents (files, database records, web pages) the server exposes. Fetch them and inject them into `chat()` as content parts.
 
 ```ts
-import { mcpResourceToContentPart } from '@tanstack/ai-mcp'
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { createMCPClient, mcpResourceToContentPart } from '@tanstack/ai-mcp'
+
+const mcp = await createMCPClient({
+  transport: { type: 'http', url: process.env.MCP_URL! },
+})
 
 const resources = await mcp.resources()
 // resources: Array<{ uri: string; name: string; ... }>
 
-const readResult = await mcp.readResource(resources[0].uri)
+const readResult = await mcp.readResource(resources[0]!.uri)
 const parts = readResult.contents.map(mcpResourceToContentPart)
 
 // Inject as part of a user message
@@ -109,6 +115,11 @@ const stream = chat({
 ### Resource templates
 
 ```ts
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+const mcp = await createMCPClient({
+  transport: { type: 'http', url: process.env.MCP_URL! },
+})
 const templates = await mcp.resourceTemplates()
 // templates: Array<ResourceTemplate>
 ```
@@ -117,10 +128,10 @@ const templates = await mcp.resourceTemplates()
 
 MCP prompts are reusable message templates the server exposes. Fetch a prompt, convert it to `ModelMessage[]` with `mcpPromptToMessages`, and spread it into `chat()` to seed the conversation with server-defined context or instructions.
 
-```ts
+```ts ignore
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai/adapters'
+import { openaiText } from '@tanstack/ai-openai'
 import { createMCPClient, mcpPromptToMessages } from '@tanstack/ai-mcp'
 
 export const Route = createFileRoute('/api/chat')({
@@ -176,7 +187,14 @@ export const Route = createFileRoute('/api/chat')({
 
 When the chat run is cancelled (e.g. the user navigates away or an `AbortController` fires), in-flight MCP `callTool` requests are cancelled automatically. The abort signal from the chat run is threaded through `ToolExecutionContext.abortSignal` into each tool's execute function.
 
-```ts
+```ts fixture=ambient
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+const mcp = await createMCPClient({
+  transport: { type: 'http', url: process.env.MCP_URL! },
+})
 const controller = new AbortController()
 
 const stream = chat({
@@ -196,10 +214,10 @@ Here is a complete TanStack Start API route that connects to two MCP servers and
 
 **Server route (`src/routes/api.chat.ts`):**
 
-```ts
+```ts ignore
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai/adapters'
+import { openaiText } from '@tanstack/ai-openai'
 import { createMCPClients } from '@tanstack/ai-mcp'
 
 export const Route = createFileRoute('/api/chat')({
@@ -269,7 +287,8 @@ export function Chat() {
       <ul>
         {messages.map((m) => (
           <li key={m.id}>
-            <strong>{m.role}:</strong> {m.content}
+            <strong>{m.role}:</strong>{' '}
+            {m.parts.find((p) => p.type === 'text')?.content}
           </li>
         ))}
       </ul>

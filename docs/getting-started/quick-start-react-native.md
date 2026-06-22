@@ -48,7 +48,7 @@ Create a Hono route that owns the model, API key, and response format. The
 native app sends chat messages to this route; it never imports
 `@tanstack/ai-openai` and never receives `OPENAI_API_KEY`.
 
-```ts
+```ts ignore
 // server.ts
 import { serve } from '@hono/node-server'
 import { chat, toHttpResponse, toServerSentEventsResponse } from '@tanstack/ai'

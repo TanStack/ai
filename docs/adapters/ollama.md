@@ -102,7 +102,7 @@ export async function POST(request: Request) {
 
 ## Example: With Tools
 
-```typescript
+```typescript fixture=ambient
 import { chat, toolDefinition } from "@tanstack/ai";
 import { ollamaText } from "@tanstack/ai-ollama";
 import { z } from "zod";
@@ -133,9 +133,12 @@ const stream = chat({
 
 Ollama supports various provider-specific options. Unlike the other providers, Ollama nests its sampling and runner parameters inside an `options` object **within** `modelOptions` — `temperature`, `top_p`, and `num_predict` (the token-limit key) all live under `modelOptions.options`:
 
-```typescript
+```typescript fixture=ambient
+import { chat } from "@tanstack/ai";
+import { ollamaText } from "@tanstack/ai-ollama";
+
 const stream = chat({
-  adapter: ollamaText("llama3"),
+  adapter: ollamaText("llama3:latest"),
   messages,
   modelOptions: {
     options: {
@@ -157,7 +160,7 @@ const stream = chat({
 
 All sampling and runner parameters are nested under `modelOptions.options`:
 
-```typescript
+```typescript ignore
 modelOptions: {
   options: {
     // Sampling
@@ -195,7 +198,7 @@ modelOptions: {
 
 Summarize long text content locally:
 
-```typescript
+```typescript ignore
 import { summarize } from "@tanstack/ai";
 import { ollamaSummarize } from "@tanstack/ai-ollama";
 
@@ -241,6 +244,8 @@ The server runs on `http://localhost:11434` by default.
 ## Running on a Remote Server
 
 ```typescript
+import { createOllamaChat } from "@tanstack/ai-ollama";
+
 const adapter = createOllamaChat("llama3", "http://your-server:11434");
 ```
 

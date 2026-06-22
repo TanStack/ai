@@ -117,7 +117,7 @@ exactly once at the end of the entire run.
 
 ### Observing structured-output chunks
 
-```ts
+```ts ignore
 import { chat } from "@tanstack/ai";
 import type { ChatMiddleware } from "@tanstack/ai";
 
@@ -136,6 +136,7 @@ Use the `onStructuredOutputConfig` hook when you need to mutate the schema:
 
 ```ts
 import type { ChatMiddleware } from "@tanstack/ai";
+import { sharedDefs } from "./schema-defs";
 
 const injectDefs: ChatMiddleware = {
   name: "inject-defs",

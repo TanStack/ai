@@ -32,10 +32,13 @@ import {
   createChatClientOptions, 
   type InferChatMessages 
 } from "@tanstack/ai-client";
+import { updateUIDef } from "./tool-definitions";
+import { createSignal } from "solid-js";
 
 function ChatComponent() {
+  const [, setNotification] = createSignal<string | null>(null);
   // Create client tool implementations
-  const updateUI = updateUIDef.client((input) => {
+  const updateUI = updateUIDef.client((input: any) => {
     setNotification(input.message);
     return { success: true };
   });
@@ -81,6 +84,10 @@ Extends `ChatClientOptions` from `@tanstack/ai-client`:
 ### Returns
 
 ```typescript
+import type { Accessor } from "solid-js";
+import type { UIMessage } from "@tanstack/ai-solid";
+import type { ModelMessage } from "@tanstack/ai/client";
+
 interface UseChatReturn {
   messages: Accessor<UIMessage[]>;
   sendMessage: (content: string) => Promise<void>;
@@ -198,39 +205,40 @@ export function ChatWithApproval() {
       <For each={messages()}>
         {(message) => (
           <For each={message.parts}>
-            {(part) => (
-              <Show
-                when={
-                  part.type === "tool-call" &&
-                  part.state === "approval-requested" &&
-                  part.approval
-                }
-              >
-                <div>
-                  <p>Approve: {part.name}</p>
-                  <button
-                    onClick={() =>
-                      addToolApprovalResponse({
-                        id: part.approval!.id,
-                        approved: true,
-                      })
-                    }
-                  >
-                    Approve
-                  </button>
-                  <button
-                    onClick={() =>
-                      addToolApprovalResponse({
-                        id: part.approval!.id,
-                        approved: false,
-                      })
-                    }
-                  >
-                    Deny
-                  </button>
-                </div>
-              </Show>
-            )}
+            {(part) => {
+              if (
+                part.type === "tool-call" &&
+                part.state === "approval-requested" &&
+                part.approval
+              ) {
+                return (
+                  <div>
+                    <p>Approve: {part.name}</p>
+                    <button
+                      onClick={() =>
+                        addToolApprovalResponse({
+                          id: part.approval!.id,
+                          approved: true,
+                        })
+                      }
+                    >
+                      Approve
+                    </button>
+                    <button
+                      onClick={() =>
+                        addToolApprovalResponse({
+                          id: part.approval!.id,
+                          approved: false,
+                        })
+                      }
+                    >
+                      Deny
+                    </button>
+                  </div>
+                );
+              }
+              return null;
+            }}
           </For>
         )}
       </For>
@@ -252,16 +260,16 @@ import { updateUIDef, saveToStorageDef } from "./tool-definitions";
 import { createSignal, For } from "solid-js";
 
 export function ChatWithClientTools() {
-  const [notification, setNotification] = createSignal(null);
+  const [notification, setNotification] = createSignal<{ message: string; type: string } | null>(null);
 
   // Create client implementations
-  const updateUI = updateUIDef.client((input) => {
+  const updateUI = updateUIDef.client((input: any) => {
     // ✅ input is fully typed!
     setNotification({ message: input.message, type: input.type });
     return { success: true };
   });
 
-  const saveToStorage = saveToStorageDef.client((input) => {
+  const saveToStorage = saveToStorageDef.client((input: any) => {
     localStorage.setItem(input.key, input.value);
     return { saved: true };
   });
@@ -284,6 +292,7 @@ export function ChatWithClientTools() {
                 // ✅ part.input and part.output are fully typed!
                 return <div>Tool executed: {part.name}</div>;
               }
+              return null;
             }}
           </For>
         )}
@@ -303,6 +312,8 @@ import {
   createChatClientOptions, 
   type InferChatMessages 
 } from "@tanstack/ai-client";
+import { fetchServerSentEvents } from "@tanstack/ai-solid";
+import { tool1, tool2 } from "./tools";
 
 // Create typed tools array (no 'as const' needed!)
 const tools = clientTools(tool1, tool2);

@@ -32,9 +32,12 @@ import {
   createChatClientOptions,
   type InferChatMessages,
 } from "@tanstack/ai-client";
+import { updateUIDef } from "./tool-definitions";
+import { ref } from "vue";
+const notification = ref<{ message: string } | null>(null);
 
 // In <script setup>
-const updateUI = updateUIDef.client((input) => {
+const updateUI = updateUIDef.client((input: any) => {
   notification.value = input.message;
   return { success: true };
 });
@@ -78,6 +81,15 @@ Extends `ChatClientOptions` from `@tanstack/ai-client` (minus internal state cal
 ### Returns
 
 ```typescript
+import type { DeepReadonly, ShallowRef } from "vue";
+import type { UIMessage } from "@tanstack/ai-vue";
+import type { ModelMessage } from "@tanstack/ai/client";
+import type {
+  MultimodalContent,
+  ChatClientState,
+  ConnectionStatus,
+} from "@tanstack/ai-client";
+
 interface UseChatReturn {
   messages: DeepReadonly<ShallowRef<UIMessage[]>>;
   sendMessage: (content: string | MultimodalContent) => Promise<void>;
@@ -319,6 +331,8 @@ import {
   createChatClientOptions,
   type InferChatMessages,
 } from "@tanstack/ai-client";
+import { fetchServerSentEvents } from "@tanstack/ai-vue";
+import { tool1, tool2 } from "./tools";
 
 // Create typed tools array (no 'as const' needed!)
 const tools = clientTools(tool1, tool2);

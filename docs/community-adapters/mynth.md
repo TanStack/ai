@@ -50,7 +50,7 @@ If you need a key, create one in the [Mynth API keys dashboard](https://mynth.io
 
 ## Quick Start
 
-```ts
+```ts ignore
 import { generateImage } from "@tanstack/ai";
 import { mynthImage } from "@mynthio/tanstack-ai-adapter";
 
@@ -72,7 +72,7 @@ TanStack AI adapters are model-bound, so you choose the Mynth model when you cre
 
 Use `createMynthImage()` when you want to share config across multiple adapters:
 
-```ts
+```ts ignore
 import { generateImage } from "@tanstack/ai";
 import { createMynthImage } from "@mynthio/tanstack-ai-adapter";
 
@@ -91,7 +91,7 @@ console.log(result.images[0]?.url);
 
 You can still override shared config per adapter:
 
-```ts
+```ts ignore
 const adapter = mynth("auto", {
   baseUrl: "https://proxy.example.com",
 });
@@ -101,7 +101,7 @@ const adapter = mynth("auto", {
 
 Use TanStack's top-level fields for common options such as `prompt`, `numberOfImages`, and shorthand `size`. Use `modelOptions` for Mynth-specific options:
 
-```ts
+```ts ignore
 import { generateImage } from "@tanstack/ai";
 import { mynthImage } from "@mynthio/tanstack-ai-adapter";
 
@@ -150,7 +150,7 @@ Notes:
 
 The adapter exports both a runtime list and a type union for supported image models:
 
-```ts
+```ts ignore
 import {
   MYNTH_IMAGE_MODELS,
   type MynthImageModel,
@@ -171,7 +171,7 @@ Mynth currently supports model IDs across multiple providers, including `auto`, 
 
 This adapter also works with TanStack AI's streaming image workflow:
 
-```ts
+```ts ignore
 import { generateImage, toServerSentEventsResponse } from "@tanstack/ai";
 import { mynthImage } from "@mynthio/tanstack-ai-adapter";
 

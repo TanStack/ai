@@ -34,7 +34,7 @@ npm install @tanstack/ai-openrouter   # For OpenRouter via Gateway
 
 ## Basic Usage
 
-```typescript
+```typescript ignore
 import { chat, toHttpResponse } from "@tanstack/ai";
 import { createWorkersAiChat } from "@cloudflare/tanstack-ai";
 
@@ -58,7 +58,7 @@ The simplest way to use AI in a Cloudflare Worker. No API keys needed when using
 
 ### Chat
 
-```typescript
+```typescript ignore
 import { chat, toHttpResponse } from "@tanstack/ai";
 import { createWorkersAiChat } from "@cloudflare/tanstack-ai";
 
@@ -80,7 +80,7 @@ return toHttpResponse(response);
 
 If you're not running inside a Worker, use account ID and API key instead:
 
-```typescript
+```typescript ignore
 import { createWorkersAiChat } from "@cloudflare/tanstack-ai";
 
 const adapter = createWorkersAiChat(
@@ -94,7 +94,7 @@ const adapter = createWorkersAiChat(
 
 ### Image Generation
 
-```typescript
+```typescript ignore
 import { generateImage } from "@tanstack/ai";
 import { createWorkersAiImage } from "@cloudflare/tanstack-ai";
 
@@ -115,7 +115,7 @@ console.log(result.images[0].b64Json);
 
 Supports Whisper and Deepgram models:
 
-```typescript
+```typescript ignore
 import { generateTranscription } from "@tanstack/ai";
 import { createWorkersAiTranscription } from "@cloudflare/tanstack-ai";
 
@@ -137,7 +137,7 @@ Supported transcription models: `@cf/openai/whisper`, `@cf/openai/whisper-tiny-e
 
 ### Text-to-Speech
 
-```typescript
+```typescript ignore
 import { generateSpeech } from "@tanstack/ai";
 import { createWorkersAiTts } from "@cloudflare/tanstack-ai";
 
@@ -155,7 +155,7 @@ console.log(result.audio);
 
 ### Summarization
 
-```typescript
+```typescript ignore
 import { summarize } from "@tanstack/ai";
 import { createWorkersAiSummarize } from "@cloudflare/tanstack-ai";
 
@@ -177,7 +177,7 @@ Route AI requests through Cloudflare's AI Gateway for caching, rate limiting, an
 
 ### Workers AI through Gateway
 
-```typescript
+```typescript ignore
 import { createWorkersAiChat } from "@cloudflare/tanstack-ai";
 
 const adapter = createWorkersAiChat(
@@ -193,7 +193,7 @@ const adapter = createWorkersAiChat(
 
 Use the binding approach (recommended for Cloudflare Workers):
 
-```typescript
+```typescript ignore
 import {
   createOpenAiChat,
   createAnthropicChat,
@@ -221,7 +221,7 @@ const openrouter = createOpenRouterChat("openai/gpt-4o", {
 
 Or use credentials for non-Worker environments:
 
-```typescript
+```typescript ignore
 import { createOpenAiChat } from "@cloudflare/tanstack-ai";
 
 const adapter = createOpenAiChat("gpt-4o", {
@@ -236,7 +236,7 @@ const adapter = createOpenAiChat("gpt-4o", {
 
 Both binding and credentials modes support cache configuration:
 
-```typescript
+```typescript ignore
 const adapter = createOpenAiChat("gpt-4o", {
   binding: env.AI.gateway("my-gateway-id"),
   skipCache: false,

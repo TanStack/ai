@@ -27,9 +27,11 @@ TanStack AI ships ready-made middleware so you don't have to hand-roll the commo
 
 Caches tool call results based on tool name and arguments. When a tool is called with the same name and arguments as a previous call, the cached result is returned immediately without re-executing the tool.
 
-```typescript
+```typescript fixture=ambient
 import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
 import { toolCacheMiddleware } from "@tanstack/ai/middlewares";
+import { weatherTool, stockTool } from "./tools";
 
 const stream = chat({
   adapter: openaiText("gpt-5.5"),
@@ -65,6 +67,8 @@ const stream = chat({
 **Custom key function** — useful when you want to ignore certain arguments:
 
 ```typescript
+import { toolCacheMiddleware } from "@tanstack/ai/middlewares";
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -87,8 +91,10 @@ By default the cache lives in-memory and is scoped to a single `toolCacheMiddlew
 The storage interface:
 
 ```typescript
+import { type ToolCacheEntry, type ToolCacheStorage } from "@tanstack/ai/middlewares";
+
 // Implement this interface (exported from `@tanstack/ai/middlewares`):
-interface ToolCacheStorage {
+interface MyStorage extends ToolCacheStorage {
   getItem: (key: string) => ToolCacheEntry | undefined | Promise<ToolCacheEntry | undefined>;
   setItem: (key: string, value: ToolCacheEntry) => void | Promise<void>;
   deleteItem: (key: string) => void | Promise<void>;
@@ -101,7 +107,7 @@ All methods may return a `Promise` for async backends. The middleware handles TT
 
 **Redis example:**
 
-```typescript
+```typescript ignore
 import { createClient } from "redis";
 import { toolCacheMiddleware, type ToolCacheStorage } from "@tanstack/ai/middlewares";
 
@@ -131,6 +137,11 @@ const stream = chat({
 **Sharing a cache across requests:**
 
 ```typescript
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { toolCacheMiddleware, type ToolCacheStorage } from "@tanstack/ai/middlewares";
+import { globalCache, app, adapter } from "./server";
+import { weatherTool } from "./tools";
+
 // Create storage once, reuse across chat() calls
 const sharedStorage: ToolCacheStorage = {
   getItem: (key) => globalCache.get(key),
@@ -139,7 +150,7 @@ const sharedStorage: ToolCacheStorage = {
 };
 
 // Both requests share the same cache
-app.post("/api/chat", async (req) => {
+app.post("/api/chat", async (req: { body: { messages: unknown[] } }) => {
   const stream = chat({
     adapter,
     messages: req.body.messages,
@@ -154,8 +165,9 @@ app.post("/api/chat", async (req) => {
 
 Filters or transforms streamed text content as it flows through `onChunk`. Use it to redact sensitive data (SSNs, emails, API keys), enforce a profanity filter, or rewrite text on the fly. Rules are applied to `TEXT_MESSAGE_CONTENT` chunks; all other chunk types pass through untouched.
 
-```typescript
+```typescript fixture=ambient
 import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
 import { contentGuardMiddleware } from "@tanstack/ai/middlewares";
 
 const stream = chat({
@@ -201,7 +213,7 @@ const stream = chat({
 
 Emits vendor-neutral OpenTelemetry traces and metrics for every `chat()` call — a root span per call, a child span per agent-loop iteration, and a grandchild span per tool execution, all tagged with [GenAI semantic-convention attributes](https://opentelemetry.io/docs/specs/semconv/gen-ai/).
 
-```typescript
+```typescript ignore
 import { chat } from "@tanstack/ai";
 import { otelMiddleware } from "@tanstack/ai/middlewares/otel";
 import { trace, metrics } from "@opentelemetry/api";

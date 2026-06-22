@@ -159,9 +159,10 @@ The loop continues only while the model's finish reason is `tool_calls` (with pe
 
 By default the loop is bounded by `maxIterations(5)` — after five iterations it stops even if the model would keep calling tools. Override this with the `agentLoopStrategy` option:
 
-```typescript
-import { chat } from "@tanstack/ai";
-import { maxIterations } from "@tanstack/ai";
+```typescript fixture=ambient
+import { chat, maxIterations } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { getWeather, getClothingAdvice } from "./tools";
 
 const stream = chat({
   adapter: openaiText("gpt-5.5"),
@@ -178,14 +179,19 @@ Other built-in strategies:
 
 A strategy is just a function that receives `{ iterationCount, finishReason, messages }` and returns `true` to allow another iteration or `false` to stop, so you can also write your own:
 
-```typescript
+```typescript fixture=ambient
+import { chat, combineStrategies, maxIterations } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import type { AgentLoopState } from "@tanstack/ai";
+import { getWeather, getClothingAdvice } from "./tools";
+
 const stream = chat({
   adapter: openaiText("gpt-5.5"),
   messages,
   tools: [getWeather, getClothingAdvice],
   agentLoopStrategy: combineStrategies([
     maxIterations(10),
-    ({ messages }) => messages.length < 100,
+    ({ messages }: AgentLoopState) => messages.length < 100,
   ]),
 });
 ```

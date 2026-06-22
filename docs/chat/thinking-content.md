@@ -41,7 +41,7 @@ How you enable thinking depends on the provider.
 
 Pass the `thinking` option in `modelOptions` with `type: "enabled"` and a `budget_tokens` (minimum 1024). Keep `budget_tokens` below `modelOptions.max_tokens` so there is room for the visible response in addition to the thinking budget:
 
-```typescript
+```typescript fixture=ambient
 import { chat } from "@tanstack/ai";
 import { anthropicText } from "@tanstack/ai-anthropic";
 
@@ -60,7 +60,7 @@ const stream = chat({
 
 OpenAI o-series models (o1, o3, o3-mini, o3-pro) perform reasoning automatically. You can control the depth with the `reasoning` option:
 
-```typescript
+```typescript fixture=ambient
 import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
@@ -80,7 +80,10 @@ When `reasoning.summary` is set, the adapter streams reasoning summary text as t
 
 GPT-5 and later models also support reasoning. Their `reasoning.effort` accepts `"none" | "minimal" | "low" | "medium" | "high"`, and reasoning activates on any non-`none` value:
 
-```typescript
+```typescript fixture=ambient
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
 const stream = chat({
   adapter: openaiText("gpt-5.5"),
   messages,
@@ -95,7 +98,9 @@ const stream = chat({
 Thinking parts appear in `message.parts` just like text and tool calls. A common pattern is to render them in a collapsible element so they don't dominate the UI:
 
 ```tsx
-function MessageContent({ message }) {
+import type { UIMessage } from "@tanstack/ai-react";
+
+function MessageContent({ message }: { message: UIMessage }) {
   return (
     <div>
       {message.parts.map((part, idx) => {

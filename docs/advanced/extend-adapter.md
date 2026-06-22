@@ -53,7 +53,7 @@ const stream = chat({
 
 The `createModel` function provides a clean way to define custom models with full type inference:
 
-```typescript
+```typescript group=extend-adapter
 import { createModel } from '@tanstack/ai'
 
 // Arguments define name and input modalities
@@ -72,7 +72,7 @@ A custom model definition (`ExtendedModelDef`) has the required properties `name
 
 The positional form takes a model name and an `input` array specifying which content types your model supports:
 
-```typescript
+```typescript group=extend-adapter
 const models = [
   createModel('text-only-model', ['text']),
   createModel('multimodal-model', ['text', 'image', 'audio']),
@@ -113,6 +113,8 @@ const reasoner = createModel('my-reasoner', {
 import { createModel, extendAdapter } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
+const customModels = [createModel('my-fine-tuned-gpt4', ['text', 'image'])] as const
+
 const myOpenai = extendAdapter(openaiText, customModels)
 
 // Config parameter is preserved
@@ -126,7 +128,7 @@ const adapter = myOpenai('my-fine-tuned-gpt4', {
 
 The extended adapter provides full type safety:
 
-```typescript
+```typescript ignore
 import { extendAdapter, createModel } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
@@ -190,7 +192,7 @@ const adapter = proxyAdapter('llama-3.1-70b', {
 Adding type safety for your fine-tuned models:
 
 ```typescript
-import { createModel, extendAdapter } from '@tanstack/ai'
+import { chat, createModel, extendAdapter } from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 
 const fineTunedModels = [

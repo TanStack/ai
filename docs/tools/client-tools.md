@@ -103,7 +103,7 @@ To give the LLM access to client tools, pass the tool definitions (not implement
 // api/chat/route.ts
 import { chat, toServerSentEventsResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
-import { updateUIDef, saveToLocalStorageDef } from "@/tools/definitions";
+import { updateUIDef, saveToLocalStorageDef } from "./tools/definitions";
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
@@ -130,17 +130,19 @@ import {
   createChatClientOptions, 
   type InferChatMessages,
   type ToolCallPart,
+  type MessagePart,
 } from "@tanstack/ai-client";
-import { updateUIDef, saveToLocalStorageDef } from "@/tools/definitions";
+import { updateUIDef, saveToLocalStorageDef } from "./tools/definitions";
+import { showNotification } from "./notifications";
 
 // Step 1: Create client implementations (module scope)
-const updateUI = updateUIDef.client((input) => {
+const updateUI = updateUIDef.client((input: { message: string; type: "success" | "error" | "info" }) => {
   // Update UI state - fully typed!
   showNotification({ message: input.message, type: input.type });
   return { success: true };
 });
 
-const saveToLocalStorage = saveToLocalStorageDef.client((input) => {
+const saveToLocalStorage = saveToLocalStorageDef.client((input: { key: string; value: string }) => {
   localStorage.setItem(input.key, input.value);
   return { saved: true };
 });
@@ -173,7 +175,7 @@ function ChatComponent() {
 function MessageComponent({ message }: { message: ChatMessages[number] }) {
   return (
     <div>
-      {message.parts.map((part) => {
+      {message.parts.map((part: MessagePart) => {
         if (part.type === "text") {
           return <p>{part.content}</p>;
         }
@@ -191,6 +193,7 @@ function MessageComponent({ message }: { message: ChatMessages[number] }) {
             );
           }
         }
+        return null;
       })}
     </div>
   );
@@ -211,10 +214,13 @@ Client tools are **automatically executed** when the model calls them. The flow 
 
 Client tools can receive typed runtime context as their second argument. This context is local to the `ChatClient` or framework hook instance and is not serialized to the server.
 
-```typescript
+```typescript group=client-tools
 import { createChatClientOptions, clientTools } from "@tanstack/ai-client";
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import { toolDefinition } from "@tanstack/ai";
+import { toast } from "./toast";
+
+const activeProjectId = "";
 
 type ClientContext = {
   activeProjectId: string;
@@ -248,6 +254,10 @@ Use `context` for local browser dependencies. If the server also needs a value f
 The isomorphic architecture provides complete end-to-end type safety:
 
 ```typescript
+import type { UIMessage } from "@tanstack/ai-client";
+
+const messages: UIMessage[] = [];
+
 messages.forEach((message) => {
   message.parts.forEach((part) => {
     if (part.type === "tool-call" && part.name === "update_ui") {
@@ -308,6 +318,11 @@ function ToolCallDisplay({ part }: { part: ToolCallPart }) {
 Tools can be implemented for both server and client, enabling flexible execution:
 
 ```typescript
+import { toolDefinition, chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { z } from "zod";
+import { db } from "./db";
+
 // Define once
 const addToCartDef = toolDefinition({
   name: "add_to_cart",

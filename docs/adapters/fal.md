@@ -28,12 +28,14 @@ npm install @tanstack/ai-fal
 The fal adapter provides full type safety when you pass the model ID as a **string literal**. This gives you autocomplete for `size` and `modelOptions` specific to that model. Always use string literals — not variables — when creating adapters:
 
 ```typescript
+import { falImage } from "@tanstack/ai-fal";
+
 // Good — full type safety and autocomplete
 const adapter = falImage("fal-ai/z-image/turbo");
 
 // Bad — no type inference for model-specific options
 const modelId = "fal-ai/z-image/turbo";
-const adapter = falImage(modelId);
+const adapterNoTypeInference = falImage(modelId);
 ```
 
 You can also pass any string for new models that fal.ai hasn't provided types for yet — you just won't get type safety on those endpoints.
@@ -141,7 +143,7 @@ The fal adapter supports a flexible `size` paramater that maps either to `image_
 | aspect ratio & resolution | `"16:9_4K"` | `aspect_ratio: "16:9"`, `resolution: "4K"` |
 | aspect ratio only | `"16:9"` | `aspect_ratio: "16:9"` |
 
-```typescript
+```typescript ignore
 // Aspect ratio only
 size: "16:9"
 
@@ -177,7 +179,7 @@ const adapter = falVideo("fal-ai/kling-video/v2.6/pro/text-to-video");
 const job = await generateVideo({
   adapter,
   prompt: "A timelapse of a flower blooming",
-  size: "16:9_1080p",
+  size: "16:9",
   modelOptions: {
     duration: "5",
   },
@@ -234,6 +236,9 @@ console.log(result.contentType); // e.g. "audio/wav"
 Google's newest TTS model (`fal-ai/gemini-3.1-flash-tts`) supports 80+ languages and introduces **granular audio tags** for expressive control — you can embed speaker tags and style cues directly in the text.
 
 ```typescript
+import { generateSpeech } from "@tanstack/ai";
+import { falSpeech } from "@tanstack/ai-fal";
+
 const result = await generateSpeech({
   adapter: falSpeech("fal-ai/gemini-3.1-flash-tts"),
   text: "[warm, enthusiastic] Welcome to TanStack AI! [pause] Let's build something great.",
@@ -246,6 +251,9 @@ const result = await generateSpeech({
 ### ElevenLabs v3
 
 ```typescript
+import { generateSpeech } from "@tanstack/ai";
+import { falSpeech } from "@tanstack/ai-fal";
+
 const result = await generateSpeech({
   adapter: falSpeech("fal-ai/elevenlabs/tts/eleven-v3"),
   text: "Welcome to TanStack AI.",
@@ -283,7 +291,7 @@ for (const segment of result.segments ?? []) {
 
 Music and sound-effect generation uses `falAudio()` with the `generateAudio()` activity. Unlike TTS, the result is returned as a URL in `result.audio.url` (you can fetch it yourself if you need raw bytes).
 
-```typescript
+```typescript group=fal
 import { generateAudio } from "@tanstack/ai";
 import { falAudio } from "@tanstack/ai-fal";
 
@@ -296,7 +304,7 @@ const music = await generateAudio({
 console.log(music.audio.url);
 ```
 
-```typescript
+```typescript group=fal
 // DiffRhythm with explicit lyrics
 const lyrical = await generateAudio({
   adapter: falAudio("fal-ai/diffrhythm"),
@@ -307,7 +315,7 @@ const lyrical = await generateAudio({
 });
 ```
 
-```typescript
+```typescript group=fal
 // Sound effects
 const sfx = await generateAudio({
   adapter: falAudio("fal-ai/elevenlabs/sound-effects/v2"),

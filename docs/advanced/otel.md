@@ -109,7 +109,7 @@ By default, only metadata lands on spans. To record prompt and completion conten
 
 Pass a `redact` function to strip PII before anything is recorded:
 
-```ts
+```ts ignore
 otelMiddleware({
   tracer,
   captureContent: true,
@@ -133,7 +133,7 @@ All four extensions are optional. Each wraps user code in try/catch — a thrown
 
 Override default span names. `info.kind` is `'chat' | 'iteration' | 'tool'`.
 
-```ts
+```ts ignore
 otelMiddleware({
   tracer,
   spanNameFormatter: (info) =>
@@ -145,7 +145,7 @@ otelMiddleware({
 
 Add custom attributes to every span. Fires once per span.
 
-```ts
+```ts ignore
 otelMiddleware({
   tracer,
   attributeEnricher: () => ({
@@ -162,7 +162,7 @@ Mutate `SpanOptions` immediately before `tracer.startSpan(...)`. Useful for addi
 
 Fires just before every `span.end()`. Common uses: record custom events, emit per-tool metrics via your own `Meter`.
 
-```ts
+```ts ignore
 const toolDuration = meter.createHistogram('tool.duration')
 otelMiddleware({
   tracer,

@@ -167,7 +167,7 @@ Each activity is in its own module, so bundlers can eliminate unused ones.
 
 The tree-shakeable design doesn't sacrifice type safety. Each adapter provides full type safety for its supported models:
 
-```ts
+```ts ignore
 import { openaiText, type OpenAIChatModel } from '@tanstack/ai-openai'
 
 const adapter = openaiText('gpt-5.5')
@@ -254,7 +254,7 @@ Modern bundlers (Vite, Webpack, Rollup, esbuild) can easily eliminate unused cod
    packages. See [Quick Start: React Native](../getting-started/quick-start-react-native)
    for the server-only provider boundary and mobile transport setup.
 
-```ts
+```ts group=tree-shaking
 // ✅ Good - Only imports chat
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
@@ -277,7 +277,9 @@ Each adapter type implements a specific interface:
 
 All adapters have a `kind` property that indicates their type:
 
-```ts
+```ts group=tree-shaking
+import { openaiSummarize } from '@tanstack/ai-openai'
+
 const chatAdapter = openaiText('gpt-5.5')
 console.log(chatAdapter.kind) // 'text'
 

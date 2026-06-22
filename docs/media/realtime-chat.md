@@ -39,7 +39,7 @@ The realtime system follows the same adapter architecture as the rest of TanStac
 
 The server generates short-lived tokens so your API keys never reach the client:
 
-```typescript
+```typescript ignore
 import { realtimeToken } from '@tanstack/ai'
 import { openaiRealtimeToken } from '@tanstack/ai-openai'
 import { createServerFn } from '@tanstack/react-start'
@@ -183,6 +183,10 @@ VAD controls when the system detects that you've started and stopped speaking. T
 Set the VAD mode when creating the hook:
 
 ```typescript
+import { useRealtimeChat } from '@tanstack/ai-react'
+import { openaiRealtime } from '@tanstack/ai-openai'
+import { getToken } from './token'
+
 const { startListening, stopListening, vadMode, setVADMode } = useRealtimeChat({
   getToken,
   adapter: openaiRealtime(),
@@ -192,7 +196,7 @@ const { startListening, stopListening, vadMode, setVADMode } = useRealtimeChat({
 
 With `manual` VAD mode, use push-to-talk style interactions:
 
-```tsx
+```tsx ignore
 <button onMouseDown={startListening} onMouseUp={stopListening}>
   Hold to talk
 </button>
@@ -200,15 +204,20 @@ With `manual` VAD mode, use push-to-talk style interactions:
 
 You can switch VAD mode at runtime without reconnecting:
 
-```typescript
+```typescript ignore
 setVADMode('semantic')
 ```
 
 For semantic VAD, configure eagerness to control how long the model waits before deciding you've finished speaking:
 
 ```typescript
+import { useRealtimeChat } from '@tanstack/ai-react'
+import { openaiRealtime } from '@tanstack/ai-openai'
+import { getToken } from './token'
+
 const chat = useRealtimeChat({
-  // ...
+  getToken,
+  adapter: openaiRealtime(),
   vadMode: 'semantic',
   semanticEagerness: 'low', // waits longer before detecting end-of-speech
 })
@@ -220,6 +229,9 @@ Realtime sessions support client-side tools. Define tools using the standard `to
 
 ```typescript
 import { toolDefinition } from '@tanstack/ai'
+import { useRealtimeChat } from '@tanstack/ai-react'
+import { openaiRealtime } from '@tanstack/ai-openai'
+import { getToken } from './token'
 import { z } from 'zod'
 
 const getWeatherDef = toolDefinition({
@@ -241,7 +253,8 @@ const getWeather = getWeatherDef.client(async ({ location }) => {
 
 // Pass tools to the hook
 const chat = useRealtimeChat({
-  // ...
+  getToken,
+  adapter: openaiRealtime(),
   tools: [getWeather],
 })
 ```
@@ -253,7 +266,12 @@ The realtime client automatically executes tool calls and sends results back to 
 In addition to voice, you can send text messages and images:
 
 ```typescript
-const { sendText, sendImage } = useRealtimeChat({ /* ... */ })
+import { useRealtimeChat } from '@tanstack/ai-react'
+import { openaiRealtime } from '@tanstack/ai-openai'
+import { getToken } from './token'
+import { base64ImageData } from './assets'
+
+const { sendText, sendImage } = useRealtimeChat({ getToken, adapter: openaiRealtime() })
 
 // Send a text message
 sendText('What is the weather like today?')
@@ -267,6 +285,10 @@ sendImage(base64ImageData, 'image/png')
 `useRealtimeChat` exposes audio analysis data for building level meters, waveforms, and spectrum analyzers.
 
 ```typescript
+import { useRealtimeChat } from '@tanstack/ai-react'
+import { openaiRealtime } from '@tanstack/ai-openai'
+import { getToken } from './token'
+
 const {
   inputLevel,    // 0–1 normalized microphone level
   outputLevel,   // 0–1 normalized speaker level
@@ -274,14 +296,14 @@ const {
   getOutputFrequencyData,
   getInputTimeDomainData,  // Uint8Array — waveform samples for oscilloscope
   getOutputTimeDomainData,
-} = useRealtimeChat({ /* ... */ })
+} = useRealtimeChat({ getToken, adapter: openaiRealtime() })
 ```
 
 The `inputLevel` and `outputLevel` values update on every animation frame while connected, making them suitable for driving CSS animations or canvas visualizations.
 
 **Simple level meter:**
 
-```tsx
+```tsx ignore
 <div style={{ width: `${inputLevel * 100}%`, height: 4, background: 'green' }} />
 ```
 
@@ -306,7 +328,7 @@ function AudioIndicator({ level }: { level: number }) {
 
 **Spectrum analyzer using canvas:**
 
-```typescript
+```typescript ignore
 function drawSpectrum(canvas: HTMLCanvasElement) {
   const ctx = canvas.getContext('2d')!
   const draw = () => {
@@ -364,7 +386,12 @@ And these modes while connected:
 | `speaking` | AI is generating a response |
 
 ```typescript
-const { status, mode, error, connect, disconnect } = useRealtimeChat({ /* ... */ })
+import { useRealtimeChat } from '@tanstack/ai-react'
+import { openaiRealtime } from '@tanstack/ai-openai'
+import { getToken } from './token'
+import { useEffect } from 'react'
+
+const { status, mode, error, connect, disconnect } = useRealtimeChat({ getToken, adapter: openaiRealtime() })
 
 // Handle connection
 useEffect(() => {
@@ -379,7 +406,11 @@ useEffect(() => {
 Users can interrupt the AI while it's speaking:
 
 ```typescript
-const { interrupt, mode } = useRealtimeChat({ /* ... */ })
+import { useRealtimeChat } from '@tanstack/ai-react'
+import { openaiRealtime } from '@tanstack/ai-openai'
+import { getToken } from './token'
+
+const { interrupt, mode } = useRealtimeChat({ getToken, adapter: openaiRealtime() })
 
 // Programmatically interrupt
 if (mode === 'speaking') {
@@ -436,6 +467,8 @@ client.destroy()
 Realtime messages use a `parts`-based structure similar to `UIMessage`:
 
 ```typescript
+import type { RealtimeMessagePart } from '@tanstack/ai'
+
 interface RealtimeMessage {
   id: string
   role: 'user' | 'assistant'
@@ -460,9 +493,14 @@ Each part can be one of:
 Handle errors through the `onError` callback or the `error` state:
 
 ```typescript
+import { useRealtimeChat } from '@tanstack/ai-react'
+import { openaiRealtime } from '@tanstack/ai-openai'
+import { getToken } from './token'
+
 const { error } = useRealtimeChat({
-  // ...
-  onError: (err) => {
+  getToken,
+  adapter: openaiRealtime(),
+  onError: (err: Error) => {
     if (err.message.includes('Permission denied')) {
       alert('Microphone access is required for voice chat.')
     } else {

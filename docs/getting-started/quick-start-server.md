@@ -51,7 +51,7 @@ console.log(text)
 
 Here's an Express server that exposes a streaming chat endpoint using Server-Sent Events:
 
-```typescript
+```typescript ignore
 import express from 'express'
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
@@ -129,7 +129,7 @@ TanStack AI ships several ways to return a stream over HTTP:
 
 **`toHttpResponse()`** returns a `Response` using newline-delimited JSON instead of SSE. Pair it with `fetchHttpStream` on the client:
 
-```typescript
+```typescript fixture=ambient group=server-stream
 import { chat, toHttpResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
@@ -142,7 +142,7 @@ const response = toHttpResponse(stream)
 
 **Raw stream consumption** -- iterate the `AsyncIterable` directly with `for await`:
 
-```typescript
+```typescript ignore
 for await (const chunk of stream) {
   if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
     process.stdout.write(chunk.delta ?? '')

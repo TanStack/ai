@@ -415,9 +415,12 @@ function EmbeddingGenerator() {
 The `onResult` callback can transform what gets stored in `result`:
 
 ```tsx
+import { useGenerateImage, fetchServerSentEvents } from '@tanstack/ai-react'
+import type { ImageGenerationResult } from '@tanstack/ai'
+
 const { result } = useGenerateImage({
   connection: fetchServerSentEvents('/api/generate/image'),
-  onResult: (raw) => raw.images.map((img) => img.url || img.b64Json),
+  onResult: (raw: ImageGenerationResult) => raw.images.map((img) => img.url || img.b64Json),
 })
 // result is now string[] instead of ImageGenerationResult
 ```

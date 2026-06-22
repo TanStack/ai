@@ -54,7 +54,10 @@ const validCall = chat({
 
 ### ❌ Incorrect Usage
 
-```typescript
+```typescript ignore
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
 // ❌ gpt-4-turbo does NOT support structured outputs - `text` is rejected
 const invalidCall = chat({
   adapter: openaiText("gpt-4-turbo"),

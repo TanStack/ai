@@ -33,14 +33,16 @@ const adapters = {
   openai: () => openaiText('gpt-5.5'),  // ✅ Autocomplete!
 }
 
-// In your request handler:
-const body = await request.json()
-const provider: Provider = body.forwardedProps?.provider || 'openai'
+async function handleRequest(request: Request) {
+  // In your request handler:
+  const body = await request.json()
+  const provider: Provider = body.forwardedProps?.provider || 'openai'
 
-const stream = chat({
-  adapter: adapters[provider](),
-  messages: body.messages,
-})
+  const stream = chat({
+    adapter: adapters[provider](),
+    messages: body.messages,
+  })
+}
 ```
 
 ## Why This Works
@@ -48,9 +50,11 @@ const stream = chat({
 Each adapter factory function accepts a model name as its first argument and returns a fully typed adapter:
 
 ```typescript
+import { openaiText, OpenAITextAdapter } from '@tanstack/ai-openai'
+
 // These are equivalent:
 const adapter1 = openaiText('gpt-5.5')
-const adapter2 = new OpenAITextAdapter({ apiKey: process.env.OPENAI_API_KEY }, 'gpt-5.5')
+const adapter2 = new OpenAITextAdapter({ apiKey: process.env.OPENAI_API_KEY! }, 'gpt-5.5')
 
 // The model is stored on the adapter
 console.log(adapter1.model) // 'gpt-5.5'
@@ -66,7 +70,7 @@ When you pass an adapter to `chat()`, it uses the model from `adapter.model`. Th
 
 Here's a complete example showing a multi-provider chat API:
 
-```typescript
+```typescript ignore
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, maxIterations, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
@@ -119,7 +123,10 @@ import { generateImage } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 import { geminiImage } from '@tanstack/ai-gemini'
 
-const imageAdapters = {
+type ImageProvider = 'openai' | 'gemini'
+declare const provider: ImageProvider
+
+const imageAdapters: Record<ImageProvider, () => ReturnType<typeof openaiImage | typeof geminiImage>> = {
   openai: () => openaiImage('gpt-image-1'),
   gemini: () => geminiImage('gemini-3.1-flash-image-preview'),
 }
@@ -141,7 +148,11 @@ import { summarize } from '@tanstack/ai'
 import { openaiSummarize } from '@tanstack/ai-openai'
 import { anthropicSummarize } from '@tanstack/ai-anthropic'
 
-const summarizeAdapters = {
+type SummarizeProvider = 'openai' | 'anthropic'
+declare const provider: SummarizeProvider
+declare const longDocument: string
+
+const summarizeAdapters: Record<SummarizeProvider, () => ReturnType<typeof openaiSummarize | typeof anthropicSummarize>> = {
   openai: () => openaiSummarize('gpt-5.4-mini'),
   anthropic: () => anthropicSummarize('claude-sonnet-4-6'),
 }
@@ -161,7 +172,7 @@ If you have existing code using switch statements, here's how to migrate:
 
 ### Before
 
-```typescript
+```typescript ignore
 let adapter
 let model
 
@@ -186,7 +197,14 @@ const stream = chat({
 
 ### After
 
-```typescript
+```typescript fixture=ambient
+import { chat } from '@tanstack/ai'
+import { anthropicText } from '@tanstack/ai-anthropic'
+import { openaiText } from '@tanstack/ai-openai'
+
+type AfterProvider = 'openai' | 'anthropic'
+declare const provider: AfterProvider
+
 const adapters = {
   anthropic: () => anthropicText('claude-sonnet-4-6'),
   openai: () => openaiText('gpt-5.5'),

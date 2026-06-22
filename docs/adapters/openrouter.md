@@ -52,7 +52,7 @@ const adapter = createOpenRouterText(
 
 OpenRouter provides access to 300+ models from various providers. Models use the format `provider/model-name`:
 
-```typescript
+```text
 model: "openai/gpt-5.1"
 model: "anthropic/claude-sonnet-4.5"
 model: "google/gemini-3.1-pro-preview"
@@ -82,7 +82,7 @@ export async function POST(request: Request) {
 
 ## Example: With Tools
 
-```typescript
+```typescript fixture=ambient
 import { chat, toolDefinition } from "@tanstack/ai";
 import { openRouterText } from "@tanstack/ai-openrouter";
 import { z } from "zod"; 
@@ -120,15 +120,18 @@ OPENROUTER_API_KEY=sk-or-...
 
 OpenRouter can automatically route requests to the best available provider:
 
-```typescript
+```typescript fixture=ambient
+import { chat } from "@tanstack/ai";
+import { openRouterText } from "@tanstack/ai-openrouter";
+
 const stream = chat({
   adapter: openRouterText("openrouter/auto"),
   messages,
   modelOptions: {
     models: [
-      "openai/gpt-4o",
-      "anthropic/claude-3.5-sonnet",
-      "google/gemini-pro",
+      "openai/gpt-5.5",
+      "anthropic/claude-sonnet-4.5",
+      "google/gemini-3.1-pro-preview",
     ],
   },
 });
@@ -138,9 +141,12 @@ const stream = chat({
 
 OpenRouter supports various provider-specific options. Sampling parameters live here too — `temperature`, `topP`, and `maxCompletionTokens` (OpenRouter's token-limit key for the chat adapter) — rather than as root-level props on `chat()`:
 
-```typescript
+```typescript fixture=ambient
+import { chat } from "@tanstack/ai";
+import { openRouterText } from "@tanstack/ai-openrouter";
+
 const stream = chat({
-  adapter: openRouterText("openai/gpt-5"),
+  adapter: openRouterText("anthropic/claude-sonnet-4.5"),
   messages,
   modelOptions: {
     temperature: 0.7,
@@ -199,14 +205,18 @@ OpenRouter's [Usage Accounting](https://openrouter.ai/docs/use-cases/usage-accou
 docs for the meaning and units of these fields.
 
 ```typescript
-import { chat } from "@tanstack/ai";
+import { chat, type RunFinishedEvent, type StreamChunk } from "@tanstack/ai";
 import { openRouterText } from "@tanstack/ai-openrouter";
+
+function isRunFinished(chunk: StreamChunk): chunk is RunFinishedEvent {
+  return "finishReason" in chunk;
+}
 
 for await (const chunk of chat({
   adapter: openRouterText("openai/gpt-5"),
   messages: [{ role: "user", content: "Hello!" }],
 })) {
-  if (chunk.type === "RUN_FINISHED") {
+  if (isRunFinished(chunk)) {
     console.log("cost:", chunk.usage?.cost);
     console.log("breakdown:", chunk.usage?.costDetails);
   }

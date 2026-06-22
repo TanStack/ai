@@ -47,7 +47,10 @@ Every internal event now prints to the console with a `[tanstack-ai:<category>]`
 
 Pass a `DebugConfig` object instead of `true`. Every unspecified category defaults to `true`, so toggle by setting specific flags to `false`:
 
-```typescript
+```typescript fixture=ambient
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
 chat({
   adapter: openaiText("gpt-4o"),
   messages,
@@ -57,7 +60,10 @@ chat({
 
 If you want to see ONLY a specific set of categories, set the rest to `false` explicitly. Errors default to `true` — keep them on unless you really want total silence:
 
-```typescript
+```typescript fixture=ambient
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
 chat({
   adapter: openaiText("gpt-4o"),
   messages,
@@ -78,7 +84,7 @@ chat({
 
 Pass a `Logger` implementation and all debug output flows through it instead of `console`:
 
-```typescript
+```typescript ignore
 import type { Logger } from "@tanstack/ai";
 import pino from "pino";
 
@@ -109,7 +115,7 @@ If your `Logger` implementation throws — a cyclic-meta `JSON.stringify`, a tra
 
 If you need to know when your own logger is failing, guard inside your implementation:
 
-```typescript
+```typescript ignore
 const logger: Logger = {
   debug: (msg, meta) => {
     try {
@@ -140,7 +146,10 @@ const logger: Logger = {
 
 Errors flow through the logger unconditionally — even when you omit `debug`:
 
-```typescript
+```typescript fixture=ambient
+import { chat } from "@tanstack/ai";
+import { adapter } from "./server";
+
 chat({ adapter, messages }); // still prints [tanstack-ai:errors] ... on failure
 ```
 
@@ -151,6 +160,20 @@ To fully silence (including errors), set `debug: false` or `debug: { errors: fal
 The same `debug` option works on every activity:
 
 ```typescript
+import {
+  summarize,
+  generateImage,
+  generateSpeech,
+  generateAudio,
+  generateTranscription,
+  type Logger,
+} from "@tanstack/ai";
+import { adapter } from "./server";
+import { logger } from "./logger";
+
+declare const text: string;
+declare const audio: File;
+
 summarize({ adapter, text, debug: true });
 generateImage({ adapter, prompt: "a cat", debug: { logger } });
 generateSpeech({ adapter, text, debug: { request: true } });

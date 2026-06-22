@@ -31,10 +31,13 @@ import {
   createChatClientOptions, 
   type InferChatMessages 
 } from "@tanstack/ai-client";
+import { updateUIDef } from "./tool-definitions";
+import { useState } from "preact/hooks";
 
 function ChatComponent() {
+  const [, setNotification] = useState<string | null>(null);
   // Create client tool implementations
-  const updateUI = updateUIDef.client((input) => {
+  const updateUI = updateUIDef.client((input: any) => {
     setNotification(input.message);
     return { success: true };
   });
@@ -80,6 +83,9 @@ Extends `ChatClientOptions` from `@tanstack/ai-client`:
 ### Returns
 
 ```typescript
+import type { UIMessage } from "@tanstack/ai-preact";
+import type { ModelMessage } from "@tanstack/ai/client";
+
 interface UseChatReturn {
   messages: UIMessage[];
   sendMessage: (content: string) => Promise<void>;
@@ -130,7 +136,7 @@ export function Chat() {
     connection: fetchServerSentEvents("/api/chat"),
   });
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: Event) => {
     e.preventDefault();
     if (input.trim() && !isLoading) {
       sendMessage(input);
@@ -241,16 +247,16 @@ import { updateUIDef, saveToStorageDef } from "./tool-definitions";
 import { useState } from "preact/hooks";
 
 export function ChatWithClientTools() {
-  const [notification, setNotification] = useState(null);
+  const [notification, setNotification] = useState<{ message: string; type: string } | null>(null);
 
   // Create client implementations
-  const updateUI = updateUIDef.client((input) => {
+  const updateUI = updateUIDef.client((input: any) => {
     // ✅ input is fully typed!
     setNotification({ message: input.message, type: input.type });
     return { success: true };
   });
 
-  const saveToStorage = saveToStorageDef.client((input) => {
+  const saveToStorage = saveToStorageDef.client((input: any) => {
     localStorage.setItem(input.key, input.value);
     return { saved: true };
   });
@@ -271,6 +277,7 @@ export function ChatWithClientTools() {
             // ✅ part.input and part.output are fully typed!
             return <div>Tool executed: {part.name}</div>;
           }
+          return null;
         })
       )}
     </div>
@@ -288,6 +295,8 @@ import {
   createChatClientOptions, 
   type InferChatMessages 
 } from "@tanstack/ai-client";
+import { fetchServerSentEvents } from "@tanstack/ai-preact";
+import { tool1, tool2 } from "./tools";
 
 // Create typed tools array (no 'as const' needed!)
 const tools = clientTools(tool1, tool2);

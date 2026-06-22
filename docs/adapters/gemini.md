@@ -58,7 +58,9 @@ const stream = chat({
 import { createGeminiChat, type GeminiTextConfig } from "@tanstack/ai-gemini";
 
 const config: Omit<GeminiTextConfig, "apiKey"> = {
-  baseURL: "https://generativelanguage.googleapis.com/v1beta", // Optional
+  httpOptions: {
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta", // Optional
+  },
 };
 
 const adapter = createGeminiChat("gemini-3.1-pro-preview", process.env.GEMINI_API_KEY!, config);
@@ -85,7 +87,7 @@ export async function POST(request: Request) {
 
 ## Example: With Tools
 
-```typescript
+```typescript fixture=ambient
 import { chat, toolDefinition } from "@tanstack/ai";
 import { geminiText } from "@tanstack/ai-gemini";
 import { z } from "zod";
@@ -120,7 +122,7 @@ The `geminiTextInteractions` adapter routes through `client.interactions.create`
 
 ### Basic Usage
 
-```typescript
+```typescript ignore
 import { chat } from "@tanstack/ai";
 import {
   geminiTextInteractions,
@@ -252,7 +254,8 @@ The full working example is in [`examples/ts-react-chat`](https://github.com/Tan
 
 The adapter exposes Interactions-specific options on `modelOptions`:
 
-```typescript
+```typescript fixture=ambient
+import { chat } from "@tanstack/ai";
 import { geminiTextInteractions } from "@tanstack/ai-gemini/experimental";
 
 const stream = chat({
@@ -271,7 +274,7 @@ const stream = chat({
 
     // snake_case generation config distinct from geminiText's camelCase one.
     generation_config: {
-      thinking_level: "LOW",
+      thinking_level: "low",
       thinking_summaries: "auto",
       stop_sequences: ["<done>"],
     },
@@ -285,7 +288,7 @@ const stream = chat({
 
 The server's interaction id arrives as an AG-UI `CUSTOM` event emitted just before `RUN_FINISHED`:
 
-```typescript
+```typescript ignore
 for await (const chunk of stream) {
   if (chunk.type === "CUSTOM" && chunk.name === "gemini.interactionId") {
     const id = (chunk.value as { interactionId: string }).interactionId;
@@ -309,7 +312,10 @@ for await (const chunk of stream) {
 
 Gemini supports various model-specific options. Sampling parameters live here too — `temperature`, `topP`, and `maxOutputTokens` — rather than as root-level props on `chat()`:
 
-```typescript
+```typescript fixture=ambient
+import { chat } from "@tanstack/ai";
+import { geminiText } from "@tanstack/ai-gemini";
+
 const stream = chat({
   adapter: geminiText("gemini-3.1-pro-preview"),
   messages,
@@ -329,7 +335,7 @@ const stream = chat({
 
 Enable thinking for models that support it:
 
-```typescript
+```typescript ignore
 modelOptions: {
   thinking: {
     includeThoughts: true,
@@ -341,7 +347,7 @@ modelOptions: {
 
 Configure structured output format:
 
-```typescript
+```typescript ignore
 modelOptions: {
   responseMimeType: "application/json",
 }
@@ -413,7 +419,7 @@ console.log(result.images);
 
 Gemini native image models use a template literal size format combining aspect ratio and resolution tier:
 
-```typescript
+```typescript ignore
 // Format: "aspectRatio_resolution"
 size: "16:9_4K"
 size: "1:1_2K"
@@ -438,6 +444,9 @@ Imagen models use WIDTHxHEIGHT format, which maps to aspect ratios internally:
 Alternatively, you can specify the aspect ratio directly in Model Options:
 
 ```typescript
+import { generateImage } from "@tanstack/ai";
+import { geminiImage } from "@tanstack/ai-gemini";
+
 const result = await generateImage({
   adapter: geminiImage("imagen-4.0-generate-001"),
   prompt: "A landscape photo",
@@ -449,7 +458,10 @@ const result = await generateImage({
 
 ### Image Model Options
 
-```typescript
+```typescript ignore
+import { generateImage } from "@tanstack/ai";
+import { geminiImage } from "@tanstack/ai-gemini";
+
 const result = await generateImage({
   adapter: geminiImage("imagen-4.0-generate-001"),
   prompt: "...",
@@ -642,7 +654,7 @@ A retrieval-augmented variant of Google Search that returns ranked passages
 from the web with configurable dynamic retrieval mode. Pass an optional
 `GoogleSearchRetrieval` config.
 
-```typescript
+```typescript ignore
 import { chat } from "@tanstack/ai";
 import { geminiText } from "@tanstack/ai-gemini";
 import { googleSearchRetrievalTool } from "@tanstack/ai-gemini/tools";
@@ -672,7 +684,7 @@ import { geminiText } from "@tanstack/ai-gemini";
 import { googleMapsTool } from "@tanstack/ai-gemini/tools";
 
 const stream = chat({
-  adapter: geminiText("gemini-3.1-pro-preview"),
+  adapter: geminiText("gemini-2.5-pro"),
   messages: [{ role: "user", content: "Find coffee shops near Union Square, SF" }],
   tools: [googleMapsTool()],
 });
@@ -705,7 +717,7 @@ Allows Gemini to observe a virtual desktop via screenshots and interact with
 it using predefined computer-use functions. Provide the `environment` and
 optionally restrict callable functions via `excludedPredefinedFunctions`.
 
-```typescript
+```typescript ignore
 import { chat } from "@tanstack/ai";
 import { geminiText } from "@tanstack/ai-gemini";
 import { computerUseTool } from "@tanstack/ai-gemini/tools";

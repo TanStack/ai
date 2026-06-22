@@ -44,6 +44,9 @@ importers:
       happy-dom:
         specifier: ^20.0.10
         version: 20.0.11
+      kiira:
+        specifier: 0.4.1
+        version: 0.4.1
       knip:
         specifier: ^5.70.2
         version: 5.73.4(@types/node@24.10.3)(typescript@5.9.3)
@@ -10999,6 +11002,13 @@ packages:
 
   keyv@4.5.4:
     resolution: {integrity: sha512-oxVHkHR/EJf2CNXnWxRLW6mg7JyCCUcG0DtEGmL2ctUo1PNTin1PUil+r/+4r5MpVgC/fn1kjsx7mjSujKqIpw==}
+
+  kiira-core@0.4.0:
+    resolution: {integrity: sha512-HjXYknBeKsqkhq4AaEu72IuUScmayfKESoUVs7x2NEwlR0PDidr8QYrFIJT4VUtubmaVYpQQTDiMIM6ZrnZ69Q==}
+
+  kiira@0.4.1:
+    resolution: {integrity: sha512-rACKP7nU9eeORGWxRF7jBI4UQbOklHKJW0rtawTW/Mt/b5JDx/Gj3pLnfP26F1rJV93EmzzGn3Qcv5DXzqf7/Q==}
+    hasBin: true
 
   kind-of@6.0.3:
     resolution: {integrity: sha512-dcS1ul+9tmeD95T+x28/ehLgd9mENa3LsvDTtzm3vyBEO7RPptvAD+t44WVXaUjTBRcrpFeFlC8WCruUR456hw==}
@@ -24834,6 +24844,16 @@ snapshots:
   keyv@4.5.4:
     dependencies:
       json-buffer: 3.0.1
+
+  kiira-core@0.4.0:
+    dependencies:
+      jiti: 2.6.1
+      typescript: 5.9.3
+
+  kiira@0.4.1:
+    dependencies:
+      chalk: 5.6.2
+      kiira-core: 0.4.0
 
   kind-of@6.0.3: {}
 

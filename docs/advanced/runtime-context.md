@@ -28,8 +28,11 @@ The source of truth is:
 
 This means the context value is the implementation detail you provide at runtime, while tools and middleware are the contract. TanStack AI infers the required context from every typed tool and middleware in the call, merges those requirements, and checks your `context` option against the result.
 
-```typescript
-import { chat, toolDefinition, type ChatMiddleware } from "@tanstack/ai";
+```typescript fixture=ambient
+import { chat, toolDefinition, type ChatMiddleware, type AnyTextAdapter } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+declare const adapter: AnyTextAdapter;
 
 type UserContext = {
   userId: string;
@@ -117,6 +120,7 @@ import {
 } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { z } from "zod";
+import { requireUser, db } from "./auth";
 
 type AppContext = {
   userId: string;
@@ -177,7 +181,7 @@ When any tool or middleware in a `chat()` call declares a concrete context type,
 
 Client runtime context is local to `ChatClient` and framework hooks. It is passed to client tool implementations and is not serialized to the server.
 
-```typescript
+```typescript group=runtime-context
 import { createChatClientOptions, clientTools } from "@tanstack/ai-client";
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import { toolDefinition } from "@tanstack/ai";
@@ -213,7 +217,9 @@ Use client context for local dependencies only. Do not put values there expectin
 
 To send serializable client data to the server, use `forwardedProps`, validate it in your route, and explicitly map it into the server runtime context.
 
-```typescript
+```typescript group=runtime-context
+declare const selectedTenantId: string;
+declare const clientRuntimeContext: ClientContext;
 // Client
 useChat({
   connection: fetchServerSentEvents("/api/chat"),
@@ -230,7 +236,13 @@ import {
   chat,
   chatParamsFromRequest,
   toServerSentEventsResponse,
+  type AnyTextAdapter,
+  type AnyTool,
 } from "@tanstack/ai";
+import { requireUser } from "./auth";
+
+declare const adapter: AnyTextAdapter;
+declare const tools: AnyTool[];
 
 type AppContext = {
   userId: string;
@@ -269,6 +281,13 @@ AG-UI also defines `RunAgentInput.context`, usually as protocol-level context en
 TanStack AI does not automatically copy AG-UI `params.aguiContext` into runtime context. If you want to use AG-UI context values, validate and map them yourself. `params.context` is a deprecated alias of `params.aguiContext` kept for backward compatibility.
 
 ```typescript
+import { chat, chatParamsFromRequest, type AnyTextAdapter, type AnyTool } from "@tanstack/ai";
+import { buildRuntimeContextFrom } from "./context";
+
+declare const request: Request;
+declare const adapter: AnyTextAdapter;
+declare const tools: AnyTool[];
+
 const params = await chatParamsFromRequest(request);
 
 const stream = chat({

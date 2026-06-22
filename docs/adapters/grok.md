@@ -78,7 +78,7 @@ export async function POST(request: Request) {
 
 ## Example: With Tools
 
-```typescript
+```typescript fixture=ambient
 import { chat, toolDefinition } from "@tanstack/ai";
 import { grokText } from "@tanstack/ai-grok";
 import { z } from "zod";
@@ -107,7 +107,10 @@ const stream = chat({
 
 Grok supports xAI Responses API options. Sampling parameters live here too — `temperature`, `top_p`, and `max_output_tokens` — rather than as root-level props on `chat()`:
 
-```typescript
+```typescript fixture=ambient
+import { chat } from "@tanstack/ai";
+import { grokText } from "@tanstack/ai-grok";
+
 const stream = chat({
   adapter: grokText("grok-build-0.1"),
   messages,
@@ -163,6 +166,9 @@ are aspect-ratio sized — `size` takes an `aspectRatio_resolution` template
 like `"16:9_2k"` (the `_2k` suffix is optional):
 
 ```typescript
+import { generateImage } from "@tanstack/ai";
+import { grokImage } from "@tanstack/ai-grok";
+
 const result = await generateImage({
   adapter: grokImage("grok-imagine-image"),
   prompt: "A futuristic cityscape at sunset",
@@ -179,6 +185,9 @@ there is no in-prompt referencing syntax; write the prompt naturally and
 your text is sent verbatim:
 
 ```typescript
+import { generateImage } from "@tanstack/ai";
+import { grokImage } from "@tanstack/ai-grok";
+
 const result = await generateImage({
   adapter: grokImage("grok-imagine-image"),
   prompt: [
@@ -228,6 +237,7 @@ Transcribe audio with Grok STT:
 ```typescript
 import { generateTranscription } from "@tanstack/ai";
 import { grokTranscription } from "@tanstack/ai-grok";
+import { audioFile } from "./audio";
 
 const result = await generateTranscription({
   adapter: grokTranscription("grok-stt"),

@@ -75,12 +75,13 @@ pnpm add @tanstack/ai-code-mode-skills
 
 ### Usage
 
-```typescript
+```typescript fixture=ambient
 import { chat, maxIterations, toServerSentEventsStream } from '@tanstack/ai'
 import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
 import { codeModeWithSkills } from '@tanstack/ai-code-mode-skills'
 import { createFileSkillStorage } from '@tanstack/ai-code-mode-skills/storage'
 import { openaiText } from '@tanstack/ai-openai'
+import { myTool1, myTool2 } from './tools'
 
 const storage = createFileSkillStorage({ directory: './.skills' })
 const driver = createNodeIsolateDriver()
@@ -102,7 +103,7 @@ const { toolsRegistry, systemPrompt, selectedSkills } = await codeModeWithSkills
 
 const stream = chat({
   adapter: openaiText('gpt-4o'),  // strong model for reasoning
-  toolRegistry: toolsRegistry,
+  tools: toolsRegistry.getTools(),
   messages,
   systemPrompts: ['You are a helpful assistant.', systemPrompt],
   agentLoopStrategy: maxIterations(15),
@@ -113,7 +114,7 @@ const stream = chat({
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `toolsRegistry` | `ToolRegistry` | Mutable registry containing all tools. Pass to `chat()` via `toolRegistry`. |
+| `toolsRegistry` | `ToolRegistry` | Mutable registry containing all tools. Pass to `chat()` via `tools: toolsRegistry.getTools()`. |
 | `systemPrompt` | `string` | Combined Code Mode + skill library documentation. |
 | `selectedSkills` | `Array<Skill>` | Skills the selection model chose for this conversation. |
 
@@ -131,7 +132,7 @@ The registry is populated with:
 
 If you want full control — for example, loading all skills instead of using LLM-based selection — use the lower-level functions directly. This is the approach used in the `ts-code-mode-web` example.
 
-```typescript
+```typescript fixture=ambient
 import { chat, maxIterations } from '@tanstack/ai'
 import { createCodeMode } from '@tanstack/ai-code-mode'
 import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
@@ -142,6 +143,8 @@ import {
   skillsToTools,
 } from '@tanstack/ai-code-mode-skills'
 import { createFileSkillStorage } from '@tanstack/ai-code-mode-skills/storage'
+import { openaiText } from '@tanstack/ai-openai'
+import { myTool1, myTool2, BASE_PROMPT } from './tools'
 
 const trustStrategy = createAlwaysTrustedStrategy()
 const storage = createFileSkillStorage({
@@ -212,7 +215,9 @@ reach for the subpath in a Node runtime.
 
 ```typescript
 import { createFileSkillStorage } from '@tanstack/ai-code-mode-skills/storage'
+import { createDefaultTrustStrategy } from '@tanstack/ai-code-mode-skills'
 
+const trustStrategy = createDefaultTrustStrategy()
 const storage = createFileSkillStorage({
   directory: './.skills',
   trustStrategy,  // optional, defaults to createDefaultTrustStrategy()
@@ -262,7 +267,7 @@ Both implementations satisfy this interface:
 
 Skills start untrusted and earn trust through successful executions. The trust level is metadata only — it does not currently gate execution. Four built-in strategies are available:
 
-```typescript
+```typescript group=code-mode-with-skills
 import {
   createDefaultTrustStrategy,
   createAlwaysTrustedStrategy,
@@ -278,7 +283,7 @@ import {
 | **Always trusted** | `trusted` | — | — |
 | **Custom** | Configurable | Configurable | Configurable |
 
-```typescript
+```typescript group=code-mode-with-skills
 const strategy = createCustomTrustStrategy({
   initialLevel: 'untrusted',
   provisionalThreshold: { executions: 5, successRate: 0.85 },

@@ -78,7 +78,7 @@ const stream = chat({
     role: 'user',
     content: [
       { type: 'text', content: 'What is in this image?' },
-      { type: 'image', source: { type: 'url', url: 'https://example.com/photo.jpg' } },
+      { type: 'image', source: { type: 'url', value: 'https://example.com/photo.jpg' } },
     ],
   }],
 })
@@ -90,7 +90,7 @@ If you pass an image content part to a text-only model, TypeScript catches it at
 
 Every AI activity - chat, summarization, image generation, speech, transcription, video - is a separate import. Every provider exposes separate adapter functions per activity. If your app only uses chat, image generation code never enters your bundle.
 
-```ts
+```ts ignore
 // Only chat code is bundled - nothing else
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
@@ -109,6 +109,7 @@ This is architectural, not incidental. Each adapter implements a specific interf
 ```ts
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
+import { db } from './db'
 
 // Define once - shared validation contract
 const addToCartDef = toolDefinition({
@@ -148,9 +149,10 @@ Vercel AI SDK defines tools with a `tool()` helper and does support client-side 
 
 TanStack AI provides agent loop control as composable pure functions. Each strategy is `(state) => boolean` - return `true` to continue, `false` to stop.
 
-```ts
+```ts fixture=ambient
 import { chat, maxIterations, untilFinishReason, combineStrategies } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
+import { tools } from './tools'
 
 const stream = chat({
   adapter: openaiText('gpt-5.5'),
@@ -166,6 +168,9 @@ const stream = chat({
 `combineStrategies` composes them with AND logic - all strategies must agree to continue. You can add custom strategies alongside built-in ones:
 
 ```ts
+import { maxIterations, untilFinishReason, combineStrategies } from '@tanstack/ai'
+import { estimatedCost, budget } from './cost'
+
 combineStrategies([
   maxIterations(10),
   untilFinishReason(['stop']),
@@ -214,7 +219,7 @@ The host-side client goes beyond basic discovery:
 - **Lazy discovery** - `tools({ lazy: true })` defers sending tool schemas to the LLM, plugging into TanStack AI's lazy tool discovery to cut token usage on tool-heavy servers.
 - **Resources & prompts** - inject MCP resources and prompts into a run with `mcpResourceToContentPart` and `mcpPromptToMessages`.
 
-```ts
+```ts fixture=ambient
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { createMCPClient } from '@tanstack/ai-mcp'
@@ -260,6 +265,8 @@ import {
   stream,
   rpcStream,
 } from '@tanstack/ai-client'
+import { chatOnServer } from './server'
+import { api } from './api'
 
 // Server-Sent Events (standard)
 fetchServerSentEvents('/api/chat')
@@ -307,8 +314,8 @@ Your custom models appear in autocomplete alongside official ones. Vercel AI SDK
 
 TanStack AI's middleware system hooks into every stage of the `chat()` lifecycle: configuration, streaming, tool execution, usage tracking, and completion. Each middleware is a plain object with named hooks that fire at specific phases.
 
-```ts
-import { chat, type ChatMiddleware } from '@tanstack/ai'
+```ts ignore
+import { chat, type ChatMiddleware, type StreamChunk } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 const logger: ChatMiddleware = {
@@ -452,6 +459,7 @@ const result = await generateSpeech({
 ```ts
 import { generateTranscription } from '@tanstack/ai'
 import { openaiTranscription } from '@tanstack/ai-openai'
+import { audioFile } from './audio'
 
 const result = await generateTranscription({
   adapter: openaiTranscription('gpt-4o-transcribe'),
@@ -517,6 +525,7 @@ TanStack AI publishes an open adapter specification. The community has already b
 ```ts
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
+import { weatherApi } from './weather'
 
 const getWeather = toolDefinition({
   name: 'getWeather',
@@ -540,7 +549,7 @@ const getWeatherClient = getWeather.client(async ({ city }) => {
 
 **Vercel AI SDK** - Tool objects via the `tool()` helper:
 
-```ts
+```ts ignore
 import { generateText, tool } from 'ai'
 
 const result = await generateText({
@@ -565,8 +574,11 @@ The TanStack approach separates the tool contract from its implementation, makin
 
 **TanStack AI** - Composable strategies:
 
-```ts
+```ts fixture=ambient
 import { chat, combineStrategies, maxIterations, untilFinishReason } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { tools } from './tools'
+import { estimatedTokens } from './cost'
 
 const stream = chat({
   adapter: openaiText('gpt-5.5'),
@@ -582,7 +594,7 @@ const stream = chat({
 
 **Vercel AI SDK** - `stopWhen` conditions (v5+):
 
-```ts
+```ts ignore
 import { generateText, stepCountIs } from 'ai'
 
 const result = await generateText({
@@ -607,7 +619,7 @@ import { openaiText } from '@tanstack/ai-openai'
 
 **Vercel AI SDK** - Single provider import:
 
-```ts
+```ts ignore
 // Provider package includes all model types
 import { openai } from '@ai-sdk/openai'
 ```

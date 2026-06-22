@@ -32,9 +32,12 @@ import {
   createChatClientOptions,
   type InferChatMessages,
 } from "@tanstack/ai-client";
+import { updateUIDef } from "./tool-definitions";
 
 // In <script> block
-const updateUI = updateUIDef.client((input) => {
+let notification = "";
+
+const updateUI = updateUIDef.client((input: { message: string }) => {
   notification = input.message;
   return { success: true };
 });
@@ -78,6 +81,9 @@ Extends `ChatClientOptions` from `@tanstack/ai-client` (minus internal state cal
 ### Returns
 
 ```typescript
+import type { UIMessage, MultimodalContent, ChatClientState, ConnectionStatus } from "@tanstack/ai-client";
+import type { ModelMessage } from "@tanstack/ai";
+
 interface CreateChatReturn<TContext = unknown> {
   readonly messages: UIMessage[];
   sendMessage: (content: string | MultimodalContent) => Promise<void>;
@@ -317,8 +323,10 @@ Helper to create typed chat options (re-exported from `@tanstack/ai-client`).
 import {
   clientTools,
   createChatClientOptions,
+  fetchServerSentEvents,
   type InferChatMessages,
 } from "@tanstack/ai-client";
+import { tool1, tool2 } from "./tools";
 
 // Create typed tools array (no 'as const' needed!)
 const tools = clientTools(tool1, tool2);

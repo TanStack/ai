@@ -23,7 +23,7 @@ npm install @cencori/ai-sdk
 
 ## Basic Usage
 
-```typescript
+```typescript ignore
 import { chat } from "@tanstack/ai";
 import { cencori } from "@cencori/ai-sdk/tanstack";
 
@@ -41,7 +41,7 @@ for await (const chunk of chat({
 
 ## Configuration
 
-```typescript
+```typescript ignore
 import { createCencori } from "@cencori/ai-sdk/tanstack";
 
 const cencori = createCencori({
@@ -54,7 +54,7 @@ const adapter = cencori("gpt-4o");
 
 ## Streaming
 
-```typescript
+```typescript ignore
 import { chat } from "@tanstack/ai";
 import { cencori } from "@cencori/ai-sdk/tanstack";
 
@@ -75,7 +75,7 @@ for await (const chunk of chat({
 
 ## Tool Calling
 
-```typescript
+```typescript ignore
 import { chat, toolDefinition } from "@tanstack/ai";
 import { cencori } from "@cencori/ai-sdk/tanstack";
 import { z } from "zod";
@@ -111,7 +111,7 @@ for await (const chunk of chat({
 
 Switch between providers with a single parameter:
 
-```typescript
+```typescript ignore
 import { cencori } from "@cencori/ai-sdk/tanstack";
 
 // OpenAI

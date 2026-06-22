@@ -134,7 +134,7 @@ const getWeatherServer = getWeatherDef.server(async ({ location, unit }) => {
 
 If you prefer JSON Schema or have existing schema definitions:
 
-```typescript
+```typescript group=json-schema-tools
 import { toolDefinition } from "@tanstack/ai";
 import type { JSONSchema } from "@tanstack/ai";
 
@@ -200,7 +200,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json();
 
   // Create server implementation
-  const getWeather = getWeatherDef.server(async ({ location, unit }) => {
+  const getWeather = getWeatherDef.server(async ({ location, unit }: { location: string; unit?: string }) => {
     const response = await fetch(`https://api.weather.com/v1/current?...`);
     return await response.json();
   });
@@ -224,16 +224,16 @@ import {
   createChatClientOptions, 
   type InferChatMessages 
 } from "@tanstack/ai-client";
-import { updateUIDef, saveToStorageDef } from "./tools";
+import { updateUIDef, saveToStorageDef, setNotification, Messages } from "./tools";
 
 // Create client implementations
-const updateUI = updateUIDef.client((input) => {
+const updateUI = updateUIDef.client((input: { message: string }) => {
   // Update UI state
   setNotification(input.message);
   return { success: true };
 });
 
-const saveToStorage = saveToStorageDef.client((input) => {
+const saveToStorage = saveToStorageDef.client((input: Record<string, unknown>) => {
   localStorage.setItem("data", JSON.stringify(input));
   return { saved: true };
 });
@@ -261,7 +261,12 @@ function ChatComponent() {
 
 Tools can be implemented for both server and client, enabling flexible execution patterns:
 
-```typescript
+```typescript group=tools fixture=ambient
+import { toolDefinition, chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { z } from "zod";
+import { db } from "./db";
+
 // Define once
 const addToCartDef = toolDefinition({
   name: "add_to_cart",
@@ -296,7 +301,7 @@ const addToCartClient = addToCartDef.client((input) => {
 
 On the server, pass either the definition (for client execution) or the server implementation — in separate `chat()` calls:
 
-```typescript
+```typescript group=tools
 // Pass the definition: the client will execute the tool
 chat({
   adapter: openaiText("gpt-5.5"),
@@ -317,8 +322,12 @@ chat({
 The isomorphic architecture provides complete type safety:
 
 ```typescript
+import { type UIMessage } from "@tanstack/ai";
+
+declare const uiMessages: UIMessage[];
+
 // In your React component
-messages.forEach((message) => {
+uiMessages.forEach((message) => {
   message.parts.forEach((part) => {
     if (part.type === 'tool-call' && part.name === 'add_to_cart') {
       // ✅ TypeScript knows part.name is literally 'add_to_cart'
@@ -346,7 +355,24 @@ messages.forEach((message) => {
 A server tool's `.server()` implementation receives a second argument, the `ToolExecutionContext` — `{ context, toolCallId, emitCustomEvent }`. Use `emitCustomEvent` to stream typed progress to the client while the tool runs, and `context` to read request-scoped dependencies (auth, DB clients, etc.):
 
 ```typescript
-const importData = importDataDef.server(async (input, { context, emitCustomEvent }) => {
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
+
+type ImportContext = {
+  db: {
+    read(source: string): Promise<unknown[]>;
+    write(rows: unknown[]): Promise<void>;
+  };
+};
+
+const importDataDef = toolDefinition({
+  name: "import_data",
+  description: "Import data from a source",
+  inputSchema: z.object({ source: z.string() }),
+  outputSchema: z.object({ imported: z.number() }),
+});
+
+const importData = importDataDef.server<ImportContext>(async (input, { context, emitCustomEvent }) => {
   emitCustomEvent("progress", { step: 1, total: 3 });
   const rows = await context.db.read(input.source);
 

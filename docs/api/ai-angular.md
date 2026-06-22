@@ -71,6 +71,8 @@ Extends `ChatClientOptions` from `@tanstack/ai-client` (minus internal state cal
 **Reactive options** (`body`, `forwardedProps`, `context`, `live`) accept a `ReactiveOption<T>`, which is one of:
 
 ```typescript
+import type { Signal } from "@angular/core";
+
 type ReactiveOption<T> = T | Signal<T> | (() => T);
 ```
 
@@ -81,6 +83,16 @@ A plain value becomes a constant; a `Signal` is read directly; a zero-arg getter
 ### Returns
 
 ```typescript
+import type { Signal } from "@angular/core";
+import type {
+  UIMessage,
+  MultimodalContent,
+  DeepPartial,
+} from "@tanstack/ai-angular";
+import type { ModelMessage, InferSchemaType } from "@tanstack/ai/client";
+import type { ChatClientState, ConnectionStatus } from "@tanstack/ai-client";
+type TSchema = any;
+
 interface InjectChatResult {
   messages: Signal<UIMessage[]>;
   sendMessage: (content: string | MultimodalContent) => Promise<void>;
@@ -244,12 +256,12 @@ import { updateUIDef, saveToStorageDef } from "./tool-definitions";
 })
 export class TypedChatComponent {
   // Create client implementations
-  private updateUI = updateUIDef.client((input) => {
+  private updateUI = updateUIDef.client((input: any) => {
     // input is fully typed!
     return { success: true };
   });
 
-  private saveToStorage = saveToStorageDef.client((input) => {
+  private saveToStorage = saveToStorageDef.client((input: any) => {
     localStorage.setItem(input.key, input.value);
     return { saved: true };
   });
@@ -471,13 +483,17 @@ All generation injectables automatically clean up via `DestroyRef.onDestroy`.
 Angular's DI system requires that `inject()` is called during component construction. Every `inject*` function in this package calls `inject()` internally. Valid call sites:
 
 ```typescript
+import { runInInjectionContext, Injector } from "@angular/core";
+import { injectChat, fetchServerSentEvents } from "@tanstack/ai-angular";
+declare const injector: Injector;
+
 // Field initializer (recommended)
 export class MyComponent {
   chat = injectChat({ connection: fetchServerSentEvents("/api/chat") });
 }
 
 // Constructor
-export class MyComponent {
+export class MyComponentAlt {
   chat: ReturnType<typeof injectChat>;
   constructor() {
     this.chat = injectChat({ connection: fetchServerSentEvents("/api/chat") });
@@ -500,6 +516,8 @@ import {
   createChatClientOptions,
   type InferChatMessages,
 } from "@tanstack/ai-client";
+import { fetchServerSentEvents } from "@tanstack/ai-angular";
+import { tool1, tool2 } from "./tools";
 
 // Create typed tools array (no 'as const' needed!)
 const tools = clientTools(tool1, tool2);
