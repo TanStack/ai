@@ -4,22 +4,22 @@
 export interface Logger {
   /**
    * Called for chunk-level diagnostic output (raw provider chunks, per-chunk output, agent-loop iteration markers).
-   * @param meta Structured data forwarded to the underlying logger. Loggers like pino will preserve this as a structured record; console-based loggers pass it as the second argument to `console.<level>`.
+   * @param meta Structured data forwarded to the underlying logger. Loggers like pino will preserve this as a structured record; the default `ConsoleLogger` renders it with a runtime-appropriate strategy (depth-unlimited `console.dir` on Node, JSON appended to the message on Cloudflare Workers, a second `console.<level>` argument elsewhere).
    */
   debug: (message: string, meta?: Record<string, unknown>) => void
   /**
    * Called for notable informational events (outgoing requests, tool invocations, middleware transitions).
-   * @param meta Structured data forwarded to the underlying logger. Loggers like pino will preserve this as a structured record; console-based loggers pass it as the second argument to `console.<level>`.
+   * @param meta Structured data forwarded to the underlying logger. Loggers like pino will preserve this as a structured record; the default `ConsoleLogger` renders it with a runtime-appropriate strategy (depth-unlimited `console.dir` on Node, JSON appended to the message on Cloudflare Workers, a second `console.<level>` argument elsewhere).
    */
   info: (message: string, meta?: Record<string, unknown>) => void
   /**
    * Called for notable warnings that don't halt execution (deprecations, recoverable anomalies).
-   * @param meta Structured data forwarded to the underlying logger. Loggers like pino will preserve this as a structured record; console-based loggers pass it as the second argument to `console.<level>`.
+   * @param meta Structured data forwarded to the underlying logger. Loggers like pino will preserve this as a structured record; the default `ConsoleLogger` renders it with a runtime-appropriate strategy (depth-unlimited `console.dir` on Node, JSON appended to the message on Cloudflare Workers, a second `console.<level>` argument elsewhere).
    */
   warn: (message: string, meta?: Record<string, unknown>) => void
   /**
    * Called for caught exceptions throughout the pipeline.
-   * @param meta Structured data forwarded to the underlying logger. Loggers like pino will preserve this as a structured record; console-based loggers pass it as the second argument to `console.<level>`.
+   * @param meta Structured data forwarded to the underlying logger. Loggers like pino will preserve this as a structured record; the default `ConsoleLogger` renders it with a runtime-appropriate strategy (depth-unlimited `console.dir` on Node, JSON appended to the message on Cloudflare Workers, a second `console.<level>` argument elsewhere).
    */
   error: (message: string, meta?: Record<string, unknown>) => void
 }

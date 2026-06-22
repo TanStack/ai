@@ -8,8 +8,16 @@
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { streamGenerationResult } from '../stream-generation-result.js'
 import { resolveDebugOption } from '../../logger/resolve'
+import {
+  createGenerationContext,
+  runGenerationError,
+  runGenerationFinish,
+  runGenerationStart,
+  runGenerationUsage,
+} from '../middleware'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
+import type { GenerationMiddleware } from '../middleware'
 import type { TTSAdapter } from './adapter'
 import type { StreamChunk, TTSResult } from '../../types'
 
@@ -73,6 +81,12 @@ export interface TTSActivityOptions<
    * control and/or a custom `Logger`.
    */
   debug?: DebugOption
+  /**
+   * Observe-only middleware notified on start, usage, success, and error. Pass
+   * `otelMiddleware()` to emit OpenTelemetry spans, or implement the
+   * `GenerationMiddleware` contract for a custom backend.
+   */
+  middleware?: Array<GenerationMiddleware>
 }
 
 // ===========================
@@ -143,7 +157,13 @@ export function generateSpeech<
 async function runGenerateSpeech<
   TAdapter extends TTSAdapter<string, TTSProviderOptions<TAdapter>>,
 >(options: TTSActivityOptions<TAdapter, boolean>): Promise<TTSResult> {
-  const { adapter, stream: _stream, debug: _debug, ...rest } = options
+  const {
+    adapter,
+    stream: _stream,
+    debug: _debug,
+    middleware,
+    ...rest
+  } = options
   const model = adapter.model
   const requestId = createId('speech')
   const startTime = Date.now()
@@ -152,6 +172,17 @@ async function runGenerateSpeech<
     (adapter as { name?: string; provider?: string }).provider ??
     (adapter as { name?: string }).name ??
     'unknown'
+
+  const mwCtx = createGenerationContext({
+    requestId,
+    activity: 'tts',
+    provider: adapter.name,
+    model,
+    modelOptions: rest.modelOptions,
+    createId,
+  })
+
+  await runGenerationStart(middleware, mwCtx)
 
   aiEventClient.emit('speech:request:started', {
     requestId,
@@ -202,6 +233,12 @@ async function runGenerateSpeech<
       contentType: result.contentType,
     })
 
+    if (result.usage) await runGenerationUsage(middleware, mwCtx, result.usage)
+    await runGenerationFinish(middleware, mwCtx, {
+      duration,
+      usage: result.usage,
+    })
+
     return result
   } catch (error) {
     const duration = Date.now() - startTime
@@ -214,6 +251,10 @@ async function runGenerateSpeech<
       duration,
       modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
       timestamp: Date.now(),
+    })
+    await runGenerationError(middleware, mwCtx, {
+      error,
+      duration,
     })
     logger.errors('generateSpeech activity failed', {
       error,

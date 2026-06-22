@@ -1,5 +1,31 @@
 # @tanstack/ai-react-ui
 
+## 0.8.9
+
+### Patch Changes
+
+- Updated dependencies [[`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f)]:
+  - @tanstack/ai-client@0.18.0
+  - @tanstack/ai-react@0.15.9
+
+## 0.8.8
+
+### Patch Changes
+
+- [#769](https://github.com/TanStack/ai/pull/769) [`1d1bb52`](https://github.com/TanStack/ai/commit/1d1bb5219a38d9718cc926148e93fc27d5d2305b) - Add repository metadata (`homepage`, `bugs`, `funding`), fix `repository.directory` to point at each package, and include an MIT `LICENSE` file in every published package.
+
+- Updated dependencies [[`1d1bb52`](https://github.com/TanStack/ai/commit/1d1bb5219a38d9718cc926148e93fc27d5d2305b)]:
+  - @tanstack/ai-client@0.17.1
+  - @tanstack/ai-react@0.15.6
+
+## 0.8.7
+
+### Patch Changes
+
+- Updated dependencies [[`7d44569`](https://github.com/TanStack/ai/commit/7d445693ea079d7a85498a4465179ddd5f548cb0)]:
+  - @tanstack/ai-client@0.17.0
+  - @tanstack/ai-react@0.15.5
+
 ## 0.8.6
 
 ### Patch Changes

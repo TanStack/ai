@@ -51,6 +51,7 @@ export type ToolCallState =
   | 'approval-requested' // Waiting for user approval
   | 'approval-responded' // User has approved/denied
   | 'complete' // Result is complete
+  | 'error' // Tool execution failed (terminal)
 
 /**
  * Tool result states - track the lifecycle of a tool result
@@ -1470,6 +1471,99 @@ export interface SummarizationResult {
 // ============================================================================
 
 /**
+ * Optional role hint on a media input part (image / video / audio). Adapters
+ * read `metadata.role` to route the part to the provider-specific request
+ * field — e.g. `'mask'` → OpenAI `mask` / fal `mask_url`, `'end_frame'` → fal
+ * `end_image_url`, `'reference'` → fal `reference_image_urls`. When omitted
+ * the adapter falls back to positional routing.
+ */
+export type MediaInputRole =
+  | 'reference'
+  | 'mask'
+  | 'control'
+  | 'start_frame'
+  | 'end_frame'
+  | 'character'
+
+/**
+ * Metadata convention for image / video / audio inputs to media generation.
+ * Carried on `ImagePart.metadata` / `VideoPart.metadata` / `AudioPart.metadata`
+ * when used as conditioning inputs to `generateImage()` or `generateVideo()`.
+ */
+export interface MediaInputMetadata {
+  /** Optional role hint disambiguating the part's intent for the adapter */
+  role?: MediaInputRole
+  /**
+   * Optional user-defined label for this input (e.g. `'woman-in-red-dress'`).
+   * **Informational only** — adapters never read it and the SDK never
+   * rewrites prompt text based on it. Use it to correlate parts with the
+   * references you write in your prompt using the provider's own syntax
+   * (fal's `@Image1`, OpenAI's "image 1", etc.), or for your own
+   * bookkeeping/logging.
+   */
+  tag?: string
+}
+
+/**
+ * A single part of a multimodal media-generation prompt. Reuses the chat
+ * content-part shapes: text parts carry the instruction, image / video /
+ * audio parts carry conditioning inputs (with an optional
+ * `metadata.role` hint — see {@link MediaInputRole}).
+ */
+export type MediaPromptPart =
+  | TextPart
+  | ImagePart<MediaInputMetadata>
+  | VideoPart<MediaInputMetadata>
+  | AudioPart<MediaInputMetadata>
+
+/**
+ * Prompt accepted by `generateImage()` / `generateVideo()`: a plain string,
+ * or an ordered array of content parts for image-conditioned generation
+ * ("not like this *(image)*, more like this *(image)*"). Part order is
+ * meaningful — adapters with native multimodal prompts (Gemini, OpenRouter)
+ * preserve the interleaving; named-field providers (fal, OpenAI, xAI)
+ * extract the media parts and flatten the text. Text is always sent
+ * verbatim: to reference inputs from the prompt, write the provider's own
+ * syntax yourself (e.g. fal's `@Image1`, OpenAI's "image 1"). An array may
+ * be media-only (e.g. upscalers or pure img2img endpoints that take no
+ * instruction text).
+ */
+export type MediaPrompt = string | Array<MediaPromptPart>
+
+/**
+ * Non-text modalities a media-generation model can accept in its prompt.
+ */
+export type MediaPromptModality = 'image' | 'video' | 'audio'
+
+/** Maps a prompt modality to its content-part type. @internal */
+interface MediaPartByModality {
+  image: ImagePart<MediaInputMetadata>
+  video: VideoPart<MediaInputMetadata>
+  audio: AudioPart<MediaInputMetadata>
+}
+
+/**
+ * Prompt type narrowed to the modalities a specific model supports.
+ * `MediaPromptFor<never>` (a text-only model) is `string | Array<TextPart>`;
+ * `MediaPromptFor<'image'>` additionally admits image parts, etc. Used by
+ * the activity option types together with the adapter's per-model input
+ * modality map so unsupported parts fail at compile time.
+ */
+export type MediaPromptFor<TModalities extends MediaPromptModality = never> =
+  | string
+  | Array<TextPart | MediaPartByModality[TModalities]>
+
+/**
+ * Per-model map from model name to the prompt modalities it accepts, used as
+ * an adapter type parameter (`TModelInputModalitiesByName`). Models absent
+ * from the map fall back to the unconstrained {@link MediaPrompt}.
+ */
+export type ModelInputModalitiesByName = Record<
+  string,
+  ReadonlyArray<MediaPromptModality>
+>
+
+/**
  * Options for image generation.
  * These are the common options supported across providers.
  */
@@ -1479,8 +1573,16 @@ export interface ImageGenerationOptions<
 > {
   /** The model to use for image generation */
   model: string
-  /** Text description of the desired image(s) */
-  prompt: string
+  /**
+   * Description of the desired image(s): a plain string, or an ordered array
+   * of content parts for image-conditioned generation (image-to-image,
+   * reference-guided, edit, multi-reference). Media parts may carry
+   * `metadata.role` to disambiguate intent (mask, control, reference, …).
+   * Adapters map parts onto the provider-native request — e.g. Gemini
+   * multimodal `contents`, OpenAI `images.edit()`, fal `image_url` /
+   * `mask_url` — and throw a clear runtime error for unsupported modalities.
+   */
+  prompt: MediaPrompt
   /** Number of images to generate (default: 1) */
   numberOfImages?: number
   /** Image size in WIDTHxHEIGHT format (e.g., "1024x1024") */
@@ -1598,15 +1700,27 @@ export interface AudioGenerationResult {
 export interface VideoGenerationOptions<
   TProviderOptions extends object = object,
   TSize extends string | undefined = string,
+  TDuration extends string | number | undefined = number,
 > {
   /** The model to use for video generation */
   model: string
-  /** Text description of the desired video */
-  prompt: string
+  /**
+   * Description of the desired video: a plain string, or an ordered array of
+   * content parts for image-conditioned generation. Image parts may carry
+   * `metadata.role` (`'start_frame' | 'end_frame' | 'reference' |
+   * 'character'`) to disambiguate intent; adapters route them onto the
+   * provider-native request (e.g. OpenAI Sora `input_reference`, fal
+   * `image_url` / `end_image_url`) and throw at runtime if unsupported.
+   */
+  prompt: MediaPrompt
   /** Video size — format depends on the provider (e.g., "16:9", "1280x720") */
   size?: TSize
-  /** Video duration in seconds */
-  duration?: number
+  /**
+   * Video duration in seconds. Adapters that declare a per-model duration
+   * map narrow this to the model's valid union; use
+   * `adapter.snapDuration(seconds)` to coerce raw seconds to a valid value.
+   */
+  duration?: TDuration
   /** Model-specific options for video generation */
   modelOptions?: TProviderOptions
   /**

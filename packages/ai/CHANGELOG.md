@@ -1,5 +1,130 @@
 # @tanstack/ai
 
+## 0.32.0
+
+### Minor Changes
+
+- [#624](https://github.com/TanStack/ai/pull/624) [`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f) - Add a Google Veo video adapter (`geminiVideo` / `createGeminiVideo`) and the
+  per-model typed-duration video contract it is built on ([#534](https://github.com/TanStack/ai/issues/534), [#634](https://github.com/TanStack/ai/issues/634)).
+
+  **`@tanstack/ai`** (additive, non-breaking): `VideoAdapter` /
+  `BaseVideoAdapter` gain a `TModelDurationByName` generic (defaulting to
+  `Record<string, number>`, preserving today's `duration?: number` typing for
+  adapters without a map) plus two introspection methods with safe defaults:
+  - `availableDurations()` — a `DurationOptions` tagged union
+    (`discrete | range | mixed | none`) describing the durations the current
+    model accepts. Default: `{ kind: 'none' }`.
+  - `snapDuration(seconds)` — coerce raw seconds to the closest valid duration
+    (`snapToDurationOption` is exported for adapter authors). Default:
+    `undefined`.
+
+  `generateVideo({ duration })` is now typed per model via
+  `VideoDurationForAdapter<TAdapter>`.
+
+  **`@tanstack/ai-gemini`**: new Veo adapter over the long-running
+  `:predictLongRunning` operation, supporting `veo-3.1-generate-preview`,
+  `veo-3.1-fast-generate-preview`, `veo-3.0-generate-001`,
+  `veo-3.0-fast-generate-001`, and `veo-2.0-generate-001`:
+  - `geminiVideo('veo-3.0-generate-001')` → `duration?: 4 | 6 | 8`
+    (Veo 2: `5 | 6 | 8`); `adapter.snapDuration(7)` → `6`.
+  - Multimodal prompts: the first un-roled / `'start_frame'` image part
+    becomes the input image, `'end_frame'` → `lastFrame`, `'reference'` /
+    `'character'` → `referenceImages`.
+  - `size` takes Veo aspect ratios (`'16:9' | '9:16'`); everything else from
+    the SDK's `GenerateVideosConfig` (e.g. `resolution`, `generateAudio`,
+    `negativePrompt`) is available through `modelOptions`.
+  - Responsible-AI filtering is surfaced as a failed job with the filter
+    reasons.
+
+  Note: Veo result URLs are served by the Gemini Files API and require the
+  Google API key to download (`x-goog-api-key` header or `key` query
+  parameter).
+
+- [#624](https://github.com/TanStack/ai/pull/624) [`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f) - `generateImage()` and `generateVideo()` now accept a multimodal `prompt`: a plain string, or an ordered array of content parts (`TextPart` / `ImagePart` / `VideoPart` / `AudioPart`) for image-conditioned generation, image-to-image, multi-reference, image-to-video, and edit / inpaint flows. Part order is meaningful — "not like this _(image)_, more like this _(image)_" — and each media part may carry a `metadata.role` hint (`'reference' | 'mask' | 'control' | 'start_frame' | 'end_frame' | 'character'`) that adapters use to route to the provider-specific field, plus an informational `metadata.tag` label for your own bookkeeping. The accepted part types are narrowed per model at compile time via each adapter's input-modality map, so passing an image part to a text-only model is a type error (with a clear runtime throw as backstop).
+
+  Prompt text is always sent **verbatim** — the SDK never injects or rewrites in-prompt referencing markers. To reference inputs from your prompt, write the provider's own convention (fal Kling / Seedance `@Image1`, OpenAI / FLUX.2 `"image 1"` prose, Gemini content descriptions); see the image-generation docs for the per-provider table.
+
+  Provider behavior in this release:
+  - **OpenAI image** — Prompts with image parts route `gpt-image-2` / `gpt-image-1` / `gpt-image-1-mini` to `images.edit()` (up to 16 source images plus optional mask); `dall-e-2` routes to `images.edit()` with one source image; `dall-e-3` rejects image parts at compile time and at runtime.
+  - **OpenAI video** — Sora-2 / Sora-2-Pro accept a single image part as `input_reference`; passing more than one throws.
+  - **Gemini image** — Native models (`gemini-*-flash-image`, "nano-banana") map prompt parts 1:1 onto multimodal `contents`, preserving interleaved order. Imagen is text-only (compile-time + runtime rejection).
+  - **fal.ai** — Field names resolve per endpoint from a map generated from the fal SDK's endpoint types (362 endpoints with nonstandard fields, e.g. nano-banana edit → `image_urls`, Kling i2v start frame → `image_url`, Veo first-last-frame → `first_frame_url` / `last_frame_url`). Defaults for endpoints not in the map: single → `image_url`, multiple → `image_urls`; `role: 'mask'` → `mask_url`; `role: 'control'` → `control_image_url`; `role: 'reference'` / `'character'` → `reference_image_urls`; video `role: 'start_frame'` / `'end_frame'` → `start_image_url` / `end_image_url`. Per-model prompt modalities are derived at the type level from the SDK's endpoint input types. Regenerate the map after a fal SDK bump with `pnpm generate:fal-image-fields` (a unit test fails when it goes stale). In `FalImageProviderOptions` / `FalVideoProviderOptions`, media-conditioning fields the mappers can populate (`image_url`, `start_image_url`, `video_url`, `audio_url`, …) are demoted from required to optional — supply them as prompt parts, or keep passing them explicitly via `modelOptions`.
+  - **Grok** — New `grok-imagine-image` / `grok-imagine-image-quality` models. Prompts with image parts route to xAI's JSON `/v1/images/edits` endpoint (up to 3 source images, addressed by xAI in request order; the prompt is sent verbatim). `role: 'mask'` / `'control'` throw. Their `size` uses an `aspectRatio_resolution` template (`'16:9_2k'`, suffix optional) mirroring Gemini's native image models. `grok-2-image-1212` remains text-to-image only.
+  - **OpenRouter** — Prompt parts map 1:1 onto multimodal `text` / `image_url` chat content parts, preserving interleaved order, and are forwarded to the underlying image model. URL sources pass through verbatim (no fetching or re-encoding in your process); `data` sources become data URIs.
+  - **Anthropic** — Unchanged (no image generation API).
+
+  A new `resolveMediaPrompt()` utility (exported from `@tanstack/ai`) is the single downrev point from the canonical interleaved prompt shape to flattened text + per-modality part buckets, for adapter authors.
+
+  On the client side, `ImageGenerateInput.prompt` and `VideoGenerateInput.prompt` (`@tanstack/ai-client`, and the `useGenerateImage` / `useGenerateVideo` hooks built on them) are widened from `string` to the same `MediaPrompt` shape, so prompt parts can be sent from the browser through your server route to `generateImage()` / `generateVideo()`.
+
+  Closes [#618](https://github.com/TanStack/ai/issues/618).
+
+### Patch Changes
+
+- Updated dependencies [[`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f)]:
+  - @tanstack/ai-event-client@0.6.3
+
+## 0.31.0
+
+### Minor Changes
+
+- [#763](https://github.com/TanStack/ai/pull/763) [`07aaf8b`](https://github.com/TanStack/ai/commit/07aaf8b9e5a8e699be25f936cc9cd651a46c16c5) - Add a type-safe capability system to chat middleware. `createCapability<T>()('name')` returns a `[get, provide]` accessor tuple that is also its own identity for `requires`/`provides` declarations — no separate token import. The middleware context also exposes `ctx.get(capability)` / `ctx.getOptional(capability)` / `ctx.provide(capability, value)`, typed by the handle you pass. Middleware gain a `setup` provisioning hook (runs first, before `onConfig`) plus `requires`/`provides`/`optionalRequires`. `chat()` validates that every required capability is provided, at compile time (an array coverage check and the new order-aware `createChatMiddleware()` builder) and at runtime (clear errors before the adapter runs). Adapters can now declare `requires`. This is the primitive layer for upcoming persistence and sandbox middleware; no concrete capabilities ship yet.
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.6.2
+
+## 0.30.0
+
+### Minor Changes
+
+- [#747](https://github.com/TanStack/ai/pull/747) [`7103348`](https://github.com/TanStack/ai/commit/71033488212bff05dcccc857e721ab9262ebc2a6) - `otelMiddleware` now emits the rest of the reported `TokenUsage` on spans instead of only input/output tokens ([#721](https://github.com/TanStack/ai/issues/721)). When the provider reports them, spans carry `gen_ai.usage.total_tokens`, `gen_ai.usage.cost` (provider-reported cost — cache discounts and gateway markup included, so backends like PostHog no longer re-derive cost from price tables), the official semconv cache/reasoning breakdowns (`gen_ai.usage.cache_read.input_tokens`, `gen_ai.usage.cache_creation.input_tokens`, `gen_ai.usage.reasoning.output_tokens`), and TanStack-namespaced attributes for duration-based billing (`tanstack.ai.usage.duration_seconds`) and the upstream cost split (`tanstack.ai.usage.upstream_cost` / `upstream_input_cost` / `upstream_output_cost`). All attributes are guarded — spans stay unchanged when a provider doesn't report a field. Media-oriented fields (`unitsBilled`, per-modality token breakdowns) and the provider-shaped `providerUsageDetails` bag are intentionally not emitted; media-activity observability is tracked in [#720](https://github.com/TanStack/ai/issues/720).
+
+### Patch Changes
+
+- [#769](https://github.com/TanStack/ai/pull/769) [`1d1bb52`](https://github.com/TanStack/ai/commit/1d1bb5219a38d9718cc926148e93fc27d5d2305b) - Add repository metadata (`homepage`, `bugs`, `funding`), fix `repository.directory` to point at each package, and include an MIT `LICENSE` file in every published package.
+
+- Updated dependencies [[`1d1bb52`](https://github.com/TanStack/ai/commit/1d1bb5219a38d9718cc926148e93fc27d5d2305b)]:
+  - @tanstack/ai-event-client@0.6.1
+
+## 0.29.0
+
+### Minor Changes
+
+- [#723](https://github.com/TanStack/ai/pull/723) [`22c9b42`](https://github.com/TanStack/ai/commit/22c9b42baec74914b720e440f29bd02be04eb164) - Surface fal's billed units as `result.usage`. The fal adapters now read fal's `x-fal-billable-units` response header off the result fetch and expose the billed quantity (`usage.unitsBilled`) on the generation result, so consumers can compute exact media-generation cost without wrapping `fetch` themselves.
+  - `TokenUsage` gains an optional `unitsBilled` field for usage-based (non-token) billing, denominated in the provider's priced unit.
+  - `falImage`, `falAudio`, `falVideo`, `falSpeech`, and `falTranscription` populate `result.usage.unitsBilled` when fal reports it.
+  - `VideoUrlResult` gains an optional `usage` slot; `getVideoJobStatus` now emits the `video:usage` event and returns `usage` when the completed result reports billed units.
+
+- [#727](https://github.com/TanStack/ai/pull/727) [`7d44569`](https://github.com/TanStack/ai/commit/7d445693ea079d7a85498a4465179ddd5f548cb0) - Add an `'error'` terminal to `ToolCallState`. When a tool execution produces an output error, the StreamProcessor now transitions the `tool-call` part to `state: 'error'` instead of parking it at `'input-complete'`.
+
+  Previously an errored tool call left the tool-call part at `'input-complete'` forever, so UIs that render lifecycle from the part's `state` could not distinguish "still executing" from "failed" without reverse-engineering the error-shaped `output` or the sibling `tool-result` part. The new terminal makes the tool-call state machine self-describing and symmetric with `ToolResultState` (which already has `'error'`):
+
+  ```ts
+  if (part.type === 'tool-call' && part.state === 'error') {
+    // render failure — no more inferring from output shape
+  }
+  ```
+
+  The completion safety net (`RUN_FINISHED` / stream finalization) no longer downgrades a failed tool call back to `'input-complete'`, including when an `output-error` result arrives before `TOOL_CALL_END`.
+
+### Patch Changes
+
+- [#696](https://github.com/TanStack/ai/pull/696) [`ff267a5`](https://github.com/TanStack/ai/commit/ff267a5536327b006979f9f28ce2df7cc27f6e23) - Fix duplicate `TOOL_CALL_END` for server-executed tools. The adapter already streams `START`/`ARGS`/`END` for each tool call, but `chat()` emitted a second `END` afterwards with no matching `START` — an orphan event that AG-UI-strict consumers (e.g. `@ag-ui/client`'s `verifyEvents`) reject. The post-execution phase now only adds `TOOL_CALL_RESULT`. Fixes [#519](https://github.com/TanStack/ai/issues/519).
+
+- [#734](https://github.com/TanStack/ai/pull/734) [`570c08a`](https://github.com/TanStack/ai/commit/570c08a8d1a35746c3d31a63188249cba2d2475a) - Fix the default debug logger dropping `meta` payloads on Cloudflare Workers / workerd ([#730](https://github.com/TanStack/ai/issues/730)). `ConsoleLogger` previously rendered `meta` with `console.dir`, which workerd never forwards to the terminal — debug mode printed category headlines but no request bodies, chunk contents, or `RUN_ERROR` payloads. The logger now detects the runtime: Node keeps the depth-unlimited `console.dir` dump, Cloudflare Workers renders `meta` as circular-safe pretty-printed JSON (workerd's own inspect truncates nested objects), and other runtimes (browsers, Deno, Bun) receive `meta` as an extra console argument so devtools keep collapsible trees. Detection checks workerd's `navigator.userAgent` marker before `process.versions.node`, since `nodejs_compat` emulates a Node version string.
+
+- [#699](https://github.com/TanStack/ai/pull/699) [`215b6b4`](https://github.com/TanStack/ai/commit/215b6b401aa95d1d38da342aa09603cb1d616929) - Migrate the OpenAI realtime adapters from the retired Beta API (shut down 2026-05-12) to the GA API:
+  - `openaiRealtime()` now exchanges WebRTC SDP via `POST /v1/realtime/calls` (the Beta `?model=` shape returned `beta_api_shape_disabled`).
+  - `openaiRealtimeToken()` now mints ephemeral keys via `POST /v1/realtime/client_secrets` instead of the retired `/v1/realtime/sessions`, and parses the GA top-level `value`/`expires_at` response shape.
+  - `session.update` payloads use the GA shape: required `session.type`, `audio.input.transcription`, `audio.input.turn_detection`, `audio.output.voice`, `output_modalities`, and `max_output_tokens`. `temperature` was removed from the GA session config and is no longer sent (a debug log notes when it is dropped).
+  - Server events are handled under their GA names (`response.output_audio_transcript.*`, `response.output_audio.*`, `output_text`/`output_audio` content parts).
+  - The default realtime model is now `gpt-realtime`; the `gpt-4o-(mini-)realtime-preview` ids (shut down by OpenAI on 2026-05-07) were removed from `OpenAIRealtimeModel`.
+
+- Updated dependencies [[`ff267a5`](https://github.com/TanStack/ai/commit/ff267a5536327b006979f9f28ce2df7cc27f6e23), [`22c9b42`](https://github.com/TanStack/ai/commit/22c9b42baec74914b720e440f29bd02be04eb164), [`7d44569`](https://github.com/TanStack/ai/commit/7d445693ea079d7a85498a4465179ddd5f548cb0)]:
+  - @tanstack/ai-event-client@0.6.0
+
 ## 0.28.0
 
 ### Minor Changes

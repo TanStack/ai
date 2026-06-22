@@ -2,11 +2,13 @@
 title: Video Generation
 id: video-generation
 order: 6
-description: "Generate video from text prompts with OpenAI Sora using TanStack AI's experimental generateVideo() jobs/polling API."
+description: "Generate video from text prompts with OpenAI Sora or Google Veo using TanStack AI's experimental generateVideo() jobs/polling API."
 keywords:
   - tanstack ai
   - video generation
   - sora
+  - veo
+  - gemini
   - generateVideo
   - jobs api
   - experimental
@@ -36,6 +38,7 @@ TanStack AI provides experimental support for video generation through dedicated
 
 Currently supported:
 - **OpenAI**: Sora-2 and Sora-2-Pro models (when available)
+- **Google Gemini**: Veo 3.1, Veo 3, and Veo 2 models (via the long-running operations API)
 
 ## Basic Usage
 
@@ -363,10 +366,92 @@ And returns:
 | Option | Type | Description |
 |--------|------|-------------|
 | `adapter` | `VideoAdapter` | Video adapter instance with model (required) |
-| `prompt` | `string` | Text description of the video to generate (required) |
+| `prompt` | `string \| MediaPromptPart[]` | Description of the video to generate (required). A plain string, or — on models that support conditioned generation — an ordered array of content parts interleaving text with image / video / audio inputs. See [Image-to-Video](#image-to-video) below. |
 | `size` | `string` | Video resolution in WIDTHxHEIGHT format |
 | `duration` | `number` | Video duration in seconds (maps to `seconds` parameter in API) |
 | `modelOptions?` | `object` | Model-specific options (renamed from `providerOptions`) |
+
+## Image-to-Video
+
+For starting-frame, ending-frame, and reference-image conditioned video
+generation, pass the `prompt` as an array of content parts:
+
+```typescript
+import { generateVideo } from '@tanstack/ai'
+import { openaiVideo } from '@tanstack/ai-openai'
+
+const { jobId } = await generateVideo({
+  adapter: openaiVideo('sora-2'),
+  prompt: [
+    {
+      type: 'text',
+      content:
+        'Animate this still into a slow cinematic push-in with subtle motion',
+    },
+    {
+      type: 'image',
+      source: {
+        type: 'data',
+        value: base64Image,
+        mimeType: 'image/png',
+      },
+    },
+  ],
+})
+```
+
+The accepted part types are narrowed **per model at compile time** — fal
+endpoints, for example, only admit image / video / audio parts that their
+SDK input type actually declares fields for.
+
+Prompt text is always sent **verbatim** — the SDK never injects or rewrites
+in-prompt referencing markers. Some fal video endpoints have their own
+referencing syntax you can write directly in your text (e.g. Kling v3
+elements as `@Element1`, Seedance 2.0 reference-to-video as `@Image1` /
+`@Video1` / `@Audio1`, 1-indexed by input order); Veo and Sora take
+reference images as plain inputs with naturally written prompts. See
+[Referencing images from your prompt](./image-generation.md#referencing-images-from-your-prompt)
+for the per-provider table.
+
+### Role hints
+
+Each `ImagePart` can carry an optional `metadata.role` hint that the
+adapter uses to route the input to the provider-specific field:
+
+| Role            | Maps to                                                       |
+| --------------- | ------------------------------------------------------------- |
+| `'start_frame'` | fal `start_image_url`, Veo input `image` (positional default for the first input) |
+| `'end_frame'`   | fal `end_image_url`, Veo `lastFrame`                          |
+| `'reference'`   | fal `reference_image_urls`, Veo `referenceImages`             |
+| `'character'`   | Same as `'reference'` — character consistency images                    |
+
+```typescript
+import { falVideo } from '@tanstack/ai-fal'
+
+await generateVideo({
+  adapter: falVideo('fal-ai/kling-video/v3/pro/image-to-video'),
+  prompt: [
+    { type: 'image', source: { type: 'url', value: firstFrameUrl } },
+    { type: 'text', content: 'Slow cinematic push-in then a hard cut' },
+    {
+      type: 'image',
+      source: { type: 'url', value: lastFrameUrl },
+      metadata: { role: 'end_frame' },
+    },
+  ],
+})
+```
+
+### Provider support
+
+| Provider     | Image-to-Video Behavior                                                                                  |
+| ------------ | -------------------------------------------------------------------------------------------------------- |
+| **OpenAI**   | Sora-2 / Sora-2-Pro → the image part goes to `input_reference`; flattened text is the prompt. Single image only — throws if more than one. |
+| **fal.ai**   | Field names resolve per endpoint from a map generated from the fal SDK's endpoint types — e.g. `role: 'start_frame'` lands on `image_url` for Kling/Veo image-to-video, `first_frame_url` for first-last-frame endpoints, and `start_image_url` otherwise. Defaults: single input → `image_url` (start frame); `role: 'end_frame'` → `end_image_url`; `role: 'reference'` / `'character'` → `reference_image_urls`. Override per-endpoint via `modelOptions` — the media-conditioning fields are typed optional there (even when the endpoint requires them) since they usually arrive as prompt parts. |
+| **Gemini**   | Veo → the first un-roled / `'start_frame'` image becomes the input image; `'end_frame'` → `lastFrame`; `'reference'` / `'character'` → `referenceImages` (asset references, Veo 3.1). Throws on multiple starting images. |
+
+Adapters whose underlying API can't accept image inputs throw a clear
+runtime error so calls fail fast.
 
 ### Supported Sizes
 
@@ -405,6 +490,67 @@ const { jobId } = await generateVideo({
   }
 })
 ```
+
+### Google Veo (Gemini) Model Options
+
+Veo runs on Google's long-running operations API. The adapter starts the
+operation, and `getVideoJobStatus` polls it until the video is ready:
+
+```typescript
+import { generateVideo } from '@tanstack/ai'
+import { geminiVideo } from '@tanstack/ai-gemini'
+
+const adapter = geminiVideo('veo-3.1-generate-preview')
+
+const { jobId } = await generateVideo({
+  adapter,
+  prompt: 'A close-up of a luthier carving a guitar neck',
+  size: '16:9', // aspect ratio: '16:9' or '9:16'
+  duration: 8, // typed per model — see below
+  modelOptions: {
+    resolution: '1080p', // '720p' (default), '1080p', '4k' (Veo 3.1 only)
+    negativePrompt: 'cartoon, low quality',
+    generateAudio: true, // Veo 3+ generates synchronized audio
+  },
+})
+```
+
+#### Typed durations
+
+Each Veo model accepts a fixed set of durations, enforced at compile time on
+the `duration` option:
+
+| Model | `duration` values (seconds) |
+|-------|------------------------------|
+| `veo-3.1-generate-preview` | `4`, `6`, `8` |
+| `veo-3.1-fast-generate-preview` | `4`, `6`, `8` |
+| `veo-3.0-generate-001` | `4`, `6`, `8` |
+| `veo-3.0-fast-generate-001` | `4`, `6`, `8` |
+| `veo-2.0-generate-001` | `5`, `6`, `8` |
+
+If you have raw seconds (for example from a UI slider), coerce them with
+`snapDuration`, or inspect the full set with `availableDurations`:
+
+```typescript
+const adapter = geminiVideo('veo-3.0-generate-001')
+
+adapter.availableDurations() // { kind: 'discrete', values: [4, 6, 8] }
+adapter.snapDuration(7) // 6 — closest valid duration
+
+await generateVideo({
+  adapter,
+  prompt: 'A timelapse of a city skyline at dusk',
+  duration: adapter.snapDuration(7),
+})
+```
+
+Adapters that haven't declared a per-model duration map keep the plain
+`duration?: number` typing, return `{ kind: 'none' }` from
+`availableDurations()`, and return `undefined` from `snapDuration()`.
+
+> **Note:** The video URL returned for Veo jobs is served by the Gemini
+> Files API and requires your API key to download (send it as an
+> `x-goog-api-key` header or `key` query parameter).
 
 ## Response Types
 
@@ -504,9 +650,11 @@ Check the [OpenAI documentation](https://platform.openai.com/docs) for current l
 
 ## Environment Variables
 
-The video adapter uses the same environment variable as other OpenAI adapters:
+The video adapters use the same environment variables as the other adapters
+for their provider:
 
-- `OPENAI_API_KEY`: Your OpenAI API key
+- `OPENAI_API_KEY`: Your OpenAI API key (Sora)
+- `GOOGLE_API_KEY` or `GEMINI_API_KEY`: Your Google API key (Veo)
 
 ## Explicit API Keys
 

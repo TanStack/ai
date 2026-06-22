@@ -190,6 +190,18 @@ export type GeminiImageModelSizeByName = {
 }
 
 /**
+ * Per-model prompt input modalities. Gemini-native image models accept image
+ * parts in the multimodal prompt (image-conditioned generation via
+ * generateContent); Imagen models are strictly text-to-image, so their
+ * `prompt` is constrained to text at compile time.
+ */
+export type GeminiImageModelInputModalitiesByName = {
+  [K in GeminiNativeImageModels]: readonly ['image']
+} & {
+  [K in Exclude<GeminiImageModels, GeminiNativeImageModels>]: readonly []
+}
+
+/**
  * Valid sizes for Gemini Imagen models
  * Gemini uses aspect ratios, but we map common WIDTHxHEIGHT formats to aspect ratios
  * These are approximate mappings based on common image dimensions

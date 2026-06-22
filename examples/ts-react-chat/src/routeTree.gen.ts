@@ -17,6 +17,7 @@ import { Route as Issue176ToolResultRouteImport } from './routes/issue-176-tool-
 import { Route as ImageToolReproRouteImport } from './routes/image-tool-repro'
 import { Route as ImageGenRouteImport } from './routes/image-gen'
 import { Route as GenerationHooksRouteImport } from './routes/generation-hooks'
+import { Route as CapabilityDemoRouteImport } from './routes/capability-demo'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GenerationsVideoRouteImport } from './routes/generations.video'
 import { Route as GenerationsTranscriptionRouteImport } from './routes/generations.transcription'
@@ -38,6 +39,7 @@ import { Route as ApiMcpManualRouteImport } from './routes/api.mcp-manual'
 import { Route as ApiMcpChatRouteImport } from './routes/api.mcp-chat'
 import { Route as ApiImageToolReproRouteImport } from './routes/api.image-tool-repro'
 import { Route as ApiImageGenRouteImport } from './routes/api.image-gen'
+import { Route as ApiCapabilityDemoRouteImport } from './routes/api.capability-demo'
 import { Route as ExampleGuitarsIndexRouteImport } from './routes/example.guitars/index'
 import { Route as ExampleGuitarsGuitarIdRouteImport } from './routes/example.guitars/$guitarId'
 import { Route as ApiGenerateVideoRouteImport } from './routes/api.generate.video'
@@ -83,6 +85,11 @@ const ImageGenRoute = ImageGenRouteImport.update({
 const GenerationHooksRoute = GenerationHooksRouteImport.update({
   id: '/generation-hooks',
   path: '/generation-hooks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CapabilityDemoRoute = CapabilityDemoRouteImport.update({
+  id: '/capability-demo',
+  path: '/capability-demo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -193,6 +200,11 @@ const ApiImageGenRoute = ApiImageGenRouteImport.update({
   path: '/api/image-gen',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCapabilityDemoRoute = ApiCapabilityDemoRouteImport.update({
+  id: '/api/capability-demo',
+  path: '/api/capability-demo',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ExampleGuitarsIndexRoute = ExampleGuitarsIndexRouteImport.update({
   id: '/example/guitars/',
   path: '/example/guitars/',
@@ -226,6 +238,7 @@ const ApiGenerateAudioRoute = ApiGenerateAudioRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/capability-demo': typeof CapabilityDemoRoute
   '/generation-hooks': typeof GenerationHooksRoute
   '/image-gen': typeof ImageGenRoute
   '/image-tool-repro': typeof ImageToolReproRoute
@@ -234,6 +247,7 @@ export interface FileRoutesByFullPath {
   '/realtime': typeof RealtimeRoute
   '/server-fn-chat': typeof ServerFnChatRoute
   '/threads': typeof ThreadsRoute
+  '/api/capability-demo': typeof ApiCapabilityDemoRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/image-tool-repro': typeof ApiImageToolReproRoute
   '/api/mcp-chat': typeof ApiMcpChatRoute
@@ -263,6 +277,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/capability-demo': typeof CapabilityDemoRoute
   '/generation-hooks': typeof GenerationHooksRoute
   '/image-gen': typeof ImageGenRoute
   '/image-tool-repro': typeof ImageToolReproRoute
@@ -271,6 +286,7 @@ export interface FileRoutesByTo {
   '/realtime': typeof RealtimeRoute
   '/server-fn-chat': typeof ServerFnChatRoute
   '/threads': typeof ThreadsRoute
+  '/api/capability-demo': typeof ApiCapabilityDemoRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/image-tool-repro': typeof ApiImageToolReproRoute
   '/api/mcp-chat': typeof ApiMcpChatRoute
@@ -301,6 +317,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/capability-demo': typeof CapabilityDemoRoute
   '/generation-hooks': typeof GenerationHooksRoute
   '/image-gen': typeof ImageGenRoute
   '/image-tool-repro': typeof ImageToolReproRoute
@@ -309,6 +326,7 @@ export interface FileRoutesById {
   '/realtime': typeof RealtimeRoute
   '/server-fn-chat': typeof ServerFnChatRoute
   '/threads': typeof ThreadsRoute
+  '/api/capability-demo': typeof ApiCapabilityDemoRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/image-tool-repro': typeof ApiImageToolReproRoute
   '/api/mcp-chat': typeof ApiMcpChatRoute
@@ -340,6 +358,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/capability-demo'
     | '/generation-hooks'
     | '/image-gen'
     | '/image-tool-repro'
@@ -348,6 +367,7 @@ export interface FileRouteTypes {
     | '/realtime'
     | '/server-fn-chat'
     | '/threads'
+    | '/api/capability-demo'
     | '/api/image-gen'
     | '/api/image-tool-repro'
     | '/api/mcp-chat'
@@ -377,6 +397,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/capability-demo'
     | '/generation-hooks'
     | '/image-gen'
     | '/image-tool-repro'
@@ -385,6 +406,7 @@ export interface FileRouteTypes {
     | '/realtime'
     | '/server-fn-chat'
     | '/threads'
+    | '/api/capability-demo'
     | '/api/image-gen'
     | '/api/image-tool-repro'
     | '/api/mcp-chat'
@@ -414,6 +436,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/capability-demo'
     | '/generation-hooks'
     | '/image-gen'
     | '/image-tool-repro'
@@ -422,6 +445,7 @@ export interface FileRouteTypes {
     | '/realtime'
     | '/server-fn-chat'
     | '/threads'
+    | '/api/capability-demo'
     | '/api/image-gen'
     | '/api/image-tool-repro'
     | '/api/mcp-chat'
@@ -452,6 +476,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CapabilityDemoRoute: typeof CapabilityDemoRoute
   GenerationHooksRoute: typeof GenerationHooksRoute
   ImageGenRoute: typeof ImageGenRoute
   ImageToolReproRoute: typeof ImageToolReproRoute
@@ -460,6 +485,7 @@ export interface RootRouteChildren {
   RealtimeRoute: typeof RealtimeRoute
   ServerFnChatRoute: typeof ServerFnChatRoute
   ThreadsRoute: typeof ThreadsRoute
+  ApiCapabilityDemoRoute: typeof ApiCapabilityDemoRoute
   ApiImageGenRoute: typeof ApiImageGenRoute
   ApiImageToolReproRoute: typeof ApiImageToolReproRoute
   ApiMcpChatRoute: typeof ApiMcpChatRoute
@@ -544,6 +570,13 @@ declare module '@tanstack/react-router' {
       path: '/generation-hooks'
       fullPath: '/generation-hooks'
       preLoaderRoute: typeof GenerationHooksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/capability-demo': {
+      id: '/capability-demo'
+      path: '/capability-demo'
+      fullPath: '/capability-demo'
+      preLoaderRoute: typeof CapabilityDemoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -693,6 +726,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiImageGenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/capability-demo': {
+      id: '/api/capability-demo'
+      path: '/api/capability-demo'
+      fullPath: '/api/capability-demo'
+      preLoaderRoute: typeof ApiCapabilityDemoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/example/guitars/': {
       id: '/example/guitars/'
       path: '/example/guitars'
@@ -740,6 +780,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CapabilityDemoRoute: CapabilityDemoRoute,
   GenerationHooksRoute: GenerationHooksRoute,
   ImageGenRoute: ImageGenRoute,
   ImageToolReproRoute: ImageToolReproRoute,
@@ -748,6 +789,7 @@ const rootRouteChildren: RootRouteChildren = {
   RealtimeRoute: RealtimeRoute,
   ServerFnChatRoute: ServerFnChatRoute,
   ThreadsRoute: ThreadsRoute,
+  ApiCapabilityDemoRoute: ApiCapabilityDemoRoute,
   ApiImageGenRoute: ApiImageGenRoute,
   ApiImageToolReproRoute: ApiImageToolReproRoute,
   ApiMcpChatRoute: ApiMcpChatRoute,

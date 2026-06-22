@@ -1,5 +1,62 @@
 # @tanstack/openai-base
 
+## 0.8.7
+
+### Patch Changes
+
+- [#790](https://github.com/TanStack/ai/pull/790) [`22ccaaa`](https://github.com/TanStack/ai/commit/22ccaaa4fe018af5a1f34bfabc0480246b11bd14) - Apply the strict-mode fallback in the provider-path `function-tool` converter. A tool whose input JSON Schema can't satisfy OpenAI's strict function-calling constraints now falls back to a non-strict tool definition (matching the converter's other path) instead of emitting an invalid strict tool, so such tools work across the OpenAI-based adapters (`@tanstack/ai-openai`, `@tanstack/ai-grok`, `@tanstack/ai-groq`).
+
+## 0.8.6
+
+### Patch Changes
+
+- [#786](https://github.com/TanStack/ai/pull/786) [`c55764a`](https://github.com/TanStack/ai/commit/c55764a4cb55a384dc50390191e4842a3e64604a) - fix(openai): emit `strict: false` for function tools whose JSON Schema is outside OpenAI's strict subset
+
+  The Responses and Chat Completions tool converters forced `strict: true` on
+  every function tool. When a tool's schema uses keywords OpenAI's strict
+  Structured Outputs subset doesn't support (`oneOf`/`allOf`/`not`/`$ref`/
+  `$defs` — routinely emitted by MCP servers such as Notion), the API rejected
+  the **entire** request with `400 Invalid schema for function '…'`, breaking
+  every run that included such a tool.
+
+  These converters now detect schemas outside the strict subset
+  (`isStrictModeCompatible`) and emit those tools with `strict: false` — the
+  schema is passed through (only unsupported `format` keywords are stripped) so
+  the tool stays callable. Schemas that fit the strict subset keep `strict: true`
+  and the existing structured-output coercion, so well-behaved tools are
+  unaffected.
+
+## 0.8.5
+
+### Patch Changes
+
+- Updated dependencies [[`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f), [`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f)]:
+  - @tanstack/ai@0.32.0
+
+## 0.8.4
+
+### Patch Changes
+
+- Updated dependencies [[`07aaf8b`](https://github.com/TanStack/ai/commit/07aaf8b9e5a8e699be25f936cc9cd651a46c16c5)]:
+  - @tanstack/ai@0.31.0
+
+## 0.8.3
+
+### Patch Changes
+
+- [#769](https://github.com/TanStack/ai/pull/769) [`1d1bb52`](https://github.com/TanStack/ai/commit/1d1bb5219a38d9718cc926148e93fc27d5d2305b) - Add repository metadata (`homepage`, `bugs`, `funding`), fix `repository.directory` to point at each package, and include an MIT `LICENSE` file in every published package.
+
+- Updated dependencies [[`7103348`](https://github.com/TanStack/ai/commit/71033488212bff05dcccc857e721ab9262ebc2a6), [`1d1bb52`](https://github.com/TanStack/ai/commit/1d1bb5219a38d9718cc926148e93fc27d5d2305b)]:
+  - @tanstack/ai@0.30.0
+  - @tanstack/ai-utils@0.2.2
+
+## 0.8.2
+
+### Patch Changes
+
+- Updated dependencies [[`ff267a5`](https://github.com/TanStack/ai/commit/ff267a5536327b006979f9f28ce2df7cc27f6e23), [`570c08a`](https://github.com/TanStack/ai/commit/570c08a8d1a35746c3d31a63188249cba2d2475a), [`22c9b42`](https://github.com/TanStack/ai/commit/22c9b42baec74914b720e440f29bd02be04eb164), [`215b6b4`](https://github.com/TanStack/ai/commit/215b6b401aa95d1d38da342aa09603cb1d616929), [`7d44569`](https://github.com/TanStack/ai/commit/7d445693ea079d7a85498a4465179ddd5f548cb0)]:
+  - @tanstack/ai@0.29.0
+
 ## 0.8.1
 
 ### Patch Changes

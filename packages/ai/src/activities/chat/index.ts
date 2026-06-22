@@ -27,13 +27,19 @@ import {
 import { maxIterations as maxIterationsStrategy } from './agent-loop-strategies'
 import { convertMessagesToModelMessages, generateMessageId } from './messages'
 import { MiddlewareRunner } from './middleware/compose'
+import { CapabilityRegistry } from './middleware/capabilities'
+import { validateCapabilities } from './middleware/validate'
 import { MCPManager } from './mcp/manager'
 import type {
   ApprovalRequest,
   ClientToolRequest,
   ToolResult,
 } from './tools/tool-calls'
-import type { AnyTextAdapter, StructuredOutputOptions } from './adapter'
+import type {
+  AnyTextAdapter,
+  StructuredOutputOptions,
+  StructuredOutputResult,
+} from './adapter'
 import type {
   AgentLoopStrategy,
   AnyTool,
@@ -56,11 +62,13 @@ import type {
   UIMessage,
 } from '../../types'
 import type {
+  AnyChatMiddleware,
   ChatMiddleware,
   ChatMiddlewareConfig,
   ChatMiddlewareContext,
   StructuredOutputMiddlewareConfig,
 } from './middleware/types'
+import type { CheckCoverage } from './middleware/builder'
 import type { SystemPrompt } from '../../system-prompts'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
@@ -143,7 +151,8 @@ type TextActivityOptionsWithContext<
   'tools' | 'middleware' | 'context'
 > & {
   tools?: TTools
-  middleware?: TMiddleware
+  middleware?: TMiddleware &
+    CheckCoverage<Extract<TMiddleware, ReadonlyArray<AnyChatMiddleware>>>
 } & RequiredContextFromInputs<TTools, TMiddleware>
 
 // ===========================
@@ -655,6 +664,7 @@ class TextEngine<
         this.deferredPromises.push(promise)
       },
       // Provider / adapter info
+      activity: 'chat',
       provider: config.adapter.name,
       model: config.params.model,
       source: 'server',
@@ -673,6 +683,15 @@ class TextEngine<
       // References
       messages: this.messages,
       createId: (prefix: string) => this.createId(prefix),
+      // Capability bookkeeping for this request (populated by middleware setup)
+      capabilities: new CapabilityRegistry(),
+      // Convenience accessors that delegate to a capability handle's own
+      // tuple getter/provider, keyed by this context. `getX(ctx)` and
+      // `ctx.get(X)` are interchangeable.
+      get: (capability) => capability[0](this.middlewareCtx),
+      getOptional: (capability) =>
+        capability[0](this.middlewareCtx, { optional: true }),
+      provide: (capability, value) => capability[1](this.middlewareCtx, value),
     }
   }
 
@@ -720,6 +739,9 @@ class TextEngine<
     })
 
     try {
+      // Provision capabilities before any consumer (onConfig onward) can read them
+      await this.middlewareRunner.runSetup(this.middlewareCtx)
+
       // Run initial onConfig (phase = init)
       this.middlewareCtx.phase = 'init'
       const initialConfig = this.buildMiddlewareConfig()
@@ -1692,8 +1714,9 @@ class TextEngine<
       const wireContent =
         typeof content === 'string' ? content : JSON.stringify(content)
 
-      // Emit TOOL_CALL_START + TOOL_CALL_ARGS before TOOL_CALL_END so that
-      // the client can reconstruct the full tool call during continuations.
+      // argsMap is set only on continuation re-executions, where the adapter
+      // never streamed these calls. Otherwise it already emitted END, so a
+      // second one here would be an orphan that fails verifyEvents (#519).
       if (argsMap) {
         chunks.push({
           type: 'TOOL_CALL_START',
@@ -1713,18 +1736,18 @@ class TextEngine<
           delta: args,
           args,
         } as StreamChunk)
-      }
 
-      chunks.push({
-        type: 'TOOL_CALL_END',
-        timestamp: Date.now(),
-        model: finishEvent.model,
-        toolCallId: result.toolCallId,
-        toolCallName: result.toolName,
-        toolName: result.toolName,
-        result: wireContent,
-        ...(result.state !== undefined && { state: result.state }),
-      } as StreamChunk)
+        chunks.push({
+          type: 'TOOL_CALL_END',
+          timestamp: Date.now(),
+          model: finishEvent.model,
+          toolCallId: result.toolCallId,
+          toolCallName: result.toolName,
+          toolName: result.toolName,
+          result: wireContent,
+          ...(result.state !== undefined && { state: result.state }),
+        } as StreamChunk)
+      }
 
       // AG-UI spec TOOL_CALL_RESULT event (content is string-only per spec)
       chunks.push({
@@ -2598,6 +2621,8 @@ export function chat<
     TMiddleware
   >,
 ): TextActivityResult<TSchema, TStream> {
+  validateCapabilities(options.middleware ?? [], options.adapter)
+
   const { outputSchema, stream } = options
 
   // outputSchema + stream:true is the only branch that streams structured
@@ -2890,7 +2915,7 @@ async function* fallbackStructuredOutputStream(
     timestamp,
   }
 
-  let result: { data: unknown; rawText: string }
+  let result: StructuredOutputResult<unknown>
   try {
     result = await adapter.structuredOutput(options)
   } catch (error) {
@@ -2946,6 +2971,12 @@ async function* fallbackStructuredOutputStream(
     model,
     timestamp,
     finishReason: 'stop',
+    // Forward adapter-reported token usage so consumers reading
+    // `RUN_FINISHED.usage` (and the engine's `runOnUsage` middleware hook) see
+    // it on the fallback path, mirroring the native streaming path. The
+    // conditional spread avoids emitting `usage: undefined` for adapters that
+    // don't report it. See #758.
+    ...(result.usage ? { usage: result.usage } : {}),
   }
 }
 

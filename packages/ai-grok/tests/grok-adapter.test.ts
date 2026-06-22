@@ -189,6 +189,223 @@ describe('Grok adapters', () => {
         'XAI_API_KEY is required',
       )
     })
+
+    it('maps the size template to aspect_ratio/resolution for imagine models', async () => {
+      const adapter = createGrokImage('grok-imagine-image', 'test-api-key')
+      const mockGenerate = vi.fn().mockResolvedValue({
+        data: [{ url: 'https://example.com/out.png' }],
+      })
+      ;(adapter as any).client = { images: { generate: mockGenerate } }
+
+      await adapter.generateImages({
+        model: 'grok-imagine-image',
+        prompt: 'A skyline',
+        size: '16:9_2k',
+        logger: testLogger,
+      })
+
+      expect(mockGenerate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: 'grok-imagine-image',
+          aspect_ratio: '16:9',
+          resolution: '2k',
+        }),
+      )
+      expect(mockGenerate.mock.calls[0]![0]).not.toHaveProperty('size')
+    })
+  })
+
+  describe('Image adapter — image prompt parts (Imagine edits endpoint)', () => {
+    const editResponse = (body: Record<string, unknown>, ok = true) =>
+      vi.fn().mockResolvedValue({
+        ok,
+        status: ok ? 200 : 422,
+        statusText: ok ? 'OK' : 'Unprocessable Entity',
+        json: () => Promise.resolve(body),
+        text: () => Promise.resolve(JSON.stringify(body)),
+      })
+
+    beforeEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('routes a single image part to POST /v1/images/edits with the prompt sent verbatim', async () => {
+      const mockFetch = editResponse({
+        data: [{ url: 'https://example.com/edited.png' }],
+      })
+      vi.stubGlobal('fetch', mockFetch)
+
+      const adapter = createGrokImage('grok-imagine-image', 'test-api-key')
+      const result = await adapter.generateImages({
+        model: 'grok-imagine-image',
+        prompt: [
+          { type: 'text', content: 'Make it a pencil sketch' },
+          {
+            type: 'image',
+            source: { type: 'url', value: 'https://example.com/source.png' },
+          },
+        ],
+        logger: testLogger,
+      })
+
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+      const [url, init] = mockFetch.mock.calls[0]!
+      expect(url).toBe('https://api.x.ai/v1/images/edits')
+      expect(init.headers.Authorization).toBe('Bearer test-api-key')
+      expect(JSON.parse(init.body)).toMatchObject({
+        model: 'grok-imagine-image',
+        prompt: 'Make it a pencil sketch',
+        image: { url: 'https://example.com/source.png' },
+      })
+      expect(result.images).toEqual([{ url: 'https://example.com/edited.png' }])
+    })
+
+    it('flattens interleaved text verbatim — no markers are injected', async () => {
+      const mockFetch = editResponse({ data: [{ b64_json: 'aGVsbG8=' }] })
+      vi.stubGlobal('fetch', mockFetch)
+
+      const adapter = createGrokImage('grok-imagine-image', 'test-api-key')
+      await adapter.generateImages({
+        model: 'grok-imagine-image',
+        prompt: [
+          { type: 'text', content: 'Not like' },
+          {
+            type: 'image',
+            source: { type: 'url', value: 'https://example.com/bad.png' },
+          },
+          { type: 'text', content: 'more like' },
+          {
+            type: 'image',
+            source: { type: 'url', value: 'https://example.com/good.png' },
+          },
+        ],
+        logger: testLogger,
+      })
+
+      const body = JSON.parse(mockFetch.mock.calls[0]![1].body)
+      expect(body.prompt).toBe('Not like\n\nmore like')
+      expect(body.images).toEqual([
+        { url: 'https://example.com/bad.png' },
+        { url: 'https://example.com/good.png' },
+      ])
+    })
+
+    it('passes user-written referencing text through verbatim, sends images[] and maps size', async () => {
+      const mockFetch = editResponse({ data: [{ b64_json: 'aGVsbG8=' }] })
+      vi.stubGlobal('fetch', mockFetch)
+
+      const adapter = createGrokImage(
+        'grok-imagine-image-quality',
+        'test-api-key',
+      )
+      const result = await adapter.generateImages({
+        model: 'grok-imagine-image-quality',
+        prompt: [
+          { type: 'text', content: 'Put <IMAGE_0> in the style of <IMAGE_1>' },
+          {
+            type: 'image',
+            source: { type: 'url', value: 'https://example.com/product.png' },
+          },
+          {
+            type: 'image',
+            source: { type: 'data', value: 'c3R5bGU=', mimeType: 'image/png' },
+          },
+        ],
+        size: '1:1',
+        logger: testLogger,
+      })
+
+      const body = JSON.parse(mockFetch.mock.calls[0]![1].body)
+      expect(body.prompt).toBe('Put <IMAGE_0> in the style of <IMAGE_1>')
+      expect(body.images).toEqual([
+        { url: 'https://example.com/product.png' },
+        { url: 'data:image/png;base64,c3R5bGU=' },
+      ])
+      expect(body.image).toBeUndefined()
+      expect(body.aspect_ratio).toBe('1:1')
+      expect(result.images).toEqual([{ b64Json: 'aGVsbG8=' }])
+    })
+
+    it('throws for image prompt parts on the legacy grok-2 image model', async () => {
+      const adapter = createGrokImage('grok-2-image-1212', 'test-api-key')
+
+      await expect(
+        adapter.generateImages({
+          model: 'grok-2-image-1212',
+          prompt: [
+            { type: 'text', content: 'Edit this' },
+            {
+              type: 'image',
+              source: { type: 'url', value: 'https://example.com/a.png' },
+            },
+          ],
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/does not support image prompt parts/)
+    })
+
+    it('throws for more than 3 source images', async () => {
+      const adapter = createGrokImage('grok-imagine-image', 'test-api-key')
+      const part = {
+        type: 'image' as const,
+        source: { type: 'url' as const, value: 'https://example.com/a.png' },
+      }
+
+      await expect(
+        adapter.generateImages({
+          model: 'grok-imagine-image',
+          prompt: [
+            { type: 'text', content: 'Combine these' },
+            part,
+            part,
+            part,
+            part,
+          ],
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/at most 3 source images/)
+    })
+
+    it('throws for mask/control roles (no Imagine API equivalent)', async () => {
+      const adapter = createGrokImage('grok-imagine-image', 'test-api-key')
+
+      await expect(
+        adapter.generateImages({
+          model: 'grok-imagine-image',
+          prompt: [
+            { type: 'text', content: 'Inpaint' },
+            {
+              type: 'image',
+              source: { type: 'url', value: 'https://example.com/m.png' },
+              metadata: { role: 'mask' },
+            },
+          ],
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/no mask input/)
+    })
+
+    it('throws with response detail on a failed edit request', async () => {
+      vi.stubGlobal(
+        'fetch',
+        editResponse({ error: 'bad image' }, /* ok */ false),
+      )
+
+      const adapter = createGrokImage('grok-imagine-image', 'test-api-key')
+      await expect(
+        adapter.generateImages({
+          model: 'grok-imagine-image',
+          prompt: [
+            { type: 'text', content: 'Edit' },
+            {
+              type: 'image',
+              source: { type: 'url', value: 'https://example.com/a.png' },
+            },
+          ],
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/image edit request failed \(422/)
+    })
   })
 
   describe('Summarize adapter', () => {
