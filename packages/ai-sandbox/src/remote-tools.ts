@@ -53,9 +53,7 @@ export function remoteToolStubs(
  * `inputSchema` must already be a plain JSON-schema object (convert Standard
  * Schemas before calling, the same way harness adapters advertise tools).
  */
-export function toolDescriptors(
-  tools: Array<AnyTool>,
-): Array<ToolDescriptor> {
+export function toolDescriptors(tools: Array<AnyTool>): Array<ToolDescriptor> {
   return tools.map((tool) => ({
     name: tool.name,
     description: tool.description,
@@ -113,7 +111,9 @@ export function httpRemoteToolExecutor(
       }
       const body: unknown = await res.json()
       if (!isToolExecResponse(body)) {
-        throw new Error(`remote tool "${name}": malformed orchestrator response`)
+        throw new Error(
+          `remote tool "${name}": malformed orchestrator response`,
+        )
       }
       return body.result
     },

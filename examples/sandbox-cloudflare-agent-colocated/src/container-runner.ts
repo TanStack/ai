@@ -74,7 +74,9 @@ function runAgent(request: RunRequest): AsyncIterable<StreamChunk> {
   if (!anthropicKey) {
     // Surface the misconfiguration instead of silently running keyless: the DO
     // injects this via sandbox.setEnvVars before starting the runner.
-    throw new Error('container-runner: ANTHROPIC_API_KEY is not set in the container env')
+    throw new Error(
+      'container-runner: ANTHROPIC_API_KEY is not set in the container env',
+    )
   }
   const sandbox = defineSandbox({
     // The container IS the host: no isolation, just run on its own filesystem.
@@ -107,7 +109,10 @@ function runAgent(request: RunRequest): AsyncIterable<StreamChunk> {
 }
 
 /** Stream the agent's chunks to the response as NDJSON, one object per line. */
-async function handleRun(req: IncomingMessage, res: ServerResponse): Promise<void> {
+async function handleRun(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
   const request = parseRunRequest(JSON.parse(await readBody(req)))
   res.writeHead(200, {
     'content-type': 'application/x-ndjson',

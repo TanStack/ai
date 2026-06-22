@@ -94,14 +94,14 @@ Both reuse the already-built, exported APIs in
 
 ## How this differs from `sandbox-cloudflare-agent`
 
-| | `sandbox-cloudflare-agent` (DO-drives-container) | **this example (co-located)** |
-| --- | --- | --- |
-| Who runs `chat()` / the harness loop? | the **DO** | the **container** (`src/container-runner.ts`) |
-| Where is the MCP tool-bridge served? | from the DO's `fetch` (`/_bridge/:runId`), reached from the container over the public hostname | on the container's **own localhost** (default `node:http` host transport); never leaves the container |
-| In-container sandbox | `cloudflareSandbox()` (the DO drives a remote container) | `localProcessSandbox()` (the container **is** the host) |
-| Prompt → `claude` CLI | file + shell stdin-redirection (Cloudflare sandbox has no writable host→process stdin) | **native writable stdin** (a local process has a writable stdin) |
-| What crosses the boundary | the whole MCP protocol (DO → container) + the chunk stream stays inside the DO | only ① the NDJSON event stream and ② host-tool **execution** |
-| Role of the DO | owns + drives the run | **thin durable coordinator**: run-log + client streaming + host-tool execution |
+|                                       | `sandbox-cloudflare-agent` (DO-drives-container)                                               | **this example (co-located)**                                                                         |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Who runs `chat()` / the harness loop? | the **DO**                                                                                     | the **container** (`src/container-runner.ts`)                                                         |
+| Where is the MCP tool-bridge served?  | from the DO's `fetch` (`/_bridge/:runId`), reached from the container over the public hostname | on the container's **own localhost** (default `node:http` host transport); never leaves the container |
+| In-container sandbox                  | `cloudflareSandbox()` (the DO drives a remote container)                                       | `localProcessSandbox()` (the container **is** the host)                                               |
+| Prompt → `claude` CLI                 | file + shell stdin-redirection (Cloudflare sandbox has no writable host→process stdin)         | **native writable stdin** (a local process has a writable stdin)                                      |
+| What crosses the boundary             | the whole MCP protocol (DO → container) + the chunk stream stays inside the DO                 | only ① the NDJSON event stream and ② host-tool **execution**                                          |
+| Role of the DO                        | owns + drives the run                                                                          | **thin durable coordinator**: run-log + client streaming + host-tool execution                        |
 
 The co-located shape keeps the entire agent runtime (harness, MCP, stdin) on one
 host and reduces the public network surface to a single authenticated tool-exec
@@ -113,15 +113,15 @@ it only sees the event stream and the tool-exec callbacks.
 
 ## Files
 
-| File | Role |
-| --- | --- |
-| `src/worker.ts` | Stateless entry Worker: routes, returns `202` immediately, exports the DO classes. |
-| `src/coordinator.ts` | `RunCoordinator` DO: ensures + drives the container runner, pumps its NDJSON into the run-log, serves WebSocket tails and the `/tool-exec` host-tool endpoint, holds the real host tools. |
-| `src/container-runner.ts` | The IN-CONTAINER runner (bundled into the image): runs `chat()` with `localProcessSandbox()` + `claudeCodeText`, streams chunks back as NDJSON, delegates tool execution to the DO. |
-| `src/protocol.ts` | The `POST /run` wire contract (`RunRequest`) + its narrowing guard, shared by the DO and the runner. |
-| `src/run-log-do.ts` | `DurableObjectRunEventLog` — the resumable run event-log over DO storage (copied from the sibling example). |
-| `wrangler.jsonc` | DO + Container + Sandbox bindings, migrations, `nodejs_compat`. |
-| `Dockerfile` | Container image: `@cloudflare/sandbox` base + the `claude` CLI + the bundled runner. |
+| File                      | Role                                                                                                                                                                                      |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/worker.ts`           | Stateless entry Worker: routes, returns `202` immediately, exports the DO classes.                                                                                                        |
+| `src/coordinator.ts`      | `RunCoordinator` DO: ensures + drives the container runner, pumps its NDJSON into the run-log, serves WebSocket tails and the `/tool-exec` host-tool endpoint, holds the real host tools. |
+| `src/container-runner.ts` | The IN-CONTAINER runner (bundled into the image): runs `chat()` with `localProcessSandbox()` + `claudeCodeText`, streams chunks back as NDJSON, delegates tool execution to the DO.       |
+| `src/protocol.ts`         | The `POST /run` wire contract (`RunRequest`) + its narrowing guard, shared by the DO and the runner.                                                                                      |
+| `src/run-log-do.ts`       | `DurableObjectRunEventLog` — the resumable run event-log over DO storage (copied from the sibling example).                                                                               |
+| `wrangler.jsonc`          | DO + Container + Sandbox bindings, migrations, `nodejs_compat`.                                                                                                                           |
+| `Dockerfile`              | Container image: `@cloudflare/sandbox` base + the `claude` CLI + the bundled runner.                                                                                                      |
 
 ## Run it locally
 

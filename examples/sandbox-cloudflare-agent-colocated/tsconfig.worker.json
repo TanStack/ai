@@ -1,7 +1,12 @@
 {
   // Worker + Durable Object code. Runs on the Cloudflare edge; uses
   // @cloudflare/workers-types globals (no node:http here).
-  "include": ["src/worker.ts", "src/coordinator.ts", "src/run-log-do.ts", "src/protocol.ts"],
+  "include": [
+    "src/worker.ts",
+    "src/coordinator.ts",
+    "src/run-log-do.ts",
+    "src/protocol.ts"
+  ],
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",

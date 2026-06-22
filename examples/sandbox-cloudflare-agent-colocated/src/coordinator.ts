@@ -153,7 +153,10 @@ async function* ndjsonToChunks(
       if (line === '') continue
       const parsed: unknown = JSON.parse(line)
       if (!isStreamChunk(parsed)) {
-        yield { type: EventType.RUN_ERROR, message: 'runner sent a non-chunk line' }
+        yield {
+          type: EventType.RUN_ERROR,
+          message: 'runner sent a non-chunk line',
+        }
         return
       }
       yield parsed

@@ -48,7 +48,10 @@ import type {
   ToolBridgeProvisioner,
 } from '@tanstack/ai-sandbox'
 
-const baseDir = path.join(os.tmpdir(), `tanstack-ai-cc-bridge-test-${Date.now()}`)
+const baseDir = path.join(
+  os.tmpdir(),
+  `tanstack-ai-cc-bridge-test-${Date.now()}`,
+)
 const provider = localProcessSandbox({ baseDir, removeOnDestroy: true })
 
 afterAll(async () => {
@@ -196,7 +199,10 @@ describe('claude-code co-located host-tool delegation', () => {
         model: 'haiku',
         messages: [{ role: 'user', content: 'use the get_fact tool' }],
         logger: noopLogger,
-        capabilities: capabilityContextWith(sbx, inContainerBridgeProvisioner()),
+        capabilities: capabilityContextWith(
+          sbx,
+          inContainerBridgeProvisioner(),
+        ),
         // Container side: rebuild chat()'s tools as stubs whose execute()
         // delegates to the orchestrator's executeHostTool. The bridge serves
         // these stubs — only this executor crosses back to the host tool.

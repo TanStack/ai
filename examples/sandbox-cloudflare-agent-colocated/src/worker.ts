@@ -87,7 +87,11 @@ export default {
     const parts = url.pathname.split('/').filter(Boolean)
 
     // POST /runs — trigger a run, return 202 immediately.
-    if (request.method === 'POST' && parts.length === 1 && parts[0] === 'runs') {
+    if (
+      request.method === 'POST' &&
+      parts.length === 1 &&
+      parts[0] === 'runs'
+    ) {
       let body: CreateRunBody
       try {
         body = parseCreateRunBody(await request.json())
