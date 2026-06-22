@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { generateVideo, toServerSentEventsResponse } from '@tanstack/ai'
 import { createVideoAdapter } from '@/lib/media-providers'
+import type { MediaPrompt } from '@tanstack/ai'
 import type { Provider } from '@/lib/types'
 
 export const Route = createFileRoute('/api/video')({
@@ -12,7 +13,7 @@ export const Route = createFileRoute('/api/video')({
         const body = await request.json()
         const data = body.forwardedProps ?? body.data ?? body
         const { prompt, provider, testId, aimockPort } = data as {
-          prompt: string
+          prompt: MediaPrompt
           provider: Provider
           testId?: string
           aimockPort?: number

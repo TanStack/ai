@@ -18,6 +18,7 @@ import { Route as DevtoolsRouteBRouteImport } from './routes/devtools-route-b'
 import { Route as DevtoolsRouteARouteImport } from './routes/devtools-route-a'
 import { Route as DevtoolsGenerationHooksRouteImport } from './routes/devtools-generation-hooks'
 import { Route as DevtoolsChatRouteImport } from './routes/devtools-chat'
+import { Route as ChatClientDefaultBridgeRouteImport } from './routes/chat-client-default-bridge'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProviderIndexRouteImport } from './routes/$provider/index'
 import { Route as ApiVideoRouteImport } from './routes/api.video'
@@ -26,6 +27,8 @@ import { Route as ApiTranscriptionRouteImport } from './routes/api.transcription
 import { Route as ApiToolsTestRouteImport } from './routes/api.tools-test'
 import { Route as ApiToolCallLifecycleWireRouteImport } from './routes/api.tool-call-lifecycle-wire'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
+import { Route as ApiOtelUsageRouteImport } from './routes/api.otel-usage'
+import { Route as ApiOtelMediaRouteImport } from './routes/api.otel-media'
 import { Route as ApiOpenrouterWebToolsWireRouteImport } from './routes/api.openrouter-web-tools-wire'
 import { Route as ApiOpenrouterCostRouteImport } from './routes/api.openrouter-cost'
 import { Route as ApiOpenaiUsageDetailsRouteImport } from './routes/api.openai-usage-details'
@@ -41,6 +44,7 @@ import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
 import { Route as ApiArktypeToolWireRouteImport } from './routes/api.arktype-tool-wire'
+import { Route as ApiAnthropicStructuredUsageRouteImport } from './routes/api.anthropic-structured-usage'
 import { Route as ApiAnthropicSkillsWireRouteImport } from './routes/api.anthropic-skills-wire'
 import { Route as ApiAnthropicBugTestRouteImport } from './routes/api.anthropic-bug-test'
 import { Route as ProviderFeatureRouteImport } from './routes/$provider/$feature'
@@ -95,6 +99,11 @@ const DevtoolsChatRoute = DevtoolsChatRouteImport.update({
   path: '/devtools-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ChatClientDefaultBridgeRoute = ChatClientDefaultBridgeRouteImport.update({
+  id: '/chat-client-default-bridge',
+  path: '/chat-client-default-bridge',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -134,6 +143,16 @@ const ApiToolCallLifecycleWireRoute =
 const ApiSummarizeRoute = ApiSummarizeRouteImport.update({
   id: '/api/summarize',
   path: '/api/summarize',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOtelUsageRoute = ApiOtelUsageRouteImport.update({
+  id: '/api/otel-usage',
+  path: '/api/otel-usage',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOtelMediaRoute = ApiOtelMediaRouteImport.update({
+  id: '/api/otel-media',
+  path: '/api/otel-media',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiOpenrouterWebToolsWireRoute =
@@ -214,6 +233,12 @@ const ApiArktypeToolWireRoute = ApiArktypeToolWireRouteImport.update({
   path: '/api/arktype-tool-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAnthropicStructuredUsageRoute =
+  ApiAnthropicStructuredUsageRouteImport.update({
+    id: '/api/anthropic-structured-usage',
+    path: '/api/anthropic-structured-usage',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAnthropicSkillsWireRoute = ApiAnthropicSkillsWireRouteImport.update({
   id: '/api/anthropic-skills-wire',
   path: '/api/anthropic-skills-wire',
@@ -257,6 +282,7 @@ const ApiAudioStreamRoute = ApiAudioStreamRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/devtools-chat': typeof DevtoolsChatRoute
   '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
   '/devtools-route-a': typeof DevtoolsRouteARoute
@@ -269,6 +295,7 @@ export interface FileRoutesByFullPath {
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
+  '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
@@ -284,6 +311,8 @@ export interface FileRoutesByFullPath {
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
+  '/api/otel-media': typeof ApiOtelMediaRoute
+  '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
@@ -299,6 +328,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/devtools-chat': typeof DevtoolsChatRoute
   '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
   '/devtools-route-a': typeof DevtoolsRouteARoute
@@ -311,6 +341,7 @@ export interface FileRoutesByTo {
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
+  '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
@@ -326,6 +357,8 @@ export interface FileRoutesByTo {
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
+  '/api/otel-media': typeof ApiOtelMediaRoute
+  '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
@@ -342,6 +375,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/devtools-chat': typeof DevtoolsChatRoute
   '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
   '/devtools-route-a': typeof DevtoolsRouteARoute
@@ -354,6 +388,7 @@ export interface FileRoutesById {
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
+  '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
@@ -369,6 +404,8 @@ export interface FileRoutesById {
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
+  '/api/otel-media': typeof ApiOtelMediaRoute
+  '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
@@ -386,6 +423,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/chat-client-default-bridge'
     | '/devtools-chat'
     | '/devtools-generation-hooks'
     | '/devtools-route-a'
@@ -398,6 +436,7 @@ export interface FileRouteTypes {
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-skills-wire'
+    | '/api/anthropic-structured-usage'
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/chat'
@@ -413,6 +452,8 @@ export interface FileRouteTypes {
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
     | '/api/openrouter-web-tools-wire'
+    | '/api/otel-media'
+    | '/api/otel-usage'
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
     | '/api/tools-test'
@@ -428,6 +469,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/chat-client-default-bridge'
     | '/devtools-chat'
     | '/devtools-generation-hooks'
     | '/devtools-route-a'
@@ -440,6 +482,7 @@ export interface FileRouteTypes {
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-skills-wire'
+    | '/api/anthropic-structured-usage'
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/chat'
@@ -455,6 +498,8 @@ export interface FileRouteTypes {
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
     | '/api/openrouter-web-tools-wire'
+    | '/api/otel-media'
+    | '/api/otel-usage'
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
     | '/api/tools-test'
@@ -470,6 +515,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/chat-client-default-bridge'
     | '/devtools-chat'
     | '/devtools-generation-hooks'
     | '/devtools-route-a'
@@ -482,6 +528,7 @@ export interface FileRouteTypes {
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-skills-wire'
+    | '/api/anthropic-structured-usage'
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/chat'
@@ -497,6 +544,8 @@ export interface FileRouteTypes {
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
     | '/api/openrouter-web-tools-wire'
+    | '/api/otel-media'
+    | '/api/otel-usage'
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
     | '/api/tools-test'
@@ -513,6 +562,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ChatClientDefaultBridgeRoute: typeof ChatClientDefaultBridgeRoute
   DevtoolsChatRoute: typeof DevtoolsChatRoute
   DevtoolsGenerationHooksRoute: typeof DevtoolsGenerationHooksRoute
   DevtoolsRouteARoute: typeof DevtoolsRouteARoute
@@ -525,6 +575,7 @@ export interface RootRouteChildren {
   ProviderFeatureRoute: typeof ProviderFeatureRoute
   ApiAnthropicBugTestRoute: typeof ApiAnthropicBugTestRoute
   ApiAnthropicSkillsWireRoute: typeof ApiAnthropicSkillsWireRoute
+  ApiAnthropicStructuredUsageRoute: typeof ApiAnthropicStructuredUsageRoute
   ApiArktypeToolWireRoute: typeof ApiArktypeToolWireRoute
   ApiAudioRoute: typeof ApiAudioRouteWithChildren
   ApiChatRoute: typeof ApiChatRoute
@@ -540,6 +591,8 @@ export interface RootRouteChildren {
   ApiOpenaiUsageDetailsRoute: typeof ApiOpenaiUsageDetailsRoute
   ApiOpenrouterCostRoute: typeof ApiOpenrouterCostRoute
   ApiOpenrouterWebToolsWireRoute: typeof ApiOpenrouterWebToolsWireRoute
+  ApiOtelMediaRoute: typeof ApiOtelMediaRoute
+  ApiOtelUsageRoute: typeof ApiOtelUsageRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
   ApiToolCallLifecycleWireRoute: typeof ApiToolCallLifecycleWireRoute
   ApiToolsTestRoute: typeof ApiToolsTestRoute
@@ -614,6 +667,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DevtoolsChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/chat-client-default-bridge': {
+      id: '/chat-client-default-bridge'
+      path: '/chat-client-default-bridge'
+      fullPath: '/chat-client-default-bridge'
+      preLoaderRoute: typeof ChatClientDefaultBridgeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -668,6 +728,20 @@ declare module '@tanstack/react-router' {
       path: '/api/summarize'
       fullPath: '/api/summarize'
       preLoaderRoute: typeof ApiSummarizeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/otel-usage': {
+      id: '/api/otel-usage'
+      path: '/api/otel-usage'
+      fullPath: '/api/otel-usage'
+      preLoaderRoute: typeof ApiOtelUsageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/otel-media': {
+      id: '/api/otel-media'
+      path: '/api/otel-media'
+      fullPath: '/api/otel-media'
+      preLoaderRoute: typeof ApiOtelMediaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/openrouter-web-tools-wire': {
@@ -773,6 +847,13 @@ declare module '@tanstack/react-router' {
       path: '/api/arktype-tool-wire'
       fullPath: '/api/arktype-tool-wire'
       preLoaderRoute: typeof ApiArktypeToolWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/anthropic-structured-usage': {
+      id: '/api/anthropic-structured-usage'
+      path: '/api/anthropic-structured-usage'
+      fullPath: '/api/anthropic-structured-usage'
+      preLoaderRoute: typeof ApiAnthropicStructuredUsageRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/anthropic-skills-wire': {
@@ -894,6 +975,7 @@ const ApiVideoRouteWithChildren = ApiVideoRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ChatClientDefaultBridgeRoute: ChatClientDefaultBridgeRoute,
   DevtoolsChatRoute: DevtoolsChatRoute,
   DevtoolsGenerationHooksRoute: DevtoolsGenerationHooksRoute,
   DevtoolsRouteARoute: DevtoolsRouteARoute,
@@ -906,6 +988,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProviderFeatureRoute: ProviderFeatureRoute,
   ApiAnthropicBugTestRoute: ApiAnthropicBugTestRoute,
   ApiAnthropicSkillsWireRoute: ApiAnthropicSkillsWireRoute,
+  ApiAnthropicStructuredUsageRoute: ApiAnthropicStructuredUsageRoute,
   ApiArktypeToolWireRoute: ApiArktypeToolWireRoute,
   ApiAudioRoute: ApiAudioRouteWithChildren,
   ApiChatRoute: ApiChatRoute,
@@ -921,6 +1004,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOpenaiUsageDetailsRoute: ApiOpenaiUsageDetailsRoute,
   ApiOpenrouterCostRoute: ApiOpenrouterCostRoute,
   ApiOpenrouterWebToolsWireRoute: ApiOpenrouterWebToolsWireRoute,
+  ApiOtelMediaRoute: ApiOtelMediaRoute,
+  ApiOtelUsageRoute: ApiOtelUsageRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
   ApiToolCallLifecycleWireRoute: ApiToolCallLifecycleWireRoute,
   ApiToolsTestRoute: ApiToolsTestRoute,

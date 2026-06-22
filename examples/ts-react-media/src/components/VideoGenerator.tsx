@@ -9,6 +9,7 @@ import {
 } from '@/lib/server-functions'
 import { VIDEO_MODELS } from '@/lib/models'
 import { getRandomVideoPrompt } from '@/lib/prompts'
+import { imageUrlToPart, readImageFile } from '@/lib/media'
 
 type JobState =
   | { status: 'idle' }
@@ -61,15 +62,12 @@ export default function VideoGenerator({
     }
   }, [])
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
+    if (fileInputRef.current) fileInputRef.current.value = ''
     if (!file) return
-
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      setImagePreview(event.target?.result as string)
-    }
-    reader.readAsDataURL(file)
+    const attached = await readImageFile(file)
+    setImagePreview(attached.dataUrl)
   }
 
   const clearImage = () => {
@@ -140,13 +138,20 @@ export default function VideoGenerator({
     }))
 
     try {
-      const imageUrl =
-        mode === 'image-to-video' ? (imagePreview ?? undefined) : undefined
+      // Image-to-video sends the start frame as a prompt part — the fal
+      // adapter routes `role: 'start_frame'` to the endpoint's start-image
+      // field (e.g. `image_url` on Kling i2v).
+      const builtPrompt =
+        mode === 'image-to-video' && imagePreview
+          ? [
+              { type: 'text' as const, content: prompt },
+              imageUrlToPart(imagePreview, { role: 'start_frame' }),
+            ]
+          : prompt
       const result = await createVideoJobFn({
         data: {
-          prompt,
+          prompt: builtPrompt,
           model: modelId,
-          ...(imageUrl !== undefined && { imageUrl }),
         },
       })
 

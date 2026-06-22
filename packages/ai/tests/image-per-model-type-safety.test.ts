@@ -169,6 +169,16 @@ type MockImageModelSizeByName = {
   'mock-dall-e-3': MockDallE3Size
 }
 
+/**
+ * Type map: model name -> supported prompt input modalities.
+ * mock-gpt-image-1 accepts image-conditioned prompts; mock-dall-e-3 is
+ * text-to-image only.
+ */
+type MockImageModelInputModalitiesByName = {
+  'mock-gpt-image-1': readonly ['image']
+  'mock-dall-e-3': readonly []
+}
+
 // ===========================
 // Mock Model Definitions
 // ===========================
@@ -199,7 +209,8 @@ class MockImageAdapter<TModel extends MockImageModel> extends BaseImageAdapter<
   TModel,
   MockImageProviderOptions,
   MockImageModelProviderOptionsByName,
-  MockImageModelSizeByName
+  MockImageModelSizeByName,
+  MockImageModelInputModalitiesByName
 > {
   override readonly kind = 'image' as const
   readonly name = 'mock' as const
@@ -847,6 +858,61 @@ describe('Model Size Type Assertions', () => {
       expectTypeOf<Sizes>().toEqualTypeOf<
         '1024x1024' | '1792x1024' | '1024x1792'
       >()
+    })
+  })
+})
+
+describe('Per-model prompt modality type safety', () => {
+  it('allows image parts in the prompt for image-input models', () => {
+    generateImage({
+      adapter: mockImage('mock-gpt-image-1'),
+      prompt: [
+        { type: 'text', content: 'Make it cinematic' },
+        {
+          type: 'image',
+          source: { type: 'url', value: 'https://example.com/ref.png' },
+          metadata: { role: 'reference' },
+        },
+      ],
+    })
+  })
+
+  it('rejects image parts in the prompt for text-only models', () => {
+    generateImage({
+      adapter: mockImage('mock-dall-e-3'),
+      prompt: [
+        { type: 'text', content: 'A cat' },
+        {
+          // @ts-expect-error - mock-dall-e-3 does not accept image prompt parts
+          type: 'image',
+          source: { type: 'url', value: 'https://example.com/ref.png' },
+        },
+      ],
+    })
+  })
+
+  it('rejects video parts for models that only accept image inputs', () => {
+    generateImage({
+      adapter: mockImage('mock-gpt-image-1'),
+      prompt: [
+        { type: 'text', content: 'Animate' },
+        {
+          // @ts-expect-error - mock-gpt-image-1 does not accept video prompt parts
+          type: 'video',
+          source: { type: 'url', value: 'https://example.com/v.mp4' },
+        },
+      ],
+    })
+  })
+
+  it('always accepts plain string prompts', () => {
+    generateImage({
+      adapter: mockImage('mock-gpt-image-1'),
+      prompt: 'A cat',
+    })
+    generateImage({
+      adapter: mockImage('mock-dall-e-3'),
+      prompt: 'A cat',
     })
   })
 })

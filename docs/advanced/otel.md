@@ -72,6 +72,15 @@ Iteration spans are numbered (`#0`, `#1`, ...) so distinct iterations of the sam
 | iteration | `gen_ai.request.max_tokens` | from config |
 | iteration | `gen_ai.usage.input_tokens` | per iteration |
 | iteration | `gen_ai.usage.output_tokens` | per iteration |
+| root / iteration | `gen_ai.usage.total_tokens` | provider-reported total |
+| root / iteration | `gen_ai.usage.cost` | provider-reported cost, when available |
+| root / iteration | `gen_ai.usage.cache_read.input_tokens` | cached prompt tokens, when reported |
+| root / iteration | `gen_ai.usage.cache_creation.input_tokens` | cache-write prompt tokens, when reported |
+| root / iteration | `gen_ai.usage.reasoning.output_tokens` | reasoning/thinking tokens, when reported |
+| root / iteration | `tanstack.ai.usage.duration_seconds` | duration-based billing (e.g. transcription), when reported |
+| root / iteration | `tanstack.ai.usage.upstream_cost` | gateway upstream cost (e.g. OpenRouter), when reported |
+| root / iteration | `tanstack.ai.usage.upstream_input_cost` | upstream input cost split, when reported |
+| root / iteration | `tanstack.ai.usage.upstream_output_cost` | upstream output cost split, when reported |
 | iteration | `gen_ai.response.finish_reasons` | `[stop]`, `[tool_calls]`, ... |
 | root | `gen_ai.usage.input_tokens` | rolled up |
 | root | `gen_ai.usage.output_tokens` | rolled up |
@@ -80,6 +89,8 @@ Iteration spans are numbered (`#0`, `#1`, ...) so distinct iterations of the sam
 | tool | `gen_ai.tool.call.id` | tool call id |
 | tool | `gen_ai.tool.type` | `function` |
 | tool | `tanstack.ai.tool.outcome` | `success` / `error` |
+
+Usage attributes beyond input/output tokens are emitted only when the provider reports them, so spans stay clean otherwise. Cache and reasoning breakdowns use the official GenAI semconv names; `gen_ai.usage.cost` and `gen_ai.usage.total_tokens` are de-facto extensions consumed directly by backends like PostHog — without them, backends re-derive cost from their own price tables and lose cache discounts and gateway markup. Fields with no established convention (duration-based billing, the upstream cost split) are TanStack-namespaced.
 
 ### Metrics
 
@@ -163,6 +174,44 @@ otelMiddleware({
   },
 })
 ```
+
+## Beyond chat: media activities
+
+`otelMiddleware` is not chat-only. The media activities — `generateImage`, `generateVideo`, `generateAudio`, `generateSpeech`, and `generateTranscription` — accept the **same** `otelMiddleware` value on their `middleware` option. Each is a single request → response (or submit → poll for video), so the middleware emits one span per call instead of the chat span tree:
+
+```ts
+import { generateImage } from '@tanstack/ai'
+import { otelMiddleware } from '@tanstack/ai/middlewares/otel'
+import { openaiImage } from '@tanstack/ai-openai'
+import { trace, metrics } from '@opentelemetry/api'
+
+const otel = otelMiddleware({
+  tracer: trace.getTracer('my-app'),
+  meter: metrics.getMeter('my-app'),
+})
+
+const result = await generateImage({
+  adapter: openaiImage('gpt-image-2'),
+  prompt: 'A serene mountain landscape at sunset',
+  middleware: [otel],
+})
+```
+
+The same `otel` value can be passed to `chat()` and to any media activity — its shared lifecycle hooks (`onStart` / `onUsage` / `onFinish` / `onAbort` / `onError`) are authored against the activity-agnostic `GenerationMiddlewareContext`, so the one instance works everywhere.
+
+Each media call produces one `CLIENT` span tagged with the activity's `gen_ai.operation.name`:
+
+| Activity | `gen_ai.operation.name` |
+| --- | --- |
+| `generateImage` | `image_generation` |
+| `generateVideo` | `video_generation` |
+| `generateAudio` | `audio_generation` |
+| `generateSpeech` | `text_to_speech` |
+| `generateTranscription` | `transcription` |
+
+The span carries `gen_ai.system` and `gen_ai.request.model` at start and, on finish, the same `gen_ai.usage.*` / `tanstack.ai.usage.*` attributes documented above — including `tanstack.ai.usage.units_billed` for unit-billed media. When a `Meter` is supplied it records the `gen_ai.client.operation.duration` histogram, tagged per activity. For streaming video the span covers the full create → poll → complete lifecycle; for non-streaming `generateVideo` it covers job submission. If a streaming video consumer abandons the stream before completion, the span is ended via `onAbort` (status `ERROR`, `tanstack.ai.completion.reason = cancelled`) rather than leaked.
+
+`otelMiddleware` applies the same `spanNameFormatter`, `attributeEnricher`, `onBeforeSpanStart`, and `onSpanEnd` extension points to media spans — the span info is discriminated by `kind`, where media spans report `kind: 'generation'`. For a custom backend, implement the base `GenerationMiddleware` contract directly; its hooks (`onStart` / `onUsage` / `onFinish` / `onAbort` / `onError`) receive the `GenerationMiddlewareContext` and fire for every activity, chat included. The `GenerationMiddleware` types are exported from the package root, while the `otelMiddleware` value lives on the `@tanstack/ai/middlewares/otel` subpath so importing `@tanstack/ai` never requires the optional `@opentelemetry/api` peer.
 
 ## Related
 

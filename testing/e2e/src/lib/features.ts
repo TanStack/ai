@@ -103,6 +103,10 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
     tools: [],
     modelOptions: {},
   },
+  'image-to-image': {
+    tools: [],
+    modelOptions: {},
+  },
   'audio-gen': {
     tools: [],
     modelOptions: {},
@@ -120,6 +124,10 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
     modelOptions: {},
   },
   'video-gen': {
+    tools: [],
+    modelOptions: {},
+  },
+  'image-to-video': {
     tools: [],
     modelOptions: {},
   },

@@ -631,7 +631,11 @@ const IMAGEN_3 = {
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions
 >
-/** 
+/**
+ * Veo video generation models. Pricing is per second of generated video
+ * (audio+video rate where the model supports audio).
+ * @experimental Veo video generation is an experimental feature and may change.
+ */
 const VEO_3_1_PREVIEW = {
   name: 'veo-3.1-generate-preview',
   max_input_tokens: 1024,
@@ -650,9 +654,9 @@ const VEO_3_1_PREVIEW = {
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
-  GeminiSafetyOptions &
-  GeminiGenerationConfigOptions &
-  GeminiCachedContentOptions
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions
 >
 
 const VEO_3_1_FAST_PREVIEW = {
@@ -673,9 +677,9 @@ const VEO_3_1_FAST_PREVIEW = {
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
-  GeminiSafetyOptions &
-  GeminiGenerationConfigOptions &
-  GeminiCachedContentOptions
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions
 >
 
 const VEO_3 = {
@@ -696,9 +700,9 @@ const VEO_3 = {
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
-  GeminiSafetyOptions &
-  GeminiGenerationConfigOptions &
-  GeminiCachedContentOptions
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions
 >
 
 const VEO_3_FAST = {
@@ -719,9 +723,9 @@ const VEO_3_FAST = {
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
-  GeminiSafetyOptions &
-  GeminiGenerationConfigOptions &
-  GeminiCachedContentOptions
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions
 >
 
 const VEO_2 = {
@@ -741,10 +745,10 @@ const VEO_2 = {
   },
 } as const satisfies ModelMeta<
   GeminiToolConfigOptions &
-  GeminiSafetyOptions &
-  GeminiGenerationConfigOptions &
-  GeminiCachedContentOptions
-> */
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions
+>
 
 const GEMINI_3_5_FLASH = {
   name: 'gemini-3.5-flash',
@@ -878,20 +882,17 @@ export const GEMINI_TTS_VOICES = [
 
 export type GeminiTTSVoice = (typeof GEMINI_TTS_VOICES)[number]
 
-/*   const GEMINI_AUDIO_MODELS = [
-  GEMINI_2_5_PRO_TTS.name,
-  GEMINI_2_5_FLASH_TTS.name,
-  GEMINI_2_5_FLASH_LIVE.name,
-  GEMINI_2_FLASH_LIVE.name,
-] as const
-
-  const GEMINI_VIDEO_MODELS = [
+/**
+ * Veo video generation models.
+ * @experimental Veo video generation is an experimental feature and may change.
+ */
+export const GEMINI_VIDEO_MODELS = [
   VEO_3_1_PREVIEW.name,
   VEO_3_1_FAST_PREVIEW.name,
   VEO_3.name,
   VEO_3_FAST.name,
   VEO_2.name,
-] as const */
+] as const
 
 // Manual type map for per-model provider options
 export type GeminiChatModelProviderOptionsByName = {
