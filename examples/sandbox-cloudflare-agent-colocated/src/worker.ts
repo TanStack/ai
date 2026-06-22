@@ -10,10 +10,7 @@
  *
  * NOTE: compile-only reference — not runtime-verified here (no Workers runtime).
  */
-import {
-  createSecrets,
-  defineWorkspace,
-} from '@tanstack/ai-sandbox'
+import { createSecrets, defineWorkspace } from '@tanstack/ai-sandbox'
 import { createCloudflareSandboxAgent } from '@tanstack/ai-sandbox-cloudflare/agent'
 import type { AnyTool } from '@tanstack/ai'
 import type { SandboxAgentEnv } from '@tanstack/ai-sandbox-cloudflare/agent'

@@ -197,7 +197,10 @@ export abstract class SandboxCoordinator<
     this.ctx.waitUntil(done)
   }
 
-  override webSocketMessage(ws: WebSocket, _message: string | ArrayBuffer): void {
+  override webSocketMessage(
+    ws: WebSocket,
+    _message: string | ArrayBuffer,
+  ): void {
     const attachment: unknown = ws.deserializeAttachment()
     if (isSocketAttachment(attachment)) {
       this.pump(ws, attachment.runId, attachment.lastSeq)

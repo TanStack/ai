@@ -143,11 +143,11 @@ of the DO. The demo `lookup` tool in `src/worker.ts` exercises this path.
 
 The agent itself is the package; this app is one file plus its Cloudflare config.
 
-| File             | Role                                                                                                       |
-| ---------------- | ---------------------------------------------------------------------------------------------------------- |
+| File             | Role                                                                                                         |
+| ---------------- | ------------------------------------------------------------------------------------------------------------ |
 | `src/worker.ts`  | The whole app: `createCloudflareSandboxAgent()` + one demo host tool, exporting the DO classes + the Worker. |
-| `wrangler.jsonc` | DO + Container + Sandbox bindings (`RUN_COORDINATOR` + `Sandbox`), migrations, `nodejs_compat`.            |
-| `Dockerfile`     | Container image: `@cloudflare/sandbox` base + the `claude` CLI.                                            |
+| `wrangler.jsonc` | DO + Container + Sandbox bindings (`RUN_COORDINATOR` + `Sandbox`), migrations, `nodejs_compat`.              |
+| `Dockerfile`     | Container image: `@cloudflare/sandbox` base + the `claude` CLI.                                              |
 
 ## Run it locally
 

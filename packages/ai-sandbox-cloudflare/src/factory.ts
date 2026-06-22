@@ -37,12 +37,8 @@ import {
 } from '@tanstack/ai-sandbox'
 import { Sandbox } from '@cloudflare/sandbox'
 import { cloudflareSandbox } from './provider'
-import {
-  ChatSandboxCoordinator,
-} from './chat-coordinator'
-import {
-  ContainerSandboxCoordinator,
-} from './container-coordinator'
+import { ChatSandboxCoordinator } from './chat-coordinator'
+import { ContainerSandboxCoordinator } from './container-coordinator'
 import { createSandboxAgentWorker } from './worker'
 import type { ChatCoordinatorEnv, ChatRunConfig } from './chat-coordinator'
 import type {
@@ -52,14 +48,18 @@ import type {
 import type { HarnessId } from './protocol'
 import type { SandboxCoordinator, StartRunInput } from './coordinator'
 import type { AnyTextAdapter, AnyTool } from '@tanstack/ai'
-import type { SandboxDefinition, WorkspaceDefinition } from '@tanstack/ai-sandbox'
+import type {
+  SandboxDefinition,
+  WorkspaceDefinition,
+} from '@tanstack/ai-sandbox'
 
 /**
  * The base Env every generated app binds: the coordinator's own namespace, the
  * Sandbox namespace, the public hostname, and the Anthropic key. The two modes
  * extend this with exactly the coordinator base each one requires.
  */
-export interface SandboxAgentEnv extends ChatCoordinatorEnv, ContainerCoordinatorEnv {
+export interface SandboxAgentEnv
+  extends ChatCoordinatorEnv, ContainerCoordinatorEnv {
   /** This coordinator DO's own namespace (so the Worker can address it). */
   RUN_COORDINATOR: DurableObjectNamespace<SandboxCoordinator<SandboxAgentEnv>>
 }
@@ -71,8 +71,9 @@ interface BaseAgentConfig<TEnv extends SandboxAgentEnv> {
 }
 
 /** DO-drives config: the DO runs `chat()` with the given adapter. */
-export interface DoDrivesAgentConfig<TEnv extends SandboxAgentEnv>
-  extends BaseAgentConfig<TEnv> {
+export interface DoDrivesAgentConfig<
+  TEnv extends SandboxAgentEnv,
+> extends BaseAgentConfig<TEnv> {
   mode?: 'do-drives'
   /** The harness/text adapter `chat()` runs, resolved per run. */
   adapter: (input: StartRunInput, env: TEnv) => AnyTextAdapter
@@ -88,8 +89,9 @@ export interface DoDrivesAgentConfig<TEnv extends SandboxAgentEnv>
 }
 
 /** Co-located config: an in-container runner runs `chat()`. */
-export interface ColocatedAgentConfig<TEnv extends SandboxAgentEnv>
-  extends BaseAgentConfig<TEnv> {
+export interface ColocatedAgentConfig<
+  TEnv extends SandboxAgentEnv,
+> extends BaseAgentConfig<TEnv> {
   mode: 'colocated'
   /** Which in-sandbox harness the runner spawns. */
   harness: HarnessId
