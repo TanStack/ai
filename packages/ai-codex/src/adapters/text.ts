@@ -5,10 +5,10 @@ import {
   SandboxCapability,
   getSandbox,
   getSandboxPolicy,
+  getToolBridgeProvisioner,
   getWorkspaceProjection,
-  hostForSandbox,
+  nodeHttpBridgeProvisioner,
   spawnNdjson,
-  startHostToolBridge,
 } from '@tanstack/ai-sandbox'
 import { buildPrompt } from '../messages/prompt'
 import { translateThreadEvents } from '../stream/translate'
@@ -205,8 +205,12 @@ export class CodexTextAdapter<
       if (projection) await projectCodexWorkspace(sandbox, projection)
 
       if (options.tools && options.tools.length > 0) {
-        bridge = await startHostToolBridge(options.tools, {
-          hostForSandbox: hostForSandbox(sandbox.provider),
+        const provisioner =
+          (options.capabilities
+            ? getToolBridgeProvisioner(options.capabilities, { optional: true })
+            : undefined) ?? nodeHttpBridgeProvisioner
+        bridge = await provisioner.provision(options.tools, {
+          provider: sandbox.provider,
           context: options.context,
           ...(options.abortController?.signal
             ? { signal: options.abortController.signal }

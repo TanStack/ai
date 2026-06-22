@@ -1,0 +1,19 @@
+---
+'@tanstack/ai-sandbox': minor
+'@tanstack/ai-sandbox-cloudflare': minor
+'@tanstack/ai-claude-code': minor
+'@tanstack/ai-codex': minor
+'@tanstack/ai-gemini-cli': minor
+'@tanstack/ai-opencode': minor
+---
+
+Serverless/edge run model for the sandbox layer — a trigger can start an agent run and return immediately while a durable orchestrator drives it and clients tail the stream from a resumable cursor.
+
+- **Resumable run event-log** (`RunEventLog`, `InMemoryRunEventLog`, `RunEvent`, `RunRecord`, `isTerminalRunStatus`) — an append-only, `seq`-indexed log of a run's `StreamChunk`s with replay-then-tail reads. A dropped connection, a new tab, or an orchestrator that hibernated between chunks all reconnect by passing their last-seen `seq`. The run never depends on a single open connection.
+- **Run driver** (`pipeToRunLog`, `RunController`) — pumps a `chat()` stream into a `RunEventLog` (status transitions, RUN_ERROR capture, abort handling), and a controller that starts a run without blocking, exposes a resumable `attach(runId, { fromSeq })`, and `drain()`s in-flight runs for `waitUntil`-style flushing.
+- **Transport-agnostic tool-bridge** — the MCP tool-proxy is split into a portable core (`createToolBridgeCore`, `handleBridgeJsonRpc`) and a transport. `startHostToolBridge` remains the `node:http` host transport (now loopback-bound unless a Docker container must reach it, with a constant-time bearer check); a serverless/edge orchestrator serves the same core from its own `fetch` handler — no raw TCP listener. A new `ToolBridgeProvisioner` capability (`getToolBridgeProvisioner` / `provideToolBridgeProvisioner`, default `nodeHttpBridgeProvisioner`) lets the orchestrator inject the transport.
+- **Harness adapters inverted** — `claude-code`, `codex`, `gemini-cli`, and `opencode` now resolve their tool-bridge from the `ToolBridgeProvisioner` capability (defaulting to the host transport) instead of hardcoding `node:http`, so they run unchanged on the host and on the edge.
+- **Claude Code runs on the Cloudflare sandbox** — a new `SandboxCapabilities.writableStdin` flag lets a provider advertise that spawned processes have no writable host→process stdin (Cloudflare). The Claude Code adapter detects this and delivers the prompt via a file + in-shell stdin-redirection (`claude -p … < file`) instead of a host stdin write, keeping it out of argv. Host/Docker are unchanged (stdin path).
+- **Tool-bridge token hardening** — the per-run bearer token is no longer passed inline in argv. The Claude Code adapter writes the bridge MCP config to a file and passes claude the path (`--mcp-config <file>`), so the token can't be read from `ps` / `/proc/<pid>/cmdline` by other processes in the sandbox.
+
+See `examples/sandbox-cloudflare-agent` for the Worker → Durable Object → Container reference (trigger returns immediately; the DO coordinates, persists to a DO-backed `RunEventLog`, serves the bridge from its `fetch` handler, and streams to clients over a hibernatable WebSocket).

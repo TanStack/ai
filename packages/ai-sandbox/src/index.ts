@@ -4,6 +4,7 @@ export {
   SandboxStoreCapability,
   LocksCapability,
   SandboxPolicyCapability,
+  ToolBridgeProvisionerCapability,
   getSandbox,
   provideSandbox,
   getSandboxStore,
@@ -12,6 +13,8 @@ export {
   provideLocks,
   getSandboxPolicy,
   provideSandboxPolicy,
+  getToolBridgeProvisioner,
+  provideToolBridgeProvisioner,
 } from './capabilities'
 
 // Workspace projection capability (provided by withSandbox, consumed by harness adapters)
@@ -119,17 +122,51 @@ export { createExecBackedGit } from './git-exec'
 export { spawnNdjson, toLines } from './runner'
 export type { SpawnNdjsonOptions } from './runner'
 
-// Host-side MCP tool-proxy bridge (shared by harness adapters)
+// MCP tool-proxy bridge (shared by harness adapters): transport-agnostic core
+// + the node:http host transport + a fetch-friendly JSON-RPC dispatcher.
 export {
   startHostToolBridge,
   hostForSandbox,
+  createToolBridgeCore,
+  handleBridgeJsonRpc,
+  timingSafeBearerEqual,
+  nodeHttpBridgeProvisioner,
   BRIDGED_MCP_SERVER_NAME,
 } from './tool-bridge'
 export type {
   HostToolBridge,
   StartBridgeOptions,
+  ToolBridgeCore,
+  ToolBridgeCoreOptions,
+  ToolDescriptor,
+  ToolCallResult,
+  BridgePermission,
   PermissionToolResult,
+  ToolBridgeProvisioner,
+  ToolBridgeProvisionOptions,
+  ProvisionedBridge,
 } from './tool-bridge'
+
+// Resumable run event-log — the primitive that lets a trigger start a run and
+// return while a durable orchestrator drives it and clients tail from a cursor.
+export { InMemoryRunEventLog, isTerminalRunStatus } from './run-log'
+export type {
+  RunEventLog,
+  RunRecord,
+  RunEvent,
+  RunStatus,
+  RunError,
+  RunEventLogReadOptions,
+} from './run-log'
+
+// Run driver — pump a chat() stream into the event-log so a trigger returns
+// immediately while a durable orchestrator drives the run and clients tail it.
+export { pipeToRunLog, RunController } from './run'
+export type {
+  PipeToRunLogOptions,
+  RunControllerStartInput,
+  RunHandle,
+} from './run'
 
 // Interactive approvals (shared by harness adapters)
 export {

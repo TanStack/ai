@@ -5,9 +5,9 @@ import {
   SandboxCapability,
   buildApprovalRequestedEvent,
   getSandbox,
+  getToolBridgeProvisioner,
   getWorkspaceProjection,
-  hostForSandbox,
-  startHostToolBridge,
+  nodeHttpBridgeProvisioner,
 } from '@tanstack/ai-sandbox'
 import { buildPrompt } from '../messages/prompt'
 import { startAcpSession } from '../process/acp-client'
@@ -151,8 +151,12 @@ export class GeminiCliTextAdapter<
         (options.tools ?? []).map((tool) => tool.name),
       )
       if (options.tools && options.tools.length > 0) {
-        bridge = await startHostToolBridge(options.tools, {
-          hostForSandbox: hostForSandbox(sandbox.provider),
+        const provisioner =
+          (options.capabilities
+            ? getToolBridgeProvisioner(options.capabilities, { optional: true })
+            : undefined) ?? nodeHttpBridgeProvisioner
+        bridge = await provisioner.provision(options.tools, {
+          provider: sandbox.provider,
           context: options.context,
           ...(externalSignal ? { signal: externalSignal } : {}),
         })

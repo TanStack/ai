@@ -8,11 +8,13 @@
  * `durableFilesystem` are false — `withSandbox` re-bootstraps under the same
  * identity across cold starts.
  *
- * LIMITATION: Cloudflare background processes do not expose a writable stdin,
- * so `spawn().stdin.write` throws. Harness adapters that feed the prompt via
- * stdin (e.g. the Claude Code adapter) therefore need a stdin-capable provider
- * (local-process / Docker) or a future Cloudflare stdin path. `exec` (one-shot)
- * works fully.
+ * LIMITATION: Cloudflare background processes do not expose a writable host→
+ * process stdin, so `spawn().stdin.write` throws. This is advertised via
+ * `capabilities.writableStdin: false`; harness adapters that feed a prompt over
+ * stdin (e.g. the Claude Code adapter) detect this and instead deliver the
+ * prompt via a file + shell stdin-redirection (`claude -p … < file`), which the
+ * in-container shell handles with no host-side stdin write. `exec` (one-shot)
+ * and streamed stdout from `spawn` both work fully.
  *
  * NOTE: not runtime-verified in this repo (requires a Workers runtime); it
  * compiles against the real `@cloudflare/sandbox` types and follows the proven
@@ -35,6 +37,8 @@ export const CLOUDFLARE_CAPS: SandboxCapabilities = {
   env: true,
   ports: true,
   backgroundProcesses: true,
+  // No writable host→process stdin; stdin-fed harnesses use file-redirection.
+  writableStdin: false,
   snapshots: false,
   networkPolicy: false,
   durableFilesystem: false,

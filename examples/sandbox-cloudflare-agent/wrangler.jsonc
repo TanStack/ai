@@ -1,0 +1,52 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tanstack-ai-sandbox-cloudflare-agent",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-05-01",
+  // node:crypto/node:buffer used transitively by the TanStack AI packages + the
+  // MCP SDK. The DO/Worker code itself uses Web Crypto for the bearer check.
+  "compatibility_flags": ["nodejs_compat"],
+
+  // The container image that the @cloudflare/sandbox Sandbox DO runs. It must
+  // ship the `claude` CLI (see Dockerfile + README Limitations re: stdin).
+  "containers": [
+    {
+      "class_name": "Sandbox",
+      "image": "./Dockerfile",
+      // One warm instance for the demo; raise for concurrency.
+      "max_instances": 1
+    }
+  ],
+
+  "durable_objects": {
+    "bindings": [
+      // The coordinator that owns each run (drives chat(), the run-log, the
+      // WebSocket tails, and the /_bridge MCP endpoint).
+      { "name": "RUN_COORDINATOR", "class_name": "RunCoordinator" },
+      // The @cloudflare/sandbox container host DO.
+      { "name": "Sandbox", "class_name": "Sandbox" }
+    ]
+  },
+
+  "migrations": [
+    {
+      "tag": "v1",
+      // Both DO classes use the SQLite-backed storage backend (required for the
+      // sandbox SDK, and what DurableObjectRunEventLog persists run events to).
+      "new_sqlite_classes": ["RunCoordinator", "Sandbox"]
+    }
+  ],
+
+  "vars": {
+    // The Worker's public hostname — the SANDBOX uses it to reach the DO's
+    // /_bridge endpoint and any exposed preview ports. Override per environment;
+    // e.g. set to your *.workers.dev or custom domain after first deploy.
+    "PUBLIC_HOSTNAME": "tanstack-ai-sandbox-cloudflare-agent.example.workers.dev"
+  },
+
+  // ANTHROPIC_API_KEY is a SECRET, not a var. Set it with:
+  //   wrangler secret put ANTHROPIC_API_KEY
+  // It is injected into the sandbox env (never persisted to logs/snapshots).
+
+  "observability": { "enabled": true }
+}
