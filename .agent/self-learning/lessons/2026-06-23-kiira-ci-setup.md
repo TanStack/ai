@@ -20,6 +20,7 @@ its resolution model and always read errors with `--verbose` before acting.
 explained by how kiira resolves and reports.
 
 **How it's wired (the working setup):**
+
 - `kiira` devDep + `kiira.config.ts` (no `tsconfig.docs.json`). Config:
   `include: ['docs/**/*.md']`, `exclude` for `docs/reference/**` (TypeDoc-
   generated — regenerating overwrites fixes) and the two Angular docs (see
@@ -32,6 +33,7 @@ explained by how kiira resolves and reports.
   needed — `pr.yml` already runs `test:pr`.
 
 **Resolution gotchas:**
+
 - kiira maps `@tanstack/*` to **source** via a `dist→src` heuristic
   (`replace(/dist\/(esm|cjs|es|lib)\//,'/src/')` on the package's resolved entry).
   So most packages need **no build** — even subpath types resolve from src.
@@ -48,11 +50,12 @@ explained by how kiira resolves and reports.
 **Reading errors — ALWAYS use `--verbose`:** without it, kiira truncates to a
 misleading first line. The "zod 4.2.1 vs 4.3.6 dual-package mismatch" that looked
 systemic was actually `--verbose` showing the real cause: `toolDefinition`
-*requires* a `description`. The `z.core.$strip` vs `$strip` text was just TS
+_requires_ a `description`. The `z.core.$strip` vs `$strip` text was just TS
 printing the same type two ways. Don't chase a resolution theory before seeing
 the full message.
 
 **How to apply:**
+
 1. `pnpm kiira check <files> --reporter pretty --raw --static --verbose` for any
    investigation; `pnpm test:kiira` (or `nx run root:test:kiira`) for the gate.
 2. If a package's imports won't resolve, check whether its published entry maps

@@ -12,8 +12,8 @@ related: [update-docs-with-new-cases, kiira-ci-setup]
 
 # Doc Code Samples: Make Them Real and Type-Safe, Not "Made to Pass"
 
-**Rule:** A doc snippet must type-check under kiira (`pnpm kiira check`) *by being
-a correct, minimal, real example* — never by papering over a missing piece. The
+**Rule:** A doc snippet must type-check under kiira (`pnpm kiira check`) _by being
+a correct, minimal, real example_ — never by papering over a missing piece. The
 maintainer rejected every shortcut below. Apply these when authoring or fixing
 `docs/**` code fences.
 
@@ -36,7 +36,7 @@ is a means (keep examples honest), not the end (a green check).
    - tools → define inline with `toolDefinition({ name, description, inputSchema })`.
    - any other arbitrary placeholder (db, env, a client, a token) → import it from
      a relative module: `import { db } from './db'`. kiira ignores unresolved
-     *relative* imports, so the name is a usable `any` and the reader sees they
+     _relative_ imports, so the name is a usable `any` and the reader sees they
      must supply it.
 
 2. **No invisible "ambient" fixture for `messages`/`message`.** Same reason as #1
