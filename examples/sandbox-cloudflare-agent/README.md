@@ -27,7 +27,7 @@ import { proxyToSandbox } from '@cloudflare/sandbox'
 import { agent } from './agent'
 
 export const RunCoordinator = agent.Coordinator // wrangler DO binding
-export const Sandbox = agent.Sandbox            // wrangler container binding
+export const Sandbox = agent.Sandbox // wrangler container binding
 
 export default {
   async fetch(request, env, ctx) {
@@ -184,15 +184,15 @@ of the DO. The demo `lookup` tool in `src/agent.ts` exercises this path.
 
 ## Files
 
-| File                     | Role                                                                                                    |
-| ------------------------ | ------------------------------------------------------------------------------------------------------- |
-| `src/agent.ts`           | `createCloudflareSandboxAgent()` + one demo host tool — the configured agent.                           |
-| `src/server.ts`          | Custom Cloudflare entry: re-exports the DOs and composes `proxyToSandbox` + the agent + Start SSR.      |
-| `src/routes/index.tsx`   | The chat UI (`useChat` → `/api/run`).                                                                    |
-| `src/routes/api.run.ts`  | Same-origin proxy: bridges the agent's POST-then-WebSocket run protocol to the SSE stream `useChat` reads. |
-| `wrangler.jsonc`         | DO + Container + Sandbox bindings (`RUN_COORDINATOR` + `Sandbox`), migrations, `nodejs_compat`.         |
-| `Dockerfile`             | Container image: `@cloudflare/sandbox` base + the `claude` CLI.                                          |
-| `vite.config.ts`         | `@cloudflare/vite-plugin` + `tanstackStart()` — builds + runs the Worker in `workerd`.                  |
+| File                    | Role                                                                                                       |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `src/agent.ts`          | `createCloudflareSandboxAgent()` + one demo host tool — the configured agent.                              |
+| `src/server.ts`         | Custom Cloudflare entry: re-exports the DOs and composes `proxyToSandbox` + the agent + Start SSR.         |
+| `src/routes/index.tsx`  | The chat UI (`useChat` → `/api/run`).                                                                      |
+| `src/routes/api.run.ts` | Same-origin proxy: bridges the agent's POST-then-WebSocket run protocol to the SSE stream `useChat` reads. |
+| `wrangler.jsonc`        | DO + Container + Sandbox bindings (`RUN_COORDINATOR` + `Sandbox`), migrations, `nodejs_compat`.            |
+| `Dockerfile`            | Container image: `@cloudflare/sandbox` base + the `claude` CLI.                                            |
+| `vite.config.ts`        | `@cloudflare/vite-plugin` + `tanstackStart()` — builds + runs the Worker in `workerd`.                     |
 
 ## Run it locally
 

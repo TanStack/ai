@@ -37,7 +37,11 @@ function parseBody(value: unknown): ProxyBody {
     throw new Error('body.messages must be a non-empty array')
   }
   let data: { threadId?: unknown } | undefined
-  if ('data' in value && value.data !== null && typeof value.data === 'object') {
+  if (
+    'data' in value &&
+    value.data !== null &&
+    typeof value.data === 'object'
+  ) {
     data = value.data
   }
   return { messages, data }
@@ -175,7 +179,8 @@ export const Route = createFileRoute('/api/run')({
         try {
           body = parseBody(await request.json())
         } catch (error) {
-          const message = error instanceof Error ? error.message : 'invalid body'
+          const message =
+            error instanceof Error ? error.message : 'invalid body'
           return new Response(JSON.stringify({ error: message }), {
             status: 400,
             headers: { 'content-type': 'application/json' },
