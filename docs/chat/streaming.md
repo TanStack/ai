@@ -19,13 +19,13 @@ TanStack AI supports streaming responses for real-time chat experiences. Streami
 
 When you use `chat()`, it returns an async iterable stream of chunks:
 
-```typescript fixture=ambient
+```typescript
 import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
   adapter: openaiText("gpt-5.5"),
-  messages,
+  messages: [{ role: "user", content: "Hello!" }],
 });
 
 // Stream contains chunks as they arrive
@@ -91,10 +91,18 @@ TanStack AI implements the [AG-UI Protocol](https://docs.ag-ui.com/introduction)
 
 Adapters emit reasoning as both the canonical `REASONING_MESSAGE_*` events and the older `STEP_STARTED` / `STEP_FINISHED` events. Rather than parsing those raw events yourself, read the reconciled `ThinkingPart` from `message.parts` — the stream processor merges both event families into a single part for you:
 
-```typescript fixture=ambient
-for (const part of message.parts) {
-  if (part.type === "thinking") {
-    console.log("Thinking:", part.content); // Accumulated thinking content
+```typescript
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
+const { messages } = useChat({
+  connection: fetchServerSentEvents("/api/chat"),
+});
+
+for (const message of messages) {
+  for (const part of message.parts) {
+    if (part.type === "thinking") {
+      console.log("Thinking:", part.content); // Accumulated thinking content
+    }
   }
 }
 ```

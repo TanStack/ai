@@ -187,10 +187,12 @@ export const Route = createFileRoute('/api/chat')({
 
 When the chat run is cancelled (e.g. the user navigates away or an `AbortController` fires), in-flight MCP `callTool` requests are cancelled automatically. The abort signal from the chat run is threaded through `ToolExecutionContext.abortSignal` into each tool's execute function.
 
-```ts fixture=ambient
+```ts
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { createMCPClient } from '@tanstack/ai-mcp'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
 
 const mcp = await createMCPClient({
   transport: { type: 'http', url: process.env.MCP_URL! },

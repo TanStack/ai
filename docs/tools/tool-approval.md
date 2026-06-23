@@ -150,7 +150,7 @@ function ChatComponent() {
 
 Here's a more complete approval UI component:
 
-```tsx group=tool-approval
+```tsx
 import type { ToolCallPart } from "@tanstack/ai-client";
 
 function ApprovalPrompt({

@@ -22,7 +22,7 @@ You have a `chat()` (or `generateImage()`, `generateSpeech()`, …) configuratio
 
 Every activity in `@tanstack/ai` ships a paired `createXxxOptions` helper that takes the exact same options object as the activity itself and returns it unchanged — at runtime it's the identity function. The point is **type inference**: the returned object carries the adapter's full type, so when you spread it into the activity, TypeScript still narrows `modelOptions`, content modalities, and `outputSchema` to the adapter you chose.
 
-```typescript fixture=ambient
+```typescript
 import { chat, createChatOptions } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
@@ -39,7 +39,7 @@ const chatOptions = createChatOptions({
 })
 
 // Later, anywhere in your codebase:
-const stream = chat({ ...chatOptions, messages })
+const stream = chat({ ...chatOptions, messages: [{ role: 'user', content: 'Hello' }] })
 ```
 
 Without the helper you'd have to either inline the configuration at every call site, or hand-write the full chat options type with its adapter/model generics resolved manually — `createChatOptions` does that for you.

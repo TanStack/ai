@@ -87,8 +87,8 @@ export async function POST(request: Request) {
 
 ## Example: With Tools
 
-```typescript fixture=ambient
-import { chat, toolDefinition } from "@tanstack/ai";
+```typescript
+import { chat, toServerSentEventsResponse, toolDefinition } from "@tanstack/ai";
 import { geminiText } from "@tanstack/ai-gemini";
 import { z } from "zod";
 
@@ -105,11 +105,17 @@ const getCalendarEvents = getCalendarEventsDef.server(async ({ date }) => {
   return { events: [] };
 });
 
-const stream = chat({
-  adapter: geminiText("gemini-3.1-pro-preview"),
-  messages,
-  tools: [getCalendarEvents],
-});
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter: geminiText("gemini-3.1-pro-preview"),
+    messages,
+    tools: [getCalendarEvents],
+  });
+
+  return toServerSentEventsResponse(stream);
+}
 ```
 
 ## Stateful Conversations — Interactions API (Experimental)
@@ -254,13 +260,13 @@ The full working example is in [`examples/ts-react-chat`](https://github.com/Tan
 
 The adapter exposes Interactions-specific options on `modelOptions`:
 
-```typescript fixture=ambient
+```typescript
 import { chat } from "@tanstack/ai";
 import { geminiTextInteractions } from "@tanstack/ai-gemini/experimental";
 
 const stream = chat({
   adapter: geminiTextInteractions("gemini-3.5-flash"),
-  messages,
+  messages: [{ role: "user", content: "Hello!" }],
   modelOptions: {
     // Stateful chaining — passed only on turn 2+.
     previous_interaction_id: "int_abc123",
@@ -312,13 +318,13 @@ for await (const chunk of stream) {
 
 Gemini supports various model-specific options. Sampling parameters live here too — `temperature`, `topP`, and `maxOutputTokens` — rather than as root-level props on `chat()`:
 
-```typescript fixture=ambient
+```typescript
 import { chat } from "@tanstack/ai";
 import { geminiText } from "@tanstack/ai-gemini";
 
 const stream = chat({
   adapter: geminiText("gemini-3.1-pro-preview"),
-  messages,
+  messages: [{ role: "user", content: "Hello!" }],
   modelOptions: {
     maxOutputTokens: 2048,
     temperature: 0.7,

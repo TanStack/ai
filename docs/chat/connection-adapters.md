@@ -102,7 +102,7 @@ explicit chat transport and an absolute URL. By the end of this section, the
 client adapter and server response helper will be paired correctly for React
 Native or Expo.
 
-```typescript group=connection-adapters-1
+```typescript
 const baseUrl =
   process.env.EXPO_PUBLIC_TANSTACK_AI_BASE_URL ??
   'http://127.0.0.1:8787'
@@ -118,8 +118,11 @@ Prefer `xhrHttpStream()` for Expo and React Native. It pairs with
 `toHttpResponse()` and reads newline-delimited JSON through incremental XHR
 progress events:
 
-```typescript group=connection-adapters-1
-import { useChat, xhrHttpStream, xhrServerSentEvents, fetchHttpStream } from "@tanstack/ai-react";
+```typescript
+import { useChat, xhrHttpStream } from "@tanstack/ai-react";
+
+const baseUrl = process.env.EXPO_PUBLIC_TANSTACK_AI_BASE_URL ?? 'http://127.0.0.1:8787';
+const httpUrl = `${baseUrl}/chat/http`;
 
 const chat = useChat({
   connection: xhrHttpStream(httpUrl),
@@ -129,8 +132,13 @@ const chat = useChat({
 Use `xhrServerSentEvents()` when your server returns `text/event-stream` via
 `toServerSentEventsResponse()`:
 
-```typescript group=connection-adapters-1
-const chatSSE = useChat({
+```typescript
+import { useChat, xhrServerSentEvents } from "@tanstack/ai-react";
+
+const baseUrl = process.env.EXPO_PUBLIC_TANSTACK_AI_BASE_URL ?? 'http://127.0.0.1:8787';
+const sseUrl = `${baseUrl}/chat/sse`;
+
+const chat = useChat({
   connection: xhrServerSentEvents(sseUrl),
 });
 ```
@@ -139,8 +147,13 @@ Only use `fetchHttpStream()` if your exact React Native runtime exposes
 streaming `fetch` responses, `Response.body.getReader()`, and `TextDecoder`.
 The server still returns newline-delimited JSON with `toHttpResponse()`:
 
-```typescript group=connection-adapters-1
-const chatHTTP = useChat({
+```typescript
+import { useChat, fetchHttpStream } from "@tanstack/ai-react";
+
+const baseUrl = process.env.EXPO_PUBLIC_TANSTACK_AI_BASE_URL ?? 'http://127.0.0.1:8787';
+const httpUrl = `${baseUrl}/chat/http`;
+
+const chat = useChat({
   connection: fetchHttpStream(httpUrl),
 });
 ```
@@ -179,12 +192,12 @@ The factory receives the conversation messages plus any per-request `data` you p
 
 When you call into your server with an **async** function — the universal case for a [TanStack Start](https://tanstack.com/start) server function, which always returns a `Promise` — use the top-level `fetcher` option instead of a connection adapter. `fetcher` is a sibling of `connection` (provide exactly one), and it accepts a plain async function. It mirrors the `fetcher` option on the [generation hooks](../media/generation-hooks). The most common shape is a handler that ends with `toServerSentEventsResponse(...)` and resolves to a `Response`:
 
-```typescript group=connection-adapters-2
+```typescript ignore
 // server/chat.server.ts
 import { createServerFn } from "@tanstack/react-start";
 import { chat, toServerSentEventsResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
-import type { UIMessage, ModelMessage, StreamChunk } from "@tanstack/ai";
+import type { UIMessage } from "@tanstack/ai";
 
 export const chatFn = createServerFn({ method: "POST" })
   .inputValidator((data: { messages: Array<UIMessage> }) => data)
@@ -408,7 +421,10 @@ const { messages } = useChat({ connection: myAdapter });
 
 A `ConnectionAdapter` is a union — provide **either** `connect`, **or** both `subscribe` and `send`. Never both modes.
 
-```typescript group=connection-adapters-2
+```typescript
+import type { UIMessage } from "@tanstack/ai-client";
+import type { ModelMessage, StreamChunk } from "@tanstack/ai";
+
 export interface RunAgentInputContext {
   threadId: string;
   runId: string;
@@ -460,7 +476,7 @@ const { messages } = useChat({
 
 For tokens that change per request (refresh tokens, short-lived JWTs), pass a function — it's called on every send, so the header always reflects the latest token:
 
-```typescript group=connection-adapters-3
+```typescript
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import { getToken } from "./auth";
 
@@ -477,7 +493,9 @@ Cookies are sent automatically when `credentials` is `"same-origin"` (default) o
 
 Every adapter — built-in or custom — receives an `AbortSignal`. Built-ins propagate it to `fetch`; custom adapters must honor it themselves. `useChat`'s `stop()` aborts the current run by triggering the signal:
 
-```typescript group=connection-adapters-3
+```typescript
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
 const { stop } = useChat({ connection: fetchServerSentEvents("/api/chat") });
 stop(); // aborts the active stream
 ```
@@ -488,7 +506,9 @@ For `SubscribeConnectionAdapter`, the signal in `subscribe()` ends the entire su
 
 Adapters should throw on transport errors (HTTP non-2xx, parse failures, dropped sockets). The `ChatClient` catches the throw, emits a `RUN_ERROR` chunk if none has been emitted yet, and surfaces it via `onError` / the `error` state:
 
-```typescript group=connection-adapters-3
+```typescript
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
 const { error } = useChat({
   connection: fetchServerSentEvents("/api/chat"),
   onError: (err) => console.error("Chat failed:", err),

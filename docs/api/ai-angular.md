@@ -483,9 +483,10 @@ All generation injectables automatically clean up via `DestroyRef.onDestroy`.
 Angular's DI system requires that `inject()` is called during component construction. Every `inject*` function in this package calls `inject()` internally. Valid call sites:
 
 ```typescript
-import { runInInjectionContext, Injector } from "@angular/core";
+import { inject, runInInjectionContext, Injector } from "@angular/core";
 import { injectChat, fetchServerSentEvents } from "@tanstack/ai-angular";
-declare const injector: Injector;
+
+const injector = inject(Injector);
 
 // Field initializer (recommended)
 export class MyComponent {

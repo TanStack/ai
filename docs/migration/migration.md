@@ -139,19 +139,21 @@ const stream = chat({
 
 #### After
 
-```typescript fixture=ambient
+```typescript
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 
 type Provider = 'openai' | 'anthropic'
 
-declare const provider: Provider
+const messages = [{ role: 'user' as const, content: 'Hello!' }]
 
 const adapters = {
   openai: () => openaiText('gpt-5.2'),
   anthropic: () => anthropicText('claude-sonnet-4-5'),
 }
+
+const provider: Provider = 'openai'
 
 const stream = chat({
   adapter: adapters[provider](),

@@ -82,8 +82,8 @@ export async function POST(request: Request) {
 
 ## Example: With Tools
 
-```typescript fixture=ambient
-import { chat, toolDefinition } from "@tanstack/ai";
+```typescript
+import { chat, toServerSentEventsResponse, toolDefinition } from "@tanstack/ai";
 import { anthropicText } from "@tanstack/ai-anthropic";
 import { z } from "zod";
 
@@ -100,24 +100,30 @@ const searchDatabase = searchDatabaseDef.server(async ({ query }) => {
   return { results: [] };
 });
 
-const stream = chat({
-  adapter: anthropicText("claude-sonnet-4-6"),
-  messages,
-  tools: [searchDatabase],
-});
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter: anthropicText("claude-sonnet-4-6"),
+    messages,
+    tools: [searchDatabase],
+  });
+
+  return toServerSentEventsResponse(stream);
+}
 ```
 
 ## Model Options
 
 Anthropic supports various provider-specific options. Sampling parameters live here too — `temperature`, `top_p`, and `max_tokens` — rather than as root-level props on `chat()`:
 
-```typescript fixture=ambient
+```typescript
 import { chat } from "@tanstack/ai";
 import { anthropicText } from "@tanstack/ai-anthropic";
 
 const stream = chat({
   adapter: anthropicText("claude-sonnet-4-6"),
-  messages,
+  messages: [{ role: "user", content: "Hello!" }],
   modelOptions: {
     max_tokens: 4096,
     temperature: 0.7,

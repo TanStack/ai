@@ -78,7 +78,7 @@ const token = await realtimeToken({
 
 ### React (useRealtimeChat)
 
-```tsx group=elevenlabs-2
+```tsx
 import { useRealtimeChat } from '@tanstack/ai-react'
 import { elevenlabsRealtime } from '@tanstack/ai-elevenlabs'
 
@@ -154,8 +154,10 @@ await client.connect()
 
 ElevenLabs supports client-side tools that execute in the browser. Define tools using the standard `toolDefinition()` API:
 
-```typescript group=elevenlabs-2
+```typescript
 import { toolDefinition } from '@tanstack/ai'
+import { useRealtimeChat } from '@tanstack/ai-react'
+import { elevenlabsRealtime } from '@tanstack/ai-elevenlabs'
 import { z } from 'zod'
 
 const getWeatherDef = toolDefinition({
@@ -228,7 +230,10 @@ ElevenLabs and OpenAI take different approaches to realtime voice:
 
 The ElevenLabs adapter provides audio visualization data through the same interface as other realtime adapters:
 
-```typescript group=elevenlabs-2
+```typescript
+import { useRealtimeChat } from '@tanstack/ai-react'
+import { elevenlabsRealtime } from '@tanstack/ai-elevenlabs'
+
 const {
   inputLevel, // 0-1 normalized microphone volume
   outputLevel, // 0-1 normalized speaker volume

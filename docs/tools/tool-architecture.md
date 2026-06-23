@@ -180,7 +180,7 @@ stateDiagram-v2
 
 ### Monitoring Tool States in React
 
-```tsx group=tool-architecture
+```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import { clientTools, createChatClientOptions } from "@tanstack/ai-client";
 import { getWeather, sendEmail } from "./tools";

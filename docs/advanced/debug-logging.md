@@ -47,26 +47,26 @@ Every internal event now prints to the console with a `[tanstack-ai:<category>]`
 
 Pass a `DebugConfig` object instead of `true`. Every unspecified category defaults to `true`, so toggle by setting specific flags to `false`:
 
-```typescript fixture=ambient
+```typescript
 import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 chat({
-  adapter: openaiText("gpt-4o"),
-  messages,
+  adapter: openaiText("gpt-5.5"),
+  messages: [{ role: "user", content: "Hello" }],
   debug: { middleware: false }, // everything except middleware
 });
 ```
 
 If you want to see ONLY a specific set of categories, set the rest to `false` explicitly. Errors default to `true` — keep them on unless you really want total silence:
 
-```typescript fixture=ambient
+```typescript
 import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 chat({
-  adapter: openaiText("gpt-4o"),
-  messages,
+  adapter: openaiText("gpt-5.5"),
+  messages: [{ role: "user", content: "Hello" }],
   debug: {
     provider: true,
     output: true,
@@ -146,11 +146,11 @@ const logger: Logger = {
 
 Errors flow through the logger unconditionally — even when you omit `debug`:
 
-```typescript fixture=ambient
+```typescript
 import { chat } from "@tanstack/ai";
 import { adapter } from "./server";
 
-chat({ adapter, messages }); // still prints [tanstack-ai:errors] ... on failure
+chat({ adapter, messages: [{ role: "user", content: "Hello" }] }); // still prints [tanstack-ai:errors] ... on failure
 ```
 
 To fully silence (including errors), set `debug: false` or `debug: { errors: false }`. Errors also always reach the caller via thrown exceptions or `RUN_ERROR` stream chunks — the logger is additive, not the only surface.
@@ -171,8 +171,8 @@ import {
 import { adapter } from "./server";
 import { logger } from "./logger";
 
-declare const text: string;
-declare const audio: File;
+const text = "Long article to summarize...";
+const audio = new File([""], "recording.mp3", { type: "audio/mpeg" });
 
 summarize({ adapter, text, debug: true });
 generateImage({ adapter, prompt: "a cat", debug: { logger } });

@@ -27,7 +27,7 @@ TanStack AI ships ready-made middleware so you don't have to hand-roll the commo
 
 Caches tool call results based on tool name and arguments. When a tool is called with the same name and arguments as a previous call, the cached result is returned immediately without re-executing the tool.
 
-```typescript fixture=ambient
+```typescript
 import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { toolCacheMiddleware } from "@tanstack/ai/middlewares";
@@ -35,7 +35,7 @@ import { weatherTool, stockTool } from "./tools";
 
 const stream = chat({
   adapter: openaiText("gpt-5.5"),
-  messages,
+  messages: [{ role: "user", content: "What's the weather in Paris?" }],
   tools: [weatherTool, stockTool],
   middleware: [
     toolCacheMiddleware({
@@ -165,14 +165,14 @@ app.post("/api/chat", async (req: { body: { messages: unknown[] } }) => {
 
 Filters or transforms streamed text content as it flows through `onChunk`. Use it to redact sensitive data (SSNs, emails, API keys), enforce a profanity filter, or rewrite text on the fly. Rules are applied to `TEXT_MESSAGE_CONTENT` chunks; all other chunk types pass through untouched.
 
-```typescript fixture=ambient
+```typescript
 import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { contentGuardMiddleware } from "@tanstack/ai/middlewares";
 
 const stream = chat({
   adapter: openaiText("gpt-5.5"),
-  messages,
+  messages: [{ role: "user", content: "Tell me about customer 123-45-6789" }],
   middleware: [
     contentGuardMiddleware({
       rules: [

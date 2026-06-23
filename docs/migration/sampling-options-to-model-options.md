@@ -22,9 +22,11 @@ chat({
 
 These were a convenience layer that the runtime mapped onto whatever the underlying provider expected. That generic mapping is now gone. Sampling parameters live where every other model-specific knob already lives — inside the provider-native `modelOptions` object — under each provider's own canonical key name.
 
-```typescript fixture=ambient
+```typescript
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
 
 chat({
   adapter: openaiText('gpt-4o'),
@@ -60,9 +62,11 @@ chat({
 })
 ```
 
-```typescript fixture=ambient
+```typescript
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
 
 // After
 chat({
@@ -89,9 +93,11 @@ chat({
 })
 ```
 
-```typescript fixture=ambient
+```typescript
 import { chat } from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
 
 // After
 chat({
@@ -118,9 +124,11 @@ chat({
 })
 ```
 
-```typescript fixture=ambient
+```typescript
 import { chat } from '@tanstack/ai'
 import { geminiText } from '@tanstack/ai-gemini'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
 
 // After
 chat({
@@ -213,9 +221,11 @@ See [`codemods/move-sampling-to-model-options/README.md`](https://github.com/Tan
 
 `metadata` is **not** a sampling parameter and is unaffected — it stays at the root of `chat()`:
 
-```typescript fixture=ambient
+```typescript
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
 
 chat({
   adapter: openaiText('gpt-4o'),

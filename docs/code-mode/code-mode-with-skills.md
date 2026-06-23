@@ -75,7 +75,7 @@ pnpm add @tanstack/ai-code-mode-skills
 
 ### Usage
 
-```typescript fixture=ambient
+```typescript
 import { chat, maxIterations, toServerSentEventsStream } from '@tanstack/ai'
 import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
 import { codeModeWithSkills } from '@tanstack/ai-code-mode-skills'
@@ -83,6 +83,7 @@ import { createFileSkillStorage } from '@tanstack/ai-code-mode-skills/storage'
 import { openaiText } from '@tanstack/ai-openai'
 import { myTool1, myTool2 } from './tools'
 
+const messages = [{ role: 'user' as const, content: 'Hello' }]
 const storage = createFileSkillStorage({ directory: './.skills' })
 const driver = createNodeIsolateDriver()
 
@@ -93,7 +94,7 @@ const { toolsRegistry, systemPrompt, selectedSkills } = await codeModeWithSkills
     timeout: 60_000,
     memoryLimit: 128,
   },
-  adapter: openaiText('gpt-4o-mini'),  // cheap model for skill selection
+  adapter: openaiText('gpt-5-mini'),  // cheap model for skill selection
   skills: {
     storage,
     maxSkillsInContext: 5,
@@ -102,7 +103,7 @@ const { toolsRegistry, systemPrompt, selectedSkills } = await codeModeWithSkills
 })
 
 const stream = chat({
-  adapter: openaiText('gpt-4o'),  // strong model for reasoning
+  adapter: openaiText('gpt-5.5'),  // strong model for reasoning
   tools: toolsRegistry.getTools(),
   messages,
   systemPrompts: ['You are a helpful assistant.', systemPrompt],
@@ -132,7 +133,7 @@ The registry is populated with:
 
 If you want full control — for example, loading all skills instead of using LLM-based selection — use the lower-level functions directly. This is the approach used in the `ts-code-mode-web` example.
 
-```typescript fixture=ambient
+```typescript
 import { chat, maxIterations } from '@tanstack/ai'
 import { createCodeMode } from '@tanstack/ai-code-mode'
 import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
@@ -146,6 +147,7 @@ import { createFileSkillStorage } from '@tanstack/ai-code-mode-skills/storage'
 import { openaiText } from '@tanstack/ai-openai'
 import { myTool1, myTool2, BASE_PROMPT } from './tools'
 
+const messages = [{ role: 'user' as const, content: 'Hello' }]
 const trustStrategy = createAlwaysTrustedStrategy()
 const storage = createFileSkillStorage({
   directory: './.skills',
@@ -192,7 +194,7 @@ const skillsPrompt = createSkillsSystemPrompt({
 
 // 5. Assemble and call chat()
 const stream = chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.5'),
   tools: [codeModeTool, ...managementTools, ...skillTools],
   messages,
   systemPrompts: [BASE_PROMPT, codeModePrompt, skillsPrompt],

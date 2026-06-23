@@ -78,8 +78,8 @@ export async function POST(request: Request) {
 
 ## Example: With Tools
 
-```typescript fixture=ambient
-import { chat, toolDefinition } from "@tanstack/ai";
+```typescript
+import { chat, toServerSentEventsResponse, toolDefinition } from "@tanstack/ai";
 import { grokText } from "@tanstack/ai-grok";
 import { z } from "zod";
 
@@ -96,32 +96,44 @@ const getWeather = getWeatherDef.server(async ({ location }) => {
   return { temperature: 72, conditions: "sunny" };
 });
 
-const stream = chat({
-  adapter: grokText("grok-build-0.1"),
-  messages,
-  tools: [getWeather],
-});
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter: grokText("grok-build-0.1"),
+    messages,
+    tools: [getWeather],
+  });
+
+  return toServerSentEventsResponse(stream);
+}
 ```
 
 ## Model Options
 
 Grok supports xAI Responses API options. Sampling parameters live here too — `temperature`, `top_p`, and `max_output_tokens` — rather than as root-level props on `chat()`:
 
-```typescript fixture=ambient
-import { chat } from "@tanstack/ai";
+```typescript
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
 import { grokText } from "@tanstack/ai-grok";
 
-const stream = chat({
-  adapter: grokText("grok-build-0.1"),
-  messages,
-  modelOptions: {
-    temperature: 0.7,
-    top_p: 0.9,
-    max_output_tokens: 1024,
-    store: false,
-    include: ["reasoning.encrypted_content"],
-  },
-});
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter: grokText("grok-build-0.1"),
+    messages,
+    modelOptions: {
+      temperature: 0.7,
+      top_p: 0.9,
+      max_output_tokens: 1024,
+      store: false,
+      include: ["reasoning.encrypted_content"],
+    },
+  });
+
+  return toServerSentEventsResponse(stream);
+}
 ```
 
 > If you previously passed `temperature` / `topP` / `maxTokens` at the root of `chat()`, see [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).

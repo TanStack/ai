@@ -102,8 +102,8 @@ export async function POST(request: Request) {
 
 ## Example: With Tools
 
-```typescript fixture=ambient
-import { chat, toolDefinition } from "@tanstack/ai";
+```typescript
+import { chat, toServerSentEventsResponse, toolDefinition } from "@tanstack/ai";
 import { ollamaText } from "@tanstack/ai-ollama";
 import { z } from "zod";
 
@@ -120,11 +120,17 @@ const getLocalData = getLocalDataDef.server(async ({ key }) => {
   return { data: "..." };
 });
 
-const stream = chat({
-  adapter: ollamaText("llama3"),
-  messages,
-  tools: [getLocalData],
-});
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter: ollamaText("llama3"),
+    messages,
+    tools: [getLocalData],
+  });
+
+  return toServerSentEventsResponse(stream);
+}
 ```
 
 **Note:** Tool support varies by model. Models like `llama3`, `mistral`, and `qwen2` generally have good tool calling support.
@@ -133,13 +139,13 @@ const stream = chat({
 
 Ollama supports various provider-specific options. Unlike the other providers, Ollama nests its sampling and runner parameters inside an `options` object **within** `modelOptions` — `temperature`, `top_p`, and `num_predict` (the token-limit key) all live under `modelOptions.options`:
 
-```typescript fixture=ambient
+```typescript
 import { chat } from "@tanstack/ai";
 import { ollamaText } from "@tanstack/ai-ollama";
 
 const stream = chat({
   adapter: ollamaText("llama3:latest"),
-  messages,
+  messages: [{ role: "user", content: "Hello!" }],
   modelOptions: {
     options: {
       temperature: 0.7,

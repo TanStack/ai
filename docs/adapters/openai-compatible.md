@@ -154,7 +154,7 @@ Any provider implementing the OpenAI Chat Completions API works. Common ones are
 
 Point the adapter at any local OpenAI-compatible server. The API key is usually a placeholder:
 
-```typescript group=openai-compatible
+```typescript
 import { openaiCompatible } from "@tanstack/ai-openai/compatible";
 
 // LM Studio
@@ -188,7 +188,9 @@ const ollama = openaiCompatible({
 
 Azure uses a resource-scoped URL and a separate API-version. Use the `/openai/v1` endpoint with `defaultQuery` for the version and `defaultHeaders` for the `api-key` header:
 
-```typescript group=openai-compatible
+```typescript
+import { openaiCompatible } from "@tanstack/ai-openai/compatible";
+
 const azure = openaiCompatible({
   name: "azure",
   baseURL: "https://YOUR_RESOURCE.openai.azure.com/openai/v1",

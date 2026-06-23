@@ -124,19 +124,24 @@ import { openaiImage } from '@tanstack/ai-openai'
 import { geminiImage } from '@tanstack/ai-gemini'
 
 type ImageProvider = 'openai' | 'gemini'
-declare const provider: ImageProvider
 
 const imageAdapters: Record<ImageProvider, () => ReturnType<typeof openaiImage | typeof geminiImage>> = {
   openai: () => openaiImage('gpt-image-1'),
   gemini: () => geminiImage('gemini-3.1-flash-image-preview'),
 }
 
-// Usage
-const result = await generateImage({
-  adapter: imageAdapters[provider](),
-  prompt: 'A beautiful sunset over mountains',
-  size: '1024x1024',
-})
+export async function POST(request: Request) {
+  const body = await request.json()
+  const provider: ImageProvider = body.provider ?? 'openai'
+
+  const result = await generateImage({
+    adapter: imageAdapters[provider](),
+    prompt: 'A beautiful sunset over mountains',
+    size: '1024x1024',
+  })
+
+  return Response.json(result)
+}
 ```
 
 ## Using with Summarize Adapters
@@ -149,21 +154,26 @@ import { openaiSummarize } from '@tanstack/ai-openai'
 import { anthropicSummarize } from '@tanstack/ai-anthropic'
 
 type SummarizeProvider = 'openai' | 'anthropic'
-declare const provider: SummarizeProvider
-declare const longDocument: string
 
 const summarizeAdapters: Record<SummarizeProvider, () => ReturnType<typeof openaiSummarize | typeof anthropicSummarize>> = {
   openai: () => openaiSummarize('gpt-5.4-mini'),
   anthropic: () => anthropicSummarize('claude-sonnet-4-6'),
 }
 
-// Usage
-const result = await summarize({
-  adapter: summarizeAdapters[provider](),
-  text: longDocument,
-  maxLength: 100,
-  style: 'concise',
-})
+export async function POST(request: Request) {
+  const body = await request.json()
+  const provider: SummarizeProvider = body.provider ?? 'openai'
+  const longDocument: string = body.text
+
+  const result = await summarize({
+    adapter: summarizeAdapters[provider](),
+    text: longDocument,
+    maxLength: 100,
+    style: 'concise',
+  })
+
+  return Response.json(result)
+}
 ```
 
 ## Migration from Switch Statements
@@ -197,23 +207,29 @@ const stream = chat({
 
 ### After
 
-```typescript fixture=ambient
-import { chat } from '@tanstack/ai'
+```typescript
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { openaiText } from '@tanstack/ai-openai'
 
 type AfterProvider = 'openai' | 'anthropic'
-declare const provider: AfterProvider
 
 const adapters = {
   anthropic: () => anthropicText('claude-sonnet-4-6'),
   openai: () => openaiText('gpt-5.5'),
 }
 
-const stream = chat({
-  adapter: adapters[provider](),
-  messages,
-})
+export async function POST(request: Request) {
+  const body = await request.json()
+  const provider: AfterProvider = body.forwardedProps?.provider ?? 'openai'
+
+  const stream = chat({
+    adapter: adapters[provider](),
+    messages: body.messages,
+  })
+
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 The key changes:

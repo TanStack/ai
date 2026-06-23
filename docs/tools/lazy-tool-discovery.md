@@ -47,7 +47,7 @@ sequenceDiagram
 
 Add `lazy: true` to any tool definition:
 
-```typescript group=lazy-intro fixture=ambient
+```typescript group=lazy-intro
 import { toolDefinition, chat, toServerSentEventsResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { z } from "zod";
@@ -82,8 +82,9 @@ Then pass it to `chat()` alongside your other tools:
 
 ```typescript group=lazy-intro
 async function handleRequest(request: Request) {
+  const { messages } = await request.json();
   const stream = chat({
-    adapter: openaiText("gpt-4o"),
+    adapter: openaiText("gpt-5.5"),
     messages,
     tools: [
       getProducts, // Normal tool — sent to LLM immediately
@@ -211,7 +212,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: openaiText("gpt-4o"),
+    adapter: openaiText("gpt-5.5"),
     messages,
     tools: [getProducts, compareProducts, calculateFinancing],
     agentLoopStrategy: maxIterations(20),

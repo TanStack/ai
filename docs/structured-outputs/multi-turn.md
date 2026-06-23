@@ -197,18 +197,23 @@ The hook-level `partial` and `final` are still available. They're derived from t
 
 The example above pulls `type RecipePart = StructuredOutputPart<Recipe>` out for readability. If you'd rather not name it, you can narrow inline with `Extract`:
 
-```tsx
-import type { UIMessage } from "@tanstack/ai-client";
-import type { Recipe } from "./api/structured-chat";
+```tsx ignore
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { RecipeSchema, type Recipe } from "./api/structured-chat";
 
-declare const m: UIMessage<Recipe>;
+const { messages } = useChat({
+  outputSchema: RecipeSchema,
+  connection: fetchServerSentEvents("/api/structured-chat"),
+});
 
-const recipePart = m.parts.find(
-  (p): p is Extract<typeof p, { type: "structured-output" }> =>
-    p.type === "structured-output",
-);
-// `recipePart` is `StructuredOutputPart<Recipe> | undefined`.
-// `recipePart.data` is `Recipe | undefined`.
+for (const m of messages) {
+  const recipePart = m.parts.find(
+    (p): p is Extract<typeof p, { type: "structured-output" }> =>
+      p.type === "structured-output",
+  );
+  // `recipePart` is `StructuredOutputPart<Recipe> | undefined`.
+  // `recipePart.data` is `Recipe | undefined`.
+}
 ```
 
 Both forms produce the same typed result. Pick whichever you find more readable.

@@ -261,7 +261,7 @@ function ChatComponent() {
 
 Tools can be implemented for both server and client, enabling flexible execution patterns:
 
-```typescript group=tools fixture=ambient
+```typescript group=tools
 import { toolDefinition, chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { z } from "zod";
@@ -302,6 +302,8 @@ const addToCartClient = addToCartDef.client((input) => {
 On the server, pass either the definition (for client execution) or the server implementation — in separate `chat()` calls:
 
 ```typescript group=tools
+const messages = [{ role: 'user' as const, content: 'Add item abc to my cart' }]
+
 // Pass the definition: the client will execute the tool
 chat({
   adapter: openaiText("gpt-5.5"),
@@ -321,25 +323,32 @@ chat({
 
 The isomorphic architecture provides complete type safety:
 
-```typescript
-import { type UIMessage } from "@tanstack/ai";
+```tsx
+import { useChat } from "@tanstack/ai-react";
+import { fetchServerSentEvents } from "@tanstack/ai-client";
 
-declare const uiMessages: UIMessage[];
-
-// In your React component
-uiMessages.forEach((message) => {
-  message.parts.forEach((part) => {
-    if (part.type === 'tool-call' && part.name === 'add_to_cart') {
-      // ✅ TypeScript knows part.name is literally 'add_to_cart'
-      // ✅ part.input is typed as { itemId: string, quantity: number }
-      // ✅ part.output is typed as { success: boolean, cartId: string } | undefined
-      
-      if (part.output) {
-        console.log(part.output.cartId); // ✅ Fully typed!
-      }
-    }
+function CartChat() {
+  const { messages: uiMessages } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
   });
-});
+
+  // In your React component
+  uiMessages.forEach((message) => {
+    message.parts.forEach((part) => {
+      if (part.type === 'tool-call' && part.name === 'add_to_cart') {
+        // ✅ TypeScript knows part.name is literally 'add_to_cart'
+        // ✅ part.input is typed as { itemId: string, quantity: number }
+        // ✅ part.output is typed as { success: boolean, cartId: string } | undefined
+        
+        if (part.output) {
+          console.log(part.output.cartId); // ✅ Fully typed!
+        }
+      }
+    });
+  });
+
+  return null;
+}
 ```
 
 ## Tool Execution Flow

@@ -88,7 +88,7 @@ export async function POST(request: Request) {
 
 #### After (TanStack AI)
 
-```typescript fixture=ambient
+```typescript
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
@@ -206,9 +206,11 @@ const result = streamText({
 
 #### After (TanStack AI)
 
-```typescript fixture=ambient
+```typescript
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
 
 const stream = chat({
   adapter: openaiText('gpt-4o'),
@@ -243,9 +245,11 @@ const result = streamText({
 
 #### After (TanStack AI)
 
-```typescript fixture=ambient
+```typescript
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
 
 const stream = chat({
   adapter: openaiText('gpt-4o'),
@@ -256,9 +260,11 @@ const stream = chat({
 
 Multiple system prompts are supported — useful for composing persona, policies, and tool-usage guidance without string concatenation:
 
-```typescript fixture=ambient
+```typescript
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
 
 const stream = chat({
   adapter: openaiText('gpt-4o'),
@@ -520,8 +526,8 @@ const result = streamText({
 
 #### After (TanStack AI)
 
-```typescript fixture=ambient
-import { chat, toolDefinition } from '@tanstack/ai'
+```typescript
+import { chat, toolDefinition, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { z } from 'zod'
 import { fetchWeather } from './weather'
@@ -546,11 +552,15 @@ const getWeather = getWeatherDef.server(async ({ location }) => {
 })
 
 // Step 3: Use in chat
-const stream = chat({
-  adapter: openaiText('gpt-4o'),
-  messages,
-  tools: [getWeather],
-})
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+  const stream = chat({
+    adapter: openaiText('gpt-4o'),
+    messages,
+    tools: [getWeather],
+  })
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 ### Tool Schema Differences
@@ -773,12 +783,13 @@ const result = streamText({
 
 ### After (TanStack AI)
 
-```typescript fixture=ambient
+```typescript
 import {
   chat,
   combineStrategies,
   maxIterations,
   untilFinishReason,
+  toServerSentEventsResponse,
   type ChatMiddleware,
   type ChatMiddlewareContext,
   type ChatMiddlewareConfig,
@@ -786,37 +797,43 @@ import {
 import { openaiText } from '@tanstack/ai-openai'
 import { getWeather } from './tools'
 
-const stream = chat({
-  adapter: openaiText('gpt-4o'),
-  messages,
-  tools: [getWeather],
-  agentLoopStrategy: combineStrategies([
-    maxIterations(10),
-    untilFinishReason(['stop']), // stop when the model says it's done
-  ]),
-  middleware: [
-    {
-      // `prepareStep` analogue: inspect/rewrite config at the start of each iteration
-      onConfig: (ctx: ChatMiddlewareContext, config: ChatMiddlewareConfig) => {
-        if (ctx.iteration > 0) {
-          // e.g. return a Partial<ChatMiddlewareConfig> to filter tools, trim
-          // messages, or change modelOptions for this iteration
-          return undefined
-        }
-      },
-    } satisfies ChatMiddleware,
-  ],
-})
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+  const stream = chat({
+    adapter: openaiText('gpt-4o'),
+    messages,
+    tools: [getWeather],
+    agentLoopStrategy: combineStrategies([
+      maxIterations(10),
+      untilFinishReason(['stop']), // stop when the model says it's done
+    ]),
+    middleware: [
+      {
+        // `prepareStep` analogue: inspect/rewrite config at the start of each iteration
+        onConfig: (ctx: ChatMiddlewareContext, config: ChatMiddlewareConfig) => {
+          if (ctx.iteration > 0) {
+            // e.g. return a Partial<ChatMiddlewareConfig> to filter tools, trim
+            // messages, or change modelOptions for this iteration
+            return undefined
+          }
+        },
+      } satisfies ChatMiddleware,
+    ],
+  })
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 #### Mid-loop model switching
 
 `prepareStep` in AI SDK v6 lets you return a different `model` per step. TanStack AI doesn't support swapping the adapter inside a single `chat()` run — `modelOptions` is typed per adapter, which is what gives you compile-time model safety. The equivalent is to end the current loop (via an `agentLoopStrategy`) and start a new `chat()` with a different adapter, feeding it the in-progress messages:
 
-```typescript fixture=ambient
+```typescript
 import { chat, maxIterations } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { getWeather } from './tools'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
 
 // Stage 1: heavy model for the opening turn
 const firstPass = await chat({
@@ -829,7 +846,7 @@ const firstPass = await chat({
 // Stage 2: cheaper model for the rest
 const followUp = chat({
   adapter: openaiText('gpt-4o-mini'),
-  messages: [...messages, { role: 'assistant', content: firstPass }],
+  messages: [...messages, { role: 'assistant' as const, content: firstPass }],
   tools: [getWeather],
 })
 ```
@@ -870,8 +887,8 @@ const result = streamText({ model: wrapped, messages })
 
 ### After (TanStack AI)
 
-```typescript fixture=ambient
-import { chat, type ChatMiddleware } from '@tanstack/ai'
+```typescript
+import { chat, toServerSentEventsResponse, type ChatMiddleware } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 type AppContext = { userId: string }
@@ -885,12 +902,16 @@ const loggingMiddleware: ChatMiddleware<AppContext> = {
   onError:  (ctx, err)   => console.error('error', err),
 }
 
-const stream = chat({
-  adapter: openaiText('gpt-4o'),
-  messages,
-  middleware: [loggingMiddleware],
-  context: { userId: 'u_123' }, // passed to every hook as typed ctx.context
-})
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+  const stream = chat({
+    adapter: openaiText('gpt-4o'),
+    messages,
+    middleware: [loggingMiddleware],
+    context: { userId: 'u_123' }, // passed to every hook as typed ctx.context
+  })
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 ### Full hook inventory
@@ -917,25 +938,29 @@ Each middleware is a plain object. Every hook is optional, so pick what you need
 
 TanStack AI ships a `toolCacheMiddleware` that memoizes tool results by `name + args`. There's no direct Vercel equivalent — on the Vercel side you'd compose it yourself in `wrapGenerate` or inside each tool's `execute`. Example:
 
-```typescript fixture=ambient
-import { chat } from '@tanstack/ai'
+```typescript
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { toolCacheMiddleware } from '@tanstack/ai/middlewares'
 import { openaiText } from '@tanstack/ai-openai'
 import { searchDocs, getWeather } from './tools'
 
-const stream = chat({
-  adapter: openaiText('gpt-4o'),
-  messages,
-  tools: [searchDocs, getWeather],
-  middleware: [
-    toolCacheMiddleware({
-      maxSize: 100,
-      ttl: 5 * 60_000, // 5 minutes
-      toolNames: ['searchDocs'], // only cache these
-      // storage: redisStorage, // plug in Redis / localStorage / custom
-    }),
-  ],
-})
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+  const stream = chat({
+    adapter: openaiText('gpt-4o'),
+    messages,
+    tools: [searchDocs, getWeather],
+    middleware: [
+      toolCacheMiddleware({
+        maxSize: 100,
+        ttl: 5 * 60_000, // 5 minutes
+        toolNames: ['searchDocs'], // only cache these
+        // storage: redisStorage, // plug in Redis / localStorage / custom
+      }),
+    ],
+  })
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 ### Mapping common Vercel patterns to TanStack middleware
@@ -1048,7 +1073,7 @@ return result.toTextStreamResponse()
 
 #### After (TanStack AI)
 
-```typescript fixture=ambient
+```typescript
 import {
   chat,
   toServerSentEventsResponse,
@@ -1060,6 +1085,7 @@ import { openaiText } from '@tanstack/ai-openai'
 
 const abortController = new AbortController()
 const traceId = 'trace-123'
+const messages = [{ role: 'user' as const, content: 'Hello' }]
 
 async function handler() {
   const stream = chat({ adapter: openaiText('gpt-4o'), messages })
@@ -1135,10 +1161,11 @@ const result = streamText({
 
 TanStack AI takes an `AbortController` (not a bare signal) so helpers like `toServerSentEventsStream` can wire cancellation into the response stream for you.
 
-```typescript fixture=ambient
+```typescript
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
+const messages = [{ role: 'user' as const, content: 'Hello' }]
 const abortController = new AbortController()
 
 const stream = chat({
@@ -1245,11 +1272,13 @@ streamText({
 
 ### After (TanStack AI)
 
-```typescript fixture=ambient
+```typescript
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { selectedProvider } from './config'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
 
 const adapters = {
   openai: () => openaiText('gpt-4o'),
@@ -1291,10 +1320,11 @@ type ChatMessages = InferChatMessages<typeof chatOptions>
 
 ### Per-Model Type Safety
 
-```typescript fixture=ambient
+```typescript
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
+const messages = [{ role: 'user' as const, content: 'Hello' }]
 const adapter = openaiText('gpt-4o')
 
 chat({
@@ -1326,10 +1356,11 @@ const text = await chat({
 
 If you already have a stream for another reason, `streamToText(stream)` collects it into a string:
 
-```typescript fixture=ambient
+```typescript
 import { chat, streamToText } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
+const messages = [{ role: 'user' as const, content: 'Hello' }]
 const stream = chat({ adapter: openaiText('gpt-4o'), messages })
 const text = await streamToText(stream)
 ```

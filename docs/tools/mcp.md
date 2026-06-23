@@ -191,12 +191,13 @@ For servers implementing the [MCP authorization spec](https://modelcontextprotoc
 
 ```ts ignore
 import { createMCPClient } from '@tanstack/ai-mcp'
-import type { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js'
+import { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js'
+import { myTokenStore } from './token-store'
 
 // Server-side: back the provider with tokens you persist (database, KV, ...).
 // `tokens()` returning a valid (or refreshable) token set is all the SDK
 // needs to authenticate requests.
-declare const myOAuthProvider: OAuthClientProvider
+const myOAuthProvider: OAuthClientProvider = myTokenStore.provider()
 
 const mcp = await createMCPClient({
   transport: {
@@ -341,38 +342,42 @@ Tools execute **lazily while the response stream is consumed**, so only close th
 
 Exactly one of `onFinish`/`onAbort`/`onError` fires per run, after the agent loop ends:
 
-```ts fixture=ambient
+```ts
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { createMCPClient } from '@tanstack/ai-mcp'
 
-const url = 'https://my-mcp-server.example.com/mcp'
-const mcp = await createMCPClient({ transport: { type: 'http', url } })
-const stream = chat({
-  adapter: openaiText('gpt-5.5'),
-  messages,
-  tools: await mcp.tools(),
-  middleware: [
-    {
-      name: 'mcp-close',
-      onFinish: () => mcp.close(),
-      onAbort: () => mcp.close(),
-      onError: () => mcp.close(),
-    },
-  ],
-})
-export default toServerSentEventsResponse(stream)
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+  const url = 'https://my-mcp-server.example.com/mcp'
+  const mcp = await createMCPClient({ transport: { type: 'http', url } })
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    messages,
+    tools: await mcp.tools(),
+    middleware: [
+      {
+        name: 'mcp-close',
+        onFinish: () => mcp.close(),
+        onAbort: () => mcp.close(),
+        onError: () => mcp.close(),
+      },
+    ],
+  })
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 ### Manual close — when you consume the stream in scope
 
 `try/finally` is correct when the stream is drained before the scope exits:
 
-```ts fixture=ambient
+```ts
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { createMCPClient } from '@tanstack/ai-mcp'
 
+const messages = [{ role: 'user' as const, content: 'Hello' }]
 const url = 'https://my-mcp-server.example.com/mcp'
 const mcp = await createMCPClient({ transport: { type: 'http', url } })
 try {
@@ -393,11 +398,12 @@ try {
 
 If your runtime supports `Symbol.asyncDispose` (Node 18.2+ with TypeScript `target: "es2022"` + `lib: ["esnext"]`), the same in-scope-consumption rule applies — the client closes when the block exits:
 
-```ts fixture=ambient
+```ts
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { createMCPClient } from '@tanstack/ai-mcp'
 
+const messages = [{ role: 'user' as const, content: 'Hello' }]
 const url = 'https://my-mcp-server.example.com/mcp'
 await using mcp = await createMCPClient({ transport: { type: 'http', url } })
 const stream = chat({

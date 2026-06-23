@@ -73,10 +73,12 @@ The examples below show only the part that changes — the client setup and the 
 
 Pass any mix of `MCPClient` instances and `MCPClients` pools. Their tools are discovered in parallel and merged into one flat tool set. Pools auto-prefix each server's tools with the config key to prevent name collisions.
 
-```ts fixture=ambient
+```ts
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { createMCPClient, createMCPClients } from '@tanstack/ai-mcp'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
 
 // A pool of two servers — their tools are prefixed "github_" and "linear_"
 const githubLinearPool = await createMCPClients({
@@ -203,10 +205,12 @@ export function Chat() {
 
 When your MCP server exposes dozens of tools, sending every schema to the model inflates prompt size and cost. Set `lazyTools: true` to defer sending tool schemas until the model explicitly requests them.
 
-```ts fixture=ambient
+```ts
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { createMCPClient } from '@tanstack/ai-mcp'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
 
 const mcpClient = await createMCPClient({
   transport: { type: 'http', url: process.env.LARGE_MCP_URL! },
@@ -232,10 +236,12 @@ By default, if any source fails during discovery, `chat()` throws immediately (f
 
 **Fail-fast (default):**
 
-```ts fixture=ambient
+```ts
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { createMCPClient } from '@tanstack/ai-mcp'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
 
 const mcpClient = await createMCPClient({
   transport: { type: 'http', url: process.env.MCP_URL! },
@@ -256,10 +262,12 @@ const stream = chat({
 
 Use `onDiscoveryError` to log the problem and return normally — the failing source is skipped and the run continues with the remaining clients' tools.
 
-```ts fixture=ambient
+```ts
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { createMCPClient } from '@tanstack/ai-mcp'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
 
 const primaryClient = await createMCPClient({
   transport: { type: 'http', url: process.env.PRIMARY_MCP_URL! },
@@ -290,10 +298,12 @@ const stream = chat({
 
 If two sources in `mcp.clients` expose a tool with the same name, the run fails with an `MCPDuplicateToolNameError` (exported from `@tanstack/ai`) after merging the discovered tools. Note that `chat()` runs lazily — discovery happens when the stream is first consumed, so the error surfaces **through the stream** (the SSE response errors), not as a synchronous throw you can `try/catch` at the `chat()` call site. The fix is to prevent the collision up front: assign a `prefix` to one of the clients, or use `createMCPClients` (which auto-prefixes using the config key).
 
-```ts fixture=ambient
+```ts
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { createMCPClient } from '@tanstack/ai-mcp'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
 
 // Both servers expose a tool called "search". Without prefixes the run
 // would fail with MCPDuplicateToolNameError. The prefix option resolves

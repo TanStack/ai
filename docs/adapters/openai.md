@@ -129,8 +129,8 @@ export async function POST(request: Request) {
 
 ## Example: With Tools
 
-```typescript fixture=ambient
-import { chat, toolDefinition } from "@tanstack/ai";
+```typescript
+import { chat, toServerSentEventsResponse, toolDefinition } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { z } from "zod";
 
@@ -147,24 +147,30 @@ const getWeather = getWeatherDef.server(async ({ location }) => {
   return { temperature: 72, conditions: "sunny" };
 });
 
-const stream = chat({
-  adapter: openaiText("gpt-5.2"),
-  messages,
-  tools: [getWeather],
-});
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter: openaiText("gpt-5.2"),
+    messages,
+    tools: [getWeather],
+  });
+
+  return toServerSentEventsResponse(stream);
+}
 ```
 
 ## Model Options
 
 OpenAI supports various provider-specific options. Sampling parameters live here too — `temperature`, `top_p`, and `max_output_tokens` (the Responses API token-limit key) — rather than as root-level props on `chat()`:
 
-```typescript fixture=ambient
+```typescript
 import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
   adapter: openaiText("gpt-5.2"),
-  messages,
+  messages: [{ role: "user", content: "Hello!" }],
   modelOptions: {
     temperature: 0.7,
     max_output_tokens: 1000,

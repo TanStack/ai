@@ -17,24 +17,19 @@ export default defineConfig({
   ],
   defaultValidate: 'type',
   languages: ['ts', 'tsx', 'js', 'jsx'],
-  fixtures: {
-    // Invisible setup for fragment snippets that reference the illustrative
-    // `messages` / `message` values without re-declaring them inline. Applied
-    // per-fence with `fixture=ambient`; the prepended lines are type-checked
-    // but not rendered in the docs.
-    ambient: {
-      type: 'prepend',
-      content: [
-        'import type { ModelMessage, UIMessage } from "@tanstack/ai"',
-        'declare const messages: Array<ModelMessage>',
-        'declare const message: UIMessage',
-      ].join('\n'),
-    },
-  },
   overrides: [
     // React (and anything not overridden below) uses the automatic JSX
     // runtime so snippets don't need an explicit `import React`.
-    { include: ['docs/**/*.md'], jsx: 'react-jsx', jsxImportSource: 'react' },
+    // noImplicitReturns is off: doc snippets routinely show callbacks that
+    // return on some branches and fall through on others (e.g. a middleware
+    // hook that returns a decision or continues), which is valid and shouldn't
+    // force an explicit return type or trailing `return`.
+    {
+      include: ['docs/**/*.md'],
+      jsx: 'react-jsx',
+      jsxImportSource: 'react',
+      noImplicitReturns: false,
+    },
     // Solid snippets compile JSX through solid-js.
     {
       include: ['docs/api/ai-solid.md'],

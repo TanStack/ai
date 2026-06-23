@@ -355,7 +355,7 @@ When using the `ChatClient` from `@tanstack/ai-client`, you can send multimodal 
 
 The `sendMessage` method accepts either a simple string or a `MultimodalContent` object:
 
-```typescript group=multimodal-content
+```typescript
 import { ChatClient, fetchServerSentEvents } from '@tanstack/ai-client'
 
 const client = new ChatClient({
@@ -381,7 +381,13 @@ await client.sendMessage({
 
 You can provide a custom ID for the message:
 
-```typescript group=multimodal-content
+```typescript
+import { ChatClient, fetchServerSentEvents } from '@tanstack/ai-client'
+
+const client = new ChatClient({
+  connection: fetchServerSentEvents('/api/chat'),
+})
+
 await client.sendMessage({
   content: 'Hello!',
   id: 'custom-message-id-123'
@@ -392,14 +398,16 @@ await client.sendMessage({
 
 The second parameter allows you to pass additional `forwardedProps` for that specific request. These are shallow-merged with the client's base `forwardedProps` configuration, with per-message values taking priority:
 
-```typescript group=multimodal-content
-const client2 = new ChatClient({
+```typescript
+import { ChatClient, fetchServerSentEvents } from '@tanstack/ai-client'
+
+const client = new ChatClient({
   connection: fetchServerSentEvents('/api/chat'),
   forwardedProps: { model: 'gpt-5' }, // Base forwarded props
 })
 
 // Override model for this specific message
-await client2.sendMessage('Analyze this complex problem', {
+await client.sendMessage('Analyze this complex problem', {
   model: 'gpt-5',
   temperature: 0.2,
 })

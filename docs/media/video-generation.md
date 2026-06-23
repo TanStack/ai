@@ -44,7 +44,7 @@ Currently supported:
 
 ### Creating a Video Job
 
-```typescript group=video-generation
+```typescript
 import { generateVideo } from '@tanstack/ai'
 import { openaiVideo } from '@tanstack/ai-openai'
 
@@ -59,8 +59,14 @@ console.log('Job started:', jobId)
 
 ### Polling for Status
 
-```typescript group=video-generation
-import { getVideoJobStatus } from '@tanstack/ai'
+```typescript
+import { generateVideo, getVideoJobStatus } from '@tanstack/ai'
+import { openaiVideo } from '@tanstack/ai-openai'
+
+const { jobId } = await generateVideo({
+  adapter: openaiVideo('sora-2'),
+  prompt: 'A golden retriever puppy playing in a field of sunflowers',
+})
 
 // Check the status of the job
 const status = await getVideoJobStatus({

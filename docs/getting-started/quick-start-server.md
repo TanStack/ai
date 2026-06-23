@@ -129,15 +129,18 @@ TanStack AI ships several ways to return a stream over HTTP:
 
 **`toHttpResponse()`** returns a `Response` using newline-delimited JSON instead of SSE. Pair it with `fetchHttpStream` on the client:
 
-```typescript fixture=ambient group=server-stream
+```typescript
 import { chat, toHttpResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
-const stream = chat({
-  adapter: openaiText('gpt-4o'),
-  messages,
-})
-const response = toHttpResponse(stream)
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    messages,
+  })
+  return toHttpResponse(stream)
+}
 ```
 
 **Raw stream consumption** -- iterate the `AsyncIterable` directly with `for await`:

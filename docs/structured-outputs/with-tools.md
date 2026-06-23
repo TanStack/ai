@@ -23,7 +23,7 @@ This page covers the combined `outputSchema` + `tools` shape, including the paus
 
 The simplest shape: `await chat({ tools, outputSchema })`. The agent loop runs to completion (every tool resolved, every approval responded to), then the model produces the structured object. The promise resolves with the validated, typed result.
 
-```typescript group=with-tools
+```typescript
 import { chat, toolDefinition } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { z } from "zod";

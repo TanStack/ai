@@ -135,8 +135,8 @@ chat({
 
 Tools can declare typed runtime context for request-scoped dependencies:
 
-```typescript fixture=ambient
-import { chat, toolDefinition } from "@tanstack/ai";
+```typescript
+import { chat, toolDefinition, toServerSentEventsResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { session, db } from "./app";
 
@@ -152,12 +152,16 @@ const currentUser = toolDefinition({
   return { name: await ctx.context.db.users.findName(ctx.context.userId) };
 });
 
-chat({
-  adapter: openaiText("gpt-5.2"),
-  messages,
-  tools: [currentUser],
-  context: { userId: session.user.id, db },
-});
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+  const stream = chat({
+    adapter: openaiText("gpt-5.2"),
+    messages,
+    tools: [currentUser],
+    context: { userId: session.user.id, db },
+  });
+  return toServerSentEventsResponse(stream);
+}
 ```
 
 ### Parameters

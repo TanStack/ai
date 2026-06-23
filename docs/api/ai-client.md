@@ -25,7 +25,7 @@ npm install @tanstack/ai-client
 
 The main client class for managing chat state.
 
-```typescript group=chatclient
+```typescript
 import {
   ChatClient,
   clientTools,
@@ -69,7 +69,9 @@ const client = new ChatClient({
 
 Sends a user message and gets a response.
 
-```typescript group=chatclient
+```typescript
+import { client } from "./client";
+
 await client.sendMessage("Hello!");
 ```
 
@@ -77,7 +79,9 @@ await client.sendMessage("Hello!");
 
 Appends a message to the conversation.
 
-```typescript group=chatclient
+```typescript
+import { client } from "./client";
+
 await client.append({
   role: "user",
   content: "Additional context",
@@ -88,7 +92,9 @@ await client.append({
 
 Reloads the last assistant message.
 
-```typescript group=chatclient
+```typescript
+import { client } from "./client";
+
 await client.reload();
 ```
 
@@ -96,7 +102,9 @@ await client.reload();
 
 Stops the current response generation.
 
-```typescript group=chatclient
+```typescript
+import { client } from "./client";
+
 client.stop();
 ```
 
@@ -104,7 +112,9 @@ client.stop();
 
 Clears all messages.
 
-```typescript group=chatclient
+```typescript
+import { client } from "./client";
+
 client.clear();
 ```
 
@@ -112,7 +122,10 @@ client.clear();
 
 Manually sets the messages array.
 
-```typescript group=chatclient
+```typescript
+import { client } from "./client";
+import type { UIMessage } from "@tanstack/ai-client";
+
 const newMessages: UIMessage[] = [];
 client.setMessagesManually([...newMessages]);
 ```
@@ -121,7 +134,9 @@ client.setMessagesManually([...newMessages]);
 
 Adds the result of a client-side tool execution.
 
-```typescript group=chatclient
+```typescript
+import { client } from "./client";
+
 await client.addToolResult({
   toolCallId: "call_123",
   tool: "toolName",
@@ -134,7 +149,9 @@ await client.addToolResult({
 
 Responds to a tool approval request.
 
-```typescript group=chatclient
+```typescript
+import { client } from "./client";
+
 await client.addToolApprovalResponse({
   id: "approval_123",
   approved: true,

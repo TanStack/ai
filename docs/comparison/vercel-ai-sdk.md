@@ -149,10 +149,12 @@ Vercel AI SDK defines tools with a `tool()` helper and does support client-side 
 
 TanStack AI provides agent loop control as composable pure functions. Each strategy is `(state) => boolean` - return `true` to continue, `false` to stop.
 
-```ts fixture=ambient
+```ts
 import { chat, maxIterations, untilFinishReason, combineStrategies } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { tools } from './tools'
+
+const messages = [{ role: 'user' as const, content: 'Help me plan a trip.' }]
 
 const stream = chat({
   adapter: openaiText('gpt-5.5'),
@@ -219,10 +221,12 @@ The host-side client goes beyond basic discovery:
 - **Lazy discovery** - `tools({ lazy: true })` defers sending tool schemas to the LLM, plugging into TanStack AI's lazy tool discovery to cut token usage on tool-heavy servers.
 - **Resources & prompts** - inject MCP resources and prompts into a run with `mcpResourceToContentPart` and `mcpPromptToMessages`.
 
-```ts fixture=ambient
+```ts
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { createMCPClient } from '@tanstack/ai-mcp'
+
+const messages = [{ role: 'user' as const, content: 'What tools are available?' }]
 
 const mcp = await createMCPClient({
   transport: { type: 'http', url: 'https://my-mcp-server.example.com/mcp' },
@@ -574,11 +578,13 @@ The TanStack approach separates the tool contract from its implementation, makin
 
 **TanStack AI** - Composable strategies:
 
-```ts fixture=ambient
+```ts
 import { chat, combineStrategies, maxIterations, untilFinishReason } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { tools } from './tools'
 import { estimatedTokens } from './cost'
+
+const messages = [{ role: 'user' as const, content: 'Help me plan a trip.' }]
 
 const stream = chat({
   adapter: openaiText('gpt-5.5'),

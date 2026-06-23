@@ -32,10 +32,14 @@ import { falImage } from "@tanstack/ai-fal";
 
 // Good — full type safety and autocomplete
 const adapter = falImage("fal-ai/z-image/turbo");
+```
+
+```typescript
+import { falImage } from "@tanstack/ai-fal";
 
 // Bad — no type inference for model-specific options
 const modelId = "fal-ai/z-image/turbo";
-const adapterNoTypeInference = falImage(modelId);
+const adapter = falImage(modelId);
 ```
 
 You can also pass any string for new models that fal.ai hasn't provided types for yet — you just won't get type safety on those endpoints.
@@ -291,7 +295,7 @@ for (const segment of result.segments ?? []) {
 
 Music and sound-effect generation uses `falAudio()` with the `generateAudio()` activity. Unlike TTS, the result is returned as a URL in `result.audio.url` (you can fetch it yourself if you need raw bytes).
 
-```typescript group=fal
+```typescript
 import { generateAudio } from "@tanstack/ai";
 import { falAudio } from "@tanstack/ai-fal";
 
@@ -304,7 +308,10 @@ const music = await generateAudio({
 console.log(music.audio.url);
 ```
 
-```typescript group=fal
+```typescript
+import { generateAudio } from "@tanstack/ai";
+import { falAudio } from "@tanstack/ai-fal";
+
 // DiffRhythm with explicit lyrics
 const lyrical = await generateAudio({
   adapter: falAudio("fal-ai/diffrhythm"),
@@ -315,7 +322,10 @@ const lyrical = await generateAudio({
 });
 ```
 
-```typescript group=fal
+```typescript
+import { generateAudio } from "@tanstack/ai";
+import { falAudio } from "@tanstack/ai-fal";
+
 // Sound effects
 const sfx = await generateAudio({
   adapter: falAudio("fal-ai/elevenlabs/sound-effects/v2"),

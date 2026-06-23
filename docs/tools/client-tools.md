@@ -214,7 +214,7 @@ Client tools are **automatically executed** when the model calls them. The flow 
 
 Client tools can receive typed runtime context as their second argument. This context is local to the `ChatClient` or framework hook instance and is not serialized to the server.
 
-```typescript group=client-tools
+```typescript
 import { createChatClientOptions, clientTools } from "@tanstack/ai-client";
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import { toolDefinition } from "@tanstack/ai";

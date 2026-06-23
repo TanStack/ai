@@ -254,7 +254,7 @@ Modern bundlers (Vite, Webpack, Rollup, esbuild) can easily eliminate unused cod
    packages. See [Quick Start: React Native](../getting-started/quick-start-react-native)
    for the server-only provider boundary and mobile transport setup.
 
-```ts group=tree-shaking
+```ts
 // ✅ Good - Only imports chat
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
@@ -277,8 +277,8 @@ Each adapter type implements a specific interface:
 
 All adapters have a `kind` property that indicates their type:
 
-```ts group=tree-shaking
-import { openaiSummarize } from '@tanstack/ai-openai'
+```ts
+import { openaiText, openaiSummarize } from '@tanstack/ai-openai'
 
 const chatAdapter = openaiText('gpt-5.5')
 console.log(chatAdapter.kind) // 'text'

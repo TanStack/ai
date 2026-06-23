@@ -113,11 +113,11 @@ Called once during `init` (startup) and once per iteration during `beforeModel` 
 Return a **partial** config object with only the fields you want to change — they are shallow-merged with the current config automatically. No need to spread the existing config.
 
 ```typescript
-import { type ChatMiddleware, type ChatMiddlewareConfig } from "@tanstack/ai";
+import { type ChatMiddleware } from "@tanstack/ai";
 
 const dynamicTemperature: ChatMiddleware = {
   name: "dynamic-temperature",
-  onConfig: (ctx, config): void | Partial<ChatMiddlewareConfig> => {
+  onConfig: (ctx, config) => {
     if (ctx.phase === "init") {
       // Add a system prompt at startup — only systemPrompts is overwritten
       return {
@@ -317,7 +317,7 @@ const redactStructuredOutput: ChatMiddleware = {
 Called before each tool executes. The first middleware that returns a non-void decision short-circuits — remaining middleware are skipped for that tool call.
 
 ```typescript
-import { type ChatMiddleware, type BeforeToolCallDecision } from "@tanstack/ai";
+import { type ChatMiddleware } from "@tanstack/ai";
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
@@ -325,7 +325,7 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 
 const guard: ChatMiddleware = {
   name: "guard",
-  onBeforeToolCall: (ctx, hookCtx): BeforeToolCallDecision => {
+  onBeforeToolCall: (ctx, hookCtx) => {
     // Block dangerous tools
     if (hookCtx.toolName === "deleteDatabase") {
       return { type: "abort", reason: "Dangerous operation blocked" };
@@ -491,9 +491,10 @@ Every hook receives a `ChatMiddlewareContext` as its first argument. It provides
 
 `ChatMiddleware` accepts a context generic. This lets reusable middleware declared outside `chat()` access the same typed runtime context as your tools.
 
-```typescript fixture=ambient
+```typescript
 import { chat, type ChatMiddleware } from "@tanstack/ai";
-import { adapter, session, audit } from "./server";
+import { openaiText } from "@tanstack/ai-openai";
+import { session, audit } from "./server";
 
 type AppContext = {
   userId: string;
@@ -515,8 +516,8 @@ export const auditMiddleware: ChatMiddleware<AppContext> = {
 };
 
 chat({
-  adapter,
-  messages,
+  adapter: openaiText("gpt-5.5"),
+  messages: [{ role: "user", content: "Hello" }],
   middleware: [auditMiddleware],
   context: {
     userId: session.user.id,
@@ -574,14 +575,14 @@ const analytics: ChatMiddleware = {
 
 Middleware execute in array order. The ordering matters for hooks that pipe or short-circuit:
 
-```typescript fixture=ambient
+```typescript
 import { chat, type ChatMiddleware } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { authMiddleware, loggingMiddleware, cachingMiddleware } from "./middleware";
 
 const stream = chat({
   adapter: openaiText("gpt-5.5"),
-  messages,
+  messages: [{ role: "user", content: "Hello" }],
   middleware: [authMiddleware, loggingMiddleware, cachingMiddleware],
 });
 ```
@@ -651,7 +652,7 @@ Three array fields on a middleware declare its capability contract. Each is a `R
 
 Author middleware with `defineChatMiddleware` — it sharpens the `requires` / `provides` tuple types so the coverage check and builder can read them precisely. Here a **provider** sets up a counter in `setup`, and a **consumer** reads it in a hook:
 
-```typescript group=capability-example
+```typescript
 import {
   chat,
   createCapability,
@@ -698,13 +699,17 @@ If you drop `withCounter` from the array, `chat()` reports a compile-time error 
 
 `createChatMiddleware()` builds the array through chained `.use()` calls and enforces **provider-before-consumer ordering at compile time**: each `.use()` requires that the middleware's `requires` are already covered by capabilities provided by earlier `.use()` calls.
 
-```typescript group=capability-example
+```typescript
+import { chat, createChatMiddleware } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { withCounter, countsChunks } from "./counter-middleware";
+
 const middleware = createChatMiddleware()
   .use(withCounter) // provides "counter"
   .use(countsChunks) // requires "counter" — OK, already provided above
   .build();
 
-const stream2 = chat({
+const stream = chat({
   adapter: openaiText("gpt-5.5"),
   messages: [{ role: "user", content: "Hello" }],
   middleware,
@@ -742,13 +747,13 @@ See [Built-in Middleware](./built-in-middleware) for full options and examples f
 Limit the number of tool calls per request:
 
 ```typescript
-import { type ChatMiddleware, type BeforeToolCallDecision } from "@tanstack/ai";
+import { type ChatMiddleware } from "@tanstack/ai";
 
 function rateLimitMiddleware(maxCalls: number): ChatMiddleware {
   let toolCallCount = 0;
   return {
     name: "rate-limit",
-    onBeforeToolCall: (ctx, hookCtx): BeforeToolCallDecision => {
+    onBeforeToolCall: (ctx, hookCtx) => {
       toolCallCount++;
       if (toolCallCount > maxCalls) {
         return {
@@ -811,11 +816,11 @@ const auditTrail: ChatMiddleware = {
 Expose different tools at different stages of the agent loop:
 
 ```typescript
-import { type ChatMiddleware, type ChatMiddlewareConfig } from "@tanstack/ai";
+import { type ChatMiddleware } from "@tanstack/ai";
 
 const toolSwapper: ChatMiddleware = {
   name: "tool-swapper",
-  onConfig: (ctx, config): void | Partial<ChatMiddlewareConfig> => {
+  onConfig: (ctx, config) => {
     if (ctx.phase !== "beforeModel") return;
 
     if (ctx.iteration === 0) {

@@ -89,7 +89,7 @@ const result = await generateAudio({
 
 Earlier MiniMax variants use a `lyrics_prompt` field for lyric guidance.
 
-```typescript group=audio-generation
+```typescript
 import { generateAudio } from '@tanstack/ai'
 import { falAudio } from '@tanstack/ai-fal'
 
@@ -139,7 +139,15 @@ interface AudioGenerationResult {
 
 Gemini returns base64-encoded bytes in `result.audio.b64Json`. The fal adapter returns a URL in `result.audio.url` — if you need raw bytes, `fetch()` the URL yourself:
 
-```typescript group=audio-generation
+```typescript
+import { generateAudio } from '@tanstack/ai'
+import { falAudio } from '@tanstack/ai-fal'
+
+const result = await generateAudio({
+  adapter: falAudio('fal-ai/diffrhythm'),
+  prompt: 'An upbeat electronic track',
+})
+
 const bytes = new Uint8Array(
   await (await fetch(result.audio.url!)).arrayBuffer()
 )

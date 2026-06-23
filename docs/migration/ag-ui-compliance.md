@@ -211,29 +211,33 @@ import {
   chat,
   chatParamsFromRequest,
   mergeAgentTools,
+  toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { serverTools } from './tools'
 
-declare const params: Awaited<ReturnType<typeof chatParamsFromRequest>>
+export async function POST(req: Request) {
+  const params = await chatParamsFromRequest(req)
 
-// ✅ SAFE — explicit allowlist. Sampling params live in modelOptions under
-// each provider's native key (OpenAI: temperature / max_output_tokens).
-chat({
-  adapter: openaiText('gpt-4o'),
-  messages: params.messages,
-  tools: mergeAgentTools(serverTools, params.tools),
-  modelOptions: {
-    temperature:
-      typeof params.forwardedProps.temperature === 'number'
-        ? params.forwardedProps.temperature
-        : undefined,
-    max_output_tokens:
-      typeof params.forwardedProps.maxTokens === 'number'
-        ? params.forwardedProps.maxTokens
-        : undefined,
-  },
-})
+  // ✅ SAFE — explicit allowlist. Sampling params live in modelOptions under
+  // each provider's native key (OpenAI: temperature / max_output_tokens).
+  const stream = chat({
+    adapter: openaiText('gpt-4o'),
+    messages: params.messages,
+    tools: mergeAgentTools(serverTools, params.tools),
+    modelOptions: {
+      temperature:
+        typeof params.forwardedProps.temperature === 'number'
+          ? params.forwardedProps.temperature
+          : undefined,
+      max_output_tokens:
+        typeof params.forwardedProps.maxTokens === 'number'
+          ? params.forwardedProps.maxTokens
+          : undefined,
+    },
+  })
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 ### Mapping forwarded values into runtime context

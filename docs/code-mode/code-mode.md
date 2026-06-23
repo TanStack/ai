@@ -100,7 +100,7 @@ import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const result = await chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.5"),
   systemPrompts: [
     "You are a helpful weather assistant.",
     systemPrompt,

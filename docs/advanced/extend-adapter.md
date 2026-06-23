@@ -35,7 +35,7 @@ const myOpenai = extendAdapter(openaiText, [
 ])
 
 // Use with original models - full type inference preserved
-const gpt4Adapter = myOpenai('gpt-4o')
+const gpt5Adapter = myOpenai('gpt-5.5')
 
 // Use with custom models - your custom types are applied
 const customAdapter = myOpenai('my-fine-tuned-gpt4')
@@ -53,7 +53,7 @@ const stream = chat({
 
 The `createModel` function provides a clean way to define custom models with full type inference:
 
-```typescript group=extend-adapter
+```typescript
 import { createModel } from '@tanstack/ai'
 
 // Arguments define name and input modalities
@@ -72,7 +72,9 @@ A custom model definition (`ExtendedModelDef`) has the required properties `name
 
 The positional form takes a model name and an `input` array specifying which content types your model supports:
 
-```typescript group=extend-adapter
+```typescript
+import { createModel } from '@tanstack/ai'
+
 const models = [
   createModel('text-only-model', ['text']),
   createModel('multimodal-model', ['text', 'image', 'audio']),
@@ -135,7 +137,7 @@ import { openaiText } from '@tanstack/ai-openai'
 const myOpenai = extendAdapter(openaiText, [createModel('custom-model', ['text'])])
 
 // ✅ Original models work with their original types
-const a1 = myOpenai('gpt-4o')
+const a1 = myOpenai('gpt-5.5')
 
 // ✅ Custom models work with your defined types
 const a2 = myOpenai('custom-model')
