@@ -1,7 +1,10 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "tanstack-ai-sandbox-cloudflare-agent",
-  "main": "src/worker.ts",
+  // Custom server entry: TanStack Start SSR + the agent's DOs/container in one
+  // Worker. The @cloudflare/vite-plugin builds this entry and wires the client
+  // assets automatically (no `assets` block needed here).
+  "main": "src/server.ts",
   "compatibility_date": "2026-05-01",
   // node:crypto/node:buffer used transitively by the TanStack AI packages + the
   // MCP SDK. The DO/Worker code itself uses Web Crypto for the bearer check.

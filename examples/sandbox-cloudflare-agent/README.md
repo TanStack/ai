@@ -1,41 +1,84 @@
-# Cloudflare Workers + Durable Objects + Containers agent (TanStack AI)
+# Cloudflare sandbox agent — TanStack Start app (Worker + Durable Objects + Container)
 
-A reference app for running a **TanStack AI sandbox agent on the edge** — and the
-whole app is **one function call**. `createCloudflareSandboxAgent()` (from
-`@tanstack/ai-sandbox-cloudflare/agent`) returns the run coordinator Durable
-Object, the `@cloudflare/sandbox` Sandbox DO, and the Worker fetch handler, so
-`src/worker.ts` is just config + export wiring:
+A reference **TanStack Start app** that runs a TanStack AI sandbox agent on the
+edge — UI, agent, Durable Objects, and the container all ship in **one Cloudflare
+Worker, one `wrangler deploy`**. The agent itself is still **one function call**:
+`createCloudflareSandboxAgent()` (from `@tanstack/ai-sandbox-cloudflare/agent`)
+returns the run-coordinator Durable Object, the `@cloudflare/sandbox` Sandbox DO,
+and a stateless Worker fetch handler. `src/agent.ts` configures it:
 
 ```ts
 import { createCloudflareSandboxAgent } from '@tanstack/ai-sandbox-cloudflare/agent'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
 
-const agent = createCloudflareSandboxAgent({
+export const agent = createCloudflareSandboxAgent({
   adapter: () => claudeCodeText('sonnet'),
   tools: () => [lookup], // optional chat() server tools, bridged over MCP
 })
-
-export const RunCoordinator = agent.Coordinator
-export const Sandbox = agent.Sandbox
-export default agent.worker
 ```
+
+…and `src/server.ts` — the custom Cloudflare entry point — re-exports the DO
+classes and composes the agent with the Start request handler so both live in one
+Worker:
+
+```ts
+import handler from '@tanstack/react-start/server-entry'
+import { proxyToSandbox } from '@cloudflare/sandbox'
+import { agent } from './agent'
+
+export const RunCoordinator = agent.Coordinator // wrangler DO binding
+export const Sandbox = agent.Sandbox            // wrangler container binding
+
+export default {
+  async fetch(request, env, ctx) {
+    const proxied = await proxyToSandbox(request, env) // sandbox preview ports
+    if (proxied) return proxied
+    const { pathname } = new URL(request.url)
+    // The agent owns /runs, /_bridge, /tool-exec; everything else is the UI.
+    if (isAgentPath(pathname) && agent.worker.fetch)
+      return agent.worker.fetch(request, env, ctx)
+    return handler.fetch(request) // TanStack Start SSR + /api/* routes
+  },
+} satisfies ExportedHandler
+```
+
+The browser uses a vanilla `useChat` against the `/api/run` server route, which
+bridges the agent's POST-then-WebSocket protocol to the SSE stream `useChat`
+expects (see `src/routes/api.run.ts`).
 
 Under the hood: a stateless Worker _triggers_ a run and returns immediately, a
 Durable Object _coordinator_ drives the run to completion (surviving
 hibernation), and clients _stream_ the result over a WebSocket with **resumable
-cursors** so a reconnect never loses or replays an event. All of that now lives
-inside the package — this example used to hand-write `src/coordinator.ts` and
-`src/run-log-do.ts` for it; both are gone.
+cursors** so a reconnect never loses or replays an event. All of that lives inside
+`@tanstack/ai-sandbox-cloudflare`.
 
-> **Status: runnable reference, not runtime-verified in this repo.** This
-> example compiles against the real `@cloudflare/workers-types`,
-> `@cloudflare/sandbox`, and TanStack AI packages and follows the proven run-log
-> / tool-bridge contracts. It has **not** been executed against a live Workers
-> runtime in this monorepo's CI (no Workers runtime here; examples aren't built
-> by Nx) — run it yourself with `wrangler dev` (see **[Run it locally](#run-it-locally)**).
-> Claude Code **does** run on the Cloudflare sandbox: the adapter delivers the
-> prompt via a file + shell stdin-redirection (the sandbox has no writable
-> host→process stdin), so no stdin write is needed. See **[Limitations](#limitations)**.
+> **Status: runnable reference, not runtime-verified in this repo.** This example
+> type-checks (`pnpm typecheck`) and builds (`pnpm build`) against the real
+> Cloudflare + `@cloudflare/sandbox` + TanStack AI types and follows the proven
+> run-log / tool-bridge contracts, but it has **not** been executed end-to-end
+> against a live Workers runtime in this monorepo's CI. The `@cloudflare/vite-plugin`
+> runs the Worker + DOs + container in `workerd` for both `vite dev` and
+> `wrangler deploy`. Claude Code **does** run on the Cloudflare sandbox (the
+> adapter delivers the prompt via a file + shell stdin-redirection). See
+> **[Limitations](#limitations)**.
+
+---
+
+## DO-drives vs. co-located: where `chat()` runs
+
+This example uses the **default `do-drives` model**: the coordinator Durable
+Object runs `chat()` itself and serves the MCP tool-bridge from its own `fetch`
+handler; the container only runs the `claude` CLI. The whole MCP protocol crosses
+the container→DO boundary.
+
+`@tanstack/ai-sandbox-cloudflare` also supports a **`colocated` model** (pass
+`mode: 'colocated'` + a `runInContainerHarness` container program from
+`@tanstack/ai-sandbox-cloudflare/runner`): the harness loop **and** the bridge run
+_inside_ the container, and only host-tool **execution** crosses back. That keeps
+the MCP transport on container localhost at the cost of a second build target
+(the in-container runner must be bundled into the image). The DO-drives path is
+the simpler one to teach and run, so it's what this example shows; see
+`docs/sandbox/overview.md` ("Edge execution: two models") for the full tradeoff.
 
 ---
 
@@ -135,55 +178,59 @@ instead:
    serves the JSON-RPC from the in-memory tool core.
 
 No raw socket is ever opened; the bridge rides the same fetch surface as the rest
-of the DO. The demo `lookup` tool in `src/worker.ts` exercises this path.
+of the DO. The demo `lookup` tool in `src/agent.ts` exercises this path.
 
 ---
 
 ## Files
 
-The agent itself is the package; this app is one file plus its Cloudflare config.
-
-| File             | Role                                                                                                         |
-| ---------------- | ------------------------------------------------------------------------------------------------------------ |
-| `src/worker.ts`  | The whole app: `createCloudflareSandboxAgent()` + one demo host tool, exporting the DO classes + the Worker. |
-| `wrangler.jsonc` | DO + Container + Sandbox bindings (`RUN_COORDINATOR` + `Sandbox`), migrations, `nodejs_compat`.              |
-| `Dockerfile`     | Container image: `@cloudflare/sandbox` base + the `claude` CLI.                                              |
+| File                     | Role                                                                                                    |
+| ------------------------ | ------------------------------------------------------------------------------------------------------- |
+| `src/agent.ts`           | `createCloudflareSandboxAgent()` + one demo host tool — the configured agent.                           |
+| `src/server.ts`          | Custom Cloudflare entry: re-exports the DOs and composes `proxyToSandbox` + the agent + Start SSR.      |
+| `src/routes/index.tsx`   | The chat UI (`useChat` → `/api/run`).                                                                    |
+| `src/routes/api.run.ts`  | Same-origin proxy: bridges the agent's POST-then-WebSocket run protocol to the SSE stream `useChat` reads. |
+| `wrangler.jsonc`         | DO + Container + Sandbox bindings (`RUN_COORDINATOR` + `Sandbox`), migrations, `nodejs_compat`.         |
+| `Dockerfile`             | Container image: `@cloudflare/sandbox` base + the `claude` CLI.                                          |
+| `vite.config.ts`         | `@cloudflare/vite-plugin` + `tanstackStart()` — builds + runs the Worker in `workerd`.                  |
 
 ## Run it locally
 
-**Prerequisites:** Docker running (Wrangler builds + runs the Container image
-locally), Node 20+, `pnpm`, a recent `wrangler` (installed as a devDependency),
-and an `ANTHROPIC_API_KEY`.
+**Prerequisites:** Docker running (the plugin builds + runs the Container image
+locally), Node 20+, `pnpm`, and an `ANTHROPIC_API_KEY`.
 
 ```bash
 # 1) Install workspace deps (from the repo root)
 pnpm install
 
-# 2) From THIS directory, provide your key for local dev. `wrangler dev` reads
+# 2) From THIS directory, provide your key for local dev. The plugin reads
 #    .dev.vars; the factory injects it into the sandbox env for the `claude` CLI.
 cd examples/sandbox-cloudflare-agent
 cp .dev.vars.example .dev.vars      # then edit .dev.vars and set ANTHROPIC_API_KEY
 
-# 3) Start the local Worker + Durable Objects + Container.
-#    First run builds the Dockerfile (installs the claude CLI) — needs Docker.
-pnpm dev                            # serves on http://localhost:8787
+# 3) (Optional) regenerate Cloudflare binding types after editing wrangler.jsonc
+pnpm cf-typegen
+
+# 4) Start the dev server — the Worker + Durable Objects + Container run in
+#    workerd. First run builds the Dockerfile (installs the claude CLI; needs Docker).
+pnpm dev                            # http://localhost:3001
 ```
 
-Then, in another terminal, trigger a run and tail it:
+Open `http://localhost:3001` for the chat UI, or drive the agent's HTTP surface
+directly:
 
 ```bash
 # 1) Trigger — returns 202 immediately, the DO drives the agent in the background
-curl -sX POST http://localhost:8787/runs \
+curl -sX POST http://localhost:3001/runs \
   -H 'content-type: application/json' \
   -d '{"threadId":"t1","messages":[{"role":"user","content":"Create hello.txt with the text hi"}]}'
 # → { "runId": "..." }
 
 # 2) Tail over WebSocket from the start (lastSeq=-1); reconnect with your last seq.
-#    Any WS client works; e.g. websocat:
-websocat "ws://localhost:8787/runs/<runId>/stream?threadId=t1&lastSeq=-1"
+websocat "ws://localhost:3001/runs/<runId>/stream?threadId=t1&lastSeq=-1"
 
 # 3) Or poll the status (non-streaming fallback)
-curl -s "http://localhost:8787/runs/<runId>?threadId=t1"
+curl -s "http://localhost:3001/runs/<runId>?threadId=t1"
 ```
 
 **Deploying:** `pnpm deploy`, set the production key with
@@ -198,11 +245,14 @@ agent uses it to reach the `/_bridge` MCP endpoint for the `tools` you pass).
 Read these before treating this as production-ready. They are specific and
 honest.
 
-1. **Compile-only / not runtime-verified in this repo.** There is no Workers
-   runtime in this monorepo's CI, and examples are not built by Nx. This app
-   type-checks (`pnpm typecheck`) against the real Cloudflare + TanStack AI
-   types and follows the contracts proven by the package unit tests, but it has
-   not been executed end-to-end here. Treat it as the _architecture blueprint_.
+1. **Not runtime-verified in this repo.** There is no Workers runtime in this
+   monorepo's CI, and examples are not built by Nx. This app type-checks
+   (`pnpm typecheck`) and builds (`pnpm build`) against the real Cloudflare +
+   TanStack AI types and follows the contracts proven by the package unit tests,
+   but it has not been executed end-to-end here. Treat it as the _architecture
+   blueprint_. Note also that some local container runtimes (e.g. OrbStack)
+   cannot run Cloudflare containers; a real `wrangler deploy` is the reliable way
+   to exercise the full run.
 
 2. **The Cloudflare sandbox has no writable host→process stdin (handled).**
    Cloudflare background processes don't expose a writable stdin —
