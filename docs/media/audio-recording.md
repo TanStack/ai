@@ -1,13 +1,32 @@
 ---
 title: Audio Recording
+id: audio-recording
+description: "Record microphone audio in the browser with useAudioRecorder and send it to a chat or transcription as a ready-to-use content part, with an optional transform."
+keywords:
+  - tanstack ai
+  - audio recording
+  - useAudioRecorder
+  - createAudioRecorder
+  - injectAudioRecorder
+  - voice input
+  - MediaRecorder
 ---
 
-`useAudioRecorder` records an audio message in the browser and hands you a
-ready-to-use audio content part. Drop it into a chat message, or feed it to the
-generation hooks as a prompt input. It returns the recorder's native output
-(`audio/webm` or `audio/mp4`) — no transcoding, no extra dependencies.
+# Audio Recording
 
-## Recording
+You have a chat or generation UI and you want users to talk instead of type. By
+the end of this guide you'll capture microphone audio in the browser with
+`useAudioRecorder`, read the latest recording reactively, and send it straight
+into a chat message or a transcription request — with no transcoding and no
+extra dependencies.
+
+`useAudioRecorder` wraps the browser's `getUserMedia` / `MediaRecorder` and
+returns the recorder's native output (`audio/webm` or `audio/mp4`).
+
+## Record audio
+
+Start with a button; end with a working recorder that toggles capture and hands
+you the result.
 
 ```tsx
 import { useAudioRecorder } from '@tanstack/ai-react'
@@ -27,55 +46,67 @@ function RecordButton() {
 }
 ```
 
-The resolved recording has:
+`stop()` resolves to an `AudioRecording`:
 
-- `part` — an audio content part: `{ type: 'audio', source: { type: 'data', value, mimeType } }`
-- `base64` — the raw base64 bytes
-- `blob`, `mimeType`, `durationMs`
+| Field        | Type        | Description                                                                  |
+| ------------ | ----------- | ---------------------------------------------------------------------------- |
+| `part`       | `AudioPart` | Ready-to-use content part: `{ type: 'audio', source: { type: 'data', value, mimeType } }` |
+| `base64`     | `string`    | Raw base64 of the recorded bytes                                             |
+| `blob`       | `Blob`      | The raw recorded blob                                                        |
+| `mimeType`   | `string`    | Native recorder type, e.g. `audio/webm;codecs=opus`                          |
+| `durationMs` | `number`    | Recording length in milliseconds                                             |
 
-The same value is also available reactively as `content` — see [Reactive content](#reactive-content) below.
+## Read the latest recording reactively
 
-## Reactive content
-
-`content` holds the latest resolved recording (or `null` before the first
-`stop()`). Read it directly without awaiting `stop()`:
+The same value is also exposed as the reactive `recording` field, so you can
+render a preview without capturing `stop()`'s return value yourself. It's `null`
+until the first `stop()`:
 
 ```tsx
-const { content, isRecording, start, stop } = useAudioRecorder()
-// content is AudioRecording | null — the latest recording
+const { recording, isRecording, start, stop } = useAudioRecorder()
+// recording is AudioRecording | null
 ```
 
-In other frameworks `content` follows the same reactivity shape as the other
-fields: an accessor in Solid (`content()`), a readonly ref in Vue
-(`content.value`), a getter in Svelte (`recorder.content`), and a `Signal` in
-Angular (`content()`).
+> Across frameworks `recording` follows the same shape as the other reactive
+> fields: an accessor in Solid (`recording()`), a readonly ref in Vue
+> (`recording.value`), a getter in Svelte (`recorder.recording`), and a
+> `Signal` in Angular (`recording()`).
 
-## Transforming the recording
+## Transform the recording
 
-Pass `onComplete` to convert the recording into any value. `stop()` resolves to
-the transformed value, and `content` reflects it too:
+Pass `onComplete` to turn the raw recording into whatever your app needs — a URL
+after upload, an encoded blob, or a custom object. Both `stop()` and the
+reactive `recording` field then resolve to your transformed value, and the
+transform can be `async`:
 
 ```tsx
-const { content, stop } = useAudioRecorder({
-  onComplete: async (recording) => {
-    const res = await fetch('/api/upload', { method: 'POST', body: recording.blob })
+const { recording, stop } = useAudioRecorder({
+  onComplete: async (rec) => {
+    const res = await fetch('/api/upload', { method: 'POST', body: rec.blob })
     const { url } = await res.json()
-    return url // content and stop() now resolve to string
+    return url // `recording` and `stop()` now resolve to string
   },
 })
 ```
 
-Without `onComplete` you get the raw `AudioRecording` from both `stop()` and
-`content`.
+Return nothing to keep the raw `AudioRecording`. This mirrors the `onResult`
+transform on the [generation hooks](./generation-hooks), but is async-capable.
 
-## Sending a recording in chat
+## Send a recording in chat
+
+The recording's `part` is already a chat content part, so it drops straight into
+`sendMessage`:
 
 ```tsx
-import { useAudioRecorder, useChat, fetchServerSentEvents } from '@tanstack/ai-react'
+import {
+  useAudioRecorder,
+  useChat,
+  fetchServerSentEvents,
+} from '@tanstack/ai-react'
 
 function VoiceComposer() {
   const { isRecording, start, stop } = useAudioRecorder()
-  const { sendMessage, messages } = useChat({
+  const { sendMessage } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
   })
 
@@ -84,18 +115,29 @@ function VoiceComposer() {
       await start()
       return
     }
-    const recording = await stop()
-    await sendMessage({ content: [recording.part] })
+    const rec = await stop()
+    await sendMessage({ content: [rec.part] })
   }
 
-  return <button onClick={() => void toggle()}>{isRecording ? 'Send' : 'Record'}</button>
+  return (
+    <button onClick={() => void toggle()}>
+      {isRecording ? 'Send' : 'Record'}
+    </button>
+  )
 }
 ```
 
-## Transcribing a recording
+## Transcribe a recording
+
+Feed `recording.base64` to a transcription request. See
+[Transcription](./transcription) for the matching server route.
 
 ```tsx
-import { useAudioRecorder, useTranscription, fetchServerSentEvents } from '@tanstack/ai-react'
+import {
+  useAudioRecorder,
+  useTranscription,
+  fetchServerSentEvents,
+} from '@tanstack/ai-react'
 
 function Transcriber() {
   const { isRecording, start, stop } = useAudioRecorder()
@@ -108,28 +150,35 @@ function Transcriber() {
       await start()
       return
     }
-    const recording = await stop()
-    await generate({ audio: recording.base64 })
+    const rec = await stop()
+    await generate({ audio: rec.base64 })
   }
 
   return (
     <div>
-      <button onClick={() => void toggle()}>{isRecording ? 'Stop' : 'Record'}</button>
+      <button onClick={() => void toggle()}>
+        {isRecording ? 'Stop' : 'Record'}
+      </button>
       {result ? <p>{result.text}</p> : null}
     </div>
   )
 }
 ```
 
-## Svelte
+## Other frameworks
 
-Svelte uses the `createAudioRecorder` factory. Because Svelte 5 runes can't
-register automatic teardown, call `cancel()` from your component cleanup if a
-recording may still be active.
+The same recorder ships for every framework with idiomatic reactivity. Svelte
+uses the `createAudioRecorder` factory; because Svelte 5 runes can't register
+automatic teardown, call `cancel()` from your component cleanup if a recording
+may still be active:
 
 ```svelte
 <script lang="ts">
-  import { createAudioRecorder, createChat, fetchServerSentEvents } from '@tanstack/ai-svelte'
+  import {
+    createAudioRecorder,
+    createChat,
+    fetchServerSentEvents,
+  } from '@tanstack/ai-svelte'
 
   const recorder = createAudioRecorder()
   const chat = createChat({ connection: fetchServerSentEvents('/api/chat') })
@@ -139,15 +188,45 @@ recording may still be active.
       await recorder.start()
       return
     }
-    const recording = await recorder.stop()
-    await chat.sendMessage({ content: [recording.part] })
+    const rec = await recorder.stop()
+    await chat.sendMessage({ content: [rec.part] })
   }
 </script>
 
 <button onclick={toggle}>{recorder.isRecording ? 'Send' : 'Record'}</button>
 ```
 
-Solid (`useAudioRecorder`, `isRecording()` is an accessor), Vue
-(`useAudioRecorder`, `isRecording` is a ref), and Angular
-(`injectAudioRecorder`, `isRecording` is a `Signal<boolean>`, must be called in
-an injection context) expose the same API with framework-idiomatic reactivity.
+| Framework | Import                  | Function             | Reactive fields                                      |
+| --------- | ----------------------- | -------------------- | ---------------------------------------------------- |
+| React     | `@tanstack/ai-react`    | `useAudioRecorder`   | `isRecording`, `recording` (values)                  |
+| Solid     | `@tanstack/ai-solid`    | `useAudioRecorder`   | `isRecording()`, `recording()` (accessors)           |
+| Vue       | `@tanstack/ai-vue`      | `useAudioRecorder`   | `isRecording.value`, `recording.value` (readonly refs) |
+| Svelte    | `@tanstack/ai-svelte`   | `createAudioRecorder`| `recorder.isRecording`, `recorder.recording` (getters) |
+| Angular   | `@tanstack/ai-angular`  | `injectAudioRecorder`| `isRecording()`, `recording()` (signals; call in an injection context) |
+
+## Hook API
+
+`useAudioRecorder(options?)` — and the `createAudioRecorder` /
+`injectAudioRecorder` equivalents — accept:
+
+| Option       | Type                                                | Description                                                                                          |
+| ------------ | --------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `onComplete` | `(recording: AudioRecording) => T \| Promise<T>`    | Optional transform. Its (awaited) return re-types `stop()` and `recording`. Return nothing to keep the raw recording |
+| `onError`    | `(error: Error) => void`                            | Called on permission denial or recorder error                                                       |
+| `audio`      | `MediaTrackConstraints \| boolean`                  | Passed to `getUserMedia({ audio })`. Defaults to `true`                                             |
+| `mimeType`   | `string`                                            | Preferred recorder mime type; falls back to the browser default if unsupported                      |
+
+And return:
+
+| Property      | Type                  | Description                                                          |
+| ------------- | --------------------- | ------------------------------------------------------------------- |
+| `recording`   | `T \| null`           | Latest recording (transformed if `onComplete` provided), reactive   |
+| `isRecording` | `boolean`             | Whether capture is currently active                                 |
+| `isSupported` | `boolean`             | Whether the browser supports recording                              |
+| `start`       | `() => Promise<void>` | Acquire the mic and begin recording                                 |
+| `stop`        | `() => Promise<T>`    | Stop, and resolve with the recording (transformed if applicable)    |
+| `cancel`      | `() => void`          | Discard the in-progress recording and release the mic               |
+
+> Reactive shapes (`recording`, `isRecording`) vary per framework — see the
+> table in [Other frameworks](#other-frameworks). `T` is `AudioRecording`
+> unless an `onComplete` transform changes it.
