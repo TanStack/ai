@@ -253,6 +253,11 @@
           "addedAt": "2026-04-15"
         },
         {
+          "label": "Audio Recording",
+          "to": "media/audio-recording",
+          "addedAt": "2026-06-23"
+        },
+        {
           "label": "Audio Generation",
           "to": "media/audio-generation",
           "addedAt": "2026-04-23",
