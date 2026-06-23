@@ -4,7 +4,7 @@ A reference **TanStack Start app** that runs a TanStack AI sandbox agent on the
 edge — UI, agent, Durable Objects, and the container all ship in **one Cloudflare
 Worker, one `wrangler deploy`**.
 
-> **The demo:** ask the agent to *build a TanStack AI chatbot*. It calls a bridged
+> **The demo:** ask the agent to _build a TanStack AI chatbot_. It calls a bridged
 > host tool (`tanstackAiRecipe`) for the current recipe, scaffolds a TanStack Start
 > app inside the sandbox container, installs deps, starts the dev server, and hands
 > back a live **preview URL** (routed by `proxyToSandbox`). Because the recipe uses
@@ -195,15 +195,15 @@ the in-sandbox agent calls it to fetch the current TanStack AI chatbot recipe
 
 ## Files
 
-| File                     | Role                                                                                                      |
-| ------------------------ | --------------------------------------------------------------------------------------------------------- |
-| `src/agent.ts`           | `createCloudflareSandboxAgent()` + the `tanstackAiRecipe` host tool — the configured agent.               |
-| `src/server.ts`          | Custom Cloudflare entry: re-exports the DOs and composes `proxyToSandbox` + the agent + Start SSR.        |
-| `src/routes/index.tsx`   | The chat UI (`useChat` → `/api/run`).                                                                      |
-| `src/routes/api.run.ts`  | Same-origin proxy: bridges the agent's POST-then-WebSocket run protocol to the SSE stream `useChat` reads. |
-| `wrangler.jsonc`         | DO + Container + Sandbox bindings (`RUN_COORDINATOR` + `Sandbox`), migrations, `nodejs_compat`.            |
-| `Dockerfile`             | Container image: `@cloudflare/sandbox` base + the `claude` CLI.                                            |
-| `vite.config.ts`         | `@cloudflare/vite-plugin` + `tanstackStart()` — builds + runs the Worker in `workerd`.                    |
+| File                    | Role                                                                                                       |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `src/agent.ts`          | `createCloudflareSandboxAgent()` + the `tanstackAiRecipe` host tool — the configured agent.                |
+| `src/server.ts`         | Custom Cloudflare entry: re-exports the DOs and composes `proxyToSandbox` + the agent + Start SSR.         |
+| `src/routes/index.tsx`  | The chat UI (`useChat` → `/api/run`).                                                                      |
+| `src/routes/api.run.ts` | Same-origin proxy: bridges the agent's POST-then-WebSocket run protocol to the SSE stream `useChat` reads. |
+| `wrangler.jsonc`        | DO + Container + Sandbox bindings (`RUN_COORDINATOR` + `Sandbox`), migrations, `nodejs_compat`.            |
+| `Dockerfile`            | Container image: `@cloudflare/sandbox` base + the `claude` CLI.                                            |
+| `vite.config.ts`        | `@cloudflare/vite-plugin` + `tanstackStart()` — builds + runs the Worker in `workerd`.                     |
 
 ## Run it locally
 
