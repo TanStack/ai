@@ -35,9 +35,10 @@ export default defineConfig({
     valibot: '^1.0.0',
     '@valibot/to-json-schema': '^1.0.0',
     '@modelcontextprotocol/sdk': '^1.29.0',
-    // Server / infra libraries used by real integration examples
-    express: '^5.0.0',
-    '@types/express': '^5.0.0',
+    // Server / infra libraries used by real integration examples.
+    // (express is intentionally NOT declared here: it's already a transitive
+    // dependency in the workspace node_modules without its @types, which
+    // shadows any cache copy — so those two express snippets stay `ignore`d.)
     hono: '^4.0.0',
     '@hono/node-server': '^2.0.0',
     redis: '^6.0.0',

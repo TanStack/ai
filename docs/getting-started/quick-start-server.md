@@ -51,7 +51,7 @@ console.log(text)
 
 Here's an Express server that exposes a streaming chat endpoint using Server-Sent Events:
 
-```typescript
+```typescript ignore
 import express from 'express'
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
