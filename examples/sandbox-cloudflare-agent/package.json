@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev --port 3001",
+    "dev:tunnel": "node scripts/dev-tunnel.mjs",
     "build": "vite build",
     "serve": "vite preview",
     "deploy": "pnpm build && wrangler deploy",

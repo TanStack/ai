@@ -235,6 +235,27 @@ pnpm cf-typegen
 pnpm dev                            # http://localhost:3001
 ```
 
+> **Running the agent locally needs a tunnel.** With plain `pnpm dev`, the
+> in-container agent can't reach your local Worker's `/_bridge` (the `tanstack`
+> MCP server), so a run fails with "the tanstack MCP server hasn't come up". Use a
+> Cloudflare tunnel so the container can reach the host:
+>
+> ```bash
+> brew install cloudflared            # once
+> pnpm dev:tunnel                     # starts a quick tunnel + sets PUBLIC_HOSTNAME + vite
+> ```
+>
+> `dev:tunnel` (see `scripts/dev-tunnel.mjs`) runs `cloudflared tunnel --url
+> http://localhost:3001`, writes the assigned `*.trycloudflare.com` host into
+> `.dev.vars` as `PUBLIC_HOSTNAME`, then starts `vite`. The container reaches the
+> bridge over the public tunnel hostname, so agent runs work locally.
+>
+> A quick tunnel serves only ONE hostname, so the **tool-bridge works but preview
+> URLs don't** (they need wildcard subdomains). For previews locally too, use a
+> **named tunnel** with a wildcard route (`*.dev.yourdomain.com` →
+> `http://localhost:3001`) and set `PUBLIC_HOSTNAME` to `dev.yourdomain.com`.
+> Otherwise, deploy to see previews.
+
 Open `http://localhost:3001` for the chat UI, or drive the agent's HTTP surface
 directly:
 
@@ -301,14 +322,25 @@ trigger only carries `threadId` + `messages`); see the note in **Limitations**.
 Read these before treating this as production-ready. They are specific and
 honest.
 
-1. **Not runtime-verified in this repo.** There is no Workers runtime in this
-   monorepo's CI, and examples are not built by Nx. This app type-checks
-   (`pnpm typecheck`) and builds (`pnpm build`) against the real Cloudflare +
-   TanStack AI types and follows the contracts proven by the package unit tests,
-   but it has not been executed end-to-end here. Treat it as the _architecture
-   blueprint_. Note also that some local container runtimes (e.g. OrbStack)
-   cannot run Cloudflare containers; a real `wrangler deploy` is the reliable way
-   to exercise the full run.
+1. **Agent runs need a deploy; `PUBLIC_HOSTNAME` must match.** The in-sandbox
+   agent's container reaches the host over `PUBLIC_HOSTNAME` for the `/_bridge`
+   MCP tool-bridge (the `tanstack` MCP server: `tanstackStartRecipe` /
+   `exposePreview`) and for preview ports. So:
+   - `PUBLIC_HOSTNAME` **must** be the hostname your Worker is actually served on.
+     If it's wrong (e.g. the committed value points at a different account), the
+     agent reports **"the tanstack MCP server hasn't come up"** — it's hitting the
+     wrong instance, which has no bridge for your run (a 404). Fix: set
+     `PUBLIC_HOSTNAME` to your `*.workers.dev` / custom domain and redeploy.
+   - A **local `pnpm dev`** container can't reach your host over that hostname, so
+     plain local runs fail. Use **`pnpm dev:tunnel`** (a `cloudflared` quick
+     tunnel — see [Run it locally](#run-it-locally)) to give the host a
+     container-reachable hostname; the tool-bridge then works locally. Preview URLs
+     still need a wildcard (named tunnel or a deploy).
+   - There is also no Workers runtime in this monorepo's CI, and some local
+     container runtimes (e.g. OrbStack) can't run Cloudflare containers at all.
+   This app type-checks (`pnpm typecheck`) and builds (`pnpm build`) against the
+   real types and follows contracts proven by the package unit tests, but treat it
+   as the _architecture blueprint_ until you've run it on your own deploy.
 
 2. **The Cloudflare sandbox has no writable host→process stdin (handled).**
    Cloudflare background processes don't expose a writable stdin —
