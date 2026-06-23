@@ -39,7 +39,11 @@ function parseBody(value: unknown): ProxyBody {
     throw new Error('body.messages must be a non-empty array')
   }
   let data: { threadId?: unknown } | undefined
-  if ('data' in value && value.data !== null && typeof value.data === 'object') {
+  if (
+    'data' in value &&
+    value.data !== null &&
+    typeof value.data === 'object'
+  ) {
     data = value.data
   }
   return { messages, data }
@@ -166,66 +170,64 @@ async function* tailRun(
   }
 }
 
-export const Route = createFileRoute('/_sandbox-agent/api/sandbox-agent' as any)(
-  {
-    server: {
-      handlers: {
-        POST: async ({ request }) => {
-          if (request.signal.aborted) {
+export const Route = createFileRoute(
+  '/_sandbox-agent/api/sandbox-agent' as any,
+)({
+  server: {
+    handlers: {
+      POST: async ({ request }) => {
+        if (request.signal.aborted) {
+          return new Response(null, { status: 499 })
+        }
+
+        let body: ProxyBody
+        try {
+          body = parseBody(await request.json())
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : 'invalid body'
+          return new Response(JSON.stringify({ error: message }), {
+            status: 400,
+            headers: { 'content-type': 'application/json' },
+          })
+        }
+
+        const threadId =
+          typeof body.data?.threadId === 'string' && body.data.threadId !== ''
+            ? body.data.threadId
+            : crypto.randomUUID()
+
+        const abortController = new AbortController()
+        request.signal.addEventListener('abort', () => abortController.abort())
+
+        try {
+          const runId = await triggerRun(
+            threadId,
+            body.messages,
+            abortController.signal,
+          )
+          const chunks = tailRun(runId, threadId, abortController.signal)
+          const sseStream = toServerSentEventsStream(chunks, abortController)
+          return new Response(sseStream, {
+            headers: {
+              'Content-Type': 'text/event-stream',
+              'Cache-Control': 'no-cache',
+              Connection: 'keep-alive',
+            },
+          })
+        } catch (error) {
+          if (abortController.signal.aborted) {
             return new Response(null, { status: 499 })
           }
-
-          let body: ProxyBody
-          try {
-            body = parseBody(await request.json())
-          } catch (error) {
-            const message =
-              error instanceof Error ? error.message : 'invalid body'
-            return new Response(JSON.stringify({ error: message }), {
-              status: 400,
-              headers: { 'content-type': 'application/json' },
-            })
-          }
-
-          const threadId =
-            typeof body.data?.threadId === 'string' && body.data.threadId !== ''
-              ? body.data.threadId
-              : crypto.randomUUID()
-
-          const abortController = new AbortController()
-          request.signal.addEventListener('abort', () =>
-            abortController.abort(),
+          console.error('[api/sandbox-agent] proxy error:', error)
+          return new Response(
+            JSON.stringify({
+              error: error instanceof Error ? error.message : 'proxy error',
+            }),
+            { status: 502, headers: { 'content-type': 'application/json' } },
           )
-
-          try {
-            const runId = await triggerRun(
-              threadId,
-              body.messages,
-              abortController.signal,
-            )
-            const chunks = tailRun(runId, threadId, abortController.signal)
-            const sseStream = toServerSentEventsStream(chunks, abortController)
-            return new Response(sseStream, {
-              headers: {
-                'Content-Type': 'text/event-stream',
-                'Cache-Control': 'no-cache',
-                Connection: 'keep-alive',
-              },
-            })
-          } catch (error) {
-            if (abortController.signal.aborted) {
-              return new Response(null, { status: 499 })
-            }
-            console.error('[api/sandbox-agent] proxy error:', error)
-            return new Response(
-              JSON.stringify({
-                error: error instanceof Error ? error.message : 'proxy error',
-              }),
-              { status: 502, headers: { 'content-type': 'application/json' } },
-            )
-          }
-        },
+        }
       },
     },
   },
-)
+})

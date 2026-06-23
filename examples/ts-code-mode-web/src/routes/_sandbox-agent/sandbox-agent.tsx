@@ -54,7 +54,9 @@ function ToolCall({
       </pre>
       {output !== undefined && (
         <pre className="px-3 pb-3 text-xs text-gray-400 border-t border-indigo-500/20 overflow-x-auto max-h-40 overflow-y-auto">
-          {typeof output === 'string' ? output : JSON.stringify(output, null, 2)}
+          {typeof output === 'string'
+            ? output
+            : JSON.stringify(output, null, 2)}
         </pre>
       )}
     </div>
@@ -204,7 +206,8 @@ function SandboxAgentPage() {
                 onInput={(e) => {
                   const target = e.target as HTMLTextAreaElement
                   target.style.height = 'auto'
-                  target.style.height = Math.min(target.scrollHeight, 200) + 'px'
+                  target.style.height =
+                    Math.min(target.scrollHeight, 200) + 'px'
                 }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey && input.trim()) {
