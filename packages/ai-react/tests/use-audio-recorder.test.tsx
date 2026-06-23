@@ -58,4 +58,41 @@ describe('useAudioRecorder', () => {
     expect(recording.part.type).toBe('audio')
     expect(recording.base64).toBe('AQID')
   })
+
+  it('sets content to the raw AudioRecording when no onComplete is provided', async () => {
+    const { result } = renderHook(() => useAudioRecorder())
+
+    expect(result.current.content).toBeNull()
+
+    await act(async () => {
+      await result.current.start()
+    })
+    await act(async () => {
+      await result.current.stop()
+    })
+
+    expect(result.current.content).not.toBeNull()
+    expect(result.current.content?.base64).toBe('AQID')
+    expect(result.current.content?.part.type).toBe('audio')
+  })
+
+  it('onComplete transform re-types stop() and content', async () => {
+    const { result } = renderHook(() =>
+      useAudioRecorder({ onComplete: (rec) => rec.base64 }),
+    )
+
+    expect(result.current.content).toBeNull()
+
+    await act(async () => {
+      await result.current.start()
+    })
+
+    let output: any
+    await act(async () => {
+      output = await result.current.stop()
+    })
+
+    expect(output).toBe('AQID')
+    expect(result.current.content).toBe('AQID')
+  })
 })

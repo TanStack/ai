@@ -1,16 +1,31 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AudioRecorder } from '@tanstack/ai-client'
-import type { AudioRecorderOptions, AudioRecording } from '@tanstack/ai-client'
+import type {
+  AudioRecorderOptions,
+  AudioRecording,
+  InferAudioRecordingOutput,
+} from '@tanstack/ai-client'
 
-export interface UseAudioRecorderReturn {
+export type UseAudioRecorderOptions<TOnComplete> = AudioRecorderOptions & {
+  /**
+   * Optional transform applied to the recording when `stop()` resolves. Its
+   * (awaited) return value becomes `content` and the resolved value of
+   * `stop()`. Return nothing to keep the raw `AudioRecording`.
+   */
+  onComplete?: TOnComplete
+}
+
+export interface UseAudioRecorderReturn<TOutput> {
+  /** Latest recording (transformed if `onComplete` provided), or null. */
+  content: TOutput | null
   /** True while actively capturing audio. */
   isRecording: boolean
   /** Whether the browser supports recording (getUserMedia + MediaRecorder). */
   isSupported: boolean
   /** Acquire the mic and begin recording. */
   start: () => Promise<void>
-  /** Stop and resolve with the completed recording. */
-  stop: () => Promise<AudioRecording>
+  /** Stop and resolve with the completed recording (transformed if `onComplete` provided). */
+  stop: () => Promise<TOutput>
   /** Discard the in-progress recording and release the mic. */
   cancel: () => void
 }
@@ -22,17 +37,26 @@ export interface UseAudioRecorderReturn {
  *
  * @example
  * ```tsx
- * const { isRecording, start, stop } = useAudioRecorder()
+ * const { isRecording, start, stop, content } = useAudioRecorder()
  * const { sendMessage } = useChat({ connection })
  * // ...
  * const rec = await stop()
  * sendMessage({ content: [rec.part] })
  * ```
  */
+export function useAudioRecorder<
+  TOnComplete extends (recording: AudioRecording) => any,
+>(
+  options: UseAudioRecorderOptions<TOnComplete>,
+): UseAudioRecorderReturn<InferAudioRecordingOutput<TOnComplete>>
 export function useAudioRecorder(
-  options: AudioRecorderOptions = {},
-): UseAudioRecorderReturn {
+  options?: UseAudioRecorderOptions<undefined>,
+): UseAudioRecorderReturn<AudioRecording>
+export function useAudioRecorder(
+  options: UseAudioRecorderOptions<any> = {},
+): UseAudioRecorderReturn<any> {
   const [isRecording, setIsRecording] = useState(false)
+  const [content, setContent] = useState<any>(null)
   // Read the freshest callbacks at fire time without recreating the recorder.
   const optionsRef = useRef(options)
   optionsRef.current = options
@@ -40,8 +64,8 @@ export function useAudioRecorder(
   const recorder = useMemo(
     () =>
       new AudioRecorder({
-        ...options,
-        onComplete: (rec) => optionsRef.current.onComplete?.(rec),
+        ...(options.audio !== undefined && { audio: options.audio }),
+        ...(options.mimeType !== undefined && { mimeType: options.mimeType }),
         onError: (err) => optionsRef.current.onError?.(err),
       }),
     // Recorder config (audio/mimeType) is captured once at mount, matching the
@@ -60,10 +84,17 @@ export function useAudioRecorder(
   }, [recorder])
 
   const start = useCallback(() => recorder.start(), [recorder])
-  const stop = useCallback(() => recorder.stop(), [recorder])
+  const stop = useCallback(async () => {
+    const recording = await recorder.stop()
+    const transformed = await optionsRef.current.onComplete?.(recording)
+    const output = transformed ?? recording
+    setContent(output)
+    return output
+  }, [recorder])
   const cancel = useCallback(() => recorder.cancel(), [recorder])
 
   return {
+    content,
     isRecording,
     // ponytail: recording is client-only; if SSR'd, gate UI on a mounted flag.
     isSupported: AudioRecorder.isSupported(),
