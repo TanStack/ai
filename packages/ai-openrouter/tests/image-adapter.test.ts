@@ -111,6 +111,45 @@ describe('OpenRouter Image Adapter', () => {
     })
   })
 
+  it('surfaces provider-reported cost from OpenRouter image usage', async () => {
+    const mockResponse = {
+      ...createMockImageResponse([{ url: 'https://example.com/image1.png' }]),
+      usage: {
+        completionTokens: 1291,
+        cost: 0.0387076,
+        cost_details: {
+          upstream_inference_completions_cost: 0.0387025,
+          upstream_inference_cost: 0.0387076,
+          upstream_inference_prompt_cost: 0.0000051,
+        },
+        promptTokens: 17,
+        totalTokens: 1308,
+      },
+    }
+
+    mockSend = vi.fn().mockResolvedValueOnce(mockResponse)
+
+    const adapter = createAdapter()
+
+    const result = await adapter.generateImages({
+      model: 'google/gemini-2.5-flash-image',
+      prompt: 'A futuristic city at sunset',
+      logger: testLogger,
+    })
+
+    expect(result.usage).toMatchObject({
+      promptTokens: 17,
+      completionTokens: 1291,
+      totalTokens: 1308,
+      cost: 0.0387076,
+      costDetails: {
+        upstreamOutputCost: 0.0387025,
+        upstreamCost: 0.0387076,
+        upstreamInputCost: 0.0000051,
+      },
+    })
+  })
+
   it('generates multiple images', async () => {
     const mockResponse = createMockImageResponse([
       { url: 'https://example.com/image1.png' },

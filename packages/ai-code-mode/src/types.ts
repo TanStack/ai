@@ -195,6 +195,43 @@ export interface CodeModeToolConfig {
    * ```
    */
   getSkillBindings?: () => Promise<Record<string, ToolBinding>>
+
+  /**
+   * Optional escape hatch to swap out the TypeScript-stripping step.
+   *
+   * Receives the raw model-generated code and must return runnable JavaScript
+   * with all TypeScript syntax removed. Defaults to the built-in
+   * {@link stripTypeScript}, which uses sucrase and is safe to bundle for
+   * browsers and edge runtimes (Cloudflare Workers/Pages etc.).
+   *
+   * Provide your own only to trade the edge-safe default for a faster
+   * Node-only transpiler. A custom transpiler MUST tolerate top-level `return`
+   * and `await` in its input (the default wraps the code in an async function
+   * internally to allow this).
+   *
+   * NOTE: This only affects `createCodeModeTool`. The skills helpers
+   * (`skillsToTools`, `codeModeWithSkills` in `@tanstack/ai-code-mode-skills`)
+   * call the exported `stripTypeScript` directly, so they ignore this hook — but
+   * they still get the edge-safe sucrase default, so #487 is fixed for them too;
+   * they just can't be pointed at a different transpiler.
+   *
+   * @example
+   * ```typescript
+   * // Node-only fast path using esbuild (NOT edge-safe — Node only). esbuild
+   * // rejects top-level `return`, so reuse the same async-function wrapper the
+   * // default uses, then slice the body back out. `keepNames: false` stops
+   * // esbuild injecting `__name()` helpers the sandbox can't resolve.
+   * import { transformSync } from 'esbuild'
+   * transpile: (code) => {
+   *   const out = transformSync(`async function _w(){\n${code}\n}`, {
+   *     loader: 'ts',
+   *     keepNames: false,
+   *   }).code
+   *   return out.slice(out.indexOf('{') + 1, out.lastIndexOf('}'))
+   * }
+   * ```
+   */
+  transpile?: (code: string) => string | Promise<string>
 }
 
 /**

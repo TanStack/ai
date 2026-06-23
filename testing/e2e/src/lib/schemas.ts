@@ -5,6 +5,12 @@ export const guitarRecommendationSchema = z.object({
   price: z.number(),
   reason: z.string(),
   rating: z.number().min(1).max(5),
+  // Optional field used to exercise strict-mode null-widening end to end:
+  // the schema converter widens this to `required` + nullable, so a provider
+  // returns `null` for an absent value. The engine must undo that widening so
+  // the field reads back as ABSENT (matching `.optional()`), not `null`. See
+  // `structured-output-stream.spec.ts`.
+  condition: z.string().optional(),
 })
 
 export const imageAnalysisSchema = z.object({

@@ -11,6 +11,7 @@ const packageEntries = new Map<string, string>([
   ['@tanstack/ai-react', 'packages/ai-react/src/index.ts'],
   ['@tanstack/ai-client', 'packages/ai-client/src/index.ts'],
   ['@tanstack/ai-event-client', 'packages/ai-event-client/src/index.ts'],
+  ['@tanstack/ai-utils', 'packages/ai-utils/src/index.ts'],
   ['@tanstack/ai/client', 'packages/ai/src/client.ts'],
 ])
 

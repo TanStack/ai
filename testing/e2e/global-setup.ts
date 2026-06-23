@@ -73,6 +73,16 @@ export default async function globalSetup() {
   // `promptTokensDetails.cachedTokens` / `completionTokensDetails.reasoningTokens`.
   mock.mount('/openai-usage-details', openaiUsageDetailsMount())
 
+  // Anthropic structured-output fallback usage (#758). The Anthropic text
+  // adapter has no native `structuredOutputStream`, so streaming structured
+  // output runs through the activity layer's `fallbackStructuredOutputStream`,
+  // which wraps the non-streaming `structuredOutput()`. aimock's native
+  // Anthropic helper doesn't synthesize a tool-forced `structured_output`
+  // response with usage, so this mount hand-crafts the non-streaming
+  // `/v1/messages` JSON the adapter expects. The companion spec asserts the
+  // `usage` survives onto `RUN_FINISHED.usage` on the fallback path.
+  mock.mount('/anthropic-structured-usage', anthropicStructuredUsageMount())
+
   await mock.start()
   console.log(`[aimock] started on port 4010`)
   ;(globalThis as any).__aimock = mock
@@ -542,6 +552,60 @@ function openaiUsageDetailsMount(): Mountable {
       }
       res.write('data: [DONE]\n\n')
       res.end()
+      return true
+    },
+  }
+}
+
+/**
+ * Mounts the non-streaming Anthropic `/v1/messages` response the text adapter's
+ * `structuredOutput()` expects: a tool-forced `structured_output` `tool_use`
+ * block plus a `usage` object carrying `input_tokens` / `output_tokens` /
+ * `cache_read_input_tokens`. `buildAnthropicUsage` normalizes those into
+ * `promptTokens` / `completionTokens` / `promptTokensDetails.cachedTokens`.
+ * Drives the #758 fallback-path usage regression.
+ */
+function anthropicStructuredUsageMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      // The mount prefix (/anthropic-structured-usage) is stripped before
+      // dispatch; the Anthropic SDK posts to <baseURL>/v1/messages and aimock
+      // strips the ?beta=... query string from `pathname`.
+      pathname: string,
+    ): Promise<boolean> {
+      if (req.method !== 'POST' || !pathname.startsWith('/v1/messages')) {
+        return false
+      }
+      // structuredOutput() makes a non-streaming request (stream: false), so
+      // respond with a single JSON message rather than an SSE stream.
+      await drainBody(req)
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          id: 'msg_structured_usage_e2e',
+          type: 'message',
+          role: 'assistant',
+          model: 'claude-opus-4-1',
+          content: [
+            {
+              type: 'tool_use',
+              id: 'toolu_structured_output',
+              name: 'structured_output',
+              input: { recommendation: 'Fender Stratocaster', price: 1299 },
+            },
+          ],
+          stop_reason: 'tool_use',
+          stop_sequence: null,
+          usage: {
+            input_tokens: 125,
+            output_tokens: 1346,
+            cache_read_input_tokens: 5760,
+          },
+        }),
+      )
       return true
     },
   }

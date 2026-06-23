@@ -172,7 +172,8 @@
         {
           "label": "Overview",
           "to": "structured-outputs/overview",
-          "addedAt": "2026-05-19"
+          "addedAt": "2026-05-19",
+          "updatedAt": "2026-06-10"
         },
         {
           "label": "One-Shot Extraction",
@@ -212,7 +213,8 @@
         {
           "label": "Code Mode with Skills",
           "to": "code-mode/code-mode-with-skills",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-06-10"
         },
         {
           "label": "Code Mode Isolate Drivers",
@@ -287,7 +289,7 @@
           "label": "OpenTelemetry",
           "to": "advanced/otel",
           "addedAt": "2026-05-08",
-          "updatedAt": "2026-06-11"
+          "updatedAt": "2026-06-17"
         }
       ]
     },
@@ -457,7 +459,8 @@
         {
           "label": "OpenAI-Compatible",
           "to": "adapters/openai-compatible",
-          "addedAt": "2026-06-01"
+          "addedAt": "2026-06-01",
+          "updatedAt": "2026-06-20"
         },
         {
           "label": "Claude Code",

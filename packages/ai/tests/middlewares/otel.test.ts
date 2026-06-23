@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { SpanKind, SpanStatusCode } from '@opentelemetry/api'
 import { otelMiddleware } from '../../src/middlewares/otel'
+import { usageAttributes } from '../../src/middlewares/usage-attributes'
 import {
   createFakeTracer,
   createFakeMeter,
@@ -8,12 +9,37 @@ import {
   makeToolCall,
   type FakeSpan,
 } from './fake-otel'
+import type { TokenUsage } from '../../src/types'
 import type {
   ChatMiddleware,
   ChatMiddlewareContext,
   ChatMiddlewareConfig,
 } from '../../src/activities/chat/middleware/types'
+import type {
+  GenerationActivity,
+  GenerationMiddlewareContext,
+} from '../../src/activities/middleware/types'
 import { ev } from '../test-utils'
+
+/**
+ * Build a minimal base GenerationMiddlewareContext for the media-activity unit
+ * tests below. Mirrors what `createGenerationContext` produces inside the media
+ * runners — only the fields otelMiddleware reads need realistic values.
+ */
+function makeGenCtx(
+  overrides: Partial<GenerationMiddlewareContext> = {},
+): GenerationMiddlewareContext {
+  return {
+    requestId: 'req-1',
+    activity: 'image',
+    provider: 'openai',
+    model: 'gpt-image-1',
+    source: 'server',
+    context: undefined,
+    createId: (prefix: string) => `${prefix}-1`,
+    ...overrides,
+  }
+}
 
 async function runToIterationStart(
   mw: ChatMiddleware,
@@ -1000,7 +1026,8 @@ describe('otelMiddleware — extension points', () => {
       spanNameFormatter: (info) => {
         if (info.kind === 'chat') return 'my-chat'
         if (info.kind === 'iteration') return `iter-${info.iteration}`
-        return `tool-${info.toolName}`
+        if (info.kind === 'tool') return `tool-${info.toolName}`
+        return `generation-${info.ctx.activity}`
       },
     })
     const ctx = makeCtx({ hasTools: true })
@@ -1124,5 +1151,188 @@ describe('otelMiddleware — extension points', () => {
       )
       expect(call).toBeDefined()
     })
+  })
+})
+
+describe('otelMiddleware — media activities', () => {
+  it('opens a CLIENT span with gen_ai attributes on start', () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+
+    mw.onStart?.(makeGenCtx())
+
+    expect(spans).toHaveLength(1)
+    const span = spans[0]!
+    expect(span.kind).toBe(SpanKind.CLIENT)
+    expect(span.name).toBe('image_generation gpt-image-1')
+    expect(span.attributes['gen_ai.system']).toBe('openai')
+    expect(span.attributes['gen_ai.operation.name']).toBe('image_generation')
+    expect(span.attributes['gen_ai.request.model']).toBe('gpt-image-1')
+    expect(span.ended).toBe(false)
+  })
+
+  it('maps each media activity to the right gen_ai.operation.name', () => {
+    const cases: Array<[GenerationActivity, string]> = [
+      ['image', 'image_generation'],
+      ['video', 'video_generation'],
+      ['audio', 'audio_generation'],
+      ['tts', 'text_to_speech'],
+      ['transcription', 'transcription'],
+    ]
+    for (const [activity, operation] of cases) {
+      const { tracer, spans } = createFakeTracer()
+      const mw = otelMiddleware({ tracer })
+      mw.onStart?.(makeGenCtx({ activity }))
+      expect(spans[0]!.attributes['gen_ai.operation.name']).toBe(operation)
+    }
+  })
+
+  it('attaches usage attributes, ends the span, and records duration on finish', () => {
+    const { tracer, spans } = createFakeTracer()
+    const { meter, records } = createFakeMeter()
+    const mw = otelMiddleware({ tracer, meter })
+    const ctx = makeGenCtx()
+    const usage: TokenUsage = {
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      unitsBilled: 1,
+      cost: 0.04,
+    }
+
+    mw.onStart?.(ctx)
+    mw.onUsage?.(ctx, usage)
+    mw.onFinish?.(ctx, { duration: 1500, usage })
+
+    const span = spans[0]!
+    expect(span.ended).toBe(true)
+    expect(span.attributes['gen_ai.usage.cost']).toBe(0.04)
+    expect(span.attributes['tanstack.ai.usage.units_billed']).toBe(1)
+
+    // Media records the duration histogram but NOT the chat token histogram.
+    expect(records).toHaveLength(1)
+    expect(records[0]!.name).toBe('gen_ai.client.operation.duration')
+    expect(records[0]!.value).toBe(1.5)
+    expect(records[0]!.attributes?.['gen_ai.operation.name']).toBe(
+      'image_generation',
+    )
+  })
+
+  it('finishes cleanly when no usage is reported', () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeGenCtx({ activity: 'video', model: 'sora-2' })
+
+    mw.onStart?.(ctx)
+    mw.onFinish?.(ctx, { duration: 10 })
+
+    expect(spans[0]!.ended).toBe(true)
+    expect(spans[0]!.attributes['gen_ai.usage.cost']).toBeUndefined()
+  })
+
+  it('records the exception, ERROR status, and error.type on error', () => {
+    const { tracer, spans } = createFakeTracer()
+    const { meter, records } = createFakeMeter()
+    const mw = otelMiddleware({ tracer, meter })
+    const ctx = makeGenCtx()
+
+    mw.onStart?.(ctx)
+    const error = new TypeError('boom')
+    mw.onError?.(ctx, { error, duration: 200 })
+
+    const span = spans[0]!
+    expect(span.ended).toBe(true)
+    expect(span.status.code).toBe(SpanStatusCode.ERROR)
+    expect(span.status.message).toBe('boom')
+    expect(span.exceptions[0]!.exception).toBe(error)
+    expect(records[0]!.attributes?.['error.type']).toBe('TypeError')
+  })
+
+  it('ends the span as cancelled on abort (e.g. an abandoned video stream)', () => {
+    const { tracer, spans } = createFakeTracer()
+    const { meter, records } = createFakeMeter()
+    const mw = otelMiddleware({ tracer, meter })
+    const ctx = makeGenCtx({ activity: 'video', model: 'sora-2' })
+
+    mw.onStart?.(ctx)
+    mw.onAbort?.(ctx, { reason: 'stream abandoned', duration: 50 })
+
+    const span = spans[0]!
+    expect(span.ended).toBe(true)
+    expect(span.status.code).toBe(SpanStatusCode.ERROR)
+    expect(span.status.message).toBe('stream abandoned')
+    expect(span.attributes['tanstack.ai.completion.reason']).toBe('cancelled')
+    expect(records[0]!.attributes?.['error.type']).toBe('cancelled')
+  })
+
+  it('keys spans by the context object so concurrent calls do not collide', () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctxA = makeGenCtx({ model: 'model-a' })
+    const ctxB = makeGenCtx({ model: 'model-b' })
+
+    mw.onStart?.(ctxA)
+    mw.onStart?.(ctxB)
+    // Finish B first — must end the model-b span, not model-a.
+    mw.onFinish?.(ctxB, { duration: 5 })
+
+    const spanA = spans.find(
+      (s) => s.attributes['gen_ai.request.model'] === 'model-a',
+    )!
+    const spanB = spans.find(
+      (s) => s.attributes['gen_ai.request.model'] === 'model-b',
+    )!
+    expect(spanB.ended).toBe(true)
+    expect(spanA.ended).toBe(false)
+  })
+
+  it('applies spanNameFormatter and attributeEnricher for the generation kind', () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({
+      tracer,
+      spanNameFormatter: (info) =>
+        info.kind === 'generation' ? `custom:${info.ctx.activity}` : 'other',
+      attributeEnricher: () => ({ 'app.tenant': 'acme' }),
+    })
+
+    mw.onStart?.(makeGenCtx())
+    expect(spans[0]!.name).toBe('custom:image')
+    expect(spans[0]!.attributes['app.tenant']).toBe('acme')
+  })
+
+  it('keeps the span when a formatter throws', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({
+      tracer,
+      spanNameFormatter: () => {
+        throw new Error('formatter broke')
+      },
+    })
+
+    mw.onStart?.(makeGenCtx())
+    // Falls back to the default name instead of losing the span.
+    expect(spans).toHaveLength(1)
+    expect(spans[0]!.name).toBe('image_generation gpt-image-1')
+    warn.mockRestore()
+  })
+})
+
+describe('usageAttributes', () => {
+  it('emits guarded media + cost fields, omitting absent ones', () => {
+    const usage: TokenUsage = {
+      promptTokens: 10,
+      completionTokens: 0,
+      totalTokens: 10,
+      durationSeconds: 12.5,
+      unitsBilled: 3,
+    }
+    const attrs = usageAttributes(usage)
+
+    expect(attrs['gen_ai.usage.input_tokens']).toBe(10)
+    expect(attrs['tanstack.ai.usage.duration_seconds']).toBe(12.5)
+    expect(attrs['tanstack.ai.usage.units_billed']).toBe(3)
+    // No cost reported → key absent.
+    expect('gen_ai.usage.cost' in attrs).toBe(false)
   })
 })
