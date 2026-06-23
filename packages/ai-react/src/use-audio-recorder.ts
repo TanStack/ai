@@ -88,7 +88,7 @@ export function useAudioRecorder(
     const recording = await recorder.stop()
     const transformed = await optionsRef.current.onComplete?.(recording)
     const output = transformed ?? recording
-    setContent(output)
+    setContent(() => output)
     return output
   }, [recorder])
   const cancel = useCallback(() => recorder.cancel(), [recorder])
