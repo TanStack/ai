@@ -10,5 +10,8 @@ export default defineConfig({
   noExternal: ['json-schema-to-typescript', 'jiti'],
   // Keep the heavy SDK + workspace pkg external (installed alongside).
   external: ['@modelcontextprotocol/sdk', '@tanstack/ai'],
+  // json-schema-to-typescript uses CJS dynamic require(); shims injects
+  // createRequire so those calls work inside this ESM bundle.
+  shims: true,
   banner: { js: '#!/usr/bin/env node' },
 })

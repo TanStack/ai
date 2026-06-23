@@ -1,5 +1,29 @@
 # @tanstack/ai-angular
 
+## 0.1.6
+
+### Patch Changes
+
+- Updated dependencies [[`31de22b`](https://github.com/TanStack/ai/commit/31de22b1ae780c53e3abbf9cf17e1db7b62de84a)]:
+  - @tanstack/ai@0.34.0
+  - @tanstack/ai-client@0.18.2
+
+## 0.1.5
+
+### Patch Changes
+
+- Updated dependencies [[`2cb0313`](https://github.com/TanStack/ai/commit/2cb0313c1f13e1db37c5550308e36bb0b9b73b98), [`18e5f4d`](https://github.com/TanStack/ai/commit/18e5f4d9746a26c3194929ea4b49673728e8eaa5), [`21720dd`](https://github.com/TanStack/ai/commit/21720dd73524d624594a6dfb7e4669c03cc08af0), [`243b8fa`](https://github.com/TanStack/ai/commit/243b8fad7e8a48b68a1a96962ee1443cbd6a0ced)]:
+  - @tanstack/ai@0.33.0
+  - @tanstack/ai-client@0.18.1
+
+## 0.1.4
+
+### Patch Changes
+
+- Updated dependencies [[`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f), [`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f)]:
+  - @tanstack/ai@0.32.0
+  - @tanstack/ai-client@0.18.0
+
 ## 0.1.3
 
 ### Patch Changes

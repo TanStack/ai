@@ -27,7 +27,7 @@ const SUPPORTED_STRING_FORMATS = new Set([
  * a bare string, so it is preserved and recursed into; only the `format`
  * *keyword* (whose value is a string) is subject to removal.
  */
-function stripUnsupportedFormats(node: any): any {
+export function stripUnsupportedFormats(node: any): any {
   if (Array.isArray(node)) return node.map(stripUnsupportedFormats)
   if (node === null || typeof node !== 'object') return node
 
@@ -62,6 +62,55 @@ export function makeStructuredOutputCompatible(
   originalRequired?: Array<string>,
 ): Record<string, any> {
   return stripUnsupportedFormats(coerceStrictSchema(schema, originalRequired))
+}
+
+/**
+ * JSON-Schema keywords outside OpenAI's strict Structured Outputs subset. A
+ * schema using any of these can't be coerced into a strict-valid shape, and
+ * sending it with `strict: true` makes the API reject the ENTIRE request
+ * (e.g. `400 Invalid schema ... 'additionalProperties' is required to be ...`).
+ * Tools with such schemas are emitted with `strict: false` instead (see the
+ * tool converters) so they remain callable. MCP servers (e.g. Notion) routinely
+ * emit these.
+ *
+ * - `oneOf` / `allOf` / `not` — combinator keywords strict mode rejects
+ * - `$ref` / `$defs` / `definitions` — references and definition pools whose
+ *   object subschemas escape the `additionalProperties: false` normalization
+ *   strict mode requires
+ */
+const STRICT_UNSUPPORTED_KEYWORDS: ReadonlyArray<string> = [
+  'oneOf',
+  'allOf',
+  'not',
+  '$ref',
+  '$defs',
+  'definitions',
+]
+
+/**
+ * Returns `false` when `schema` (anywhere in the tree) uses a JSON-Schema
+ * keyword outside OpenAI's strict Structured Outputs subset — i.e. it cannot be
+ * made strict-compatible and must be sent with `strict: false`.
+ *
+ * Conservative by design: keywords are matched as object keys, so a property
+ * literally named e.g. `oneOf` also trips it. That only costs that one tool its
+ * strict mode, which is strictly safer than a false "compatible" verdict that
+ * 400s the whole request.
+ */
+export function isStrictModeCompatible(schema: unknown): boolean {
+  return !containsStrictUnsupportedKeyword(schema)
+}
+
+function containsStrictUnsupportedKeyword(node: unknown): boolean {
+  if (Array.isArray(node)) {
+    return node.some(containsStrictUnsupportedKeyword)
+  }
+  if (node === null || typeof node !== 'object') return false
+  for (const [key, value] of Object.entries(node)) {
+    if (STRICT_UNSUPPORTED_KEYWORDS.includes(key)) return true
+    if (containsStrictUnsupportedKeyword(value)) return true
+  }
+  return false
 }
 
 /**

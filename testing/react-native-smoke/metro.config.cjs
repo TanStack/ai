@@ -16,6 +16,7 @@ const packageEntryPoints = new Map([
     '@tanstack/ai-event-client',
     resolve(repoRoot, 'packages/ai-event-client/src/index.ts'),
   ],
+  ['@tanstack/ai-utils', resolve(repoRoot, 'packages/ai-utils/src/index.ts')],
   ['@tanstack/ai-react', resolve(repoRoot, 'packages/ai-react/src/index.ts')],
 ])
 const rewriteOriginRoots = [

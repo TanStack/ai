@@ -293,7 +293,9 @@ export const Route = createFileRoute('/api/tanchat')({
             }),
           grok: () =>
             createChatOptions({
-              adapter: grokText((model || 'grok-4.20') as 'grok-4.20'),
+              adapter: grokText(
+                (model || 'grok-build-0.1') as 'grok-build-0.1',
+              ),
               modelOptions: {},
             }),
           groq: () =>

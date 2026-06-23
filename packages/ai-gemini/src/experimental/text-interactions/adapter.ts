@@ -1054,6 +1054,10 @@ async function* translateInteractionEvents(
               toolCallId,
               toolCallName: state.name,
               toolName: state.name,
+              // Bind the tool call to the same assistant message id the
+              // eventual TEXT_MESSAGE_START uses so the message id stays
+              // stable when a function_call arrives before any text (#477).
+              parentMessageId: messageId,
               model,
               timestamp,
               index: state.index,
