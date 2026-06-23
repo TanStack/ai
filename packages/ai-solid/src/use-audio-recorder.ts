@@ -8,7 +8,7 @@ import type {
 
 export interface UseAudioRecorderReturn<TOutput> {
   /** Solid accessor: latest recording (transformed if `onComplete` provided), or null. */
-  content: () => TOutput | null
+  recording: () => TOutput | null
   /** Solid accessor: true while actively capturing audio. */
   isRecording: () => boolean
   /** Whether the browser supports recording. */
@@ -35,7 +35,7 @@ export function useAudioRecorder<
     ...(options.onError !== undefined && { onError: options.onError }),
   })
   const [isRecording, setIsRecording] = createSignal(false)
-  const [content, setContent] = createSignal<TOutput | null>(null)
+  const [recording, setRecording] = createSignal<TOutput | null>(null)
 
   const unsubscribe = recorder.subscribe((state) => {
     setIsRecording(state === 'recording')
@@ -50,12 +50,12 @@ export function useAudioRecorder<
     const recording = await recorder.stop()
     const transformed = await options.onComplete?.(recording)
     const output = (transformed ?? recording) as TOutput
-    setContent(() => output)
+    setRecording(() => output)
     return output
   }
 
   return {
-    content,
+    recording,
     isRecording,
     isSupported: AudioRecorder.isSupported(),
     start: () => recorder.start(),

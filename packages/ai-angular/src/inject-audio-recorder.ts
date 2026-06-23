@@ -14,7 +14,7 @@ import type {
 
 export interface InjectAudioRecorderResult<TOutput> {
   /** Reactive: latest recording (transformed if `onComplete` provided), or null. */
-  content: Signal<TOutput | null>
+  recording: Signal<TOutput | null>
   /** Reactive: true while actively capturing audio. */
   isRecording: Signal<boolean>
   /** Whether the browser supports recording. */
@@ -44,7 +44,7 @@ export function injectAudioRecorder<
     ...(options.onError !== undefined && { onError: options.onError }),
   })
   const isRecording = signal(false)
-  const content = signal<TOutput | null>(null)
+  const recording = signal<TOutput | null>(null)
 
   const unsubscribe = recorder.subscribe((state) => {
     isRecording.set(state === 'recording')
@@ -55,15 +55,15 @@ export function injectAudioRecorder<
   })
 
   const stop = async (): Promise<TOutput> => {
-    const recording = await recorder.stop()
-    const transformed = await options.onComplete?.(recording)
-    const output = (transformed ?? recording) as TOutput
-    content.set(output)
+    const rawRecording = await recorder.stop()
+    const transformed = await options.onComplete?.(rawRecording)
+    const output = (transformed ?? rawRecording) as TOutput
+    recording.set(output)
     return output
   }
 
   return {
-    content: content.asReadonly(),
+    recording: recording.asReadonly(),
     isRecording: isRecording.asReadonly(),
     isSupported: AudioRecorder.isSupported(),
     start: () => recorder.start(),

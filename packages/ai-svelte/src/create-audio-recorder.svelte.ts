@@ -7,7 +7,7 @@ import type {
 
 export interface CreateAudioRecorderReturn<TOutput> {
   /** Reactive: latest recording (transformed if `onComplete` provided), or null. */
-  readonly content: TOutput | null
+  readonly recording: TOutput | null
   /** Reactive: true while actively capturing audio. */
   readonly isRecording: boolean
   /** Whether the browser supports recording. */
@@ -40,23 +40,23 @@ export function createAudioRecorder<
     ...(options.onError !== undefined && { onError: options.onError }),
   })
   let isRecording = $state(false)
-  let content = $state<TOutput | null>(null)
+  let recording = $state<TOutput | null>(null)
 
   recorder.subscribe((state) => {
     isRecording = state === 'recording'
   })
 
   const stop = async (): Promise<TOutput> => {
-    const recording = await recorder.stop()
-    const transformed = await options.onComplete?.(recording)
-    const output = (transformed ?? recording) as TOutput
-    content = output
+    const rawRecording = await recorder.stop()
+    const transformed = await options.onComplete?.(rawRecording)
+    const output = (transformed ?? rawRecording) as TOutput
+    recording = output
     return output
   }
 
   return {
-    get content() {
-      return content
+    get recording() {
+      return recording
     },
     get isRecording() {
       return isRecording

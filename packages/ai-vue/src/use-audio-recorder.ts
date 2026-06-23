@@ -9,7 +9,7 @@ import type {
 
 export interface UseAudioRecorderReturn<TOutput> {
   /** Readonly ref: latest recording (transformed if `onComplete` provided), or null. */
-  content: Readonly<Ref<TOutput | null>>
+  recording: Readonly<Ref<TOutput | null>>
   /** Readonly ref: true while actively capturing audio. */
   isRecording: Readonly<Ref<boolean>>
   /** Whether the browser supports recording. */
@@ -37,7 +37,7 @@ export function useAudioRecorder<
     ...(options.onError !== undefined && { onError: options.onError }),
   })
   const isRecording = ref(false)
-  const content = shallowRef<TOutput | null>(null)
+  const recording = shallowRef<TOutput | null>(null)
 
   const unsubscribe = recorder.subscribe((state) => {
     isRecording.value = state === 'recording'
@@ -49,15 +49,15 @@ export function useAudioRecorder<
   })
 
   const stop = async (): Promise<TOutput> => {
-    const recording = await recorder.stop()
-    const transformed = await options.onComplete?.(recording)
-    const output = (transformed ?? recording) as TOutput
-    content.value = output
+    const rawRecording = await recorder.stop()
+    const transformed = await options.onComplete?.(rawRecording)
+    const output = (transformed ?? rawRecording) as TOutput
+    recording.value = output
     return output
   }
 
   return {
-    content: readonly(content),
+    recording: readonly(recording),
     isRecording: readonly(isRecording),
     isSupported: AudioRecorder.isSupported(),
     start: () => recorder.start(),

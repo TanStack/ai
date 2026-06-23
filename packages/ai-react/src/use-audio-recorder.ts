@@ -9,7 +9,7 @@ import type {
 export type UseAudioRecorderOptions<TOnComplete> = AudioRecorderOptions & {
   /**
    * Optional transform applied to the recording when `stop()` resolves. Its
-   * (awaited) return value becomes `content` and the resolved value of
+   * (awaited) return value becomes `recording` and the resolved value of
    * `stop()`. Return nothing to keep the raw `AudioRecording`.
    */
   onComplete?: TOnComplete
@@ -17,7 +17,7 @@ export type UseAudioRecorderOptions<TOnComplete> = AudioRecorderOptions & {
 
 export interface UseAudioRecorderReturn<TOutput> {
   /** Latest recording (transformed if `onComplete` provided), or null. */
-  content: TOutput | null
+  recording: TOutput | null
   /** True while actively capturing audio. */
   isRecording: boolean
   /** Whether the browser supports recording (getUserMedia + MediaRecorder). */
@@ -37,7 +37,7 @@ export interface UseAudioRecorderReturn<TOutput> {
  *
  * @example
  * ```tsx
- * const { isRecording, start, stop, content } = useAudioRecorder()
+ * const { isRecording, start, stop, recording } = useAudioRecorder()
  * const { sendMessage } = useChat({ connection })
  * // ...
  * const rec = await stop()
@@ -56,7 +56,7 @@ export function useAudioRecorder(
   options: UseAudioRecorderOptions<any> = {},
 ): UseAudioRecorderReturn<any> {
   const [isRecording, setIsRecording] = useState(false)
-  const [content, setContent] = useState<any>(null)
+  const [recording, setRecording] = useState<any>(null)
   // Read the freshest callbacks at fire time without recreating the recorder.
   const optionsRef = useRef(options)
   optionsRef.current = options
@@ -88,13 +88,13 @@ export function useAudioRecorder(
     const recording = await recorder.stop()
     const transformed = await optionsRef.current.onComplete?.(recording)
     const output = transformed ?? recording
-    setContent(() => output)
+    setRecording(() => output)
     return output
   }, [recorder])
   const cancel = useCallback(() => recorder.cancel(), [recorder])
 
   return {
-    content,
+    recording,
     isRecording,
     // ponytail: recording is client-only; if SSR'd, gate UI on a mounted flag.
     isSupported: AudioRecorder.isSupported(),
