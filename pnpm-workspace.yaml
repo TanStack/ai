@@ -3,6 +3,13 @@ linkWorkspacePackages: true
 preferWorkspacePackages: true
 blockExoticSubdeps: true
 trustPolicy: 'no-downgrade'
+minimumReleaseAge: 1
+
+trustPolicyExclude:
+  - 'chokidar@4.0.3' # existing transitive from sass/nitro; latest v4 with v5 available
+  - 'semver@5.7.2' # existing Babel/jscodeshift transitive; latest v5, released years ago
+  - 'semver@6.3.1' # existing Babel transitive; latest v6, released years ago
+  - 'undici-types@6.21.0' # existing @types/node transitive via happy-dom/vitest, types-only
 
 # pnpm v11 dropped support for these fields in package.json — they must live
 # here. See https://github.com/pnpm/pnpm/releases/tag/v11.0.0.
