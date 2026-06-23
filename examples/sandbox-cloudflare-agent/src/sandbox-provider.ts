@@ -13,7 +13,10 @@
  * is addressable across Durable Object eviction, not just within one live instance.
  */
 import { getSandbox } from '@cloudflare/sandbox'
-import { CLOUDFLARE_CAPS, CloudflareHandle } from '@tanstack/ai-sandbox-cloudflare'
+import {
+  CLOUDFLARE_CAPS,
+  CloudflareHandle,
+} from '@tanstack/ai-sandbox-cloudflare'
 import type { Sandbox } from '@cloudflare/sandbox'
 import type {
   SandboxCreateInput,

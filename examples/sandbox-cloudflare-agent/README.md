@@ -202,16 +202,16 @@ bind/expose the dev server for a preview URL.
 
 ## Files
 
-| File                    | Role                                                                                                        |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `src/agent.ts`          | `createCloudflareSandboxAgent()` + the `tanstackStartRecipe` and `exposePreview` host tools.                |
-| `src/sandbox-provider.ts` | `namedCloudflareSandbox` — pins the container to the run's `threadId` so `exposePreview` can reach it.    |
-| `src/server.ts`         | Custom Cloudflare entry: re-exports the DOs and composes `proxyToSandbox` + the agent + Start SSR.          |
-| `src/routes/index.tsx`  | The chat UI (`useChat` → `/api/run`) + the clickable **Open preview** link.                                 |
-| `src/routes/api.run.ts` | Same-origin proxy: bridges the agent's POST-then-WebSocket run protocol to the SSE stream `useChat` reads.  |
-| `wrangler.jsonc`        | DO + Container + Sandbox bindings (`RUN_COORDINATOR` + `Sandbox`), migrations, `nodejs_compat`.             |
-| `Dockerfile`            | Container image: `@cloudflare/sandbox` base + the `claude` CLI + the `tanstack` CLI (scaffolding + Intent). |
-| `vite.config.ts`        | `@cloudflare/vite-plugin` + `tanstackStart()` — builds + runs the Worker in `workerd`.                      |
+| File                      | Role                                                                                                        |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `src/agent.ts`            | `createCloudflareSandboxAgent()` + the `tanstackStartRecipe` and `exposePreview` host tools.                |
+| `src/sandbox-provider.ts` | `namedCloudflareSandbox` — pins the container to the run's `threadId` so `exposePreview` can reach it.      |
+| `src/server.ts`           | Custom Cloudflare entry: re-exports the DOs and composes `proxyToSandbox` + the agent + Start SSR.          |
+| `src/routes/index.tsx`    | The chat UI (`useChat` → `/api/run`) + the clickable **Open preview** link.                                 |
+| `src/routes/api.run.ts`   | Same-origin proxy: bridges the agent's POST-then-WebSocket run protocol to the SSE stream `useChat` reads.  |
+| `wrangler.jsonc`          | DO + Container + Sandbox bindings (`RUN_COORDINATOR` + `Sandbox`), migrations, `nodejs_compat`.             |
+| `Dockerfile`              | Container image: `@cloudflare/sandbox` base + the `claude` CLI + the `tanstack` CLI (scaffolding + Intent). |
+| `vite.config.ts`          | `@cloudflare/vite-plugin` + `tanstackStart()` — builds + runs the Worker in `workerd`.                      |
 
 ## Run it locally
 
@@ -273,9 +273,10 @@ For the host to address the right container, the sandbox is pinned to the run's
 > **Deployed vs. local.** Preview URLs rely on **wildcard DNS** — they resolve on a
 > deployed Worker (`*.workers.dev` / your custom domain) but generally **not** under
 > `localhost` (the `https` scheme + non-wildcard local DNS don't line up). So build
-> + run works locally, but to actually open the preview, deploy (`pnpm deploy`). The
-> `exposePort` URL is built from `PUBLIC_HOSTNAME`, so that var must be your real
-> request host.
+>
+> - run works locally, but to actually open the preview, deploy (`pnpm deploy`). The
+>   `exposePort` URL is built from `PUBLIC_HOSTNAME`, so that var must be your real
+>   request host.
 
 ## Setting sandbox env
 
