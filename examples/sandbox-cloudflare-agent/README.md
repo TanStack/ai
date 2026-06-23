@@ -204,9 +204,10 @@ bind/expose the dev server for a preview URL.
 
 | File                    | Role                                                                                                        |
 | ----------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `src/agent.ts`          | `createCloudflareSandboxAgent()` + the `tanstackStartRecipe` host tool — the configured agent.              |
+| `src/agent.ts`          | `createCloudflareSandboxAgent()` + the `tanstackStartRecipe` and `exposePreview` host tools.                |
+| `src/sandbox-provider.ts` | `namedCloudflareSandbox` — pins the container to the run's `threadId` so `exposePreview` can reach it.    |
 | `src/server.ts`         | Custom Cloudflare entry: re-exports the DOs and composes `proxyToSandbox` + the agent + Start SSR.          |
-| `src/routes/index.tsx`  | The chat UI (`useChat` → `/api/run`).                                                                       |
+| `src/routes/index.tsx`  | The chat UI (`useChat` → `/api/run`) + the clickable **Open preview** link.                                 |
 | `src/routes/api.run.ts` | Same-origin proxy: bridges the agent's POST-then-WebSocket run protocol to the SSE stream `useChat` reads.  |
 | `wrangler.jsonc`        | DO + Container + Sandbox bindings (`RUN_COORDINATOR` + `Sandbox`), migrations, `nodejs_compat`.             |
 | `Dockerfile`            | Container image: `@cloudflare/sandbox` base + the `claude` CLI + the `tanstack` CLI (scaffolding + Intent). |
@@ -255,6 +256,26 @@ curl -s "http://localhost:3001/runs/<runId>?threadId=t1"
 `wrangler secret put ANTHROPIC_API_KEY`, and set `PUBLIC_HOSTNAME` in
 `wrangler.jsonc` `vars` to your `*.workers.dev` / custom domain (the in-sandbox
 agent uses it to reach the `/_bridge` MCP endpoint for the `tools` you pass).
+
+## Showing the app (preview URLs)
+
+The agent builds and runs the app inside the container, then calls the
+`exposePreview` host tool (`{ port: 3000 }`) once its dev server is up. That tool
+runs on the host, calls `sandbox.exposePort(port, { hostname: PUBLIC_HOSTNAME })`
+on the run's container, and returns a URL of the form
+`https://<port>-<sandboxId>-<token>.<PUBLIC_HOSTNAME>`. `proxyToSandbox` (in
+`src/server.ts`) routes that hostname back into the container, and the UI renders
+it as a clickable **Open preview** link.
+
+For the host to address the right container, the sandbox is pinned to the run's
+`threadId` (see `src/sandbox-provider.ts`) instead of the default random id.
+
+> **Deployed vs. local.** Preview URLs rely on **wildcard DNS** — they resolve on a
+> deployed Worker (`*.workers.dev` / your custom domain) but generally **not** under
+> `localhost` (the `https` scheme + non-wildcard local DNS don't line up). So build
+> + run works locally, but to actually open the preview, deploy (`pnpm deploy`). The
+> `exposePort` URL is built from `PUBLIC_HOSTNAME`, so that var must be your real
+> request host.
 
 ## Setting sandbox env
 

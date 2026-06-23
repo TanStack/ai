@@ -18,7 +18,7 @@
  * deploy (see the README "Limitations").
  */
 import { createCloudflareSandboxAgent } from '@tanstack/ai-sandbox-cloudflare/agent'
-import { cloudflareSandbox } from '@tanstack/ai-sandbox-cloudflare'
+import { getSandbox } from '@cloudflare/sandbox'
 import {
   createSecrets,
   defineSandbox,
@@ -27,6 +27,9 @@ import {
 import { claudeCodeText } from '@tanstack/ai-claude-code'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
+import { namedCloudflareSandbox } from './sandbox-provider'
+import type { SandboxAgentEnv } from '@tanstack/ai-sandbox-cloudflare/agent'
+import type { StartRunInput } from '@tanstack/ai-sandbox-cloudflare/agent'
 
 /**
  * The demo host tool: the canonical recipe for scaffolding a **self-contained**
@@ -49,7 +52,7 @@ const RECIPE = {
   scaffold:
     'Scaffold with the TanStack CLI (it sets up TanStack Intent agent-skill mappings by default): `tanstack create my-app --framework react --no-examples -y`. This creates a TanStack Start app and installs deps. (Add `--no-install` to skip install, or `--add-ons <id,…>` for integrations — but keep it env-free; do NOT add auth/database add-ons that need keys.)',
   app: 'Turn it into a SELF-CONTAINED interactive app — NO external APIs, NO env vars, NO keys. Pick something visual: a kanban board, a sortable dashboard over a bundled data.json, a markdown notepad, a drawing pad, or a small game (e.g. Game of Life). Keep all state client-side (persist to localStorage). Make it look polished.',
-  run: 'From the app dir, start the dev server bound to all interfaces (`pnpm dev --host 0.0.0.0 --port 3000`, or `npm run dev -- --host 0.0.0.0 --port 3000`), expose port 3000, and return the sandbox preview URL. It runs with ZERO configuration — no API keys or env needed.',
+  run: 'From the app dir, start the dev server bound to all interfaces (`pnpm dev --host 0.0.0.0 --port 3000`, or `npm run dev -- --host 0.0.0.0 --port 3000`). Once it is listening, call the `exposePreview` tool with `{ "port": 3000 }` to get a public preview URL, then share that URL with the user. The app runs with ZERO configuration — no API keys or env needed.',
 } as const
 
 const tanstackStartRecipe = toolDefinition({
@@ -66,33 +69,69 @@ const tanstackStartRecipe = toolDefinition({
 )
 
 /**
+ * Host tool that turns "the agent started a dev server" into a viewable preview.
+ *
+ * `exposePort` is a HOST-side call on the Sandbox DO stub, so the in-sandbox agent
+ * can't make it from bash — it calls this bridged tool instead. We address the run's
+ * container by `threadId` (the `namedCloudflareSandbox` provider pins it to that
+ * name), expose the port, and return the public URL. `proxyToSandbox` in
+ * `server.ts` routes that hostname back into the container.
+ *
+ * Closes over the run's `threadId` + the Worker `env`, so it must be built per run
+ * inside the `tools` resolver.
+ */
+const exposePreviewTool = (input: StartRunInput, env: SandboxAgentEnv) =>
+  toolDefinition({
+    name: 'exposePreview',
+    description:
+      'Expose a port the dev server is listening on and return a public preview URL to show the user. Call this AFTER the server is up (e.g. `vite dev` on port 3000).',
+    inputSchema: z.object({
+      port: z
+        .number()
+        .int()
+        .min(1024)
+        .max(65535)
+        .describe('The port the dev server is listening on, e.g. 3000.'),
+    }),
+  }).server(async ({ port }) => {
+    const sandbox = getSandbox(env.Sandbox, input.threadId)
+    const { url } = await sandbox.exposePort(port, {
+      hostname: env.PUBLIC_HOSTNAME,
+    })
+    return { url }
+  })
+
+/**
  * The configured agent. `src/server.ts` wires `agent.Coordinator` / `agent.Sandbox`
  * to the `RUN_COORDINATOR` + `Sandbox` bindings in `wrangler.jsonc`, and routes the
  * agent's HTTP surface (`/runs`, `/_bridge`, `/tool-exec`) to `agent.worker`.
  */
 export const agent = createCloudflareSandboxAgent({
   adapter: () => claudeCodeText('sonnet'),
-  tools: () => [tanstackStartRecipe],
-  // Custom sandbox so we control exactly which env vars are injected into the
-  // container. Each `createSecrets` entry becomes an env var the agent — and
-  // anything it runs there — can read. The demo app the agent builds needs none;
-  // `ANTHROPIC_API_KEY` here is only for the `claude` CLI (the agent itself).
-  // Values are pulled from the Worker `env` at run time: set them in `.dev.vars`
-  // (local) or `wrangler secret put` (prod). Secrets are injected at
-  // create/resume and never written to snapshots.
+  // `tanstackStartRecipe` (scaffold guidance) + `exposePreview` (mint a preview URL
+  // for the running app) — both bridged to the in-sandbox agent over `/_bridge`.
+  tools: (input, env) => [tanstackStartRecipe, exposePreviewTool(input, env)],
+  // Custom sandbox so we control (a) the env injected into the container and (b) the
+  // container's NAME. We pin the container to the run's `threadId` via
+  // `namedCloudflareSandbox` so `exposePreview` can address the same container to
+  // expose a port. Each `createSecrets` entry becomes an env var the agent can read;
+  // the demo app needs none, so `ANTHROPIC_API_KEY` here is only for the `claude` CLI.
+  // Values come from the Worker `env`: set them in `.dev.vars` (local) or
+  // `wrangler secret put` (prod). Secrets are injected at create/resume, never
+  // written to snapshots.
   //
-  // NOTE: a custom sandbox REPLACES the factory default, so keep
-  // `ANTHROPIC_API_KEY` (the `claude` CLI needs it). To add a var that isn't
-  // already on the env type, extend it and pass it as the type param:
+  // To add a var that isn't already on the env type, extend it and pass it as the
+  // type param:
   //   interface AppEnv extends SandboxAgentEnv { OPENAI_API_KEY: string }
   //   createCloudflareSandboxAgent<AppEnv>({ ... })  // then env.OPENAI_API_KEY
-  sandbox: (_input, env) =>
+  sandbox: (input, env) =>
     defineSandbox({
       id: 'cf-edge-agent',
-      provider: cloudflareSandbox({
-        binding: env.Sandbox,
-        previewHostname: env.PUBLIC_HOSTNAME,
-      }),
+      provider: namedCloudflareSandbox(
+        env.Sandbox,
+        input.threadId,
+        env.PUBLIC_HOSTNAME,
+      ),
       workspace: defineWorkspace({
         // No source to clone — the container image already ships the claude CLI.
         source: { type: 'none' },

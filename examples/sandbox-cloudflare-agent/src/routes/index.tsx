@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { Send, Server, Square } from 'lucide-react'
+import { ExternalLink, Send, Server, Square } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import rehypeHighlight from 'rehype-highlight'
 import rehypeRaw from 'rehype-raw'
@@ -59,6 +59,41 @@ function ToolCall({
         </pre>
       )}
     </div>
+  )
+}
+
+/** Pull the preview URL out of an `exposePreview` tool result (object or JSON string). */
+function previewUrlFrom(output: unknown): string | null {
+  let value = output
+  if (typeof value === 'string') {
+    try {
+      value = JSON.parse(value)
+    } catch {
+      return /^https?:\/\//.test(output as string) ? (output as string) : null
+    }
+  }
+  if (value !== null && typeof value === 'object' && 'url' in value) {
+    const url = (value as { url: unknown }).url
+    return typeof url === 'string' ? url : null
+  }
+  return null
+}
+
+/** The headline result of the demo: a clickable link to the app the agent built. */
+function PreviewLink({ url }: { url: string }) {
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      className="mt-3 inline-flex items-center gap-2 rounded-lg bg-linear-to-r from-emerald-500 to-teal-600 px-4 py-2 text-sm font-medium text-white shadow-lg transition-transform hover:scale-[1.02]"
+    >
+      <ExternalLink className="w-4 h-4" />
+      Open preview
+      <span className="font-mono text-xs text-emerald-100/80">
+        {url.replace(/^https?:\/\//, '')}
+      </span>
+    </a>
   )
 }
 
@@ -139,12 +174,18 @@ function Messages({ messages }: { messages: Array<UIMessage> }) {
                   }
                   if (part.type === 'tool-call') {
                     const resultContent = results.get(part.id)
+                    const output = part.output ?? resultContent
+                    // The preview-URL result gets its own clickable card.
+                    if (part.name === 'exposePreview') {
+                      const url = previewUrlFrom(output)
+                      if (url) return <PreviewLink key={part.id} url={url} />
+                    }
                     return (
                       <ToolCall
                         key={part.id}
                         name={part.name}
                         args={part.arguments}
-                        output={part.output ?? resultContent}
+                        output={output}
                       />
                     )
                   }
