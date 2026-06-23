@@ -2,18 +2,17 @@
 title: Grok (xAI)
 id: grok-adapter
 order: 5
-description: "Use xAI Grok models with TanStack AI — Grok 4.1, Grok 4, Grok 3, and Grok 2 Image generation via @tanstack/ai-grok."
+description: "Use xAI Grok Responses models with TanStack AI — Grok 4.3 and Grok Build 0.1 via @tanstack/ai-grok."
 keywords:
   - tanstack ai
   - grok
   - xai
-  - grok 4
-  - grok 4.1
-  - image generation
+  - grok 4.3
+  - grok build
   - adapter
 ---
 
-The Grok adapter provides access to xAI's Grok models, including Grok 4.1, Grok 4, Grok 3, and image generation with Grok 2 Image.
+The Grok text and summarization adapters provide access to xAI's Responses API for `grok-4.3` and `grok-build-0.1`.
 
 ## Installation
 
@@ -28,7 +27,7 @@ import { chat } from "@tanstack/ai";
 import { grokText } from "@tanstack/ai-grok";
 
 const stream = chat({
-  adapter: grokText("grok-4"),
+  adapter: grokText("grok-build-0.1"),
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
@@ -39,7 +38,7 @@ const stream = chat({
 import { chat } from "@tanstack/ai";
 import { createGrokText } from "@tanstack/ai-grok";
 
-const adapter = createGrokText("grok-4", process.env.XAI_API_KEY!);
+const adapter = createGrokText("grok-build-0.1", process.env.XAI_API_KEY!);
 
 const stream = chat({
   adapter,
@@ -56,7 +55,7 @@ const config: Omit<GrokTextConfig, "apiKey"> = {
   baseURL: "https://api.x.ai/v1", // Optional, this is the default
 };
 
-const adapter = createGrokText("grok-4", process.env.XAI_API_KEY!, config);
+const adapter = createGrokText("grok-build-0.1", process.env.XAI_API_KEY!, config);
 ```
 
 ## Example: Chat Completion
@@ -69,7 +68,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: grokText("grok-4"),
+    adapter: grokText("grok-build-0.1"),
     messages,
   });
 
@@ -98,7 +97,7 @@ const getWeather = getWeatherDef.server(async ({ location }) => {
 });
 
 const stream = chat({
-  adapter: grokText("grok-4-1-fast-reasoning"),
+  adapter: grokText("grok-build-0.1"),
   messages,
   tools: [getWeather],
 });
@@ -106,19 +105,18 @@ const stream = chat({
 
 ## Model Options
 
-Grok supports various provider-specific options. Sampling parameters live here too — `temperature`, `top_p`, and `max_tokens` — rather than as root-level props on `chat()`:
+Grok supports xAI Responses API options. Sampling parameters live here too — `temperature`, `top_p`, and `max_output_tokens` — rather than as root-level props on `chat()`:
 
 ```typescript
 const stream = chat({
-  adapter: grokText("grok-4"),
+  adapter: grokText("grok-build-0.1"),
   messages,
   modelOptions: {
     temperature: 0.7,
     top_p: 0.9,
-    max_tokens: 1024,
-    frequency_penalty: 0.5,
-    presence_penalty: 0.5,
-    stop: ["END"],
+    max_output_tokens: 1024,
+    store: false,
+    include: ["reasoning.encrypted_content"],
   },
 });
 ```
@@ -134,7 +132,7 @@ import { summarize } from "@tanstack/ai";
 import { grokSummarize } from "@tanstack/ai-grok";
 
 const result = await summarize({
-  adapter: grokSummarize("grok-4"),
+  adapter: grokSummarize("grok-build-0.1"),
   text: "Your long text to summarize...",
   maxLength: 100,
   style: "concise", // "concise" | "bullet-points" | "paragraph"
@@ -253,19 +251,11 @@ XAI_API_KEY=xai-...
 
 ## Implementation Notes
 
-### Why Chat Completions API (Not Responses API)
+### Responses API
 
-The Grok adapter uses xAI's **Chat Completions API** (`/v1/chat/completions`) rather than the Responses API (`/v1/responses`). This is an intentional architectural decision:
+The Grok text and summarize adapters use xAI's **Responses API** (`/v1/responses`). Requests default to `store: false` and include encrypted reasoning content with `include: ["reasoning.encrypted_content"]`; both can be overridden through `modelOptions`.
 
-1. **User-Defined Tools**: The Chat Completions API supports user-defined function tools, which is essential for TanStack AI's tool calling functionality. The Responses API only supports xAI's server-side tools (web search, X search, code execution).
-
-2. **Full Tool Calling Support**: With Chat Completions, you can define custom tools with Zod schemas that run in your application. The Responses API restricts you to xAI's built-in tools only.
-
-3. **Streaming Compatibility**: The streaming event format differs significantly between the two APIs. Chat Completions uses `delta.tool_calls` with argument accumulation, while Responses API uses `response.output_item.added` and `response.function_call_arguments.done`.
-
-4. **OpenAI SDK Compatibility**: xAI's Chat Completions API is fully compatible with the OpenAI SDK, making integration straightforward while maintaining full feature parity for tool calling.
-
-If you need xAI's server-side tools (web search, X/Twitter search, code execution), you would need to use the Responses API directly. However, for most use cases requiring custom tool definitions, the Chat Completions API is the correct choice.
+The shared Responses implementation supports streaming text, reasoning events, structured output via `text.format`, and user-defined function tools.
 
 ## API Reference
 
@@ -275,7 +265,7 @@ Creates a Grok text adapter using environment variables.
 
 **Parameters:**
 
-- `model` - The model name (e.g., `'grok-4'`, `'grok-4-1-fast-reasoning'`)
+- `model` - The model name (`'grok-4.3'` or `'grok-build-0.1'`)
 - `config.baseURL?` - Custom base URL (optional)
 
 **Returns:** A Grok text adapter instance.
@@ -319,10 +309,6 @@ Creates a Grok speech-to-text adapter.
 ### `grokRealtime(...)` / `grokRealtimeToken(...)`
 
 Realtime voice adapter and token issuer. See [Realtime Voice Chat](../media/realtime-chat) for usage.
-
-## Limitations
-
-- **Responses API Tools**: Server-side tools (web search, X search, code execution) are not supported through this adapter. Use the Chat Completions API with custom tools instead.
 
 ## Next Steps
 
