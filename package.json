@@ -67,7 +67,7 @@
     "eslint": "^9.39.1",
     "eslint-plugin-unused-imports": "^4.3.0",
     "happy-dom": "^20.0.10",
-    "kiira": "0.4.1",
+    "kiira": "0.5.0",
     "knip": "^5.70.2",
     "markdown-link-extractor": "^4.0.3",
     "nx": "22.1.2",

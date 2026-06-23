@@ -27,7 +27,7 @@ import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.5"),
   messages: [{ role: "user", content: "Hello" }],
   debug: true,
 });
@@ -36,7 +36,7 @@ const stream = chat({
 Every internal event now prints to the console with a `[tanstack-ai:<category>]` prefix:
 
 ```
-[tanstack-ai:request] activity=chat provider=openai model=gpt-4o messages=1 tools=0 stream=true
+[tanstack-ai:request] activity=chat provider=openai model=gpt-5.5 messages=1 tools=0 stream=true
 [tanstack-ai:agentLoop] run started
 [tanstack-ai:provider] provider=openai type=response.output_text.delta
 [tanstack-ai:output] type=TEXT_MESSAGE_CONTENT
@@ -84,9 +84,11 @@ chat({
 
 Pass a `Logger` implementation and all debug output flows through it instead of `console`:
 
-```typescript ignore
-import type { Logger } from "@tanstack/ai";
+```typescript
+import { chat, type Logger } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
 import pino from "pino";
+import { messages } from "./server";
 
 const pinoLogger = pino();
 const logger: Logger = {
@@ -97,7 +99,7 @@ const logger: Logger = {
 };
 
 chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.5"),
   messages,
   debug: { logger }, // all categories on, piped to pino
 });
@@ -115,7 +117,11 @@ If your `Logger` implementation throws — a cyclic-meta `JSON.stringify`, a tra
 
 If you need to know when your own logger is failing, guard inside your implementation:
 
-```typescript ignore
+```typescript
+import { type Logger } from "@tanstack/ai";
+import pino from "pino";
+
+const pinoLogger = pino();
 const logger: Logger = {
   debug: (msg, meta) => {
     try {
@@ -125,7 +131,9 @@ const logger: Logger = {
       process.stderr.write(`logger failed: ${String(err)}\n`);
     }
   },
-  // ... info, warn, error
+  info:  (msg, meta) => pinoLogger.info(meta, msg),
+  warn:  (msg, meta) => pinoLogger.warn(meta, msg),
+  error: (msg, meta) => pinoLogger.error(meta, msg),
 };
 ```
 

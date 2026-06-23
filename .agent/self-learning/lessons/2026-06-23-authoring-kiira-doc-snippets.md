@@ -74,10 +74,20 @@ is a means (keep examples honest), not the end (a green check).
    sets `noImplicitReturns: false` for docs, so a hook that returns on some
    branches and falls through on others is fine un-annotated.
 
-7. **`ignore` is the last resort,** only for genuinely un-checkable fences:
-   competitor SDKs not installed (`ai`, `@ai-sdk/*`), uninstalled community
-   adapters, framework route-registration boilerplate (`createFileRoute`). Never
-   `ignore` to mask a fixable error.
+7. **Third-party libraries are NOT a reason to `ignore` anymore.** kiira 0.5.0+
+   has `externalPackages` (in kiira.config.ts) — declare the npm package + range
+   and kiira installs it into an isolated cache and type-checks against the real
+   types. We use it for the Vercel AI SDK (`ai`, `@ai-sdk/*`), `openai`,
+   `arktype`/`valibot`, `redis`/`pino`/`@opentelemetry/api`/`express`/`hono`,
+   `@modelcontextprotocol/sdk`, and every community adapter. So a snippet that
+   imports a real published package should declare it in `externalPackages` and
+   type-check — not be ignored. See [[kiira-ci-setup]].
+
+8. **`ignore` is the last resort,** only for genuinely un-checkable fences:
+   imports of packages NOT declared in `externalPackages` (e.g. `react-native` /
+   Expo, intentionally not installed), framework route-registration boilerplate
+   (`createFileRoute`, SvelteKit `./$types`), or deliberate non-compiling
+   pseudo-code. Never `ignore` to mask a fixable error.
 
 **Heuristic:** before committing a snippet fix, ask "did I make the example more
 correct, or just make the error go away?" If a reader copying this snippet would

@@ -45,8 +45,8 @@ importers:
         specifier: ^20.0.10
         version: 20.0.11
       kiira:
-        specifier: 0.4.1
-        version: 0.4.1
+        specifier: 0.5.0
+        version: 0.5.0
       knip:
         specifier: ^5.70.2
         version: 5.73.4(@types/node@24.10.3)(typescript@5.9.3)
@@ -149,13 +149,13 @@ importers:
     devDependencies:
       '@analogjs/vite-plugin-angular':
         specifier: ^1.10.0
-        version: 1.22.5(@angular/build@21.2.15(73b2d729d40f30686a7c435867c88436))
+        version: 1.22.5(@angular/build@21.2.15(b4e3cce66654bd2e0d0fab951dffc04a))
       '@angular/build':
         specifier: ^21.2.0
-        version: 21.2.15(73b2d729d40f30686a7c435867c88436)
+        version: 21.2.15(b4e3cce66654bd2e0d0fab951dffc04a)
       '@tailwindcss/vite':
         specifier: ^4.1.18
-        version: 4.1.18(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.97.3)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+        version: 4.1.18(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
       '@types/node':
         specifier: ^24.10.1
         version: 24.10.3
@@ -167,7 +167,7 @@ importers:
         version: 5.9.3
       vite:
         specifier: ^7.3.3
-        version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.97.3)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
+        version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
   examples/ts-code-mode-web:
     dependencies:
@@ -1094,10 +1094,10 @@ importers:
     devDependencies:
       '@analogjs/vite-plugin-angular':
         specifier: ^1.10.0
-        version: 1.22.5(@angular/build@21.2.15(b4e3cce66654bd2e0d0fab951dffc04a))
+        version: 1.22.5(@angular/build@21.2.15(73b2d729d40f30686a7c435867c88436))
       '@angular/build':
         specifier: ^21.2.0
-        version: 21.2.15(b4e3cce66654bd2e0d0fab951dffc04a)
+        version: 21.2.15(73b2d729d40f30686a7c435867c88436)
       '@angular/common':
         specifier: ^21.2.0
         version: 21.2.17(@angular/core@21.2.17(@angular/compiler@21.2.17)(rxjs@7.8.2)(zone.js@0.15.1))(rxjs@7.8.2)
@@ -1130,7 +1130,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.0.14
-        version: 4.1.4(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jsdom@27.3.0(postcss@8.5.15))(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+        version: 4.1.4(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jsdom@27.3.0(postcss@8.5.15))(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.97.3)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
       zod:
         specifier: ^4.2.0
         version: 4.3.6
@@ -11003,11 +11003,11 @@ packages:
   keyv@4.5.4:
     resolution: {integrity: sha512-oxVHkHR/EJf2CNXnWxRLW6mg7JyCCUcG0DtEGmL2ctUo1PNTin1PUil+r/+4r5MpVgC/fn1kjsx7mjSujKqIpw==}
 
-  kiira-core@0.4.0:
-    resolution: {integrity: sha512-HjXYknBeKsqkhq4AaEu72IuUScmayfKESoUVs7x2NEwlR0PDidr8QYrFIJT4VUtubmaVYpQQTDiMIM6ZrnZ69Q==}
+  kiira-core@0.5.0:
+    resolution: {integrity: sha512-OyDk+2BmMV21/1nKPqTb38zKwKuJLPKI6sxU/UdEdwpaNzjT0i09K3VdqRdGlqalExP6Hl98ai0PgTvnOaJZ2A==}
 
-  kiira@0.4.1:
-    resolution: {integrity: sha512-rACKP7nU9eeORGWxRF7jBI4UQbOklHKJW0rtawTW/Mt/b5JDx/Gj3pLnfP26F1rJV93EmzzGn3Qcv5DXzqf7/Q==}
+  kiira@0.5.0:
+    resolution: {integrity: sha512-lNJBddzvZ4hJQEvROc6wxDPJTmbc8+cIaP5L+I+CZRYhRkxwj0GopaTdLj2teSlx2lMaPM7H0OjUHHY5nFyd9A==}
     hasBin: true
 
   kind-of@6.0.3:
@@ -19627,13 +19627,6 @@ snapshots:
       tailwindcss: 4.1.18
       vite: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
-  '@tailwindcss/vite@4.1.18(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.97.3)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))':
-    dependencies:
-      '@tailwindcss/node': 4.1.18
-      '@tailwindcss/oxide': 4.1.18
-      tailwindcss: 4.1.18
-      vite: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.97.3)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
-
   '@tanstack/db-ivm@0.1.18(typescript@5.9.3)':
     dependencies:
       fractional-indexing: 3.2.0
@@ -21555,7 +21548,6 @@ snapshots:
       magic-string: 0.30.21
     optionalDependencies:
       vite: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.97.3)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
-    optional: true
 
   '@vitest/pretty-format@4.0.14':
     dependencies:
@@ -24845,15 +24837,15 @@ snapshots:
     dependencies:
       json-buffer: 3.0.1
 
-  kiira-core@0.4.0:
+  kiira-core@0.5.0:
     dependencies:
       jiti: 2.6.1
       typescript: 5.9.3
 
-  kiira@0.4.1:
+  kiira@0.5.0:
     dependencies:
       chalk: 5.6.2
-      kiira-core: 0.4.0
+      kiira-core: 0.5.0
 
   kind-of@6.0.3: {}
 
@@ -29305,7 +29297,6 @@ snapshots:
       jsdom: 27.3.0(postcss@8.5.15)
     transitivePeerDependencies:
       - msw
-    optional: true
 
   vlq@1.0.1: {}
 

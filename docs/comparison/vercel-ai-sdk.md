@@ -318,9 +318,11 @@ Your custom models appear in autocomplete alongside official ones. Vercel AI SDK
 
 TanStack AI's middleware system hooks into every stage of the `chat()` lifecycle: configuration, streaming, tool execution, usage tracking, and completion. Each middleware is a plain object with named hooks that fire at specific phases.
 
-```ts ignore
-import { chat, type ChatMiddleware, type StreamChunk } from '@tanstack/ai'
+```ts
+import { chat, EventType, type ChatMiddleware, type StreamChunk } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
 
 const logger: ChatMiddleware = {
   name: 'logger',
@@ -329,11 +331,8 @@ const logger: ChatMiddleware = {
   },
   onChunk: (ctx, chunk) => {
     // Transform, expand, or drop chunks
-    if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
-      return {
-        ...chunk,
-        delta: chunk.delta.replace(/\b\d{3}-\d{2}-\d{4}\b/g, '[REDACTED]'),
-      }
+    if ('delta' in chunk && 'messageId' in chunk) {
+      return { ...chunk, delta: chunk.delta!.replace(/\b\d{3}-\d{2}-\d{4}\b/g, '[REDACTED]') }
     }
   },
   onBeforeToolCall: (ctx, hookCtx) => {
@@ -553,8 +552,11 @@ const getWeatherClient = getWeather.client(async ({ city }) => {
 
 **Vercel AI SDK** - Tool objects via the `tool()` helper:
 
-```ts ignore
+```ts
 import { generateText, tool } from 'ai'
+import { openai } from '@ai-sdk/openai'
+import { z } from 'zod'
+import { weatherApi } from './weather'
 
 const result = await generateText({
   model: openai('gpt-5.5'),
@@ -600,8 +602,10 @@ const stream = chat({
 
 **Vercel AI SDK** - `stopWhen` conditions (v5+):
 
-```ts ignore
+```ts
 import { generateText, stepCountIs } from 'ai'
+import { openai } from '@ai-sdk/openai'
+import { tools } from './tools'
 
 const result = await generateText({
   model: openai('gpt-5.5'),
@@ -625,7 +629,7 @@ import { openaiText } from '@tanstack/ai-openai'
 
 **Vercel AI SDK** - Single provider import:
 
-```ts ignore
+```ts
 // Provider package includes all model types
 import { openai } from '@ai-sdk/openai'
 ```

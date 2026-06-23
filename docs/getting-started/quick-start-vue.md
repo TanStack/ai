@@ -32,7 +32,7 @@ yarn add @tanstack/ai @tanstack/ai-vue @tanstack/ai-openai
 
 Vue apps typically use a separate backend. Here's an Express server that streams chat responses:
 
-```typescript ignore
+```typescript
 import express from 'express'
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
@@ -52,7 +52,7 @@ app.post('/api/chat', async (req, res) => {
     // `chat()` uses the AG-UI `threadId` for devtools correlation
     // when available — no need to plumb `conversationId` manually.
     const stream = chat({
-      adapter: openaiText('gpt-4o'),
+      adapter: openaiText('gpt-5.5'),
       messages,
     })
 

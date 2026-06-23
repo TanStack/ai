@@ -37,7 +37,7 @@ import { chat, streamToText } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 const stream = chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.5'),
   messages: [{ role: 'user', content: 'Hello!' }],
 })
 
@@ -51,7 +51,7 @@ console.log(text)
 
 Here's an Express server that exposes a streaming chat endpoint using Server-Sent Events:
 
-```typescript ignore
+```typescript
 import express from 'express'
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
@@ -63,7 +63,7 @@ app.post('/api/chat', async (req, res) => {
   const { messages } = req.body
 
   const stream = chat({
-    adapter: openaiText('gpt-4o'),
+    adapter: openaiText('gpt-5.5'),
     messages,
   })
 
@@ -112,7 +112,7 @@ const getWeather = toolDefinition({
 })
 
 const stream = chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.5'),
   messages: [{ role: 'user', content: 'Weather in Tokyo?' }],
   tools: [getWeather],
 })
@@ -145,7 +145,9 @@ export async function POST(request: Request) {
 
 **Raw stream consumption** -- iterate the `AsyncIterable` directly with `for await`:
 
-```typescript ignore
+```typescript
+import { stream } from './stream'
+
 for await (const chunk of stream) {
   if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
     process.stdout.write(chunk.delta ?? '')

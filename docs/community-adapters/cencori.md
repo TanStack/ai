@@ -24,10 +24,13 @@ npm install @cencori/ai-sdk
 ## Basic Usage
 
 ```typescript ignore
+// ignore: @cencori/ai-sdk/tanstack is a subpath export; kiira's paths["*"] wildcard maps it
+// to a flat directory lookup and does not consult the package.json exports field,
+// so the subpath cannot be resolved until kiira.config.ts adds an explicit path entry.
 import { chat } from "@tanstack/ai";
 import { cencori } from "@cencori/ai-sdk/tanstack";
 
-const adapter = cencori("gpt-4o");
+const adapter = cencori("o1");
 
 for await (const chunk of chat({
   adapter,
@@ -42,19 +45,21 @@ for await (const chunk of chat({
 ## Configuration
 
 ```typescript ignore
+// ignore: @cencori/ai-sdk/tanstack subpath not resolvable via kiira's paths["*"] wildcard.
 import { createCencori } from "@cencori/ai-sdk/tanstack";
 
-const cencori = createCencori({
+const myCencori = createCencori({
   apiKey: process.env.CENCORI_API_KEY!,
   baseUrl: "https://cencori.com", // Optional
 });
 
-const adapter = cencori("gpt-4o");
+const adapter = myCencori("o1");
 ```
 
 ## Streaming
 
 ```typescript ignore
+// ignore: @cencori/ai-sdk/tanstack subpath not resolvable via kiira's paths["*"] wildcard.
 import { chat } from "@tanstack/ai";
 import { cencori } from "@cencori/ai-sdk/tanstack";
 
@@ -67,7 +72,7 @@ for await (const chunk of chat({
   if (chunk.type === "TEXT_MESSAGE_CONTENT") {
     process.stdout.write(chunk.delta);
   } else if (chunk.type === "RUN_FINISHED") {
-    console.log("\nDone:", chunk.finishReason);
+    console.log("\nDone");
   }
 }
 ```
@@ -76,11 +81,12 @@ for await (const chunk of chat({
 ## Tool Calling
 
 ```typescript ignore
+// ignore: @cencori/ai-sdk/tanstack subpath not resolvable via kiira's paths["*"] wildcard.
 import { chat, toolDefinition } from "@tanstack/ai";
 import { cencori } from "@cencori/ai-sdk/tanstack";
 import { z } from "zod";
 
-const adapter = cencori("gpt-4o");
+const adapter = cencori("o1");
 
 const getWeatherDef = toolDefinition({
   name: "getWeather",
@@ -99,9 +105,9 @@ for await (const chunk of chat({
   tools: [getWeather],
 })) {
   if (chunk.type === "TOOL_CALL_START") {
-    console.log("Tool call:", chunk.toolName);
+    console.log("Tool call:", chunk.toolCallName);
   } else if (chunk.type === "TOOL_CALL_END") {
-    console.log("Tool result:", chunk.result);
+    console.log("Tool call finished:", chunk.toolCallId);
   }
 }
 ```
@@ -112,10 +118,11 @@ for await (const chunk of chat({
 Switch between providers with a single parameter:
 
 ```typescript ignore
+// ignore: @cencori/ai-sdk/tanstack subpath not resolvable via kiira's paths["*"] wildcard.
 import { cencori } from "@cencori/ai-sdk/tanstack";
 
-// OpenAI
-const openai = cencori("gpt-4o");
+// OpenAI-compatible
+const openaiCompat = cencori("o1");
 
 // Anthropic
 const anthropic = cencori("claude-3-5-sonnet");

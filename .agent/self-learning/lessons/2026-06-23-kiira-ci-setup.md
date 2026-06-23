@@ -19,6 +19,22 @@ its resolution model and always read errors with `--verbose` before acting.
 ("zod mismatch") and a CI-only failure (`@tanstack/ai-angular`). Both are
 explained by how kiira resolves and reports.
 
+**Third-party deps — use `externalPackages` (kiira 0.5.0+), don't `ignore`.**
+Declare any npm package the docs import but the workspace doesn't depend on under
+`externalPackages: { "<pkg>": "<range>" }` (also per-glob via `overrides`). kiira
+installs them into an isolated cache (`node_modules/.kiira`, gitignored) and
+type-checks against the real types. We declare the Vercel AI SDK (`ai`,
+`@ai-sdk/*`), `openai`, `arktype`/`valibot`, `redis`/`pino`/`@opentelemetry/api`/
+`express`/`hono`/`@modelcontextprotocol/sdk`, and every community adapter — so
+those snippets validate for real instead of being ignored. Notes:
+- The isolated install prints non-fatal `npm warn`/`npm error ... matches` noise
+  (a messy transitive dep tree in one community adapter) but still succeeds via
+  the pnpm fallback — exit code is 0; only the kiira "found N errors" line
+  matters. Verified on a cold cache (`rm -rf node_modules/.kiira`).
+- CI runs this install on each kiira run (network + time). Acceptable trade for
+  real type-checking; if a package's dep tree ever breaks the install, drop that
+  one package back to an `ignore`.
+
 **How it's wired (the working setup):**
 
 - `kiira` devDep + `kiira.config.ts` (no `tsconfig.docs.json`). Config:

@@ -69,7 +69,7 @@ npm install @tanstack/ai @tanstack/ai-react @tanstack/ai-openai @tanstack/ai-ant
 
 #### Before (Vercel AI SDK)
 
-```typescript ignore
+```typescript
 import { streamText, convertToModelMessages } from 'ai'
 import { openai } from '@ai-sdk/openai'
 
@@ -78,7 +78,7 @@ export async function POST(request: Request) {
 
   const result = streamText({
     model: openai('gpt-4o'),
-    messages: convertToModelMessages(messages),
+    messages: await convertToModelMessages(messages),
   })
 
   return result.toUIMessageStreamResponse()
@@ -183,7 +183,12 @@ TanStack AI promotes a small, cross-provider set of options to the top level (`t
 
 #### Before (Vercel AI SDK v5+)
 
-```typescript ignore
+```typescript
+import { streamText } from 'ai'
+import { openai } from '@ai-sdk/openai'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+
 const result = streamText({
   model: openai('gpt-4o'),
   messages,
@@ -235,7 +240,12 @@ TanStack AI accepts system prompts at the **root level** via the `systemPrompts`
 
 #### Before (Vercel AI SDK)
 
-```typescript ignore
+```typescript
+import { streamText } from 'ai'
+import { openai } from '@ai-sdk/openai'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+
 const result = streamText({
   model: openai('gpt-4o'),
   system: 'You are a helpful assistant.',
@@ -283,7 +293,7 @@ const stream = chat({
 
 #### Before (Vercel AI SDK v5+)
 
-```tsx ignore
+```tsx
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import { useState } from 'react'
@@ -501,10 +511,13 @@ TanStack AI uses an isomorphic tool system where you define the schema once and 
 
 #### Before (Vercel AI SDK v5+)
 
-```typescript ignore
+```typescript
 import { streamText, tool } from 'ai'
 import { openai } from '@ai-sdk/openai'
 import { z } from 'zod'
+import { fetchWeather } from './weather'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
 
 const result = streamText({
   model: openai('gpt-4o'),
@@ -576,16 +589,14 @@ export async function POST(request: Request) {
 
 #### Before (Vercel AI SDK v5+)
 
-```typescript ignore
-import { tool } from 'ai'
-import { z } from 'zod'
+```typescript
+import { DefaultChatTransport } from 'ai'
 import { useChat } from '@ai-sdk/react'
 
 const { messages, addToolOutput } = useChat({
   transport: new DefaultChatTransport({ api: '/api/chat' }),
   onToolCall: async ({ toolCall }) => {
     if (toolCall.toolName === 'showNotification') {
-      showNotification(toolCall.input.message)
       // v6: addToolOutput (was addToolResult in v5)
       addToolOutput({
         tool: 'showNotification',
@@ -635,9 +646,13 @@ Both libraries expose first-class human-in-the-loop approval. The shapes are sim
 
 #### Before (Vercel AI SDK v6)
 
-```typescript ignore
+```typescript
 // Tool definition (server)
-import { tool } from 'ai'
+import { tool, DefaultChatTransport, lastAssistantMessageIsCompleteWithApprovalResponses } from 'ai'
+import { useChat } from '@ai-sdk/react'
+import { z } from 'zod'
+import { bookingService } from './booking'
+
 const bookFlight = tool({
   description: 'Book a flight',
   inputSchema: z.object({ flightId: z.string() }),
@@ -703,7 +718,7 @@ This section covers the `generateObject` / `streamObject` / `Output.object(...)`
 
 ### Before (Vercel AI SDK v6)
 
-```typescript ignore
+```typescript
 import { generateText, Output } from 'ai'
 import { openai } from '@ai-sdk/openai'
 import { z } from 'zod'
@@ -764,18 +779,21 @@ Default loop budget: TanStack AI defaults to `maxIterations(5)` if you don't pas
 
 ### Before (Vercel AI SDK v6)
 
-```typescript ignore
+```typescript
 import { streamText, stepCountIs } from 'ai'
 import { openai } from '@ai-sdk/openai'
+import { getWeather } from './tools'
+
+const messages = [{ role: 'user' as const, content: 'What is the weather?' }]
 
 const result = streamText({
   model: openai('gpt-4o'),
   messages,
   tools: { getWeather },
   stopWhen: stepCountIs(10),
-  prepareStep: async ({ stepNumber, messages }) => {
+  prepareStep: async ({ stepNumber, messages: stepMessages }) => {
     // log/rewrite messages between steps, filter tools, etc.
-    if (stepNumber > 0) return { /* partial config for this step */ }
+    if (stepNumber > 0) return {}
     return {}
   },
 })
@@ -862,20 +880,23 @@ TanStack AI collapses both into a single first-class `middleware: ChatMiddleware
 
 ### Before (Vercel AI SDK v6)
 
-```typescript ignore
-import { wrapLanguageModel, streamText } from 'ai'
+```typescript
+import { wrapLanguageModel, streamText, type LanguageModelMiddleware } from 'ai'
 import { openai } from '@ai-sdk/openai'
 
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+
 const loggingMiddleware = {
+  specificationVersion: 'v3' as const,
   wrapGenerate: async ({ doGenerate, params }) => {
     console.log('params', params)
     const result = await doGenerate()
-    console.log('text', result.text)
+    console.log('content', result.content)
     return result
   },
   wrapStream: async ({ doStream, params }) => doStream(),
   transformParams: async ({ params }) => params,
-}
+} satisfies LanguageModelMiddleware
 
 const wrapped = wrapLanguageModel({
   model: openai('gpt-4o'),
@@ -1118,8 +1139,9 @@ const ndjsonStream = toHttpStream(stream2, abortController)
 
 #### Before (Vercel AI SDK v5+)
 
-```typescript ignore
+```typescript
 import { DefaultChatTransport } from 'ai'
+import { useChat } from '@ai-sdk/react'
 
 useChat({
   transport: new DefaultChatTransport({ api: '/api/chat' }),
@@ -1184,7 +1206,10 @@ abortController.abort()
 
 #### Before (Vercel AI SDK v5+)
 
-```typescript ignore
+```typescript
+import { DefaultChatTransport } from 'ai'
+import { useChat } from '@ai-sdk/react'
+
 const { messages } = useChat({
   transport: new DefaultChatTransport({ api: '/api/chat' }),
   onFinish: ({ message }) => console.log('Finished:', message),
@@ -1214,7 +1239,11 @@ TanStack AI also lets you hook into the **server-side** stream lifecycle by subs
 
 #### Before (Vercel AI SDK)
 
-```typescript ignore
+```typescript
+import { streamText } from 'ai'
+import { openai } from '@ai-sdk/openai'
+import { imageUrl } from './images'
+
 streamText({
   model: openai('gpt-4o'),
   messages: [
@@ -1258,14 +1287,21 @@ chat({
 
 ### Before (Vercel AI SDK)
 
-```typescript ignore
+```typescript
+import { streamText } from 'ai'
+import { openai } from '@ai-sdk/openai'
+import { anthropic } from '@ai-sdk/anthropic'
+import { selectedProvider } from './config'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+
 const providers = {
   openai: openai('gpt-4o'),
   anthropic: anthropic('claude-sonnet-4-5-20250514'),
 }
 
 streamText({
-  model: providers[selectedProvider],
+  model: providers[selectedProvider as keyof typeof providers],
   messages,
 })
 ```
@@ -1375,11 +1411,11 @@ A few AI SDK features don't have direct TanStack AI equivalents today:
 
 TanStack AI doesn't include embeddings. Use your provider's SDK directly, or the built-in embedding support most vector DBs already offer:
 
-```typescript ignore
+```typescript
 import OpenAI from 'openai'
 
-const openai = new OpenAI()
-const result = await openai.embeddings.create({
+const openaiClient = new OpenAI()
+const result = await openaiClient.embeddings.create({
   model: 'text-embedding-3-small',
   input: 'Hello, world!',
 })
@@ -1399,11 +1435,14 @@ Vercel's `maxRetries` / `timeout` options have no direct `chat()` equivalent. Us
 
 ### Before (Vercel AI SDK v5+)
 
-```tsx ignore
+```tsx
 // server/api/chat.ts
-import { streamText, tool, convertToModelMessages } from 'ai'
+import { streamText, tool, convertToModelMessages, DefaultChatTransport } from 'ai'
 import { openai } from '@ai-sdk/openai'
+import { useChat } from '@ai-sdk/react'
 import { z } from 'zod'
+import { fetchWeather } from './weather'
+import { useState } from 'react'
 
 export async function POST(request: Request) {
   const { messages } = await request.json()
@@ -1411,7 +1450,7 @@ export async function POST(request: Request) {
   const result = streamText({
     model: openai('gpt-4o'),
     system: 'You are a helpful assistant.',
-    messages: convertToModelMessages(messages),
+    messages: await convertToModelMessages(messages),
     temperature: 0.7,
     tools: {
       getWeather: tool({
@@ -1426,10 +1465,6 @@ export async function POST(request: Request) {
 }
 
 // components/Chat.tsx
-import { useState } from 'react'
-import { useChat } from '@ai-sdk/react'
-import { DefaultChatTransport } from 'ai'
-
 export function Chat() {
   const [input, setInput] = useState('')
   const { messages, sendMessage, status } = useChat({

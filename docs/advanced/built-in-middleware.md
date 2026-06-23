@@ -107,9 +107,12 @@ All methods may return a `Promise` for async backends. The middleware handles TT
 
 **Redis example:**
 
-```typescript ignore
+```typescript
+import { chat } from "@tanstack/ai";
 import { createClient } from "redis";
 import { toolCacheMiddleware, type ToolCacheStorage } from "@tanstack/ai/middlewares";
+import { adapter, messages } from "./server";
+import { weatherTool } from "./tools";
 
 const redis = createClient();
 
@@ -213,10 +216,12 @@ const stream = chat({
 
 Emits vendor-neutral OpenTelemetry traces and metrics for every `chat()` call — a root span per call, a child span per agent-loop iteration, and a grandchild span per tool execution, all tagged with [GenAI semantic-convention attributes](https://opentelemetry.io/docs/specs/semconv/gen-ai/).
 
-```typescript ignore
+```typescript
 import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
 import { otelMiddleware } from "@tanstack/ai/middlewares/otel";
 import { trace, metrics } from "@opentelemetry/api";
+import { messages } from "./server";
 
 const otel = otelMiddleware({
   tracer: trace.getTracer("my-app"),

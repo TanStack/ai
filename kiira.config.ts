@@ -17,6 +17,39 @@ export default defineConfig({
   ],
   defaultValidate: 'type',
   languages: ['ts', 'tsx', 'js', 'jsx'],
+  // Third-party packages the docs import but the workspace doesn't depend on.
+  // kiira installs these into an isolated cache (node_modules/.kiira) and
+  // type-checks against them, so snippets that show real integrations (Vercel
+  // AI SDK migration, community adapters, redis/pino/otel/express/hono, other
+  // schema libs) are validated instead of `ignore`d.
+  externalPackages: {
+    // Vercel AI SDK (migration / comparison "before" examples)
+    ai: '^6.0.0',
+    '@ai-sdk/openai': '^3.0.0',
+    '@ai-sdk/anthropic': '^3.0.0',
+    '@ai-sdk/google': '^3.0.0',
+    '@ai-sdk/react': '^3.0.0',
+    // Provider SDKs / schema libraries shown in examples
+    openai: '^6.0.0',
+    arktype: '^2.0.0',
+    valibot: '^1.0.0',
+    '@valibot/to-json-schema': '^1.0.0',
+    '@modelcontextprotocol/sdk': '^1.29.0',
+    // Server / infra libraries used by real integration examples
+    express: '^5.0.0',
+    '@types/express': '^5.0.0',
+    hono: '^4.0.0',
+    '@hono/node-server': '^2.0.0',
+    redis: '^6.0.0',
+    pino: '^10.0.0',
+    '@opentelemetry/api': '^1.9.0',
+    // Community adapters (each documented page imports its published package)
+    '@cloudflare/tanstack-ai': '^0.1.0',
+    '@decartai/tanstack-ai-adapter': '^0.0.2',
+    '@mynthio/tanstack-ai-adapter': '^0.0.14',
+    '@cencori/ai-sdk': '^0.4.0',
+    '@soniox/tanstack-ai-adapter': '^0.1.2',
+  },
   overrides: [
     // React (and anything not overridden below) uses the automatic JSX
     // runtime so snippets don't need an explicit `import React`.

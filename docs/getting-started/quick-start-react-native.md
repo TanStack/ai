@@ -48,16 +48,15 @@ Create a Hono route that owns the model, API key, and response format. The
 native app sends chat messages to this route; it never imports
 `@tanstack/ai-openai` and never receives `OPENAI_API_KEY`.
 
-```ts ignore
+```ts
 // server.ts
 import { serve } from '@hono/node-server'
 import { chat, toHttpResponse, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { Hono } from 'hono'
+import { model } from './config'
 
 const app = new Hono()
-
-const model = process.env.OPENAI_MODEL ?? 'gpt-5.2'
 
 function requireOpenAIKey() {
   if (!process.env.OPENAI_API_KEY) {

@@ -50,7 +50,7 @@ If you need a key, create one in the [Mynth API keys dashboard](https://mynth.io
 
 ## Quick Start
 
-```ts ignore
+```ts
 import { generateImage } from "@tanstack/ai";
 import { mynthImage } from "@mynthio/tanstack-ai-adapter";
 
@@ -58,7 +58,7 @@ const result = await generateImage({
   adapter: mynthImage("black-forest-labs/flux.2-dev"),
   prompt: "Editorial product photo of a ceramic mug on a linen tablecloth",
   numberOfImages: 1,
-  size: "1024x1024",
+  size: "square",
 });
 
 console.log(result.id);
@@ -72,7 +72,7 @@ TanStack AI adapters are model-bound, so you choose the Mynth model when you cre
 
 Use `createMynthImage()` when you want to share config across multiple adapters:
 
-```ts ignore
+```ts
 import { generateImage } from "@tanstack/ai";
 import { createMynthImage } from "@mynthio/tanstack-ai-adapter";
 
@@ -91,7 +91,11 @@ console.log(result.images[0]?.url);
 
 You can still override shared config per adapter:
 
-```ts ignore
+```ts
+import { createMynthImage } from "@mynthio/tanstack-ai-adapter";
+
+const mynth = createMynthImage();
+
 const adapter = mynth("auto", {
   baseUrl: "https://proxy.example.com",
 });
@@ -101,7 +105,7 @@ const adapter = mynth("auto", {
 
 Use TanStack's top-level fields for common options such as `prompt`, `numberOfImages`, and shorthand `size`. Use `modelOptions` for Mynth-specific options:
 
-```ts ignore
+```ts
 import { generateImage } from "@tanstack/ai";
 import { mynthImage } from "@mynthio/tanstack-ai-adapter";
 
@@ -109,7 +113,7 @@ const result = await generateImage({
   adapter: mynthImage("recraft/recraft-v4"),
   prompt: "Ignored when promptStructured is provided",
   numberOfImages: 2,
-  size: "1024x1024",
+  size: "portrait",
   modelOptions: {
     promptStructured: {
       positive: "Modern poster design for a jazz festival",
@@ -119,7 +123,7 @@ const result = await generateImage({
     size: {
       type: "aspect_ratio",
       aspectRatio: "4:5",
-      scale: "2k",
+      scale: "4k",
     },
     output: {
       format: "png",
@@ -127,11 +131,9 @@ const result = await generateImage({
     },
     inputs: ["https://example.com/reference-image.jpg"],
     webhook: {
-      enabled: true,
+      dashboard: false,
     },
-    contentRating: {
-      enabled: true,
-    },
+    contentRating: true,
     metadata: {
       requestId: "req_123",
     },
@@ -150,7 +152,7 @@ Notes:
 
 The adapter exports both a runtime list and a type union for supported image models:
 
-```ts ignore
+```ts
 import {
   MYNTH_IMAGE_MODELS,
   type MynthImageModel,
@@ -171,7 +173,7 @@ Mynth currently supports model IDs across multiple providers, including `auto`, 
 
 This adapter also works with TanStack AI's streaming image workflow:
 
-```ts ignore
+```ts
 import { generateImage, toServerSentEventsResponse } from "@tanstack/ai";
 import { mynthImage } from "@mynthio/tanstack-ai-adapter";
 

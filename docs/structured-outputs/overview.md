@@ -117,15 +117,19 @@ exactly once at the end of the entire run.
 
 ### Observing structured-output chunks
 
-```ts ignore
+```ts
 import { chat } from "@tanstack/ai";
 import type { ChatMiddleware } from "@tanstack/ai";
+import { span } from "./span";
 
 const tracing: ChatMiddleware = {
   name: "tracing",
   onChunk(ctx, chunk) {
     // Fires for chunks from the agent loop AND the final structured-output call
-    span.addEvent("chunk", { phase: ctx.phase, type: chunk.type });
+    // chunk.type narrows inside a conditional — use a discriminant check first:
+    if ("type" in chunk) {
+      span.addEvent("chunk", { phase: ctx.phase, type: chunk.type });
+    }
   },
 };
 ```
