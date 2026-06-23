@@ -74,9 +74,9 @@ function Messages({ messages }: { messages: Array<UIMessage> }) {
     return (
       <div className="flex-1 flex items-center justify-center px-6 text-center text-gray-500">
         <p className="max-w-md">
-          Ask the sandbox agent to build a self-contained TanStack Start app — it
-          scaffolds it, runs it in the container, and hands back a live preview
-          URL. No API keys needed.
+          Ask the sandbox agent to build a self-contained TanStack Start app —
+          it scaffolds it, runs it in the container, and hands back a live
+          preview URL. No API keys needed.
         </p>
       </div>
     )
