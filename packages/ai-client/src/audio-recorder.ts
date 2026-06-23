@@ -111,8 +111,12 @@ export class AudioRecorder {
       recorder.onstop = () => {
         void this.finalize()
       }
-      recorder.onerror = () => {
-        this.handleError(new Error('Audio recording failed'))
+      recorder.onerror = (event) => {
+        const detail =
+          event instanceof ErrorEvent && event.error instanceof Error
+            ? event.error
+            : new Error('Audio recording failed')
+        this.handleError(detail)
       }
       this.recorder = recorder
       this.startedAt = Date.now()
