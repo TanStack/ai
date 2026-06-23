@@ -1333,9 +1333,6 @@ importers:
 
   packages/ai-event-client:
     dependencies:
-      '@tanstack/ai':
-        specifier: workspace:*
-        version: link:../ai
       '@tanstack/devtools-event-client':
         specifier: ^0.4.1
         version: 0.4.1
