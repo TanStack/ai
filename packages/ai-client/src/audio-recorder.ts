@@ -113,7 +113,7 @@ export class AudioRecorder {
       }
       recorder.onerror = (event) => {
         const detail =
-          event instanceof ErrorEvent && event.error instanceof Error
+          'error' in event && event.error instanceof Error
             ? event.error
             : new Error('Audio recording failed')
         this.handleError(detail)
@@ -142,8 +142,21 @@ export class AudioRecorder {
     this.setState('stopping')
     const recorder = this.recorder
     return new Promise<AudioRecording>((resolve, reject) => {
-      this.stopResolve = resolve
-      this.stopReject = reject
+      // ponytail: some browsers/codecs never fire onstop; this watchdog
+      // unwedges the recorder instead of leaking this promise forever.
+      const watchdog = setTimeout(() => {
+        if (this._state === 'stopping') {
+          this.handleError(new Error('Recording stop timed out'))
+        }
+      }, 10_000)
+      this.stopResolve = (rec) => {
+        clearTimeout(watchdog)
+        resolve(rec)
+      }
+      this.stopReject = (err) => {
+        clearTimeout(watchdog)
+        reject(err)
+      }
       recorder.stop()
     })
   }

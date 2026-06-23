@@ -7,7 +7,7 @@ class FakeMediaRecorder {
   static isTypeSupported = vi.fn((_type: string) => true)
   ondataavailable: ((e: { data: Blob }) => void) | null = null
   onstop: (() => void) | null = null
-  onerror: (() => void) | null = null
+  onerror: ((e: { error?: Error }) => void) | null = null
   state: 'inactive' | 'recording' = 'inactive'
   constructor(
     public stream: any,
@@ -26,6 +26,19 @@ class FakeMediaRecorder {
     this.state = 'inactive'
     this.ondataavailable?.({ data: new Blob([new Uint8Array([1, 2, 3])]) })
     this.onstop?.()
+  }
+  // Trigger onerror with an event carrying an `error` property.
+  triggerError(error: Error): void {
+    this.onerror?.({ error })
+  }
+}
+
+// Variant that never calls onstop — used for watchdog test.
+class FakeMediaRecorderNoStop extends FakeMediaRecorder {
+  override stop(): void {
+    this.state = 'inactive'
+    this.ondataavailable?.({ data: new Blob([new Uint8Array([1, 2, 3])]) })
+    // Intentionally does NOT call this.onstop?.()
   }
 }
 
@@ -125,5 +138,45 @@ describe('AudioRecorder', () => {
     await recorder.start()
     expect(FakeMediaRecorder.lastInstance?.options?.mimeType).toBe('audio/mp4')
     await recorder.stop()
+  })
+
+  it('onerror preserves the underlying error detail', async () => {
+    const onError = vi.fn()
+    const recorder = new AudioRecorder({ onError })
+    await recorder.start()
+    const fake = FakeMediaRecorder.lastInstance!
+    fake.triggerError(new Error('NotAllowedError'))
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'NotAllowedError' }),
+    )
+    expect(recorder.state).toBe('idle')
+  })
+
+  it('stop() watchdog rejects if onstop never fires', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.stubGlobal('MediaRecorder', FakeMediaRecorderNoStop)
+      const recorder = new AudioRecorder()
+      await recorder.start()
+      // Capture rejection synchronously before advancing timers so the
+      // rejection is never "unhandled" in the microtask queue.
+      let capturedError: unknown
+      const stopPromise = recorder.stop().then(
+        () => {
+          throw new Error('expected rejection')
+        },
+        (e: unknown) => {
+          capturedError = e
+        },
+      )
+      await vi.advanceTimersByTimeAsync(10_000)
+      await stopPromise
+      expect(capturedError).toBeInstanceOf(Error)
+      expect((capturedError as Error).message).toMatch(/timed out/)
+      expect(recorder.state).toBe('idle')
+    } finally {
+      vi.useRealTimers()
+      vi.stubGlobal('MediaRecorder', FakeMediaRecorder)
+    }
   })
 })
