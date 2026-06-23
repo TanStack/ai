@@ -491,9 +491,7 @@ describe('GeminiTextInteractionsAdapter', () => {
       chat({
         adapter,
         messages: [{ role: 'user', content: 'Weather in Berlin?' }],
-        tools: [
-          { name: 'lookup_weather', description: 'Return the weather' },
-        ],
+        tools: [{ name: 'lookup_weather', description: 'Return the weather' }],
       }),
     )
 
@@ -502,7 +500,9 @@ describe('GeminiTextInteractionsAdapter', () => {
     expect(startEvent.toolName).toBe('lookup_weather')
 
     // The last TOOL_CALL_ARGS event carries the fully-accumulated buffer.
-    const argsEvents = chunks.filter((c) => c.type === 'TOOL_CALL_ARGS') as Array<any>
+    const argsEvents = chunks.filter(
+      (c) => c.type === 'TOOL_CALL_ARGS',
+    ) as Array<any>
     expect(argsEvents.length).toBeGreaterThan(1)
     expect(argsEvents.at(-1)!.args).toBe(
       '{"location":"Berlin","unit":"celsius"}',
@@ -538,7 +538,10 @@ describe('GeminiTextInteractionsAdapter', () => {
           index: 0,
           // Complete `city` key, then a dangling `unit` key the stream never
           // finishes.
-          delta: { type: 'arguments_delta', arguments: '{"city":"London","unit":' },
+          delta: {
+            type: 'arguments_delta',
+            arguments: '{"city":"London","unit":',
+          },
         },
         { event_type: 'step.stop', index: 0 },
         {
@@ -553,9 +556,7 @@ describe('GeminiTextInteractionsAdapter', () => {
       chat({
         adapter,
         messages: [{ role: 'user', content: 'Weather in London?' }],
-        tools: [
-          { name: 'lookup_weather', description: 'Return the weather' },
-        ],
+        tools: [{ name: 'lookup_weather', description: 'Return the weather' }],
       }),
     )
 
