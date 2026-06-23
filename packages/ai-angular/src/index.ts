@@ -36,6 +36,10 @@ export type {
   InjectTranscriptionResult,
 } from './inject-transcription'
 
+// Audio Recorder
+export { injectAudioRecorder } from './inject-audio-recorder'
+export type { InjectAudioRecorderResult } from './inject-audio-recorder'
+
 // Summarize
 export { injectSummarize } from './inject-summarize'
 export type {

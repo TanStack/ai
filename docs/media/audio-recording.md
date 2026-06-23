@@ -112,6 +112,7 @@ recording may still be active.
 <button onclick={toggle}>{recorder.isRecording ? 'Send' : 'Record'}</button>
 ```
 
-Solid (`useAudioRecorder`, `isRecording()` is an accessor) and Vue
-(`useAudioRecorder`, `isRecording` is a ref) expose the same API with
-framework-idiomatic reactivity.
+Solid (`useAudioRecorder`, `isRecording()` is an accessor), Vue
+(`useAudioRecorder`, `isRecording` is a ref), and Angular
+(`injectAudioRecorder`, `isRecording` is a `Signal<boolean>`, must be called in
+an injection context) expose the same API with framework-idiomatic reactivity.
