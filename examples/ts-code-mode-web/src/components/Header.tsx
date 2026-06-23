@@ -10,6 +10,7 @@ import {
   ShoppingBag,
   Database,
   BarChart3,
+  Server,
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -139,6 +140,18 @@ export default function Header({ children }: HeaderProps) {
           >
             <BarChart3 size={20} />
             <span className="font-medium">Execute Prompt</span>
+          </Link>
+          <Link
+            to="/sandbox-agent"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 transition-colors mb-2',
+            }}
+          >
+            <Server size={20} />
+            <span className="font-medium">Sandbox Agent</span>
           </Link>
         </nav>
 

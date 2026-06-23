@@ -13,8 +13,8 @@
     {
       "class_name": "Sandbox",
       "image": "./Dockerfile",
-      // One warm instance for the demo; raise for concurrency.
-      "max_instances": 1,
+      // A few warm instances so concurrent chat threads each get a sandbox.
+      "max_instances": 5,
     },
   ],
 
@@ -41,7 +41,7 @@
     // The Worker's public hostname — the SANDBOX uses it to reach the DO's
     // /_bridge endpoint and any exposed preview ports. Override per environment;
     // e.g. set to your *.workers.dev or custom domain after first deploy.
-    "PUBLIC_HOSTNAME": "tanstack-ai-sandbox-cloudflare-agent.example.workers.dev",
+    "PUBLIC_HOSTNAME": "tanstack-ai-sandbox-cloudflare-agent.openstory.workers.dev",
   },
 
   // ANTHROPIC_API_KEY is a SECRET, not a var. Set it with:

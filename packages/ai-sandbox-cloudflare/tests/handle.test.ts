@@ -8,17 +8,19 @@ import { CLOUDFLARE_CAPS, CloudflareHandle } from '../src/handle'
 import type { Sandbox } from '@cloudflare/sandbox'
 import type { ExecResult } from '@tanstack/ai-sandbox'
 
-interface MockProc {
+/** Options the handle passes to `sandbox.exec` (streaming spawn + one-shot). */
+interface MockExecOpts {
+  stream?: boolean
   onOutput?: (stream: 'stdout' | 'stderr', data: string) => void
-  onExit?: (code: number | null) => void
 }
 
 /** A minimal in-memory Sandbox stub: fs lives in a Map; exec emulates the
- *  base64/test/mkdir commands the handle issues. */
+ *  base64/test/mkdir commands the handle issues, plus the streaming path
+ *  `spawn()` relies on (`exec({ stream: true, onOutput })`). */
 function mockSandbox(): { sandbox: Sandbox; files: Map<string, string> } {
   const files = new Map<string, string>()
 
-  const exec = (command: string): Promise<ExecResult> => {
+  const exec = (command: string, opts?: MockExecOpts): Promise<ExecResult> => {
     const ok = (stdout = ''): ExecResult => ({
       stdout,
       stderr: '',
@@ -29,6 +31,16 @@ function mockSandbox(): { sandbox: Sandbox; files: Map<string, string> } {
       stderr,
       exitCode: 1,
     })
+
+    // The streaming path `spawn()` uses: emit a line via onOutput, then resolve.
+    // A `reject-me` command models a transport/RPC failure (so wait() rejects).
+    if (opts?.stream && opts.onOutput) {
+      if (command.includes('reject-me')) {
+        return Promise.reject(new Error('rpc boom'))
+      }
+      opts.onOutput('stdout', 'streamed-line\n')
+      return Promise.resolve(ok('streamed-line\n'))
+    }
 
     // base64 '<path>'  -> read
     const read = command.match(/^base64 '([^']+)'$/)
@@ -63,14 +75,6 @@ function mockSandbox(): { sandbox: Sandbox; files: Map<string, string> } {
     exposePort: (port: number) =>
       Promise.resolve({ url: `https://${port}.example.workers.dev` }),
     destroy: () => Promise.resolve(),
-    startProcess: (_cmd: string, opts: MockProc) => {
-      // Emit one line then exit on the next tick.
-      queueMicrotask(() => {
-        opts.onOutput?.('stdout', 'streamed-line\n')
-        opts.onExit?.(0)
-      })
-      return Promise.resolve({ kill: () => Promise.resolve() })
-    },
   } as unknown as Sandbox
 
   return { sandbox, files }
@@ -109,6 +113,17 @@ describe('CloudflareHandle', () => {
     for await (const chunk of proc.stdout) out += chunk
     expect(out).toContain('streamed-line')
     expect(await proc.wait()).toBe(0)
+  })
+
+  it('surfaces a command failure by rejecting wait()', async () => {
+    const { sandbox } = mockSandbox()
+    const handle = new CloudflareHandle('sbx-1', sandbox, '/workspace')
+    const proc = await handle.process.spawn('reject-me')
+    // The stdout reader must still terminate even though the command failed...
+    for await (const _chunk of proc.stdout) void _chunk
+    // ...and the failure propagates through wait() (→ adapter RUN_ERROR),
+    // rather than being masked as a clean exit.
+    await expect(proc.wait()).rejects.toThrow(/rpc boom/)
   })
 
   it('rejects stdin writes (documented CF limitation)', async () => {

@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as StructuredOutputRouteRouteImport } from './routes/_structured-output/route'
+import { Route as SandboxAgentRouteRouteImport } from './routes/_sandbox-agent/route'
 import { Route as ReportingRouteRouteImport } from './routes/_reporting/route'
 import { Route as NpmGithubChatRouteRouteImport } from './routes/_npm-github-chat/route'
 import { Route as HomeRouteRouteImport } from './routes/_home/route'
@@ -18,6 +19,7 @@ import { Route as DatabaseDemoRouteRouteImport } from './routes/_database-demo/r
 import { Route as BankingDemoRouteRouteImport } from './routes/_banking-demo/route'
 import { Route as HomeIndexRouteImport } from './routes/_home/index'
 import { Route as StructuredOutputStructuredOutputRouteImport } from './routes/_structured-output/structured-output'
+import { Route as SandboxAgentSandboxAgentRouteImport } from './routes/_sandbox-agent/sandbox-agent'
 import { Route as ReportingReportingAgentRouteImport } from './routes/_reporting/reporting-agent'
 import { Route as NpmGithubChatNpmGithubChatRouteImport } from './routes/_npm-github-chat/npm-github-chat'
 import { Route as ExecutePromptExecutePromptRouteImport } from './routes/_execute-prompt/execute-prompt'
@@ -25,6 +27,7 @@ import { Route as DatabaseDemoDatabaseDemoRouteImport } from './routes/_database
 import { Route as BankingDemoBankingDemoRouteImport } from './routes/_banking-demo/banking-demo'
 import { Route as StructuredOutputApiStructuredOutputSkillsRouteImport } from './routes/_structured-output/api.structured-output-skills'
 import { Route as StructuredOutputApiStructuredOutputRouteImport } from './routes/_structured-output/api.structured-output'
+import { Route as SandboxAgentApiSandboxAgentRouteImport } from './routes/_sandbox-agent/api.sandbox-agent'
 import { Route as ReportingApiReportsRouteImport } from './routes/_reporting/api.reports'
 import { Route as ReportingApiReportSseRouteImport } from './routes/_reporting/api.report-sse'
 import { Route as ReportingApiReportEventRouteImport } from './routes/_reporting/api.report-event'
@@ -45,6 +48,10 @@ import { Route as BankingDemoApiBankingDemoRouteImport } from './routes/_banking
 
 const StructuredOutputRouteRoute = StructuredOutputRouteRouteImport.update({
   id: '/_structured-output',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SandboxAgentRouteRoute = SandboxAgentRouteRouteImport.update({
+  id: '/_sandbox-agent',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ReportingRouteRoute = ReportingRouteRouteImport.update({
@@ -81,6 +88,12 @@ const StructuredOutputStructuredOutputRoute =
     id: '/structured-output',
     path: '/structured-output',
     getParentRoute: () => StructuredOutputRouteRoute,
+  } as any)
+const SandboxAgentSandboxAgentRoute =
+  SandboxAgentSandboxAgentRouteImport.update({
+    id: '/sandbox-agent',
+    path: '/sandbox-agent',
+    getParentRoute: () => SandboxAgentRouteRoute,
   } as any)
 const ReportingReportingAgentRoute = ReportingReportingAgentRouteImport.update({
   id: '/reporting-agent',
@@ -121,6 +134,12 @@ const StructuredOutputApiStructuredOutputRoute =
     id: '/api/structured-output',
     path: '/api/structured-output',
     getParentRoute: () => StructuredOutputRouteRoute,
+  } as any)
+const SandboxAgentApiSandboxAgentRoute =
+  SandboxAgentApiSandboxAgentRouteImport.update({
+    id: '/api/sandbox-agent',
+    path: '/api/sandbox-agent',
+    getParentRoute: () => SandboxAgentRouteRoute,
   } as any)
 const ReportingApiReportsRoute = ReportingApiReportsRouteImport.update({
   id: '/api/reports',
@@ -222,6 +241,7 @@ export interface FileRoutesByFullPath {
   '/execute-prompt': typeof ExecutePromptExecutePromptRoute
   '/npm-github-chat': typeof NpmGithubChatNpmGithubChatRoute
   '/reporting-agent': typeof ReportingReportingAgentRoute
+  '/sandbox-agent': typeof SandboxAgentSandboxAgentRoute
   '/structured-output': typeof StructuredOutputStructuredOutputRoute
   '/api/banking-demo': typeof BankingDemoApiBankingDemoRoute
   '/api/banking-init': typeof BankingDemoApiBankingInitRoute
@@ -240,6 +260,7 @@ export interface FileRoutesByFullPath {
   '/api/report-event': typeof ReportingApiReportEventRoute
   '/api/report-sse': typeof ReportingApiReportSseRoute
   '/api/reports': typeof ReportingApiReportsRoute
+  '/api/sandbox-agent': typeof SandboxAgentApiSandboxAgentRoute
   '/api/structured-output': typeof StructuredOutputApiStructuredOutputRoute
   '/api/structured-output-skills': typeof StructuredOutputApiStructuredOutputSkillsRoute
 }
@@ -250,6 +271,7 @@ export interface FileRoutesByTo {
   '/execute-prompt': typeof ExecutePromptExecutePromptRoute
   '/npm-github-chat': typeof NpmGithubChatNpmGithubChatRoute
   '/reporting-agent': typeof ReportingReportingAgentRoute
+  '/sandbox-agent': typeof SandboxAgentSandboxAgentRoute
   '/structured-output': typeof StructuredOutputStructuredOutputRoute
   '/api/banking-demo': typeof BankingDemoApiBankingDemoRoute
   '/api/banking-init': typeof BankingDemoApiBankingInitRoute
@@ -268,6 +290,7 @@ export interface FileRoutesByTo {
   '/api/report-event': typeof ReportingApiReportEventRoute
   '/api/report-sse': typeof ReportingApiReportSseRoute
   '/api/reports': typeof ReportingApiReportsRoute
+  '/api/sandbox-agent': typeof SandboxAgentApiSandboxAgentRoute
   '/api/structured-output': typeof StructuredOutputApiStructuredOutputRoute
   '/api/structured-output-skills': typeof StructuredOutputApiStructuredOutputSkillsRoute
 }
@@ -279,12 +302,14 @@ export interface FileRoutesById {
   '/_home': typeof HomeRouteRouteWithChildren
   '/_npm-github-chat': typeof NpmGithubChatRouteRouteWithChildren
   '/_reporting': typeof ReportingRouteRouteWithChildren
+  '/_sandbox-agent': typeof SandboxAgentRouteRouteWithChildren
   '/_structured-output': typeof StructuredOutputRouteRouteWithChildren
   '/_banking-demo/banking-demo': typeof BankingDemoBankingDemoRoute
   '/_database-demo/database-demo': typeof DatabaseDemoDatabaseDemoRoute
   '/_execute-prompt/execute-prompt': typeof ExecutePromptExecutePromptRoute
   '/_npm-github-chat/npm-github-chat': typeof NpmGithubChatNpmGithubChatRoute
   '/_reporting/reporting-agent': typeof ReportingReportingAgentRoute
+  '/_sandbox-agent/sandbox-agent': typeof SandboxAgentSandboxAgentRoute
   '/_structured-output/structured-output': typeof StructuredOutputStructuredOutputRoute
   '/_home/': typeof HomeIndexRoute
   '/_banking-demo/api/banking-demo': typeof BankingDemoApiBankingDemoRoute
@@ -304,6 +329,7 @@ export interface FileRoutesById {
   '/_reporting/api/report-event': typeof ReportingApiReportEventRoute
   '/_reporting/api/report-sse': typeof ReportingApiReportSseRoute
   '/_reporting/api/reports': typeof ReportingApiReportsRoute
+  '/_sandbox-agent/api/sandbox-agent': typeof SandboxAgentApiSandboxAgentRoute
   '/_structured-output/api/structured-output': typeof StructuredOutputApiStructuredOutputRoute
   '/_structured-output/api/structured-output-skills': typeof StructuredOutputApiStructuredOutputSkillsRoute
 }
@@ -316,6 +342,7 @@ export interface FileRouteTypes {
     | '/execute-prompt'
     | '/npm-github-chat'
     | '/reporting-agent'
+    | '/sandbox-agent'
     | '/structured-output'
     | '/api/banking-demo'
     | '/api/banking-init'
@@ -334,6 +361,7 @@ export interface FileRouteTypes {
     | '/api/report-event'
     | '/api/report-sse'
     | '/api/reports'
+    | '/api/sandbox-agent'
     | '/api/structured-output'
     | '/api/structured-output-skills'
   fileRoutesByTo: FileRoutesByTo
@@ -344,6 +372,7 @@ export interface FileRouteTypes {
     | '/execute-prompt'
     | '/npm-github-chat'
     | '/reporting-agent'
+    | '/sandbox-agent'
     | '/structured-output'
     | '/api/banking-demo'
     | '/api/banking-init'
@@ -362,6 +391,7 @@ export interface FileRouteTypes {
     | '/api/report-event'
     | '/api/report-sse'
     | '/api/reports'
+    | '/api/sandbox-agent'
     | '/api/structured-output'
     | '/api/structured-output-skills'
   id:
@@ -372,12 +402,14 @@ export interface FileRouteTypes {
     | '/_home'
     | '/_npm-github-chat'
     | '/_reporting'
+    | '/_sandbox-agent'
     | '/_structured-output'
     | '/_banking-demo/banking-demo'
     | '/_database-demo/database-demo'
     | '/_execute-prompt/execute-prompt'
     | '/_npm-github-chat/npm-github-chat'
     | '/_reporting/reporting-agent'
+    | '/_sandbox-agent/sandbox-agent'
     | '/_structured-output/structured-output'
     | '/_home/'
     | '/_banking-demo/api/banking-demo'
@@ -397,6 +429,7 @@ export interface FileRouteTypes {
     | '/_reporting/api/report-event'
     | '/_reporting/api/report-sse'
     | '/_reporting/api/reports'
+    | '/_sandbox-agent/api/sandbox-agent'
     | '/_structured-output/api/structured-output'
     | '/_structured-output/api/structured-output-skills'
   fileRoutesById: FileRoutesById
@@ -408,6 +441,7 @@ export interface RootRouteChildren {
   HomeRouteRoute: typeof HomeRouteRouteWithChildren
   NpmGithubChatRouteRoute: typeof NpmGithubChatRouteRouteWithChildren
   ReportingRouteRoute: typeof ReportingRouteRouteWithChildren
+  SandboxAgentRouteRoute: typeof SandboxAgentRouteRouteWithChildren
   StructuredOutputRouteRoute: typeof StructuredOutputRouteRouteWithChildren
 }
 
@@ -418,6 +452,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof StructuredOutputRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_sandbox-agent': {
+      id: '/_sandbox-agent'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof SandboxAgentRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_reporting': {
@@ -476,6 +517,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StructuredOutputStructuredOutputRouteImport
       parentRoute: typeof StructuredOutputRouteRoute
     }
+    '/_sandbox-agent/sandbox-agent': {
+      id: '/_sandbox-agent/sandbox-agent'
+      path: '/sandbox-agent'
+      fullPath: '/sandbox-agent'
+      preLoaderRoute: typeof SandboxAgentSandboxAgentRouteImport
+      parentRoute: typeof SandboxAgentRouteRoute
+    }
     '/_reporting/reporting-agent': {
       id: '/_reporting/reporting-agent'
       path: '/reporting-agent'
@@ -524,6 +572,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/structured-output'
       preLoaderRoute: typeof StructuredOutputApiStructuredOutputRouteImport
       parentRoute: typeof StructuredOutputRouteRoute
+    }
+    '/_sandbox-agent/api/sandbox-agent': {
+      id: '/_sandbox-agent/api/sandbox-agent'
+      path: '/api/sandbox-agent'
+      fullPath: '/api/sandbox-agent'
+      preLoaderRoute: typeof SandboxAgentApiSandboxAgentRouteImport
+      parentRoute: typeof SandboxAgentRouteRoute
     }
     '/_reporting/api/reports': {
       id: '/_reporting/api/reports'
@@ -749,6 +804,19 @@ const ReportingRouteRouteWithChildren = ReportingRouteRoute._addFileChildren(
   ReportingRouteRouteChildren,
 )
 
+interface SandboxAgentRouteRouteChildren {
+  SandboxAgentSandboxAgentRoute: typeof SandboxAgentSandboxAgentRoute
+  SandboxAgentApiSandboxAgentRoute: typeof SandboxAgentApiSandboxAgentRoute
+}
+
+const SandboxAgentRouteRouteChildren: SandboxAgentRouteRouteChildren = {
+  SandboxAgentSandboxAgentRoute: SandboxAgentSandboxAgentRoute,
+  SandboxAgentApiSandboxAgentRoute: SandboxAgentApiSandboxAgentRoute,
+}
+
+const SandboxAgentRouteRouteWithChildren =
+  SandboxAgentRouteRoute._addFileChildren(SandboxAgentRouteRouteChildren)
+
 interface StructuredOutputRouteRouteChildren {
   StructuredOutputStructuredOutputRoute: typeof StructuredOutputStructuredOutputRoute
   StructuredOutputApiStructuredOutputRoute: typeof StructuredOutputApiStructuredOutputRoute
@@ -775,6 +843,7 @@ const rootRouteChildren: RootRouteChildren = {
   HomeRouteRoute: HomeRouteRouteWithChildren,
   NpmGithubChatRouteRoute: NpmGithubChatRouteRouteWithChildren,
   ReportingRouteRoute: ReportingRouteRouteWithChildren,
+  SandboxAgentRouteRoute: SandboxAgentRouteRouteWithChildren,
   StructuredOutputRouteRoute: StructuredOutputRouteRouteWithChildren,
 }
 export const routeTree = rootRouteImport
