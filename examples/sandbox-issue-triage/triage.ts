@@ -128,15 +128,15 @@ export async function runTriage(options: RunTriageOptions): Promise<string> {
         for (const cmd of options.setup) serial(cmd)
       },
       // Instructions are projected into AGENTS.md (and CLAUDE.md) inside the sandbox.
-      instructions: 'Investigate read-only; do not modify source files unless explicitly asked.',
+      instructions:
+        'Investigate read-only; do not modify source files unless explicitly asked.',
       secrets,
     }),
     lifecycle: { reuse: 'thread' },
     hooks: {
       onFile: (e) => {
         fileEvents.push(e)
-        const mark =
-          e.type === 'create' ? '+' : e.type === 'delete' ? '-' : '~'
+        const mark = e.type === 'create' ? '+' : e.type === 'delete' ? '-' : '~'
         console.log(`    [${mark}] ${e.type} ${e.path}`)
       },
     },

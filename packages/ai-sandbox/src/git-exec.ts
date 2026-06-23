@@ -68,7 +68,9 @@ export function createExecBackedGit(
         throw new Error('git-exec: depth must be a positive integer or "full".')
       }
       const depthArg =
-        resolvedDepth === 'full' ? '' : `--depth ${resolvedDepth} --single-branch `
+        resolvedDepth === 'full'
+          ? ''
+          : `--depth ${resolvedDepth} --single-branch `
 
       if (auth?.token) {
         await process.exec(
@@ -85,7 +87,9 @@ export function createExecBackedGit(
         return
       }
 
-      await process.exec(`git clone ${refArg}${depthArg}-- ${q(url)} ${q(target)}`)
+      await process.exec(
+        `git clone ${refArg}${depthArg}-- ${q(url)} ${q(target)}`,
+      )
     },
     status: async (dir) =>
       (await process.exec(`git -C ${at(dir)} status --porcelain`)).stdout,

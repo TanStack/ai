@@ -44,7 +44,9 @@ interface FakeHandle {
 }
 
 /** Build a fake handle that records writes, reads, and execs. */
-function makeFakeHandle(execResult: ExecResult = { stdout: '', stderr: '', exitCode: 0 }): FakeHandle {
+function makeFakeHandle(
+  execResult: ExecResult = { stdout: '', stderr: '', exitCode: 0 },
+): FakeHandle {
   const writes = new Map<string, string>()
   const reads: Array<string> = []
   const execs: Array<RecordedExec> = []
@@ -60,7 +62,8 @@ function makeFakeHandle(execResult: ExecResult = { stdout: '', stderr: '', exitC
       read: (path: string) => {
         reads.push(path)
         const content = writes.get(path)
-        if (content === undefined) return Promise.reject(new Error(`not found: ${path}`))
+        if (content === undefined)
+          return Promise.reject(new Error(`not found: ${path}`))
         return Promise.resolve(content)
       },
       exists: (path: string) => Promise.resolve(existing.has(path)),
@@ -135,9 +138,17 @@ describe('projectOpencodeWorkspace', () => {
     // agentSkill and gitSkill and plugin all produce warnings, not throws.
     expect(warn).toHaveBeenCalled()
     const messages = warn.mock.calls.map((call) => String(call[0]))
-    expect(messages.some((m) => m.includes('[opencode]') && m.includes('gitSkill'))).toBe(true)
-    expect(messages.some((m) => m.includes('[opencode]') && m.includes('agentSkill'))).toBe(true)
-    expect(messages.some((m) => m.includes('[opencode]') && m.includes('plugin'))).toBe(true)
+    expect(
+      messages.some((m) => m.includes('[opencode]') && m.includes('gitSkill')),
+    ).toBe(true)
+    expect(
+      messages.some(
+        (m) => m.includes('[opencode]') && m.includes('agentSkill'),
+      ),
+    ).toBe(true)
+    expect(
+      messages.some((m) => m.includes('[opencode]') && m.includes('plugin')),
+    ).toBe(true)
 
     // Marker written.
     expect(fake.writes.has(MARKER)).toBe(true)
@@ -164,7 +175,9 @@ describe('projectOpencodeWorkspace', () => {
 
     await projectOpencodeWorkspace(fake.handle, projection)
 
-    const config = JSON.parse(fake.writes.get(`${ROOT}/opencode.json`) ?? '{}') as {
+    const config = JSON.parse(
+      fake.writes.get(`${ROOT}/opencode.json`) ?? '{}',
+    ) as {
       mcp?: Record<string, { headers?: Record<string, string> }>
     }
     expect(config.mcp?.['issues']?.headers?.['X-Plain']).toBe('literal-value')
@@ -195,7 +208,9 @@ describe('projectOpencodeWorkspace', () => {
     const config = JSON.parse(raw ?? '{}') as {
       mcp?: Record<string, { headers?: Record<string, string> }>
     }
-    expect(config.mcp?.['issues']?.headers?.['Authorization']).toBe('Bearer lin-token')
+    expect(config.mcp?.['issues']?.headers?.['Authorization']).toBe(
+      'Bearer lin-token',
+    )
     expect(raw).not.toContain('__secretName')
     expect(raw).not.toContain('__bearerRef')
   })
@@ -251,7 +266,10 @@ describe('projectOpencodeWorkspace', () => {
   it('merges the mcp section into an existing opencode.json, preserving other keys', async () => {
     const fake = makeFakeHandle()
     // Pre-populate an existing opencode.json with a non-mcp setting.
-    const existing = JSON.stringify({ theme: 'dark', keybinds: { 'ctrl+s': 'save' } })
+    const existing = JSON.stringify({
+      theme: 'dark',
+      keybinds: { 'ctrl+s': 'save' },
+    })
     fake.writes.set(`${ROOT}/opencode.json`, existing)
     fake.existing.add(`${ROOT}/opencode.json`)
 

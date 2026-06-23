@@ -26,10 +26,22 @@ export interface SandboxFileEvent {
  * every file create/change/delete observed in the sandbox during the run.
  */
 export interface ChatSandboxHooks<TContext = unknown> {
-  onFile?: (ctx: ChatMiddlewareContext<TContext>, e: SandboxFileEvent) => void | Promise<void>
-  onFileCreate?: (ctx: ChatMiddlewareContext<TContext>, e: SandboxFileEvent) => void | Promise<void>
-  onFileChange?: (ctx: ChatMiddlewareContext<TContext>, e: SandboxFileEvent) => void | Promise<void>
-  onFileDelete?: (ctx: ChatMiddlewareContext<TContext>, e: SandboxFileEvent) => void | Promise<void>
+  onFile?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    e: SandboxFileEvent,
+  ) => void | Promise<void>
+  onFileCreate?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    e: SandboxFileEvent,
+  ) => void | Promise<void>
+  onFileChange?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    e: SandboxFileEvent,
+  ) => void | Promise<void>
+  onFileDelete?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    e: SandboxFileEvent,
+  ) => void | Promise<void>
 }
 
 // ===========================

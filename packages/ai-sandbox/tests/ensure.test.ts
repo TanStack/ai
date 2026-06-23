@@ -173,7 +173,10 @@ describe('ensureSandbox algorithm', () => {
     const key = def.key(ctx)
     const rec = await ctx.store.get(key)
     if (rec) {
-      await ctx.store.upsert({ ...rec, updatedAt: Date.now() - 2 * 60 * 60 * 1000 })
+      await ctx.store.upsert({
+        ...rec,
+        updatedAt: Date.now() - 2 * 60 * 60 * 1000,
+      })
     }
 
     // Second ensure: record exists but is too old → must re-create, not resume.

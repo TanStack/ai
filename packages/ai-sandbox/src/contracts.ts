@@ -28,6 +28,14 @@ export interface SandboxCapabilities {
   ports: boolean
   /** Long-running/background processes via {@link SandboxProcess.spawn}. */
   backgroundProcesses: boolean
+  /**
+   * A spawned process exposes a writable host→process stdin
+   * ({@link SpawnHandle.stdin}). `true` for host/Docker; some edge providers
+   * (e.g. Cloudflare) run background processes WITHOUT a writable stdin, so
+   * harness adapters that feed a prompt over stdin must instead deliver it via a
+   * file + shell redirection.
+   */
+  writableStdin: boolean
   /** Capture/restore filesystem snapshots via {@link SandboxHandle.snapshot}. */
   snapshots: boolean
   /** Declarative network egress allow/deny policy. */

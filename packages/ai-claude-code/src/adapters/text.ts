@@ -7,11 +7,11 @@ import {
   buildApprovalRequestedEvent,
   getSandbox,
   getSandboxPolicy,
+  getToolBridgeProvisioner,
   getWorkspaceProjection,
-  hostForSandbox,
+  nodeHttpBridgeProvisioner,
   resolveApproval,
   spawnNdjson,
-  startHostToolBridge,
 } from '@tanstack/ai-sandbox'
 import { buildPrompt } from '../messages/prompt'
 import { translateSdkStream } from '../stream/translate'
@@ -148,7 +148,7 @@ export class ClaudeCodeTextAdapter<
     options: TextOptions<ClaudeCodeTextProviderOptions>,
     resume: string | undefined,
     policyFlags: ClaudePolicyFlags,
-    mcpConfigJson: string | undefined,
+    mcpConfigPath: string | undefined,
     permissionPromptTool: string | undefined,
   ): string {
     const config = this.adapterConfig
@@ -207,7 +207,7 @@ export class ClaudeCodeTextAdapter<
       args.push(flag, q(joined))
     }
 
-    if (mcpConfigJson !== undefined) args.push('--mcp-config', q(mcpConfigJson))
+    if (mcpConfigPath !== undefined) args.push('--mcp-config', q(mcpConfigPath))
     if (permissionPromptTool !== undefined) {
       args.push('--permission-prompt-tool', q(permissionPromptTool))
     }
@@ -286,8 +286,14 @@ export class ClaudeCodeTextAdapter<
     const { logger } = options
     let bridge: HostToolBridge | undefined
     const approvalRequests: Array<StreamChunk> = []
+    // Temp files written for the run (bridge MCP config, redirected prompt) that
+    // carry the bearer token / prompt; removed in `finally` so they don't linger
+    // in the sandbox after the run.
+    let cleanupSandbox: SandboxHandle | undefined
+    const tempFiles: Array<string> = []
     try {
       const sandbox = this.sandboxFrom(options)
+      cleanupSandbox = sandbox
       const cwd = this.workdir(options)
       const runId = options.runId ?? this.generateId()
       const threadId = options.threadId ?? this.generateId()
@@ -323,8 +329,12 @@ export class ClaudeCodeTextAdapter<
       // the sandbox over MCP.
       const hasTools = options.tools !== undefined && options.tools.length > 0
       if (hasTools || permission !== undefined) {
-        bridge = await startHostToolBridge(options.tools ?? [], {
-          hostForSandbox: hostForSandbox(sandbox.provider),
+        const provisioner =
+          (options.capabilities
+            ? getToolBridgeProvisioner(options.capabilities, { optional: true })
+            : undefined) ?? nodeHttpBridgeProvisioner
+        bridge = await provisioner.provision(options.tools ?? [], {
+          provider: sandbox.provider,
           context: options.context,
           ...(permission !== undefined ? { permission } : {}),
           ...(options.abortController?.signal
@@ -337,28 +347,54 @@ export class ClaudeCodeTextAdapter<
         options.messages,
         options.modelOptions?.sessionId,
       )
+      // The bridge MCP config carries the per-run bearer token. Write it to a
+      // file and pass claude the PATH, so the token never appears in argv (where
+      // any process in the sandbox could read it via `ps` / `/proc/<pid>/cmdline`).
+      let mcpConfigPath: string | undefined
+      if (bridge) {
+        mcpConfigPath = `${cwd}/.tanstack-mcp-bridge-${runId}.json`
+        await sandbox.fs.write(mcpConfigPath, bridgeToMcpConfig(bridge))
+        tempFiles.push(mcpConfigPath)
+      }
       const command = this.buildCommand(
         options,
         resume,
         mapPolicyToClaudeFlags(policy),
-        bridge ? bridgeToMcpConfig(bridge) : undefined,
+        mcpConfigPath,
         bridge && permission
           ? `mcp__${bridge.name}__${permission.toolName}`
           : undefined,
       )
+
+      // Deliver the prompt. The default feeds it over stdin (keeps it out of
+      // argv). Providers without a writable host→process stdin (e.g. Cloudflare)
+      // can't accept that write, so write the prompt to a file and redirect the
+      // CLI's stdin from it in-shell (`claude -p … < file`) — still out of argv.
+      let runCommand = command
+      let stdinInput: string | undefined = prompt
+      if (sandbox.capabilities.writableStdin === false) {
+        const promptPath = `/tmp/tanstack-claude-prompt-${runId}`
+        await sandbox.fs.write(promptPath, prompt)
+        tempFiles.push(promptPath)
+        runCommand = `${command} < ${q(promptPath)}`
+        stdinInput = undefined
+      }
 
       logger.request(
         `activity=chat provider=claude-code model=${this.model} sandbox=${sandbox.provider} messages=${options.messages.length} resume=${resume ?? 'none'}`,
         { provider: 'claude-code', model: this.model },
       )
 
-      const rawEvents = spawnNdjson(sandbox, command, {
+      const rawEvents = spawnNdjson(sandbox, runCommand, {
         cwd,
-        input: prompt,
-        ...(options.modelOptions === undefined &&
-        this.adapterConfig.env === undefined
-          ? {}
-          : { env: this.adapterConfig.env }),
+        ...(stdinInput !== undefined ? { input: stdinInput } : {}),
+        // claude maps `bypassPermissions` to `--dangerously-skip-permissions`,
+        // which it refuses to run as root. Sandbox containers routinely run as
+        // root (Docker / Cloudflare), so set `IS_SANDBOX=1` — claude's
+        // documented escape hatch for skip-permissions in an isolated
+        // environment — merged over the sandbox env (a caller-provided value
+        // wins). Safe to set unconditionally; it is a no-op for stricter modes.
+        env: { IS_SANDBOX: '1', ...this.adapterConfig.env },
         ...(options.abortController?.signal
           ? { signal: options.abortController.signal }
           : options.request?.signal
@@ -433,6 +469,17 @@ export class ClaudeCodeTextAdapter<
       }
     } finally {
       if (bridge) await bridge.close()
+      // Remove the per-run token/prompt files. Best-effort: a cleanup failure
+      // must not mask the run's own outcome.
+      if (cleanupSandbox) {
+        for (const path of tempFiles) {
+          try {
+            await cleanupSandbox.fs.remove(path)
+          } catch {
+            // file already gone / sandbox torn down — nothing to clean up
+          }
+        }
+      }
     }
   }
 

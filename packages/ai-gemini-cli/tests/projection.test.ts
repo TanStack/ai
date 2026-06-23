@@ -109,7 +109,9 @@ describe('projectGeminiWorkspace', () => {
     expect(settingsRaw).toBeDefined()
     const settings = JSON.parse(settingsRaw ?? '{}')
     expect(settings.mcpServers.issues.url).toBe('https://mcp.example.com/mcp')
-    expect(settings.mcpServers.issues.headers.Authorization).toBe('super-secret')
+    expect(settings.mcpServers.issues.headers.Authorization).toBe(
+      'super-secret',
+    )
     expect(settingsRaw).not.toContain('__secretName')
 
     // gitSkill linked (or copied) under .gemini/skills/<basename>.
@@ -224,9 +226,7 @@ describe('projectGeminiWorkspace', () => {
     await expect(
       projectGeminiWorkspace(fake.handle, projection),
     ).resolves.toBeUndefined()
-    expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining('agentSkill'),
-    )
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('agentSkill'))
 
     warn.mockRestore()
   })

@@ -114,7 +114,10 @@ async function projectMcpServers(
   handle: SandboxHandle,
   projection: WorkspaceProjection,
 ): Promise<void> {
-  const mcpSection = buildMcpSection(projection.skills, projection.resolveSecret)
+  const mcpSection = buildMcpSection(
+    projection.skills,
+    projection.resolveSecret,
+  )
   if (mcpSection === undefined) return
 
   const target = `${projection.root}/opencode.json`
@@ -125,7 +128,11 @@ async function projectMcpServers(
     try {
       const raw = await handle.fs.read(target)
       const parsed: unknown = JSON.parse(raw)
-      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+      if (
+        typeof parsed === 'object' &&
+        parsed !== null &&
+        !Array.isArray(parsed)
+      ) {
         existing = parsed as Record<string, unknown>
       }
     } catch {

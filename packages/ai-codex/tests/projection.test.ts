@@ -113,7 +113,9 @@ describe('projectCodexWorkspace', () => {
     expect(toml).toBeDefined()
     expect(toml).toContain('[mcp_servers.issues]')
     expect(toml).toContain('url = "https://mcp.example.com/mcp"')
-    expect(toml).toContain('http_headers = { "Authorization" = "super-secret" }')
+    expect(toml).toContain(
+      'http_headers = { "Authorization" = "super-secret" }',
+    )
     expect(toml).not.toContain('__secretName')
 
     // gitSkill linked (or copied) under .codex/skills/<basename>.

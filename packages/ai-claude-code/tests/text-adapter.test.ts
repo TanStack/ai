@@ -34,7 +34,9 @@ const FAKE_CLAUDE = [
   `process.stdin.on('end', () => {`,
   `  const w = (o) => process.stdout.write(JSON.stringify(o) + '\\n')`,
   `  w({ type: 'system', subtype: 'init', session_id: 'sess-abc', model: 'haiku', tools: [] })`,
-  `  w({ type: 'assistant', message: { id: 'msg-1', content: [{ type: 'text', text: 'pong' }] }, parent_tool_use_id: null })`,
+  // Echo IS_SANDBOX so the test can assert the adapter sets it (claude refuses
+  // bypassPermissions as root without it).
+  `  w({ type: 'assistant', message: { id: 'msg-1', content: [{ type: 'text', text: 'pong IS_SANDBOX=' + process.env.IS_SANDBOX }] }, parent_tool_use_id: null })`,
   `  w({ type: 'result', subtype: 'success', result: 'pong', usage: { input_tokens: 1, output_tokens: 1 } })`,
   `})`,
 ].join('\n')
@@ -105,6 +107,9 @@ describe('claude-code in-sandbox adapter', () => {
       .map((c) => (c as { delta?: string }).delta ?? '')
       .join('')
     expect(text).toContain('pong')
+    // The adapter must set IS_SANDBOX=1 in the CLI env (claude refuses
+    // `--dangerously-skip-permissions`/bypassPermissions as root otherwise).
+    expect(text).toContain('IS_SANDBOX=1')
 
     expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(true)
 

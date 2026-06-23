@@ -1,0 +1,9 @@
+# Local dev secrets for `wrangler dev`. Copy to `.dev.vars` and fill in.
+# `.dev.vars` is gitignored; never commit real keys.
+
+# Anthropic API key for the in-sandbox `claude` CLI. Injected into the sandbox
+# env via the workspace `secrets` (never persisted to logs/snapshots).
+ANTHROPIC_API_KEY=sk-ant-...
+
+# Optional: an OAuth token instead of an API key (set one or the other).
+# CLAUDE_CODE_OAUTH_TOKEN=

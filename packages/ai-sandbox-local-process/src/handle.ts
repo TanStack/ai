@@ -33,6 +33,7 @@ export const LOCAL_PROCESS_CAPS: SandboxCapabilities = {
   env: true,
   ports: true,
   backgroundProcesses: true,
+  writableStdin: true,
   snapshots: false,
   networkPolicy: false,
   durableFilesystem: true,

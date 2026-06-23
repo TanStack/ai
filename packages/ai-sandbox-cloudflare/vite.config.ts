@@ -27,10 +27,22 @@ const config = defineConfig({
   },
 })
 
+// `cloudflare:workers` is a virtual module the Workers runtime provides at run
+// time (used by the `/agent` Durable Object building blocks). Externalize it via
+// a resolveId hook so we don't clobber the tanstack config's dep externalization.
+const externalCloudflareWorkers = {
+  name: 'external-cloudflare-virtual-modules',
+  resolveId(id: string) {
+    return id.startsWith('cloudflare:') ? { id, external: true } : null
+  },
+}
+
 export default mergeConfig(
-  config,
+  mergeConfig(config, { plugins: [externalCloudflareWorkers] }),
   tanstackViteConfig({
-    entry: ['./src/index.ts'],
+    // The node-importable provider entry, the Workers-only `/agent` entry, and
+    // the node-importable in-container `/runner` entry.
+    entry: ['./src/index.ts', './src/agent.ts', './src/runner.ts'],
     srcDir: './src',
     cjs: false,
   }),

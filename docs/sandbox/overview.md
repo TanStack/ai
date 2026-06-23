@@ -333,6 +333,55 @@ chat({
 })
 ```
 
+### Edge execution: two models
+
+Where the harness loop and its MCP tool-bridge run is a deployment choice, and
+the layer supports two shapes:
+
+- **DO-drives-container** (the default). The orchestrator runs `chat()` and the
+  tool-bridge; the container only runs the agent CLI. The bridge is served from
+  the orchestrator (a serverless `fetch` handler, no raw TCP listener) and the
+  agent reaches it across the container→orchestrator boundary, so the **whole MCP
+  protocol** crosses that boundary. The `examples/sandbox-cloudflare-agent`
+  TanStack Start app demonstrates this — UI, agent, Durable Objects, and the
+  container in one Worker.
+- **Co-located (in-container).** The harness loop AND the tool-bridge run inside
+  the container (the in-container sandbox is just `local-process`, with native
+  stdin and a localhost `node:http` bridge). The only thing that still crosses
+  back to the orchestrator is host **tool execution** — a `chat()` tool's
+  `execute()` closure (DB, secrets, app state) lives there, not in the
+  container. Enable it with `createCloudflareSandboxAgent({ mode: 'colocated' })`
+  plus a `runInContainerHarness` container program from
+  `@tanstack/ai-sandbox-cloudflare/runner`.
+
+The co-located seam is four exports from `@tanstack/ai-sandbox`. The orchestrator
+serializes its tools with `toolDescriptors(tools)` and ships the descriptors in;
+the container rebuilds them with `remoteToolStubs(descriptors, executor)`, where
+each stub's `execute()` delegates to a `RemoteToolExecutor`
+(`httpRemoteToolExecutor(url, token)` POSTs `{ name, args }` back). The
+orchestrator answers that one call with `executeHostTool(tools, name, args)`,
+which runs the real tool. So the public surface shrinks from the whole MCP
+protocol to a single authenticated tool-exec call:
+
+```ts
+import { remoteToolStubs, httpRemoteToolExecutor } from '@tanstack/ai-sandbox'
+
+// Inside the container: the orchestrator POSTed `{ messages, toolDescriptors,
+// toolExecUrl, toolExecToken }`. Rebuild its tools as stubs whose execute()
+// POSTs back; the adapter bridges them over the in-container localhost MCP
+// transport, and only that one tool-exec call leaves the container.
+chat({
+  threadId: request.threadId,
+  adapter: claudeCodeText('sonnet'),
+  messages: request.messages,
+  tools: remoteToolStubs(
+    request.toolDescriptors,
+    httpRemoteToolExecutor(request.toolExecUrl, request.toolExecToken),
+  ),
+  middleware: [withSandbox(localProcessSandbox())],
+})
+```
+
 ## File-event hooks
 
 Listen to files being created, changed, or deleted inside a sandbox — e.g. to

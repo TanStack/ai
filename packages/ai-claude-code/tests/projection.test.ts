@@ -93,7 +93,10 @@ describe('projectClaudeWorkspace', () => {
       markerPath: MARKER,
       root: ROOT,
     }
-    return { projection, gitDir: resolveGitSkillDir(ROOT, { kind: 'git', repo: 'me/my-skill' }) }
+    return {
+      projection,
+      gitDir: resolveGitSkillDir(ROOT, { kind: 'git', repo: 'me/my-skill' }),
+    }
   }
 
   it('writes .mcp.json with the secret resolved, links the gitSkill, installs the plugin, writes the marker', async () => {

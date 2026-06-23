@@ -36,6 +36,7 @@ function makeFakeHandle(
       env: true,
       ports: false,
       backgroundProcesses: false,
+      writableStdin: true,
       snapshots: false,
       networkPolicy: false,
       durableFilesystem: false,
@@ -62,7 +63,11 @@ function makeFakeHandle(
         if (override !== undefined) {
           return Promise.resolve(override)
         }
-        return Promise.resolve({ stdout: '', stderr: '', exitCode: defaultExitCode })
+        return Promise.resolve({
+          stdout: '',
+          stderr: '',
+          exitCode: defaultExitCode,
+        })
       },
       spawn: () => Promise.reject(new Error('unused')),
     },
@@ -104,7 +109,11 @@ describe('writeAgentsFile', () => {
     const root = '/sandbox/ws'
 
     // Make ln -s fail for CLAUDE.md (exitCode 1) but succeed for GEMINI.md.
-    const failResult: ExecResult = { stdout: '', stderr: 'ln: not supported', exitCode: 1 }
+    const failResult: ExecResult = {
+      stdout: '',
+      stderr: 'ln: not supported',
+      exitCode: 1,
+    }
     const execResults = new Map<string, ExecResult>([
       [`ln -s 'AGENTS.md' 'CLAUDE.md'`, failResult],
     ])

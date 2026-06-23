@@ -8,11 +8,13 @@
  * `durableFilesystem` are false — `withSandbox` re-bootstraps under the same
  * identity across cold starts.
  *
- * LIMITATION: Cloudflare background processes do not expose a writable stdin,
- * so `spawn().stdin.write` throws. Harness adapters that feed the prompt via
- * stdin (e.g. the Claude Code adapter) therefore need a stdin-capable provider
- * (local-process / Docker) or a future Cloudflare stdin path. `exec` (one-shot)
- * works fully.
+ * LIMITATION: Cloudflare background processes do not expose a writable host→
+ * process stdin, so `spawn().stdin.write` throws. This is advertised via
+ * `capabilities.writableStdin: false`; harness adapters that feed a prompt over
+ * stdin (e.g. the Claude Code adapter) detect this and instead deliver the
+ * prompt via a file + shell stdin-redirection (`claude -p … < file`), which the
+ * in-container shell handles with no host-side stdin write. `exec` (one-shot)
+ * and streamed stdout from `spawn` both work fully.
  *
  * NOTE: not runtime-verified in this repo (requires a Workers runtime); it
  * compiles against the real `@cloudflare/sandbox` types and follows the proven
@@ -35,6 +37,8 @@ export const CLOUDFLARE_CAPS: SandboxCapabilities = {
   env: true,
   ports: true,
   backgroundProcesses: true,
+  // No writable host→process stdin; stdin-fed harnesses use file-redirection.
+  writableStdin: false,
   snapshots: false,
   networkPolicy: false,
   durableFilesystem: false,
@@ -201,32 +205,56 @@ export class CloudflareHandle implements SandboxHandle {
     }
   }
 
-  private async spawnProcess(
+  private spawnProcess(
     command: string,
     opts?: ProcessOptions,
   ): Promise<SpawnHandle> {
     const stdout = new OutputQueue()
     const stderr = new OutputQueue()
-    let resolveExit: (code: number) => void
-    const exitPromise = new Promise<number>((resolve) => {
-      resolveExit = resolve
-    })
 
-    const proc = await this.sandbox.startProcess(command, {
+    // Stream over `exec({ stream: true, onOutput })` — the SAME proven command
+    // path as one-shot `exec`. The background-process API (`startProcess` +
+    // `streamProcessLogs`) does NOT deliver its `onOutput`/`onExit` callbacks
+    // here (verified under `wrangler dev`: the process runs and exits cleanly,
+    // yet no log events ever arrive), so a stdout-NDJSON harness spawned that
+    // way hangs forever. exec's streaming path emits each chunk via `onOutput`
+    // and resolves with the exit code on completion. The prompt still reaches
+    // the CLI via in-shell stdin redirection (`… < file`), which this session
+    // shell honors — `writableStdin` stays false.
+    //
+    // The caller's AbortSignal is intentionally NOT forwarded: `exec` is a
+    // Durable Object RPC and Workers RPC cannot serialize an AbortSignal
+    // ("AbortSignal serialization is not enabled"), so passing one throws
+    // before the command runs. Mid-run cancellation is therefore unavailable
+    // on this provider; a stuck run is bounded by the coordinator's watchdog
+    // and the Durable Object lifecycle instead. `kill()` is a best-effort no-op.
+    const settled = this.sandbox.exec(command, {
       ...(opts?.cwd ? { cwd: this.abs(opts.cwd) } : { cwd: this.workdir }),
       ...(opts?.env ? { env: opts.env } : {}),
+      stream: true,
       onOutput: (stream, data) => {
         if (stream === 'stdout') stdout.push(data)
         else stderr.push(data)
       },
-      onExit: (code) => {
+    })
+    // End the output queues once the command settles either way (so the stdout
+    // reader terminates), but let a failure REJECT `wait()` rather than masking
+    // it as a clean exit — the harness adapter turns that into a RUN_ERROR
+    // instead of a silent zero-output run.
+    const exitPromise = settled.then(
+      (result) => {
         stdout.end()
         stderr.end()
-        resolveExit(code ?? 0)
+        return result.exitCode
       },
-    })
+      (error: unknown) => {
+        stdout.end()
+        stderr.end()
+        throw error
+      },
+    )
 
-    return {
+    return Promise.resolve({
       pid: -1,
       stdout,
       stderr,
@@ -240,9 +268,8 @@ export class CloudflareHandle implements SandboxHandle {
         end: () => Promise.resolve(),
       },
       wait: () => exitPromise,
-      kill: (signal) =>
-        proc.kill(typeof signal === 'string' ? signal : undefined),
-    }
+      kill: () => Promise.resolve(),
+    })
   }
 
   private async connectPort(port: number): Promise<SandboxChannel> {

@@ -9,7 +9,9 @@ export interface SetupBuilder {
 
 export type SetupInput = Array<string> | ((builder: SetupBuilder) => void)
 
-export function buildSetupPlan(input: SetupInput | undefined): Array<SetupGroup> {
+export function buildSetupPlan(
+  input: SetupInput | undefined,
+): Array<SetupGroup> {
   if (input === undefined) return []
   if (Array.isArray(input)) {
     return input.map((command) => ({ kind: 'serial', command }))

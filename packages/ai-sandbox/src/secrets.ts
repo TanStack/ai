@@ -13,7 +13,9 @@ export type SecretRef = { readonly __secretName: string }
  * A map of named SecretRef properties. The underlying value registry is stored
  * under a non-enumerable symbol so iterating the object never exposes it.
  */
-export type Secrets<TKeys extends string = string> = { readonly [P in TKeys]: SecretRef }
+export type Secrets<TKeys extends string = string> = {
+  readonly [P in TKeys]: SecretRef
+}
 
 /** Internal symbol used to store the value registry on a Secrets object. */
 const REGISTRY = Symbol('secrets.registry')
@@ -58,9 +60,13 @@ export function isSecretRef(x: unknown): x is SecretRef {
 
 /** Resolve a SecretRef to its plaintext value using the secrets object. */
 export function resolveSecret(secrets: Secrets, ref: SecretRef): string {
-  const registry = Reflect.get(secrets, REGISTRY) as Map<string, string> | undefined
+  const registry = Reflect.get(secrets, REGISTRY) as
+    | Map<string, string>
+    | undefined
   if (registry === undefined) {
-    throw new Error('resolveSecret: secrets object was not created by createSecrets')
+    throw new Error(
+      'resolveSecret: secrets object was not created by createSecrets',
+    )
   }
   const value = registry.get(ref.__secretName)
   if (value === undefined) {
@@ -79,9 +85,13 @@ export function resolveBearer(secrets: Secrets, ref: BearerRef): string {
  * suitable for injecting into a process environment.
  */
 export function resolveAllSecrets(secrets: Secrets): Record<string, string> {
-  const registry = Reflect.get(secrets, REGISTRY) as Map<string, string> | undefined
+  const registry = Reflect.get(secrets, REGISTRY) as
+    | Map<string, string>
+    | undefined
   if (registry === undefined) {
-    throw new Error('resolveAllSecrets: secrets object was not created by createSecrets')
+    throw new Error(
+      'resolveAllSecrets: secrets object was not created by createSecrets',
+    )
   }
   const result: Record<string, string> = {}
   for (const [key, value] of registry.entries()) {

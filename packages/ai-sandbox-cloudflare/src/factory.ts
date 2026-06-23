@@ -1,0 +1,187 @@
+/**
+ * `createCloudflareSandboxAgent` — the headline DX: one configured function call
+ * returns the Durable Object coordinator, the Sandbox DO, and the Worker fetch
+ * handler, so a Cloudflare app's whole `worker.ts` is just export wiring:
+ *
+ * ```ts
+ * const agent = createCloudflareSandboxAgent({
+ *   adapter: () => claudeCodeText('sonnet'),
+ * })
+ * export const RunCoordinator = agent.Coordinator
+ * export const Sandbox = agent.Sandbox
+ * export default agent.worker
+ * ```
+ *
+ * Two modes, switched by `config.mode`:
+ *  - `'do-drives'` (default) → a {@link ChatSandboxCoordinator}: the DO runs
+ *    `chat()` itself and hosts the MCP tool-bridge.
+ *  - `'colocated'` → a {@link ContainerSandboxCoordinator}: an in-container
+ *    runner runs `chat()`; the DO is a thin coordinator that executes host tools.
+ *
+ * Required Env bindings (set in `wrangler.jsonc`):
+ *  - `RUN_COORDINATOR` — this coordinator DO's own namespace (so the Worker can
+ *    address it by `threadId`). Class name: whatever you export `Coordinator` as.
+ *  - `Sandbox` — the `@cloudflare/sandbox` Sandbox DO namespace (the container
+ *    hosts). Bind the exported `Sandbox` class.
+ *  - `PUBLIC_HOSTNAME` — your Worker's request hostname; the sandbox/container
+ *    uses it to reach the tool-bridge / tool-exec endpoint + port previews.
+ *  - `ANTHROPIC_API_KEY` — injected into the sandbox/container env for the CLI.
+ *
+ * NOTE: Workers-runtime code — compiles against the real Cloudflare + TanStack
+ * AI types; not runtime-verified in this repo (no Workers runtime here).
+ */
+import {
+  createSecrets,
+  defineSandbox,
+  defineWorkspace,
+} from '@tanstack/ai-sandbox'
+import { Sandbox } from '@cloudflare/sandbox'
+import { cloudflareSandbox } from './provider'
+import { ChatSandboxCoordinator } from './chat-coordinator'
+import { ContainerSandboxCoordinator } from './container-coordinator'
+import { createSandboxAgentWorker } from './worker'
+import type { ChatCoordinatorEnv, ChatRunConfig } from './chat-coordinator'
+import type {
+  ContainerCoordinatorEnv,
+  ContainerRunConfig,
+} from './container-coordinator'
+import type { HarnessId } from './protocol'
+import type { SandboxCoordinator, StartRunInput } from './coordinator'
+import type { AnyTextAdapter, AnyTool } from '@tanstack/ai'
+import type {
+  SandboxDefinition,
+  WorkspaceDefinition,
+} from '@tanstack/ai-sandbox'
+
+/**
+ * The base Env every generated app binds: the coordinator's own namespace, the
+ * Sandbox namespace, the public hostname, and the Anthropic key. The two modes
+ * extend this with exactly the coordinator base each one requires.
+ */
+export interface SandboxAgentEnv
+  extends ChatCoordinatorEnv, ContainerCoordinatorEnv {
+  /** This coordinator DO's own namespace (so the Worker can address it). */
+  RUN_COORDINATOR: DurableObjectNamespace<SandboxCoordinator<SandboxAgentEnv>>
+}
+
+/** Shared config across both modes. */
+interface BaseAgentConfig<TEnv extends SandboxAgentEnv> {
+  /** chat()-provided server tools, resolved per run (DO-drives: bridged over MCP). */
+  tools?: (input: StartRunInput, env: TEnv) => Array<AnyTool>
+}
+
+/** DO-drives config: the DO runs `chat()` with the given adapter. */
+export interface DoDrivesAgentConfig<
+  TEnv extends SandboxAgentEnv,
+> extends BaseAgentConfig<TEnv> {
+  mode?: 'do-drives'
+  /** The harness/text adapter `chat()` runs, resolved per run. */
+  adapter: (input: StartRunInput, env: TEnv) => AnyTextAdapter
+  /**
+   * The sandbox the agent runs in, resolved per run. When omitted, a default
+   * Cloudflare sandbox (one per thread, no source clone) is built from the
+   * `Sandbox` binding, `PUBLIC_HOSTNAME`, and `ANTHROPIC_API_KEY`, optionally
+   * bootstrapping `workspace`.
+   */
+  sandbox?: (input: StartRunInput, env: TEnv) => SandboxDefinition
+  /** Workspace for the default sandbox (ignored when `sandbox` is provided). */
+  workspace?: WorkspaceDefinition
+}
+
+/** Co-located config: an in-container runner runs `chat()`. */
+export interface ColocatedAgentConfig<
+  TEnv extends SandboxAgentEnv,
+> extends BaseAgentConfig<TEnv> {
+  mode: 'colocated'
+  /** Which in-sandbox harness the runner spawns. */
+  harness: HarnessId
+  /** Model id passed to that harness. */
+  model: string
+  /** Workspace the in-container runner bootstraps for the agent. */
+  workspace: WorkspaceDefinition
+}
+
+export type CloudflareSandboxAgentConfig<TEnv extends SandboxAgentEnv> =
+  | DoDrivesAgentConfig<TEnv>
+  | ColocatedAgentConfig<TEnv>
+
+/** What {@link createCloudflareSandboxAgent} returns: the app's whole worker. */
+export interface CloudflareSandboxAgent<TEnv extends SandboxAgentEnv> {
+  /** The coordinator Durable Object class — export as your `RUN_COORDINATOR` binding. */
+  Coordinator: new (
+    ctx: DurableObjectState,
+    env: TEnv,
+  ) => SandboxCoordinator<TEnv>
+  /** The `@cloudflare/sandbox` Sandbox DO class — export for the `Sandbox` binding. */
+  Sandbox: typeof Sandbox
+  /** The Worker fetch handler — `export default` it. */
+  worker: ExportedHandler<TEnv>
+}
+
+/** Build the default per-thread Cloudflare sandbox for the DO-drives mode. */
+function defaultSandbox<TEnv extends SandboxAgentEnv>(
+  env: TEnv,
+  workspace: WorkspaceDefinition | undefined,
+): SandboxDefinition {
+  return defineSandbox({
+    id: 'cf-edge-agent',
+    provider: cloudflareSandbox({
+      binding: env.Sandbox,
+      previewHostname: env.PUBLIC_HOSTNAME,
+    }),
+    workspace:
+      workspace ??
+      defineWorkspace({
+        // The container image ships the harness CLI; no source to clone. The
+        // Anthropic key is injected into the sandbox env, never logged.
+        source: { type: 'none' },
+        secrets: createSecrets({ ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY }),
+      }),
+    // One sandbox per thread, so a follow-up run resumes the same workspace.
+    lifecycle: { reuse: 'thread' },
+  })
+}
+
+/** Resolve the coordinator DO that owns a thread's runs (`RUN_COORDINATOR`). */
+function resolveCoordinator<TEnv extends SandboxAgentEnv>(
+  env: TEnv,
+  threadId: string,
+): DurableObjectStub<SandboxCoordinator<TEnv>> {
+  return env.RUN_COORDINATOR.get(env.RUN_COORDINATOR.idFromName(threadId))
+}
+
+export function createCloudflareSandboxAgent<
+  TEnv extends SandboxAgentEnv = SandboxAgentEnv,
+>(config: CloudflareSandboxAgentConfig<TEnv>): CloudflareSandboxAgent<TEnv> {
+  const worker = createSandboxAgentWorker<TEnv>(resolveCoordinator)
+
+  if (config.mode === 'colocated') {
+    const colocated = config
+    class ConfiguredContainerCoordinator extends ContainerSandboxCoordinator<TEnv> {
+      protected override config(input: StartRunInput): ContainerRunConfig {
+        return {
+          hostTools: colocated.tools?.(input, this.env) ?? [],
+          workspace: colocated.workspace,
+          harness: colocated.harness,
+          model: colocated.model,
+        }
+      }
+    }
+    return { Coordinator: ConfiguredContainerCoordinator, Sandbox, worker }
+  }
+
+  const doDrives = config
+  class ConfiguredChatCoordinator extends ChatSandboxCoordinator<TEnv> {
+    protected override config(input: StartRunInput): ChatRunConfig {
+      const tools = doDrives.tools?.(input, this.env)
+      return {
+        adapter: doDrives.adapter(input, this.env),
+        sandbox:
+          doDrives.sandbox?.(input, this.env) ??
+          defaultSandbox(this.env, doDrives.workspace),
+        ...(tools !== undefined ? { tools } : {}),
+      }
+    }
+  }
+  return { Coordinator: ConfiguredChatCoordinator, Sandbox, worker }
+}

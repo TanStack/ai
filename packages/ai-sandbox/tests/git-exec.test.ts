@@ -32,7 +32,10 @@ describe('createExecBackedGit security', () => {
     const git = createExecBackedGit(process, '/workspace')
     await expect(
       // An untyped caller could smuggle shell metacharacters via `depth`.
-      git.clone({ url: 'https://github.com/me/app', depth: '1; rm -rf /' as never }),
+      git.clone({
+        url: 'https://github.com/me/app',
+        depth: '1; rm -rf /' as never,
+      }),
     ).rejects.toThrow(/depth must be a positive integer/)
     await expect(
       git.clone({ url: 'https://github.com/me/app', depth: 0 }),

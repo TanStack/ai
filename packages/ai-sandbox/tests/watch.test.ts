@@ -19,6 +19,7 @@ function fakeHandle(fs: Partial<SandboxHandle['fs']>): SandboxHandle {
       env: true,
       ports: false,
       backgroundProcesses: false,
+      writableStdin: true,
       snapshots: false,
       networkPolicy: false,
       durableFilesystem: false,

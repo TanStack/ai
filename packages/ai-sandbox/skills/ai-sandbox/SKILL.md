@@ -88,8 +88,13 @@ and `secrets.GH` / `bearer(secrets.GH)` in MCP header values:
 
 ```typescript
 import {
-  agentSkill, gitSkill, mcpSkill, fileSkill,
-  bearer, createSecrets, defineWorkspace,
+  agentSkill,
+  gitSkill,
+  mcpSkill,
+  fileSkill,
+  bearer,
+  createSecrets,
+  defineWorkspace,
 } from '@tanstack/ai-sandbox'
 
 const secrets = createSecrets({ GH: process.env.GH_TOKEN ?? '' })
@@ -98,10 +103,10 @@ defineWorkspace({
   source: { type: 'git', url: 'https://github.com/owner/repo' },
   secrets,
   skills: [
-    agentSkill('tanstack'),           // named skill (no-op with warning on CLIs that lack the concept)
+    agentSkill('tanstack'), // named skill (no-op with warning on CLIs that lack the concept)
     gitSkill({
       repo: 'owner/private-skills',
-      secret: secrets.GH,             // resolved at bootstrap time, never stored
+      secret: secrets.GH, // resolved at bootstrap time, never stored
       // into: '/abs/path/inside/sandbox'  // optional; defaults to .tanstack-skills/<repo>
     }),
     mcpSkill('my-mcp', {
@@ -133,8 +138,8 @@ repo is cloned. Defaults to `<root>/.tanstack-skills/<repo-basename>`.
 ```typescript
 import { githubRepo, defineWorkspace } from '@tanstack/ai-sandbox'
 
-defineWorkspace({ source: githubRepo({ repo: 'owner/app' }) })               // depth 1 (default)
-defineWorkspace({ source: githubRepo({ repo: 'owner/app', depth: 10 }) })    // 10 commits
+defineWorkspace({ source: githubRepo({ repo: 'owner/app' }) }) // depth 1 (default)
+defineWorkspace({ source: githubRepo({ repo: 'owner/app', depth: 10 }) }) // 10 commits
 defineWorkspace({ source: githubRepo({ repo: 'owner/app', depth: 'full' }) }) // full history
 ```
 
@@ -216,7 +221,11 @@ Declare hooks on `defineSandbox({ hooks })` (sandbox-scoped) or on any chat
 middleware via the `sandbox` group (run-scoped):
 
 ```typescript
-import { defineSandbox, defineChatMiddleware, withSandbox } from '@tanstack/ai-sandbox'
+import {
+  defineSandbox,
+  defineChatMiddleware,
+  withSandbox,
+} from '@tanstack/ai-sandbox'
 import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
 
 // Sandbox-scoped hooks (all optional):
@@ -224,13 +233,13 @@ const sandbox = defineSandbox({
   id: 'repo-agent',
   provider: dockerSandbox({ image: 'node:22' }),
   hooks: {
-    onFile:       (e) => console.log(e.type, e.path), // catch-all
+    onFile: (e) => console.log(e.type, e.path), // catch-all
     onFileCreate: (e) => console.log('created', e.path),
     onFileChange: (e) => console.log('changed', e.path),
     onFileDelete: (e) => console.log('deleted', e.path),
-    onReady:      (handle) => console.log('ready', handle.id),
-    onError:      (err) => console.error(err),
-    onDestroy:    () => console.log('destroyed'),
+    onReady: (handle) => console.log('ready', handle.id),
+    onError: (err) => console.error(err),
+    onDestroy: () => console.log('destroyed'),
   },
   fileEvents: true, // default; set false to disable watching entirely
 })
@@ -239,7 +248,7 @@ const sandbox = defineSandbox({
 const auditMiddleware = defineChatMiddleware({
   name: 'audit',
   sandbox: {
-    onFile:       (ctx, e) => console.log(ctx.runId, e.type, e.path),
+    onFile: (ctx, e) => console.log(ctx.runId, e.type, e.path),
     onFileCreate: (ctx, e) => db.log({ run: ctx.runId, event: e }),
     onFileChange: (ctx, e) => metrics.increment('file.change'),
     onFileDelete: (ctx, e) => console.warn('deleted', e.path),
@@ -251,7 +260,12 @@ const auditMiddleware = defineChatMiddleware({
 for await (const chunk of stream) {
   if (chunk.type === 'CUSTOM' && chunk.name === 'sandbox.file') {
     const value = chunk.value
-    if (value !== null && typeof value === 'object' && 'type' in value && 'path' in value) {
+    if (
+      value !== null &&
+      typeof value === 'object' &&
+      'type' in value &&
+      'path' in value
+    ) {
       console.log('file event', value) // { type, path, timestamp }
     }
   }
@@ -278,6 +292,47 @@ and lifecycle transitions:
 chat({ threadId, adapter, messages, debug: { sandbox: true } })
 // or debug: true to enable all categories
 ```
+
+## Edge / serverless execution
+
+A request-scoped Worker can't hold a multi-minute agent run open. The
+serverless/edge model splits this: a **trigger** starts the run and returns
+immediately, a **durable orchestrator** drives it, and clients **tail from a
+resumable cursor**.
+
+Core primitives (`@tanstack/ai-sandbox`, transport- and runtime-agnostic):
+
+- **`RunEventLog` / `InMemoryRunEventLog`** — append-only, `seq`-indexed log of a
+  run's `StreamChunk`s with replay-then-tail reads. A dropped connection / new
+  tab / hibernated orchestrator reconnect by passing their last-seen `seq`
+  (`read({ fromSeq })`). `TerminalRunStatus` = `done | error | aborted`.
+- **`pipeToRunLog` / `RunController`** — the run driver. `pipeToRunLog` pumps a
+  `chat()` stream into a log and **never rejects**: a thrown stream error becomes
+  a terminal `RUN_ERROR` event, so detached clients always observe failures.
+  `RunController.start` is fire-and-track; `attach(runId, { fromSeq })` tails;
+  `drain()` awaits in-flight runs (e.g. in a `waitUntil`).
+- **Transport-agnostic tool-bridge** — `createToolBridgeCore` +
+  `handleBridgeJsonRpc` are the portable core; `startHostToolBridge` is the
+  `node:http` host transport. The `ToolBridgeProvisioner` capability injects the
+  transport, so an edge orchestrator serves the same core from its own `fetch`
+  handler (no raw TCP listener). Default = host transport.
+- **Co-located host-tool seam** — `toolDescriptors` / `remoteToolStubs` /
+  `httpRemoteToolExecutor` (container side) + `executeHostTool` (orchestrator
+  side): only chat()-tool EXECUTION crosses the container→orchestrator boundary,
+  not the whole MCP protocol.
+- **`SandboxCapabilities.writableStdin`** — `false` for providers (e.g.
+  Cloudflare) with no writable host→process stdin; stdin-fed harnesses then
+  deliver the prompt via a file + in-shell redirection (`claude -p … < file`).
+
+Cloudflare runtime (`@tanstack/ai-sandbox-cloudflare`):
+
+- `createCloudflareSandboxAgent(config)` → `{ Coordinator, Sandbox, worker }` —
+  an app's `worker.ts` is one configured call plus the wrangler-required DO
+  re-exports. Two models via `mode`: `do-drives` (the DO runs `chat()`) and
+  `colocated` (harness + bridge run in-container; the DO is a thin coordinator,
+  pair with `runInContainerHarness` from `/runner`).
+- `DurableObjectRunEventLog` mirrors `InMemoryRunEventLog` over DO storage;
+  `timingSafeBearerEqualWeb` is the Web-Crypto constant-time bearer check.
 
 ## Events
 

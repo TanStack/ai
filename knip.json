@@ -39,6 +39,9 @@
     "packages/ai-client": {
       "ignoreDependencies": ["@standard-schema/spec"]
     },
+    "packages/ai-sandbox-cloudflare": {
+      "ignoreDependencies": ["cloudflare"]
+    },
     "packages/ai-react-ui": {
       "ignoreDependencies": ["react-dom"]
     },

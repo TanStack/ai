@@ -30,6 +30,7 @@ export const DOCKER_CAPS: SandboxCapabilities = {
   env: true,
   ports: true,
   backgroundProcesses: true,
+  writableStdin: true,
   snapshots: true,
   networkPolicy: false,
   durableFilesystem: true, // container fs persists across stop/start (not removal)

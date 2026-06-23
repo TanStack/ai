@@ -43,7 +43,13 @@ export function githubRepo(input: {
   const url = input.repo.startsWith('http')
     ? input.repo
     : `https://github.com/${input.repo}.git`
-  return { type: 'git', url, ref: input.ref, auth: input.auth, depth: input.depth }
+  return {
+    type: 'git',
+    url,
+    ref: input.ref,
+    auth: input.auth,
+    depth: input.depth,
+  }
 }
 
 export function localSource(path: string): WorkspaceSource {
@@ -89,10 +95,7 @@ export function agentSkill(name: string): WorkspaceSkill {
 }
 
 /** Project an MCP server into the harness. Header values may be SecretRefs. */
-export function mcpSkill(
-  name: string,
-  config: McpConfig,
-): WorkspaceSkill {
+export function mcpSkill(name: string, config: McpConfig): WorkspaceSkill {
   return { kind: 'mcp', name, config }
 }
 
