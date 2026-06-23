@@ -33,6 +33,41 @@ The resolved recording has:
 - `base64` — the raw base64 bytes
 - `blob`, `mimeType`, `durationMs`
 
+The same value is also available reactively as `content` — see [Reactive content](#reactive-content) below.
+
+## Reactive content
+
+`content` holds the latest resolved recording (or `null` before the first
+`stop()`). Read it directly without awaiting `stop()`:
+
+```tsx
+const { content, isRecording, start, stop } = useAudioRecorder()
+// content is AudioRecording | null — the latest recording
+```
+
+In other frameworks `content` follows the same reactivity shape as the other
+fields: an accessor in Solid (`content()`), a readonly ref in Vue
+(`content.value`), a getter in Svelte (`recorder.content`), and a `Signal` in
+Angular (`content()`).
+
+## Transforming the recording
+
+Pass `onComplete` to convert the recording into any value. `stop()` resolves to
+the transformed value, and `content` reflects it too:
+
+```tsx
+const { content, stop } = useAudioRecorder({
+  onComplete: async (recording) => {
+    const res = await fetch('/api/upload', { method: 'POST', body: recording.blob })
+    const { url } = await res.json()
+    return url // content and stop() now resolve to string
+  },
+})
+```
+
+Without `onComplete` you get the raw `AudioRecording` from both `stop()` and
+`content`.
+
 ## Sending a recording in chat
 
 ```tsx

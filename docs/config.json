@@ -255,7 +255,8 @@
         {
           "label": "Audio Recording",
           "to": "media/audio-recording",
-          "addedAt": "2026-06-23"
+          "addedAt": "2026-06-23",
+          "updatedAt": "2026-06-23"
         },
         {
           "label": "Audio Generation",
