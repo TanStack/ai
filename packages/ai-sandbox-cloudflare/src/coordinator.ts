@@ -45,15 +45,6 @@ export interface StartRunInput {
   runId: string
   threadId: string
   messages: Array<ModelMessage>
-  /**
-   * The host the trigger request arrived on, captured by the Worker from
-   * `POST /runs`. Useful for dev tunnels (where the host is dynamic), but it is
-   * CLIENT-CONTROLLED, so coordinators only use it when `TRUST_REQUEST_HOST` is
-   * opted in — otherwise `env.PUBLIC_HOSTNAME` is authoritative. The per-run bridge
-   * / tool-exec bearer tokens ride the resulting URL, so trusting an unvalidated
-   * `Host` in production would be a token-exfil vector.
-   */
-  publicHost?: string
 }
 
 /** Cursor stashed on each hibernatable WebSocket so it survives eviction. */

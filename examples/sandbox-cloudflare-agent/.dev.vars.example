@@ -7,9 +7,3 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 # Optional: an OAuth token instead of an API key (set one or the other).
 # CLAUDE_CODE_OAUTH_TOKEN=
-
-# DEV ONLY. Derive the bridge/tool-exec/preview host from the trigger request's
-# host instead of PUBLIC_HOSTNAME, so a dev tunnel (`pnpm dev:tunnel`) works when
-# you open the UI at the tunnel URL. The request `Host` is client-controlled and
-# the per-run bearer token rides the derived URL, so NEVER set this in production.
-# TRUST_REQUEST_HOST=1

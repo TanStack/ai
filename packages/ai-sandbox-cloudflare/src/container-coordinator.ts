@@ -56,13 +56,6 @@ export interface ContainerCoordinatorEnv {
   PUBLIC_HOSTNAME: string
   /** Anthropic key injected into the CONTAINER env for the in-container CLI. */
   ANTHROPIC_API_KEY: string
-  /**
-   * Opt-in (`'1'`) to derive the tool-exec host from the trigger REQUEST's host
-   * instead of `PUBLIC_HOSTNAME` (dev tunnels). The request `Host` is client-
-   * controlled and the tool-exec token rides this URL, so leave UNSET in
-   * production. See {@link ChatCoordinatorEnv.TRUST_REQUEST_HOST}.
-   */
-  TRUST_REQUEST_HOST?: string
 }
 
 /** What {@link ContainerSandboxCoordinator.config} returns for one run. */
@@ -250,11 +243,9 @@ export abstract class ContainerSandboxCoordinator<
       workspace: runConfig.workspace,
       // Serialize the DO's real tools to wire descriptors for the container.
       toolDescriptors: toolDescriptors(runConfig.hostTools),
-      // The container calls back here for host-tool EXECUTION. `PUBLIC_HOSTNAME` is
-      // authoritative; only fall back to the (client-controlled) request host when
-      // `TRUST_REQUEST_HOST` is opted in (dev tunnels) — the tool-exec token rides
-      // this URL, so an unvalidated `Host` in prod would leak it.
-      toolExecUrl: `https://${this.env.TRUST_REQUEST_HOST === '1' && input.publicHost ? input.publicHost : this.env.PUBLIC_HOSTNAME}/tool-exec/${input.runId}?threadId=${encodeURIComponent(input.threadId)}`,
+      // The container calls back here for host-tool EXECUTION. It must be a URL
+      // the CONTAINER can reach, so it goes via the Worker's public hostname.
+      toolExecUrl: `https://${this.env.PUBLIC_HOSTNAME}/tool-exec/${input.runId}?threadId=${encodeURIComponent(input.threadId)}`,
       toolExecToken: token,
     }
     const response = await sandbox.containerFetch(
