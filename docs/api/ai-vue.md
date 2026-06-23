@@ -32,12 +32,20 @@ import {
   createChatClientOptions,
   type InferChatMessages,
 } from "@tanstack/ai-client";
-import { updateUIDef } from "./tool-definitions";
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
 import { ref } from "vue";
-const notification = ref<{ message: string } | null>(null);
+
+const updateUIDef = toolDefinition({
+  name: "updateUI",
+  description: "Show a notification in the UI",
+  inputSchema: z.object({ message: z.string() }),
+});
+
+const notification = ref<string | null>(null);
 
 // In <script setup>
-const updateUI = updateUIDef.client((input: any) => {
+const updateUI = updateUIDef.client((input) => {
   notification.value = input.message;
   return { success: true };
 });
@@ -239,9 +247,22 @@ import {
   createChatClientOptions,
   type InferChatMessages,
 } from "@tanstack/ai-client";
-import { updateUIDef, saveToStorageDef } from "./tool-definitions";
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
 
-const notification = ref(null);
+const updateUIDef = toolDefinition({
+  name: "updateUI",
+  description: "Show a notification in the UI",
+  inputSchema: z.object({ message: z.string(), type: z.string() }),
+});
+
+const saveToStorageDef = toolDefinition({
+  name: "saveToStorage",
+  description: "Save a value to localStorage",
+  inputSchema: z.object({ key: z.string(), value: z.string() }),
+});
+
+const notification = ref<{ message: string; type: string } | null>(null);
 
 // Create client implementations
 const updateUI = updateUIDef.client((input) => {

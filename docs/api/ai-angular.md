@@ -238,7 +238,20 @@ import {
   createChatClientOptions,
   type InferChatMessages,
 } from "@tanstack/ai-client";
-import { updateUIDef, saveToStorageDef } from "./tool-definitions";
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
+
+const updateUIDef = toolDefinition({
+  name: "updateUI",
+  description: "Show a notification in the UI",
+  inputSchema: z.object({ message: z.string(), type: z.string() }),
+});
+
+const saveToStorageDef = toolDefinition({
+  name: "saveToStorage",
+  description: "Save a value to localStorage",
+  inputSchema: z.object({ key: z.string(), value: z.string() }),
+});
 
 @Component({
   selector: "app-typed-chat",
@@ -256,12 +269,12 @@ import { updateUIDef, saveToStorageDef } from "./tool-definitions";
 })
 export class TypedChatComponent {
   // Create client implementations
-  private updateUI = updateUIDef.client((input: any) => {
+  private updateUI = updateUIDef.client((input) => {
     // input is fully typed!
     return { success: true };
   });
 
-  private saveToStorage = saveToStorageDef.client((input: any) => {
+  private saveToStorage = saveToStorageDef.client((input) => {
     localStorage.setItem(input.key, input.value);
     return { saved: true };
   });

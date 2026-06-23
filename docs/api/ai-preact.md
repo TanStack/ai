@@ -31,13 +31,20 @@ import {
   createChatClientOptions, 
   type InferChatMessages 
 } from "@tanstack/ai-client";
-import { updateUIDef } from "./tool-definitions";
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
 import { useState } from "preact/hooks";
+
+const updateUIDef = toolDefinition({
+  name: "updateUI",
+  description: "Show a notification in the UI",
+  inputSchema: z.object({ message: z.string() }),
+});
 
 function ChatComponent() {
   const [, setNotification] = useState<string | null>(null);
   // Create client tool implementations
-  const updateUI = updateUIDef.client((input: any) => {
+  const updateUI = updateUIDef.client((input) => {
     setNotification(input.message);
     return { success: true };
   });
@@ -243,20 +250,33 @@ import {
   createChatClientOptions, 
   type InferChatMessages 
 } from "@tanstack/ai-client";
-import { updateUIDef, saveToStorageDef } from "./tool-definitions";
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
 import { useState } from "preact/hooks";
+
+const updateUIDef = toolDefinition({
+  name: "updateUI",
+  description: "Show a notification in the UI",
+  inputSchema: z.object({ message: z.string(), type: z.string() }),
+});
+
+const saveToStorageDef = toolDefinition({
+  name: "saveToStorage",
+  description: "Save a value to localStorage",
+  inputSchema: z.object({ key: z.string(), value: z.string() }),
+});
 
 export function ChatWithClientTools() {
   const [notification, setNotification] = useState<{ message: string; type: string } | null>(null);
 
   // Create client implementations
-  const updateUI = updateUIDef.client((input: any) => {
+  const updateUI = updateUIDef.client((input) => {
     // ✅ input is fully typed!
     setNotification({ message: input.message, type: input.type });
     return { success: true };
   });
 
-  const saveToStorage = saveToStorageDef.client((input: any) => {
+  const saveToStorage = saveToStorageDef.client((input) => {
     localStorage.setItem(input.key, input.value);
     return { saved: true };
   });
