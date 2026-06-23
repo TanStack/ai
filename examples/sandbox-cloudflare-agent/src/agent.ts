@@ -95,9 +95,14 @@ const exposePreviewTool = (input: StartRunInput, env: SandboxAgentEnv) =>
     }),
   }).server(async ({ port }) => {
     const sandbox = getSandbox(env.Sandbox, input.threadId)
-    const { url } = await sandbox.exposePort(port, {
-      hostname: env.PUBLIC_HOSTNAME,
-    })
+    // `PUBLIC_HOSTNAME` is authoritative; only use the (client-controlled) request
+    // host for dev tunnels, gated by the same `TRUST_REQUEST_HOST` opt-in the
+    // bridge uses (see the package's coordinators).
+    const hostname =
+      env.TRUST_REQUEST_HOST === '1' && input.publicHost
+        ? input.publicHost
+        : env.PUBLIC_HOSTNAME
+    const { url } = await sandbox.exposePort(port, { hostname })
     return { url }
   })
 

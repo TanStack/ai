@@ -47,6 +47,14 @@ import type {
 export interface ChatCoordinatorEnv {
   /** Public hostname the SANDBOX uses to reach the tool-bridge + previews. */
   PUBLIC_HOSTNAME: string
+  /**
+   * Opt-in (`'1'`) to derive the bridge host from the trigger REQUEST's host
+   * instead of `PUBLIC_HOSTNAME`. Convenient for dev tunnels (the host is dynamic),
+   * but the request `Host` is client-controlled, so a poisoned value would send the
+   * per-run bearer token — and the agent's MCP tool channel — to an attacker host.
+   * Leave UNSET in production: `PUBLIC_HOSTNAME` stays authoritative there.
+   */
+  TRUST_REQUEST_HOST?: string
 }
 
 /** What {@link ChatSandboxCoordinator.config} returns for one run. */
@@ -167,9 +175,17 @@ export abstract class ChatSandboxCoordinator<
             : {}),
         })
         bridges.set(runId, { token, core })
+        // `PUBLIC_HOSTNAME` is authoritative. Only fall back to the (client-
+        // controlled) request host when explicitly opted in — see
+        // `TRUST_REQUEST_HOST`. The bearer token rides this URL, so trusting an
+        // unvalidated `Host` in production would be a token-exfil vector.
+        const host =
+          env.TRUST_REQUEST_HOST === '1' && input.publicHost
+            ? input.publicHost
+            : env.PUBLIC_HOSTNAME
         return Promise.resolve({
           name: 'tanstack',
-          url: `https://${env.PUBLIC_HOSTNAME}/_bridge/${runId}?threadId=${encodeURIComponent(threadId)}`,
+          url: `https://${host}/_bridge/${runId}?threadId=${encodeURIComponent(threadId)}`,
           token,
           close: () => {
             bridges.delete(runId)

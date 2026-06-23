@@ -127,6 +127,11 @@ export function createSandboxAgentWorker<TEnv>(
           runId,
           threadId: body.threadId,
           messages: body.messages,
+          // The host this request arrived on. Coordinators only trust it when
+          // `TRUST_REQUEST_HOST` is opted in (dev tunnels); otherwise
+          // `PUBLIC_HOSTNAME` wins. It's client-controlled, so capturing it is
+          // harmless but trusting it by default would be a `Host`-injection vector.
+          publicHost: url.host,
         }
         // RPC into the coordinator. `startRun` registers the run and returns
         // immediately under `ctx.waitUntil`; we do NOT await the agent loop.

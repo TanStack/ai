@@ -247,17 +247,23 @@ pnpm dev                            # http://localhost:3001
 > # …or press `t + Enter` in a running `pnpm dev` session.
 > ```
 >
-> Then point the Worker at the tunnel hostname so the bridge URL matches: copy the
-> printed `*.trycloudflare.com` host into `.dev.vars` as
-> `PUBLIC_HOSTNAME=<that-host>` and restart. The container now reaches the bridge
-> over the tunnel, so agent runs work locally.
+> You don't have to copy the tunnel hostname anywhere: set `TRUST_REQUEST_HOST=1`
+> in `.dev.vars` and **open the UI at the tunnel URL** (not `localhost`). The Worker
+> then derives the bridge / tool-exec / preview host from the request it arrived on,
+> so it matches the tunnel automatically.
+>
+> > ⚠️ `TRUST_REQUEST_HOST` trusts the request `Host` header, which is
+> > client-controlled — the per-run bearer token rides the derived URL. It's a
+> > **dev-only** convenience; **never set it in production**, where `PUBLIC_HOSTNAME`
+> > stays authoritative.
 >
 > A **quick** tunnel serves only one hostname, so the **tool-bridge works but
 > preview URLs don't** (they need wildcard subdomains). For previews locally too,
 > use a **named tunnel** (`tunnel: { name: '…' }` in `vite.config.ts`) with a
-> wildcard route (`*.dev.yourdomain.com → http://localhost:3001`) and a stable
-> `PUBLIC_HOSTNAME=dev.yourdomain.com` you set once. Otherwise, deploy to see
-> previews.
+> wildcard route (`*.dev.yourdomain.com → http://localhost:3001`). With a named
+> tunnel the host is stable, so you can set `PUBLIC_HOSTNAME=dev.yourdomain.com`
+> once and **leave `TRUST_REQUEST_HOST` off** — the more secure option. Otherwise,
+> deploy to see previews.
 
 Open `http://localhost:3001` for the chat UI, or drive the agent's HTTP surface
 directly:
