@@ -1,5 +1,23 @@
 # @tanstack/ai-code-mode-skills
 
+## 0.3.0
+
+### Minor Changes
+
+- [#736](https://github.com/TanStack/ai/pull/736) [`6caac6b`](https://github.com/TanStack/ai/commit/6caac6b52881b0d5a9f7dc741e3f70a00b7137a9) - Make the `@tanstack/ai-code-mode-skills` root export Worker/browser-safe.
+
+  The root entry previously re-exported `createFileSkillStorage` (via `export * from './storage'`), which eagerly pulled in `node:fs` / `node:path`. This broke Cloudflare Workers and browser bundlers even for consumers that only used non-storage helpers like `createSkillManagementTools` or `createSkillsSystemPrompt`.
+
+  The Node-only file storage now lives **only** behind the `@tanstack/ai-code-mode-skills/storage` subpath. The root entry still re-exports the browser-safe `createMemorySkillStorage`.
+
+  **Breaking:** import `createFileSkillStorage` from `@tanstack/ai-code-mode-skills/storage` instead of the package root.
+
+### Patch Changes
+
+- Updated dependencies [[`31de22b`](https://github.com/TanStack/ai/commit/31de22b1ae780c53e3abbf9cf17e1db7b62de84a)]:
+  - @tanstack/ai@0.34.0
+  - @tanstack/ai-code-mode@0.2.11
+
 ## 0.2.10
 
 ### Patch Changes
