@@ -1060,6 +1060,9 @@ importers:
       '@tanstack/ai-event-client':
         specifier: workspace:*
         version: link:../ai-event-client
+      '@tanstack/ai-utils':
+        specifier: workspace:*
+        version: link:../ai-utils
       partial-json:
         specifier: ^0.1.7
         version: 0.1.7
@@ -1175,9 +1178,9 @@ importers:
 
   packages/ai-code-mode:
     dependencies:
-      esbuild:
-        specifier: ^0.25.12
-        version: 0.25.12
+      sucrase:
+        specifier: ^3.35.0
+        version: 3.35.1
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*

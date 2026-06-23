@@ -1,16 +1,16 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
-  createCapability,
   CapabilityRegistry,
+  createCapability,
 } from '../src/activities/chat/middleware/capabilities'
 import { validateCapabilities } from '../src/activities/chat/middleware/validate'
 import { createChatMiddleware } from '../src/activities/chat/middleware/builder'
 import { defineChatMiddleware } from '../src/activities/chat/middleware/define'
-import type { CapabilityContext } from '../src/activities/chat/middleware/capabilities'
 import { MiddlewareRunner } from '../src/activities/chat/middleware/compose'
 import { resolveDebugOption } from '../src/logger/resolve'
 import { chat } from '../src'
-import { createMockAdapter, ev, collectChunks } from './test-utils'
+import { collectChunks, createMockAdapter, ev } from './test-utils'
+import type { CapabilityContext } from '../src/activities/chat/middleware/capabilities'
 import type {
   ChatMiddleware,
   ChatMiddlewareContext,
@@ -80,6 +80,7 @@ function makeRunnerCtx(): ChatMiddlewareContext {
     streamId: 's',
     runId: 'run',
     threadId: 't',
+    activity: 'chat',
     phase: 'init',
     iteration: 0,
     chunkIndex: 0,

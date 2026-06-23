@@ -215,7 +215,7 @@ For full configuration options for each driver, see [Isolate Drivers](./code-mod
 
 These utilities are used internally and are exported for custom pipelines:
 
-- **`stripTypeScript(code)`** — Strips TypeScript syntax using esbuild, converting to plain JavaScript.
+- **`stripTypeScript(code)`** — Strips TypeScript syntax using sucrase (edge-safe, no native binary), converting to plain JavaScript.
 - **`toolsToBindings(tools, prefix?)`** — Converts TanStack AI tools into `Record<string, ToolBinding>` for sandbox injection.
 - **`generateTypeStubs(bindings, options?)`** — Generates TypeScript type declarations from tool bindings for system prompts.
 

@@ -382,6 +382,73 @@ describe('OpenRouter adapter option mapping', () => {
     }
   })
 
+  it('emits parentMessageId on tool-first tool calls matching the assistant message id', async () => {
+    // Tool call streams before any text content. parentMessageId must bind the
+    // tool call to the same assistant message id the eventual TEXT_MESSAGE_START
+    // uses so the message id stays stable mid-stream (#477).
+    const streamChunks = [
+      {
+        id: 'chatcmpl-tf',
+        model: 'openai/gpt-4o-mini',
+        choices: [
+          {
+            delta: {
+              toolCalls: [
+                {
+                  index: 0,
+                  id: 'call_tf',
+                  type: 'function',
+                  function: {
+                    name: 'lookup_weather',
+                    arguments: '{"location":"Berlin"}',
+                  },
+                },
+              ],
+            },
+            finishReason: null,
+          },
+        ],
+      },
+      {
+        id: 'chatcmpl-tf',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'It is sunny.' }, finishReason: null }],
+      },
+      {
+        id: 'chatcmpl-tf',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: {}, finishReason: 'stop' }],
+        usage: { promptTokens: 10, completionTokens: 7, totalTokens: 17 },
+      },
+    ]
+
+    setupMockSdkClient(streamChunks)
+
+    const adapter = createAdapter()
+
+    const chunks: Array<StreamChunk> = []
+    for await (const chunk of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [{ role: 'user', content: 'What is the weather in Berlin?' }],
+      tools: [weatherTool],
+      logger: testLogger,
+    })) {
+      chunks.push(chunk)
+    }
+
+    const textStart = chunks.find((c) => c.type === 'TEXT_MESSAGE_START')
+    const toolStart = chunks.find((c) => c.type === 'TOOL_CALL_START')
+
+    expect(textStart?.type).toBe('TEXT_MESSAGE_START')
+    expect(toolStart?.type).toBe('TOOL_CALL_START')
+    if (
+      textStart?.type === 'TEXT_MESSAGE_START' &&
+      toolStart?.type === 'TOOL_CALL_START'
+    ) {
+      expect(toolStart.parentMessageId).toBe(textStart.messageId)
+    }
+  })
+
   it('handles multimodal input with text and image', async () => {
     const streamChunks = [
       {
@@ -1249,7 +1316,13 @@ describe('OpenRouter structured output', () => {
       outputSchema,
     })
 
-    expect(result).toEqual({ name: 'Alice', age: 30, nickname: null })
+    // `nickname` was optional, so strict-mode widening made it `required` +
+    // nullable and the provider returned `null` for the absent value. The
+    // engine un-widens that synthesized null before returning, so the optional
+    // field reads back as absent — matching `.optional()` semantics — rather
+    // than leaking the synthetic `null` through.
+    expect(result).toEqual({ name: 'Alice', age: 30 })
+    expect('nickname' in (result as object)).toBe(false)
 
     // The structured-output streaming call carries the strict-transformed schema.
     const structuredCall = mockSend.mock.calls.find(
@@ -1533,16 +1606,39 @@ describe('OpenRouter modelOptions pass-through', () => {
     expect(params.maxCompletionTokens).toBe(9999)
   })
 
-  it('forwards root metadata to the request (same as the responses adapter)', async () => {
+  it('does not forward root observability metadata to the request (#735)', async () => {
     setupMockSdkClient(minimalStreamChunks)
     const adapter = createAdapter()
 
     for await (const _ of chat({
       adapter,
       messages: [{ role: 'user', content: 'test' }],
-      // Root `metadata` is still part of the contract; it must not be dropped
-      // by the chat-completions request builder.
-      metadata: { env: 'test' },
+      // Root `metadata` is observability-only (middleware, devtools, event
+      // client) and may carry structured values; the SDK validates wire
+      // `chatRequest.metadata` as `Record<string, string>`, so forwarding it
+      // fails client-side Zod validation on every call.
+      metadata: { tags: ['a', 'b'], prompt: { name: 'p', version: 1 } },
+    })) {
+      // consume
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const params = rawParams.chatRequest
+    expect(params).not.toHaveProperty('metadata')
+  })
+
+  it('root metadata does not clobber modelOptions.metadata (#735)', async () => {
+    setupMockSdkClient(minimalStreamChunks)
+    const adapter = createAdapter()
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'test' }],
+      metadata: { observationName: 'my-call' },
+      // `modelOptions.metadata` is the typed home for OpenRouter wire
+      // metadata; it must reach the request untouched even when root
+      // observability metadata is also present.
+      modelOptions: { metadata: { env: 'test' } } as OpenRouterTextModelOptions,
     })) {
       // consume
     }

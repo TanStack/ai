@@ -90,6 +90,23 @@ export const Route = createFileRoute('/api/chat')({
               ]
             : [systemPrompt]
 
+          // Test-only flag — when set to `true`, the route passes
+          // structured root-level observability `metadata` (objects,
+          // arrays) to `chat()`. Enables root-metadata-wire.spec.ts to
+          // verify the call still completes: the adapter keeps root
+          // metadata off the provider request, so the OpenRouter SDK's
+          // Record<string, string> outbound validation never sees it
+          // (regression coverage for #735). Wire-absence itself is
+          // asserted by the adapter unit tests.
+          const rootObservabilityMetadata =
+            fp.structuredRootMetadata === true
+              ? {
+                  observationName: 'e2e-root-metadata',
+                  tags: ['a', 'b'],
+                  prompt: { name: 'p', version: 1 },
+                }
+              : undefined
+
           // Two structured-output-streaming features differ only in which
           // schema they bind to. Branched per-feature so TS can pick the
           // right `chat<TSchema>()` overload without a `never` cast.
@@ -141,6 +158,9 @@ export const Route = createFileRoute('/api/chat')({
                       messages: params.messages,
                       threadId: params.threadId,
                       runId: params.runId,
+                      ...(rootObservabilityMetadata && {
+                        metadata: rootObservabilityMetadata,
+                      }),
                       abortController,
                     })
 

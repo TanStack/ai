@@ -205,6 +205,11 @@ Skills are persisted through the `SkillStorage` interface. Two implementations a
 
 ### File storage (production)
 
+`createFileSkillStorage` is Node-only — it imports `node:fs` / `node:path` — so
+it lives behind the `/storage` subpath rather than the package root. This keeps
+the root export safe to bundle for Cloudflare Workers and browser builds; only
+reach for the subpath in a Node runtime.
+
 ```typescript
 import { createFileSkillStorage } from '@tanstack/ai-code-mode-skills/storage'
 
@@ -227,15 +232,17 @@ Creates a directory structure:
     code.ts
 ```
 
-### Memory storage (testing)
+### Memory storage (testing & edge runtimes)
 
 ```typescript
-import { createMemorySkillStorage } from '@tanstack/ai-code-mode-skills/storage'
+import { createMemorySkillStorage } from '@tanstack/ai-code-mode-skills'
 
 const storage = createMemorySkillStorage()
 ```
 
-Keeps everything in memory. Useful for tests and demos.
+Keeps everything in memory — no `node:fs` dependency, so it is re-exported from
+the package root and is safe to use in Workers and browsers. Useful for tests,
+demos, and edge deployments. (It is also available from the `/storage` subpath.)
 
 ### Storage interface
 

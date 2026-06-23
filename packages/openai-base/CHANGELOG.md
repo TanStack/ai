@@ -1,5 +1,38 @@
 # @tanstack/openai-base
 
+## 0.8.8
+
+### Patch Changes
+
+- Updated dependencies [[`2cb0313`](https://github.com/TanStack/ai/commit/2cb0313c1f13e1db37c5550308e36bb0b9b73b98), [`18e5f4d`](https://github.com/TanStack/ai/commit/18e5f4d9746a26c3194929ea4b49673728e8eaa5), [`21720dd`](https://github.com/TanStack/ai/commit/21720dd73524d624594a6dfb7e4669c03cc08af0), [`243b8fa`](https://github.com/TanStack/ai/commit/243b8fad7e8a48b68a1a96962ee1443cbd6a0ced)]:
+  - @tanstack/ai@0.33.0
+
+## 0.8.7
+
+### Patch Changes
+
+- [#790](https://github.com/TanStack/ai/pull/790) [`22ccaaa`](https://github.com/TanStack/ai/commit/22ccaaa4fe018af5a1f34bfabc0480246b11bd14) - Apply the strict-mode fallback in the provider-path `function-tool` converter. A tool whose input JSON Schema can't satisfy OpenAI's strict function-calling constraints now falls back to a non-strict tool definition (matching the converter's other path) instead of emitting an invalid strict tool, so such tools work across the OpenAI-based adapters (`@tanstack/ai-openai`, `@tanstack/ai-grok`, `@tanstack/ai-groq`).
+
+## 0.8.6
+
+### Patch Changes
+
+- [#786](https://github.com/TanStack/ai/pull/786) [`c55764a`](https://github.com/TanStack/ai/commit/c55764a4cb55a384dc50390191e4842a3e64604a) - fix(openai): emit `strict: false` for function tools whose JSON Schema is outside OpenAI's strict subset
+
+  The Responses and Chat Completions tool converters forced `strict: true` on
+  every function tool. When a tool's schema uses keywords OpenAI's strict
+  Structured Outputs subset doesn't support (`oneOf`/`allOf`/`not`/`$ref`/
+  `$defs` — routinely emitted by MCP servers such as Notion), the API rejected
+  the **entire** request with `400 Invalid schema for function '…'`, breaking
+  every run that included such a tool.
+
+  These converters now detect schemas outside the strict subset
+  (`isStrictModeCompatible`) and emit those tools with `strict: false` — the
+  schema is passed through (only unsupported `format` keywords are stripped) so
+  the tool stays callable. Schemas that fit the strict subset keep `strict: true`
+  and the existing structured-output coercion, so well-behaved tools are
+  unaffected.
+
 ## 0.8.5
 
 ### Patch Changes
