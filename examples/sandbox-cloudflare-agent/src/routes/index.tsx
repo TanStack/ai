@@ -14,9 +14,9 @@ export const Route = createFileRoute('/')({
 })
 
 const PROMPT_SUGGESTIONS = [
-  'Create a hello.ts that prints "hi" and run it with node.',
-  'What files are in the workspace? List them with their sizes.',
-  'Write a small Express server and start it, then show me the preview URL.',
+  'Build a new TanStack Start app that uses TanStack AI for a streaming chatbot. Call the tanstackAiRecipe tool first, scaffold the app, install deps, start the dev server, and give me the preview URL.',
+  'Give the chatbot a system prompt that makes it answer like a terse senior engineer.',
+  'Add a "clear chat" button and a model picker to the chatbot UI.',
 ]
 
 /** One tool-call invocation from the in-sandbox coding agent (bash, edit, …). */
@@ -72,8 +72,12 @@ function Messages({ messages }: { messages: Array<UIMessage> }) {
 
   if (!messages.length) {
     return (
-      <div className="flex-1 flex items-center justify-center text-gray-500">
-        <p>Ask the sandbox coding agent to build or run something…</p>
+      <div className="flex-1 flex items-center justify-center px-6 text-center text-gray-500">
+        <p className="max-w-md">
+          Ask the sandbox agent to build a TanStack AI chatbot — it scaffolds a
+          TanStack Start app, runs it in the container, and hands back a live
+          preview URL.
+        </p>
       </div>
     )
   }

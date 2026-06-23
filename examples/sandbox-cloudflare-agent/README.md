@@ -2,7 +2,16 @@
 
 A reference **TanStack Start app** that runs a TanStack AI sandbox agent on the
 edge — UI, agent, Durable Objects, and the container all ship in **one Cloudflare
-Worker, one `wrangler deploy`**. The agent itself is still **one function call**:
+Worker, one `wrangler deploy`**.
+
+> **The demo:** ask the agent to *build a TanStack AI chatbot*. It calls a bridged
+> host tool (`tanstackAiRecipe`) for the current recipe, scaffolds a TanStack Start
+> app inside the sandbox container, installs deps, starts the dev server, and hands
+> back a live **preview URL** (routed by `proxyToSandbox`). Because the recipe uses
+> the Anthropic adapter and the sandbox already has `ANTHROPIC_API_KEY`, the chatbot
+> it builds runs end-to-end — an agent building a working AI app, on the edge.
+
+The agent itself is still **one function call**:
 `createCloudflareSandboxAgent()` (from `@tanstack/ai-sandbox-cloudflare/agent`)
 returns the run-coordinator Durable Object, the `@cloudflare/sandbox` Sandbox DO,
 and a stateless Worker fetch handler. `src/agent.ts` configures it:
@@ -13,7 +22,7 @@ import { claudeCodeText } from '@tanstack/ai-claude-code'
 
 export const agent = createCloudflareSandboxAgent({
   adapter: () => claudeCodeText('sonnet'),
-  tools: () => [lookup], // optional chat() server tools, bridged over MCP
+  tools: () => [tanstackAiRecipe], // optional chat() server tools, bridged over MCP
 })
 ```
 
@@ -178,21 +187,23 @@ instead:
    serves the JSON-RPC from the in-memory tool core.
 
 No raw socket is ever opened; the bridge rides the same fetch surface as the rest
-of the DO. The demo `lookup` tool in `src/agent.ts` exercises this path.
+of the DO. The demo `tanstackAiRecipe` tool in `src/agent.ts` exercises this path:
+the in-sandbox agent calls it to fetch the current TanStack AI chatbot recipe
+(packages, server route, client hook) before scaffolding.
 
 ---
 
 ## Files
 
-| File                    | Role                                                                                                       |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `src/agent.ts`          | `createCloudflareSandboxAgent()` + one demo host tool — the configured agent.                              |
-| `src/server.ts`         | Custom Cloudflare entry: re-exports the DOs and composes `proxyToSandbox` + the agent + Start SSR.         |
-| `src/routes/index.tsx`  | The chat UI (`useChat` → `/api/run`).                                                                      |
-| `src/routes/api.run.ts` | Same-origin proxy: bridges the agent's POST-then-WebSocket run protocol to the SSE stream `useChat` reads. |
-| `wrangler.jsonc`        | DO + Container + Sandbox bindings (`RUN_COORDINATOR` + `Sandbox`), migrations, `nodejs_compat`.            |
-| `Dockerfile`            | Container image: `@cloudflare/sandbox` base + the `claude` CLI.                                            |
-| `vite.config.ts`        | `@cloudflare/vite-plugin` + `tanstackStart()` — builds + runs the Worker in `workerd`.                     |
+| File                     | Role                                                                                                      |
+| ------------------------ | --------------------------------------------------------------------------------------------------------- |
+| `src/agent.ts`           | `createCloudflareSandboxAgent()` + the `tanstackAiRecipe` host tool — the configured agent.               |
+| `src/server.ts`          | Custom Cloudflare entry: re-exports the DOs and composes `proxyToSandbox` + the agent + Start SSR.        |
+| `src/routes/index.tsx`   | The chat UI (`useChat` → `/api/run`).                                                                      |
+| `src/routes/api.run.ts`  | Same-origin proxy: bridges the agent's POST-then-WebSocket run protocol to the SSE stream `useChat` reads. |
+| `wrangler.jsonc`         | DO + Container + Sandbox bindings (`RUN_COORDINATOR` + `Sandbox`), migrations, `nodejs_compat`.            |
+| `Dockerfile`             | Container image: `@cloudflare/sandbox` base + the `claude` CLI.                                            |
+| `vite.config.ts`         | `@cloudflare/vite-plugin` + `tanstackStart()` — builds + runs the Worker in `workerd`.                    |
 
 ## Run it locally
 
@@ -223,7 +234,7 @@ directly:
 # 1) Trigger — returns 202 immediately, the DO drives the agent in the background
 curl -sX POST http://localhost:3001/runs \
   -H 'content-type: application/json' \
-  -d '{"threadId":"t1","messages":[{"role":"user","content":"Create hello.txt with the text hi"}]}'
+  -d '{"threadId":"t1","messages":[{"role":"user","content":"Build a TanStack AI chatbot as a TanStack Start app, run it, and return the preview URL."}]}'
 # → { "runId": "..." }
 
 # 2) Tail over WebSocket from the start (lastSeq=-1); reconnect with your last seq.
@@ -237,6 +248,21 @@ curl -s "http://localhost:3001/runs/<runId>?threadId=t1"
 `wrangler secret put ANTHROPIC_API_KEY`, and set `PUBLIC_HOSTNAME` in
 `wrangler.jsonc` `vars` to your `*.workers.dev` / custom domain (the in-sandbox
 agent uses it to reach the `/_bridge` MCP endpoint for the `tools` you pass).
+
+## Setting sandbox env
+
+Which env vars get injected into the container is controlled by the `sandbox`
+resolver in `src/agent.ts`: each `createSecrets({ … })` entry becomes an env var
+the agent — and anything it runs there, like the chatbot it scaffolds — can read.
+Values come from the Worker `env`, so to add one:
+
+1. add the value to `.dev.vars` (local) / `wrangler secret put` (prod), and
+2. add the key to `createSecrets({ … })` (extend the env type if you want it typed
+   — see the comment in `src/agent.ts`).
+
+These are **host-controlled** secrets — the same for every user of the deployment.
+There is no built-in lane for the browser user to set per-run secrets (the run
+trigger only carries `threadId` + `messages`); see the note in **Limitations**.
 
 ---
 
@@ -273,3 +299,14 @@ honest.
    under the same identity across cold starts (`withSandbox` handles this). Don't
    assume files written in one run survive an eviction unless you persist them
    yourself.
+
+4. **Sandbox env is host-controlled, not per-user.** The injected secrets (see
+   [Setting sandbox env](#setting-sandbox-env)) come from the Worker `env` and are
+   the same for every caller. The run trigger (`StartRunInput`) carries only
+   `threadId` + `messages`, so there is no built-in lane for the browser user to
+   supply their own secret for the app the agent builds. Adding one means dropping
+   from the factory to the exported `ChatSandboxCoordinator`, overriding
+   `config(input)` to read a per-thread secret you stashed in DO storage (via a
+   small `POST` endpoint) — and treating it carefully: the sandbox runs
+   LLM-authored code, so any injected secret is readable by the agent. Don't put
+   one user's secret in a sandbox another user can reach.

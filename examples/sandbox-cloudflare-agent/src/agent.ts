@@ -18,30 +18,80 @@
  * deploy (see the README "Limitations").
  */
 import { createCloudflareSandboxAgent } from '@tanstack/ai-sandbox-cloudflare/agent'
+import { cloudflareSandbox } from '@tanstack/ai-sandbox-cloudflare'
+import {
+  createSecrets,
+  defineSandbox,
+  defineWorkspace,
+} from '@tanstack/ai-sandbox'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 
 /**
- * One inline demo host tool. It's a `chat()` server tool, so the factory bridges it
- * to the in-sandbox agent over the DO-served MCP endpoint: the agent sees it as
- * `mcp__tanstack__lookup`, the DO runs it on the host, and the result streams back.
- * Returning it from `tools` is what exercises the `/_bridge` path.
+ * The demo host tool: the canonical recipe for building a TanStack AI chatbot in a
+ * TanStack Start app. It's a `chat()` server tool, so the factory bridges it to the
+ * in-sandbox agent over the DO-served MCP endpoint — the agent (Claude Code) sees it
+ * as `mcp__tanstack__tanstackAiRecipe`, calls it BEFORE scaffolding, the DO runs it
+ * on the host, and the result streams back. Returning it from `tools` is what
+ * exercises the `/_bridge` path, and it doubles as real, current guidance so the
+ * generated app actually works.
+ *
+ * The recipe targets the Anthropic adapter on purpose: the sandbox already has
+ * `ANTHROPIC_API_KEY` in its env (it's injected for the `claude` CLI), so the chatbot
+ * the agent scaffolds can run end-to-end behind a sandbox preview URL with no extra
+ * setup.
  */
-const lookup = toolDefinition({
-  name: 'lookup',
+const RECIPE = {
+  packages:
+    'pnpm add @tanstack/ai @tanstack/ai-react @tanstack/ai-anthropic @tanstack/react-start @tanstack/react-router react react-dom',
+  server: [
+    '// src/routes/api.chat.ts — TanStack Start server route',
+    "import { chat, toServerSentEventsResponse } from '@tanstack/ai'",
+    "import { anthropicText } from '@tanstack/ai-anthropic'",
+    "import { createFileRoute } from '@tanstack/react-router'",
+    '',
+    "export const Route = createFileRoute('/api/chat')({",
+    '  server: {',
+    '    handlers: {',
+    '      POST: async ({ request }) => {',
+    '        const { messages } = await request.json()',
+    '        const stream = chat({',
+    "          adapter: anthropicText('claude-sonnet-4-6'),",
+    '          messages,',
+    '        })',
+    '        return toServerSentEventsResponse(stream)',
+    '      },',
+    '    },',
+    '  },',
+    '})',
+    '// ANTHROPIC_API_KEY is already in the sandbox env — no extra config needed.',
+  ].join('\n'),
+  client: [
+    '// src/routes/index.tsx — the chat UI',
+    "import { useState } from 'react'",
+    "import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'",
+    '',
+    'const { messages, sendMessage, isLoading } = useChat({',
+    "  connection: fetchServerSentEvents('/api/chat'),",
+    '})',
+    '// Render messages[].parts (text parts), call sendMessage(input) on submit.',
+  ].join('\n'),
+  run: 'Start the dev server bound to 0.0.0.0 (e.g. `vite dev --host 0.0.0.0 --port 3000`), expose port 3000, and return the sandbox preview URL.',
+} as const
+
+const tanstackAiRecipe = toolDefinition({
+  name: 'tanstackAiRecipe',
   description:
-    "Look up this project's house rules. Call it before writing code so your changes match the conventions.",
+    'The canonical, current recipe for building a TanStack AI chatbot in a TanStack Start app (packages, server route, client hook, how to run it). Call this BEFORE scaffolding so the generated code matches the real API.',
   inputSchema: z.object({
-    topic: z.string().describe('What you are about to do, e.g. "naming"'),
+    section: z
+      .enum(['packages', 'server', 'client', 'run', 'all'])
+      .describe('Which part of the recipe you need (use "all" first).'),
   }),
-}).server(({ topic }) => ({
-  topic,
-  rules: [
-    'Use arrow functions assigned to const, never function declarations.',
-    'Prefer single quotes and no semicolons.',
-  ],
-}))
+}).server(({ section }) =>
+  section === 'all' ? RECIPE : { [section]: RECIPE[section] },
+)
 
 /**
  * The configured agent. `src/server.ts` wires `agent.Coordinator` / `agent.Sandbox`
@@ -50,8 +100,36 @@ const lookup = toolDefinition({
  */
 export const agent = createCloudflareSandboxAgent({
   adapter: () => claudeCodeText('sonnet'),
-  // No `workspace` here on purpose: the factory's default sandbox injects
-  // ANTHROPIC_API_KEY from `env` at run time (a static workspace can't read env),
-  // clones no source, and reuses one sandbox per thread.
-  tools: () => [lookup],
+  tools: () => [tanstackAiRecipe],
+  // Custom sandbox so we control exactly which env vars are injected into the
+  // container. Each `createSecrets` entry becomes an env var the agent — and
+  // anything it runs there, like the chatbot it scaffolds — can read. Values are
+  // pulled from the Worker `env` at run time: set them in `.dev.vars` (local) or
+  // `wrangler secret put` (prod). Secrets are injected at create/resume and never
+  // written to snapshots.
+  //
+  // NOTE: a custom sandbox REPLACES the factory default, so keep
+  // `ANTHROPIC_API_KEY` (the `claude` CLI needs it). To add a var that isn't
+  // already on the env type, extend it and pass it as the type param:
+  //   interface AppEnv extends SandboxAgentEnv { OPENAI_API_KEY: string }
+  //   createCloudflareSandboxAgent<AppEnv>({ ... })  // then env.OPENAI_API_KEY
+  sandbox: (_input, env) =>
+    defineSandbox({
+      id: 'cf-edge-agent',
+      provider: cloudflareSandbox({
+        binding: env.Sandbox,
+        previewHostname: env.PUBLIC_HOSTNAME,
+      }),
+      workspace: defineWorkspace({
+        // No source to clone — the container image already ships the claude CLI.
+        source: { type: 'none' },
+        secrets: createSecrets({
+          ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY,
+          // Add more env here (and to `.dev.vars`), e.g.:
+          // OPENAI_API_KEY: env.OPENAI_API_KEY,
+        }),
+      }),
+      // One sandbox per thread, so a follow-up message resumes the same workspace.
+      lifecycle: { reuse: 'thread' },
+    }),
 })
