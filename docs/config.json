@@ -354,7 +354,8 @@
         {
           "label": "AG-UI Client Compliance",
           "to": "migration/ag-ui-compliance",
-          "addedAt": "2026-05-16"
+          "addedAt": "2026-05-16",
+          "updatedAt": "2026-06-10"
         },
         {
           "label": "Sampling → modelOptions",
@@ -369,7 +370,8 @@
         {
           "label": "@tanstack/ai",
           "to": "api/ai",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-06-10"
         },
         {
           "label": "@tanstack/ai-client",

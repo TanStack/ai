@@ -222,6 +222,8 @@ A `Response` object suitable for HTTP endpoints with SSE headers (`Content-Type:
 
 Reads an HTTP `Request`, parses its JSON body, and validates it against AG-UI `RunAgentInputSchema`. Returns parsed chat parameters ready to spread into `chat()`. On a malformed body, **throws a 400 `Response`** that frameworks like TanStack Start, SolidStart, Remix, and React Router 7 return to the client automatically.
 
+> **zod requirement.** Validation loads `RunAgentInputSchema` lazily from `@ag-ui/core/schemas`, which needs zod (`^3.24.0 || ^4.0.0` — whichever major your app already uses). zod is an optional peer dependency of `@tanstack/ai`: only server code calling `chatParamsFromRequest` / `chatParamsFromRequestBody` needs it installed.
+
 ```typescript
 import { chat, chatParamsFromRequest, toServerSentEventsResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";

@@ -1,5 +1,5 @@
-import { AGUIError, RunAgentInputSchema } from '@ag-ui/core'
-import type { Context as AGUIContext } from '@ag-ui/core'
+import { AGUIError } from '@ag-ui/core'
+import type { Context as AGUIContext, RunAgentInput } from '@ag-ui/core'
 import type {
   JSONSchema,
   ModelMessage,
@@ -7,6 +7,22 @@ import type {
   Tool,
   UIMessage,
 } from '../types'
+
+/**
+ * The slice of `RunAgentInputSchema` this module relies on, expressed
+ * without referencing zod types. `@ag-ui/core/schemas` runs on zod 3.24+
+ * and zod 4, but its emitted declarations are pinned to one zod major —
+ * typing the import structurally keeps zod out of this package's
+ * compilation and out of its public `.d.ts` (the whole point of
+ * https://github.com/TanStack/ai/issues/520).
+ */
+interface RunAgentInputValidator {
+  safeParse: (
+    body: unknown,
+  ) =>
+    | { success: true; data: RunAgentInput }
+    | { success: false; error: { message: string } }
+}
 
 const KNOWN_PART_TYPES = new Set([
   'text',
@@ -30,6 +46,26 @@ function isValidParts(value: unknown): value is Array<{ type: string }> {
 }
 
 /**
+ * Lazily load `RunAgentInputSchema` from the opt-in `@ag-ui/core/schemas`
+ * subpath. The subpath has zod as an optional peer dependency, so the import
+ * only happens when AG-UI request parsing is actually used — consumers that
+ * never call `chatParamsFromRequest*` don't need zod installed at all.
+ */
+async function loadRunAgentInputSchema(): Promise<RunAgentInputValidator> {
+  try {
+    const { RunAgentInputSchema } = await import('@ag-ui/core/schemas')
+    return RunAgentInputSchema as RunAgentInputValidator
+  } catch (cause) {
+    const error = new AGUIError(
+      `chatParamsFromRequestBody requires zod to validate AG-UI request ` +
+        `bodies. Install zod (^3.24.0 || ^4.0.0) alongside @tanstack/ai.`,
+    )
+    error.cause = cause
+    throw error
+  }
+}
+
+/**
  * Parse and validate an HTTP request body as an AG-UI `RunAgentInput`.
  *
  * Returns a spread-friendly object whose `messages` field is suitable for
@@ -38,10 +74,10 @@ function isValidParts(value: unknown): value is Array<{ type: string }> {
  * reasoning/activity/developer-role normalization internally.
  *
  * @throws An error with a migration-pointing message when the body does
- *   not conform to AG-UI 0.0.52 `RunAgentInputSchema`. Surface this as a
+ *   not conform to the AG-UI `RunAgentInputSchema`. Surface this as a
  *   400 Bad Request to the client.
  */
-export function chatParamsFromRequestBody(body: unknown): Promise<{
+export async function chatParamsFromRequestBody(body: unknown): Promise<{
   messages: Array<UIMessage | ModelMessage>
   threadId: string
   runId: string
@@ -56,15 +92,14 @@ export function chatParamsFromRequestBody(body: unknown): Promise<{
   context: Array<AGUIContext>
   aguiContext: Array<AGUIContext>
 }> {
+  const RunAgentInputSchema = await loadRunAgentInputSchema()
   const parseResult = RunAgentInputSchema.safeParse(body)
   if (!parseResult.success) {
-    return Promise.reject(
-      new AGUIError(
-        `Request body is not a valid AG-UI RunAgentInput. ` +
-          `If you're upgrading from a previous @tanstack/ai-client release, ` +
-          `see docs/migration/ag-ui-compliance.md. ` +
-          `Validation errors: ${parseResult.error.message}`,
-      ),
+    throw new AGUIError(
+      `Request body is not a valid AG-UI RunAgentInput. ` +
+        `If you're upgrading from a previous @tanstack/ai-client release, ` +
+        `see docs/migration/ag-ui-compliance.md. ` +
+        `Validation errors: ${parseResult.error.message}`,
     )
   }
 
@@ -89,7 +124,7 @@ export function chatParamsFromRequestBody(body: unknown): Promise<{
     return m as ModelMessage
   })
 
-  return Promise.resolve({
+  return {
     messages,
     threadId: parsed.threadId,
     runId: parsed.runId,
@@ -103,7 +138,7 @@ export function chatParamsFromRequestBody(body: unknown): Promise<{
     state: parsed.state,
     context: aguiContext,
     aguiContext,
-  })
+  }
 }
 
 /**

@@ -72,7 +72,7 @@ export async function POST(req: Request) {
 }
 ```
 
-`chatParamsFromRequestBody` validates the body against `RunAgentInputSchema` from `@ag-ui/core`. `mergeAgentTools` merges the server's tool registry with client-declared tools (server wins on collision; client-only tools become no-execute stubs that flow through the runtime's `ClientToolRequest` path).
+`chatParamsFromRequestBody` validates the body against `RunAgentInputSchema`, loaded lazily from `@ag-ui/core/schemas`. That subpath needs zod (`^3.24.0 || ^4.0.0`, an optional peer of `@tanstack/ai`) — server apps calling `chatParamsFromRequest*` must have zod installed; everything else in `@tanstack/ai` works without it. `mergeAgentTools` merges the server's tool registry with client-declared tools (server wins on collision; client-only tools become no-execute stubs that flow through the runtime's `ClientToolRequest` path).
 
 `params.messages` is a mixed array of TanStack `UIMessage` anchors (with `parts`) and AG-UI fan-out duplicates (`{role:'tool',...}`, `{role:'reasoning',...}`). The existing `convertMessagesToModelMessages` (called inside `chat()`) handles dedup automatically.
 

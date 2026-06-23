@@ -85,17 +85,21 @@
     "tanstack-intent"
   ],
   "dependencies": {
-    "@ag-ui/core": "^0.0.52",
+    "@ag-ui/core": "^0.1.0",
     "@standard-schema/spec": "^1.1.0",
     "@tanstack/ai-event-client": "workspace:*",
     "@tanstack/ai-utils": "workspace:*",
     "partial-json": "^0.1.7"
   },
   "peerDependencies": {
-    "@opentelemetry/api": ">=1.9.0"
+    "@opentelemetry/api": ">=1.9.0",
+    "zod": "^3.24.0 || ^4.0.0"
   },
   "peerDependenciesMeta": {
     "@opentelemetry/api": {
+      "optional": true
+    },
+    "zod": {
       "optional": true
     }
   },

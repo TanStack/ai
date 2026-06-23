@@ -314,7 +314,22 @@ Pure AG-UI `RunAgentInput` payloads (no TanStack `parts` field) work end-to-end:
 
 ## `@ag-ui/core` bump
 
-`@tanstack/ai` now depends on `@ag-ui/core@^0.0.52`. If your code imports types from `@tanstack/ai` that re-export AG-UI types, you may need minor type adjustments — see the changeset for specifics.
+`@tanstack/ai` now depends on `@ag-ui/core@^0.1.0`, whose main entry is
+type-only with **zero runtime dependencies** — it no longer pulls Zod 3 into
+your dependency tree or type graph, so apps on Zod 4 type-check cleanly
+alongside `@tanstack/ai`
+([#520](https://github.com/TanStack/ai/issues/520)).
+
+Request validation in `chatParamsFromRequest` / `chatParamsFromRequestBody`
+now loads `RunAgentInputSchema` lazily from the `@ag-ui/core/schemas`
+subpath, which requires zod (`^3.24.0 || ^4.0.0` — whichever major your app
+already uses). zod is an **optional** peer dependency of `@tanstack/ai`: if
+you never call `chatParamsFromRequest*`, you don't need zod installed at
+all. Calling it without zod present rejects with an `AGUIError` telling you
+to install zod.
+
+If your code imports types from `@tanstack/ai` that re-export AG-UI types,
+you may need minor type adjustments — see the changeset for specifics.
 
 ## Out of scope (existing behavior preserved)
 
