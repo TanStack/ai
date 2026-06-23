@@ -132,17 +132,37 @@ import {
   type ToolCallPart,
   type MessagePart,
 } from "@tanstack/ai-client";
-import { updateUIDef, saveToLocalStorageDef } from "./tools/definitions";
-import { showNotification } from "./notifications";
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
+
+const updateUIDef = toolDefinition({
+  name: "update_ui",
+  description: "Update the UI with new information",
+  inputSchema: z.object({
+    message: z.string().meta({ description: "Message to display" }),
+    type: z.enum(["success", "error", "info"]).meta({ description: "Message type" }),
+  }),
+  outputSchema: z.object({ success: z.boolean() }),
+});
+
+const saveToLocalStorageDef = toolDefinition({
+  name: "save_to_local_storage",
+  description: "Save data to browser local storage",
+  inputSchema: z.object({
+    key: z.string().meta({ description: "Storage key" }),
+    value: z.string().meta({ description: "Value to store" }),
+  }),
+  outputSchema: z.object({ saved: z.boolean() }),
+});
 
 // Step 1: Create client implementations (module scope)
-const updateUI = updateUIDef.client((input: { message: string; type: "success" | "error" | "info" }) => {
+const updateUI = updateUIDef.client((input) => {
   // Update UI state - fully typed!
-  showNotification({ message: input.message, type: input.type });
+  console.log(input.message, input.type);
   return { success: true };
 });
 
-const saveToLocalStorage = saveToLocalStorageDef.client((input: { key: string; value: string }) => {
+const saveToLocalStorage = saveToLocalStorageDef.client((input) => {
   localStorage.setItem(input.key, input.value);
   return { saved: true };
 });

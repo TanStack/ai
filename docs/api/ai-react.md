@@ -37,14 +37,24 @@ import {
   createChatClientOptions, 
   type InferChatMessages 
 } from "@tanstack/ai-client";
-import { updateUIDef } from "./tool-definitions";
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
 import { useState } from "react";
+
+const updateUIDef = toolDefinition({
+  name: "updateUI",
+  description: "Update the UI with a notification",
+  inputSchema: z.object({
+    message: z.string(),
+  }),
+  outputSchema: z.object({ success: z.boolean() }),
+});
 
 function ChatComponent() {
   const [notification, setNotification] = useState<string | null>(null);
 
   // Create client tool implementations
-  const updateUI = updateUIDef.client((input: { message: string }) => {
+  const updateUI = updateUIDef.client((input) => {
     setNotification(input.message);
     return { success: true };
   });
@@ -269,20 +279,41 @@ import {
   createChatClientOptions, 
   type InferChatMessages 
 } from "@tanstack/ai-client";
-import { updateUIDef, saveToStorageDef } from "./tool-definitions";
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
 import { useState } from "react";
+
+const updateUIDef = toolDefinition({
+  name: "updateUI",
+  description: "Update the UI with a notification",
+  inputSchema: z.object({
+    message: z.string(),
+    type: z.string(),
+  }),
+  outputSchema: z.object({ success: z.boolean() }),
+});
+
+const saveToStorageDef = toolDefinition({
+  name: "saveToStorage",
+  description: "Save a value to storage",
+  inputSchema: z.object({
+    key: z.string(),
+    value: z.string(),
+  }),
+  outputSchema: z.object({ saved: z.boolean() }),
+});
 
 export function ChatWithClientTools() {
   const [notification, setNotification] = useState<{ message: string; type: string } | null>(null);
 
   // Create client implementations
-  const updateUI = updateUIDef.client((input: { message: string; type: string }) => {
+  const updateUI = updateUIDef.client((input) => {
     // ✅ input is fully typed!
     setNotification({ message: input.message, type: input.type });
     return { success: true };
   });
 
-  const saveToStorage = saveToStorageDef.client((input: { key: string; value: string }) => {
+  const saveToStorage = saveToStorageDef.client((input) => {
     localStorage.setItem(input.key, input.value);
     return { saved: true };
   });

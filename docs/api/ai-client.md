@@ -290,19 +290,34 @@ import {
   fetchServerSentEvents,
   type UIMessage,
 } from "@tanstack/ai-client";
-import { myTool1, myTool2 } from "./tools";
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
 
 const messages: UIMessage[] = [];
 
-// Create client implementations
-const tool1Client = myTool1.client((input: unknown) => {
-  // Implementation
-  return { result: "..." };
+const myTool1 = toolDefinition({
+  name: "myTool1",
+  description: "First tool",
+  inputSchema: z.object({ query: z.string() }),
+  outputSchema: z.object({ result: z.string() }),
 });
 
-const tool2Client = myTool2.client((input: unknown) => {
+const myTool2 = toolDefinition({
+  name: "myTool2",
+  description: "Second tool",
+  inputSchema: z.object({ query: z.string() }),
+  outputSchema: z.object({ result: z.string() }),
+});
+
+// Create client implementations
+const tool1Client = myTool1.client((input) => {
   // Implementation
-  return { result: "..." };
+  return { result: input.query };
+});
+
+const tool2Client = myTool2.client((input) => {
+  // Implementation
+  return { result: input.query };
 });
 
 // Create typed tools array (no 'as const' needed!)
@@ -358,14 +373,23 @@ import {
   clientTools,
   fetchServerSentEvents,
 } from "@tanstack/ai-client";
-import { projectTool, runProjectAction } from "./tools";
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
 
 type ClientContext = {
   activeProjectId: string;
 };
 
-const tool = projectTool.client<ClientContext>((input: unknown, ctx: { context: ClientContext }) => {
-  return runProjectAction(ctx.context.activeProjectId, input);
+const projectTool = toolDefinition({
+  name: "projectAction",
+  description: "Run a project action",
+  inputSchema: z.object({ action: z.string() }),
+  outputSchema: z.object({ ok: z.boolean() }),
+});
+
+const tool = projectTool.client<ClientContext>((input, ctx: { context: ClientContext }) => {
+  console.log(ctx.context.activeProjectId, input.action);
+  return { ok: true };
 });
 
 const chatOptions = createChatClientOptions({

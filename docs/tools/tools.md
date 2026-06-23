@@ -192,15 +192,29 @@ const getWeatherServer = getWeatherDef.server(async (args) => {
 ### Server-Side
 
 ```typescript
-import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { chat, toServerSentEventsResponse, toolDefinition } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
-import { getWeatherDef } from "./tools";
+import { z } from "zod";
+
+const getWeatherDef = toolDefinition({
+  name: "get_weather",
+  description: "Get the current weather for a location",
+  inputSchema: z.object({
+    location: z.string().meta({ description: "The city and state, e.g. San Francisco, CA" }),
+    unit: z.enum(["celsius", "fahrenheit"]).optional(),
+  }),
+  outputSchema: z.object({
+    temperature: z.number(),
+    conditions: z.string(),
+    location: z.string(),
+  }),
+});
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
   // Create server implementation
-  const getWeather = getWeatherDef.server(async ({ location, unit }: { location: string; unit?: string }) => {
+  const getWeather = getWeatherDef.server(async ({ location, unit }) => {
     const response = await fetch(`https://api.weather.com/v1/current?...`);
     return await response.json();
   });
@@ -224,17 +238,32 @@ import {
   createChatClientOptions, 
   type InferChatMessages 
 } from "@tanstack/ai-client";
-import { updateUIDef, saveToStorageDef, setNotification, Messages } from "./tools";
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
+
+const updateUIDef = toolDefinition({
+  name: "updateUI",
+  description: "Update the UI with a notification message",
+  inputSchema: z.object({ message: z.string() }),
+  outputSchema: z.object({ success: z.boolean() }),
+});
+
+const saveToStorageDef = toolDefinition({
+  name: "saveToStorage",
+  description: "Save data to storage",
+  inputSchema: z.object({ key: z.string(), value: z.string() }),
+  outputSchema: z.object({ saved: z.boolean() }),
+});
 
 // Create client implementations
-const updateUI = updateUIDef.client((input: { message: string }) => {
+const updateUI = updateUIDef.client((input) => {
   // Update UI state
-  setNotification(input.message);
+  console.log(input.message);
   return { success: true };
 });
 
-const saveToStorage = saveToStorageDef.client((input: Record<string, unknown>) => {
-  localStorage.setItem("data", JSON.stringify(input));
+const saveToStorage = saveToStorageDef.client((input) => {
+  localStorage.setItem(input.key, input.value);
   return { saved: true };
 });
 
@@ -250,10 +279,16 @@ const textOptions = createChatClientOptions({
 type ChatMessages = InferChatMessages<typeof textOptions>;
 
 function ChatComponent() {
-  const { messages, sendMessage } = useChat(textOptions);
+  const { messages } = useChat(textOptions);
   
   // messages is now fully typed with tool names and outputs!
-  return <Messages messages={messages} />;
+  return (
+    <div>
+      {messages.map((m) => (
+        <div key={m.id}>{m.role}</div>
+      ))}
+    </div>
+  );
 }
 ```
 

@@ -42,13 +42,18 @@ is a means (keep examples honest), not the end (a green check).
 2. **No invisible "ambient" fixture for `messages`/`message`.** Same reason as #1
    — the reader sees a variable appear from nowhere. Use real visible setup.
 
-3. **`(input: any)` on a `.client()` / `.server()` tool callback is a smell, not
-   a fix.** It means the `toolDefinition` isn't in scope (e.g. imported from an
-   unresolved `./tool-definitions`), so the inferred input type was lost. Define
-   the `toolDefinition({ name, description, inputSchema: z.object({...}) })`
-   inline in the snippet; then `.client((input) => ...)` infers `input` from the
-   schema with no annotation. The tools are fully type-safe — if you're reaching
-   for `any`, the definition is missing.
+3. **ANY explicit type on a `.client()` / `.server()` tool callback param is a
+   smell** — not just `any`, but also `unknown` and a hand-written shape like
+   `(input: { key: string; value: string })`. All three mean the
+   `toolDefinition` isn't in scope (e.g. imported from an unresolved
+   `./tool-definitions`), so the inferred input type was lost and someone
+   re-typed it by hand. Define the
+   `toolDefinition({ name, description, inputSchema: z.object({...}) })` inline in
+   the snippet; then `.client((input) => ...)` infers `input` from the schema
+   with NO annotation. The tools are fully type-safe — re-typing the param
+   defeats the demonstration and drifts from the schema. (Only legitimate
+   exception: a tool with no `inputSchema` at all — then the unused param may be
+   `_input: unknown`.)
 
 4. **Isolate snippets; don't group-and-rename.** Don't tag fences `group=` and
    rename collisions (`client`→`client1`, `stream`→`stream2`,

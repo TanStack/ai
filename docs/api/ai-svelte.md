@@ -32,12 +32,22 @@ import {
   createChatClientOptions,
   type InferChatMessages,
 } from "@tanstack/ai-client";
-import { updateUIDef } from "./tool-definitions";
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
+
+const updateUIDef = toolDefinition({
+  name: "updateUI",
+  description: "Update the UI with a notification",
+  inputSchema: z.object({
+    message: z.string(),
+  }),
+  outputSchema: z.object({ success: z.boolean() }),
+});
 
 // In <script> block
 let notification = "";
 
-const updateUI = updateUIDef.client((input: { message: string }) => {
+const updateUI = updateUIDef.client((input) => {
   notification = input.message;
   return { success: true };
 });
