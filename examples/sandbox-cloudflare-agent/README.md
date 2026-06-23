@@ -237,24 +237,27 @@ pnpm dev                            # http://localhost:3001
 
 > **Running the agent locally needs a tunnel.** With plain `pnpm dev`, the
 > in-container agent can't reach your local Worker's `/_bridge` (the `tanstack`
-> MCP server), so a run fails with "the tanstack MCP server hasn't come up". Use a
-> Cloudflare tunnel so the container can reach the host:
+> MCP server), so a run fails with "the tanstack MCP server hasn't come up". The
+> **Cloudflare Vite plugin has a built-in tunnel** (it downloads `cloudflared`
+> itself — no separate install), which gives the local Worker a public hostname the
+> container can reach. Two ways to start it:
 >
 > ```bash
-> brew install cloudflared            # once
-> pnpm dev:tunnel                     # starts a quick tunnel + sets PUBLIC_HOSTNAME + vite
+> pnpm dev:tunnel        # = TUNNEL=1 vite dev — auto-starts a quick tunnel
+> # …or press `t + Enter` in a running `pnpm dev` session.
 > ```
 >
-> `dev:tunnel` (see `scripts/dev-tunnel.mjs`) runs `cloudflared tunnel --url
-http://localhost:3001`, writes the assigned `*.trycloudflare.com` host into
-> `.dev.vars` as `PUBLIC_HOSTNAME`, then starts `vite`. The container reaches the
-> bridge over the public tunnel hostname, so agent runs work locally.
+> Then point the Worker at the tunnel hostname so the bridge URL matches: copy the
+> printed `*.trycloudflare.com` host into `.dev.vars` as
+> `PUBLIC_HOSTNAME=<that-host>` and restart. The container now reaches the bridge
+> over the tunnel, so agent runs work locally.
 >
-> A quick tunnel serves only ONE hostname, so the **tool-bridge works but preview
-> URLs don't** (they need wildcard subdomains). For previews locally too, use a
-> **named tunnel** with a wildcard route (`*.dev.yourdomain.com` →
-> `http://localhost:3001`) and set `PUBLIC_HOSTNAME` to `dev.yourdomain.com`.
-> Otherwise, deploy to see previews.
+> A **quick** tunnel serves only one hostname, so the **tool-bridge works but
+> preview URLs don't** (they need wildcard subdomains). For previews locally too,
+> use a **named tunnel** (`tunnel: { name: '…' }` in `vite.config.ts`) with a
+> wildcard route (`*.dev.yourdomain.com → http://localhost:3001`) and a stable
+> `PUBLIC_HOSTNAME=dev.yourdomain.com` you set once. Otherwise, deploy to see
+> previews.
 
 Open `http://localhost:3001` for the chat UI, or drive the agent's HTTP surface
 directly:
@@ -332,15 +335,16 @@ honest.
      wrong instance, which has no bridge for your run (a 404). Fix: set
      `PUBLIC_HOSTNAME` to your `*.workers.dev` / custom domain and redeploy.
    - A **local `pnpm dev`** container can't reach your host over that hostname, so
-     plain local runs fail. Use **`pnpm dev:tunnel`** (a `cloudflared` quick
-     tunnel — see [Run it locally](#run-it-locally)) to give the host a
-     container-reachable hostname; the tool-bridge then works locally. Preview URLs
-     still need a wildcard (named tunnel or a deploy).
+     plain local runs fail. Use **`pnpm dev:tunnel`** (the Cloudflare Vite plugin's
+     built-in tunnel — it downloads `cloudflared` itself, no separate install; see
+     [Run it locally](#run-it-locally)) to give the host a container-reachable
+     hostname, and set `PUBLIC_HOSTNAME` to it. The tool-bridge then works locally;
+     preview URLs still need a wildcard (named tunnel or a deploy).
    - There is also no Workers runtime in this monorepo's CI, and some local
      container runtimes (e.g. OrbStack) can't run Cloudflare containers at all.
-     This app type-checks (`pnpm typecheck`) and builds (`pnpm build`) against the
-     real types and follows contracts proven by the package unit tests, but treat it
-     as the _architecture blueprint_ until you've run it on your own deploy.
+   This app type-checks (`pnpm typecheck`) and builds (`pnpm build`) against the
+   real types and follows contracts proven by the package unit tests, but treat it
+   as the _architecture blueprint_ until you've run it on your own deploy.
 
 2. **The Cloudflare sandbox has no writable host→process stdin (handled).**
    Cloudflare background processes don't expose a writable stdin —
