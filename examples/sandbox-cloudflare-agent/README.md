@@ -342,9 +342,9 @@ honest.
      preview URLs still need a wildcard (named tunnel or a deploy).
    - There is also no Workers runtime in this monorepo's CI, and some local
      container runtimes (e.g. OrbStack) can't run Cloudflare containers at all.
-   This app type-checks (`pnpm typecheck`) and builds (`pnpm build`) against the
-   real types and follows contracts proven by the package unit tests, but treat it
-   as the _architecture blueprint_ until you've run it on your own deploy.
+     This app type-checks (`pnpm typecheck`) and builds (`pnpm build`) against the
+     real types and follows contracts proven by the package unit tests, but treat it
+     as the _architecture blueprint_ until you've run it on your own deploy.
 
 2. **The Cloudflare sandbox has no writable host→process stdin (handled).**
    Cloudflare background processes don't expose a writable stdin —
