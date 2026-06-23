@@ -443,6 +443,200 @@ describe('GeminiTextInteractionsAdapter', () => {
     expect(finished.finishReason).toBe('tool_calls')
   })
 
+  it('accumulates multi-fragment arguments_delta into the final tool input', async () => {
+    // Streaming function calls deliver identity on step.start (with an empty
+    // `{}` arguments placeholder) and the JSON arguments as a sequence of
+    // individually-incomplete `arguments_delta` fragments.
+    mocks.interactionsCreateSpy.mockResolvedValue(
+      mkStream([
+        {
+          event_type: 'interaction.created',
+          interaction: { id: 'int_frag', status: 'in_progress' },
+        },
+        {
+          event_type: 'step.start',
+          index: 0,
+          step: {
+            type: 'function_call',
+            id: 'call_frag',
+            name: 'lookup_weather',
+            arguments: {},
+          },
+        },
+        {
+          event_type: 'step.delta',
+          index: 0,
+          delta: { type: 'arguments_delta', arguments: '{"location":' },
+        },
+        {
+          event_type: 'step.delta',
+          index: 0,
+          delta: { type: 'arguments_delta', arguments: '"Berlin","unit":' },
+        },
+        {
+          event_type: 'step.delta',
+          index: 0,
+          delta: { type: 'arguments_delta', arguments: '"celsius"}' },
+        },
+        { event_type: 'step.stop', index: 0 },
+        {
+          event_type: 'interaction.completed',
+          interaction: { id: 'int_frag', status: 'completed' },
+        },
+      ]),
+    )
+
+    const adapter = createAdapter()
+    const chunks = await collectChunks(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Weather in Berlin?' }],
+        tools: [
+          { name: 'lookup_weather', description: 'Return the weather' },
+        ],
+      }),
+    )
+
+    const startEvent = chunks.find((c) => c.type === 'TOOL_CALL_START') as any
+    expect(startEvent.toolCallId).toBe('call_frag')
+    expect(startEvent.toolName).toBe('lookup_weather')
+
+    // The last TOOL_CALL_ARGS event carries the fully-accumulated buffer.
+    const argsEvents = chunks.filter((c) => c.type === 'TOOL_CALL_ARGS') as Array<any>
+    expect(argsEvents.length).toBeGreaterThan(1)
+    expect(argsEvents.at(-1)!.args).toBe(
+      '{"location":"Berlin","unit":"celsius"}',
+    )
+
+    const endEvent = chunks.find((c) => c.type === 'TOOL_CALL_END') as any
+    expect(endEvent.input).toEqual({ location: 'Berlin', unit: 'celsius' })
+  })
+
+  it('preserves the last good args when the arguments stream truncates mid-fragment', async () => {
+    // If the stream ends after an incomplete fragment, the tool input must
+    // retain whatever was parsed so far rather than being reset to `{}` — a
+    // strict JSON.parse would throw on the partial buffer and lose the
+    // already-merged keys.
+    mocks.interactionsCreateSpy.mockResolvedValue(
+      mkStream([
+        {
+          event_type: 'interaction.created',
+          interaction: { id: 'int_trunc', status: 'in_progress' },
+        },
+        {
+          event_type: 'step.start',
+          index: 0,
+          step: {
+            type: 'function_call',
+            id: 'call_trunc',
+            name: 'lookup_weather',
+            arguments: {},
+          },
+        },
+        {
+          event_type: 'step.delta',
+          index: 0,
+          // Complete `city` key, then a dangling `unit` key the stream never
+          // finishes.
+          delta: { type: 'arguments_delta', arguments: '{"city":"London","unit":' },
+        },
+        { event_type: 'step.stop', index: 0 },
+        {
+          event_type: 'interaction.completed',
+          interaction: { id: 'int_trunc', status: 'completed' },
+        },
+      ]),
+    )
+
+    const adapter = createAdapter()
+    const chunks = await collectChunks(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Weather in London?' }],
+        tools: [
+          { name: 'lookup_weather', description: 'Return the weather' },
+        ],
+      }),
+    )
+
+    // No parse-failure RUN_ERROR, and the completed key survives truncation.
+    expect(chunks.find((c) => c.type === 'RUN_ERROR')).toBeUndefined()
+    const endEvent = chunks.find((c) => c.type === 'TOOL_CALL_END') as any
+    expect(endEvent.input).toEqual({ city: 'London' })
+  })
+
+  it('translates thought_summary deltas into REASONING events', async () => {
+    mocks.interactionsCreateSpy.mockResolvedValue(
+      mkStream([
+        {
+          event_type: 'interaction.created',
+          interaction: { id: 'int_think', status: 'in_progress' },
+        },
+        {
+          event_type: 'step.start',
+          index: 0,
+          step: { type: 'thought', id: 'thought_1' },
+        },
+        {
+          event_type: 'step.delta',
+          index: 0,
+          delta: {
+            type: 'thought_summary',
+            content: { text: 'First I consider the question. ' },
+          },
+        },
+        {
+          event_type: 'step.delta',
+          index: 0,
+          delta: {
+            type: 'thought_summary',
+            content: { text: 'Then I answer.' },
+          },
+        },
+        { event_type: 'step.stop', index: 0 },
+        {
+          event_type: 'step.delta',
+          index: 1,
+          delta: { type: 'text', text: 'It is sunny.' },
+        },
+        {
+          event_type: 'interaction.completed',
+          interaction: { id: 'int_think', status: 'completed' },
+        },
+      ]),
+    )
+
+    const adapter = createAdapter()
+    const chunks = await collectChunks(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Think, then answer.' }],
+      }),
+    )
+
+    expect(chunks.find((c) => c.type === 'REASONING_START')).toBeDefined()
+    expect(
+      chunks.find((c) => c.type === 'REASONING_MESSAGE_START'),
+    ).toBeDefined()
+
+    const reasoningDeltas = chunks.filter(
+      (c) => c.type === 'REASONING_MESSAGE_CONTENT',
+    ) as Array<any>
+    expect(reasoningDeltas.map((c) => c.delta)).toEqual([
+      'First I consider the question. ',
+      'Then I answer.',
+    ])
+
+    // Reasoning is distinct from the final assistant text.
+    const textContent = chunks.find(
+      (c) => c.type === 'TEXT_MESSAGE_CONTENT',
+    ) as any
+    expect(textContent.delta).toBe('It is sunny.')
+
+    const finished = chunks.find((c) => c.type === 'RUN_FINISHED') as any
+    expect(finished.finishReason).toBe('stop')
+  })
+
   it('emits parentMessageId on tool-first tool calls matching the assistant message id', async () => {
     // The function_call content arrives before any text. parentMessageId must
     // bind the tool call to the same assistant message id the eventual

@@ -1371,6 +1371,9 @@ importers:
       '@tanstack/ai-utils':
         specifier: workspace:*
         version: link:../ai-utils
+      partial-json:
+        specifier: ^0.1.7
+        version: 0.1.7
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*

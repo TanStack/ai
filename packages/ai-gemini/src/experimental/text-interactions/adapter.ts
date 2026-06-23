@@ -1,5 +1,6 @@
 import { EventType } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
+import { parse as parsePartialJSON } from 'partial-json'
 import {
   createGeminiClient,
   generateId,
@@ -644,24 +645,24 @@ function messagesAfterLastAssistant(
   return messages
 }
 
-function safeParseToolArguments(
-  raw: string | undefined,
-  logger: InternalLogger,
-): Record<string, unknown> {
-  if (!raw) return {}
+// Leniently parse the *accumulated* streamed tool-call argument buffer.
+// Streamed `arguments_delta` fragments are individually incomplete JSON, so
+// a strict `JSON.parse` would throw (and log noise) on every fragment until
+// the final one. `partial-json` recovers a best-effort object from a
+// truncated buffer instead. Returns `undefined` when nothing usable could be
+// parsed, so callers can keep the last good value rather than clobber
+// previously-merged args with `{}`.
+function parsePartialToolArguments(
+  raw: string,
+): Record<string, unknown> | undefined {
+  if (!raw) return undefined
   try {
-    const parsed = JSON.parse(raw)
-    return parsed && typeof parsed === 'object' ? parsed : {}
-  } catch (error) {
-    logger.errors(
-      'gemini-text-interactions.safeParseToolArguments parse failed',
-      {
-        error,
-        raw,
-        source: 'gemini-text-interactions.chatStream',
-      },
-    )
-    return {}
+    const parsed = parsePartialJSON(raw)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : undefined
+  } catch {
+    return undefined
   }
 }
 
@@ -1034,7 +1035,7 @@ async function* translateInteractionEvents(
             // be an empty `{}` placeholder when streaming, where the
             // real args arrive as `arguments_delta` events. Treat both
             // uniformly: stash whatever we got, stringify once.
-            const initialArgs = step.arguments as Record<string, unknown>
+            const initialArgs = step.arguments
             const state: ToolCallState = {
               name: step.name,
               args: { ...initialArgs },
@@ -1309,13 +1310,14 @@ async function* translateInteractionEvents(
             const buffer =
               (argStringByToolCallId.get(toolCallId) ?? '') + fragment
             argStringByToolCallId.set(toolCallId, buffer)
-            // Try to parse the accumulated buffer; if it's not yet a
-            // complete JSON object, keep `state.args` whatever the last
-            // parse produced. The wire-level args fragments don't have
-            // to be individually-parseable, but the *full* string at
-            // step.stop will be.
-            const parsed = safeParseToolArguments(buffer, logger)
-            state.args = parsed
+            // Parse the accumulated buffer leniently: streamed arg fragments
+            // are individually incomplete JSON, so use a partial-JSON parser
+            // that tolerates truncation rather than logging a parse error per
+            // fragment. Only overwrite `state.args` when we actually recovered
+            // an object, so a momentarily-unparseable fragment can't reset
+            // previously-merged args back to `{}`.
+            const parsed = parsePartialToolArguments(buffer)
+            if (parsed) state.args = parsed
             yield {
               type: EventType.TOOL_CALL_ARGS,
               toolCallId,
