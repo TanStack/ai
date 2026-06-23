@@ -1,10 +1,7 @@
 import { onScopeDispose, readonly, ref } from 'vue'
 import { AudioRecorder } from '@tanstack/ai-client'
 import type { Ref } from 'vue'
-import type {
-  AudioRecorderOptions,
-  AudioRecording,
-} from '@tanstack/ai-client'
+import type { AudioRecorderOptions, AudioRecording } from '@tanstack/ai-client'
 
 export interface UseAudioRecorderReturn {
   /** Readonly ref: true while actively capturing audio. */

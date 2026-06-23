@@ -1,8 +1,5 @@
 import { AudioRecorder } from '@tanstack/ai-client'
-import type {
-  AudioRecorderOptions,
-  AudioRecording,
-} from '@tanstack/ai-client'
+import type { AudioRecorderOptions, AudioRecording } from '@tanstack/ai-client'
 
 export interface CreateAudioRecorderReturn {
   /** Reactive: true while actively capturing audio. */

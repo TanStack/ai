@@ -26,7 +26,11 @@ class FakeMediaRecorder {
 
 beforeEach(() => {
   vi.stubGlobal('navigator', {
-    mediaDevices: { getUserMedia: vi.fn(async () => ({ getTracks: () => [{ stop: vi.fn() }] })) },
+    mediaDevices: {
+      getUserMedia: vi.fn(async () => ({
+        getTracks: () => [{ stop: vi.fn() }],
+      })),
+    },
   })
   vi.stubGlobal('MediaRecorder', FakeMediaRecorder)
 })

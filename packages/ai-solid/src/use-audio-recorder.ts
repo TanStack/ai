@@ -1,9 +1,6 @@
 import { createSignal, onCleanup } from 'solid-js'
 import { AudioRecorder } from '@tanstack/ai-client'
-import type {
-  AudioRecorderOptions,
-  AudioRecording,
-} from '@tanstack/ai-client'
+import type { AudioRecorderOptions, AudioRecording } from '@tanstack/ai-client'
 
 export interface UseAudioRecorderReturn {
   /** Solid accessor: true while actively capturing audio. */

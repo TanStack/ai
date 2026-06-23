@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AudioRecorder } from '@tanstack/ai-client'
-import type {
-  AudioRecorderOptions,
-  AudioRecording,
-} from '@tanstack/ai-client'
+import type { AudioRecorderOptions, AudioRecording } from '@tanstack/ai-client'
 
 export interface UseAudioRecorderReturn {
   /** True while actively capturing audio. */

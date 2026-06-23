@@ -363,7 +363,9 @@ gpt-4o-mini-transcribe).
 >
 > ```typescript
 > const { isRecording, start, stop } = useAudioRecorder()
-> const { generate } = useTranscription({ connection: fetchServerSentEvents('/api/transcribe') })
+> const { generate } = useTranscription({
+>   connection: fetchServerSentEvents('/api/transcribe'),
+> })
 > // ...
 > const recording = await stop()
 > await generate({ audio: recording.base64 })
