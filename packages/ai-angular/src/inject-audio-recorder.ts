@@ -6,10 +6,7 @@ import {
 } from '@angular/core'
 import { AudioRecorder } from '@tanstack/ai-client'
 import type { Signal } from '@angular/core'
-import type {
-  AudioRecorderOptions,
-  AudioRecording,
-} from '@tanstack/ai-client'
+import type { AudioRecorderOptions, AudioRecording } from '@tanstack/ai-client'
 
 export interface InjectAudioRecorderResult {
   /** Reactive: true while actively capturing audio. */
