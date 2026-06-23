@@ -13,11 +13,27 @@ export interface AudioRecorderOptions {
    * is used.
    */
   mimeType?: string
-  /** Fired once `stop()` finalizes with the completed recording. */
-  onComplete?: (recording: AudioRecording) => void
   /** Fired on `getUserMedia` rejection (permission denied) or recorder error. */
   onError?: (error: Error) => void
 }
+
+/**
+ * Resolves the value `stop()` produces from a recorder transform callback.
+ *
+ * - If the callback returns a concrete (non-null/void) value — sync or async —
+ *   that value's awaited type is used.
+ * - If the callback returns only null/void/undefined, or is absent, falls back
+ *   to {@link AudioRecording}.
+ *
+ * @template TFn - The transform callback type (or undefined if not provided)
+ */
+export type InferAudioRecordingOutput<TFn> = TFn extends (
+  recording: any,
+) => infer R
+  ? [Exclude<Awaited<R>, null | void | undefined>] extends [never]
+    ? AudioRecording
+    : Exclude<Awaited<R>, null | void | undefined>
+  : AudioRecording
 
 export interface AudioRecording {
   /** The raw recorded media blob. */
@@ -208,7 +224,6 @@ export class AudioRecorder {
       this.stopResolve = null
       this.stopReject = null
       this.setState('idle')
-      this.options.onComplete?.(recording)
       resolve?.(recording)
     } catch (err) {
       this.handleError(

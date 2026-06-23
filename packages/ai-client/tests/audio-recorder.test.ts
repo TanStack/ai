@@ -75,8 +75,7 @@ describe('AudioRecorder', () => {
   })
 
   it('records start->stop and produces base64 + a ready audio part', async () => {
-    const onComplete = vi.fn()
-    const recorder = new AudioRecorder({ onComplete })
+    const recorder = new AudioRecorder()
     const states: Array<string> = []
     recorder.subscribe((s) => states.push(s))
 
@@ -92,7 +91,6 @@ describe('AudioRecorder', () => {
       source: { type: 'data', value: 'AQID', mimeType: 'audio/webm' },
     })
     expect(typeof recording.durationMs).toBe('number')
-    expect(onComplete).toHaveBeenCalledWith(recording)
     expect(recorder.state).toBe('idle')
     expect(states).toContain('recording')
     expect(states).toContain('idle')
@@ -119,12 +117,10 @@ describe('AudioRecorder', () => {
   it('cancel() releases the mic and produces no recording', async () => {
     const stream = makeStream()
     getUserMedia.mockResolvedValueOnce(stream)
-    const onComplete = vi.fn()
-    const recorder = new AudioRecorder({ onComplete })
+    const recorder = new AudioRecorder()
     await recorder.start()
     recorder.cancel()
     expect(stream._track.stop).toHaveBeenCalled()
-    expect(onComplete).not.toHaveBeenCalled()
     expect(recorder.state).toBe('idle')
   })
 
