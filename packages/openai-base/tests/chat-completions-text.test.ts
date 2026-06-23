@@ -549,6 +549,74 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
         expect(runFinishedChunk.finishReason).toBe('tool_calls')
       }
     })
+
+    it('emits parentMessageId on tool-first tool calls matching the assistant message id', async () => {
+      // Tool call streams before any text content. parentMessageId must bind the
+      // tool call to the same assistant message id the eventual TEXT_MESSAGE_START
+      // uses so the message id stays stable mid-stream (#477).
+      const streamChunks = [
+        {
+          id: 'chatcmpl-tf',
+          model: 'test-model',
+          choices: [
+            {
+              delta: {
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: 'call_tf',
+                    type: 'function',
+                    function: {
+                      name: 'lookup_weather',
+                      arguments: '{"location":"Berlin"}',
+                    },
+                  },
+                ],
+              },
+              finish_reason: null,
+            },
+          ],
+        },
+        {
+          id: 'chatcmpl-tf',
+          model: 'test-model',
+          choices: [
+            { delta: { content: 'It is sunny.' }, finish_reason: null },
+          ],
+        },
+        {
+          id: 'chatcmpl-tf',
+          model: 'test-model',
+          choices: [{ delta: {}, finish_reason: 'stop' }],
+          usage: { prompt_tokens: 10, completion_tokens: 7, total_tokens: 17 },
+        },
+      ]
+
+      setupMockSdkClient(streamChunks)
+      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
+      const chunks: Array<StreamChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Weather in Berlin?' }],
+        tools: [weatherTool],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const textStart = chunks.find((c) => c.type === 'TEXT_MESSAGE_START')
+      const toolStart = chunks.find((c) => c.type === 'TOOL_CALL_START')
+
+      expect(textStart?.type).toBe('TEXT_MESSAGE_START')
+      expect(toolStart?.type).toBe('TOOL_CALL_START')
+      if (
+        textStart?.type === 'TEXT_MESSAGE_START' &&
+        toolStart?.type === 'TOOL_CALL_START'
+      ) {
+        expect(toolStart.parentMessageId).toBe(textStart.messageId)
+      }
+    })
   })
 
   describe('error handling', () => {
@@ -723,7 +791,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       )
     })
 
-    it('transforms null values to undefined', async () => {
+    it('passes provider nulls through unchanged (engine un-widens, not the adapter)', async () => {
       const nonStreamResponse = {
         choices: [
           {
@@ -756,10 +824,13 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
 
       // `result.data` is typed as `unknown` from the schema-less call;
       // narrow it to the shape this test produces.
-      const data = result.data as { name?: string; nickname?: string }
-      // null should be transformed to undefined
+      const data = result.data as { name?: string; nickname?: string | null }
+      // The adapter no longer strips nulls — strict-mode null-widening is undone
+      // precisely by the engine, which holds the schema's widening map. A blind
+      // adapter-level strip would also destroy genuine `.nullable()` nulls, so
+      // the adapter passes the provider's payload through verbatim.
       expect(data.name).toBe('Alice')
-      expect(data.nickname).toBeUndefined()
+      expect(data.nickname).toBeNull()
     })
 
     it('throws on invalid JSON response', async () => {

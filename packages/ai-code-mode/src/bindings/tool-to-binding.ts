@@ -1,4 +1,8 @@
-import { convertSchemaToJsonSchema } from '@tanstack/ai'
+import {
+  convertSchemaToJsonSchema,
+  isStandardSchema,
+  parseWithStandardSchema,
+} from '@tanstack/ai'
 import type { ToolExecutionContext } from '@tanstack/ai'
 import type { CodeModeTool, ToolBinding } from '../types'
 
@@ -51,9 +55,35 @@ export function toolToBinding(
   }
 
   const toolExecute = tool.execute
-  const execute = (args: unknown, context?: ToolExecutionContext) => {
-    // Pass context to the underlying tool so it can emit custom events
-    return Promise.resolve(toolExecute(args, context))
+  const execute = async (args: unknown, context?: ToolExecutionContext) => {
+    let input = args
+    if (tool.inputSchema && isStandardSchema(tool.inputSchema)) {
+      try {
+        input = parseWithStandardSchema(tool.inputSchema, args)
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Validation failed'
+        throw new Error(
+          `Input validation failed for tool ${tool.name}: ${message}`,
+        )
+      }
+    }
+
+    let result = await Promise.resolve(toolExecute(input, context))
+
+    if (tool.outputSchema && isStandardSchema(tool.outputSchema)) {
+      try {
+        result = parseWithStandardSchema(tool.outputSchema, result)
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Validation failed'
+        throw new Error(
+          `Output validation failed for tool ${tool.name}: ${message}`,
+        )
+      }
+    }
+
+    return result
   }
 
   return {

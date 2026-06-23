@@ -1,13 +1,18 @@
 /**
  * Model metadata interface for documentation and type inference
  */
+import type {
+  GrokBuildProviderOptions,
+  GrokTextProviderOptions,
+} from './text/text-provider-options'
+
 interface ModelMeta {
   name: string
   supports: {
     input: Array<'text' | 'image' | 'audio' | 'video' | 'document'>
     output: Array<'text' | 'image' | 'audio' | 'video'>
     capabilities?: Array<'reasoning' | 'tool_calling' | 'structured_outputs'>
-    tools?: ReadonlyArray<never>
+    tools?: ReadonlyArray<GrokProviderToolKind>
   }
   max_input_tokens?: number
   max_output_tokens?: number
@@ -24,184 +29,18 @@ interface ModelMeta {
   }
 }
 
-const GROK_4_1_FAST_REASONING = {
-  name: 'grok-4-1-fast-reasoning',
-  context_window: 2_000_000,
-  supports: {
-    input: ['text', 'image'],
-    output: ['text'],
-    capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
-    tools: [] as const,
-  },
-  pricing: {
-    input: {
-      normal: 0.2,
-      cached: 0.05,
-    },
-    output: {
-      normal: 0.5,
-    },
-  },
-} as const satisfies ModelMeta
+export type GrokProviderToolKind =
+  | 'web_search'
+  | 'x_search'
+  | 'file_search'
+  | 'mcp'
 
-const GROK_4_1_FAST_NON_REASONING = {
-  name: 'grok-4-1-fast-non-reasoning',
-  context_window: 2_000_000,
-  supports: {
-    input: ['text', 'image'],
-    output: ['text'],
-    capabilities: ['structured_outputs', 'tool_calling'],
-    tools: [] as const,
-  },
-  pricing: {
-    input: {
-      normal: 0.2,
-      cached: 0.05,
-    },
-    output: {
-      normal: 0.5,
-    },
-  },
-} as const satisfies ModelMeta
-
-const GROK_CODE_FAST_1 = {
-  name: 'grok-code-fast-1',
-  context_window: 256_000,
-  supports: {
-    input: ['text'],
-    output: ['text'],
-    capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
-    tools: [] as const,
-  },
-  pricing: {
-    input: {
-      normal: 0.2,
-      cached: 0.02,
-    },
-    output: {
-      normal: 1.5,
-    },
-  },
-} as const satisfies ModelMeta
-
-const GROK_4_FAST_REASONING = {
-  name: 'grok-4-fast-reasoning',
-  context_window: 2_000_000,
-  supports: {
-    input: ['text', 'image'],
-    output: ['text'],
-    capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
-    tools: [] as const,
-  },
-  pricing: {
-    input: {
-      normal: 0.2,
-      cached: 0.05,
-    },
-    output: {
-      normal: 0.5,
-    },
-  },
-} as const satisfies ModelMeta
-
-const GROK_4_FAST_NON_REASONING = {
-  name: 'grok-4-fast-non-reasoning',
-  context_window: 2_000_000,
-  supports: {
-    input: ['text', 'image'],
-    output: ['text'],
-    capabilities: ['structured_outputs', 'tool_calling'],
-    tools: [] as const,
-  },
-  pricing: {
-    input: {
-      normal: 0.2,
-      cached: 0.05,
-    },
-    output: {
-      normal: 0.5,
-    },
-  },
-} as const satisfies ModelMeta
-
-const GROK_4 = {
-  name: 'grok-4',
-  context_window: 256_000,
-  supports: {
-    input: ['text', 'image'],
-    output: ['text'],
-    capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
-    tools: [] as const,
-  },
-  pricing: {
-    input: {
-      normal: 3,
-      cached: 0.75,
-    },
-    output: {
-      normal: 15,
-    },
-  },
-} as const satisfies ModelMeta
-
-const GROK_3_MINI = {
-  name: 'grok-3-mini',
-  context_window: 131_072,
-  supports: {
-    input: ['text'],
-    output: ['text'],
-    capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
-    tools: [] as const,
-  },
-  pricing: {
-    input: {
-      normal: 0.3,
-      cached: 0.075,
-    },
-    output: {
-      normal: 0.5,
-    },
-  },
-} as const satisfies ModelMeta
-
-const GROK_3 = {
-  name: 'grok-3',
-  context_window: 131_072,
-  supports: {
-    input: ['text'],
-    output: ['text'],
-    capabilities: ['structured_outputs', 'tool_calling'],
-    tools: [] as const,
-  },
-  pricing: {
-    input: {
-      normal: 3,
-      cached: 0.75,
-    },
-    output: {
-      normal: 15,
-    },
-  },
-} as const satisfies ModelMeta
-
-const GROK_2_VISION = {
-  name: 'grok-2-vision-1212',
-  context_window: 32_768,
-  supports: {
-    input: ['text', 'image'],
-    output: ['text'],
-    capabilities: ['structured_outputs', 'tool_calling'],
-    tools: [] as const,
-  },
-  pricing: {
-    input: {
-      normal: 2,
-    },
-    output: {
-      normal: 10,
-    },
-  },
-} as const satisfies ModelMeta
+const GROK_RESPONSES_TOOLS = [
+  'web_search',
+  'x_search',
+  'file_search',
+  'mcp',
+] as const satisfies ReadonlyArray<GrokProviderToolKind>
 
 const GROK_2_IMAGE = {
   name: 'grok-2-image-1212',
@@ -252,50 +91,6 @@ const GROK_IMAGINE_IMAGE_QUALITY = {
   },
 } as const satisfies ModelMeta
 
-/**
- * Grok Chat Models
- * Based on xAI's available models as of 2025
- */
-const GROK_4_20 = {
-  name: 'grok-4.20',
-  context_window: 2_000_000,
-  supports: {
-    input: ['text', 'image', 'document'],
-    output: ['text'],
-    capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
-    tools: [] as const,
-  },
-  pricing: {
-    input: {
-      normal: 2,
-      cached: 0.2,
-    },
-    output: {
-      normal: 6,
-    },
-  },
-} as const satisfies ModelMeta
-
-const GROK_4_20_MULTI_AGENT = {
-  name: 'grok-4.20-multi-agent',
-  context_window: 2_000_000,
-  supports: {
-    input: ['text', 'image', 'document'],
-    output: ['text'],
-    capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
-    tools: [] as const,
-  },
-  pricing: {
-    input: {
-      normal: 2,
-      cached: 0.2,
-    },
-    output: {
-      normal: 6,
-    },
-  },
-} as const satisfies ModelMeta
-
 const GROK_4_3 = {
   name: 'grok-4.3',
   context_window: 1_000_000,
@@ -303,7 +98,7 @@ const GROK_4_3 = {
     input: ['text', 'image'],
     output: ['text'],
     capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
-    tools: [],
+    tools: GROK_RESPONSES_TOOLS,
   },
   pricing: {
     input: {
@@ -323,7 +118,7 @@ const GROK_BUILD_0_1 = {
     input: ['text', 'image'],
     output: ['text'],
     capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
-    tools: [],
+    tools: GROK_RESPONSES_TOOLS,
   },
   pricing: {
     input: {
@@ -336,48 +131,10 @@ const GROK_BUILD_0_1 = {
   },
 } as const satisfies ModelMeta
 
-export const GROK_CHAT_MODELS = [
-  GROK_4_1_FAST_REASONING.name,
-  GROK_4_1_FAST_NON_REASONING.name,
-  GROK_CODE_FAST_1.name,
-  GROK_4_FAST_REASONING.name,
-  GROK_4_FAST_NON_REASONING.name,
-  GROK_4.name,
-  GROK_3.name,
-  GROK_3_MINI.name,
-  GROK_2_VISION.name,
-
-  GROK_4_20.name,
-  GROK_4_20_MULTI_AGENT.name,
-
-  GROK_4_3.name,
-
-  GROK_BUILD_0_1.name,
-] as const
-
 /**
- * Grok models that support combining `tools` + `response_format: json_schema`
- * in a single streaming Chat Completions request (per issue #605). xAI
- * docs gate this to the Grok 4 family — Grok 2 / 3 reject the
- * combination. Grok 2 image generation is not a chat model, omitted.
- *
- * Note: Grok streams tool-call arguments atomically (not token-streamed)
- * per the issue's source matrix; partial-JSON tool-arg parsing should be
- * skipped for Grok specifically. That's a separate adapter concern from
- * this set — the set only gates whether the engine takes the native
- * combined path vs the legacy finalization path.
+ * Grok chat models supported by the Responses adapter.
  */
-export const GROK_COMBINED_TOOLS_AND_SCHEMA_MODELS = new Set<string>([
-  GROK_4_1_FAST_REASONING.name,
-  GROK_4_1_FAST_NON_REASONING.name,
-  GROK_CODE_FAST_1.name,
-  GROK_4_FAST_REASONING.name,
-  GROK_4_FAST_NON_REASONING.name,
-  GROK_4.name,
-  GROK_4_20.name,
-  GROK_4_20_MULTI_AGENT.name,
-  GROK_4_3.name,
-])
+export const GROK_CHAT_MODELS = [GROK_BUILD_0_1.name, GROK_4_3.name] as const
 
 /**
  * Grok Image Generation Models
@@ -450,68 +207,28 @@ export type GrokRealtimeModel = (typeof GROK_REALTIME_MODELS)[number]
  * Used for type inference when constructing multimodal messages.
  */
 export type GrokModelInputModalitiesByName = {
-  [GROK_4_1_FAST_REASONING.name]: typeof GROK_4_1_FAST_REASONING.supports.input
-  [GROK_4_1_FAST_NON_REASONING.name]: typeof GROK_4_1_FAST_NON_REASONING.supports.input
-  [GROK_CODE_FAST_1.name]: typeof GROK_CODE_FAST_1.supports.input
-  [GROK_4_FAST_REASONING.name]: typeof GROK_4_FAST_REASONING.supports.input
-  [GROK_4_FAST_NON_REASONING.name]: typeof GROK_4_FAST_NON_REASONING.supports.input
-  [GROK_4.name]: typeof GROK_4.supports.input
-  [GROK_3.name]: typeof GROK_3.supports.input
-  [GROK_3_MINI.name]: typeof GROK_3_MINI.supports.input
-  [GROK_2_VISION.name]: typeof GROK_2_VISION.supports.input
-  [GROK_4_20.name]: typeof GROK_4_20.supports.input
-  [GROK_4_20_MULTI_AGENT.name]: typeof GROK_4_20_MULTI_AGENT.supports.input
   [GROK_4_3.name]: typeof GROK_4_3.supports.input
   [GROK_BUILD_0_1.name]: typeof GROK_BUILD_0_1.supports.input
 }
 
 /**
- * Type-only map from Grok chat model name to its provider options type.
- * Since Grok uses OpenAI-compatible API, we reuse OpenAI provider options.
- */
-export type GrokChatModelProviderOptionsByName = {
-  [K in (typeof GROK_CHAT_MODELS)[number]]: GrokProviderOptions
-}
-
-/**
  * Type-only map from Grok chat model name to its supported provider tools.
- * Grok exposes no provider-specific tool factories, so every model gets an
- * empty tuple. This ensures that passing an Anthropic/OpenAI ProviderTool to
- * a Grok adapter produces a compile-time type error.
+ * Keeps Grok provider-tool factories type-checked against the models that
+ * advertise xAI Responses server-side tools.
  */
 export type GrokChatModelToolCapabilitiesByName = {
-  [GROK_4_1_FAST_REASONING.name]: typeof GROK_4_1_FAST_REASONING.supports.tools
-  [GROK_4_1_FAST_NON_REASONING.name]: typeof GROK_4_1_FAST_NON_REASONING.supports.tools
-  [GROK_CODE_FAST_1.name]: typeof GROK_CODE_FAST_1.supports.tools
-  [GROK_4_FAST_REASONING.name]: typeof GROK_4_FAST_REASONING.supports.tools
-  [GROK_4_FAST_NON_REASONING.name]: typeof GROK_4_FAST_NON_REASONING.supports.tools
-  [GROK_4.name]: typeof GROK_4.supports.tools
-  [GROK_3.name]: typeof GROK_3.supports.tools
-  [GROK_3_MINI.name]: typeof GROK_3_MINI.supports.tools
-  [GROK_2_VISION.name]: typeof GROK_2_VISION.supports.tools
-  [GROK_4_20.name]: typeof GROK_4_20.supports.tools
-  [GROK_4_20_MULTI_AGENT.name]: typeof GROK_4_20_MULTI_AGENT.supports.tools
+  [GROK_4_3.name]: typeof GROK_4_3.supports.tools
+  [GROK_BUILD_0_1.name]: typeof GROK_BUILD_0_1.supports.tools
 }
 
+export type GrokProviderOptions = GrokTextProviderOptions
+
 /**
- * Grok-specific provider options
- * Based on OpenAI-compatible API options
+ * Type-only map from Grok chat model name to its provider options type.
  */
-export interface GrokProviderOptions {
-  /** Temperature for response generation (0-2) */
-  temperature?: number
-  /** Maximum tokens in the response */
-  max_tokens?: number
-  /** Top-p sampling parameter */
-  top_p?: number
-  /** Frequency penalty (-2.0 to 2.0) */
-  frequency_penalty?: number
-  /** Presence penalty (-2.0 to 2.0) */
-  presence_penalty?: number
-  /** Stop sequences */
-  stop?: string | Array<string>
-  /** A unique identifier representing your end-user */
-  user?: string
+export type GrokChatModelProviderOptionsByName = {
+  [GROK_4_3.name]: GrokProviderOptions
+  [GROK_BUILD_0_1.name]: GrokBuildProviderOptions
 }
 
 // ===========================

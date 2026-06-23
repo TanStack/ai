@@ -1,5 +1,39 @@
 # @tanstack/ai-code-mode-skills
 
+## 0.3.0
+
+### Minor Changes
+
+- [#736](https://github.com/TanStack/ai/pull/736) [`6caac6b`](https://github.com/TanStack/ai/commit/6caac6b52881b0d5a9f7dc741e3f70a00b7137a9) - Make the `@tanstack/ai-code-mode-skills` root export Worker/browser-safe.
+
+  The root entry previously re-exported `createFileSkillStorage` (via `export * from './storage'`), which eagerly pulled in `node:fs` / `node:path`. This broke Cloudflare Workers and browser bundlers even for consumers that only used non-storage helpers like `createSkillManagementTools` or `createSkillsSystemPrompt`.
+
+  The Node-only file storage now lives **only** behind the `@tanstack/ai-code-mode-skills/storage` subpath. The root entry still re-exports the browser-safe `createMemorySkillStorage`.
+
+  **Breaking:** import `createFileSkillStorage` from `@tanstack/ai-code-mode-skills/storage` instead of the package root.
+
+### Patch Changes
+
+- Updated dependencies [[`31de22b`](https://github.com/TanStack/ai/commit/31de22b1ae780c53e3abbf9cf17e1db7b62de84a)]:
+  - @tanstack/ai@0.34.0
+  - @tanstack/ai-code-mode@0.2.11
+
+## 0.2.10
+
+### Patch Changes
+
+- Updated dependencies [[`2cb0313`](https://github.com/TanStack/ai/commit/2cb0313c1f13e1db37c5550308e36bb0b9b73b98), [`81e3aee`](https://github.com/TanStack/ai/commit/81e3aee318d0e6f869ee00c3d86a7475980d89df), [`3bf0dbf`](https://github.com/TanStack/ai/commit/3bf0dbfb3e0a3c252b4769855ba82ffb8cdd69ca), [`18e5f4d`](https://github.com/TanStack/ai/commit/18e5f4d9746a26c3194929ea4b49673728e8eaa5), [`21720dd`](https://github.com/TanStack/ai/commit/21720dd73524d624594a6dfb7e4669c03cc08af0), [`243b8fa`](https://github.com/TanStack/ai/commit/243b8fad7e8a48b68a1a96962ee1443cbd6a0ced)]:
+  - @tanstack/ai@0.33.0
+  - @tanstack/ai-code-mode@0.2.10
+
+## 0.2.9
+
+### Patch Changes
+
+- Updated dependencies [[`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f), [`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f)]:
+  - @tanstack/ai@0.32.0
+  - @tanstack/ai-code-mode@0.2.9
+
 ## 0.2.8
 
 ### Patch Changes

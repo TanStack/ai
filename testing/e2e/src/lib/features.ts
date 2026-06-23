@@ -80,7 +80,7 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
     modelOptions: {},
     modelOverrides: {
       gemini: 'gemini-3-flash-preview',
-      grok: 'grok-4-1-fast-non-reasoning',
+      grok: 'grok-build-0.1',
     },
   },
   'multimodal-image': {

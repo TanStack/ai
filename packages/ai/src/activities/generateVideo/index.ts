@@ -10,8 +10,17 @@
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { toRunErrorPayload } from '../error-payload'
 import { resolveDebugOption } from '../../logger/resolve'
+import {
+  createGenerationContext,
+  runGenerationAbort,
+  runGenerationError,
+  runGenerationFinish,
+  runGenerationStart,
+  runGenerationUsage,
+} from '../middleware'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
+import type { GenerationMiddleware } from '../middleware'
 import type { VideoAdapter } from './adapter'
 import type {
   MediaPrompt,
@@ -160,6 +169,14 @@ export type VideoCreateOptions<
    * control and/or a custom `Logger`.
    */
   debug?: DebugOption
+  /**
+   * Observe-only middleware notified on start, usage, success, and error. Pass
+   * `otelMiddleware()` to emit OpenTelemetry spans, or implement the
+   * `GenerationMiddleware` contract for a custom backend. In streaming mode the
+   * span covers the full create→poll→complete lifecycle; in non-streaming mode
+   * it covers job submission. An abandoned stream fires `onAbort`.
+   */
+  middleware?: Array<GenerationMiddleware>
 } & ({} extends VideoProviderOptions<TAdapter>
     ? {
         /** Provider-specific options for video generation */ modelOptions?: VideoProviderOptions<TAdapter>
@@ -299,13 +316,26 @@ export function generateVideo<
 async function runCreateVideoJob<
   TAdapter extends VideoAdapter<string, any, any, any>,
 >(options: VideoCreateOptions<TAdapter, boolean>): Promise<VideoJobResult> {
-  const { adapter, prompt, size, duration, modelOptions } = options
+  const { adapter, prompt, size, duration, modelOptions, middleware } = options
   const model = adapter.model
+  const requestId = createId('video')
+  const startTime = Date.now()
   const logger: InternalLogger = resolveDebugOption(options.debug)
   const providerName =
     (adapter as { name?: string; provider?: string }).provider ??
     (adapter as { name?: string }).name ??
     'unknown'
+
+  const mwCtx = createGenerationContext({
+    requestId,
+    activity: 'video',
+    provider: adapter.name,
+    model,
+    modelOptions,
+    createId,
+  })
+
+  await runGenerationStart(middleware, mwCtx)
 
   logger.request(`activity=generateVideo provider=${providerName}`, {
     provider: providerName,
@@ -325,8 +355,17 @@ async function runCreateVideoJob<
       jobId: result.jobId,
       model: result.model,
     })
+    // Non-streaming create only submits the job; usage isn't known until the
+    // job completes via polling, so the span covers submission only.
+    await runGenerationFinish(middleware, mwCtx, {
+      duration: Date.now() - startTime,
+    })
     return result
   } catch (error) {
+    await runGenerationError(middleware, mwCtx, {
+      error,
+      duration: Date.now() - startTime,
+    })
     logger.errors('generateVideo activity failed', {
       error,
       source: 'generateVideo',
@@ -346,9 +385,11 @@ function sleep(ms: number): Promise<void> {
 async function* runStreamingVideoGeneration<
   TAdapter extends VideoAdapter<string, any, any, any>,
 >(options: VideoCreateOptions<TAdapter, true>): AsyncIterable<StreamChunk> {
-  const { adapter, prompt, size, duration, modelOptions } = options
+  const { adapter, prompt, size, duration, modelOptions, middleware } = options
   const model = adapter.model
   const runId = options.runId ?? createId('run')
+  const requestId = createId('video')
+  const obsStartTime = Date.now()
   const pollingInterval = options.pollingInterval ?? 2000
   const maxDuration = options.maxDuration ?? 600_000
   const logger: InternalLogger = resolveDebugOption(options.debug)
@@ -366,6 +407,17 @@ async function* runStreamingVideoGeneration<
     timestamp: Date.now(),
   } as StreamChunk
 
+  const mwCtx = createGenerationContext({
+    requestId,
+    activity: 'video',
+    provider: adapter.name,
+    model,
+    modelOptions,
+    createId,
+  })
+
+  await runGenerationStart(middleware, mwCtx)
+
   logger.request(
     `activity=generateVideo provider=${providerName} stream=true`,
     {
@@ -374,6 +426,9 @@ async function* runStreamingVideoGeneration<
     },
   )
 
+  // Tracks whether a terminal observer event (finish/error) has already fired,
+  // so the `finally` below can fire one on abandonment without double-firing.
+  let settled = false
   try {
     // Create the video generation job
     const jobResult = await adapter.createVideoJob({
@@ -422,6 +477,18 @@ async function* runStreamingVideoGeneration<
           },
         )
 
+        // Fire finish before yielding the terminal chunks: the generation has
+        // succeeded, so a consumer that stops reading after `generation:result`
+        // (without pulling `RUN_FINISHED`) must not trip the abandonment path in
+        // `finally`, which would otherwise report a spurious cancellation.
+        if (urlResult.usage)
+          await runGenerationUsage(middleware, mwCtx, urlResult.usage)
+        await runGenerationFinish(middleware, mwCtx, {
+          duration: Date.now() - obsStartTime,
+          usage: urlResult.usage,
+        })
+        settled = true
+
         yield {
           type: 'CUSTOM',
           name: 'generation:result',
@@ -453,6 +520,14 @@ async function* runStreamingVideoGeneration<
     throw new Error('Video generation timed out')
   } catch (error: unknown) {
     const payload = toRunErrorPayload(error, 'Video generation failed')
+    // Mark settled before firing onError: if a user error-hook throws, the
+    // `finally` below must still not double-fire onAbort over the same op
+    // (which would mask the original error and end the span twice).
+    settled = true
+    await runGenerationError(middleware, mwCtx, {
+      error,
+      duration: Date.now() - obsStartTime,
+    })
     logger.errors('generateVideo activity failed', {
       message: payload.message,
       code: payload.code,
@@ -467,6 +542,17 @@ async function* runStreamingVideoGeneration<
       error: payload,
       timestamp: Date.now(),
     } as StreamChunk
+  } finally {
+    if (!settled) {
+      // The consumer abandoned the stream (broke the `for await` loop or
+      // disconnected) before completion, so the generator is being unwound at
+      // a `yield` without reaching finish/error. Fire `onAbort` — a cancel, not
+      // an error — so otelMiddleware ends its span instead of leaking it.
+      await runGenerationAbort(middleware, mwCtx, {
+        reason: 'Video generation stream abandoned before completion',
+        duration: Date.now() - obsStartTime,
+      })
+    }
   }
 }
 

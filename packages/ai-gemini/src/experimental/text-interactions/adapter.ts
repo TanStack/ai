@@ -1064,6 +1064,7 @@ async function* translateInteractionEvents(
                 toolCallId,
                 toolCallName: state.name,
                 toolName: state.name,
+                parentMessageId: messageId,
                 model,
                 timestamp,
                 index: state.index,

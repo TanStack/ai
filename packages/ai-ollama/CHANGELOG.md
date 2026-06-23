@@ -1,5 +1,46 @@
 # @tanstack/ai-ollama
 
+## 0.8.7
+
+### Patch Changes
+
+- [#480](https://github.com/TanStack/ai/pull/480) [`eddfbbd`](https://github.com/TanStack/ai/commit/eddfbbdfd979cad7874f0fb33695c5c41331631e) - Bind tool calls to the assistant message in tool-first streams by setting AG-UI's
+  `parentMessageId` on `TOOL_CALL_START`.
+
+  When a provider streams a tool call **before** any text, the `StreamProcessor` had no
+  active assistant message to attach it to, so it created one under a temporary local id.
+  The later `TEXT_MESSAGE_START` then carried the real provider message id, forcing a
+  mid-stream id change — which destabilizes `UIMessage.id` and can remount the message
+  subtree in `useChat` (React list keys, etc.). See [#477](https://github.com/TanStack/ai/issues/477).
+
+  Every text adapter generates one stable assistant message id per stream and already uses
+  it for `TEXT_MESSAGE_START`; they now also emit it as `parentMessageId` on
+  `TOOL_CALL_START`. The processor reads `chunk.parentMessageId` (`?? active assistant id`)
+  so the message is created with the correct id immediately and the subsequent
+  `TEXT_MESSAGE_START` matches — no rename, no remount.
+
+  Fixed across all adapters that emit `TOOL_CALL_START` (Anthropic, OpenAI Responses +
+  Chat Completions via `@tanstack/openai-base`, OpenRouter, Gemini including the
+  experimental text-interactions adapter, and Ollama).
+
+- Updated dependencies [[`31de22b`](https://github.com/TanStack/ai/commit/31de22b1ae780c53e3abbf9cf17e1db7b62de84a)]:
+  - @tanstack/ai-utils@0.3.0
+  - @tanstack/ai@0.34.0
+
+## 0.8.6
+
+### Patch Changes
+
+- Updated dependencies [[`2cb0313`](https://github.com/TanStack/ai/commit/2cb0313c1f13e1db37c5550308e36bb0b9b73b98), [`18e5f4d`](https://github.com/TanStack/ai/commit/18e5f4d9746a26c3194929ea4b49673728e8eaa5), [`21720dd`](https://github.com/TanStack/ai/commit/21720dd73524d624594a6dfb7e4669c03cc08af0), [`243b8fa`](https://github.com/TanStack/ai/commit/243b8fad7e8a48b68a1a96962ee1443cbd6a0ced)]:
+  - @tanstack/ai@0.33.0
+
+## 0.8.5
+
+### Patch Changes
+
+- Updated dependencies [[`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f), [`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f)]:
+  - @tanstack/ai@0.32.0
+
 ## 0.8.4
 
 ### Patch Changes
