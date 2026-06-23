@@ -29,64 +29,36 @@ import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 
 /**
- * The demo host tool: the canonical recipe for building a TanStack AI chatbot in a
- * TanStack Start app. It's a `chat()` server tool, so the factory bridges it to the
- * in-sandbox agent over the DO-served MCP endpoint — the agent (Claude Code) sees it
- * as `mcp__tanstack__tanstackAiRecipe`, calls it BEFORE scaffolding, the DO runs it
- * on the host, and the result streams back. Returning it from `tools` is what
- * exercises the `/_bridge` path, and it doubles as real, current guidance so the
- * generated app actually works.
+ * The demo host tool: the canonical recipe for scaffolding a **self-contained**
+ * TanStack Start app — one that runs with NO env vars, API keys, or external
+ * services, so its sandbox preview URL works for anyone with zero setup.
  *
- * The recipe targets the Anthropic adapter on purpose: the sandbox already has
- * `ANTHROPIC_API_KEY` in its env (it's injected for the `claude` CLI), so the chatbot
- * the agent scaffolds can run end-to-end behind a sandbox preview URL with no extra
- * setup.
+ * It's a `chat()` server tool, so the factory bridges it to the in-sandbox agent
+ * over the DO-served MCP endpoint — the agent (Claude Code) sees it as
+ * `mcp__tanstack__tanstackStartRecipe`, calls it BEFORE scaffolding, the DO runs
+ * it on the host, and the result streams back. Returning it from `tools` is what
+ * exercises the `/_bridge` path.
+ *
+ * The container ships the `tanstack` CLI (see the Dockerfile), so the recipe
+ * scaffolds with `tanstack create … --intent` — which both creates a real TanStack
+ * Start app and writes TanStack Intent skill mappings into it for coding agents.
+ * The bridge still matters for the sandbox-specific bits the generic skill can't
+ * know: build a NO-env app and bind/expose the dev server for a preview URL.
  */
 const RECIPE = {
-  packages:
-    'pnpm add @tanstack/ai @tanstack/ai-react @tanstack/ai-anthropic @tanstack/react-start @tanstack/react-router react react-dom',
-  server: [
-    '// src/routes/api.chat.ts — TanStack Start server route',
-    "import { chat, toServerSentEventsResponse } from '@tanstack/ai'",
-    "import { anthropicText } from '@tanstack/ai-anthropic'",
-    "import { createFileRoute } from '@tanstack/react-router'",
-    '',
-    "export const Route = createFileRoute('/api/chat')({",
-    '  server: {',
-    '    handlers: {',
-    '      POST: async ({ request }) => {',
-    '        const { messages } = await request.json()',
-    '        const stream = chat({',
-    "          adapter: anthropicText('claude-sonnet-4-6'),",
-    '          messages,',
-    '        })',
-    '        return toServerSentEventsResponse(stream)',
-    '      },',
-    '    },',
-    '  },',
-    '})',
-    '// ANTHROPIC_API_KEY is already in the sandbox env — no extra config needed.',
-  ].join('\n'),
-  client: [
-    '// src/routes/index.tsx — the chat UI',
-    "import { useState } from 'react'",
-    "import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'",
-    '',
-    'const { messages, sendMessage, isLoading } = useChat({',
-    "  connection: fetchServerSentEvents('/api/chat'),",
-    '})',
-    '// Render messages[].parts (text parts), call sendMessage(input) on submit.',
-  ].join('\n'),
-  run: 'Start the dev server bound to 0.0.0.0 (e.g. `vite dev --host 0.0.0.0 --port 3000`), expose port 3000, and return the sandbox preview URL.',
+  scaffold:
+    'Scaffold with the TanStack CLI (it sets up TanStack Intent agent-skill mappings by default): `tanstack create my-app --framework react --no-examples -y`. This creates a TanStack Start app and installs deps. (Add `--no-install` to skip install, or `--add-ons <id,…>` for integrations — but keep it env-free; do NOT add auth/database add-ons that need keys.)',
+  app: 'Turn it into a SELF-CONTAINED interactive app — NO external APIs, NO env vars, NO keys. Pick something visual: a kanban board, a sortable dashboard over a bundled data.json, a markdown notepad, a drawing pad, or a small game (e.g. Game of Life). Keep all state client-side (persist to localStorage). Make it look polished.',
+  run: 'From the app dir, start the dev server bound to all interfaces (`pnpm dev --host 0.0.0.0 --port 3000`, or `npm run dev -- --host 0.0.0.0 --port 3000`), expose port 3000, and return the sandbox preview URL. It runs with ZERO configuration — no API keys or env needed.',
 } as const
 
-const tanstackAiRecipe = toolDefinition({
-  name: 'tanstackAiRecipe',
+const tanstackStartRecipe = toolDefinition({
+  name: 'tanstackStartRecipe',
   description:
-    'The canonical, current recipe for building a TanStack AI chatbot in a TanStack Start app (packages, server route, client hook, how to run it). Call this BEFORE scaffolding so the generated code matches the real API.',
+    'The canonical recipe for building a self-contained TanStack Start app in this sandbox that runs with no env or API keys: scaffold via the `tanstack` CLI (`tanstack create … --intent`), what to build, and how to bind/expose the dev server for a preview URL. Call this BEFORE scaffolding.',
   inputSchema: z.object({
     section: z
-      .enum(['packages', 'server', 'client', 'run', 'all'])
+      .enum(['scaffold', 'app', 'run', 'all'])
       .describe('Which part of the recipe you need (use "all" first).'),
   }),
 }).server(({ section }) =>
@@ -100,13 +72,14 @@ const tanstackAiRecipe = toolDefinition({
  */
 export const agent = createCloudflareSandboxAgent({
   adapter: () => claudeCodeText('sonnet'),
-  tools: () => [tanstackAiRecipe],
+  tools: () => [tanstackStartRecipe],
   // Custom sandbox so we control exactly which env vars are injected into the
   // container. Each `createSecrets` entry becomes an env var the agent — and
-  // anything it runs there, like the chatbot it scaffolds — can read. Values are
-  // pulled from the Worker `env` at run time: set them in `.dev.vars` (local) or
-  // `wrangler secret put` (prod). Secrets are injected at create/resume and never
-  // written to snapshots.
+  // anything it runs there — can read. The demo app the agent builds needs none;
+  // `ANTHROPIC_API_KEY` here is only for the `claude` CLI (the agent itself).
+  // Values are pulled from the Worker `env` at run time: set them in `.dev.vars`
+  // (local) or `wrangler secret put` (prod). Secrets are injected at
+  // create/resume and never written to snapshots.
   //
   // NOTE: a custom sandbox REPLACES the factory default, so keep
   // `ANTHROPIC_API_KEY` (the `claude` CLI needs it). To add a var that isn't
