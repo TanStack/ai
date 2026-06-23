@@ -68,60 +68,6 @@ Even after successfully compiling from source, `isolated-vm@6.1.0` crashes the s
 
 **When `isolated-vm` works again:** Once `isolated-vm` publishes a release compatible with Node 25 / V8 14.1, switch the driver back to `'node'` in `src/lib/create-isolate-driver.ts` (default) and in each API route file. The `node` driver provides stronger isolation (true V8 process boundary) and is preferred in production.
 
-## Sandbox Agent page
-
-The **Sandbox Agent** page (`/sandbox-agent`) is different from every other demo
-here. The rest of this app is _code mode_ — the LLM writes JavaScript that runs
-in an in-process isolate to call tools. The Sandbox Agent page instead drives a
-full **Cloudflare sandbox coding agent**: a Claude Code harness running in a
-`@cloudflare/sandbox` container (real filesystem, git, shell), coordinated by a
-Durable Object on the edge.
-
-That agent is a separate, deployed Worker — it cannot run inside the Vite dev
-server. Use the reference worker at
-[`examples/sandbox-cloudflare-agent`](../sandbox-cloudflare-agent), which is one
-`createCloudflareSandboxAgent()` call.
-
-### How the wiring works
-
-The agent speaks a POST-then-WebSocket run protocol
-(`POST /runs` → `202 { runId }`, then a resumable WebSocket tail at
-`GET /runs/:runId/stream`). The browser's `useChat` only speaks "POST a body,
-read back an SSE stream". The server route
-[`src/routes/_sandbox-agent/api.sandbox-agent.ts`](src/routes/_sandbox-agent/api.sandbox-agent.ts)
-bridges the two: it triggers the run, tails the WebSocket, and re-emits each
-chat `StreamChunk` as SSE. So the React page
-(`src/routes/_sandbox-agent/sandbox-agent.tsx`) is the same shape as the other
-chat demos.
-
-```
-browser useChat ──SSE──▶ /api/sandbox-agent (proxy) ──POST /runs──▶ agent Worker
-                                  │                                     │ (Coordinator DO
-                                  └──────────── WebSocket tail ─────────┘  drives the run
-                                                                            in a container)
-```
-
-### Run it
-
-1. Start the agent worker (set its `ANTHROPIC_API_KEY` — see that example's
-   README):
-
-   ```bash
-   pnpm --filter @tanstack/sandbox-cloudflare-agent-example dev   # wrangler dev → http://localhost:8787
-   ```
-
-2. Point this app at it and start the dev server:
-
-   ```bash
-   SANDBOX_AGENT_URL=http://localhost:8787 pnpm dev
-   ```
-
-   `SANDBOX_AGENT_URL` defaults to `http://localhost:8787`, so it can be omitted
-   when the worker runs on the default `wrangler dev` port. Set it to your
-   deployed `*.workers.dev` URL to talk to a deployed agent.
-
-3. Open <http://localhost:3001/sandbox-agent>.
-
 ## Development
 
 ```bash
