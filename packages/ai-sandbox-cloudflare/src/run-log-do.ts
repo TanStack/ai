@@ -26,6 +26,7 @@ import type {
   RunEventLog,
   RunEventLogReadOptions,
   RunRecord,
+  TerminalRunStatus,
 } from '@tanstack/ai-sandbox'
 import type { StreamChunk } from '@tanstack/ai'
 
@@ -95,7 +96,7 @@ export class DurableObjectRunEventLog implements RunEventLog {
 
   async finish(
     runId: string,
-    status: 'done' | 'error' | 'aborted',
+    status: TerminalRunStatus,
     error?: RunError,
   ): Promise<void> {
     const record = await this.require(runId)

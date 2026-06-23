@@ -26,15 +26,43 @@
 import type { AnyTool } from '@tanstack/ai'
 import type { ToolDescriptor } from './tool-bridge'
 
+/** Per-call options forwarded to a {@link RemoteToolExecutor}. */
+export interface RemoteToolExecuteOptions {
+  /** Cancels the in-flight remote call when the in-container run aborts. */
+  signal?: AbortSignal
+}
+
 /** Runs a named host tool with the given args, returning its raw result. */
 export interface RemoteToolExecutor {
-  execute: (name: string, args: unknown) => Promise<unknown>
+  execute: (
+    name: string,
+    args: unknown,
+    options?: RemoteToolExecuteOptions,
+  ) => Promise<unknown>
+}
+
+/** Wire shape of a tool-exec request the container POSTs to the orchestrator. */
+export interface ToolExecRequest {
+  name: string
+  args: unknown
+}
+
+/** Narrow an unknown body into a {@link ToolExecRequest} (project rule: no `as`). */
+export function isToolExecRequest(value: unknown): value is ToolExecRequest {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    'name' in value &&
+    typeof value.name === 'string'
+  )
 }
 
 /**
  * Rebuild `chat()` tool objects (container side) from serialized descriptors.
  * Each stub advertises the descriptor's JSON-schema and delegates `execute` to
- * the executor; the harness adapter bridges them like any other tool.
+ * the executor; the harness adapter bridges them like any other tool. The
+ * harness's `abortSignal` is forwarded so a cancelled run cancels the in-flight
+ * remote call too.
  */
 export function remoteToolStubs(
   descriptors: Array<ToolDescriptor>,
@@ -44,7 +72,14 @@ export function remoteToolStubs(
     name: descriptor.name,
     description: descriptor.description ?? '',
     inputSchema: descriptor.inputSchema,
-    execute: (args: unknown) => executor.execute(descriptor.name, args),
+    execute: (args: unknown, options?: { abortSignal?: AbortSignal }) =>
+      executor.execute(
+        descriptor.name,
+        args,
+        options?.abortSignal !== undefined
+          ? { signal: options.abortSignal }
+          : {},
+      ),
   }))
 }
 
@@ -94,7 +129,7 @@ export function httpRemoteToolExecutor(
   token: string,
 ): RemoteToolExecutor {
   return {
-    async execute(name, args) {
+    async execute(name, args, options) {
       const res = await fetch(url, {
         method: 'POST',
         headers: {
@@ -102,6 +137,7 @@ export function httpRemoteToolExecutor(
           authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ name, args }),
+        ...(options?.signal !== undefined ? { signal: options.signal } : {}),
       })
       if (!res.ok) {
         const text = await res.text()

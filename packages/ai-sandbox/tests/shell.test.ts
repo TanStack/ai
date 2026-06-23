@@ -122,6 +122,7 @@ function makeFakeHandle(
       env: true,
       ports: false,
       backgroundProcesses: true,
+      writableStdin: true,
       snapshots: false,
       networkPolicy: false,
       durableFilesystem: false,

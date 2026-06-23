@@ -16,8 +16,11 @@
  */
 import type { StreamChunk } from '@tanstack/ai'
 
+/** A terminal run status: no further events will be appended. */
+export type TerminalRunStatus = 'done' | 'error' | 'aborted'
+
 /** Lifecycle status of a run. `done`/`error`/`aborted` are terminal. */
-export type RunStatus = 'pending' | 'running' | 'done' | 'error' | 'aborted'
+export type RunStatus = 'running' | TerminalRunStatus
 
 const TERMINAL: ReadonlySet<RunStatus> = new Set<RunStatus>([
   'done',
@@ -80,7 +83,7 @@ export interface RunEventLog {
   /** Move the run to a terminal status. Idempotent for the same status. */
   finish: (
     runId: string,
-    status: 'done' | 'error' | 'aborted',
+    status: TerminalRunStatus,
     error?: RunError,
   ) => Promise<void>
   /** Current record, or null if the run is unknown. */
@@ -156,7 +159,10 @@ export class InMemoryRunEventLog implements RunEventLog {
         ),
       )
     }
-    const seq = state.chunks.length
+    // Derive seq from the record's cursor (not `chunks.length`) so the gap-free
+    // invariant holds the same way the durable backend computes it, even if the
+    // backlog is ever trimmed/compacted.
+    const seq = state.record.lastSeq + 1
     state.chunks.push(chunk)
     state.record.lastSeq = seq
     state.record.updatedAt = this.now()
@@ -166,7 +172,7 @@ export class InMemoryRunEventLog implements RunEventLog {
 
   finish(
     runId: string,
-    status: 'done' | 'error' | 'aborted',
+    status: TerminalRunStatus,
     error?: RunError,
   ): Promise<void> {
     const state = this.runs.get(runId)

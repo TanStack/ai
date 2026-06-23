@@ -23,11 +23,19 @@ import type { ModelMessage } from '@tanstack/ai'
 import type { ToolDescriptor, WorkspaceDefinition } from '@tanstack/ai-sandbox'
 
 /**
+ * The in-sandbox harnesses the runner can spawn. Single source of truth: the
+ * {@link HarnessId} type is DERIVED from this list, and {@link isHarnessId}
+ * validates against it — so the runtime guard and the compile-time type can
+ * never drift.
+ */
+const HARNESS_IDS = ['claude-code', 'codex', 'gemini-cli', 'opencode'] as const
+
+/**
  * Identifier for the in-sandbox harness the runner spawns. The runner maps this
  * to the matching `*Text` adapter (via the caller's `resolveAdapter`); the DO
  * never imports the adapter packages.
  */
-export type HarnessId = 'claude-code' | 'codex' | 'gemini-cli' | 'opencode'
+export type HarnessId = (typeof HARNESS_IDS)[number]
 
 /**
  * The body of `POST /run`: the run identity + conversation + serialized
@@ -49,15 +57,11 @@ export interface ContainerRunRequest {
   toolExecToken: string
 }
 
-const HARNESS_IDS: ReadonlyArray<string> = [
-  'claude-code',
-  'codex',
-  'gemini-cli',
-  'opencode',
-]
-
 function isHarnessId(value: unknown): value is HarnessId {
-  return typeof value === 'string' && HARNESS_IDS.includes(value)
+  return (
+    typeof value === 'string' &&
+    (HARNESS_IDS as ReadonlyArray<string>).includes(value)
+  )
 }
 
 function isToolDescriptor(value: unknown): value is ToolDescriptor {

@@ -154,8 +154,13 @@ export {
   toolDescriptors,
   httpRemoteToolExecutor,
   executeHostTool,
+  isToolExecRequest,
 } from './remote-tools'
-export type { RemoteToolExecutor } from './remote-tools'
+export type {
+  RemoteToolExecutor,
+  RemoteToolExecuteOptions,
+  ToolExecRequest,
+} from './remote-tools'
 
 // Resumable run event-log — the primitive that lets a trigger start a run and
 // return while a durable orchestrator drives it and clients tail from a cursor.
@@ -165,6 +170,7 @@ export type {
   RunRecord,
   RunEvent,
   RunStatus,
+  TerminalRunStatus,
   RunError,
   RunEventLogReadOptions,
 } from './run-log'

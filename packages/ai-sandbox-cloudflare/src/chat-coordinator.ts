@@ -207,7 +207,18 @@ export abstract class ChatSandboxCoordinator<
     ) {
       return new Response('unauthorized', { status: 401 })
     }
-    const message: unknown = await request.json()
+    let message: unknown
+    try {
+      message = await request.json()
+    } catch {
+      // A malformed body must still produce a valid JSON-RPC error so the agent's
+      // MCP client can react, rather than an opaque DO 500 that can wedge the run.
+      return this.jsonResponse({
+        jsonrpc: '2.0',
+        id: null,
+        error: { code: -32700, message: 'Parse error' },
+      })
+    }
     const reply = await handleBridgeJsonRpc(bridge.core, message)
     // A notification (no id) yields null → MCP expects an empty 202 ack.
     if (reply === null) return new Response(null, { status: 202 })

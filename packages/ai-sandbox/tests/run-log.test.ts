@@ -130,6 +130,5 @@ describe('InMemoryRunEventLog', () => {
     expect(isTerminalRunStatus('error')).toBe(true)
     expect(isTerminalRunStatus('aborted')).toBe(true)
     expect(isTerminalRunStatus('running')).toBe(false)
-    expect(isTerminalRunStatus('pending')).toBe(false)
   })
 })

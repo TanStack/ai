@@ -27,7 +27,11 @@
  * build here). It follows the proven run-log / remote-tool contracts.
  */
 import { EventType } from '@tanstack/ai'
-import { executeHostTool, toolDescriptors } from '@tanstack/ai-sandbox'
+import {
+  executeHostTool,
+  isToolExecRequest,
+  toolDescriptors,
+} from '@tanstack/ai-sandbox'
 import { getSandbox } from '@cloudflare/sandbox'
 import { SandboxCoordinator } from './coordinator'
 import { timingSafeBearerEqualWeb } from './web-crypto'
@@ -68,27 +72,17 @@ export interface ContainerRunConfig {
   harness: HarnessId
   /** Model id passed to that harness. */
   model: string
+  /** Runtime context forwarded to each host tool's `execute()` (DB / app state). */
+  context?: unknown
 }
 
-/** Per-run tool-exec token; gates `/tool-exec/:runId` for that run only. */
+/** Per-run tool-exec state; gates `/tool-exec/:runId` and runs the host tools. */
 interface ToolExecState {
   token: string
   hostTools: Array<AnyTool>
-}
-
-/** Wire shape of a `/tool-exec/:runId` body: `{ name, args }`. */
-interface ToolExecRequest {
-  name: string
-  args: unknown
-}
-
-function isToolExecRequest(value: unknown): value is ToolExecRequest {
-  return (
-    value !== null &&
-    typeof value === 'object' &&
-    'name' in value &&
-    typeof value.name === 'string'
-  )
+  context?: unknown
+  /** Aborted once the run is terminal so a still-running host tool is cancelled. */
+  abort: AbortController
 }
 
 /** Narrow one NDJSON line into a StreamChunk (project rule: no `as`). */
@@ -100,8 +94,9 @@ function isStreamChunk(value: unknown): value is StreamChunk {
  * Adapt the runner's NDJSON response body into an `AsyncIterable<StreamChunk>`
  * so the DO can drive it through the SAME base `RunController` / `pipeToRunLog`
  * the DO-drives coordinator uses — terminal-status handling, RUN_ERROR
- * detection, and never-rejects semantics all come for free. A malformed line is
- * surfaced as a terminal RUN_ERROR chunk, never silently dropped.
+ * detection, and never-rejects semantics all come for free. A malformed line
+ * (unparseable JSON, or valid JSON that isn't a chunk) is surfaced as a terminal
+ * RUN_ERROR chunk, never silently dropped.
  */
 async function* ndjsonToChunks(
   body: ReadableStream<Uint8Array>,
@@ -121,24 +116,39 @@ async function* ndjsonToChunks(
       buffer = buffer.slice(newline + 1)
       newline = buffer.indexOf('\n')
       if (line === '') continue
-      const parsed: unknown = JSON.parse(line)
-      if (!isStreamChunk(parsed)) {
-        yield {
-          type: EventType.RUN_ERROR,
-          message: 'runner sent a non-chunk line',
-        }
-        return
-      }
-      yield parsed
+      const chunk = parseChunkLine(line)
+      yield chunk
+      if (chunk.type === EventType.RUN_ERROR) return
     }
     result = await reader.read()
   }
   buffer += decoder.decode()
   const tail = buffer.trim()
-  if (tail !== '') {
-    const parsed: unknown = JSON.parse(tail)
-    if (isStreamChunk(parsed)) yield parsed
+  if (tail !== '') yield parseChunkLine(tail)
+}
+
+/**
+ * Parse one NDJSON line into a {@link StreamChunk}, turning a truncated/garbled
+ * line (a crashed container's last write) or a non-chunk object into a terminal
+ * RUN_ERROR chunk rather than throwing or silently dropping it.
+ */
+function parseChunkLine(line: string): StreamChunk {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(line)
+  } catch {
+    return {
+      type: EventType.RUN_ERROR,
+      message: `runner sent unparseable NDJSON: ${line.slice(0, 200)}`,
+    }
   }
+  if (!isStreamChunk(parsed)) {
+    return {
+      type: EventType.RUN_ERROR,
+      message: 'runner sent a non-chunk line',
+    }
+  }
+  return parsed
 }
 
 export abstract class ContainerSandboxCoordinator<
@@ -151,6 +161,16 @@ export abstract class ContainerSandboxCoordinator<
    * the container's callbacks always hit the instance that minted the token.
    */
   private readonly toolExec = new Map<string, ToolExecState>()
+
+  /**
+   * In-flight runner boot, memoized so two runs starting near-simultaneously on
+   * this instance don't both spawn `container-runner` (the second would hit
+   * EADDRINUSE on RUNNER_PORT). Cleared once boot settles.
+   */
+  private runnerBoot?: Promise<void>
+
+  /** Last `/health` probe error, surfaced if the runner never comes up. */
+  private lastProbeError?: unknown
 
   // ===========================================================================
   // Subclass seam: the per-run configuration
@@ -179,12 +199,24 @@ export abstract class ContainerSandboxCoordinator<
     // Mint the token BEFORE driving the container, registering the real tools so
     // `/tool-exec/:runId` can execute them.
     const token = crypto.randomUUID() + crypto.randomUUID().replace(/-/g, '')
-    this.toolExec.set(input.runId, { token, hostTools: runConfig.hostTools })
+    this.toolExec.set(input.runId, {
+      token,
+      hostTools: runConfig.hostTools,
+      ...(runConfig.context !== undefined
+        ? { context: runConfig.context }
+        : {}),
+      abort: new AbortController(),
+    })
     return this.driveContainer(input, runConfig, token)
   }
 
-  /** Drop the per-run tool-exec token once the run is terminal. */
+  /**
+   * Once the run is terminal, abort any host tool still running on its behalf
+   * (so a tool that outlived the run doesn't leak), then drop the per-run state.
+   */
   protected override onRunSettled(runId: string): void {
+    const state = this.toolExec.get(runId)
+    if (state) state.abort.abort()
     this.toolExec.delete(runId)
   }
 
@@ -244,7 +276,17 @@ export abstract class ContainerSandboxCoordinator<
    * bundled runner as a background process via that control server. Idempotent
    * for a thread-reused container: if `/health` already answers, we skip spawn.
    */
-  private async ensureRunner(sandbox: Sandbox): Promise<void> {
+  private ensureRunner(sandbox: Sandbox): Promise<void> {
+    // Memoize so concurrent runs on this instance share ONE boot.
+    if (this.runnerBoot) return this.runnerBoot
+    const boot = this.bootRunner(sandbox).finally(() => {
+      this.runnerBoot = undefined
+    })
+    this.runnerBoot = boot
+    return boot
+  }
+
+  private async bootRunner(sandbox: Sandbox): Promise<void> {
     if (await this.runnerHealthy(sandbox)) return
     // Inject the Anthropic key into the container env so the in-container CLI can
     // authenticate. The key never lands in argv or the run-log.
@@ -259,7 +301,17 @@ export abstract class ContainerSandboxCoordinator<
       if (await this.runnerHealthy(sandbox)) return
       await new Promise((resolve) => setTimeout(resolve, 250))
     }
-    throw new Error('in-container runner did not become healthy in time')
+    // Include the last probe error so a real misconfig (missing binding, image
+    // without the runner) is distinguishable from a plain slow cold-start.
+    const detail =
+      this.lastProbeError instanceof Error
+        ? `: ${this.lastProbeError.message}`
+        : this.lastProbeError !== undefined
+          ? `: ${String(this.lastProbeError)}`
+          : ''
+    throw new Error(
+      `in-container runner did not become healthy in time${detail}`,
+    )
   }
 
   private async runnerHealthy(sandbox: Sandbox): Promise<boolean> {
@@ -270,7 +322,8 @@ export abstract class ContainerSandboxCoordinator<
         RUNNER_PORT,
       )
       return res.ok
-    } catch {
+    } catch (error) {
+      this.lastProbeError = error
       return false
     }
   }
@@ -309,7 +362,12 @@ export abstract class ContainerSandboxCoordinator<
     ) {
       return new Response('unauthorized', { status: 401 })
     }
-    const payload: unknown = await request.json()
+    let payload: unknown
+    try {
+      payload = await request.json()
+    } catch {
+      return this.jsonResponse({ error: 'body must be valid JSON' }, 400)
+    }
     if (!isToolExecRequest(payload)) {
       return this.jsonResponse({ error: 'body must be { name, args }' }, 400)
     }
@@ -318,6 +376,10 @@ export abstract class ContainerSandboxCoordinator<
         state.hostTools,
         payload.name,
         payload.args,
+        {
+          ...(state.context !== undefined ? { context: state.context } : {}),
+          signal: state.abort.signal,
+        },
       )
       return this.jsonResponse({ result })
     } catch (error) {

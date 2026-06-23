@@ -3,7 +3,8 @@
 
 # Anthropic API key for the IN-CONTAINER `claude` CLI. The coordinator injects
 # it into the container env (sandbox.setEnvVars) — never persisted to logs.
+# NOTE: in the co-located model only ANTHROPIC_API_KEY is wired into the
+# container (see ContainerSandboxCoordinator.ensureRunner). Authenticating the
+# CLI with an OAuth token instead would require extending ContainerCoordinatorEnv
+# + the setEnvVars call to forward it.
 ANTHROPIC_API_KEY=sk-ant-...
-
-# Optional: an OAuth token instead of an API key (set one or the other).
-# CLAUDE_CODE_OAUTH_TOKEN=

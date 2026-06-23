@@ -286,8 +286,14 @@ export class ClaudeCodeTextAdapter<
     const { logger } = options
     let bridge: HostToolBridge | undefined
     const approvalRequests: Array<StreamChunk> = []
+    // Temp files written for the run (bridge MCP config, redirected prompt) that
+    // carry the bearer token / prompt; removed in `finally` so they don't linger
+    // in the sandbox after the run.
+    let cleanupSandbox: SandboxHandle | undefined
+    const tempFiles: Array<string> = []
     try {
       const sandbox = this.sandboxFrom(options)
+      cleanupSandbox = sandbox
       const cwd = this.workdir(options)
       const runId = options.runId ?? this.generateId()
       const threadId = options.threadId ?? this.generateId()
@@ -348,6 +354,7 @@ export class ClaudeCodeTextAdapter<
       if (bridge) {
         mcpConfigPath = `${cwd}/.tanstack-mcp-bridge-${runId}.json`
         await sandbox.fs.write(mcpConfigPath, bridgeToMcpConfig(bridge))
+        tempFiles.push(mcpConfigPath)
       }
       const command = this.buildCommand(
         options,
@@ -368,6 +375,7 @@ export class ClaudeCodeTextAdapter<
       if (sandbox.capabilities.writableStdin === false) {
         const promptPath = `/tmp/tanstack-claude-prompt-${runId}`
         await sandbox.fs.write(promptPath, prompt)
+        tempFiles.push(promptPath)
         runCommand = `${command} < ${q(promptPath)}`
         stdinInput = undefined
       }
@@ -458,6 +466,17 @@ export class ClaudeCodeTextAdapter<
       }
     } finally {
       if (bridge) await bridge.close()
+      // Remove the per-run token/prompt files. Best-effort: a cleanup failure
+      // must not mask the run's own outcome.
+      if (cleanupSandbox) {
+        for (const path of tempFiles) {
+          try {
+            await cleanupSandbox.fs.remove(path)
+          } catch {
+            // file already gone / sandbox torn down — nothing to clean up
+          }
+        }
+      }
     }
   }
 

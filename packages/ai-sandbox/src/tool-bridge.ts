@@ -76,6 +76,26 @@ export interface ToolDescriptor {
   inputSchema: { type: 'object'; [key: string]: unknown }
 }
 
+/**
+ * Coerce a tool's `inputSchema` into the object-schema shape MCP advertises,
+ * substituting an empty object schema when it isn't already a JSON-schema object
+ * (project rule: a guard, not an `as` cast).
+ */
+function toObjectSchema(schema: unknown): {
+  type: 'object'
+  [key: string]: unknown
+} {
+  if (
+    schema !== null &&
+    typeof schema === 'object' &&
+    'type' in schema &&
+    schema.type === 'object'
+  ) {
+    return { ...schema, type: 'object' }
+  }
+  return { type: 'object', properties: {} }
+}
+
 /** MCP `tools/call` result shape. */
 export interface ToolCallResult {
   content: Array<{ type: 'text'; text: string }>
@@ -115,10 +135,7 @@ export function createToolBridgeCore(
         ...tools.map((tool) => ({
           name: tool.name,
           description: tool.description,
-          inputSchema: (tool.inputSchema ?? {
-            type: 'object',
-            properties: {},
-          }) as { type: 'object'; [key: string]: unknown },
+          inputSchema: toObjectSchema(tool.inputSchema),
         })),
         ...(permissionDescriptor ? [permissionDescriptor] : []),
       ]
@@ -302,12 +319,19 @@ export async function startHostToolBridge(
 
       let body = ''
       for await (const chunk of req) body += chunk
-      await transport.handleRequest(
-        req,
-        res,
-        body ? (JSON.parse(body) as unknown) : undefined,
-      )
-    })().catch(() => {
+      let parsed: unknown
+      try {
+        parsed = body ? JSON.parse(body) : undefined
+      } catch {
+        // Malformed agent request → 400, distinct from an internal 500.
+        if (!res.headersSent) res.writeHead(400).end('invalid JSON body')
+        return
+      }
+      await transport.handleRequest(req, res, parsed)
+    })().catch((error: unknown) => {
+      // Log the underlying fault — on the host/Docker path there is no run-log
+      // capturing it, so swallowing it leaves an operator with nothing.
+      console.error('[tool-bridge] request handler failed:', error)
       if (!res.headersSent) res.writeHead(500).end('bridge error')
     })
   })

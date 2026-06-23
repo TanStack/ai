@@ -19,6 +19,7 @@ function fakeHandleAndFire(present: Set<string>) {
       env: true,
       ports: false,
       backgroundProcesses: false,
+      writableStdin: true,
       snapshots: false,
       networkPolicy: false,
       durableFilesystem: false,
