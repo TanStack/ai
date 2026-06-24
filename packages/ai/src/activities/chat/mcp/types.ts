@@ -13,6 +13,16 @@ export interface MCPToolSource {
   // forwards what is declared here.
   tools: (options?: { lazy?: boolean }) => Promise<Array<ServerTool>>
   close: () => Promise<void>
+  /**
+   * Reads an MCP resource by URI. Used by the chat manager to eagerly fetch
+   * `ui://` resource widgets (MCP Apps) after a tool result resolves.
+   *
+   * Optional — sources that do not serve `ui://` resources need not implement
+   * this method. `ai-mcp`'s `MCPClient` satisfies this structurally.
+   */
+  readResource?: (uri: string) => Promise<{
+    contents: Array<{ uri: string; mimeType?: string; text?: string; blob?: string }>
+  }>
 }
 
 /**
