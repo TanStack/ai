@@ -3,7 +3,10 @@ linkWorkspacePackages: true
 preferWorkspacePackages: true
 blockExoticSubdeps: true
 trustPolicy: 'no-downgrade'
-minimumReleaseAge: 1
+minimumReleaseAge: 1440
+minimumReleaseAgeExclude:
+  - 'kiira@0.5.0' # root dev dependency already locked on main
+  - 'kiira-core@0.5.0' # transitive dependency of kiira@0.5.0
 
 trustPolicyExclude:
   - 'chokidar@4.0.3' # existing transitive from sass/nitro; latest v4 with v5 available
