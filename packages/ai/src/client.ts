@@ -120,6 +120,8 @@ export type {
 
 export type {
   AudioVisualization,
+  RealtimeAdapter,
+  RealtimeConnection,
   RealtimeError,
   RealtimeErrorCode,
   RealtimeEvent,
