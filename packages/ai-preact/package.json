@@ -24,6 +24,10 @@
     ".": {
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
+    },
+    "./mcp-apps": {
+      "types": "./dist/esm/mcp-apps.d.ts",
+      "import": "./dist/esm/mcp-apps.js"
     }
   },
   "files": [
@@ -55,6 +59,9 @@
     "@tanstack/ai-client": "workspace:*"
   },
   "devDependencies": {
+    "@mcp-ui/client": "^7",
+    "@modelcontextprotocol/sdk": "^1",
+    "@tanstack/ai": "workspace:*",
     "@testing-library/preact": "^3.2.4",
     "@vitest/coverage-v8": "4.0.14",
     "jsdom": "^27.2.0",
@@ -62,7 +69,13 @@
     "vite": "^7.3.3"
   },
   "peerDependencies": {
+    "@mcp-ui/client": "^7",
     "@tanstack/ai": "workspace:^",
     "preact": ">=10.11.0"
+  },
+  "peerDependenciesMeta": {
+    "@mcp-ui/client": {
+      "optional": true
+    }
   }
 }
