@@ -5,7 +5,7 @@ title: ModelMessage
 
 # Interface: ModelMessage\<TContent\>
 
-Defined in: [packages/ai/src/types.ts:325](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L325)
+Defined in: [packages/ai/src/types.ts:326](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L326)
 
 ## Type Parameters
 
@@ -21,7 +21,7 @@ Defined in: [packages/ai/src/types.ts:325](https://github.com/TanStack/ai/blob/m
 content: TContent;
 ```
 
-Defined in: [packages/ai/src/types.ts:332](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L332)
+Defined in: [packages/ai/src/types.ts:333](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L333)
 
 ***
 
@@ -31,7 +31,7 @@ Defined in: [packages/ai/src/types.ts:332](https://github.com/TanStack/ai/blob/m
 optional name: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:333](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L333)
+Defined in: [packages/ai/src/types.ts:334](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L334)
 
 ***
 
@@ -41,7 +41,7 @@ Defined in: [packages/ai/src/types.ts:333](https://github.com/TanStack/ai/blob/m
 role: "user" | "assistant" | "tool";
 ```
 
-Defined in: [packages/ai/src/types.ts:331](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L331)
+Defined in: [packages/ai/src/types.ts:332](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L332)
 
 ***
 
@@ -51,7 +51,7 @@ Defined in: [packages/ai/src/types.ts:331](https://github.com/TanStack/ai/blob/m
 optional thinking: object[];
 ```
 
-Defined in: [packages/ai/src/types.ts:336](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L336)
+Defined in: [packages/ai/src/types.ts:337](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L337)
 
 #### content
 
@@ -73,7 +73,7 @@ optional signature: string;
 optional toolCallId: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:335](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L335)
+Defined in: [packages/ai/src/types.ts:336](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L336)
 
 ***
 
@@ -83,4 +83,4 @@ Defined in: [packages/ai/src/types.ts:335](https://github.com/TanStack/ai/blob/m
 optional toolCalls: ToolCall<unknown>[];
 ```
 
-Defined in: [packages/ai/src/types.ts:334](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L334)
+Defined in: [packages/ai/src/types.ts:335](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L335)

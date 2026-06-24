@@ -1,5 +1,49 @@
 # @tanstack/ai-isolate-node
 
+## 0.1.36
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-code-mode@0.2.11
+
+## 0.1.35
+
+### Patch Changes
+
+- Updated dependencies [[`81e3aee`](https://github.com/TanStack/ai/commit/81e3aee318d0e6f869ee00c3d86a7475980d89df), [`3bf0dbf`](https://github.com/TanStack/ai/commit/3bf0dbfb3e0a3c252b4769855ba82ffb8cdd69ca)]:
+  - @tanstack/ai-code-mode@0.2.10
+
+## 0.1.34
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-code-mode@0.2.9
+
+## 0.1.33
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-code-mode@0.2.8
+
+## 0.1.32
+
+### Patch Changes
+
+- [#769](https://github.com/TanStack/ai/pull/769) [`1d1bb52`](https://github.com/TanStack/ai/commit/1d1bb5219a38d9718cc926148e93fc27d5d2305b) - Add repository metadata (`homepage`, `bugs`, `funding`), fix `repository.directory` to point at each package, and include an MIT `LICENSE` file in every published package.
+
+- Updated dependencies [[`1d1bb52`](https://github.com/TanStack/ai/commit/1d1bb5219a38d9718cc926148e93fc27d5d2305b)]:
+  - @tanstack/ai-code-mode@0.2.7
+
+## 0.1.31
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-code-mode@0.2.6
+
 ## 0.1.30
 
 ### Patch Changes

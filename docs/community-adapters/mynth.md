@@ -58,7 +58,7 @@ const result = await generateImage({
   adapter: mynthImage("black-forest-labs/flux.2-dev"),
   prompt: "Editorial product photo of a ceramic mug on a linen tablecloth",
   numberOfImages: 1,
-  size: "1024x1024",
+  size: "square",
 });
 
 console.log(result.id);
@@ -92,6 +92,10 @@ console.log(result.images[0]?.url);
 You can still override shared config per adapter:
 
 ```ts
+import { createMynthImage } from "@mynthio/tanstack-ai-adapter";
+
+const mynth = createMynthImage();
+
 const adapter = mynth("auto", {
   baseUrl: "https://proxy.example.com",
 });
@@ -109,7 +113,7 @@ const result = await generateImage({
   adapter: mynthImage("recraft/recraft-v4"),
   prompt: "Ignored when promptStructured is provided",
   numberOfImages: 2,
-  size: "1024x1024",
+  size: "portrait",
   modelOptions: {
     promptStructured: {
       positive: "Modern poster design for a jazz festival",
@@ -119,7 +123,7 @@ const result = await generateImage({
     size: {
       type: "aspect_ratio",
       aspectRatio: "4:5",
-      scale: "2k",
+      scale: "4k",
     },
     output: {
       format: "png",
@@ -127,11 +131,9 @@ const result = await generateImage({
     },
     inputs: ["https://example.com/reference-image.jpg"],
     webhook: {
-      enabled: true,
+      dashboard: false,
     },
-    contentRating: {
-      enabled: true,
-    },
+    contentRating: true,
     metadata: {
       requestId: "req_123",
     },

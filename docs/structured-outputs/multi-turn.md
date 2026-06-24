@@ -32,6 +32,8 @@ By the end of this guide you'll have a chat UI that walks `messages` directly, r
 When `useChat({ outputSchema })` receives the server's `structured-output.complete` for an assistant turn, the runtime attaches a typed `structured-output` `MessagePart` to that assistant's `UIMessage`. The part looks like this:
 
 ```typescript
+import type { DeepPartial } from "@tanstack/ai";
+
 type StructuredOutputPart<TData> = {
   type: "structured-output";
   status: "streaming" | "complete" | "error";
@@ -99,11 +101,12 @@ Behind the scenes, when the client sends turn N, the previous N-1 assistant turn
 
 Here's the shape you want. `useChat` exposes `messages` (typed, schema-aware), `sendMessage`, and the hook-level `partial` / `final` sugar for the latest turn. To render history, walk `messages` directly:
 
-```tsx
+```tsx ignore
 import { useState } from "react";
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import type { StructuredOutputPart } from "@tanstack/ai-client";
 import { RecipeSchema, type Recipe } from "./api/structured-chat";
+import { UserBubble } from "./components";
 
 // The schema-typed structured-output part. Pulled out so the find()
 // predicate below stays readable.
@@ -194,13 +197,23 @@ The hook-level `partial` and `final` are still available. They're derived from t
 
 The example above pulls `type RecipePart = StructuredOutputPart<Recipe>` out for readability. If you'd rather not name it, you can narrow inline with `Extract`:
 
-```tsx
-const recipePart = m.parts.find(
-  (p): p is Extract<typeof p, { type: "structured-output" }> =>
-    p.type === "structured-output",
-);
-// `recipePart` is `StructuredOutputPart<Recipe> | undefined`.
-// `recipePart.data` is `Recipe | undefined`.
+```tsx ignore
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { RecipeSchema, type Recipe } from "./api/structured-chat";
+
+const { messages } = useChat({
+  outputSchema: RecipeSchema,
+  connection: fetchServerSentEvents("/api/structured-chat"),
+});
+
+for (const m of messages) {
+  const recipePart = m.parts.find(
+    (p): p is Extract<typeof p, { type: "structured-output" }> =>
+      p.type === "structured-output",
+  );
+  // `recipePart` is `StructuredOutputPart<Recipe> | undefined`.
+  // `recipePart.data` is `Recipe | undefined`.
+}
 ```
 
 Both forms produce the same typed result. Pick whichever you find more readable.

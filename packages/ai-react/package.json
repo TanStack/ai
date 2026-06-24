@@ -1,13 +1,21 @@
 {
   "name": "@tanstack/ai-react",
-  "version": "0.15.4",
+  "version": "0.15.11",
   "description": "React hooks for TanStack AI streaming chat, realtime voice, structured outputs, and media generation.",
-  "author": "",
+  "author": "Tanner Linsley",
   "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/TanStack/ai.git",
     "directory": "packages/ai-react"
+  },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
   },
   "type": "module",
   "module": "./dist/esm/index.js",

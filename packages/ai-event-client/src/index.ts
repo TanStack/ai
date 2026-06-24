@@ -619,6 +619,12 @@ export interface ImageRequestStartedEvent extends BaseEventContext {
   prompt: string
   numberOfImages?: number
   size?: string
+  /** Count of image conditioning inputs (image-to-image, mask, reference). */
+  imageInputCount?: number
+  /** Count of video conditioning inputs (video-to-video). */
+  videoInputCount?: number
+  /** Count of audio conditioning inputs (lipsync, voice reference). */
+  audioInputCount?: number
 }
 
 /** Emitted when an image request completes. */

@@ -32,8 +32,21 @@ import {
   createChatClientOptions,
   type InferChatMessages,
 } from "@tanstack/ai-client";
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
+
+const updateUIDef = toolDefinition({
+  name: "updateUI",
+  description: "Update the UI with a notification",
+  inputSchema: z.object({
+    message: z.string(),
+  }),
+  outputSchema: z.object({ success: z.boolean() }),
+});
 
 // In <script> block
+let notification = "";
+
 const updateUI = updateUIDef.client((input) => {
   notification = input.message;
   return { success: true };
@@ -78,6 +91,9 @@ Extends `ChatClientOptions` from `@tanstack/ai-client` (minus internal state cal
 ### Returns
 
 ```typescript
+import type { UIMessage, MultimodalContent, ChatClientState, ConnectionStatus } from "@tanstack/ai-client";
+import type { ModelMessage } from "@tanstack/ai";
+
 interface CreateChatReturn<TContext = unknown> {
   readonly messages: UIMessage[];
   sendMessage: (content: string | MultimodalContent) => Promise<void>;
@@ -317,8 +333,10 @@ Helper to create typed chat options (re-exported from `@tanstack/ai-client`).
 import {
   clientTools,
   createChatClientOptions,
+  fetchServerSentEvents,
   type InferChatMessages,
 } from "@tanstack/ai-client";
+import { tool1, tool2 } from "./tools";
 
 // Create typed tools array (no 'as const' needed!)
 const tools = clientTools(tool1, tool2);

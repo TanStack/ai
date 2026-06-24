@@ -61,6 +61,30 @@ export {
   type GeminiAudioProviderOptions,
 } from './adapters/audio'
 
+// Video / Veo generation adapter (experimental)
+/**
+ * @experimental Veo video generation is an experimental feature and may change.
+ */
+export {
+  GeminiVideoAdapter,
+  createGeminiVideo,
+  geminiVideo,
+  type GeminiVideoConfig,
+} from './adapters/video'
+export {
+  GEMINI_VIDEO_DURATIONS,
+  getGeminiVideoDurationOptions,
+} from './video/video-provider-options'
+export type {
+  GeminiVideoModel,
+  GeminiVideoModelDurationByName,
+  GeminiVideoModelInputModalitiesByName,
+  GeminiVideoModelProviderOptionsByName,
+  GeminiVideoModelSizeByName,
+  GeminiVideoProviderOptions,
+  GeminiVideoSize,
+} from './video/video-provider-options'
+
 // Re-export models from model-meta for convenience
 export {
   GEMINI_MODELS,
@@ -71,6 +95,7 @@ export { GEMINI_IMAGE_MODELS as GeminiImageModels } from './model-meta'
 export { GEMINI_TTS_MODELS as GeminiTTSModels } from './model-meta'
 export { GEMINI_TTS_VOICES as GeminiTTSVoices } from './model-meta'
 export { GEMINI_AUDIO_MODELS as GeminiAudioModels } from './model-meta'
+export { GEMINI_VIDEO_MODELS as GeminiVideoModels } from './model-meta'
 export type { GeminiModels as GeminiTextModel } from './model-meta'
 export type { GeminiImageModels as GeminiImageModel } from './model-meta'
 export type { GeminiTTSVoice } from './model-meta'

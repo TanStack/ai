@@ -23,6 +23,7 @@ await build({
       repoRoot,
       'packages/ai-event-client/src/index.ts',
     ),
+    '@tanstack/ai-utils': resolve(repoRoot, 'packages/ai-utils/src/index.ts'),
     '@tanstack/ai-react': resolve(repoRoot, 'packages/ai-react/src/index.ts'),
     'react-native': resolve(scriptDir, 'react-native-runtime-stub.tsx'),
   },

@@ -78,7 +78,7 @@ const stream = chat({
     role: 'user',
     content: [
       { type: 'text', content: 'What is in this image?' },
-      { type: 'image', source: { type: 'url', url: 'https://example.com/photo.jpg' } },
+      { type: 'image', source: { type: 'url', value: 'https://example.com/photo.jpg' } },
     ],
   }],
 })
@@ -90,7 +90,7 @@ If you pass an image content part to a text-only model, TypeScript catches it at
 
 Every AI activity - chat, summarization, image generation, speech, transcription, video - is a separate import. Every provider exposes separate adapter functions per activity. If your app only uses chat, image generation code never enters your bundle.
 
-```ts
+```ts ignore
 // Only chat code is bundled - nothing else
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
@@ -109,6 +109,7 @@ This is architectural, not incidental. Each adapter implements a specific interf
 ```ts
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
+import { db } from './db'
 
 // Define once - shared validation contract
 const addToCartDef = toolDefinition({
@@ -151,6 +152,9 @@ TanStack AI provides agent loop control as composable pure functions. Each strat
 ```ts
 import { chat, maxIterations, untilFinishReason, combineStrategies } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
+import { tools } from './tools'
+
+const messages = [{ role: 'user' as const, content: 'Help me plan a trip.' }]
 
 const stream = chat({
   adapter: openaiText('gpt-5.5'),
@@ -166,6 +170,9 @@ const stream = chat({
 `combineStrategies` composes them with AND logic - all strategies must agree to continue. You can add custom strategies alongside built-in ones:
 
 ```ts
+import { maxIterations, untilFinishReason, combineStrategies } from '@tanstack/ai'
+import { estimatedCost, budget } from './cost'
+
 combineStrategies([
   maxIterations(10),
   untilFinishReason(['stop']),
@@ -219,6 +226,8 @@ import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { createMCPClient } from '@tanstack/ai-mcp'
 
+const messages = [{ role: 'user' as const, content: 'What tools are available?' }]
+
 const mcp = await createMCPClient({
   transport: { type: 'http', url: 'https://my-mcp-server.example.com/mcp' },
 })
@@ -260,6 +269,8 @@ import {
   stream,
   rpcStream,
 } from '@tanstack/ai-client'
+import { chatOnServer } from './server'
+import { api } from './api'
 
 // Server-Sent Events (standard)
 fetchServerSentEvents('/api/chat')
@@ -308,8 +319,10 @@ Your custom models appear in autocomplete alongside official ones. Vercel AI SDK
 TanStack AI's middleware system hooks into every stage of the `chat()` lifecycle: configuration, streaming, tool execution, usage tracking, and completion. Each middleware is a plain object with named hooks that fire at specific phases.
 
 ```ts
-import { chat, type ChatMiddleware } from '@tanstack/ai'
+import { chat, EventType, type ChatMiddleware, type StreamChunk } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
 
 const logger: ChatMiddleware = {
   name: 'logger',
@@ -318,11 +331,8 @@ const logger: ChatMiddleware = {
   },
   onChunk: (ctx, chunk) => {
     // Transform, expand, or drop chunks
-    if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
-      return {
-        ...chunk,
-        delta: chunk.delta.replace(/\b\d{3}-\d{2}-\d{4}\b/g, '[REDACTED]'),
-      }
+    if ('delta' in chunk && 'messageId' in chunk) {
+      return { ...chunk, delta: chunk.delta!.replace(/\b\d{3}-\d{2}-\d{4}\b/g, '[REDACTED]') }
     }
   },
   onBeforeToolCall: (ctx, hookCtx) => {
@@ -452,6 +462,7 @@ const result = await generateSpeech({
 ```ts
 import { generateTranscription } from '@tanstack/ai'
 import { openaiTranscription } from '@tanstack/ai-openai'
+import { audioFile } from './audio'
 
 const result = await generateTranscription({
   adapter: openaiTranscription('gpt-4o-transcribe'),
@@ -517,6 +528,7 @@ TanStack AI publishes an open adapter specification. The community has already b
 ```ts
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
+import { weatherApi } from './weather'
 
 const getWeather = toolDefinition({
   name: 'getWeather',
@@ -542,6 +554,9 @@ const getWeatherClient = getWeather.client(async ({ city }) => {
 
 ```ts
 import { generateText, tool } from 'ai'
+import { openai } from '@ai-sdk/openai'
+import { z } from 'zod'
+import { weatherApi } from './weather'
 
 const result = await generateText({
   model: openai('gpt-5.5'),
@@ -567,6 +582,11 @@ The TanStack approach separates the tool contract from its implementation, makin
 
 ```ts
 import { chat, combineStrategies, maxIterations, untilFinishReason } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { tools } from './tools'
+import { estimatedTokens } from './cost'
+
+const messages = [{ role: 'user' as const, content: 'Help me plan a trip.' }]
 
 const stream = chat({
   adapter: openaiText('gpt-5.5'),
@@ -584,6 +604,8 @@ const stream = chat({
 
 ```ts
 import { generateText, stepCountIs } from 'ai'
+import { openai } from '@ai-sdk/openai'
+import { tools } from './tools'
 
 const result = await generateText({
   model: openai('gpt-5.5'),

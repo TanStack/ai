@@ -14,8 +14,8 @@
     "clean": "pnpm --filter \"./packages/**\" run clean",
     "clean:all": "git clean -fdx --exclude=\"!.env\"",
     "test": "pnpm run test:ci",
-    "test:pr": "pnpm run test:react-native && nx affected --targets=test:sherif,test:knip,test:docs,test:eslint,test:lib,test:types,test:build,build --exclude=examples/**,testing/**",
-    "test:ci": "pnpm run test:react-native && nx run-many --targets=test:sherif,test:knip,test:docs,test:eslint,test:lib,test:types,test:build,build --exclude=examples/**,testing/**",
+    "test:pr": "pnpm run test:react-native && nx affected --targets=test:sherif,test:knip,test:docs,test:kiira,test:eslint,test:lib,test:types,test:build,build --exclude=examples/**,testing/**",
+    "test:ci": "pnpm run test:react-native && nx run-many --targets=test:sherif,test:knip,test:docs,test:kiira,test:eslint,test:lib,test:types,test:build,build --exclude=examples/**,testing/**",
     "test:eslint": "nx affected --target=test:eslint --exclude=examples/**,testing/**",
     "test:sherif": "sherif",
     "test:lib": "nx affected --targets=test:lib --exclude=examples/**,testing/**",
@@ -25,6 +25,7 @@
     "test:types": "nx affected --targets=test:types --exclude=examples/**,testing/**",
     "test:knip": "knip",
     "test:docs": "node scripts/verify-links.ts",
+    "test:kiira": "kiira check",
     "test:react-native": "pnpm --filter @tanstack/ai-react-native-smoke smoke",
     "test:e2e": "pnpm --filter @tanstack/ai-e2e test:e2e",
     "test:e2e:ui": "pnpm --filter @tanstack/ai-e2e test:e2e:ui",
@@ -37,6 +38,7 @@
     "dev:chat": "pnpm --filter ts-react-chat dev",
     "format": "prettier --experimental-cli --ignore-unknown '**/*' --write",
     "generate-docs": "node scripts/generate-docs.ts && pnpm run copy:readme",
+    "generate:fal-image-fields": "tsx scripts/generate-fal-image-field-map.ts",
     "generate:models": "pnpm generate:models:fetch && pnpm regenerate:models && tsx scripts/sync-provider-models.ts && pnpm format",
     "generate:models:fetch": "tsx scripts/fetch-openrouter-models.ts",
     "regenerate:models": "tsx scripts/convert-openrouter-models.ts",
@@ -49,6 +51,7 @@
   "nx": {
     "includedScripts": [
       "test:docs",
+      "test:kiira",
       "test:knip",
       "test:sherif"
     ]
@@ -64,6 +67,7 @@
     "eslint": "^9.39.1",
     "eslint-plugin-unused-imports": "^4.3.0",
     "happy-dom": "^20.0.10",
+    "kiira": "0.5.0",
     "knip": "^5.70.2",
     "markdown-link-extractor": "^4.0.3",
     "nx": "22.1.2",

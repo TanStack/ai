@@ -1,4 +1,4 @@
-import type { StreamChunk } from '@tanstack/ai/client'
+import type { MediaPrompt, StreamChunk } from '@tanstack/ai/client'
 import type { ConnectConnectionAdapter } from './connection-adapters'
 import type { AIDevtoolsClientMetadata } from './devtools'
 import type {
@@ -216,8 +216,12 @@ export interface VideoGenerationClientOptions<
  * Input for image generation.
  */
 export interface ImageGenerateInput {
-  /** Text description of the desired image(s) */
-  prompt: string
+  /**
+   * Description of the desired image(s): plain text, or an ordered array of
+   * content parts (text + image) for image-conditioned generation
+   * (image-to-image, multi-reference, edit / inpaint).
+   */
+  prompt: MediaPrompt
   /** Number of images to generate (default: 1) */
   numberOfImages?: number
   /** Image size in WIDTHxHEIGHT format (e.g., "1024x1024") */
@@ -290,8 +294,12 @@ export interface SummarizeGenerateInput {
  * Input for video generation.
  */
 export interface VideoGenerateInput {
-  /** Text description of the desired video */
-  prompt: string
+  /**
+   * Description of the desired video: plain text, or an ordered array of
+   * content parts (text + image) for image-conditioned generation
+   * (image-to-video, start/end frames).
+   */
+  prompt: MediaPrompt
   /** Video size — format depends on provider (e.g., "16:9", "1280x720") */
   size?: string
   /** Video duration in seconds */

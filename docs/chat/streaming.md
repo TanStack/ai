@@ -25,7 +25,7 @@ import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
   adapter: openaiText("gpt-5.5"),
-  messages,
+  messages: [{ role: "user", content: "Hello!" }],
 });
 
 // Stream contains chunks as they arrive
@@ -92,9 +92,17 @@ TanStack AI implements the [AG-UI Protocol](https://docs.ag-ui.com/introduction)
 Adapters emit reasoning as both the canonical `REASONING_MESSAGE_*` events and the older `STEP_STARTED` / `STEP_FINISHED` events. Rather than parsing those raw events yourself, read the reconciled `ThinkingPart` from `message.parts` — the stream processor merges both event families into a single part for you:
 
 ```typescript
-for (const part of message.parts) {
-  if (part.type === "thinking") {
-    console.log("Thinking:", part.content); // Accumulated thinking content
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
+const { messages } = useChat({
+  connection: fetchServerSentEvents("/api/chat"),
+});
+
+for (const message of messages) {
+  for (const part of message.parts) {
+    if (part.type === "thinking") {
+      console.log("Thinking:", part.content); // Accumulated thinking content
+    }
   }
 }
 ```
@@ -130,6 +138,8 @@ const { messages } = useChat({
 For a fully custom request, use the `fetcher` transport. The fetcher receives the request input plus an `AbortSignal`, and returns a `Response` (whose SSE body the client parses) or an `AsyncIterable<StreamChunk>`. It may return that value synchronously, as a `Promise`, or as an `async function*`:
 
 ```typescript
+import { useChat } from "@tanstack/ai-react";
+
 const { messages } = useChat({
   fetcher: ({ messages, data }, { signal }) =>
     fetch("/api/chat", {
@@ -147,6 +157,8 @@ const { messages } = useChat({
 You can monitor stream progress with callbacks:
 
 ```typescript
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
 const { messages } = useChat({
   connection: fetchServerSentEvents("/api/chat"),
   onChunk: (chunk) => {
@@ -163,6 +175,8 @@ const { messages } = useChat({
 Cancel ongoing streams:
 
 ```typescript
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
 const { stop } = useChat({
   connection: fetchServerSentEvents("/api/chat"),
 });
@@ -176,8 +190,16 @@ Calling `stop()` aborts the underlying fetch; the resulting `AbortError` is expe
 On the server, pass an `AbortController` to `toServerSentEventsResponse(stream, { abortController })` so the chat run is cancelled when the client disconnects:
 
 ```typescript
-const abortController = new AbortController();
-return toServerSentEventsResponse(stream, { abortController });
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+  const stream = chat({ adapter: openaiText("gpt-5.5"), messages });
+
+  const abortController = new AbortController();
+  return toServerSentEventsResponse(stream, { abortController });
+}
 ```
 
 ## Best Practices

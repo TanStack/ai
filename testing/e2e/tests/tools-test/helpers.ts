@@ -108,23 +108,47 @@ export async function runTest(page: Page): Promise<void> {
   for (let attempt = 0; attempt < 5; attempt++) {
     const baselineMessageCount = await readMessageCount()
     await page.click('#run-test-button')
-    await page.waitForTimeout(300)
 
-    const started = await page.evaluate((baseline) => {
-      const metadata = document.getElementById('test-metadata')
-      if (metadata?.getAttribute('data-is-loading') === 'true') {
-        return true
-      }
-
-      const text =
-        document.getElementById('messages-json-content')?.textContent || '[]'
-      try {
-        const parsed = JSON.parse(text)
-        return Array.isArray(parsed) && parsed.length > baseline
-      } catch {
-        return false
-      }
-    }, baselineMessageCount)
+    // A run "starts" only when real stream activity appears — not when the
+    // optimistic user message lands. Clicking adds one user message
+    // synchronously (baseline + 1); that alone must NOT count as started, or a
+    // stalled run (the click registered but the stream produced nothing) would
+    // be reported as started and the test would later time out waiting for an
+    // approval / completion that never comes. Real activity is: loading turned
+    // on, a tool call appeared, the test completed, or a *second* message (the
+    // assistant response) was added beyond the optimistic user message. Poll
+    // briefly so a slow-but-real run under CI load isn't mistaken for a stall.
+    const started = await page
+      .waitForFunction(
+        (baseline) => {
+          const metadata = document.getElementById('test-metadata')
+          if (metadata?.getAttribute('data-is-loading') === 'true') return true
+          if (
+            parseInt(
+              metadata?.getAttribute('data-tool-call-count') || '0',
+              10,
+            ) > 0
+          )
+            return true
+          if (metadata?.getAttribute('data-test-complete') === 'true')
+            return true
+          const text =
+            document.getElementById('messages-json-content')?.textContent ||
+            '[]'
+          try {
+            const parsed = JSON.parse(text)
+            // > baseline + 1: the assistant message arrived (a real response),
+            // not just the optimistic user message.
+            return Array.isArray(parsed) && parsed.length > baseline + 1
+          } catch {
+            return false
+          }
+        },
+        baselineMessageCount,
+        { timeout: 2000 },
+      )
+      .then(() => true)
+      .catch(() => false)
 
     if (started) {
       return

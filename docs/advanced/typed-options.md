@@ -39,7 +39,7 @@ const chatOptions = createChatOptions({
 })
 
 // Later, anywhere in your codebase:
-const stream = chat({ ...chatOptions, messages })
+const stream = chat({ ...chatOptions, messages: [{ role: 'user', content: 'Hello' }] })
 ```
 
 Without the helper you'd have to either inline the configuration at every call site, or hand-write the full chat options type with its adapter/model generics resolved manually — `createChatOptions` does that for you.
@@ -78,9 +78,11 @@ Suppose you have several routes that all hit the same model with the same provid
 import { createChatOptions, toolDefinition } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { z } from 'zod'
+import { db } from './db'
 
 const lookupOrderDef = toolDefinition({
   name: 'lookupOrder',
+  description: 'Look up a customer order by ID',
   inputSchema: z.object({ orderId: z.string() }),
 })
 
@@ -98,7 +100,7 @@ export const supportChatOptions = createChatOptions({
 })
 ```
 
-```typescript
+```typescript ignore
 // routes/api/support/chat.ts
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { supportChatOptions } from '@/lib/ai/chat-options'
@@ -110,7 +112,7 @@ export async function POST(request: Request) {
 }
 ```
 
-```typescript
+```typescript ignore
 // routes/api/support/draft-reply.ts — same adapter+tools, different schema
 import { chat } from '@tanstack/ai'
 import { supportChatOptions } from '@/lib/ai/chat-options'
@@ -138,14 +140,12 @@ import { openaiImage } from '@tanstack/ai-openai'
 
 const heroImageOptions = createImageOptions({
   adapter: openaiImage('gpt-image-1'),
+  prompt: 'A glass sphere refracting a sunset over a calm sea',
   size: '1536x1024',
   numberOfImages: 1,
 })
 
-const result = await generateImage({
-  ...heroImageOptions,
-  prompt: 'A glass sphere refracting a sunset over a calm sea',
-})
+const result = await generateImage(heroImageOptions)
 ```
 
 The same pattern works for `createVideoOptions`, `createSpeechOptions`, `createTranscriptionOptions`, `createAudioOptions`, and `createSummarizeOptions` — the adapter is captured in the typed options object and every downstream call is narrowed to it.

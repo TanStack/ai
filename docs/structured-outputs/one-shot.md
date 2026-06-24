@@ -69,6 +69,8 @@ The TypeScript type of `person` above is `{ name: string; age: number; email: st
 Field descriptions tell the model what data to extract. They become part of the JSON Schema sent to the provider — the model sees them as hints. In Zod v4.2+ use `.meta()`:
 
 ```typescript
+import { z } from "zod";
+
 const ProductSchema = z.object({
   name: z.string().meta({ description: "The product name" }),
   price: z.number().meta({ description: "Price in USD" }),
@@ -94,6 +96,10 @@ Descriptions earn their keep when:
 Schemas can nest arbitrarily. The inferred type follows the structure.
 
 ```typescript
+import { chat } from "@tanstack/ai";
+import { anthropicText } from "@tanstack/ai-anthropic";
+import { z } from "zod";
+
 const CompanySchema = z.object({
   name: z.string(),
   founded: z.number().meta({ description: "Year the company was founded" }),
@@ -124,7 +130,7 @@ const company = await chat({
 });
 
 company.headquarters.city; // string
-company.employees[0].role; // string
+company.employees[0]!.role; // string
 company.financials?.profitable; // boolean | undefined
 ```
 
@@ -133,7 +139,9 @@ company.financials?.profitable; // boolean | undefined
 If you don't want a schema library, pass a JSON Schema object directly. The trade-off: TypeScript can't infer the return type, so the result is `unknown` and you take responsibility for the runtime shape.
 
 ```typescript
+import { chat } from "@tanstack/ai";
 import type { JSONSchema } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
 
 const schema: JSONSchema = {
   type: "object",
@@ -161,6 +169,10 @@ Prefer a schema library when you can — type inference is worth it.
 If the model's response doesn't satisfy your schema, `chat()` throws a validation error. The message includes the failing fields.
 
 ```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { MySchema } from "./schemas";
+
 try {
   const result = await chat({
     adapter: openaiText("gpt-5.5"),
@@ -186,6 +198,16 @@ The `await chat({ outputSchema })` call above returns a `Promise<T>` — ideal f
 If the client only needs the finished object and you don't want progressive UI, resolve the promise on the server and return it as JSON. The browser fetches it like any other endpoint — no TanStack client API, no `partial` / `final`:
 
 ```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { z } from "zod";
+
+const PersonSchema = z.object({
+  name: z.string(),
+  age: z.number(),
+  email: z.string().email(),
+});
+
 // server route
 export async function POST(request: Request) {
   const { text } = await request.json();
@@ -199,7 +221,16 @@ export async function POST(request: Request) {
 ```
 
 ```typescript
+import { z } from "zod";
+
+const PersonSchema = z.object({
+  name: z.string(),
+  age: z.number(),
+  email: z.string().email(),
+});
+
 // client
+const text = "John Doe, 30, john@example.com";
 const res = await fetch("/api/extract-person", {
   method: "POST",
   body: JSON.stringify({ text }),
@@ -215,6 +246,14 @@ When you want the hook ergonomics — managed `isLoading` state, a schema-typed 
 
 ```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { z } from "zod";
+import { PersonCard } from "./PersonCard";
+
+const PersonSchema = z.object({
+  name: z.string(),
+  age: z.number(),
+  email: z.string().email(),
+});
 
 function PersonExtractor() {
   // `final` is `z.infer<typeof PersonSchema> | null`.
@@ -256,6 +295,8 @@ For non-streaming adapters (Anthropic, Gemini, Ollama), the object arrives as a 
 4. **Use enums for constrained values.**
 
    ```typescript
+   import { z } from "zod";
+
    const schema = z.object({
      status: z.enum(["pending", "approved", "rejected"]),
      priority: z.enum(["low", "medium", "high"]),

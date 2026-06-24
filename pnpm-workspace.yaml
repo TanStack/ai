@@ -39,3 +39,4 @@ allowBuilds:
   sharp: false
   unrs-resolver: false
   workerd: false
+  lmdb: true

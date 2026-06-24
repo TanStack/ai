@@ -35,7 +35,7 @@ const myOpenai = extendAdapter(openaiText, [
 ])
 
 // Use with original models - full type inference preserved
-const gpt4Adapter = myOpenai('gpt-4o')
+const gpt5Adapter = myOpenai('gpt-5.5')
 
 // Use with custom models - your custom types are applied
 const customAdapter = myOpenai('my-fine-tuned-gpt4')
@@ -73,6 +73,8 @@ A custom model definition (`ExtendedModelDef`) has the required properties `name
 The positional form takes a model name and an `input` array specifying which content types your model supports:
 
 ```typescript
+import { createModel } from '@tanstack/ai'
+
 const models = [
   createModel('text-only-model', ['text']),
   createModel('multimodal-model', ['text', 'image', 'audio']),
@@ -113,6 +115,8 @@ const reasoner = createModel('my-reasoner', {
 import { createModel, extendAdapter } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
+const customModels = [createModel('my-fine-tuned-gpt4', ['text', 'image'])] as const
+
 const myOpenai = extendAdapter(openaiText, customModels)
 
 // Config parameter is preserved
@@ -126,14 +130,14 @@ const adapter = myOpenai('my-fine-tuned-gpt4', {
 
 The extended adapter provides full type safety:
 
-```typescript
+```typescript ignore
 import { extendAdapter, createModel } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 const myOpenai = extendAdapter(openaiText, [createModel('custom-model', ['text'])])
 
 // ✅ Original models work with their original types
-const a1 = myOpenai('gpt-4o')
+const a1 = myOpenai('gpt-5.5')
 
 // ✅ Custom models work with your defined types
 const a2 = myOpenai('custom-model')
@@ -190,7 +194,7 @@ const adapter = proxyAdapter('llama-3.1-70b', {
 Adding type safety for your fine-tuned models:
 
 ```typescript
-import { createModel, extendAdapter } from '@tanstack/ai'
+import { chat, createModel, extendAdapter } from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 
 const fineTunedModels = [
