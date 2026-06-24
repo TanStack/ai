@@ -472,6 +472,121 @@ const stream = chat({
 })
 ```
 
+## MCP Apps
+
+MCP Apps let an MCP tool surface a UI widget (static or interactive) on the
+client. Two variants exist:
+
+### Static widgets — `UIResourcePart`
+
+When a tool result carries a `ui://` resource URI in
+`_meta.ui.resourceUri`, TanStack AI converts it to a `UIResourcePart` on
+the **assistant message** in the UI message list. This part is purely
+presentational — it never enters model input.
+
+Discovery captures the `serverId` and `uiResourceUri` for the part so the
+client knows which server and resource URI to render.
+
+```typescript
+// UIResourcePart shape (on the assistant UIMessage):
+// {
+//   type: 'ui-resource',
+//   serverId: string,
+//   uiResourceUri: string,  // the ui:// URI from _meta.ui.resourceUri
+// }
+```
+
+### Interactive apps — `createMcpAppCallHandler`
+
+For interactive apps (full MCP client connection bridged to the browser),
+use `createMcpAppCallHandler` from `@tanstack/ai-mcp/apps` on the server:
+
+```typescript
+import { createMcpAppCallHandler } from '@tanstack/ai-mcp/apps'
+
+// Minimal — reconnect-per-call (default), in-memory session store.
+const handler = createMcpAppCallHandler({
+  servers: {
+    myApp: { transport: { type: 'http', url: 'https://mcp-app.example.com/mcp' } },
+  },
+})
+
+// With options:
+// store   — optional session store (default: inMemoryMcpSessionStore).
+//           Swap for a persistent store via PR #785 when released.
+// allowTool — optional per-request filter: (toolName: string) => boolean
+//             Only tools matching the filter are callable via the bridge.
+//             Defaults to same-server allowlist (the server's own tools).
+import { inMemoryMcpSessionStore } from '@tanstack/ai-mcp/apps'
+
+const handlerWithStore = createMcpAppCallHandler({
+  servers: {
+    myApp: { transport: { type: 'http', url: 'https://mcp-app.example.com/mcp' } },
+  },
+  store: inMemoryMcpSessionStore(),
+  allowTool: (toolName) => toolName.startsWith('myApp_'),
+})
+```
+
+The public `MCPClient.callTool(name, args?)` method is the low-level seam
+used by the handler to forward a browser-initiated call to the MCP server.
+
+### Client side — `createMcpAppBridge` + `MCPAppResource`
+
+Wire the bridge on the client with `createMcpAppBridge` from
+`@tanstack/ai-client`, then render MCP app resources with `MCPAppResource`
+from `@tanstack/ai-react/mcp-apps` (also exported from `@tanstack/ai-preact`).
+
+`MCPAppResource` uses `@mcp-ui/client`'s `AppRenderer` under the hood —
+React only. Solid, Vue, Svelte, and Angular renderers are deferred.
+
+```typescript
+// Client setup (React)
+import { createMcpAppBridge } from '@tanstack/ai-client'
+import { useChat, fetchServerSentEvents, createChatClientOptions } from '@tanstack/ai-react'
+import { MCPAppResource } from '@tanstack/ai-react/mcp-apps'
+
+function ChatPage() {
+  const bridge = createMcpAppBridge({
+    // Points at the server route created by createMcpAppCallHandler.
+    callToolUrl: '/api/mcp-app/call',
+  })
+
+  const { messages } = useChat(
+    createChatClientOptions({
+      connection: fetchServerSentEvents('/api/chat'),
+      mcpAppBridge: bridge,
+    })
+  )
+
+  return (
+    <div>
+      {messages.map((msg) =>
+        msg.parts.map((part) => {
+          if (part.type === 'text') return <p key={part.id}>{part.content}</p>
+          if (part.type === 'ui-resource') {
+            // Renders the MCP app widget. `link` calls block until handled.
+            return (
+              <MCPAppResource
+                key={part.id}
+                serverId={part.serverId}
+                uiResourceUri={part.uiResourceUri}
+                bridge={bridge}
+              />
+            )
+          }
+          return null
+        })
+      )}
+    </div>
+  )
+}
+```
+
+**Important:** A `link` action from `AppRenderer` blocks the bridge until
+handled. Always pass the `bridge` prop to `MCPAppResource` — without it,
+interactive link actions will hang.
+
 ## Codegen CLI
 
 Generate TypeScript types (typed tool names and pool keys) by introspecting live MCP servers.
