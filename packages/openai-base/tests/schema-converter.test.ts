@@ -415,4 +415,75 @@ describe('isStrictModeCompatible', () => {
     expect(isStrictModeCompatible(null)).toBe(true)
     expect(isStrictModeCompatible('x')).toBe(true)
   })
+
+  it('returns false when a property is typeless (e.g. z.any() -> {})', () => {
+    expect(
+      isStrictModeCompatible({
+        type: 'object',
+        properties: { payload: {} },
+        required: ['payload'],
+      }),
+    ).toBe(false)
+  })
+
+  it('returns false for a typeless node with only metadata (no type keyword)', () => {
+    expect(
+      isStrictModeCompatible({
+        type: 'object',
+        properties: { payload: { description: 'anything' } },
+      }),
+    ).toBe(false)
+  })
+
+  it('returns false for a typeless array items schema', () => {
+    expect(
+      isStrictModeCompatible({
+        type: 'object',
+        properties: { list: { type: 'array', items: {} } },
+      }),
+    ).toBe(false)
+  })
+
+  it('returns false for a typeless anyOf variant', () => {
+    expect(
+      isStrictModeCompatible({
+        type: 'object',
+        properties: { v: { anyOf: [{ type: 'string' }, {}] } },
+      }),
+    ).toBe(false)
+  })
+
+  it('detects a typeless property nested deep in the tree', () => {
+    expect(
+      isStrictModeCompatible({
+        type: 'object',
+        properties: {
+          a: {
+            type: 'object',
+            properties: {
+              b: { type: 'array', items: { type: 'object', properties: { c: {} } } },
+            },
+          },
+        },
+      }),
+    ).toBe(false)
+  })
+
+  it('treats enum / const properties as typed (strict-compatible)', () => {
+    expect(
+      isStrictModeCompatible({
+        type: 'object',
+        properties: {
+          color: { enum: ['red', 'blue'] },
+          tag: { const: 'x' },
+        },
+      }),
+    ).toBe(true)
+  })
+
+  it('does not flag an empty properties map as typeless', () => {
+    expect(
+      isStrictModeCompatible({ type: 'object', properties: {}, required: [] }),
+    ).toBe(true)
+  })
 })
