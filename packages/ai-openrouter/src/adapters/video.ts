@@ -367,9 +367,12 @@ export class OpenRouterVideoAdapter<
     // header (verified live: plain GET returns 401), so they can't be
     // handed to a browser <video> tag. Download the content server-side and
     // return a data URL instead — same policy as the OpenAI video adapter.
-    // Fetched directly rather than via the SDK's `getVideoContent`, whose
-    // response matcher (as of @openrouter/sdk 0.12.35) only accepts
-    // `application/octet-stream` while the live endpoint serves `video/mp4`.
+    // Fetched directly rather than via the SDK's `getVideoContent`: through
+    // @openrouter/sdk 0.12.79 it still rejects the real response with
+    // "Unexpected Status or Content-Type: Status 200 Content-Type video/mp4"
+    // even though the body is a valid MP4 (verified live) — its response
+    // matcher doesn't accept `video/mp4`. Revisit if a future SDK build fixes
+    // this; the manual download keeps working in the meantime.
     const doFetch = this.clientConfig.fetch ?? globalThis.fetch
     const contentResponse = await doFetch(contentUrl, {
       headers: { Authorization: `Bearer ${this.clientConfig.apiKey}` },
