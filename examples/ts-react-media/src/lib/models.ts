@@ -122,6 +122,20 @@ export const VIDEO_MODELS = [
     description: 'Fast image-to-video animation',
     mode: 'image-to-video' as const,
   },
+  {
+    id: 'bytedance/seedance-2.0',
+    name: 'Seedance 2.0 (Text-to-Video, OpenRouter)',
+    description:
+      "OpenRouter's async video API; duration typed 4–15s with snapDuration()",
+    mode: 'text-to-video' as const,
+  },
+  {
+    id: 'google/veo-3.1',
+    name: 'Veo 3.1 (Image-to-Video, OpenRouter)',
+    description:
+      'OpenRouter async video; duration snaps to the nearest of 4/6/8s',
+    mode: 'image-to-video' as const,
+  },
 ] as const
 
 export type ImageModel = (typeof IMAGE_MODELS)[number]

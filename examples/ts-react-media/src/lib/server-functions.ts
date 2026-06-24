@@ -1,9 +1,11 @@
 import { createServerFn } from '@tanstack/react-start'
 import { falImage, falVideo } from '@tanstack/ai-fal'
 import { geminiImage } from '@tanstack/ai-gemini'
+import { openRouterVideo } from '@tanstack/ai-openrouter'
 import { generateImage, generateVideo, getVideoJobStatus } from '@tanstack/ai'
 
 import type { FalModel } from '@tanstack/ai-fal'
+import type { OpenRouterVideoModel } from '@tanstack/ai-openrouter'
 import type {
   ImagePart,
   MediaInputMetadata,
@@ -65,6 +67,26 @@ function asImageToVideoPrompt(
     throw new Error('Start image is required for image-to-video')
   }
   return narrowed
+}
+
+/**
+ * Video model ids served by the OpenRouter async video adapter rather than
+ * fal. Used to route the create + poll paths to the right adapter.
+ */
+const OPENROUTER_VIDEO_MODEL_IDS = new Set<string>([
+  'bytedance/seedance-2.0',
+  'google/veo-3.1',
+])
+
+/**
+ * Resolve the video adapter for a model id. The poll/status helpers are
+ * model-agnostic — they just need an adapter whose `getVideoJobStatus`
+ * understands the provider's job ids — so a runtime lookup is enough here.
+ */
+function videoAdapterForModel(model: string) {
+  return OPENROUTER_VIDEO_MODEL_IDS.has(model)
+    ? openRouterVideo(model as OpenRouterVideoModel)
+    : falVideo(model as FalModel)
 }
 
 export const generateImageFn = createServerFn({ method: 'POST' })
@@ -259,15 +281,41 @@ export const createVideoJobFn = createServerFn({ method: 'POST' })
           size: '16:9_2160p',
         })
       }
+      // OpenRouter's dedicated async video API (`POST /api/v1/videos`). Unlike
+      // fal (which takes duration in `modelOptions`), OpenRouter types the
+      // top-level `duration` per model from its published metadata, and the
+      // adapter exposes `snapDuration()` to coerce a raw UI seconds value to
+      // the model's nearest supported duration.
+      case 'bytedance/seedance-2.0': {
+        const adapter = openRouterVideo('bytedance/seedance-2.0')
+        return generateVideo({
+          adapter,
+          prompt: asTextPrompt(data.prompt),
+          size: '1280x720',
+          // Seedance accepts 4–15s, so 7 stays 7.
+          duration: adapter.snapDuration(7),
+          modelOptions: { aspectRatio: '16:9' },
+        })
+      }
+      case 'google/veo-3.1': {
+        const adapter = openRouterVideo('google/veo-3.1')
+        return generateVideo({
+          adapter,
+          prompt: asImageToVideoPrompt(data.prompt),
+          size: '1280x720',
+          // Veo 3.1 only accepts 4 | 6 | 8s, so snapDuration(7) returns 6.
+          duration: adapter.snapDuration(7),
+        })
+      }
       default:
         throw new Error(`Unknown video model: ${data.model}`)
     }
   })
 
 export const getVideoStatusFn = createServerFn({ method: 'GET' })
-  .inputValidator((data: { jobId: string; model: FalModel }) => data)
+  .inputValidator((data: { jobId: string; model: string }) => data)
   .handler(async ({ data }) => {
-    const adapter = falVideo(data.model)
+    const adapter = videoAdapterForModel(data.model)
     return await getVideoJobStatus({
       adapter,
       jobId: data.jobId,
@@ -277,7 +325,7 @@ export const getVideoStatusFn = createServerFn({ method: 'GET' })
 export const getVideoUrlFn = createServerFn({ method: 'GET' })
   .inputValidator((data: { jobId: string; model: string }) => data)
   .handler(async ({ data }) => {
-    const adapter = falVideo(data.model)
+    const adapter = videoAdapterForModel(data.model)
     return await getVideoJobStatus({
       adapter,
       jobId: data.jobId,
