@@ -266,7 +266,9 @@ describe('OpenRouter adapter option mapping', () => {
 
     // And it survives the SDK's outbound (snake_case wire) serialization.
     const serialized = ChatRequest$outboundSchema.parse(params)
-    const wireSystem = (serialized.messages as Array<Record<string, unknown>>)[0]
+    const wireSystem = (
+      serialized.messages as Array<Record<string, unknown>>
+    )[0]
     expect(wireSystem).toEqual({
       role: 'system',
       content: [
