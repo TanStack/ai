@@ -34,6 +34,15 @@ export {
 } from './coordinator'
 export type { StartRunInput } from './coordinator'
 
+// The browser-preview building blocks: a ready-made `exposePreview` server tool
+// (mints a preview URL for an in-sandbox dev server) and the system-prompt guidance
+// that keeps previews from reload-looping (the proxy can't tunnel HMR). Wire both
+// into the agent — `tools: (i, e) => [exposePreviewTool(i, e)]`,
+// `systemPrompts: [PREVIEW_GUIDANCE]`. Owned here because the limitation is the
+// transport's, not any app's.
+export { exposePreviewTool, PREVIEW_GUIDANCE } from './preview-tool'
+export type { PreviewToolEnv } from './preview-tool'
+
 // The two concrete coordinators + their per-run config + Env types.
 export { ChatSandboxCoordinator } from './chat-coordinator'
 export type { ChatCoordinatorEnv, ChatRunConfig } from './chat-coordinator'

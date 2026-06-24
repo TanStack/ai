@@ -56,7 +56,8 @@
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
     "@tanstack/ai-sandbox": "workspace:^",
-    "@tanstack/ai-sandbox-local-process": "workspace:^"
+    "@tanstack/ai-sandbox-local-process": "workspace:^",
+    "zod": "^4.0.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260317.1",
@@ -64,6 +65,7 @@
     "@tanstack/ai-sandbox": "workspace:*",
     "@tanstack/ai-sandbox-local-process": "workspace:*",
     "@types/node": "^24.10.1",
-    "@vitest/coverage-v8": "4.0.14"
+    "@vitest/coverage-v8": "4.0.14",
+    "zod": "^4.2.0"
   }
 }

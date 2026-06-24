@@ -53,7 +53,7 @@ import type {
 } from './container-coordinator'
 import type { HarnessId } from './protocol'
 import type { SandboxCoordinator, StartRunInput } from './coordinator'
-import type { AnyTextAdapter, AnyTool } from '@tanstack/ai'
+import type { AnyTextAdapter, AnyTool, SystemPrompt } from '@tanstack/ai'
 import type {
   SandboxDefinition,
   WorkspaceDefinition,
@@ -92,6 +92,13 @@ export interface DoDrivesAgentConfig<
   mode?: 'do-drives'
   /** The harness/text adapter `chat()` runs, resolved per run. */
   adapter: (input: StartRunInput, env: TEnv) => AnyTextAdapter
+  /**
+   * Base system prompts prepended to every run's `chat()` (DO-drives only — the DO
+   * runs `chat()` itself). The natural home for transport-level guidance the agent
+   * needs regardless of what it builds — e.g. `systemPrompts: [PREVIEW_GUIDANCE]`
+   * so previews don't reload-loop. See {@link PREVIEW_GUIDANCE}.
+   */
+  systemPrompts?: Array<SystemPrompt>
   /**
    * The sandbox the agent runs in, resolved per run. When omitted, a default
    * Cloudflare sandbox (one per thread, no source clone) is built from the
@@ -199,6 +206,9 @@ export function createCloudflareSandboxAgent<
           doDrives.sandbox?.(input, this.env) ??
           defaultSandbox(this.env, input, doDrives.workspace),
         ...(tools !== undefined ? { tools } : {}),
+        ...(doDrives.systemPrompts !== undefined
+          ? { systemPrompts: doDrives.systemPrompts }
+          : {}),
       }
     }
   }

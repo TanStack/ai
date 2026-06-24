@@ -10,22 +10,24 @@ import tailwindcss from '@tailwindcss/vite'
 // container behave the same locally as in production. The plugin reads bindings
 // + the custom `main` (`src/server.ts`) from `wrangler.jsonc`.
 //
-// NO tunnel needed for local agent runs. The two host surfaces are reached without
-// a public hostname locally (see `resolveBridgeOrigin` / `resolvePreviewHost`):
+// NO tunnel needed for local agent runs — the bridge surface is reached without a
+// public hostname:
 //   • Bridge (container → Worker `/_bridge`): `host.docker.internal:3001` — the
 //     container reaches the host machine via the Docker host gateway.
-//   • Preview (browser → Worker → container): `http://<port>-<id>-<token>.localhost:3001`
-//     — browsers resolve `*.localhost` to loopback with zero DNS setup.
-// `allowedHosts` below lets Vite's dev server accept both. (Deployed previews need a
-// custom domain with a `*.<domain>` route — `*.workers.dev` has no wildcard.)
+// Browser-facing PREVIEWS of the agent-built app do NOT go through this dev server:
+// `exposePreview` opens a Cloudflare quick tunnel (`*.trycloudflare.com`) served by
+// `cloudflared` inside the sandbox. That bypasses Vite's port entirely — previously
+// the preview was forced onto `*.localhost:3001` and Vite's dev middleware hijacked
+// its `/@vite/client` / `/src/*` / `/@fs/*` requests (serving them from the host,
+// not the container), which broke the page. See `PREVIEW_GUIDANCE` / `exposePreviewTool`.
 export default defineConfig({
   server: {
     // Bind ALL interfaces (not just 127.0.0.1) so the sandbox container can reach
     // the dev server at `host.docker.internal:3001` for the `/_bridge` callback.
     // Default loopback-only binding is why that call gets ECONNREFUSED.
     host: true,
-    // Accept the bridge callback host and the `*.localhost` preview subdomains.
-    allowedHosts: ['host.docker.internal', '.localhost'],
+    // Accept the bridge callback host.
+    allowedHosts: ['host.docker.internal'],
   },
   plugins: [
     cloudflare({ viteEnvironment: { name: 'ssr' } }),

@@ -409,6 +409,54 @@ resolve it to loopback with zero setup — previews work locally with no tunnel)
 no wildcard subdomains, so the SDK's `exposePort` rejects it and `resolvePreviewHost`
 throws a clear error pointing at `PREVIEW_HOSTNAME` instead of failing deep in a run.
 
+### Exposing a preview (via a quick tunnel)
+
+The package ships the browser-preview wiring so you don't hand-roll it, both
+exported from `@tanstack/ai-sandbox-cloudflare/agent`:
+
+- **`exposePreviewTool(input, env)`** — a ready-made `chat()` server tool (the agent
+  sees it as `exposePreview`). It addresses the run's container by `threadId` and
+  opens a **Cloudflare quick tunnel** to the port the dev server is on
+  (`sandbox.tunnels.get(port)`), returning a `https://<name>.trycloudflare.com` URL.
+- **`PREVIEW_GUIDANCE`** — a system prompt that tells the agent how to start a dev
+  server whose tunnel preview works. App-agnostic on purpose.
+
+```ts
+import {
+  PREVIEW_GUIDANCE,
+  createCloudflareSandboxAgent,
+  exposePreviewTool,
+} from '@tanstack/ai-sandbox-cloudflare/agent'
+import { claudeCodeText } from '@tanstack/ai-claude-code'
+
+export const agent = createCloudflareSandboxAgent({
+  adapter: () => claudeCodeText('sonnet'),
+  systemPrompts: [PREVIEW_GUIDANCE],
+  tools: (input, env) => [exposePreviewTool(input, env)],
+})
+```
+
+**Why a quick tunnel, not `exposePort`.** `exposePort` + `proxyToSandbox` routes the
+preview through the Worker's own origin. In local dev that origin is your Vite dev
+server, and Vite's middleware then serves the preview's module/asset requests
+(`/@vite/client`, `/src/*`, `/@fs/*`) from your **host** instead of the container —
+the page loads the wrong code and breaks. A quick tunnel is served by `cloudflared`
+**inside** the sandbox (`cloudflared` ships in the `cloudflare/sandbox` base image),
+so it bypasses the Vite port entirely, needs **no custom domain** on a deploy, and
+forwards WebSockets — so the app's HMR works. The one requirement, which
+`PREVIEW_GUIDANCE` instructs, is that the dev server **accept the tunnel hostname**
+(servers reject unknown hosts): Vite `server: { host: true, allowedHosts: true }`,
+webpack-dev-server `allowedHosts: 'all'`. (`exposePort` + `resolvePreviewHost`
+remain available for apps that want the Worker to front the request on a custom
+domain — see [Callback hosts](#callback-hosts-bridge-vs-preview).)
+
+> **Transport:** `sandbox.tunnels` exists only on the SDK's **RPC** transport — on
+> the default `http` it throws *"requires the RPC transport"*. So `cloudflareSandbox`
+> defaults to `transport: 'rpc'` (and the example also sets `SANDBOX_TRANSPORT=rpc`
+> for the Sandbox DO). The transport must match on every `getSandbox()` for an id, so
+> a custom provider must pass `{ transport: 'rpc' }` too. Override to `'http'` only
+> if you don't use tunnel previews.
+
 ## File-event hooks
 
 Listen to files being created, changed, or deleted inside a sandbox — e.g. to

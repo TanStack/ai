@@ -48,21 +48,28 @@
   //   works with ZERO config; locally the coordinator uses `host.docker.internal`.
   //   Set it only to override (e.g. a stable named dev tunnel).
   //
-  // • PREVIEW_HOSTNAME — the BROWSER-facing `exposePort` preview host. Preview URLs
-  //   are `https://<port>-<id>-<token>.<host>`, which needs WILDCARD DNS. To view
-  //   previews on a DEPLOY you must serve the Worker on a CUSTOM DOMAIN and add a
-  //   wildcard route — `*.workers.dev` has no wildcard subdomains. So, to enable
-  //   deployed previews:
-  //     1. add a custom domain route, e.g.:
-  //          "routes": [{ "pattern": "*.preview.example.com/*", "zone_name": "example.com" }]
-  //     2. set the var here:
-  //          "vars": { "PREVIEW_HOSTNAME": "preview.example.com" }
-  //   Locally, previews need no config — they use `*.localhost` (browser-resolved to
-  //   loopback). See `resolvePreviewHost` in @tanstack/ai-sandbox-cloudflare.
+  // • PREVIEW_HOSTNAME — OPTIONAL, and NOT needed for this example. Browser previews
+  //   default to a Cloudflare quick tunnel (`*.trycloudflare.com`) served by
+  //   `cloudflared` inside the sandbox — works with zero config, local or on a
+  //   `*.workers.dev` deploy. PREVIEW_HOSTNAME only applies to the alternative
+  //   `exposePort`-fronted path (the Worker serves the preview on YOUR domain): that
+  //   needs WILDCARD DNS, so set a `*.<domain>` route + this var, e.g.:
+  //     "routes": [{ "pattern": "*.preview.example.com/*", "zone_name": "example.com" }]
+  //     "vars":   { "PREVIEW_HOSTNAME": "preview.example.com" }
+  //   See `resolvePreviewHost` in @tanstack/ai-sandbox-cloudflare.
 
   // ANTHROPIC_API_KEY is a SECRET, not a var. Set it with:
   //   wrangler secret put ANTHROPIC_API_KEY
   // It is injected into the sandbox env (never persisted to logs/snapshots).
+
+  "vars": {
+    // Container-control transport for the Sandbox DO. `rpc` is required for
+    // `sandbox.tunnels` (the quick-tunnel preview URLs `exposePreview` returns);
+    // on the default `http` it throws "requires the RPC transport". The getSandbox
+    // providers also pass `transport: 'rpc'` (client side) to match. See
+    // `exposePreviewTool` / `cloudflareSandbox` in @tanstack/ai-sandbox-cloudflare.
+    "SANDBOX_TRANSPORT": "rpc",
+  },
 
   "observability": { "enabled": true },
 }

@@ -32,7 +32,12 @@ import {
 import { SandboxCoordinator, resolveBridgeOrigin } from './coordinator'
 import { timingSafeBearerEqualWeb } from './web-crypto'
 import type { StartRunInput } from './coordinator'
-import type { AnyTextAdapter, AnyTool, StreamChunk } from '@tanstack/ai'
+import type {
+  AnyTextAdapter,
+  AnyTool,
+  StreamChunk,
+  SystemPrompt,
+} from '@tanstack/ai'
 import type {
   ProvisionedBridge,
   SandboxDefinition,
@@ -65,6 +70,8 @@ export interface ChatRunConfig {
   sandbox: SandboxDefinition
   /** chat()-provided server tools bridged into the harness over MCP. */
   tools?: Array<AnyTool>
+  /** Base system prompts prepended to the run's `chat()` (e.g. `[PREVIEW_GUIDANCE]`). */
+  systemPrompts?: Array<SystemPrompt>
 }
 
 /** Per-run bridge state so `/_bridge/:runId` can authenticate + serve. */
@@ -111,13 +118,14 @@ export abstract class ChatSandboxCoordinator<
   protected override buildRunStream(
     input: StartRunInput,
   ): AsyncIterable<StreamChunk> {
-    const { adapter, sandbox, tools } = this.config(input)
+    const { adapter, sandbox, tools, systemPrompts } = this.config(input)
     return chat({
       threadId: input.threadId,
       adapter,
       messages: input.messages,
       stream: true,
       ...(tools !== undefined ? { tools } : {}),
+      ...(systemPrompts !== undefined ? { systemPrompts } : {}),
       middleware: [
         this.bridgeProvisionerMiddleware(input),
         withSandbox(sandbox),

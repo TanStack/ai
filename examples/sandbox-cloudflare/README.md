@@ -8,7 +8,7 @@ Worker, one `wrangler deploy`**.
 > (a kanban board, a data dashboard, a small game…). It calls a bridged host tool
 > (`tanstackStartRecipe`) for the current scaffolding recipe, builds the app inside
 > the sandbox container, installs deps, starts the dev server, and hands back a live
-> **preview URL** (routed by `proxyToSandbox`). The app it builds needs **no env,
+> **preview URL** (a Cloudflare quick tunnel). The app it builds needs **no env,
 > keys, or external services**, so the preview works for anyone — an agent shipping
 > a running app on the edge with zero config.
 
@@ -244,13 +244,14 @@ pnpm dev                            # http://localhost:3001
 >   For this to work the dev server must listen on all interfaces, so `vite.config.ts`
 >   sets **`server.host: true`** (bind `0.0.0.0`) — a default loopback-only bind makes
 >   the container's `/_bridge` call fail with `ECONNREFUSED`.
-> - **Preview** (browser → Worker → container): `exposePort` returns
->   **`http://<port>-<id>-<token>.localhost:3001`**, and browsers resolve `*.localhost`
->   to loopback with zero DNS setup — so you can click **Open preview** locally too.
+> - **Preview** (browser → agent-built app): `exposePreview` opens a **Cloudflare
+>   quick tunnel** (`*.trycloudflare.com`) served by `cloudflared` inside the
+>   sandbox, so the preview link works without touching the dev server's port — no
+>   wildcard DNS, no custom domain, even locally.
 >
 > So just `pnpm dev` and open `http://localhost:3001`. (`vite.config.ts` binds
-> `0.0.0.0` and allows the `host.docker.internal` + `*.localhost` hosts; requires
-> Docker Desktop running for the container — see Limitations.)
+> `0.0.0.0` and allows the `host.docker.internal` host; requires Docker Desktop
+> running for the container — see Limitations.)
 
 Open `http://localhost:3001` for the chat UI, or drive the agent's HTTP surface
 directly:
@@ -273,35 +274,34 @@ curl -s "http://localhost:3001/runs/<runId>?threadId=t1"
 `wrangler secret put ANTHROPIC_API_KEY`. The **agent run** works with no host config —
 the container reaches `/_bridge` over the request host, which is safe on Cloudflare
 (the edge only routes hostnames you own to your Worker), so a `*.workers.dev` deploy
-needs no `PUBLIC_HOSTNAME`. **Preview URLs** are the exception (see below): to view
-the app the agent builds on a deploy, you need a **custom domain**.
+needs no `PUBLIC_HOSTNAME`. **Preview URLs** work with no host config either — they
+go over a quick tunnel (see below), so a `*.workers.dev` deploy is enough.
 
 ## Showing the app (preview URLs)
 
 The agent builds and runs the app inside the container, then calls the
-`exposePreview` host tool (`{ port: 3000 }`) once its dev server is up. That tool
-runs on the host, calls `sandbox.exposePort(port, { hostname })` on the run's
-container — where `hostname` is the resolved **preview** host (`resolvePreviewHost`) —
-and returns a URL of the form `https://<port>-<sandboxId>-<token>.<host>`.
-`proxyToSandbox` (in `src/server.ts`) routes that hostname back into the container,
-and the UI renders it as a clickable **Open preview** link.
+`exposePreview` host tool (`{ port: 5173 }`) once its dev server is up. That tool
+runs on the host and opens a **Cloudflare quick tunnel** to that port via
+`sandbox.tunnels.get(port)` — `cloudflared` (shipped in the `cloudflare/sandbox`
+base image) serves it from inside the container — and returns a
+`https://<name>.trycloudflare.com` URL the UI renders as a clickable **Open
+preview** link.
 
-For the host to address the right container, the sandbox is pinned to the run's
+For the tool to address the right container, the sandbox is pinned to the run's
 `threadId` (see `src/sandbox-provider.ts`) instead of the default random id.
 
-Preview URLs need **wildcard DNS** (`*.<host>`), so the host differs by environment:
+Why a tunnel instead of `exposePort`: `exposePort` + `proxyToSandbox` fronts the
+preview on the Worker's origin, which in local dev is the Vite dev server — and
+Vite's middleware then serves the preview's `/@vite/client`, `/src/*`, and `/@fs/*`
+requests from your **host** instead of the container, breaking the page. A tunnel
+bypasses the Vite port entirely, **needs no wildcard DNS or custom domain** (local
+or deployed), and forwards WebSockets, so the built app's HMR works. The only
+requirement — which `PREVIEW_GUIDANCE` tells the agent — is that the dev server
+accept the tunnel host (`server: { host: true, allowedHosts: true }` for Vite).
 
-- **Local** → `localhost:3001`. The SDK builds `http://<port>-<id>-<token>.localhost:3001`,
-  which browsers resolve to loopback with no setup — **previews work locally, no tunnel**.
-- **Deployed** → a **custom domain** with a wildcard route. `*.workers.dev` has **no**
-  wildcard subdomains, so `exposePort` rejects it. To enable deployed previews:
-  1. add a wildcard route in `wrangler.jsonc`, e.g.
-     `"routes": [{ "pattern": "*.preview.example.com/*", "zone_name": "example.com" }]`, and
-  2. set `"vars": { "PREVIEW_HOSTNAME": "preview.example.com" }`.
-
-  Without `PREVIEW_HOSTNAME`, a deployed `exposePreview` throws a clear error rather
-  than returning a dead URL. (The agent run itself still works — only the preview
-  link needs the custom domain.)
+> `exposePort` + `resolvePreviewHost` are still exported for apps that specifically
+> want the Worker to front the preview on a custom domain (auth, response rewriting);
+> that path needs a `*.<domain>` wildcard route + `PREVIEW_HOSTNAME`.
 
 ## Setting sandbox env
 
@@ -326,19 +326,15 @@ trigger only carries `threadId` + `messages`); see the note in **Limitations**.
 Read these before treating this as production-ready. They are specific and
 honest.
 
-1. **Two host surfaces; previews need wildcard DNS.** The agent's container calls
-   back to the Worker for two things, and they resolve differently:
-   - **Bridge** (`/_bridge` MCP tool-bridge + `/tool-exec`): just needs to *reach*
-     the Worker. **Local** → `host.docker.internal:3001` (Docker host gateway, http);
-     **deploy** → the request host (no `PUBLIC_HOSTNAME` needed; request-derivation
-     is safe on Cloudflare because the edge only routes hostnames you own). A wrong
-     `PUBLIC_HOSTNAME` override surfaces as **"the tanstack MCP server hasn't come
-     up"** (a 404 against the wrong host).
-   - **Preview** (`exposePort`): needs **wildcard DNS**. **Local** → `*.localhost`
-     (browser-resolved to loopback, zero setup); **deploy** → a **custom domain**
-     with a `*.<domain>` route + `PREVIEW_HOSTNAME`. `*.workers.dev` has no wildcard
-     subdomains, so the SDK's `exposePort` rejects it — set `PREVIEW_HOSTNAME` (see
-     [Showing the app](#showing-the-app-preview-urls)).
+1. **Container → Worker bridge needs a reachable host.** The agent's container calls
+   back to the Worker for the `/_bridge` MCP tool-bridge + `/tool-exec`: it just needs
+   to *reach* the Worker. **Local** → `host.docker.internal:3001` (Docker host gateway,
+   http); **deploy** → the request host (no `PUBLIC_HOSTNAME` needed; request-derivation
+   is safe on Cloudflare because the edge only routes hostnames you own). A wrong
+   `PUBLIC_HOSTNAME` override surfaces as **"the tanstack MCP server hasn't come up"**
+   (a 404 against the wrong host). Previews don't use this path — they go over a quick
+   tunnel (see [Showing the app](#showing-the-app-preview-urls)), so they need no
+   wildcard DNS or custom domain, local or deployed.
    - **Local requires Docker Desktop.** The container reaches the host via
      `host.docker.internal`, which Docker Desktop provides; some runtimes (e.g.
      OrbStack) can't run Cloudflare containers at all. There's also no Workers

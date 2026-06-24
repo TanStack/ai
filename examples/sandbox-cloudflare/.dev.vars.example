@@ -9,12 +9,14 @@ ANTHROPIC_API_KEY=sk-ant-...
 # CLAUDE_CODE_OAUTH_TOKEN=
 
 # Local dev needs NO host config. The container reaches the Worker's tool-bridge at
-# `host.docker.internal:3001`, and preview URLs use `*.localhost` (browser-resolved
-# to loopback) — no tunnel, no custom domain. These vars are only OVERRIDES:
+# `host.docker.internal:3001`, and preview URLs use a Cloudflare quick tunnel
+# (`*.trycloudflare.com`) served from inside the sandbox — no tunnel setup, no
+# custom domain, local or deployed. These vars are only OVERRIDES:
 #
 # PUBLIC_HOSTNAME  — pin the container→Worker bridge host (e.g. a stable named
 #                    tunnel). Unset → host.docker.internal locally.
-# PREVIEW_HOSTNAME — custom domain for browser-facing preview URLs. Unset →
-#                    localhost locally; REQUIRED to view previews on a deploy.
+# PREVIEW_HOSTNAME — ONLY for the optional `exposePort`-fronted preview path (Worker
+#                    serves the preview on a custom domain). Not needed for the
+#                    default quick-tunnel previews. Requires a `*.<domain>` route.
 # PUBLIC_HOSTNAME=your-host.example.com
 # PREVIEW_HOSTNAME=preview.example.com
