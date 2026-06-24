@@ -1291,7 +1291,6 @@ chat({
 import { streamText } from 'ai'
 import { openai } from '@ai-sdk/openai'
 import { anthropic } from '@ai-sdk/anthropic'
-import { selectedProvider } from './config'
 
 const messages = [{ role: 'user' as const, content: 'Hello' }]
 
@@ -1300,8 +1299,10 @@ const providers = {
   anthropic: anthropic('claude-sonnet-4-5-20250514'),
 }
 
+const selectedProvider: keyof typeof providers = 'openai'
+
 streamText({
-  model: providers[selectedProvider as keyof typeof providers],
+  model: providers[selectedProvider],
   messages,
 })
 ```
@@ -1312,7 +1313,6 @@ streamText({
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { anthropicText } from '@tanstack/ai-anthropic'
-import { selectedProvider } from './config'
 
 const messages = [{ role: 'user' as const, content: 'Hello' }]
 
@@ -1321,8 +1321,10 @@ const adapters = {
   anthropic: () => anthropicText('claude-sonnet-4-5'),
 } as const
 
+const selectedProvider: keyof typeof adapters = 'openai'
+
 chat({
-  adapter: adapters[selectedProvider as keyof typeof adapters](),
+  adapter: adapters[selectedProvider](),
   messages,
 })
 ```

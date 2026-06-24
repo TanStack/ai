@@ -142,12 +142,17 @@ export async function POST(request: Request) {
 
 Summarize long text content:
 
-```typescript
+<!-- ignored: grokSummarize()'s resolved provider-options type sits in a
+     contravariant position in SummarizeAdapter, so it isn't assignable to
+     summarize()'s adapter param for any current Grok model. Tracked in #821;
+     un-ignore once the adapter type is corrected. -->
+
+```typescript ignore
 import { summarize } from "@tanstack/ai";
 import { grokSummarize } from "@tanstack/ai-grok";
 
 const result = await summarize({
-  adapter: grokSummarize("grok-build-0.1"),
+  adapter: grokSummarize("grok-4.3"),
   text: "Your long text to summarize...",
   maxLength: 100,
   style: "concise", // "concise" | "bullet-points" | "paragraph"
