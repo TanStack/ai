@@ -47,15 +47,16 @@ import type {
  * it on the host, and the result streams back. Returning it from `tools` is what
  * exercises the `/_bridge` path.
  *
- * The container ships the `tanstack` CLI (see the Dockerfile), so the recipe
- * scaffolds with `tanstack create … --intent` — which both creates a real TanStack
- * Start app and writes TanStack Intent skill mappings into it for coding agents.
- * The bridge still matters for the sandbox-specific bits the generic skill can't
- * know: build a NO-env app and bind/expose the dev server for a preview URL.
+ * The recipe scaffolds via `npx --yes @tanstack/cli create … --intent` — no global
+ * install needed in the container image (npm/npx ship on the base image) — which
+ * both creates a real TanStack Start app and writes TanStack Intent skill mappings
+ * into it for coding agents. The bridge still matters for the sandbox-specific bits
+ * the generic skill can't know: build a NO-env app and bind/expose the dev server
+ * for a preview URL.
  */
 const RECIPE = {
   scaffold:
-    'Scaffold with the TanStack CLI (it sets up TanStack Intent agent-skill mappings by default): `tanstack create my-app --framework react --no-examples -y`. This creates a TanStack Start app and installs deps. (Add `--no-install` to skip install, or `--add-ons <id,…>` for integrations — but keep it env-free; do NOT add auth/database add-ons that need keys.)',
+    'Scaffold with the TanStack CLI via npx (no global install needed — run it EXACTLY like this): `npx --yes @tanstack/cli create my-app --framework react --no-examples --intent -y`. The package is `@tanstack/cli` (it ships the `tanstack` bin); do NOT guess other package names. `--intent` writes TanStack Intent agent-skill mappings for coding agents. This creates a TanStack Start app and installs deps. (Add `--no-install` to skip install, or `--add-ons <id,…>` for integrations — but keep it env-free; do NOT add auth/database add-ons that need keys.)',
   app: 'Turn it into a SELF-CONTAINED interactive app — NO external APIs, NO env vars, NO keys. Pick something visual: a kanban board, a sortable dashboard over a bundled data.json, a markdown notepad, a drawing pad, or a small game (e.g. Game of Life). Keep all state client-side (persist to localStorage). Make it look polished.',
   run: 'From the app dir, start the dev server bound to all interfaces on PORT 5173 — do NOT use port 3000, it is reserved by the sandbox control plane (`pnpm dev --host 0.0.0.0 --port 5173`, or `npm run dev -- --host 0.0.0.0 --port 5173`). Once it is listening, call the `exposePreview` tool with `{ "port": 5173 }` to get a public preview URL, then share that URL with the user. The app runs with ZERO configuration — no API keys or env needed.',
 } as const
@@ -63,7 +64,7 @@ const RECIPE = {
 const tanstackStartRecipe = toolDefinition({
   name: 'tanstackStartRecipe',
   description:
-    'The canonical recipe for building a self-contained TanStack Start app in this sandbox that runs with no env or API keys: scaffold via the `tanstack` CLI (`tanstack create … --intent`), what to build, and how to bind/expose the dev server for a preview URL. Call this BEFORE scaffolding.',
+    'The canonical recipe for building a self-contained TanStack Start app in this sandbox that runs with no env or API keys: scaffold via `npx --yes @tanstack/cli create … --intent`, what to build, and how to bind/expose the dev server for a preview URL. Call this BEFORE scaffolding.',
   inputSchema: z.object({
     section: z
       .enum(['scaffold', 'app', 'run', 'all'])

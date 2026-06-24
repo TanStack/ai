@@ -12,14 +12,6 @@ FROM docker.io/cloudflare/sandbox:0.12.1
 # The Claude Code CLI. `node` + `npm` are already on the base image.
 RUN npm install -g @anthropic-ai/claude-code && claude --version
 
-# The TanStack CLI. The agent scaffolds with `tanstack create … --intent`, which
-# both creates a real TanStack Start app and writes TanStack Intent skill mappings
-# into the generated project (so a coding agent working in it has the TanStack
-# skills). The skills ship inside this npm package — installing the CLI is how you
-# "add the tanstack skill" to the sandbox; the in-container `claude` is otherwise a
-# bare install with none of your host skills.
-RUN npm install -g @tanstack/cli && tanstack --version
-
 # NOTE: the Cloudflare sandbox has no writable host→process stdin
 # (`capabilities.writableStdin: false`). The Claude Code adapter detects this and
 # feeds the prompt via a file + in-shell stdin-redirection (`claude -p … < file`)
