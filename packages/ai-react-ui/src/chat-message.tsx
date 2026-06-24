@@ -1,4 +1,5 @@
 import { ThinkingPart } from './thinking-part'
+import { toolResultContentToString } from './tool-result-content'
 import type { ReactNode } from 'react'
 import type { UIMessage } from '@tanstack/ai-react'
 
@@ -239,8 +240,7 @@ function MessagePart({
 
   // Tool result part
   if (part.type === 'tool-result') {
-    const toolResultContent =
-      typeof part.content === 'string' ? part.content : ''
+    const toolResultContent = toolResultContentToString(part.content)
 
     if (toolResultRenderer) {
       return (
