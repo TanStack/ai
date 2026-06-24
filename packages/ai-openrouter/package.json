@@ -60,7 +60,7 @@
     "model-router"
   ],
   "dependencies": {
-    "@openrouter/sdk": "0.12.35",
+    "@openrouter/sdk": "0.12.79",
     "@tanstack/ai-utils": "workspace:*"
   },
   "devDependencies": {
