@@ -2,6 +2,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { falImage, falVideo } from '@tanstack/ai-fal'
 import { geminiImage, geminiVideo } from '@tanstack/ai-gemini'
 import { grokImage, grokVideo } from '@tanstack/ai-grok'
+import { openRouterVideo } from '@tanstack/ai-openrouter'
 import {
   BYTEPLUS_VIDEO_MODELS,
   byteplusImage,
@@ -459,6 +460,34 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
               },
             }
           : {}),
+      })
+    }
+    // OpenRouter's dedicated async video API (`POST /api/v1/videos`). Unlike
+    // fal (which takes duration in `modelOptions`), OpenRouter types the
+    // top-level `duration` per model from its published metadata, and the
+    // adapter exposes `snapDuration()` to coerce a raw UI seconds value to
+    // the model's nearest supported duration.
+    case 'bytedance/seedance-2.0': {
+      const adapter = openRouterVideo('bytedance/seedance-2.0')
+      return generateVideo({
+        stream: true,
+        pollingInterval: VIDEO_POLL_INTERVAL_MS,
+        adapter,
+        prompt: asTextPrompt(data.prompt),
+        size: '1280x720',
+        duration: adapter.snapDuration(7),
+        modelOptions: { aspectRatio: '16:9' },
+      })
+    }
+    case 'google/veo-3.1': {
+      const adapter = openRouterVideo('google/veo-3.1')
+      return generateVideo({
+        stream: true,
+        pollingInterval: VIDEO_POLL_INTERVAL_MS,
+        adapter,
+        prompt: asImageToVideoPrompt(data.prompt),
+        size: '1280x720',
+        duration: adapter.snapDuration(7),
       })
     }
     default:
