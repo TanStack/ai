@@ -31,6 +31,22 @@ export type {
   GrokImageModelProviderOptionsByName,
 } from './image/image-provider-options'
 
+// Video adapter - for video generation (xAI Imagine API)
+export {
+  GrokVideoAdapter,
+  createGrokVideo,
+  grokVideo,
+  type GrokVideoConfig,
+} from './adapters/video'
+export type {
+  GrokVideoProviderOptions,
+  GrokVideoModelProviderOptionsByName,
+  GrokVideoModelSizeByName,
+  GrokVideoAspectRatio,
+  GrokVideoResolution,
+  GrokVideoSize,
+} from './video/video-provider-options'
+
 // Speech (TTS) adapter - for text-to-speech
 export {
   GrokSpeechAdapter,
@@ -68,6 +84,7 @@ export type {
   ResolveInputModalities,
   GrokChatModel,
   GrokImageModel,
+  GrokVideoModel,
   GrokTTSModel,
   GrokTranscriptionModel,
   GrokRealtimeModel,
@@ -75,6 +92,7 @@ export type {
 export {
   GROK_CHAT_MODELS,
   GROK_IMAGE_MODELS,
+  GROK_VIDEO_MODELS,
   GROK_TTS_MODELS,
   GROK_TRANSCRIPTION_MODELS,
   GROK_REALTIME_MODELS,

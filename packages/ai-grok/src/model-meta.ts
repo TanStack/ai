@@ -91,6 +91,47 @@ const GROK_IMAGINE_IMAGE_QUALITY = {
   },
 } as const satisfies ModelMeta
 
+// Imagine API video models. Pricing is per second of generated video
+// (output only); generated videos carry an audio track.
+//
+// grok-imagine-video (v1.0) supports both text-to-video (a starting image is
+// optional) and image-to-video. grok-imagine-video-1.5 is image-to-video
+// only: a starting-frame image is required (the text prompt describes the
+// desired motion) — its text-to-video is rejected by the API.
+const GROK_IMAGINE_VIDEO = {
+  name: 'grok-imagine-video',
+  supports: {
+    input: ['text', 'image'],
+    output: ['video', 'audio'],
+  },
+  pricing: {
+    input: {
+      normal: 0,
+    },
+    output: {
+      // per second of video
+      normal: 0.05,
+    },
+  },
+} as const satisfies ModelMeta
+
+const GROK_IMAGINE_VIDEO_1_5 = {
+  name: 'grok-imagine-video-1.5',
+  supports: {
+    input: ['text', 'image'],
+    output: ['video', 'audio'],
+  },
+  pricing: {
+    input: {
+      normal: 0,
+    },
+    output: {
+      // per second of video
+      normal: 0.08,
+    },
+  },
+} as const satisfies ModelMeta
+
 const GROK_4_3 = {
   name: 'grok-4.3',
   context_window: 1_000_000,
@@ -143,6 +184,16 @@ export const GROK_IMAGE_MODELS = [
   GROK_2_IMAGE.name,
   GROK_IMAGINE_IMAGE.name,
   GROK_IMAGINE_IMAGE_QUALITY.name,
+] as const
+
+/**
+ * Grok Video Generation Models (xAI Imagine API)
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export const GROK_VIDEO_MODELS = [
+  GROK_IMAGINE_VIDEO.name,
+  GROK_IMAGINE_VIDEO_1_5.name,
 ] as const
 
 // xAI's `/v1/tts` endpoint is endpoint-addressed and does not take a `model`
@@ -198,6 +249,7 @@ export const GROK_REALTIME_MODELS = [
 
 export type GrokChatModel = (typeof GROK_CHAT_MODELS)[number]
 export type GrokImageModel = (typeof GROK_IMAGE_MODELS)[number]
+export type GrokVideoModel = (typeof GROK_VIDEO_MODELS)[number]
 export type GrokTTSModel = (typeof GROK_TTS_MODELS)[number]
 export type GrokTranscriptionModel = (typeof GROK_TRANSCRIPTION_MODELS)[number]
 export type GrokRealtimeModel = (typeof GROK_REALTIME_MODELS)[number]

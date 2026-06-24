@@ -3,10 +3,10 @@ name: ai-core/media-generation
 description: >
   Image, audio, video, speech (TTS), and transcription generation using
   activity-specific adapters: generateImage() with openaiImage/geminiImage,
-  generateAudio() with geminiAudio/falAudio, generateVideo() with
-  openaiVideo/geminiVideo (async polling, per-model typed durations),
-  generateSpeech() with openaiSpeech, generateTranscription() with
-  openaiTranscription. React hooks: useGenerateImage, useGenerateAudio,
+  generateAudio() with geminiAudio/falAudio, generateVideo() with async
+  polling (openaiVideo/geminiVideo/grokVideo/falVideo, per-model typed
+  durations), generateSpeech() with openaiSpeech, generateTranscription()
+  with openaiTranscription. React hooks: useGenerateImage, useGenerateAudio,
   useGenerateSpeech, useTranscription, useGenerateVideo.
   TanStack Start server function integration with toServerSentEventsResponse.
 type: sub-skill
@@ -453,6 +453,13 @@ const { jobId } = await generateVideo({
 // Note: Veo result URLs require the Google API key to download
 // (x-goog-api-key header or ?key= query parameter).
 ```
+
+Other video adapters: `openaiVideo('sora-2')` (pixel sizes like `'1280x720'`,
+durations 4/8/12s, single `input_reference` image prompt part), `grokVideo(...)`
+(`grok-imagine-video` does text-to-video + image-to-video; `grok-imagine-video-1.5` is
+image-to-video only — needs an `image` prompt part as the starting frame, text-only throws;
+aspect-ratio size template like `'16:9_720p'`, integer durations 1-15s, reports
+`usage.unitsBilled` seconds and exact `usage.cost`), and `falVideo(...)` (hosted models, see cost tracking below).
 
 Client hook with job tracking:
 

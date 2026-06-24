@@ -2,13 +2,15 @@
 title: Video Generation
 id: video-generation
 order: 6
-description: "Generate video from text prompts with OpenAI Sora or Google Veo using TanStack AI's experimental generateVideo() jobs/polling API."
+description: "Generate video from text prompts with OpenAI Sora, Google Veo, xAI Grok Imagine, or fal.ai using TanStack AI's experimental generateVideo() jobs/polling API."
 keywords:
   - tanstack ai
   - video generation
   - sora
   - veo
   - gemini
+  - grok imagine
+  - fal
   - generateVideo
   - jobs api
   - experimental
@@ -39,6 +41,8 @@ TanStack AI provides experimental support for video generation through dedicated
 Currently supported:
 - **OpenAI**: Sora-2 and Sora-2-Pro models (when available)
 - **Google Gemini**: Veo 3.1, Veo 3, and Veo 2 models (via the long-running operations API)
+- **Grok (xAI)**: grok-imagine-video (text-to-video + image-to-video) and grok-imagine-video-1.5 (image-to-video only) models
+- **fal.ai**: MiniMax, Luma, Kling, Hunyuan, and other hosted video models
 
 ## Basic Usage
 
@@ -551,6 +555,49 @@ Adapters that haven't declared a per-model duration map keep the plain
 > **Note:** The video URL returned for Veo jobs is served by the Gemini
 > Files API and requires your API key to download (send it as an
 > `x-goog-api-key` header or `key` query parameter).
+
+### Grok (xAI Imagine) Model Options
+
+Based on the [xAI video generation API](https://docs.x.ai/docs/guides/video-generations). Two models are available: `grok-imagine-video` (v1.0) supports **text-to-video and image-to-video**, while `grok-imagine-video-1.5` is **image-to-video only** (a text-only prompt is rejected by the API; the adapter throws a clear error pointing you at `grok-imagine-video`). Both are aspect-ratio sized — the generic `size` option takes an `aspectRatio_resolution` template (like the Grok Imagine image models), and clips can be 1–15 seconds long.
+
+Text-to-video with the base model:
+
+```typescript
+import { generateVideo } from '@tanstack/ai'
+import { grokVideo } from '@tanstack/ai-grok'
+
+const { jobId } = await generateVideo({
+  adapter: grokVideo('grok-imagine-video'),
+  prompt: 'A beautiful sunset over the ocean',
+  size: '16:9_720p',  // aspect ratio: '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '3:2' | '2:3'
+                      // resolution (optional suffix): '480p' | '720p' | '1080p'
+  duration: 5,        // integer seconds, 1-15
+  modelOptions: {
+    aspect_ratio: '16:9',  // Alternative way to specify the aspect ratio
+    resolution: '720p',    // Alternative way to specify the resolution
+    duration: 5,           // Alternative way to specify the duration
+  },
+})
+```
+
+Image-to-video (required for `grok-imagine-video-1.5`) — include an `image` prompt part as the starting frame. URL sources are fetched by xAI's servers (so they must be publicly reachable); use a `data` source for a base64 starting frame:
+
+```typescript
+const { jobId } = await generateVideo({
+  adapter: grokVideo('grok-imagine-video-1.5'),
+  prompt: [
+    { type: 'text', content: 'Slowly pan out as the waves roll in' },
+    {
+      type: 'image',
+      source: { type: 'url', value: 'https://example.com/still.png' },
+    },
+  ],
+  size: '16:9_720p',
+  duration: 5,
+})
+```
+
+Generated clips include an audio track. When the job completes, the adapter reports `usage.unitsBilled` (billed seconds of video) and `usage.cost` (exact USD cost as returned by the API) on the result.
 
 ## Response Types
 

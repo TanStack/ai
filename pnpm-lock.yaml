@@ -555,6 +555,9 @@ importers:
       '@tanstack/ai-gemini':
         specifier: workspace:*
         version: link:../../packages/ai-gemini
+      '@tanstack/ai-grok':
+        specifier: workspace:*
+        version: link:../../packages/ai-grok
       '@tanstack/react-router':
         specifier: ^1.158.4
         version: 1.159.5(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
