@@ -9,10 +9,12 @@ import type { StreamProcessorEvents } from '../src/activities/chat/stream/proces
 import type { ChunkStrategy } from '../src/activities/chat/stream/types'
 import type {
   StreamChunk,
+  TextPart,
   ToolCallPart,
   ToolResultPart,
   UIMessage,
 } from '../src/types'
+import type { Message as AGUIMessage } from '@ag-ui/core'
 
 // ============================================================================
 // Helpers
@@ -2764,6 +2766,267 @@ describe('StreamProcessor', () => {
       } as StreamChunk)
 
       expect(onStreamEnd).toHaveBeenCalledTimes(1)
+    })
+
+    it('should normalize AG-UI messages without parts to UIMessage[] with parts array', () => {
+      // Regression: AG-UI MESSAGES_SNAPSHOT messages have shape { id, role, content }
+      // and lack the `parts` array that UIMessage requires. The old unsafe cast
+      // `as Array<UIMessage>` masked this at compile time, causing
+      // "TypeError: Cannot read properties of undefined (reading 'find')"
+      // when any downstream code accessed message.parts.
+      const processor = new StreamProcessor()
+
+      processor.processChunk({
+        type: EventType.MESSAGES_SNAPSHOT,
+        messages: [
+          { id: 'ag-1', role: 'user', content: 'Hello' },
+          { id: 'ag-2', role: 'assistant', content: 'Hi there!' },
+        ],
+        timestamp: Date.now(),
+      })
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(2)
+
+      // Every normalized message must have a `parts` array (never undefined)
+      for (const msg of messages) {
+        expect(Array.isArray(msg.parts)).toBe(true)
+      }
+
+      // Text content should be surfaced as a TextPart
+      const userMsg = messages.find((m) => m.id === 'ag-1')!
+      const userTextPart = userMsg.parts.find((p) => p.type === 'text')
+      expect(userTextPart).toMatchObject({ type: 'text', content: 'Hello' })
+
+      const assistantMsg = messages.find((m) => m.id === 'ag-2')!
+      const assistantTextPart = assistantMsg.parts.find(
+        (p) => p.type === 'text',
+      )
+      expect(assistantTextPart).toMatchObject({
+        type: 'text',
+        content: 'Hi there!',
+      })
+    })
+
+    it('should preserve original AG-UI message id after normalization', () => {
+      // Regression: an earlier version of the fix always called generateMessageId()
+      // which discarded the original AG-UI id and broke downstream event correlation
+      // (TEXT_MESSAGE_CONTENT, TOOL_CALL_*, ensureAssistantMessage).
+      const processor = new StreamProcessor()
+
+      processor.processChunk({
+        type: EventType.MESSAGES_SNAPSHOT,
+        messages: [
+          { id: 'original-id-1', role: 'user', content: 'ping' },
+          { id: 'original-id-2', role: 'assistant', content: 'pong' },
+        ],
+        timestamp: Date.now(),
+      })
+
+      const messages = processor.getMessages()
+      expect(messages[0]?.id).toBe('original-id-1')
+      expect(messages[1]?.id).toBe('original-id-2')
+    })
+
+    it('should map AG-UI assistant toolCalls to tool-call parts', () => {
+      // Assistant snapshot messages carry `toolCalls`; these must surface as
+      // `tool-call` parts so the UI (and downstream TOOL_CALL_* routing) works.
+      const processor = new StreamProcessor()
+
+      processor.processChunk({
+        type: EventType.MESSAGES_SNAPSHOT,
+        messages: [
+          {
+            id: 'asst-tc',
+            role: 'assistant',
+            content: 'Let me check the weather',
+            toolCalls: [
+              {
+                id: 'call-1',
+                type: 'function',
+                function: { name: 'getWeather', arguments: '{"city":"Paris"}' },
+              },
+            ],
+          },
+        ],
+        timestamp: Date.now(),
+      })
+
+      const message = processor.getMessages()[0]!
+      const toolCallPart = message.parts.find((p) => p.type === 'tool-call')
+      expect(toolCallPart).toMatchObject({
+        type: 'tool-call',
+        id: 'call-1',
+        name: 'getWeather',
+        arguments: '{"city":"Paris"}',
+      })
+    })
+
+    it('should map an AG-UI tool message to a tool-result part', () => {
+      // Tool snapshot messages carry `toolCallId` + `content` and must convert
+      // to a `tool-result` part (role collapses to assistant).
+      const processor = new StreamProcessor()
+
+      processor.processChunk({
+        type: EventType.MESSAGES_SNAPSHOT,
+        messages: [
+          {
+            id: 'tool-msg',
+            role: 'tool',
+            toolCallId: 'call-1',
+            content: '{"tempC":21}',
+          },
+        ],
+        timestamp: Date.now(),
+      })
+
+      const message = processor.getMessages()[0]!
+      expect(message.role).toBe('assistant')
+      const toolResultPart = message.parts.find((p) => p.type === 'tool-result')
+      expect(toolResultPart).toMatchObject({
+        type: 'tool-result',
+        toolCallId: 'call-1',
+        content: '{"tempC":21}',
+      })
+    })
+
+    it('should not throw when accessing parts.find() on snapshot-normalized messages', () => {
+      // Directly reproduces the TypeError: Cannot read properties of undefined
+      // (reading 'find') crash that occurred in the onToolCallStateChange devtools
+      // handler in chat-client.ts after a MESSAGES_SNAPSHOT reset.
+      const onToolCallStateChange = vi.fn()
+      const processor = new StreamProcessor({
+        events: { onToolCallStateChange },
+      })
+
+      processor.processChunk({
+        type: EventType.MESSAGES_SNAPSHOT,
+        messages: [
+          { id: 'snap-user', role: 'user', content: 'Use the weather tool' },
+          { id: 'snap-asst', role: 'assistant', content: '' },
+        ],
+        timestamp: Date.now(),
+      })
+
+      // Any subsequent event that calls message.parts.find() must not throw
+      expect(() => {
+        processor.processChunk({
+          type: EventType.TOOL_CALL_START,
+          toolCallId: 'tc-1',
+          toolCallName: 'getWeather',
+          toolName: 'getWeather',
+          parentMessageId: 'snap-asst',
+          timestamp: Date.now(),
+        })
+      }).not.toThrow()
+    })
+
+    it('should pass through messages that already have a parts array without re-normalizing', () => {
+      // UIMessages arriving in the snapshot (already UIMessage shape with parts)
+      // must be kept as-is; only raw AG-UI messages (no parts) need conversion.
+      const processor = new StreamProcessor()
+
+      const existingUIMessages: Array<UIMessage> = [
+        {
+          id: 'ui-1',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Already a UIMessage' }],
+        },
+        {
+          id: 'ui-2',
+          role: 'assistant',
+          parts: [
+            { type: 'text', content: 'With a tool call' },
+            {
+              type: 'tool-call',
+              id: 'tc-existing',
+              name: 'myTool',
+              arguments: '{}',
+              state: 'complete',
+            },
+          ],
+        },
+      ]
+
+      processor.processChunk({
+        type: EventType.MESSAGES_SNAPSHOT,
+        // Snapshots are typed as AG-UI Message[]; this exercises the defensive
+        // pass-through for already-converted UIMessages echoed over the wire.
+        messages: existingUIMessages as unknown as Array<AGUIMessage>,
+        timestamp: Date.now(),
+      })
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(2)
+      expect(messages[0]?.parts).toHaveLength(1)
+      expect(messages[0]?.parts[0]).toEqual({
+        type: 'text',
+        content: 'Already a UIMessage',
+      })
+      expect(messages[1]?.parts).toHaveLength(2)
+      const toolCallPart = messages[1]?.parts[1]
+      expect(toolCallPart).toMatchObject({
+        type: 'tool-call',
+        id: 'tc-existing',
+      })
+    })
+
+    it('should generate a fallback id when AG-UI message has no id field', () => {
+      // Edge case: some AG-UI backends may omit the id field.
+      // The fix must fall back to generateMessageId() so the resulting
+      // UIMessage always has a valid non-empty id string.
+      const processor = new StreamProcessor()
+
+      processor.processChunk({
+        type: EventType.MESSAGES_SNAPSHOT,
+        messages: [{ role: 'user', content: 'No id here' } as AGUIMessage],
+        timestamp: Date.now(),
+      })
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+      expect(typeof messages[0]?.id).toBe('string')
+      expect(messages[0]!.id.length).toBeGreaterThan(0)
+    })
+
+    it('should handle empty messages array without errors', () => {
+      const processor = new StreamProcessor()
+      processor.addUserMessage('hello')
+
+      processor.processChunk({
+        type: EventType.MESSAGES_SNAPSHOT,
+        messages: [],
+        timestamp: Date.now(),
+      })
+
+      expect(processor.getMessages()).toHaveLength(0)
+    })
+
+    it('should correctly route TEXT_MESSAGE_CONTENT after a snapshot with raw AG-UI messages', () => {
+      // After a MESSAGES_SNAPSHOT the stream may continue sending content
+      // for messages that were in the snapshot. Ensure that normalization
+      // does not break subsequent event routing via messageId.
+      const processor = new StreamProcessor()
+
+      processor.processChunk({
+        type: EventType.MESSAGES_SNAPSHOT,
+        messages: [
+          { id: 'snap-user', role: 'user', content: 'Tell me a story' },
+          { id: 'snap-asst', role: 'assistant', content: 'Once upon a ' },
+        ],
+        timestamp: Date.now(),
+      })
+
+      processor.processChunk(ev.textContent('time...', 'snap-asst'))
+      processor.processChunk(ev.runFinished('stop'))
+      processor.finalizeStream()
+
+      const messages = processor.getMessages()
+      const asst = messages.find((m) => m.id === 'snap-asst')!
+      expect(asst).toBeDefined()
+      const textPart = asst.parts.find((p) => p.type === 'text')
+      expect(textPart).toMatchObject({ type: 'text' })
+      expect((textPart as TextPart).content).toContain('time...')
     })
   })
 
