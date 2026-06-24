@@ -10,6 +10,7 @@ import type {
   ModelMessage,
   StreamChunk,
   StructuredOutputPart,
+  UIResourcePart,
   VideoPart,
 } from '@tanstack/ai/client'
 import type { ConnectionAdapter } from './connection-adapters'
@@ -244,6 +245,7 @@ export type MessagePart<
   | ToolResultPart
   | ThinkingPart
   | StructuredOutputPart<TData>
+  | UIResourcePart
 
 /**
  * UIMessage - Domain-specific message format optimized for building chat UIs
