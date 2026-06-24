@@ -416,6 +416,19 @@ export interface StructuredOutputPart<TData = unknown> {
   errorMessage?: string
 }
 
+export interface UIResourcePart {
+  type: 'ui-resource'
+  /** The ui:// resource object in MCP-native shape — fed straight to the renderer. */
+  resource: { uri: string; mimeType: string; text?: string; blob?: string }
+  /** Pool prefix / config key — routes interactive calls to the right MCP server. */
+  serverId?: string
+  /** Links to the originating tool call; the client seeds toolInput/toolResult from
+   *  the sibling ToolCallPart/ToolResultPart in the same message. */
+  toolCallId: string
+  /** Passthrough of the tool/result `_meta.ui` (frame-size hints, etc.). */
+  meta?: Record<string, unknown>
+}
+
 export type MessagePart<TData = unknown> =
   | TextPart
   | ImagePart
@@ -426,6 +439,7 @@ export type MessagePart<TData = unknown> =
   | ToolResultPart
   | ThinkingPart
   | StructuredOutputPart<TData>
+  | UIResourcePart
 
 /**
  * UIMessage - Domain-specific message format optimized for building chat UIs
@@ -1283,6 +1297,18 @@ export interface ToolInputAvailableEvent extends CustomEvent {
     toolCallId: string
     toolName: string
     input: unknown
+  }
+}
+
+/** Emitted when an MCP tool returns a ui:// resource (MCP Apps). Reconciled into
+ *  a UIResourcePart on the assistant UIMessage. Never enters model input. */
+export interface UIResourceEvent extends CustomEvent {
+  name: 'ui-resource'
+  value: {
+    resource: UIResourcePart['resource']
+    serverId?: string
+    toolCallId: string
+    meta?: Record<string, unknown>
   }
 }
 
