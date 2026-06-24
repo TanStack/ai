@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "tanstack-ai-sandbox-cloudflare-agent",
+  "name": "tanstack-ai-sandbox-cloudflare",
   // Custom server entry: TanStack Start SSR + the agent's DOs/container in one
   // Worker. The @cloudflare/vite-plugin builds this entry and wires the client
   // assets automatically (no `assets` block needed here).
@@ -40,19 +40,25 @@
     },
   ],
 
-  "vars": {
-    // The Worker's public hostname. The in-sandbox agent's container reaches the
-    // host over THIS hostname for two things: the `/_bridge` MCP tool-bridge (the
-    // `tanstack` MCP server) and exposed preview ports. It MUST be the hostname
-    // your Worker is actually served on, or the agent's `tanstack` MCP server
-    // "won't come up" (it 404s against the wrong instance) and previews won't
-    // route. Set it to YOUR `*.workers.dev` / custom domain after first deploy —
-    // the value below is openstory's and is only correct for that account.
-    //
-    // NOTE: a LOCAL `pnpm dev` container cannot reach your host over this
-    // hostname, so end-to-end agent runs need a deploy (see README "Limitations").
-    "PUBLIC_HOSTNAME": "tanstack-ai-sandbox-cloudflare-agent.openstory.workers.dev",
-  },
+  // Two host surfaces, both OPTIONAL here (request-derived when unset):
+  //
+  // • PUBLIC_HOSTNAME — the CONTAINER→Worker bridge host (`/_bridge`, `/tool-exec`).
+  //   Unset → derived from the trigger request, which is safe on Cloudflare (the
+  //   edge only routes hostnames you own to your Worker). A `*.workers.dev` deploy
+  //   works with ZERO config; locally the coordinator uses `host.docker.internal`.
+  //   Set it only to override (e.g. a stable named dev tunnel).
+  //
+  // • PREVIEW_HOSTNAME — the BROWSER-facing `exposePort` preview host. Preview URLs
+  //   are `https://<port>-<id>-<token>.<host>`, which needs WILDCARD DNS. To view
+  //   previews on a DEPLOY you must serve the Worker on a CUSTOM DOMAIN and add a
+  //   wildcard route — `*.workers.dev` has no wildcard subdomains. So, to enable
+  //   deployed previews:
+  //     1. add a custom domain route, e.g.:
+  //          "routes": [{ "pattern": "*.preview.example.com/*", "zone_name": "example.com" }]
+  //     2. set the var here:
+  //          "vars": { "PREVIEW_HOSTNAME": "preview.example.com" }
+  //   Locally, previews need no config — they use `*.localhost` (browser-resolved to
+  //   loopback). See `resolvePreviewHost` in @tanstack/ai-sandbox-cloudflare.
 
   // ANTHROPIC_API_KEY is a SECRET, not a var. Set it with:
   //   wrangler secret put ANTHROPIC_API_KEY

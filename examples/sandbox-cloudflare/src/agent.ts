@@ -17,7 +17,10 @@
  * types, but the end-to-end container run is only exercised on a real Cloudflare
  * deploy (see the README "Limitations").
  */
-import { createCloudflareSandboxAgent } from '@tanstack/ai-sandbox-cloudflare/agent'
+import {
+  createCloudflareSandboxAgent,
+  resolvePreviewHost,
+} from '@tanstack/ai-sandbox-cloudflare/agent'
 import { getSandbox } from '@cloudflare/sandbox'
 import {
   createSecrets,
@@ -28,8 +31,10 @@ import { claudeCodeText } from '@tanstack/ai-claude-code'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 import { namedCloudflareSandbox } from './sandbox-provider'
-import type { SandboxAgentEnv } from '@tanstack/ai-sandbox-cloudflare/agent'
-import type { StartRunInput } from '@tanstack/ai-sandbox-cloudflare/agent'
+import type {
+  SandboxAgentEnv,
+  StartRunInput,
+} from '@tanstack/ai-sandbox-cloudflare/agent'
 
 /**
  * The demo host tool: the canonical recipe for scaffolding a **self-contained**
@@ -52,7 +57,7 @@ const RECIPE = {
   scaffold:
     'Scaffold with the TanStack CLI (it sets up TanStack Intent agent-skill mappings by default): `tanstack create my-app --framework react --no-examples -y`. This creates a TanStack Start app and installs deps. (Add `--no-install` to skip install, or `--add-ons <id,…>` for integrations — but keep it env-free; do NOT add auth/database add-ons that need keys.)',
   app: 'Turn it into a SELF-CONTAINED interactive app — NO external APIs, NO env vars, NO keys. Pick something visual: a kanban board, a sortable dashboard over a bundled data.json, a markdown notepad, a drawing pad, or a small game (e.g. Game of Life). Keep all state client-side (persist to localStorage). Make it look polished.',
-  run: 'From the app dir, start the dev server bound to all interfaces (`pnpm dev --host 0.0.0.0 --port 3000`, or `npm run dev -- --host 0.0.0.0 --port 3000`). Once it is listening, call the `exposePreview` tool with `{ "port": 3000 }` to get a public preview URL, then share that URL with the user. The app runs with ZERO configuration — no API keys or env needed.',
+  run: 'From the app dir, start the dev server bound to all interfaces on PORT 5173 — do NOT use port 3000, it is reserved by the sandbox control plane (`pnpm dev --host 0.0.0.0 --port 5173`, or `npm run dev -- --host 0.0.0.0 --port 5173`). Once it is listening, call the `exposePreview` tool with `{ "port": 5173 }` to get a public preview URL, then share that URL with the user. The app runs with ZERO configuration — no API keys or env needed.',
 } as const
 
 const tanstackStartRecipe = toolDefinition({
@@ -95,8 +100,13 @@ const exposePreviewTool = (input: StartRunInput, env: SandboxAgentEnv) =>
     }),
   }).server(async ({ port }) => {
     const sandbox = getSandbox(env.Sandbox, input.threadId)
+    // Browser-facing preview host: `PREVIEW_HOSTNAME` if set, else derived from the
+    // run's trigger request. Local dev → `localhost:3001` (the SDK builds a
+    // `*.localhost` URL browsers resolve to loopback — no tunnel). Deployed → a
+    // custom domain with a `*.<domain>` route (`*.workers.dev` has no wildcard, so
+    // `resolvePreviewHost` throws a clear error there). See `resolvePreviewHost`.
     const { url } = await sandbox.exposePort(port, {
-      hostname: env.PUBLIC_HOSTNAME,
+      hostname: resolvePreviewHost(env, input),
     })
     return { url }
   })
@@ -130,7 +140,8 @@ export const agent = createCloudflareSandboxAgent({
       provider: namedCloudflareSandbox(
         env.Sandbox,
         input.threadId,
-        env.PUBLIC_HOSTNAME,
+        // Preview host for `exposePort` (browser-facing). See `resolvePreviewHost`.
+        resolvePreviewHost(env, input),
       ),
       workspace: defineWorkspace({
         // No source to clone — the container image already ships the claude CLI.

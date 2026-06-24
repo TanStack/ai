@@ -127,6 +127,12 @@ export function createSandboxAgentWorker<TEnv>(
           runId,
           threadId: body.threadId,
           messages: body.messages,
+          // The host this request arrived on. Coordinators derive the container's
+          // callback hosts from it when `PUBLIC_HOSTNAME`/`PREVIEW_HOSTNAME` are
+          // unset. On Cloudflare this is safe to trust — the edge only routes
+          // hostnames you own to your Worker. See `resolveBridgeOrigin` /
+          // `resolvePreviewHost`.
+          publicHost: url.host,
         }
         // RPC into the coordinator. `startRun` registers the run and returns
         // immediately under `ctx.waitUntil`; we do NOT await the agent loop.

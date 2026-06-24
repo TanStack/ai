@@ -1,0 +1,20 @@
+# Local dev secrets for `wrangler dev`. Copy to `.dev.vars` and fill in.
+# `.dev.vars` is gitignored; never commit real keys.
+
+# Anthropic API key for the in-sandbox `claude` CLI. Injected into the sandbox
+# env via the workspace `secrets` (never persisted to logs/snapshots).
+ANTHROPIC_API_KEY=sk-ant-...
+
+# Optional: an OAuth token instead of an API key (set one or the other).
+# CLAUDE_CODE_OAUTH_TOKEN=
+
+# Local dev needs NO host config. The container reaches the Worker's tool-bridge at
+# `host.docker.internal:3001`, and preview URLs use `*.localhost` (browser-resolved
+# to loopback) — no tunnel, no custom domain. These vars are only OVERRIDES:
+#
+# PUBLIC_HOSTNAME  — pin the container→Worker bridge host (e.g. a stable named
+#                    tunnel). Unset → host.docker.internal locally.
+# PREVIEW_HOSTNAME — custom domain for browser-facing preview URLs. Unset →
+#                    localhost locally; REQUIRED to view previews on a deploy.
+# PUBLIC_HOSTNAME=your-host.example.com
+# PREVIEW_HOSTNAME=preview.example.com

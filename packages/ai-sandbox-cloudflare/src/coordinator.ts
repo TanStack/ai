@@ -45,7 +45,21 @@ export interface StartRunInput {
   runId: string
   threadId: string
   messages: Array<ModelMessage>
+  /**
+   * The host the `POST /runs` trigger request arrived on, captured by the Worker
+   * (`new URL(request.url).host`). Used to derive the container's callback hosts
+   * when `PUBLIC_HOSTNAME` / `PREVIEW_HOSTNAME` are not set — see
+   * {@link resolveBridgeOrigin} / {@link resolvePreviewHost} for the rules (and the
+   * Cloudflare-specific reason request-derivation is safe to trust).
+   */
+  publicHost?: string
 }
+
+// Host resolvers live in their own (Workers-free) module so they stay pure and
+// unit-testable; re-exported here because the coordinators build their callback
+// URLs with them. `resolveBridgeOrigin` = container→Worker (/_bridge, /tool-exec);
+// `resolvePreviewHost` = browser→container previews. See their docstrings.
+export { resolveBridgeOrigin, resolvePreviewHost } from './public-host'
 
 /** Cursor stashed on each hibernatable WebSocket so it survives eviction. */
 interface SocketAttachment {

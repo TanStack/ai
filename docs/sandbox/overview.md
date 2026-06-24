@@ -342,7 +342,7 @@ the layer supports two shapes:
   tool-bridge; the container only runs the agent CLI. The bridge is served from
   the orchestrator (a serverless `fetch` handler, no raw TCP listener) and the
   agent reaches it across the container→orchestrator boundary, so the **whole MCP
-  protocol** crosses that boundary. The `examples/sandbox-cloudflare-agent`
+  protocol** crosses that boundary. The `examples/sandbox-cloudflare`
   TanStack Start app demonstrates this — UI, agent, Durable Objects, and the
   container in one Worker.
 - **Co-located (in-container).** The harness loop AND the tool-bridge run inside
@@ -381,6 +381,33 @@ chat({
   middleware: [withSandbox(localProcessSandbox())],
 })
 ```
+
+### Callback hosts (bridge vs preview)
+
+In both edge models the sandbox **container is off-isolate compute** — it can't use
+a service binding or an in-process call to reach the Worker, only the network. So the
+container's callback URLs need real hosts. There are **two distinct surfaces**, with
+different reachers and therefore different correct values — resolved by
+`resolveBridgeOrigin` and `resolvePreviewHost` (both exported from
+`@tanstack/ai-sandbox-cloudflare/agent`).
+
+**Bridge / tool-exec** (container → Worker: `/_bridge`, `/tool-exec`). Just needs to
+*reach* the Worker. `PUBLIC_HOSTNAME` is optional — when unset, the host is derived
+from the `POST /runs` trigger request, so a `*.workers.dev` deploy works with **zero
+config**, and **local dev uses `host.docker.internal`** (the Docker host gateway, over
+`http`) — no tunnel. Request-derivation is safe **on Cloudflare**, where it would be
+unsafe on a generic Node server: the edge dispatches a request to your Worker only
+when its hostname matches a route you own, so the request `Host` is always one of
+your own hostnames — never attacker-chosen — and the per-run bearer token that rides
+the URL can't be steered off-domain. (On plain Node the `Host` header is
+attacker-controlled, which is why this would be a token-exfil / SSRF vector there.)
+
+**Preview** (browser → Worker → container: `exposePort`). Needs **wildcard DNS**, so
+`PREVIEW_HOSTNAME` is a *separate* knob. **Local** uses `*.localhost` (browsers
+resolve it to loopback with zero setup — previews work locally with no tunnel).
+**Deployed** needs a **custom domain** with a `*.<domain>` route: `*.workers.dev` has
+no wildcard subdomains, so the SDK's `exposePort` rejects it and `resolvePreviewHost`
+throws a clear error pointing at `PREVIEW_HOSTNAME` instead of failing deep in a run.
 
 ## File-event hooks
 

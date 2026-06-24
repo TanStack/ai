@@ -23,8 +23,15 @@ export type {
   SandboxAgentEnv,
 } from './factory'
 
-// The abstract base + its run input.
-export { SandboxCoordinator } from './coordinator'
+// The abstract base + its run input + the host resolvers (so apps that build their
+// own host tools / sandbox providers resolve the callback hosts the same way the
+// coordinators do): `resolveBridgeOrigin` for the container→Worker bridge/tool-exec
+// origin, `resolvePreviewHost` for browser-facing `exposePort` preview URLs.
+export {
+  SandboxCoordinator,
+  resolveBridgeOrigin,
+  resolvePreviewHost,
+} from './coordinator'
 export type { StartRunInput } from './coordinator'
 
 // The two concrete coordinators + their per-run config + Env types.

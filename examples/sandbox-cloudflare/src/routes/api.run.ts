@@ -1,30 +1,39 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { toServerSentEventsStream } from '@tanstack/ai'
-import type { StreamChunk } from '@tanstack/ai'
+import type { ModelMessage, StreamChunk } from '@tanstack/ai'
+import type { StartRunInput } from '@tanstack/ai-sandbox-cloudflare/agent'
 
 /**
  * Proxy route: bridge the browser's `useChat` SSE expectation to the sandbox
- * agent's POST-then-WebSocket run protocol — same Worker, no network hop.
+ * agent's POST-then-WebSocket run protocol — same Worker, no self-subrequest.
  *
- * The agent (the `createCloudflareSandboxAgent()` handler, composed into this
- * Worker by `src/server.ts`) speaks:
+ * The run coordinator (the `RunCoordinator` Durable Object wired by `src/server.ts`)
+ * speaks:
  *
- *   1. `POST /runs { threadId, messages }` → `202 { runId }` (returns immediately;
- *      the Durable Object coordinator drives the run in the background).
- *   2. `GET /runs/:runId/stream?threadId=…` over a **WebSocket** → a resumable
+ *   1. `startRun({ threadId, messages, … })` → `{ runId }` (returns immediately;
+ *      the DO drives the run in the background under its own `ctx.waitUntil`).
+ *   2. `fetch('/runs/:runId/stream?threadId=…')` over a **WebSocket** → a resumable
  *      tail of `{ seq, chunk }` events, each `chunk` a standard chat `StreamChunk`,
  *      terminated by a `{ type: 'status', record }` frame.
  *
  * `useChat` only speaks "POST a body, read back an SSE stream of StreamChunks", so
- * this handler does the handshake + WS tail and re-emits the chunks as SSE. Both
- * subrequests target this Worker's own origin (the agent routes live at the root),
- * and — because the handler runs in `workerd`, not Node — the WebSocket tail is
- * opened with a `fetch()` Upgrade (there is no client `new WebSocket()` constructor
- * in Workers).
+ * this handler does the handshake + WS tail and re-emits the chunks as SSE.
+ *
+ * IMPORTANT — why we talk to the DO directly instead of `fetch('/runs')`:
+ * the agent's HTTP surface (`POST /runs`, `/runs/:id/stream`) lives in THIS SAME
+ * Worker. A Worker `fetch()` to its own hostname is a same-zone self-subrequest,
+ * which Cloudflare blocks in production (`error code 1042` → a 404) unless the
+ * `global_fetch_strictly_public` flag is set — even though it resolves fine in the
+ * local `workerd` dev runtime. So rather than loop back over HTTP, we address the
+ * coordinator DO over its binding (an in-process RPC + a DO `fetch`, the exact same
+ * hops the agent Worker would make) — no public round-trip, no 1042.
  */
 
 interface ProxyBody {
-  messages: Array<unknown>
+  // `Array.isArray` in `parseBody` narrows to `any[]`, so the chat engine's own
+  // message validation (in `startRun`) is what actually checks shape; we only
+  // assert "non-empty array" here for a fast, clear 400 on garbage input.
+  messages: Array<ModelMessage>
   data?: { threadId?: unknown }
 }
 
@@ -47,48 +56,43 @@ function parseBody(value: unknown): ProxyBody {
   return { messages, data }
 }
 
-/** Trigger a run on the agent; resolve once it has a `runId`. */
+/** The run coordinator DO for a thread, addressed over the `RUN_COORDINATOR` binding. */
+async function getCoordinator(threadId: string) {
+  // Dynamic import keeps the Workers-only `cloudflare:workers` virtual module out
+  // of the client bundle (this handler only ever runs on the server).
+  const { env } = await import('cloudflare:workers')
+  return env.RUN_COORDINATOR.get(env.RUN_COORDINATOR.idFromName(threadId))
+}
+
+type Coordinator = Awaited<ReturnType<typeof getCoordinator>>
+
+/** Trigger a run on the coordinator; resolve once it has a `runId`. */
 async function triggerRun(
-  origin: string,
-  threadId: string,
-  messages: Array<unknown>,
-  signal: AbortSignal,
+  coordinator: Coordinator,
+  input: StartRunInput,
 ): Promise<string> {
-  const res = await fetch(`${origin}/runs`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ threadId, messages }),
-    signal,
-  })
-  if (!res.ok) {
-    const detail = await res.text().catch(() => '')
-    throw new Error(`agent POST /runs failed (${res.status}): ${detail}`)
-  }
-  const body: unknown = await res.json()
-  if (
-    body === null ||
-    typeof body !== 'object' ||
-    !('runId' in body) ||
-    typeof body.runId !== 'string'
-  ) {
-    throw new Error('agent POST /runs did not return a runId')
-  }
-  return body.runId
+  const { runId } = await coordinator.startRun(input)
+  return runId
 }
 
 /**
- * Open the run's WebSocket tail (via a `fetch()` Upgrade, the Workers way) and
- * yield each chat `StreamChunk` as it arrives. Resolves when the coordinator sends
- * its terminal `status` frame (or the socket closes / the client disconnects).
+ * Open the run's WebSocket tail (the coordinator's `fetch` returns a `101` with a
+ * `webSocket`) and yield each chat `StreamChunk` as it arrives. Resolves when the
+ * coordinator sends its terminal `status` frame (or the socket closes / the client
+ * disconnects).
  */
 async function* tailRun(
-  origin: string,
+  coordinator: Coordinator,
   runId: string,
   threadId: string,
   signal: AbortSignal,
 ): AsyncGenerator<StreamChunk> {
-  const streamUrl = `${origin}/runs/${runId}/stream?threadId=${encodeURIComponent(threadId)}`
-  const res = await fetch(streamUrl, { headers: { Upgrade: 'websocket' } })
+  // The host is irrelevant — the DO routes on the pathname; this is an in-process
+  // DO `fetch`, not a public request.
+  const streamUrl = `https://do/runs/${runId}/stream?threadId=${encodeURIComponent(threadId)}&lastSeq=-1`
+  const res = await coordinator.fetch(streamUrl, {
+    headers: { Upgrade: 'websocket' },
+  })
   const socket = res.webSocket
   if (!socket) {
     throw new Error(
@@ -110,7 +114,7 @@ async function* tailRun(
     wake = null
   }
 
-  socket.addEventListener('message', (event) => {
+  socket.addEventListener('message', (event: MessageEvent) => {
     let parsed: unknown
     try {
       parsed = JSON.parse(typeof event.data === 'string' ? event.data : '')
@@ -191,20 +195,25 @@ export const Route = createFileRoute('/api/run')({
           typeof body.data?.threadId === 'string' && body.data.threadId !== ''
             ? body.data.threadId
             : crypto.randomUUID()
-        const origin = new URL(request.url).origin
 
         const abortController = new AbortController()
         request.signal.addEventListener('abort', () => abortController.abort())
 
         try {
-          const runId = await triggerRun(
-            origin,
+          const coordinator = await getCoordinator(threadId)
+          const runId = await triggerRun(coordinator, {
+            runId: crypto.randomUUID(),
             threadId,
-            body.messages,
-            abortController.signal,
-          )
+            messages: body.messages,
+            // The host this user request arrived on — the coordinators derive the
+            // container's bridge + preview hosts from it when PUBLIC_HOSTNAME /
+            // PREVIEW_HOSTNAME are unset (local dev → host.docker.internal +
+            // localhost). Safe to trust on Cloudflare (the edge only routes hosts
+            // you own to this Worker). See resolveBridgeOrigin / resolvePreviewHost.
+            publicHost: new URL(request.url).host,
+          })
           const chunks = tailRun(
-            origin,
+            coordinator,
             runId,
             threadId,
             abortController.signal,

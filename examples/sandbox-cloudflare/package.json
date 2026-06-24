@@ -1,10 +1,9 @@
 {
-  "name": "@tanstack/sandbox-cloudflare-agent-example",
+  "name": "@tanstack/sandbox-cloudflare-example",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite dev --port 3001",
-    "dev:tunnel": "TUNNEL=1 vite dev --port 3001",
     "build": "vite build",
     "serve": "vite preview",
     "deploy": "pnpm build && wrangler deploy",

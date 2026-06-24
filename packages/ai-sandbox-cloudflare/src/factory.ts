@@ -18,13 +18,18 @@
  *  - `'colocated'` → a {@link ContainerSandboxCoordinator}: an in-container
  *    runner runs `chat()`; the DO is a thin coordinator that executes host tools.
  *
- * Required Env bindings (set in `wrangler.jsonc`):
+ * Env bindings (set in `wrangler.jsonc`):
  *  - `RUN_COORDINATOR` — this coordinator DO's own namespace (so the Worker can
  *    address it by `threadId`). Class name: whatever you export `Coordinator` as.
  *  - `Sandbox` — the `@cloudflare/sandbox` Sandbox DO namespace (the container
  *    hosts). Bind the exported `Sandbox` class.
- *  - `PUBLIC_HOSTNAME` — your Worker's request hostname; the sandbox/container
- *    uses it to reach the tool-bridge / tool-exec endpoint + port previews.
+ *  - `PUBLIC_HOSTNAME` — OPTIONAL. Hostname the CONTAINER uses to reach the Worker's
+ *    tool-bridge / tool-exec endpoint. Unset → request-derived (local dev →
+ *    `host.docker.internal`). See `resolveBridgeOrigin`.
+ *  - `PREVIEW_HOSTNAME` — OPTIONAL. Custom domain (with a `*.<domain>` route) for
+ *    browser-facing `exposePort` preview URLs. Unset → request-derived (local dev →
+ *    `localhost`); REQUIRED on a `*.workers.dev` deploy, which has no wildcard
+ *    subdomains. See `resolvePreviewHost`.
  *  - `ANTHROPIC_API_KEY` — injected into the sandbox/container env for the CLI.
  *
  * NOTE: Workers-runtime code — compiles against the real Cloudflare + TanStack
@@ -40,6 +45,7 @@ import { cloudflareSandbox } from './provider'
 import { ChatSandboxCoordinator } from './chat-coordinator'
 import { ContainerSandboxCoordinator } from './container-coordinator'
 import { createSandboxAgentWorker } from './worker'
+import { resolvePreviewHost } from './coordinator'
 import type { ChatCoordinatorEnv, ChatRunConfig } from './chat-coordinator'
 import type {
   ContainerCoordinatorEnv,
@@ -55,13 +61,22 @@ import type {
 
 /**
  * The base Env every generated app binds: the coordinator's own namespace, the
- * Sandbox namespace, the public hostname, and the Anthropic key. The two modes
- * extend this with exactly the coordinator base each one requires.
+ * Sandbox namespace, the OPTIONAL bridge/preview hostnames (request-derived when
+ * unset), and the Anthropic key. The two modes extend this with exactly the
+ * coordinator base each one requires.
  */
 export interface SandboxAgentEnv
   extends ChatCoordinatorEnv, ContainerCoordinatorEnv {
   /** This coordinator DO's own namespace (so the Worker can address it). */
   RUN_COORDINATOR: DurableObjectNamespace<SandboxCoordinator<SandboxAgentEnv>>
+  /**
+   * Custom domain (with a `*.<domain>` route) for browser-facing `exposePort`
+   * preview URLs. Optional: unset → request-derived (local dev → `localhost`).
+   * REQUIRED on a `*.workers.dev` deploy (no wildcard subdomains). Distinct from
+   * `PUBLIC_HOSTNAME`, which is the CONTAINER→Worker bridge host. See
+   * {@link resolvePreviewHost}.
+   */
+  PREVIEW_HOSTNAME?: string
 }
 
 /** Shared config across both modes. */
@@ -80,8 +95,8 @@ export interface DoDrivesAgentConfig<
   /**
    * The sandbox the agent runs in, resolved per run. When omitted, a default
    * Cloudflare sandbox (one per thread, no source clone) is built from the
-   * `Sandbox` binding, `PUBLIC_HOSTNAME`, and `ANTHROPIC_API_KEY`, optionally
-   * bootstrapping `workspace`.
+   * `Sandbox` binding, the resolved preview host, and `ANTHROPIC_API_KEY`,
+   * optionally bootstrapping `workspace`.
    */
   sandbox?: (input: StartRunInput, env: TEnv) => SandboxDefinition
   /** Workspace for the default sandbox (ignored when `sandbox` is provided). */
@@ -121,13 +136,17 @@ export interface CloudflareSandboxAgent<TEnv extends SandboxAgentEnv> {
 /** Build the default per-thread Cloudflare sandbox for the DO-drives mode. */
 function defaultSandbox<TEnv extends SandboxAgentEnv>(
   env: TEnv,
+  input: StartRunInput,
   workspace: WorkspaceDefinition | undefined,
 ): SandboxDefinition {
   return defineSandbox({
     id: 'cf-edge-agent',
     provider: cloudflareSandbox({
       binding: env.Sandbox,
-      previewHostname: env.PUBLIC_HOSTNAME,
+      // Browser-facing preview host: `PREVIEW_HOSTNAME` if set, else derived from
+      // the trigger request (local dev → `localhost`; deployed → a custom domain,
+      // since `*.workers.dev` has no wildcard). See `resolvePreviewHost`.
+      previewHostname: resolvePreviewHost(env, input),
     }),
     workspace:
       workspace ??
@@ -178,7 +197,7 @@ export function createCloudflareSandboxAgent<
         adapter: doDrives.adapter(input, this.env),
         sandbox:
           doDrives.sandbox?.(input, this.env) ??
-          defaultSandbox(this.env, doDrives.workspace),
+          defaultSandbox(this.env, input, doDrives.workspace),
         ...(tools !== undefined ? { tools } : {}),
       }
     }

@@ -33,7 +33,7 @@ import {
   toolDescriptors,
 } from '@tanstack/ai-sandbox'
 import { getSandbox } from '@cloudflare/sandbox'
-import { SandboxCoordinator } from './coordinator'
+import { SandboxCoordinator, resolveBridgeOrigin } from './coordinator'
 import { timingSafeBearerEqualWeb } from './web-crypto'
 import type { StartRunInput } from './coordinator'
 import type { ContainerRunRequest, HarnessId } from './protocol'
@@ -46,14 +46,20 @@ const RUNNER_PORT = 8080
 
 /**
  * The Env bindings a {@link ContainerSandboxCoordinator} requires. The
- * `tool-exec` URL the CONTAINER calls back on is built from `PUBLIC_HOSTNAME`;
- * the Anthropic key is injected into the container env for the in-container CLI.
+ * `tool-exec` URL the CONTAINER calls back on needs a hostname; `PUBLIC_HOSTNAME`
+ * is OPTIONAL (request-derived when unset; locally → `host.docker.internal` — see
+ * {@link resolveBridgeOrigin}). The Anthropic key is injected into the container
+ * env for the in-container CLI.
  */
 export interface ContainerCoordinatorEnv {
   /** The `@cloudflare/sandbox` Sandbox DO namespace (the container hosts). */
   Sandbox: DurableObjectNamespace<Sandbox>
-  /** Public hostname the container uses to reach the DO's `/tool-exec` endpoint. */
-  PUBLIC_HOSTNAME: string
+  /**
+   * Hostname the container uses to reach the DO's `/tool-exec` endpoint. Optional:
+   * unset → derived from the trigger request (deployed: request host; local dev:
+   * `host.docker.internal`). Set it only to override. See {@link resolveBridgeOrigin}.
+   */
+  PUBLIC_HOSTNAME?: string
   /** Anthropic key injected into the CONTAINER env for the in-container CLI. */
   ANTHROPIC_API_KEY: string
 }
@@ -234,6 +240,10 @@ export abstract class ContainerSandboxCoordinator<
   ): AsyncIterable<StreamChunk> {
     const sandbox = getSandbox(this.env.Sandbox, input.threadId)
     await this.ensureRunner(sandbox)
+    // Container→Worker origin: `PUBLIC_HOSTNAME` if set, else derived from the
+    // trigger request (locally → host.docker.internal). The tool-exec token rides
+    // this URL. See `resolveBridgeOrigin`.
+    const origin = resolveBridgeOrigin(this.env, input)
     const body: ContainerRunRequest = {
       runId: input.runId,
       threadId: input.threadId,
@@ -245,7 +255,7 @@ export abstract class ContainerSandboxCoordinator<
       toolDescriptors: toolDescriptors(runConfig.hostTools),
       // The container calls back here for host-tool EXECUTION. It must be a URL
       // the CONTAINER can reach, so it goes via the Worker's public hostname.
-      toolExecUrl: `https://${this.env.PUBLIC_HOSTNAME}/tool-exec/${input.runId}?threadId=${encodeURIComponent(input.threadId)}`,
+      toolExecUrl: `${origin}/tool-exec/${input.runId}?threadId=${encodeURIComponent(input.threadId)}`,
       toolExecToken: token,
     }
     const response = await sandbox.containerFetch(

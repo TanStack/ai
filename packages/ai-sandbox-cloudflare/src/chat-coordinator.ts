@@ -29,7 +29,7 @@ import {
   handleBridgeJsonRpc,
   withSandbox,
 } from '@tanstack/ai-sandbox'
-import { SandboxCoordinator } from './coordinator'
+import { SandboxCoordinator, resolveBridgeOrigin } from './coordinator'
 import { timingSafeBearerEqualWeb } from './web-crypto'
 import type { StartRunInput } from './coordinator'
 import type { AnyTextAdapter, AnyTool, StreamChunk } from '@tanstack/ai'
@@ -41,12 +41,20 @@ import type {
 } from '@tanstack/ai-sandbox'
 
 /**
- * The Env bindings a {@link ChatSandboxCoordinator} requires. The bridge URL the
- * SANDBOX calls back on is built from `PUBLIC_HOSTNAME`, so it is mandatory.
+ * The Env bindings a {@link ChatSandboxCoordinator} requires. The bridge origin the
+ * SANDBOX calls back on needs a hostname; `PUBLIC_HOSTNAME` is OPTIONAL — when
+ * unset, the coordinator derives it from the trigger request (locally →
+ * `host.docker.internal`; safe on Cloudflare). See {@link resolveBridgeOrigin}.
  */
 export interface ChatCoordinatorEnv {
-  /** Public hostname the SANDBOX uses to reach the tool-bridge + previews. */
-  PUBLIC_HOSTNAME: string
+  /**
+   * Hostname the CONTAINER uses to reach the Worker's tool-bridge (`/_bridge`).
+   * Optional: unset → derived from each trigger request (deployed: the request
+   * host; local dev: `host.docker.internal`). Set it only to override — e.g. a
+   * stable named-tunnel host. See {@link resolveBridgeOrigin}. (Browser-facing
+   * preview URLs use a separate `PREVIEW_HOSTNAME`; see {@link resolvePreviewHost}.)
+   */
+  PUBLIC_HOSTNAME?: string
 }
 
 /** What {@link ChatSandboxCoordinator.config} returns for one run. */
@@ -153,6 +161,10 @@ export abstract class ChatSandboxCoordinator<
     const env = this.env
     const bridges = this.bridges
     const { runId, threadId } = input
+    // Container→Worker origin: `PUBLIC_HOSTNAME` if set, else derived from the
+    // trigger request (locally → host.docker.internal). The bearer token rides
+    // this URL. See `resolveBridgeOrigin`.
+    const origin = resolveBridgeOrigin(env, input)
     return {
       provision(tools, options): Promise<ProvisionedBridge> {
         const token =
@@ -169,7 +181,7 @@ export abstract class ChatSandboxCoordinator<
         bridges.set(runId, { token, core })
         return Promise.resolve({
           name: 'tanstack',
-          url: `https://${env.PUBLIC_HOSTNAME}/_bridge/${runId}?threadId=${encodeURIComponent(threadId)}`,
+          url: `${origin}/_bridge/${runId}?threadId=${encodeURIComponent(threadId)}`,
           token,
           close: () => {
             bridges.delete(runId)

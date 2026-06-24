@@ -1,4 +1,4 @@
-# Cloudflare sandbox agent — TanStack Start app (Worker + Durable Objects + Container)
+# Cloudflare sandbox — TanStack Start app (Worker + Durable Objects + Container)
 
 A reference **TanStack Start app** that runs a TanStack AI sandbox agent on the
 edge — UI, agent, Durable Objects, and the container all ship in **one Cloudflare
@@ -224,7 +224,7 @@ pnpm install
 
 # 2) From THIS directory, provide your key for local dev. The plugin reads
 #    .dev.vars; the factory injects it into the sandbox env for the `claude` CLI.
-cd examples/sandbox-cloudflare-agent
+cd examples/sandbox-cloudflare
 cp .dev.vars.example .dev.vars      # then edit .dev.vars and set ANTHROPIC_API_KEY
 
 # 3) (Optional) regenerate Cloudflare binding types after editing wrangler.jsonc
@@ -235,29 +235,22 @@ pnpm cf-typegen
 pnpm dev                            # http://localhost:3001
 ```
 
-> **Running the agent locally needs a tunnel.** With plain `pnpm dev`, the
-> in-container agent can't reach your local Worker's `/_bridge` (the `tanstack`
-> MCP server), so a run fails with "the tanstack MCP server hasn't come up". The
-> **Cloudflare Vite plugin has a built-in tunnel** (it downloads `cloudflared`
-> itself — no separate install), which gives the local Worker a public hostname the
-> container can reach. Two ways to start it:
+> **No tunnel needed for local runs.** Agent runs work on plain `localhost` because
+> the two host surfaces are reached locally without any public hostname:
 >
-> ```bash
-> pnpm dev:tunnel        # = TUNNEL=1 vite dev — auto-starts a quick tunnel
-> # …or press `t + Enter` in a running `pnpm dev` session.
-> ```
+> - **Bridge** (container → Worker `/_bridge` MCP server): the container reaches the
+>   host machine at **`host.docker.internal:3001`** (the Docker host gateway). The
+>   coordinator derives this automatically when the trigger arrives on `localhost`.
+>   For this to work the dev server must listen on all interfaces, so `vite.config.ts`
+>   sets **`server.host: true`** (bind `0.0.0.0`) — a default loopback-only bind makes
+>   the container's `/_bridge` call fail with `ECONNREFUSED`.
+> - **Preview** (browser → Worker → container): `exposePort` returns
+>   **`http://<port>-<id>-<token>.localhost:3001`**, and browsers resolve `*.localhost`
+>   to loopback with zero DNS setup — so you can click **Open preview** locally too.
 >
-> Then point the Worker at the tunnel hostname so the bridge URL matches: copy the
-> printed `*.trycloudflare.com` host into `.dev.vars` as
-> `PUBLIC_HOSTNAME=<that-host>` and restart. The container now reaches the bridge
-> over the tunnel, so agent runs work locally.
->
-> A **quick** tunnel serves only one hostname, so the **tool-bridge works but
-> preview URLs don't** (they need wildcard subdomains). For previews locally too,
-> use a **named tunnel** (`tunnel: { name: '…' }` in `vite.config.ts`) with a
-> wildcard route (`*.dev.yourdomain.com → http://localhost:3001`) and a stable
-> `PUBLIC_HOSTNAME=dev.yourdomain.com` you set once. Otherwise, deploy to see
-> previews.
+> So just `pnpm dev` and open `http://localhost:3001`. (`vite.config.ts` binds
+> `0.0.0.0` and allows the `host.docker.internal` + `*.localhost` hosts; requires
+> Docker Desktop running for the container — see Limitations.)
 
 Open `http://localhost:3001` for the chat UI, or drive the agent's HTTP surface
 directly:
@@ -276,31 +269,39 @@ websocat "ws://localhost:3001/runs/<runId>/stream?threadId=t1&lastSeq=-1"
 curl -s "http://localhost:3001/runs/<runId>?threadId=t1"
 ```
 
-**Deploying:** `pnpm deploy`, set the production key with
-`wrangler secret put ANTHROPIC_API_KEY`, and set `PUBLIC_HOSTNAME` in
-`wrangler.jsonc` `vars` to your `*.workers.dev` / custom domain (the in-sandbox
-agent uses it to reach the `/_bridge` MCP endpoint for the `tools` you pass).
+**Deploying:** `pnpm deploy` and set the production key with
+`wrangler secret put ANTHROPIC_API_KEY`. The **agent run** works with no host config —
+the container reaches `/_bridge` over the request host, which is safe on Cloudflare
+(the edge only routes hostnames you own to your Worker), so a `*.workers.dev` deploy
+needs no `PUBLIC_HOSTNAME`. **Preview URLs** are the exception (see below): to view
+the app the agent builds on a deploy, you need a **custom domain**.
 
 ## Showing the app (preview URLs)
 
 The agent builds and runs the app inside the container, then calls the
 `exposePreview` host tool (`{ port: 3000 }`) once its dev server is up. That tool
-runs on the host, calls `sandbox.exposePort(port, { hostname: PUBLIC_HOSTNAME })`
-on the run's container, and returns a URL of the form
-`https://<port>-<sandboxId>-<token>.<PUBLIC_HOSTNAME>`. `proxyToSandbox` (in
-`src/server.ts`) routes that hostname back into the container, and the UI renders
-it as a clickable **Open preview** link.
+runs on the host, calls `sandbox.exposePort(port, { hostname })` on the run's
+container — where `hostname` is the resolved **preview** host (`resolvePreviewHost`) —
+and returns a URL of the form `https://<port>-<sandboxId>-<token>.<host>`.
+`proxyToSandbox` (in `src/server.ts`) routes that hostname back into the container,
+and the UI renders it as a clickable **Open preview** link.
 
 For the host to address the right container, the sandbox is pinned to the run's
 `threadId` (see `src/sandbox-provider.ts`) instead of the default random id.
 
-> **Deployed vs. local.** Preview URLs rely on **wildcard DNS** — they resolve on a
-> deployed Worker (`*.workers.dev` / your custom domain) but generally **not** under
-> `localhost` (the `https` scheme + non-wildcard local DNS don't line up). So build
->
-> - run works locally, but to actually open the preview, deploy (`pnpm deploy`). The
->   `exposePort` URL is built from `PUBLIC_HOSTNAME`, so that var must be your real
->   request host.
+Preview URLs need **wildcard DNS** (`*.<host>`), so the host differs by environment:
+
+- **Local** → `localhost:3001`. The SDK builds `http://<port>-<id>-<token>.localhost:3001`,
+  which browsers resolve to loopback with no setup — **previews work locally, no tunnel**.
+- **Deployed** → a **custom domain** with a wildcard route. `*.workers.dev` has **no**
+  wildcard subdomains, so `exposePort` rejects it. To enable deployed previews:
+  1. add a wildcard route in `wrangler.jsonc`, e.g.
+     `"routes": [{ "pattern": "*.preview.example.com/*", "zone_name": "example.com" }]`, and
+  2. set `"vars": { "PREVIEW_HOSTNAME": "preview.example.com" }`.
+
+  Without `PREVIEW_HOSTNAME`, a deployed `exposePreview` throws a clear error rather
+  than returning a dead URL. (The agent run itself still works — only the preview
+  link needs the custom domain.)
 
 ## Setting sandbox env
 
@@ -325,26 +326,27 @@ trigger only carries `threadId` + `messages`); see the note in **Limitations**.
 Read these before treating this as production-ready. They are specific and
 honest.
 
-1. **Agent runs need a deploy; `PUBLIC_HOSTNAME` must match.** The in-sandbox
-   agent's container reaches the host over `PUBLIC_HOSTNAME` for the `/_bridge`
-   MCP tool-bridge (the `tanstack` MCP server: `tanstackStartRecipe` /
-   `exposePreview`) and for preview ports. So:
-   - `PUBLIC_HOSTNAME` **must** be the hostname your Worker is actually served on.
-     If it's wrong (e.g. the committed value points at a different account), the
-     agent reports **"the tanstack MCP server hasn't come up"** — it's hitting the
-     wrong instance, which has no bridge for your run (a 404). Fix: set
-     `PUBLIC_HOSTNAME` to your `*.workers.dev` / custom domain and redeploy.
-   - A **local `pnpm dev`** container can't reach your host over that hostname, so
-     plain local runs fail. Use **`pnpm dev:tunnel`** (the Cloudflare Vite plugin's
-     built-in tunnel — it downloads `cloudflared` itself, no separate install; see
-     [Run it locally](#run-it-locally)) to give the host a container-reachable
-     hostname, and set `PUBLIC_HOSTNAME` to it. The tool-bridge then works locally;
-     preview URLs still need a wildcard (named tunnel or a deploy).
-   - There is also no Workers runtime in this monorepo's CI, and some local
-     container runtimes (e.g. OrbStack) can't run Cloudflare containers at all.
-     This app type-checks (`pnpm typecheck`) and builds (`pnpm build`) against the
-     real types and follows contracts proven by the package unit tests, but treat it
-     as the _architecture blueprint_ until you've run it on your own deploy.
+1. **Two host surfaces; previews need wildcard DNS.** The agent's container calls
+   back to the Worker for two things, and they resolve differently:
+   - **Bridge** (`/_bridge` MCP tool-bridge + `/tool-exec`): just needs to *reach*
+     the Worker. **Local** → `host.docker.internal:3001` (Docker host gateway, http);
+     **deploy** → the request host (no `PUBLIC_HOSTNAME` needed; request-derivation
+     is safe on Cloudflare because the edge only routes hostnames you own). A wrong
+     `PUBLIC_HOSTNAME` override surfaces as **"the tanstack MCP server hasn't come
+     up"** (a 404 against the wrong host).
+   - **Preview** (`exposePort`): needs **wildcard DNS**. **Local** → `*.localhost`
+     (browser-resolved to loopback, zero setup); **deploy** → a **custom domain**
+     with a `*.<domain>` route + `PREVIEW_HOSTNAME`. `*.workers.dev` has no wildcard
+     subdomains, so the SDK's `exposePort` rejects it — set `PREVIEW_HOSTNAME` (see
+     [Showing the app](#showing-the-app-preview-urls)).
+   - **Local requires Docker Desktop.** The container reaches the host via
+     `host.docker.internal`, which Docker Desktop provides; some runtimes (e.g.
+     OrbStack) can't run Cloudflare containers at all. There's also no Workers
+     runtime in this monorepo's CI, so the app type-checks (`pnpm typecheck`) and
+     builds against the real types and follows contracts proven by the package unit
+     tests — but treat it as the _architecture blueprint_ until you've run it
+     yourself. (Whether the CF sandbox container can actually reach
+     `host.docker.internal` is the one thing to confirm on your machine.)
 
 2. **The Cloudflare sandbox has no writable host→process stdin (handled).**
    Cloudflare background processes don't expose a writable stdin —
