@@ -1,4 +1,5 @@
 import { OPENROUTER_VIDEO_MODEL_META } from '../model-meta'
+import type { DurationOptions } from '@tanstack/ai/adapters'
 import type { VideoGenerationRequestProvider } from '@openrouter/sdk/models'
 import type { OPENROUTER_VIDEO_MODELS } from '../model-meta'
 
@@ -121,6 +122,35 @@ export type OpenRouterVideoModelSizeByName = {
  */
 export type OpenRouterVideoModelInputModalitiesByName = {
   [K in OpenRouterVideoModel]: readonly ['image']
+}
+
+/**
+ * Per-model duration unions (whole seconds, numeric — OpenRouter's
+ * `/api/v1/videos` `duration` field is a number). Derived from the generated
+ * model meta; models whose metadata reports `durations: null` (capabilities
+ * unknown) stay permissive (`number`).
+ */
+export type OpenRouterVideoModelDurationByName = {
+  [K in OpenRouterVideoModel]: ElementOf<VideoMeta[K]['durations'], number>
+}
+
+/**
+ * Duration options for a model, backing the adapter's `availableDurations()` /
+ * `snapDuration()`. OpenRouter publishes durations as a discrete list of whole
+ * seconds, so known models map to `{ kind: 'discrete' }`. Returns
+ * `{ kind: 'none' }` when the model is unknown or its meta reports no
+ * durations — mirroring the permissive runtime behavior of
+ * {@link validateVideoDuration}.
+ */
+export function getVideoDurationOptions<TModel extends OpenRouterVideoModel>(
+  model: TModel,
+): DurationOptions<OpenRouterVideoModelDurationByName[TModel]>
+export function getVideoDurationOptions(
+  model: string,
+): DurationOptions<number> {
+  const durations = VIDEO_MODEL_META[model]?.durations
+  if (!durations || durations.length === 0) return { kind: 'none' }
+  return { kind: 'discrete', values: durations }
 }
 
 /**

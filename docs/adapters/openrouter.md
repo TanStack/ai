@@ -334,6 +334,8 @@ const { jobId } = await generateVideo({
     },
   ],
   size: "1280x720",
+  // `duration` is typed per model from the published metadata; coerce raw
+  // seconds with adapter.snapDuration() or enumerate via adapter.availableDurations().
   duration: 8,
 });
 

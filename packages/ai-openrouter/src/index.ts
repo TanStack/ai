@@ -68,6 +68,7 @@ export type {
   OpenRouterVideoModelProviderOptionsByName,
   OpenRouterVideoModelSizeByName,
   OpenRouterVideoModelInputModalitiesByName,
+  OpenRouterVideoModelDurationByName,
 } from './video/video-provider-options'
 
 // ============================================================================

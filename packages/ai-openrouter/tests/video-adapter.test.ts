@@ -117,6 +117,8 @@ describe('OpenRouter Video Adapter', () => {
         adapter.createVideoJob({
           model: 'bytedance/seedance-2.0',
           prompt: 'A timelapse of clouds',
+          // @ts-expect-error invalid size — the per-model union rejects it at
+          // compile time; this still exercises the runtime guard for JS callers.
           size: '333x333',
           logger: testLogger,
         }),
@@ -132,6 +134,8 @@ describe('OpenRouter Video Adapter', () => {
         adapter.createVideoJob({
           model: 'bytedance/seedance-2.0',
           prompt: 'A timelapse of clouds',
+          // @ts-expect-error invalid duration — the per-model union rejects it
+          // at compile time; this still exercises the runtime guard.
           duration: 99,
           logger: testLogger,
         }),
@@ -483,6 +487,35 @@ describe('OpenRouter Video Adapter', () => {
         /no downloadable content yet/,
       )
       expect(mockFetch).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('typed durations', () => {
+    it('availableDurations() reports the model discrete duration list', () => {
+      const adapter = createAdapter() // bytedance/seedance-2.0 → [4..15]
+      expect(adapter.availableDurations()).toEqual({
+        kind: 'discrete',
+        values: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+      })
+    })
+
+    it('snapDuration() returns an exact match unchanged', () => {
+      const adapter = createAdapter()
+      expect(adapter.snapDuration(8)).toBe(8)
+    })
+
+    it('snapDuration() snaps to the closest supported value', () => {
+      const adapter = createAdapter()
+      // 7.4 → 7 (rounds to nearest), 99 → 15 (clamped to max), 1 → 4 (min)
+      expect(adapter.snapDuration(7.4)).toBe(7)
+      expect(adapter.snapDuration(99)).toBe(15)
+      expect(adapter.snapDuration(1)).toBe(4)
+    })
+
+    it('snapDuration() picks the nearest of a sparse list', () => {
+      const adapter = createOpenRouterVideo('alibaba/wan-2.6', 'test-key') // [5, 10]
+      expect(adapter.snapDuration(6)).toBe(5)
+      expect(adapter.snapDuration(8)).toBe(10)
     })
   })
 })

@@ -807,6 +807,25 @@ const { jobId } = await generateVideo({
 })
 ```
 
+Like the Veo adapter, OpenRouter's `duration` is **typed per model** — each
+model narrows `duration` to the whole-second union published in its metadata,
+and the adapter implements the same `availableDurations()` / `snapDuration()`
+introspection helpers:
+
+```typescript
+const adapter = openRouterVideo('bytedance/seedance-2.0')
+
+adapter.availableDurations()
+// { kind: 'discrete', values: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] }
+adapter.snapDuration(7.4) // 7 — closest valid duration
+
+await generateVideo({
+  adapter,
+  prompt: 'A timelapse of clouds',
+  duration: adapter.snapDuration(sliderSeconds), // coerce raw UI seconds
+})
+```
+
 Two OpenRouter-specific behaviors to know about:
 
 - **The completed video arrives as a `data:` URL.** OpenRouter's download

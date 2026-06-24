@@ -1,15 +1,18 @@
 import { OpenRouter } from '@openrouter/sdk'
 import { buildBaseUsage, resolveMediaPrompt } from '@tanstack/ai'
-import { BaseVideoAdapter } from '@tanstack/ai/adapters'
+import { BaseVideoAdapter, snapToDurationOption } from '@tanstack/ai/adapters'
 import { arrayBufferToBase64 } from '@tanstack/ai-utils'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
 import {
+  getVideoDurationOptions,
   getVideoModelMeta,
   validateVideoDuration,
   validateVideoSize,
 } from '../video/video-provider-options'
+import type { DurationOptions } from '@tanstack/ai/adapters'
 import type {
   OpenRouterVideoModel,
+  OpenRouterVideoModelDurationByName,
   OpenRouterVideoModelInputModalitiesByName,
   OpenRouterVideoModelProviderOptionsByName,
   OpenRouterVideoModelSizeByName,
@@ -235,7 +238,8 @@ export class OpenRouterVideoAdapter<
   OpenRouterVideoProviderOptions,
   OpenRouterVideoModelProviderOptionsByName,
   OpenRouterVideoModelSizeByName,
-  OpenRouterVideoModelInputModalitiesByName
+  OpenRouterVideoModelInputModalitiesByName,
+  OpenRouterVideoModelDurationByName
 > {
   override readonly kind = 'video' as const
   readonly name = 'openrouter' as const
@@ -254,7 +258,11 @@ export class OpenRouterVideoAdapter<
   }
 
   async createVideoJob(
-    options: VideoGenerationOptions<OpenRouterVideoProviderOptions>,
+    options: VideoGenerationOptions<
+      OpenRouterVideoProviderOptions,
+      OpenRouterVideoModelSizeByName[TModel],
+      OpenRouterVideoModelDurationByName[TModel]
+    >,
   ): Promise<VideoJobResult> {
     const { size, duration, modelOptions, logger } = options
 
@@ -317,6 +325,18 @@ export class OpenRouterVideoAdapter<
       })
       throw error
     }
+  }
+
+  override availableDurations(): DurationOptions<
+    OpenRouterVideoModelDurationByName[TModel]
+  > {
+    return getVideoDurationOptions(this.model)
+  }
+
+  override snapDuration(
+    seconds: number,
+  ): OpenRouterVideoModelDurationByName[TModel] | undefined {
+    return snapToDurationOption(seconds, this.availableDurations())
   }
 
   async getVideoStatus(jobId: string): Promise<VideoStatusResult> {

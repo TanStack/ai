@@ -4,9 +4,10 @@ description: >
   Image, audio, video, speech (TTS), and transcription generation using
   activity-specific adapters: generateImage() with openaiImage/geminiImage/byteplusImage,
   generateAudio() with geminiAudio/falAudio, generateVideo() with async
-  polling (openaiVideo/geminiVideo/grokVideo/falVideo/byteplusVideo, per-model typed
-  durations), generateSpeech() with openaiSpeech/byteplusSpeech, generateTranscription()
-  with openaiTranscription/byteplusTranscription. React hooks: useGenerateImage, useGenerateAudio,
+  polling (openaiVideo/geminiVideo/grokVideo/falVideo/byteplusVideo/openRouterVideo,
+  per-model typed durations), generateSpeech() with openaiSpeech/byteplusSpeech,
+  generateTranscription() with openaiTranscription/byteplusTranscription. React hooks:
+  useGenerateImage, useGenerateAudio,
   useGenerateSpeech, useTranscription, useGenerateVideo.
   TanStack Start server function integration with toServerSentEventsResponse.
 type: sub-skill
@@ -547,8 +548,9 @@ image-to-video only — needs an `image` prompt part as the starting frame, text
 aspect-ratio size template like `'16:9_720p'`, integer durations 1-15s, reports
 `usage.unitsBilled` seconds and exact `usage.cost`), `byteplusVideo(...)` (Seedance —
 aspect-ratio size template like `'16:9_720p'`, durations 4-15s on the 2.0 family,
-4-12s on 1.5-pro, 2-12s on the 1.0-pro models; reads `ARK_API_KEY`), and
-`falVideo(...)` (hosted models, see cost tracking below).
+4-12s on 1.5-pro, 2-12s on the 1.0-pro models; reads `ARK_API_KEY`),
+`openRouterVideo(...)` (OpenRouter's dedicated `POST /api/v1/videos` gateway),
+and `falVideo(...)` (hosted models, see cost tracking below).
 
 > **Seedance option applicability is per model and enforced server-side** —
 > Ark returns a 400 for an inapplicable field rather than ignoring it.
@@ -559,6 +561,28 @@ aspect-ratio size template like `'16:9_720p'`, durations 4-15s on the 2.0 family
 > **Video URLs expire 24 hours after the task completes** (task record kept 7
 > days). Seedance is also reachable via `falVideo` — `byteplusVideo` is the
 > direct-to-BytePlus path.
+
+OpenRouter (`@tanstack/ai-openrouter`, `openRouterVideo`) runs the dedicated
+async video API (`POST /api/v1/videos`) and shares the same typed-duration
+contract — `duration`, `size`, and provider options are narrowed per model
+from OpenRouter's published metadata, with the same `availableDurations()` /
+`snapDuration()` helpers:
+
+```typescript
+import { openRouterVideo } from '@tanstack/ai-openrouter'
+
+const adapter = openRouterVideo('bytedance/seedance-2.0')
+adapter.availableDurations()
+// { kind: 'discrete', values: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] }
+adapter.snapDuration(7.4) // 7
+
+const { jobId } = await generateVideo({
+  adapter,
+  prompt: 'A timelapse of clouds',
+  duration: adapter.snapDuration(sliderSeconds),
+})
+// Completed url is a data: URL; usage.cost carries the real billed cost.
+```
 
 Client hook with job tracking:
 
