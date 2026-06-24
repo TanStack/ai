@@ -5,7 +5,7 @@ title: FinishInfo
 
 # Interface: FinishInfo
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:279](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L279)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:313](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L313)
 
 Information passed to onFinish.
 
@@ -17,7 +17,7 @@ Information passed to onFinish.
 content: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:285](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L285)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:319](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L319)
 
 Final accumulated text content
 
@@ -29,7 +29,7 @@ Final accumulated text content
 duration: number;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:283](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L283)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:317](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L317)
 
 Total duration of the chat run in milliseconds
 
@@ -41,7 +41,7 @@ Total duration of the chat run in milliseconds
 finishReason: string | null;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:281](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L281)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:315](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L315)
 
 The finish reason from the last model response
 
@@ -53,6 +53,6 @@ The finish reason from the last model response
 optional usage: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:287](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L287)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:321](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L321)
 
 Final usage totals, if available (optionally including provider-reported cost)
