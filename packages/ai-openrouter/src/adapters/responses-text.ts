@@ -12,6 +12,7 @@ import { convertFunctionToolToResponsesFormat } from '../internal/responses-tool
 import { isWebSearchTool } from '../tools/web-search-tool'
 import { isWebFetchTool } from '../tools/web-fetch-tool'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
+import { OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS } from '../model-meta'
 import { extractUsageCost } from './cost'
 import type { SDKOptions } from '@openrouter/sdk'
 import type { ResponsesFunctionTool } from '../internal/responses-tool-converter'
@@ -1586,6 +1587,24 @@ export class OpenRouterResponsesTextAdapter<
         )
       : undefined
 
+    // Native combined mode (#612): the engine populates `options.outputSchema`
+    // on the `chatStream` call ONLY when this adapter declared
+    // `supportsCombinedToolsAndSchema()` for the model. When set, attach the
+    // schema via `text.format: json_schema` alongside `tools` so it rides the
+    // same streaming request and the engine harvests it from the final-turn
+    // text. The legacy `structuredOutput*` methods strip `outputSchema` before
+    // calling this, so the branch only fires on the combined path.
+    const combinedOutputSchema = options.outputSchema as
+      | (Record<string, any> & { required?: Array<string> })
+      | undefined
+    const combinedSchema =
+      combinedOutputSchema && this.supportsCombinedToolsAndSchema()
+        ? this.makeStructuredOutputCompatible(
+            combinedOutputSchema,
+            combinedOutputSchema.required,
+          )
+        : undefined
+
     const built: Pick<
       ResponsesRequest,
       | 'model'
@@ -1598,6 +1617,7 @@ export class OpenRouterResponsesTextAdapter<
       | 'tools'
       | 'toolChoice'
       | 'parallelToolCalls'
+      | 'text'
     > = {
       ...modelOptions,
       model: options.model + variantSuffix,
@@ -1616,9 +1636,35 @@ export class OpenRouterResponsesTextAdapter<
         tools.length > 0 && {
           tools,
         }),
+      ...(combinedSchema && {
+        // Merge onto any caller-supplied `text` (spread above via
+        // `...modelOptions`) so sibling fields like `text.verbosity` survive;
+        // only `text.format` is overridden by the combined-mode schema.
+        text: {
+          ...modelOptions.text,
+          format: {
+            type: 'json_schema' as const,
+            name: 'structured_output',
+            schema: combinedSchema,
+            strict: true,
+          },
+        },
+      }),
     }
 
     return built
+  }
+
+  /**
+   * Native combined tools + `outputSchema` (#612). OpenRouter routes to many
+   * upstream providers, so capability is per-model: `this.model` is the bare
+   * canonical catalog id (the `:variant` suffix is a routing directive applied
+   * at request-build time and does not change combined-mode support), so the
+   * lookup ignores `modelOptions` and keys directly off `this.model`. Models
+   * not in the set fall back to the legacy finalization path.
+   */
+  supportsCombinedToolsAndSchema(): boolean {
+    return OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(this.model)
   }
 
   /**

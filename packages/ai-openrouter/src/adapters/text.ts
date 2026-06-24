@@ -11,6 +11,7 @@ import { makeStructuredOutputCompatible } from '../internal/schema-converter'
 import { convertToolsToProviderFormat } from '../tools'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
 import { buildOpenRouterUsage } from '../usage'
+import { OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS } from '../model-meta'
 import { extractUsageCost } from './cost'
 import type { SDKOptions } from '@openrouter/sdk'
 import type {
@@ -1184,6 +1185,25 @@ export class OpenRouterTextAdapter<
       ? convertToolsToProviderFormat(options.tools)
       : undefined
 
+    // Native combined mode (#612): the engine populates `options.outputSchema`
+    // on the `chatStream` call ONLY when the adapter declared
+    // `supportsCombinedToolsAndSchema()` for this model. When set, attach
+    // `responseFormat: json_schema` alongside `tools` so the schema-constrained
+    // JSON rides the same streaming request and the engine harvests it from the
+    // final-turn text — no separate finalization round-trip. The legacy
+    // `structuredOutput*` methods strip `outputSchema` before calling this, so
+    // this branch only fires on the combined path.
+    const combinedOutputSchema = options.outputSchema as
+      | (Record<string, any> & { required?: Array<string> })
+      | undefined
+    const combinedSchema =
+      combinedOutputSchema && this.supportsCombinedToolsAndSchema()
+        ? this.makeStructuredOutputCompatible(
+            combinedOutputSchema,
+            combinedOutputSchema.required,
+          )
+        : undefined
+
     // `modelOptions` is the sole wire surface: callers set provider-native
     // names (`temperature`, `topP`, `maxCompletionTokens`, `metadata`, etc.)
     // there and they flow through the spread below. Root `metadata` is
@@ -1195,8 +1215,30 @@ export class OpenRouterTextAdapter<
       model: options.model + variantSuffix,
       messages,
       ...(tools && tools.length > 0 && { tools }),
+      ...(combinedSchema && {
+        responseFormat: {
+          type: 'json_schema' as const,
+          jsonSchema: {
+            name: 'structured_output',
+            schema: combinedSchema,
+            strict: true,
+          },
+        },
+      }),
     }
     return request
+  }
+
+  /**
+   * Native combined tools + `outputSchema` (#612). OpenRouter routes to many
+   * upstream providers, so capability is per-model: `this.model` is the bare
+   * canonical catalog id (the `:variant` suffix is a routing directive applied
+   * at request-build time and does not change combined-mode support), so the
+   * lookup ignores `modelOptions` and keys directly off `this.model`. Models
+   * not in the set fall back to the legacy finalization path.
+   */
+  supportsCombinedToolsAndSchema(): boolean {
+    return OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(this.model)
   }
 
   /**
