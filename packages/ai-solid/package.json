@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-solid",
-  "version": "0.13.11",
+  "version": "0.13.12",
   "description": "Solid hooks for TanStack AI streaming chat, structured outputs, and media generation.",
   "author": "Tanner Linsley",
   "license": "MIT",

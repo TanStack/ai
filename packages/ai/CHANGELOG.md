@@ -1,5 +1,18 @@
 # @tanstack/ai
 
+## 0.34.1
+
+### Patch Changes
+
+- [#698](https://github.com/TanStack/ai/pull/698) [`4188693`](https://github.com/TanStack/ai/commit/4188693d09297ce400eb1ba5fab30cfea2fdb8a6) - Fix `MESSAGES_SNAPSHOT` handling so AG-UI snapshot messages are normalized into `UIMessage[]`.
+
+  AG-UI snapshot messages use the wire shape `{ id, role, content }` and have no `parts` array. The handler previously cast them straight to `UIMessage[]`, so any code that later read `message.parts` (e.g. the devtools `onToolCallStateChange` handler) crashed with `TypeError: Cannot read properties of undefined (reading 'find')`.
+
+  Each snapshot message is now converted to a proper `UIMessage` via a type-safe converter that preserves the original AG-UI `id` (so subsequent `TEXT_MESSAGE_CONTENT` / `TOOL_CALL_*` events still route by `messageId`), maps `toolCalls` to `tool-call` parts and `tool` messages to `tool-result` parts, and falls back to a generated id only when the snapshot omits one.
+
+- Updated dependencies [[`2e59b77`](https://github.com/TanStack/ai/commit/2e59b7730ef88a0107e8d7ad916906b070f6a6c0)]:
+  - @tanstack/ai-event-client@0.6.6
+
 ## 0.34.0
 
 ### Minor Changes

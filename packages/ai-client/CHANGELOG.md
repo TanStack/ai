@@ -1,5 +1,15 @@
 # @tanstack/ai-client
 
+## 0.18.3
+
+### Patch Changes
+
+- [#749](https://github.com/TanStack/ai/pull/749) [`540cbf1`](https://github.com/TanStack/ai/commit/540cbf18a2f7d6c07b44f7f4da0ac3873c0d2581) - Fix `useChat` status getting stuck after a client tool call when the continuation run closes with a bare `RUN_FINISHED { finishReason: 'stop' }` and no assistant message. The client only sets status `ready` via the processor's `onStreamEnd`, and `StreamProcessor.finalizeStream()` emits that callback only when it has a `lastAssistantMessage`; a message-less terminal run never fired it, so status stayed at `submitted`. The client now normalizes status to `ready` on the terminal, non-continuing path. Fixes [#421](https://github.com/TanStack/ai/issues/421).
+
+- Updated dependencies [[`2e59b77`](https://github.com/TanStack/ai/commit/2e59b7730ef88a0107e8d7ad916906b070f6a6c0), [`4188693`](https://github.com/TanStack/ai/commit/4188693d09297ce400eb1ba5fab30cfea2fdb8a6)]:
+  - @tanstack/ai-event-client@0.6.6
+  - @tanstack/ai@0.34.1
+
 ## 0.18.2
 
 ### Patch Changes

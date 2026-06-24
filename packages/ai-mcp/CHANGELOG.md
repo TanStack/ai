@@ -1,5 +1,14 @@
 # @tanstack/ai-mcp
 
+## 0.1.7
+
+### Patch Changes
+
+- [#754](https://github.com/TanStack/ai/pull/754) [`df40512`](https://github.com/TanStack/ai/commit/df40512bda853f714b2913bee630ec599e664207) - Fix `@tanstack/ai-mcp` CLI crashing on startup with `Error: Dynamic require of "fs" is not supported`. The CLI ships as an ESM bundle with `json-schema-to-typescript` inlined, which uses CJS `require()` internally. Enabling tsup's `shims` option injects a `createRequire(import.meta.url)` shim so those `require()` calls resolve correctly.
+
+- Updated dependencies [[`4188693`](https://github.com/TanStack/ai/commit/4188693d09297ce400eb1ba5fab30cfea2fdb8a6)]:
+  - @tanstack/ai@0.34.1
+
 ## 0.1.6
 
 ### Patch Changes
