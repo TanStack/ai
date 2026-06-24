@@ -122,7 +122,9 @@ const TYPE_INDICATOR_KEYWORDS: ReadonlyArray<string> = [
  * verdict that 400s the whole request.
  */
 export function isStrictModeCompatible(schema: unknown): boolean {
-  return !containsStrictUnsupportedKeyword(schema) && !containsTypelessSchema(schema)
+  return (
+    !containsStrictUnsupportedKeyword(schema) && !containsTypelessSchema(schema)
+  )
 }
 
 function containsStrictUnsupportedKeyword(node: unknown): boolean {

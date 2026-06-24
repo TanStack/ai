@@ -461,7 +461,10 @@ describe('isStrictModeCompatible', () => {
           a: {
             type: 'object',
             properties: {
-              b: { type: 'array', items: { type: 'object', properties: { c: {} } } },
+              b: {
+                type: 'array',
+                items: { type: 'object', properties: { c: {} } },
+              },
             },
           },
         },
