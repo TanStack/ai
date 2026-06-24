@@ -80,9 +80,8 @@ describe('StreamProcessor — ui-resource CUSTOM event', () => {
   })
 
   it('does NOT fall through to the generic onCustomEvent callback for ui-resource', async () => {
-    const { StreamProcessor } = await import(
-      '../src/activities/chat/stream/processor'
-    )
+    const { StreamProcessor } =
+      await import('../src/activities/chat/stream/processor')
     const onCustomEvent = vi.fn()
     const processor = new StreamProcessor({ events: { onCustomEvent } })
 

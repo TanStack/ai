@@ -41,9 +41,7 @@ export function createMcpAppCallHandler(opts: McpAppCallHandlerOptions) {
 
     try {
       // Enforce same-server allowlist: tool must be exposed by this server
-      const exposedNames = new Set(
-        (await client.tools()).map((t) => t.name),
-      )
+      const exposedNames = new Set((await client.tools()).map((t) => t.name))
       const inExposed = exposedNames.has(req.toolName)
       const customOk = opts.allowTool ? await opts.allowTool(req) : true
 
@@ -52,7 +50,9 @@ export function createMcpAppCallHandler(opts: McpAppCallHandlerOptions) {
       }
 
       const args =
-        req.args !== null && typeof req.args === 'object' && !Array.isArray(req.args)
+        req.args !== null &&
+        typeof req.args === 'object' &&
+        !Array.isArray(req.args)
           ? (req.args as Record<string, unknown>)
           : {}
       const result = await client.callTool(req.toolName, args)

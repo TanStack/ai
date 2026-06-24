@@ -102,7 +102,10 @@ test.describe('mcp-apps — data + interactive planes', () => {
     expect(value?.resource?.uri).toBe('ui://show_widget')
     expect(value?.resource?.mimeType).toBe('text/html')
     expect(value?.resource?.text ?? '').toContain('MCP_APPS_WIDGET_OK')
-    expect(value?.toolCallId, 'ui-resource must reference its tool call').toBeTruthy()
+    expect(
+      value?.toolCallId,
+      'ui-resource must reference its tool call',
+    ).toBeTruthy()
 
     // The run completed cleanly.
     expect(events.some((e) => e.type === 'RUN_ERROR')).toBe(false)

@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 
-const callToolMock = vi.fn(async () => ({ content: [{ type: 'text', text: 'ok' }] }))
+const callToolMock = vi.fn(async () => ({
+  content: [{ type: 'text', text: 'ok' }],
+}))
 const closeMock = vi.fn(async () => {})
 
 // tools() returns an array of objects with at least a `name` property
@@ -25,9 +27,16 @@ describe('createMcpAppCallHandler', () => {
     mockToolsList = [{ name: 'place_order' }]
 
     const handler = createMcpAppCallHandler({
-      servers: { weather: { transport: { type: 'http', url: 'https://x/mcp' } } },
+      servers: {
+        weather: { transport: { type: 'http', url: 'https://x/mcp' } },
+      },
     })
-    const res = await handler({ threadId: 't1', serverId: 'weather', toolName: 'place_order', args: { qty: 1 } })
+    const res = await handler({
+      threadId: 't1',
+      serverId: 'weather',
+      toolName: 'place_order',
+      args: { qty: 1 },
+    })
     expect(res).toEqual({ ok: true, result: expect.anything() })
     expect(closeMock).toHaveBeenCalled()
   })
@@ -36,8 +45,15 @@ describe('createMcpAppCallHandler', () => {
     ;(createMCPClient as ReturnType<typeof vi.fn>).mockClear()
 
     const handler = createMcpAppCallHandler({ servers: {} })
-    const res = await handler({ threadId: 't1', serverId: 'ghost', toolName: 'x' })
-    expect(res).toEqual({ ok: false, error: expect.stringContaining('serverId') })
+    const res = await handler({
+      threadId: 't1',
+      serverId: 'ghost',
+      toolName: 'x',
+    })
+    expect(res).toEqual({
+      ok: false,
+      error: expect.stringContaining('serverId'),
+    })
     // createMCPClient must NOT have been called (no connection for unknown server)
     expect(createMCPClient).not.toHaveBeenCalled()
   })
@@ -48,10 +64,19 @@ describe('createMcpAppCallHandler', () => {
     mockToolsList = [{ name: 'place_order' }]
 
     const handler = createMcpAppCallHandler({
-      servers: { weather: { transport: { type: 'http', url: 'https://x/mcp' } } },
+      servers: {
+        weather: { transport: { type: 'http', url: 'https://x/mcp' } },
+      },
     })
-    const res = await handler({ threadId: 't1', serverId: 'weather', toolName: 'delete_everything' })
-    expect(res).toEqual({ ok: false, error: expect.stringContaining('not allowed') })
+    const res = await handler({
+      threadId: 't1',
+      serverId: 'weather',
+      toolName: 'delete_everything',
+    })
+    expect(res).toEqual({
+      ok: false,
+      error: expect.stringContaining('not allowed'),
+    })
     // Client must still be closed in finally
     expect(closeMock).toHaveBeenCalled()
   })

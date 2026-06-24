@@ -21,7 +21,12 @@ export interface MCPToolSource {
    * this method. `ai-mcp`'s `MCPClient` satisfies this structurally.
    */
   readResource?: (uri: string) => Promise<{
-    contents: Array<{ uri: string; mimeType?: string; text?: string; blob?: string }>
+    contents: Array<{
+      uri: string
+      mimeType?: string
+      text?: string
+      blob?: string
+    }>
   }>
 }
 

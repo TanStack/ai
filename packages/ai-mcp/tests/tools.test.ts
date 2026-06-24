@@ -71,17 +71,28 @@ describe('extractUiResources', () => {
   it('pulls embedded ui:// resources out of tool-result content', () => {
     const content = [
       { type: 'text', text: 'Processing: NYC' },
-      { type: 'resource', resource: { uri: 'ui://srv/widget', mimeType: 'text/html', text: '<h1>hi</h1>' } },
+      {
+        type: 'resource',
+        resource: {
+          uri: 'ui://srv/widget',
+          mimeType: 'text/html',
+          text: '<h1>hi</h1>',
+        },
+      },
     ]
     expect(extractUiResources(content)).toEqual([
       { uri: 'ui://srv/widget', mimeType: 'text/html', text: '<h1>hi</h1>' },
     ])
     // model-facing conversion ignores the ui:// resource (keeps the text)
-    expect(mcpContentToTanstack(content)).toEqual([{ type: 'text', content: 'Processing: NYC' }])
+    expect(mcpContentToTanstack(content)).toEqual([
+      { type: 'text', content: 'Processing: NYC' },
+    ])
   })
 
   it('does not treat non-ui resources as UI', () => {
-    const content = [{ type: 'resource', resource: { uri: 'file://x', text: 'data' } }]
+    const content = [
+      { type: 'resource', resource: { uri: 'file://x', text: 'data' } },
+    ]
     expect(extractUiResources(content)).toEqual([])
   })
 })
@@ -181,11 +192,21 @@ describe('toServerTools — MCP Apps metadata', () => {
   it('leaves uiResourceUri undefined for plain tools', () => {
     const [tool] = toServerTools(
       {} as never,
-      [{ name: 't', description: '', inputSchema: { type: 'object', properties: {} } } as never],
+      [
+        {
+          name: 't',
+          description: '',
+          inputSchema: { type: 'object', properties: {} },
+        } as never,
+      ],
       {},
     )
-    expect((tool.metadata as { mcp: { uiResourceUri?: string } }).mcp.uiResourceUri).toBeUndefined()
-    expect((tool.metadata as { mcp: { serverId?: string } }).mcp.serverId).toBeUndefined()
+    expect(
+      (tool.metadata as { mcp: { uiResourceUri?: string } }).mcp.uiResourceUri,
+    ).toBeUndefined()
+    expect(
+      (tool.metadata as { mcp: { serverId?: string } }).mcp.serverId,
+    ).toBeUndefined()
   })
 })
 

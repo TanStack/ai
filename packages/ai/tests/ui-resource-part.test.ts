@@ -17,7 +17,10 @@ describe('UIResourcePart', () => {
     const ev: UIResourceEvent = {
       type: 'CUSTOM',
       name: 'ui-resource',
-      value: { resource: { uri: 'ui://s/w', mimeType: 'text/html' }, toolCallId: 'call_1' },
+      value: {
+        resource: { uri: 'ui://s/w', mimeType: 'text/html' },
+        toolCallId: 'call_1',
+      },
     } as UIResourceEvent
     expect(ev.name).toBe('ui-resource')
   })

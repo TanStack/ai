@@ -507,7 +507,9 @@ import { createMcpAppCallHandler } from '@tanstack/ai-mcp/apps'
 // Minimal — reconnect-per-call (default), in-memory session store.
 const handler = createMcpAppCallHandler({
   servers: {
-    myApp: { transport: { type: 'http', url: 'https://mcp-app.example.com/mcp' } },
+    myApp: {
+      transport: { type: 'http', url: 'https://mcp-app.example.com/mcp' },
+    },
   },
 })
 
@@ -521,7 +523,9 @@ import { inMemoryMcpSessionStore } from '@tanstack/ai-mcp/apps'
 
 const handlerWithStore = createMcpAppCallHandler({
   servers: {
-    myApp: { transport: { type: 'http', url: 'https://mcp-app.example.com/mcp' } },
+    myApp: {
+      transport: { type: 'http', url: 'https://mcp-app.example.com/mcp' },
+    },
   },
   store: inMemoryMcpSessionStore(),
   allowTool: (toolName) => toolName.startsWith('myApp_'),

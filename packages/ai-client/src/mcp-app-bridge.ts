@@ -1,7 +1,9 @@
 export interface CreateMcpAppBridgeOptions {
   threadId: string
   callEndpoint: string
-  chat: { sendMessage(content: string, body?: Record<string, unknown>): Promise<void> }
+  chat: {
+    sendMessage(content: string, body?: Record<string, unknown>): Promise<void>
+  }
   fetchImpl?: typeof fetch
   onLink?: (url: string) => void
   onNotify?: (payload: unknown) => void

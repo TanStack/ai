@@ -88,7 +88,10 @@ describe('MCPAppResource', () => {
     const onCallTool = capturedProps['onCallTool'] as (params: {
       name: string
       arguments?: Record<string, unknown>
-    }) => Promise<{ content: Array<{ type: string; text: string }>; structuredContent: unknown }>
+    }) => Promise<{
+      content: Array<{ type: string; text: string }>
+      structuredContent: unknown
+    }>
 
     const result = await onCallTool({ name: 't', arguments: { a: 1 } })
 

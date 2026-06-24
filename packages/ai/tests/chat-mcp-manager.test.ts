@@ -8,11 +8,7 @@ import {
   type ToolExecutionMiddlewareHooks,
 } from '../src/activities/chat/tools/tool-calls'
 import type { ServerTool } from '../src'
-import type {
-  CustomEvent,
-  ToolCall,
-  ToolExecutionContext,
-} from '../src/types'
+import type { CustomEvent, ToolCall, ToolExecutionContext } from '../src/types'
 
 function tool(name: string): ServerTool {
   return {

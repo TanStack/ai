@@ -14,8 +14,9 @@ import type { ChatMCPOptions, MCPToolSource } from './types'
  */
 function bindReadResource(tool: ServerTool, source: MCPToolSource): void {
   if (!source.readResource) return
-  const meta = (tool.metadata as { mcp?: { uiResourceUri?: string } } | undefined)
-    ?.mcp
+  const meta = (
+    tool.metadata as { mcp?: { uiResourceUri?: string } } | undefined
+  )?.mcp
   if (!meta?.uiResourceUri) return
   ;(meta as { readResource?: MCPToolSource['readResource'] }).readResource =
     source.readResource.bind(source)

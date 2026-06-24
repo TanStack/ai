@@ -36,10 +36,9 @@ export const Route = createFileRoute('/api/mcp-apps-call')({
           typeof body.serverId !== 'string' ||
           typeof body.toolName !== 'string'
         ) {
-          return new Response(
-            'threadId, serverId and toolName are required',
-            { status: 400 },
-          )
+          return new Response('threadId, serverId and toolName are required', {
+            status: 400,
+          })
         }
 
         // The MCP Apps server lives at this same dev server's origin.

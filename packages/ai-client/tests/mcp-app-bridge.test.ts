@@ -84,9 +84,9 @@ describe('createMcpAppBridge', () => {
         fetchImpl: fetchMock,
       })
 
-      await expect(
-        bridge.callTool({ toolName: 'missing' }),
-      ).rejects.toThrow('tool not found')
+      await expect(bridge.callTool({ toolName: 'missing' })).rejects.toThrow(
+        'tool not found',
+      )
     })
 
     it('throws fallback message when ok is false and no error string', async () => {
@@ -100,9 +100,9 @@ describe('createMcpAppBridge', () => {
         fetchImpl: fetchMock,
       })
 
-      await expect(
-        bridge.callTool({ toolName: 'broken' }),
-      ).rejects.toThrow('MCP app tool call failed')
+      await expect(bridge.callTool({ toolName: 'broken' })).rejects.toThrow(
+        'MCP app tool call failed',
+      )
     })
 
     it('uses global fetch when fetchImpl is omitted', async () => {

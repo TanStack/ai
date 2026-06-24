@@ -55,9 +55,7 @@ export async function runProcessorWithChunks(
     } as Extract<StreamChunk, { type: 'RUN_FINISHED' }>,
   ]
 
-  async function* streamOf(
-    cs: Array<StreamChunk>,
-  ): AsyncIterable<StreamChunk> {
+  async function* streamOf(cs: Array<StreamChunk>): AsyncIterable<StreamChunk> {
     for (const c of cs) {
       yield c
     }
