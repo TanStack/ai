@@ -109,7 +109,10 @@ describe('MCPAppResource', () => {
     const result = await onCallTool({ name: 'echo', arguments: {} })
 
     expect(result.content[0]).toEqual({ type: 'text', text: 'direct string' })
-    expect(result.structuredContent).toBe('direct string')
+    // A non-object bridge result cannot satisfy CallToolResult's
+    // structuredContent ({ [x: string]: unknown }), so it is omitted; the raw
+    // string is still surfaced verbatim in the text content block above.
+    expect(result.structuredContent).toBeUndefined()
   })
 
   it('onMessage calls bridge.sendPrompt with joined text blocks and returns {}', async () => {

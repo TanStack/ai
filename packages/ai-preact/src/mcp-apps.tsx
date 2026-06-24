@@ -29,6 +29,10 @@ export interface MCPAppResourceProps {
   toolInput?: Record<string, unknown>
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 /**
  * Renders an MCP App UI resource inside a sandboxed iframe.
  *
@@ -52,7 +56,7 @@ export function MCPAppResource(props: MCPAppResourceProps) {
           text: typeof result === 'string' ? result : JSON.stringify(result),
         },
       ],
-      structuredContent: result,
+      structuredContent: isRecord(result) ? result : undefined,
     }
   }
 

@@ -11,6 +11,10 @@ export interface MCPAppResourceProps {
   toolInput?: Record<string, unknown>
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 export function MCPAppResource(props: MCPAppResourceProps): JSX.Element {
   return (
     <AppRenderer
@@ -25,6 +29,7 @@ export function MCPAppResource(props: MCPAppResourceProps): JSX.Element {
           toolName: name,
           args,
         })
+        const structuredContent = isRecord(result) ? result : undefined
         return {
           content: [
             {
@@ -33,7 +38,7 @@ export function MCPAppResource(props: MCPAppResourceProps): JSX.Element {
                 typeof result === 'string' ? result : JSON.stringify(result),
             },
           ],
-          structuredContent: result,
+          structuredContent,
         }
       }}
       onMessage={async ({ content }) => {
