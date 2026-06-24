@@ -1,5 +1,13 @@
 # @tanstack/ai-vue
 
+## 0.13.13
+
+### Patch Changes
+
+- Updated dependencies [[`c04abd3`](https://github.com/TanStack/ai/commit/c04abd35284d464d830bb9f15129c7a7c2533d3f)]:
+  - @tanstack/ai@0.35.0
+  - @tanstack/ai-client@0.18.4
+
 ## 0.13.12
 
 ### Patch Changes
