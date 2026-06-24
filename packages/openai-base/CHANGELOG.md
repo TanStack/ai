@@ -1,5 +1,11 @@
 # @tanstack/openai-base
 
+## 0.9.2
+
+### Patch Changes
+
+- [#833](https://github.com/TanStack/ai/pull/833) [`92a6d50`](https://github.com/TanStack/ai/commit/92a6d50de4fd7ee9ea954e4ed655cf2379d2db54) - Fix `isStrictModeCompatible` wrongly reporting typeless schemas as strict-compatible. A property emitted by `z.any()`/`z.unknown()` (an empty `{}` schema with no `type`) was forcing `strict: true`, which OpenAI rejects with a 400. Such schemas are now detected and sent with `strict: false` so the tool stays callable.
+
 ## 0.9.1
 
 ### Patch Changes
