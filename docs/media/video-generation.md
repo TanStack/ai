@@ -813,16 +813,20 @@ and the adapter implements the same `availableDurations()` / `snapDuration()`
 introspection helpers:
 
 ```typescript
+import { generateVideo } from '@tanstack/ai'
+import { openRouterVideo } from '@tanstack/ai-openrouter'
+
 const adapter = openRouterVideo('bytedance/seedance-2.0')
 
 adapter.availableDurations()
 // { kind: 'discrete', values: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] }
 adapter.snapDuration(7.4) // 7 — closest valid duration
 
+const sliderSeconds = 7 // raw seconds from a UI control
 await generateVideo({
   adapter,
   prompt: 'A timelapse of clouds',
-  duration: adapter.snapDuration(sliderSeconds), // coerce raw UI seconds
+  duration: adapter.snapDuration(sliderSeconds), // coerce to a valid duration
 })
 ```
 
