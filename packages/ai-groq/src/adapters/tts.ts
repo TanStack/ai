@@ -33,9 +33,10 @@ export interface GroqTTSConfig extends GroqClientConfig {}
  * - Speed control
  * - Configurable sample rate via `modelOptions`
  */
-export class GroqTTSAdapter<
-  TModel extends GroqTTSModel,
-> extends BaseTTSAdapter<TModel, GroqTTSProviderOptions> {
+export class GroqTTSAdapter<TModel extends GroqTTSModel> extends BaseTTSAdapter<
+  TModel,
+  GroqTTSProviderOptions
+> {
   readonly name = 'groq' as const
 
   protected client: OpenAI
