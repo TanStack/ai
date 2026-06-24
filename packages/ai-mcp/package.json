@@ -39,6 +39,10 @@
     "./stdio": {
       "types": "./dist/esm/stdio.d.ts",
       "import": "./dist/esm/stdio.js"
+    },
+    "./apps": {
+      "types": "./dist/esm/apps/index.d.ts",
+      "import": "./dist/esm/apps/index.js"
     }
   },
   "files": [
