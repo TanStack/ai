@@ -6,6 +6,9 @@
  * @experimental Video generation is an experimental feature and may change.
  */
 
+import type { DurationOptions } from '@tanstack/ai/adapters'
+import type { GrokVideoModel } from '../model-meta'
+
 /**
  * Aspect ratios accepted by the grok-imagine video models.
  *
@@ -107,23 +110,55 @@ export function validateVideoSize(
 }
 
 /**
- * Validate video duration (seconds) for a given grok video model.
- * The Imagine API accepts integer durations between 1 and 15 seconds.
+ * Per-model duration type. The Imagine API accepts any integer second in the
+ * 1–15 range, so this is a continuous range expressed as `number` (a literal
+ * union can't represent it). `snapDuration()` coerces a raw seconds value into
+ * the valid range at runtime.
  *
  * @experimental Video generation is an experimental feature and may change.
  */
-export function validateVideoDuration(model: string, duration?: number): void {
-  if (duration === undefined) return
-  if (
-    !Number.isInteger(duration) ||
-    duration < GROK_VIDEO_MIN_DURATION ||
-    duration > GROK_VIDEO_MAX_DURATION
-  ) {
-    throw new Error(
-      `Duration "${duration}" is not supported by model "${model}". ` +
-        `Supported durations: integer seconds between ${GROK_VIDEO_MIN_DURATION} and ${GROK_VIDEO_MAX_DURATION}`,
-    )
-  }
+export type GrokVideoModelDurationByName = {
+  'grok-imagine-video': number
+  'grok-imagine-video-1.5': number
+}
+
+/**
+ * Runtime duration table backing `availableDurations()` / `snapDuration()`.
+ * Both grok-imagine video models accept the same continuous 1–15 integer-second
+ * range.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export const GROK_VIDEO_DURATIONS: {
+  readonly [TModel in GrokVideoModel]: DurationOptions<
+    GrokVideoModelDurationByName[TModel]
+  >
+} = {
+  'grok-imagine-video': {
+    kind: 'range',
+    min: GROK_VIDEO_MIN_DURATION,
+    max: GROK_VIDEO_MAX_DURATION,
+    step: 1,
+    unit: 'seconds',
+  },
+  'grok-imagine-video-1.5': {
+    kind: 'range',
+    min: GROK_VIDEO_MIN_DURATION,
+    max: GROK_VIDEO_MAX_DURATION,
+    step: 1,
+    unit: 'seconds',
+  },
+}
+
+/**
+ * Look up the duration options for a grok video model.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export function getGrokVideoDurationOptions<TModel extends GrokVideoModel>(
+  model: TModel,
+): DurationOptions<GrokVideoModelDurationByName[TModel]> {
+  return GROK_VIDEO_DURATIONS[model]
 }
 
 /**

@@ -597,6 +597,16 @@ const { jobId } = await generateVideo({
 })
 ```
 
+Both models accept any whole second in the **1–15** range. A raw `duration` is coerced into that range rather than rejected — values are clamped to `[1, 15]` and rounded to the nearest second. Inspect or pre-snap the range the same way as Veo:
+
+```typescript
+const adapter = grokVideo('grok-imagine-video')
+
+adapter.availableDurations() // { kind: 'range', min: 1, max: 15, step: 1, unit: 'seconds' }
+adapter.snapDuration(2.5) // 3 — clamped/rounded into range
+adapter.snapDuration(99) // 15
+```
+
 Generated clips include an audio track. When the job completes, the adapter reports `usage.unitsBilled` (billed seconds of video) and `usage.cost` (exact USD cost as returned by the API) on the result.
 
 ## Response Types

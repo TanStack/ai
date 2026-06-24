@@ -1,13 +1,14 @@
 import { resolveMediaPrompt } from '@tanstack/ai'
-import { BaseVideoAdapter } from '@tanstack/ai/adapters'
+import { BaseVideoAdapter, snapToDurationOption } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { getGrokApiKeyFromEnv, withGrokDefaults } from '../utils/client'
 import {
+  getGrokVideoDurationOptions,
   isImageToVideoOnlyModel,
   parseGrokVideoSize,
-  validateVideoDuration,
   validateVideoSize,
 } from '../video/video-provider-options'
+import type { DurationOptions } from '@tanstack/ai/adapters'
 import type {
   ImagePart,
   MediaInputMetadata,
@@ -19,6 +20,7 @@ import type {
 } from '@tanstack/ai'
 import type { GrokVideoModel } from '../model-meta'
 import type {
+  GrokVideoModelDurationByName,
   GrokVideoModelInputModalitiesByName,
   GrokVideoModelProviderOptionsByName,
   GrokVideoModelSizeByName,
@@ -116,7 +118,8 @@ export class GrokVideoAdapter<
   GrokVideoProviderOptions,
   GrokVideoModelProviderOptionsByName,
   GrokVideoModelSizeByName,
-  GrokVideoModelInputModalitiesByName
+  GrokVideoModelInputModalitiesByName,
+  GrokVideoModelDurationByName
 > {
   readonly name = 'grok' as const
 
@@ -170,14 +173,23 @@ export class GrokVideoAdapter<
   }
 
   async createVideoJob(
-    options: VideoGenerationOptions<GrokVideoProviderOptions>,
+    options: VideoGenerationOptions<
+      GrokVideoProviderOptions,
+      GrokVideoModelSizeByName[TModel],
+      GrokVideoModelDurationByName[TModel]
+    >,
   ): Promise<VideoJobResult> {
     const { model, size, modelOptions, logger } = options
 
     validateVideoSize(model, size)
-    validateVideoDuration(model, options.duration)
-    validateVideoDuration(model, modelOptions?.duration)
-    const duration = options.duration ?? modelOptions?.duration
+
+    // Coerce the requested duration into the model's valid range (1–15s,
+    // integer) instead of rejecting it — `snapDuration` clamps and rounds.
+    // modelOptions wins over the generic `duration`, mirroring the size
+    // precedence below.
+    const rawDuration = modelOptions?.duration ?? options.duration
+    const duration =
+      rawDuration !== undefined ? this.snapDuration(rawDuration) : undefined
 
     // The interleaved prompt decomposes into verbatim text plus typed media
     // buckets. The Imagine video endpoint takes a text prompt and an optional
@@ -227,8 +239,10 @@ export class GrokVideoAdapter<
           resolution: parsedSize.resolution,
         }),
       }),
-      ...(duration !== undefined && { duration }),
       ...modelOptions,
+      // Spread after modelOptions so the snapped duration is authoritative
+      // (modelOptions.duration is folded into `duration` via snapDuration above).
+      ...(duration !== undefined && { duration }),
     }
 
     try {
@@ -351,6 +365,26 @@ export class GrokVideoAdapter<
       default:
         return 'processing'
     }
+  }
+
+  /**
+   * Both grok-imagine video models accept a continuous 1–15 integer-second
+   * range. Consumers can use this to render UI without provider knowledge.
+   */
+  override availableDurations(): DurationOptions<
+    GrokVideoModelDurationByName[TModel]
+  > {
+    return getGrokVideoDurationOptions(this.model)
+  }
+
+  /**
+   * Coerce a raw seconds value to the closest valid duration (clamped to
+   * [1, 15] and rounded to whole seconds).
+   */
+  override snapDuration(
+    seconds: number,
+  ): GrokVideoModelDurationByName[TModel] | undefined {
+    return snapToDurationOption(seconds, this.availableDurations())
   }
 }
 

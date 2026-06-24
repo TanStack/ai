@@ -6,8 +6,8 @@ import {
   grokVideo,
 } from '../src/adapters/video'
 import {
+  getGrokVideoDurationOptions,
   parseGrokVideoSize,
-  validateVideoDuration,
   validateVideoSize,
 } from '../src/video/video-provider-options'
 
@@ -317,6 +317,7 @@ describe('Grok Video Adapter', () => {
         adapter.createVideoJob({
           model: 'grok-imagine-video-1.5',
           prompt: 'p',
+          // @ts-expect-error invalid size is also rejected at compile time
           size: '7:5',
           logger: testLogger,
         }),
@@ -325,6 +326,7 @@ describe('Grok Video Adapter', () => {
         adapter.createVideoJob({
           model: 'grok-imagine-video-1.5',
           prompt: 'p',
+          // @ts-expect-error invalid resolution is also rejected at compile time
           size: '16:9_9k',
           logger: testLogger,
         }),
@@ -332,29 +334,41 @@ describe('Grok Video Adapter', () => {
       expect(fetchMock).not.toHaveBeenCalled()
     })
 
-    it('rejects out-of-range and non-integer durations before calling the API', async () => {
+    it('snaps out-of-range and non-integer durations into the valid range', async () => {
+      // [requested, snapped]: clamp to [1, 15], round to whole seconds.
+      const cases: Array<[number, number]> = [
+        [0, 1],
+        [16, 15],
+        [2.5, 3],
+        [7, 7],
+      ]
+      for (const [requested, snapped] of cases) {
+        const fetchMock = mockFetch(() => jsonResponse({ request_id: 'r' }))
+        const adapter = adapterWithFetch(fetchMock)
+        await adapter.createVideoJob({
+          model: 'grok-imagine-video-1.5',
+          prompt: i2vPrompt(),
+          duration: requested,
+          logger: testLogger,
+        })
+        const body = JSON.parse(String(fetchMock.mock.calls[0]![1]?.body))
+        expect(body.duration).toBe(snapped)
+      }
+    })
+
+    it('snaps a duration supplied via modelOptions', async () => {
       const fetchMock = mockFetch(() => jsonResponse({ request_id: 'r' }))
       const adapter = adapterWithFetch(fetchMock)
 
-      for (const duration of [0, 16, 2.5]) {
-        await expect(
-          adapter.createVideoJob({
-            model: 'grok-imagine-video-1.5',
-            prompt: 'p',
-            duration,
-            logger: testLogger,
-          }),
-        ).rejects.toThrow(/Duration .* is not supported/)
-      }
-      await expect(
-        adapter.createVideoJob({
-          model: 'grok-imagine-video-1.5',
-          prompt: 'p',
-          modelOptions: { duration: 99 },
-          logger: testLogger,
-        }),
-      ).rejects.toThrow(/Duration "99" is not supported/)
-      expect(fetchMock).not.toHaveBeenCalled()
+      await adapter.createVideoJob({
+        model: 'grok-imagine-video-1.5',
+        prompt: i2vPrompt(),
+        modelOptions: { duration: 99 },
+        logger: testLogger,
+      })
+
+      const body = JSON.parse(String(fetchMock.mock.calls[0]![1]?.body))
+      expect(body.duration).toBe(15)
     })
 
     it('surfaces API error messages from the xAI error body', async () => {
@@ -595,13 +609,36 @@ describe('Grok Video Adapter', () => {
       expect(() => validateVideoSize('m', '16:9_2k')).toThrow(/Resolution/)
     })
 
-    it('validates durations', () => {
-      expect(() => validateVideoDuration('m', undefined)).not.toThrow()
-      expect(() => validateVideoDuration('m', 1)).not.toThrow()
-      expect(() => validateVideoDuration('m', 15)).not.toThrow()
-      expect(() => validateVideoDuration('m', 0)).toThrow(/Duration/)
-      expect(() => validateVideoDuration('m', 16)).toThrow(/Duration/)
-      expect(() => validateVideoDuration('m', 1.5)).toThrow(/Duration/)
+    it('exposes the 1–15s duration range via getGrokVideoDurationOptions', () => {
+      expect(getGrokVideoDurationOptions('grok-imagine-video')).toEqual({
+        kind: 'range',
+        min: 1,
+        max: 15,
+        step: 1,
+        unit: 'seconds',
+      })
+      expect(getGrokVideoDurationOptions('grok-imagine-video-1.5')).toEqual({
+        kind: 'range',
+        min: 1,
+        max: 15,
+        step: 1,
+        unit: 'seconds',
+      })
+    })
+
+    it('availableDurations / snapDuration coerce raw seconds into range', () => {
+      const adapter = createGrokVideo('grok-imagine-video', 'test-api-key')
+      expect(adapter.availableDurations()).toEqual({
+        kind: 'range',
+        min: 1,
+        max: 15,
+        step: 1,
+        unit: 'seconds',
+      })
+      expect(adapter.snapDuration(0)).toBe(1)
+      expect(adapter.snapDuration(16)).toBe(15)
+      expect(adapter.snapDuration(2.5)).toBe(3)
+      expect(adapter.snapDuration(7)).toBe(7)
     })
   })
 })

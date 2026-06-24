@@ -38,10 +38,15 @@ export {
   grokVideo,
   type GrokVideoConfig,
 } from './adapters/video'
+export {
+  GROK_VIDEO_DURATIONS,
+  getGrokVideoDurationOptions,
+} from './video/video-provider-options'
 export type {
   GrokVideoProviderOptions,
   GrokVideoModelProviderOptionsByName,
   GrokVideoModelSizeByName,
+  GrokVideoModelDurationByName,
   GrokVideoAspectRatio,
   GrokVideoResolution,
   GrokVideoSize,
