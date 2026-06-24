@@ -15,6 +15,7 @@ import { extractUsageCost } from './cost'
 import type { SDKOptions } from '@openrouter/sdk'
 import type {
   ChatContentItems,
+  ChatContentText,
   ChatMessages,
   ChatRequest,
   ChatStreamChoice,
@@ -36,7 +37,10 @@ import type {
   OpenRouterModelInputModalitiesByName,
   OpenRouterModelOptionsByName,
 } from '../model-meta'
-import type { ExternalTextProviderOptions } from '../text/text-provider-options'
+import type {
+  ExternalTextProviderOptions,
+  OpenRouterSystemPromptMetadata,
+} from '../text/text-provider-options'
 import type {
   OpenRouterImageMetadata,
   OpenRouterMessageMetadataByModality,
@@ -94,7 +98,12 @@ export class OpenRouterTextAdapter<
   ResolveProviderOptions<TModel>,
   ResolveInputModalities<TModel>,
   OpenRouterMessageMetadataByModality,
-  TToolCapabilities
+  TToolCapabilities,
+  // TToolCallMetadata — OpenRouter has no tool-call metadata round-tripping.
+  unknown,
+  // TSystemPromptMetadata — narrows `systemPrompts[i].metadata` at the chat()
+  // call site so users get `cache_control` autocomplete.
+  OpenRouterSystemPromptMetadata
 > {
   override readonly kind = 'text' as const
   readonly name = 'openrouter' as const
@@ -1140,11 +1149,31 @@ export class OpenRouterTextAdapter<
     const variantSuffix = variant ? `:${variant}` : ''
 
     const messages: Array<ChatMessages> = []
-    const systemPrompts = normalizeSystemPrompts(options.systemPrompts)
+    const systemPrompts =
+      normalizeSystemPrompts<OpenRouterSystemPromptMetadata>(
+        options.systemPrompts,
+      )
     if (systemPrompts.length > 0) {
+      // When any system prompt carries a `cache_control` breakpoint, emit the
+      // system message as a structured content array so the directive rides on
+      // the wire (honoured by Anthropic-family routes). Otherwise keep the
+      // plain joined string — unchanged behaviour for every other caller.
+      const hasCacheControl = systemPrompts.some(
+        (p) => p.metadata?.cache_control,
+      )
       messages.push({
         role: 'system',
-        content: systemPrompts.map((p) => p.content).join('\n'),
+        content: hasCacheControl
+          ? systemPrompts.map(
+              (p): ChatContentText => ({
+                type: 'text',
+                text: p.content,
+                ...(p.metadata?.cache_control && {
+                  cacheControl: p.metadata.cache_control,
+                }),
+              }),
+            )
+          : systemPrompts.map((p) => p.content).join('\n'),
       })
     }
     for (const m of options.messages) {
