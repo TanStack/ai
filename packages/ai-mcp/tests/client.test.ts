@@ -129,6 +129,29 @@ describe('createMCPClient', () => {
     expect((err as MCPConnectionError).cause).toBeInstanceOf(Error)
   })
 
+  it('callTool proxies directly to the server and returns CallToolResult', async () => {
+    const { clientTransport } = await makeServerWithWeatherTool()
+    await using client = await createMCPClientFromTransport(clientTransport)
+    const result = await client.callTool('get_weather', { city: 'Tokyo' })
+    expect(result.isError).toBeFalsy()
+    expect(
+      Array.isArray(result.content) &&
+        result.content.some(
+          (c: { type: string; text?: string }) =>
+            c.type === 'text' && c.text?.includes('Tokyo'),
+        ),
+    ).toBe(true)
+  })
+
+  it('callTool throws MCPConnectionError when client is closed', async () => {
+    const { clientTransport } = await makeServerWithWeatherTool()
+    const client = await createMCPClientFromTransport(clientTransport)
+    await client.close()
+    await expect(
+      client.callTool('get_weather', { city: 'Tokyo' }),
+    ).rejects.toThrow(MCPConnectionError)
+  })
+
   it('close() is idempotent', async () => {
     const { clientTransport } = await makeServerWithWeatherTool()
     const client = await createMCPClientFromTransport(clientTransport)

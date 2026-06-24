@@ -18,6 +18,7 @@ import type {
 } from './types'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import type {
+  CallToolResult,
   GetPromptResult,
   Prompt,
   ReadResourceResult,
@@ -56,6 +57,10 @@ export interface MCPClient<
     name: string,
     args?: Record<string, string>,
   ) => Promise<GetPromptResult>
+  callTool: (
+    name: string,
+    args?: Record<string, unknown>,
+  ) => Promise<CallToolResult>
   close: () => Promise<void>
   [Symbol.asyncDispose]: () => Promise<void>
 }
@@ -158,6 +163,14 @@ class MCPClientImpl<
   ): Promise<GetPromptResult> {
     if (this.#closed) throw new MCPConnectionError('MCP client is closed')
     return this.#client.getPrompt({ name, arguments: args })
+  }
+
+  async callTool(
+    name: string,
+    args?: Record<string, unknown>,
+  ): Promise<CallToolResult> {
+    if (this.#closed) throw new MCPConnectionError('MCP client is closed')
+    return this.#client.callTool({ name, arguments: args ?? {} })
   }
 
   async close(): Promise<void> {
