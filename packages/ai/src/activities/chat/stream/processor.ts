@@ -56,6 +56,7 @@ import type {
   ToolCallPart,
   ToolResultPart,
   UIMessage,
+  UIResourcePart,
 } from '../../../types'
 
 /**
@@ -1621,6 +1622,38 @@ export class StreamProcessor {
         input,
         approvalId: approval.id,
       })
+      return
+    }
+
+    // Handle MCP Apps ui-resource events — materialize a UIResourcePart on the
+    // active assistant message. Never falls through to onCustomEvent because
+    // ui-resource is a system event, not a user-defined custom event.
+    if (chunk.name === 'ui-resource' && chunk.value) {
+      const v = chunk.value as {
+        resource: UIResourcePart['resource']
+        serverId?: string
+        toolCallId: string
+        meta?: Record<string, unknown>
+      }
+      // Resolve the target assistant message: prefer the active one; fall back
+      // to the message that owns the originating tool call (mirrors approval-requested).
+      const resolvedMessageId =
+        messageId ?? this.toolCallToMessage.get(v.toolCallId)
+      if (resolvedMessageId) {
+        const part: UIResourcePart = {
+          type: 'ui-resource',
+          resource: v.resource,
+          toolCallId: v.toolCallId,
+          ...(v.serverId !== undefined && { serverId: v.serverId }),
+          ...(v.meta !== undefined && { meta: v.meta }),
+        }
+        this.messages = this.messages.map((msg) =>
+          msg.id === resolvedMessageId
+            ? { ...msg, parts: [...msg.parts, part] }
+            : msg,
+        )
+        this.emitMessagesChange()
+      }
       return
     }
 
