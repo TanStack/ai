@@ -34,6 +34,71 @@ function safeJsonParse(value: string): unknown {
 }
 
 /**
+ * MCP Apps metadata attached to a server tool at discovery (see
+ * `@tanstack/ai-mcp` discovery + `MCPManager.discover()`).
+ *
+ * - `uiResourceUri` / `serverId` are stamped by ai-mcp at tool discovery.
+ * - `readResource` is bound by `MCPManager.discover()` (the one site that has
+ *   both the tool and its originating source) so the resource can be eagerly
+ *   read at the emit site while the MCP connection is still open. `@tanstack/ai`
+ *   never imports `@tanstack/ai-mcp`; this travels structurally on the tool.
+ */
+interface McpToolAppMeta {
+  uiResourceUri?: string
+  serverId?: string
+  readResource?: (uri: string) => Promise<{
+    contents: Array<{
+      uri: string
+      mimeType?: string
+      text?: string
+      blob?: string
+    }>
+  }>
+}
+
+function readMcpAppMeta(tool: AnyTool): McpToolAppMeta | undefined {
+  const meta = (tool.metadata as { mcp?: McpToolAppMeta } | undefined)?.mcp
+  return meta
+}
+
+/**
+ * Eagerly read a tool's linked `ui://` resource (MCP Apps) and emit a
+ * `ui-resource` CUSTOM event so the client can render the widget. The model
+ * still receives the normal text tool-result; the widget rides alongside and
+ * never enters model input.
+ *
+ * Fail-soft: any read error logs a warning and emits nothing — it never throws,
+ * so the normal tool-result still flows and a broken widget cannot break the run.
+ */
+async function emitUiResourceIfLinked<TContext>(
+  tool: AnyTool,
+  context: ToolExecutionContext<TContext>,
+): Promise<void> {
+  const mcp = readMcpAppMeta(tool)
+  const uiUri = mcp?.uiResourceUri
+  if (!uiUri || !mcp.readResource) return
+  try {
+    const res = await mcp.readResource(uiUri)
+    const r = res.contents.find((c) => c.uri === uiUri) ?? res.contents[0]
+    if (!r) return
+    context.emitCustomEvent('ui-resource', {
+      resource: {
+        uri: r.uri,
+        mimeType: r.mimeType ?? 'text/html',
+        text: r.text,
+        blob: r.blob,
+      },
+      serverId: mcp.serverId,
+      meta: undefined,
+    })
+  } catch (err) {
+    // fail-soft — the text tool-result already flows; a broken widget must
+    // not break the run.
+    console.warn(`[mcp-apps] failed to read ui resource ${uiUri}:`, err)
+  }
+}
+
+/**
  * Optional middleware hooks for tool execution.
  * When provided, these callbacks are invoked before/after each tool execution.
  */
@@ -456,7 +521,7 @@ async function applyBeforeToolCallDecision(
  * Execute a server-side tool with event polling, output validation, and middleware hooks.
  * Yields CustomEvent chunks during execution and pushes the result to the results array.
  */
-async function* executeServerTool<TContext = unknown>(
+export async function* executeServerTool<TContext = unknown>(
   toolCall: ToolCall,
   tool: AnyTool,
   toolName: string,
@@ -475,7 +540,12 @@ async function* executeServerTool<TContext = unknown>(
     let result = yield* executeWithEventPolling(executionPromise, pendingEvents)
     const duration = Date.now() - startTime
 
-    // Flush remaining events
+    // MCP Apps: if this tool links a ui:// resource, eagerly read it (while the
+    // MCP connection is still open) and queue a `ui-resource` CUSTOM event.
+    // Fail-soft: a read error warns and emits nothing — the text result still flows.
+    await emitUiResourceIfLinked(tool, context)
+
+    // Flush remaining events (including any queued ui-resource event)
     let pendingEvent: CustomEvent | undefined
     while ((pendingEvent = pendingEvents.shift()) !== undefined) {
       yield pendingEvent
