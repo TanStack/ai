@@ -598,6 +598,9 @@ const { jobId } = await generateVideo({
 Image-to-video (required for `grok-imagine-video-1.5`) — include an `image` prompt part as the starting frame. URL sources are fetched by xAI's servers (so they must be publicly reachable); use a `data` source for a base64 starting frame:
 
 ```typescript
+import { generateVideo } from '@tanstack/ai'
+import { grokVideo } from '@tanstack/ai-grok'
+
 const { jobId } = await generateVideo({
   adapter: grokVideo('grok-imagine-video-1.5'),
   prompt: [
@@ -615,6 +618,8 @@ const { jobId } = await generateVideo({
 Both models accept any whole second in the **1–15** range. A raw `duration` is coerced into that range rather than rejected — values are clamped to `[1, 15]` and rounded to the nearest second. Inspect or pre-snap the range the same way as Veo:
 
 ```typescript
+import { grokVideo } from '@tanstack/ai-grok'
+
 const adapter = grokVideo('grok-imagine-video')
 
 adapter.availableDurations() // { kind: 'range', min: 1, max: 15, step: 1, unit: 'seconds' }
