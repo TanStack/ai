@@ -168,20 +168,29 @@ export function useChat<
     }
   }, [client])
 
+  // Sync each wire-payload slot in its own effect so an unrelated option
+  // changing doesn't re-run the others. `updateOptions` declares strict-optional
+  // fields and rejects explicit `undefined` under EOPT, so guard the optional
+  // slots before passing them.
   useEffect(() => {
-    // Conditional spread: `updateOptions` declares strict-optional
-    // fields and rejects explicit `undefined` under EOPT.
-    client.updateOptions({
-      body: options.body,
-      ...(options.forwardedProps !== undefined && {
-        forwardedProps: options.forwardedProps,
-      }),
-      ...(options.tools !== undefined && {
-        tools: options.tools,
-      }),
-      context: options.context,
-    })
-  }, [client, options.body, options.forwardedProps, options.tools, options.context])
+    client.updateOptions({ body: options.body })
+  }, [client, options.body])
+
+  useEffect(() => {
+    if (options.forwardedProps !== undefined) {
+      client.updateOptions({ forwardedProps: options.forwardedProps })
+    }
+  }, [client, options.forwardedProps])
+
+  useEffect(() => {
+    if (options.tools !== undefined) {
+      client.updateOptions({ tools: options.tools })
+    }
+  }, [client, options.tools])
+
+  useEffect(() => {
+    client.updateOptions({ context: options.context })
+  }, [client, options.context])
 
   useEffect(() => {
     if (options.live) {
