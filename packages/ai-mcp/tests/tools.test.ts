@@ -133,6 +133,42 @@ describe('makeMcpExecute', () => {
   })
 })
 
+describe('toServerTools — MCP Apps metadata', () => {
+  it('captures serverId (prefix) and the _meta.ui.resourceUri link', () => {
+    const fakeClient = {} as never
+    const [tool] = toServerTools(
+      fakeClient,
+      [
+        {
+          name: 'show_widget',
+          description: 'show',
+          inputSchema: { type: 'object', properties: {} },
+          _meta: { ui: { resourceUri: 'ui://srv/widget' } },
+        } as never,
+      ],
+      { prefix: 'weather' },
+    )
+    expect(tool.name).toBe('weather_show_widget')
+    expect(tool.metadata).toMatchObject({
+      mcp: {
+        serverToolName: 'show_widget',
+        serverId: 'weather',
+        uiResourceUri: 'ui://srv/widget',
+      },
+    })
+  })
+
+  it('leaves uiResourceUri undefined for plain tools', () => {
+    const [tool] = toServerTools(
+      {} as never,
+      [{ name: 't', description: '', inputSchema: { type: 'object', properties: {} } } as never],
+      {},
+    )
+    expect((tool.metadata as { mcp: { uiResourceUri?: string } }).mcp.uiResourceUri).toBeUndefined()
+    expect((tool.metadata as { mcp: { serverId?: string } }).mcp.serverId).toBeUndefined()
+  })
+})
+
 describe('toServerTools', () => {
   it('discovers tools and proxies execute to callTool', async () => {
     const { clientTransport } = await makeServerWithWeatherTool()

@@ -7,6 +7,13 @@ interface ConvertOptions {
   lazy?: boolean
 }
 
+/** Reads the MCP Apps `_meta.ui.resourceUri` link from a tool def, if present. */
+export function extractUiResourceUri(def: McpToolDef): string | undefined {
+  const meta = (def as { _meta?: { ui?: { resourceUri?: unknown } } })._meta
+  const uri = meta?.ui?.resourceUri
+  return typeof uri === 'string' ? uri : undefined
+}
+
 export function mcpContentToTanstack(
   content: Array<any>,
 ): string | Array<ContentPart> {
@@ -103,7 +110,13 @@ export function toServerTools(
         },
         ...(def.outputSchema ? { outputSchema: def.outputSchema as any } : {}),
         ...(options.lazy ? { lazy: true } : {}),
-        metadata: { mcp: { serverToolName: def.name } },
+        metadata: {
+          mcp: {
+            serverToolName: def.name,
+            serverId: options.prefix,
+            uiResourceUri: extractUiResourceUri(def),
+          },
+        },
         execute: makeMcpExecute(client, def.name, Boolean(def.outputSchema)),
       }
       return tool
