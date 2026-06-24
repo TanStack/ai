@@ -7,11 +7,30 @@ interface ConvertOptions {
   lazy?: boolean
 }
 
+interface McpResource {
+  uri?: string
+  mimeType?: string
+  text?: string
+  blob?: string
+}
+
 /** Reads the MCP Apps `_meta.ui.resourceUri` link from a tool def, if present. */
 export function extractUiResourceUri(def: McpToolDef): string | undefined {
   const meta = (def as { _meta?: { ui?: { resourceUri?: unknown } } })._meta
   const uri = meta?.ui?.resourceUri
   return typeof uri === 'string' ? uri : undefined
+}
+
+/** Returns embedded ui:// resources from MCP tool-result content (MCP Apps). */
+export function extractUiResources(content: Array<any>): Array<McpResource> {
+  return content
+    .filter(
+      (c) =>
+        c?.type === 'resource' &&
+        typeof c.resource?.uri === 'string' &&
+        c.resource.uri.startsWith('ui://'),
+    )
+    .map((c) => c.resource as McpResource)
 }
 
 export function mcpContentToTanstack(
@@ -20,21 +39,30 @@ export function mcpContentToTanstack(
   // Single text block → plain string (most common, best for the model).
   if (content.length === 1 && content[0]?.type === 'text')
     return content[0].text
-  return content.map((c): ContentPart => {
-    switch (c.type) {
-      case 'text':
-        return { type: 'text', content: c.text }
-      case 'image':
-        return {
-          type: 'image',
-          source: { type: 'data', value: c.data, mimeType: c.mimeType },
+  const parts = content
+    .map((c): ContentPart => {
+      switch (c.type) {
+        case 'text':
+          return { type: 'text', content: c.text }
+        case 'image':
+          return {
+            type: 'image',
+            source: { type: 'data', value: c.data, mimeType: c.mimeType },
+          }
+        case 'resource': {
+          const uri = c.resource?.uri
+          if (typeof uri === 'string' && uri.startsWith('ui://')) {
+            // ui:// resources are surfaced via extractUiResources; omit from model text.
+            return { type: 'text', content: '' }
+          }
+          return { type: 'text', content: JSON.stringify(c.resource) }
         }
-      case 'resource':
-        return { type: 'text', content: JSON.stringify(c.resource) }
-      default:
-        return { type: 'text', content: JSON.stringify(c) }
-    }
-  })
+        default:
+          return { type: 'text', content: JSON.stringify(c) }
+      }
+    })
+    .filter((p) => !(p.type === 'text' && p.content === ''))
+  return parts.length ? parts : ''
 }
 
 /**
