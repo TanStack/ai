@@ -2,6 +2,7 @@ import { createMCPClient } from './client'
 import { DuplicateToolNameError, MCPConnectionError } from './errors'
 import type { MCPClient } from './client'
 import type { MCPClientOptions, ServerDescriptor, ToolsOptions } from './types'
+import type { TransportConfig } from './transport'
 import type { ServerTool } from '@tanstack/ai'
 import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js'
 
@@ -39,7 +40,7 @@ export interface MCPClients<
   getServers: () => Record<
     string,
     {
-      transport: MCPClientOptions['transport'] | undefined
+      transport: TransportConfig | undefined
       prefix: string | undefined
     }
   >
@@ -144,7 +145,7 @@ export async function createMCPClients<
     getServers(): Record<
       string,
       {
-        transport: MCPClientOptions['transport'] | undefined
+        transport: TransportConfig | undefined
         prefix: string | undefined
       }
     > {

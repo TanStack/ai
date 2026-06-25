@@ -36,7 +36,7 @@ export type TransportConfig =
 /** Either a built-in config or a ready-made SDK Transport instance (escape hatch). */
 export type TransportInput = TransportConfig | Transport
 
-function isTransportInstance(input: TransportInput): input is Transport {
+export function isTransportInstance(input: TransportInput): input is Transport {
   return typeof (input as Transport).start === 'function'
 }
 

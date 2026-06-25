@@ -6,7 +6,8 @@ import {
   MCPToolNotFoundError,
 } from './errors'
 import { makeMcpExecute, requiresTaskExecution, toServerTools } from './tools'
-import { resolveTransport } from './transport'
+import { isTransportInstance, resolveTransport } from './transport'
+import type { TransportConfig } from './transport'
 import type {
   AnyToolDefinition,
   AutomaticDescriptor,
@@ -66,12 +67,14 @@ export interface MCPClient<
    * `createMcpAppCallHandler` to reconnect per-call (serverless-safe) without
    * a separate transport-config map.
    *
-   * `transport` is `undefined` for clients built from a raw `Transport`
-   * instance via `createMCPClientFromTransport` (test-only) — there is no
-   * reconnectable descriptor in that case.
+   * `transport` is `undefined` when the client was built from a ready-made
+   * `Transport` instance rather than a serializable config — either via
+   * `createMCPClientFromTransport` (test-only) or `createMCPClient({ transport:
+   * <instance> })`. A live `Transport` instance is single-use and cannot be
+   * reconnected, so only serializable `TransportConfig`s are retained here.
    */
   getInfo: () => {
-    transport: MCPClientOptions['transport'] | undefined
+    transport: TransportConfig | undefined
     prefix: string | undefined
   }
   close: () => Promise<void>
@@ -85,15 +88,15 @@ class MCPClientImpl<
   readonly #client: Client
   #closed = false
   private readonly prefix?: string
-  // The ORIGINAL transport descriptor input (undefined for clients built from
-  // a raw Transport instance via createMCPClientFromTransport).
-  readonly #transport: MCPClientOptions['transport'] | undefined
+  // The ORIGINAL serializable transport config (undefined for clients built
+  // from a ready-made Transport instance, which is single-use / not reconnectable).
+  readonly #transport: TransportConfig | undefined
 
   constructor(
     prefix?: string,
     name = 'tanstack-ai-mcp',
     version = '0.0.1',
-    transport?: MCPClientOptions['transport'],
+    transport?: TransportConfig,
   ) {
     this.prefix = prefix
     this.#transport = transport
@@ -101,7 +104,7 @@ class MCPClientImpl<
   }
 
   getInfo(): {
-    transport: MCPClientOptions['transport'] | undefined
+    transport: TransportConfig | undefined
     prefix: string | undefined
   } {
     return { transport: this.#transport, prefix: this.prefix }
@@ -233,7 +236,9 @@ export async function createMCPClient<
     options.prefix,
     options.name,
     options.version,
-    options.transport,
+    // Only a serializable config is reconnectable; a ready-made Transport
+    // instance is single-use, so it is not retained as a descriptor.
+    isTransportInstance(options.transport) ? undefined : options.transport,
   )
   await impl.connect(transport)
   return impl

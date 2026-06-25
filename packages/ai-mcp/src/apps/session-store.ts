@@ -1,12 +1,13 @@
-import type { MCPClientOptions } from '../types'
+import type { TransportConfig } from '../transport'
 
 export interface McpServerDescriptor {
   /**
-   * The connection descriptor the call handler reconnects from. `undefined`
-   * only for a client built from a raw `Transport` instance (no reconnectable
-   * descriptor) — the handler rejects such a call with a clear error.
+   * The serializable connection config the call handler reconnects from.
+   * `undefined` for a client built from a ready-made `Transport` instance
+   * (single-use, not reconnectable) — the handler rejects such a call with a
+   * clear error.
    */
-  transport: MCPClientOptions['transport'] | undefined
+  transport: TransportConfig | undefined
   prefix?: string
 }
 
