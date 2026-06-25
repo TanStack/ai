@@ -91,6 +91,28 @@ export async function makeServerWithResource() {
   return { server, clientTransport }
 }
 
+/**
+ * Build a connected (server, clientTransport) pair that resolves the
+ * `file:///hello.txt` read WITHOUT error but returns contents stamped with a
+ * DIFFERENT uri. Used to prove the pool skips a server that resolves but does
+ * not actually own the requested uri.
+ */
+export async function makeServerWithMismatchedResource() {
+  const server = new McpServer({ name: 'mismatch-server', version: '1.0.0' })
+  server.registerResource(
+    'hello',
+    'file:///hello.txt',
+    { description: 'Resolves the read but returns a different uri' },
+    async (_uri) => ({
+      contents: [{ uri: 'file:///other.txt', text: 'not what you asked for' }],
+    }),
+  )
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
+  await server.connect(serverTransport)
+  return { server, clientTransport }
+}
+
 /** Build a connected (server, clientTransport) pair that exposes a prompt accepting a `code` argument. */
 export async function makeServerWithPrompt() {
   const server = new McpServer({ name: 'prompt-server', version: '1.0.0' })

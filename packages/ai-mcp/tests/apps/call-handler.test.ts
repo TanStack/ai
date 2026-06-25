@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const callToolMock = vi.fn(async () => ({
   content: [{ type: 'text', text: 'ok' }],
@@ -27,9 +27,15 @@ import { createMCPClient } from '../../src/client'
 import { inMemoryMcpSessionStore } from '../../src/apps/session-store'
 
 describe('createMcpAppCallHandler', () => {
-  it('reconnects, enforces same-server allowlist, calls the tool, and closes', async () => {
-    closeMock.mockClear()
+  beforeEach(() => {
+    // Reset module-level mocks so tests don't depend on file order.
     callToolMock.mockClear()
+    closeMock.mockClear()
+    ;(createMCPClient as ReturnType<typeof vi.fn>).mockClear()
+    mockToolsList = [{ name: 'place_order' }]
+  })
+
+  it('reconnects, enforces same-server allowlist, calls the tool, and closes', async () => {
     mockToolsList = [{ name: 'place_order' }]
 
     const handler = createMcpAppCallHandler({
@@ -122,32 +128,32 @@ describe('createMcpAppCallHandler', () => {
     expect(closeMock).toHaveBeenCalled()
   })
 
-  it('strips a leading prefix from req.toolName before matching and forwarding', async () => {
-    closeMock.mockClear()
-    callToolMock.mockClear()
+  it('does not strip a native name that happens to start with the prefix', async () => {
+    // prefix `github`, native tool `github_search`: the widget sends the native
+    // name, which must match and be forwarded UNCHANGED (no prefix-strip).
     mockToolsList = [
       {
-        name: 'weather_show_widget',
-        metadata: { mcp: { serverToolName: 'show_widget' } },
+        name: 'github_github_search',
+        metadata: { mcp: { serverToolName: 'github_search' } },
       },
     ]
 
     const handler = createMcpAppCallHandler({
       servers: {
-        weather: {
+        github: {
           transport: { type: 'http', url: 'https://x/mcp' },
-          prefix: 'weather',
+          prefix: 'github',
         },
       },
     })
-    // Defensive: widget sends the prefixed name.
     const res = await handler({
       threadId: 't1',
-      serverId: 'weather',
-      toolName: 'weather_show_widget',
+      serverId: 'github',
+      toolName: 'github_search',
     })
     expect(res).toEqual({ ok: true, result: expect.anything() })
-    expect(callToolMock).toHaveBeenCalledWith('show_widget', {})
+    // The native name must be forwarded verbatim, not stripped to `search`.
+    expect(callToolMock).toHaveBeenCalledWith('github_search', {})
   })
 
   it('resolves the descriptor via the store (store wins over servers)', async () => {

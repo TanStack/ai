@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createMCPClients } from '../src/pool'
 import {
+  makeServerWithMismatchedResource,
   makeServerWithResource,
   makeServerWithWeatherTool,
 } from './helpers/in-memory-server'
@@ -62,6 +63,23 @@ describe('createMCPClients', () => {
     const res = await makeServerWithResource()
     await using pool = await createMCPClients({
       alpha: { transport: alpha.clientTransport },
+      res: { transport: res.clientTransport },
+    })
+    const read = await pool.readResource('file:///hello.txt')
+    expect(read.contents[0]).toMatchObject({
+      uri: 'file:///hello.txt',
+      text: 'hello from resource',
+    })
+  })
+
+  it('readResource skips a client that resolves but returns a non-matching uri', async () => {
+    // `mismatch` resolves the read without error but stamps a DIFFERENT uri on
+    // its contents; the pool must skip it and reach the owning `res` server.
+    const mismatch = await makeServerWithMismatchedResource()
+    const res = await makeServerWithResource()
+    await using pool = await createMCPClients({
+      // mismatch first so it's tried before the owning server
+      mismatch: { transport: mismatch.clientTransport },
       res: { transport: res.clientTransport },
     })
     const read = await pool.readResource('file:///hello.txt')

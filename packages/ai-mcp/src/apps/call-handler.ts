@@ -55,7 +55,13 @@ export function createMcpAppCallHandler(opts: McpAppCallHandlerOptions) {
     }
 
     if (!descriptor) {
-      return { ok: false, error: `Unknown serverId: ${req.serverId}` }
+      // serverId omitted but resolution was ambiguous (zero or multiple
+      // servers configured) → clearer message than "Unknown serverId: undefined".
+      const error =
+        req.serverId === undefined
+          ? 'No serverId provided and zero or multiple servers configured; specify serverId'
+          : `Unknown serverId: ${req.serverId}`
+      return { ok: false, error }
     }
 
     const client = await createMCPClient({
@@ -64,22 +70,15 @@ export function createMcpAppCallHandler(opts: McpAppCallHandlerOptions) {
     })
 
     try {
-      // The exposed ServerTool names are PREFIXED (`${prefix}_${name}`) when the
-      // descriptor has a prefix, but the widget sends the server-native
-      // (unprefixed) tool name. Strip a leading `${prefix}_` so we compare and
-      // forward the unprefixed name the server actually knows.
-      const prefix = descriptor.prefix
-      const nativeToolName =
-        prefix && req.toolName.startsWith(`${prefix}_`)
-          ? req.toolName.slice(prefix.length + 1)
-          : req.toolName
-
-      // Enforce same-server allowlist against the UNPREFIXED server tool names
-      // (carried on metadata.mcp.serverToolName), so prefixed servers still match.
+      // The widget sends the server-native (UNPREFIXED) tool name
+      // (`UIResourcePart.toolName` is the native name), so we match it directly
+      // against the native names the server exposes — carried on
+      // `metadata.mcp.serverToolName` (falling back to `name` for unprefixed
+      // clients) — and forward `req.toolName` unchanged to `client.callTool`.
       const exposedNative = new Set(
         (await client.tools()).map((t) => serverToolNameOf(t)),
       )
-      const inExposed = exposedNative.has(nativeToolName)
+      const inExposed = exposedNative.has(req.toolName)
       const customOk = opts.allowTool ? await opts.allowTool(req) : true
 
       if (!inExposed || !customOk) {
@@ -92,7 +91,7 @@ export function createMcpAppCallHandler(opts: McpAppCallHandlerOptions) {
         !Array.isArray(req.args)
           ? (req.args as Record<string, unknown>)
           : {}
-      const result = await client.callTool(nativeToolName, args)
+      const result = await client.callTool(req.toolName, args)
       return { ok: true, result }
     } catch (err) {
       return {

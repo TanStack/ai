@@ -87,6 +87,20 @@ describe('makeMcpExecute', () => {
     await client.close()
   })
 
+  it('throws the bare error message (no dangling colon) when the error detail is empty', async () => {
+    // A ui://-only error body normalizes to '' — treat it like undefined and
+    // throw "returned an error" with no trailing colon.
+    const callTool = vi.fn().mockResolvedValue({
+      isError: true,
+      content: [{ type: 'resource', resource: { uri: 'ui://widget' } }],
+    })
+    const client = { callTool } as unknown as Client
+    const execute = makeMcpExecute(client, 'x', false)
+    await expect(execute({})).rejects.toThrow(
+      /MCP tool "x" returned an error$/,
+    )
+  })
+
   it('forwards the abortSignal to client.callTool', async () => {
     const callTool = vi
       .fn()

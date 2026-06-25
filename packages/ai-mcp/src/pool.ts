@@ -123,20 +123,27 @@ export async function createMCPClients<
       return all
     },
     async readResource(uri: string): Promise<ReadResourceResult> {
-      // Ownership isn't tracked, so try each client and return the first hit;
-      // a ui:// read must reach the server that owns it.
+      // Ownership isn't tracked, so try each client. A non-owning server may
+      // resolve an unrelated URI, so only accept a result whose `contents`
+      // actually include the requested `uri`; otherwise keep trying. A ui://
+      // read must reach the server that owns it.
       let lastError: unknown
       const all = Object.values(clients)
       for (const c of all) {
         try {
-          return await (c as MCPClient<ServerDescriptor>).readResource(uri)
+          const result = await (c as MCPClient<ServerDescriptor>).readResource(
+            uri,
+          )
+          if (result.contents.some((entry) => entry.uri === uri)) {
+            return result
+          }
         } catch (err) {
           lastError = err
         }
       }
-      throw lastError instanceof Error
-        ? lastError
-        : new Error(`Failed to read MCP resource: ${uri}`)
+      throw new Error(`Failed to read MCP resource: ${uri}`, {
+        cause: lastError,
+      })
     },
     async close(): Promise<void> {
       await Promise.all(

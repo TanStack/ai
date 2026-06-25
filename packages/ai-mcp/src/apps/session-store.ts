@@ -39,9 +39,10 @@ export interface McpAppCallRequest {
 /**
  * Creates a simple in-memory McpSessionStore.
  *
- * TTL is enforced on read (prune-on-read) — this is single-instance only and
- * is shaped to match PR #785's store seams so SQL backends can drop in later
- * with no API change.
+ * TTL is enforced on read (prune-on-read) and slides on each successful hit —
+ * this is single-instance only. The `McpSessionStore` interface is the
+ * extension point for persistent/SQL backends, which can drop in later with no
+ * API change.
  */
 export function inMemoryMcpSessionStore(
   opts: { ttlMs?: number } = {},
@@ -62,6 +63,9 @@ export function inMemoryMcpSessionStore(
         map.delete(threadId)
         return null
       }
+      // Sliding TTL: refresh on a successful hit so an actively-used thread
+      // doesn't expire by absolute time mid-session.
+      e.at = Date.now()
       // serverId omitted (single-server setups): default to the sole server.
       if (serverId === undefined) {
         const entries = Object.entries(e.servers)

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { inMemoryMcpSessionStore } from '../../src/apps/session-store'
 
 describe('inMemoryMcpSessionStore', () => {
@@ -33,14 +33,39 @@ describe('inMemoryMcpSessionStore', () => {
     expect(await store.get('t1', undefined)).toBeNull()
   })
 
-  it('returns null and prunes entry when TTL has expired', async () => {
-    const store = inMemoryMcpSessionStore({ ttlMs: 1 })
-    await store.set('t2', {
-      srv: { transport: { type: 'http', url: 'https://y/mcp' } },
+  describe('TTL', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
     })
-    // Wait longer than TTL
-    await new Promise((r) => setTimeout(r, 10))
-    expect(await store.get('t2', 'srv')).toBeNull()
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('returns null and prunes entry when TTL has expired', async () => {
+      const store = inMemoryMcpSessionStore({ ttlMs: 1000 })
+      await store.set('t2', {
+        srv: { transport: { type: 'http', url: 'https://y/mcp' } },
+      })
+      vi.advanceTimersByTime(1001)
+      expect(await store.get('t2', 'srv')).toBeNull()
+    })
+
+    it('slides the TTL on a successful get within the window', async () => {
+      const store = inMemoryMcpSessionStore({ ttlMs: 1000 })
+      await store.set('t2', {
+        srv: { transport: { type: 'http', url: 'https://y/mcp' } },
+      })
+      // Get just within the window — refreshes expiry to now.
+      vi.advanceTimersByTime(900)
+      expect(await store.get('t2', 'srv')).not.toBeNull()
+      // Another 900ms: would have expired by absolute time (1800 > 1000) but
+      // the sliding refresh keeps it alive (only 900ms since last hit).
+      vi.advanceTimersByTime(900)
+      expect(await store.get('t2', 'srv')).not.toBeNull()
+      // Now let it lapse past the window with no access.
+      vi.advanceTimersByTime(1001)
+      expect(await store.get('t2', 'srv')).toBeNull()
+    })
   })
 
   it('overwrites existing entries for the same threadId', async () => {

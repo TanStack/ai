@@ -75,8 +75,10 @@ export function makeMcpExecute(
         ? mcpContentToTanstack(result.content)
         : undefined
       const detail = typeof text === 'string' ? text : JSON.stringify(text)
+      // An empty detail (e.g. a ui://-only error body) would render a dangling
+      // colon — treat '' the same as undefined and throw the bare message.
       throw new Error(
-        text === undefined
+        detail === undefined || detail === ''
           ? `MCP tool "${mcpName}" returned an error`
           : `MCP tool "${mcpName}" returned an error: ${detail}`,
       )
