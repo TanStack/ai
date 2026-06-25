@@ -47,6 +47,11 @@ jobs:
           persist-credentials: true
       - name: Setup Tools
         uses: TanStack/config/.github/setup@190f659075ff0845850e330883eb26d7ffd0671f # main
+      - name: Build packages
+        # Fresh, cache-bypassing build so dist/ is on disk when changeset
+        # publish packs tarballs. A cached build can report success without
+        # materializing dist/, shipping src-only packages (see 0.33.0-0.36.0).
+        run: pnpm exec nx run-many --targets=build --exclude=examples/**,testing/** --skip-nx-cache
       - name: Run Changesets (version or publish)
         id: changesets
         uses: changesets/action@6a0a831ff30acef54f2c6aa1cbbc1096b066edaf # v1.7.0
