@@ -103,7 +103,7 @@ export async function POST(request: Request) {
 ## Example: With Tools
 
 ```typescript
-import { chat, toolDefinition } from "@tanstack/ai";
+import { chat, toServerSentEventsResponse, toolDefinition } from "@tanstack/ai";
 import { ollamaText } from "@tanstack/ai-ollama";
 import { z } from "zod";
 
@@ -120,11 +120,17 @@ const getLocalData = getLocalDataDef.server(async ({ key }) => {
   return { data: "..." };
 });
 
-const stream = chat({
-  adapter: ollamaText("llama3"),
-  messages,
-  tools: [getLocalData],
-});
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter: ollamaText("llama3"),
+    messages,
+    tools: [getLocalData],
+  });
+
+  return toServerSentEventsResponse(stream);
+}
 ```
 
 **Note:** Tool support varies by model. Models like `llama3`, `mistral`, and `qwen2` generally have good tool calling support.
@@ -134,9 +140,12 @@ const stream = chat({
 Ollama supports various provider-specific options. Unlike the other providers, Ollama nests its sampling and runner parameters inside an `options` object **within** `modelOptions` — `temperature`, `top_p`, and `num_predict` (the token-limit key) all live under `modelOptions.options`:
 
 ```typescript
+import { chat } from "@tanstack/ai";
+import { ollamaText } from "@tanstack/ai-ollama";
+
 const stream = chat({
-  adapter: ollamaText("llama3"),
-  messages,
+  adapter: ollamaText("llama3:latest"),
+  messages: [{ role: "user", content: "Hello!" }],
   modelOptions: {
     options: {
       temperature: 0.7,
@@ -157,7 +166,7 @@ const stream = chat({
 
 All sampling and runner parameters are nested under `modelOptions.options`:
 
-```typescript
+```typescript ignore
 modelOptions: {
   options: {
     // Sampling
@@ -195,7 +204,7 @@ modelOptions: {
 
 Summarize long text content locally:
 
-```typescript
+```typescript ignore
 import { summarize } from "@tanstack/ai";
 import { ollamaSummarize } from "@tanstack/ai-ollama";
 
@@ -241,6 +250,8 @@ The server runs on `http://localhost:11434` by default.
 ## Running on a Remote Server
 
 ```typescript
+import { createOllamaChat } from "@tanstack/ai-ollama";
+
 const adapter = createOllamaChat("llama3", "http://your-server:11434");
 ```
 

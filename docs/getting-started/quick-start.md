@@ -40,7 +40,7 @@ First, create an API route that handles chat requests. Here's a simplified examp
 
 ### TanStack Start
 
-```typescript
+```typescript ignore
 import { chat, toServerSentEventsResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { createFileRoute } from "@tanstack/react-router";
@@ -264,9 +264,11 @@ Since TanStack AI is framework-agnostic, you can define and use tools in any env
 import { chat, toolDefinition } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { z } from 'zod'
+import { db } from './db'
 
 const getProductsDef = toolDefinition({
   name: 'getProducts',
+  description: 'Search the product catalog',
   inputSchema: z.object({ query: z.string() }),
   outputSchema: z.array(z.object({ id: z.string(), name: z.string() })),
 })

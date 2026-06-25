@@ -40,6 +40,7 @@ export function ChatUI({
 }: ChatUIProps) {
   const [input, setInput] = useState('')
   const messagesRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (messagesRef.current) {
@@ -203,14 +204,20 @@ export function ChatUI({
             className="text-xs text-gray-400"
             onChange={(e) => {
               const file = e.target.files?.[0]
-              if (file && input.trim() && onSendMessageWithImage) {
-                onSendMessageWithImage(input.trim(), file)
+              // Read the prompt from the live input DOM value rather than the
+              // `input` React state. Attaching a file auto-sends, and under
+              // load a controlled input's state can lag the committed DOM
+              // value — reading state here would send an empty/partial prompt.
+              const text = (inputRef.current?.value ?? input).trim()
+              if (file && text && onSendMessageWithImage) {
+                onSendMessageWithImage(text, file)
                 setInput('')
               }
             }}
           />
         )}
         <input
+          ref={inputRef}
           data-testid="chat-input"
           type="text"
           value={input}

@@ -1,5 +1,30 @@
 # @tanstack/ai-client
 
+## 0.18.4
+
+### Patch Changes
+
+- [#830](https://github.com/TanStack/ai/pull/830) [`c04abd3`](https://github.com/TanStack/ai/commit/c04abd35284d464d830bb9f15129c7a7c2533d3f) - Move the `RealtimeAdapter` / `RealtimeConnection` contract into `@tanstack/ai` and stop provider adapters from depending on `@tanstack/ai-client`.
+
+  Provider packages (`@tanstack/ai-openai`, `@tanstack/ai-elevenlabs`, `@tanstack/ai-grok`) are usable server-side (text, embeddings, images, transcription, token minting, etc.) and must not pull in the client-only `@tanstack/ai-client`. The only thing their realtime adapters needed from it were the `RealtimeAdapter` / `RealtimeConnection` type shapes.
+
+  Those two interfaces now live in `@tanstack/ai` — the shared layer that both provider packages and `@tanstack/ai-client` already depend on, and where every other realtime type (`RealtimeToken`, `RealtimeEvent`, `RealtimeSessionConfig`, …) already lives. They're exported from `@tanstack/ai` and `@tanstack/ai/client`. `@tanstack/ai-client` re-exports them unchanged, so `import { RealtimeAdapter } from '@tanstack/ai-client'` keeps working.
+
+  As a result `@tanstack/ai-client` is no longer a dependency (peer or otherwise) of any provider package, and the previously-duplicated local contract + drift test in `@tanstack/ai-grok` are removed in favor of the single shared definition. Consumers only need `@tanstack/ai-client` at the point where they actually construct a `RealtimeClient`.
+
+- Updated dependencies [[`c04abd3`](https://github.com/TanStack/ai/commit/c04abd35284d464d830bb9f15129c7a7c2533d3f)]:
+  - @tanstack/ai@0.35.0
+
+## 0.18.3
+
+### Patch Changes
+
+- [#749](https://github.com/TanStack/ai/pull/749) [`540cbf1`](https://github.com/TanStack/ai/commit/540cbf18a2f7d6c07b44f7f4da0ac3873c0d2581) - Fix `useChat` status getting stuck after a client tool call when the continuation run closes with a bare `RUN_FINISHED { finishReason: 'stop' }` and no assistant message. The client only sets status `ready` via the processor's `onStreamEnd`, and `StreamProcessor.finalizeStream()` emits that callback only when it has a `lastAssistantMessage`; a message-less terminal run never fired it, so status stayed at `submitted`. The client now normalizes status to `ready` on the terminal, non-continuing path. Fixes [#421](https://github.com/TanStack/ai/issues/421).
+
+- Updated dependencies [[`2e59b77`](https://github.com/TanStack/ai/commit/2e59b7730ef88a0107e8d7ad916906b070f6a6c0), [`4188693`](https://github.com/TanStack/ai/commit/4188693d09297ce400eb1ba5fab30cfea2fdb8a6)]:
+  - @tanstack/ai-event-client@0.6.6
+  - @tanstack/ai@0.34.1
+
 ## 0.18.2
 
 ### Patch Changes

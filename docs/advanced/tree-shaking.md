@@ -167,7 +167,7 @@ Each activity is in its own module, so bundlers can eliminate unused ones.
 
 The tree-shakeable design doesn't sacrifice type safety. Each adapter provides full type safety for its supported models:
 
-```ts
+```ts ignore
 import { openaiText, type OpenAIChatModel } from '@tanstack/ai-openai'
 
 const adapter = openaiText('gpt-5.5')
@@ -278,6 +278,8 @@ Each adapter type implements a specific interface:
 All adapters have a `kind` property that indicates their type:
 
 ```ts
+import { openaiText, openaiSummarize } from '@tanstack/ai-openai'
+
 const chatAdapter = openaiText('gpt-5.5')
 console.log(chatAdapter.kind) // 'text'
 

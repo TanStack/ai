@@ -191,6 +191,8 @@ export type {
   RealtimeEventHandler,
   RealtimeErrorCode,
   RealtimeError,
+  RealtimeAdapter,
+  RealtimeConnection,
 } from './realtime/index'
 
 // Message converters

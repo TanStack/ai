@@ -1,5 +1,19 @@
 # @tanstack/ai-fal
 
+## 0.9.4
+
+### Patch Changes
+
+- Updated dependencies [[`c04abd3`](https://github.com/TanStack/ai/commit/c04abd35284d464d830bb9f15129c7a7c2533d3f)]:
+  - @tanstack/ai@0.35.0
+
+## 0.9.3
+
+### Patch Changes
+
+- Updated dependencies [[`4188693`](https://github.com/TanStack/ai/commit/4188693d09297ce400eb1ba5fab30cfea2fdb8a6)]:
+  - @tanstack/ai@0.34.1
+
 ## 0.9.2
 
 ### Patch Changes

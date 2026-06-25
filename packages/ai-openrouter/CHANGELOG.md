@@ -1,5 +1,23 @@
 # @tanstack/ai-openrouter
 
+## 0.15.1
+
+### Patch Changes
+
+- Updated dependencies [[`c04abd3`](https://github.com/TanStack/ai/commit/c04abd35284d464d830bb9f15129c7a7c2533d3f)]:
+  - @tanstack/ai@0.35.0
+
+## 0.15.0
+
+### Minor Changes
+
+- [#777](https://github.com/TanStack/ai/pull/777) [`170451d`](https://github.com/TanStack/ai/commit/170451d40dcee1fad7d73998afe2b669645574cb) - Forward per-system-prompt `cache_control` breakpoints to the wire. The text adapter previously collapsed `systemPrompts` to a plain joined string and dropped the object-form `metadata`, so Anthropic-family prompt caching over OpenRouter was unreachable. It now declares `OpenRouterSystemPromptMetadata` (narrowing `systemPrompts[i].metadata` so `cache_control` is typed and autocompleted at the `chat()` call site) and, when any system prompt carries `cache_control`, emits the system message as a content-array part carrying the directive — mirroring `@tanstack/ai-anthropic`. Callers without `cache_control` are unaffected: the system message is still sent as the same joined string.
+
+### Patch Changes
+
+- Updated dependencies [[`4188693`](https://github.com/TanStack/ai/commit/4188693d09297ce400eb1ba5fab30cfea2fdb8a6)]:
+  - @tanstack/ai@0.34.1
+
 ## 0.14.2
 
 ### Patch Changes

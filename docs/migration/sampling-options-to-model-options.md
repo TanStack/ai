@@ -10,7 +10,7 @@ title: Moving Sampling Options into modelOptions
 
 Previously, `chat()` accepted three generic sampling props directly at the root of its options:
 
-```typescript
+```typescript ignore
 chat({
   adapter: openaiText('gpt-4o'),
   messages,
@@ -23,6 +23,11 @@ chat({
 These were a convenience layer that the runtime mapped onto whatever the underlying provider expected. That generic mapping is now gone. Sampling parameters live where every other model-specific knob already lives — inside the provider-native `modelOptions` object — under each provider's own canonical key name.
 
 ```typescript
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+
 chat({
   adapter: openaiText('gpt-4o'),
   messages,
@@ -46,7 +51,7 @@ The root prop names are the same everywhere (`temperature`, `topP`, `maxTokens`)
 
 ### OpenAI
 
-```typescript
+```typescript ignore
 // Before
 chat({
   adapter: openaiText('gpt-4o'),
@@ -55,6 +60,13 @@ chat({
   topP: 0.9,
   maxTokens: 100,
 })
+```
+
+```typescript
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
 
 // After
 chat({
@@ -70,7 +82,7 @@ chat({
 
 ### Anthropic
 
-```typescript
+```typescript ignore
 // Before
 chat({
   adapter: anthropicText('claude-sonnet-4-5'),
@@ -79,6 +91,13 @@ chat({
   topP: 0.9,
   maxTokens: 1024,
 })
+```
+
+```typescript
+import { chat } from '@tanstack/ai'
+import { anthropicText } from '@tanstack/ai-anthropic'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
 
 // After
 chat({
@@ -94,7 +113,7 @@ chat({
 
 ### Gemini
 
-```typescript
+```typescript ignore
 // Before
 chat({
   adapter: geminiText('gemini-3.1-pro-preview'),
@@ -103,6 +122,13 @@ chat({
   topP: 0.9,
   maxTokens: 2048,
 })
+```
+
+```typescript
+import { chat } from '@tanstack/ai'
+import { geminiText } from '@tanstack/ai-gemini'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
 
 // After
 chat({
@@ -120,7 +146,7 @@ chat({
 
 Ollama is the one provider where sampling parameters are **nested** inside an `options` object within `modelOptions`, and the token limit is named `num_predict`:
 
-```typescript
+```typescript ignore
 // Before
 chat({
   adapter: ollamaText('llama3'),
@@ -129,6 +155,11 @@ chat({
   topP: 0.9,
   maxTokens: 1000,
 })
+```
+
+```typescript ignore
+import { chat } from '@tanstack/ai'
+import { ollamaText } from '@tanstack/ai-ollama'
 
 // After
 chat({
@@ -191,6 +222,11 @@ See [`codemods/move-sampling-to-model-options/README.md`](https://github.com/Tan
 `metadata` is **not** a sampling parameter and is unaffected — it stays at the root of `chat()`:
 
 ```typescript
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+
 chat({
   adapter: openaiText('gpt-4o'),
   messages,

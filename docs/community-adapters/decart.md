@@ -70,12 +70,15 @@ const result = await generateImage({
   prompt: "A futuristic cityscape at night",
 });
 
-console.log(result.images[0].b64Json);
+console.log(result.images[0]?.b64Json);
 ```
 
 ### Image Model Options
 
 ```typescript
+import { generateImage } from "@tanstack/ai";
+import { decartImage } from "@decartai/tanstack-ai-adapter";
+
 const result = await generateImage({
   adapter: decartImage("lucy-pro-t2i"),
   prompt: "A portrait of a robot artist",
@@ -117,6 +120,7 @@ console.log("Job started:", jobId);
 import { getVideoJobStatus } from "@tanstack/ai";
 import { decartVideo } from "@decartai/tanstack-ai-adapter";
 
+const jobId = "example-job-id";
 const status = await getVideoJobStatus({
   adapter: decartVideo("lucy-pro-t2v"),
   jobId,
@@ -167,6 +171,9 @@ const videoUrl = await createVideo("A drone shot over a tropical beach");
 ### Video Model Options
 
 ```typescript
+import { generateVideo } from "@tanstack/ai";
+import { decartVideo } from "@decartai/tanstack-ai-adapter";
+
 const { jobId } = await generateVideo({
   adapter: decartVideo("lucy-pro-t2v"),
   prompt: "A timelapse of a blooming flower",

@@ -1,5 +1,30 @@
 # @tanstack/ai
 
+## 0.35.0
+
+### Minor Changes
+
+- [#830](https://github.com/TanStack/ai/pull/830) [`c04abd3`](https://github.com/TanStack/ai/commit/c04abd35284d464d830bb9f15129c7a7c2533d3f) - Move the `RealtimeAdapter` / `RealtimeConnection` contract into `@tanstack/ai` and stop provider adapters from depending on `@tanstack/ai-client`.
+
+  Provider packages (`@tanstack/ai-openai`, `@tanstack/ai-elevenlabs`, `@tanstack/ai-grok`) are usable server-side (text, embeddings, images, transcription, token minting, etc.) and must not pull in the client-only `@tanstack/ai-client`. The only thing their realtime adapters needed from it were the `RealtimeAdapter` / `RealtimeConnection` type shapes.
+
+  Those two interfaces now live in `@tanstack/ai` — the shared layer that both provider packages and `@tanstack/ai-client` already depend on, and where every other realtime type (`RealtimeToken`, `RealtimeEvent`, `RealtimeSessionConfig`, …) already lives. They're exported from `@tanstack/ai` and `@tanstack/ai/client`. `@tanstack/ai-client` re-exports them unchanged, so `import { RealtimeAdapter } from '@tanstack/ai-client'` keeps working.
+
+  As a result `@tanstack/ai-client` is no longer a dependency (peer or otherwise) of any provider package, and the previously-duplicated local contract + drift test in `@tanstack/ai-grok` are removed in favor of the single shared definition. Consumers only need `@tanstack/ai-client` at the point where they actually construct a `RealtimeClient`.
+
+## 0.34.1
+
+### Patch Changes
+
+- [#698](https://github.com/TanStack/ai/pull/698) [`4188693`](https://github.com/TanStack/ai/commit/4188693d09297ce400eb1ba5fab30cfea2fdb8a6) - Fix `MESSAGES_SNAPSHOT` handling so AG-UI snapshot messages are normalized into `UIMessage[]`.
+
+  AG-UI snapshot messages use the wire shape `{ id, role, content }` and have no `parts` array. The handler previously cast them straight to `UIMessage[]`, so any code that later read `message.parts` (e.g. the devtools `onToolCallStateChange` handler) crashed with `TypeError: Cannot read properties of undefined (reading 'find')`.
+
+  Each snapshot message is now converted to a proper `UIMessage` via a type-safe converter that preserves the original AG-UI `id` (so subsequent `TEXT_MESSAGE_CONTENT` / `TOOL_CALL_*` events still route by `messageId`), maps `toolCalls` to `tool-call` parts and `tool` messages to `tool-result` parts, and falls back to a generated id only when the snapshot omits one.
+
+- Updated dependencies [[`2e59b77`](https://github.com/TanStack/ai/commit/2e59b7730ef88a0107e8d7ad916906b070f6a6c0)]:
+  - @tanstack/ai-event-client@0.6.6
+
 ## 0.34.0
 
 ### Minor Changes

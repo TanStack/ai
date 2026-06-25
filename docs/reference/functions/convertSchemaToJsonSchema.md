@@ -9,7 +9,7 @@ title: convertSchemaToJsonSchema
 function convertSchemaToJsonSchema(schema, options): JSONSchema | undefined;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/schema-converter.ts:242](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/schema-converter.ts#L242)
+Defined in: [packages/ai/src/activities/chat/tools/schema-converter.ts:324](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/schema-converter.ts#L324)
 
 Converts a Standard JSON Schema compliant schema or plain JSONSchema to JSON Schema format
 compatible with LLM providers.

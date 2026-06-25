@@ -1,5 +1,27 @@
 # @tanstack/ai-angular
 
+## 0.1.9
+
+### Patch Changes
+
+- Updated dependencies [[`c04abd3`](https://github.com/TanStack/ai/commit/c04abd35284d464d830bb9f15129c7a7c2533d3f)]:
+  - @tanstack/ai@0.35.0
+  - @tanstack/ai-client@0.18.4
+
+## 0.1.8
+
+### Patch Changes
+
+- [#826](https://github.com/TanStack/ai/pull/826) [`da0feb1`](https://github.com/TanStack/ai/commit/da0feb1096b51a0ed73e73df7d8b2b81ee077b46) - Publish a working `@tanstack/ai-angular` build. The only version previously on npm (`0.0.1`) was seeded with a manual `npm publish` and shipped unresolved `workspace:` specifiers in its `dependencies`/`peerDependencies`, making it uninstallable (`EUNSUPPORTEDPROTOCOL`). Releasing through the changesets pipeline rewrites those specifiers to concrete versions.
+
+## 0.1.7
+
+### Patch Changes
+
+- Updated dependencies [[`540cbf1`](https://github.com/TanStack/ai/commit/540cbf18a2f7d6c07b44f7f4da0ac3873c0d2581), [`4188693`](https://github.com/TanStack/ai/commit/4188693d09297ce400eb1ba5fab30cfea2fdb8a6)]:
+  - @tanstack/ai-client@0.18.3
+  - @tanstack/ai@0.34.1
+
 ## 0.1.6
 
 ### Patch Changes
