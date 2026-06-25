@@ -195,6 +195,7 @@ Official adapters include:
 | [`@tanstack/ai-groq`](https://tanstack.com/ai/latest/docs/adapters/groq)             | Groq low-latency inference                                                     |
 | [`@tanstack/ai-elevenlabs`](https://tanstack.com/ai/latest/docs/adapters/elevenlabs) | ElevenLabs realtime voice, speech, transcription, music, and sound effects     |
 | [`@tanstack/ai-fal`](https://tanstack.com/ai/latest/docs/adapters/fal)               | fal.ai image, video, audio, speech, and transcription models                   |
+| [`@tanstack/ai-twelvelabs`](https://tanstack.com/ai/latest/docs/adapters/twelvelabs) | TwelveLabs Pegasus video understanding — summaries, Q&A, and structured output |
 
 The adapter system is tree-shakeable by activity. Import `openaiText` for chat,
 `openaiImage` for images, `falVideo` for video, `geminiSpeech` for TTS, and so
