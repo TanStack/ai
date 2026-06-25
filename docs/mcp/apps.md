@@ -113,7 +113,7 @@ export function Chat() {
                 <MCPAppResource
                   key={i}
                   part={part}
-                  sandbox={{ url: process.env.NEXT_PUBLIC_SANDBOX_URL! }}
+                  sandbox={{ url: new URL('https://sandbox.example.com') }}
                   toolName={part.toolCallId}
                 />
               )
@@ -269,9 +269,11 @@ import { fetchServerSentEvents, createMcpAppBridge } from '@tanstack/ai-client'
 import { MCPAppResource } from '@tanstack/ai-react/mcp-apps'
 
 export function Chat() {
-  const { messages, sendMessage, status, threadId } = useChat({
+  const { messages, sendMessage, status } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
   })
+  // A stable id correlating widget calls back to this conversation.
+  const threadId = 'weather-chat'
 
   return (
     <div>
@@ -295,7 +297,7 @@ export function Chat() {
                   key={i}
                   part={part}
                   bridge={bridge}
-                  sandbox={{ url: process.env.NEXT_PUBLIC_SANDBOX_URL! }}
+                  sandbox={{ url: new URL('https://sandbox.example.com') }}
                   toolName={part.toolCallId}
                 />
               )
@@ -347,19 +349,23 @@ const handler = createMcpAppCallHandler({
 
 ```ts
 import { createMcpAppCallHandler } from '@tanstack/ai-mcp/apps'
+import type { McpAppCallHandlerOptions } from '@tanstack/ai-mcp/apps'
 
-const handler = createMcpAppCallHandler({
+const options: McpAppCallHandlerOptions = {
   // Static server map (serverless-safe default)
-  servers?: Record<string, { transport: MCPTransportConfig; prefix?: string }>
+  servers: {
+    weather: { transport: { type: 'http', url: 'https://weather.example.com' } },
+  },
 
-  // Dynamic session store (opt-in for stateful transports)
-  store?: McpSessionStore
+  // Dynamic session store (opt-in for stateful transports) — wins over `servers`
+  // store: inMemoryMcpSessionStore(),
 
   // Custom tool allowlist — default: server's own exposed tools only
-  allowTool?: (req: McpAppCallRequest) => boolean | Promise<boolean>
-})
+  allowTool: (req) => req.toolName === 'get_weather',
+}
 
-// Returns: (req: McpAppCallRequest) => Promise<{ ok: true; result: unknown } | { ok: false; error: string }>
+// Returns: (req) => Promise<{ ok: true; result: unknown } | { ok: false; error: string }>
+const handler = createMcpAppCallHandler(options)
 ```
 
 ### `inMemoryMcpSessionStore` (`@tanstack/ai-mcp/apps`)
@@ -368,7 +374,7 @@ const handler = createMcpAppCallHandler({
 import { inMemoryMcpSessionStore } from '@tanstack/ai-mcp/apps'
 
 const store = inMemoryMcpSessionStore({
-  ttlMs?: number  // default: 30 minutes
+  ttlMs: 30 * 60_000, // optional; default: 30 minutes
 })
 ```
 
@@ -376,31 +382,39 @@ const store = inMemoryMcpSessionStore({
 
 ```ts
 import { createMcpAppBridge } from '@tanstack/ai-client'
+import type { CreateMcpAppBridgeOptions } from '@tanstack/ai-client'
 
-const bridge = createMcpAppBridge({
-  threadId: string            // identifies the thread for the call handler
-  callEndpoint: string        // POST route mounting createMcpAppCallHandler
-  chat: { sendMessage: (text: string) => void }  // prompt-intent path
-  fetchImpl?: typeof fetch    // injectable for testing
-  onLink?: (url: string) => void    // absent → link is BLOCKED
-  onNotify?: (payload: unknown) => void
-  onIntent?: (intent: string, payload: unknown) => void
-})
-// Returns: (action: AppRendererAction) => Promise<unknown>
+const options: CreateMcpAppBridgeOptions = {
+  threadId: 'weather-chat', // identifies the thread for the call handler
+  callEndpoint: '/api/mcp-apps/call', // POST route mounting createMcpAppCallHandler
+  chat: { sendMessage: async (text) => console.log(text) }, // prompt-intent path
+  fetchImpl: fetch, // optional; injectable for testing
+  onLink: (url) => window.open(url, '_blank'), // absent → link is BLOCKED
+  onNotify: (payload) => console.log(payload),
+  onIntent: (intent, payload) => console.log(intent, payload),
+}
+
+// Returns an McpAppBridge with callTool / sendPrompt / openLink methods.
+const bridge = createMcpAppBridge(options)
 ```
 
 ### `MCPAppResource` (`@tanstack/ai-react/mcp-apps`)
 
-```ts
+```tsx
 import { MCPAppResource } from '@tanstack/ai-react/mcp-apps'
+// `part` is a UIResourcePart from the assistant message; `bridge` is a
+// createMcpAppBridge result — both supplied by your component (see examples above).
+import { part, bridge } from './chat-context'
 
-<MCPAppResource
-  part={part}                 // UIResourcePart from the assistant message
-  sandbox={{ url: string }}   // sandbox origin for the AppRenderer iframe
-  toolName={string}           // tool identifier forwarded to the renderer
-  bridge={bridge}             // createMcpAppBridge result — omit for static display
-  toolInput?: unknown         // optional tool input for the renderer context
-/>
+const widget = (
+  <MCPAppResource
+    part={part} // UIResourcePart from the assistant message
+    sandbox={{ url: new URL('https://sandbox.example.com') }} // AppRenderer iframe origin
+    toolName="show_widget" // tool identifier forwarded to the renderer
+    bridge={bridge} // omit for static, display-only rendering
+    toolInput={{ city: 'Brooklyn' }} // optional tool input for the renderer context
+  />
+)
 ```
 
 Preact: identical API from `@tanstack/ai-preact/mcp-apps` (requires `preact/compat` alias).
