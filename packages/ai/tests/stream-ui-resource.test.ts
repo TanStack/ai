@@ -17,6 +17,7 @@ describe('StreamProcessor — ui-resource CUSTOM event', () => {
         resource: { uri: 'ui://s/w', mimeType: 'text/html', text: '<b>x</b>' },
         serverId: 'weather',
         toolCallId: 'call_1',
+        toolName: 'show_widget',
       },
     } as Extract<StreamChunk, { type: 'CUSTOM' }>
 
@@ -29,6 +30,7 @@ describe('StreamProcessor — ui-resource CUSTOM event', () => {
     expect(part).toMatchObject({
       type: 'ui-resource',
       toolCallId: 'call_1',
+      toolName: 'show_widget',
       serverId: 'weather',
       resource: { uri: 'ui://s/w', mimeType: 'text/html', text: '<b>x</b>' },
     })
@@ -42,6 +44,7 @@ describe('StreamProcessor — ui-resource CUSTOM event', () => {
       value: {
         resource: { uri: 'ui://tool/output', mimeType: 'text/html' },
         toolCallId: 'call_2',
+        toolName: 'tool_output',
       },
     } as Extract<StreamChunk, { type: 'CUSTOM' }>
 
@@ -54,6 +57,7 @@ describe('StreamProcessor — ui-resource CUSTOM event', () => {
     expect(part).toMatchObject({
       type: 'ui-resource',
       toolCallId: 'call_2',
+      toolName: 'tool_output',
       resource: { uri: 'ui://tool/output', mimeType: 'text/html' },
     })
     expect(part?.serverId).toBeUndefined()
@@ -67,6 +71,7 @@ describe('StreamProcessor — ui-resource CUSTOM event', () => {
       value: {
         resource: { uri: 'ui://s/w', mimeType: 'text/html' },
         toolCallId: 'call_3',
+        toolName: 'show_widget',
         meta: { width: 400, height: 300 },
       },
     } as Extract<StreamChunk, { type: 'CUSTOM' }>
@@ -92,6 +97,7 @@ describe('StreamProcessor — ui-resource CUSTOM event', () => {
       value: {
         resource: { uri: 'ui://s/w', mimeType: 'text/html' },
         toolCallId: 'call_4',
+        toolName: 'show_widget',
       },
     } as Extract<StreamChunk, { type: 'CUSTOM' }>)
 

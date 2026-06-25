@@ -246,6 +246,7 @@ describe('executeServerTool — ui:// resource emit (MCP Apps)', () => {
       value: {
         resource: { uri: 'ui://s/w', mimeType: 'text/html', text: '<b>x</b>' },
         serverId: 'weather',
+        toolName: 'show',
         meta: undefined,
         toolCallId: 'call_1',
       },

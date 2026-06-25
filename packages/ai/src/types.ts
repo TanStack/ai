@@ -425,6 +425,9 @@ export interface UIResourcePart {
   /** Links to the originating tool call; the client seeds toolInput/toolResult from
    *  the sibling ToolCallPart/ToolResultPart in the same message. */
   toolCallId: string
+  /** Server-native (unprefixed) MCP tool name whose UI this resource renders.
+   *  Required by the renderer (`@mcp-ui/client`'s `AppRenderer` `toolName` prop). */
+  toolName: string
   /** Passthrough of the tool/result `_meta.ui` (frame-size hints, etc.). */
   meta?: Record<string, unknown>
 }
@@ -1308,6 +1311,7 @@ export interface UIResourceEvent extends CustomEvent {
     resource: UIResourcePart['resource']
     serverId?: string
     toolCallId: string
+    toolName: string
     meta?: Record<string, unknown>
   }
 }

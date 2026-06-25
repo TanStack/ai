@@ -46,6 +46,8 @@ function safeJsonParse(value: string): unknown {
 interface McpToolAppMeta {
   uiResourceUri?: string
   serverId?: string
+  /** Server-native (unprefixed) MCP tool name — used as the renderer's toolName. */
+  serverToolName?: string
   readResource?: (uri: string) => Promise<{
     contents: Array<{
       uri: string
@@ -89,6 +91,7 @@ async function emitUiResourceIfLinked<TContext>(
         blob: r.blob,
       },
       serverId: mcp.serverId,
+      toolName: mcp.serverToolName ?? tool.name,
       meta: undefined,
     })
   } catch (err) {

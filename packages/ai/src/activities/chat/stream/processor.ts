@@ -1633,6 +1633,7 @@ export class StreamProcessor {
         resource: UIResourcePart['resource']
         serverId?: string
         toolCallId: string
+        toolName: string
         meta?: Record<string, unknown>
       }
       // Resolve the target assistant message: prefer the active one; fall back
@@ -1644,6 +1645,7 @@ export class StreamProcessor {
           type: 'ui-resource',
           resource: v.resource,
           toolCallId: v.toolCallId,
+          toolName: v.toolName,
           ...(v.serverId !== undefined && { serverId: v.serverId }),
           ...(v.meta !== undefined && { meta: v.meta }),
         }

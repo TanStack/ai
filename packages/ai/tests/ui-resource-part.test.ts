@@ -8,6 +8,7 @@ describe('UIResourcePart', () => {
       resource: { uri: 'ui://s/w', mimeType: 'text/html', text: '<b>x</b>' },
       serverId: 'weather',
       toolCallId: 'call_1',
+      toolName: 'show_widget',
     }
     const asPart: MessagePart = part
     expect(asPart.type).toBe('ui-resource')
@@ -20,6 +21,7 @@ describe('UIResourcePart', () => {
       value: {
         resource: { uri: 'ui://s/w', mimeType: 'text/html' },
         toolCallId: 'call_1',
+        toolName: 'show_widget',
       },
     } as UIResourceEvent
     expect(ev.name).toBe('ui-resource')
