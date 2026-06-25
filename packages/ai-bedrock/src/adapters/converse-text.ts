@@ -135,7 +135,12 @@ export class BedrockConverseTextAdapter<
           credentials: resolved.credentials,
           ...(endpoint ? { endpoint } : {}),
         })
-      })()
+      })().catch((error: unknown) => {
+        // Don't cache a rejected promise — clear it so a later call can retry
+        // (e.g. after a transient import failure or fixed auth config).
+        this.clientPromise = undefined
+        throw error
+      })
     }
     return this.clientPromise
   }

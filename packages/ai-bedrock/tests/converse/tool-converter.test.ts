@@ -46,8 +46,11 @@ describe('toToolConfig', () => {
     expect(toToolConfig([], 'auto')).toBeUndefined()
   })
 
-  it('returns undefined toolChoice for "none" (caller omits tools instead)', () => {
-    const cfg = toToolConfig([{ name: 'a', inputSchema: {} }], 'none')
-    expect(cfg?.toolChoice).toBeUndefined()
+  it('returns undefined for "none" so no tool config is sent', () => {
+    // Bedrock treats a present tool config with no toolChoice as auto, so
+    // honoring "none" means omitting the whole config, not just toolChoice.
+    expect(
+      toToolConfig([{ name: 'a', inputSchema: {} }], 'none'),
+    ).toBeUndefined()
   })
 })
