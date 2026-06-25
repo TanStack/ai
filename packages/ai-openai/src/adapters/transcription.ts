@@ -250,9 +250,7 @@ export class OpenAITranscriptionAdapter<
       options
     const file = this.prepareAudioFile(audio)
     const isDiarizeTranscriptionModel = isDiarizeModel(model)
-    const topLevelResponseFormat = responseFormat as
-      | OpenAITranscriptionResponseFormat
-      | undefined
+    const topLevelResponseFormat = responseFormat
     const effectiveResponseFormat =
       topLevelResponseFormat ?? modelOptions?.response_format
 
@@ -433,6 +431,15 @@ export class OpenAITranscriptionAdapter<
     if (modelOptions?.timestamp_granularities !== undefined) {
       throw new Error(
         'OpenAI diarization transcription models do not support timestamp_granularities.',
+      )
+    }
+
+    if (
+      (modelOptions?.known_speaker_names === undefined) !==
+      (modelOptions?.known_speaker_references === undefined)
+    ) {
+      throw new Error(
+        'OpenAI diarization known_speaker_names and known_speaker_references must both be provided together.',
       )
     }
 

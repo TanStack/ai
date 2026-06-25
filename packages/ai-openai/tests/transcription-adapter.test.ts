@@ -386,10 +386,39 @@ describe('OpenAI transcription adapter', () => {
         audio: new File([], 'audio.wav', { type: 'audio/wav' }),
         modelOptions: {
           known_speaker_names: ['a', 'b', 'c', 'd', 'e'],
+          known_speaker_references: [
+            'data:audio/wav;base64,AAA=',
+            'data:audio/wav;base64,BBB=',
+            'data:audio/wav;base64,CCC=',
+            'data:audio/wav;base64,DDD=',
+            'data:audio/wav;base64,EEE=',
+          ],
         },
         logger: testLogger,
       }),
     ).rejects.toThrow('at most 4')
+
+    await expect(
+      adapter.transcribe({
+        model: 'gpt-4o-transcribe-diarize',
+        audio: new File([], 'audio.wav', { type: 'audio/wav' }),
+        modelOptions: {
+          known_speaker_names: ['agent'],
+        },
+        logger: testLogger,
+      }),
+    ).rejects.toThrow('must both be provided together')
+
+    await expect(
+      adapter.transcribe({
+        model: 'gpt-4o-transcribe-diarize',
+        audio: new File([], 'audio.wav', { type: 'audio/wav' }),
+        modelOptions: {
+          known_speaker_references: ['data:audio/wav;base64,AAA='],
+        },
+        logger: testLogger,
+      }),
+    ).rejects.toThrow('must both be provided together')
 
     await expect(
       adapter.transcribe({

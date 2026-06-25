@@ -12,7 +12,7 @@ const TRANSCRIPTION_PROVIDER_SCHEMA = z
   .optional()
 
 const TRANSCRIPTION_RESPONSE_FORMAT_SCHEMA = z
-  .enum(['json', 'text', 'srt', 'verbose_json', 'vtt', 'diarized_json'])
+  .enum(['json', 'text', 'srt', 'verbose_json', 'vtt'])
   .optional()
 
 const TRANSCRIBE_BODY_SCHEMA = z.object({
