@@ -101,7 +101,10 @@ describe('MCPAppResource', () => {
     const bridge = makeBridge()
     const { onCallTool } = renderAndCapture({ bridge })
 
-    const result = await onCallTool!({ name: 't', arguments: { a: 1 } }, extra())
+    const result = await onCallTool!(
+      { name: 't', arguments: { a: 1 } },
+      extra(),
+    )
 
     expect(bridge.callTool).toHaveBeenCalledWith({
       serverId: fakePart.serverId,
