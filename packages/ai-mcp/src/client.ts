@@ -146,6 +146,18 @@ class MCPClientImpl<
         ) as ServerTool
         if (this.prefix) tool.name = `${this.prefix}_${def.name}`
         if (options.lazy) tool.lazy = true
+        // Stamp MCP metadata so `serverToolNameOf` (and the call handler) can
+        // recover the UNPREFIXED native name + serverId — mirror toServerTools.
+        // `metadata.mcp` is `unknown`; only spread it when it's a plain object.
+        const existingMcp = tool.metadata?.mcp
+        const mcpBase =
+          existingMcp !== null && typeof existingMcp === 'object'
+            ? existingMcp
+            : {}
+        tool.metadata = {
+          ...tool.metadata,
+          mcp: { ...mcpBase, serverToolName: def.name, serverId: this.prefix },
+        }
         return tool
       })
     } else {

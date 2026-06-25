@@ -10,9 +10,11 @@ import type { ServerTool } from '@tanstack/ai'
 
 /**
  * The UNPREFIXED, server-native tool name for an exposed ServerTool.
- * ai-mcp stamps it on `metadata.mcp.serverToolName`; falls back to `name`
- * (unprefixed clients) when absent. `metadata` is `Record<string, unknown>`,
- * so narrow each hop instead of asserting a shape.
+ * ai-mcp stamps it on `metadata.mcp.serverToolName`; the `name` fallback is a
+ * defensive last resort — auto-discovery (`toServerTools`) and the explicit
+ * `tools(defs)` path both always stamp `serverToolName`, so this fallback is
+ * only reached for hand-built ServerTools. `metadata` is
+ * `Record<string, unknown>`, so narrow each hop instead of asserting a shape.
  */
 /** Type guard: a plain (non-array) object usable as a tool-args record. */
 function isArgsRecord(value: unknown): value is Record<string, unknown> {
@@ -48,7 +50,12 @@ export interface McpAppCallHandlerOptions {
    * reconnects per-call (stateless/serverless-safe).
    */
   clients: McpAppClientsInput
-  /** Opt-in dynamic/stateful resolution (e.g. inMemoryMcpSessionStore). Wins over `clients`. */
+  /**
+   * Opt-in dynamic/stateful resolution (e.g. inMemoryMcpSessionStore). When
+   * provided, the store WINS for any thread+serverId it has an entry for; on a
+   * store miss (null) the handler falls back to the static `clients` registry.
+   * So `clients` is always the base and the store is an override on top.
+   */
   store?: McpSessionStore
   /**
    * Additional per-call authorizer. The server-exposure check is ALWAYS
@@ -65,28 +72,78 @@ function isPool(entry: MCPClient | MCPClients): entry is MCPClients {
 }
 
 /**
- * Flatten the `clients` input into a registry keyed by serverId. A pool
- * contributes one entry per configured server (keyed by its config key); a
- * single client is registered under its `getInfo().prefix`, or — when it has
- * no prefix — under the empty-string key (the sole unnamed entry).
+ * The flattened view of the `clients` input used to resolve a `serverId` to a
+ * descriptor.
+ *
+ * - `byServerId` keys every addressable descriptor by its `prefix` — the exact
+ *   value the widget sends as `serverId` (the client/pool stamps it on
+ *   `metadata.mcp.serverId`, which equals `prefix`).
+ * - `fallback` holds the single descriptor that has no addressable prefix
+ *   (undefined/empty). It is reachable ONLY via the sole-server default path
+ *   (serverId omitted + exactly one descriptor in total).
+ * - `total` is the count of all descriptors across both, used to decide the
+ *   sole-server default.
  */
-function buildRegistry(
-  clients: McpAppClientsInput,
-): Record<string, McpServerDescriptor> {
+interface AppRegistry {
+  byServerId: Record<string, McpServerDescriptor>
+  fallback: McpServerDescriptor | null
+  total: number
+}
+
+/**
+ * Flatten the `clients` input into a registry keyed UNIFORMLY by `prefix` (the
+ * value the widget sends as `serverId`). A pool contributes one entry per
+ * configured server (keyed by that server's `prefix`, NOT its config key); a
+ * single client is keyed by `getInfo().prefix`. Entries whose `prefix` is
+ * undefined/empty have no addressable serverId and go in the `fallback` slot
+ * (reachable only by the sole-server default).
+ *
+ * Throws at handler-construction time if two entries resolve to the same
+ * non-empty prefix, or if more than one entry has an undefined/empty prefix —
+ * either case makes `serverId` routing ambiguous, so it must not silently
+ * overwrite.
+ */
+function buildRegistry(clients: McpAppClientsInput): AppRegistry {
   const entries = Array.isArray(clients) ? clients : [clients]
-  const registry: Record<string, McpServerDescriptor> = {}
+  const byServerId: Record<string, McpServerDescriptor> = {}
+  let fallback: McpServerDescriptor | null = null
+  let total = 0
+
+  const add = (info: {
+    transport: McpServerDescriptor['transport']
+    prefix: string | undefined
+  }) => {
+    const descriptor: McpServerDescriptor = {
+      transport: info.transport,
+      prefix: info.prefix,
+    }
+    total += 1
+    const key = info.prefix
+    if (key === undefined || key === '') {
+      if (fallback !== null) {
+        throw new Error(
+          'createMcpAppCallHandler: multiple clients without a prefix; serverId routing is ambiguous',
+        )
+      }
+      fallback = descriptor
+      return
+    }
+    if (key in byServerId) {
+      throw new Error(`createMcpAppCallHandler: duplicate serverId "${key}"`)
+    }
+    byServerId[key] = descriptor
+  }
+
   for (const entry of entries) {
     if (isPool(entry)) {
-      for (const [serverId, info] of Object.entries(entry.getServers())) {
-        registry[serverId] = { transport: info.transport, prefix: info.prefix }
+      for (const info of Object.values(entry.getServers())) {
+        add(info)
       }
     } else {
-      const info = entry.getInfo()
-      const serverId = info.prefix ?? ''
-      registry[serverId] = { transport: info.transport, prefix: info.prefix }
+      add(entry.getInfo())
     }
   }
-  return registry
+  return { byServerId, fallback, total }
 }
 
 /**
@@ -99,21 +156,28 @@ function buildRegistry(
 export function createMcpAppCallHandler(opts: McpAppCallHandlerOptions) {
   const registry = buildRegistry(opts.clients)
 
+  // Resolve a serverId against the static `clients` registry. When serverId is
+  // undefined and exactly one descriptor is registered, default to that sole
+  // descriptor; with zero or multiple, undefined stays unresolvable.
+  const resolveFromRegistry = (
+    serverId: string | undefined,
+  ): McpServerDescriptor | null => {
+    if (serverId !== undefined) {
+      return registry.byServerId[serverId] ?? null
+    }
+    if (registry.total !== 1) return null
+    return registry.fallback ?? Object.values(registry.byServerId)[0] ?? null
+  }
+
   return async (
     req: McpAppCallRequest,
   ): Promise<{ ok: true; result: unknown } | { ok: false; error: string }> => {
-    // Resolve server descriptor — store wins over the registry.
-    // When serverId is undefined and exactly one server is registered, default
-    // to that sole server; with multiple servers, undefined stays unresolvable.
-    let descriptor: McpServerDescriptor | null
-    if (opts.store) {
-      descriptor = await opts.store.get(req.threadId, req.serverId)
-    } else if (req.serverId !== undefined) {
-      descriptor = registry[req.serverId] ?? null
-    } else {
-      const entries = Object.entries(registry)
-      descriptor = entries.length === 1 ? (entries[0]?.[1] ?? null) : null
-    }
+    // Resolve server descriptor. The store WINS when it has an entry; otherwise
+    // we fall back to the static `clients` registry (the base). A store miss
+    // (null) must not reject when the registry can serve the request.
+    const descriptor =
+      (opts.store ? await opts.store.get(req.threadId, req.serverId) : null) ??
+      resolveFromRegistry(req.serverId)
 
     if (!descriptor) {
       // serverId omitted but resolution was ambiguous (zero or multiple

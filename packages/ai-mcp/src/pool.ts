@@ -86,8 +86,14 @@ export async function createMCPClients<
   if (failed.length > 0) {
     // Cleanup already-connected clients — no leaks.
     await Promise.allSettled(ok.map((r) => r.value[1].close()))
+    // Attach the first rejection's reason as the cause so the underlying
+    // connect error isn't lost (mirrors the tools() path).
+    const firstRejection = settled.find(
+      (r): r is PromiseRejectedResult => r.status === 'rejected',
+    )
     throw new MCPConnectionError(
       `Failed to connect MCP server(s): ${failed.join(', ')}`,
+      firstRejection?.reason,
     )
   }
 
@@ -154,6 +160,7 @@ export async function createMCPClients<
       // actually include the requested `uri`; otherwise keep trying. A ui://
       // read must reach the server that owns it.
       let lastError: unknown
+      let anyThrew = false
       const all = Object.values(clients)
       for (const c of all) {
         try {
@@ -164,12 +171,23 @@ export async function createMCPClients<
             return result
           }
         } catch (err) {
+          anyThrew = true
           lastError = err
         }
       }
-      throw new Error(`Failed to read MCP resource: ${uri}`, {
-        cause: lastError,
-      })
+      // Distinguish the two failure modes and never leave `cause` undefined:
+      // - at least one client threw → surface the last thrown error as `cause`.
+      // - every client responded but none owned the uri → there is no thrown
+      //   error to attach, so explain that the uri was not found on any server.
+      if (anyThrew) {
+        throw new Error(
+          `Failed to read MCP resource "${uri}": no client could resolve it (last error attached)`,
+          { cause: lastError },
+        )
+      }
+      throw new Error(
+        `Failed to read MCP resource "${uri}": no configured MCP server owns this uri`,
+      )
     },
     async close(): Promise<void> {
       await Promise.all(

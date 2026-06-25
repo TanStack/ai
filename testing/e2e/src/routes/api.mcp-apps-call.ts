@@ -53,21 +53,28 @@ export const Route = createFileRoute('/api/mcp-apps-call')({
         })
         const handler = createMcpAppCallHandler({ clients: widgets })
 
-        const result = await handler({
-          threadId: body.threadId,
-          serverId: body.serverId,
-          toolName: body.toolName,
-          args:
-            body.args !== null &&
-            typeof body.args === 'object' &&
-            !Array.isArray(body.args)
-              ? body.args
-              : undefined,
-          messageId:
-            typeof body.messageId === 'string' ? body.messageId : undefined,
-        })
+        try {
+          const result = await handler({
+            threadId: body.threadId,
+            serverId: body.serverId,
+            toolName: body.toolName,
+            args:
+              body.args !== null &&
+              typeof body.args === 'object' &&
+              !Array.isArray(body.args)
+                ? body.args
+                : undefined,
+            messageId:
+              typeof body.messageId === 'string' ? body.messageId : undefined,
+          })
 
-        return Response.json(result)
+          return Response.json(result)
+        } finally {
+          // The handler reconnects its own per-call client; `widgets` is only
+          // read for its descriptor (getInfo() — pure data, valid post-close),
+          // so close it here to avoid leaking a connection per POST.
+          await widgets.close().catch(() => undefined)
+        }
       },
     },
   },
