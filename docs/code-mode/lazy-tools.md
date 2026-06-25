@@ -21,7 +21,7 @@ Lazy tools fix this with **progressive disclosure**: mark rarely-used tools `laz
 
 Add `lazy: true` to the `toolDefinition` config for any tool you want to defer:
 
-```typescript
+```typescript group=lazy-tools
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
 
@@ -61,7 +61,7 @@ Eager tools continue to receive full type stubs in the system prompt. Lazy tools
 
 Pass both eager and lazy tools to `createCodeMode`. When at least one tool is lazy, `createCodeMode` also returns a `discover_tools` sibling tool — include it in the `tools` array you pass to `chat()`:
 
-```typescript
+```typescript group=lazy-tools
 // server/route.ts
 import { chat, maxIterations, toServerSentEventsStream } from "@tanstack/ai";
 import { createCodeMode } from "@tanstack/ai-code-mode";
@@ -127,6 +127,15 @@ By default, lazy tools appear in the system prompt as bare names with no descrip
 If you want the model to have a hint about what each tool does before deciding whether to discover it, use `lazyToolsConfig.includeDescription`:
 
 ```typescript
+import { createCodeMode } from "@tanstack/ai-code-mode";
+import { createNodeIsolateDriver } from "@tanstack/ai-isolate-node";
+import {
+  fetchWeather,
+  fetchArchive,
+  runReport,
+  exportData,
+} from "./tools";
+
 const { tools, systemPrompt } = createCodeMode({
   driver: createNodeIsolateDriver(),
   tools: [fetchWeather, fetchArchive, runReport, exportData],
@@ -159,19 +168,26 @@ The full type stub and input/output schema are always returned on discovery — 
 The same `lazyToolsConfig` option works for lazy tools used directly with `chat()`, outside of Code Mode. Tools marked `lazy: true` are withheld from the `__lazy__tool__discovery__` catalog description until the model calls for them. Pass `lazyToolsConfig` directly to `chat()`:
 
 ```typescript
-import { chat, maxIterations } from "@tanstack/ai";
+import { chat, maxIterations, toServerSentEventsStream } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
+import { fetchWeather, fetchArchive, runReport } from "./tools";
 
 // Non-code-mode: lazy tools in a regular chat agent
-const stream = chat({
-  adapter: openaiText("gpt-5.5"),
-  messages,
-  tools: [fetchWeather, fetchArchive, runReport],
-  lazyToolsConfig: {
-    includeDescription: "first-sentence",
-  },
-  agentLoopStrategy: maxIterations(10),
-});
+export async function POST(req: Request) {
+  const { messages } = await req.json();
+
+  const stream = chat({
+    adapter: openaiText("gpt-5.5"),
+    messages,
+    tools: [fetchWeather, fetchArchive, runReport],
+    lazyToolsConfig: {
+      includeDescription: "first-sentence",
+    },
+    agentLoopStrategy: maxIterations(10),
+  });
+
+  return toServerSentEventsStream(stream);
+}
 ```
 
 The `includeDescription` behavior is identical — `'none'` lists bare tool names, `'first-sentence'` appends the first sentence, `'full'` appends the complete description.

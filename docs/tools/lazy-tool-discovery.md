@@ -105,15 +105,24 @@ controls how much of each lazy tool's description appears in that pre-discovery
 catalog:
 
 ```typescript
-const stream = chat({
-  adapter: openaiText("gpt-5.5"),
-  messages,
-  tools: [getProducts, searchProducts, compareProducts],
-  lazyToolsConfig: {
-    // 'none' (default) | 'first-sentence' | 'full'
-    includeDescription: "first-sentence",
-  },
-});
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { getProducts, searchProducts, compareProducts } from "./tools";
+
+async function handleRequest(request: Request) {
+  const { messages } = await request.json();
+  const stream = chat({
+    adapter: openaiText("gpt-5.5"),
+    messages,
+    tools: [getProducts, searchProducts, compareProducts],
+    lazyToolsConfig: {
+      // 'none' (default) | 'first-sentence' | 'full'
+      includeDescription: "first-sentence",
+    },
+  });
+
+  return toServerSentEventsResponse(stream);
+}
 ```
 
 | `includeDescription` | Catalog entry for `searchProducts`              |
