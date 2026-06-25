@@ -181,13 +181,15 @@ describe('createMCPClient', () => {
     await expect(client.close()).resolves.toBeUndefined()
   })
 
-  it('getInfo() returns the transport and prefix passed to createMCPClient', async () => {
+  it('getInfo() retains no transport when createMCPClient is given a Transport instance', async () => {
     const { clientTransport } = await makeServerWithWeatherTool()
     await using client = await createMCPClient({
       transport: clientTransport,
       prefix: 'wx',
     })
-    expect(client.getInfo()).toEqual({ transport: clientTransport, prefix: 'wx' })
+    // A ready-made Transport instance is single-use / not reconnectable, so
+    // only serializable transport configs are retained as a descriptor.
+    expect(client.getInfo()).toEqual({ transport: undefined, prefix: 'wx' })
   })
 
   it('getInfo() returns an undefined transport for a client built from a raw Transport', async () => {

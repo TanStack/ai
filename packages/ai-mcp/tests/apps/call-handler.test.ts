@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MCPClient } from '../../src/client'
 import type { MCPClients } from '../../src/pool'
-import type { MCPClientOptions } from '../../src/types'
+import type { TransportConfig } from '../../src/transport'
 
 const callToolMock = vi.fn(async () => ({
   content: [{ type: 'text', text: 'ok' }],
@@ -29,7 +29,7 @@ import { createMcpAppCallHandler } from '../../src/apps/call-handler'
 import { createMCPClient } from '../../src/client'
 import { inMemoryMcpSessionStore } from '../../src/apps/session-store'
 
-type TransportDescriptor = MCPClientOptions['transport']
+type TransportDescriptor = TransportConfig
 type ServerInfo = {
   transport: TransportDescriptor | undefined
   prefix: string | undefined

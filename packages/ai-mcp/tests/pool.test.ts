@@ -135,11 +135,13 @@ describe('createMCPClients', () => {
       alpha: { transport: a.clientTransport },
       beta: { transport: b.clientTransport, prefix: 'wx' },
     })
+    // transport is undefined here because these clients are built from
+    // in-memory Transport instances (single-use, not reconnectable); only
+    // serializable configs are retained. The keying (config key) and prefix
+    // resolution (default = config key vs explicit) are what this asserts.
     expect(pool.getServers()).toEqual({
-      // default prefix = config key
-      alpha: { transport: a.clientTransport, prefix: 'alpha' },
-      // explicit prefix wins
-      beta: { transport: b.clientTransport, prefix: 'wx' },
+      alpha: { transport: undefined, prefix: 'alpha' },
+      beta: { transport: undefined, prefix: 'wx' },
     })
   })
 
