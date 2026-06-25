@@ -12,6 +12,10 @@ import {
   createGroqText as _realCreateGroqText,
   groqText as _realGroqText,
 } from '../src/adapters/text'
+import {
+  createGroqSummarize,
+  groqSummarize,
+} from '../src/adapters/summarize'
 import { EventType } from '@tanstack/ai'
 import type { StreamChunk, Tool } from '@tanstack/ai'
 import type { GroqTextProviderOptions } from '../src/index'
@@ -186,6 +190,37 @@ describe('Groq adapters', () => {
         top_p: 0.8,
         max_completion_tokens: 128,
       })
+    })
+  })
+
+  describe('Summarize adapter', () => {
+    it('creates a summarize adapter with explicit API key', () => {
+      const adapter = createGroqSummarize(
+        'llama-3.3-70b-versatile',
+        'test-api-key',
+      )
+
+      expect(adapter).toBeDefined()
+      expect(adapter.kind).toBe('summarize')
+      expect(adapter.name).toBe('groq')
+      expect(adapter.model).toBe('llama-3.3-70b-versatile')
+    })
+
+    it('creates a summarize adapter from environment variable', () => {
+      vi.stubEnv('GROQ_API_KEY', 'env-api-key')
+
+      const adapter = groqSummarize('llama-3.3-70b-versatile')
+
+      expect(adapter).toBeDefined()
+      expect(adapter.kind).toBe('summarize')
+    })
+
+    it('throws if GROQ_API_KEY is not set when using groqSummarize', () => {
+      vi.stubEnv('GROQ_API_KEY', '')
+
+      expect(() => groqSummarize('llama-3.3-70b-versatile')).toThrow(
+        'GROQ_API_KEY is required',
+      )
     })
   })
 })

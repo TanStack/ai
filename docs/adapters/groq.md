@@ -129,6 +129,24 @@ const stream = chat({
 
 > If you previously passed `temperature` / `topP` / `maxTokens` at the root of `chat()`, see [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
 
+## Summarization
+
+Summarize long text content:
+
+```typescript
+import { summarize } from "@tanstack/ai";
+import { groqSummarize } from "@tanstack/ai-groq";
+
+const result = await summarize({
+  adapter: groqSummarize("llama-3.3-70b-versatile"),
+  text: "Your long text to summarize...",
+  maxLength: 100,
+  style: "concise", // "concise" | "bullet-points" | "paragraph"
+});
+
+console.log(result.summary);
+```
+
 ### Reasoning
 
 Enable reasoning for models that support it (e.g., `openai/gpt-oss-120b`, `qwen/qwen3-32b`). This allows the model to show its reasoning process, which is streamed as `thinking` chunks:
@@ -201,6 +219,18 @@ Creates a Groq chat adapter with an explicit API key.
   - `baseURL` - Custom base URL for API requests (optional)
 
 **Returns:** A Groq chat adapter instance.
+
+### `groqSummarize(model, config?)`
+
+Creates a Groq summarization adapter using environment variables.
+
+**Returns:** A Groq summarize adapter instance.
+
+### `createGroqSummarize(model, apiKey, config?)`
+
+Creates a Groq summarization adapter with an explicit API key.
+
+**Returns:** A Groq summarize adapter instance.
 
 ## Limitations
 
