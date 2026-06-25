@@ -608,6 +608,38 @@ export interface SummarizeUsageEvent extends BaseEventContext {
 }
 
 // ===========================
+// Rerank Events
+// ===========================
+
+/** Emitted when a rerank request starts. */
+export interface RerankRequestStartedEvent extends BaseEventContext {
+  requestId: string
+  provider: string
+  model: string
+  /** Number of documents submitted for reranking. */
+  documentCount: number
+}
+
+/** Emitted when rerank completes. */
+export interface RerankRequestCompletedEvent extends BaseEventContext {
+  requestId: string
+  provider: string
+  model: string
+  /** Number of documents submitted for reranking. */
+  documentCount: number
+  /** Number of ranked results returned (after any `topN`). */
+  resultCount: number
+  duration: number
+}
+
+/** Emitted when rerank usage metrics are available. */
+export interface RerankUsageEvent extends BaseEventContext {
+  requestId: string
+  model: string
+  usage: TokenUsage
+}
+
+// ===========================
 // Image Events
 // ===========================
 
@@ -1014,6 +1046,11 @@ export interface AIDevtoolsEventMap {
   'summarize:request:started': SummarizeRequestStartedEvent
   'summarize:request:completed': SummarizeRequestCompletedEvent
   'summarize:usage': SummarizeUsageEvent
+
+  // Rerank events
+  'rerank:request:started': RerankRequestStartedEvent
+  'rerank:request:completed': RerankRequestCompletedEvent
+  'rerank:usage': RerankUsageEvent
 
   // Image events
   'image:request:started': ImageRequestStartedEvent

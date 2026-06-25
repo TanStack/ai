@@ -278,6 +278,16 @@
       ]
     },
     {
+      "label": "Reranking",
+      "children": [
+        {
+          "label": "Reranking",
+          "to": "rerank/rerank",
+          "addedAt": "2026-06-25"
+        }
+      ]
+    },
+    {
       "label": "Middleware",
       "children": [
         {
@@ -468,6 +478,11 @@
           "to": "adapters/openai-compatible",
           "addedAt": "2026-06-01",
           "updatedAt": "2026-06-20"
+        },
+        {
+          "label": "Cohere",
+          "to": "adapters/cohere",
+          "addedAt": "2026-06-25"
         }
       ]
     },
