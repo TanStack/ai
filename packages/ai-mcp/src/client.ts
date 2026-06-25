@@ -60,6 +60,20 @@ export interface MCPClient<
     name: string,
     args?: Record<string, unknown>,
   ) => Promise<Awaited<ReturnType<Client['callTool']>>>
+  /**
+   * The ORIGINAL connection descriptor this client was created from — the
+   * `transport` input and `prefix` passed to `createMCPClient`. Used by
+   * `createMcpAppCallHandler` to reconnect per-call (serverless-safe) without
+   * a separate transport-config map.
+   *
+   * `transport` is `undefined` for clients built from a raw `Transport`
+   * instance via `createMCPClientFromTransport` (test-only) — there is no
+   * reconnectable descriptor in that case.
+   */
+  getInfo: () => {
+    transport: MCPClientOptions['transport'] | undefined
+    prefix: string | undefined
+  }
   close: () => Promise<void>
   [Symbol.asyncDispose]: () => Promise<void>
 }
@@ -71,10 +85,26 @@ class MCPClientImpl<
   readonly #client: Client
   #closed = false
   private readonly prefix?: string
+  // The ORIGINAL transport descriptor input (undefined for clients built from
+  // a raw Transport instance via createMCPClientFromTransport).
+  readonly #transport: MCPClientOptions['transport'] | undefined
 
-  constructor(prefix?: string, name = 'tanstack-ai-mcp', version = '0.0.1') {
+  constructor(
+    prefix?: string,
+    name = 'tanstack-ai-mcp',
+    version = '0.0.1',
+    transport?: MCPClientOptions['transport'],
+  ) {
     this.prefix = prefix
+    this.#transport = transport
     this.#client = new Client({ name, version })
+  }
+
+  getInfo(): {
+    transport: MCPClientOptions['transport'] | undefined
+    prefix: string | undefined
+  } {
+    return { transport: this.#transport, prefix: this.prefix }
   }
 
   async connect(transport: Transport): Promise<void> {
@@ -191,6 +221,7 @@ export async function createMCPClient<
     options.prefix,
     options.name,
     options.version,
+    options.transport,
   )
   await impl.connect(transport)
   return impl

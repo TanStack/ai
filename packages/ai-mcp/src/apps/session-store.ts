@@ -1,7 +1,12 @@
 import type { MCPClientOptions } from '../types'
 
 export interface McpServerDescriptor {
-  transport: MCPClientOptions['transport']
+  /**
+   * The connection descriptor the call handler reconnects from. `undefined`
+   * only for a client built from a raw `Transport` instance (no reconnectable
+   * descriptor) — the handler rejects such a call with a clear error.
+   */
+  transport: MCPClientOptions['transport'] | undefined
   prefix?: string
 }
 

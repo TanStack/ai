@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { createMCPClient } from '@tanstack/ai-mcp'
 import { createMcpAppCallHandler } from '@tanstack/ai-mcp/apps'
 
 /**
@@ -8,11 +9,12 @@ import { createMcpAppCallHandler } from '@tanstack/ai-mcp/apps'
  *
  *   { threadId, serverId, toolName, args?, messageId? }
  *
- * The handler resolves the server descriptor from its static `servers` map,
- * reconnects to the in-process MCP Apps server (`api.mcp-apps-server`),
- * enforces a same-server allowlist (a tool the server does not expose →
- * `{ ok: false }`), proxies `callTool`, and always closes the client. We return
- * its JSON result verbatim.
+ * The handler reads the connection descriptor off the MCP client it was given
+ * (the same client you'd pass to `chat({ mcp: { clients } })`), reconnects to
+ * the in-process MCP Apps server (`api.mcp-apps-server`) per call, enforces a
+ * same-server allowlist (a tool the server does not expose → `{ ok: false }`),
+ * proxies `callTool`, and always closes the per-call client. We return its JSON
+ * result verbatim.
  */
 export const Route = createFileRoute('/api/mcp-apps-call')({
   server: {
@@ -41,18 +43,15 @@ export const Route = createFileRoute('/api/mcp-apps-call')({
           })
         }
 
-        // The MCP Apps server lives at this same dev server's origin.
+        // The MCP Apps server lives at this same dev server's origin. Create
+        // the client the same way `chat({ mcp })` would; the handler reads its
+        // descriptor (via getInfo) and reconnects per call.
         const origin = new URL(request.url).origin
-        const handler = createMcpAppCallHandler({
-          servers: {
-            widgets: {
-              transport: {
-                type: 'http',
-                url: `${origin}/api/mcp-apps-server`,
-              },
-            },
-          },
+        const widgets = await createMCPClient({
+          transport: { type: 'http', url: `${origin}/api/mcp-apps-server` },
+          prefix: 'widgets',
         })
+        const handler = createMcpAppCallHandler({ clients: widgets })
 
         const result = await handler({
           threadId: body.threadId,

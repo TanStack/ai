@@ -30,6 +30,19 @@ export interface MCPClients<
    * (the chat manager binds `readResource` only when the source exposes it).
    */
   readResource: (uri: string) => Promise<ReadResourceResult>
+  /**
+   * The connection descriptors for every server in the pool, keyed by config
+   * key (the serverId / default prefix). Used by `createMcpAppCallHandler` to
+   * reconnect per-call (serverless-safe) without a separate transport-config
+   * map. Each value mirrors the owning client's `getInfo()`.
+   */
+  getServers: () => Record<
+    string,
+    {
+      transport: MCPClientOptions['transport'] | undefined
+      prefix: string | undefined
+    }
+  >
   /** Close every client. */
   close: () => Promise<void>
   [Symbol.asyncDispose]: () => Promise<void>
@@ -121,6 +134,19 @@ export async function createMCPClients<
         seen.add(t.name)
       }
       return all
+    },
+    getServers(): Record<
+      string,
+      {
+        transport: MCPClientOptions['transport'] | undefined
+        prefix: string | undefined
+      }
+    > {
+      // Keyed by config key (serverId / default prefix). Read each underlying
+      // client's original descriptor via getInfo().
+      return Object.fromEntries(
+        Object.entries(clients).map(([key, c]) => [key, c.getInfo()]),
+      )
     },
     async readResource(uri: string): Promise<ReadResourceResult> {
       // Ownership isn't tracked, so try each client. A non-owning server may
