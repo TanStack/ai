@@ -654,11 +654,27 @@ export interface Tool<
   /** If true, tool execution requires user approval before running. Works with both server and client tools. */
   needsApproval?: boolean
 
-  /** If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Only meaningful when used with chat(). */
+  /** If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Works with both chat() (the synthetic discovery tool) and Code Mode (kept out of the system prompt and revealed via discover_tools). */
   lazy?: boolean
 
   /** Additional metadata for adapters or custom extensions */
   metadata?: Record<string, any> | undefined
+}
+
+/**
+ * Configuration for the lazy-tool discovery catalog, shared by chat() and
+ * Code Mode. Optional in both — lazy behavior is triggered purely by tools
+ * marked `lazy: true`; this only tunes how much of each lazy tool's
+ * description appears in the pre-discovery catalog. The post-discovery payload
+ * always returns the full description + schema.
+ */
+export interface LazyToolsConfig {
+  /**
+   * How much of each lazy tool's description appears in the pre-discovery
+   * catalog (the names list shown before the model discovers the tool).
+   * @default 'none'
+   */
+  includeDescription?: 'full' | 'first-sentence' | 'none'
 }
 
 export type AnyTool = Omit<Tool<any, any, any, any>, 'execute'> & {
@@ -819,6 +835,12 @@ export interface TextOptions<
    */
   systemPrompts?: Array<SystemPrompt>
   agentLoopStrategy?: AgentLoopStrategy
+  /**
+   * Optional configuration for lazy-tool discovery (tools marked `lazy: true`).
+   * Tunes how much of each lazy tool's description appears in the discovery
+   * catalog. Optional — defaults to `{ includeDescription: 'none' }`.
+   */
+  lazyToolsConfig?: LazyToolsConfig
   /**
    * Observability metadata attached to this call. Surfaced to middleware,
    * devtools, and the event client; values may be arbitrarily structured

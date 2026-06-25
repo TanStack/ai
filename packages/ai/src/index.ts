@@ -154,6 +154,11 @@ export type {
 // All types
 export * from './types'
 
+export {
+  firstSentence,
+  renderLazyCatalogEntry,
+} from './activities/chat/tools/lazy-tools'
+
 // Usage utilities
 export { buildBaseUsage, type BaseUsageInput } from './utilities/usage'
 

@@ -360,7 +360,7 @@ const compareProducts = compareProductsDef.server(async ({ productIds }) => {
 export async function POST(request: Request) {
   const { messages } = await request.json()
   const stream = chat({
-    adapter: openaiText('gpt-4o'),
+    adapter: openaiText('gpt-5.5'),
     messages,
     tools: [getProducts, compareProducts],
     agentLoopStrategy: maxIterations(20),
@@ -374,6 +374,31 @@ To compare, it first calls `__lazy__tool__discovery__({ toolNames: ["compareProd
 gets the full schema, then calls `compareProducts` directly.
 Once discovered, a tool stays available for the conversation.
 When all lazy tools are discovered, the discovery tool is removed automatically.
+
+### Tuning the lazy catalog with `lazyToolsConfig`
+
+By default the discovery-tool catalog lists only bare names (`'none'`). Pass
+`lazyToolsConfig` to `chat()` to include more context:
+
+```typescript
+const stream = chat({
+  adapter: openaiText('gpt-5.5'),
+  messages,
+  tools: [getProducts, compareProducts],
+  agentLoopStrategy: maxIterations(20),
+  lazyToolsConfig: { includeDescription: 'first-sentence' },
+})
+```
+
+`includeDescription` values:
+
+| Value              | Catalog entry                                                                            | When to use                                                                        |
+| ------------------ | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `'none'` (default) | `compareProducts`                                                                        | Smallest prompt; model discovers by name                                           |
+| `'first-sentence'` | `compareProducts — Compare two or more products side by side.`                           | Helps the model decide whether to discover without extra tokens                    |
+| `'full'`           | `compareProducts — Compare two or more products side by side. Accepts productIds array.` | Use when descriptions are short or the model needs full context to route correctly |
+
+The post-discovery payload always returns the full description and schema regardless of this setting.
 
 ## MCP Tools
 

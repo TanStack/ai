@@ -245,11 +245,17 @@ export function createCodeModeTool(
  * Build the tool description including available external functions
  */
 function buildToolDescription(tools: Array<CodeModeTool>): string {
-  const externalFunctions = tools.map((t) => `external_${t.name}`).join(', ')
+  const eager = tools.filter((t) => !t.lazy)
+  const hasLazy = tools.some((t) => t.lazy)
+  const externalFunctions = eager.map((t) => `external_${t.name}`).join(', ')
+
+  const discoverable = hasLazy
+    ? ` Additional functions can be discovered via the discover_tools tool.`
+    : ''
 
   return (
     `Execute TypeScript code in a secure sandbox environment. ` +
-    `The code can use these external API functions: ${externalFunctions}. ` +
+    `The code can use these external API functions: ${externalFunctions}.${discoverable} ` +
     `All external_* calls are async and must be awaited. ` +
     `Return a value to pass results back. Use console.log() for debugging.`
   )
