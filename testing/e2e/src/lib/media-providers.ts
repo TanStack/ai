@@ -42,9 +42,7 @@ function testHeaders(testId?: string): Record<string, string> | undefined {
 function getOpenaiTranscriptionModel(options: TranscriptionAdapterOptions) {
   const modelOptions = options.modelOptions
   const isDiarizationRequest =
-    options.responseFormat === 'diarized_json' ||
     modelOptions?.response_format === 'diarized_json' ||
-    modelOptions?.diarize === true ||
     modelOptions?.chunking_strategy !== undefined ||
     modelOptions?.known_speaker_names !== undefined ||
     modelOptions?.known_speaker_references !== undefined

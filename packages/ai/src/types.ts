@@ -1715,7 +1715,6 @@ export type TranscriptionResponseFormat =
   | 'srt'
   | 'verbose_json'
   | 'vtt'
-  | 'diarized_json'
 
 export interface TranscriptionOptions<
   TProviderOptions extends object = object,
