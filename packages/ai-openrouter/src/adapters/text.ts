@@ -8,10 +8,10 @@ import {
 import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../internal/request-options'
 import { makeStructuredOutputCompatible } from '../internal/schema-converter'
+import { openRouterSupportsCombinedToolsAndSchema } from '../internal/combined-tools-and-schema'
 import { convertToolsToProviderFormat } from '../tools'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
 import { buildOpenRouterUsage } from '../usage'
-import { OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS } from '../model-meta'
 import { extractUsageCost } from './cost'
 import type { SDKOptions } from '@openrouter/sdk'
 import type {
@@ -28,6 +28,7 @@ import type {
 } from '@tanstack/ai/adapters'
 import type {
   ContentPart,
+  JSONSchema,
   ModelMessage,
   StreamChunk,
   TextOptions,
@@ -1193,11 +1194,10 @@ export class OpenRouterTextAdapter<
     // final-turn text — no separate finalization round-trip. The legacy
     // `structuredOutput*` methods strip `outputSchema` before calling this, so
     // this branch only fires on the combined path.
-    const combinedOutputSchema = options.outputSchema as
-      | (Record<string, any> & { required?: Array<string> })
-      | undefined
+    const combinedOutputSchema = options.outputSchema as JSONSchema | undefined
     const combinedSchema =
-      combinedOutputSchema && this.supportsCombinedToolsAndSchema()
+      combinedOutputSchema &&
+      this.supportsCombinedToolsAndSchema(options.modelOptions)
         ? this.makeStructuredOutputCompatible(
             combinedOutputSchema,
             combinedOutputSchema.required,
@@ -1231,14 +1231,16 @@ export class OpenRouterTextAdapter<
 
   /**
    * Native combined tools + `outputSchema` (#612). OpenRouter routes to many
-   * upstream providers, so capability is per-model: `this.model` is the bare
-   * canonical catalog id (the `:variant` suffix is a routing directive applied
-   * at request-build time and does not change combined-mode support), so the
-   * lookup ignores `modelOptions` and keys directly off `this.model`. Models
-   * not in the set fall back to the legacy finalization path.
+   * upstream providers, so capability is per-request: `modelOptions.models`
+   * can add fallback routes, and native combined mode is safe only when every
+   * possible routed model supports it. `:variant` suffixes are routing
+   * directives and do not change combined-mode support. Models not in the set
+   * fall back to the legacy finalization path.
    */
-  supportsCombinedToolsAndSchema(): boolean {
-    return OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(this.model)
+  supportsCombinedToolsAndSchema(
+    modelOptions?: ResolveProviderOptions<TModel>,
+  ): boolean {
+    return openRouterSupportsCombinedToolsAndSchema(this.model, modelOptions)
   }
 
   /**

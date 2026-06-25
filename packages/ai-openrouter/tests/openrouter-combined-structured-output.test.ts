@@ -34,7 +34,10 @@ type RequestBuilder = {
   mapOptionsToRequest: (options: Record<string, unknown>) => Record<string, any>
 }
 
-function buildChatRequest(model: string, modelOptions?: Record<string, unknown>) {
+function buildChatRequest(
+  model: string,
+  modelOptions?: Record<string, unknown>,
+) {
   const adapter = createOpenRouterText(
     model as 'openai/gpt-4o',
     'test-key',
@@ -71,7 +74,10 @@ describe('OpenRouter combined tools + outputSchema (#612)', () => {
         ).supportsCombinedToolsAndSchema(),
       ).toBe(true)
       expect(
-        createOpenRouterText('openai/gpt-4o', 'k').supportsCombinedToolsAndSchema(),
+        createOpenRouterText(
+          'openai/gpt-4o',
+          'k',
+        ).supportsCombinedToolsAndSchema(),
       ).toBe(true)
       expect(
         createOpenRouterText(
@@ -113,6 +119,21 @@ describe('OpenRouter combined tools + outputSchema (#612)', () => {
         ).supportsCombinedToolsAndSchema(),
       ).toBe(false)
     })
+
+    it('requires every OpenRouter fallback model to support combined mode', () => {
+      const adapter = createOpenRouterText('openai/gpt-4o', 'k')
+
+      expect(
+        adapter.supportsCombinedToolsAndSchema({
+          models: ['anthropic/claude-sonnet-4.5'],
+        }),
+      ).toBe(true)
+      expect(
+        adapter.supportsCombinedToolsAndSchema({
+          models: ['openai/gpt-4o-2024-05-13'],
+        }),
+      ).toBe(false)
+    })
   })
 
   describe('chat-completions request payload', () => {
@@ -134,6 +155,15 @@ describe('OpenRouter combined tools + outputSchema (#612)', () => {
       const req = buildChatRequest('anthropic/claude-opus-4.1')
       expect(req.responseFormat).toBeUndefined()
       // tools still flow — only the schema attachment is gated.
+      expect(req.tools).toBeDefined()
+    })
+
+    it('omits responseFormat when any fallback model is unsupported', () => {
+      const req = buildChatRequest('openai/gpt-4o', {
+        models: ['openai/gpt-4o-2024-05-13'],
+      })
+      expect(req.responseFormat).toBeUndefined()
+      expect(req.models).toEqual(['openai/gpt-4o-2024-05-13'])
       expect(req.tools).toBeDefined()
     })
 
@@ -162,6 +192,23 @@ describe('OpenRouter combined tools + outputSchema (#612)', () => {
     it('omits text.format for an unsupported model', () => {
       const req = buildResponsesRequest('openai/gpt-4o-2024-05-13')
       expect(req.text).toBeUndefined()
+    })
+
+    it('omits text.format when any fallback model is unsupported', () => {
+      const adapter = createOpenRouterResponsesText(
+        'openai/gpt-4o',
+        'test-key',
+      ) as unknown as RequestBuilder
+      const req = adapter.mapOptionsToRequest({
+        model: 'openai/gpt-4o',
+        messages: [{ role: 'user', content: 'hi' }],
+        tools,
+        outputSchema,
+        modelOptions: { models: ['openai/gpt-4o-2024-05-13'] },
+      })
+      expect(req.text).toBeUndefined()
+      expect(req.models).toEqual(['openai/gpt-4o-2024-05-13'])
+      expect(req.tools).toBeDefined()
     })
 
     it('preserves caller-supplied text.* fields when attaching the schema format', () => {

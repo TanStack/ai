@@ -15920,10 +15920,20 @@ export const OPENROUTER_IMAGE_MODELS = [
  *     gpt-5*, o-series, and gpt-oss-* — tool-capable text variants only
  *   - x.ai: Grok 4.x (tool-capable; excludes the multi-agent variant)
  *
- * Every entry must also exist in {@link OPENROUTER_CHAT_MODELS} (guarded by a
- * unit test) and carry both `responseFormat` and `toolChoice` capability.
+ * Every entry must also exist in {@link OpenRouterModelOptionsByName} and carry
+ * both `responseFormat` and `toolChoice` capability (guarded by the
+ * `satisfies` check on `OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODEL_IDS`
+ * below), and exist in {@link OPENROUTER_CHAT_MODELS} (guarded by a unit test).
  */
-export const OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS = new Set<string>([
+type OpenRouterCombinedToolsAndSchemaModelId = {
+  [K in keyof OpenRouterModelOptionsByName]: 'responseFormat' extends keyof OpenRouterModelOptionsByName[K]
+    ? 'toolChoice' extends keyof OpenRouterModelOptionsByName[K]
+      ? K
+      : never
+    : never
+}[keyof OpenRouterModelOptionsByName]
+
+const OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODEL_IDS = [
   // Anthropic — the Claude 4.5+ ids the upstream gate currently blesses.
   // Mirrors ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS exactly (it stops at
   // 4.7), so OpenRouter-routed Claude 4.8 takes the same legacy path as the
@@ -15993,4 +16003,8 @@ export const OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS = new Set<string>([
   // x.ai — Grok 4.x (tool-capable)
   'x-ai/grok-4.20',
   'x-ai/grok-4.3',
-])
+] as const satisfies ReadonlyArray<OpenRouterCombinedToolsAndSchemaModelId>
+
+export const OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS = new Set<string>(
+  OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODEL_IDS,
+)
