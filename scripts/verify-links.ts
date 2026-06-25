@@ -53,6 +53,13 @@ function relativeLinkExists(link: string, file: string): boolean {
     return false
   }
 
+  // The API reference (docs/reference/**) is TypeDoc-generated at build time
+  // and not committed, so its targets can't be resolved here. These are valid
+  // routes on the built site; skip them rather than flagging false positives.
+  if (absPath.startsWith(resolve(docsRoot, 'reference'))) {
+    return true
+  }
+
   // Check if this is an example path
   const isExample = absPath.includes('/examples/')
 
