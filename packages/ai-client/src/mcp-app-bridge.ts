@@ -9,8 +9,6 @@ export interface CreateMcpAppBridgeOptions {
   }
   fetchImpl?: typeof fetch
   onLink?: (url: string) => void
-  onNotify?: (payload: unknown) => void
-  onIntent?: (intent: string, payload: unknown) => void
 }
 
 export interface McpAppBridge {
@@ -22,6 +20,18 @@ export interface McpAppBridge {
   }) => Promise<unknown>
   sendPrompt: (text: string) => Promise<void>
   openLink: (url: string) => { isError: boolean }
+}
+
+interface ToolCallResponse {
+  ok: boolean
+  result?: unknown
+  error?: string
+}
+
+function isToolCallResponse(value: unknown): value is ToolCallResponse {
+  if (value === null || typeof value !== 'object') return false
+  const record = value as Record<string, unknown>
+  return typeof record['ok'] === 'boolean'
 }
 
 export function createMcpAppBridge(
@@ -44,17 +54,20 @@ export function createMcpAppBridge(
         }),
       })
 
-      const data = (await response.json()) as {
-        ok: boolean
-        result?: unknown
-        error?: string
+      if (!response.ok) {
+        throw new Error(`MCP app tool call failed: HTTP ${response.status}`)
       }
 
-      if (!data.ok) {
-        throw new Error(data.error ?? 'MCP app tool call failed')
+      const raw: unknown = await response.json()
+      if (!isToolCallResponse(raw)) {
+        throw new Error('MCP app tool call failed')
       }
 
-      return data.result
+      if (!raw.ok) {
+        throw new Error(raw.error ?? 'MCP app tool call failed')
+      }
+
+      return raw.result
     },
 
     async sendPrompt(text) {
@@ -66,6 +79,7 @@ export function createMcpAppBridge(
         onLink(url)
         return { isError: false }
       }
+      console.warn('[mcp-app-bridge] openLink ignored: no onLink handler configured')
       return { isError: true }
     },
   }

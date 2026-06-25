@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { createMcpAppBridge } from '../src/mcp-app-bridge'
 
 describe('createMcpAppBridge', () => {
@@ -11,7 +11,17 @@ describe('createMcpAppBridge', () => {
 
   function makeFetchMock(response: unknown) {
     return vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
       json: vi.fn().mockResolvedValue(response),
+    } as unknown as Response)
+  }
+
+  function makeFailingFetchMock(status: number) {
+    return vi.fn().mockResolvedValue({
+      ok: false,
+      status,
+      json: vi.fn().mockRejectedValue(new Error('not json')),
     } as unknown as Response)
   }
 
@@ -105,10 +115,28 @@ describe('createMcpAppBridge', () => {
       )
     })
 
+    it('throws when HTTP response is non-2xx (e.g. 500)', async () => {
+      const fetchMock = makeFailingFetchMock(500)
+      const chat = makeChatMock()
+
+      const bridge = createMcpAppBridge({
+        threadId,
+        callEndpoint,
+        chat,
+        fetchImpl: fetchMock,
+      })
+
+      await expect(bridge.callTool({ toolName: 'boom' })).rejects.toThrow(
+        'HTTP 500',
+      )
+    })
+
     it('uses global fetch when fetchImpl is omitted', async () => {
       const globalFetchSpy = vi
         .spyOn(globalThis, 'fetch')
         .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
           json: vi.fn().mockResolvedValue({ ok: true, result: 42 }),
         } as unknown as Response)
 
@@ -143,12 +171,34 @@ describe('createMcpAppBridge', () => {
   })
 
   describe('openLink', () => {
+    let warnSpy: ReturnType<typeof vi.spyOn>
+
+    beforeEach(() => {
+      warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    })
+
+    afterEach(() => {
+      warnSpy.mockRestore()
+    })
+
     it('returns { isError: true } when onLink is not provided', () => {
       const chat = makeChatMock()
       const bridge = createMcpAppBridge({ threadId, callEndpoint, chat })
 
       const result = bridge.openLink('https://example.com')
       expect(result).toEqual({ isError: true })
+    })
+
+    it('emits a console.warn when onLink is not provided', () => {
+      const chat = makeChatMock()
+      const bridge = createMcpAppBridge({ threadId, callEndpoint, chat })
+
+      bridge.openLink('https://example.com')
+
+      expect(warnSpy).toHaveBeenCalledOnce()
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[mcp-app-bridge] openLink ignored: no onLink handler configured',
+      )
     })
 
     it('calls onLink and returns { isError: false } when onLink is provided', () => {
