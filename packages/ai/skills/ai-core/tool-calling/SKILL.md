@@ -75,7 +75,7 @@ import { updateCartUIDef } from '@/tools/definitions'
 export async function POST(request: Request) {
   const { messages } = await request.json()
   const stream = chat({
-    adapter: openaiText('gpt-4o'),
+    adapter: openaiText('gpt-5.5'),
     messages,
     tools: [getProducts, updateCartUIDef], // server tool + client definition
   })
@@ -158,7 +158,7 @@ const getUserData = getUserDataDef.server(async ({ userId }) => {
 
 // In your route handler:
 const stream = chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.5'),
   messages,
   tools: [getUserData],
 })
@@ -188,7 +188,7 @@ Server -- pass definition only (no execute function):
 
 ```typescript
 const stream = chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.5'),
   messages,
   tools: [showNotificationDef],
 })
@@ -360,7 +360,7 @@ const compareProducts = compareProductsDef.server(async ({ productIds }) => {
 export async function POST(request: Request) {
   const { messages } = await request.json()
   const stream = chat({
-    adapter: openaiText('gpt-4o'),
+    adapter: openaiText('gpt-5.5'),
     messages,
     tools: [getProducts, compareProducts],
     agentLoopStrategy: maxIterations(20),

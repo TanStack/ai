@@ -194,7 +194,7 @@ export const Route = createFileRoute('/api/mcp-apps/call')({
 })
 ```
 
-> **`link` intents are blocked by default.** If the widget emits a `link` action and no `onLink` handler is wired in the bridge, the navigation is silently dropped — the widget cannot open arbitrary URLs in the host page. Pass `onLink` explicitly to opt in.
+> **`link` actions need an `onLink` handler.** If the widget emits a `link` action and no `onLink` handler is wired in the bridge, the bridge drops the link (logging a warning) and `openLink` returns `{ isError: true }` — the call does not hang, and the widget cannot open arbitrary URLs in the host page. Pass `onLink` explicitly to opt in.
 
 #### Same-server allowlist
 
@@ -259,8 +259,7 @@ export const Route = createFileRoute('/api/chat')({
 
 - `tool` actions → POST to `callEndpoint` with the tool call payload.
 - `prompt` actions → `chat.sendMessage(prompt)`.
-- `link` actions → `onLink(url)` if provided, **blocked** otherwise.
-- `notify` / `intent` → optional callbacks.
+- `link` actions → `onLink(url)` if provided; dropped (with a warning) otherwise.
 
 ```tsx
 // src/components/Chat.tsx
@@ -388,9 +387,7 @@ const options: CreateMcpAppBridgeOptions = {
   callEndpoint: '/api/mcp-apps/call', // POST route mounting createMcpAppCallHandler
   chat: { sendMessage: async (text) => console.log(text) }, // prompt-intent path
   fetchImpl: fetch, // optional; injectable for testing
-  onLink: (url) => window.open(url, '_blank'), // absent → link is BLOCKED
-  onNotify: (payload) => console.log(payload),
-  onIntent: (intent, payload) => console.log(intent, payload),
+  onLink: (url) => window.open(url, '_blank'), // absent → link is dropped (warned), openLink returns { isError: true }
 }
 
 // Returns an McpAppBridge with callTool / sendPrompt / openLink methods.
