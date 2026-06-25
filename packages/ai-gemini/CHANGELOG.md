@@ -1,5 +1,11 @@
 # @tanstack/ai-gemini
 
+## 0.18.0
+
+### Minor Changes
+
+- [#781](https://github.com/TanStack/ai/pull/781) [`6f3b353`](https://github.com/TanStack/ai/commit/6f3b35314a287fd9fd29eecd0478cc8352f64732) - Upgrade `@google/genai` to v2 and migrate the experimental text-interactions adapter to the SDK 2.x step-based streaming API (`step.start` / `step.delta` / `step.stop`), replacing the prior `content.*` events. Streamed function-call arguments are now accumulated from `arguments_delta` fragments and parsed leniently with `partial-json`, so an incomplete or truncated buffer keeps the last good arguments instead of resetting them and no longer logs a parse error per fragment. Exported built-in-tool CUSTOM event payloads now carry `Interactions.*Step` values, and structured output uses the polymorphic `response_format` request shape.
+
 ## 0.17.3
 
 ### Patch Changes
