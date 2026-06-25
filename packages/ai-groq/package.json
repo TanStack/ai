@@ -1,15 +1,23 @@
 {
   "name": "@tanstack/ai-groq",
-  "version": "0.2.8",
-  "type": "module",
+  "version": "0.4.12",
   "description": "Groq adapter for TanStack AI low-latency chat, tool calling, and structured outputs.",
-  "author": "",
+  "author": "Tanner Linsley",
   "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/TanStack/ai.git",
     "directory": "packages/ai-groq"
   },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "type": "module",
   "module": "./dist/esm/index.js",
   "types": "./dist/esm/index.d.ts",
   "exports": {
@@ -60,6 +68,6 @@
   "dependencies": {
     "@tanstack/ai-utils": "workspace:*",
     "@tanstack/openai-base": "workspace:*",
-    "openai": "^6.9.1"
+    "openai": "^6.41.0"
   }
 }

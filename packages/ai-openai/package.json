@@ -1,13 +1,21 @@
 {
   "name": "@tanstack/ai-openai",
-  "version": "0.10.4",
+  "version": "0.15.6",
   "description": "OpenAI adapter for TanStack AI chat, tools, images, video, speech, transcription, realtime, and structured outputs.",
-  "author": "",
+  "author": "Tanner Linsley",
   "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/TanStack/ai.git",
     "directory": "packages/ai-openai"
+  },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
   },
   "type": "module",
   "module": "./dist/esm/index.js",
@@ -16,6 +24,10 @@
     ".": {
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
+    },
+    "./compatible": {
+      "types": "./dist/esm/compatible/index.d.ts",
+      "import": "./dist/esm/compatible/index.js"
     },
     "./tools": {
       "types": "./dist/esm/tools/index.d.ts",
@@ -56,16 +68,14 @@
   "dependencies": {
     "@tanstack/ai-utils": "workspace:*",
     "@tanstack/openai-base": "workspace:*",
-    "openai": "^6.9.1"
+    "openai": "^6.41.0"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
-    "@tanstack/ai-client": "workspace:^",
     "zod": "^4.0.0"
   },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
-    "@tanstack/ai-client": "workspace:*",
     "@vitest/coverage-v8": "4.0.14",
     "vite": "^7.3.3",
     "zod": "^4.2.0"

@@ -1,9 +1,13 @@
 import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
-import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
-import { generateId, transformNullsToUndefined } from '@tanstack/ai-utils'
+import {
+  toRunErrorPayload,
+  toRunErrorRawEvent,
+} from '@tanstack/ai/adapter-internals'
+import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../utils/request-options'
 import { makeStructuredOutputCompatible } from '../utils/schema-converter'
+import { buildResponsesUsage } from '../usage'
 import { convertToolsToResponsesFormat } from './responses-tool-converter'
 import type OpenAI from 'openai'
 import type {
@@ -13,6 +17,7 @@ import type {
 import type {
   Response,
   ResponseCreateParams,
+  ResponseFunctionCallOutputItem,
   ResponseInput,
   ResponseInputContent,
   ResponseStreamEvent,
@@ -119,6 +124,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         error,
         `${this.name}.chatStream failed`,
       )
+      const rawEvent = toRunErrorRawEvent(error)
 
       // Emit RUN_STARTED if not yet emitted
       if (!aguiState.hasEmittedRunStarted) {
@@ -143,6 +149,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         timestamp: Date.now(),
         message: errorPayload.message,
         code: errorPayload.code,
+        // Forward the provider's structured error body when present (see
+        // toRunErrorRawEvent); omitted otherwise.
+        ...(rawEvent !== undefined && { rawEvent }),
         error: {
           message: errorPayload.message,
           code: errorPayload.code,
@@ -238,12 +247,8 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         )
       }
 
-      // Apply the provider-specific post-parse shaping (default: null →
-      // undefined to align with the original Zod schema's optional-field
-      // semantics; subclasses with different conventions can override
-      // `transformStructuredOutput`, mirroring the chat-completions base's
-      // hook so OpenRouter and other providers that preserve nulls in
-      // structured output can opt out without forking `structuredOutput`).
+      // Provider-specific post-parse shaping (default passthrough). Null-widening
+      // from strict mode is undone by the engine, not here.
       const transformed = this.transformStructuredOutput(parsed)
 
       return {
@@ -568,7 +573,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         return
       }
 
-      const transformed = transformNullsToUndefined(parsed)
+      // Route through the same hook as the non-streaming path (default
+      // passthrough). Engine un-widens nulls; the streaming path must not strip
+      // them blindly either.
+      const transformed = this.transformStructuredOutput(parsed)
 
       yield {
         type: EventType.CUSTOM,
@@ -590,11 +598,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         timestamp,
         finishReason: 'stop',
         ...(usage && {
-          usage: {
-            promptTokens: usage.input_tokens,
-            completionTokens: usage.output_tokens,
-            totalTokens: usage.total_tokens,
-          },
+          usage: buildResponsesUsage(usage),
         }),
       }
     } catch (error: unknown) {
@@ -619,6 +623,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       // Conditional `code` spread keeps the wire shape spec-compliant under
       // `exactOptionalPropertyTypes` (see chatStream catch).
       const resolvedCode = isAbort ? 'aborted' : errorPayload.code
+      const rawEvent = isAbort ? undefined : toRunErrorRawEvent(error)
       yield {
         type: EventType.RUN_ERROR,
         runId: aguiState.runId,
@@ -626,6 +631,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         timestamp,
         message: errorPayload.message,
         ...(resolvedCode !== undefined && { code: resolvedCode }),
+        ...(rawEvent !== undefined && { rawEvent }),
         error: {
           message: errorPayload.message,
           ...(resolvedCode !== undefined && { code: resolvedCode }),
@@ -666,15 +672,17 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
   /**
    * Final shaping pass applied to parsed structured-output JSON before it is
-   * returned to the caller. Default converts `null` values to `undefined` so
-   * the result aligns with the original Zod schema's optional-field
-   * semantics. Subclasses with different conventions (OpenRouter historically
-   * preserves nulls) can override — mirrors the chat-completions base's hook
-   * so a subclass that opts out of null-stripping doesn't have to fork the
-   * whole `structuredOutput` method.
+   * returned to the caller. Default is a passthrough.
+   *
+   * Provider `null`s are no longer stripped here: strict-mode null-widening is
+   * now undone precisely by the engine (`undoNullWidening`, driven by the
+   * schema's null-widening map) the moment the result is captured, so a blind
+   * `transformNullsToUndefined` at the adapter would only destroy genuine
+   * `.nullable()` nulls. Subclasses may still override to remap or reshape the
+   * provider's structured output.
    */
   protected transformStructuredOutput(parsed: unknown): unknown {
-    return transformNullsToUndefined(parsed)
+    return parsed
   }
 
   /**
@@ -1192,6 +1200,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 toolCallId: item.id,
                 toolCallName: metadata.name,
                 toolName: metadata.name,
+                parentMessageId: aguiState.messageId,
                 model: model || options.model,
                 timestamp: Date.now(),
                 index: chunk.output_index,
@@ -1333,6 +1342,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 toolCallId: item.id,
                 toolCallName: metadata.name,
                 toolName: metadata.name,
+                parentMessageId: aguiState.messageId,
                 model: model || options.model,
                 timestamp: Date.now(),
                 index: metadata.index,
@@ -1411,6 +1421,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 toolCallId: item.id,
                 toolCallName: metadata.name,
                 toolName: metadata.name,
+                parentMessageId: aguiState.messageId,
                 model: model || options.model,
                 timestamp: Date.now(),
                 index: metadata.index,
@@ -1501,11 +1512,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             threadId: aguiState.threadId,
             model: model || options.model,
             timestamp: Date.now(),
-            usage: {
-              promptTokens: chunk.response.usage?.input_tokens || 0,
-              completionTokens: chunk.response.usage?.output_tokens || 0,
-              totalTokens: chunk.response.usage?.total_tokens || 0,
-            },
+            // Omit usage entirely when the provider reported none rather than
+            // emitting fabricated zeros (also satisfies exactOptionalPropertyTypes).
+            ...(chunk.response.usage && {
+              usage: buildResponsesUsage(chunk.response.usage),
+            }),
             finishReason,
           }
           runFinishedEmitted = true
@@ -1570,18 +1581,21 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         error,
         `${this.name}.processStreamChunks failed`,
       )
+      const rawEvent = toRunErrorRawEvent(error)
       options.logger.errors(`${this.name}.processStreamChunks fatal`, {
         error: errorPayload,
         source: `${this.name}.processStreamChunks`,
       })
       // Emit AG-UI RUN_ERROR with conditional `code` spread (see chatStream
-      // catch for the rationale).
+      // catch for the rationale). `rawEvent` carries the provider's structured
+      // error body when present.
       yield {
         type: EventType.RUN_ERROR,
         model: options.model,
         timestamp: Date.now(),
         message: errorPayload.message,
         ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+        ...(rawEvent !== undefined && { rawEvent }),
         error: {
           message: errorPayload.message,
           ...(errorPayload.code !== undefined && { code: errorPayload.code }),
@@ -1635,23 +1649,15 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         }
       : undefined
 
-    // Spread modelOptions first, then explicit top-level options when set.
-    // Mirrors the chat-completions base adapter's precedence so callers
-    // tuning either backend get identical behaviour. Leaving `modelOptions`
-    // last (its previous behavior) silently shadowed the canonical
-    // `options.temperature`/`maxTokens` fields, while spreading first
-    // without nullish-aware merge would clobber `modelOptions.temperature`
-    // with `undefined` whenever the caller didn't set the top-level option.
+    // `modelOptions` is the sole sampling surface: `temperature`, `top_p`, and
+    // `max_output_tokens` live there (typed via OpenAISamplingOptions) and are
+    // spread first. Engine-managed fields (`model`, `metadata`, `instructions`,
+    // `input`, `tools`, `textFormat`) are layered on top afterward so they
+    // always win over any same-named key a caller happened to put in
+    // `modelOptions`.
     return {
       ...modelOptions,
       model: options.model,
-      ...(options.temperature !== undefined && {
-        temperature: options.temperature,
-      }),
-      ...(options.maxTokens !== undefined && {
-        max_output_tokens: options.maxTokens,
-      }),
-      ...(options.topP !== undefined && { top_p: options.topP }),
       ...(options.metadata !== undefined && { metadata: options.metadata }),
       ...(() => {
         const prompts = normalizeSystemPrompts(options.systemPrompts)
@@ -1693,13 +1699,17 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     for (const message of messages) {
       // Handle tool messages - convert to FunctionToolCallOutput
       if (message.role === 'tool') {
+        const toolContent = message.content
+        const output: string | Array<ResponseFunctionCallOutputItem> =
+          Array.isArray(toolContent)
+            ? toolContent.map((part) => this.convertContentPartToInput(part))
+            : typeof toolContent === 'string'
+              ? toolContent
+              : JSON.stringify(toolContent)
         result.push({
           type: 'function_call_output',
           call_id: message.toolCallId || '',
-          output:
-            typeof message.content === 'string'
-              ? message.content
-              : JSON.stringify(message.content),
+          output,
         })
         continue
       }

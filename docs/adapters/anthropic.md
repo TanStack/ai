@@ -28,7 +28,7 @@ import { chat } from "@tanstack/ai";
 import { anthropicText } from "@tanstack/ai-anthropic";
 
 const stream = chat({
-  adapter: anthropicText("claude-sonnet-4-5"),
+  adapter: anthropicText("claude-sonnet-4-6"),
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
@@ -39,7 +39,7 @@ const stream = chat({
 import { chat } from "@tanstack/ai";
 import { createAnthropicChat } from "@tanstack/ai-anthropic";
 
-const adapter = createAnthropicChat("claude-sonnet-4-5", process.env.ANTHROPIC_API_KEY!, {
+const adapter = createAnthropicChat("claude-sonnet-4-6", process.env.ANTHROPIC_API_KEY!, {
   // ... your config options
 });
 
@@ -58,7 +58,7 @@ const config: Omit<AnthropicTextConfig, "apiKey"> = {
   baseURL: "https://api.anthropic.com", // Optional, for custom endpoints
 };
 
-const adapter = createAnthropicChat("claude-sonnet-4-5", process.env.ANTHROPIC_API_KEY!, config);
+const adapter = createAnthropicChat("claude-sonnet-4-6", process.env.ANTHROPIC_API_KEY!, config);
 ```
  
 
@@ -72,7 +72,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: anthropicText("claude-sonnet-4-5"),
+    adapter: anthropicText("claude-sonnet-4-6"),
     messages,
   });
 
@@ -83,7 +83,7 @@ export async function POST(request: Request) {
 ## Example: With Tools
 
 ```typescript
-import { chat, toolDefinition } from "@tanstack/ai";
+import { chat, toServerSentEventsResponse, toolDefinition } from "@tanstack/ai";
 import { anthropicText } from "@tanstack/ai-anthropic";
 import { z } from "zod";
 
@@ -100,21 +100,30 @@ const searchDatabase = searchDatabaseDef.server(async ({ query }) => {
   return { results: [] };
 });
 
-const stream = chat({
-  adapter: anthropicText("claude-sonnet-4-5"),
-  messages,
-  tools: [searchDatabase],
-});
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter: anthropicText("claude-sonnet-4-6"),
+    messages,
+    tools: [searchDatabase],
+  });
+
+  return toServerSentEventsResponse(stream);
+}
 ```
 
 ## Model Options
 
-Anthropic supports various provider-specific options:
+Anthropic supports various provider-specific options. Sampling parameters live here too — `temperature`, `top_p`, and `max_tokens` — rather than as root-level props on `chat()`:
 
 ```typescript
+import { chat } from "@tanstack/ai";
+import { anthropicText } from "@tanstack/ai-anthropic";
+
 const stream = chat({
-  adapter: anthropicText("claude-sonnet-4-5"),
-  messages,
+  adapter: anthropicText("claude-sonnet-4-6"),
+  messages: [{ role: "user", content: "Hello!" }],
   modelOptions: {
     max_tokens: 4096,
     temperature: 0.7,
@@ -125,11 +134,13 @@ const stream = chat({
 });
 ```
 
+> If you previously passed `temperature` / `topP` / `maxTokens` at the root of `chat()`, see [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
+
 ### Thinking (Extended Thinking)
 
 Enable extended thinking with a token budget. This allows Claude to show its reasoning process, which is streamed as `thinking` chunks:
 
-```typescript
+```typescript ignore
 modelOptions: {
   thinking: {
     type: "enabled",
@@ -138,15 +149,18 @@ modelOptions: {
 }
 ```
 
-**Note:** `max_tokens` must be greater than `budget_tokens`. The adapter automatically adjusts `max_tokens` if needed.
+**Note:** `budget_tokens` must be less than `modelOptions.max_tokens` — set `max_tokens` high enough to leave room for the visible response alongside the thinking budget, or the request is rejected.
 
 ### Prompt Caching
 
 Cache prompts for better performance and reduced costs:
 
 ```typescript
+import { chat } from "@tanstack/ai";
+import { anthropicText } from "@tanstack/ai-anthropic";
+
 const stream = chat({
-  adapter: anthropicText("claude-sonnet-4-5"),
+  adapter: anthropicText("claude-sonnet-4-6"),
   messages: [
     {
       role: "user",
@@ -175,7 +189,7 @@ import { summarize } from "@tanstack/ai";
 import { anthropicSummarize } from "@tanstack/ai-anthropic";
 
 const result = await summarize({
-  adapter: anthropicSummarize("claude-sonnet-4-5"),
+  adapter: anthropicSummarize("claude-sonnet-4-6"),
   text: "Your long text to summarize...",
   maxLength: 100,
   style: "concise", // "concise" | "bullet-points" | "paragraph"
@@ -202,7 +216,7 @@ Creates an Anthropic chat adapter.
 
 **Parameters:**
 
-- `model` - Claude model id (e.g. `"claude-sonnet-4-5"`, `"claude-opus-4-6"`)
+- `model` - Claude model id (e.g. `"claude-sonnet-4-6"`, `"claude-opus-4.8"`)
 - `config?.baseURL` - Custom base URL (optional)
 
 ### `anthropicSummarize(model, config?)` / `createAnthropicSummarize(model, apiKey, config?)`
@@ -240,7 +254,7 @@ import { anthropicText } from "@tanstack/ai-anthropic";
 import { webSearchTool } from "@tanstack/ai-anthropic/tools";
 
 const stream = chat({
-  adapter: anthropicText("claude-opus-4-6"),
+  adapter: anthropicText("claude-opus-4-7"),
   messages: [{ role: "user", content: "What's new in AI this week?" }],
   tools: [
     webSearchTool({
@@ -267,7 +281,7 @@ import { anthropicText } from "@tanstack/ai-anthropic";
 import { webFetchTool } from "@tanstack/ai-anthropic/tools";
 
 const stream = chat({
-  adapter: anthropicText("claude-sonnet-4-5"),
+  adapter: anthropicText("claude-sonnet-4-6"),
   messages: [{ role: "user", content: "Summarise https://example.com" }],
   tools: [webFetchTool()],
 });
@@ -287,7 +301,7 @@ import { anthropicText } from "@tanstack/ai-anthropic";
 import { codeExecutionTool } from "@tanstack/ai-anthropic/tools";
 
 const stream = chat({
-  adapter: anthropicText("claude-sonnet-4-5"),
+  adapter: anthropicText("claude-sonnet-4-6"),
   messages: [{ role: "user", content: "Plot a histogram of [1,2,2,3,3,3]" }],
   tools: [
     codeExecutionTool({ name: "code_execution", type: "code_execution_20250825" }),
@@ -296,6 +310,40 @@ const stream = chat({
 ```
 
 **Supported models:** Claude Sonnet 4.x and above. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+
+#### Attaching hosted skills
+
+Pass a `skills` array as the second argument to load provider-managed skill
+bundles into the sandbox. The adapter auto-lifts them into the API's
+`container.skills` param and adds the required beta headers for you.
+
+```typescript
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { anthropicText } from "@tanstack/ai-anthropic";
+import { codeExecutionTool } from "@tanstack/ai-anthropic/tools";
+
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter: anthropicText("claude-sonnet-4-5"),
+    messages,
+    tools: [
+      codeExecutionTool(
+        { type: "code_execution_20250825", name: "code_execution" },
+        {
+          skills: [{ type: "anthropic", skill_id: "pptx", version: "latest" }],
+        },
+      ),
+    ],
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+For the full reference — skill shape, constraints, scope, and the OpenAI
+equivalent — see [Provider Skills](../tools/provider-skills.md).
 
 ### `computerUseTool`
 
@@ -309,7 +357,7 @@ import { anthropicText } from "@tanstack/ai-anthropic";
 import { computerUseTool } from "@tanstack/ai-anthropic/tools";
 
 const stream = chat({
-  adapter: anthropicText("claude-sonnet-4-5"),
+  adapter: anthropicText("claude-sonnet-4-6"),
   messages: [{ role: "user", content: "Open the browser and go to example.com" }],
   tools: [
     computerUseTool({
@@ -336,7 +384,7 @@ import { anthropicText } from "@tanstack/ai-anthropic";
 import { bashTool } from "@tanstack/ai-anthropic/tools";
 
 const stream = chat({
-  adapter: anthropicText("claude-sonnet-4-5"),
+  adapter: anthropicText("claude-sonnet-4-6"),
   messages: [{ role: "user", content: "List all TypeScript files in src/" }],
   tools: [bashTool({ name: "bash", type: "bash_20250124" })],
 });
@@ -356,7 +404,7 @@ import { anthropicText } from "@tanstack/ai-anthropic";
 import { textEditorTool } from "@tanstack/ai-anthropic/tools";
 
 const stream = chat({
-  adapter: anthropicText("claude-sonnet-4-5"),
+  adapter: anthropicText("claude-sonnet-4-6"),
   messages: [{ role: "user", content: "Fix the bug in src/index.ts" }],
   tools: [
     textEditorTool({ type: "text_editor_20250124", name: "str_replace_editor" }),
@@ -378,7 +426,7 @@ import { anthropicText } from "@tanstack/ai-anthropic";
 import { memoryTool } from "@tanstack/ai-anthropic/tools";
 
 const stream = chat({
-  adapter: anthropicText("claude-sonnet-4-5"),
+  adapter: anthropicText("claude-sonnet-4-6"),
   messages: [{ role: "user", content: "Remember that I prefer metric units" }],
   tools: [memoryTool()],
 });
@@ -400,7 +448,7 @@ import { customTool } from "@tanstack/ai-anthropic/tools";
 import { z } from "zod";
 
 const stream = chat({
-  adapter: anthropicText("claude-sonnet-4-5"),
+  adapter: anthropicText("claude-sonnet-4-6"),
   messages: [{ role: "user", content: "Look up user 42" }],
   tools: [
     customTool(

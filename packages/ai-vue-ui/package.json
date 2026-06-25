@@ -1,15 +1,25 @@
 {
   "name": "@tanstack/ai-vue-ui",
-  "version": "0.2.7",
+  "version": "0.2.25",
   "description": "Headless Vue components for building TanStack AI chat interfaces with streamed message parts.",
-  "module": "./src/index.ts",
-  "types": "./src/index.ts",
-  "type": "module",
+  "author": "Tanner Linsley",
+  "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/TanStack/ai.git",
     "directory": "packages/ai-vue-ui"
   },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "module": "./src/index.ts",
+  "types": "./src/index.ts",
+  "type": "module",
   "exports": {
     ".": {
       "types": "./dist/esm/index.d.ts",

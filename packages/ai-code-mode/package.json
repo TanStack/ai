@@ -1,13 +1,21 @@
 {
   "name": "@tanstack/ai-code-mode",
-  "version": "0.1.23",
+  "version": "0.2.13",
   "description": "Secure TypeScript Code Mode for TanStack AI agents to execute sandboxed tool orchestration programs.",
-  "author": "",
+  "author": "Tanner Linsley",
   "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/TanStack/ai.git",
     "directory": "packages/ai-code-mode"
+  },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
   },
   "type": "module",
   "module": "./dist/esm/index.js",
@@ -52,7 +60,7 @@
     "tanstack-intent"
   ],
   "dependencies": {
-    "esbuild": "^0.25.12"
+    "sucrase": "^3.35.0"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:*",

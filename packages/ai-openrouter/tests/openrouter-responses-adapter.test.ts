@@ -88,10 +88,12 @@ describe('OpenRouter responses adapter — request shape', () => {
       systemPrompts: ['Stay concise'],
       messages: [{ role: 'user', content: 'How is the weather?' }],
       tools: [weatherTool],
-      temperature: 0.25,
-      topP: 0.6,
-      maxTokens: 1024,
-      modelOptions: { toolChoice: 'auto' as any },
+      modelOptions: {
+        temperature: 0.25,
+        topP: 0.6,
+        maxOutputTokens: 1024,
+        toolChoice: 'auto' as any,
+      },
     })) {
       // consume
     }
@@ -193,6 +195,60 @@ describe('OpenRouter responses adapter — request shape', () => {
     }
     const params = mockSend.mock.calls[0]![0].responsesRequest
     expect(params.model).toBe('openai/gpt-4o-mini:thinking')
+  })
+
+  it('does not forward root observability metadata; modelOptions.metadata reaches the wire (#735)', async () => {
+    setupMockSdkClient([
+      {
+        type: 'response.completed',
+        sequenceNumber: 1,
+        response: {
+          model: 'openai/gpt-4o-mini',
+          output: [],
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        },
+      },
+    ])
+    const adapter = createAdapter()
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'hi' }],
+      // Root `metadata` is observability-only and may carry structured
+      // values; the SDK validates wire `metadata` as `Record<string,
+      // string>`, so forwarding it fails client-side Zod validation.
+      metadata: { tags: ['a', 'b'], prompt: { name: 'p', version: 1 } },
+      // `modelOptions.metadata` is the typed home for wire metadata and
+      // must not be clobbered by root metadata.
+      modelOptions: { metadata: { env: 'test' } },
+    })) {
+      // consume
+    }
+    const params = mockSend.mock.calls[0]![0].responsesRequest
+    expect(params.metadata).toEqual({ env: 'test' })
+  })
+
+  it('omits wire metadata entirely when only root observability metadata is set (#735)', async () => {
+    setupMockSdkClient([
+      {
+        type: 'response.completed',
+        sequenceNumber: 1,
+        response: {
+          model: 'openai/gpt-4o-mini',
+          output: [],
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        },
+      },
+    ])
+    const adapter = createAdapter()
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'hi' }],
+      metadata: { observationName: 'my-call' },
+    })) {
+      // consume
+    }
+    const params = mockSend.mock.calls[0]![0].responsesRequest
+    expect(params).not.toHaveProperty('metadata')
   })
 
   it('rejects webSearchTool() as RUN_ERROR pointing at the chat adapter', async () => {
@@ -657,6 +713,84 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     expect(finished.finishReason).toBe('tool_calls')
   })
 
+  it('emits parentMessageId on tool-first tool calls matching the assistant message id', async () => {
+    // The function call streams before any text. parentMessageId must bind the
+    // tool call to the same assistant message id the eventual TEXT_MESSAGE_START
+    // uses so the message id stays stable mid-stream (#477).
+    setupMockSdkClient([
+      {
+        type: 'response.created',
+        sequenceNumber: 0,
+        response: { model: 'm', output: [] },
+      },
+      {
+        type: 'response.output_item.added',
+        sequenceNumber: 1,
+        outputIndex: 0,
+        item: {
+          type: 'function_call',
+          id: 'item_tf',
+          callId: 'call_tf',
+          name: 'lookup_weather',
+          arguments: '',
+        },
+      },
+      {
+        type: 'response.function_call_arguments.delta',
+        sequenceNumber: 2,
+        itemId: 'item_tf',
+        outputIndex: 0,
+        delta: '{"location":"Berlin"}',
+      },
+      {
+        type: 'response.function_call_arguments.done',
+        sequenceNumber: 3,
+        itemId: 'item_tf',
+        outputIndex: 0,
+        arguments: '{"location":"Berlin"}',
+      },
+      {
+        type: 'response.output_text.delta',
+        sequenceNumber: 4,
+        itemId: 'msg_tf',
+        outputIndex: 1,
+        contentIndex: 0,
+        delta: 'It is sunny.',
+      },
+      {
+        type: 'response.completed',
+        sequenceNumber: 5,
+        response: {
+          model: 'm',
+          output: [{ type: 'function_call' }],
+          usage: { inputTokens: 1, outputTokens: 7, totalTokens: 8 },
+        },
+      },
+    ])
+
+    const adapter = createAdapter()
+    const chunks: Array<StreamChunk> = []
+    for await (const c of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'What is the weather in Berlin?' }],
+      tools: [weatherTool],
+    })) {
+      chunks.push(c)
+    }
+
+    const textStart = chunks.find((c) => c.type === 'TEXT_MESSAGE_START')
+    const toolStart = chunks.find((c) => c.type === 'TOOL_CALL_START')
+
+    expect(textStart?.type).toBe('TEXT_MESSAGE_START')
+    expect(toolStart?.type).toBe('TOOL_CALL_START')
+    if (
+      textStart?.type === 'TEXT_MESSAGE_START' &&
+      toolStart?.type === 'TOOL_CALL_START'
+    ) {
+      expect(toolStart.parentMessageId).toBe(textStart.messageId)
+    }
+  })
+
   it('surfaces response.failed with a RUN_ERROR carrying the error message + code', async () => {
     setupMockSdkClient([
       {
@@ -687,8 +821,40 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     expect(err).toBeDefined()
     expect(err.error.message).toBe('kaboom')
     expect(err.error.code).toBe('server_error')
+    // The provider's structured error body is forwarded as rawEvent for
+    // in-band response.failed events (see responses-text adapter).
+    expect(err.rawEvent).toEqual({ message: 'kaboom', code: 'server_error' })
     // RUN_ERROR is terminal — no synthetic RUN_FINISHED should follow.
     expect(chunks.find((c) => c.type === 'RUN_FINISHED')).toBeUndefined()
+  })
+
+  it("forwards the SDK error's `.error` body as RUN_ERROR.rawEvent on outer catch", async () => {
+    const providerBody = {
+      message: 'Provider returned error',
+      code: 502,
+      metadata: { provider_name: 'openai', raw: 'overloaded' },
+    }
+    mockSend = vi.fn().mockRejectedValue(
+      Object.assign(new Error('OpenRouter error'), {
+        error: providerBody,
+      }),
+    )
+
+    const adapter = createAdapter()
+    const chunks: Array<StreamChunk> = []
+    for await (const c of adapter.chatStream({
+      model: 'openai/gpt-4o-mini' as any,
+      messages: [{ role: 'user', content: 'hi' }],
+      logger: testLogger,
+    })) {
+      chunks.push(c)
+    }
+
+    const runError = chunks.find((c) => c.type === 'RUN_ERROR')
+    expect(runError).toBeDefined()
+    if (runError?.type === 'RUN_ERROR') {
+      expect(runError.rawEvent).toEqual(providerBody)
+    }
   })
 
   it('stringifies non-string error.code on top-level error events', async () => {

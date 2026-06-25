@@ -62,7 +62,7 @@ The server passes `stream: true` to the generation function and sends the result
 
 **Server:**
 
-```typescript
+```typescript ignore
 import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 
@@ -79,8 +79,7 @@ return toServerSentEventsResponse(stream)
 **Client:**
 
 ```tsx
-import { useGenerateImage } from '@tanstack/ai-react'
-import { fetchServerSentEvents } from '@tanstack/ai-client'
+import { useGenerateImage, fetchServerSentEvents } from '@tanstack/ai-react'
 
 const { generate, result, isLoading } = useGenerateImage({
   connection: fetchServerSentEvents('/api/generate/image'),
@@ -93,7 +92,7 @@ The client calls a server function directly and receives the result as JSON. No 
 
 **Server:**
 
-```typescript
+```typescript ignore
 import { createServerFn } from '@tanstack/react-start'
 import { generateImage } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
@@ -125,7 +124,7 @@ Combines the best of both: **type-safe input** from the fetcher pattern with **s
 
 **Server:**
 
-```typescript
+```typescript ignore
 import { createServerFn } from '@tanstack/react-start'
 import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
@@ -178,6 +177,31 @@ If the function throws, a `RUN_ERROR` event is emitted instead:
 
 This is the same event protocol used by chat streaming, so the same transport layer (`toServerSentEventsResponse`, `fetchServerSentEvents`) works for both.
 
+When the server emits `RUN_ERROR`, the client surfaces it on `error` (and sets `status` to `'error'`). Use the `onError` callback to react, and render `error?.message` in your UI:
+
+```tsx
+import { useGenerateImage, fetchServerSentEvents } from '@tanstack/ai-react'
+
+function ImageGenerator() {
+  const { generate, result, error, status } = useGenerateImage({
+    connection: fetchServerSentEvents('/api/generate/image'),
+    onError: (err) => console.error('Generation failed:', err.message),
+  })
+
+  return (
+    <div>
+      <button onClick={() => generate({ prompt: 'A sunset over mountains' })}>
+        Generate
+      </button>
+      {status === 'error' && <p role="alert">Error: {error?.message}</p>}
+      {result?.images.map((img, i) => (
+        <img key={i} src={img.url || `data:image/png;base64,${img.b64Json}`} />
+      ))}
+    </div>
+  )
+}
+```
+
 ## Common Hook API
 
 All generation hooks share the same interface:
@@ -213,14 +237,19 @@ The `onResult` callback can optionally transform the stored result:
 TypeScript automatically infers the result type from your `onResult` return value — no explicit generic parameter needed.
 
 ```tsx
-const { result } = useGenerateSpeech({
-  connection: fetchServerSentEvents('/api/generate/speech'),
-  onResult: (raw) => ({
-    audioUrl: `data:${raw.contentType};base64,${raw.audio}`,
-    duration: raw.duration,
-  }),
-})
-// result is typed as { audioUrl: string; duration?: number } | null
+import { useGenerateSpeech, fetchServerSentEvents } from '@tanstack/ai-react'
+import type { TTSResult } from '@tanstack/ai'
+
+function SpeechPlayer() {
+  const { result } = useGenerateSpeech({
+    connection: fetchServerSentEvents('/api/generate/speech'),
+    onResult: (raw: TTSResult) => ({
+      audioUrl: `data:${raw.contentType};base64,${raw.audio}`,
+      duration: raw.duration,
+    }),
+  })
+  // result is typed as { audioUrl: string; duration?: number } | null
+}
 ```
 
 ## Available Generations
@@ -228,6 +257,7 @@ const { result } = useGenerateSpeech({
 | Activity | Server Function | Client Hook (React) | Guide |
 |----------|----------------|---------------------|-------|
 | Image generation | `generateImage()` | `useGenerateImage()` | [Image Generation](./image-generation) |
+| Audio generation | `generateAudio()` | `useGenerateAudio()` | [Audio Generation](./audio-generation) |
 | Text-to-speech | `generateSpeech()` | `useGenerateSpeech()` | [Text-to-Speech](./text-to-speech) |
 | Transcription | `generateTranscription()` | `useTranscription()` | [Transcription](./transcription) |
 | Summarization | `summarize()` | `useSummarize()` | - |

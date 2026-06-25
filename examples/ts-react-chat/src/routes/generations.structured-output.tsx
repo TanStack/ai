@@ -77,42 +77,26 @@ const PROVIDER_MODELS: Record<
   // hit the engine's legacy finalization path instead.
   //
   // Naming gotcha: Google uses a dash separator for the major version
-  // (`gemini-3-pro-preview`) but a dot separator for the minor version
+  // (`gemini-3-flash-preview`) but a dot separator for the minor version
   // (`gemini-3.1-pro-preview`). The dropdown values mirror the canonical
   // ids from `ai-gemini/model-meta` — `GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS`
   // keys on the exact string, so any drift here silently breaks
   // combined-mode routing.
   gemini: [
     { value: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash' },
-    { value: 'gemini-3-pro-preview', label: 'Gemini 3 Pro (Preview)' },
     { value: 'gemini-3-flash-preview', label: 'Gemini 3 Flash (Preview)' },
     { value: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro (Preview)' },
+    { value: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash Lite' },
     {
       value: 'gemini-3.1-flash-lite-preview',
       label: 'Gemini 3.1 Flash Lite (Preview)',
     },
   ],
-  // Grok 4 family supports the #605 combined-mode path (`tools` +
-  // `response_format: json_schema` in one streaming Chat Completions
-  // request). Grok 2 / 3 reject the combination per xAI docs, so they're
-  // omitted — they'd hit the engine's legacy finalization path instead
-  // and silently lose streaming. Values must match `GROK_COMBINED_TOOLS_AND_SCHEMA_MODELS`
-  // in `ai-grok/model-meta` exactly.
+  // The Grok adapter uses xAI's Responses API and intentionally exposes only
+  // these chat models.
   grok: [
+    { value: 'grok-build-0.1', label: 'Grok Build 0.1' },
     { value: 'grok-4.3', label: 'Grok 4.3' },
-    { value: 'grok-4.20', label: 'Grok 4.20' },
-    { value: 'grok-4-1-fast-reasoning', label: 'Grok 4.1 Fast (reasoning)' },
-    {
-      value: 'grok-4-1-fast-non-reasoning',
-      label: 'Grok 4.1 Fast (non-reasoning)',
-    },
-    { value: 'grok-4-fast-reasoning', label: 'Grok 4 Fast (reasoning)' },
-    {
-      value: 'grok-4-fast-non-reasoning',
-      label: 'Grok 4 Fast (non-reasoning)',
-    },
-    { value: 'grok-code-fast-1', label: 'Grok Code Fast 1' },
-    { value: 'grok-4', label: 'Grok 4' },
   ],
   groq: [
     {

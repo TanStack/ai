@@ -70,6 +70,7 @@ export type {
   ReasoningOptions,
   StreamOptions,
   ImageConfig,
+  OpenRouterSystemPromptMetadata,
 } from './text/text-provider-options'
 
 // ============================================================================
@@ -89,4 +90,7 @@ export {
 
 export { convertToolsToProviderFormat } from './tools/tool-converter'
 
-export type { OpenRouterTool, FunctionTool } from './tools'
+export type { OpenRouterTool, FunctionTool, WebSearchTool } from './tools'
+
+// Export provider usage types
+export type { OpenRouterProviderUsageDetails } from './usage'

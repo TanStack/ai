@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { generateImage } from '@tanstack/ai'
+import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { GeminiImageAdapter, createGeminiImage } from '../src/adapters/image'
 import {
   parseNativeImageSize,
@@ -342,8 +343,8 @@ describe('Gemini Image Adapter', () => {
       })
 
       expect(result.usage).toEqual({
-        inputTokens: 12,
-        outputTokens: 34,
+        promptTokens: 12,
+        completionTokens: 34,
         totalTokens: 46,
       })
     })
@@ -660,6 +661,179 @@ describe('Gemini Image Adapter', () => {
           responseModalities: ['TEXT', 'IMAGE'],
         },
       })
+    })
+  })
+
+  describe('multimodal prompt (image-conditioned generation)', () => {
+    const testLogger = resolveDebugOption(false)
+    const mockImageResponse = {
+      candidates: [
+        {
+          content: {
+            parts: [{ inlineData: { mimeType: 'image/png', data: 'out' } }],
+          },
+        },
+      ],
+    }
+
+    function mockedNativeAdapter() {
+      const mockGenerateContent = vi
+        .fn()
+        .mockResolvedValueOnce(mockImageResponse)
+      const adapter = createGeminiImage(
+        'gemini-3.1-flash-image-preview',
+        'test-api-key',
+      )
+      ;(
+        adapter as unknown as {
+          client: { models: { generateContent: unknown } }
+        }
+      ).client = {
+        models: { generateContent: mockGenerateContent },
+      }
+      return { adapter, mockGenerateContent }
+    }
+
+    it('maps interleaved prompt parts onto multimodal contents in order', async () => {
+      const { adapter, mockGenerateContent } = mockedNativeAdapter()
+
+      await generateImage({
+        adapter,
+        prompt: [
+          { type: 'text', content: 'Not like this' },
+          {
+            type: 'image',
+            source: { type: 'data', value: 'YmFk', mimeType: 'image/jpeg' },
+          },
+          { type: 'text', content: 'more like this' },
+          {
+            type: 'image',
+            // Google Files API URIs pass through as fileData (no fetch).
+            source: {
+              type: 'url',
+              value:
+                'https://generativelanguage.googleapis.com/v1beta/files/abc',
+              mimeType: 'image/png',
+            },
+          },
+        ],
+      })
+
+      expect(mockGenerateContent).toHaveBeenCalledWith({
+        model: 'gemini-3.1-flash-image-preview',
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              { text: 'Not like this' },
+              { inlineData: { mimeType: 'image/jpeg', data: 'YmFk' } },
+              { text: 'more like this' },
+              {
+                fileData: {
+                  fileUri:
+                    'https://generativelanguage.googleapis.com/v1beta/files/abc',
+                  mimeType: 'image/png',
+                },
+              },
+            ],
+          },
+        ],
+        config: { responseModalities: ['TEXT', 'IMAGE'] },
+      })
+    })
+
+    it('fetches arbitrary URL sources and inlines them as base64', async () => {
+      const { adapter, mockGenerateContent } = mockedNativeAdapter()
+      // 'hi' → base64 'aGk='
+      const fetchMock = vi.fn().mockResolvedValue(
+        new Response(new Uint8Array([104, 105]), {
+          headers: { 'content-type': 'image/jpeg' },
+        }),
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      try {
+        await generateImage({
+          adapter,
+          prompt: [
+            { type: 'text', content: 'Edit this' },
+            {
+              type: 'image',
+              source: { type: 'url', value: 'https://example.com/photo.jpg' },
+            },
+          ],
+        })
+      } finally {
+        vi.unstubAllGlobals()
+      }
+
+      expect(fetchMock).toHaveBeenCalledWith('https://example.com/photo.jpg')
+      const args = mockGenerateContent.mock.calls[0]![0]
+      expect(args.contents).toEqual([
+        {
+          role: 'user',
+          parts: [
+            { text: 'Edit this' },
+            { inlineData: { mimeType: 'image/jpeg', data: 'aGk=' } },
+          ],
+        },
+      ])
+    })
+
+    it('rejects image prompt parts for Imagen models', async () => {
+      const adapter = createGeminiImage(
+        'imagen-4.0-generate-001',
+        'test-api-key',
+      )
+
+      await expect(
+        adapter.generateImages({
+          model: 'imagen-4.0-generate-001',
+          prompt: [
+            { type: 'text', content: 'Edit this' },
+            {
+              type: 'image',
+              source: { type: 'data', value: 'aGk=', mimeType: 'image/png' },
+            },
+          ],
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/does not support image prompt parts/)
+    })
+
+    it('rejects video and audio prompt parts', async () => {
+      const adapter = createGeminiImage(
+        'gemini-3.1-flash-image-preview',
+        'test-api-key',
+      )
+
+      await expect(
+        adapter.generateImages({
+          model: 'gemini-3.1-flash-image-preview',
+          prompt: [
+            { type: 'text', content: 'x' },
+            {
+              type: 'video',
+              source: { type: 'url', value: 'https://example.com/v.mp4' },
+            },
+          ],
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/video prompt parts/)
+
+      await expect(
+        adapter.generateImages({
+          model: 'gemini-3.1-flash-image-preview',
+          prompt: [
+            { type: 'text', content: 'x' },
+            {
+              type: 'audio',
+              source: { type: 'url', value: 'https://example.com/a.mp3' },
+            },
+          ],
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/audio prompt parts/)
     })
   })
 })

@@ -32,6 +32,17 @@ import {
   createChatClientOptions,
   type InferChatMessages,
 } from "@tanstack/ai-client";
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
+import { ref } from "vue";
+
+const updateUIDef = toolDefinition({
+  name: "updateUI",
+  description: "Show a notification in the UI",
+  inputSchema: z.object({ message: z.string() }),
+});
+
+const notification = ref<string | null>(null);
 
 // In <script setup>
 const updateUI = updateUIDef.client((input) => {
@@ -64,6 +75,7 @@ Extends `ChatClientOptions` from `@tanstack/ai-client` (minus internal state cal
 - `threadId?` - Thread ID for AG-UI run correlation. Persists across sends; auto-generated if omitted
 - `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field (reactive -- changes are synced automatically via `watch`)
 - `body?` - **Deprecated.** Use `forwardedProps` instead. Still works for backward compatibility; values are merged into `forwardedProps` on the wire (reactive)
+- `context?` - Typed client-local runtime context passed to client tool implementations (reactive). This value is not serialized to the server
 - `live?` - Enable live subscription mode (auto-subscribes/unsubscribes)
 - `onResponse?` - Callback when response is received
 - `onChunk?` - Callback when stream chunk is received
@@ -77,6 +89,15 @@ Extends `ChatClientOptions` from `@tanstack/ai-client` (minus internal state cal
 ### Returns
 
 ```typescript
+import type { DeepReadonly, ShallowRef } from "vue";
+import type { UIMessage } from "@tanstack/ai-vue";
+import type { ModelMessage } from "@tanstack/ai/client";
+import type {
+  MultimodalContent,
+  ChatClientState,
+  ConnectionStatus,
+} from "@tanstack/ai-client";
+
 interface UseChatReturn {
   messages: DeepReadonly<ShallowRef<UIMessage[]>>;
   sendMessage: (content: string | MultimodalContent) => Promise<void>;
@@ -226,9 +247,22 @@ import {
   createChatClientOptions,
   type InferChatMessages,
 } from "@tanstack/ai-client";
-import { updateUIDef, saveToStorageDef } from "./tool-definitions";
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
 
-const notification = ref(null);
+const updateUIDef = toolDefinition({
+  name: "updateUI",
+  description: "Show a notification in the UI",
+  inputSchema: z.object({ message: z.string(), type: z.string() }),
+});
+
+const saveToStorageDef = toolDefinition({
+  name: "saveToStorage",
+  description: "Save a value to localStorage",
+  inputSchema: z.object({ key: z.string(), value: z.string() }),
+});
+
+const notification = ref<{ message: string; type: string } | null>(null);
 
 // Create client implementations
 const updateUI = updateUIDef.client((input) => {
@@ -318,6 +352,8 @@ import {
   createChatClientOptions,
   type InferChatMessages,
 } from "@tanstack/ai-client";
+import { fetchServerSentEvents } from "@tanstack/ai-vue";
+import { tool1, tool2 } from "./tools";
 
 // Create typed tools array (no 'as const' needed!)
 const tools = clientTools(tool1, tool2);
@@ -340,7 +376,7 @@ Re-exported from `@tanstack/ai-client`:
 - `ThinkingPart` - Thinking content part
 - `ToolCallPart<TTools>` - Tool call part (discriminated union)
 - `ToolResultPart` - Tool result part
-- `ChatClientOptions<TTools>` - Chat client options
+- `ChatClientOptions<TTools, TContext>` - Chat client options with typed client runtime context
 - `ConnectionAdapter` - Connection adapter interface
 - `InferChatMessages<T>` - Extract message type from options
 - `ChatRequestBody` - Request body type

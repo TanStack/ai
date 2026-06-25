@@ -27,13 +27,13 @@ import { geminiImage } from '@tanstack/ai-gemini'
 | Model                           | Max Input | Max Output | Notes                        |
 | ------------------------------- | --------- | ---------- | ---------------------------- |
 | `gemini-3.1-pro-preview`        | 1M        | 65K        | Latest flagship, thinking    |
-| `gemini-3-pro-preview`          | 1M        | 65K        | Previous flagship            |
 | `gemini-3-flash-preview`        | 1M        | 65K        | Fast, thinking, multimodal   |
+| `gemini-3.1-flash-lite`         | 1M        | 65K        | Budget GA, thinking          |
 | `gemini-3.1-flash-lite-preview` | 1M        | 65K        | Budget, still capable        |
 | `gemini-2.5-pro`                | 1M        | 65K        | Stable release, all features |
 | `gemini-2.5-flash`              | 1M        | 65K        | Fast stable release          |
 
-All Gemini text models accept `text`, `image`, `audio`, `video`, and `document` input.
+Most Gemini text models accept `text`, `image`, `audio`, `video`, and `document` input; `gemini-2.5-flash` accepts all of these except `document`.
 
 ## Provider-Specific modelOptions
 
@@ -72,6 +72,9 @@ chat({
     // Response modalities
     responseModalities: ['TEXT'],
     // Sampling
+    temperature: 0.7,
+    topP: 0.9,
+    maxOutputTokens: 1000,
     topK: 40,
     seed: 42,
     presencePenalty: 0.5,

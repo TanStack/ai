@@ -11,7 +11,7 @@ type ContentPartForInputModalitiesTypes<TInputModalitiesTypes> = Extract<Content
 }>;
 ```
 
-Defined in: [packages/ai/src/types.ts:282](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L282)
+Defined in: [packages/ai/src/types.ts:295](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L295)
 
 Helper type to filter ContentPart union to only include specific modalities.
 Used to constrain message content based on model capabilities.

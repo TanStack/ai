@@ -26,17 +26,20 @@ npm install @tanstack/ai-client
 The main client class for managing chat state.
 
 ```typescript
-import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-client";
+import {
+  ChatClient,
+  clientTools,
+  fetchServerSentEvents,
+  type UIMessage,
+} from "@tanstack/ai-client";
+import { myClientTool } from "./tools";
 
 const client = new ChatClient({
   connection: fetchServerSentEvents("/api/chat"),
   initialMessages: [],
-  onMessagesChange: (messages) => {
+  tools: clientTools(myClientTool),
+  onMessagesChange: (messages: UIMessage[]) => {
     console.log("Messages updated:", messages);
-  },
-  onToolCall: async ({ toolName, input }) => {
-    // Handle client tool execution
-    return { result: "..." };
   },
 });
 ```
@@ -49,6 +52,8 @@ const client = new ChatClient({
 - `threadId?` - Thread ID for AG-UI run correlation. Persists across sends; auto-generated if omitted
 - `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field
 - `body?` - **Deprecated.** Use `forwardedProps` instead. Still works — values are merged into `forwardedProps` on the wire and mirrored under the legacy `data` field for backward compatibility
+- `context?` - Typed client-local runtime context passed to client tool implementations. This value is not serialized to the server
+- `tools?` - Registered `.client()` tool implementations. The client automatically executes matching tools when the model calls them
 - `onResponse?` - Callback when response is received
 - `onChunk?` - Callback when stream chunk is received
 - `onFinish?` - Callback when response finishes
@@ -56,7 +61,6 @@ const client = new ChatClient({
 - `onMessagesChange?` - Callback when messages change
 - `onLoadingChange?` - Callback when loading state changes
 - `onErrorChange?` - Callback when error state changes
-- `onToolCall?` - Callback for client-side tool execution
 - `streamProcessor?` - Stream processing configuration
 
 ### Methods
@@ -66,6 +70,8 @@ const client = new ChatClient({
 Sends a user message and gets a response.
 
 ```typescript
+import { client } from "./client";
+
 await client.sendMessage("Hello!");
 ```
 
@@ -74,6 +80,8 @@ await client.sendMessage("Hello!");
 Appends a message to the conversation.
 
 ```typescript
+import { client } from "./client";
+
 await client.append({
   role: "user",
   content: "Additional context",
@@ -85,6 +93,8 @@ await client.append({
 Reloads the last assistant message.
 
 ```typescript
+import { client } from "./client";
+
 await client.reload();
 ```
 
@@ -93,6 +103,8 @@ await client.reload();
 Stops the current response generation.
 
 ```typescript
+import { client } from "./client";
+
 client.stop();
 ```
 
@@ -101,6 +113,8 @@ client.stop();
 Clears all messages.
 
 ```typescript
+import { client } from "./client";
+
 client.clear();
 ```
 
@@ -109,6 +123,10 @@ client.clear();
 Manually sets the messages array.
 
 ```typescript
+import { client } from "./client";
+import type { UIMessage } from "@tanstack/ai-client";
+
+const newMessages: UIMessage[] = [];
 client.setMessagesManually([...newMessages]);
 ```
 
@@ -117,6 +135,8 @@ client.setMessagesManually([...newMessages]);
 Adds the result of a client-side tool execution.
 
 ```typescript
+import { client } from "./client";
+
 await client.addToolResult({
   toolCallId: "call_123",
   tool: "toolName",
@@ -130,6 +150,8 @@ await client.addToolResult({
 Responds to a tool approval request.
 
 ```typescript
+import { client } from "./client";
+
 await client.addToolApprovalResponse({
   id: "approval_123",
   approved: true,
@@ -239,7 +261,7 @@ override static adapter `body` values.
 
 Creates a custom connection adapter.
 
-```typescript
+```typescript ignore
 import { stream } from "@tanstack/ai-client";
 
 const adapter = stream(async (messages, data, signal) => {
@@ -262,18 +284,40 @@ const adapter = stream(async (messages, data, signal) => {
 Creates a typed array of client tools with proper type inference. This eliminates the need for `as const` when defining tool arrays and enables proper discriminated union type narrowing.
 
 ```typescript
-import { clientTools } from "@tanstack/ai-client";
-import { myTool1, myTool2 } from "./tools";
+import {
+  clientTools,
+  createChatClientOptions,
+  fetchServerSentEvents,
+  type UIMessage,
+} from "@tanstack/ai-client";
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
+
+const messages: UIMessage[] = [];
+
+const myTool1 = toolDefinition({
+  name: "myTool1",
+  description: "First tool",
+  inputSchema: z.object({ query: z.string() }),
+  outputSchema: z.object({ result: z.string() }),
+});
+
+const myTool2 = toolDefinition({
+  name: "myTool2",
+  description: "Second tool",
+  inputSchema: z.object({ query: z.string() }),
+  outputSchema: z.object({ result: z.string() }),
+});
 
 // Create client implementations
 const tool1Client = myTool1.client((input) => {
   // Implementation
-  return { result: "..." };
+  return { result: input.query };
 });
 
 const tool2Client = myTool2.client((input) => {
   // Implementation
-  return { result: "..." };
+  return { result: input.query };
 });
 
 // Create typed tools array (no 'as const' needed!)
@@ -302,7 +346,13 @@ messages.forEach((message) => {
 Helper function to create typed chat client options with proper type inference.
 
 ```typescript
-import { createChatClientOptions, clientTools } from "@tanstack/ai-client";
+import {
+  createChatClientOptions,
+  clientTools,
+  fetchServerSentEvents,
+  type InferChatMessages,
+} from "@tanstack/ai-client";
+import { tool1, tool2 } from "./tools";
 
 const tools = clientTools(tool1, tool2);
 
@@ -315,11 +365,49 @@ const chatOptions = createChatClientOptions({
 type ChatMessages = InferChatMessages<typeof chatOptions>;
 ```
 
+`createChatClientOptions` also preserves typed client runtime context:
+
+```typescript
+import {
+  createChatClientOptions,
+  clientTools,
+  fetchServerSentEvents,
+} from "@tanstack/ai-client";
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
+
+type ClientContext = {
+  activeProjectId: string;
+};
+
+const projectTool = toolDefinition({
+  name: "projectAction",
+  description: "Run a project action",
+  inputSchema: z.object({ action: z.string() }),
+  outputSchema: z.object({ ok: z.boolean() }),
+});
+
+const tool = projectTool.client<ClientContext>((input, ctx: { context: ClientContext }) => {
+  console.log(ctx.context.activeProjectId, input.action);
+  return { ok: true };
+});
+
+const chatOptions = createChatClientOptions({
+  connection: fetchServerSentEvents("/api/chat"),
+  tools: clientTools(tool),
+  context: {
+    activeProjectId: "project_123",
+  },
+});
+```
+
+Client runtime context is local to the client instance. Use `forwardedProps` for explicit client-to-server handoff of serializable values, then validate and map those values into server `chat({ context })`.
+
 ## Types
 
 ### `UIMessage`
 
-```typescript
+```typescript ignore
 interface UIMessage {
   id: string;
   role: "user" | "assistant";
@@ -330,7 +418,7 @@ interface UIMessage {
 
 ### `MessagePart`
 
-```typescript
+```typescript ignore
 type MessagePart = TextPart | ThinkingPart | ToolCallPart | ToolResultPart;
 ```
 
@@ -358,7 +446,7 @@ Thinking parts represent the model's internal reasoning process. They are typica
 
 ### `ToolCallPart`
 
-```typescript
+```typescript ignore
 interface ToolCallPart {
   type: "tool-call";
   id: string;
@@ -375,38 +463,35 @@ When using typed tools with `clientTools()` and `createChatClientOptions()`, the
 
 ### `ToolResultPart`
 
-```typescript
+```typescript ignore
 interface ToolResultPart {
   type: "tool-result";
-  id: string;
   toolCallId: string;
-  tool: string;
-  output: any;
+  content: string;
   state: ToolResultState;
-  errorText?: string;
+  error?: string;
 }
 ```
 
 ### `ToolCallState`
 
-```typescript
+```typescript ignore
 type ToolCallState =
-  | "pending"
+  | "awaiting-input"
+  | "input-streaming"
+  | "input-complete"
   | "approval-requested"
-  | "executing"
-  | "output-available"
-  | "output-error"
-  | "cancelled";
+  | "approval-responded"
+  | "complete";
 ```
 
 ### `ToolResultState`
 
-```typescript
+```typescript ignore
 type ToolResultState =
-  | "pending"
-  | "executing"
-  | "output-available"
-  | "output-error";
+  | "streaming"
+  | "complete"
+  | "error";
 ```
 
 ## Stream Processing
@@ -414,7 +499,11 @@ type ToolResultState =
 Configure stream processing with chunk strategies:
 
 ```typescript
-import { ImmediateStrategy, fetchServerSentEvents } from "@tanstack/ai-client";
+import {
+  ChatClient,
+  ImmediateStrategy,
+  fetchServerSentEvents,
+} from "@tanstack/ai-client";
 
 const client = new ChatClient({
   connection: fetchServerSentEvents("/api/chat"),

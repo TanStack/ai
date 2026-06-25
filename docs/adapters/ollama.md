@@ -103,7 +103,7 @@ export async function POST(request: Request) {
 ## Example: With Tools
 
 ```typescript
-import { chat, toolDefinition } from "@tanstack/ai";
+import { chat, toServerSentEventsResponse, toolDefinition } from "@tanstack/ai";
 import { ollamaText } from "@tanstack/ai-ollama";
 import { z } from "zod";
 
@@ -120,66 +120,83 @@ const getLocalData = getLocalDataDef.server(async ({ key }) => {
   return { data: "..." };
 });
 
-const stream = chat({
-  adapter: ollamaText("llama3"),
-  messages,
-  tools: [getLocalData],
-});
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter: ollamaText("llama3"),
+    messages,
+    tools: [getLocalData],
+  });
+
+  return toServerSentEventsResponse(stream);
+}
 ```
 
 **Note:** Tool support varies by model. Models like `llama3`, `mistral`, and `qwen2` generally have good tool calling support.
 
 ## Model Options
 
-Ollama supports various provider-specific options:
+Ollama supports various provider-specific options. Unlike the other providers, Ollama nests its sampling and runner parameters inside an `options` object **within** `modelOptions` — `temperature`, `top_p`, and `num_predict` (the token-limit key) all live under `modelOptions.options`:
 
 ```typescript
+import { chat } from "@tanstack/ai";
+import { ollamaText } from "@tanstack/ai-ollama";
+
 const stream = chat({
-  adapter: ollamaText("llama3"),
-  messages,
+  adapter: ollamaText("llama3:latest"),
+  messages: [{ role: "user", content: "Hello!" }],
   modelOptions: {
-    temperature: 0.7,
-    top_p: 0.9,
-    top_k: 40,
-    num_predict: 1000, // Max tokens to generate
-    repeat_penalty: 1.1,
-    num_ctx: 4096, // Context window size
-    num_gpu: -1, // GPU layers (-1 = auto)
+    options: {
+      temperature: 0.7,
+      top_p: 0.9,
+      top_k: 40,
+      num_predict: 1000, // Max tokens to generate
+      repeat_penalty: 1.1,
+      num_ctx: 4096, // Context window size
+      num_gpu: -1, // GPU layers (-1 = auto)
+    },
   },
 });
 ```
 
+> If you previously passed `temperature` / `topP` / `maxTokens` at the root of `chat()`, note that for Ollama they map to `modelOptions.options.temperature`, `modelOptions.options.top_p`, and `modelOptions.options.num_predict`. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
+
 ### Advanced Options
 
-```typescript
+All sampling and runner parameters are nested under `modelOptions.options`:
+
+```typescript ignore
 modelOptions: {
-  // Sampling
-  temperature: 0.7,
-  top_p: 0.9,
-  top_k: 40,
-  min_p: 0.05,
-  typical_p: 1.0,
-  
-  // Generation
-  num_predict: 1000,
-  repeat_penalty: 1.1,
-  repeat_last_n: 64,
-  penalize_newline: false,
-  
-  // Performance
-  num_ctx: 4096,
-  num_batch: 512,
-  num_gpu: -1,
-  num_thread: 0, // 0 = auto
-  
-  // Memory
-  use_mmap: true,
-  use_mlock: false,
-  
-  // Mirostat sampling
-  mirostat: 0, // 0 = disabled, 1 = Mirostat, 2 = Mirostat 2.0
-  mirostat_tau: 5.0,
-  mirostat_eta: 0.1,
+  options: {
+    // Sampling
+    temperature: 0.7,
+    top_p: 0.9,
+    top_k: 40,
+    min_p: 0.05,
+    typical_p: 1.0,
+
+    // Generation
+    num_predict: 1000,
+    repeat_penalty: 1.1,
+    repeat_last_n: 64,
+    penalize_newline: false,
+
+    // Performance
+    num_ctx: 4096,
+    num_batch: 512,
+    num_gpu: -1,
+    num_thread: 0, // 0 = auto
+
+    // Memory
+    use_mmap: true,
+    use_mlock: false,
+
+    // Mirostat sampling
+    mirostat: 0, // 0 = disabled, 1 = Mirostat, 2 = Mirostat 2.0
+    mirostat_tau: 5.0,
+    mirostat_eta: 0.1,
+  },
 }
 ```
 
@@ -187,7 +204,7 @@ modelOptions: {
 
 Summarize long text content locally:
 
-```typescript
+```typescript ignore
 import { summarize } from "@tanstack/ai";
 import { ollamaSummarize } from "@tanstack/ai-ollama";
 
@@ -233,6 +250,8 @@ The server runs on `http://localhost:11434` by default.
 ## Running on a Remote Server
 
 ```typescript
+import { createOllamaChat } from "@tanstack/ai-ollama";
+
 const adapter = createOllamaChat("llama3", "http://your-server:11434");
 ```
 

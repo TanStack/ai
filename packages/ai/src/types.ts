@@ -4,6 +4,16 @@ import type {
 } from '@standard-schema/spec'
 import type { InternalLogger } from './logger/internal-logger'
 import type { SystemPrompt } from './system-prompts'
+// The canonical usage types live in the leaf `@tanstack/ai-event-client`
+// package (which `@tanstack/ai` already depends on) so there is a single source
+// of truth without a dependency cycle. They are re-exported below.
+import type {
+  CompletionTokensDetails,
+  PromptTokensDetails,
+  ProviderUsageDetails,
+  TokenUsage,
+  UsageCostBreakdown,
+} from '@tanstack/ai-event-client'
 import type {
   BaseEvent as AGUIBaseEvent,
   CustomEvent as AGUICustomEvent,
@@ -41,6 +51,7 @@ export type ToolCallState =
   | 'approval-requested' // Waiting for user approval
   | 'approval-responded' // User has approved/denied
   | 'complete' // Result is complete
+  | 'error' // Tool execution failed (terminal)
 
 /**
  * Tool result states - track the lifecycle of a tool result
@@ -49,6 +60,8 @@ export type ToolResultState =
   | 'streaming' // Placeholder for future streamed output
   | 'complete' // Result is complete
   | 'error' // Error occurred
+
+export type ToolOutputState = 'output-available' | 'output-error'
 
 /**
  * JSON Schema type for defining tool input/output schemas as raw JSON Schema objects.
@@ -355,7 +368,7 @@ export interface ToolCallPart<TMetadata = unknown> {
 export interface ToolResultPart {
   type: 'tool-result'
   toolCallId: string
-  content: string
+  content: string | Array<ContentPart>
   state: ToolResultState
   error?: string // Error message if state is "error"
 }
@@ -443,33 +456,81 @@ export type ConstrainedModelMessage<
   content: ConstrainedContent<TInputModalitiesTypes>
 }
 
+type IsUnknown<T> = unknown extends T
+  ? [T] extends [unknown]
+    ? true
+    : false
+  : false
+
+type RuntimeContextField<TContext> =
+  IsUnknown<TContext> extends true
+    ? {
+        /**
+         * Runtime context provided by the caller.
+         *
+         * This is request-local application state for tool and middleware
+         * implementations, not the AG-UI `Context[]` protocol field.
+         */
+        context?: TContext
+      }
+    : {
+        /**
+         * Runtime context provided by the caller.
+         *
+         * This is request-local application state for tool and middleware
+         * implementations, not the AG-UI `Context[]` protocol field.
+         */
+        context: TContext
+      }
+
 /**
  * Context passed to tool execute functions, providing capabilities like
  * emitting custom events during execution.
  */
-export interface ToolExecutionContext {
-  /** The ID of the tool call being executed */
-  toolCallId?: string
-  /**
-   * Emit a custom event during tool execution.
-   * Events are streamed to the client in real-time as AG-UI CUSTOM events.
-   *
-   * @param eventName - Name of the custom event
-   * @param value - Event payload value
-   *
-   * @example
-   * ```ts
-   * const tool = toolDefinition({ ... }).server(async (args, context) => {
-   *   context?.emitCustomEvent('progress', { step: 1, total: 3 })
-   *   // ... do work ...
-   *   context?.emitCustomEvent('progress', { step: 2, total: 3 })
-   *   // ... do more work ...
-   *   return result
-   * })
-   * ```
-   */
-  emitCustomEvent: (eventName: string, value: Record<string, any>) => void
-}
+export type ToolExecutionContext<TContext = unknown> =
+  RuntimeContextField<TContext> & {
+    /** The ID of the tool call being executed */
+    toolCallId?: string
+    /**
+     * Abort signal for the current chat run. Aborts when the run's
+     * `abortController` fires (or middleware aborts). Long-running tools —
+     * e.g. MCP `callTool` — should forward this to cancel in-flight work.
+     */
+    abortSignal?: AbortSignal
+    /**
+     * Emit a custom event during tool execution.
+     * Events are streamed to the client in real-time as AG-UI CUSTOM events.
+     *
+     * @param eventName - Name of the custom event
+     * @param value - Event payload value
+     *
+     * @example
+     * ```ts
+     * const tool = toolDefinition({ ... }).server(async (args, context) => {
+     *   context?.emitCustomEvent('progress', { step: 1, total: 3 })
+     *   // ... do work ...
+     *   context?.emitCustomEvent('progress', { step: 2, total: 3 })
+     *   // ... do more work ...
+     *   return result
+     * })
+     * ```
+     */
+    emitCustomEvent: (eventName: string, value: Record<string, any>) => void
+  }
+
+export type ToolExecuteFunction<
+  TInput extends SchemaInput = SchemaInput,
+  TOutput extends SchemaInput = SchemaInput,
+  TContext = unknown,
+> = undefined extends TContext
+  ? (
+      args: InferSchemaType<TInput>,
+      context?: ToolExecutionContext<TContext>,
+    ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>
+  : (
+      args: InferSchemaType<TInput>,
+      context: ToolExecutionContext<TContext>,
+    ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>
 
 /**
  * Tool/Function definition for function calling.
@@ -488,6 +549,7 @@ export interface Tool<
   TInput extends SchemaInput = SchemaInput,
   TOutput extends SchemaInput = SchemaInput,
   TName extends string = string,
+  TContext = unknown,
 > {
   /**
    * Unique name of the tool (used by the model to call it).
@@ -587,9 +649,7 @@ export interface Tool<
    *   return weather; // Can return object or string
    * }
    */
-  execute?:
-    | ((args: any, context?: ToolExecutionContext) => Promise<any> | any)
-    | undefined
+  execute?: ToolExecuteFunction<TInput, TOutput, TContext> | undefined
 
   /** If true, tool execution requires user approval before running. Works with both server and client tools. */
   needsApproval?: boolean
@@ -599,6 +659,10 @@ export interface Tool<
 
   /** Additional metadata for adapters or custom extensions */
   metadata?: Record<string, any> | undefined
+}
+
+export type AnyTool = Omit<Tool<any, any, any, any>, 'execute'> & {
+  execute?: ((args: any, context?: any) => any) | undefined
 }
 
 export interface ToolConfig {
@@ -729,10 +793,16 @@ export type AgentLoopStrategy = (state: AgentLoopState) => boolean
 export interface TextOptions<
   TProviderOptionsSuperset extends Record<string, any> = Record<string, any>,
   TProviderOptionsForModel = TProviderOptionsSuperset,
+  TContext = unknown,
 > {
   model: string
   messages: Array<ModelMessage>
-  tools?: Array<Tool<any, any, any>> | undefined
+  tools?: Array<AnyTool> | undefined
+  /**
+   * Runtime context provided by the caller and passed to middleware and
+   * server-side tool implementations.
+   */
+  context?: TContext
   /**
    * System prompts to include with the request.
    *
@@ -750,49 +820,14 @@ export interface TextOptions<
   systemPrompts?: Array<SystemPrompt>
   agentLoopStrategy?: AgentLoopStrategy
   /**
-   * Controls the randomness of the output.
-   * Higher values (e.g., 0.8) make output more random, lower values (e.g., 0.2) make it more focused and deterministic.
-   * Range: [0.0, 2.0]
+   * Observability metadata attached to this call. Surfaced to middleware,
+   * devtools, and the event client; values may be arbitrarily structured
+   * (objects, arrays). Adapters never forward this field onto the provider
+   * wire request.
    *
-   * Note: Generally recommended to use either temperature or topP, but not both.
-   *
-   * Provider usage:
-   * - OpenAI: `temperature` (number) - in text.top_p field
-   * - Anthropic: `temperature` (number) - ranges from 0.0 to 1.0, default 1.0
-   * - Gemini: `generationConfig.temperature` (number) - ranges from 0.0 to 2.0
-   */
-  temperature?: number
-  /**
-   * Nucleus sampling parameter. An alternative to temperature sampling.
-   * The model considers the results of tokens with topP probability mass.
-   * For example, 0.1 means only tokens comprising the top 10% probability mass are considered.
-   *
-   * Note: Generally recommended to use either temperature or topP, but not both.
-   *
-   * Provider usage:
-   * - OpenAI: `text.top_p` (number)
-   * - Anthropic: `top_p` (number | null)
-   * - Gemini: `generationConfig.topP` (number)
-   */
-  topP?: number
-  /**
-   * The maximum number of tokens to generate in the response.
-   *
-   * Provider usage:
-   * - OpenAI: `max_output_tokens` (number) - includes visible output and reasoning tokens
-   * - Anthropic: `max_tokens` (number, required) - range x >= 1
-   * - Gemini: `generationConfig.maxOutputTokens` (number)
-   */
-  maxTokens?: number
-  /**
-   * Additional metadata to attach to the request.
-   * Can be used for tracking, debugging, or passing custom information.
-   * Structure and constraints vary by provider.
-   *
-   * Provider usage:
-   * - OpenAI: `metadata` (Record<string, string>) - max 16 key-value pairs, keys max 64 chars, values max 512 chars
-   * - Anthropic: `metadata` (Record<string, any>) - includes optional user_id (max 256 chars)
-   * - Gemini: Not directly available in TextProviderOptions
+   * To send provider-side request metadata, use the provider's
+   * `modelOptions` field instead, where the provider supports one (e.g.
+   * OpenAI's and OpenRouter's `metadata` are both Record<string, string>).
    */
   metadata?: Record<string, any> | undefined
   modelOptions?: TProviderOptionsForModel
@@ -925,38 +960,22 @@ export interface RunStartedEvent extends AGUIRunStartedEvent {
   model?: string
 }
 
-/**
- * Provider-reported cost breakdown for a single request, normalized onto a
- * canonical shape so consumer code is portable across gateways. Each adapter's
- * extractor maps its provider-specific wire keys (e.g. OpenRouter's
- * `upstream_inference_prompt_cost`, `upstream_inference_input_cost`) onto these
- * fields at runtime.
- */
-export interface UsageCostBreakdown {
-  /** Total cost the gateway paid the upstream provider. */
-  upstreamCost?: number
-  /** Upstream cost for input (prompt) tokens. */
-  upstreamInputCost?: number
-  /** Upstream cost for output (completion) tokens. */
-  upstreamOutputCost?: number
+// Re-export the canonical usage types (defined in `@tanstack/ai-event-client`)
+// so `@tanstack/ai` consumers keep importing them from here unchanged.
+export type {
+  CompletionTokensDetails,
+  PromptTokensDetails,
+  ProviderUsageDetails,
+  TokenUsage,
+  UsageCostBreakdown,
 }
 
 /**
- * Token usage totals for a run, optionally including provider-reported cost.
- *
- * `cost` and `costDetails` are populated only by adapters whose provider returns
- * authoritative per-request cost (e.g. OpenRouter). They are absent for adapters
- * that do not report cost, so consumers must treat them as optional.
+ * @deprecated Renamed to {@link TokenUsage}. Kept as an alias for backward
+ * compatibility with `@tanstack/ai@0.23` and earlier; will be removed in a
+ * future release.
  */
-export interface UsageTotals {
-  promptTokens: number
-  completionTokens: number
-  totalTokens: number
-  /** Provider-reported cost for the request, when available. */
-  cost?: number
-  /** Provider-reported cost breakdown, when available. */
-  costDetails?: UsageCostBreakdown
-}
+export type UsageTotals = TokenUsage
 
 /**
  * Emitted when a run completes successfully.
@@ -969,8 +988,8 @@ export interface RunFinishedEvent extends AGUIRunFinishedEvent {
   model?: string
   /** Why the generation stopped */
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
-  /** Token usage statistics, optionally including provider-reported cost. */
-  usage?: UsageTotals
+  /** Token usage statistics with optional detailed breakdowns and provider-reported cost. */
+  usage?: TokenUsage
 }
 
 /**
@@ -1084,7 +1103,9 @@ export interface ToolCallEndEvent extends AGUIToolCallEndEvent {
   /** Final parsed input arguments (TanStack AI internal) */
   input?: unknown
   /** Tool execution result (TanStack AI internal) */
-  result?: string
+  result?: string | Array<ContentPart>
+  /** Tool execution output state (TanStack AI internal) */
+  state?: ToolOutputState
 }
 
 /**
@@ -1096,6 +1117,8 @@ export interface ToolCallEndEvent extends AGUIToolCallEndEvent {
 export interface ToolCallResultEvent extends AGUIToolCallResultEvent {
   /** Model identifier for multi-model support */
   model?: string
+  /** Tool execution output state (TanStack AI internal) */
+  state?: ToolOutputState
 }
 
 /**
@@ -1416,11 +1439,7 @@ export interface TextCompletionChunk {
   content: string
   role?: 'assistant'
   finishReason?: 'stop' | 'length' | 'content_filter' | null
-  usage?: {
-    promptTokens: number
-    completionTokens: number
-    totalTokens: number
-  }
+  usage?: TokenUsage
 }
 
 export interface SummarizationOptions<
@@ -1444,16 +1463,105 @@ export interface SummarizationResult {
   id: string
   model: string
   summary: string
-  usage: {
-    promptTokens: number
-    completionTokens: number
-    totalTokens: number
-  }
+  usage: TokenUsage
 }
 
 // ============================================================================
 // Image Generation Types
 // ============================================================================
+
+/**
+ * Optional role hint on a media input part (image / video / audio). Adapters
+ * read `metadata.role` to route the part to the provider-specific request
+ * field — e.g. `'mask'` → OpenAI `mask` / fal `mask_url`, `'end_frame'` → fal
+ * `end_image_url`, `'reference'` → fal `reference_image_urls`. When omitted
+ * the adapter falls back to positional routing.
+ */
+export type MediaInputRole =
+  | 'reference'
+  | 'mask'
+  | 'control'
+  | 'start_frame'
+  | 'end_frame'
+  | 'character'
+
+/**
+ * Metadata convention for image / video / audio inputs to media generation.
+ * Carried on `ImagePart.metadata` / `VideoPart.metadata` / `AudioPart.metadata`
+ * when used as conditioning inputs to `generateImage()` or `generateVideo()`.
+ */
+export interface MediaInputMetadata {
+  /** Optional role hint disambiguating the part's intent for the adapter */
+  role?: MediaInputRole
+  /**
+   * Optional user-defined label for this input (e.g. `'woman-in-red-dress'`).
+   * **Informational only** — adapters never read it and the SDK never
+   * rewrites prompt text based on it. Use it to correlate parts with the
+   * references you write in your prompt using the provider's own syntax
+   * (fal's `@Image1`, OpenAI's "image 1", etc.), or for your own
+   * bookkeeping/logging.
+   */
+  tag?: string
+}
+
+/**
+ * A single part of a multimodal media-generation prompt. Reuses the chat
+ * content-part shapes: text parts carry the instruction, image / video /
+ * audio parts carry conditioning inputs (with an optional
+ * `metadata.role` hint — see {@link MediaInputRole}).
+ */
+export type MediaPromptPart =
+  | TextPart
+  | ImagePart<MediaInputMetadata>
+  | VideoPart<MediaInputMetadata>
+  | AudioPart<MediaInputMetadata>
+
+/**
+ * Prompt accepted by `generateImage()` / `generateVideo()`: a plain string,
+ * or an ordered array of content parts for image-conditioned generation
+ * ("not like this *(image)*, more like this *(image)*"). Part order is
+ * meaningful — adapters with native multimodal prompts (Gemini, OpenRouter)
+ * preserve the interleaving; named-field providers (fal, OpenAI, xAI)
+ * extract the media parts and flatten the text. Text is always sent
+ * verbatim: to reference inputs from the prompt, write the provider's own
+ * syntax yourself (e.g. fal's `@Image1`, OpenAI's "image 1"). An array may
+ * be media-only (e.g. upscalers or pure img2img endpoints that take no
+ * instruction text).
+ */
+export type MediaPrompt = string | Array<MediaPromptPart>
+
+/**
+ * Non-text modalities a media-generation model can accept in its prompt.
+ */
+export type MediaPromptModality = 'image' | 'video' | 'audio'
+
+/** Maps a prompt modality to its content-part type. @internal */
+interface MediaPartByModality {
+  image: ImagePart<MediaInputMetadata>
+  video: VideoPart<MediaInputMetadata>
+  audio: AudioPart<MediaInputMetadata>
+}
+
+/**
+ * Prompt type narrowed to the modalities a specific model supports.
+ * `MediaPromptFor<never>` (a text-only model) is `string | Array<TextPart>`;
+ * `MediaPromptFor<'image'>` additionally admits image parts, etc. Used by
+ * the activity option types together with the adapter's per-model input
+ * modality map so unsupported parts fail at compile time.
+ */
+export type MediaPromptFor<TModalities extends MediaPromptModality = never> =
+  | string
+  | Array<TextPart | MediaPartByModality[TModalities]>
+
+/**
+ * Per-model map from model name to the prompt modalities it accepts, used as
+ * an adapter type parameter (`TModelInputModalitiesByName`). Models absent
+ * from the map fall back to the unconstrained {@link MediaPrompt}.
+ */
+export type ModelInputModalitiesByName = Record<
+  string,
+  ReadonlyArray<MediaPromptModality>
+>
 
 /**
  * Options for image generation.
@@ -1465,8 +1573,16 @@ export interface ImageGenerationOptions<
 > {
   /** The model to use for image generation */
   model: string
-  /** Text description of the desired image(s) */
-  prompt: string
+  /**
+   * Description of the desired image(s): a plain string, or an ordered array
+   * of content parts for image-conditioned generation (image-to-image,
+   * reference-guided, edit, multi-reference). Media parts may carry
+   * `metadata.role` to disambiguate intent (mask, control, reference, …).
+   * Adapters map parts onto the provider-native request — e.g. Gemini
+   * multimodal `contents`, OpenAI `images.edit()`, fal `image_url` /
+   * `mask_url` — and throw a clear runtime error for unsupported modalities.
+   */
+  prompt: MediaPrompt
   /** Number of images to generate (default: 1) */
   numberOfImages?: number
   /** Image size in WIDTHxHEIGHT format (e.g., "1024x1024") */
@@ -1517,11 +1633,7 @@ export interface ImageGenerationResult {
   /** Array of generated images */
   images: Array<GeneratedImage>
   /** Token usage information (if available) */
-  usage?: {
-    inputTokens?: number
-    outputTokens?: number
-    totalTokens?: number
-  }
+  usage?: TokenUsage
 }
 
 // ============================================================================
@@ -1572,11 +1684,7 @@ export interface AudioGenerationResult {
   /** The generated audio */
   audio: GeneratedAudio
   /** Token usage information (if available) */
-  usage?: {
-    inputTokens?: number
-    outputTokens?: number
-    totalTokens?: number
-  }
+  usage?: TokenUsage
 }
 
 // ============================================================================
@@ -1592,15 +1700,27 @@ export interface AudioGenerationResult {
 export interface VideoGenerationOptions<
   TProviderOptions extends object = object,
   TSize extends string | undefined = string,
+  TDuration extends string | number | undefined = number,
 > {
   /** The model to use for video generation */
   model: string
-  /** Text description of the desired video */
-  prompt: string
+  /**
+   * Description of the desired video: a plain string, or an ordered array of
+   * content parts for image-conditioned generation. Image parts may carry
+   * `metadata.role` (`'start_frame' | 'end_frame' | 'reference' |
+   * 'character'`) to disambiguate intent; adapters route them onto the
+   * provider-native request (e.g. OpenAI Sora `input_reference`, fal
+   * `image_url` / `end_image_url`) and throw at runtime if unsupported.
+   */
+  prompt: MediaPrompt
   /** Video size — format depends on the provider (e.g., "16:9", "1280x720") */
   size?: TSize
-  /** Video duration in seconds */
-  duration?: number
+  /**
+   * Video duration in seconds. Adapters that declare a per-model duration
+   * map narrow this to the model's valid union; use
+   * `adapter.snapDuration(seconds)` to coerce raw seconds to a valid value.
+   */
+  duration?: TDuration
   /** Model-specific options for video generation */
   modelOptions?: TProviderOptions
   /**
@@ -1650,6 +1770,12 @@ export interface VideoUrlResult {
   url: string
   /** When the URL expires, if applicable */
   expiresAt?: Date
+  /**
+   * Usage information for the completed generation, when the adapter can report
+   * it. For usage-based providers (e.g. fal) this carries `unitsBilled` — the
+   * real billed quantity — so consumers can compute exact cost.
+   */
+  usage?: TokenUsage
 }
 
 // ============================================================================
@@ -1697,6 +1823,8 @@ export interface TTSResult {
   duration?: number
   /** Content type of the audio (e.g., 'audio/mp3') */
   contentType?: string
+  /** Token usage information (if provided by the adapter) */
+  usage?: TokenUsage
 }
 
 // ============================================================================
@@ -1778,6 +1906,8 @@ export interface TranscriptionResult {
   segments?: Array<TranscriptionSegment>
   /** Word-level timestamps, if available */
   words?: Array<TranscriptionWord>
+  /** Token usage information (if provided by the adapter) */
+  usage?: TokenUsage
 }
 
 /**

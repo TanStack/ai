@@ -25,7 +25,7 @@ jobs:
           persist-credentials: true # sync job pushes generated model updates
 
       - name: Setup Tools
-        uses: TanStack/config/.github/setup@e4b48f16568324f76f467aa4c2aac2f05db632c3 # main
+        uses: TanStack/config/.github/setup@190f659075ff0845850e330883eb26d7ffd0671f # main
 
       - name: Fetch and sync model metadata
         run: pnpm generate:models

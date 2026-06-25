@@ -82,7 +82,7 @@ export async function POST(request: Request) {
 ## Example: With Tools
 
 ```typescript
-import { chat, toolDefinition } from "@tanstack/ai";
+import { chat, toolDefinition, type ModelMessage } from "@tanstack/ai";
 import { groqText } from "@tanstack/ai-groq";
 import { z } from "zod";
 
@@ -99,7 +99,7 @@ const searchDatabase = searchDatabaseDef.server(async ({ query }) => {
   return { results: [] };
 });
 
-const messages = [{ role: "user", content: "Search for something" }];
+const messages: Array<ModelMessage> = [{ role: "user", content: "Search for something" }];
 
 const stream = chat({
   adapter: groqText("llama-3.3-70b-versatile"),
@@ -110,9 +110,12 @@ const stream = chat({
 
 ## Model Options
 
-Groq supports various provider-specific options:
+Groq supports various provider-specific options. Sampling parameters live here too — `temperature`, `top_p`, and `max_completion_tokens` (Groq's token-limit key) — rather than as root-level props on `chat()`:
 
 ```typescript
+import { chat } from "@tanstack/ai";
+import { groqText } from "@tanstack/ai-groq";
+
 const stream = chat({
   adapter: groqText("llama-3.3-70b-versatile"),
   messages: [{ role: "user", content: "Hello!" }],
@@ -124,11 +127,13 @@ const stream = chat({
 });
 ```
 
+> If you previously passed `temperature` / `topP` / `maxTokens` at the root of `chat()`, see [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
+
 ### Reasoning
 
 Enable reasoning for models that support it (e.g., `openai/gpt-oss-120b`, `qwen/qwen3-32b`). This allows the model to show its reasoning process, which is streamed as `thinking` chunks:
 
-```typescript
+```typescript ignore
 modelOptions: {
   reasoning_effort: "medium", // "none" | "default" | "low" | "medium" | "high"
 }

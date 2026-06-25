@@ -1,0 +1,71 @@
+{
+  "name": "@tanstack/ai-mcp",
+  "version": "0.1.8",
+  "description": "Host-side Model Context Protocol client for TanStack AI: discover and run MCP server tools, resources, and prompts in any adapter's chat() loop, with generated end-to-end types.",
+  "author": "Tanner Linsley",
+  "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-mcp"
+  },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "keywords": [
+    "ai",
+    "mcp",
+    "model-context-protocol",
+    "tanstack",
+    "tools",
+    "typescript"
+  ],
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "bin": {
+    "tanstack-ai-mcp": "./dist/bin/bin.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    },
+    "./stdio": {
+      "types": "./dist/esm/stdio.d.ts",
+      "import": "./dist/esm/stdio.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build && tsup --config tsup.bin.config.ts",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:build": "publint --strict",
+    "test:coverage": "vitest run --coverage",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@tanstack/ai": "workspace:*"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "4.0.14",
+    "jiti": "^2.4.2",
+    "json-schema-to-typescript": "^15.0.4",
+    "tsup": "^8.5.1",
+    "vite": "^7.3.3",
+    "zod": "^4.2.0"
+  }
+}

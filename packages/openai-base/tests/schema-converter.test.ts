@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { makeStructuredOutputCompatible } from '../src/utils/schema-converter'
+import {
+  isStrictModeCompatible,
+  makeStructuredOutputCompatible,
+} from '../src/utils/schema-converter'
 
 describe('makeStructuredOutputCompatible', () => {
   it('should add additionalProperties: false to object schemas', () => {
@@ -244,5 +247,246 @@ describe('makeStructuredOutputCompatible', () => {
     // optional anyOf should have a null variant added
     expect(result.properties.value.anyOf).toContainEqual({ type: 'null' })
     expect(result.properties.value.anyOf).toHaveLength(3)
+  })
+
+  it('should strip unsupported string formats (e.g. uri) anywhere in the tree', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        data: { type: 'string', format: 'uri' },
+        nested: {
+          type: 'object',
+          properties: {
+            link: { type: 'string', format: 'uri-reference' },
+          },
+          required: ['link'],
+        },
+        list: {
+          type: 'array',
+          items: { type: 'string', format: 'iri' },
+        },
+      },
+      required: ['data', 'nested', 'list'],
+    }
+
+    const result: any = makeStructuredOutputCompatible(schema, [
+      'data',
+      'nested',
+      'list',
+    ])
+
+    expect(result.properties.data.format).toBeUndefined()
+    expect(result.properties.data.type).toBe('string')
+    expect(result.properties.nested.properties.link.format).toBeUndefined()
+    expect(result.properties.list.items.format).toBeUndefined()
+  })
+
+  it('should retain supported string formats', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        when: { type: 'string', format: 'date-time' },
+        who: { type: 'string', format: 'email' },
+        id: { type: 'string', format: 'uuid' },
+      },
+      required: ['when', 'who', 'id'],
+    }
+
+    const result: any = makeStructuredOutputCompatible(schema, [
+      'when',
+      'who',
+      'id',
+    ])
+
+    expect(result.properties.when.format).toBe('date-time')
+    expect(result.properties.who.format).toBe('email')
+    expect(result.properties.id.format).toBe('uuid')
+  })
+
+  it('should preserve a property literally named "format"', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        // "format" here is a property NAME, not the format keyword — its value
+        // is a schema object and must survive (only its inner unsupported
+        // format keyword is stripped).
+        format: { type: 'string', format: 'uri' },
+      },
+      required: ['format'],
+    }
+
+    const result: any = makeStructuredOutputCompatible(schema, ['format'])
+
+    expect(result.properties.format).toBeDefined()
+    expect(result.properties.format.type).toBe('string')
+    expect(result.properties.format.format).toBeUndefined()
+  })
+
+  it('should not mutate the input schema when stripping formats', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        data: { type: 'string', format: 'uri' },
+      },
+      required: ['data'],
+    }
+
+    makeStructuredOutputCompatible(schema, ['data'])
+
+    // Original definition is untouched — the strip pass returns a fresh tree.
+    expect(schema.properties.data.format).toBe('uri')
+  })
+})
+
+describe('isStrictModeCompatible', () => {
+  it('returns true for a plain object schema in the strict subset', () => {
+    expect(
+      isStrictModeCompatible({
+        type: 'object',
+        properties: { name: { type: 'string' } },
+        required: ['name'],
+      }),
+    ).toBe(true)
+  })
+
+  it('returns true for nested objects, arrays, and anyOf (all strict-supported)', () => {
+    expect(
+      isStrictModeCompatible({
+        type: 'object',
+        properties: {
+          items: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                v: { anyOf: [{ type: 'string' }, { type: 'number' }] },
+              },
+            },
+          },
+        },
+      }),
+    ).toBe(true)
+  })
+
+  it.each(['oneOf', 'allOf', 'not'])(
+    'returns false when a combinator keyword (%s) appears anywhere',
+    (keyword) => {
+      expect(
+        isStrictModeCompatible({
+          type: 'object',
+          properties: {
+            value: { [keyword]: [{ type: 'string' }] },
+          },
+        }),
+      ).toBe(false)
+    },
+  )
+
+  it('returns false for schemas using $ref / $defs (references escape strict normalization)', () => {
+    expect(
+      isStrictModeCompatible({
+        type: 'object',
+        properties: { user: { $ref: '#/$defs/user' } },
+        $defs: {
+          user: { type: 'object', properties: { id: { type: 'string' } } },
+        },
+      }),
+    ).toBe(false)
+  })
+
+  it('detects unsupported keywords nested deep in the tree', () => {
+    expect(
+      isStrictModeCompatible({
+        type: 'object',
+        properties: {
+          a: {
+            type: 'object',
+            properties: {
+              b: { type: 'array', items: { oneOf: [{ type: 'string' }] } },
+            },
+          },
+        },
+      }),
+    ).toBe(false)
+  })
+
+  it('handles non-object input without throwing', () => {
+    expect(isStrictModeCompatible(undefined)).toBe(true)
+    expect(isStrictModeCompatible(null)).toBe(true)
+    expect(isStrictModeCompatible('x')).toBe(true)
+  })
+
+  it('returns false when a property is typeless (e.g. z.any() -> {})', () => {
+    expect(
+      isStrictModeCompatible({
+        type: 'object',
+        properties: { payload: {} },
+        required: ['payload'],
+      }),
+    ).toBe(false)
+  })
+
+  it('returns false for a typeless node with only metadata (no type keyword)', () => {
+    expect(
+      isStrictModeCompatible({
+        type: 'object',
+        properties: { payload: { description: 'anything' } },
+      }),
+    ).toBe(false)
+  })
+
+  it('returns false for a typeless array items schema', () => {
+    expect(
+      isStrictModeCompatible({
+        type: 'object',
+        properties: { list: { type: 'array', items: {} } },
+      }),
+    ).toBe(false)
+  })
+
+  it('returns false for a typeless anyOf variant', () => {
+    expect(
+      isStrictModeCompatible({
+        type: 'object',
+        properties: { v: { anyOf: [{ type: 'string' }, {}] } },
+      }),
+    ).toBe(false)
+  })
+
+  it('detects a typeless property nested deep in the tree', () => {
+    expect(
+      isStrictModeCompatible({
+        type: 'object',
+        properties: {
+          a: {
+            type: 'object',
+            properties: {
+              b: {
+                type: 'array',
+                items: { type: 'object', properties: { c: {} } },
+              },
+            },
+          },
+        },
+      }),
+    ).toBe(false)
+  })
+
+  it('treats enum / const properties as typed (strict-compatible)', () => {
+    expect(
+      isStrictModeCompatible({
+        type: 'object',
+        properties: {
+          color: { enum: ['red', 'blue'] },
+          tag: { const: 'x' },
+        },
+      }),
+    ).toBe(true)
+  })
+
+  it('does not flag an empty properties map as typeless', () => {
+    expect(
+      isStrictModeCompatible({ type: 'object', properties: {}, required: [] }),
+    ).toBe(true)
   })
 })

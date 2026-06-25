@@ -321,6 +321,29 @@ OPENAI_API_KEY=sk-... pnpm --filter @tanstack/ai-e2e record
 - Docs are in `docs/` directory (Markdown)
 - Auto-generated docs via `pnpm generate-docs` (TypeDoc)
 - Link verification via `pnpm test:docs`
+- **No `as` type-assertion casts in doc code samples.** Examples must
+  type-check without `as SomeType`. To use a value typed `unknown` (a raw
+  JSON Schema tool input, `request.json()`, `JSON.parse`, custom-event
+  values, etc.), narrow it with a `typeof` / `in` check or a type guard, or
+  validate it with a Standard Schema library — never `as`. (`as const` is
+  allowed; it's a const assertion, not a type cast.)
+- **Show both sides of the coin.** When a doc spans both server and client,
+  include snippets for **both** halves (the server endpoint AND the client
+  consumption), not just one.
+- **Use the latest model per provider in examples**, sourced from each
+  adapter's `model-meta.ts` (the newest `gpt-*`, `claude-*`, `gemini-*`,
+  etc.). Don't introduce superseded model ids in new or edited samples.
+- **Maintain `addedAt` / `updatedAt` on docs entries in `docs/config.json`.**
+  Every page entry carries an `addedAt` (ISO `YYYY-MM-DD`) and, once edited,
+  an `updatedAt`. When you touch a docs page, update its entry:
+  - **New page** → add the entry with `addedAt` set to today's date.
+  - **Content change** to an existing page (new section, new capability,
+    reworked guidance, new examples) → set/refresh `updatedAt` to today's
+    date.
+  - **Bug fixes don't bump anything.** Pure corrections — typos, broken
+    links, code-fence languages, formatting, factual fixes — must **not**
+    touch `addedAt` or `updatedAt`. Only genuinely new or changed content
+    moves these dates.
 
 ## Key Dependencies
 

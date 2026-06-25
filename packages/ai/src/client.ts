@@ -46,7 +46,11 @@ export {
   type ToolDefinitionInstance,
 } from './activities/chat/tools/tool-definition'
 
-export { convertSchemaToJsonSchema } from './activities/chat/tools/schema-converter'
+export {
+  convertSchemaToJsonSchema,
+  isStandardSchema,
+  parseWithStandardSchema,
+} from './activities/chat/tools/schema-converter'
 
 export {
   convertMessagesToModelMessages,
@@ -93,6 +97,10 @@ export type {
   CustomEvent,
   DocumentPart,
   ImagePart,
+  MediaInputMetadata,
+  MediaInputRole,
+  MediaPrompt,
+  MediaPromptPart,
   MessagePart,
   ModelMessage,
   RunErrorEvent,
@@ -112,6 +120,8 @@ export type {
 
 export type {
   AudioVisualization,
+  RealtimeAdapter,
+  RealtimeConnection,
   RealtimeError,
   RealtimeErrorCode,
   RealtimeEvent,

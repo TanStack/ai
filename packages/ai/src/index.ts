@@ -52,9 +52,21 @@ export {
   type InferToolOutput,
 } from './activities/chat/tools/tool-definition'
 
+// MCP chat option types
+export type {
+  MCPToolSource,
+  ChatMCPOptions,
+  MCPConnectionPolicy,
+} from './activities/chat/mcp/types'
+
+// MCP error classes (value exports — usable with instanceof)
+export { MCPDuplicateToolNameError } from './activities/chat/mcp/manager'
+
 // Schema conversion (Standard JSON Schema compliant)
 export {
   convertSchemaToJsonSchema,
+  isStandardSchema,
+  parseWithStandardSchema,
   StandardSchemaValidationError,
 } from './activities/chat/tools/schema-converter'
 
@@ -69,6 +81,10 @@ export {
 
 // Tool call management
 export { ToolCallManager } from './activities/chat/tools/tool-calls'
+
+// Lazy tool discovery (name of the synthetic discovery tool, for custom
+// message-compaction logic that needs to reference it)
+export { DISCOVERY_TOOL_NAME } from './activities/chat/tools/lazy-tool-manager'
 
 // Provider tool type
 export type { ProviderTool } from './tools/provider-tool'
@@ -106,8 +122,44 @@ export type {
   ErrorInfo,
 } from './activities/chat/middleware/index'
 
+// Base, activity-agnostic middleware. The observe-only superset that media
+// activities accept via their `middleware` option; `ChatMiddleware` adds the
+// chat-only hooks on top. Pure types only — the `otelMiddleware` value lives at
+// `@tanstack/ai/middlewares/otel` so the root barrel never requires the
+// optional `@opentelemetry/api` peer dependency.
+export type {
+  GenerationMiddleware,
+  GenerationMiddlewareContext,
+  GenerationActivity,
+  GenerationUsageInfo,
+  GenerationFinishInfo,
+  GenerationAbortInfo,
+  GenerationErrorInfo,
+  AnyGenerationMiddleware,
+} from './activities/middleware/index'
+// Capability primitives + middleware builder
+export {
+  createCapability,
+  defineChatMiddleware,
+  createChatMiddleware,
+} from './activities/chat/middleware/index'
+export type {
+  Capability,
+  CapabilityHandle,
+  CapabilityContext,
+  CapabilityGetter,
+  CapabilityProvider,
+} from './activities/chat/middleware/index'
+
 // All types
 export * from './types'
+
+// Usage utilities
+export { buildBaseUsage, type BaseUsageInput } from './utilities/usage'
+
+// Media-generation prompt resolution (used by image / video adapters)
+export { resolveMediaPrompt } from './utilities/media-prompt'
+export type { ResolvedMediaPrompt } from './utilities/media-prompt'
 
 // System prompts (type + normaliser used by adapters)
 export type { SystemPrompt, NormalizedSystemPrompt } from './system-prompts'
@@ -139,6 +191,8 @@ export type {
   RealtimeEventHandler,
   RealtimeErrorCode,
   RealtimeError,
+  RealtimeAdapter,
+  RealtimeConnection,
 } from './realtime/index'
 
 // Message converters
@@ -187,10 +241,15 @@ export {
 // AG-UI wire serialization (used internally by @tanstack/ai-client)
 export { uiMessagesToWire } from './utilities/ag-ui-wire'
 export type { WireMessage } from './utilities/ag-ui-wire'
+export {
+  isContentPart,
+  isContentPartArray,
+  normalizeToolResult,
+} from './utilities/tool-result'
 
 // Adapter extension utilities
 export { createModel, extendAdapter } from './extend-adapter'
-export type { ExtendedModelDef } from './extend-adapter'
+export type { ExtendedModelDef, ModelCapabilities } from './extend-adapter'
 
 // Logger
 export type {

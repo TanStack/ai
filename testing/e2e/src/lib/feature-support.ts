@@ -18,6 +18,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'openai-compatible',
   ]),
   'one-shot-text': new Set([
     'openai',
@@ -29,6 +30,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'openai-compatible',
   ]),
   reasoning: new Set(['openai', 'anthropic', 'gemini']),
   'multi-turn': new Set([
@@ -41,6 +43,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'openai-compatible',
   ]),
   'tool-calling': new Set([
     'openai',
@@ -52,6 +55,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'openai-compatible',
   ]),
   'parallel-tool-calls': new Set([
     'openai',
@@ -62,6 +66,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'openai-compatible',
   ]),
   // Gemini excluded: approval flow timing issues with Gemini's streaming format
   'tool-approval': new Set([
@@ -73,6 +78,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'openai-compatible',
   ]),
   // Ollama excluded: aimock doesn't support content+toolCalls for /api/chat format
   'text-tool-text': new Set([
@@ -84,6 +90,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'openai-compatible',
   ]),
   'structured-output': new Set([
     'openai',
@@ -95,6 +102,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'openai-compatible',
   ]),
   // Streaming structured output: only providers with native streaming JSON
   // schema support are listed here. Other providers fall back to the
@@ -107,6 +115,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'openai-compatible',
   ]),
   // Multi-turn structured output: every turn produces its own typed
   // `structured-output` part on the assistant message, and historical
@@ -135,6 +144,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'openai-compatible',
   ]),
   'agentic-structured': new Set([
     'openai',
@@ -146,6 +156,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'openai-compatible',
   ]),
   // Native-combined-mode adapters only. Each provider's default test model
   // (or per-feature override in `features.ts`) must opt into combined mode
@@ -197,11 +208,31 @@ export const matrix: Record<Feature, Set<Provider>> = {
   ]),
   // Gemini excluded: aimock doesn't mock Gemini's Imagen predict endpoint format
   'image-gen': new Set(['openai', 'grok']),
+  // image-to-image (image parts in the generateImage prompt). aimock 1.29
+  // mocks OpenAI's multipart `/v1/images/edits` (matches on the `prompt` form
+  // field, ignores the binary image/mask fields), so the OpenAI route runs
+  // end-to-end. Other providers route to endpoints aimock doesn't mock yet
+  // (Gemini multimodal `generateContent`, xAI's JSON `/v1/images/edits`,
+  // OpenRouter multimodal chat content parts, fal endpoint-specific input
+  // fields) — their mapping is covered by unit tests. Add them here when
+  // aimock support lands.
+  'image-to-image': new Set(['openai']),
   'audio-gen': new Set(['gemini', 'elevenlabs']),
   'sound-effects': new Set(['elevenlabs']),
   tts: new Set(['openai', 'grok', 'elevenlabs']),
   transcription: new Set(['openai', 'grok', 'elevenlabs']),
-  'video-gen': new Set(['openai']),
+  // Gemini Veo runs through a custom aimock mount (see geminiVeoMount in
+  // global-setup.ts) — aimock 1.29 doesn't model the long-running
+  // `:predictLongRunning` + operations-polling pair natively.
+  'video-gen': new Set(['openai', 'gemini']),
+  // image-to-video (image parts in the generateVideo prompt). aimock 1.29's
+  // `/v1/videos` handler parses Sora's multipart upload (the SDK switches to
+  // multipart when `input_reference` carries a File) and matches on the
+  // `prompt` form field, so the OpenAI/Sora route runs end-to-end. fal's
+  // endpoint-specific fields and Gemini Veo's image/lastFrame/referenceImages
+  // routing remain unit-test-only (the spec's journal assertion is tied to
+  // aimock's /v1/videos pipeline, which custom mounts bypass).
+  'image-to-video': new Set(['openai']),
   // Only Gemini currently surfaces a first-class stateful conversation API via
   // the adapter (geminiTextInteractions, behind @tanstack/ai-gemini/experimental).
   'stateful-interactions': new Set(['gemini']),

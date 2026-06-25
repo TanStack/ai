@@ -24,6 +24,7 @@ export const providers: Provider[] = [
   'bedrock-responses',
   'openrouter',
   'openrouter-responses',
+  'openai-compatible',
   'elevenlabs',
 ]
 

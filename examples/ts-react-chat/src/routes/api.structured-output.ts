@@ -159,13 +159,13 @@ function adapterFor(provider: Provider, model?: string): AnyTextAdapter {
       // `generateContentStream` call. Gemini 2.x is documented as brittle
       // for the combination and falls back to the engine's legacy
       // finalization path.
-      return geminiText(
-        (baseModel || 'gemini-3-pro-preview') as 'gemini-3-pro-preview',
-      )
+      //
+      // Default is `gemini-3.5-flash`: the newest *stable* (non-preview)
+      // 3.x id, matching the dropdown's first entry. The previous default
+      // (`gemini-3-pro-preview`) was retired by Google and now 404s.
+      return geminiText((baseModel || 'gemini-3.5-flash') as 'gemini-3.5-flash')
     case 'grok':
-      return grokText(
-        (model || 'grok-4-1-fast-reasoning') as 'grok-4-1-fast-reasoning',
-      )
+      return grokText((model || 'grok-build-0.1') as 'grok-build-0.1')
     case 'groq':
       return groqText(
         (model ||
@@ -289,9 +289,7 @@ function reasoningOptionsFor(
       // both the chat-completions and Responses-beta endpoints.
       return { reasoning: { effort: 'medium' } }
     case 'grok':
-      // xAI surfaces `delta.reasoning_content` automatically on reasoning
-      // models (grok-3-mini, grok-4-fast-reasoning, grok-4-1-fast-reasoning).
-      // No request param needed.
+      // The Grok Responses adapter includes encrypted reasoning by default.
       return undefined
   }
 }
@@ -381,18 +379,22 @@ export const Route = createFileRoute('/api/structured-output')({
               : undefined
           const stream = params.forwardedProps.stream !== false
           const adapter = adapterFor(resolvedProvider, model)
-          const modelOptions = reasoningOptionsFor(resolvedProvider, model)
           // Adaptive thinking on Claude 4.7 can chew through a few thousand
           // tokens before the schema-constrained JSON even starts. The
           // adapter's default `max_tokens` (1024) was producing truncated
           // outputs ("response was cut off"). Bump for the
           // `:thinking-max` variant so the reasoning + JSON both fit. We
           // keep the budget modest (16k) for everyone else to avoid
-          // surprising bills on the demo.
+          // surprising bills on the demo. The cap now lives in provider-native
+          // `modelOptions` (Anthropic: `max_tokens`) — the generic root
+          // `maxTokens` was removed.
           const wantsAnthropicMaxThinking =
             resolvedProvider === 'anthropic' &&
             model?.endsWith(':thinking-max') === true
-          const maxTokens = wantsAnthropicMaxThinking ? 16_000 : undefined
+          const modelOptions = {
+            ...reasoningOptionsFor(resolvedProvider, model),
+            ...(wantsAnthropicMaxThinking && { max_tokens: 16_000 }),
+          }
           const counter = phaseCounterMiddleware()
 
           if (stream) {
@@ -406,7 +408,6 @@ export const Route = createFileRoute('/api/structured-output')({
               threadId: params.threadId,
               runId: params.runId,
               abortController,
-              ...(maxTokens !== undefined && { maxTokens }),
             }) as AsyncIterable<StreamChunk>
             const withCounts = withTrailingPhaseCounts(
               streamIterable,
@@ -427,7 +428,6 @@ export const Route = createFileRoute('/api/structured-output')({
             threadId: params.threadId,
             runId: params.runId,
             abortController,
-            ...(maxTokens !== undefined && { maxTokens }),
           })
 
           const responseStream = structuredOutputResultStream({

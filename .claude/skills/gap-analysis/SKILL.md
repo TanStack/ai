@@ -15,13 +15,16 @@ markdown report under `.agent/gap-analysis/`. **Do not edit source files.**
 
 ## Invocation
 
-| Args                             | Scope                                               |
-| -------------------------------- | --------------------------------------------------- |
-| `<provider>` (e.g. `openai`)     | One provider — all four audit dimensions.           |
-| `feature <feature>` (e.g. `tts`) | One feature row of the matrix across all providers. |
-| `models`                         | New-model diff for every provider.                  |
-| `--all`                          | Full sweep (fan out subagents, one per provider).   |
-| _(none)_                         | Ask the user which scope via AskUserQuestion.       |
+| Args                             | Scope                                                 |
+| -------------------------------- | ----------------------------------------------------- |
+| `<provider>` (e.g. `openai`)     | One provider — all audit dimensions.                  |
+| `feature <feature>` (e.g. `tts`) | One feature row of the matrix across all providers.   |
+| `models`                         | New-model diff for every provider.                    |
+| `activities`                     | Activity-coverage diff: which of the 7 core activity  |
+|                                  | kinds each provider ships an adapter for, vs. what    |
+|                                  | upstream supports. (Dimension 6 only, all providers.) |
+| `--all`                          | Full sweep (fan out subagents, one per provider).     |
+| _(none)_                         | Ask the user which scope via AskUserQuestion.         |
 
 ## Workflow
 
@@ -44,12 +47,18 @@ markdown report under `.agent/gap-analysis/`. **Do not edit source files.**
    4. Capability-flag drift
    5. Telemetry / observability parity (usage tokens, cache/reasoning
       counts, request ids, logging asymmetry)
+   6. Activity coverage (which of the 7 core activity kinds each provider
+      ships an adapter for vs. what upstream supports) — this is the **only**
+      dimension for the `activities` scope; it's also rolled into `--all`.
 5. **Fan out** for `--all`: launch one `Explore` subagent per provider, max 3
-   in parallel. Each subagent returns the five-dimension findings for its
-   provider; you synthesise into the combined report.
+   in parallel. Each subagent returns the multi-dimension findings for its
+   provider; you synthesise into the combined report. The `activities` scope
+   does **not** fan out — derive the provider×activity matrix centrally from
+   the adapter files (see dimension 6), since it's a fast mechanical diff.
 6. **Write the report** to `.agent/gap-analysis/YYYY-MM-DD-<scope>.md` using
    [references/report-template.md](references/report-template.md). Date is
-   today's ISO date. `<scope>` is `openai` / `feature-tts` / `models` / `all`.
+   today's ISO date. `<scope>` is `openai` / `feature-tts` / `models` /
+   `activities` / `all`.
 7. **Print the report path and a 5-line summary** to the user.
 
 ## Critical rules
@@ -92,6 +101,31 @@ re-read it; this list is a snapshot:
 `structured-output-stream`, `agentic-structured`, `multimodal-image`,
 `multimodal-structured`, `summarize`, `summarize-stream`, `image-gen`, `tts`,
 `transcription`, `video-gen`.
+
+## Known activities (7)
+
+**Features** (above) are matrix rows about behaviours within an activity.
+**Activities** are the coarser-grained core capability kinds in `@tanstack/ai`
+— each has a `Base<Kind>Adapter` and a provider "supports" one only if its
+package ships an adapter of that kind. Canonical list is the `AdapterKind`
+union in `packages/ai/src/activities/index.ts` — always re-read it:
+
+`text`, `summarize`, `image`, `audio`, `video`, `tts`, `transcription`.
+
+A provider's activity surface is derived mechanically from its adapter files:
+`packages/ai-<provider>/src/adapters/`. Filename → activity-kind map:
+
+| Adapter file                                                 | Activity kind   |
+| ------------------------------------------------------------ | --------------- |
+| `text.ts` / `text-chat-completions.ts` / `responses-text.ts` | `text`          |
+| `summarize.ts`                                               | `summarize`     |
+| `image.ts`                                                   | `image`         |
+| `audio.ts`                                                   | `audio`         |
+| `video.ts`                                                   | `video`         |
+| `speech.ts` / `tts.ts`                                       | `tts`           |
+| `transcription.ts`                                           | `transcription` |
+
+(`cost.ts` is a helper, not an activity adapter.)
 
 ## Verification before finishing
 

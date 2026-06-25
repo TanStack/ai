@@ -9,6 +9,7 @@ import {
 } from '@/lib/server-functions'
 import { VIDEO_MODELS } from '@/lib/models'
 import { getRandomVideoPrompt } from '@/lib/prompts'
+import { imageUrlToPart, readImageFile } from '@/lib/media'
 
 type JobState =
   | { status: 'idle' }
@@ -20,7 +21,7 @@ type JobState =
       model: string
       progress?: number | undefined
     }
-  | { status: 'completed'; url: string }
+  | { status: 'completed'; url: string; unitsBilled?: number; cost?: number }
   | { status: 'error'; message: string }
 
 interface VideoGeneratorProps {
@@ -41,6 +42,8 @@ export default function VideoGenerator({
   const pollingRefs = useRef<Map<string, NodeJS.Timeout>>(new Map())
 
   const filteredModels = VIDEO_MODELS.filter((m) => m.mode === mode)
+  const falModels = filteredModels.filter((m) => m.provider === 'fal')
+  const xaiModels = filteredModels.filter((m) => m.provider === 'xai')
 
   useEffect(() => {
     if (initialImageUrl) {
@@ -61,15 +64,12 @@ export default function VideoGenerator({
     }
   }, [])
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
+    if (fileInputRef.current) fileInputRef.current.value = ''
     if (!file) return
-
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      setImagePreview(event.target?.result as string)
-    }
-    reader.readAsDataURL(file)
+    const attached = await readImageFile(file)
+    setImagePreview(attached.dataUrl)
   }
 
   const clearImage = () => {
@@ -95,7 +95,12 @@ export default function VideoGenerator({
 
         setJobStates((prev) => ({
           ...prev,
-          [model]: { status: 'completed', url: url },
+          [model]: {
+            status: 'completed',
+            url: url,
+            unitsBilled: urlResult.usage?.unitsBilled,
+            cost: urlResult.usage?.cost,
+          },
         }))
       } else if (status.status === 'processing') {
         setJobStates((prev) => ({
@@ -136,13 +141,20 @@ export default function VideoGenerator({
     }))
 
     try {
-      const imageUrl =
-        mode === 'image-to-video' ? (imagePreview ?? undefined) : undefined
+      // Image-to-video sends the start frame as a prompt part — the fal
+      // adapter routes `role: 'start_frame'` to the endpoint's start-image
+      // field (e.g. `image_url` on Kling i2v).
+      const builtPrompt =
+        mode === 'image-to-video' && imagePreview
+          ? [
+              { type: 'text' as const, content: prompt },
+              imageUrlToPart(imagePreview, { role: 'start_frame' }),
+            ]
+          : prompt
       const result = await createVideoJobFn({
         data: {
-          prompt,
+          prompt: builtPrompt,
           model: modelId,
-          ...(imageUrl !== undefined && { imageUrl }),
         },
       })
 
@@ -155,8 +167,11 @@ export default function VideoGenerator({
         },
       }))
 
+      // Poll keyed by the UI model id, not result.model: the direct-xAI
+      // entries share one adapter model ('grok-imagine-video-1.5'),
+      // so result.model wouldn't identify the card (or the adapter) uniquely.
       const interval = setInterval(() => {
-        pollStatus(result.jobId, result.model)
+        pollStatus(result.jobId, modelId)
       }, 4000)
       pollingRefs.current.set(modelId, interval)
     } catch (err) {
@@ -240,11 +255,20 @@ export default function VideoGenerator({
             className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
           >
             <option value="all">All Models</option>
-            {filteredModels.map((model) => (
-              <option key={model.id} value={model.id}>
-                {model.name}
-              </option>
-            ))}
+            <optgroup label="fal.ai">
+              {falModels.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.name}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="xAI (direct)">
+              {xaiModels.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.name}
+                </option>
+              ))}
+            </optgroup>
           </select>
         </div>
 
@@ -387,15 +411,33 @@ export default function VideoGenerator({
                   </div>
                 )}
                 {state.status === 'completed' && (
-                  <div className="rounded-lg overflow-hidden border border-gray-700">
-                    <video
-                      src={state.url}
-                      controls
-                      autoPlay
-                      loop
-                      className="w-full h-auto"
-                    />
-                  </div>
+                  <>
+                    <div className="rounded-lg overflow-hidden border border-gray-700">
+                      <video
+                        src={state.url}
+                        controls
+                        autoPlay
+                        loop
+                        className="w-full h-auto"
+                      />
+                    </div>
+                    {state.cost != null ? (
+                      <p className="text-xs text-gray-500">
+                        Billed ${state.cost.toFixed(3)}
+                        {state.unitsBilled != null
+                          ? ` for ${state.unitsBilled} second${state.unitsBilled === 1 ? '' : 's'} of video`
+                          : ''}
+                      </p>
+                    ) : (
+                      state.unitsBilled != null && (
+                        <p className="text-xs text-gray-500">
+                          Billed {state.unitsBilled} fal unit
+                          {state.unitsBilled === 1 ? '' : 's'} — multiply by the
+                          endpoint unit price for USD cost
+                        </p>
+                      )
+                    )}
+                  </>
                 )}
               </div>
             )

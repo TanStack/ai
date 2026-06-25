@@ -204,9 +204,37 @@ function getTextAdapter(
     case 'gemini':
       return geminiText(modelId as 'gemini-2.5-flash')
     case 'grok':
-      return grokText(modelId as 'grok-3-mini')
+      return grokText(modelId as 'grok-build-0.1')
     case 'groq':
       return groqText(modelId as 'llama-3.3-70b-versatile')
+  }
+}
+
+/**
+ * The max-output-tokens cap lives in provider-native `modelOptions` keys (the
+ * root `maxTokens` field was removed from core `TextOptions`). The key name
+ * differs per provider. Ollama also keeps its larger context window via
+ * `num_ctx`.
+ */
+function maxTokensModelOptions(
+  provider: EvalProvider,
+  maxTokens: number,
+): Record<string, unknown> {
+  switch (provider) {
+    case 'ollama':
+      // Ollama reads sampling/runner params from the nested `options` key, not
+      // the top level of `modelOptions`. Flat keys here would be silently
+      // dropped at the wire.
+      return { options: { num_predict: maxTokens, num_ctx: 32768 } }
+    case 'openai':
+    case 'grok':
+      return { max_output_tokens: maxTokens }
+    case 'anthropic':
+      return { max_tokens: maxTokens }
+    case 'gemini':
+      return { maxOutputTokens: maxTokens }
+    case 'groq':
+      return { max_completion_tokens: maxTokens }
   }
 }
 
@@ -787,14 +815,10 @@ async function main() {
         tools,
         systemPrompts,
         agentLoopStrategy: maxIterations(15),
-        maxTokens: 8192,
-        ...(provider === 'ollama'
-          ? {
-              modelOptions: {
-                num_ctx: 32768,
-              },
-            }
-          : {}),
+        // Sampling now lives in provider-native `modelOptions` keys rather
+        // than the removed root `maxTokens`. The max-output-tokens key name
+        // differs per provider.
+        modelOptions: maxTokensModelOptions(provider, 8192),
       })
       await processor.process(
         teeStream(stream, (chunk) => {

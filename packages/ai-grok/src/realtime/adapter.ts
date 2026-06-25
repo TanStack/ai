@@ -2,6 +2,8 @@ import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import type {
   AnyClientTool,
   AudioVisualization,
+  RealtimeAdapter,
+  RealtimeConnection,
   RealtimeEvent,
   RealtimeEventHandler,
   RealtimeMessage,
@@ -10,7 +12,6 @@ import type {
   RealtimeToken,
 } from '@tanstack/ai'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
-import type { RealtimeAdapter, RealtimeConnection } from './realtime-contract'
 import type { GrokRealtimeOptions } from './types'
 
 const GROK_REALTIME_URL = 'https://api.x.ai/v1/realtime'

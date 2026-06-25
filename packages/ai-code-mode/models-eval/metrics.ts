@@ -76,7 +76,14 @@ export function computeMetrics(messages: Array<UIMessage>): ComputedMetrics {
 
       if (part.type === 'tool-result') {
         toolResultLookup.set(part.toolCallId, {
-          content: part.content,
+          // `content` may be multimodal (`Array<ContentPart>`) since tool
+          // results can now carry images/etc. The eval only inspects the JSON
+          // string `execute_typescript` returns, so coerce non-string content
+          // to a serialized form that `safeJsonParse` can handle.
+          content:
+            typeof part.content === 'string'
+              ? part.content
+              : JSON.stringify(part.content),
           state: part.state,
           error: part.error,
         })

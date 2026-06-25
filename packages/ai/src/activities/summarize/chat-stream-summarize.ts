@@ -1,5 +1,6 @@
 import { EventType } from '@ag-ui/core'
 import { toRunErrorPayload } from '../error-payload'
+import { MAX_TOKENS_KEYS } from '../../utilities/sampling-keys'
 import { BaseSummarizeAdapter } from './adapter'
 import type {
   StreamChunk,
@@ -21,6 +22,139 @@ import type {
  */
 export interface ChatStreamCapable {
   chatStream: (options: TextOptions<any>) => AsyncIterable<StreamChunk>
+}
+
+/**
+ * Provider-native max-output-tokens key per summarize-adapter `name`. summarize
+ * is provider-agnostic and forwards `modelOptions` opaquely to the wrapped text
+ * adapter, so `maxLength` must be written under the exact key the underlying
+ * provider reads — no adapter reads a generic `maxTokens`. Ollama is the one
+ * exception: it nests sampling under `options`, so it has no entry here and is
+ * handled as a special nested case in `applyMaxLength`/`applyDefaultTemperature`.
+ *
+ * Keep in sync with each adapter's wire mapping:
+ * - OpenAI (Responses): `max_output_tokens`
+ * - Anthropic / Grok: `max_tokens`
+ * - Groq: `max_completion_tokens`
+ * - Gemini: `maxOutputTokens`
+ * - OpenRouter: `maxCompletionTokens`
+ * - Ollama: nested `options.num_predict` (no entry — see `applyMaxLength`)
+ */
+const MAX_TOKENS_KEY_BY_ADAPTER: Record<string, string> = {
+  openai: 'max_output_tokens',
+  anthropic: 'max_tokens',
+  grok: 'max_tokens',
+  groq: 'max_completion_tokens',
+  gemini: 'maxOutputTokens',
+  openrouter: 'maxCompletionTokens',
+}
+
+/**
+ * Every flat key any supported provider uses to cap output tokens (plus the
+ * generic `maxTokens` spelling no adapter reads). Used to detect a
+ * caller-supplied token limit so the summarize default never overrides an
+ * explicit caller value. Shared with the OTel middleware via
+ * `MAX_TOKENS_KEYS` so the two spelling sets cannot drift.
+ */
+const KNOWN_MAX_TOKENS_KEYS = MAX_TOKENS_KEYS
+
+/**
+ * Whether `applyMaxLength` knows how to place a token limit for this adapter
+ * `name` (either the nested Ollama shape or a flat provider-native key).
+ * Used to surface a warning when `maxLength` would otherwise be silently
+ * dropped for an unrecognised adapter name.
+ */
+function isKnownMaxTokensAdapter(adapterName: string): boolean {
+  return (
+    adapterName === 'ollama' ||
+    MAX_TOKENS_KEY_BY_ADAPTER[adapterName] !== undefined
+  )
+}
+
+/**
+ * Apply the low-temperature summarize default to a working copy of the
+ * caller's `modelOptions`, placed where the wrapped provider actually reads
+ * it (nested under `options` for Ollama, flat otherwise). The caller always
+ * wins: if they already set `temperature` in that location, it is untouched.
+ */
+function applyDefaultTemperature(
+  adapterName: string,
+  temperature: number,
+  modelOptions: Record<string, unknown>,
+): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...modelOptions }
+
+  if (adapterName === 'ollama') {
+    const existing =
+      merged.options && typeof merged.options === 'object'
+        ? (merged.options as Record<string, unknown>)
+        : undefined
+    if (existing && 'temperature' in existing) return merged
+    merged.options = { temperature, ...existing }
+    return merged
+  }
+
+  if ('temperature' in merged) return merged
+  merged.temperature = temperature
+  return merged
+}
+
+/**
+ * Resolve `maxLength` to the provider-native max-output-tokens key for the
+ * given summarize-adapter `name` (this wrapper's OWN `name`, not the wrapped
+ * text adapter's) and merge it into a working copy of the caller's
+ * `modelOptions`. The caller always wins: if they already set any recognised
+ * token-limit key (flat or, for Ollama, nested `options.num_predict`), the
+ * default is left untouched. Unknown/unrecognised adapter names fall back to
+ * NOT setting a token key (the prompt hint still asks the model to stay under
+ * `maxLength`) rather than writing a dead key no provider reads.
+ *
+ * Caveat (intentional): "caller wins" keys off ANY recognised spelling in
+ * `KNOWN_MAX_TOKENS_KEYS`, but only the adapter's native key is read on the
+ * wire. So a caller who sets a NON-native spelling for this provider — e.g.
+ * `maxTokens`, or Anthropic's `max_tokens` against an OpenAI adapter — suppresses
+ * the summarize default WITHOUT getting their own value applied either: neither
+ * cap reaches the wire. This favours never clobbering a migration leftover over
+ * guaranteeing a cap; the prompt-level hint still asks the model to stay under
+ * `maxLength`. Rename the key to the provider-native spelling to forward it.
+ */
+function applyMaxLength(
+  adapterName: string,
+  maxLength: number,
+  modelOptions: Record<string, unknown>,
+): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...modelOptions }
+
+  if (adapterName === 'ollama') {
+    // Honor a caller-set limit in either shape: a recognised flat key (e.g.
+    // left over from a migration) or the nested `options.num_predict`.
+    const callerSetFlatLimit = KNOWN_MAX_TOKENS_KEYS.some(
+      (k) => typeof merged[k] === 'number',
+    )
+    const existing =
+      merged.options && typeof merged.options === 'object'
+        ? (merged.options as Record<string, unknown>)
+        : undefined
+    if (
+      callerSetFlatLimit ||
+      (existing && typeof existing.num_predict === 'number')
+    ) {
+      return merged
+    }
+    merged.options = { num_predict: maxLength, ...existing }
+    return merged
+  }
+
+  const key = MAX_TOKENS_KEY_BY_ADAPTER[adapterName]
+  if (key === undefined) return merged
+
+  const callerSetLimit = KNOWN_MAX_TOKENS_KEYS.some(
+    (k) => typeof merged[k] === 'number',
+  )
+  if (callerSetLimit) return merged
+
+  merged[key] = maxLength
+  return merged
 }
 
 /**
@@ -195,13 +329,38 @@ export class ChatStreamSummarizeAdapter<
     options: SummarizationOptions<TProviderOptions>,
     systemPrompt: string,
   ): TextOptions<TProviderOptions> {
+    // Sampling knobs now live in provider-native `modelOptions`. Apply the
+    // low-temperature default where the wrapped provider actually reads it
+    // (nested under `options` for Ollama, flat otherwise) so callers can still
+    // override it. Resolving the placement from this summarize adapter's OWN
+    // `name` keeps the default off the wire correctly per provider — a flat
+    // `temperature` would be silently dropped by Ollama while still showing up
+    // in OTel.
+    let working: Record<string, unknown> = {
+      ...(options.modelOptions as Record<string, unknown> | undefined),
+    }
+    working = applyDefaultTemperature(this.name, 0.3, working)
+    // `maxLength` must reach the wire under the provider-native token key (it
+    // differs per provider, and no adapter reads a generic `maxTokens`).
+    // Resolve it from this summarize adapter's `name` (the constructor arg,
+    // not the wrapped text adapter's name), never overriding a caller-supplied
+    // token limit.
+    if (options.maxLength !== undefined) {
+      if (!isKnownMaxTokensAdapter(this.name)) {
+        options.logger.warn(
+          `summarize: maxLength=${options.maxLength} could not be mapped to a provider token key for adapter name "${this.name}" — it was dropped from modelOptions (the prompt still asks the model to stay under it). Construct ChatStreamSummarizeAdapter with a recognised provider name to forward the cap.`,
+          { provider: this.name },
+        )
+      }
+      working = applyMaxLength(this.name, options.maxLength, working)
+    }
+    const modelOptions = working as TProviderOptions
+
     return {
       model: options.model,
       messages: [{ role: 'user', content: options.text }],
       systemPrompts: [systemPrompt],
-      maxTokens: options.maxLength,
-      temperature: 0.3,
-      modelOptions: options.modelOptions,
+      modelOptions,
       logger: options.logger,
     }
   }

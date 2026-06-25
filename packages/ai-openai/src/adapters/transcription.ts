@@ -4,6 +4,7 @@ import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { base64ToArrayBuffer, generateId } from '@tanstack/ai-utils'
 import { getOpenAIApiKeyFromEnv } from '../utils/client'
 import type {
+  TokenUsage,
   TranscriptionOptions,
   TranscriptionResult,
   TranscriptionSegment,
@@ -12,6 +13,69 @@ import type OpenAI_SDK from 'openai'
 import type { OpenAITranscriptionModel } from '../model-meta'
 import type { OpenAITranscriptionProviderOptions } from '../audio/transcription-provider-options'
 import type { OpenAIClientConfig } from '../utils/client'
+
+/**
+ * Build TokenUsage from transcription response.
+ * Whisper-1 uses duration-based billing, GPT-4o models use token-based billing.
+ */
+function buildTranscriptionUsage(
+  model: string,
+  duration?: number,
+  response?: OpenAI_SDK.Audio.TranscriptionCreateResponse,
+): TokenUsage | undefined {
+  const usage = response?.usage
+
+  // GPT-4o transcription models are billed by token. Surface the token counts
+  // and the per-modality input breakdown when present. These models must never
+  // fall through to the duration path below — when usage is absent there is no
+  // billing data to report, so return undefined rather than fabricating a
+  // duration-based result for a token-billed model.
+  if (model.startsWith('gpt-4o')) {
+    if (!usage || usage.type !== 'tokens') {
+      return undefined
+    }
+
+    const result: TokenUsage = {
+      promptTokens: usage.input_tokens || 0,
+      completionTokens: usage.output_tokens || 0,
+      totalTokens: usage.total_tokens || 0,
+    }
+
+    // Input can mix audio and text tokens (e.g. the optional `prompt`); read
+    // the real breakdown instead of attributing every input token to audio.
+    const inputDetails = usage.input_token_details
+    const promptTokensDetails = {
+      ...(inputDetails?.audio_tokens
+        ? { audioTokens: inputDetails.audio_tokens }
+        : {}),
+      ...(inputDetails?.text_tokens
+        ? { textTokens: inputDetails.text_tokens }
+        : {}),
+    }
+    if (Object.keys(promptTokensDetails).length > 0) {
+      result.promptTokensDetails = promptTokensDetails
+    }
+
+    // Transcription output is always text.
+    if (usage.output_tokens) {
+      result.completionTokensDetails = { textTokens: usage.output_tokens }
+    }
+
+    return result
+  }
+
+  // Whisper-1 uses duration-based billing
+  if (duration !== undefined && duration > 0) {
+    return {
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      durationSeconds: duration,
+    }
+  }
+
+  return undefined
+}
 
 /**
  * Configuration for OpenAI Transcription adapter
@@ -109,6 +173,11 @@ export class OpenAITranscriptionAdapter<
           start: w.start,
           end: w.end,
         }))
+        const usage = buildTranscriptionUsage(
+          model,
+          response.duration,
+          response,
+        )
         return {
           id: generateId(this.name),
           model,
@@ -117,15 +186,21 @@ export class OpenAITranscriptionAdapter<
           duration: response.duration,
           ...(segments !== undefined && { segments }),
           ...(words !== undefined && { words }),
+          ...(usage !== undefined && { usage }),
         }
       } else {
         const response = await this.client.audio.transcriptions.create(request)
 
+        const usage =
+          typeof response === 'string'
+            ? undefined
+            : buildTranscriptionUsage(model, undefined, response)
         return {
           id: generateId(this.name),
           model,
           text: typeof response === 'string' ? response : response.text,
           ...(language !== undefined && { language }),
+          ...(usage !== undefined && { usage }),
         }
       }
     } catch (error: unknown) {

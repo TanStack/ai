@@ -13,6 +13,7 @@ import {
   skillsToTools,
 } from '@tanstack/ai-code-mode-skills'
 import { createFileSkillStorage } from '@tanstack/ai-code-mode-skills/storage'
+import { maxTokensModelOptions } from '@/lib/max-tokens-model-options'
 import type { AnyTextAdapter, ServerTool, StreamChunk } from '@tanstack/ai'
 import type { IsolateDriver } from '@tanstack/ai-code-mode'
 import { productTools } from '@/lib/tools/product-tools'
@@ -268,7 +269,9 @@ export const Route = createFileRoute('/_home/api/product-codemode')({
             systemPrompts,
             agentLoopStrategy: maxIterations(15),
             abortController,
-            maxTokens: 8192,
+            // Sampling lives in provider-native `modelOptions` now; map the
+            // generic cap to the resolved adapter's wire key.
+            modelOptions: maxTokensModelOptions(rawAdapter, 8192),
           })
 
           const instrumentedStream = wrapWithTimingEvents(stream, rawAdapter)

@@ -42,10 +42,12 @@ TanStack AI lets you define a tool once and provide environment-specific impleme
 import { chat, toolDefinition } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { z } from 'zod'
+import { db } from './db'
 
 // Define a tool
 const getProductsDef = toolDefinition({
   name: 'getProducts',
+  description: 'Search for products by query',
   inputSchema: z.object({ query: z.string() }),
   outputSchema: z.array(z.object({ id: z.string(), name: z.string() })),
 })

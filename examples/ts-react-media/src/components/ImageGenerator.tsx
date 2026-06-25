@@ -1,10 +1,13 @@
-import { useState } from 'react'
-import { ImageIcon, Loader2, Shuffle } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { ImageIcon, Loader2, Plus, Shuffle, X } from 'lucide-react'
 import type { ImageGenerationResult } from '@tanstack/ai'
+import type { MediaPrompt } from '@tanstack/ai/client'
 
 import { generateImageFn } from '@/lib/server-functions'
 import { getRandomImagePrompt } from '@/lib/prompts'
 import { IMAGE_MODELS } from '@/lib/models'
+import { readImageFile, toImagePart } from '@/lib/media'
+import type { AttachedImage } from '@/lib/media'
 
 interface ImageGeneratorProps {
   onImageGenerated?: (imageUrl: string) => void
@@ -24,6 +27,7 @@ function getImageSrc(image: { url?: string; b64Json?: string }): string {
 
 const falModels = IMAGE_MODELS.filter((m) => m.provider === 'fal')
 const geminiModels = IMAGE_MODELS.filter((m) => m.provider === 'gemini')
+const xaiModels = IMAGE_MODELS.filter((m) => m.provider === 'xai')
 
 export default function ImageGenerator({
   onImageGenerated,
@@ -32,11 +36,37 @@ export default function ImageGenerator({
   const [selectedModel, setSelectedModel] = useState<string>('all')
   const [isLoading, setIsLoading] = useState(false)
   const [results, setResults] = useState<Record<string, ModelResult>>({})
+  const [images, setImages] = useState<Array<AttachedImage>>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const currentModel = IMAGE_MODELS.find((m) => m.id === selectedModel)
 
+  // When images are attached, send an ordered parts array (text first, then one
+  // image part per attachment). Otherwise send the plain string. Only image-capable
+  // models accept image inputs — unsupported models surface a server error.
+  const buildPrompt = (): MediaPrompt => {
+    if (images.length === 0) return prompt
+    return [
+      { type: 'text', content: prompt },
+      ...images.map((image) => toImagePart(image)),
+    ]
+  }
+
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? [])
+    if (fileInputRef.current) fileInputRef.current.value = ''
+    if (files.length === 0) return
+    const attached = await Promise.all(files.map((file) => readImageFile(file)))
+    setImages((prev) => [...prev, ...attached])
+  }
+
+  const removeImage = (id: string) => {
+    setImages((prev) => prev.filter((image) => image.id !== id))
+  }
+
   const handleGenerate = async () => {
     if (!prompt.trim()) return
+    const builtPrompt = buildPrompt()
 
     setIsLoading(true)
     setResults({})
@@ -53,7 +83,7 @@ export default function ImageGenerator({
       const promises = IMAGE_MODELS.map(async (model) => {
         try {
           const response = await generateImageFn({
-            data: { prompt, model: model.id },
+            data: { prompt: builtPrompt, model: model.id },
           })
           setResults((prev) => ({
             ...prev,
@@ -83,7 +113,7 @@ export default function ImageGenerator({
 
       try {
         const response = await generateImageFn({
-          data: { prompt, model: selectedModel },
+          data: { prompt: builtPrompt, model: selectedModel },
         })
         setResults({ [selectedModel]: { status: 'success', result: response } })
         const image = response.images[0]
@@ -132,6 +162,13 @@ export default function ImageGenerator({
                 </option>
               ))}
             </optgroup>
+            <optgroup label="xAI (direct)">
+              {xaiModels.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.name}
+                </option>
+              ))}
+            </optgroup>
           </select>
           {currentModel && selectedModel !== 'all' && (
             <p className="mt-1 text-xs text-gray-500">
@@ -159,6 +196,56 @@ export default function ImageGenerator({
             className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
             rows={3}
             disabled={isLoading}
+          />
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-sm font-medium text-gray-300">
+              Reference Images
+            </label>
+            <span className="text-xs text-gray-500">
+              Supported by Gemini multimodal models only
+              (gemini-3.1-flash-image-preview, gemini-3-pro-image-preview)
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {images.map((image) => (
+              <div
+                key={image.id}
+                className="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-700"
+              >
+                <img
+                  src={image.dataUrl}
+                  alt={image.name}
+                  className="w-full h-full object-cover"
+                />
+                <button
+                  onClick={() => removeImage(image.id)}
+                  disabled={isLoading}
+                  className="absolute top-1 right-1 p-0.5 bg-gray-900/80 hover:bg-gray-800 rounded-full text-white disabled:opacity-50"
+                  aria-label={`Remove ${image.name}`}
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isLoading}
+              className="w-20 h-20 flex flex-col items-center justify-center gap-1 border-2 border-dashed border-gray-600 hover:border-gray-500 rounded-lg text-gray-400 hover:text-gray-300 transition-colors disabled:opacity-50"
+            >
+              <Plus className="w-5 h-5" />
+              <span className="text-xs">Add</span>
+            </button>
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={handleImageSelect}
+            className="hidden"
           />
         </div>
 
@@ -209,13 +296,24 @@ export default function ImageGenerator({
                 {modelResult.status === 'success' &&
                   modelResult.result &&
                   modelResult.result.images.length > 0 && (
-                    <div className="rounded-lg overflow-hidden border border-gray-700">
-                      <img
-                        src={getImageSrc(modelResult.result.images[0]!)}
-                        alt={`Generated by ${model?.name ?? modelId}`}
-                        className="w-full h-auto"
-                      />
-                    </div>
+                    <>
+                      <div className="rounded-lg overflow-hidden border border-gray-700">
+                        <img
+                          src={getImageSrc(modelResult.result.images[0]!)}
+                          alt={`Generated by ${model?.name ?? modelId}`}
+                          className="w-full h-auto"
+                        />
+                      </div>
+                      {modelResult.result.usage?.unitsBilled != null && (
+                        <p className="text-xs text-gray-500">
+                          Billed {modelResult.result.usage.unitsBilled} fal unit
+                          {modelResult.result.usage.unitsBilled === 1
+                            ? ''
+                            : 's'}{' '}
+                          — multiply by the endpoint unit price for USD cost
+                        </p>
+                      )}
+                    </>
                   )}
               </div>
             )

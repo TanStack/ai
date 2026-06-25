@@ -1,0 +1,25 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[mcp] how much is the strat guitar",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "Let me look up the price.",
+        "toolCalls": [
+          { "name": "get_guitar_price", "arguments": "{\"id\":\"strat\"}" }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[mcp] how much is the strat guitar",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "The strat guitar costs $1999."
+      }
+    }
+  ]
+}

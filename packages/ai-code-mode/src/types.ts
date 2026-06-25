@@ -1,6 +1,6 @@
 import type {
+  SchemaInput,
   ServerTool,
-  ToolDefinition,
   ToolExecutionContext,
 } from '@tanstack/ai'
 
@@ -147,11 +147,13 @@ export type { ToolExecutionContext }
 // ============================================================================
 
 /**
- * Tool types that can be passed to Code Mode
+ * Server-side tool types that can be passed to Code Mode.
+ *
+ * Code Mode executes tools inside a server-managed sandbox. Client tools and
+ * bare tool definitions are intentionally excluded because they do not provide
+ * a server execution implementation for the sandbox binding.
  */
-export type CodeModeTool =
-  | ServerTool<any, any, any>
-  | ToolDefinition<any, any, any>
+export type CodeModeTool = ServerTool<SchemaInput, SchemaInput, string, unknown>
 
 /**
  * Configuration for createCodeModeTool
@@ -193,6 +195,43 @@ export interface CodeModeToolConfig {
    * ```
    */
   getSkillBindings?: () => Promise<Record<string, ToolBinding>>
+
+  /**
+   * Optional escape hatch to swap out the TypeScript-stripping step.
+   *
+   * Receives the raw model-generated code and must return runnable JavaScript
+   * with all TypeScript syntax removed. Defaults to the built-in
+   * {@link stripTypeScript}, which uses sucrase and is safe to bundle for
+   * browsers and edge runtimes (Cloudflare Workers/Pages etc.).
+   *
+   * Provide your own only to trade the edge-safe default for a faster
+   * Node-only transpiler. A custom transpiler MUST tolerate top-level `return`
+   * and `await` in its input (the default wraps the code in an async function
+   * internally to allow this).
+   *
+   * NOTE: This only affects `createCodeModeTool`. The skills helpers
+   * (`skillsToTools`, `codeModeWithSkills` in `@tanstack/ai-code-mode-skills`)
+   * call the exported `stripTypeScript` directly, so they ignore this hook — but
+   * they still get the edge-safe sucrase default, so #487 is fixed for them too;
+   * they just can't be pointed at a different transpiler.
+   *
+   * @example
+   * ```typescript
+   * // Node-only fast path using esbuild (NOT edge-safe — Node only). esbuild
+   * // rejects top-level `return`, so reuse the same async-function wrapper the
+   * // default uses, then slice the body back out. `keepNames: false` stops
+   * // esbuild injecting `__name()` helpers the sandbox can't resolve.
+   * import { transformSync } from 'esbuild'
+   * transpile: (code) => {
+   *   const out = transformSync(`async function _w(){\n${code}\n}`, {
+   *     loader: 'ts',
+   *     keepNames: false,
+   *   }).code
+   *   return out.slice(out.indexOf('{') + 1, out.lastIndexOf('}'))
+   * }
+   * ```
+   */
+  transpile?: (code: string) => string | Promise<string>
 }
 
 /**

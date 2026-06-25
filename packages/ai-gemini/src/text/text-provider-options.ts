@@ -50,6 +50,12 @@ Gemini models use Top-p (nucleus) sampling or a combination of Top-k and nucleus
 Note: The default value varies by Model and is specified by theModel.top_p attribute returned from the getModel function. An empty topK attribute indicates that the model doesn't apply top-k sampling and doesn't allow setting topK on requests.
      */
   topK?: number
+  /** Controls randomness, range [0.0, 2.0]. Higher = more random. Use this or topP, not both. */
+  temperature?: number
+  /** Nucleus sampling probability mass, range (0.0, 1.0]. */
+  topP?: number
+  /** Maximum number of tokens to generate in the response. */
+  maxOutputTokens?: number
   /**
    * Seed used in decoding. If not set, the request uses a randomly generated seed.
    */

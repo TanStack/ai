@@ -13,6 +13,7 @@ import type {
   CodeModeWithSkillsResult,
   Skill,
 } from './types'
+import type { ToolBinding } from '@tanstack/ai-code-mode'
 
 export type { CodeModeWithSkillsOptions, CodeModeWithSkillsResult }
 
@@ -29,6 +30,9 @@ export type { CodeModeWithSkillsOptions, CodeModeWithSkillsResult }
  *
  * @example
  * ```typescript
+ * // Node-only file storage lives behind the `/storage` subpath:
+ * import { createFileSkillStorage } from '@tanstack/ai-code-mode-skills/storage'
+ *
  * const { toolsRegistry, systemPrompt, selectedSkills } = await codeModeWithSkills({
  *   config: {
  *     driver: createNodeIsolateDriver(),
@@ -83,7 +87,7 @@ export async function codeModeWithSkills({
       // Get all skills from storage (includes newly registered ones)
       const allSkills = await storage.loadAll()
       // Convert to bindings with skill_ prefix
-      const skillBindings: Record<string, any> = {}
+      const skillBindings: Record<string, ToolBinding> = {}
       for (const skill of allSkills) {
         // Create a simple binding that executes the skill code
         skillBindings[`skill_${skill.name}`] = {

@@ -7,6 +7,7 @@ import {
   generateVideo,
   getVideoJobStatus,
 } from '@tanstack/ai'
+import type { MediaPrompt } from '@tanstack/ai'
 import type { Feature, Provider } from '@/lib/types'
 import {
   createAudioAdapter,
@@ -19,13 +20,17 @@ import {
 export const generateImageFn = createServerFn({ method: 'POST' })
   .inputValidator(
     (data: {
-      prompt: string
+      prompt: MediaPrompt
       provider: Provider
       numberOfImages?: number
       aimockPort?: number
       testId?: string
     }) => {
-      if (!data.prompt.trim()) throw new Error('Prompt is required')
+      const isEmpty =
+        typeof data.prompt === 'string'
+          ? !data.prompt.trim()
+          : data.prompt.length === 0
+      if (isEmpty) throw new Error('Prompt is required')
       if (!data.provider) throw new Error('Provider is required')
       return data
     },
@@ -133,12 +138,16 @@ export const generateAudioFn = createServerFn({ method: 'POST' })
 export const generateVideoFn = createServerFn({ method: 'POST' })
   .inputValidator(
     (data: {
-      prompt: string
+      prompt: MediaPrompt
       provider: Provider
       aimockPort?: number
       testId?: string
     }) => {
-      if (!data.prompt.trim()) throw new Error('Prompt is required')
+      const isEmpty =
+        typeof data.prompt === 'string'
+          ? !data.prompt.trim()
+          : data.prompt.length === 0
+      if (isEmpty) throw new Error('Prompt is required')
       if (!data.provider) throw new Error('Provider is required')
       return data
     },

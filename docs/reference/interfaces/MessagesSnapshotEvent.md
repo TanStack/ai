@@ -5,7 +5,7 @@ title: MessagesSnapshotEvent
 
 # Interface: MessagesSnapshotEvent
 
-Defined in: [packages/ai/src/types.ts:1153](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1153)
+Defined in: [packages/ai/src/types.ts:1176](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1176)
 
 Emitted to provide a snapshot of all messages in a conversation.
 
@@ -36,6 +36,6 @@ Use converters to transform to/from TanStack UIMessage format.
 optional model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1155](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1155)
+Defined in: [packages/ai/src/types.ts:1178](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1178)
 
 Model identifier for multi-model support

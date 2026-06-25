@@ -9,8 +9,10 @@ import type {
   ChatClientOptions,
   ChatClientState,
   ChatRequestBody,
+  ClientContextOptionFromTools,
   ConnectionStatus,
   DistributedOmit,
+  InferredClientContext,
   MultimodalContent,
   UIMessage,
 } from '@tanstack/ai-client'
@@ -59,8 +61,9 @@ export type DeepPartial<T> =
 export type UseChatOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
+  TContext = InferredClientContext<TTools>,
 > = DistributedOmit<
-  ChatClientOptions<TTools>,
+  ChatClientOptions<TTools, TContext>,
   | 'onMessagesChange'
   | 'onLoadingChange'
   | 'onErrorChange'
@@ -68,6 +71,7 @@ export type UseChatOptions<
   | 'onSubscriptionChange'
   | 'onConnectionStatusChange'
   | 'onSessionGeneratingChange'
+  | 'context'
   | 'devtools'
 > & {
   /** Display options for TanStack AI Devtools. */
@@ -84,7 +88,7 @@ export type UseChatOptions<
    * against the schema passed to `chat({ outputSchema })` on the server route.
    */
   outputSchema?: TSchema
-}
+} & ClientContextOptionFromTools<TTools, TContext>
 
 /**
  * Discriminated return shape: when `outputSchema` is supplied, the hook adds

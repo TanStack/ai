@@ -21,6 +21,5 @@ export type ExternalTextInteractionsProviderOptions = Pick<
   | 'system_instruction'
   | 'response_modalities'
   | 'response_format'
-  | 'response_mime_type'
   | 'generation_config'
 >

@@ -6,6 +6,7 @@ import type {
   IsolateDriver,
   IsolateContext,
   ExecutionResult,
+  ToolExecutionContext,
 } from '../src/types'
 
 function createMockDriver(
@@ -21,14 +22,14 @@ function createMockDriver(
   return { driver, mockContext }
 }
 
-function createMockTool(name: string) {
+function createMockTool<TName extends string>(name: TName) {
   const def = toolDefinition({
-    name: name as any,
+    name,
     description: `The ${name} tool`,
     inputSchema: z.object({ query: z.string() }),
     outputSchema: z.object({ result: z.string() }),
   })
-  return def.server(async (input: any) => ({ result: input.query }))
+  return def.server(async (input) => ({ result: input.query }))
 }
 
 describe('createCodeModeTool', () => {
@@ -68,7 +69,7 @@ describe('createCodeModeTool', () => {
     await tool.execute!({ typescriptCode: 'const x: string = "hi"\nreturn x' })
 
     expect(driver.createContext).toHaveBeenCalledTimes(1)
-    const executeCall = (mockContext.execute as any).mock.calls[0][0]
+    const executeCall = vi.mocked(mockContext.execute).mock.calls[0]?.[0]
     // Should have stripped the type annotation
     expect(executeCall).not.toContain(': string')
     expect(executeCall).toContain('return x')
@@ -139,7 +140,7 @@ describe('createCodeModeTool', () => {
       tools: [createMockTool('fetchWeather')],
     })
 
-    // Invalid syntax that esbuild will reject — stripTypeScript now throws
+    // Invalid syntax the transpiler will reject — stripTypeScript now throws
     const result = await tool.execute!({
       typescriptCode: 'const x: = invalid{{{syntax',
     })
@@ -147,9 +148,63 @@ describe('createCodeModeTool', () => {
     expect(result.error?.name).toBe('TypeScriptError')
   })
 
+  it('uses a custom transpile hook instead of the default', async () => {
+    const { driver, mockContext } = createMockDriver()
+    const transpile = vi.fn((code: string) => `/* custom */ ${code}`)
+
+    const tool = createCodeModeTool({
+      driver,
+      tools: [createMockTool('fetchWeather')],
+      transpile,
+    })
+
+    await tool.execute!({ typescriptCode: 'return 1' })
+
+    expect(transpile).toHaveBeenCalledWith('return 1')
+    const executed = vi.mocked(mockContext.execute).mock.calls[0]?.[0]
+    expect(executed).toBe('/* custom */ return 1')
+  })
+
+  it('awaits an async transpile hook', async () => {
+    const { driver, mockContext } = createMockDriver()
+    const transpile = vi.fn(async (code: string) =>
+      Promise.resolve(`async:${code}`),
+    )
+
+    const tool = createCodeModeTool({
+      driver,
+      tools: [createMockTool('fetchWeather')],
+      transpile,
+    })
+
+    await tool.execute!({ typescriptCode: 'return 1' })
+
+    const executed = vi.mocked(mockContext.execute).mock.calls[0]?.[0]
+    expect(executed).toBe('async:return 1')
+  })
+
+  it('surfaces a custom transpile error as a TypeScriptError', async () => {
+    const { driver } = createMockDriver()
+    const transpile = vi.fn(() => {
+      throw new Error('custom transpile failed')
+    })
+
+    const tool = createCodeModeTool({
+      driver,
+      tools: [createMockTool('fetchWeather')],
+      transpile,
+    })
+
+    const result = await tool.execute!({ typescriptCode: 'return 1' })
+    expect(result.success).toBe(false)
+    expect(result.error?.name).toBe('TypeScriptError')
+    expect(result.error?.message).toBe('custom transpile failed')
+    expect(driver.createContext).not.toHaveBeenCalled()
+  })
+
   it('emits code_mode:execution_started event', async () => {
     const { driver } = createMockDriver()
-    const emitCustomEvent = vi.fn()
+    const emitCustomEvent = vi.fn<ToolExecutionContext['emitCustomEvent']>()
 
     const tool = createCodeModeTool({
       driver,
@@ -173,7 +228,7 @@ describe('createCodeModeTool', () => {
       value: null,
       logs: ['hello', 'ERROR: bad', 'WARN: careful', 'INFO: fyi'],
     })
-    const emitCustomEvent = vi.fn()
+    const emitCustomEvent = vi.fn<ToolExecutionContext['emitCustomEvent']>()
 
     const tool = createCodeModeTool({
       driver,
@@ -183,7 +238,7 @@ describe('createCodeModeTool', () => {
     await tool.execute!({ typescriptCode: 'return null' }, { emitCustomEvent })
 
     const consoleEvents = emitCustomEvent.mock.calls.filter(
-      (c: any) => c[0] === 'code_mode:console',
+      ([eventName]) => eventName === 'code_mode:console',
     )
 
     expect(consoleEvents).toHaveLength(4)
@@ -219,7 +274,11 @@ describe('createCodeModeTool', () => {
 
     await tool.execute!({ typescriptCode: 'return 1' })
 
-    const contextConfig = (driver.createContext as any).mock.calls[0][0]
+    const contextConfig = vi.mocked(driver.createContext).mock.calls[0]?.[0]
+    expect(contextConfig).toBeDefined()
+    if (!contextConfig) {
+      throw new Error('Expected createContext to be called')
+    }
     expect(contextConfig.bindings).toHaveProperty('skill_greet')
     expect(contextConfig.bindings).toHaveProperty('external_fetchWeather')
   })
