@@ -36,3 +36,13 @@ export type OpenRouterImageModelSizeByName = {
     | '1344×768' // "16:9"
     | '1536×672' // "21:9"
 }
+
+/**
+ * Per-model prompt input modalities. OpenRouter routes image generation
+ * through the chat-completions surface where every listed image model
+ * (Gemini image family, GPT image family) accepts `image_url` content
+ * parts, so image-conditioned prompts are supported across the board.
+ */
+export type OpenRouterImageModelInputModalitiesByName = {
+  [K in (typeof OPENROUTER_IMAGE_MODELS)[number]]: readonly ['image']
+}

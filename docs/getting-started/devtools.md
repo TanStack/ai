@@ -127,7 +127,7 @@ const App = () => {
 
 In Next.js, do this in `instrumentation.ts`:
 
-```ts
+```ts ignore
 export async function register() {
      if (
          process.env["NEXT_RUNTIME"] === "nodejs" &&

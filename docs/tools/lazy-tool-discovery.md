@@ -47,9 +47,12 @@ sequenceDiagram
 
 Add `lazy: true` to any tool definition:
 
-```typescript
-import { toolDefinition } from "@tanstack/ai";
+```typescript group=lazy-intro
+import { toolDefinition, chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
 import { z } from "zod";
+import { db } from "./db";
+import { getProducts, compareProducts } from "./tools";
 
 const searchProductsDef = toolDefinition({
   name: "searchProducts",
@@ -77,21 +80,21 @@ const searchProducts = searchProductsDef.server(async ({ query }) => {
 
 Then pass it to `chat()` alongside your other tools:
 
-```typescript
-import { chat, toServerSentEventsResponse } from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
+```typescript group=lazy-intro
+async function handleRequest(request: Request) {
+  const { messages } = await request.json();
+  const stream = chat({
+    adapter: openaiText("gpt-5.5"),
+    messages,
+    tools: [
+      getProducts, // Normal tool — sent to LLM immediately
+      searchProducts, // Lazy tool — discovered on demand
+      compareProducts, // Lazy tool — discovered on demand
+    ],
+  });
 
-const stream = chat({
-  adapter: openaiText("gpt-5.5"),
-  messages,
-  tools: [
-    getProducts, // Normal tool — sent to LLM immediately
-    searchProducts, // Lazy tool — discovered on demand
-    compareProducts, // Lazy tool — discovered on demand
-  ],
-});
-
-return toServerSentEventsResponse(stream);
+  return toServerSentEventsResponse(stream);
+}
 ```
 
 ## Controlling the Discovery Catalog
@@ -184,6 +187,7 @@ Here's a complete example with a mix of eager and lazy tools:
 import { toolDefinition, chat, toServerSentEventsResponse, maxIterations } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { z } from "zod";
+import { db } from "./db";
 
 // Eager tool — always available
 const getProductsDef = toolDefinition({

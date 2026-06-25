@@ -40,6 +40,11 @@
           "addedAt": "2026-04-15"
         },
         {
+          "label": "Quick Start: Angular",
+          "to": "getting-started/quick-start-angular",
+          "addedAt": "2026-06-15"
+        },
+        {
           "label": "Quick Start: Server Only",
           "to": "getting-started/quick-start-server",
           "addedAt": "2026-04-15"
@@ -168,7 +173,8 @@
         {
           "label": "Overview",
           "to": "structured-outputs/overview",
-          "addedAt": "2026-05-19"
+          "addedAt": "2026-05-19",
+          "updatedAt": "2026-06-10"
         },
         {
           "label": "One-Shot Extraction",
@@ -208,7 +214,8 @@
         {
           "label": "Code Mode with Skills",
           "to": "code-mode/code-mode-with-skills",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-06-10"
         },
         {
           "label": "Code Mode Isolate Drivers",
@@ -248,17 +255,20 @@
         {
           "label": "Audio Generation",
           "to": "media/audio-generation",
-          "addedAt": "2026-04-23"
+          "addedAt": "2026-04-23",
+          "updatedAt": "2026-06-08"
         },
         {
           "label": "Image Generation",
           "to": "media/image-generation",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-06-08"
         },
         {
           "label": "Video Generation",
           "to": "media/video-generation",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-06-24"
         },
         {
           "label": "Generation Hooks",
@@ -273,7 +283,8 @@
         {
           "label": "Middleware",
           "to": "advanced/middleware",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-06-15"
         },
         {
           "label": "Built-in Middleware",
@@ -283,7 +294,8 @@
         {
           "label": "OpenTelemetry",
           "to": "advanced/otel",
-          "addedAt": "2026-05-08"
+          "addedAt": "2026-05-08",
+          "updatedAt": "2026-06-17"
         }
       ]
     },
@@ -394,6 +406,11 @@
           "label": "@tanstack/ai-svelte",
           "to": "api/ai-svelte",
           "addedAt": "2026-04-15"
+        },
+        {
+          "label": "@tanstack/ai-angular",
+          "to": "api/ai-angular",
+          "addedAt": "2026-06-15"
         }
       ]
     },
@@ -423,7 +440,8 @@
         {
           "label": "Grok (xAI)",
           "to": "adapters/grok",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-06-24"
         },
         {
           "label": "Groq",
@@ -448,7 +466,8 @@
         {
           "label": "OpenAI-Compatible",
           "to": "adapters/openai-compatible",
-          "addedAt": "2026-06-01"
+          "addedAt": "2026-06-01",
+          "updatedAt": "2026-06-20"
         }
       ]
     },

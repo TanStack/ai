@@ -3,6 +3,7 @@ import { EventType } from '@tanstack/ai/client'
 import { VideoGenerationClient } from '../src/video-generation-client'
 import type { StreamChunk } from '@tanstack/ai/client'
 import type { ConnectConnectionAdapter } from '../src/connection-adapters'
+import type { VideoGenerateInput } from '../src/generation-types'
 
 // Helper to create a mock connect-based adapter from StreamChunks
 function createMockConnection(
@@ -83,7 +84,7 @@ describe('VideoGenerationClient', () => {
     it('should pass abort signal to fetcher', async () => {
       const fetcherSpy = vi.fn(
         async (
-          _input: { prompt: string },
+          _input: VideoGenerateInput,
           options?: { signal: AbortSignal },
         ) => {
           expect(options).toBeDefined()

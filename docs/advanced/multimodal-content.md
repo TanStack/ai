@@ -98,6 +98,7 @@ OpenAI supports images and audio in their vision and audio models:
 
 ```typescript
 import { openaiText } from '@tanstack/ai-openai'
+import { imageBase64 } from './data'
 
 const adapter = openaiText('gpt-5.5')
 
@@ -125,6 +126,7 @@ Anthropic's Claude models support images and PDF documents:
 
 ```typescript
 import { anthropicText } from '@tanstack/ai-anthropic'
+import { imageBase64, pdfBase64 } from './data'
 
 const adapter = anthropicText('claude-sonnet-4-6')
 
@@ -164,6 +166,7 @@ Google's Gemini models support a wide range of modalities:
 
 ```typescript
 import { geminiText } from '@tanstack/ai-gemini'
+import { imageBase64 } from './data'
 
 const adapter = geminiText('gemini-3-flash-preview')
 
@@ -181,7 +184,7 @@ const message = {
 ```
 
 **Supported modalities:**
-- `gemini-2.0-flash`: text, image, audio, video
+- `gemini-2.5-flash`: text, image, audio, video
 
 ### Ollama
 
@@ -189,6 +192,7 @@ Ollama supports images in compatible models:
 
 ```typescript
 import { ollamaText } from '@tanstack/ai-ollama'
+import { imageBase64 } from './data'
 
 // `ollamaText(model)` takes a model name. The host is read from the
 // `OLLAMA_HOST` environment variable (defaults to http://localhost:11434).
@@ -299,7 +303,7 @@ import type { GeminiImageMetadata } from '@tanstack/ai-gemini'
 
 When receiving messages from external sources (like `request.json()`), the data is typed as `any`. TanStack AI does not ship a runtime message validator — define a schema with your preferred Standard-Schema library (Zod, Valibot, ArkType, …) and parse the body before handing it to `chat()`.
 
-```typescript
+```typescript ignore
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { z } from 'zod'
@@ -378,6 +382,12 @@ await client.sendMessage({
 You can provide a custom ID for the message:
 
 ```typescript
+import { ChatClient, fetchServerSentEvents } from '@tanstack/ai-client'
+
+const client = new ChatClient({
+  connection: fetchServerSentEvents('/api/chat'),
+})
+
 await client.sendMessage({
   content: 'Hello!',
   id: 'custom-message-id-123'
@@ -389,6 +399,8 @@ await client.sendMessage({
 The second parameter allows you to pass additional `forwardedProps` for that specific request. These are shallow-merged with the client's base `forwardedProps` configuration, with per-message values taking priority:
 
 ```typescript
+import { ChatClient, fetchServerSentEvents } from '@tanstack/ai-client'
+
 const client = new ChatClient({
   connection: fetchServerSentEvents('/api/chat'),
   forwardedProps: { model: 'gpt-5' }, // Base forwarded props
@@ -463,7 +475,7 @@ function ChatWithFileUpload() {
       reader.onload = () => {
         const result = reader.result as string
         // Remove data URL prefix (e.g., "data:image/png;base64,")
-        resolve(result.split(',')[1])
+        resolve(result.split(',')[1]!)
       }
       reader.readAsDataURL(file)
     })

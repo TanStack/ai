@@ -72,7 +72,10 @@ export class NoOpChatDevtoolsBridge {
   dispose(): void {}
 
   // chat-specific surface
+  mountWithTools(_initialMessageCount: number): void {}
+  notifyToolsChanged(): void {}
   setCurrentStreamId(_streamId: string | null): void {}
+  recordStreamId(_streamId: string): void {}
   getCurrentStreamId(): string | null {
     return null
   }
@@ -150,9 +153,10 @@ export class NoOpVideoDevtoolsBridge<
 
 // Compile-time parity checks. If a public method is added to the real
 // bridge class without a matching stub on the no-op, the corresponding
-// `Exclude<...>` will resolve to a non-`never` union and the `as never`
-// assignment below will fail to typecheck — surfacing the drift at build
-// time instead of as a runtime TypeError later.
+// `Exclude<...>` resolves to a non-`never` union, which violates the
+// `extends never` constraint below and fails the build — surfacing the
+// drift at build time instead of as a runtime TypeError later.
+type AssertBridgeParity<TMissing extends never> = TMissing
 type _ChatBridgeMissing = Exclude<
   keyof ChatDevtoolsBridge,
   keyof NoOpChatDevtoolsBridge
@@ -165,12 +169,14 @@ type _VideoBridgeMissing = Exclude<
   keyof VideoDevtoolsBridge<unknown>,
   keyof NoOpVideoDevtoolsBridge<unknown>
 >
-const _chatBridgeParity: _ChatBridgeMissing = undefined as never
-const _generationBridgeParity: _GenerationBridgeMissing = undefined as never
-const _videoBridgeParity: _VideoBridgeMissing = undefined as never
-void _chatBridgeParity
-void _generationBridgeParity
-void _videoBridgeParity
+const _bridgeParity:
+  | [
+      AssertBridgeParity<_ChatBridgeMissing>,
+      AssertBridgeParity<_GenerationBridgeMissing>,
+      AssertBridgeParity<_VideoBridgeMissing>,
+    ]
+  | undefined = undefined
+void _bridgeParity
 
 // ===========================================================================
 // Factories — these are what the clients call when no real factory was

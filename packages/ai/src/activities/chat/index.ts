@@ -6,6 +6,7 @@
  */
 
 import { devtoolsMiddleware } from '@tanstack/ai-event-client'
+import { undoNullWidening } from '@tanstack/ai-utils'
 import { stripToSpecMiddleware } from '../../strip-to-spec-middleware'
 import { streamToText } from '../../stream-to-response.js'
 import { resolveDebugOption } from '../../logger/resolve'
@@ -18,6 +19,7 @@ import {
   executeToolCalls,
 } from './tools/tool-calls'
 import {
+  convertSchemaForStructuredOutput,
   convertSchemaToJsonSchema,
   isStandardSchema,
   parseWithStandardSchema,
@@ -25,13 +27,19 @@ import {
 import { maxIterations as maxIterationsStrategy } from './agent-loop-strategies'
 import { convertMessagesToModelMessages, generateMessageId } from './messages'
 import { MiddlewareRunner } from './middleware/compose'
+import { CapabilityRegistry } from './middleware/capabilities'
+import { validateCapabilities } from './middleware/validate'
 import { MCPManager } from './mcp/manager'
 import type {
   ApprovalRequest,
   ClientToolRequest,
   ToolResult,
 } from './tools/tool-calls'
-import type { AnyTextAdapter, StructuredOutputOptions } from './adapter'
+import type {
+  AnyTextAdapter,
+  StructuredOutputOptions,
+  StructuredOutputResult,
+} from './adapter'
 import type {
   AgentLoopStrategy,
   AnyTool,
@@ -55,11 +63,13 @@ import type {
   UIMessage,
 } from '../../types'
 import type {
+  AnyChatMiddleware,
   ChatMiddleware,
   ChatMiddlewareConfig,
   ChatMiddlewareContext,
   StructuredOutputMiddlewareConfig,
 } from './middleware/types'
+import type { CheckCoverage } from './middleware/builder'
 import type { SystemPrompt } from '../../system-prompts'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
@@ -142,7 +152,8 @@ type TextActivityOptionsWithContext<
   'tools' | 'middleware' | 'context'
 > & {
   tools?: TTools
-  middleware?: TMiddleware
+  middleware?: TMiddleware &
+    CheckCoverage<Extract<TMiddleware, ReadonlyArray<AnyChatMiddleware>>>
 } & RequiredContextFromInputs<TTools, TMiddleware>
 
 // ===========================
@@ -420,11 +431,21 @@ interface TextEngineConfig<
    *   (used by runStreamingStructuredOutput). When false, chunks are
    *   consumed internally for middleware visibility but not yielded
    *   (used by runAgenticStructuredOutput).
-   * - validate: optional callback invoked AFTER the structured-output result
-   *   is captured but BEFORE the terminal hook fires. If it throws, the
-   *   engine records a `finalizationError` and fires `onError` instead of
-   *   `onFinish` (per spec §7.3). On success, the returned value is stored
-   *   as the validated result and retrievable via
+   * - normalize: optional schema-aware transform applied to the captured
+   *   structured-output object the moment it enters the engine — BEFORE it is
+   *   stored, validated, or yielded. Used to undo strict-mode null-widening
+   *   (`undoNullWidening`): strict schemas widen optional fields to
+   *   `required` + nullable so the provider returns `null` for an absent
+   *   optional, and this strips exactly those synthesized nulls while keeping
+   *   the ones a `.nullable()` field genuinely allows. Applied here (not in
+   *   the adapter) because the engine is the only layer holding the original
+   *   schema's null-widening map, and applying it at capture fixes BOTH the
+   *   streaming chunk and the Promise<T> result with one transform.
+   * - validate: optional callback invoked AFTER `normalize` and AFTER the
+   *   structured-output result is captured, but BEFORE the terminal hook
+   *   fires. If it throws, the engine records a `finalizationError` and fires
+   *   `onError` instead of `onFinish` (per spec §7.3). On success, the
+   *   returned value is stored as the validated result and retrievable via
    *   `getValidatedStructuredOutput()`. Used by `runAgenticStructuredOutput`
    *   to perform Standard Schema validation inside the engine.
    * - nativeCombined: when true, the adapter declared
@@ -439,6 +460,7 @@ interface TextEngineConfig<
   finalStructuredOutput?: {
     jsonSchema: JSONSchema
     yieldChunks: boolean
+    normalize?: (data: unknown) => unknown
     validate?: (data: unknown) => unknown
     nativeCombined?: boolean
   }
@@ -544,8 +566,8 @@ class TextEngine<
   // to carry, so the client matches it to the streaming text deltas.
   private combinedStructuredMessageId: string | null = null
   // Holds the validated value when `finalStructuredOutput.validate` is provided
-  // and succeeds. Distinct from `structuredOutputResult.data` (the raw,
-  // unvalidated payload from the structured-output.complete chunk).
+  // and succeeds. Distinct from `structuredOutputResult.data` (the normalized
+  // but unvalidated payload from the structured-output.complete chunk).
   private validatedStructuredOutput: unknown = undefined
   private hasValidatedStructuredOutput = false
   private finalizationError: {
@@ -556,6 +578,7 @@ class TextEngine<
   private readonly finalStructuredOutput?: {
     jsonSchema: JSONSchema
     yieldChunks: boolean
+    normalize?: (data: unknown) => unknown
     validate?: (data: unknown) => unknown
     nativeCombined?: boolean
   }
@@ -649,6 +672,7 @@ class TextEngine<
         this.deferredPromises.push(promise)
       },
       // Provider / adapter info
+      activity: 'chat',
       provider: config.adapter.name,
       model: config.params.model,
       source: 'server',
@@ -667,6 +691,15 @@ class TextEngine<
       // References
       messages: this.messages,
       createId: (prefix: string) => this.createId(prefix),
+      // Capability bookkeeping for this request (populated by middleware setup)
+      capabilities: new CapabilityRegistry(),
+      // Convenience accessors that delegate to a capability handle's own
+      // tuple getter/provider, keyed by this context. `getX(ctx)` and
+      // `ctx.get(X)` are interchangeable.
+      get: (capability) => capability[0](this.middlewareCtx),
+      getOptional: (capability) =>
+        capability[0](this.middlewareCtx, { optional: true }),
+      provide: (capability, value) => capability[1](this.middlewareCtx, value),
     }
   }
 
@@ -714,6 +747,9 @@ class TextEngine<
     })
 
     try {
+      // Provision capabilities before any consumer (onConfig onward) can read them
+      await this.middlewareRunner.runSetup(this.middlewareCtx)
+
       // Run initial onConfig (phase = init)
       this.middlewareCtx.phase = 'init'
       const initialConfig = this.buildMiddlewareConfig()
@@ -1188,6 +1224,23 @@ class TextEngine<
     }
   }
 
+  /**
+   * Tools available for execution this turn. The discovery tool is dropped
+   * from the advertised set (`this.tools`) once every lazy tool is discovered,
+   * but a model may still re-request discovery; this widens execution lookup
+   * to include it so such calls don't fail with "Unknown tool". Centralised so
+   * both execution sites (`processToolCalls` and `checkForPendingToolCalls`)
+   * stay in sync.
+   */
+  private resolveExecutableTools(
+    toolCalls: ReadonlyArray<ToolCall>,
+  ): ReadonlyArray<AnyTool> {
+    return this.lazyToolManager.getExecutableTools(
+      this.tools,
+      toolCalls.map((tc) => tc.function.name),
+    )
+  }
+
   private async *checkForPendingToolCalls(): AsyncGenerator<
     StreamChunk,
     ToolPhaseResult,
@@ -1236,7 +1289,7 @@ class TextEngine<
 
     const generator = executeToolCalls(
       executablePendingCalls,
-      this.tools,
+      this.resolveExecutableTools(executablePendingCalls),
       approvals,
       clientToolResults,
       (eventName, data) => this.createCustomEventChunk(eventName, data),
@@ -1398,7 +1451,7 @@ class TextEngine<
 
     const generator = executeToolCalls(
       executableToolCalls,
-      this.tools,
+      this.resolveExecutableTools(executableToolCalls),
       approvals,
       clientToolResults,
       (eventName, data) => this.createCustomEventChunk(eventName, data),
@@ -1686,8 +1739,9 @@ class TextEngine<
       const wireContent =
         typeof content === 'string' ? content : JSON.stringify(content)
 
-      // Emit TOOL_CALL_START + TOOL_CALL_ARGS before TOOL_CALL_END so that
-      // the client can reconstruct the full tool call during continuations.
+      // argsMap is set only on continuation re-executions, where the adapter
+      // never streamed these calls. Otherwise it already emitted END, so a
+      // second one here would be an orphan that fails verifyEvents (#519).
       if (argsMap) {
         chunks.push({
           type: 'TOOL_CALL_START',
@@ -1707,18 +1761,18 @@ class TextEngine<
           delta: args,
           args,
         } as StreamChunk)
-      }
 
-      chunks.push({
-        type: 'TOOL_CALL_END',
-        timestamp: Date.now(),
-        model: finishEvent.model,
-        toolCallId: result.toolCallId,
-        toolCallName: result.toolName,
-        toolName: result.toolName,
-        result: wireContent,
-        ...(result.state !== undefined && { state: result.state }),
-      } as StreamChunk)
+        chunks.push({
+          type: 'TOOL_CALL_END',
+          timestamp: Date.now(),
+          model: finishEvent.model,
+          toolCallId: result.toolCallId,
+          toolCallName: result.toolName,
+          toolName: result.toolName,
+          result: wireContent,
+          ...(result.state !== undefined && { state: result.state }),
+        } as StreamChunk)
+      }
 
       // AG-UI spec TOOL_CALL_RESULT event (content is string-only per spec)
       chunks.push({
@@ -2055,15 +2109,29 @@ class TextEngine<
       // All narrowing below is via the discriminated-union `chunk.type`
       // — no `as` casts.
 
+      // The chunk forwarded to middleware/consumers. Replaced below only for
+      // the structured-output.complete event, whose `object` we normalize
+      // (un-widen) so streaming consumers see the same cleaned payload the
+      // Promise<T> path validates and returns.
+      let outboundChunk: StreamChunk = chunk
+
       if (
         chunk.type === EventType.CUSTOM &&
         chunk.name === 'structured-output.complete'
       ) {
         const parsed = readStructuredOutputCompleteValue(chunk.value)
         if (parsed) {
-          this.structuredOutputResult = {
-            data: parsed.object,
-            rawText: parsed.raw,
+          const object = this.finalStructuredOutput.normalize
+            ? this.finalStructuredOutput.normalize(parsed.object)
+            : parsed.object
+          this.structuredOutputResult = { data: object, rawText: parsed.raw }
+          // Rewrite the outbound event so the yielded chunk carries the
+          // normalized object (the original `chunk.value` still holds the
+          // widened one). Preserve every other field — `raw`, `reasoning` —
+          // by spreading the original value.
+          const value = chunk.value
+          if (object !== parsed.object && value && typeof value === 'object') {
+            outboundChunk = { ...chunk, value: { ...value, object } }
           }
         }
       }
@@ -2087,7 +2155,7 @@ class TextEngine<
       // 7b. Pipe through middleware
       const outputChunks = await this.middlewareRunner.runOnChunk(
         this.middlewareCtx,
-        chunk,
+        outboundChunk,
       )
 
       // 7c. Decide consumer visibility — only yieldChunks=true callers get them.
@@ -2244,7 +2312,14 @@ class TextEngine<
     } else {
       try {
         const parsed: unknown = JSON.parse(rawText)
-        this.structuredOutputResult = { data: parsed, rawText }
+        // Normalize (un-widen) before storing so the synthesized
+        // structured-output.complete chunk and the Promise<T> result both
+        // carry the cleaned payload. JSON.parse preserves provider nulls, so
+        // this is where native-combined output gets its widening undone.
+        const data = this.finalStructuredOutput.normalize
+          ? this.finalStructuredOutput.normalize(parsed)
+          : parsed
+        this.structuredOutputResult = { data, rawText }
       } catch (err: unknown) {
         const detail =
           rawText.slice(0, 200) + (rawText.length > 200 ? '...' : '')
@@ -2571,6 +2646,8 @@ export function chat<
     TMiddleware
   >,
 ): TextActivityResult<TSchema, TStream> {
+  validateCapabilities(options.middleware ?? [], options.adapter)
+
   const { outputSchema, stream } = options
 
   // outputSchema + stream:true is the only branch that streams structured
@@ -2699,18 +2776,31 @@ async function runAgenticStructuredOutput<
 
   // Same strict-conversion as the streaming path (`forStructuredOutput: true`)
   // so the same Zod schema produces the same JSON Schema regardless of
-  // stream mode — Promise<T> and stream:true must not diverge here.
-  const jsonSchema = convertSchemaToJsonSchema(outputSchema, {
-    forStructuredOutput: true,
-  })
+  // stream mode — Promise<T> and stream:true must not diverge here. The same
+  // pass also records a `nullWideningMap`: optional fields are widened to
+  // `required` + nullable for the provider, which then returns `null` for an
+  // absent optional — a `null` the original `.optional()` (`T | undefined`)
+  // schema would otherwise reject. The map pinpoints exactly those synthesized
+  // nulls so `undoNullWidening` can drop them while preserving the ones a
+  // `.nullable()` field genuinely allows.
+  const { jsonSchema, nullWideningMap } =
+    convertSchemaForStructuredOutput(outputSchema)
   if (!jsonSchema) {
     throw new Error('Failed to convert output schema to JSON Schema')
   }
 
+  // Un-widening runs in the engine the moment the structured output is
+  // captured (`finalStructuredOutput.normalize`), so it applies uniformly to
+  // every adapter and to both stream modes — the engine is the only layer
+  // holding the schema's `nullWideningMap`. Validation then runs on the
+  // already-normalized data, so `validate` is a plain Standard Schema parse.
+  const normalize = (data: unknown): unknown =>
+    undoNullWidening(data, nullWideningMap)
+
   // Validation runs INSIDE the engine (per spec §7.3) so validation failures
   // route through the engine's terminal-hook chooser as `onError`. We pass a
   // `validate` callback when the schema is a Standard Schema; otherwise we
-  // pass through the raw data and the engine returns it unchanged.
+  // pass through the (normalized) data and the engine returns it unchanged.
   const validate = isStandardSchema(outputSchema)
     ? (data: unknown): unknown =>
         parseWithStandardSchema<InferSchemaType<TSchema>>(outputSchema, data)
@@ -2742,6 +2832,7 @@ async function runAgenticStructuredOutput<
       finalStructuredOutput: {
         jsonSchema,
         yieldChunks: false,
+        normalize,
         ...(validate ? { validate } : {}),
         ...(nativeCombined ? { nativeCombined: true } : {}),
       },
@@ -2849,7 +2940,7 @@ async function* fallbackStructuredOutputStream(
     timestamp,
   }
 
-  let result: { data: unknown; rawText: string }
+  let result: StructuredOutputResult<unknown>
   try {
     result = await adapter.structuredOutput(options)
   } catch (error) {
@@ -2905,6 +2996,12 @@ async function* fallbackStructuredOutputStream(
     model,
     timestamp,
     finishReason: 'stop',
+    // Forward adapter-reported token usage so consumers reading
+    // `RUN_FINISHED.usage` (and the engine's `runOnUsage` middleware hook) see
+    // it on the fallback path, mirroring the native streaming path. The
+    // conditional spread avoids emitting `usage: undefined` for adapters that
+    // don't report it. See #758.
+    ...(result.usage ? { usage: result.usage } : {}),
   }
 }
 
@@ -2914,16 +3011,22 @@ async function* fallbackStructuredOutputStream(
  * RUN_STARTED/RUN_FINISHED are suppressed; the structured-output finalization
  * step's pair brackets the run for the consumer.
  *
- * Schema validation is intentionally NOT run on this path — it is the
- * consumer's responsibility. The `structured-output.complete` CUSTOM event
- * is forwarded with the adapter-produced `value.object` as-is. This is a
- * deliberate asymmetry vs. `runAgenticStructuredOutput` (Promise<T> path),
- * which DOES run Standard Schema validation inside the engine and routes
- * validation failures through `onError`. The reason for the asymmetry:
+ * Standard Schema *validation* is intentionally NOT run on this path — it is
+ * the consumer's responsibility. This is a deliberate asymmetry vs.
+ * `runAgenticStructuredOutput` (Promise<T> path), which DOES validate inside
+ * the engine and routes validation failures through `onError`. The reason:
  * streaming consumers typically render partial JSON progressively (via
  * `parsePartialJSON` or `useChat`'s `partial` slot) and validate downstream
  * after assembly. Running validation server-side would force a hard error
  * on partial-by-design payloads. See `docs/structured-outputs/overview.md`.
+ *
+ * Null-widening normalization, however, IS run on both paths: the
+ * `structured-output.complete` CUSTOM event is forwarded with its `value.object`
+ * already un-widened (synthesized strict-mode nulls dropped, genuine
+ * `.nullable()` nulls kept), so a consumer validating the assembled object
+ * against the original schema doesn't choke on a `null` for an `.optional()`
+ * field. Same `convertSchemaForStructuredOutput` pass and same
+ * `undoNullWidening` map as the Promise<T> path — the two must not diverge.
  *
  * Pre-flight validation (missing schema, unconvertible schema) throws
  * synchronously at call time rather than as a yielded RUN_ERROR mid-stream —
@@ -2942,14 +3045,17 @@ function runStreamingStructuredOutput<
   }
 
   // forStructuredOutput strict-converts the schema once at the activity
-  // boundary. Adapters can re-convert if their wire format diverges, but the
-  // default flow hands them a strict-ready schema.
-  const jsonSchema = convertSchemaToJsonSchema(outputSchema, {
-    forStructuredOutput: true,
-  })
+  // boundary, capturing the null-widening map so the engine can un-widen the
+  // provider's response before it reaches the consumer. Adapters can re-convert
+  // if their wire format diverges, but the default flow hands them a
+  // strict-ready schema.
+  const { jsonSchema, nullWideningMap } =
+    convertSchemaForStructuredOutput(outputSchema)
   if (!jsonSchema) {
     throw new Error('Failed to convert output schema to JSON Schema')
   }
+  const normalize = (data: unknown): unknown =>
+    undoNullWidening(data, nullWideningMap)
 
   // The implementation generator yields the broader internal type
   // (`StreamChunk | StructuredOutputCompleteEvent<T>`) so agent-loop
@@ -2960,6 +3066,7 @@ function runStreamingStructuredOutput<
   return runStreamingStructuredOutputImpl(
     options,
     jsonSchema,
+    normalize,
   ) as StructuredOutputStream<InferSchemaType<TSchema>>
 }
 
@@ -2985,6 +3092,7 @@ async function* runStreamingStructuredOutputImpl<
 >(
   options: TextActivityOptions<AnyTextAdapter, TSchema, true, TContext>,
   jsonSchema: NonNullable<ReturnType<typeof convertSchemaToJsonSchema>>,
+  normalize: (data: unknown) => unknown,
 ): StructuredOutputStreamInternal<InferSchemaType<TSchema>> {
   const {
     adapter,
@@ -3029,6 +3137,7 @@ async function* runStreamingStructuredOutputImpl<
       finalStructuredOutput: {
         jsonSchema,
         yieldChunks: true,
+        normalize,
         ...(nativeCombined ? { nativeCombined: true } : {}),
       },
     },
@@ -3043,9 +3152,10 @@ async function* runStreamingStructuredOutputImpl<
     await mcpManager.dispose()
   }
 
-  // Schema validation for the streaming variant remains the consumer's
-  // responsibility — they read the CUSTOM 'structured-output.complete' from
-  // the yielded stream. Matches pre-fix behavior.
+  // Standard Schema validation for the streaming variant remains the
+  // consumer's responsibility — they read the CUSTOM 'structured-output.complete'
+  // from the yielded stream. (Null-widening normalization, by contrast, already
+  // ran inside the engine via `normalize`, so the object they read is un-widened.)
   void outputSchema
 }
 

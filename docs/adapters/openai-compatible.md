@@ -101,6 +101,8 @@ const provider = openaiCompatible({
 `openaiCompatible` accepts every OpenAI SDK `ClientOptions` field besides `apiKey`/`baseURL` (which are required and promoted to the top level). The most useful are `defaultHeaders` and `defaultQuery`, for providers that need extra auth or routing parameters:
 
 ```typescript
+import { openaiCompatible } from "@tanstack/ai-openai/compatible";
+
 const provider = openaiCompatible({
   baseURL: "https://api.example.com/v1",
   apiKey: process.env.EXAMPLE_API_KEY!,
@@ -115,6 +117,8 @@ const provider = openaiCompatible({
 By default the adapter targets the **Chat Completions** API (`/chat/completions`) — the surface virtually every compatible provider implements. For the rare provider that also implements OpenAI's **Responses** API (e.g. Azure OpenAI), opt in with `api: "responses"`:
 
 ```typescript
+import { openaiCompatible } from "@tanstack/ai-openai/compatible";
+
 const provider = openaiCompatible({
   baseURL: "https://my-resource.openai.azure.com/openai/v1",
   apiKey: process.env.AZURE_OPENAI_API_KEY!,
@@ -138,6 +142,7 @@ Any provider implementing the OpenAI Chat Completions API works. Common ones are
 | Cerebras | `https://api.cerebras.ai/v1` | `llama-3.3-70b` |
 | DeepInfra | `https://api.deepinfra.com/v1/openai` | `meta-llama/Llama-3.3-70B-Instruct` |
 | Perplexity | `https://api.perplexity.ai` | `sonar`, `sonar-pro` |
+| Requesty | `https://router.requesty.ai/v1` | `openai/gpt-4o-mini` |
 | Mistral | `https://api.mistral.ai/v1` | `mistral-large-latest` |
 | Nebius | `https://api.studio.nebius.ai/v1` | `meta-llama/Llama-3.3-70B-Instruct` |
 | Z.AI (GLM) | `https://api.z.ai/api/paas/v4` | `glm-4.6` |
@@ -184,6 +189,8 @@ const ollama = openaiCompatible({
 Azure uses a resource-scoped URL and a separate API-version. Use the `/openai/v1` endpoint with `defaultQuery` for the version and `defaultHeaders` for the `api-key` header:
 
 ```typescript
+import { openaiCompatible } from "@tanstack/ai-openai/compatible";
+
 const azure = openaiCompatible({
   name: "azure",
   baseURL: "https://YOUR_RESOURCE.openai.azure.com/openai/v1",

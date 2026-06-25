@@ -1,31 +1,33 @@
-import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
+import { EventType } from '@tanstack/ai'
 import { createGrokText, grokText } from '../src/adapters/text'
 import { createGrokImage, grokImage } from '../src/adapters/image'
 import { createGrokSummarize, grokSummarize } from '../src/adapters/summarize'
-import { EventType } from '@tanstack/ai'
+import { GROK_CHAT_MODELS } from '../src/model-meta'
+import {
+  grokFileSearchTool,
+  grokMCPTool,
+  grokWebSearchTool,
+  grokXSearchTool,
+} from '../src/tools'
 import type { StreamChunk, Tool } from '@tanstack/ai'
-import type { GrokTextProviderOptions } from '../src/index'
 
-// Test helper: a silent logger for test chatStream calls.
 const testLogger = resolveDebugOption(false)
 
-// Mock the OpenAI SDK to avoid constructing a real client during adapter
-// instantiation. Tests that need to inspect calls inject their own mock client
-// via `injectMockClient`.
 vi.mock('openai', () => {
   return {
     default: class {
-      chat = {
-        completions: {
-          create: vi.fn(),
-        },
+      responses = {
+        create: vi.fn(),
+      }
+      images = {
+        generate: vi.fn(),
       }
     },
   }
 })
 
-// Helper to create async iterable from chunks
 function createAsyncIterable<T>(chunks: Array<T>): AsyncIterable<T> {
   return {
     [Symbol.asyncIterator]() {
@@ -42,8 +44,7 @@ function createAsyncIterable<T>(chunks: Array<T>): AsyncIterable<T> {
   }
 }
 
-// Helper to create a mock OpenAI client and inject it into an adapter
-function injectMockClient(
+function injectMockResponsesClient(
   adapter: object,
   streamChunks: Array<Record<string, unknown>>,
   nonStreamResponse?: Record<string, unknown>,
@@ -55,13 +56,42 @@ function injectMockClient(
     return Promise.resolve(nonStreamResponse)
   })
   ;(adapter as any).client = {
-    chat: {
-      completions: {
-        create: mockCreate,
-      },
+    responses: {
+      create: mockCreate,
     },
   }
   return mockCreate
+}
+
+async function consume(stream: AsyncIterable<unknown>): Promise<void> {
+  for await (const _chunk of stream) {
+    // Exhaust the stream so the adapter sends the request and processes events.
+  }
+}
+
+const responseCreated = {
+  type: 'response.created',
+  response: { id: 'resp_123', model: 'grok-4.3' },
+}
+
+const responseCompleted = {
+  type: 'response.completed',
+  response: {
+    id: 'resp_123',
+    model: 'grok-4.3',
+    output: [
+      {
+        type: 'message',
+        role: 'assistant',
+        content: [{ type: 'output_text', text: 'Hello world' }],
+      },
+    ],
+    usage: {
+      input_tokens: 1,
+      output_tokens: 2,
+      total_tokens: 3,
+    },
+  },
 }
 
 const weatherTool: Tool = {
@@ -74,92 +104,319 @@ describe('Grok adapters', () => {
     vi.unstubAllEnvs()
   })
 
+  it('exposes only the supported xAI Responses chat models', () => {
+    expect(GROK_CHAT_MODELS).toEqual(['grok-build-0.1', 'grok-4.3'])
+  })
+
   describe('Text adapter', () => {
     it('creates a text adapter with explicit API key', () => {
-      const adapter = createGrokText('grok-3', 'test-api-key')
+      const adapter = createGrokText('grok-build-0.1', 'test-api-key')
 
       expect(adapter).toBeDefined()
       expect(adapter.kind).toBe('text')
       expect(adapter.name).toBe('grok')
-      expect(adapter.model).toBe('grok-3')
+      expect(adapter.model).toBe('grok-build-0.1')
     })
 
     it('creates a text adapter from environment variable', () => {
       vi.stubEnv('XAI_API_KEY', 'env-api-key')
 
-      const adapter = grokText('grok-4')
+      const adapter = grokText('grok-build-0.1')
 
       expect(adapter).toBeDefined()
       expect(adapter.kind).toBe('text')
-      expect(adapter.model).toBe('grok-4')
+      expect(adapter.model).toBe('grok-build-0.1')
     })
 
     it('throws if XAI_API_KEY is not set when using grokText', () => {
       vi.stubEnv('XAI_API_KEY', '')
 
-      expect(() => grokText('grok-3')).toThrow('XAI_API_KEY is required')
-    })
-
-    it('allows custom baseURL override', () => {
-      const adapter = createGrokText('grok-3', 'test-api-key', {
-        baseURL: 'https://custom.api.example.com/v1',
-      })
-
-      expect(adapter).toBeDefined()
-    })
-
-    it('native combined tools+schema mode is gated per Grok model family (#605)', () => {
-      // Grok 4 family supports `response_format: json_schema` + `tools`
-      // + `stream` together; Grok 2 / 3 reject the combination per xAI's
-      // structured-output docs.
-      const grok4 = createGrokText('grok-4', 'test-api-key')
-      const grok4FastReasoning = createGrokText(
-        'grok-4-1-fast-reasoning',
-        'test-api-key',
+      expect(() => grokText('grok-build-0.1')).toThrow(
+        'XAI_API_KEY is required',
       )
-      const grok3 = createGrokText('grok-3', 'test-api-key')
-      const grok3Mini = createGrokText('grok-3-mini', 'test-api-key')
-
-      expect(grok4.supportsCombinedToolsAndSchema()).toBe(true)
-      expect(grok4FastReasoning.supportsCombinedToolsAndSchema()).toBe(true)
-      expect(grok3.supportsCombinedToolsAndSchema()).toBe(false)
-      expect(grok3Mini.supportsCombinedToolsAndSchema()).toBe(false)
     })
 
-    it('forwards sampling options from modelOptions with Grok wire names', async () => {
-      const streamChunks = [
-        {
-          id: 'chatcmpl-sampling',
-          model: 'grok-3',
-          choices: [{ delta: {}, finish_reason: 'stop' }],
-          usage: { prompt_tokens: 1, completion_tokens: 0, total_tokens: 1 },
-        },
-      ]
+    it('uses Responses API defaults and model option wire names', async () => {
+      const adapter = createGrokText('grok-build-0.1', 'test-api-key')
+      const mockCreate = injectMockResponsesClient(adapter, [
+        responseCreated,
+        { type: 'response.output_text.delta', delta: 'Hello world' },
+        responseCompleted,
+      ])
 
-      const adapter = createGrokText('grok-3', 'test-api-key')
-      const mockCreate = injectMockClient(adapter, streamChunks)
-
-      const modelOptions: GrokTextProviderOptions = {
+      const modelOptions = {
         temperature: 0.5,
         top_p: 0.8,
-        max_tokens: 128,
+        max_output_tokens: 128,
       }
 
-      for await (const _ of adapter.chatStream({
-        model: 'grok-3',
+      const chunks: Array<StreamChunk> = []
+      for await (const chunk of adapter.chatStream({
+        model: 'grok-build-0.1',
         messages: [{ role: 'user', content: 'Hello' }],
         modelOptions,
         logger: testLogger,
       })) {
-        // consume stream
+        chunks.push(chunk)
       }
 
       expect(mockCreate).toHaveBeenCalledTimes(1)
       expect(mockCreate.mock.calls[0]?.[0]).toMatchObject({
+        model: 'grok-build-0.1',
+        stream: true,
+        store: false,
+        include: ['reasoning.encrypted_content'],
         temperature: 0.5,
         top_p: 0.8,
-        max_tokens: 128,
+        max_output_tokens: 128,
       })
+      expect(mockCreate.mock.calls[0]?.[0]).toHaveProperty('input')
+      expect(
+        chunks.some((chunk) => chunk.type === EventType.RUN_FINISHED),
+      ).toBe(true)
+    })
+
+    it('lets callers override xAI Responses reasoning persistence defaults', async () => {
+      const adapter = createGrokText('grok-build-0.1', 'test-api-key')
+      const mockCreate = injectMockResponsesClient(adapter, [
+        responseCreated,
+        { type: 'response.output_text.delta', delta: 'Hello world' },
+        responseCompleted,
+      ])
+
+      await consume(
+        adapter.chatStream({
+          model: 'grok-build-0.1',
+          messages: [{ role: 'user', content: 'Hello' }],
+          modelOptions: {
+            store: true,
+            include: [],
+          },
+          logger: testLogger,
+        }),
+      )
+
+      expect(mockCreate.mock.calls[0]?.[0]).toMatchObject({
+        store: true,
+        include: [],
+      })
+    })
+
+    it('rejects reasoning options locally for grok-build-0.1', async () => {
+      const adapter = createGrokText('grok-build-0.1', 'test-api-key')
+      const mockCreate = injectMockResponsesClient(adapter, [])
+
+      const chunks: Array<StreamChunk> = []
+      for await (const chunk of adapter.chatStream({
+        model: 'grok-build-0.1',
+        messages: [{ role: 'user', content: 'Hello' }],
+        modelOptions: {
+          reasoning: { effort: 'high' },
+        } as any,
+        logger: testLogger,
+      })) {
+        chunks.push(chunk)
+      }
+
+      expect(mockCreate).not.toHaveBeenCalled()
+      expect(chunks.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
+        true,
+      )
+      expect(
+        chunks.find((chunk) => chunk.type === EventType.RUN_ERROR),
+      ).toMatchObject({
+        message:
+          'grok-build-0.1 does not support reasoning modelOptions; omit reasoning for this model.',
+      })
+    })
+
+    it('converts function tools to Responses API tools', async () => {
+      const adapter = createGrokText('grok-build-0.1', 'test-api-key')
+      const mockCreate = injectMockResponsesClient(adapter, [
+        responseCreated,
+        responseCompleted,
+      ])
+
+      await consume(
+        adapter.chatStream({
+          model: 'grok-build-0.1',
+          messages: [{ role: 'user', content: 'What is the weather?' }],
+          tools: [weatherTool],
+          logger: testLogger,
+        }),
+      )
+
+      expect(mockCreate.mock.calls[0]?.[0]).toMatchObject({
+        tools: [
+          {
+            type: 'function',
+            name: 'lookup_weather',
+            description: 'Return the forecast for a location',
+          },
+        ],
+      })
+    })
+
+    it('passes xAI server-side Responses tools through unchanged', async () => {
+      const adapter = createGrokText('grok-build-0.1', 'test-api-key')
+      const mockCreate = injectMockResponsesClient(adapter, [
+        responseCreated,
+        responseCompleted,
+      ])
+
+      await consume(
+        adapter.chatStream({
+          model: 'grok-build-0.1',
+          messages: [{ role: 'user', content: 'Use server tools' }],
+          tools: [
+            grokWebSearchTool({
+              filters: { allowed_domains: ['x.ai'] },
+            }),
+            grokXSearchTool({
+              allowed_x_handles: ['xai'],
+              from_date: '2026-01-01',
+            }),
+            grokFileSearchTool({
+              vector_store_ids: ['collection_123'],
+              max_num_results: 3,
+            }),
+            grokMCPTool({
+              server_label: 'deepwiki',
+              server_url: 'https://mcp.deepwiki.com/mcp',
+              allowed_tools: ['ask_question'],
+              authorization: 'Bearer mcp-test-token',
+              headers: { 'X-Test-MCP': 'true' },
+            }),
+          ],
+          logger: testLogger,
+        }),
+      )
+
+      expect(mockCreate.mock.calls[0]?.[0]).toMatchObject({
+        tools: [
+          {
+            type: 'web_search',
+            filters: { allowed_domains: ['x.ai'] },
+          },
+          {
+            type: 'x_search',
+            allowed_x_handles: ['xai'],
+            from_date: '2026-01-01',
+          },
+          {
+            type: 'file_search',
+            vector_store_ids: ['collection_123'],
+            max_num_results: 3,
+          },
+          {
+            type: 'mcp',
+            server_label: 'deepwiki',
+            server_url: 'https://mcp.deepwiki.com/mcp',
+            allowed_tools: ['ask_question'],
+            authorization: 'Bearer mcp-test-token',
+            headers: { 'X-Test-MCP': 'true' },
+          },
+        ],
+      })
+    })
+
+    it('keeps same-named user tools as function tools', async () => {
+      const adapter = createGrokText('grok-build-0.1', 'test-api-key')
+      const mockCreate = injectMockResponsesClient(adapter, [
+        responseCreated,
+        responseCompleted,
+      ])
+
+      await consume(
+        adapter.chatStream({
+          model: 'grok-build-0.1',
+          messages: [
+            { role: 'user', content: 'Call my local web_search tool' },
+          ],
+          tools: [
+            {
+              name: 'web_search',
+              description: 'Local app search function, not xAI web search.',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  query: { type: 'string' },
+                },
+                required: ['query'],
+                additionalProperties: false,
+              },
+            },
+          ],
+          logger: testLogger,
+        }),
+      )
+
+      expect(mockCreate.mock.calls[0]?.[0]).toMatchObject({
+        tools: [
+          {
+            type: 'function',
+            name: 'web_search',
+            description: 'Local app search function, not xAI web search.',
+          },
+        ],
+      })
+    })
+
+    it('validates xAI server-side tool factories', () => {
+      expect(() =>
+        grokWebSearchTool({
+          filters: {
+            allowed_domains: ['x.ai'],
+            excluded_domains: ['example.com'],
+          },
+        }),
+      ).toThrow('allowed_domains and excluded_domains cannot both be provided.')
+      expect(() =>
+        grokWebSearchTool({
+          filters: {
+            allowed_domains: [
+              'a.example',
+              'b.example',
+              'c.example',
+              'd.example',
+              'e.example',
+              'f.example',
+            ],
+          },
+        }),
+      ).toThrow('allowed_domains supports at most 5 domains.')
+      expect(() =>
+        grokXSearchTool({
+          allowed_x_handles: ['xai'],
+          excluded_x_handles: ['elonmusk'],
+        }),
+      ).toThrow(
+        'allowed_x_handles and excluded_x_handles cannot both be provided.',
+      )
+      expect(() =>
+        grokXSearchTool({
+          allowed_x_handles: Array.from(
+            { length: 21 },
+            (_, index) => `handle${index}`,
+          ),
+        }),
+      ).toThrow('allowed_x_handles supports at most 20 handles.')
+      expect(() =>
+        grokFileSearchTool({
+          vector_store_ids: [],
+        }),
+      ).toThrow('vector_store_ids must contain at least one collection id.')
+      expect(() =>
+        grokFileSearchTool({
+          vector_store_ids: ['collection_123'],
+          max_num_results: 0,
+        }),
+      ).toThrow('max_num_results must be between 1 and 50.')
+      expect(() =>
+        grokMCPTool({
+          server_label: 'bad',
+        } as any),
+      ).toThrow('server_url must be provided.')
     })
   })
 
@@ -189,22 +446,46 @@ describe('Grok adapters', () => {
         'XAI_API_KEY is required',
       )
     })
+
+    it('maps the size template to aspect_ratio/resolution for imagine models', async () => {
+      const adapter = createGrokImage('grok-imagine-image', 'test-api-key')
+      const mockGenerate = vi.fn().mockResolvedValue({
+        data: [{ url: 'https://example.com/out.png' }],
+      })
+      ;(adapter as any).client = { images: { generate: mockGenerate } }
+
+      await adapter.generateImages({
+        model: 'grok-imagine-image',
+        prompt: 'A skyline',
+        size: '16:9_2k',
+        logger: testLogger,
+      })
+
+      expect(mockGenerate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: 'grok-imagine-image',
+          aspect_ratio: '16:9',
+          resolution: '2k',
+        }),
+      )
+      expect(mockGenerate.mock.calls[0]![0]).not.toHaveProperty('size')
+    })
   })
 
   describe('Summarize adapter', () => {
     it('creates a summarize adapter with explicit API key', () => {
-      const adapter = createGrokSummarize('grok-3', 'test-api-key')
+      const adapter = createGrokSummarize('grok-build-0.1', 'test-api-key')
 
       expect(adapter).toBeDefined()
       expect(adapter.kind).toBe('summarize')
       expect(adapter.name).toBe('grok')
-      expect(adapter.model).toBe('grok-3')
+      expect(adapter.model).toBe('grok-build-0.1')
     })
 
     it('creates a summarize adapter from environment variable', () => {
       vi.stubEnv('XAI_API_KEY', 'env-api-key')
 
-      const adapter = grokSummarize('grok-4')
+      const adapter = grokSummarize('grok-build-0.1')
 
       expect(adapter).toBeDefined()
       expect(adapter.kind).toBe('summarize')
@@ -213,477 +494,9 @@ describe('Grok adapters', () => {
     it('throws if XAI_API_KEY is not set when using grokSummarize', () => {
       vi.stubEnv('XAI_API_KEY', '')
 
-      expect(() => grokSummarize('grok-3')).toThrow('XAI_API_KEY is required')
+      expect(() => grokSummarize('grok-build-0.1')).toThrow(
+        'XAI_API_KEY is required',
+      )
     })
-  })
-})
-
-describe('Grok AG-UI event emission', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  afterEach(() => {
-    vi.unstubAllEnvs()
-  })
-
-  it('emits RUN_STARTED as the first event', async () => {
-    const streamChunks = [
-      {
-        id: 'chatcmpl-123',
-        model: 'grok-3',
-        choices: [
-          {
-            delta: { content: 'Hello' },
-            finish_reason: null,
-          },
-        ],
-      },
-      {
-        id: 'chatcmpl-123',
-        model: 'grok-3',
-        choices: [
-          {
-            delta: {},
-            finish_reason: 'stop',
-          },
-        ],
-        usage: {
-          prompt_tokens: 5,
-          completion_tokens: 1,
-          total_tokens: 6,
-        },
-      },
-    ]
-
-    const adapter = createGrokText('grok-3', 'test-api-key')
-    injectMockClient(adapter, streamChunks)
-    const chunks: Array<StreamChunk> = []
-
-    for await (const chunk of adapter.chatStream({
-      model: 'grok-3',
-      messages: [{ role: 'user', content: 'Hello' }],
-      logger: testLogger,
-    })) {
-      chunks.push(chunk)
-    }
-
-    expect(chunks[0]?.type).toBe('RUN_STARTED')
-    if (chunks[0]?.type === 'RUN_STARTED') {
-      expect(chunks[0].runId).toBeDefined()
-      expect(chunks[0].model).toBe('grok-3')
-    }
-  })
-
-  it('emits TEXT_MESSAGE_START before TEXT_MESSAGE_CONTENT', async () => {
-    const streamChunks = [
-      {
-        id: 'chatcmpl-123',
-        model: 'grok-3',
-        choices: [
-          {
-            delta: { content: 'Hello' },
-            finish_reason: null,
-          },
-        ],
-      },
-      {
-        id: 'chatcmpl-123',
-        model: 'grok-3',
-        choices: [
-          {
-            delta: {},
-            finish_reason: 'stop',
-          },
-        ],
-        usage: {
-          prompt_tokens: 5,
-          completion_tokens: 1,
-          total_tokens: 6,
-        },
-      },
-    ]
-
-    const adapter = createGrokText('grok-3', 'test-api-key')
-    injectMockClient(adapter, streamChunks)
-    const chunks: Array<StreamChunk> = []
-
-    for await (const chunk of adapter.chatStream({
-      model: 'grok-3',
-      messages: [{ role: 'user', content: 'Hello' }],
-      logger: testLogger,
-    })) {
-      chunks.push(chunk)
-    }
-
-    const textStartIndex = chunks.findIndex(
-      (c) => c.type === 'TEXT_MESSAGE_START',
-    )
-    const textContentIndex = chunks.findIndex(
-      (c) => c.type === 'TEXT_MESSAGE_CONTENT',
-    )
-
-    expect(textStartIndex).toBeGreaterThan(-1)
-    expect(textContentIndex).toBeGreaterThan(-1)
-    expect(textStartIndex).toBeLessThan(textContentIndex)
-
-    const textStart = chunks[textStartIndex]
-    if (textStart?.type === 'TEXT_MESSAGE_START') {
-      expect(textStart.messageId).toBeDefined()
-      expect(textStart.role).toBe('assistant')
-    }
-  })
-
-  it('emits TEXT_MESSAGE_END and RUN_FINISHED at the end', async () => {
-    const streamChunks = [
-      {
-        id: 'chatcmpl-123',
-        model: 'grok-3',
-        choices: [
-          {
-            delta: { content: 'Hello' },
-            finish_reason: null,
-          },
-        ],
-      },
-      {
-        id: 'chatcmpl-123',
-        model: 'grok-3',
-        choices: [
-          {
-            delta: {},
-            finish_reason: 'stop',
-          },
-        ],
-        usage: {
-          prompt_tokens: 5,
-          completion_tokens: 1,
-          total_tokens: 6,
-        },
-      },
-    ]
-
-    const adapter = createGrokText('grok-3', 'test-api-key')
-    injectMockClient(adapter, streamChunks)
-    const chunks: Array<StreamChunk> = []
-
-    for await (const chunk of adapter.chatStream({
-      model: 'grok-3',
-      messages: [{ role: 'user', content: 'Hello' }],
-      logger: testLogger,
-    })) {
-      chunks.push(chunk)
-    }
-
-    const textEndChunk = chunks.find((c) => c.type === 'TEXT_MESSAGE_END')
-    expect(textEndChunk).toBeDefined()
-    if (textEndChunk?.type === 'TEXT_MESSAGE_END') {
-      expect(textEndChunk.messageId).toBeDefined()
-    }
-
-    const runFinishedChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
-    expect(runFinishedChunk).toBeDefined()
-    if (runFinishedChunk?.type === 'RUN_FINISHED') {
-      expect(runFinishedChunk.runId).toBeDefined()
-      expect(runFinishedChunk.finishReason).toBe('stop')
-      expect(runFinishedChunk.usage).toMatchObject({
-        promptTokens: 5,
-        completionTokens: 1,
-        totalTokens: 6,
-      })
-    }
-  })
-
-  it('emits AG-UI tool call events', async () => {
-    const streamChunks = [
-      {
-        id: 'chatcmpl-456',
-        model: 'grok-3',
-        choices: [
-          {
-            delta: {
-              tool_calls: [
-                {
-                  index: 0,
-                  id: 'call_abc123',
-                  type: 'function',
-                  function: {
-                    name: 'lookup_weather',
-                    arguments: '{"location":',
-                  },
-                },
-              ],
-            },
-            finish_reason: null,
-          },
-        ],
-      },
-      {
-        id: 'chatcmpl-456',
-        model: 'grok-3',
-        choices: [
-          {
-            delta: {
-              tool_calls: [
-                {
-                  index: 0,
-                  function: {
-                    arguments: '"Berlin"}',
-                  },
-                },
-              ],
-            },
-            finish_reason: null,
-          },
-        ],
-      },
-      {
-        id: 'chatcmpl-456',
-        model: 'grok-3',
-        choices: [
-          {
-            delta: {},
-            finish_reason: 'tool_calls',
-          },
-        ],
-        usage: {
-          prompt_tokens: 10,
-          completion_tokens: 5,
-          total_tokens: 15,
-        },
-      },
-    ]
-
-    const adapter = createGrokText('grok-3', 'test-api-key')
-    injectMockClient(adapter, streamChunks)
-    const chunks: Array<StreamChunk> = []
-
-    for await (const chunk of adapter.chatStream({
-      model: 'grok-3',
-      messages: [{ role: 'user', content: 'Weather in Berlin?' }],
-      tools: [weatherTool],
-      logger: testLogger,
-    })) {
-      chunks.push(chunk)
-    }
-
-    // Check AG-UI tool events
-    const toolStartChunk = chunks.find((c) => c.type === 'TOOL_CALL_START')
-    expect(toolStartChunk).toBeDefined()
-    if (toolStartChunk?.type === 'TOOL_CALL_START') {
-      expect(toolStartChunk.toolCallId).toBe('call_abc123')
-      expect(toolStartChunk.toolName).toBe('lookup_weather')
-    }
-
-    const toolArgsChunks = chunks.filter((c) => c.type === 'TOOL_CALL_ARGS')
-    expect(toolArgsChunks.length).toBeGreaterThan(0)
-
-    const toolEndChunk = chunks.find((c) => c.type === 'TOOL_CALL_END')
-    expect(toolEndChunk).toBeDefined()
-    if (toolEndChunk?.type === 'TOOL_CALL_END') {
-      expect(toolEndChunk.toolCallId).toBe('call_abc123')
-      expect(toolEndChunk.toolName).toBe('lookup_weather')
-      expect(toolEndChunk.input).toEqual({ location: 'Berlin' })
-    }
-
-    // Check finish reason
-    const runFinishedChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
-    if (runFinishedChunk?.type === 'RUN_FINISHED') {
-      expect(runFinishedChunk.finishReason).toBe('tool_calls')
-    }
-  })
-
-  it('emits RUN_ERROR on stream error', async () => {
-    const streamChunks = [
-      {
-        id: 'chatcmpl-123',
-        model: 'grok-3',
-        choices: [
-          {
-            delta: { content: 'Hello' },
-            finish_reason: null,
-          },
-        ],
-      },
-    ]
-
-    // Create an async iterable that throws mid-stream
-    const errorIterable = {
-      [Symbol.asyncIterator]() {
-        let index = 0
-        return {
-          async next() {
-            if (index < streamChunks.length) {
-              return { value: streamChunks[index++]!, done: false }
-            }
-            throw new Error('Stream interrupted')
-          },
-        }
-      },
-    }
-
-    const adapter = createGrokText('grok-3', 'test-api-key')
-    const mockCreate = vi.fn().mockResolvedValue(errorIterable)
-    ;(adapter as any).client = {
-      chat: {
-        completions: {
-          create: mockCreate,
-        },
-      },
-    }
-
-    const chunks: Array<StreamChunk> = []
-
-    for await (const chunk of adapter.chatStream({
-      model: 'grok-3',
-      messages: [{ role: 'user', content: 'Hello' }],
-      logger: testLogger,
-    })) {
-      chunks.push(chunk)
-    }
-
-    // Should emit RUN_ERROR
-    const runErrorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
-    expect(runErrorChunk).toBeDefined()
-    if (runErrorChunk?.type === 'RUN_ERROR') {
-      expect(runErrorChunk.error!.message).toBe('Stream interrupted')
-    }
-  })
-
-  it('emits proper AG-UI event sequence', async () => {
-    const streamChunks = [
-      {
-        id: 'chatcmpl-123',
-        model: 'grok-3',
-        choices: [
-          {
-            delta: { content: 'Hello world' },
-            finish_reason: null,
-          },
-        ],
-      },
-      {
-        id: 'chatcmpl-123',
-        model: 'grok-3',
-        choices: [
-          {
-            delta: {},
-            finish_reason: 'stop',
-          },
-        ],
-        usage: {
-          prompt_tokens: 5,
-          completion_tokens: 2,
-          total_tokens: 7,
-        },
-      },
-    ]
-
-    const adapter = createGrokText('grok-3', 'test-api-key')
-    injectMockClient(adapter, streamChunks)
-    const chunks: Array<StreamChunk> = []
-
-    for await (const chunk of adapter.chatStream({
-      model: 'grok-3',
-      messages: [{ role: 'user', content: 'Hello' }],
-      logger: testLogger,
-    })) {
-      chunks.push(chunk)
-    }
-
-    // Verify proper AG-UI event sequence
-    const eventTypes = chunks.map((c) => c.type)
-
-    // Should start with RUN_STARTED
-    expect(eventTypes[0]).toBe('RUN_STARTED')
-
-    // Should have TEXT_MESSAGE_START before TEXT_MESSAGE_CONTENT
-    const textStartIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_START)
-    const textContentIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_CONTENT)
-    expect(textStartIndex).toBeGreaterThan(-1)
-    expect(textContentIndex).toBeGreaterThan(textStartIndex)
-
-    // Should have TEXT_MESSAGE_END before RUN_FINISHED
-    const textEndIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_END)
-    const runFinishedIndex = eventTypes.indexOf(EventType.RUN_FINISHED)
-    expect(textEndIndex).toBeGreaterThan(-1)
-    expect(runFinishedIndex).toBeGreaterThan(textEndIndex)
-
-    // Verify RUN_FINISHED has proper data
-    const runFinishedChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
-    if (runFinishedChunk?.type === 'RUN_FINISHED') {
-      expect(runFinishedChunk.finishReason).toBe('stop')
-      expect(runFinishedChunk.usage).toBeDefined()
-    }
-  })
-
-  it('streams content with correct accumulated values', async () => {
-    const streamChunks = [
-      {
-        id: 'chatcmpl-stream',
-        model: 'grok-3',
-        choices: [
-          {
-            delta: { content: 'Hello ' },
-            finish_reason: null,
-          },
-        ],
-      },
-      {
-        id: 'chatcmpl-stream',
-        model: 'grok-3',
-        choices: [
-          {
-            delta: { content: 'world' },
-            finish_reason: null,
-          },
-        ],
-      },
-      {
-        id: 'chatcmpl-stream',
-        model: 'grok-3',
-        choices: [
-          {
-            delta: {},
-            finish_reason: 'stop',
-          },
-        ],
-        usage: {
-          prompt_tokens: 5,
-          completion_tokens: 2,
-          total_tokens: 7,
-        },
-      },
-    ]
-
-    const adapter = createGrokText('grok-3', 'test-api-key')
-    injectMockClient(adapter, streamChunks)
-    const chunks: Array<StreamChunk> = []
-
-    for await (const chunk of adapter.chatStream({
-      model: 'grok-3',
-      messages: [{ role: 'user', content: 'Say hello' }],
-      logger: testLogger,
-    })) {
-      chunks.push(chunk)
-    }
-
-    // Check TEXT_MESSAGE_CONTENT events have correct accumulated content
-    const contentChunks = chunks.filter(
-      (c) => c.type === 'TEXT_MESSAGE_CONTENT',
-    )
-    expect(contentChunks.length).toBe(2)
-
-    const firstContent = contentChunks[0]
-    if (firstContent?.type === 'TEXT_MESSAGE_CONTENT') {
-      expect(firstContent.delta).toBe('Hello ')
-      expect(firstContent.content).toBe('Hello ')
-    }
-
-    const secondContent = contentChunks[1]
-    if (secondContent?.type === 'TEXT_MESSAGE_CONTENT') {
-      expect(secondContent.delta).toBe('world')
-      expect(secondContent.content).toBe('Hello world')
-    }
   })
 })

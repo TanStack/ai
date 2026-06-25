@@ -4,7 +4,11 @@ import {
   createOpenaiTranscription,
   createOpenaiVideo,
 } from '@tanstack/ai-openai'
-import { createGeminiAudio, createGeminiImage } from '@tanstack/ai-gemini'
+import {
+  createGeminiAudio,
+  createGeminiImage,
+  createGeminiVideo,
+} from '@tanstack/ai-gemini'
 import {
   createGrokImage,
   createGrokSpeech,
@@ -46,13 +50,9 @@ export function createImageAdapter(
         defaultHeaders: headers,
       }),
     gemini: () =>
-      createGeminiImage(
-        'gemini-2.0-flash-preview-image-generation',
-        DUMMY_KEY,
-        {
-          httpOptions: { baseUrl: llmockBase(aimockPort), headers },
-        },
-      ),
+      createGeminiImage('gemini-2.5-flash-image', DUMMY_KEY, {
+        httpOptions: { baseUrl: llmockBase(aimockPort), headers },
+      }),
     grok: () =>
       createGrokImage('grok-2-image-1212', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
@@ -132,6 +132,10 @@ export function createVideoAdapter(
       createOpenaiVideo('sora-2', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
+      }),
+    gemini: () =>
+      createGeminiVideo('veo-3.1-generate-preview', DUMMY_KEY, {
+        httpOptions: { baseUrl: llmockBase(aimockPort), headers },
       }),
   }
   const factory = factories[provider]

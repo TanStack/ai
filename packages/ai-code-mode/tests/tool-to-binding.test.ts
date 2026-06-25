@@ -59,6 +59,45 @@ describe('toolToBinding', () => {
     const result = await binding.execute({ query: 'test' })
     expect(result).toEqual({ result: 'response to test' })
   })
+
+  it('validates input against the tool schema and throws an agent-readable error', async () => {
+    const tool = createMockServerTool('fetchData')
+    const binding = toolToBinding(tool)
+
+    await expect(binding.execute({ query: 123 })).rejects.toThrow(
+      /Input validation failed for tool fetchData/,
+    )
+  })
+
+  it('coerces/defaults input via the schema before calling execute', async () => {
+    const def = toolDefinition({
+      name: 'withDefault',
+      description: 'has a defaulted field',
+      inputSchema: z.object({ n: z.number().default(7) }),
+      outputSchema: z.object({ n: z.number() }),
+    })
+    const execute = vi.fn(async (input: { n?: number }) => ({ n: input.n! }))
+    const binding = toolToBinding(def.server(execute))
+
+    const result = await binding.execute({})
+    expect(execute).toHaveBeenCalledWith({ n: 7 }, undefined)
+    expect(result).toEqual({ n: 7 })
+  })
+
+  it('validates output against the tool schema', async () => {
+    const def = toolDefinition({
+      name: 'badOutput',
+      description: 'returns the wrong shape',
+      inputSchema: z.object({}),
+      outputSchema: z.object({ result: z.string() }),
+    })
+    // @ts-expect-error - deliberately returns a non-conforming value
+    const binding = toolToBinding(def.server(async () => ({ result: 123 })))
+
+    await expect(binding.execute({})).rejects.toThrow(
+      /Output validation failed for tool badOutput/,
+    )
+  })
 })
 
 describe('toolsToBindings', () => {

@@ -68,7 +68,7 @@ export const EVAL_MODELS: Array<EvalModel> = [
   { name: 'Gemini 2.5 Flash', model: 'gemini:gemini-2.5-flash' },
 
   // --- Grok (xAI) ---
-  { name: 'Grok 4.1 Fast', model: 'grok:grok-4-1-fast-non-reasoning' },
+  { name: 'Grok Build 0.1', model: 'grok:grok-build-0.1' },
 
   // --- Groq ---
   { name: 'Llama 3.3 70B (Groq)', model: 'groq:llama-3.3-70b-versatile' },

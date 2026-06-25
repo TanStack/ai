@@ -1,13 +1,21 @@
 {
   "name": "@tanstack/ai-devtools-core",
-  "version": "0.4.8",
+  "version": "0.4.16",
   "description": "Core TanStack AI Devtools plugin for inspecting chat messages, tool calls, streams, and errors.",
-  "author": "",
+  "author": "Tanner Linsley",
   "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/TanStack/ai.git",
-    "directory": "packages/ai"
+    "directory": "packages/ai-devtools"
+  },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
   },
   "type": "module",
   "types": "./dist/index.d.ts",

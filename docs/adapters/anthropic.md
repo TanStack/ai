@@ -83,7 +83,7 @@ export async function POST(request: Request) {
 ## Example: With Tools
 
 ```typescript
-import { chat, toolDefinition } from "@tanstack/ai";
+import { chat, toServerSentEventsResponse, toolDefinition } from "@tanstack/ai";
 import { anthropicText } from "@tanstack/ai-anthropic";
 import { z } from "zod";
 
@@ -100,11 +100,17 @@ const searchDatabase = searchDatabaseDef.server(async ({ query }) => {
   return { results: [] };
 });
 
-const stream = chat({
-  adapter: anthropicText("claude-sonnet-4-6"),
-  messages,
-  tools: [searchDatabase],
-});
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter: anthropicText("claude-sonnet-4-6"),
+    messages,
+    tools: [searchDatabase],
+  });
+
+  return toServerSentEventsResponse(stream);
+}
 ```
 
 ## Model Options
@@ -112,9 +118,12 @@ const stream = chat({
 Anthropic supports various provider-specific options. Sampling parameters live here too — `temperature`, `top_p`, and `max_tokens` — rather than as root-level props on `chat()`:
 
 ```typescript
+import { chat } from "@tanstack/ai";
+import { anthropicText } from "@tanstack/ai-anthropic";
+
 const stream = chat({
   adapter: anthropicText("claude-sonnet-4-6"),
-  messages,
+  messages: [{ role: "user", content: "Hello!" }],
   modelOptions: {
     max_tokens: 4096,
     temperature: 0.7,
@@ -131,7 +140,7 @@ const stream = chat({
 
 Enable extended thinking with a token budget. This allows Claude to show its reasoning process, which is streamed as `thinking` chunks:
 
-```typescript
+```typescript ignore
 modelOptions: {
   thinking: {
     type: "enabled",
@@ -147,6 +156,9 @@ modelOptions: {
 Cache prompts for better performance and reduced costs:
 
 ```typescript
+import { chat } from "@tanstack/ai";
+import { anthropicText } from "@tanstack/ai-anthropic";
+
 const stream = chat({
   adapter: anthropicText("claude-sonnet-4-6"),
   messages: [
@@ -242,7 +254,7 @@ import { anthropicText } from "@tanstack/ai-anthropic";
 import { webSearchTool } from "@tanstack/ai-anthropic/tools";
 
 const stream = chat({
-  adapter: anthropicText("claude-opus-4.8"),
+  adapter: anthropicText("claude-opus-4-7"),
   messages: [{ role: "user", content: "What's new in AI this week?" }],
   tools: [
     webSearchTool({

@@ -184,6 +184,7 @@ stateDiagram-v2
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import { clientTools, createChatClientOptions } from "@tanstack/ai-client";
 import { getWeather, sendEmail } from "./tools";
+import { ApprovalUI } from "./approval-ui";
 
 // Wiring `tools` is what lets `part.name` / `part.input` / `part.output`
 // narrow to each tool's types below.
@@ -231,6 +232,7 @@ function ChatComponent() {
                 </div>
               );
             }
+            return null;
           })}
         </div>
       ))}
@@ -266,6 +268,10 @@ sequenceDiagram
 **Define tool with approval:**
 
 ```typescript
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
+import { emailService } from "./email-service";
+
 const sendEmailDef = toolDefinition({
   name: "send_email",
   description: "Send an email",
@@ -285,7 +291,7 @@ const sendEmail = sendEmailDef.server(async ({ to, subject, body }) => {
 
 **Handle approval in client:**
 
-```tsx
+```tsx ignore
 const { messages, addToolApprovalResponse } = useChat({
   connection: fetchServerSentEvents("/api/chat"),
 });
@@ -325,6 +331,11 @@ const { messages, addToolApprovalResponse } = useChat({
 Some tools need to execute in both environments:
 
 ```typescript
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
+import { db } from "./db";
+import { i18n } from "./i18n";
+
 // Server: Fetch data from database
 const fetchUserPrefsDef = toolDefinition({
   name: "fetch_user_preferences",

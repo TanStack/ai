@@ -2,11 +2,15 @@
 title: Video Generation
 id: video-generation
 order: 6
-description: "Generate video from text prompts with OpenAI Sora using TanStack AI's experimental generateVideo() jobs/polling API."
+description: "Generate video from text prompts with OpenAI Sora, Google Veo, xAI Grok Imagine, or fal.ai using TanStack AI's experimental generateVideo() jobs/polling API."
 keywords:
   - tanstack ai
   - video generation
   - sora
+  - veo
+  - gemini
+  - grok imagine
+  - fal
   - generateVideo
   - jobs api
   - experimental
@@ -36,6 +40,9 @@ TanStack AI provides experimental support for video generation through dedicated
 
 Currently supported:
 - **OpenAI**: Sora-2 and Sora-2-Pro models (when available)
+- **Google Gemini**: Veo 3.1, Veo 3, and Veo 2 models (via the long-running operations API)
+- **Grok (xAI)**: grok-imagine-video (text-to-video + image-to-video) and grok-imagine-video-1.5 (image-to-video only) models
+- **fal.ai**: MiniMax, Luma, Kling, Hunyuan, and other hosted video models
 
 ## Basic Usage
 
@@ -57,7 +64,13 @@ console.log('Job started:', jobId)
 ### Polling for Status
 
 ```typescript
-import { getVideoJobStatus } from '@tanstack/ai'
+import { generateVideo, getVideoJobStatus } from '@tanstack/ai'
+import { openaiVideo } from '@tanstack/ai-openai'
+
+const { jobId } = await generateVideo({
+  adapter: openaiVideo('sora-2'),
+  prompt: 'A golden retriever puppy playing in a field of sunflowers',
+})
 
 // Check the status of the job
 const status = await getVideoJobStatus({
@@ -77,6 +90,8 @@ if (status.status === 'failed') {
 
 ```typescript
 import { getVideoJobStatus } from '@tanstack/ai'
+import { openaiVideo } from '@tanstack/ai-openai'
+import { jobId } from './job'
 
 // Only call this after status is 'completed'
 const result = await getVideoJobStatus({
@@ -151,7 +166,7 @@ TanStack AI's `generateVideo` function supports a `stream: true` flag that handl
 
 **Server** — The server handles the entire polling lifecycle and streams events to the client:
 
-```typescript
+```typescript ignore
 // routes/api/generate/video.ts
 import { generateVideo, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiVideo } from '@tanstack/ai-openai'
@@ -241,7 +256,7 @@ function VideoGenerator() {
 
 For cases where the server handles the full polling loop and returns a completed result:
 
-```typescript
+```typescript ignore
 // lib/server-functions.ts
 import { createServerFn } from '@tanstack/react-start'
 import { generateVideo, getVideoJobStatus } from '@tanstack/ai'
@@ -295,7 +310,7 @@ function VideoGenerator() {
 
 For TanStack Start server functions that stream results. The fetcher receives type-safe input and returns an SSE `Response` — the client parses it automatically. This gives you both type safety and real-time `jobId`/`videoStatus` updates:
 
-```typescript
+```typescript ignore
 // lib/server-functions.ts
 import { createServerFn } from '@tanstack/react-start'
 import { generateVideo, toServerSentEventsResponse } from '@tanstack/ai'
@@ -363,10 +378,95 @@ And returns:
 | Option | Type | Description |
 |--------|------|-------------|
 | `adapter` | `VideoAdapter` | Video adapter instance with model (required) |
-| `prompt` | `string` | Text description of the video to generate (required) |
+| `prompt` | `string \| MediaPromptPart[]` | Description of the video to generate (required). A plain string, or — on models that support conditioned generation — an ordered array of content parts interleaving text with image / video / audio inputs. See [Image-to-Video](#image-to-video) below. |
 | `size` | `string` | Video resolution in WIDTHxHEIGHT format |
 | `duration` | `number` | Video duration in seconds (maps to `seconds` parameter in API) |
 | `modelOptions?` | `object` | Model-specific options (renamed from `providerOptions`) |
+
+## Image-to-Video
+
+For starting-frame, ending-frame, and reference-image conditioned video
+generation, pass the `prompt` as an array of content parts:
+
+```typescript
+import { generateVideo } from '@tanstack/ai'
+import { openaiVideo } from '@tanstack/ai-openai'
+import { base64Image } from './assets'
+
+const { jobId } = await generateVideo({
+  adapter: openaiVideo('sora-2'),
+  prompt: [
+    {
+      type: 'text',
+      content:
+        'Animate this still into a slow cinematic push-in with subtle motion',
+    },
+    {
+      type: 'image',
+      source: {
+        type: 'data',
+        value: base64Image,
+        mimeType: 'image/png',
+      },
+    },
+  ],
+})
+```
+
+The accepted part types are narrowed **per model at compile time** — fal
+endpoints, for example, only admit image / video / audio parts that their
+SDK input type actually declares fields for.
+
+Prompt text is always sent **verbatim** — the SDK never injects or rewrites
+in-prompt referencing markers. Some fal video endpoints have their own
+referencing syntax you can write directly in your text (e.g. Kling v3
+elements as `@Element1`, Seedance 2.0 reference-to-video as `@Image1` /
+`@Video1` / `@Audio1`, 1-indexed by input order); Veo and Sora take
+reference images as plain inputs with naturally written prompts. See
+[Referencing images from your prompt](./image-generation.md#referencing-images-from-your-prompt)
+for the per-provider table.
+
+### Role hints
+
+Each `ImagePart` can carry an optional `metadata.role` hint that the
+adapter uses to route the input to the provider-specific field:
+
+| Role            | Maps to                                                       |
+| --------------- | ------------------------------------------------------------- |
+| `'start_frame'` | fal `start_image_url`, Veo input `image` (positional default for the first input) |
+| `'end_frame'`   | fal `end_image_url`, Veo `lastFrame`                          |
+| `'reference'`   | fal `reference_image_urls`, Veo `referenceImages`             |
+| `'character'`   | Same as `'reference'` — character consistency images                    |
+
+```typescript
+import { generateVideo } from '@tanstack/ai'
+import { falVideo } from '@tanstack/ai-fal'
+import { firstFrameUrl, lastFrameUrl } from './assets'
+
+await generateVideo({
+  adapter: falVideo('fal-ai/kling-video/v3/pro/image-to-video'),
+  prompt: [
+    { type: 'image', source: { type: 'url', value: firstFrameUrl } },
+    { type: 'text', content: 'Slow cinematic push-in then a hard cut' },
+    {
+      type: 'image',
+      source: { type: 'url', value: lastFrameUrl },
+      metadata: { role: 'end_frame' },
+    },
+  ],
+})
+```
+
+### Provider support
+
+| Provider     | Image-to-Video Behavior                                                                                  |
+| ------------ | -------------------------------------------------------------------------------------------------------- |
+| **OpenAI**   | Sora-2 / Sora-2-Pro → the image part goes to `input_reference`; flattened text is the prompt. Single image only — throws if more than one. |
+| **fal.ai**   | Field names resolve per endpoint from a map generated from the fal SDK's endpoint types — e.g. `role: 'start_frame'` lands on `image_url` for Kling/Veo image-to-video, `first_frame_url` for first-last-frame endpoints, and `start_image_url` otherwise. Defaults: single input → `image_url` (start frame); `role: 'end_frame'` → `end_image_url`; `role: 'reference'` / `'character'` → `reference_image_urls`. Override per-endpoint via `modelOptions` — the media-conditioning fields are typed optional there (even when the endpoint requires them) since they usually arrive as prompt parts. |
+| **Gemini**   | Veo → the first un-roled / `'start_frame'` image becomes the input image; `'end_frame'` → `lastFrame`; `'reference'` / `'character'` → `referenceImages` (asset references, Veo 3.1). Throws on multiple starting images. |
+
+Adapters whose underlying API can't accept image inputs throw a clear
+runtime error so calls fail fast.
 
 ### Supported Sizes
 
@@ -394,6 +494,9 @@ The API uses the `seconds` parameter. Allowed values:
 Based on the [OpenAI Sora API](https://platform.openai.com/docs/api-reference/videos/create):
 
 ```typescript
+import { generateVideo } from '@tanstack/ai'
+import { openaiVideo } from '@tanstack/ai-openai'
+
 const { jobId } = await generateVideo({
   adapter: openaiVideo('sora-2'),
   prompt: 'A beautiful sunset over the ocean',
@@ -406,9 +509,129 @@ const { jobId } = await generateVideo({
 })
 ```
 
+### Google Veo (Gemini) Model Options
+
+Veo runs on Google's long-running operations API. The adapter starts the
+operation, and `getVideoJobStatus` polls it until the video is ready:
+
+```typescript ignore
+import { generateVideo } from '@tanstack/ai'
+import { geminiVideo } from '@tanstack/ai-gemini'
+
+const { jobId } = await generateVideo({
+  adapter: geminiVideo('veo-3.1-generate-preview'),
+  prompt: 'A close-up of a luthier carving a guitar neck',
+  size: '16:9', // aspect ratio: '16:9' or '9:16'
+  duration: 8, // typed per model — see below
+  modelOptions: {
+    resolution: '1080p', // '720p' (default), '1080p', '4k' (Veo 3.1 only)
+    negativePrompt: 'cartoon, low quality',
+    generateAudio: true, // Veo 3+ generates synchronized audio
+  },
+})
+```
+
+#### Typed durations
+
+Each Veo model accepts a fixed set of durations, enforced at compile time on
+the `duration` option:
+
+| Model | `duration` values (seconds) |
+|-------|------------------------------|
+| `veo-3.1-generate-preview` | `4`, `6`, `8` |
+| `veo-3.1-fast-generate-preview` | `4`, `6`, `8` |
+| `veo-3.0-generate-001` | `4`, `6`, `8` |
+| `veo-3.0-fast-generate-001` | `4`, `6`, `8` |
+| `veo-2.0-generate-001` | `5`, `6`, `8` |
+
+If you have raw seconds (for example from a UI slider), coerce them with
+`snapDuration`, or inspect the full set with `availableDurations`:
+
+```typescript ignore
+import { generateVideo } from '@tanstack/ai'
+import { geminiVideo } from '@tanstack/ai-gemini'
+
+const adapter = geminiVideo('veo-3.0-generate-001')
+
+adapter.availableDurations() // { kind: 'discrete', values: [4, 6, 8] }
+adapter.snapDuration(7) // 6 — closest valid duration
+
+await generateVideo({
+  adapter,
+  prompt: 'A timelapse of a city skyline at dusk',
+  duration: adapter.snapDuration(7),
+})
+```
+
+Adapters that haven't declared a per-model duration map keep the plain
+`duration?: number` typing, return `{ kind: 'none' }` from
+`availableDurations()`, and return `undefined` from `snapDuration()`.
+
+> **Note:** The video URL returned for Veo jobs is served by the Gemini
+> Files API and requires your API key to download (send it as an
+> `x-goog-api-key` header or `key` query parameter).
+
+### Grok (xAI Imagine) Model Options
+
+Based on the [xAI video generation API](https://docs.x.ai/docs/guides/video-generations). Two models are available: `grok-imagine-video` (v1.0) supports **text-to-video and image-to-video**, while `grok-imagine-video-1.5` is **image-to-video only** (a text-only prompt is rejected by the API; the adapter throws a clear error pointing you at `grok-imagine-video`). Both are aspect-ratio sized — the generic `size` option takes an `aspectRatio_resolution` template (like the Grok Imagine image models), and clips can be 1–15 seconds long.
+
+Text-to-video with the base model:
+
+```typescript
+import { generateVideo } from '@tanstack/ai'
+import { grokVideo } from '@tanstack/ai-grok'
+
+const { jobId } = await generateVideo({
+  adapter: grokVideo('grok-imagine-video'),
+  prompt: 'A beautiful sunset over the ocean',
+  size: '16:9_720p',  // aspect ratio: '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '3:2' | '2:3'
+                      // resolution (optional suffix): '480p' | '720p' | '1080p'
+  duration: 5,        // integer seconds, 1-15
+  modelOptions: {
+    aspect_ratio: '16:9',  // Alternative way to specify the aspect ratio
+    resolution: '720p',    // Alternative way to specify the resolution
+    duration: 5,           // Alternative way to specify the duration
+  },
+})
+```
+
+Image-to-video (required for `grok-imagine-video-1.5`) — include an `image` prompt part as the starting frame. URL sources are fetched by xAI's servers (so they must be publicly reachable); use a `data` source for a base64 starting frame:
+
+```typescript
+import { generateVideo } from '@tanstack/ai'
+import { grokVideo } from '@tanstack/ai-grok'
+
+const { jobId } = await generateVideo({
+  adapter: grokVideo('grok-imagine-video-1.5'),
+  prompt: [
+    { type: 'text', content: 'Slowly pan out as the waves roll in' },
+    {
+      type: 'image',
+      source: { type: 'url', value: 'https://example.com/still.png' },
+    },
+  ],
+  size: '16:9_720p',
+  duration: 5,
+})
+```
+
+Both models accept any whole second in the **1–15** range. A raw `duration` is coerced into that range rather than rejected — values are clamped to `[1, 15]` and rounded to the nearest second. Inspect or pre-snap the range the same way as Veo:
+
+```typescript
+import { grokVideo } from '@tanstack/ai-grok'
+
+const adapter = grokVideo('grok-imagine-video')
+
+adapter.availableDurations() // { kind: 'range', min: 1, max: 15, step: 1, unit: 'seconds' }
+adapter.snapDuration(2.5) // 3 — clamped/rounded into range
+adapter.snapDuration(99) // 15
+```
+
+Generated clips include an audio track. When the job completes, the adapter reports `usage.unitsBilled` (billed seconds of video) and `usage.cost` (exact USD cost as returned by the API) on the result.
+
 ## Response Types
 
-> **Note:** The interfaces below are the underlying adapter-level types. The `getVideoJobStatus()` helper returns a single merged object, `{ status, progress?, url?, error? }` — it does not return `jobId` or `expiresAt`.
+> **Note:** The interfaces below are the underlying adapter-level types. The `getVideoJobStatus()` helper returns a single merged object, `{ status, progress?, url?, error?, usage? }` — it does not return `jobId` or `expiresAt`.
 
 ### VideoJobResult (from create)
 
@@ -433,12 +656,25 @@ interface VideoStatusResult {
 ### VideoUrlResult (from url)
 
 ```typescript
+import type { TokenUsage } from '@tanstack/ai'
+
 interface VideoUrlResult {
   jobId: string
   url: string        // URL to download/stream the video
   expiresAt?: Date   // When the URL expires
+  // Usage for the completed generation, when the adapter reports it. fal
+  // populates `usage.unitsBilled` from its `x-fal-billable-units` header.
+  usage?: TokenUsage
 }
 ```
+
+> **Cost tracking (fal):** fal bills media generation by usage-based units
+> rather than tokens. The fal adapters surface the real billed quantity as
+> `usage.unitsBilled` (denominated in the endpoint's priced unit). Combine it
+> with the endpoint's unit price from
+> `GET https://api.fal.ai/v1/models/pricing?endpoint_id=…` to compute the exact
+> cost (`unitsBilled * unitPrice`). The same `usage.unitsBilled` is surfaced
+> on image, audio, speech, and transcription results.
 
 ## Model Variants
 
@@ -452,6 +688,9 @@ interface VideoUrlResult {
 Video generation can fail for various reasons. Always implement proper error handling:
 
 ```typescript
+import { generateVideo, getVideoJobStatus } from '@tanstack/ai'
+import { openaiVideo } from '@tanstack/ai-openai'
+
 try {
   const { jobId } = await generateVideo({
     adapter: openaiVideo('sora-2'),
@@ -469,12 +708,14 @@ try {
     // Handle failure (e.g., retry, notify user)
   }
 } catch (error) {
-  if (error.message.includes('Video generation API is not available')) {
-    console.error('Sora API access may be required. Check your OpenAI account.')
-  } else if (error.message.includes('rate limit')) {
-    console.error('Rate limited. Please wait before trying again.')
-  } else {
-    console.error('Unexpected error:', error)
+  if (error instanceof Error) {
+    if (error.message.includes('Video generation API is not available')) {
+      console.error('Sora API access may be required. Check your OpenAI account.')
+    } else if (error.message.includes('rate limit')) {
+      console.error('Rate limited. Please wait before trying again.')
+    } else {
+      console.error('Unexpected error:', error)
+    }
   }
 }
 ```
@@ -493,9 +734,11 @@ Check the [OpenAI documentation](https://platform.openai.com/docs) for current l
 
 ## Environment Variables
 
-The video adapter uses the same environment variable as other OpenAI adapters:
+The video adapters use the same environment variables as the other adapters
+for their provider:
 
-- `OPENAI_API_KEY`: Your OpenAI API key
+- `OPENAI_API_KEY`: Your OpenAI API key (Sora)
+- `GOOGLE_API_KEY` or `GEMINI_API_KEY`: Your Google API key (Veo)
 
 ## Explicit API Keys
 

@@ -16,6 +16,7 @@ import {
   Music,
   Plug,
   Server,
+  Sparkles,
   Video,
   X,
 } from 'lucide-react'
@@ -279,6 +280,19 @@ export default function Header() {
           >
             <Plug size={20} />
             <span className="font-medium">MCP Servers</span>
+          </Link>
+
+          <Link
+            to="/capability-demo"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
+            }}
+          >
+            <Sparkles size={20} />
+            <span className="font-medium">Capability Middleware</span>
           </Link>
         </nav>
       </aside>

@@ -20,7 +20,7 @@ const getRealtimeTokenFn = createServerFn({ method: 'POST' })
     if (data.provider === 'openai') {
       return realtimeToken({
         adapter: openaiRealtimeToken({
-          model: 'gpt-4o-realtime-preview',
+          model: 'gpt-realtime',
         }),
       })
     }

@@ -42,12 +42,12 @@ function createSummarizeAdapter(
         defaultHeaders: headers,
       }),
     gemini: () =>
-      createGeminiSummarize(DUMMY_KEY, 'gemini-2.0-flash', {
+      createGeminiSummarize(DUMMY_KEY, 'gemini-2.5-flash', {
         httpOptions: { baseUrl: llmockBase(aimockPort), headers },
       }),
     ollama: () => createOllamaSummarize('mistral', llmockBase(aimockPort)),
     grok: () =>
-      createGrokSummarize('grok-3', DUMMY_KEY, {
+      createGrokSummarize('grok-build-0.1', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),

@@ -52,10 +52,10 @@ const adapter = createOpenRouterText(
 
 OpenRouter provides access to 300+ models from various providers. Models use the format `provider/model-name`:
 
-```typescript
+```text
 model: "openai/gpt-5.1"
 model: "anthropic/claude-sonnet-4.5"
-model: "google/gemini-3-pro-preview"
+model: "google/gemini-3.1-pro-preview"
 model: "meta-llama/llama-4-maverick"
 model: "deepseek/deepseek-v3.2"
 ```
@@ -83,9 +83,9 @@ export async function POST(request: Request) {
 ## Example: With Tools
 
 ```typescript
-import { chat, toolDefinition } from "@tanstack/ai";
+import { chat, toServerSentEventsResponse, toolDefinition } from "@tanstack/ai";
 import { openRouterText } from "@tanstack/ai-openrouter";
-import { z } from "zod"; 
+import { z } from "zod";
 
 const getWeatherDef = toolDefinition({
   name: "get_weather",
@@ -99,11 +99,17 @@ const getWeather = getWeatherDef.server(async ({ location }) => {
   return { temperature: 72, conditions: "sunny" };
 });
 
-const stream = chat({
-  adapter: openRouterText("openai/gpt-5"),
-  messages, 
-  tools: [getWeather],
-});
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter: openRouterText("openai/gpt-5"),
+    messages,
+    tools: [getWeather],
+  });
+
+  return toServerSentEventsResponse(stream);
+}
 ```
  
  
@@ -121,17 +127,26 @@ OPENROUTER_API_KEY=sk-or-...
 OpenRouter can automatically route requests to the best available provider:
 
 ```typescript
-const stream = chat({
-  adapter: openRouterText("openrouter/auto"),
-  messages,
-  modelOptions: {
-    models: [
-      "openai/gpt-4o",
-      "anthropic/claude-3.5-sonnet",
-      "google/gemini-pro",
-    ],
-  },
-});
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { openRouterText } from "@tanstack/ai-openrouter";
+
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter: openRouterText("openrouter/auto"),
+    messages,
+    modelOptions: {
+      models: [
+        "openai/gpt-5.5",
+        "anthropic/claude-sonnet-4.5",
+        "google/gemini-3.1-pro-preview",
+      ],
+    },
+  });
+
+  return toServerSentEventsResponse(stream);
+}
 ```
 
 ## Model Options
@@ -139,15 +154,24 @@ const stream = chat({
 OpenRouter supports various provider-specific options. Sampling parameters live here too — `temperature`, `topP`, and `maxCompletionTokens` (OpenRouter's token-limit key for the chat adapter) — rather than as root-level props on `chat()`:
 
 ```typescript
-const stream = chat({
-  adapter: openRouterText("openai/gpt-5"),
-  messages,
-  modelOptions: {
-    temperature: 0.7,
-    topP: 0.9,
-    maxCompletionTokens: 1024,
-  },
-});
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { openRouterText } from "@tanstack/ai-openrouter";
+
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter: openRouterText("anthropic/claude-sonnet-4.5"),
+    messages,
+    modelOptions: {
+      temperature: 0.7,
+      topP: 0.9,
+      maxCompletionTokens: 1024,
+    },
+  });
+
+  return toServerSentEventsResponse(stream);
+}
 ```
 
 > If you previously passed `temperature` / `topP` / `maxTokens` at the root of `chat()`, see [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
@@ -199,14 +223,18 @@ OpenRouter's [Usage Accounting](https://openrouter.ai/docs/use-cases/usage-accou
 docs for the meaning and units of these fields.
 
 ```typescript
-import { chat } from "@tanstack/ai";
+import { chat, type RunFinishedEvent, type StreamChunk } from "@tanstack/ai";
 import { openRouterText } from "@tanstack/ai-openrouter";
+
+function isRunFinished(chunk: StreamChunk): chunk is RunFinishedEvent {
+  return "finishReason" in chunk;
+}
 
 for await (const chunk of chat({
   adapter: openRouterText("openai/gpt-5"),
   messages: [{ role: "user", content: "Hello!" }],
 })) {
-  if (chunk.type === "RUN_FINISHED") {
+  if (isRunFinished(chunk)) {
     console.log("cost:", chunk.usage?.cost);
     console.log("breakdown:", chunk.usage?.costDetails);
   }

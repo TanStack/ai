@@ -178,7 +178,6 @@ export type GeminiNativeImageModels =
   | 'gemini-3.1-flash-image-preview'
   | 'gemini-3-pro-image-preview'
   | 'gemini-2.5-flash-image'
-  | 'gemini-2.0-flash-preview-image-generation'
 
 /**
  * Model-specific size options mapping.
@@ -188,6 +187,18 @@ export type GeminiImageModelSizeByName = {
   [K in GeminiNativeImageModels]: GeminiNativeImageSize
 } & {
   [K in Exclude<GeminiImageModels, GeminiNativeImageModels>]: GeminiImageSize
+}
+
+/**
+ * Per-model prompt input modalities. Gemini-native image models accept image
+ * parts in the multimodal prompt (image-conditioned generation via
+ * generateContent); Imagen models are strictly text-to-image, so their
+ * `prompt` is constrained to text at compile time.
+ */
+export type GeminiImageModelInputModalitiesByName = {
+  [K in GeminiNativeImageModels]: readonly ['image']
+} & {
+  [K in Exclude<GeminiImageModels, GeminiNativeImageModels>]: readonly []
 }
 
 /**

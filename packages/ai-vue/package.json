@@ -1,13 +1,21 @@
 {
   "name": "@tanstack/ai-vue",
-  "version": "0.13.4",
+  "version": "0.13.13",
   "description": "Vue composables for TanStack AI streaming chat, structured outputs, and media generation.",
-  "author": "",
+  "author": "Tanner Linsley",
   "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/TanStack/ai.git",
     "directory": "packages/ai-vue"
+  },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
   },
   "type": "module",
   "module": "./dist/index.js",

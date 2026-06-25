@@ -71,8 +71,8 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   },
   {
     provider: 'gemini',
-    model: 'gemini-2.0-flash',
-    label: 'Gemini - 2.0 Flash',
+    model: 'gemini-2.5-flash',
+    label: 'Gemini - 2.5 Flash',
   },
 
   // Gemini Interactions (stateful, experimental — `@tanstack/ai-gemini/experimental`)
@@ -191,43 +191,13 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   // Grok
   {
     provider: 'grok',
+    model: 'grok-build-0.1',
+    label: 'Grok - Grok Build 0.1',
+  },
+  {
+    provider: 'grok',
     model: 'grok-4.3',
     label: 'Grok - Grok 4.3',
-  },
-  {
-    provider: 'grok',
-    model: 'grok-4.20',
-    label: 'Grok - Grok 4.20',
-  },
-  {
-    provider: 'grok',
-    model: 'grok-4-1-fast-reasoning',
-    label: 'Grok - Grok 4.1 Fast (Reasoning)',
-  },
-  {
-    provider: 'grok',
-    model: 'grok-4-1-fast-non-reasoning',
-    label: 'Grok - Grok 4.1 Fast',
-  },
-  {
-    provider: 'grok',
-    model: 'grok-4-fast-reasoning',
-    label: 'Grok - Grok 4 Fast (reasoning)',
-  },
-  {
-    provider: 'grok',
-    model: 'grok-code-fast-1',
-    label: 'Grok - Grok Code Fast 1',
-  },
-  {
-    provider: 'grok',
-    model: 'grok-4',
-    label: 'Grok - Grok 4',
-  },
-  {
-    provider: 'grok',
-    model: 'grok-3',
-    label: 'Grok - Grok 3',
   },
 ]
 

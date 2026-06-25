@@ -164,6 +164,57 @@ export class MiddlewareRunner<TContext = unknown> {
   }
 
   /**
+   * Run all `setup` hooks in array order, then assert every declared `provides`
+   * capability was actually provided. Wires the last-wins duplicate-provide
+   * warning into the registry. Runs before init `onConfig`.
+   *
+   * Takes the full `ChatMiddlewareContext` — the same stable context the engine
+   * threads through every other hook — because it both forwards `ctx` to each
+   * `setup` hook and emits instrumentation events from it.
+   */
+  async runSetup(ctx: ChatMiddlewareContext<TContext>): Promise<void> {
+    ctx.capabilities.setOnDuplicate((name) => {
+      this.logger.warn(
+        `capability "${name}" was provided more than once; last provider wins`,
+        { capability: name },
+      )
+    })
+
+    for (const mw of this.middlewares) {
+      if (mw.setup) {
+        const skip = shouldSkipInstrumentation(mw)
+        const start = Date.now()
+        await mw.setup(ctx)
+        if (!skip) {
+          this.logger.middleware(
+            `hook=setup middleware=${mw.name ?? 'unnamed'}`,
+            { middleware: mw.name ?? 'unnamed', hook: 'setup' },
+          )
+          aiEventClient.emit('middleware:hook:executed', {
+            ...instrumentCtx(ctx),
+            middlewareName: mw.name || 'unnamed',
+            hookName: 'setup',
+            iteration: ctx.iteration,
+            duration: Date.now() - start,
+            hasTransform: false,
+          })
+        }
+      }
+    }
+
+    for (const mw of this.middlewares) {
+      for (const handle of mw.provides ?? []) {
+        if (!ctx.capabilities.has(handle)) {
+          throw new Error(
+            `Middleware "${mw.name ?? 'unnamed'}" declares it provides ` +
+              `"${handle.capabilityName}" but never called provide() in setup().`,
+          )
+        }
+      }
+    }
+  }
+
+  /**
    * Call onStart on all middleware in order.
    */
   async runOnStart(ctx: ChatMiddlewareContext<TContext>): Promise<void> {

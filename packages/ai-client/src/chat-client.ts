@@ -1073,6 +1073,11 @@ export class ChatClient<
             } catch (error) {
               console.error('Failed to continue flow after tool result:', error)
             }
+          } else if (this.status !== 'ready') {
+            // Terminal run, but onStreamEnd never fired: the processor had no
+            // assistant message to emit it for (e.g. a bare RUN_FINISHED{stop},
+            // #421). The normal path already set 'ready', so this is a no-op.
+            this.setStatus('ready')
           }
         }
       }
@@ -1218,11 +1223,15 @@ export class ChatClient<
       context,
     )
 
-    // Add result via processor
+    // Forward an error message only for output-error results (with a fallback so
+    // a message-less `throw new Error()` still reaches the terminal 'error'
+    // state); a stray errorText on a successful result must not signal an error.
     this.processor.addToolResult(
       result.toolCallId,
       result.output,
-      result.errorText,
+      result.state === 'output-error'
+        ? result.errorText || 'Tool execution failed'
+        : undefined,
     )
 
     // If stream is in progress, queue continuation check for after it ends

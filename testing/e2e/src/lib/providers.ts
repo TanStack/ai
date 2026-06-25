@@ -21,10 +21,10 @@ const DUMMY_KEY = 'sk-e2e-test-dummy-key'
 const defaultModels: Record<Provider, string> = {
   openai: 'gpt-4o',
   anthropic: 'claude-sonnet-4-5',
-  gemini: 'gemini-2.0-flash',
+  gemini: 'gemini-2.5-flash',
   ollama: 'mistral',
   groq: 'llama-3.3-70b-versatile',
-  grok: 'grok-3',
+  grok: 'grok-build-0.1',
   openrouter: 'openai/gpt-4o',
   'openrouter-responses': 'openai/gpt-4o',
   'openai-compatible': 'gpt-4o',
@@ -57,7 +57,7 @@ export function createTextAdapter(
   if (provider === 'gemini' && feature === 'stateful-interactions') {
     return createChatOptions({
       adapter: createGeminiTextInteractions(
-        model as 'gemini-2.0-flash',
+        model as 'gemini-2.5-flash',
         DUMMY_KEY,
         {
           httpOptions: {
@@ -86,7 +86,7 @@ export function createTextAdapter(
       }),
     gemini: () =>
       createChatOptions({
-        adapter: createGeminiChat(model as 'gemini-2.0-flash', DUMMY_KEY, {
+        adapter: createGeminiChat(model as 'gemini-2.5-flash', DUMMY_KEY, {
           httpOptions: {
             baseUrl: base,
             headers: testHeaders,
@@ -109,7 +109,7 @@ export function createTextAdapter(
       }),
     grok: () =>
       createChatOptions({
-        adapter: createGrokText(model as 'grok-3', DUMMY_KEY, {
+        adapter: createGrokText(model as 'grok-build-0.1', DUMMY_KEY, {
           baseURL: openaiUrl,
           defaultHeaders: testHeaders,
         }),

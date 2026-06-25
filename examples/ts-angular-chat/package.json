@@ -1,0 +1,34 @@
+{
+  "name": "ts-angular-chat",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@angular/common": "^21.2.0",
+    "@angular/compiler": "^21.2.0",
+    "@angular/core": "^21.2.0",
+    "@angular/forms": "^21.2.0",
+    "@angular/platform-browser": "^21.2.0",
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-angular": "workspace:*",
+    "@tanstack/ai-client": "workspace:*",
+    "@tanstack/ai-openai": "workspace:*",
+    "rxjs": "^7.8.0",
+    "zod": "^4.2.0",
+    "zone.js": "^0.15.0"
+  },
+  "devDependencies": {
+    "@analogjs/vite-plugin-angular": "^1.10.0",
+    "@angular/build": "^21.2.0",
+    "@tailwindcss/vite": "^4.1.18",
+    "@types/node": "^24.10.1",
+    "dotenv": "^17.2.3",
+    "typescript": "5.9.3",
+    "vite": "^7.3.3"
+  }
+}

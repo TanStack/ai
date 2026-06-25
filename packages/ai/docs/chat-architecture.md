@@ -354,11 +354,12 @@ Signals that the tool call's **input arguments** are finalized.
 ### With `result` (from TextEngine after execution)
 
 Signals that the tool has been **executed** and the result is available.
-- Still transitions state to `input-complete` (if not already).
+- Transitions the input state to `input-complete` (if not already).
 - Creates/updates two things:
   1. `updateToolCallWithOutput()` -- Sets `output` on the tool-call part (for UI rendering consistency).
   2. `updateToolResultPart()` -- Creates a `tool-result` part (for LLM conversation history).
 - The `result` field is a JSON string.
+- **On an `output-error` result**, the tool-call part transitions to the terminal `error` state (symmetric with the `tool-result` part's `error` state), so UIs can render failure from `part.state` without inspecting the error-shaped `output`. The completion safety net never downgrades an `error` part back to `input-complete`.
 
 ### This distinction is critical
 

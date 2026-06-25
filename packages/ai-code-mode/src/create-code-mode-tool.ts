@@ -93,6 +93,7 @@ export function createCodeModeTool(
     timeout = 30000,
     memoryLimit = 128,
     getSkillBindings,
+    transpile = stripTypeScript,
   } = config
 
   // Validate tools
@@ -142,12 +143,13 @@ export function createCodeModeTool(
       })
 
       try {
-        // Step 1: Strip TypeScript (also serves as syntax validation via esbuild)
+        // Step 1: Strip TypeScript (also serves as syntax validation via the
+        // transpiler — sucrase by default, or a user-supplied `transpile`)
         let strippedCode: string
         try {
-          strippedCode = await stripTypeScript(typescriptCode)
+          strippedCode = await transpile(typescriptCode)
         } catch (error) {
-          // Type/syntax error from esbuild
+          // Type/syntax error from the transpiler
           return {
             success: false,
             error: {
