@@ -8,7 +8,11 @@ import type {
   CohereRerankModel,
   InferCohereRerankProviderOptions,
 } from '../model-meta'
-import type { RerankAdapterResult, RerankOptions, TokenUsage } from '@tanstack/ai'
+import type {
+  RerankAdapterResult,
+  RerankOptions,
+  TokenUsage,
+} from '@tanstack/ai'
 
 /** Shape of the Cohere `/v2/rerank` response we depend on. */
 interface CohereRerankResponse {

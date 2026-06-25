@@ -63,8 +63,7 @@ export type AnyRerankAdapter = RerankAdapter<any, any>
 export abstract class BaseRerankAdapter<
   TModel extends string = string,
   TProviderOptions extends object = Record<string, unknown>,
-> implements RerankAdapter<TModel, TProviderOptions>
-{
+> implements RerankAdapter<TModel, TProviderOptions> {
   readonly kind = 'rerank' as const
   abstract readonly name: string
   readonly model: TModel

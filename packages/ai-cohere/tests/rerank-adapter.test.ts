@@ -101,7 +101,10 @@ describe('CohereRerankAdapter', () => {
 
   it('throws with status detail on a non-200 response', async () => {
     fetchMock.mockResolvedValue(
-      new Response('rate limited', { status: 429, statusText: 'Too Many Requests' }),
+      new Response('rate limited', {
+        status: 429,
+        statusText: 'Too Many Requests',
+      }),
     )
 
     await expect(

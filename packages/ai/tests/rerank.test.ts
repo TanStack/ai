@@ -9,7 +9,11 @@ import type {
   GenerationMiddlewareContext,
   GenerationUsageInfo,
 } from '../src/activities/middleware'
-import type { RerankAdapterResult, RerankOptions, TokenUsage } from '../src/types'
+import type {
+  RerankAdapterResult,
+  RerankOptions,
+  TokenUsage,
+} from '../src/types'
 
 // ============================================================================
 // Helpers
@@ -91,7 +95,11 @@ describe('rerank() activity', () => {
     const adapter = mockRerankAdapter(async () => ranked(1, 0))
     const documents = ['sunny day at the beach', 'rainy afternoon in the city']
 
-    const result = await rerank({ adapter, query: 'talk about rain', documents })
+    const result = await rerank({
+      adapter,
+      query: 'talk about rain',
+      documents,
+    })
 
     expect(result.ranking.map((r) => r.index)).toEqual([1, 0])
     expect(result.ranking[0]!.document).toBe('rainy afternoon in the city')
