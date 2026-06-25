@@ -474,18 +474,20 @@ export class BedrockConverseTextAdapter<
       ? toToolConfig(convertTools(options.tools), 'auto')
       : undefined
 
+    // Sampling options live on `modelOptions` (Bedrock surfaces the OpenAI
+    // Chat Completions field names); translate them into Converse's
+    // `inferenceConfig`, which uses AWS-native camelCase keys.
+    const modelOptions = options.modelOptions
+    const temperature = modelOptions?.temperature
+    const topP = modelOptions?.top_p
+    const maxTokens = modelOptions?.max_completion_tokens
+
     const inferenceConfig =
-      options.temperature !== undefined ||
-      options.topP !== undefined ||
-      options.maxTokens !== undefined
+      temperature != null || topP != null || maxTokens != null
         ? {
-            ...(options.temperature !== undefined && {
-              temperature: options.temperature,
-            }),
-            ...(options.topP !== undefined && { topP: options.topP }),
-            ...(options.maxTokens !== undefined && {
-              maxTokens: options.maxTokens,
-            }),
+            ...(temperature != null && { temperature }),
+            ...(topP != null && { topP }),
+            ...(maxTokens != null && { maxTokens }),
           }
         : undefined
 

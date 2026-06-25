@@ -39,7 +39,13 @@ No additional packages are required. SigV4 authentication is handled by `@aws-sd
 
 The default `bedrockText` call uses the Converse API and reaches the broad model catalog:
 
-```typescript
+```typescript ignore
+// ignore: iterating a chat() stream and reading chunk.type/chunk.delta needs the
+// AG-UI base event fields, which come from @ag-ui/core. It's a transitive dep of
+// @tanstack/ai, so kiira (resolving @tanstack/ai from source under the dist->src
+// heuristic) can't follow it and those base fields drop off StreamChunk. The code
+// is correct (the same pattern is used throughout ai-client); see
+// getting-started/quick-start-server for the type-checked consumption shape.
 import { bedrockText } from '@tanstack/ai-bedrock'
 import { chat } from '@tanstack/ai'
 
@@ -51,7 +57,7 @@ for await (const chunk of chat({
   adapter,
   messages: [{ role: 'user', content: 'What is the capital of France?' }],
 })) {
-  if (chunk.type === 'content') process.stdout.write(chunk.delta)
+  if (chunk.type === 'TEXT_MESSAGE_CONTENT') process.stdout.write(chunk.delta ?? '')
 }
 ```
 
@@ -149,11 +155,14 @@ Set `api: 'chat'` to use Bedrock's OpenAI-compatible Chat Completions endpoint. 
 
 **Model scope:** Open-weight models only — gpt-oss, DeepSeek V3.x, Gemma, Qwen, Mistral open models, GLM, and similar. Claude, Nova, and Llama are NOT available on this endpoint. See the [AWS API compatibility matrix](https://docs.aws.amazon.com/bedrock/latest/userguide/models-api-compatibility.html) for the current list.
 
-```typescript
+```typescript ignore
+// ignore: see the Converse quick-start above — iterating a chat() stream and
+// reading chunk.type/chunk.delta needs @ag-ui/core base fields kiira can't
+// resolve transitively through @tanstack/ai source.
 import { bedrockText } from '@tanstack/ai-bedrock'
 import { chat } from '@tanstack/ai'
 
-const adapter = bedrockText('openai.gpt-oss-mini-1:0', {
+const adapter = bedrockText('openai.gpt-oss-20b-1:0', {
   region: 'us-east-1',
   api: 'chat',
 })
@@ -162,7 +171,7 @@ for await (const chunk of chat({
   adapter,
   messages: [{ role: 'user', content: 'What is the capital of France?' }],
 })) {
-  if (chunk.type === 'content') process.stdout.write(chunk.delta)
+  if (chunk.type === 'TEXT_MESSAGE_CONTENT') process.stdout.write(chunk.delta ?? '')
 }
 ```
 
@@ -172,7 +181,10 @@ Set `api: 'responses'` to use Bedrock's OpenAI-compatible Responses API. Returns
 
 **Model scope:** Currently the OpenAI gpt-oss family. The Responses API is stateful — pass `previous_response_id` and `store` through `modelOptions` to continue a conversation server-side.
 
-```typescript
+```typescript ignore
+// ignore: see the Converse quick-start above — iterating a chat() stream and
+// reading chunk.type/chunk.delta needs @ag-ui/core base fields kiira can't
+// resolve transitively through @tanstack/ai source.
 import { bedrockText } from '@tanstack/ai-bedrock'
 import { chat } from '@tanstack/ai'
 
@@ -185,7 +197,7 @@ for await (const chunk of chat({
   adapter,
   messages: [{ role: 'user', content: 'Summarize the Bedrock pricing page.' }],
 })) {
-  if (chunk.type === 'content') process.stdout.write(chunk.delta)
+  if (chunk.type === 'TEXT_MESSAGE_CONTENT') process.stdout.write(chunk.delta ?? '')
 }
 ```
 
