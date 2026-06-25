@@ -254,6 +254,28 @@ describe('executeServerTool — ui:// resource emit (MCP Apps)', () => {
     expect(readResource).toHaveBeenCalledWith('ui://s/w')
   })
 
+  it('emits nothing when no returned content matches the requested ui uri', async () => {
+    const emitted: Array<unknown> = []
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    // Source returns unrelated contents — none whose uri === the linked uiUri.
+    // Must NOT fall back to contents[0]; a mismatched widget is worse than none.
+    const readResource = vi.fn(async () => ({
+      contents: [
+        { uri: 'ui://other/thing', mimeType: 'text/html', text: '<i>nope</i>' },
+      ],
+    }))
+    const t = uiTool('weather_show')
+    ;(t.metadata as { mcp: Record<string, unknown> }).mcp.readResource =
+      readResource
+
+    await runToolResult(t, 'call_1', () => emitted.push(1))
+
+    expect(emitted).toHaveLength(0)
+    expect(readResource).toHaveBeenCalledWith('ui://s/w')
+    expect(warn).toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
   it('is fail-soft: read failure emits nothing and does not throw', async () => {
     const emitted: Array<unknown> = []
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})

@@ -40,8 +40,11 @@ function safeJsonParse(value: string): unknown {
  * - `uiResourceUri` / `serverId` are stamped by ai-mcp at tool discovery.
  * - `readResource` is bound by `MCPManager.discover()` (the one site that has
  *   both the tool and its originating source) so the resource can be eagerly
- *   read at the emit site while the MCP connection is still open. `@tanstack/ai`
- *   never imports `@tanstack/ai-mcp`; this travels structurally on the tool.
+ *   read at the emit site. The originating MCP source is not closed until the
+ *   run drains (see `MCPManager`'s `connection:'close'` policy disposing on
+ *   run completion), so `readResource` is still live at this emit point.
+ *   `@tanstack/ai` never imports `@tanstack/ai-mcp`; this travels structurally
+ *   on the tool.
  */
 interface McpToolAppMeta {
   uiResourceUri?: string
@@ -81,8 +84,22 @@ async function emitUiResourceIfLinked<TContext>(
   if (!uiUri || !mcp.readResource) return
   try {
     const res = await mcp.readResource(uiUri)
-    const r = res.contents.find((c) => c.uri === uiUri) ?? res.contents[0]
-    if (!r) return
+    // Emit ONLY the content whose uri matches the requested `uiUri`. A source
+    // can return unrelated contents; falling back to `contents[0]` would risk
+    // rendering a widget that doesn't correspond to the linked resource. This
+    // is a display widget — a mismatched resource is worse than none, so if no
+    // content matches we fail-soft (warn + return) rather than emit.
+    const r = res.contents.find((c) => c.uri === uiUri)
+    if (!r) {
+      console.warn(
+        `[mcp-apps] ui resource ${uiUri} returned no content matching that uri; not emitting`,
+      )
+      return
+    }
+    // NOTE: `toolCallId` is intentionally NOT set here — it is stamped onto
+    // every emitted event by the `executeToolCalls` context wrapper, so the
+    // UIResourceEvent.value.toolCallId / UIResourcePart.toolCallId contract is
+    // still satisfied downstream.
     context.emitCustomEvent('ui-resource', {
       resource: {
         uri: r.uri,
@@ -543,9 +560,11 @@ export async function* executeServerTool<TContext = unknown>(
     let result = yield* executeWithEventPolling(executionPromise, pendingEvents)
     const duration = Date.now() - startTime
 
-    // MCP Apps: if this tool links a ui:// resource, eagerly read it (while the
-    // MCP connection is still open) and queue a `ui-resource` CUSTOM event.
-    // Fail-soft: a read error warns and emits nothing — the text result still flows.
+    // MCP Apps: if this tool links a ui:// resource, eagerly read it and queue
+    // a `ui-resource` CUSTOM event. The MCP source stays live until the run
+    // drains (MCPManager's `connection:'close'` policy disposes on completion),
+    // so `readResource` is callable here. Fail-soft: a read error warns and
+    // emits nothing — the text result still flows.
     await emitUiResourceIfLinked(tool, context)
 
     // Flush remaining events (including any queued ui-resource event)

@@ -1636,10 +1636,13 @@ export class StreamProcessor {
         toolName: string
         meta?: Record<string, unknown>
       }
-      // Resolve the target assistant message: prefer the active one; fall back
-      // to the message that owns the originating tool call (mirrors approval-requested).
+      // Resolve the target assistant message. When a toolCallId is present, the
+      // tool call's OWNER message is authoritative, so prefer it first; fall
+      // back to the active assistant id only if the tool call isn't mapped.
+      // This avoids misattaching the widget to a different active message in a
+      // multi-message session.
       const resolvedMessageId =
-        messageId ?? this.toolCallToMessage.get(v.toolCallId)
+        this.toolCallToMessage.get(v.toolCallId) ?? messageId
       if (resolvedMessageId) {
         const part: UIResourcePart = {
           type: 'ui-resource',

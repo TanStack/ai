@@ -4,6 +4,7 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 import { EventType } from '../src/types'
+import { StreamProcessor } from '../src/activities/chat/stream/processor'
 import { runProcessorWithChunks } from './helpers/processor-harness'
 import type { StreamChunk, UIResourcePart } from '../src/types'
 
@@ -84,11 +85,26 @@ describe('StreamProcessor — ui-resource CUSTOM event', () => {
     expect(part?.meta).toEqual({ width: 400, height: 300 })
   })
 
-  it('does NOT fall through to the generic onCustomEvent callback for ui-resource', async () => {
-    const { StreamProcessor } =
-      await import('../src/activities/chat/stream/processor')
+  it('does NOT fall through to the generic onCustomEvent callback for ui-resource', () => {
     const onCustomEvent = vi.fn()
     const processor = new StreamProcessor({ events: { onCustomEvent } })
+
+    // Establish an active assistant message FIRST so the ui-resource branch
+    // actually executes its reconcile path (resolves a target message and
+    // appends a UIResourcePart) rather than returning early — otherwise this
+    // test would pass vacuously.
+    processor.processChunk({
+      type: EventType.RUN_STARTED,
+      timestamp: Date.now(),
+      runId: 'run-1',
+      threadId: 'thread-1',
+    } as Extract<StreamChunk, { type: 'RUN_STARTED' }>)
+    processor.processChunk({
+      type: EventType.TEXT_MESSAGE_START,
+      timestamp: Date.now(),
+      messageId: 'msg-1',
+      role: 'assistant',
+    } as Extract<StreamChunk, { type: 'TEXT_MESSAGE_START' }>)
 
     processor.processChunk({
       type: EventType.CUSTOM,
@@ -101,6 +117,15 @@ describe('StreamProcessor — ui-resource CUSTOM event', () => {
       },
     } as Extract<StreamChunk, { type: 'CUSTOM' }>)
 
+    // The branch ran: the widget was attached to the active assistant message.
+    const part = processor
+      .getMessages()
+      .find((m) => m.id === 'msg-1')
+      ?.parts.find((p): p is UIResourcePart => p.type === 'ui-resource')
+    expect(part).toBeDefined()
+    expect(part).toMatchObject({ toolCallId: 'call_4', toolName: 'show_widget' })
+
+    // ...and it did NOT fall through to the generic onCustomEvent callback.
     expect(onCustomEvent).not.toHaveBeenCalled()
   })
 })
