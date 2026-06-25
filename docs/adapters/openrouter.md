@@ -272,7 +272,7 @@ console.log(rerankedDocuments[0]); // 'rainy afternoon in the city'
 
 `openRouterRerank` reads `OPENROUTER_API_KEY` from the environment; pass a key
 explicitly with `createOpenRouterRerank("cohere/rerank-v3.5", "sk-or-...")`. The
-optional `httpReferer` / `xTitle` config fields are forwarded as OpenRouter
+optional `httpReferer` / `appTitle` config fields are forwarded as OpenRouter
 attribution headers, just like the chat adapter.
 
 See the [Reranking guide](../rerank/rerank) for object documents, RAG
