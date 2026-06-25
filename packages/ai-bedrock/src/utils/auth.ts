@@ -1,4 +1,3 @@
-import { getApiKeyFromEnv } from '@tanstack/ai-utils'
 import type { AwsCredentialIdentityProvider } from '@smithy/types'
 import type * as CredentialProviders from '@aws-sdk/credential-providers'
 
@@ -21,15 +20,14 @@ export type ResolvedBedrockAuth =
 const DEFAULT_REGION = 'us-east-1'
 
 function readApiKeyFromEnv(): string | undefined {
-  try {
-    return getApiKeyFromEnv('BEDROCK_API_KEY')
-  } catch {
-    try {
-      return getApiKeyFromEnv('AWS_BEARER_TOKEN_BEDROCK')
-    } catch {
-      return undefined
-    }
-  }
+  // Bedrock is server-only (the AWS SDK is Node-only), so the key always comes
+  // from process.env. Read it directly: a property access never throws, so —
+  // unlike the previous try/catch around getApiKeyFromEnv — we no longer swallow
+  // unrelated errors as "key not set". Empty/whitespace values are treated as
+  // absent so a present-but-blank var falls through to the next auth source.
+  const env = typeof process !== 'undefined' ? process.env : undefined
+  const key = env?.BEDROCK_API_KEY ?? env?.AWS_BEARER_TOKEN_BEDROCK
+  return key && key.trim() !== '' ? key : undefined
 }
 
 export interface BedrockAuthConfig {

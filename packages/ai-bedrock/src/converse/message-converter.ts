@@ -1,4 +1,5 @@
 import { normalizeSystemPrompts } from '@tanstack/ai'
+import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
   ContentPart,
   ContentPartDataSource,
@@ -136,15 +137,15 @@ function contentPartToBlock(part: ContentPart, docIndex: number): ContentBlock {
   }
 
   // Fail loud for unsupported part types (audio, video, etc.)
-  const unsupported = (part as ContentPart).type
   throw new Error(
-    `Bedrock Converse does not support content part type "${String(unsupported)}".`,
+    `Bedrock Converse does not support content part type "${String(part.type)}".`,
   )
 }
 
 function messageToBlocks(
   msg: ModelMessage,
   docCounter: { value: number },
+  logger?: InternalLogger,
 ): Array<ContentBlock> {
   const blocks: Array<ContentBlock> = []
 
@@ -183,19 +184,41 @@ function messageToBlocks(
   if (msg.role === 'assistant' && msg.toolCalls) {
     for (const call of msg.toolCalls) {
       let input: DocumentType = {}
+      const rawArguments = call.function.arguments || '{}'
       try {
-        const parsed = JSON.parse(call.function.arguments || '{}') as unknown
+        const parsed = JSON.parse(rawArguments) as unknown
         if (
           parsed !== null &&
           typeof parsed === 'object' &&
           !Array.isArray(parsed)
         ) {
           input = parsed as DocumentType
+        } else {
+          // Parsed, but not a JSON object (array/number/string). These args came
+          // from a prior assistant turn the engine already accepted, so this
+          // usually signals an upstream bug; don't silently coerce without a trace.
+          logger?.errors(
+            `bedrock-converse: tool call "${call.function.name}" arguments are not a JSON object; forwarding empty input`,
+            {
+              source: 'bedrock-converse.messageToBlocks',
+              toolName: call.function.name,
+              rawArguments,
+            },
+          )
         }
-      } catch {
-        // Malformed / partial JSON — fall back to empty object so the call
-        // can still be forwarded rather than crashing the whole request.
-        input = {}
+      } catch (error: unknown) {
+        // Malformed / partial JSON — fall back to empty object so the call can
+        // still be forwarded rather than crashing the whole request, but log it
+        // since truncated/invalid args are almost always a real upstream issue.
+        logger?.errors(
+          `bedrock-converse: tool call "${call.function.name}" has malformed JSON arguments; forwarding empty input`,
+          {
+            source: 'bedrock-converse.messageToBlocks',
+            toolName: call.function.name,
+            rawArguments,
+            error: String(error),
+          },
+        )
       }
       blocks.push({
         toolUse: {
@@ -225,6 +248,7 @@ function messageToBlocks(
 export function toConverseMessages(
   messages: Array<ModelMessage>,
   systemPrompts?: Array<SystemPrompt>,
+  logger?: InternalLogger,
 ): { system: Array<SystemContentBlock>; messages: Array<Message> } {
   // Build system blocks (uses normalizeSystemPrompts for runtime validation)
   const system: Array<SystemContentBlock> = normalizeSystemPrompts(
@@ -242,7 +266,7 @@ export function toConverseMessages(
     const converseRole: 'user' | 'assistant' =
       msg.role === 'assistant' ? 'assistant' : 'user'
 
-    const blocks = messageToBlocks(msg, docCounter)
+    const blocks = messageToBlocks(msg, docCounter, logger)
 
     // Skip messages that produce no content blocks (e.g. assistant with
     // null content and no toolCalls). Pushing an empty-content message to

@@ -22,13 +22,19 @@ import type { ConverseStreamOutput } from '@aws-sdk/client-bedrock-runtime'
  * @param stream - The Converse event stream from `ConverseStreamCommand`.
  * @param newMessageId - Factory for fresh message/tool-call ids (the adapter
  *   passes `() => this.generateId()`).
+ * @param lifecycle - Incoming run lifecycle ids, threaded onto the emitted
+ *   `RUN_STARTED`/`RUN_FINISHED` so the chat path matches every sibling adapter
+ *   (openai-base reuses `options.threadId`/`parentRunId`). Defaults preserve the
+ *   previous behaviour (fresh `threadId`, no `parentRunId`).
  */
 export async function* processConverseStream(
   stream: AsyncIterable<ConverseStreamOutput>,
   newMessageId: () => string,
+  lifecycle: { threadId?: string; parentRunId?: string; model?: string } = {},
 ): AsyncIterable<StreamChunk> {
   const runId = newMessageId()
-  const threadId = newMessageId()
+  const threadId = lifecycle.threadId ?? newMessageId()
+  const { parentRunId, model } = lifecycle
   const messageId = newMessageId()
 
   let hasEmittedRunStarted = false
@@ -65,6 +71,8 @@ export async function* processConverseStream(
       type: EventType.RUN_STARTED,
       runId,
       threadId,
+      parentRunId,
+      ...(model && { model }),
       timestamp: Date.now(),
     }
   }

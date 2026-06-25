@@ -183,7 +183,11 @@ export class BedrockConverseTextAdapter<
       )
       const input = this.buildInput(options)
       const stream = await this.sendStream(input)
-      yield* processConverseStream(stream, () => this.generateId())
+      yield* processConverseStream(stream, () => this.generateId(), {
+        threadId: options.threadId,
+        parentRunId: options.parentRunId,
+        model: options.model,
+      })
     } catch (error: unknown) {
       const errorPayload = toRunErrorPayload(
         error,
@@ -473,6 +477,7 @@ export class BedrockConverseTextAdapter<
     const { system, messages } = toConverseMessages(
       options.messages,
       options.systemPrompts,
+      options.logger,
     )
 
     const toolConfig = options.tools
@@ -537,21 +542,17 @@ function extractStructuredToolInput(
   const content: Array<ContentBlock> = message?.content ?? []
   for (const block of content) {
     if ('toolUse' in block && block.toolUse) {
-      // Prefer the forced tool by name, but fall back to any toolUse block so a
-      // provider that omits/renames the tool name still yields its structured
-      // input rather than failing loud on a name mismatch.
+      // Only accept the forced structured tool (an unnamed block is allowed,
+      // since the forced tool is the only one configured). A differently-named
+      // tool-use block is a hallucinated/leftover call whose arbitrary input
+      // must not be returned as the validated result — leave it to the caller's
+      // `throw` so the failure is accurate instead of silently wrong.
       if (
         block.toolUse.name === STRUCTURED_TOOL_NAME ||
         block.toolUse.name === undefined
       ) {
         return block.toolUse.input
       }
-    }
-  }
-  // Second pass: accept the first toolUse block regardless of name.
-  for (const block of content) {
-    if ('toolUse' in block && block.toolUse) {
-      return block.toolUse.input
     }
   }
   return undefined

@@ -159,6 +159,85 @@ describe('BedrockConverseTextAdapter', () => {
     expect((complete?.value as { object: unknown }).object).toEqual({ n: 5 })
   })
 
+  it('rejects a non-forced tool-use block in structuredOutput', async () => {
+    const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
+    // The model emitted a different (hallucinated/leftover) tool — its input
+    // must NOT be returned as the structured result; structuredOutput throws.
+    a.nonStreamOutput = {
+      output: {
+        message: {
+          role: 'assistant',
+          content: [
+            {
+              toolUse: {
+                toolUseId: 'x',
+                name: 'some_other_tool',
+                input: { wrong: true },
+              },
+            },
+          ],
+        },
+      },
+    } as unknown as ConverseCommandOutput
+    await expect(
+      a.structuredOutput({
+        chatOptions: textOptions({
+          messages: [{ role: 'user', content: 'go' }],
+        }),
+        outputSchema: { type: 'object', properties: { n: { type: 'number' } } },
+      }),
+    ).rejects.toThrow(/no forced-tool output/)
+  })
+
+  it('emits RUN_ERROR(empty-response) when structuredOutputStream yields no content', async () => {
+    const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
+    a.streamEvents = [
+      { messageStart: { role: 'assistant' } },
+      { messageStop: { stopReason: 'end_turn' } },
+    ]
+    const errors = [] as Array<{ code?: string }>
+    for await (const c of a.structuredOutputStream({
+      chatOptions: textOptions({ messages: [{ role: 'user', content: 'go' }] }),
+      outputSchema: { type: 'object', properties: { n: { type: 'number' } } },
+    })) {
+      if (c.type === EventType.RUN_ERROR)
+        errors.push(c as unknown as { code?: string })
+    }
+    expect(errors).toHaveLength(1)
+    expect(errors[0]?.code).toBe('empty-response')
+  })
+
+  it('emits RUN_ERROR(parse-error) when structuredOutputStream content is invalid JSON', async () => {
+    const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
+    a.streamEvents = [
+      { messageStart: { role: 'assistant' } },
+      {
+        contentBlockStart: {
+          start: { toolUse: { toolUseId: 's', name: 'structured_output' } },
+          contentBlockIndex: 0,
+        },
+      },
+      {
+        contentBlockDelta: {
+          // Truncated/invalid JSON fragment — JSON.parse will throw.
+          delta: { toolUse: { input: '{"n":' } },
+          contentBlockIndex: 0,
+        },
+      },
+      { messageStop: { stopReason: 'tool_use' } },
+    ]
+    const errors = [] as Array<{ code?: string }>
+    for await (const c of a.structuredOutputStream({
+      chatOptions: textOptions({ messages: [{ role: 'user', content: 'go' }] }),
+      outputSchema: { type: 'object', properties: { n: { type: 'number' } } },
+    })) {
+      if (c.type === EventType.RUN_ERROR)
+        errors.push(c as unknown as { code?: string })
+    }
+    expect(errors).toHaveLength(1)
+    expect(errors[0]?.code).toBe('parse-error')
+  })
+
   it('declares it does not support combined tools and schema', () => {
     const a = new BedrockConverseTextAdapter(
       { apiKey: 'k' },

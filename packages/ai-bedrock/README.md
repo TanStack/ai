@@ -1,6 +1,6 @@
 # @tanstack/ai-bedrock
 
-Amazon Bedrock adapter for TanStack AI — OpenAI-compatible Chat Completions and Responses APIs with streaming, tool calling, and reasoning.
+Amazon Bedrock adapter for TanStack AI — the native Converse API (default) plus the OpenAI-compatible Chat Completions and Responses APIs, with streaming, tool calling, and reasoning.
 
 ## Installation
 
@@ -28,7 +28,7 @@ Alternatively, configure AWS credentials for SigV4 auth (see below).
 import { bedrockText } from '@tanstack/ai-bedrock'
 import { chat } from '@tanstack/ai'
 
-const adapter = bedrockText('us.anthropic.claude-3-7-sonnet-20250219-v1:0', {
+const adapter = bedrockText('us.anthropic.claude-haiku-4-5-20251001-v1:0', {
   region: 'us-east-1',
 })
 
@@ -36,7 +36,8 @@ for await (const chunk of chat({
   adapter,
   messages: [{ role: 'user', content: 'Hello from Bedrock!' }],
 })) {
-  if (chunk.type === 'content') process.stdout.write(chunk.delta)
+  if (chunk.type === 'TEXT_MESSAGE_CONTENT')
+    process.stdout.write(chunk.delta ?? '')
 }
 ```
 
@@ -70,16 +71,14 @@ Auth is resolved in this order:
 1. Explicit `apiKey` passed to the factory
 2. `BEDROCK_API_KEY` environment variable
 3. `AWS_BEARER_TOKEN_BEDROCK` environment variable
-4. SigV4 via the AWS credential chain (requires `pnpm add aws-sigv4-fetch`)
+4. SigV4 via the AWS credential chain
 
-To use SigV4, install the optional peer dependency and set `auth: 'sigv4'`:
-
-```bash
-pnpm add aws-sigv4-fetch
-```
+SigV4 signing is built in (via the bundled `@smithy/signature-v4`) — no
+additional packages required. Set `auth: 'sigv4'` and provide AWS credentials
+through the standard credential chain (env vars, shared config, instance role):
 
 ```typescript
-const adapter = bedrockText('us.anthropic.claude-3-7-sonnet-20250219-v1:0', {
+const adapter = bedrockText('us.anthropic.claude-haiku-4-5-20251001-v1:0', {
   auth: 'sigv4',
   region: 'us-east-1',
 })
