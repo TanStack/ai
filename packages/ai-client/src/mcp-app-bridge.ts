@@ -89,7 +89,9 @@ export function createMcpAppBridge(
           return { isError: true }
         }
       }
-      console.warn('[mcp-app-bridge] openLink ignored: no onLink handler configured')
+      console.warn(
+        '[mcp-app-bridge] openLink ignored: no onLink handler configured',
+      )
       return { isError: true }
     },
   }
