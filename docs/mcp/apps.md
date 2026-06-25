@@ -198,7 +198,9 @@ export const Route = createFileRoute('/api/mcp-apps/call')({
 
 #### Same-server allowlist
 
-By default, `createMcpAppCallHandler` verifies that `toolName` is in the list of tools the target server actually exposes. A request for a tool the server does not know about returns `{ ok: false, error: "Tool not allowed: <name>" }` without ever executing it. Override with the `allowTool` option:
+`createMcpAppCallHandler` always verifies that `toolName` is in the list of tools the target server actually exposes. A request for a tool the server does not know about returns `{ ok: false, error: "Tool not allowed: <name>" }` without ever executing it. This server-exposure check is unconditional and cannot be bypassed.
+
+Use the `allowTool` option to add a further restriction on top. A request must satisfy **both** the server-exposure check and `allowTool` — it is AND-ed, not a replacement for the server check:
 
 ```ts
 import { createMcpAppCallHandler } from '@tanstack/ai-mcp/apps'
@@ -209,7 +211,8 @@ const handler = createMcpAppCallHandler({
       transport: { type: 'http', url: process.env.WEATHER_MCP_URL! },
     },
   },
-  // Custom allowlist: only permit specific tool names
+  // Additional restriction: even if the server exposes more tools,
+  // only allow this specific one through the call handler.
   allowTool: (req) => req.toolName === 'place_order',
 })
 ```

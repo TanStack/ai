@@ -506,9 +506,11 @@ import type { UIResourcePart } from '@tanstack/ai'
 For interactive apps (the widget iframe posts tool-call / prompt / link
 actions back), mount `createMcpAppCallHandler` from `@tanstack/ai-mcp/apps`
 at a POST route. The handler resolves the server descriptor, reconnects
-per-call (stateless / serverless-safe), strips the descriptor prefix,
-enforces a same-server allowlist by UNPREFIXED tool name, and returns
-`{ ok: true, result }` or `{ ok: false, error }`.
+per-call (stateless / serverless-safe), matches the widget-supplied native
+(unprefixed) tool name against the server's unprefixed tool names (no
+prefix stripping — the widget sends the native name; the handler compares
+it directly against `metadata.mcp.serverToolName`), enforces a same-server
+allowlist, and returns `{ ok: true, result }` or `{ ok: false, error }`.
 
 ```typescript
 import {
@@ -535,7 +537,10 @@ const handler = createMcpAppCallHandler({
 //             inMemoryMcpSessionStore()); wins over `servers`.
 // allowTool — optional authorizer receiving the WHOLE request:
 //             (req: McpAppCallRequest) => boolean | Promise<boolean>.
-//             Default: allow only tools the server actually exposes.
+//             The server-exposure check is ALWAYS enforced (the handler
+//             rejects any tool the server does not expose). `allowTool`
+//             is an ADDITIONAL restriction AND-ed on top: a request must
+//             satisfy BOTH the server-exposure check and allowTool.
 const handlerWithStore = createMcpAppCallHandler({
   store: inMemoryMcpSessionStore(),
   allowTool: (req) => req.toolName === 'place_order',

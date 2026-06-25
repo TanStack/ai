@@ -26,7 +26,12 @@ export interface McpAppCallHandlerOptions {
   servers?: Record<string, McpServerDescriptor>
   /** Opt-in dynamic/stateful resolution (e.g. inMemoryMcpSessionStore). Wins over `servers`. */
   store?: McpSessionStore
-  /** Authorize a call. Default: allow only tools the server actually exposes. */
+  /**
+   * Additional per-call authorizer. The server-exposure check is ALWAYS
+   * enforced first (any tool the server does not expose is rejected). When
+   * `allowTool` is provided, a request must satisfy BOTH — it is AND-ed on
+   * top of the server-exposure check, not a replacement for it.
+   */
   allowTool?: (req: McpAppCallRequest) => boolean | Promise<boolean>
 }
 

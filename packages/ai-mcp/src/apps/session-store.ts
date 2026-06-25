@@ -33,6 +33,11 @@ export interface McpAppCallRequest {
   serverId?: string
   toolName: string
   args?: unknown
+  /**
+   * Reserved — forwarded by the bridge for correlation purposes but not
+   * consumed by the call handler. Mirrors the `meta` convention: accepted
+   * on the wire, carried through, but the handler does not read it.
+   */
   messageId?: string
 }
 

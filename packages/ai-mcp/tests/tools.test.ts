@@ -68,6 +68,21 @@ describe('mcpContentToTanstack', () => {
   it('returns "" when content is undefined (structuredContent-only result)', () => {
     expect(mcpContentToTanstack(undefined as never)).toBe('')
   })
+
+  it('excludes ui:// resource blocks from model-facing text', () => {
+    // ui:// resources are display widgets — they must never leak into the
+    // model's context as text. A mixed array that contains a ui:// resource
+    // alongside a normal text block should return only the text part.
+    expect(
+      mcpContentToTanstack([
+        {
+          type: 'resource',
+          resource: { uri: 'ui://x', mimeType: 'text/html', text: '<b>w</b>' },
+        },
+        { type: 'text', text: 'hello' },
+      ]),
+    ).toEqual([{ type: 'text', content: 'hello' }])
+  })
 })
 
 describe('makeMcpExecute', () => {

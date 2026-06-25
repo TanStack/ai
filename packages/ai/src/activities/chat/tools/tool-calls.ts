@@ -40,9 +40,12 @@ function safeJsonParse(value: string): unknown {
  * - `uiResourceUri` / `serverId` are stamped by ai-mcp at tool discovery.
  * - `readResource` is bound by `MCPManager.discover()` (the one site that has
  *   both the tool and its originating source) so the resource can be eagerly
- *   read at the emit site. The originating MCP source is not closed until the
- *   run drains (see `MCPManager`'s `connection:'close'` policy disposing on
- *   run completion), so `readResource` is still live at this emit point.
+ *   read at the emit site. Under `chat()`-managed MCP lifecycle
+ *   (`connection:'close'`), the MCP source is not disposed until the run
+ *   drains, so `readResource` is still live at this emit point. Note: a caller
+ *   who closes the MCP source early (outside `chat()`'s managed lifecycle)
+ *   degrades fail-soft — `readResource` may reject, the widget is absent, but
+ *   the tool result still flows to the model.
  *   `@tanstack/ai` never imports `@tanstack/ai-mcp`; this travels structurally
  *   on the tool.
  */
