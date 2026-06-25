@@ -219,7 +219,13 @@ export function createMcpAppCallHandler(opts: McpAppCallHandlerOptions) {
         return { ok: false, error: `Tool not allowed: ${req.toolName}` }
       }
 
-      const args = isArgsRecord(req.args) ? req.args : {}
+      // Reject a malformed args payload (array, primitive, null) rather than
+      // silently coercing it to {} — a bad widget request should fail loudly
+      // instead of executing the tool with defaults. Absent args is valid.
+      const args = req.args === undefined ? {} : req.args
+      if (!isArgsRecord(args)) {
+        return { ok: false, error: 'Invalid args: expected an object' }
+      }
       const result = await client.callTool(req.toolName, args)
       return { ok: true, result }
     } catch (err) {

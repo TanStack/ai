@@ -276,5 +276,42 @@ describe('createMcpAppBridge', () => {
 
       expect(onLink).not.toHaveBeenCalled()
     })
+
+    it('rejects an unsafe URL scheme without calling onLink', () => {
+      // A sandboxed widget must not be able to smuggle a script-executing URL
+      // through to the host's onLink handler.
+      const onLink = vi.fn()
+      const chat = makeChatMock()
+      const bridge = createMcpAppBridge({
+        threadId,
+        callEndpoint,
+        chat,
+        onLink,
+      })
+
+      for (const bad of [
+        'javascript:alert(1)',
+        'data:text/html,<script>1</script>',
+        'file:///etc/passwd',
+        'not a url',
+      ]) {
+        expect(bridge.openLink(bad)).toEqual({ isError: true })
+      }
+      expect(onLink).not.toHaveBeenCalled()
+    })
+
+    it('allows mailto: links through to onLink', () => {
+      const onLink = vi.fn()
+      const chat = makeChatMock()
+      const bridge = createMcpAppBridge({
+        threadId,
+        callEndpoint,
+        chat,
+        onLink,
+      })
+
+      expect(bridge.openLink('mailto:a@b.com')).toEqual({ isError: false })
+      expect(onLink).toHaveBeenCalledWith('mailto:a@b.com')
+    })
   })
 })

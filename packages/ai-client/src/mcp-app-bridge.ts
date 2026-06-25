@@ -39,6 +39,18 @@ function isToolCallResponse(value: unknown): value is ToolCallResponse {
   return typeof record['ok'] === 'boolean'
 }
 
+// Links arrive from an untrusted sandboxed widget. Only hand http(s)/mailto
+// URLs to the host's onLink; reject javascript:/data:/file:/etc. so a widget
+// can't smuggle a script-executing or local-resource URL through the bridge.
+const SAFE_LINK_SCHEMES = new Set(['http:', 'https:', 'mailto:'])
+function isSafeLink(url: string): boolean {
+  try {
+    return SAFE_LINK_SCHEMES.has(new URL(url).protocol)
+  } catch {
+    return false
+  }
+}
+
 export function createMcpAppBridge(
   options: CreateMcpAppBridgeOptions,
 ): McpAppBridge {
@@ -80,6 +92,13 @@ export function createMcpAppBridge(
     },
 
     openLink(url) {
+      if (!isSafeLink(url)) {
+        console.warn(
+          '[mcp-app-bridge] openLink rejected: unsupported URL scheme',
+          url,
+        )
+        return { isError: true }
+      }
       if (onLink) {
         try {
           onLink(url)

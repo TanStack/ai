@@ -565,8 +565,8 @@ const result = await handler(body)
 
 Create the bridge with `createMcpAppBridge` from `@tanstack/ai-client`, then
 render MCP app resources with `MCPAppResource` from
-`@tanstack/ai-react/mcp-apps` (also exported from `@tanstack/ai-preact`,
-which requires a `preact/compat` alias). `MCPAppResource` uses
+`@tanstack/ai-react/mcp-apps` (also exported from
+`@tanstack/ai-preact/mcp-apps`, which requires a `preact/compat` alias). `MCPAppResource` uses
 `@mcp-ui/client`'s `AppRenderer` under the hood — React only. Solid, Vue,
 Svelte, and Angular renderers are deferred.
 

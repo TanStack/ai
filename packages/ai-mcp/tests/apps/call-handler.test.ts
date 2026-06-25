@@ -350,6 +350,34 @@ describe('createMcpAppCallHandler', () => {
     expect(callToolMock).not.toHaveBeenCalled()
   })
 
+  it('rejects a malformed args payload instead of coercing it to {}', async () => {
+    const handler = weatherPoolHandler()
+    const res = await handler({
+      threadId: 't1',
+      serverId: 'weather',
+      toolName: 'place_order',
+      args: [1, 2, 3],
+    })
+    expect(res).toEqual({
+      ok: false,
+      error: expect.stringContaining('Invalid args'),
+    })
+    expect(callToolMock).not.toHaveBeenCalled()
+    // The client is still opened (allowlist check) but closed in finally.
+    expect(closeMock).toHaveBeenCalled()
+  })
+
+  it('treats absent args as an empty object', async () => {
+    const handler = weatherPoolHandler()
+    const res = await handler({
+      threadId: 't1',
+      serverId: 'weather',
+      toolName: 'place_order',
+    })
+    expect(res).toEqual({ ok: true, result: expect.anything() })
+    expect(callToolMock).toHaveBeenCalledWith('place_order', {})
+  })
+
   it('rejects a client whose descriptor has no reconnectable transport', async () => {
     const handler = createMcpAppCallHandler({
       // Built from a raw Transport: getInfo().transport is undefined.
