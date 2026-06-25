@@ -270,6 +270,9 @@ console.log(status.url); // hosted .mp4 URL
 For image-to-video (required for `grok-imagine-video-1.5`, optional for `grok-imagine-video`), include an `image` prompt part as the starting frame and describe the desired motion in the text part. URL sources are fetched by xAI's servers (so they must be publicly reachable); use a `data` source for a base64 starting frame:
 
 ```typescript
+import { generateVideo } from "@tanstack/ai";
+import { grokVideo } from "@tanstack/ai-grok";
+
 const { jobId } = await generateVideo({
   adapter: grokVideo("grok-imagine-video-1.5"),
   prompt: [

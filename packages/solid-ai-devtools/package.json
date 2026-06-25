@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/solid-ai-devtools",
-  "version": "0.2.58",
+  "version": "0.2.60",
   "description": "Solid Devtools plugin for inspecting TanStack AI chat messages, tool calls, streams, and errors.",
   "author": "Tanner Linsley",
   "license": "MIT",

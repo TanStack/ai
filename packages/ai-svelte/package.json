@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-svelte",
-  "version": "0.13.12",
+  "version": "0.13.14",
   "description": "Svelte 5 bindings for TanStack AI streaming chat, structured outputs, and media generation.",
   "author": "Tanner Linsley",
   "license": "MIT",

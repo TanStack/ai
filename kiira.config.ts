@@ -14,6 +14,10 @@ export default defineConfig({
     // ai-angular exposes a source-resolvable entry.
     'docs/api/ai-angular.md',
     'docs/getting-started/quick-start-angular.md',
+    // docs/superpowers/** are internal planning/spec artifacts (design docs and
+    // implementation plans), not published, curated examples. Their snippets are
+    // illustrative pseudo-code, not meant to compile against package source.
+    'docs/superpowers/**',
   ],
   defaultValidate: 'type',
   languages: ['ts', 'tsx', 'js', 'jsx'],

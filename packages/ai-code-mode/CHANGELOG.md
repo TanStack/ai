@@ -1,5 +1,23 @@
 # @tanstack/ai-code-mode
 
+## 0.3.0
+
+### Minor Changes
+
+- [#726](https://github.com/TanStack/ai/pull/726) [`fbd3762`](https://github.com/TanStack/ai/commit/fbd37623b287e370aa5678e161dec19cf13ae33b) - Add lazy tool support (progressive disclosure) to Code Mode. Tools marked `lazy: true` are kept out of the `execute_typescript` system prompt and listed in a discoverable catalog; the model fetches their TypeScript signatures on demand via a new `discover_tools` tool. A shared optional `lazyToolsConfig` (`includeDescription: 'none' | 'first-sentence' | 'full'`) tunes the catalog detail for both `chat()` and `createCodeMode()`. `createCodeMode` now also returns `discoveryTool` and a `tools` array (backward compatible — `tool` and `systemPrompt` are unchanged).
+
+### Patch Changes
+
+- Updated dependencies [[`fbd3762`](https://github.com/TanStack/ai/commit/fbd37623b287e370aa5678e161dec19cf13ae33b)]:
+  - @tanstack/ai@0.36.0
+
+## 0.2.13
+
+### Patch Changes
+
+- Updated dependencies [[`c04abd3`](https://github.com/TanStack/ai/commit/c04abd35284d464d830bb9f15129c7a7c2533d3f)]:
+  - @tanstack/ai@0.35.0
+
 ## 0.2.12
 
 ### Patch Changes

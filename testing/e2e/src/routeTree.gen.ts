@@ -43,6 +43,7 @@ import { Route as ApiMcpLifecycleTestRouteImport } from './routes/api.mcp-lifecy
 import { Route as ApiMcpAppsServerRouteImport } from './routes/api.mcp-apps-server'
 import { Route as ApiMcpAppsChatRouteImport } from './routes/api.mcp-apps-chat'
 import { Route as ApiMcpAppsCallRouteImport } from './routes/api.mcp-apps-call'
+import { Route as ApiLazyToolsWireRouteImport } from './routes/api.lazy-tools-wire'
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
@@ -231,6 +232,11 @@ const ApiMcpAppsCallRoute = ApiMcpAppsCallRouteImport.update({
   path: '/api/mcp-apps-call',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiLazyToolsWireRoute = ApiLazyToolsWireRouteImport.update({
+  id: '/api/lazy-tools-wire',
+  path: '/api/lazy-tools-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiImageRoute = ApiImageRouteImport.update({
   id: '/api/image',
   path: '/api/image',
@@ -318,6 +324,7 @@ export interface FileRoutesByFullPath {
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
+  '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
   '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
@@ -367,6 +374,7 @@ export interface FileRoutesByTo {
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
+  '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
   '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
@@ -417,6 +425,7 @@ export interface FileRoutesById {
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
+  '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
   '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
@@ -468,6 +477,7 @@ export interface FileRouteTypes {
     | '/api/audio'
     | '/api/chat'
     | '/api/image'
+    | '/api/lazy-tools-wire'
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
     | '/api/mcp-apps-server'
@@ -517,6 +527,7 @@ export interface FileRouteTypes {
     | '/api/audio'
     | '/api/chat'
     | '/api/image'
+    | '/api/lazy-tools-wire'
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
     | '/api/mcp-apps-server'
@@ -566,6 +577,7 @@ export interface FileRouteTypes {
     | '/api/audio'
     | '/api/chat'
     | '/api/image'
+    | '/api/lazy-tools-wire'
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
     | '/api/mcp-apps-server'
@@ -616,6 +628,7 @@ export interface RootRouteChildren {
   ApiAudioRoute: typeof ApiAudioRouteWithChildren
   ApiChatRoute: typeof ApiChatRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
+  ApiLazyToolsWireRoute: typeof ApiLazyToolsWireRoute
   ApiMcpAppsCallRoute: typeof ApiMcpAppsCallRoute
   ApiMcpAppsChatRoute: typeof ApiMcpAppsChatRoute
   ApiMcpAppsServerRoute: typeof ApiMcpAppsServerRoute
@@ -881,6 +894,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMcpAppsCallRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/lazy-tools-wire': {
+      id: '/api/lazy-tools-wire'
+      path: '/api/lazy-tools-wire'
+      fullPath: '/api/lazy-tools-wire'
+      preLoaderRoute: typeof ApiLazyToolsWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/image': {
       id: '/api/image'
       path: '/api/image'
@@ -1053,6 +1073,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAudioRoute: ApiAudioRouteWithChildren,
   ApiChatRoute: ApiChatRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
+  ApiLazyToolsWireRoute: ApiLazyToolsWireRoute,
   ApiMcpAppsCallRoute: ApiMcpAppsCallRoute,
   ApiMcpAppsChatRoute: ApiMcpAppsChatRoute,
   ApiMcpAppsServerRoute: ApiMcpAppsServerRoute,

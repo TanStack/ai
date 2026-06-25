@@ -1,5 +1,11 @@
 # @tanstack/ai-event-client
 
+## 0.6.7
+
+### Patch Changes
+
+- [#809](https://github.com/TanStack/ai/pull/809) [`e3ee4ae`](https://github.com/TanStack/ai/commit/e3ee4ae385d124619586f7c6de96b5c7de5954c5) - Remove the unused `@tanstack/ai` peer dependency and the matching Nx dependency-graph override.
+
 ## 0.6.6
 
 ### Patch Changes

@@ -1,5 +1,42 @@
 # @tanstack/ai-grok
 
+## 0.14.3
+
+### Patch Changes
+
+- Updated dependencies [[`fbd3762`](https://github.com/TanStack/ai/commit/fbd37623b287e370aa5678e161dec19cf13ae33b)]:
+  - @tanstack/ai@0.36.0
+  - @tanstack/openai-base@0.9.3
+
+## 0.14.2
+
+### Patch Changes
+
+- Updated dependencies [[`92a6d50`](https://github.com/TanStack/ai/commit/92a6d50de4fd7ee9ea954e4ed655cf2379d2db54)]:
+  - @tanstack/openai-base@0.9.2
+
+## 0.14.1
+
+### Patch Changes
+
+- [#830](https://github.com/TanStack/ai/pull/830) [`c04abd3`](https://github.com/TanStack/ai/commit/c04abd35284d464d830bb9f15129c7a7c2533d3f) - Move the `RealtimeAdapter` / `RealtimeConnection` contract into `@tanstack/ai` and stop provider adapters from depending on `@tanstack/ai-client`.
+
+  Provider packages (`@tanstack/ai-openai`, `@tanstack/ai-elevenlabs`, `@tanstack/ai-grok`) are usable server-side (text, embeddings, images, transcription, token minting, etc.) and must not pull in the client-only `@tanstack/ai-client`. The only thing their realtime adapters needed from it were the `RealtimeAdapter` / `RealtimeConnection` type shapes.
+
+  Those two interfaces now live in `@tanstack/ai` — the shared layer that both provider packages and `@tanstack/ai-client` already depend on, and where every other realtime type (`RealtimeToken`, `RealtimeEvent`, `RealtimeSessionConfig`, …) already lives. They're exported from `@tanstack/ai` and `@tanstack/ai/client`. `@tanstack/ai-client` re-exports them unchanged, so `import { RealtimeAdapter } from '@tanstack/ai-client'` keeps working.
+
+  As a result `@tanstack/ai-client` is no longer a dependency (peer or otherwise) of any provider package, and the previously-duplicated local contract + drift test in `@tanstack/ai-grok` are removed in favor of the single shared definition. Consumers only need `@tanstack/ai-client` at the point where they actually construct a `RealtimeClient`.
+
+- Updated dependencies [[`c04abd3`](https://github.com/TanStack/ai/commit/c04abd35284d464d830bb9f15129c7a7c2533d3f)]:
+  - @tanstack/ai@0.35.0
+  - @tanstack/openai-base@0.9.1
+
+## 0.14.0
+
+### Minor Changes
+
+- [#742](https://github.com/TanStack/ai/pull/742) [`9ce99ea`](https://github.com/TanStack/ai/commit/9ce99ea3db28c78c9d22a506a142a91d533688b5) - Add a `grokVideo` adapter for xAI's Imagine video models. `grok-imagine-video` (v1.0) supports text-to-video and image-to-video; `grok-imagine-video-1.5` is image-to-video only — a text-only prompt is rejected by the API, so the adapter fails fast with a clear error telling you to add a starting-frame image or use `grok-imagine-video`. Image-to-video starting frames are supplied as an `image` prompt part (public URL or base64 data source), with the text part describing the motion. Follows the experimental `generateVideo()` jobs/polling architecture: `createVideoJob` posts to `/v1/videos/generations`, status polling reads `/v1/videos/{request_id}`, and the completed result carries the hosted video URL plus usage (`unitsBilled` seconds and exact `cost` in USD). Sizing uses the aspect-ratio template consistent with the grok-imagine image models (`size: '16:9_720p'` → `aspect_ratio` / `resolution`), and durations are 1–15 integer seconds.
+
 ## 0.13.0
 
 ### Minor Changes

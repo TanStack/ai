@@ -88,17 +88,43 @@ const STRICT_UNSUPPORTED_KEYWORDS: ReadonlyArray<string> = [
 ]
 
 /**
- * Returns `false` when `schema` (anywhere in the tree) uses a JSON-Schema
- * keyword outside OpenAI's strict Structured Outputs subset — i.e. it cannot be
- * made strict-compatible and must be sent with `strict: false`.
+ * Keys that give a schema node a resolvable type under OpenAI's strict subset.
+ * A schema-position node carrying none of these is *typeless* (e.g. the empty
+ * `{}` that `z.any()` / `z.unknown()` emit). Strict mode requires every schema
+ * to declare a type, so a typeless node 400s the whole request — such tools
+ * must be sent with `strict: false` instead. (`oneOf`/`allOf`/`$ref` count as
+ * type indicators here even though they're independently strict-unsupported;
+ * the keyword check below already rejects them.)
+ */
+const TYPE_INDICATOR_KEYWORDS: ReadonlyArray<string> = [
+  'type',
+  'enum',
+  'const',
+  'anyOf',
+  'oneOf',
+  'allOf',
+  '$ref',
+]
+
+/**
+ * Returns `false` when `schema` cannot be made strict-compatible and must be
+ * sent with `strict: false`. Two ways that happens:
  *
- * Conservative by design: keywords are matched as object keys, so a property
- * literally named e.g. `oneOf` also trips it. That only costs that one tool its
- * strict mode, which is strictly safer than a false "compatible" verdict that
- * 400s the whole request.
+ * 1. It uses a JSON-Schema keyword outside OpenAI's strict subset anywhere in
+ *    the tree (`oneOf`/`allOf`/`not`/`$ref`/`$defs`).
+ * 2. It contains a *typeless* schema node — a property/items/anyOf entry with
+ *    no `type` (nor `enum`/`const`/combinator), e.g. the `{}` that `z.any()`
+ *    produces. Strict mode rejects typeless schemas.
+ *
+ * Conservative by design: for (1) keywords are matched as object keys, so a
+ * property literally named e.g. `oneOf` also trips it. That only costs that one
+ * tool its strict mode, which is strictly safer than a false "compatible"
+ * verdict that 400s the whole request.
  */
 export function isStrictModeCompatible(schema: unknown): boolean {
-  return !containsStrictUnsupportedKeyword(schema)
+  return (
+    !containsStrictUnsupportedKeyword(schema) && !containsTypelessSchema(schema)
+  )
 }
 
 function containsStrictUnsupportedKeyword(node: unknown): boolean {
@@ -111,6 +137,45 @@ function containsStrictUnsupportedKeyword(node: unknown): boolean {
     if (containsStrictUnsupportedKeyword(value)) return true
   }
   return false
+}
+
+/** A schema-position node that declares no type and so 400s strict mode. */
+function isTypelessSchema(node: unknown): boolean {
+  if (node === null || typeof node !== 'object' || Array.isArray(node)) {
+    // boolean schemas (`true`/`false`) and non-objects aren't typeless props.
+    return false
+  }
+  return !TYPE_INDICATOR_KEYWORDS.some((key) => key in node)
+}
+
+/**
+ * Walks the genuine schema positions (property values, `items`, `anyOf`
+ * variants) and reports whether any is typeless. Unlike the keyword walk this
+ * must respect structure: an empty `{}` is only a problem at a schema position,
+ * not e.g. an empty `properties` map.
+ */
+function containsTypelessSchema(node: unknown): boolean {
+  if (node === null || typeof node !== 'object' || Array.isArray(node)) {
+    return false
+  }
+  const schema = node as Record<string, any>
+
+  const children: Array<unknown> = []
+  if (schema.properties && typeof schema.properties === 'object') {
+    children.push(...Object.values(schema.properties))
+  }
+  if (schema.items !== undefined) {
+    children.push(
+      ...(Array.isArray(schema.items) ? schema.items : [schema.items]),
+    )
+  }
+  if (Array.isArray(schema.anyOf)) {
+    children.push(...schema.anyOf)
+  }
+
+  return children.some(
+    (child) => isTypelessSchema(child) || containsTypelessSchema(child),
+  )
 }
 
 /**
