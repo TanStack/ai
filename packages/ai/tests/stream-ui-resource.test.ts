@@ -3,24 +3,23 @@
  * inside StreamProcessor.handleCustomEvent.
  */
 import { describe, expect, it, vi } from 'vitest'
-import { EventType } from '../src/types'
 import { StreamProcessor } from '../src/activities/chat/stream/processor'
-import { runProcessorWithChunks } from './helpers/processor-harness'
-import type { StreamChunk, UIResourcePart } from '../src/types'
+import {
+  runProcessorWithChunks,
+  runStartedChunk,
+  textMessageStartChunk,
+  uiResourceChunk,
+} from './helpers/processor-harness'
+import type { UIResourcePart } from '../src/types'
 
 describe('StreamProcessor — ui-resource CUSTOM event', () => {
   it('reconciles a ui-resource CUSTOM event into a UIResourcePart on the assistant message', async () => {
-    const chunk: StreamChunk = {
-      type: EventType.CUSTOM,
-      timestamp: Date.now(),
-      name: 'ui-resource',
-      value: {
-        resource: { uri: 'ui://s/w', mimeType: 'text/html', text: '<b>x</b>' },
-        serverId: 'weather',
-        toolCallId: 'call_1',
-        toolName: 'show_widget',
-      },
-    } as Extract<StreamChunk, { type: 'CUSTOM' }>
+    const chunk = uiResourceChunk({
+      resource: { uri: 'ui://s/w', mimeType: 'text/html', text: '<b>x</b>' },
+      serverId: 'weather',
+      toolCallId: 'call_1',
+      toolName: 'show_widget',
+    })
 
     const msg = await runProcessorWithChunks([chunk])
 
@@ -38,16 +37,11 @@ describe('StreamProcessor — ui-resource CUSTOM event', () => {
   })
 
   it('ui-resource event without serverId still produces a UIResourcePart', async () => {
-    const chunk: StreamChunk = {
-      type: EventType.CUSTOM,
-      timestamp: Date.now(),
-      name: 'ui-resource',
-      value: {
-        resource: { uri: 'ui://tool/output', mimeType: 'text/html' },
-        toolCallId: 'call_2',
-        toolName: 'tool_output',
-      },
-    } as Extract<StreamChunk, { type: 'CUSTOM' }>
+    const chunk = uiResourceChunk({
+      resource: { uri: 'ui://tool/output', mimeType: 'text/html' },
+      toolCallId: 'call_2',
+      toolName: 'tool_output',
+    })
 
     const msg = await runProcessorWithChunks([chunk])
 
@@ -65,17 +59,12 @@ describe('StreamProcessor — ui-resource CUSTOM event', () => {
   })
 
   it('ui-resource event with meta forwards meta to the part', async () => {
-    const chunk: StreamChunk = {
-      type: EventType.CUSTOM,
-      timestamp: Date.now(),
-      name: 'ui-resource',
-      value: {
-        resource: { uri: 'ui://s/w', mimeType: 'text/html' },
-        toolCallId: 'call_3',
-        toolName: 'show_widget',
-        meta: { width: 400, height: 300 },
-      },
-    } as Extract<StreamChunk, { type: 'CUSTOM' }>
+    const chunk = uiResourceChunk({
+      resource: { uri: 'ui://s/w', mimeType: 'text/html' },
+      toolCallId: 'call_3',
+      toolName: 'show_widget',
+      meta: { width: 400, height: 300 },
+    })
 
     const msg = await runProcessorWithChunks([chunk])
 
@@ -93,29 +82,16 @@ describe('StreamProcessor — ui-resource CUSTOM event', () => {
     // actually executes its reconcile path (resolves a target message and
     // appends a UIResourcePart) rather than returning early — otherwise this
     // test would pass vacuously.
-    processor.processChunk({
-      type: EventType.RUN_STARTED,
-      timestamp: Date.now(),
-      runId: 'run-1',
-      threadId: 'thread-1',
-    } as Extract<StreamChunk, { type: 'RUN_STARTED' }>)
-    processor.processChunk({
-      type: EventType.TEXT_MESSAGE_START,
-      timestamp: Date.now(),
-      messageId: 'msg-1',
-      role: 'assistant',
-    } as Extract<StreamChunk, { type: 'TEXT_MESSAGE_START' }>)
+    processor.processChunk(runStartedChunk())
+    processor.processChunk(textMessageStartChunk())
 
-    processor.processChunk({
-      type: EventType.CUSTOM,
-      timestamp: Date.now(),
-      name: 'ui-resource',
-      value: {
+    processor.processChunk(
+      uiResourceChunk({
         resource: { uri: 'ui://s/w', mimeType: 'text/html' },
         toolCallId: 'call_4',
         toolName: 'show_widget',
-      },
-    } as Extract<StreamChunk, { type: 'CUSTOM' }>)
+      }),
+    )
 
     // The branch ran: the widget was attached to the active assistant message.
     const part = processor

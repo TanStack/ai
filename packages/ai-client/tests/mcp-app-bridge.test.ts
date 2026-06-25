@@ -1,28 +1,82 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { createMcpAppBridge } from '../src/mcp-app-bridge'
+import type { CreateMcpAppBridgeOptions } from '../src/mcp-app-bridge'
+
+type ChatMock = {
+  sendMessage: ReturnType<typeof vi.fn<CreateMcpAppBridgeOptions['chat']['sendMessage']>>
+}
 
 describe('createMcpAppBridge', () => {
   const threadId = 'thread-123'
   const callEndpoint = 'https://example.com/api/mcp-call'
 
-  function makeChatMock() {
-    return { sendMessage: vi.fn().mockResolvedValue(undefined) }
+  function makeChatMock(): ChatMock {
+    return { sendMessage: vi.fn(async () => {}) }
+  }
+
+  /**
+   * A minimal `Response` carrying just the members the bridge reads (`ok`,
+   * `status`, `json`). `Response` is a wide DOM type with no structural
+   * overlap with this partial, so one cast bridges it — centralized here.
+   */
+  function fakeResponse(init: {
+    ok: boolean
+    status: number
+    json: () => Promise<unknown>
+  }): Response {
+    return init as unknown as Response
   }
 
   function makeFetchMock(response: unknown) {
-    return vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: vi.fn().mockResolvedValue(response),
-    } as unknown as Response)
+    return vi.fn<typeof fetch>(async () =>
+      fakeResponse({
+        ok: true,
+        status: 200,
+        json: async () => response,
+      }),
+    )
   }
 
   function makeFailingFetchMock(status: number) {
-    return vi.fn().mockResolvedValue({
-      ok: false,
-      status,
-      json: vi.fn().mockRejectedValue(new Error('not json')),
-    } as unknown as Response)
+    return vi.fn<typeof fetch>(async () =>
+      fakeResponse({
+        ok: false,
+        status,
+        json: async () => {
+          throw new Error('not json')
+        },
+      }),
+    )
+  }
+
+  /**
+   * Pull the recorded request out of a typed fetch mock and narrow the parts
+   * the bridge always sets (a string URL, a plain-object header map, a JSON
+   * string body) via runtime guards — no casts.
+   */
+  function readFetchCall(fetchMock: ReturnType<typeof makeFetchMock>) {
+    const call = fetchMock.mock.calls[0]
+    if (!call) throw new Error('fetch was not called')
+    const [url, init] = call
+    if (typeof url !== 'string') throw new Error('expected a string URL')
+    if (!init) throw new Error('expected request init')
+
+    const headers = init.headers
+    if (
+      typeof headers !== 'object' ||
+      headers === null ||
+      headers instanceof Headers ||
+      Array.isArray(headers)
+    ) {
+      throw new Error('expected a plain-object header map')
+    }
+
+    if (typeof init.body !== 'string') {
+      throw new Error('expected a string request body')
+    }
+    const body: unknown = JSON.parse(init.body)
+
+    return { url, method: init.method, headers, body }
   }
 
   describe('callTool', () => {
@@ -47,14 +101,10 @@ describe('createMcpAppBridge', () => {
       expect(result).toEqual({ price: 1999 })
       expect(fetchMock).toHaveBeenCalledOnce()
 
-      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+      const { url, method, headers, body } = readFetchCall(fetchMock)
       expect(url).toBe(callEndpoint)
-      expect(init.method).toBe('POST')
-      expect((init.headers as Record<string, string>)['content-type']).toBe(
-        'application/json',
-      )
-
-      const body = JSON.parse(init.body as string)
+      expect(method).toBe('POST')
+      expect(headers['content-type']).toBe('application/json')
       expect(body).toEqual({
         threadId,
         serverId: 'server-1',
@@ -77,10 +127,8 @@ describe('createMcpAppBridge', () => {
 
       await bridge.callTool({ toolName: 'ping' })
 
-      const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
-      const body = JSON.parse(init.body as string)
-      expect(body.threadId).toBe(threadId)
-      expect(body.toolName).toBe('ping')
+      const { body } = readFetchCall(fetchMock)
+      expect(body).toMatchObject({ threadId, toolName: 'ping' })
     })
 
     it('throws when response ok is false', async () => {
@@ -134,11 +182,13 @@ describe('createMcpAppBridge', () => {
     it('uses global fetch when fetchImpl is omitted', async () => {
       const globalFetchSpy = vi
         .spyOn(globalThis, 'fetch')
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          json: vi.fn().mockResolvedValue({ ok: true, result: 42 }),
-        } as unknown as Response)
+        .mockResolvedValueOnce(
+          fakeResponse({
+            ok: true,
+            status: 200,
+            json: async () => ({ ok: true, result: 42 }),
+          }),
+        )
 
       const chat = makeChatMock()
       const bridge = createMcpAppBridge({ threadId, callEndpoint, chat })

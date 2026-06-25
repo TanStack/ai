@@ -9,6 +9,41 @@ import {
   makeServerWithFailingTool,
   makeServerWithWeatherTool,
 } from './helpers/in-memory-server'
+import type {
+  CallToolResult,
+  Tool as McpToolDef,
+} from '@modelcontextprotocol/sdk/types.js'
+import type { ServerTool } from '@tanstack/ai'
+
+/**
+ * Build an MCP tool definition for `toServerTools`. The MCP-Apps `_meta.ui`
+ * link is a custom extension not present in the SDK's base `Tool` schema, so
+ * the assembled literal needs one cast to `McpToolDef` — centralized here
+ * instead of scattering `as never` across each test def.
+ */
+function mcpToolDef(def: {
+  name: string
+  description?: string
+  inputSchema?: { type: 'object'; properties?: Record<string, unknown> }
+  _meta?: { ui?: { resourceUri?: string } }
+}): McpToolDef {
+  return {
+    inputSchema: { type: 'object', properties: {} },
+    ...def,
+  } as McpToolDef
+}
+
+/**
+ * Build a fake MCP `Client` that only implements `callTool` — the single
+ * method `makeMcpExecute` invokes. The MCP SDK `Client` is a wide concrete
+ * class with no structural overlap with this partial, so TS requires the
+ * `unknown` bridge; the `callTool` shape itself stays fully typed.
+ */
+function fakeMcpClient(
+  callTool: (...args: Array<any>) => Promise<CallToolResult>,
+): Client {
+  return { callTool } as unknown as Client
+}
 
 describe('mcpContentToTanstack', () => {
   it('returns a plain string for a single text block', () => {
@@ -66,6 +101,9 @@ describe('mcpContentToTanstack', () => {
   })
 
   it('returns "" when content is undefined (structuredContent-only result)', () => {
+    // The parameter is typed `Array<any>`, but the runtime guards `undefined`
+    // (an MCP result can carry only structuredContent, no content[]). The type
+    // doesn't model that case, so a cast is the only way to exercise the guard.
     expect(mcpContentToTanstack(undefined as never)).toBe('')
   })
 
@@ -109,8 +147,7 @@ describe('makeMcpExecute', () => {
       isError: true,
       content: [{ type: 'resource', resource: { uri: 'ui://widget' } }],
     })
-    const client = { callTool } as unknown as Client
-    const execute = makeMcpExecute(client, 'x', false)
+    const execute = makeMcpExecute(fakeMcpClient(callTool), 'x', false)
     await expect(execute({})).rejects.toThrow(
       /MCP tool "x" returned an error$/,
     )
@@ -166,18 +203,32 @@ describe('makeMcpExecute', () => {
   })
 })
 
+/** The MCP-Apps metadata block `toServerTools` stamps onto each tool. */
+interface ToolMcpMeta {
+  serverToolName?: string
+  serverId?: string
+  uiResourceUri?: string
+}
+
+/**
+ * Read the `mcp` metadata block off a produced ServerTool. `metadata` is
+ * `Record<string, any>` upstream, so the access is already `any` — annotating
+ * the return documents the real shape without a cast.
+ */
+function readToolMcpMeta(tool: ServerTool): ToolMcpMeta {
+  return tool.metadata!.mcp
+}
+
 describe('toServerTools — MCP Apps metadata', () => {
   it('captures serverId (prefix) and the _meta.ui.resourceUri link', () => {
-    const fakeClient = {} as never
     const tool = toServerTools(
-      fakeClient,
+      fakeMcpClient(vi.fn()),
       [
-        {
+        mcpToolDef({
           name: 'show_widget',
           description: 'show',
-          inputSchema: { type: 'object', properties: {} },
           _meta: { ui: { resourceUri: 'ui://srv/widget' } },
-        } as never,
+        }),
       ],
       { prefix: 'weather' },
     )[0]!
@@ -193,22 +244,13 @@ describe('toServerTools — MCP Apps metadata', () => {
 
   it('leaves uiResourceUri undefined for plain tools', () => {
     const tool = toServerTools(
-      {} as never,
-      [
-        {
-          name: 't',
-          description: '',
-          inputSchema: { type: 'object', properties: {} },
-        } as never,
-      ],
+      fakeMcpClient(vi.fn()),
+      [mcpToolDef({ name: 't' })],
       {},
     )[0]!
-    expect(
-      (tool.metadata as { mcp: { uiResourceUri?: string } }).mcp.uiResourceUri,
-    ).toBeUndefined()
-    expect(
-      (tool.metadata as { mcp: { serverId?: string } }).mcp.serverId,
-    ).toBeUndefined()
+    const mcp = readToolMcpMeta(tool)
+    expect(mcp.uiResourceUri).toBeUndefined()
+    expect(mcp.serverId).toBeUndefined()
   })
 })
 

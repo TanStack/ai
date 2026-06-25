@@ -5,6 +5,7 @@ import {
   makeServerWithResource,
   makeServerWithWeatherTool,
 } from './helpers/in-memory-server'
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 
 describe('createMCPClients', () => {
   it('connects to many servers and flattens auto-prefixed tools', async () => {
@@ -97,6 +98,21 @@ describe('createMCPClients', () => {
     await expect(pool.readResource('file:///missing.txt')).rejects.toThrow()
   })
 
+  it('getServers() returns each server descriptor keyed by config key', async () => {
+    const a = await makeServerWithWeatherTool()
+    const b = await makeServerWithWeatherTool()
+    await using pool = await createMCPClients({
+      alpha: { transport: a.clientTransport },
+      beta: { transport: b.clientTransport, prefix: 'wx' },
+    })
+    expect(pool.getServers()).toEqual({
+      // default prefix = config key
+      alpha: { transport: a.clientTransport, prefix: 'alpha' },
+      // explicit prefix wins
+      beta: { transport: b.clientTransport, prefix: 'wx' },
+    })
+  })
+
   it('closes already-connected clients and throws if one server fails', async () => {
     const a = await makeServerWithWeatherTool()
     // Wrap alpha's transport close so we can assert cleanup actually ran.
@@ -106,7 +122,7 @@ describe('createMCPClients', () => {
       alphaClosed = true
       await originalClose()
     }
-    const broken = {
+    const broken: Transport = {
       start: async () => {
         throw new Error('nope')
       },
@@ -116,7 +132,7 @@ describe('createMCPClients', () => {
     await expect(
       createMCPClients({
         alpha: { transport: a.clientTransport },
-        beta: { transport: broken as any },
+        beta: { transport: broken },
       }),
     ).rejects.toThrow(/beta/)
     expect(alphaClosed).toBe(true)

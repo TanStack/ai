@@ -16,10 +16,21 @@ import { test, expect } from './fixtures'
  *     `{ ok: false }`.
  */
 
+// The fields these tests read off SSE events. Tool-call events carry a tool
+// name under one of two keys depending on the wire variant; ui-resource CUSTOM
+// events carry a `value`. All optional — a parsed event may be any AG-UI event.
 type StreamEvent = {
   type: string
   name?: string
-  value?: unknown
+  toolName?: string
+  toolCallName?: string
+  value?: UiResourceValue
+}
+
+type UiResourceValue = {
+  resource?: { uri?: string; mimeType?: string; text?: string }
+  serverId?: string
+  toolCallId?: string
 }
 
 function parseSse(body: string): Array<StreamEvent> {
@@ -30,12 +41,42 @@ function parseSse(body: string): Array<StreamEvent> {
     const json = trimmed.slice('data:'.length).trim()
     if (!json) continue
     try {
-      events.push(JSON.parse(json) as StreamEvent)
+      const parsed: unknown = JSON.parse(json)
+      if (isStreamEvent(parsed)) events.push(parsed)
     } catch {
       // Ignore non-JSON keepalive lines.
     }
   }
   return events
+}
+
+function isStreamEvent(value: unknown): value is StreamEvent {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'type' in value &&
+    typeof value.type === 'string'
+  )
+}
+
+// The JSON shape the call handler returns (mirrors createMcpAppCallHandler).
+type CallHandlerResponse = {
+  ok: boolean
+  result?: unknown
+  error?: string
+}
+
+function parseCallResponse(body: string): CallHandlerResponse {
+  const parsed: unknown = JSON.parse(body)
+  if (
+    typeof parsed !== 'object' ||
+    parsed === null ||
+    !('ok' in parsed) ||
+    typeof parsed.ok !== 'boolean'
+  ) {
+    throw new Error(`expected a { ok: boolean } response, got: ${body}`)
+  }
+  return parsed
 }
 
 test.describe('mcp-apps — data + interactive planes', () => {
@@ -75,8 +116,7 @@ test.describe('mcp-apps — data + interactive planes', () => {
     const toolStart = events.find(
       (e) =>
         e.type === 'TOOL_CALL_START' &&
-        ((e as { toolName?: string }).toolName === 'show_widget' ||
-          (e as { toolCallName?: string }).toolCallName === 'show_widget'),
+        (e.toolName === 'show_widget' || e.toolCallName === 'show_widget'),
     )
     expect(toolStart, 'expected a TOOL_CALL_START for show_widget').toBeTruthy()
 
@@ -92,13 +132,7 @@ test.describe('mcp-apps — data + interactive planes', () => {
       'expected a ui-resource CUSTOM event on the stream',
     ).toBeTruthy()
 
-    const value = uiResource?.value as
-      | {
-          resource?: { uri?: string; mimeType?: string; text?: string }
-          serverId?: string
-          toolCallId?: string
-        }
-      | undefined
+    const value = uiResource?.value
     expect(value?.resource?.uri).toBe('ui://show_widget')
     expect(value?.resource?.mimeType).toBe('text/html')
     expect(value?.resource?.text ?? '').toContain('MCP_APPS_WIDGET_OK')
@@ -131,11 +165,7 @@ test.describe('mcp-apps — data + interactive planes', () => {
       true,
     )
 
-    const json = JSON.parse(body) as {
-      ok: boolean
-      result?: unknown
-      error?: string
-    }
+    const json = parseCallResponse(body)
     expect(json.ok, `expected ok:true, got: ${body}`).toBe(true)
     // The result carries MCP_APPS_CALL_OK, which only the MCP server produces —
     // proving callTool actually executed against the in-process server.
@@ -163,7 +193,7 @@ test.describe('mcp-apps — data + interactive planes', () => {
       true,
     )
 
-    const json = JSON.parse(body) as { ok: boolean; error?: string }
+    const json = parseCallResponse(body)
     expect(json.ok, `expected ok:false for disallowed tool, got: ${body}`).toBe(
       false,
     )

@@ -5,10 +5,45 @@ import {
 } from '../src/activities/chat/mcp/manager'
 import {
   executeServerTool,
-  type ToolExecutionMiddlewareHooks,
+  type ToolResult,
 } from '../src/activities/chat/tools/tool-calls'
+import { EventType } from '../src/types'
 import type { ServerTool } from '../src'
-import type { CustomEvent, ToolCall, ToolExecutionContext } from '../src/types'
+import type {
+  CustomEvent,
+  ToolCall,
+  ToolExecutionContext,
+  UIResourceEvent,
+} from '../src/types'
+
+/**
+ * The MCP-Apps metadata block that `@tanstack/ai-mcp` discovery stamps onto a
+ * ui-linked tool. `MCPManager.discover()` additionally binds `readResource`.
+ * Modeled explicitly here so tests can assign `readResource` without a cast —
+ * `ServerTool.metadata` is `Record<string, any>` upstream.
+ */
+interface McpAppMetadata {
+  mcp: {
+    serverToolName?: string
+    serverId?: string
+    uiResourceUri?: string
+    readResource?: (uri: string) => Promise<ReadResourceResult>
+  }
+}
+
+interface ReadResourceResult {
+  contents: Array<{
+    uri: string
+    mimeType?: string
+    text?: string
+    blob?: string
+  }>
+}
+
+/** A ui-linked ServerTool whose `metadata.mcp` is statically typed. */
+interface UiServerTool extends ServerTool {
+  metadata: McpAppMetadata
+}
 
 function tool(name: string): ServerTool {
   return {
@@ -111,7 +146,7 @@ describe('MCPManager', () => {
  * already stamps `metadata.mcp.uiResourceUri` + `serverId`. MCPManager.discover()
  * additionally binds the source's `readResource` so it travels to the emit site.
  */
-function uiTool(name: string): ServerTool {
+function uiTool(name: string): UiServerTool {
   return {
     __toolSide: 'server',
     name,
@@ -128,16 +163,19 @@ function uiTool(name: string): ServerTool {
   }
 }
 
-function uiSource(
-  readResource: () => Promise<{
-    contents: Array<{
-      uri: string
-      mimeType?: string
-      text?: string
-      blob?: string
-    }>
-  }>,
-) {
+/**
+ * Read the `mcp` metadata block off a discovered tool. `AnyTool.metadata` is
+ * `Record<string, any>` upstream, so the property access is already typed
+ * `any` — annotating the return with the real shape documents what we read
+ * without a cast.
+ */
+function readDiscoveredMcpMeta(
+  tool: { metadata?: Record<string, any> } | undefined,
+): McpAppMetadata['mcp'] | undefined {
+  return tool?.metadata?.mcp
+}
+
+function uiSource(readResource: () => Promise<ReadResourceResult>) {
   return {
     closed: false,
     tools: async (_o?: { lazy?: boolean }) => [uiTool('weather_show')],
@@ -146,6 +184,10 @@ function uiSource(
   }
 }
 
+/** A CUSTOM event emitted by the tool, narrowed to the ui-resource value shape
+ *  the MCP-Apps path produces (the only event these tests assert on). */
+type EmittedEvent = { name: string; value: UIResourceEvent['value'] }
+
 /**
  * Drive the real server-tool execution/emit path with a tool, capturing any
  * CUSTOM events emitted via the same `emitCustomEvent` closure chat() wires in.
@@ -153,7 +195,7 @@ function uiSource(
 async function runToolResult(
   tool: ServerTool,
   toolCallId: string,
-  onEvent: (name: string, value: Record<string, unknown>) => void,
+  onEvent: (event: EmittedEvent) => void,
 ): Promise<void> {
   const toolCall: ToolCall = {
     id: toolCallId,
@@ -161,21 +203,20 @@ async function runToolResult(
     function: { name: tool.name, arguments: '{}' },
   }
   const pendingEvents: Array<CustomEvent> = []
-  const context = {
+  const context: ToolExecutionContext<unknown> = {
     toolCallId,
     context: undefined,
     // Mirrors the chat() closure: stamps toolCallId, pushes a CUSTOM chunk.
-    emitCustomEvent: (eventName: string, value: Record<string, any>) => {
+    emitCustomEvent: (eventName, value) => {
       pendingEvents.push({
-        type: 'CUSTOM',
+        type: EventType.CUSTOM,
         name: eventName,
         value: { ...value, toolCallId },
-      } as CustomEvent)
+      })
     },
-  } as ToolExecutionContext<unknown>
+  }
 
-  const results: Array<unknown> = []
-  const hooks: ToolExecutionMiddlewareHooks | undefined = undefined
+  const results: Array<ToolResult> = []
   const gen = executeServerTool(
     toolCall,
     tool,
@@ -183,12 +224,11 @@ async function runToolResult(
     {},
     context,
     pendingEvents,
-    results as never,
-    hooks,
+    results,
   )
   // Drain the generator: collect emitted CUSTOM events.
   for await (const ev of gen) {
-    onEvent(ev.name, ev.value as Record<string, unknown>)
+    onEvent({ name: ev.name, value: ev.value })
   }
 }
 
@@ -200,11 +240,7 @@ describe('MCPManager.discover — ui:// readResource binding', () => {
     const m = MCPManager.from({ clients: [uiSource(readResource)] })
     const discovered = (await m.discover())[0]
     expect(discovered).toBeDefined()
-    const mcp = (
-      discovered?.metadata as {
-        mcp?: { readResource?: (uri: string) => Promise<unknown> }
-      }
-    ).mcp
+    const mcp = readDiscoveredMcpMeta(discovered)
     expect(typeof mcp?.readResource).toBe('function')
   })
 
@@ -220,26 +256,22 @@ describe('MCPManager.discover — ui:// readResource binding', () => {
     })
     const discovered = (await m.discover())[0]
     expect(discovered).toBeDefined()
-    const mcp = (discovered?.metadata as { mcp?: { readResource?: unknown } })
-      ?.mcp
+    const mcp = readDiscoveredMcpMeta(discovered)
     expect(mcp?.readResource).toBeUndefined()
   })
 })
 
 describe('executeServerTool — ui:// resource emit (MCP Apps)', () => {
   it('emits a ui-resource CUSTOM event when a tool links a ui:// resource', async () => {
-    const emitted: Array<{ name: string; value: Record<string, unknown> }> = []
+    const emitted: Array<EmittedEvent> = []
     const readResource = vi.fn(async () => ({
       contents: [{ uri: 'ui://s/w', mimeType: 'text/html', text: '<b>x</b>' }],
     }))
     // Replicate MCPManager.discover's binding: stamp readResource into metadata.
     const t = uiTool('weather_show')
-    ;(t.metadata as { mcp: Record<string, unknown> }).mcp.readResource =
-      readResource
+    t.metadata.mcp.readResource = readResource
 
-    await runToolResult(t, 'call_1', (name, value) =>
-      emitted.push({ name, value }),
-    )
+    await runToolResult(t, 'call_1', (event) => emitted.push(event))
 
     expect(emitted).toContainEqual({
       name: 'ui-resource',
@@ -265,8 +297,7 @@ describe('executeServerTool — ui:// resource emit (MCP Apps)', () => {
       ],
     }))
     const t = uiTool('weather_show')
-    ;(t.metadata as { mcp: Record<string, unknown> }).mcp.readResource =
-      readResource
+    t.metadata.mcp.readResource = readResource
 
     await runToolResult(t, 'call_1', () => emitted.push(1))
 
@@ -280,10 +311,9 @@ describe('executeServerTool — ui:// resource emit (MCP Apps)', () => {
     const emitted: Array<unknown> = []
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const t = uiTool('weather_show')
-    ;(t.metadata as { mcp: Record<string, unknown> }).mcp.readResource =
-      async () => {
-        throw new Error('boom')
-      }
+    t.metadata.mcp.readResource = async () => {
+      throw new Error('boom')
+    }
 
     await expect(
       runToolResult(t, 'call_1', () => emitted.push(1)),

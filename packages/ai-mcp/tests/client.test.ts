@@ -1,6 +1,6 @@
 // packages/ai-mcp/tests/client.test.ts
 import { describe, expect, it } from 'vitest'
-import { createMCPClientFromTransport } from '../src/client'
+import { createMCPClient, createMCPClientFromTransport } from '../src/client'
 import {
   DuplicateToolNameError,
   MCPConnectionError,
@@ -157,6 +157,24 @@ describe('createMCPClient', () => {
     const client = await createMCPClientFromTransport(clientTransport)
     await client.close()
     await expect(client.close()).resolves.toBeUndefined()
+  })
+
+  it('getInfo() returns the transport and prefix passed to createMCPClient', async () => {
+    const { clientTransport } = await makeServerWithWeatherTool()
+    await using client = await createMCPClient({
+      transport: clientTransport,
+      prefix: 'wx',
+    })
+    expect(client.getInfo()).toEqual({ transport: clientTransport, prefix: 'wx' })
+  })
+
+  it('getInfo() returns an undefined transport for a client built from a raw Transport', async () => {
+    const { clientTransport } = await makeServerWithWeatherTool()
+    await using client = await createMCPClientFromTransport(
+      clientTransport,
+      'wx',
+    )
+    expect(client.getInfo()).toEqual({ transport: undefined, prefix: 'wx' })
   })
 
   it('closes on asyncDispose', async () => {
