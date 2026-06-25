@@ -228,6 +228,9 @@ const handler = createMcpAppCallHandler({
 
 The `serverId` on a `UIResourcePart` comes from the `prefix` you gave the MCP client. Use the same key in both places:
 
+> **Multi-server routing:** interactive calls route by `serverId`, which is each client's `prefix`. `createMCPClients` defaults every server's prefix to its config key, so routing works out of the box. If you pass multiple servers and disable prefixing on one (`prefix: ''`), that server has no `serverId` and its widgets can't make interactive calls — give each interactive server a distinct prefix (the default is fine).
+
+
 ```ts ignore
 // src/routes/api.chat.ts
 import { createFileRoute } from '@tanstack/react-router'
