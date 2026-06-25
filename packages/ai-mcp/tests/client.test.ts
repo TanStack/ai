@@ -91,6 +91,28 @@ describe('createMCPClient', () => {
     expect(tools[0].name).toBe('wx_get_weather')
   })
 
+  it('stamps mcp.serverToolName + serverId on bound definitions', async () => {
+    const { clientTransport } = await makeServerWithWeatherTool()
+    await using client = await createMCPClientFromTransport(
+      clientTransport,
+      'wx',
+    )
+    const { toolDefinition } = await import('@tanstack/ai')
+    const { z } = await import('zod')
+    const getWeather = toolDefinition({
+      name: 'get_weather',
+      description: 'Get weather for a city',
+      inputSchema: z.object({ city: z.string() }),
+    })
+    const tools = await client.tools([getWeather])
+    // The runtime name is prefixed, but the UNPREFIXED native name + serverId
+    // must be recoverable from metadata (mirrors auto-discovery).
+    expect(tools[0].metadata?.mcp).toMatchObject({
+      serverToolName: 'get_weather',
+      serverId: 'wx',
+    })
+  })
+
   it('excludes task-required tools from auto-discovery', async () => {
     const { clientTransport } = await makeServerWithTaskRequiredTool()
     await using client = await createMCPClientFromTransport(clientTransport)

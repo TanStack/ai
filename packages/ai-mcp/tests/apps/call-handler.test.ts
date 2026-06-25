@@ -220,6 +220,85 @@ describe('createMcpAppCallHandler', () => {
     expect(callToolMock).toHaveBeenCalledWith('github_search', {})
   })
 
+  it('pool entry keyed by its prefix (≠ config key): widget serverId = prefix resolves and reconnects with that prefix', async () => {
+    // The config key is `wx` but the server's prefix is `weather`. The widget
+    // sends `serverId: weather` (the prefix), so the registry must key by the
+    // prefix, NOT the config key.
+    const handler = createMcpAppCallHandler({
+      clients: fakePool({
+        wx: {
+          transport: { type: 'http', url: 'https://x/mcp' },
+          prefix: 'weather',
+        },
+      }),
+    })
+    const res = await handler({
+      threadId: 't1',
+      serverId: 'weather',
+      toolName: 'place_order',
+    })
+    expect(res).toEqual({ ok: true, result: expect.anything() })
+    expect(createMCPClient).toHaveBeenCalledWith({
+      transport: { type: 'http', url: 'https://x/mcp' },
+      prefix: 'weather',
+    })
+    // The config key must NOT resolve, since the widget never sees it.
+    expect(createMCPClient).not.toHaveBeenCalledWith(
+      expect.objectContaining({ prefix: 'wx' }),
+    )
+  })
+
+  it('throws at construction when two entries resolve to the same prefix', async () => {
+    expect(() =>
+      createMcpAppCallHandler({
+        clients: [
+          fakePool({
+            a: { transport: { type: 'http', url: 'https://a/mcp' }, prefix: 'dup' },
+          }),
+          fakeClient({
+            transport: { type: 'http', url: 'https://b/mcp' },
+            prefix: 'dup',
+          }),
+        ],
+      }),
+    ).toThrow(/duplicate serverId "dup"/)
+  })
+
+  it('throws at construction when more than one entry has no prefix', async () => {
+    expect(() =>
+      createMcpAppCallHandler({
+        clients: [
+          fakeClient({
+            transport: { type: 'http', url: 'https://a/mcp' },
+            prefix: undefined,
+          }),
+          fakeClient({
+            transport: { type: 'http', url: 'https://b/mcp' },
+            prefix: '',
+          }),
+        ],
+      }),
+    ).toThrow(/multiple clients without a prefix/)
+  })
+
+  it('falls back to the clients registry when the store returns null (store wins only when present)', async () => {
+    // The store has no entry for this thread, so get() returns null. The
+    // handler must fall back to the `clients` registry rather than rejecting.
+    const store = inMemoryMcpSessionStore()
+    const handler = weatherPoolHandler({ store })
+    const res = await handler({
+      threadId: 't-unknown',
+      serverId: 'weather',
+      toolName: 'place_order',
+    })
+    expect(res).toEqual({ ok: true, result: expect.anything() })
+    // Reconnected from the registry's descriptor, not the (empty) store.
+    expect(createMCPClient).toHaveBeenCalledWith({
+      transport: { type: 'http', url: 'https://x/mcp' },
+      prefix: 'weather',
+    })
+  })
+
   it('rejects an unknown serverId without connecting', async () => {
     const handler = createMcpAppCallHandler({ clients: fakePool({}) })
     const res = await handler({

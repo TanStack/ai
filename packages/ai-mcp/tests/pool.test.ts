@@ -98,6 +98,36 @@ describe('createMCPClients', () => {
     await expect(pool.readResource('file:///missing.txt')).rejects.toThrow()
   })
 
+  it('readResource: when a client throws, surfaces the last error as cause', async () => {
+    // alpha has no resources → its readResource throws. With no owning server,
+    // the thrown error must be attached as `cause` (not left undefined).
+    const alpha = await makeServerWithWeatherTool()
+    await using pool = await createMCPClients({
+      alpha: { transport: alpha.clientTransport },
+    })
+    const err: unknown = await pool
+      .readResource('file:///missing.txt')
+      .catch((e: unknown) => e)
+    if (!(err instanceof Error)) throw new Error('expected an Error')
+    expect(err.cause).toBeInstanceOf(Error)
+  })
+
+  it('readResource: when all clients resolve but none owns the uri, throws without a cause', async () => {
+    // `mismatch` resolves the read WITHOUT throwing but stamps a different uri,
+    // so no client owns `file:///hello.txt`. No error was thrown, so there is
+    // no `cause` to attach — the message must explain the uri is unowned.
+    const mismatch = await makeServerWithMismatchedResource()
+    await using pool = await createMCPClients({
+      mismatch: { transport: mismatch.clientTransport },
+    })
+    const err: unknown = await pool
+      .readResource('file:///hello.txt')
+      .catch((e: unknown) => e)
+    if (!(err instanceof Error)) throw new Error('expected an Error')
+    expect(err.message).toMatch(/no configured MCP server owns/)
+    expect(err.cause).toBeUndefined()
+  })
+
   it('getServers() returns each server descriptor keyed by config key', async () => {
     const a = await makeServerWithWeatherTool()
     const b = await makeServerWithWeatherTool()
