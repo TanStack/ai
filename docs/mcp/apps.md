@@ -87,7 +87,9 @@ Install the optional peer dependency:
 pnpm add @mcp-ui/client
 ```
 
-Then render each `ui-resource` part from the assistant message:
+Then render each `ui-resource` part from the assistant message.
+
+> **What is `sandbox`?** `sandbox.url` points to a small static **sandbox-proxy HTML page that you host** (e.g. `mcp-sandbox.html` on your own origin). `AppRenderer` loads that page in an isolated iframe and renders the widget inside it — it's the security boundary, so it's a **deploy-time constant, the same for every widget**. It is *not* the widget's address: the widget's identity and HTML come from the message part (`part.resource`, a `ui://…` resource). See [`@mcp-ui/client`](https://mcpui.dev) for the proxy page.
 
 ```tsx
 // src/components/Chat.tsx
@@ -114,7 +116,8 @@ export function Chat() {
                 <MCPAppResource
                   key={i}
                   part={part}
-                  sandbox={{ url: new URL('https://sandbox.example.com') }}
+                  // your hosted sandbox-proxy page (a host constant, not the widget URL)
+                  sandbox={{ url: new URL('https://your-app.example.com/mcp-sandbox.html') }}
                 />
               )
             }
@@ -152,31 +155,34 @@ pnpm add @tanstack/ai-mcp @tanstack/ai-client @mcp-ui/client
 
 ### Server — the call handler route
 
-`createMcpAppCallHandler` from `@tanstack/ai-mcp/apps` accepts a static server map (the default, serverless-safe path) or a dynamic session store, and returns a request handler that:
+`createMcpAppCallHandler` from `@tanstack/ai-mcp/apps` accepts the MCP client(s) you already created (a single `MCPClient`, an `MCPClients` pool, or an array of either) and returns a request handler that:
 
-- Validates the `serverId` against the allowlist.
-- Reconnects to the MCP server per call (stateless; serverless-safe by default).
+- Resolves each client's transport descriptor via `client.getInfo()` / `pool.getServers()` (pure config — no live socket needed).
+- Reconnects to the MCP server per call using that descriptor (stateless; serverless-safe by default).
 - Checks that the requested `toolName` is actually exposed by that server (same-server allowlist).
 - Calls the tool and returns `{ ok: true, result }` or `{ ok: false, error }`.
 
 ```ts ignore
 // src/routes/api.mcp-apps-call.ts  (TanStack Start)
 import { createFileRoute } from '@tanstack/react-router'
+import { createMCPClients } from '@tanstack/ai-mcp'
 import { createMcpAppCallHandler } from '@tanstack/ai-mcp/apps'
 
-const handler = createMcpAppCallHandler({
-  // Static map: the server key must match the serverId on UIResourcePart.
-  // Using the same key as the chat route's MCP pool prefix routes calls to the right server.
-  servers: {
-    weather: {
-      transport: {
-        type: 'http',
-        url: process.env.WEATHER_MCP_URL!,
-        headers: { Authorization: `Bearer ${process.env.WEATHER_MCP_TOKEN}` },
-      },
+// Reuse the same pool you pass to chat({ mcp: { clients: [mcp] } }).
+const mcp = await createMCPClients({
+  weather: {
+    transport: {
+      type: 'http',
+      url: process.env.WEATHER_MCP_URL!,
+      headers: { Authorization: `Bearer ${process.env.WEATHER_MCP_TOKEN ?? ''}` },
     },
   },
 })
+
+// clients: a single MCPClient, an MCPClients pool, or an array of either.
+// The handler reads each client's transport descriptor via getInfo()/getServers()
+// and reconnects per call — works in long-lived servers and serverless alike.
+const handler = createMcpAppCallHandler({ clients: mcp })
 
 export const Route = createFileRoute('/api/mcp-apps/call')({
   server: {
@@ -203,14 +209,15 @@ export const Route = createFileRoute('/api/mcp-apps/call')({
 Use the `allowTool` option to add a further restriction on top. A request must satisfy **both** the server-exposure check and `allowTool` — it is AND-ed, not a replacement for the server check:
 
 ```ts
+import { createMCPClients } from '@tanstack/ai-mcp'
 import { createMcpAppCallHandler } from '@tanstack/ai-mcp/apps'
 
+const mcp = await createMCPClients({
+  weather: { transport: { type: 'http', url: process.env.MCP_URL ?? '' } },
+})
+
 const handler = createMcpAppCallHandler({
-  servers: {
-    weather: {
-      transport: { type: 'http', url: process.env.WEATHER_MCP_URL! },
-    },
-  },
+  clients: mcp,
   // Additional restriction: even if the server exposes more tools,
   // only allow this specific one through the call handler.
   allowTool: (req) => req.toolName === 'place_order',
@@ -235,8 +242,8 @@ export const Route = createFileRoute('/api/chat')({
         const body = await request.json()
 
         // The pool key "weather" becomes the serverId on every UIResourcePart
-        // emitted by this server — must match the key in createMcpAppCallHandler's
-        // servers map.
+        // emitted by this server — must match the key used when constructing
+        // the pool passed to createMcpAppCallHandler.
         const pool = await createMCPClients({
           weather: {
             transport: { type: 'http', url: process.env.WEATHER_MCP_URL! },
@@ -299,7 +306,8 @@ export function Chat() {
                   key={i}
                   part={part}
                   bridge={bridge}
-                  sandbox={{ url: new URL('https://sandbox.example.com') }}
+                  // your hosted sandbox-proxy page (a host constant, not the widget URL)
+                  sandbox={{ url: new URL('https://your-app.example.com/mcp-sandbox.html') }}
                 />
               )
             }
@@ -322,24 +330,25 @@ export function Chat() {
 
 ## Session Persistence
 
-The call handler reconnects to the MCP server on every widget action (**reconnect-per-call** — stateless, serverless-safe). For stateful MCP transports that require a persistent session, opt in to an in-memory session store:
+The call handler reconnects to the MCP server on every widget action using the transport descriptor it reads from `client.getInfo()` / `pool.getServers()` (**reconnect-per-call** — stateless, serverless-safe). For stateful MCP transports that require a persistent session, opt in to an in-memory session store:
 
 ```ts
+import { createMCPClients } from '@tanstack/ai-mcp'
 import {
   createMcpAppCallHandler,
   inMemoryMcpSessionStore,
 } from '@tanstack/ai-mcp/apps'
+
+const mcp = await createMCPClients({
+  weather: { transport: { type: 'http', url: process.env.MCP_URL ?? '' } },
+})
 
 // In-memory store: one Node.js process, no cross-instance sharing.
 // Shape matches the McpSessionStore interface — SQL / KV stores
 // can be dropped in later with no API change.
 const store = inMemoryMcpSessionStore({ ttlMs: 30 * 60_000 })
 
-const handler = createMcpAppCallHandler({
-  store,
-  // servers is optional when store is provided; the store resolves descriptors
-  // dynamically. Populate it from your chat route via store.set(threadId, servers).
-})
+const handler = createMcpAppCallHandler({ clients: mcp, store })
 ```
 
 > **Current limitation:** `inMemoryMcpSessionStore` is single-instance (one Node.js process). It does not survive serverless restarts or scale across replicas. The `McpSessionStore` interface is the persistence extension point — persistent backends (database, KV store) can be dropped in without any API changes.
@@ -349,19 +358,29 @@ const handler = createMcpAppCallHandler({
 ### `createMcpAppCallHandler` (`@tanstack/ai-mcp/apps`)
 
 ```ts
+import { createMCPClients } from '@tanstack/ai-mcp'
 import { createMcpAppCallHandler } from '@tanstack/ai-mcp/apps'
 import type { McpAppCallHandlerOptions } from '@tanstack/ai-mcp/apps'
 
-const options: McpAppCallHandlerOptions = {
-  // Static server map (serverless-safe default)
-  servers: {
-    weather: { transport: { type: 'http', url: 'https://weather.example.com' } },
-  },
+const mcp = await createMCPClients({
+  weather: { transport: { type: 'http', url: process.env.MCP_URL ?? '' } },
+})
 
-  // Dynamic session store (opt-in for stateful transports) — wins over `servers`
+const options: McpAppCallHandlerOptions = {
+  // Pass the MCP client(s) you already created:
+  //   - a single MCPClient
+  //   - an MCPClients pool  (pool key = serverId on UIResourcePart)
+  //   - an array of either
+  // The handler reads each client's transport descriptor via
+  // client.getInfo() / pool.getServers() (pure config, no live socket)
+  // and reconnects per call — serverless-safe by default.
+  clients: mcp,
+
+  // Dynamic session store (opt-in for stateful transports)
   // store: inMemoryMcpSessionStore(),
 
   // Custom tool allowlist — default: server's own exposed tools only
+  // AND-ed on top of the always-on same-server exposure check.
   allowTool: (req) => req.toolName === 'get_weather',
 }
 
@@ -408,7 +427,7 @@ import { part, bridge } from './chat-context'
 const widget = (
   <MCPAppResource
     part={part} // UIResourcePart from the assistant message (carries the toolName)
-    sandbox={{ url: new URL('https://sandbox.example.com') }} // AppRenderer iframe origin
+    sandbox={{ url: new URL('https://your-app.example.com/mcp-sandbox.html') }} // your hosted sandbox-proxy page (host constant; not the widget's ui:// URL)
     bridge={bridge} // omit for static, display-only rendering
     toolInput={{ city: 'Brooklyn' }} // optional tool input for the renderer context
   />

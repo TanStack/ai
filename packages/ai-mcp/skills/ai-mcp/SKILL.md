@@ -505,36 +505,42 @@ import type { UIResourcePart } from '@tanstack/ai'
 
 For interactive apps (the widget iframe posts tool-call / prompt / link
 actions back), mount `createMcpAppCallHandler` from `@tanstack/ai-mcp/apps`
-at a POST route. The handler resolves the server descriptor, reconnects
-per-call (stateless / serverless-safe), matches the widget-supplied native
-(unprefixed) tool name against the server's unprefixed tool names (no
-prefix stripping — the widget sends the native name; the handler compares
-it directly against `metadata.mcp.serverToolName`), enforces a same-server
-allowlist, and returns `{ ok: true, result }` or `{ ok: false, error }`.
+at a POST route. Pass the MCP client(s) you already created — a single
+`MCPClient`, an `MCPClients` pool, or an array of either. The handler reads
+each client's transport descriptor via `client.getInfo()` /
+`pool.getServers()` (pure config, not a live socket) and **reconnects
+per-call** (stateless / serverless-safe). It matches the widget-supplied
+native (unprefixed) tool name against the server's unprefixed tool names,
+enforces a same-server allowlist, and returns `{ ok: true, result }` or
+`{ ok: false, error }`.
+
+For a pool, the `serverId` on the `UIResourcePart` is the config key (the
+tool prefix); for a single client it is the client's `prefix` (or the sole
+default when `serverId` is absent and there is exactly one client).
 
 ```typescript
+import { createMCPClients } from '@tanstack/ai-mcp'
 import {
   createMcpAppCallHandler,
   inMemoryMcpSessionStore,
 } from '@tanstack/ai-mcp/apps'
 
-// Minimal — reconnect-per-call, static server map.
-const handler = createMcpAppCallHandler({
-  servers: {
-    weather: {
-      transport: { type: 'http', url: 'https://mcp-app.example.com/mcp' },
-    },
+// Reuse the same pool you pass to chat({ mcp: { clients: [mcp] } }).
+const mcp = await createMCPClients({
+  weather: {
+    transport: { type: 'http', url: 'https://mcp-app.example.com/mcp' },
   },
 })
 
+// Minimal — reconnect-per-call via getServers() descriptor.
+const handler = createMcpAppCallHandler({ clients: mcp })
+
 // Options:
-// servers   — static server map (serverless-safe default). The map key is the
-//             serverId on UIResourcePart; use the same key as the chat route's
-//             MCP pool prefix to route calls to the right server. When the
-//             widget omits serverId and exactly one server is configured, the
-//             handler defaults to that sole server.
+// clients   — MCPClient | MCPClients | Array<MCPClient | MCPClients> (required).
+//             The handler reads transport descriptors via client.getInfo() /
+//             pool.getServers() — the client does not need a live connection.
 // store     — optional dynamic/stateful session store (e.g.
-//             inMemoryMcpSessionStore()); wins over `servers`.
+//             inMemoryMcpSessionStore()); used alongside clients.
 // allowTool — optional authorizer receiving the WHOLE request:
 //             (req: McpAppCallRequest) => boolean | Promise<boolean>.
 //             The server-exposure check is ALWAYS enforced (the handler
@@ -542,6 +548,7 @@ const handler = createMcpAppCallHandler({
 //             is an ADDITIONAL restriction AND-ed on top: a request must
 //             satisfy BOTH the server-exposure check and allowTool.
 const handlerWithStore = createMcpAppCallHandler({
+  clients: mcp,
   store: inMemoryMcpSessionStore(),
   allowTool: (req) => req.toolName === 'place_order',
 })
