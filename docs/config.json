@@ -471,7 +471,8 @@
         {
           "label": "OpenRouter Adapter",
           "to": "adapters/openrouter",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-06-25"
         },
         {
           "label": "OpenAI-Compatible",

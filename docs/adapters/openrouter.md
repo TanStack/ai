@@ -247,10 +247,42 @@ fields are simply absent and the stream completes normally. Both
 `openRouterText` and `openRouterResponsesText` populate cost when OpenRouter
 returns it.
 
+## Reranking
+
+OpenRouter exposes rerank models through its unified `/v1/rerank` endpoint
+(served via the `@openrouter/sdk` SDK). Any rerank model OpenRouter offers works
+by passing its slug — for example `cohere/rerank-v3.5`, `cohere/rerank-4-fast`,
+`cohere/rerank-4-pro`, or `nvidia/llama-nemotron-rerank-vl-1b-v2`. Use
+`openRouterRerank` with the `rerank()` activity to reorder candidate documents
+by relevance to a query:
+
+```typescript
+import { rerank } from "@tanstack/ai";
+import { openRouterRerank } from "@tanstack/ai-openrouter";
+
+const { rerankedDocuments } = await rerank({
+  adapter: openRouterRerank("cohere/rerank-v3.5"),
+  query: "talk about rain",
+  documents: ["sunny day at the beach", "rainy afternoon in the city"],
+  topN: 2,
+});
+
+console.log(rerankedDocuments[0]); // 'rainy afternoon in the city'
+```
+
+`openRouterRerank` reads `OPENROUTER_API_KEY` from the environment; pass a key
+explicitly with `createOpenRouterRerank("cohere/rerank-v3.5", "sk-or-...")`. The
+optional `httpReferer` / `xTitle` config fields are forwarded as OpenRouter
+attribution headers, just like the chat adapter.
+
+See the [Reranking guide](../rerank/rerank) for object documents, RAG
+pipelines, options, and the result shape.
+
 ## Next Steps
 
 - [Getting Started](../getting-started/quick-start) - Learn the basics
 - [Tools Guide](../tools/tools) - Learn about tools
+- [Reranking](../rerank/rerank) - Reorder documents by relevance
 
 ## Provider Tools
 

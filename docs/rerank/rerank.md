@@ -25,12 +25,21 @@ you'll have that list reordered, with a relevance score per document.
 `rerank()` is the precision step in a retrieval pipeline: retrieve a broad set
 of candidates cheaply, then rerank to surface the few that matter.
 
-## Installation
+## Providers
 
-Reranking is provided by the Cohere adapter:
+Reranking is available from two adapters today:
+
+- **Cohere** (`@tanstack/ai-cohere`) — `cohereRerank('rerank-v3.5')`, talking to Cohere directly.
+- **OpenRouter** (`@tanstack/ai-openrouter`) — `openRouterRerank('cohere/rerank-v3.5')`, routing rerank through your existing OpenRouter key.
+
+Both implement the same `rerank()` activity — swap the adapter, keep the call.
+
+## Installation
 
 ```bash
 npm install @tanstack/ai-cohere
+# or, to rerank through OpenRouter:
+npm install @tanstack/ai-openrouter
 ```
 
 Peer dependency:
@@ -62,6 +71,25 @@ console.log(ranking[0]) // { index: 1, score: 0.98, document: 'rainy afternoon i
 
 The adapter reads `COHERE_API_KEY` from the environment. To pass a key
 explicitly, use `createCohereRerank('rerank-v3.5', 'co-...')`.
+
+To rerank through OpenRouter instead, swap the adapter — everything else stays
+the same:
+
+```typescript
+import { rerank } from '@tanstack/ai'
+import { openRouterRerank } from '@tanstack/ai-openrouter'
+
+const { rerankedDocuments } = await rerank({
+  adapter: openRouterRerank('cohere/rerank-v3.5'),
+  query: 'talk about rain',
+  documents: ['sunny day at the beach', 'rainy afternoon in the city'],
+  topN: 2,
+})
+
+console.log(rerankedDocuments[0]) // 'rainy afternoon in the city'
+```
+
+`openRouterRerank` reads `OPENROUTER_API_KEY` from the environment.
 
 ## Reranking Object Documents
 
@@ -300,4 +328,5 @@ try {
 ## Next Steps
 
 - [Cohere Adapter](../adapters/cohere) — models, configuration, and explicit API keys
+- [OpenRouter Adapter](../adapters/openrouter) — rerank through your OpenRouter key
 - [Middleware](../advanced/middleware) — lifecycle hooks for usage and errors
