@@ -11,16 +11,20 @@
  * Wiring up that alias is the consumer's responsibility and is NOT
  * runtime-verified in this repository.
  */
+import { AppRenderer } from '@mcp-ui/client'
+import type { AppRendererProps } from '@mcp-ui/client'
 import type { UIResourcePart } from '@tanstack/ai'
 import type { McpAppBridge } from '@tanstack/ai-client'
-import type { AppRendererProps } from '@mcp-ui/client'
-import { AppRenderer } from '@mcp-ui/client'
 
 export interface MCPAppResourceProps {
   /** The ui-resource part from a UIMessage assistant part. */
   part: UIResourcePart
-  /** Framework-agnostic bridge for tool calls, prompt sending, and link opening. */
-  bridge: McpAppBridge
+  /**
+   * Framework-agnostic bridge for tool calls, prompt sending, and link opening.
+   * Omit it to render the widget in display-only mode — iframe interactions
+   * that would trigger tool calls or prompts are ignored.
+   */
+  bridge?: McpAppBridge
   /** Sandbox iframe configuration — must include the proxy page URL. */
   sandbox: { url: URL }
   /** The MCP tool name whose UI is being rendered. */
@@ -42,35 +46,41 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export function MCPAppResource(props: MCPAppResourceProps) {
   const { part, bridge, sandbox, toolName, toolInput } = props
 
-  const onCallTool: AppRendererProps['onCallTool'] = async (params) => {
-    const result = await bridge.callTool({
-      serverId: part.serverId,
-      toolName: params.name,
-      args: params.arguments,
-    })
+  const onCallTool: AppRendererProps['onCallTool'] = bridge
+    ? async (params) => {
+        const result = await bridge.callTool({
+          serverId: part.serverId,
+          toolName: params.name,
+          args: params.arguments,
+        })
 
-    return {
-      content: [
-        {
-          type: 'text' as const,
-          text: typeof result === 'string' ? result : JSON.stringify(result),
-        },
-      ],
-      structuredContent: isRecord(result) ? result : undefined,
-    }
-  }
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text:
+                typeof result === 'string' ? result : JSON.stringify(result),
+            },
+          ],
+          structuredContent: isRecord(result) ? result : undefined,
+        }
+      }
+    : undefined
 
-  const onMessage: AppRendererProps['onMessage'] = async (params) => {
-    const text = params.content
-      .filter((c): c is { type: 'text'; text: string } => c.type === 'text')
-      .map((c) => c.text)
-      .join('')
-    await bridge.sendPrompt(text)
-    return {}
-  }
+  const onMessage: AppRendererProps['onMessage'] = bridge
+    ? async (params) => {
+        const text = params.content
+          .filter((c): c is { type: 'text'; text: string } => c.type === 'text')
+          .map((c) => c.text)
+          .join('')
+        await bridge.sendPrompt(text)
+        return {}
+      }
+    : undefined
 
-  const onOpenLink: AppRendererProps['onOpenLink'] = async (params) =>
-    bridge.openLink(params.url)
+  const onOpenLink: AppRendererProps['onOpenLink'] = bridge
+    ? (params) => Promise.resolve(bridge.openLink(params.url))
+    : undefined
 
   return (
     <AppRenderer

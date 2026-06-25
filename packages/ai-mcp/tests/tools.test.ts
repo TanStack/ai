@@ -167,7 +167,7 @@ describe('makeMcpExecute', () => {
 describe('toServerTools — MCP Apps metadata', () => {
   it('captures serverId (prefix) and the _meta.ui.resourceUri link', () => {
     const fakeClient = {} as never
-    const [tool] = toServerTools(
+    const tool = toServerTools(
       fakeClient,
       [
         {
@@ -178,7 +178,7 @@ describe('toServerTools — MCP Apps metadata', () => {
         } as never,
       ],
       { prefix: 'weather' },
-    )
+    )[0]!
     expect(tool.name).toBe('weather_show_widget')
     expect(tool.metadata).toMatchObject({
       mcp: {
@@ -190,7 +190,7 @@ describe('toServerTools — MCP Apps metadata', () => {
   })
 
   it('leaves uiResourceUri undefined for plain tools', () => {
-    const [tool] = toServerTools(
+    const tool = toServerTools(
       {} as never,
       [
         {
@@ -200,7 +200,7 @@ describe('toServerTools — MCP Apps metadata', () => {
         } as never,
       ],
       {},
-    )
+    )[0]!
     expect(
       (tool.metadata as { mcp: { uiResourceUri?: string } }).mcp.uiResourceUri,
     ).toBeUndefined()

@@ -2,7 +2,10 @@ export interface CreateMcpAppBridgeOptions {
   threadId: string
   callEndpoint: string
   chat: {
-    sendMessage(content: string, body?: Record<string, unknown>): Promise<void>
+    sendMessage: (
+      content: string,
+      body?: Record<string, unknown>,
+    ) => Promise<void>
   }
   fetchImpl?: typeof fetch
   onLink?: (url: string) => void
@@ -11,14 +14,14 @@ export interface CreateMcpAppBridgeOptions {
 }
 
 export interface McpAppBridge {
-  callTool(input: {
+  callTool: (input: {
     serverId?: string
     toolName: string
     args?: Record<string, unknown>
     messageId?: string
-  }): Promise<unknown>
-  sendPrompt(text: string): Promise<void>
-  openLink(url: string): { isError: boolean }
+  }) => Promise<unknown>
+  sendPrompt: (text: string) => Promise<void>
+  openLink: (url: string) => { isError: boolean }
 }
 
 export function createMcpAppBridge(
