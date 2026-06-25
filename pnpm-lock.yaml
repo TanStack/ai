@@ -23,12 +23,6 @@ importers:
       '@faker-js/faker':
         specifier: ^10.1.0
         version: 10.1.0
-      '@mcp-ui/client':
-        specifier: ^7.1.1
-        version: 7.1.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@modelcontextprotocol/ext-apps':
-        specifier: ^1.7.4
-        version: 1.7.4(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(zod@4.3.6)
       '@tanstack/eslint-config':
         specifier: 0.4.0
         version: 0.4.0(@typescript-eslint/utils@8.59.4(eslint@9.39.1(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.1(jiti@2.6.1))(typescript@5.9.3)
@@ -1593,11 +1587,8 @@ importers:
         version: link:../ai-client
     devDependencies:
       '@mcp-ui/client':
-        specifier: ^7
+        specifier: ^7.1.1
         version: 7.1.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@modelcontextprotocol/sdk':
-        specifier: ^1
-        version: 1.29.0(zod@4.3.6)
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
@@ -1626,9 +1617,6 @@ importers:
       '@mcp-ui/client':
         specifier: ^7.1.1
         version: 7.1.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@modelcontextprotocol/sdk':
-        specifier: ^1.29.0
-        version: 1.29.0(zod@4.3.6)
       '@standard-schema/spec':
         specifier: ^1.1.0
         version: 1.1.0
@@ -17238,7 +17226,7 @@ snapshots:
 
   '@mcp-ui/client@7.1.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
     dependencies:
-      '@modelcontextprotocol/ext-apps': 1.7.4(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(zod@3.25.76)
+      '@modelcontextprotocol/ext-apps': 1.7.4(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(zod@3.25.76)
       '@modelcontextprotocol/sdk': 1.29.0(zod@3.25.76)
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
@@ -17282,20 +17270,11 @@ snapshots:
 
   '@microsoft/tsdoc@0.15.1': {}
 
-  '@modelcontextprotocol/ext-apps@1.7.4(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(zod@3.25.76)':
+  '@modelcontextprotocol/ext-apps@1.7.4(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(zod@3.25.76)':
     dependencies:
-      '@modelcontextprotocol/sdk': 1.29.0(zod@4.3.6)
+      '@modelcontextprotocol/sdk': 1.29.0(zod@3.25.76)
       '@standard-schema/spec': 1.1.0
       zod: 3.25.76
-    optionalDependencies:
-      react: 19.2.3
-      react-dom: 19.2.3(react@19.2.3)
-
-  '@modelcontextprotocol/ext-apps@1.7.4(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(zod@4.3.6)':
-    dependencies:
-      '@modelcontextprotocol/sdk': 1.29.0(zod@4.3.6)
-      '@standard-schema/spec': 1.1.0
-      zod: 4.3.6
     optionalDependencies:
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)

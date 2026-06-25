@@ -74,7 +74,6 @@
   },
   "devDependencies": {
     "@mcp-ui/client": "^7.1.1",
-    "@modelcontextprotocol/sdk": "^1.29.0",
     "@standard-schema/spec": "^1.1.0",
     "@tanstack/ai": "workspace:*",
     "@testing-library/react": "^16.3.0",

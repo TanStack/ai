@@ -40,6 +40,12 @@
     "packages/ai-client": {
       "ignoreDependencies": ["@standard-schema/spec"]
     },
+    "packages/ai-react": {
+      "ignoreDependencies": ["@mcp-ui/client"]
+    },
+    "packages/ai-preact": {
+      "ignoreDependencies": ["@mcp-ui/client"]
+    },
     "packages/ai-react-ui": {
       "ignoreDependencies": ["react-dom"]
     },
