@@ -1595,7 +1595,7 @@ export class OpenRouterResponsesTextAdapter<
     // same streaming request and the engine harvests it from the final-turn
     // text. The legacy `structuredOutput*` methods strip `outputSchema` before
     // calling this, so the branch only fires on the combined path.
-    const combinedOutputSchema = options.outputSchema as JSONSchema | undefined
+    const combinedOutputSchema: JSONSchema | undefined = options.outputSchema
     const combinedSchema =
       combinedOutputSchema &&
       this.supportsCombinedToolsAndSchema(options.modelOptions)

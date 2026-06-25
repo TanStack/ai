@@ -1194,7 +1194,7 @@ export class OpenRouterTextAdapter<
     // final-turn text — no separate finalization round-trip. The legacy
     // `structuredOutput*` methods strip `outputSchema` before calling this, so
     // this branch only fires on the combined path.
-    const combinedOutputSchema = options.outputSchema as JSONSchema | undefined
+    const combinedOutputSchema: JSONSchema | undefined = options.outputSchema
     const combinedSchema =
       combinedOutputSchema &&
       this.supportsCombinedToolsAndSchema(options.modelOptions)

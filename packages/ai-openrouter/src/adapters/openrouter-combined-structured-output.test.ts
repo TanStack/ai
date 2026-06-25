@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createOpenRouterText } from '../src/adapters/text'
-import { createOpenRouterResponsesText } from '../src/adapters/responses-text'
 import {
   OPENROUTER_CHAT_MODELS,
   OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS,
-} from '../src/model-meta'
+} from '../model-meta'
+import { createOpenRouterResponsesText } from './responses-text'
+import { createOpenRouterText } from './text'
 import type { Tool } from '@tanstack/ai'
 
 // The adapter constructor instantiates `new OpenRouter(config)`. Mock the SDK
@@ -30,18 +30,32 @@ const tools: Array<Tool> = [
 
 // `mapOptionsToRequest` is protected; reach it directly to assert the wire
 // shape without standing up a full streaming round-trip.
+type BuiltOpenRouterRequest = Record<string, unknown> & {
+  model?: string
+  models?: Array<string>
+  responseFormat?: unknown
+  text?: Record<string, unknown> & {
+    format?: Record<string, unknown>
+    verbosity?: string
+  }
+  tools?: Array<unknown>
+}
+
 type RequestBuilder = {
-  mapOptionsToRequest: (options: Record<string, unknown>) => Record<string, any>
+  mapOptionsToRequest: (options: Record<string, unknown>) => BuiltOpenRouterRequest
+}
+
+function asRequestBuilder(adapter: unknown): RequestBuilder {
+  return adapter as RequestBuilder
 }
 
 function buildChatRequest(
   model: string,
   modelOptions?: Record<string, unknown>,
 ) {
-  const adapter = createOpenRouterText(
-    model as 'openai/gpt-4o',
-    'test-key',
-  ) as unknown as RequestBuilder
+  const adapter = asRequestBuilder(
+    createOpenRouterText(model as 'openai/gpt-4o', 'test-key'),
+  )
   return adapter.mapOptionsToRequest({
     model,
     messages: [{ role: 'user', content: 'hi' }],
@@ -52,10 +66,9 @@ function buildChatRequest(
 }
 
 function buildResponsesRequest(model: string) {
-  const adapter = createOpenRouterResponsesText(
-    model as 'openai/gpt-4o',
-    'test-key',
-  ) as unknown as RequestBuilder
+  const adapter = asRequestBuilder(
+    createOpenRouterResponsesText(model as 'openai/gpt-4o', 'test-key'),
+  )
   return adapter.mapOptionsToRequest({
     model,
     messages: [{ role: 'user', content: 'hi' }],
@@ -148,7 +161,7 @@ describe('OpenRouter combined tools + outputSchema (#612)', () => {
         },
       })
       expect(req.tools).toBeDefined()
-      expect(req.tools.length).toBeGreaterThan(0)
+      expect(req.tools?.length).toBeGreaterThan(0)
     })
 
     it('omits responseFormat for an unsupported model (legacy finalization path)', () => {
@@ -195,10 +208,9 @@ describe('OpenRouter combined tools + outputSchema (#612)', () => {
     })
 
     it('omits text.format when any fallback model is unsupported', () => {
-      const adapter = createOpenRouterResponsesText(
-        'openai/gpt-4o',
-        'test-key',
-      ) as unknown as RequestBuilder
+      const adapter = asRequestBuilder(
+        createOpenRouterResponsesText('openai/gpt-4o', 'test-key'),
+      )
       const req = adapter.mapOptionsToRequest({
         model: 'openai/gpt-4o',
         messages: [{ role: 'user', content: 'hi' }],
@@ -212,10 +224,9 @@ describe('OpenRouter combined tools + outputSchema (#612)', () => {
     })
 
     it('preserves caller-supplied text.* fields when attaching the schema format', () => {
-      const adapter = createOpenRouterResponsesText(
-        'openai/gpt-4o',
-        'test-key',
-      ) as unknown as RequestBuilder
+      const adapter = asRequestBuilder(
+        createOpenRouterResponsesText('openai/gpt-4o', 'test-key'),
+      )
       const req = adapter.mapOptionsToRequest({
         model: 'openai/gpt-4o',
         messages: [{ role: 'user', content: 'hi' }],
@@ -225,8 +236,8 @@ describe('OpenRouter combined tools + outputSchema (#612)', () => {
       })
       // `text.format` carries the combined-mode schema; the caller's
       // `text.verbosity` rides alongside it rather than being clobbered.
-      expect(req.text.verbosity).toBe('low')
-      expect(req.text.format).toMatchObject({
+      expect(req.text?.verbosity).toBe('low')
+      expect(req.text?.format).toMatchObject({
         type: 'json_schema',
         name: 'structured_output',
         strict: true,
