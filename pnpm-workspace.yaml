@@ -9,6 +9,10 @@ trustPolicy: 'no-downgrade'
 overrides:
   abbrev: ^3.0.0
 
+# We're working closely with the aimock team and often need releases of this package.
+minimumReleaseAgeExclude:
+  - '@copilotkit/aimock'
+
 patchedDependencies:
   '@changesets/assemble-release-plan@6.0.9': patches/@changesets__assemble-release-plan@6.0.9.patch
 
