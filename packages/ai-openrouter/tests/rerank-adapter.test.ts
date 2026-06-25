@@ -74,7 +74,10 @@ describe('OpenRouterRerankAdapter', () => {
   })
 
   it('works with a non-Cohere model slug', async () => {
-    rerankFn.mockResolvedValue({ ...sdkResponse(), model: 'nvidia/llama-nemotron-rerank-vl-1b-v2' })
+    rerankFn.mockResolvedValue({
+      ...sdkResponse(),
+      model: 'nvidia/llama-nemotron-rerank-vl-1b-v2',
+    })
 
     await rerank({
       adapter: createOpenRouterRerank(

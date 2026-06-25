@@ -22,7 +22,8 @@ export const OPENROUTER_RERANK_MODELS = [
 ] as const
 
 /** A rerank model slug known to OpenRouter (for autocomplete). */
-export type KnownOpenRouterRerankModel = (typeof OPENROUTER_RERANK_MODELS)[number]
+export type KnownOpenRouterRerankModel =
+  (typeof OPENROUTER_RERANK_MODELS)[number]
 
 /**
  * Any OpenRouter rerank model. Known slugs autocomplete; any other rerank
