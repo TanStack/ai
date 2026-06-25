@@ -7,13 +7,6 @@ interface ConvertOptions {
   lazy?: boolean
 }
 
-interface McpResource {
-  uri?: string
-  mimeType?: string
-  text?: string
-  blob?: string
-}
-
 /** Reads the MCP Apps `_meta.ui.resourceUri` link from a tool def, if present. */
 export function extractUiResourceUri(def: McpToolDef): string | undefined {
   const meta = (def as { _meta?: { ui?: { resourceUri?: unknown } } })._meta
@@ -21,21 +14,12 @@ export function extractUiResourceUri(def: McpToolDef): string | undefined {
   return typeof uri === 'string' ? uri : undefined
 }
 
-/** Returns embedded ui:// resources from MCP tool-result content (MCP Apps). */
-export function extractUiResources(content: Array<any>): Array<McpResource> {
-  return content
-    .filter(
-      (c) =>
-        c?.type === 'resource' &&
-        typeof c.resource?.uri === 'string' &&
-        c.resource.uri.startsWith('ui://'),
-    )
-    .map((c) => c.resource as McpResource)
-}
-
 export function mcpContentToTanstack(
   content: Array<any>,
 ): string | Array<ContentPart> {
+  // A valid MCP result may carry only structuredContent (no content[]) → guard
+  // against undefined/non-array before reading length/map.
+  if (!Array.isArray(content)) return ''
   // Single text block → plain string (most common, best for the model).
   if (content.length === 1 && content[0]?.type === 'text')
     return content[0].text
@@ -52,7 +36,7 @@ export function mcpContentToTanstack(
         case 'resource': {
           const uri = c.resource?.uri
           if (typeof uri === 'string' && uri.startsWith('ui://')) {
-            // ui:// resources are surfaced via extractUiResources; omit from model text.
+            // ui:// resources are surfaced via readResource (MCP Apps); omit from model text.
             return { type: 'text', content: '' }
           }
           return { type: 'text', content: JSON.stringify(c.resource) }

@@ -3,6 +3,7 @@ import { DuplicateToolNameError, MCPConnectionError } from './errors'
 import type { MCPClient } from './client'
 import type { MCPClientOptions, ServerDescriptor, ToolsOptions } from './types'
 import type { ServerTool } from '@tanstack/ai'
+import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js'
 
 export type MCPClientsConfig = Record<string, MCPClientOptions>
 
@@ -19,6 +20,16 @@ export interface MCPClients<
    * `options` (including `lazy`) is forwarded to every client's `tools()`.
    */
   tools: (options?: ToolsOptions) => Promise<Array<ServerTool>>
+  /**
+   * Reads an MCP resource by URI, routing to the owning client. A `ui://`
+   * resource read must hit the server that owns it; since the pool does not
+   * track ownership, each underlying client is tried in turn and the first
+   * success is returned. If every client fails, the last error is thrown.
+   *
+   * Required so a pool source emits `ui-resource` events for MCP Apps widgets
+   * (the chat manager binds `readResource` only when the source exposes it).
+   */
+  readResource: (uri: string) => Promise<ReadResourceResult>
   /** Close every client. */
   close: () => Promise<void>
   [Symbol.asyncDispose]: () => Promise<void>
@@ -110,6 +121,22 @@ export async function createMCPClients<
         seen.add(t.name)
       }
       return all
+    },
+    async readResource(uri: string): Promise<ReadResourceResult> {
+      // Ownership isn't tracked, so try each client and return the first hit;
+      // a ui:// read must reach the server that owns it.
+      let lastError: unknown
+      const all = Object.values(clients)
+      for (const c of all) {
+        try {
+          return await (c as MCPClient<ServerDescriptor>).readResource(uri)
+        } catch (err) {
+          lastError = err
+        }
+      }
+      throw lastError instanceof Error
+        ? lastError
+        : new Error(`Failed to read MCP resource: ${uri}`)
     },
     async close(): Promise<void> {
       await Promise.all(

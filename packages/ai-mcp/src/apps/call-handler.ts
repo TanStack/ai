@@ -4,6 +4,22 @@ import type {
   McpServerDescriptor,
   McpSessionStore,
 } from './session-store'
+import type { ServerTool } from '@tanstack/ai'
+
+/**
+ * The UNPREFIXED, server-native tool name for an exposed ServerTool.
+ * ai-mcp stamps it on `metadata.mcp.serverToolName`; falls back to `name`
+ * (unprefixed clients) when absent. `metadata` is `Record<string, unknown>`,
+ * so narrow each hop instead of asserting a shape.
+ */
+function serverToolNameOf(tool: ServerTool): string {
+  const mcp = tool.metadata?.mcp
+  if (mcp !== null && typeof mcp === 'object' && 'serverToolName' in mcp) {
+    const native: unknown = mcp.serverToolName
+    if (typeof native === 'string') return native
+  }
+  return tool.name
+}
 
 export interface McpAppCallHandlerOptions {
   /** Static server map — the default, serverless-safe path. */
@@ -25,10 +41,18 @@ export function createMcpAppCallHandler(opts: McpAppCallHandlerOptions) {
   return async (
     req: McpAppCallRequest,
   ): Promise<{ ok: true; result: unknown } | { ok: false; error: string }> => {
-    // Resolve server descriptor — store wins over static map
-    const descriptor = opts.store
-      ? await opts.store.get(req.threadId, req.serverId)
-      : (opts.servers?.[req.serverId] ?? null)
+    // Resolve server descriptor — store wins over static map.
+    // When serverId is undefined and exactly one server is configured, default
+    // to that sole server; with multiple servers, undefined stays unresolvable.
+    let descriptor: McpServerDescriptor | null
+    if (opts.store) {
+      descriptor = await opts.store.get(req.threadId, req.serverId)
+    } else if (req.serverId !== undefined) {
+      descriptor = opts.servers?.[req.serverId] ?? null
+    } else {
+      const entries = Object.entries(opts.servers ?? {})
+      descriptor = entries.length === 1 ? (entries[0]?.[1] ?? null) : null
+    }
 
     if (!descriptor) {
       return { ok: false, error: `Unknown serverId: ${req.serverId}` }
@@ -40,9 +64,22 @@ export function createMcpAppCallHandler(opts: McpAppCallHandlerOptions) {
     })
 
     try {
-      // Enforce same-server allowlist: tool must be exposed by this server
-      const exposedNames = new Set((await client.tools()).map((t) => t.name))
-      const inExposed = exposedNames.has(req.toolName)
+      // The exposed ServerTool names are PREFIXED (`${prefix}_${name}`) when the
+      // descriptor has a prefix, but the widget sends the server-native
+      // (unprefixed) tool name. Strip a leading `${prefix}_` so we compare and
+      // forward the unprefixed name the server actually knows.
+      const prefix = descriptor.prefix
+      const nativeToolName =
+        prefix && req.toolName.startsWith(`${prefix}_`)
+          ? req.toolName.slice(prefix.length + 1)
+          : req.toolName
+
+      // Enforce same-server allowlist against the UNPREFIXED server tool names
+      // (carried on metadata.mcp.serverToolName), so prefixed servers still match.
+      const exposedNative = new Set(
+        (await client.tools()).map((t) => serverToolNameOf(t)),
+      )
+      const inExposed = exposedNative.has(nativeToolName)
       const customOk = opts.allowTool ? await opts.allowTool(req) : true
 
       if (!inExposed || !customOk) {
@@ -55,7 +92,7 @@ export function createMcpAppCallHandler(opts: McpAppCallHandlerOptions) {
         !Array.isArray(req.args)
           ? (req.args as Record<string, unknown>)
           : {}
-      const result = await client.callTool(req.toolName, args)
+      const result = await client.callTool(nativeToolName, args)
       return { ok: true, result }
     } catch (err) {
       return {

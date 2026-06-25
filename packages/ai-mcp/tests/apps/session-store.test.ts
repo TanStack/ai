@@ -14,6 +14,25 @@ describe('inMemoryMcpSessionStore', () => {
     expect(await store.get('other', 'weather')).toBeNull()
   })
 
+  it('defaults to the sole server when serverId is undefined', async () => {
+    const store = inMemoryMcpSessionStore()
+    await store.set('t1', {
+      weather: { transport: { type: 'http', url: 'https://x/mcp' } },
+    })
+    expect(await store.get('t1', undefined)).toEqual({
+      transport: { type: 'http', url: 'https://x/mcp' },
+    })
+  })
+
+  it('returns null for undefined serverId when multiple servers exist', async () => {
+    const store = inMemoryMcpSessionStore()
+    await store.set('t1', {
+      a: { transport: { type: 'http', url: 'https://a/mcp' } },
+      b: { transport: { type: 'http', url: 'https://b/mcp' } },
+    })
+    expect(await store.get('t1', undefined)).toBeNull()
+  })
+
   it('returns null and prunes entry when TTL has expired', async () => {
     const store = inMemoryMcpSessionStore({ ttlMs: 1 })
     await store.set('t2', {

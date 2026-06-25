@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { createMCPClients } from '../src/pool'
-import { makeServerWithWeatherTool } from './helpers/in-memory-server'
+import {
+  makeServerWithResource,
+  makeServerWithWeatherTool,
+} from './helpers/in-memory-server'
 
 describe('createMCPClients', () => {
   it('connects to many servers and flattens auto-prefixed tools', async () => {
@@ -50,6 +53,30 @@ describe('createMCPClients', () => {
       /Failed to list tools from MCP server\(s\): beta/,
     )
     await pool.close()
+  })
+
+  it('readResource routes to the owning client and returns its result', async () => {
+    // alpha has no resources; res owns file:///hello.txt. The pool tries each
+    // client and returns the first success, so it must reach `res`.
+    const alpha = await makeServerWithWeatherTool()
+    const res = await makeServerWithResource()
+    await using pool = await createMCPClients({
+      alpha: { transport: alpha.clientTransport },
+      res: { transport: res.clientTransport },
+    })
+    const read = await pool.readResource('file:///hello.txt')
+    expect(read.contents[0]).toMatchObject({
+      uri: 'file:///hello.txt',
+      text: 'hello from resource',
+    })
+  })
+
+  it('readResource throws when no client can resolve the uri', async () => {
+    const alpha = await makeServerWithWeatherTool()
+    await using pool = await createMCPClients({
+      alpha: { transport: alpha.clientTransport },
+    })
+    await expect(pool.readResource('file:///missing.txt')).rejects.toThrow()
   })
 
   it('closes already-connected clients and throws if one server fails', async () => {

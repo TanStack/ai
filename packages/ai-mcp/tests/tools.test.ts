@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import {
-  extractUiResources,
   makeMcpExecute,
   mcpContentToTanstack,
   toServerTools,
@@ -65,35 +64,9 @@ describe('mcpContentToTanstack', () => {
       { type: 'text', content: 'y' },
     ])
   })
-})
 
-describe('extractUiResources', () => {
-  it('pulls embedded ui:// resources out of tool-result content', () => {
-    const content = [
-      { type: 'text', text: 'Processing: NYC' },
-      {
-        type: 'resource',
-        resource: {
-          uri: 'ui://srv/widget',
-          mimeType: 'text/html',
-          text: '<h1>hi</h1>',
-        },
-      },
-    ]
-    expect(extractUiResources(content)).toEqual([
-      { uri: 'ui://srv/widget', mimeType: 'text/html', text: '<h1>hi</h1>' },
-    ])
-    // model-facing conversion ignores the ui:// resource (keeps the text)
-    expect(mcpContentToTanstack(content)).toEqual([
-      { type: 'text', content: 'Processing: NYC' },
-    ])
-  })
-
-  it('does not treat non-ui resources as UI', () => {
-    const content = [
-      { type: 'resource', resource: { uri: 'file://x', text: 'data' } },
-    ]
-    expect(extractUiResources(content)).toEqual([])
+  it('returns "" when content is undefined (structuredContent-only result)', () => {
+    expect(mcpContentToTanstack(undefined as never)).toBe('')
   })
 })
 
