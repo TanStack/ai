@@ -1,5 +1,13 @@
 # @tanstack/ai-angular
 
+## 0.1.10
+
+### Patch Changes
+
+- Updated dependencies [[`fbd3762`](https://github.com/TanStack/ai/commit/fbd37623b287e370aa5678e161dec19cf13ae33b)]:
+  - @tanstack/ai@0.36.0
+  - @tanstack/ai-client@0.18.5
+
 ## 0.1.9
 
 ### Patch Changes

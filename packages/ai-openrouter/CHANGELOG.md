@@ -1,5 +1,12 @@
 # @tanstack/ai-openrouter
 
+## 0.15.2
+
+### Patch Changes
+
+- Updated dependencies [[`fbd3762`](https://github.com/TanStack/ai/commit/fbd37623b287e370aa5678e161dec19cf13ae33b)]:
+  - @tanstack/ai@0.36.0
+
 ## 0.15.1
 
 ### Patch Changes
