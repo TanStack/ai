@@ -37,6 +37,7 @@ import type { UIResourcePart } from '@tanstack/ai'
 //   resource: { uri: string; mimeType: string; text?: string; blob?: string }
 //   serverId?: string     // pool prefix / config key — routes interactive calls
 //   toolCallId: string    // links to the originating tool call
+//   toolName: string      // MCP tool name whose UI this resource renders
 //   meta?: Record<string, unknown>
 // }
 ```
@@ -114,7 +115,6 @@ export function Chat() {
                   key={i}
                   part={part}
                   sandbox={{ url: new URL('https://sandbox.example.com') }}
-                  toolName={part.toolCallId}
                 />
               )
             }
@@ -298,7 +298,6 @@ export function Chat() {
                   part={part}
                   bridge={bridge}
                   sandbox={{ url: new URL('https://sandbox.example.com') }}
-                  toolName={part.toolCallId}
                 />
               )
             }
@@ -408,9 +407,8 @@ import { part, bridge } from './chat-context'
 
 const widget = (
   <MCPAppResource
-    part={part} // UIResourcePart from the assistant message
+    part={part} // UIResourcePart from the assistant message (carries the toolName)
     sandbox={{ url: new URL('https://sandbox.example.com') }} // AppRenderer iframe origin
-    toolName="show_widget" // tool identifier forwarded to the renderer
     bridge={bridge} // omit for static, display-only rendering
     toolInput={{ city: 'Brooklyn' }} // optional tool input for the renderer context
   />

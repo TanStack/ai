@@ -9,7 +9,7 @@ const config = defineConfig({
     watch: false,
     globals: true,
     environment: 'node',
-    include: ['tests/**/*.test.ts'],
+    include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],
@@ -21,7 +21,7 @@ const config = defineConfig({
         '**/*.config.ts',
         '**/types.ts',
       ],
-      include: ['src/**/*.ts'],
+      include: ['src/**/*.{ts,tsx}'],
     },
   },
 })

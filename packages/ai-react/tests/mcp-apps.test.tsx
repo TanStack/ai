@@ -24,6 +24,7 @@ const fakePart: UIResourcePart = {
   },
   serverId: 'test-server',
   toolCallId: 'tc-1',
+  toolName: 'show',
 }
 
 const fakeSandbox = { url: new URL('https://sandbox.example.com') }
@@ -44,15 +45,11 @@ describe('MCPAppResource', () => {
   it('renders AppRenderer with the correct static props', () => {
     const bridge = makeBridge()
     render(
-      <MCPAppResource
-        part={fakePart}
-        bridge={bridge}
-        sandbox={fakeSandbox}
-        toolName="show"
-      />,
+      <MCPAppResource part={fakePart} bridge={bridge} sandbox={fakeSandbox} />,
     )
 
-    expect(capturedProps['toolName']).toBe('show')
+    // toolName is sourced from the part, not a separate prop
+    expect(capturedProps['toolName']).toBe(fakePart.toolName)
     expect(capturedProps['sandbox']).toBe(fakeSandbox)
     expect(capturedProps['html']).toBe(fakePart.resource.text)
     expect(capturedProps['toolResourceUri']).toBe(fakePart.resource.uri)
@@ -66,7 +63,6 @@ describe('MCPAppResource', () => {
         part={fakePart}
         bridge={bridge}
         sandbox={fakeSandbox}
-        toolName="show"
         toolInput={{ qty: 3 }}
       />,
     )
@@ -77,12 +73,7 @@ describe('MCPAppResource', () => {
   it('onCallTool calls bridge.callTool and wraps result in CallToolResult shape', async () => {
     const bridge = makeBridge()
     render(
-      <MCPAppResource
-        part={fakePart}
-        bridge={bridge}
-        sandbox={fakeSandbox}
-        toolName="show"
-      />,
+      <MCPAppResource part={fakePart} bridge={bridge} sandbox={fakeSandbox} />,
     )
 
     const onCallTool = capturedProps['onCallTool'] as (params: {
@@ -114,12 +105,7 @@ describe('MCPAppResource', () => {
       openLink: vi.fn().mockReturnValue({ isError: false }),
     }
     render(
-      <MCPAppResource
-        part={fakePart}
-        bridge={bridge}
-        sandbox={fakeSandbox}
-        toolName="show"
-      />,
+      <MCPAppResource part={fakePart} bridge={bridge} sandbox={fakeSandbox} />,
     )
 
     const onCallTool = capturedProps['onCallTool'] as (params: {
@@ -131,15 +117,31 @@ describe('MCPAppResource', () => {
     expect(result.content[0]!.text).toBe('ok')
   })
 
+  it('onCallTool coalesces an undefined-serializing result to the string "null"', async () => {
+    const bridge: McpAppBridge = {
+      callTool: vi.fn().mockResolvedValue(undefined),
+      sendPrompt: vi.fn(),
+      openLink: vi.fn().mockReturnValue({ isError: false }),
+    }
+    render(
+      <MCPAppResource part={fakePart} bridge={bridge} sandbox={fakeSandbox} />,
+    )
+
+    const onCallTool = capturedProps['onCallTool'] as (params: {
+      name: string
+      arguments?: Record<string, unknown>
+    }) => Promise<{ content: Array<{ type: string; text: string }> }>
+
+    const result = await onCallTool({ name: 't', arguments: {} })
+    // JSON.stringify(undefined) is the value undefined; the coalesce keeps text a string
+    expect(result.content[0]!.text).toBe('null')
+    expect(typeof result.content[0]!.text).toBe('string')
+  })
+
   it('onMessage extracts text content and calls bridge.sendPrompt', async () => {
     const bridge = makeBridge()
     render(
-      <MCPAppResource
-        part={fakePart}
-        bridge={bridge}
-        sandbox={fakeSandbox}
-        toolName="show"
-      />,
+      <MCPAppResource part={fakePart} bridge={bridge} sandbox={fakeSandbox} />,
     )
 
     const onMessage = capturedProps['onMessage'] as (params: {
@@ -159,12 +161,7 @@ describe('MCPAppResource', () => {
   it('onMessage concatenates multiple text content blocks', async () => {
     const bridge = makeBridge()
     render(
-      <MCPAppResource
-        part={fakePart}
-        bridge={bridge}
-        sandbox={fakeSandbox}
-        toolName="show"
-      />,
+      <MCPAppResource part={fakePart} bridge={bridge} sandbox={fakeSandbox} />,
     )
 
     const onMessage = capturedProps['onMessage'] as (params: {
@@ -184,15 +181,30 @@ describe('MCPAppResource', () => {
     expect(bridge.sendPrompt).toHaveBeenCalledWith('hello world')
   })
 
+  it('onMessage does not call bridge.sendPrompt when there is no text content', async () => {
+    const bridge = makeBridge()
+    render(
+      <MCPAppResource part={fakePart} bridge={bridge} sandbox={fakeSandbox} />,
+    )
+
+    const onMessage = capturedProps['onMessage'] as (params: {
+      role: 'user'
+      content: Array<{ type: string; text?: string }>
+    }) => Promise<Record<string, unknown>>
+
+    const result = await onMessage({
+      role: 'user',
+      content: [{ type: 'image', text: undefined }],
+    })
+
+    expect(bridge.sendPrompt).not.toHaveBeenCalled()
+    expect(result).toEqual({})
+  })
+
   it('onOpenLink calls bridge.openLink with the URL string', async () => {
     const bridge = makeBridge()
     render(
-      <MCPAppResource
-        part={fakePart}
-        bridge={bridge}
-        sandbox={fakeSandbox}
-        toolName="show"
-      />,
+      <MCPAppResource part={fakePart} bridge={bridge} sandbox={fakeSandbox} />,
     )
 
     const onOpenLink = capturedProps['onOpenLink'] as (params: {
@@ -203,5 +215,14 @@ describe('MCPAppResource', () => {
 
     expect(bridge.openLink).toHaveBeenCalledWith('https://example.com')
     expect(result).toEqual({ isError: false })
+  })
+
+  it('display-only mode (no bridge) passes undefined callbacks', () => {
+    render(<MCPAppResource part={fakePart} sandbox={fakeSandbox} />)
+
+    expect(capturedProps['toolName']).toBe(fakePart.toolName)
+    expect(capturedProps['onCallTool']).toBeUndefined()
+    expect(capturedProps['onMessage']).toBeUndefined()
+    expect(capturedProps['onOpenLink']).toBeUndefined()
   })
 })

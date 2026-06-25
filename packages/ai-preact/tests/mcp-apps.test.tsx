@@ -32,6 +32,7 @@ const part: UIResourcePart = {
   },
   serverId: 'server-42',
   toolCallId: 'tc-1',
+  toolName: 'my-tool',
 }
 
 const bridge: McpAppBridge = {
@@ -49,7 +50,6 @@ function renderComponent() {
       part={part}
       bridge={bridge}
       sandbox={sandbox}
-      toolName="my-tool"
       toolInput={{ param: 'value' }}
     />,
   )
@@ -63,7 +63,8 @@ describe('MCPAppResource', () => {
   it('passes required props to AppRenderer', () => {
     renderComponent()
 
-    expect(capturedProps['toolName']).toBe('my-tool')
+    // toolName is sourced from the part, not a separate prop
+    expect(capturedProps['toolName']).toBe(part.toolName)
     expect(capturedProps['sandbox']).toBe(sandbox)
     expect(capturedProps['html']).toBe(part.resource.text)
     expect(capturedProps['toolResourceUri']).toBe(part.resource.uri)
@@ -121,6 +122,25 @@ describe('MCPAppResource', () => {
     expect(result.structuredContent).toBeUndefined()
   })
 
+  it('onCallTool coalesces an undefined-serializing result to the string "null"', async () => {
+    vi.mocked(bridge.callTool).mockResolvedValueOnce(undefined)
+    renderComponent()
+
+    const onCallTool = capturedProps['onCallTool'] as (params: {
+      name: string
+      arguments?: Record<string, unknown>
+    }) => Promise<{
+      content: Array<{ type: string; text: string }>
+      structuredContent: unknown
+    }>
+
+    const result = await onCallTool({ name: 'noop', arguments: {} })
+
+    // JSON.stringify(undefined) is the value undefined; the coalesce keeps text a string
+    expect(result.content[0]).toEqual({ type: 'text', text: 'null' })
+    expect(typeof result.content[0]!.text).toBe('string')
+  })
+
   it('onMessage calls bridge.sendPrompt with joined text blocks and returns {}', async () => {
     renderComponent()
 
@@ -142,6 +162,24 @@ describe('MCPAppResource', () => {
     expect(result).toEqual({})
   })
 
+  it('onMessage does not call bridge.sendPrompt when there is no text content', async () => {
+    vi.mocked(bridge.sendPrompt).mockClear()
+    renderComponent()
+
+    const onMessage = capturedProps['onMessage'] as (params: {
+      role: 'user'
+      content: Array<{ type: string; text?: string }>
+    }) => Promise<Record<string, unknown>>
+
+    const result = await onMessage({
+      role: 'user',
+      content: [{ type: 'image' }],
+    })
+
+    expect(bridge.sendPrompt).not.toHaveBeenCalled()
+    expect(result).toEqual({})
+  })
+
   it('onOpenLink calls bridge.openLink and returns its result', async () => {
     renderComponent()
 
@@ -153,5 +191,15 @@ describe('MCPAppResource', () => {
 
     expect(bridge.openLink).toHaveBeenCalledWith('https://example.com')
     expect(result).toEqual({ isError: false })
+  })
+
+  it('display-only mode (no bridge) passes undefined callbacks', () => {
+    capturedProps = {}
+    render(<MCPAppResource part={part} sandbox={sandbox} />)
+
+    expect(capturedProps['toolName']).toBe(part.toolName)
+    expect(capturedProps['onCallTool']).toBeUndefined()
+    expect(capturedProps['onMessage']).toBeUndefined()
+    expect(capturedProps['onOpenLink']).toBeUndefined()
   })
 })

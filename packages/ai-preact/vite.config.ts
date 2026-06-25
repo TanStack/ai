@@ -21,7 +21,7 @@ const config = defineConfig({
         '**/*.config.ts',
         '**/types.ts',
       ],
-      include: ['src/**/*.ts'],
+      include: ['src/**/*.{ts,tsx}'],
     },
   },
 })

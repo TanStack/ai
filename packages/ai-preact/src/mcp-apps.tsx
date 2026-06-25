@@ -27,8 +27,6 @@ export interface MCPAppResourceProps {
   bridge?: McpAppBridge
   /** Sandbox iframe configuration — must include the proxy page URL. */
   sandbox: { url: URL }
-  /** The MCP tool name whose UI is being rendered. */
-  toolName: string
   /** Optional structured arguments forwarded to the guest UI once it's ready. */
   toolInput?: Record<string, unknown>
 }
@@ -38,13 +36,27 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
+ * Coalesce an arbitrary bridge result into the `string` required by the
+ * `CallToolResult` text content block. `JSON.stringify` is typed to return
+ * `string` but actually returns `undefined` for inputs like `undefined` or a
+ * function, so we narrow explicitly to avoid `text: undefined`.
+ */
+function resultToText(result: unknown): string {
+  if (typeof result === 'string') return result
+  // `JSON.stringify`'s lib signature claims `string`, but it returns
+  // `undefined` for `undefined`/function inputs; type the call honestly.
+  const stringify: (value: unknown) => string | undefined = JSON.stringify
+  return stringify(result) ?? 'null'
+}
+
+/**
  * Renders an MCP App UI resource inside a sandboxed iframe.
  *
  * Wraps `@mcp-ui/client`'s `AppRenderer` and wires its callbacks to a
  * framework-agnostic {@link McpAppBridge}.
  */
 export function MCPAppResource(props: MCPAppResourceProps) {
-  const { part, bridge, sandbox, toolName, toolInput } = props
+  const { part, bridge, sandbox, toolInput } = props
 
   const onCallTool: AppRendererProps['onCallTool'] = bridge
     ? async (params) => {
@@ -58,8 +70,7 @@ export function MCPAppResource(props: MCPAppResourceProps) {
           content: [
             {
               type: 'text' as const,
-              text:
-                typeof result === 'string' ? result : JSON.stringify(result),
+              text: resultToText(result),
             },
           ],
           structuredContent: isRecord(result) ? result : undefined,
@@ -73,7 +84,7 @@ export function MCPAppResource(props: MCPAppResourceProps) {
           .filter((c): c is { type: 'text'; text: string } => c.type === 'text')
           .map((c) => c.text)
           .join('')
-        await bridge.sendPrompt(text)
+        if (text) await bridge.sendPrompt(text)
         return {}
       }
     : undefined
@@ -84,7 +95,7 @@ export function MCPAppResource(props: MCPAppResourceProps) {
 
   return (
     <AppRenderer
-      toolName={toolName}
+      toolName={part.toolName}
       sandbox={sandbox}
       html={part.resource.text}
       toolResourceUri={part.resource.uri}
