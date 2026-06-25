@@ -428,7 +428,8 @@ export interface UIResourcePart {
   /** Server-native (unprefixed) MCP tool name whose UI this resource renders.
    *  Required by the renderer (`@mcp-ui/client`'s `AppRenderer` `toolName` prop). */
   toolName: string
-  /** Passthrough of the tool/result `_meta.ui` (frame-size hints, etc.). */
+  /** Reserved for future passthrough of the resource/tool `_meta.ui` (e.g. frame-size hints).
+   *  Currently always `undefined` — nothing populates this field yet. */
   meta?: Record<string, unknown>
 }
 

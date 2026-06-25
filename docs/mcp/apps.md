@@ -38,7 +38,7 @@ import type { UIResourcePart } from '@tanstack/ai'
 //   serverId?: string     // pool prefix / config key — routes interactive calls
 //   toolCallId: string    // links to the originating tool call
 //   toolName: string      // MCP tool name whose UI this resource renders
-//   meta?: Record<string, unknown>
+//   meta?: Record<string, unknown>  // reserved — currently always undefined
 // }
 ```
 
@@ -328,7 +328,7 @@ import {
 } from '@tanstack/ai-mcp/apps'
 
 // In-memory store: one Node.js process, no cross-instance sharing.
-// Shape matches the McpSessionStore seam — SQL / KV stores (PR #785)
+// Shape matches the McpSessionStore interface — SQL / KV stores
 // can be dropped in later with no API change.
 const store = inMemoryMcpSessionStore({ ttlMs: 30 * 60_000 })
 
@@ -339,7 +339,7 @@ const handler = createMcpAppCallHandler({
 })
 ```
 
-> **Current limitation:** `inMemoryMcpSessionStore` is single-instance (one Node.js process). It does not survive serverless restarts or scale across replicas. A pluggable `McpSessionStore` interface is defined so that persistent backends (database, KV store) from PR #785 can be dropped in without any API changes when they land.
+> **Current limitation:** `inMemoryMcpSessionStore` is single-instance (one Node.js process). It does not survive serverless restarts or scale across replicas. The `McpSessionStore` interface is the persistence extension point — persistent backends (database, KV store) can be dropped in without any API changes.
 
 ## API Reference
 

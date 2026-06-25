@@ -111,10 +111,14 @@ describe('MCPAppResource', () => {
     const onCallTool = capturedProps['onCallTool'] as (params: {
       name: string
       arguments?: Record<string, unknown>
-    }) => Promise<{ content: Array<{ type: string; text: string }> }>
+    }) => Promise<{
+      content: Array<{ type: string; text: string }>
+      structuredContent: unknown
+    }>
 
     const result = await onCallTool({ name: 't', arguments: {} })
     expect(result.content[0]!.text).toBe('ok')
+    expect(result.structuredContent).toBeUndefined()
   })
 
   it('onCallTool coalesces an undefined-serializing result to the string "null"', async () => {

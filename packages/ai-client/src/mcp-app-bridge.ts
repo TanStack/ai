@@ -76,8 +76,13 @@ export function createMcpAppBridge(
 
     openLink(url) {
       if (onLink) {
-        onLink(url)
-        return { isError: false }
+        try {
+          onLink(url)
+          return { isError: false }
+        } catch (err) {
+          console.warn('[mcp-app-bridge] openLink: onLink handler threw', err)
+          return { isError: true }
+        }
       }
       console.warn('[mcp-app-bridge] openLink ignored: no onLink handler configured')
       return { isError: true }

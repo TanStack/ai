@@ -64,7 +64,7 @@ describe('createMcpAppBridge', () => {
       })
     })
 
-    it('includes undefined-omitted optional fields when not provided', async () => {
+    it('omits undefined optional fields when not provided', async () => {
       const fetchMock = makeFetchMock({ ok: true, result: null })
       const chat = makeChatMock()
 

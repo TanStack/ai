@@ -497,7 +497,7 @@ import type { UIResourcePart } from '@tanstack/ai'
 //   serverId?: string     // pool prefix / config key — routes interactive calls
 //   toolCallId: string    // links to the originating tool call
 //   toolName: string      // server-native MCP tool name whose UI this renders
-//   meta?: Record<string, unknown>
+//   meta?: Record<string, unknown>  // reserved — currently always undefined
 // }
 ```
 

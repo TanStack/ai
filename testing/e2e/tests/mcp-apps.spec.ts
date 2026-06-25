@@ -167,5 +167,9 @@ test.describe('mcp-apps — data + interactive planes', () => {
     expect(json.ok, `expected ok:false for disallowed tool, got: ${body}`).toBe(
       false,
     )
+    expect(
+      json.error,
+      `expected error message to mention 'not allowed', got: ${body}`,
+    ).toContain('not allowed')
   })
 })

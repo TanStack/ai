@@ -4,6 +4,7 @@ import type { McpAppBridge } from '@tanstack/ai-client'
 import type { JSX } from 'react'
 
 export interface MCPAppResourceProps {
+  /** The ui-resource part from a UIMessage assistant part. */
   part: UIResourcePart
   /**
    * Framework-agnostic bridge for tool calls, prompt sending, and link opening.
@@ -11,7 +12,9 @@ export interface MCPAppResourceProps {
    * that would trigger tool calls or prompts are ignored.
    */
   bridge?: McpAppBridge
+  /** Sandbox iframe configuration — must include the proxy page URL. */
   sandbox: { url: URL }
+  /** Optional structured arguments forwarded to the guest UI once it's ready. */
   toolInput?: Record<string, unknown>
 }
 
