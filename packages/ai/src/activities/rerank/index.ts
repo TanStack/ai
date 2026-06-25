@@ -207,11 +207,15 @@ export async function rerank<
       logger,
     })
 
-    const ranking = result.ranking.map((r) => ({
-      index: r.index,
-      score: r.score,
-      document: documents[r.index] as TDocument,
-    }))
+    const ranking = result.ranking.map((r) => {
+      const document = documents[r.index]
+      if (document === undefined) {
+        throw new Error(
+          `rerank(): provider ${adapter.name} returned out-of-range index ${r.index}`,
+        )
+      }
+      return { index: r.index, score: r.score, document }
+    })
     const rerankedDocuments = ranking.map((r) => r.document)
 
     const duration = Date.now() - startTime

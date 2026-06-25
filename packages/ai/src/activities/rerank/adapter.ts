@@ -85,6 +85,6 @@ export abstract class BaseRerankAdapter<
   ): Promise<RerankAdapterResult>
 
   protected generateId(): string {
-    return `${this.name}-${Date.now()}-${Math.random().toString(36).substring(7)}`
+    return `${this.name}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
   }
 }

@@ -21,7 +21,7 @@ export const COHERE_DEFAULT_BASE_URL = 'https://api.cohere.com'
  * @throws Error if `COHERE_API_KEY` is not found.
  */
 export function getCohereApiKeyFromEnv(): string {
-  const env =
+  const windowEnv =
     typeof globalThis !== 'undefined' &&
     (globalThis as Record<string, unknown>).window
       ? ((
@@ -30,10 +30,12 @@ export function getCohereApiKeyFromEnv(): string {
             unknown
           >
         ).env as Record<string, string> | undefined)
-      : typeof process !== 'undefined'
-        ? process.env
-        : undefined
-  const key = env?.['COHERE_API_KEY']
+      : undefined
+  const processEnv = typeof process !== 'undefined' ? process.env : undefined
+  // Prefer an injected `window.env` (browser builds) but fall back to
+  // `process.env` — bundlers and Electron can populate it even when `window`
+  // exists.
+  const key = windowEnv?.['COHERE_API_KEY'] ?? processEnv?.['COHERE_API_KEY']
   if (!key) {
     throw new Error(
       'COHERE_API_KEY not found in environment. Pass an API key explicitly via createCohereRerank(model, apiKey).',

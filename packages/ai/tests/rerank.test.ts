@@ -224,4 +224,16 @@ describe('rerank() activity', () => {
     expect(adapter.calls[0]!.topN).toBe(1)
     expect(adapter.calls[0]!.abortSignal).toBe(controller.signal)
   })
+
+  it('throws when the provider returns an out-of-range index', async () => {
+    const adapter = mockRerankAdapter(async () => ({
+      id: 'rr-1',
+      ranking: [{ index: 5, score: 0.9 }],
+      usage: { ...zeroUsage },
+    }))
+
+    await expect(
+      rerank({ adapter, query: 'q', documents: ['a', 'b'] }),
+    ).rejects.toThrow('out-of-range')
+  })
 })

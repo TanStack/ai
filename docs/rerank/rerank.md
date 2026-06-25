@@ -185,12 +185,21 @@ export const Route = createFileRoute('/api/rerank')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const body = await request.json()
-        const { query, documents, topN } = body as {
-          query: string
-          documents: Array<string>
-          topN?: number
+        const body: unknown = await request.json()
+        if (
+          typeof body !== 'object' ||
+          body === null ||
+          !('query' in body) ||
+          typeof body.query !== 'string' ||
+          !('documents' in body) ||
+          !Array.isArray(body.documents)
+        ) {
+          return new Response('Invalid request body', { status: 400 })
         }
+        const { query, documents } = body
+        const topN = 'topN' in body && typeof body.topN === 'number'
+          ? body.topN
+          : undefined
 
         const result = await rerank({
           adapter: cohereRerank('rerank-v3.5'),
