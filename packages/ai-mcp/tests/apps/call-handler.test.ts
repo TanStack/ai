@@ -253,7 +253,10 @@ describe('createMcpAppCallHandler', () => {
       createMcpAppCallHandler({
         clients: [
           fakePool({
-            a: { transport: { type: 'http', url: 'https://a/mcp' }, prefix: 'dup' },
+            a: {
+              transport: { type: 'http', url: 'https://a/mcp' },
+              prefix: 'dup',
+            },
           }),
           fakeClient({
             transport: { type: 'http', url: 'https://b/mcp' },

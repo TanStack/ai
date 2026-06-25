@@ -3,7 +3,9 @@ import { createMcpAppBridge } from '../src/mcp-app-bridge'
 import type { CreateMcpAppBridgeOptions } from '../src/mcp-app-bridge'
 
 type ChatMock = {
-  sendMessage: ReturnType<typeof vi.fn<CreateMcpAppBridgeOptions['chat']['sendMessage']>>
+  sendMessage: ReturnType<
+    typeof vi.fn<CreateMcpAppBridgeOptions['chat']['sendMessage']>
+  >
 }
 
 describe('createMcpAppBridge', () => {

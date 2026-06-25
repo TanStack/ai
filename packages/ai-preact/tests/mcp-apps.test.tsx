@@ -103,7 +103,10 @@ describe('MCPAppResource', () => {
   it('onCallTool calls bridge.callTool and returns CallToolResult shape', async () => {
     const { onCallTool } = renderComponent()
 
-    const result = await onCallTool!({ name: 't', arguments: { a: 1 } }, extra())
+    const result = await onCallTool!(
+      { name: 't', arguments: { a: 1 } },
+      extra(),
+    )
 
     expect(bridge.callTool).toHaveBeenCalledWith({
       serverId: part.serverId,
@@ -128,7 +131,10 @@ describe('MCPAppResource', () => {
 
     const result = await onCallTool!({ name: 'echo', arguments: {} }, extra())
 
-    expect(firstTextBlock(result)).toEqual({ type: 'text', text: 'direct string' })
+    expect(firstTextBlock(result)).toEqual({
+      type: 'text',
+      text: 'direct string',
+    })
     // A non-object bridge result cannot satisfy CallToolResult's
     // structuredContent ({ [x: string]: unknown }), so it is omitted; the raw
     // string is still surfaced verbatim in the text content block above.
