@@ -111,9 +111,7 @@ describe('makeMcpExecute', () => {
     })
     const client = { callTool } as unknown as Client
     const execute = makeMcpExecute(client, 'x', false)
-    await expect(execute({})).rejects.toThrow(
-      /MCP tool "x" returned an error$/,
-    )
+    await expect(execute({})).rejects.toThrow(/MCP tool "x" returned an error$/)
   })
 
   it('forwards the abortSignal to client.callTool', async () => {

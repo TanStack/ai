@@ -123,7 +123,10 @@ describe('StreamProcessor — ui-resource CUSTOM event', () => {
       .find((m) => m.id === 'msg-1')
       ?.parts.find((p): p is UIResourcePart => p.type === 'ui-resource')
     expect(part).toBeDefined()
-    expect(part).toMatchObject({ toolCallId: 'call_4', toolName: 'show_widget' })
+    expect(part).toMatchObject({
+      toolCallId: 'call_4',
+      toolName: 'show_widget',
+    })
 
     // ...and it did NOT fall through to the generic onCustomEvent callback.
     expect(onCustomEvent).not.toHaveBeenCalled()
