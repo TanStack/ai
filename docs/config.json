@@ -510,7 +510,7 @@
           "label": "Anthropic",
           "to": "adapters/anthropic",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-02"
+          "updatedAt": "2026-07-04"
         },
         {
           "label": "Google Gemini",

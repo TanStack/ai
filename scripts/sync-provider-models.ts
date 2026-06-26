@@ -43,6 +43,13 @@ interface ProviderConfig {
   providerOptionsTypeName: string
   /** Name of the input modalities type map */
   inputModalitiesTypeName: string
+  /**
+   * Name of the runtime `Record<string, number>` mapping model id →
+   * `max_output_tokens`, if the provider maintains one. Anthropic uses this to
+   * default the required `max_tokens` request field to the model's real ceiling
+   * (issue #849); other providers treat token limits as optional and omit it.
+   */
+  maxOutputTokensMapName?: string
   /** The supports block template (minus input modalities, which come from OpenRouter) */
   referenceSupportsBody: string
   /** Valid input modality types for this provider's ModelMeta interface */
@@ -95,6 +102,7 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     chatArrayName: 'ANTHROPIC_MODELS',
     providerOptionsTypeName: 'AnthropicChatModelProviderOptionsByName',
     inputModalitiesTypeName: 'AnthropicModelInputModalitiesByName',
+    maxOutputTokensMapName: 'ANTHROPIC_MODEL_MAX_OUTPUT_TOKENS',
     validInputModalities: ['text', 'image', 'audio', 'video', 'document'],
     referenceSupportsBody: `    extended_thinking: true,
     priority_tier: true,
@@ -500,6 +508,34 @@ function addToTypeMap(
   return content.replace(pattern, () => `${match[1]}\n${newEntries}${match[2]}`)
 }
 
+/**
+ * Add entries to a runtime object literal like:
+ *   const MAP_NAME: Record<string, number> = {
+ *     ...existing entries...
+ *   }
+ * Used for the Anthropic id → max_output_tokens map (issue #849), which is a
+ * value declaration rather than a `type` alias.
+ */
+function addToObjectMap(
+  content: string,
+  mapName: string,
+  entries: Array<string>,
+): string {
+  // Match: const MAP_NAME: Record<string, number> = { ... \n}
+  const pattern = new RegExp(
+    `(const ${mapName}: Record<string, number> = \\{[\\s\\S]*?)(\\n\\})`,
+  )
+  const match = pattern.exec(content)
+  if (!match) {
+    console.warn(`  Warning: Could not find object map '${mapName}' in file`)
+    return content
+  }
+
+  const newEntries = entries.join('\n')
+  // Use replacer function to prevent $-character interpretation in replacement string
+  return content.replace(pattern, () => `${match[1]}\n${newEntries}${match[2]}`)
+}
+
 // ---------------------------------------------------------------------------
 // Git-based change detection
 // ---------------------------------------------------------------------------
@@ -695,6 +731,28 @@ async function main() {
         config.inputModalitiesTypeName,
         modalityEntries,
       )
+    }
+
+    // Add to the id → max_output_tokens runtime map (Anthropic only). Only
+    // models whose generated constant actually carries `max_output_tokens`
+    // (i.e. OpenRouter reported a `max_completion_tokens`) get an entry; the
+    // rest correctly fall through to the map's constant default. Keeps the map
+    // in lockstep with the chat-model array so a synced model resolves to its
+    // real ceiling instead of the fallback (issue #849).
+    if (config.maxOutputTokensMapName) {
+      const maxOutputEntries = chatModels
+        .filter(({ model }) => model.top_provider.max_completion_tokens)
+        .map(
+          ({ constName }) =>
+            `  [${constName}${config.arrayRef}]: ${constName}.max_output_tokens,`,
+        )
+      if (maxOutputEntries.length > 0) {
+        content = addToObjectMap(
+          content,
+          config.maxOutputTokensMapName,
+          maxOutputEntries,
+        )
+      }
     }
 
     // Write the modified file

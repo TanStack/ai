@@ -1,4 +1,8 @@
-import { describe, expectTypeOf, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
+import {
+  ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS,
+  getAnthropicDefaultMaxTokens,
+} from '../src/model-meta'
 import type {
   AnthropicChatModelProviderOptionsByName,
   AnthropicModelInputModalitiesByName,
@@ -323,5 +327,28 @@ describe('Anthropic Model Input Modality Type Assertions', () => {
         MessageWithContent<AnthropicVideoPart>
       >().not.toExtend<Message>()
     })
+  })
+})
+
+describe('getAnthropicDefaultMaxTokens (#849)', () => {
+  it("returns the model's max_output_tokens for known models", () => {
+    expect(getAnthropicDefaultMaxTokens('claude-opus-4.8')).toBe(128_000)
+    expect(getAnthropicDefaultMaxTokens('claude-opus-4-6')).toBe(128_000)
+    expect(getAnthropicDefaultMaxTokens('claude-sonnet-4-6')).toBe(64_000)
+    expect(getAnthropicDefaultMaxTokens('claude-3-7-sonnet')).toBe(64_000)
+    expect(getAnthropicDefaultMaxTokens('claude-3-haiku')).toBe(4_000)
+  })
+
+  it('falls back to the safe constant for unknown models', () => {
+    expect(ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS).toBe(64_000)
+    expect(getAnthropicDefaultMaxTokens('some-future-claude-model')).toBe(
+      ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS,
+    )
+  })
+
+  it('never returns the old hard-coded 1024 floor for a known model', () => {
+    expect(getAnthropicDefaultMaxTokens('claude-opus-4.8')).toBeGreaterThan(
+      1024,
+    )
   })
 })

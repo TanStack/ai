@@ -450,7 +450,7 @@ describe('Anthropic adapter option mapping', () => {
     expect(payload.top_p).toBe(0.7)
   })
 
-  it('defaults max_tokens to 1024 when not provided via modelOptions', async () => {
+  it("defaults max_tokens to the model's max_output_tokens when not provided via modelOptions (#849)", async () => {
     mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
 
     const adapter = createAdapter('claude-opus-4-1')
@@ -463,7 +463,90 @@ describe('Anthropic adapter option mapping', () => {
     }
 
     const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
-    expect(payload.max_tokens).toBe(1024)
+    // claude-3-7-sonnet's model-meta max_output_tokens is 64_000 — not the old
+    // hard-coded 1024 floor that silently truncated long responses.
+    expect(payload.max_tokens).toBe(64_000)
+  })
+
+  it('warns when the default max_tokens cap truncates the response (#849)', async () => {
+    // Stream that ends with stop_reason: "max_tokens" — the model hit the cap.
+    const truncatedStream = (async function* () {
+      yield {
+        type: 'content_block_start',
+        index: 0,
+        content_block: { type: 'text', text: '' },
+      }
+      yield {
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'text_delta', text: 'partial output' },
+      }
+      yield { type: 'content_block_stop', index: 0 }
+      yield {
+        type: 'message_delta',
+        delta: { stop_reason: 'max_tokens' },
+        usage: { output_tokens: 64_000 },
+      }
+      yield { type: 'message_stop' }
+    })()
+    mocks.betaMessagesCreate.mockResolvedValueOnce(truncatedStream)
+
+    const adapter = createAdapter('claude-3-7-sonnet')
+
+    const logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Write a long essay' }],
+      debug: { logger, errors: true },
+    })) {
+      // consume stream
+    }
+
+    const truncationWarning = logger.warn.mock.calls.find((call) =>
+      String(call[0]).includes('truncated at the default max_tokens'),
+    )
+    expect(truncationWarning).toBeDefined()
+  })
+
+  it('does not warn about truncation when the caller set max_tokens explicitly (#849)', async () => {
+    const truncatedStream = (async function* () {
+      yield {
+        type: 'message_delta',
+        delta: { stop_reason: 'max_tokens' },
+        usage: { output_tokens: 100 },
+      }
+      yield { type: 'message_stop' }
+    })()
+    mocks.betaMessagesCreate.mockResolvedValueOnce(truncatedStream)
+
+    const adapter = createAdapter('claude-3-7-sonnet')
+
+    const logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+      modelOptions: { max_tokens: 100 } satisfies AnthropicTextProviderOptions,
+      debug: { logger, errors: true },
+    })) {
+      // consume stream
+    }
+
+    const truncationWarning = logger.warn.mock.calls.find((call) =>
+      String(call[0]).includes('truncated at the default max_tokens'),
+    )
+    expect(truncationWarning).toBeUndefined()
   })
 
   it('native combined mode (#605): wires outputSchema into output_format alongside tools on Claude 4.5+', async () => {

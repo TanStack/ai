@@ -507,6 +507,61 @@ export const ANTHROPIC_MODELS = [
 ] as const
 
 /**
+ * Fallback `max_tokens` ceiling for a model whose metadata carries no
+ * `max_output_tokens` (e.g. an unrecognized model id). Anthropic's Messages
+ * API *requires* `max_tokens`, so the adapter must always send a value. 64K is
+ * the output ceiling of the current mainstream Claude tier (Sonnet/Haiku 4.5),
+ * so it's a sane default for an unknown — almost certainly modern — model and
+ * avoids silently truncating long generations (issue #849). Recognized models
+ * use their exact `max_output_tokens` from {@link ANTHROPIC_MODEL_MAX_OUTPUT_TOKENS}
+ * (e.g. 128K for Opus), so this fallback only ever applies to ids not in the
+ * map.
+ */
+export const ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS = 64_000
+
+/**
+ * Runtime lookup of each model's maximum output-token ceiling, keyed by model
+ * id. Lets the text adapter default the required `max_tokens` request field to
+ * the model's real ceiling when the caller doesn't specify one, rather than a
+ * low constant that truncates responses mid-stream (issue #849).
+ *
+ * Kept in sync with {@link ANTHROPIC_MODELS} by `scripts/sync-provider-models.ts`
+ * — when that script adds a model it also inserts the model's `max_output_tokens`
+ * here, so a freshly-synced model resolves to its real ceiling rather than the
+ * fallback above.
+ */
+const ANTHROPIC_MODEL_MAX_OUTPUT_TOKENS: Record<string, number> = {
+  [CLAUDE_OPUS_4_6.id]: CLAUDE_OPUS_4_6.max_output_tokens,
+  [CLAUDE_OPUS_4_5.id]: CLAUDE_OPUS_4_5.max_output_tokens,
+  [CLAUDE_SONNET_4_6.id]: CLAUDE_SONNET_4_6.max_output_tokens,
+  [CLAUDE_SONNET_4_5.id]: CLAUDE_SONNET_4_5.max_output_tokens,
+  [CLAUDE_HAIKU_4_5.id]: CLAUDE_HAIKU_4_5.max_output_tokens,
+  [CLAUDE_OPUS_4_1.id]: CLAUDE_OPUS_4_1.max_output_tokens,
+  [CLAUDE_SONNET_4.id]: CLAUDE_SONNET_4.max_output_tokens,
+  [CLAUDE_SONNET_3_7.id]: CLAUDE_SONNET_3_7.max_output_tokens,
+  [CLAUDE_OPUS_4.id]: CLAUDE_OPUS_4.max_output_tokens,
+  [CLAUDE_HAIKU_3_5.id]: CLAUDE_HAIKU_3_5.max_output_tokens,
+  [CLAUDE_HAIKU_3.id]: CLAUDE_HAIKU_3.max_output_tokens,
+  [CLAUDE_OPUS_4_6_FAST.id]: CLAUDE_OPUS_4_6_FAST.max_output_tokens,
+  [CLAUDE_OPUS_4_7.id]: CLAUDE_OPUS_4_7.max_output_tokens,
+  [CLAUDE_OPUS_4_7_FAST.id]: CLAUDE_OPUS_4_7_FAST.max_output_tokens,
+  [CLAUDE_OPUS_4_8.id]: CLAUDE_OPUS_4_8.max_output_tokens,
+  [CLAUDE_OPUS_4_8_FAST.id]: CLAUDE_OPUS_4_8_FAST.max_output_tokens,
+}
+
+/**
+ * Resolve the default `max_tokens` for a model: its known `max_output_tokens`
+ * ceiling, or {@link ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS} for unknown models.
+ * Callers that pass an explicit `max_tokens` bypass this entirely.
+ */
+export function getAnthropicDefaultMaxTokens(model: string): number {
+  return (
+    ANTHROPIC_MODEL_MAX_OUTPUT_TOKENS[model] ??
+    ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS
+  )
+}
+
+/**
  * Anthropic models that support combining `tools` + JSON-Schema-constrained
  * output in a single streaming Messages request (per issue #605). GA'd
  * 2026-01-29 for Claude 4.5+ via `output_format` on the beta messages
