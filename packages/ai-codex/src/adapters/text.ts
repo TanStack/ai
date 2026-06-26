@@ -192,8 +192,11 @@ export class CodexTextAdapter<
   ): AsyncIterable<StreamChunk> {
     const { logger } = options
     let bridge: HostToolBridge | undefined
+    const tempFiles: Array<string> = []
+    let cleanupSandbox: SandboxHandle | undefined
     try {
       const sandbox = this.sandboxFrom(options)
+      cleanupSandbox = sandbox
       const cwd = this.workdir(options)
 
       // Project declarative workspace inputs (MCP/skills) into codex's native
@@ -246,9 +249,24 @@ export class CodexTextAdapter<
         { provider: 'codex', model: this.model },
       )
 
-      const rawEvents = spawnNdjson(sandbox, command, {
+      // Deliver the prompt. Default: over stdin. Providers without a writable
+      // host→process stdin can't accept that — Docker's hijacked exec severs
+      // stdout when stdin EOF is signalled (losing the agent's output), and
+      // Cloudflare can't write stdin at all — so feed the prompt from a file
+      // (`codex exec … < file`) instead.
+      let runCommand = command
+      let stdinInput: string | undefined = fullPrompt
+      if (sandbox.capabilities.writableStdin === false) {
+        const promptPath = `/tmp/tanstack-codex-prompt-${options.runId ?? this.generateId()}`
+        await sandbox.fs.write(promptPath, fullPrompt)
+        tempFiles.push(promptPath)
+        runCommand = `${command} < ${q(promptPath)}`
+        stdinInput = undefined
+      }
+
+      const rawEvents = spawnNdjson(sandbox, runCommand, {
         cwd,
-        input: fullPrompt,
+        ...(stdinInput !== undefined ? { input: stdinInput } : {}),
         ...(this.adapterConfig.env ? { env: this.adapterConfig.env } : {}),
         ...(options.abortController?.signal
           ? { signal: options.abortController.signal }
@@ -299,6 +317,15 @@ export class CodexTextAdapter<
       }
     } finally {
       await bridge?.close()
+      if (cleanupSandbox) {
+        for (const path of tempFiles) {
+          try {
+            await cleanupSandbox.fs.remove(path)
+          } catch {
+            // already gone / sandbox torn down — nothing to clean up
+          }
+        }
+      }
     }
   }
 
