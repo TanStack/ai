@@ -1,18 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { FileText, Github, Play, Server, Square } from 'lucide-react'
+import {
+  AlertTriangle,
+  FileText,
+  Github,
+  Play,
+  Server,
+  Square,
+} from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import rehypeHighlight from 'rehype-highlight'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import {
-  HARNESSES,
-  PROVIDERS,
-  parseVerdict,
+import { HARNESSES, PROVIDERS, parseVerdict } from '../sandbox-triage-options'
+import type {
+  HarnessName,
+  ProviderName,
+  Verdict,
 } from '../sandbox-triage-options'
-import type { HarnessName, ProviderName, Verdict } from '../sandbox-triage-options'
 import type { UIMessage } from '@tanstack/ai-react'
 
 export const Route = createFileRoute('/sandboxes')({
@@ -288,10 +295,22 @@ function SandboxesPage() {
   const [provider, setProvider] = useState<ProviderName>('docker')
   const [issueUrl, setIssueUrl] = useState('')
   const [fileEvents, setFileEvents] = useState<Array<FileChangedEvent>>([])
+  const [keepAlive, setKeepAlive] = useState(false)
+  const [useSubscription, setUseSubscription] = useState(false)
 
-  const { messages, sendMessage, isLoading, stop } = useChat({
+  // Subscription auth only applies to Claude Code on the local-process provider.
+  const canUseSubscription = provider === 'local' && harness === 'claude-code'
+
+  const { messages, sendMessage, isLoading, stop, error } = useChat({
     connection: fetchServerSentEvents('/api/sandbox-triage'),
-    body: { harness, provider, issueUrl, threadId },
+    body: {
+      harness,
+      provider,
+      issueUrl,
+      threadId,
+      keepAlive,
+      useSubscription: canUseSubscription && useSubscription,
+    },
     onCustomEvent: (eventType, data) => {
       if (
         eventType === 'file.changed' &&
@@ -312,6 +331,11 @@ function SandboxesPage() {
     () => /\/issues\/\d+/.test(issueUrl) && !isLoading,
     [issueUrl, isLoading],
   )
+
+  // A run finished (not loading, no error) but the last message is still the
+  // user's — the agent streamed no assistant content. Surfaces the otherwise
+  // invisible "completed with zero output" case.
+  const noOutput = !isLoading && !error && messages.at(-1)?.role === 'user'
 
   function run() {
     if (!canRun) return
@@ -364,6 +388,36 @@ function SandboxesPage() {
             if (e.key === 'Enter') run()
           }}
         />
+        <label
+          className="flex items-center gap-1.5 text-xs text-gray-400 select-none"
+          title="By default the sandbox is destroyed after the run (success, error, or stop). Check to keep it alive."
+        >
+          <input
+            type="checkbox"
+            checked={keepAlive}
+            onChange={(e) => setKeepAlive(e.target.checked)}
+            disabled={isLoading}
+          />
+          keep sandbox
+        </label>
+        <label
+          className={`flex items-center gap-1.5 text-xs select-none ${
+            canUseSubscription ? 'text-gray-400' : 'text-gray-600'
+          }`}
+          title={
+            canUseSubscription
+              ? 'Use your logged-in Claude Code subscription instead of the API key (no API billing). Requires `claude login` on the host.'
+              : 'Only available for Claude Code on the Local process provider.'
+          }
+        >
+          <input
+            type="checkbox"
+            checked={canUseSubscription && useSubscription}
+            onChange={(e) => setUseSubscription(e.target.checked)}
+            disabled={isLoading || !canUseSubscription}
+          />
+          use my subscription
+        </label>
         {isLoading ? (
           <button
             onClick={stop}
@@ -381,6 +435,27 @@ function SandboxesPage() {
           </button>
         )}
       </div>
+
+      {error && (
+        <div className="mx-auto mt-3 flex max-w-4xl w-full items-start gap-2 rounded-lg border border-red-500/40 bg-red-900/20 px-4 py-3 text-sm text-red-200">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
+          <div className="min-w-0">
+            <div className="font-medium text-red-300">Run failed</div>
+            <pre className="mt-1 whitespace-pre-wrap break-words font-mono text-xs text-red-200/90">
+              {error.message}
+            </pre>
+          </div>
+        </div>
+      )}
+      {noOutput && (
+        <div className="mx-auto mt-3 flex max-w-4xl w-full items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-900/20 px-4 py-3 text-sm text-amber-200">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+          <span>
+            The run finished but the agent produced no output. Check the dev
+            server logs for details (e.g. a sandbox or CLI error).
+          </span>
+        </div>
+      )}
 
       <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full overflow-hidden">
         <Messages

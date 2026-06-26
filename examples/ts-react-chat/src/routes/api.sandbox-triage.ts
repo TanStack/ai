@@ -6,6 +6,8 @@ interface TriageData {
   provider: unknown
   issueUrl: unknown
   threadId: unknown
+  keepAlive: unknown
+  useSubscription: unknown
 }
 
 function json(status: number, error: string): Response {
@@ -24,7 +26,16 @@ export async function triagePost(request: Request): Promise<Response> {
       import('@tanstack/ai-sandbox'),
       import('../sandbox-triage'),
     ])
-  const { HARNESSES, buildSandbox, buildTriagePrompt, fetchIssue, isHarness, isProvider, missingEnv, parseIssueUrl } = triage
+  const {
+    HARNESSES,
+    buildSandbox,
+    buildTriagePrompt,
+    fetchIssue,
+    isHarness,
+    isProvider,
+    missingEnv,
+    parseIssueUrl,
+  } = triage
 
   let data: TriageData
   try {
@@ -47,7 +58,6 @@ export async function triagePost(request: Request): Promise<Response> {
     typeof data.threadId === 'string' && data.threadId !== ''
       ? data.threadId
       : crypto.randomUUID()
-
   const missing = missingEnv(data.harness, data.provider)
   if (missing.length > 0) {
     return json(
@@ -74,13 +84,13 @@ export async function triagePost(request: Request): Promise<Response> {
       provider: data.provider,
       repo,
       threadId,
+      keepAlive: data.keepAlive === true,
+      useSubscription: data.useSubscription === true,
     })
     const stream = chat({
       threadId,
-      adapter: HARNESSES[data.harness].makeAdapter(),
-      messages: [
-        { role: 'user', content: buildTriagePrompt(issue, repo) },
-      ],
+      adapter: HARNESSES[data.harness].makeAdapter(data.provider),
+      messages: [{ role: 'user', content: buildTriagePrompt(issue, repo) }],
       middleware: [withSandbox(sandbox)],
       abortController,
     }) as AsyncIterable<StreamChunk>

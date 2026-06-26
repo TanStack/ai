@@ -13,21 +13,27 @@ import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
 import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 import { vercelSandbox } from '@tanstack/ai-sandbox-vercel'
 import { parseVerdict } from './sandbox-triage-options'
-import type { HarnessName, ProviderName, Verdict } from './sandbox-triage-options'
-import type { AnyTextAdapter } from '@tanstack/ai'
 import type {
-  SandboxDefinition,
-  SandboxProvider,
-} from '@tanstack/ai-sandbox'
+  HarnessName,
+  ProviderName,
+  Verdict,
+} from './sandbox-triage-options'
+import type { AnyTextAdapter } from '@tanstack/ai'
+import type { SandboxDefinition, SandboxProvider } from '@tanstack/ai-sandbox'
 
 export { parseVerdict }
 export type { Verdict, HarnessName, ProviderName }
 
 /** GitHub issue URL → repo + issue number. Throws on anything that isn't an issue URL. */
-export function parseIssueUrl(url: string): { repo: string; issueNumber: number } {
+export function parseIssueUrl(url: string): {
+  repo: string
+  issueNumber: number
+} {
   const match = url
     .trim()
-    .match(/^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/issues\/(\d+)(?:[/?#].*)?$/i)
+    .match(
+      /^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/issues\/(\d+)(?:[/?#].*)?$/i,
+    )
   if (!match) {
     throw new Error(
       'Enter a GitHub issue URL like https://github.com/owner/repo/issues/123',
@@ -41,25 +47,51 @@ const SANDBOX_IMAGE = process.env.SANDBOX_IMAGE ?? 'node:22'
 
 export interface HarnessSpec {
   label: string
-  makeAdapter: () => AnyTextAdapter
+  /** Build the adapter; receives the chosen provider so it can adapt (e.g. codex
+   * can't use OS sandboxing on local-process / Windows). */
+  makeAdapter: (provider: ProviderName) => AnyTextAdapter
   /** CLI install run once on first create (docker only); null = nothing to install. */
   installCommand: string | null
-  /** Env vars the in-sandbox CLI needs; injected as secrets + validated up front. */
+  /** Env vars the in-sandbox CLI needs; any that are set are injected as secrets. */
   requiredEnv: Array<string>
+  /**
+   * Optional custom check (overrides `requiredEnv` for validation) for harnesses
+   * with either/or auth — returns the missing env vars, or `[]` if satisfied.
+   */
+  envCheck?: () => Array<string>
 }
 
 export const HARNESSES: Record<HarnessName, HarnessSpec> = {
   'claude-code': {
     label: 'Claude Code',
     makeAdapter: () => claudeCodeText('sonnet'),
-    installCommand: 'npm install -g @anthropic-ai/claude-code',
+    // `--include=optional` is required: the CLI's native binary ships as a
+    // platform-specific OPTIONAL dependency (`@anthropic-ai/claude-code-<plat>`).
+    // A plain `-g` install can skip it, leaving a `claude` that errors
+    // "native binary not installed" and exits with no output.
+    installCommand:
+      'npm install -g @anthropic-ai/claude-code --include=optional',
     requiredEnv: ['ANTHROPIC_API_KEY'],
   },
   codex: {
     label: 'Codex',
-    makeAdapter: () => codexText('gpt-5.3-codex'),
+    // On local-process the host is the (unsandboxed, trusted) workspace, and
+    // codex's OS sandbox (`workspace-write`) isn't supported on Windows — it
+    // fails with "os error 2". Disable codex's own sandbox there; sandboxed
+    // providers keep the default `workspace-write` (container is the boundary).
+    makeAdapter: (provider) =>
+      codexText(
+        'gpt-5.3-codex',
+        provider === 'local' ? { sandboxMode: 'danger-full-access' } : {},
+      ),
     installCommand: 'npm install -g @openai/codex',
-    requiredEnv: ['CODEX_API_KEY'],
+    // Codex authenticates with OPENAI_API_KEY or CODEX_API_KEY (or a host
+    // `codex login` on local-process). Inject whichever is set; require either.
+    requiredEnv: ['OPENAI_API_KEY', 'CODEX_API_KEY'],
+    envCheck: () =>
+      process.env.OPENAI_API_KEY || process.env.CODEX_API_KEY
+        ? []
+        : ['OPENAI_API_KEY (or CODEX_API_KEY)'],
   },
   'gemini-cli': {
     label: 'Gemini CLI',
@@ -83,6 +115,11 @@ export interface ProviderSpec {
   label: string
   make: () => SandboxProvider
   requiredEnv: Array<string>
+  /**
+   * Optional custom env check (overrides `requiredEnv`) for providers with
+   * either/or auth — returns the list of missing env vars, or `[]` if satisfied.
+   */
+  envCheck?: () => Array<string>
 }
 
 export const PROVIDERS: Record<ProviderName, ProviderSpec> = {
@@ -99,7 +136,16 @@ export const PROVIDERS: Record<ProviderName, ProviderSpec> = {
   vercel: {
     label: 'Vercel',
     make: () => vercelSandbox(),
-    requiredEnv: ['VERCEL_TOKEN'],
+    // Either a self-contained OIDC token (`vercel env pull` → VERCEL_OIDC_TOKEN),
+    // OR token + team + project (off-Vercel, no OIDC). With only VERCEL_TOKEN the
+    // SDK falls back to OIDC and fails.
+    requiredEnv: ['VERCEL_TOKEN', 'VERCEL_TEAM_ID', 'VERCEL_PROJECT_ID'],
+    envCheck: () =>
+      process.env.VERCEL_OIDC_TOKEN
+        ? []
+        : ['VERCEL_TOKEN', 'VERCEL_TEAM_ID', 'VERCEL_PROJECT_ID'].filter(
+            (key) => !process.env[key],
+          ),
   },
   daytona: {
     label: 'Daytona',
@@ -116,15 +162,39 @@ export function isProvider(value: unknown): value is ProviderName {
   return typeof value === 'string' && value in PROVIDERS
 }
 
+/**
+ * Whether to use the host's logged-in Claude Code subscription instead of an API
+ * key (no API billing). Only valid for Claude Code on the local-process provider,
+ * which runs *your* host `claude`; sandboxes have no host login.
+ */
+export function usesSubscription(
+  harness: HarnessName,
+  provider: ProviderName,
+  useSubscription: boolean | undefined,
+): boolean {
+  return !!useSubscription && provider === 'local' && harness === 'claude-code'
+}
+
 /** Required env vars (harness + provider) that are not set in process.env. */
 export function missingEnv(
   harness: HarnessName,
   provider: ProviderName,
 ): Array<string> {
-  return [
-    ...HARNESSES[harness].requiredEnv,
-    ...PROVIDERS[provider].requiredEnv,
-  ].filter((key) => !process.env[key])
+  // local-process runs the agent on the host with the host's OWN auth — an env
+  // API key, or a `claude login`/`codex login` — so the example requires no key
+  // for it. Sandboxed providers must have a key injected, so it's required.
+  const harnessSpec = HARNESSES[harness]
+  const harnessMissing =
+    provider === 'local'
+      ? []
+      : harnessSpec.envCheck
+        ? harnessSpec.envCheck()
+        : harnessSpec.requiredEnv.filter((key) => !process.env[key])
+  const spec = PROVIDERS[provider]
+  const providerMissing = spec.envCheck
+    ? spec.envCheck()
+    : spec.requiredEnv.filter((key) => !process.env[key])
+  return [...harnessMissing, ...providerMissing]
 }
 
 export interface GitHubIssue {
@@ -204,22 +274,46 @@ export function buildSandbox(opts: {
   provider: ProviderName
   repo: string
   threadId: string
+  /** Keep the sandbox alive after the run instead of destroying it (default: destroy). */
+  keepAlive?: boolean
+  /** Local Claude Code only: use the host's subscription login instead of an API key. */
+  useSubscription?: boolean
 }): SandboxDefinition {
   const harness = HARNESSES[opts.harness]
-  const provider = PROVIDERS[opts.provider]
+  const subscription = usesSubscription(
+    opts.harness,
+    opts.provider,
+    opts.useSubscription,
+  )
+
+  // Subscription mode scrubs ANTHROPIC_API_KEY from the host claude's env (via the
+  // provider's `scrubEnv` flag) so it falls back to the logged-in subscription.
+  const provider = subscription
+    ? localProcessSandbox({ scrubEnv: ['ANTHROPIC_API_KEY'] })
+    : PROVIDERS[opts.provider].make()
+
+  // Inject auth secrets only for sandboxed providers — local-process inherits the
+  // host's own env (API key, or `claude login` subscription), so nothing to inject.
   const secretEnv: Record<string, string> = {}
-  for (const key of [...harness.requiredEnv, ...provider.requiredEnv]) {
-    secretEnv[key] = process.env[key] ?? ''
+  if (opts.provider !== 'local') {
+    for (const key of [
+      ...harness.requiredEnv,
+      ...PROVIDERS[opts.provider].requiredEnv,
+    ]) {
+      const value = process.env[key]
+      if (value) secretEnv[key] = value
+    }
   }
   return defineSandbox({
     id: `triage-${opts.harness}-${opts.provider}-${opts.threadId}`,
-    provider: provider.make(),
+    provider,
     workspace: defineWorkspace({
       source: githubRepo({ repo: opts.repo }),
       setup: ({ serial }) => {
-        // Install the CLI only on docker (a fresh container); local uses host PATH,
-        // and vercel/daytona images are expected to provide it (or pre-bake).
-        if (opts.provider === 'docker' && harness.installCommand) {
+        // Install the harness CLI into the fresh sandbox for every provider
+        // EXCEPT local-process, which uses the host's CLI already on PATH.
+        // Remote/container images (docker/vercel/daytona) don't ship it.
+        if (opts.provider !== 'local' && harness.installCommand) {
           serial(harness.installCommand)
         }
       },
@@ -227,6 +321,10 @@ export function buildSandbox(opts: {
         'Investigate read-only; do not modify source files unless explicitly asked.',
       secrets: createSecrets(secretEnv),
     }),
-    lifecycle: { reuse: 'thread' },
+    // Tear down after the run so a container/VM is never left running. On
+    // success/error `withSandbox` honors `destroyOnComplete`; on an explicit
+    // abort it ALWAYS destroys (killing the agent's token drain), so keepAlive
+    // only preserves the sandbox after a successful run.
+    lifecycle: { reuse: 'thread', destroyOnComplete: !opts.keepAlive },
   })
 }
