@@ -7,13 +7,13 @@ import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import type { UIMessage } from '@tanstack/ai-react'
 import {
   HARNESSES,
   PROVIDERS,
   parseVerdict,
 } from '../sandbox-triage-options'
 import type { HarnessName, ProviderName, Verdict } from '../sandbox-triage-options'
+import type { UIMessage } from '@tanstack/ai-react'
 
 export const Route = createFileRoute('/sandboxes')({
   component: SandboxesPage,
@@ -207,8 +207,7 @@ function Messages({
           message.role === 'assistant'
             ? parseVerdict(
                 message.parts
-                  .filter((p) => p.type === 'text')
-                  .map((p) => (p.type === 'text' ? p.content : ''))
+                  .flatMap((p) => (p.type === 'text' ? [p.content] : []))
                   .join('\n'),
               )
             : null
@@ -299,12 +298,11 @@ function SandboxesPage() {
         data !== null &&
         typeof data === 'object' &&
         'diff' in data &&
-        typeof (data as Record<string, unknown>).diff === 'string'
+        typeof data.diff === 'string'
       ) {
-        const d = data as Record<string, unknown>
-        const diff = d.diff as string
+        const diff = data.diff
         const path =
-          'path' in d && typeof d.path === 'string' ? d.path : '.'
+          'path' in data && typeof data.path === 'string' ? data.path : '.'
         setFileEvents((prev) => [...prev, { path, diff }])
       }
     },

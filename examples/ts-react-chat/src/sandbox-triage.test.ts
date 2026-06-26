@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { parseIssueUrl, parseVerdict } from './sandbox-triage'
+import {
+  HARNESSES,
+  PROVIDERS,
+  buildTriagePrompt,
+  isHarness,
+  isProvider,
+  missingEnv,
+  parseIssueUrl,
+  parseVerdict,
+} from './sandbox-triage'
 
 describe('parseIssueUrl', () => {
   it('extracts repo + issue number', () => {
@@ -38,15 +47,6 @@ describe('parseVerdict', () => {
     expect(parseVerdict('VERDICT: maybe')).toBeNull()
   })
 })
-
-import {
-  HARNESSES,
-  PROVIDERS,
-  buildTriagePrompt,
-  isHarness,
-  isProvider,
-  missingEnv,
-} from './sandbox-triage'
 
 describe('registries', () => {
   it('has 4 harnesses and 4 providers with labels + required env arrays', () => {

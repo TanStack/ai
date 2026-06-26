@@ -12,11 +12,16 @@ import { daytonaSandbox } from '@tanstack/ai-sandbox-daytona'
 import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
 import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 import { vercelSandbox } from '@tanstack/ai-sandbox-vercel'
+import { parseVerdict } from './sandbox-triage-options'
+import type { HarnessName, ProviderName, Verdict } from './sandbox-triage-options'
 import type { AnyTextAdapter } from '@tanstack/ai'
 import type {
   SandboxDefinition,
   SandboxProvider,
 } from '@tanstack/ai-sandbox'
+
+export { parseVerdict }
+export type { Verdict, HarnessName, ProviderName }
 
 /** GitHub issue URL → repo + issue number. Throws on anything that isn't an issue URL. */
 export function parseIssueUrl(url: string): { repo: string; issueNumber: number } {
@@ -31,27 +36,8 @@ export function parseIssueUrl(url: string): { repo: string; issueNumber: number 
   return { repo: `${match[1]}/${match[2]}`, issueNumber: Number(match[3]) }
 }
 
-export type Verdict = 'relevant' | 'not-relevant' | 'uncertain'
-
-const VERDICTS: ReadonlySet<Verdict> = new Set([
-  'relevant',
-  'not-relevant',
-  'uncertain',
-])
-
-/** Read the agent's required `VERDICT: <value>` first line. Returns null if missing/unknown. */
-export function parseVerdict(text: string): Verdict | null {
-  const line = text.split('\n').find((l) => /^\s*verdict\s*:/i.test(l))
-  if (!line) return null
-  const value = line.split(':')[1]?.trim().toLowerCase()
-  return value && VERDICTS.has(value as Verdict) ? (value as Verdict) : null
-}
-
 const WORKDIR = '/workspace'
 const SANDBOX_IMAGE = process.env.SANDBOX_IMAGE ?? 'node:22'
-
-export type HarnessName = 'claude-code' | 'codex' | 'gemini-cli' | 'opencode'
-export type ProviderName = 'docker' | 'local' | 'vercel' | 'daytona'
 
 export interface HarnessSpec {
   label: string

@@ -1,18 +1,14 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { Route } from './api.sandbox-triage'
-
-const POST = Route.options.server.handlers.POST as (ctx: {
-  request: Request
-}) => Promise<Response>
+import { triagePost } from './api.sandbox-triage'
 
 function post(body: unknown): Promise<Response> {
-  return POST({
-    request: new Request('http://localhost/api/sandbox-triage', {
+  return triagePost(
+    new Request('http://localhost/api/sandbox-triage', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
     }),
-  })
+  )
 }
 
 afterEach(() => {

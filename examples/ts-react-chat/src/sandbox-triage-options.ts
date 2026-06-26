@@ -8,7 +8,7 @@
  * that must not reach the client bundle. All values here are pure, no imports.
  */
 
-// Pure string-literal types — kept in sync with sandbox-triage.ts manually.
+// Pure string-literal types — re-exported by sandbox-triage.ts (single source of truth here).
 export type HarnessName = 'claude-code' | 'codex' | 'gemini-cli' | 'opencode'
 export type ProviderName = 'docker' | 'local' | 'vercel' | 'daytona'
 export type Verdict = 'relevant' | 'not-relevant' | 'uncertain'
