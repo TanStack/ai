@@ -64,13 +64,19 @@ provider-agnostic.
 | --- | --- | --- | --- |
 | Local process | `@tanstack/ai-sandbox-local-process` | none (host) | The fast, no-Docker dev loop. Trusted/dev use only. |
 | Docker | `@tanstack/ai-sandbox-docker` | container | Real isolation; commit-based snapshots, fork, resume-by-id. |
+| Daytona | `@tanstack/ai-sandbox-daytona` | cloud sandbox | Managed [Daytona](https://www.daytona.io/) sandboxes; port preview links, resume-by-id. Needs `DAYTONA_API_KEY`. |
+| Vercel | `@tanstack/ai-sandbox-vercel` | microVM | Managed [Vercel Sandbox](https://vercel.com/docs/sandbox) microVMs; exposed-port domains, resume-by-id (persistent). Needs `VERCEL_TOKEN` + team/project. |
 
 ```ts
 import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
+import { daytonaSandbox } from '@tanstack/ai-sandbox-daytona'
+import { vercelSandbox } from '@tanstack/ai-sandbox-vercel'
 
 const dev = localProcessSandbox() // runs on your host
 const isolated = dockerSandbox({ image: 'node:22' }) // runs in a container
+const daytona = daytonaSandbox({ apiKey: process.env.DAYTONA_API_KEY }) // managed cloud sandbox
+const vercel = vercelSandbox({ runtime: 'node24' }) // managed Vercel microVM
 ```
 
 Providers declare what they support via `capabilities()`
@@ -615,6 +621,14 @@ with `SANDBOX=local` on your host (requires `ANTHROPIC_API_KEY`).
 `TanStack/ai`, clones the repo into a sandbox, runs Claude Code to triage it, and
 writes a Markdown report locally — using **file-event hooks** to log the agent's
 edits live. It ships two entrypoints, `pnpm start:process` and `pnpm start:docker`.
+
+For a **web** chat where the agent builds and runs an app inside a sandbox and
+hands back a live preview URL, see `examples/sandbox-local-web` (Docker / local),
+`examples/sandbox-daytona-web` (managed Daytona sandbox), and
+`examples/sandbox-vercel-web` (Vercel microVM). The hosted-provider examples show
+the no-bridge pattern: with the sandbox in the cloud, they pass `tools: []` and
+pre-resolve the provider's public preview URL host-side instead of bridging a
+host tool back into the sandbox.
 
 > **Persistence-ready:** the sandbox layer ships with in-memory stores for
 > resume bookkeeping. A future persistence package can provide durable

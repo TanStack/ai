@@ -1,9 +1,9 @@
 {
-  "name": "@tanstack/sandbox-local-web-example",
+  "name": "@tanstack/sandbox-vercel-web-example",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite dev --port 3002",
+    "dev": "vite dev --port 3004",
     "build": "vite build",
     "serve": "vite preview",
     "typecheck": "tsc --noEmit",
@@ -13,11 +13,9 @@
   "dependencies": {
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-claude-code": "workspace:*",
-    "@tanstack/ai-opencode": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
     "@tanstack/ai-sandbox": "workspace:*",
-    "@tanstack/ai-sandbox-docker": "workspace:*",
-    "@tanstack/ai-sandbox-local-process": "workspace:*",
+    "@tanstack/ai-sandbox-vercel": "workspace:*",
     "@tanstack/react-router": "^1.158.4",
     "@tanstack/react-start": "^1.159.0",
     "lucide-react": "^0.561.0",

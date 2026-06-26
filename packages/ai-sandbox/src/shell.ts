@@ -6,10 +6,41 @@
  * sequentially inside the same shell so `cd`, exported variables, etc. persist
  * across calls — exactly the exec model the bootstrap setup plan needs.
  *
+ * Providers WITHOUT a writable host→process stdin (`capabilities.writableStdin
+ * === false`, e.g. Cloudflare / Daytona / Vercel) can't be driven over stdin, so
+ * {@link createBootstrapShell} transparently falls back to an exec-backed shell
+ * ({@link createExecBootstrapShell}) that threads `cwd`/env across `exec` calls
+ * to reproduce the same persistent-shell semantics.
+ *
  * This module is internal-only and must NOT be re-exported from
  * `packages/ai-sandbox/src/index.ts`.
  */
 import type { SandboxHandle } from './contracts'
+
+/**
+ * Parse the output of `export -p` (or `declare -x`) into a plain env map.
+ * Shared by the stdin shell's `forkState` and the exec-backed shell.
+ */
+function parseExports(output: string): Record<string, string> {
+  const env: Record<string, string> = {}
+  for (const line of output.split('\n')) {
+    const trimmed = line.trim()
+    // Match `declare -x KEY=...` or `export KEY=...` forms.
+    const match =
+      /^(?:declare\s+-x\s+|export\s+)([A-Za-z_][A-Za-z0-9_]*)(?:="((?:[^"\\]|\\.)*)")?$/.exec(
+        trimmed,
+      )
+    if (match === null) continue
+    const key = match[1]
+    if (key === undefined) continue
+    // Value may be absent for exported-but-unset vars; skip those.
+    const raw = match[2]
+    if (raw === undefined) continue
+    // Unescape backslash-escaped chars inside double quotes.
+    env[key] = raw.replace(/\\(.)/g, '$1')
+  }
+  return env
+}
 
 /** The surface the bootstrap engine uses. */
 export interface BootstrapShell {
@@ -44,6 +75,11 @@ export async function createBootstrapShell(
   handle: SandboxHandle,
   opts: BootstrapShellOptions = {},
 ): Promise<BootstrapShell> {
+  // Providers without a writable host→process stdin can't run the sentinel-echo
+  // protocol below (it feeds commands over stdin), so use the exec-backed shell.
+  if (!handle.capabilities.writableStdin) {
+    return createExecBootstrapShell(handle, opts)
+  }
   const proc = await handle.process.spawn('sh', { cwd: opts.cwd })
 
   /*
@@ -144,27 +180,7 @@ export async function createBootstrapShell(
     const cwd = pwdResult.stdout.trim()
 
     const exportResult = await run('export -p')
-    const env: Record<string, string> = {}
-
-    // Parse `declare -x NAME="VALUE"` or `export NAME="VALUE"` lines.
-    for (const line of exportResult.stdout.split('\n')) {
-      const trimmed = line.trim()
-      // Match `declare -x KEY=...` or `export KEY=...` forms.
-      const match =
-        /^(?:declare\s+-x\s+|export\s+)([A-Za-z_][A-Za-z0-9_]*)(?:="((?:[^"\\]|\\.)*)")?$/.exec(
-          trimmed,
-        )
-      if (match === null) continue
-      const key = match[1]
-      if (key === undefined) continue
-      // Value may be absent for exported-but-unset vars; skip those.
-      const raw = match[2]
-      if (raw === undefined) continue
-      // Unescape backslash-escaped chars inside double quotes.
-      env[key] = raw.replace(/\\(.)/g, '$1')
-    }
-
-    return { cwd, env }
+    return { cwd, env: parseExports(exportResult.stdout) }
   }
 
   async function dispose(): Promise<void> {
@@ -172,6 +188,95 @@ export async function createBootstrapShell(
     await proc.kill()
     // Drain the stdout iterator to completion so there are no dangling promises.
     await drainPromise
+  }
+
+  return { run, forkState, dispose }
+}
+
+/**
+ * Exec-backed {@link BootstrapShell} for providers WITHOUT a writable stdin.
+ *
+ * There is no persistent process to feed commands into, so persistence of `cd`
+ * and exported variables is reproduced by threading state across discrete
+ * {@link SandboxHandle.process.exec} calls: each `run()` executes the command in
+ * the tracked cwd+env, then captures the resulting `pwd` and `export -p` (via
+ * marker lines) so the NEXT command inherits any directory change or exports.
+ */
+export function createExecBootstrapShell(
+  handle: SandboxHandle,
+  opts: BootstrapShellOptions = {},
+): BootstrapShell {
+  let cwd = opts.cwd ?? '/'
+  let env: Record<string, string> = {}
+  let counter = 0
+
+  async function run(
+    command: string,
+  ): Promise<{ exitCode: number; stdout: string }> {
+    const id = counter
+    counter += 1
+    const sentinel = `__BSSH_${id}__`
+
+    // Run the command, then emit its exit code, cwd and exported env behind
+    // marker lines so we can recover state even when the command itself fails
+    // (no `set -e`). Capturing `$?` immediately after the command keeps the
+    // reported exit code the command's own, not the trailing introspection's.
+    const script = [
+      command,
+      `__bssh_rc=$?`,
+      `printf '\\n%s %s\\n' '${sentinel}' "$__bssh_rc"`,
+      `printf '%s\\n' '${sentinel}_CWD'`,
+      `pwd`,
+      `printf '%s\\n' '${sentinel}_ENV'`,
+      `export -p`,
+    ].join('\n')
+
+    const res = await handle.process.exec(script, { cwd, env })
+
+    const cmdOut: Array<string> = []
+    const cwdLines: Array<string> = []
+    const envLines: Array<string> = []
+    let exitCode = res.exitCode
+    let phase: 'cmd' | 'await-cwd' | 'cwd' | 'env' = 'cmd'
+
+    for (const line of res.stdout.split('\n')) {
+      if (phase === 'cmd') {
+        if (line.startsWith(`${sentinel} `)) {
+          const parsed = parseInt(line.slice(sentinel.length + 1).trim(), 10)
+          exitCode = Number.isFinite(parsed) ? parsed : res.exitCode
+          phase = 'await-cwd'
+          continue
+        }
+        cmdOut.push(line)
+      } else if (phase === 'await-cwd') {
+        if (line === `${sentinel}_CWD`) phase = 'cwd'
+      } else if (phase === 'cwd') {
+        if (line === `${sentinel}_ENV`) phase = 'env'
+        else cwdLines.push(line)
+      } else {
+        envLines.push(line)
+      }
+    }
+
+    // `pwd` prints a single line; the last non-empty one is the new cwd.
+    const newCwd = cwdLines
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .pop()
+    if (newCwd) cwd = newCwd
+    const newEnv = parseExports(envLines.join('\n'))
+    if (Object.keys(newEnv).length > 0) env = newEnv
+
+    return { exitCode, stdout: cmdOut.join('\n') }
+  }
+
+  function forkState(): Promise<{ cwd: string; env: Record<string, string> }> {
+    return Promise.resolve({ cwd, env: { ...env } })
+  }
+
+  function dispose(): Promise<void> {
+    // Nothing to tear down — there is no persistent process.
+    return Promise.resolve()
   }
 
   return { run, forkState, dispose }
