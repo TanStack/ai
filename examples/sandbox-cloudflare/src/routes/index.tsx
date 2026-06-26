@@ -97,13 +97,49 @@ function PreviewLink({ url }: { url: string }) {
   )
 }
 
-function Messages({ messages }: { messages: Array<UIMessage> }) {
+/**
+ * Shown while a request is in flight but no stream chunk has arrived yet — that
+ * window is the sandbox booting: `withSandbox` is creating (or resuming) the
+ * sandbox and preparing the coding agent before the agent loop streams. It's the
+ * slow part of the first message, so make the wait legible.
+ */
+function SandboxBooting() {
+  return (
+    <div className="p-4">
+      <div className="flex items-start gap-4">
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-linear-to-r from-indigo-500 to-violet-600 shrink-0">
+          <Server className="w-4 h-4 text-white" />
+        </div>
+        <div className="flex items-center gap-3 rounded-lg border border-indigo-500/30 bg-indigo-900/10 px-4 py-3">
+          <div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm">
+            <span className="font-medium text-indigo-200">
+              Starting sandbox…
+            </span>{' '}
+            <span className="text-gray-400">
+              starting the Cloudflare container and installing the coding agent.
+              The first message takes a moment.
+            </span>
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Messages({
+  messages,
+  booting,
+}: {
+  messages: Array<UIMessage>
+  booting: boolean
+}) {
   const containerRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight
     }
-  }, [messages])
+  }, [messages, booting])
 
   if (!messages.length) {
     return (
@@ -196,6 +232,7 @@ function Messages({ messages }: { messages: Array<UIMessage> }) {
           </div>
         )
       })}
+      {booting && <SandboxBooting />}
     </div>
   )
 }
@@ -210,6 +247,14 @@ function SandboxAgentPage() {
     connection: fetchServerSentEvents('/api/run'),
     body: { threadId },
   })
+
+  // A request is in flight but nothing has streamed back yet (the last message is
+  // still the user's) → the sandbox is booting. Once the first chunk arrives an
+  // assistant message is appended and this clears.
+  const booting =
+    isLoading &&
+    messages.length > 0 &&
+    messages[messages.length - 1].role === 'user'
 
   return (
     <div className="flex flex-col h-screen bg-gray-900">
@@ -228,7 +273,7 @@ function SandboxAgentPage() {
 
       <div className="flex-1 flex flex-col min-w-0">
         <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full overflow-hidden">
-          <Messages messages={messages} />
+          <Messages messages={messages} booting={booting} />
         </div>
 
         <div className="border-t border-indigo-500/10 bg-gray-900/80 backdrop-blur-sm">
