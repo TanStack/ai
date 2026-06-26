@@ -139,7 +139,9 @@ describe('injectAudioRecorder', () => {
     const trackStop = vi.fn()
     vi.stubGlobal('navigator', {
       mediaDevices: {
-        getUserMedia: vi.fn(async () => ({ getTracks: () => [{ stop: trackStop }] })),
+        getUserMedia: vi.fn(async () => ({
+          getTracks: () => [{ stop: trackStop }],
+        })),
       },
     })
     const { result, destroy } = renderInjectAudioRecorder()
