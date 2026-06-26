@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { Check, Loader2, Send, Square } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
@@ -6,11 +6,13 @@ import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
 import rehypeHighlight from 'rehype-highlight'
 import remarkGfm from 'remark-gfm'
-import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import { createMcpAppBridge } from '@tanstack/ai-client'
+import {
+  fetchServerSentEvents,
+  useChat,
+  useMcpAppBridge,
+} from '@tanstack/ai-react'
 import { MCPAppResource } from '@tanstack/ai-react/mcp-apps'
-import type { UIMessage } from '@tanstack/ai-react'
-import type { McpAppBridge } from '@tanstack/ai-client'
+import type { McpAppBridge, UIMessage } from '@tanstack/ai-react'
 import { MCP_PROVIDERS, type McpProvider } from '@/lib/mcp-providers'
 import {
   MCP_APP_SUGGESTIONS,
@@ -197,19 +199,14 @@ function McpAppsPage() {
     body: { provider },
   })
 
-  // One bridge per thread: routes the widget's tool calls to the interactive
-  // endpoint and its prompt/link actions back into this chat.
-  const bridge = useMemo(
-    () =>
-      createMcpAppBridge({
-        threadId,
-        callEndpoint: '/api/mcp-apps-call',
-        chat: { sendMessage: async (content) => void sendMessage(content) },
-        onLink: (url) => window.open(url, '_blank', 'noopener,noreferrer'),
-      }),
-    // sendMessage is stable per useChat instance (keyed by threadId).
-    [threadId], // eslint-disable-line react-hooks/exhaustive-deps
-  )
+  // One stable bridge per thread: routes the widget's tool calls to the
+  // interactive endpoint and its prompt/link actions back into this chat.
+  const bridge = useMcpAppBridge({
+    threadId,
+    callEndpoint: '/api/mcp-apps-call',
+    chat: { sendMessage: async (content) => void sendMessage(content) },
+    onLink: (url) => window.open(url, '_blank', 'noopener,noreferrer'),
+  })
 
   const [input, setInput] = useState('')
   const send = (text: string) => {

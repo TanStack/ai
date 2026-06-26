@@ -561,14 +561,18 @@ const result = await handler(body)
 // { ok: true; result: unknown } | { ok: false; error: string }
 ```
 
-### Client side — `createMcpAppBridge` + `MCPAppResource`
+### Client side — `useMcpAppBridge` + `MCPAppResource`
 
-Create the bridge with `createMcpAppBridge` from `@tanstack/ai-client`, then
-render MCP app resources with `MCPAppResource` from
-`@tanstack/ai-react/mcp-apps` (also exported from
-`@tanstack/ai-preact/mcp-apps`, which requires a `preact/compat` alias). `MCPAppResource` uses
-`@mcp-ui/client`'s `AppRenderer` under the hood — React only. Solid, Vue,
-Svelte, and Angular renderers are deferred.
+In React/Preact, create the bridge with the `useMcpAppBridge` hook (from
+`@tanstack/ai-react` / `@tanstack/ai-preact`) — it returns a **stable** bridge
+per `threadId`/`callEndpoint` and always calls your latest `sendMessage`/`onLink`,
+so the bridge isn't recreated on every render (no `useMemo` / `exhaustive-deps`
+by hand). It's a thin wrapper over the framework-agnostic `createMcpAppBridge`
+from `@tanstack/ai-client` (use that directly outside React/Preact). Render
+resources with `MCPAppResource` from `@tanstack/ai-react/mcp-apps` (also
+`@tanstack/ai-preact/mcp-apps`, which requires a `preact/compat` alias).
+`MCPAppResource` uses `@mcp-ui/client`'s `AppRenderer` under the hood — React
+only. Solid, Vue, Svelte, and Angular renderers are deferred.
 
 The bridge exposes `{ callTool, sendPrompt, openLink }` and routes the
 iframe's actions: `tool` → POST to `callEndpoint`; `prompt` →
@@ -578,15 +582,23 @@ is dropped (with a console warning) and `openLink` returns `{ isError: true }`
 prop. Omit `bridge` for display-only (inert) rendering.
 
 ```tsx
-import { useChat } from '@tanstack/ai-react'
-import { fetchServerSentEvents, createMcpAppBridge } from '@tanstack/ai-client'
+import { useChat, useMcpAppBridge } from '@tanstack/ai-react'
+import { fetchServerSentEvents } from '@tanstack/ai-client'
 import { MCPAppResource } from '@tanstack/ai-react/mcp-apps'
 
 function ChatPage() {
+  const threadId = 'weather-chat'
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
   })
-  const threadId = 'weather-chat'
+
+  const bridge = useMcpAppBridge({
+    threadId,
+    callEndpoint: '/api/mcp-app/call',
+    chat: { sendMessage: async (content) => void sendMessage({ content }) },
+    // Opt in to link navigation — absent means links are dropped.
+    onLink: (url) => window.open(url, '_blank', 'noopener'),
+  })
 
   return (
     <div>
@@ -594,13 +606,6 @@ function ChatPage() {
         msg.parts.map((part, i) => {
           if (part.type === 'text') return <p key={i}>{part.content}</p>
           if (part.type === 'ui-resource') {
-            const bridge = createMcpAppBridge({
-              threadId,
-              callEndpoint: '/api/mcp-app/call',
-              chat: { sendMessage },
-              // Opt in to link navigation — absent means links are dropped.
-              onLink: (url) => window.open(url, '_blank', 'noopener'),
-            })
             return (
               <MCPAppResource
                 key={i}

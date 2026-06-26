@@ -12,6 +12,7 @@ keywords:
   - MCPAppResource
   - createMcpAppCallHandler
   - createMcpAppBridge
+  - useMcpAppBridge
   - interactive widgets
 ---
 
@@ -276,18 +277,32 @@ export const Route = createFileRoute('/api/chat')({
 - `prompt` actions → `chat.sendMessage(prompt)`.
 - `link` actions → `onLink(url)` if provided; dropped (with a warning) otherwise.
 
+In React (or Preact), use the `useMcpAppBridge` hook — it returns a **stable**
+bridge for the given `threadId`/`callEndpoint` and always calls your latest
+`sendMessage`/`onLink`, so you don't hand-write `useMemo` or fight
+`exhaustive-deps`. (The underlying `createMcpAppBridge` from
+`@tanstack/ai-client` is framework-agnostic if you need it directly.)
+
 ```tsx
 // src/components/Chat.tsx
-import { useChat } from '@tanstack/ai-react'
-import { fetchServerSentEvents, createMcpAppBridge } from '@tanstack/ai-client'
+import { useChat, useMcpAppBridge } from '@tanstack/ai-react'
+import { fetchServerSentEvents } from '@tanstack/ai-client'
 import { MCPAppResource } from '@tanstack/ai-react/mcp-apps'
 
 export function Chat() {
+  // A stable id correlating widget calls back to this conversation.
+  const threadId = 'weather-chat'
   const { messages, sendMessage, status } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
   })
-  // A stable id correlating widget calls back to this conversation.
-  const threadId = 'weather-chat'
+
+  const bridge = useMcpAppBridge({
+    threadId,
+    callEndpoint: '/api/mcp-apps/call',
+    chat: { sendMessage: async (content) => void sendMessage({ content }) },
+    // Opt in to link navigation — absent means links are blocked.
+    onLink: (url) => window.open(url, '_blank', 'noopener'),
+  })
 
   return (
     <div>
@@ -298,14 +313,6 @@ export function Chat() {
               return <p key={i}>{part.content}</p>
             }
             if (part.type === 'ui-resource') {
-              const bridge = createMcpAppBridge({
-                threadId,
-                callEndpoint: '/api/mcp-apps/call',
-                chat: { sendMessage },
-                // Opt in to link navigation — absent means links are blocked.
-                onLink: (url) => window.open(url, '_blank', 'noopener'),
-              })
-
               return (
                 <MCPAppResource
                   key={i}
@@ -419,6 +426,30 @@ const options: CreateMcpAppBridgeOptions = {
 
 // Returns an McpAppBridge with callTool / sendPrompt / openLink methods.
 const bridge = createMcpAppBridge(options)
+```
+
+### `useMcpAppBridge` (`@tanstack/ai-react` / `@tanstack/ai-preact`)
+
+The React/Preact wrapper around `createMcpAppBridge`. Returns a bridge that is
+**stable** for a given `threadId`/`callEndpoint` (so it won't churn `MCPAppResource`
+on every render) while always invoking the latest `chat.sendMessage`/`onLink`.
+Takes the same options as `createMcpAppBridge`.
+
+```tsx
+import { useChat, useMcpAppBridge } from '@tanstack/ai-react'
+import { fetchServerSentEvents } from '@tanstack/ai-client'
+
+function useBridge(threadId: string) {
+  const { sendMessage } = useChat({
+    connection: fetchServerSentEvents('/api/chat'),
+  })
+  return useMcpAppBridge({
+    threadId,
+    callEndpoint: '/api/mcp-apps/call',
+    chat: { sendMessage: async (content) => void sendMessage({ content }) },
+    onLink: (url) => window.open(url, '_blank', 'noopener'),
+  })
+}
 ```
 
 ### `MCPAppResource` (`@tanstack/ai-react/mcp-apps`)
