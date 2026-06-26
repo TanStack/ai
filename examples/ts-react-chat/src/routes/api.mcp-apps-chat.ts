@@ -98,7 +98,8 @@ export const Route = createFileRoute('/api/mcp-apps-chat')({
           }
           return new Response(
             JSON.stringify({
-              error: error instanceof Error ? error.message : 'An error occurred',
+              error:
+                error instanceof Error ? error.message : 'An error occurred',
             }),
             { status: 500, headers: { 'Content-Type': 'application/json' } },
           )

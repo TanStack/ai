@@ -132,7 +132,11 @@ function Messages({
                       className="prose dark:prose-invert max-w-none text-white"
                     >
                       <ReactMarkdown
-                        rehypePlugins={[rehypeRaw, rehypeSanitize, rehypeHighlight]}
+                        rehypePlugins={[
+                          rehypeRaw,
+                          rehypeSanitize,
+                          rehypeHighlight,
+                        ]}
                         remarkPlugins={[remarkGfm]}
                       >
                         {part.content}
