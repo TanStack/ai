@@ -12,18 +12,7 @@ import { defineComponent } from 'vue'
 import { useAudioRecorder } from '../src/use-audio-recorder'
 import type { AudioRecording } from '@tanstack/ai-client'
 
-// jsdom does not implement Blob.prototype.arrayBuffer — polyfill it so the
-// recorder's finalize() path works under jsdom.
-if (typeof Blob !== 'undefined' && !Blob.prototype.arrayBuffer) {
-  Blob.prototype.arrayBuffer = function () {
-    return new Promise<ArrayBuffer>((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = () => resolve(reader.result as ArrayBuffer)
-      reader.onerror = () => reject(reader.error)
-      reader.readAsArrayBuffer(this)
-    })
-  }
-}
+// Blob.prototype.arrayBuffer is polyfilled for jsdom in tests/setup.ts.
 
 class FakeMediaRecorder {
   ondataavailable: ((e: { data: Blob }) => void) | null = null

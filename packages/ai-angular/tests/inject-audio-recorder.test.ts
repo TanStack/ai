@@ -5,6 +5,10 @@ import {
   platformBrowserDynamicTesting,
 } from '@angular/platform-browser-dynamic/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+// The Angular plugin runs vitest.setup.ts in a separate module realm, so the
+// jsdom Blob polyfill must be imported into this test's own graph rather than
+// via setupFiles (see packages/ai-client/tests/blob-polyfill.ts).
+import '../../ai-client/tests/blob-polyfill'
 import { injectAudioRecorder } from '../src/inject-audio-recorder'
 import type { InjectAudioRecorderResult } from '../src/inject-audio-recorder'
 import type { AudioRecording } from '@tanstack/ai-client'
@@ -22,24 +26,6 @@ if (
     BrowserDynamicTestingModule,
     platformBrowserDynamicTesting(),
   )
-}
-
-// jsdom does not implement Blob.prototype.arrayBuffer — polyfill it so the
-// recorder's finalize() path works under jsdom. The `Partial<Blob>` view types
-// `arrayBuffer` as optional so the feature check isn't "always falsy" (lib.dom
-// declares it as always present).
-if (typeof Blob !== 'undefined') {
-  const blobProto = Blob.prototype as Partial<Blob>
-  if (typeof blobProto.arrayBuffer !== 'function') {
-    blobProto.arrayBuffer = function (this: Blob) {
-      return new Promise<ArrayBuffer>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(reader.result as ArrayBuffer)
-        reader.onerror = () => reject(reader.error)
-        reader.readAsArrayBuffer(this)
-      })
-    }
-  }
 }
 
 class FakeMediaRecorder {

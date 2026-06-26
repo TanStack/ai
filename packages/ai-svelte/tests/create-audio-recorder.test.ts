@@ -2,23 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createAudioRecorder } from '../src/create-audio-recorder.svelte'
 import type { AudioRecording } from '@tanstack/ai-client'
 
-// jsdom does not implement Blob.prototype.arrayBuffer — polyfill it so the
-// recorder's finalize() path works under jsdom. The `Partial<Blob>` view types
-// `arrayBuffer` as optional so the feature check isn't "always falsy" (lib.dom
-// declares it as always present).
-if (typeof Blob !== 'undefined') {
-  const blobProto = Blob.prototype as Partial<Blob>
-  if (typeof blobProto.arrayBuffer !== 'function') {
-    blobProto.arrayBuffer = function (this: Blob) {
-      return new Promise<ArrayBuffer>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(reader.result as ArrayBuffer)
-        reader.onerror = () => reject(reader.error)
-        reader.readAsArrayBuffer(this)
-      })
-    }
-  }
-}
+// Blob.prototype.arrayBuffer is polyfilled for jsdom in tests/setup.ts.
 
 class FakeMediaRecorder {
   ondataavailable: ((e: { data: Blob }) => void) | null = null
