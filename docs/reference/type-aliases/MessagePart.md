@@ -15,10 +15,11 @@ type MessagePart<TData> =
   | ToolCallPart
   | ToolResultPart
   | ThinkingPart
-| StructuredOutputPart<TData>;
+  | StructuredOutputPart<TData>
+  | UIResourcePart;
 ```
 
-Defined in: [packages/ai/src/types.ts:419](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L419)
+Defined in: [packages/ai/src/types.ts:436](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L436)
 
 ## Type Parameters
 

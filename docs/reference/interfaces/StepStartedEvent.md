@@ -5,7 +5,7 @@ title: StepStartedEvent
 
 # Interface: StepStartedEvent
 
-Defined in: [packages/ai/src/types.ts:1152](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1152)
+Defined in: [packages/ai/src/types.ts:1170](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1170)
 
 Emitted when a thinking/reasoning step starts.
 
@@ -30,7 +30,7 @@ TanStack AI adds: `model?`, `stepId?` (deprecated alias), `stepType?`
 optional model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1154](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1154)
+Defined in: [packages/ai/src/types.ts:1172](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1172)
 
 Model identifier for multi-model support
 
@@ -42,7 +42,7 @@ Model identifier for multi-model support
 optional stepId: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1159](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1159)
+Defined in: [packages/ai/src/types.ts:1177](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1177)
 
 #### Deprecated
 
@@ -57,6 +57,6 @@ Kept for backward compatibility.
 optional stepType: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1161](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1161)
+Defined in: [packages/ai/src/types.ts:1179](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1179)
 
 Type of step (e.g., 'thinking', 'planning')
