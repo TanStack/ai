@@ -1,0 +1,72 @@
+{
+  "name": "@tanstack/ai-qwik",
+  "version": "0.1.0",
+  "description": "Qwik v2 integration for TanStack AI.",
+  "author": "Tanner Linsley",
+  "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-qwik"
+  },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "type": "module",
+  "module": "./dist/index.qwik.mjs",
+  "qwik": "./dist/index.qwik.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.qwik.mjs"
+    }
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "clean": "premove ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest run",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc",
+    "test:build": "publint --strict",
+    "build": "vite build && tsc -p tsconfig.build.json"
+  },
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "qwik",
+    "qwik-v2",
+    "chat",
+    "streaming"
+  ],
+  "dependencies": {
+    "@tanstack/ai-client": "workspace:*"
+  },
+  "peerDependencies": {
+    "@qwik.dev/core": "^2.0.0-beta.37",
+    "@tanstack/ai": "workspace:^"
+  },
+  "devDependencies": {
+    "@qwik.dev/core": "2.0.0-beta.37",
+    "@tanstack/ai": "workspace:*",
+    "@types/node": "^24.10.1",
+    "@vitest/coverage-v8": "4.0.14",
+    "publint": "^0.3.15",
+    "typescript": "5.9.3",
+    "vite": "^7.3.3",
+    "vitest": "^4.0.14"
+  }
+}

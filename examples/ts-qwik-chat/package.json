@@ -1,0 +1,29 @@
+{
+  "name": "ts-qwik-chat",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --mode ssr --port 3000",
+    "build": "qwik build",
+    "build.client": "vite build",
+    "build.preview": "vite build --ssr src/entry.preview.tsx",
+    "preview": "qwik build preview && vite preview",
+    "test": "exit 0",
+    "test:types": "tsc --noEmit",
+    "qwik": "qwik"
+  },
+  "dependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-openai": "workspace:*",
+    "@tanstack/ai-qwik": "workspace:*",
+    "zod": "^4.2.0"
+  },
+  "devDependencies": {
+    "@qwik.dev/core": "2.0.0-beta.37",
+    "@qwik.dev/router": "2.0.0-beta.37",
+    "@types/node": "^24.10.1",
+    "typescript": "5.9.3",
+    "vite": "^7.3.3",
+    "vite-tsconfig-paths": "^5.1.4"
+  }
+}

@@ -1,0 +1,37 @@
+export { useChat } from './use-chat'
+export type {
+  DeepPartial,
+  UseChatOptions,
+  UseChatReturn,
+  UIMessage,
+  ChatRequestBody,
+} from './types'
+export { createAiQwikHelloMessage, useAiQwikHello } from './use-hello'
+export type { UseAiQwikHelloReturn } from './use-hello'
+
+export {
+  fetchServerSentEvents,
+  fetchHttpStream,
+  xhrServerSentEvents,
+  xhrHttpStream,
+  stream,
+  rpcStream,
+  createChatClientOptions,
+  clientTools,
+  type ConnectionAdapter,
+  type ConnectConnectionAdapter,
+  type SubscribeConnectionAdapter,
+  type RunAgentInputContext,
+  type FetchConnectionOptions,
+  type XhrConnectionOptions,
+  type InferChatMessages,
+  type GenerationClientState,
+  type ImageGenerateInput,
+  type AudioGenerateInput,
+  type SpeechGenerateInput,
+  type TranscriptionGenerateInput,
+  type SummarizeGenerateInput,
+  type VideoGenerateInput,
+  type VideoGenerateResult,
+  type VideoStatusInfo,
+} from '@tanstack/ai-client'

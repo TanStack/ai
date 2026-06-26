@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "allowJs": false,
+    "checkJs": false,
+    "outDir": "dist",
+    "jsx": "react-jsx",
+    "jsxImportSource": "@qwik.dev/core",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "incremental": true
+  },
+  "include": ["src", "vite.config.ts", "qwik.env.d.ts"],
+  "exclude": ["node_modules", "dist"]
+}
