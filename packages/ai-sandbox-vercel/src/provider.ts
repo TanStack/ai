@@ -1,4 +1,4 @@
-import { Sandbox } from '@vercel/sandbox'
+import { APIError, Sandbox } from '@vercel/sandbox'
 import { VERCEL_CAPS, VercelHandle } from './handle'
 import type {
   SandboxCapabilities,
@@ -40,6 +40,29 @@ export interface VercelSandboxConfig {
 
 const DEFAULT_WORKDIR = '/vercel/sandbox'
 const DEFAULT_RUNTIME = 'node24'
+
+/**
+ * True when `error` is the Vercel SDK's "directory already exists" failure — an
+ * {@link APIError} with HTTP 400 whose body reports an `EEXIST`-style message.
+ * Used to make the non-idempotent native `mkDir` safe to call on a workdir that
+ * may already exist (notably the default `/vercel/sandbox`).
+ */
+export function isDirAlreadyExistsError(error: unknown): boolean {
+  if (!(error instanceof APIError) || error.response.status !== 400)
+    return false
+  const json: unknown = error.json
+  const detail =
+    typeof json === 'object' &&
+    json !== null &&
+    'error' in json &&
+    typeof json.error === 'object' &&
+    json.error !== null &&
+    'message' in json.error &&
+    typeof json.error.message === 'string'
+      ? json.error.message
+      : error.message
+  return /exists/i.test(detail)
+}
 
 class VercelProvider implements SandboxProvider {
   readonly name = 'vercel'
@@ -84,7 +107,16 @@ class VercelProvider implements SandboxProvider {
     // Ensure the workspace dir exists via the native (cwd-independent) mkDir —
     // running a command with a not-yet-existing `cwd` would fail, so we must not
     // route this through the handle (which runs every command in `workdir`).
-    await sandbox.mkDir(this.workdir)
+    //
+    // The SDK's `mkDir` is NOT idempotent: it returns HTTP 400 (`file_error` /
+    // "File exists") when the target already exists, and the default workdir
+    // `/vercel/sandbox` ships in the runtime image — so a fresh sandbox already
+    // has it. Treat an "already exists" failure as success; rethrow anything else.
+    try {
+      await sandbox.mkDir(this.workdir)
+    } catch (error) {
+      if (!isDirAlreadyExistsError(error)) throw error
+    }
     return new VercelHandle({
       sandbox,
       workdir: this.workdir,

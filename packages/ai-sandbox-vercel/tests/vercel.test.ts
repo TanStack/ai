@@ -1,6 +1,52 @@
 import { describe, expect, it } from 'vitest'
+import { APIError } from '@vercel/sandbox'
 import { vercelSandbox } from '../src/index'
+import { isDirAlreadyExistsError } from '../src/provider'
 import type { SandboxHandle } from '@tanstack/ai-sandbox'
+
+// The native `mkDir` used during `create()` is not idempotent — it returns a 400
+// "File exists" when the workdir already exists (the default `/vercel/sandbox`
+// ships in the runtime image). `isDirAlreadyExistsError` lets create() treat that
+// as success while still surfacing real failures.
+describe('isDirAlreadyExistsError', () => {
+  const apiError = (status: number, body?: unknown, message = '') =>
+    new APIError(new Response(null, { status }), {
+      message,
+      json: body,
+    })
+
+  it('matches a 400 with an EEXIST-style message in the json body', () => {
+    const err = apiError(400, {
+      error: {
+        code: 'file_error',
+        message:
+          "error creating directory: cannot create directory '/vercel/sandbox': File exists",
+      },
+    })
+    expect(isDirAlreadyExistsError(err)).toBe(true)
+  })
+
+  it('matches a 400 whose top-level message reports the dir exists', () => {
+    expect(
+      isDirAlreadyExistsError(apiError(400, undefined, 'File exists')),
+    ).toBe(true)
+  })
+
+  it('does NOT match other 400 file errors (e.g. permission denied)', () => {
+    const err = apiError(400, {
+      error: { code: 'file_error', message: 'permission denied' },
+    })
+    expect(isDirAlreadyExistsError(err)).toBe(false)
+  })
+
+  it('does NOT match non-400 statuses or non-APIError values', () => {
+    expect(
+      isDirAlreadyExistsError(apiError(404, { error: { message: 'exists' } })),
+    ).toBe(false)
+    expect(isDirAlreadyExistsError(new Error('File exists'))).toBe(false)
+    expect(isDirAlreadyExistsError(undefined)).toBe(false)
+  })
+})
 
 // Auto-gate: only run when Vercel credentials are present (these tests create
 // real microVM sandboxes and are billed).
