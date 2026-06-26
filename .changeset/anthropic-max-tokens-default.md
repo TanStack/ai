@@ -13,3 +13,11 @@ The adapter also now logs a warning when a response is truncated while using the
 defaulted (caller-unspecified) cap, so the truncation isn't silently attributed
 to the model "doing nothing". Callers that set `modelOptions.max_tokens`
 explicitly are unaffected.
+
+The non-streaming structured-output path (`structuredOutput()`) clamps this
+default to the Anthropic SDK's non-streaming-safe limit (~21K tokens). The SDK
+refuses a non-streaming request whose `max_tokens` could exceed its 10-minute
+timeout, so without the clamp the full-ceiling default would make every
+`chat({ outputSchema })` call on a fallback-path model throw "Streaming is
+required for operations that may take longer than 10 minutes". The streaming
+chat path keeps the model's full ceiling.

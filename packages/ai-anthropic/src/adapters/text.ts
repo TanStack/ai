@@ -266,7 +266,12 @@ export class AnthropicTextAdapter<
     const { chatOptions, outputSchema } = options
     const { logger } = chatOptions
 
-    const requestParams = this.mapCommonOptionsToAnthropic(chatOptions)
+    // `structuredOutput()` issues a non-streaming `messages.create({ stream:
+    // false })` below, so the defaulted `max_tokens` must stay under the SDK's
+    // non-streaming 10-minute guard (issue #849) — pass `stream: false`.
+    const requestParams = this.mapCommonOptionsToAnthropic(chatOptions, {
+      stream: false,
+    })
 
     // Create a tool that will capture the structured output
     // Anthropic's SDK requires input_schema with type: 'object' literal
@@ -355,6 +360,7 @@ export class AnthropicTextAdapter<
 
   private mapCommonOptionsToAnthropic(
     options: TextOptions<AnthropicTextProviderOptions>,
+    { stream = true }: { stream?: boolean } = {},
   ) {
     const modelOptions = options.modelOptions
 
@@ -429,8 +435,12 @@ export class AnthropicTextAdapter<
     // that silently truncates long responses with `stop_reason: "max_tokens"`
     // (issue #849). `max_tokens` is a ceiling, not a reservation — billing is on
     // tokens actually generated, so a higher default costs nothing extra.
+    // For non-streaming requests (the `structuredOutput()` path) the default is
+    // clamped to the SDK's non-streaming-safe limit so it doesn't trip the
+    // "streaming required" 10-minute guard — see getAnthropicDefaultMaxTokens.
     const defaultMaxTokens =
-      modelOptions?.max_tokens ?? getAnthropicDefaultMaxTokens(this.model)
+      modelOptions?.max_tokens ??
+      getAnthropicDefaultMaxTokens(this.model, { stream })
     const maxTokens =
       thinkingBudget && thinkingBudget >= defaultMaxTokens
         ? thinkingBudget + 1
