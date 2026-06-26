@@ -47,8 +47,7 @@ export class GrokTextAdapter<
   // adapter: the resolved Grok provider options are a type-alias intersection
   // with no explicit index signature, which is assignable to
   // `Record<string, any>` but not `Record<string, unknown>`. See issue #821.
-  TProviderOptions extends Record<string, any> =
-    ResolveProviderOptions<TModel>,
+  TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
   TInputModalities extends ReadonlyArray<Modality> =
     ResolveInputModalities<TModel>,
   TToolCapabilities extends ReadonlyArray<string> =
