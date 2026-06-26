@@ -160,6 +160,26 @@ export interface ToolCall<TMetadata = unknown> {
   metadata?: TMetadata
 }
 
+/**
+ * Convention for tool-call `metadata` that marks a call as **provider-executed**
+ * — run by the provider's own infrastructure (e.g. Anthropic `web_search` /
+ * `web_fetch` server tools) rather than by the agent loop. Adapters set
+ * `providerExecuted: true` so that:
+ *
+ * 1. The agent loop never tries to execute the call client-side (see
+ *    {@link isProviderExecutedToolCall} usage in the chat engine), and
+ * 2. The adapter can stash the raw provider result alongside it so the call —
+ *    and its evidence — round-trips into the next turn's request.
+ *
+ * Provider-specific payloads live under a namespaced key (e.g. `anthropic`),
+ * keeping this convention opaque to the framework core. The index signature
+ * preserves those per-adapter fields.
+ */
+export interface ProviderExecutedToolMetadata {
+  providerExecuted?: boolean
+  [key: string]: unknown
+}
+
 // ============================================================================
 // Multimodal Content Types
 // ============================================================================
@@ -362,7 +382,9 @@ export interface ToolCallPart<TMetadata = unknown> {
   /** Tool execution output (for client tools or after approval) */
   output?: any
   /** Provider-specific metadata that round-trips with the tool call.
-   * Typed per-adapter via `TToolCallMetadata`. */
+   * Typed per-adapter via `TToolCallMetadata`. May follow the
+   * {@link ProviderExecutedToolMetadata} convention to mark provider-executed
+   * server tools (e.g. Anthropic `web_search`). */
   metadata?: TMetadata
 }
 

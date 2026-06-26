@@ -12,6 +12,7 @@ import { streamToText } from '../../stream-to-response.js'
 import { resolveDebugOption } from '../../logger/resolve'
 import { EventType } from '../../types'
 import { normalizeToolResult } from '../../utilities/tool-result'
+import { isProviderExecutedToolCall } from '../../utilities/provider-executed'
 import { LazyToolManager } from './tools/lazy-tool-manager'
 import {
   MiddlewareAbortError,
@@ -1884,6 +1885,13 @@ class TextEngine<
     for (const message of this.messages) {
       if (message.role === 'assistant' && message.toolCalls) {
         for (const toolCall of message.toolCalls) {
+          // Provider-executed tool calls (e.g. Anthropic `web_search`) were
+          // already run by the provider; they carry no client result, so they
+          // would otherwise look "pending" forever and the loop would try (and
+          // fail) to execute them client-side. Skip them.
+          if (isProviderExecutedToolCall(toolCall)) {
+            continue
+          }
           if (!completedToolIds.has(toolCall.id)) {
             pending.push(toolCall)
           }

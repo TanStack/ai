@@ -23,6 +23,7 @@ import {
   uiMessageToModelMessages,
 } from '../messages.js'
 import { normalizeToolResult } from '../../../utilities/tool-result'
+import { isProviderExecutedToolCall } from '../../../utilities/provider-executed'
 import { defaultJSONParser } from './json-parser'
 import {
   appendStructuredOutputDelta,
@@ -403,12 +404,15 @@ export class StreamProcessor {
     // 1. It was approved/denied (approval-responded state)
     // 2. It has an output field set (client tool completed via addToolResult)
     // 3. It has a corresponding tool-result part (server tool completed)
+    // 4. It is provider-executed (e.g. Anthropic web_search) — already run by
+    //    the provider, so there is no client result to wait for.
     return toolParts.every(
       (part) =>
         part.state === 'complete' ||
         part.state === 'approval-responded' ||
         (part.output !== undefined && !part.approval) ||
-        toolResultIds.has(part.id),
+        toolResultIds.has(part.id) ||
+        isProviderExecutedToolCall(part),
     )
   }
 
@@ -1911,8 +1915,12 @@ export class StreamProcessor {
    * downgrading a failed call back to 'input-complete'.
    */
   private isToolCallPartErrored(toolCallId: string): boolean {
+    // `initialMessages` may be ModelMessage-shaped (no `parts`) — e.g. the
+    // common pattern of seeding a processor with the same messages passed to
+    // `chat()`. Guard the access so iterating them never throws.
     return this.messages.some((msg) =>
-      msg.parts.some(
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- `parts` is typed as required, but seeded ModelMessage-shaped messages can lack it at runtime.
+      msg.parts?.some(
         (part) =>
           part.type === 'tool-call' &&
           part.id === toolCallId &&
