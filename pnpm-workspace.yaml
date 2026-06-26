@@ -10,6 +10,11 @@ minimumReleaseAgeExclude:
   # Working closely with the aimock team; the e2e suite often needs fresh
   # releases of this test-only mock as it tracks provider SDK changes.
   - '@copilotkit/aimock'
+  # @daytona/sdk and its API clients release frequently; locked versions are
+  # safe — they ship together as a matched set.
+  - '@daytona/api-client@0.191.0'
+  - '@daytona/sdk@0.191.0'
+  - '@daytona/toolbox-api-client@0.191.0'
 
 trustPolicyExclude:
   - 'chokidar@4.0.3' # existing transitive from sass/nitro; latest v4 with v5 available
