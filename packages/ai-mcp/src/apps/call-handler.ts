@@ -257,11 +257,13 @@ export function createMcpAppCallHandler(opts: McpAppCallHandlerOptions) {
       // Per-call reconnect handler closes its client every call; a consistently
       // failing close leaks handles silently. Don't rethrow (it would mask the
       // real result), but report it through the same hook.
-      await client.close().catch((err: unknown) =>
-        Promise.resolve(
-          opts.onError?.(err, { phase: 'close', req }),
-        ).catch(() => undefined),
-      )
+      await client
+        .close()
+        .catch((err: unknown) =>
+          Promise.resolve(opts.onError?.(err, { phase: 'close', req })).catch(
+            () => undefined,
+          ),
+        )
     }
   }
 }
