@@ -32,8 +32,7 @@ export interface GrokBaseOptions {
  * Grok-specific provider options for text/chat
  * Based on xAI Responses API options
  */
-export interface GrokTextProviderOptions
-  extends GrokBaseOptions, Record<string, unknown> {
+export interface GrokTextProviderOptions extends GrokBaseOptions {
   /**
    * Temperature for response generation (0-2)
    * Higher values make output more random, lower values more focused
