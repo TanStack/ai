@@ -81,7 +81,9 @@ async function captureSerializedTool(tool: Tool): Promise<unknown> {
     chunks.push(c)
   }
   const [rawParams] = mockSend.mock.calls[0]!
-  const serialized = ChatRequest$outboundSchema.parse(rawParams.chatRequest) as {
+  const serialized = ChatRequest$outboundSchema.parse(
+    rawParams.chatRequest,
+  ) as {
     tools?: Array<unknown>
   }
   return serialized.tools?.[0]
