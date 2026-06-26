@@ -18,11 +18,16 @@ import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
 import rehypeHighlight from 'rehype-highlight'
 import remarkGfm from 'remark-gfm'
-import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import {
+  fetchServerSentEvents,
+  useAudioRecorder,
+  useChat,
+  useTranscription,
+} from '@tanstack/ai-react'
 import { clientTools } from '@tanstack/ai-client'
 import { ThinkingPart } from '@tanstack/ai-react-ui'
 import type { UIMessage } from '@tanstack/ai-react'
-import type { ContentPart } from '@tanstack/ai'
+import type { ContentPart, TranscriptionResult } from '@tanstack/ai'
 import type { GeminiInteractionsCustomEventValue } from '@tanstack/ai-gemini/experimental'
 import type { ModelOption } from '@/lib/model-selection'
 import GuitarRecommendation from '@/components/example-GuitarRecommendation'
@@ -420,6 +425,45 @@ function ChatPage() {
   })
   const [input, setInput] = useState('')
 
+  // Voice input: record from the mic, transcribe via /api/transcribe, then drop
+  // the text into the composer for the user to review/edit/send. (Text chat
+  // models don't accept raw audio; transcription is the path that works.)
+  // NOTE: the explicit type arg works around an inference bug in the generation
+  // hooks' `onResult` (same root cause as the recorder's `onComplete`, now
+  // fixed there) — without it, `r` is implicitly `any` and the call won't
+  // typecheck under strict mode.
+  const { generate: transcribe, isLoading: isTranscribing } = useTranscription<
+    (r: TranscriptionResult) => void
+  >({
+    connection: fetchServerSentEvents('/api/transcribe'),
+    onResult: (r) => setInput((prev) => (prev ? `${prev} ${r.text}` : r.text)),
+    onError: (err) => console.error('[transcribe]', err),
+  })
+
+  const {
+    isRecording,
+    isSupported: micSupported,
+    start: startRecording,
+    stop: stopRecording,
+  } = useAudioRecorder({
+    onError: (err) => console.error('[audio-recorder]', err),
+  })
+
+  const handleMicToggle = async () => {
+    try {
+      if (isRecording) {
+        const rec = await stopRecording()
+        // Strip the `;codecs=...` parameter so the provider gets a clean type.
+        const mimeType = rec.mimeType.split(';')[0]
+        await transcribe({ audio: `data:${mimeType};base64,${rec.base64}` })
+      } else {
+        await startRecording()
+      }
+    } catch (err) {
+      console.error('[audio-recorder]', err)
+    }
+  }
+
   /**
    * Handle file selection for image attachment
    */
@@ -624,6 +668,32 @@ function ChatPage() {
               >
                 <ImagePlus className="w-5 h-5" />
               </button>
+
+              {/* Mic / voice-input button */}
+              {micSupported && (
+                <button
+                  onClick={() => void handleMicToggle()}
+                  disabled={isLoading || isTranscribing}
+                  className={`p-3 transition-colors focus:outline-none disabled:text-gray-600 ${
+                    isRecording
+                      ? 'text-red-500 hover:text-red-400 animate-pulse'
+                      : 'text-gray-400 hover:text-orange-500'
+                  }`}
+                  title={
+                    isRecording
+                      ? 'Stop and transcribe'
+                      : isTranscribing
+                        ? 'Transcribing…'
+                        : 'Record voice input'
+                  }
+                >
+                  {isRecording ? (
+                    <Square className="w-5 h-5" />
+                  ) : (
+                    <Mic className="w-5 h-5" />
+                  )}
+                </button>
+              )}
 
               <div className="flex-1 relative">
                 <textarea
