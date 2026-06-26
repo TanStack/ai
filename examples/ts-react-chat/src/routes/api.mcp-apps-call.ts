@@ -13,6 +13,8 @@ import { createMCPClient } from '@tanstack/ai-mcp'
 import type { MCPClient } from '@tanstack/ai-mcp'
 import { createMcpAppCallHandler } from '@tanstack/ai-mcp/apps'
 import {
+  SHOP_PREFIX,
+  SHOP_SERVER_PATH,
   THREEJS_MCP_URL,
   THREEJS_PREFIX,
   WEATHER_PREFIX,
@@ -60,6 +62,7 @@ export const Route = createFileRoute('/api/mcp-apps-call')({
         const clients = (
           await Promise.all([
             tryConnect(`${origin}${WEATHER_SERVER_PATH}`, WEATHER_PREFIX),
+            tryConnect(`${origin}${SHOP_SERVER_PATH}`, SHOP_PREFIX),
             tryConnect(THREEJS_MCP_URL, THREEJS_PREFIX),
           ])
         ).filter((c): c is MCPClient => c !== null)

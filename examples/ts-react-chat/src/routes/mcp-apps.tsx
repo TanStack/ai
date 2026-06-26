@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { Loader2, Send, Square } from 'lucide-react'
+import { Check, Loader2, Send, Square } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
@@ -15,7 +15,7 @@ import { MCP_PROVIDERS, type McpProvider } from '@/lib/mcp-providers'
 import {
   MCP_APP_SUGGESTIONS,
   SANDBOX_PROXY_URL,
-  THREEJS_PREFIX,
+  WEATHER_PREFIX,
 } from '@/lib/mcp-apps'
 
 type Part = UIMessage['parts'][number]
@@ -61,9 +61,9 @@ function Widget({
   parts: Array<Part>
   bridge: McpAppBridge
 }) {
-  // Static widgets (the weather card) are display-only, so we withhold the
-  // bridge; the dynamic Three.js widget gets it and can call tools back.
-  const interactive = part.serverId === THREEJS_PREFIX
+  // The static weather card is display-only, so we withhold the bridge. The
+  // interactive widgets (storefront, Three.js) get it and can call tools back.
+  const interactive = part.serverId !== WEATHER_PREFIX
   return (
     <div className="my-2 overflow-hidden rounded-lg border border-orange-500/20 bg-gray-900/40">
       <MCPAppResource
@@ -152,14 +152,22 @@ function Messages({
                   )
                 }
 
-                // Show a compact note while a UI-linked tool runs.
+                // A compact note for the UI-linked tool: spinner while it runs,
+                // check once it's done (the widget renders from the sibling
+                // ui-resource part).
                 if (part.type === 'tool-call') {
+                  const done =
+                    part.state === 'complete' || part.output !== undefined
                   return (
                     <div
                       key={`tool-${index}`}
                       className="my-1 flex items-center gap-2 text-xs text-gray-400"
                     >
-                      <Loader2 className="h-3 w-3 animate-spin" />
+                      {done ? (
+                        <Check className="h-3 w-3 text-green-400" />
+                      ) : (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      )}
                       <span className="font-mono">{part.name}</span>
                     </div>
                   )

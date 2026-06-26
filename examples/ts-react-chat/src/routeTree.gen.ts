@@ -39,6 +39,7 @@ import { Route as ApiMcpPoolRouteImport } from './routes/api.mcp-pool'
 import { Route as ApiMcpManualRouteImport } from './routes/api.mcp-manual'
 import { Route as ApiMcpChatRouteImport } from './routes/api.mcp-chat'
 import { Route as ApiMcpAppsWeatherServerRouteImport } from './routes/api.mcp-apps-weather-server'
+import { Route as ApiMcpAppsShopServerRouteImport } from './routes/api.mcp-apps-shop-server'
 import { Route as ApiMcpAppsChatRouteImport } from './routes/api.mcp-apps-chat'
 import { Route as ApiMcpAppsCallRouteImport } from './routes/api.mcp-apps-call'
 import { Route as ApiImageToolReproRouteImport } from './routes/api.image-tool-repro'
@@ -204,6 +205,11 @@ const ApiMcpAppsWeatherServerRoute = ApiMcpAppsWeatherServerRouteImport.update({
   path: '/api/mcp-apps-weather-server',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMcpAppsShopServerRoute = ApiMcpAppsShopServerRouteImport.update({
+  id: '/api/mcp-apps-shop-server',
+  path: '/api/mcp-apps-shop-server',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMcpAppsChatRoute = ApiMcpAppsChatRouteImport.update({
   id: '/api/mcp-apps-chat',
   path: '/api/mcp-apps-chat',
@@ -277,6 +283,7 @@ export interface FileRoutesByFullPath {
   '/api/image-tool-repro': typeof ApiImageToolReproRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
+  '/api/mcp-apps-shop-server': typeof ApiMcpAppsShopServerRoute
   '/api/mcp-apps-weather-server': typeof ApiMcpAppsWeatherServerRoute
   '/api/mcp-chat': typeof ApiMcpChatRoute
   '/api/mcp-manual': typeof ApiMcpManualRoute
@@ -320,6 +327,7 @@ export interface FileRoutesByTo {
   '/api/image-tool-repro': typeof ApiImageToolReproRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
+  '/api/mcp-apps-shop-server': typeof ApiMcpAppsShopServerRoute
   '/api/mcp-apps-weather-server': typeof ApiMcpAppsWeatherServerRoute
   '/api/mcp-chat': typeof ApiMcpChatRoute
   '/api/mcp-manual': typeof ApiMcpManualRoute
@@ -364,6 +372,7 @@ export interface FileRoutesById {
   '/api/image-tool-repro': typeof ApiImageToolReproRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
+  '/api/mcp-apps-shop-server': typeof ApiMcpAppsShopServerRoute
   '/api/mcp-apps-weather-server': typeof ApiMcpAppsWeatherServerRoute
   '/api/mcp-chat': typeof ApiMcpChatRoute
   '/api/mcp-manual': typeof ApiMcpManualRoute
@@ -409,6 +418,7 @@ export interface FileRouteTypes {
     | '/api/image-tool-repro'
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
+    | '/api/mcp-apps-shop-server'
     | '/api/mcp-apps-weather-server'
     | '/api/mcp-chat'
     | '/api/mcp-manual'
@@ -452,6 +462,7 @@ export interface FileRouteTypes {
     | '/api/image-tool-repro'
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
+    | '/api/mcp-apps-shop-server'
     | '/api/mcp-apps-weather-server'
     | '/api/mcp-chat'
     | '/api/mcp-manual'
@@ -495,6 +506,7 @@ export interface FileRouteTypes {
     | '/api/image-tool-repro'
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
+    | '/api/mcp-apps-shop-server'
     | '/api/mcp-apps-weather-server'
     | '/api/mcp-chat'
     | '/api/mcp-manual'
@@ -539,6 +551,7 @@ export interface RootRouteChildren {
   ApiImageToolReproRoute: typeof ApiImageToolReproRoute
   ApiMcpAppsCallRoute: typeof ApiMcpAppsCallRoute
   ApiMcpAppsChatRoute: typeof ApiMcpAppsChatRoute
+  ApiMcpAppsShopServerRoute: typeof ApiMcpAppsShopServerRoute
   ApiMcpAppsWeatherServerRoute: typeof ApiMcpAppsWeatherServerRoute
   ApiMcpChatRoute: typeof ApiMcpChatRoute
   ApiMcpManualRoute: typeof ApiMcpManualRoute
@@ -778,6 +791,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMcpAppsWeatherServerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mcp-apps-shop-server': {
+      id: '/api/mcp-apps-shop-server'
+      path: '/api/mcp-apps-shop-server'
+      fullPath: '/api/mcp-apps-shop-server'
+      preLoaderRoute: typeof ApiMcpAppsShopServerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/mcp-apps-chat': {
       id: '/api/mcp-apps-chat'
       path: '/api/mcp-apps-chat'
@@ -875,6 +895,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiImageToolReproRoute: ApiImageToolReproRoute,
   ApiMcpAppsCallRoute: ApiMcpAppsCallRoute,
   ApiMcpAppsChatRoute: ApiMcpAppsChatRoute,
+  ApiMcpAppsShopServerRoute: ApiMcpAppsShopServerRoute,
   ApiMcpAppsWeatherServerRoute: ApiMcpAppsWeatherServerRoute,
   ApiMcpChatRoute: ApiMcpChatRoute,
   ApiMcpManualRoute: ApiMcpManualRoute,
