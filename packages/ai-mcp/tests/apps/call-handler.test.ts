@@ -428,7 +428,11 @@ describe('createMcpAppCallHandler', () => {
 
       // Resolves to a normal fail-soft result rather than rejecting.
       await expect(
-        handler({ threadId: 't1', serverId: 'weather', toolName: 'place_order' }),
+        handler({
+          threadId: 't1',
+          serverId: 'weather',
+          toolName: 'place_order',
+        }),
       ).resolves.toEqual({ ok: false, error: 'upstream' })
       expect(onError).toHaveBeenCalledOnce()
     })
@@ -441,7 +445,11 @@ describe('createMcpAppCallHandler', () => {
       const handler = weatherPoolHandler({ onError })
 
       await expect(
-        handler({ threadId: 't1', serverId: 'weather', toolName: 'place_order' }),
+        handler({
+          threadId: 't1',
+          serverId: 'weather',
+          toolName: 'place_order',
+        }),
       ).resolves.toEqual({ ok: false, error: 'upstream' })
       expect(onError).toHaveBeenCalledOnce()
     })
