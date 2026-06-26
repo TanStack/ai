@@ -20,19 +20,19 @@ export interface AudioRecorderOptions {
 /**
  * Resolves the value `stop()` produces from a recorder transform callback.
  *
- * - If the callback returns a concrete (non-null/void) value — sync or async —
- *   that value's awaited type is used.
- * - If the callback returns only null/void/undefined, or is absent, falls back
- *   to {@link AudioRecording}.
+ * - If the callback returns a value — sync or async — that value's awaited type
+ *   is used (a returned `null` is a real value and is preserved).
+ * - If the callback returns nothing (`void`/`undefined`), or is absent, falls
+ *   back to {@link AudioRecording}.
  *
  * @template TFn - The transform callback type (or undefined if not provided)
  */
 export type InferAudioRecordingOutput<TFn> = TFn extends (
   recording: AudioRecording,
 ) => infer R
-  ? [Exclude<Awaited<R>, null | void | undefined>] extends [never]
+  ? [Exclude<Awaited<R>, void | undefined>] extends [never]
     ? AudioRecording
-    : Exclude<Awaited<R>, null | void | undefined>
+    : Exclude<Awaited<R>, void | undefined>
   : AudioRecording
 
 export interface AudioRecording {
@@ -156,8 +156,8 @@ export class AudioRecorder {
       this.recorder = null
       const error =
         err instanceof Error ? err : new Error('Failed to start recording')
-      this.options.onError?.(error)
       this.setState('idle')
+      this.notifyError(error)
       throw error
     } finally {
       this.starting = false
@@ -232,7 +232,7 @@ export class AudioRecorder {
         if (
           !(err instanceof DOMException && err.name === 'InvalidStateError')
         ) {
-          this.options.onError?.(
+          this.notifyError(
             err instanceof Error ? err : new Error('Failed to stop recorder'),
           )
         }
@@ -287,8 +287,21 @@ export class AudioRecorder {
     this.stopResolve = null
     this.stopReject = null
     this.setState('idle')
-    this.options.onError?.(error)
+    // Settle the pending stop() promise before invoking the user callback so a
+    // throwing onError can't strand the awaiter (the two error channels are
+    // independent — see start()/stop() docs).
     reject?.(error)
+    this.notifyError(error)
+  }
+
+  /** Invoke the user onError callback, isolating a throw so it can't disrupt
+   * internal state teardown or strand a pending promise. */
+  private notifyError(error: Error): void {
+    try {
+      this.options.onError?.(error)
+    } catch {
+      // A user onError that throws must not propagate into recorder internals.
+    }
   }
 
   private releaseStream(): void {

@@ -91,7 +91,10 @@ export function useAudioRecorder(
   const stop = useCallback(async () => {
     const recording = await recorder.stop()
     const transformed = await optionsRef.current.onComplete?.(recording)
-    const output = transformed ?? recording
+    // Only `undefined` (returning nothing) falls back to the raw recording, so
+    // a transform that returns null is preserved — matching the inferred type,
+    // which excludes only undefined/void/null from the transform's return.
+    const output = transformed === undefined ? recording : transformed
     setRecording(() => output)
     return output
   }, [recorder])

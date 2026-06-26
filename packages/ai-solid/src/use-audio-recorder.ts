@@ -68,7 +68,9 @@ export function useAudioRecorder(
   const stop = async (): Promise<unknown> => {
     const rawRecording = await recorder.stop()
     const transformed = await options.onComplete?.(rawRecording)
-    const output = transformed ?? rawRecording
+    // Only `undefined` (returning nothing) keeps the raw recording; a returned
+    // null is a real value, matching the inferred output type.
+    const output = transformed === undefined ? rawRecording : transformed
     // Store via updater so a function-valued transform result isn't invoked.
     setRecording(() => output)
     return output

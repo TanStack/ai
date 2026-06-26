@@ -432,17 +432,25 @@ function ChatPage() {
   // hooks' `onResult` (same root cause as the recorder's `onComplete`, now
   // fixed there) — without it, `r` is implicitly `any` and the call won't
   // typecheck under strict mode.
+  // Surface voice-input failures (permission denied, recorder error,
+  // transcription error) to the user rather than only logging them — a silent
+  // mic button is the worst outcome.
+  const [recordError, setRecordError] = useState<string | null>(null)
+
   const { generate: transcribe, isLoading: isTranscribing } = useTranscription<
     (r: TranscriptionResult) => void
   >({
     connection: fetchServerSentEvents('/api/transcribe'),
     onResult: (r) => setInput((prev) => (prev ? `${prev} ${r.text}` : r.text)),
-    onError: (err) => console.error('[transcribe]', err),
+    // A failed transcription (network/provider) is just as silent as a mic
+    // failure if only logged — surface it in the same banner below.
+    onError: (err) => {
+      console.error('[transcribe]', err)
+      setRecordError(
+        err instanceof Error ? err.message : 'Could not transcribe audio',
+      )
+    },
   })
-
-  // Surface recorder failures (permission denied, recorder error) to the user
-  // rather than only logging them — a silent mic button is the worst outcome.
-  const [recordError, setRecordError] = useState<string | null>(null)
   // Errors reach us by rejecting start()/stop(), so we handle them in the
   // try/catch below — a single channel, not an additional `onError` callback.
   const {
@@ -622,7 +630,7 @@ function ChatPage() {
 
         {recordError && (
           <div className="mx-4 mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm flex items-center justify-between gap-2">
-            <span>Microphone error: {recordError}</span>
+            <span>Voice input error: {recordError}</span>
             <button
               onClick={() => setRecordError(null)}
               className="text-red-300 hover:text-red-200"

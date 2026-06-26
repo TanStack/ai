@@ -95,4 +95,59 @@ describe('useAudioRecorder', () => {
     expect(output).toBe('AQID')
     expect(result.current.recording).toBe('AQID')
   })
+
+  it('preserves a null returned from onComplete (only undefined keeps the raw recording)', async () => {
+    const { result } = renderHook(() =>
+      useAudioRecorder({ onComplete: () => null }),
+    )
+
+    await act(async () => {
+      await result.current.start()
+    })
+
+    let output: any
+    await act(async () => {
+      output = await result.current.stop()
+    })
+
+    expect(output).toBeNull()
+    expect(result.current.recording).toBeNull()
+  })
+
+  it('surfaces a getUserMedia rejection through onError and rejects start()', async () => {
+    const denied = new Error('Permission denied')
+    vi.stubGlobal('navigator', {
+      mediaDevices: { getUserMedia: vi.fn(async () => Promise.reject(denied)) },
+    })
+    const onError = vi.fn()
+    const { result } = renderHook(() => useAudioRecorder({ onError }))
+
+    await act(async () => {
+      await expect(result.current.start()).rejects.toThrow('Permission denied')
+    })
+    expect(onError).toHaveBeenCalledWith(denied)
+    expect(result.current.isRecording).toBe(false)
+  })
+
+  it('releases the mic and clears isRecording on unmount', async () => {
+    const trackStop = vi.fn()
+    vi.stubGlobal('navigator', {
+      mediaDevices: {
+        getUserMedia: vi.fn(async () => ({
+          getTracks: () => [{ stop: trackStop }],
+        })),
+      },
+    })
+    const { result, unmount } = renderHook(() => useAudioRecorder())
+
+    await act(async () => {
+      await result.current.start()
+    })
+    expect(result.current.isRecording).toBe(true)
+
+    // The effect cleanup must unsubscribe and cancel the in-flight recording so
+    // the microphone tracks stop — a dropped cleanup would leak a live mic.
+    unmount()
+    expect(trackStop).toHaveBeenCalled()
+  })
 })

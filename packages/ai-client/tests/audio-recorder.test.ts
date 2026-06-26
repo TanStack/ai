@@ -202,6 +202,25 @@ describe('AudioRecorder', () => {
     spy.mockRestore()
   })
 
+  it('a throwing onError still rejects the pending stop() promise', async () => {
+    // Users are told to handle one error channel, not both — a stop()-rejection
+    // handler may legitimately let onError throw. That throw must not strand the
+    // pending stop() promise (onError is settled after reject, and isolated).
+    const onError = vi.fn(() => {
+      throw new Error('user handler blew up')
+    })
+    const recorder = new AudioRecorder({ onError })
+    await recorder.start()
+    const spy = vi
+      .spyOn(Blob.prototype, 'arrayBuffer')
+      .mockRejectedValueOnce(new Error('decode failed'))
+
+    await expect(recorder.stop()).rejects.toThrow('decode failed')
+    expect(onError).toHaveBeenCalled()
+    expect(recorder.state).toBe('idle')
+    spy.mockRestore()
+  })
+
   it('stop() watchdog recovers buffered audio when onstop never fires', async () => {
     vi.useFakeTimers()
     try {

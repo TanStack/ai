@@ -104,8 +104,12 @@ const { recording, stop } = useAudioRecorder({
 })
 ```
 
-Return nothing to keep the raw `AudioRecording`. This mirrors the `onResult`
-transform on the [generation hooks](./generation-hooks), but is async-capable.
+Return nothing (`undefined`) to keep the raw `AudioRecording`; any returned
+value — including `null` — is used as-is and re-types `stop()` and `recording`.
+This is similar to the `onResult` transform on the
+[generation hooks](./generation-hooks), but is async-capable. (Unlike
+`onResult`, where `null` means "keep the previous value," only `undefined` keeps
+the raw recording here.)
 
 ## Send a recording in chat
 

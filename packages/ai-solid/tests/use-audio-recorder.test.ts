@@ -75,6 +75,34 @@ describe('useAudioRecorder (solid)', () => {
     expect(out).toBe('AQID')
     expect(result.recording()).toBe('AQID')
   })
+
+  it('preserves a null returned from onComplete (only undefined keeps the raw recording)', async () => {
+    const { result } = renderHook(() =>
+      useAudioRecorder({ onComplete: () => null }),
+    )
+    await result.start()
+    const out = await result.stop()
+    expect(out).toBeNull()
+    expect(result.recording()).toBeNull()
+  })
+
+  it('releases the mic on cleanup', async () => {
+    const trackStop = vi.fn()
+    vi.stubGlobal('navigator', {
+      mediaDevices: {
+        getUserMedia: vi.fn(async () => ({
+          getTracks: () => [{ stop: trackStop }],
+        })),
+      },
+    })
+    const { result, cleanup } = renderHook(() => useAudioRecorder())
+    await result.start()
+    expect(result.isRecording()).toBe(true)
+
+    // onCleanup must cancel the in-flight recording so the mic tracks stop.
+    cleanup()
+    expect(trackStop).toHaveBeenCalled()
+  })
 })
 
 describe('useAudioRecorder (solid) type inference', () => {

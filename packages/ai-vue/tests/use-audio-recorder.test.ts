@@ -89,6 +89,32 @@ describe('useAudioRecorder (vue)', () => {
     expect(out).toBe('AQID')
     expect(api().recording.value).toBe('AQID')
   })
+
+  it('preserves a null returned from onComplete (only undefined keeps the raw recording)', async () => {
+    const { api } = renderRecorder({ onComplete: () => null })
+    await api().start()
+    const out = await api().stop()
+    expect(out).toBeNull()
+    expect(api().recording.value).toBeNull()
+  })
+
+  it('releases the mic on unmount', async () => {
+    const trackStop = vi.fn()
+    vi.stubGlobal('navigator', {
+      mediaDevices: {
+        getUserMedia: vi.fn(async () => ({
+          getTracks: () => [{ stop: trackStop }],
+        })),
+      },
+    })
+    const { api, wrapper } = renderRecorder()
+    await api().start()
+    expect(api().isRecording.value).toBe(true)
+
+    // onScopeDispose must cancel the in-flight recording so the mic tracks stop.
+    wrapper.unmount()
+    expect(trackStop).toHaveBeenCalled()
+  })
 })
 
 describe('useAudioRecorder (vue) type inference', () => {
