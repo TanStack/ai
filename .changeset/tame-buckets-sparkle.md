@@ -2,4 +2,4 @@
 '@tanstack/ai-qwik': minor
 ---
 
-Add the initial Qwik v2 package scaffold and a minimal example app that imports it.
+Add the initial Qwik v2 `useChat` integration and a Qwik City chat example.

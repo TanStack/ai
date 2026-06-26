@@ -6,8 +6,6 @@ export type {
   UIMessage,
   ChatRequestBody,
 } from './types'
-export { createAiQwikHelloMessage, useAiQwikHello } from './use-hello'
-export type { UseAiQwikHelloReturn } from './use-hello'
 
 export {
   fetchServerSentEvents,
