@@ -1,5 +1,5 @@
 import { renderHook, waitFor, act } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { useGeneration } from '../src/use-generation'
 import { useGenerateImage } from '../src/use-generate-image'
 import { useGenerateAudio } from '../src/use-generate-audio'
@@ -8,7 +8,11 @@ import { useTranscription } from '../src/use-transcription'
 import { useSummarize } from '../src/use-summarize'
 import { useGenerateVideo } from '../src/use-generate-video'
 import { createMockConnectionAdapter } from './test-utils'
-import type { StreamChunk, TTSResult } from '@tanstack/ai'
+import type {
+  StreamChunk,
+  TTSResult,
+  TranscriptionResult,
+} from '@tanstack/ai'
 import { EventType } from '@tanstack/ai'
 
 // Helper to create generation stream chunks
@@ -685,20 +689,18 @@ describe('useGenerateVideo', () => {
 
 describe('onResult transform', () => {
   it('should transform result when onResult returns a value (fetcher)', async () => {
-    // useGeneration's TOnResult generic defaults to `undefined` if not pinned
-    // (the standard Omit-plus-callback inference pattern doesn't recover it),
-    // so the callback parameter type can't infer from the fetcher's return.
-    // Pin TResult and TOnResult explicitly — no cast needed.
-    type FetcherResult = { id: string; audio: string }
-    const onResult = (raw: FetcherResult) => ({
-      playable: raw.audio.length > 0,
-    })
+    // Inference (issue #848): `onResult`'s parameter is contextually typed from
+    // the fetcher's return, and `result` narrows to the transform's return —
+    // no explicit type arguments needed.
     const { result } = renderHook(() =>
-      useGeneration<Record<string, any>, FetcherResult, typeof onResult>({
+      useGeneration({
         fetcher: async () => ({ id: '1', audio: 'base64data' }),
-        onResult,
+        onResult: (raw) => ({ playable: raw.audio.length > 0 }),
       }),
     )
+    expectTypeOf(result.current.result).toEqualTypeOf<{
+      playable: boolean
+    } | null>()
 
     await act(async () => {
       await result.current.generate({ prompt: 'test' })
@@ -749,16 +751,18 @@ describe('onResult transform', () => {
     const chunks = createGenerationChunks(mockResult)
     const adapter = createMockConnectionAdapter({ chunks })
 
-    // The stream chunk's `value` payload is `unknown` at the type level
-    // (CUSTOM events are opaque), so TResult cannot infer from `adapter`. Pin
-    // TResult and TOnResult explicitly via the generics — no cast needed.
-    const onResult = (raw: StreamResult) => ({ count: raw.images.length })
+    // `connection` is untyped, but annotating the `onResult` parameter gives the
+    // base hook a site to infer `TResult` from (it appears directly in the
+    // callback parameter position) — no explicit type arguments needed.
     const { result } = renderHook(() =>
-      useGeneration<Record<string, any>, StreamResult, typeof onResult>({
+      useGeneration({
         connection: adapter,
-        onResult,
+        onResult: (raw: StreamResult) => ({ count: raw.images.length }),
       }),
     )
+    expectTypeOf(result.current.result).toEqualTypeOf<{
+      count: number
+    } | null>()
 
     await act(async () => {
       await result.current.generate({ prompt: 'test' })
@@ -776,17 +780,20 @@ describe('onResult transform', () => {
       contentType: 'audio/mpeg',
     }
 
-    // The hook's TOnResult generic defaults to undefined, so let's pin the
-    // callback type explicitly. TResult here is the concrete TTSResult.
-    const onResult = (raw: TTSResult) => ({
-      audioUrl: `data:${raw.contentType};base64,${raw.audio}`,
-    })
+    // Inference (issue #848): the wrapper hooks infer the output type from
+    // `onResult` with no explicit type argument. `raw` is contextually typed
+    // as `TTSResult`.
     const { result } = renderHook(() =>
-      useGenerateSpeech<typeof onResult>({
+      useGenerateSpeech({
         fetcher: async () => mockTTSResult,
-        onResult,
+        onResult: (raw) => ({
+          audioUrl: `data:${raw.contentType};base64,${raw.audio}`,
+        }),
       }),
     )
+    expectTypeOf(result.current.result).toEqualTypeOf<{
+      audioUrl: string
+    } | null>()
 
     await act(async () => {
       await result.current.generate({ text: 'Hello' })
@@ -795,5 +802,25 @@ describe('onResult transform', () => {
     expect(result.current.result).toEqual({
       audioUrl: 'data:audio/mpeg;base64,base64audio',
     })
+  })
+
+  it('infers the raw result type when no onResult is provided', () => {
+    const { result } = renderHook(() =>
+      useTranscription({
+        fetcher: async () => ({ id: '1', text: 'hi', model: 'whisper-1' }),
+      }),
+    )
+    // Without a transform, `result` stays the raw TranscriptionResult.
+    expectTypeOf(result.current.result).toEqualTypeOf<TranscriptionResult | null>()
+  })
+
+  it('narrows the wrapper result type to the transform return', () => {
+    const { result } = renderHook(() =>
+      useTranscription({
+        fetcher: async () => ({ id: '1', text: 'hi', model: 'whisper-1' }),
+        onResult: (res) => res.text,
+      }),
+    )
+    expectTypeOf(result.current.result).toEqualTypeOf<string | null>()
   })
 })

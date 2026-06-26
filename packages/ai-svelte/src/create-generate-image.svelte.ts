@@ -6,7 +6,7 @@ import type {
   GenerationClientState,
   GenerationFetcher,
   ImageGenerateInput,
-  InferGenerationOutput,
+  InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
 
 /**
@@ -100,15 +100,12 @@ export interface CreateGenerateImageReturn<TOutput = ImageGenerationResult> {
  * </div>
  * ```
  */
-export function createGenerateImage<
-  TOnResult extends ((result: ImageGenerationResult) => any) | undefined =
-    undefined,
->(
+export function createGenerateImage<TTransformed = void>(
   options: Omit<CreateGenerateImageOptions, 'onResult'> & {
-    onResult?: TOnResult
+    onResult?: (result: ImageGenerationResult) => TTransformed
   },
 ): CreateGenerateImageReturn<
-  InferGenerationOutput<ImageGenerationResult, TOnResult>
+  InferGenerationOutputFromReturn<ImageGenerationResult, TTransformed>
 > {
   const devtools = {
     ...options.devtools,
@@ -119,7 +116,7 @@ export function createGenerateImage<
   const gen = createGeneration<
     ImageGenerateInput,
     ImageGenerationResult,
-    TOnResult
+    TTransformed
   >({
     ...options,
     devtools,

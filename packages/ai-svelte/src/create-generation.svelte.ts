@@ -7,7 +7,7 @@ import type {
   GenerationClientOptions,
   GenerationClientState,
   GenerationFetcher,
-  InferGenerationOutput,
+  InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
 
 /**
@@ -103,16 +103,24 @@ export interface CreateGenerationReturn<TOutput> {
  * </div>
  * ```
  */
+// `TTransformed` infers from the `onResult` return position (a covariant
+// inference site that works even for an optional nested property), which types
+// the callback parameter as `TResult` and narrows `result`. Inferring the
+// whole callback as a defaulted type parameter instead collapses to the
+// default, leaving the parameter `any` — a hard error under `strict`. See
+// issue #848.
 export function createGeneration<
   TInput extends Record<string, any>,
   TResult,
-  TOnResult extends ((result: TResult) => any) | undefined = undefined,
+  TTransformed = void,
 >(
   options: Omit<CreateGenerationOptions<TInput, TResult>, 'onResult'> & {
-    onResult?: TOnResult
+    onResult?: (result: TResult) => TTransformed
   },
-): CreateGenerationReturn<InferGenerationOutput<TResult, TOnResult>> {
-  type TOutput = InferGenerationOutput<TResult, TOnResult>
+): CreateGenerationReturn<
+  InferGenerationOutputFromReturn<TResult, TTransformed>
+> {
+  type TOutput = InferGenerationOutputFromReturn<TResult, TTransformed>
   const clientId =
     options.id || `gen-${Date.now()}-${Math.random().toString(36).substring(7)}`
 
@@ -136,7 +144,12 @@ export function createGeneration<
       framework: 'svelte',
       hookName: 'createGeneration',
     },
-    onResult: (r: TResult) => options.onResult?.(r),
+    // The transform's raw return type (`TTransformed`) and the stored output
+    // (`TOutput`, with null/void/undefined stripped) are identical at runtime;
+    // the cast bridges the relationship that the conditional type hides.
+    onResult: ((r: TResult) => options.onResult?.(r)) as (
+      result: TResult,
+    ) => TOutput | null | void,
     onError: (e: Error) => options.onError?.(e),
     onProgress: (p: number, m?: string) => options.onProgress?.(p, m),
     onChunk: (c: StreamChunk) => options.onChunk?.(c),

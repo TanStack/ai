@@ -5,7 +5,7 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  InferGenerationOutput,
+  InferGenerationOutputFromReturn,
   TranscriptionGenerateInput,
 } from '@tanstack/ai-client'
 import type { Accessor } from 'solid-js'
@@ -99,15 +99,12 @@ export interface UseTranscriptionReturn<TOutput = TranscriptionResult> {
  * }
  * ```
  */
-export function useTranscription<
-  TOnResult extends ((result: TranscriptionResult) => any) | undefined =
-    undefined,
->(
+export function useTranscription<TTransformed = void>(
   options: Omit<UseTranscriptionOptions, 'onResult'> & {
-    onResult?: TOnResult
+    onResult?: (result: TranscriptionResult) => TTransformed
   },
 ): UseTranscriptionReturn<
-  InferGenerationOutput<TranscriptionResult, TOnResult>
+  InferGenerationOutputFromReturn<TranscriptionResult, TTransformed>
 > {
   const devtools = {
     ...options.devtools,
@@ -116,10 +113,9 @@ export function useTranscription<
     outputKind: 'text' as const,
   }
   const { generate, result, isLoading, error, status, stop, reset } =
-    useGeneration<TranscriptionGenerateInput, TranscriptionResult, TOnResult>({
-      ...options,
-      devtools,
-    })
+    useGeneration<TranscriptionGenerateInput, TranscriptionResult, TTransformed>(
+      { ...options, devtools },
+    )
 
   return {
     generate: generate as (input: TranscriptionGenerateInput) => Promise<void>,

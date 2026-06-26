@@ -3,7 +3,7 @@ import type { Signal } from '@angular/core'
 import type { SummarizationResult } from '@tanstack/ai'
 import type {
   GenerationClientState,
-  InferGenerationOutput,
+  InferGenerationOutputFromReturn,
   SummarizeGenerateInput,
 } from '@tanstack/ai-client'
 import type { InjectGenerationOptions } from './inject-generation'
@@ -25,15 +25,12 @@ export interface InjectSummarizeResult<TOutput = SummarizationResult> {
   reset: () => void
 }
 
-export function injectSummarize<
-  TOnResult extends ((result: SummarizationResult) => any) | undefined =
-    undefined,
->(
+export function injectSummarize<TTransformed = void>(
   options: Omit<InjectSummarizeOptions, 'onResult'> & {
-    onResult?: TOnResult
+    onResult?: (result: SummarizationResult) => TTransformed
   },
 ): InjectSummarizeResult<
-  InferGenerationOutput<SummarizationResult, TOnResult>
+  InferGenerationOutputFromReturn<SummarizationResult, TTransformed>
 > {
   const devtools = {
     ...options.devtools,
@@ -42,7 +39,7 @@ export function injectSummarize<
     outputKind: 'text' as const,
   }
   const { generate, result, isLoading, error, status, stop, reset } =
-    injectGeneration<SummarizeGenerateInput, SummarizationResult, TOnResult>({
+    injectGeneration<SummarizeGenerateInput, SummarizationResult, TTransformed>({
       ...options,
       devtools,
     })

@@ -17,7 +17,7 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  InferGenerationOutput,
+  InferGenerationOutputFromReturn,
   VideoGenerateInput,
   VideoGenerateResult,
   VideoStatusInfo,
@@ -52,19 +52,19 @@ export interface InjectGenerateVideoResult<TOutput = VideoGenerateResult> {
   reset: () => void
 }
 
-export function injectGenerateVideo<
-  TOnResult extends ((result: VideoGenerateResult) => any) | undefined =
-    undefined,
->(
+// `TTransformed` infers from the `onResult` return position so the callback
+// parameter is typed as `VideoGenerateResult` and `result` narrows to the
+// transform's return. See issue #848.
+export function injectGenerateVideo<TTransformed = void>(
   options: Omit<InjectGenerateVideoOptions, 'onResult'> & {
-    onResult?: TOnResult
+    onResult?: (result: VideoGenerateResult) => TTransformed
   },
 ): InjectGenerateVideoResult<
-  InferGenerationOutput<VideoGenerateResult, TOnResult>
+  InferGenerationOutputFromReturn<VideoGenerateResult, TTransformed>
 > {
   assertInInjectionContext(injectGenerateVideo)
 
-  type TOutput = InferGenerationOutput<VideoGenerateResult, TOnResult>
+  type TOutput = InferGenerationOutputFromReturn<VideoGenerateResult, TTransformed>
 
   const destroyRef = inject(DestroyRef)
   const injector = inject(Injector)
@@ -90,7 +90,12 @@ export function injectGenerateVideo<
       hookName: 'injectGenerateVideo',
       outputKind: 'video' as const,
     },
-    onResult: (r: VideoGenerateResult) => options.onResult?.(r),
+    // The transform's raw return type (`TTransformed`) and the stored output
+    // (`TOutput`, with null/void/undefined stripped) are identical at runtime;
+    // the cast bridges the relationship that the conditional type hides.
+    onResult: ((r: VideoGenerateResult) => options.onResult?.(r)) as (
+      result: VideoGenerateResult,
+    ) => TOutput | null | void,
     onError: (e: Error) => options.onError?.(e),
     onProgress: (p: number, m?: string) => options.onProgress?.(p, m),
     onChunk: (c: StreamChunk) => options.onChunk?.(c),

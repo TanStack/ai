@@ -37,6 +37,7 @@ export type {
 // Generation client types
 export type {
   InferGenerationOutput,
+  InferGenerationOutputFromReturn,
   GenerationClientState,
   GenerationClientOptions,
   GenerationFetcher,
