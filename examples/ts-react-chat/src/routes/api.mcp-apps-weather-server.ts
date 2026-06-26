@@ -95,7 +95,9 @@ function createWeatherMcpServer(): McpServer {
     {
       description:
         'Show a visual weather forecast card for a city as an interactive UI widget.',
-      inputSchema: { city: z.string().describe('City to show the forecast for') },
+      inputSchema: {
+        city: z.string().describe('City to show the forecast for'),
+      },
       outputSchema: { city: z.string(), summary: z.string() },
     },
     ({ city }) => {

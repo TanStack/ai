@@ -19,5 +19,7 @@ createServer((_req, res) => {
   res.setHeader('Cache-Control', 'no-store')
   res.end(html)
 }).listen(PORT, () => {
-  console.log(`[mcp-apps] sandbox proxy → http://localhost:${PORT}/sandbox_proxy.html`)
+  console.log(
+    `[mcp-apps] sandbox proxy → http://localhost:${PORT}/sandbox_proxy.html`,
+  )
 })
