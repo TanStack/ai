@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-client",
-  "version": "0.18.5",
+  "version": "0.18.6",
   "description": "Framework-agnostic headless client for TanStack AI chat, realtime sessions, streaming transports, and media generations.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -62,7 +62,8 @@
   },
   "dependencies": {
     "@tanstack/ai": "workspace:*",
-    "@tanstack/ai-event-client": "workspace:*"
+    "@tanstack/ai-event-client": "workspace:*",
+    "@tanstack/ai-utils": "workspace:*"
   },
   "devDependencies": {
     "@standard-schema/spec": "^1.1.0",

@@ -18,7 +18,7 @@ import type {
   GenerationClientOptions,
   GenerationClientState,
   GenerationFetcher,
-  InferGenerationOutput,
+  InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
 import type { ReactiveOption } from './internal/to-reactive'
 
@@ -68,18 +68,26 @@ export interface InjectGenerationResult<TOutput> {
   reset: () => void
 }
 
+// `TTransformed` infers from the `onResult` return position (a covariant
+// inference site that works even for an optional nested property), which types
+// the callback parameter as `TResult` and narrows `result`. Inferring the
+// whole callback as a defaulted type parameter instead collapses to the
+// default, leaving the parameter `any` — a hard error under `strict`. See
+// issue #848.
 export function injectGeneration<
   TInput extends Record<string, any>,
   TResult,
-  TOnResult extends ((result: TResult) => any) | undefined = undefined,
+  TTransformed = void,
 >(
   options: Omit<InjectGenerationOptions<TInput, TResult>, 'onResult'> & {
-    onResult?: TOnResult
+    onResult?: (result: TResult) => TTransformed
   },
-): InjectGenerationResult<InferGenerationOutput<TResult, TOnResult>> {
+): InjectGenerationResult<
+  InferGenerationOutputFromReturn<TResult, TTransformed>
+> {
   assertInInjectionContext(injectGeneration)
 
-  type TOutput = InferGenerationOutput<TResult, TOnResult>
+  type TOutput = InferGenerationOutputFromReturn<TResult, TTransformed>
 
   const destroyRef = inject(DestroyRef)
   const injector = inject(Injector)
@@ -102,7 +110,12 @@ export function injectGeneration<
       framework: 'angular',
       hookName: 'injectGeneration',
     },
-    onResult: (r: TResult) => options.onResult?.(r),
+    // The transform's raw return type (`TTransformed`) and the stored output
+    // (`TOutput`, with null/void/undefined stripped) are identical at runtime;
+    // the cast bridges the relationship that the conditional type hides.
+    onResult: ((r: TResult) => options.onResult?.(r)) as (
+      result: TResult,
+    ) => TOutput | null | void,
     onError: (e: Error) => options.onError?.(e),
     onProgress: (p: number, m?: string) => options.onProgress?.(p, m),
     onChunk: (c: StreamChunk) => options.onChunk?.(c),

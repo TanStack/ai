@@ -1177,6 +1177,9 @@ importers:
       '@tanstack/ai-event-client':
         specifier: workspace:*
         version: link:../ai-event-client
+      '@tanstack/ai-utils':
+        specifier: workspace:*
+        version: link:../ai-utils
     devDependencies:
       '@standard-schema/spec':
         specifier: ^1.1.0

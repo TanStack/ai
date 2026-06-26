@@ -1,3 +1,10 @@
+export { AudioRecorder } from './audio-recorder'
+export type {
+  AudioRecorderOptions,
+  AudioRecorderState,
+  AudioRecording,
+  InferAudioRecordingOutput,
+} from './audio-recorder'
 export { ChatClient } from './chat-client'
 export { createMcpAppBridge } from './mcp-app-bridge'
 export type { McpAppBridge, CreateMcpAppBridgeOptions } from './mcp-app-bridge'
@@ -32,6 +39,7 @@ export type {
 // Generation client types
 export type {
   InferGenerationOutput,
+  InferGenerationOutputFromReturn,
   GenerationClientState,
   GenerationClientOptions,
   GenerationFetcher,

@@ -3,7 +3,7 @@ import type { Signal } from '@angular/core'
 import type { TTSResult } from '@tanstack/ai'
 import type {
   GenerationClientState,
-  InferGenerationOutput,
+  InferGenerationOutputFromReturn,
   SpeechGenerateInput,
 } from '@tanstack/ai-client'
 import type { InjectGenerationOptions } from './inject-generation'
@@ -25,13 +25,13 @@ export interface InjectGenerateSpeechResult<TOutput = TTSResult> {
   reset: () => void
 }
 
-export function injectGenerateSpeech<
-  TOnResult extends ((result: TTSResult) => any) | undefined = undefined,
->(
+export function injectGenerateSpeech<TTransformed = void>(
   options: Omit<InjectGenerateSpeechOptions, 'onResult'> & {
-    onResult?: TOnResult
+    onResult?: (result: TTSResult) => TTransformed
   },
-): InjectGenerateSpeechResult<InferGenerationOutput<TTSResult, TOnResult>> {
+): InjectGenerateSpeechResult<
+  InferGenerationOutputFromReturn<TTSResult, TTransformed>
+> {
   const devtools = {
     ...options.devtools,
     framework: 'angular' as const,
@@ -39,7 +39,7 @@ export function injectGenerateSpeech<
     outputKind: 'audio' as const,
   }
   const { generate, result, isLoading, error, status, stop, reset } =
-    injectGeneration<SpeechGenerateInput, TTSResult, TOnResult>({
+    injectGeneration<SpeechGenerateInput, TTSResult, TTransformed>({
       ...options,
       devtools,
     })

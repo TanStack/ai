@@ -1,0 +1,340 @@
+---
+id: ToolDefinition
+title: ToolDefinition
+---
+
+# Interface: ToolDefinition\<TInput, TOutput, TName\>
+
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:116](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L116)
+
+Tool definition builder that allows creating server or client tools from a shared definition
+
+## Extends
+
+- [`ToolDefinitionInstance`](ToolDefinitionInstance.md)\<`TInput`, `TOutput`, `TName`\>
+
+## Type Parameters
+
+### TInput
+
+`TInput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) = [`SchemaInput`](../type-aliases/SchemaInput.md)
+
+### TOutput
+
+`TOutput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) = [`SchemaInput`](../type-aliases/SchemaInput.md)
+
+### TName
+
+`TName` *extends* `string` = `string`
+
+## Properties
+
+### \_\_toolSide
+
+```ts
+__toolSide: "definition";
+```
+
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:55](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L55)
+
+#### Inherited from
+
+[`ToolDefinitionInstance`](ToolDefinitionInstance.md).[`__toolSide`](ToolDefinitionInstance.md#__toolside)
+
+***
+
+### client()
+
+```ts
+client: <TContext>(execute?) => ClientTool<TInput, TOutput, TName, TContext>;
+```
+
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:131](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L131)
+
+Create a client-side tool with optional execute function
+
+#### Type Parameters
+
+##### TContext
+
+`TContext` = `unknown`
+
+#### Parameters
+
+##### execute?
+
+[`ToolExecuteFunction`](../type-aliases/ToolExecuteFunction.md)\<`TInput`, `TOutput`, `TContext`\>
+
+#### Returns
+
+[`ClientTool`](ClientTool.md)\<`TInput`, `TOutput`, `TName`, `TContext`\>
+
+***
+
+### description
+
+```ts
+description: string;
+```
+
+Defined in: [packages/ai/src/types.ts:572](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L572)
+
+Clear description of what the tool does.
+
+This is crucial - the model uses this to decide when to call the tool.
+Be specific about what the tool does, what parameters it needs, and what it returns.
+
+#### Example
+
+```ts
+"Get the current weather in a given location. Returns temperature, conditions, and forecast."
+```
+
+#### Inherited from
+
+[`ToolDefinitionInstance`](ToolDefinitionInstance.md).[`description`](ToolDefinitionInstance.md#description)
+
+***
+
+### execute()?
+
+```ts
+optional execute: (args, context?) => 
+  | InferSchemaType<TOutput>
+| Promise<InferSchemaType<TOutput>>;
+```
+
+Defined in: [packages/ai/src/types.ts:652](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L652)
+
+Optional function to execute when the model calls this tool.
+
+If provided, the SDK will automatically execute the function with the model's arguments
+and feed the result back to the model. This enables autonomous tool use loops.
+
+Can return any value - will be automatically stringified if needed.
+
+#### Parameters
+
+##### args
+
+[`InferSchemaType`](../type-aliases/InferSchemaType.md)\<`TInput`\>
+
+The arguments parsed from the model's tool call (validated against inputSchema)
+
+##### context?
+
+[`ToolExecutionContext`](../type-aliases/ToolExecutionContext.md)\<`unknown`\>
+
+#### Returns
+
+  \| [`InferSchemaType`](../type-aliases/InferSchemaType.md)\<`TOutput`\>
+  \| `Promise`\<[`InferSchemaType`](../type-aliases/InferSchemaType.md)\<`TOutput`\>\>
+
+Result to send back to the model (validated against outputSchema if provided)
+
+#### Example
+
+```ts
+execute: async (args) => {
+  const weather = await fetchWeather(args.location);
+  return weather; // Can return object or string
+}
+```
+
+#### Inherited from
+
+[`ToolDefinitionInstance`](ToolDefinitionInstance.md).[`execute`](ToolDefinitionInstance.md#execute)
+
+***
+
+### inputSchema?
+
+```ts
+optional inputSchema: TInput;
+```
+
+Defined in: [packages/ai/src/types.ts:612](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L612)
+
+Schema describing the tool's input parameters.
+
+Can be any Standard JSON Schema compliant schema (Zod, ArkType, Valibot, etc.) or a plain JSON Schema object.
+Defines the structure and types of arguments the tool accepts.
+The model will generate arguments matching this schema.
+Standard JSON Schema compliant schemas are converted to JSON Schema for LLM providers.
+
+#### See
+
+ - https://standardschema.dev/json-schema
+ - https://json-schema.org/
+
+#### Examples
+
+```ts
+// Using Zod v4+ schema (natively supports Standard JSON Schema)
+import { z } from 'zod';
+z.object({
+  location: z.string().describe("City name or coordinates"),
+  unit: z.enum(["celsius", "fahrenheit"]).optional()
+})
+```
+
+```ts
+// Using ArkType (natively supports Standard JSON Schema)
+import { type } from 'arktype';
+type({
+  location: 'string',
+  unit: "'celsius' | 'fahrenheit'"
+})
+```
+
+```ts
+// Using plain JSON Schema
+{
+  type: 'object',
+  properties: {
+    location: { type: 'string', description: 'City name or coordinates' },
+    unit: { type: 'string', enum: ['celsius', 'fahrenheit'] }
+  },
+  required: ['location']
+}
+```
+
+#### Inherited from
+
+[`ToolDefinitionInstance`](ToolDefinitionInstance.md).[`inputSchema`](ToolDefinitionInstance.md#inputschema)
+
+***
+
+### lazy?
+
+```ts
+optional lazy: boolean;
+```
+
+Defined in: [packages/ai/src/types.ts:658](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L658)
+
+If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Works with both chat() (the synthetic discovery tool) and Code Mode (kept out of the system prompt and revealed via discover_tools).
+
+#### Inherited from
+
+[`ToolDefinitionInstance`](ToolDefinitionInstance.md).[`lazy`](ToolDefinitionInstance.md#lazy)
+
+***
+
+### metadata?
+
+```ts
+optional metadata: Record<string, any>;
+```
+
+Defined in: [packages/ai/src/types.ts:661](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L661)
+
+Additional metadata for adapters or custom extensions
+
+#### Inherited from
+
+[`ToolDefinitionInstance`](ToolDefinitionInstance.md).[`metadata`](ToolDefinitionInstance.md#metadata)
+
+***
+
+### name
+
+```ts
+name: TName;
+```
+
+Defined in: [packages/ai/src/types.ts:562](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L562)
+
+Unique name of the tool (used by the model to call it).
+
+Should be descriptive and follow naming conventions (e.g., snake_case or camelCase).
+Must be unique within the tools array.
+
+#### Example
+
+```ts
+"get_weather", "search_database", "sendEmail"
+```
+
+#### Inherited from
+
+[`ToolDefinitionInstance`](ToolDefinitionInstance.md).[`name`](ToolDefinitionInstance.md#name)
+
+***
+
+### needsApproval?
+
+```ts
+optional needsApproval: boolean;
+```
+
+Defined in: [packages/ai/src/types.ts:655](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L655)
+
+If true, tool execution requires user approval before running. Works with both server and client tools.
+
+#### Inherited from
+
+[`ToolDefinitionInstance`](ToolDefinitionInstance.md).[`needsApproval`](ToolDefinitionInstance.md#needsapproval)
+
+***
+
+### outputSchema?
+
+```ts
+optional outputSchema: TOutput;
+```
+
+Defined in: [packages/ai/src/types.ts:633](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L633)
+
+Optional schema for validating tool output.
+
+Can be any Standard JSON Schema compliant schema or a plain JSON Schema object.
+If provided with a Standard Schema compliant schema, tool results will be validated
+against this schema before being sent back to the model. This catches bugs in tool
+implementations and ensures consistent output formatting.
+
+Note: This is client-side validation only - not sent to LLM providers.
+Note: Plain JSON Schema output validation is not performed at runtime.
+
+#### Example
+
+```ts
+// Using Zod
+z.object({
+  temperature: z.number(),
+  conditions: z.string(),
+  forecast: z.array(z.string()).optional()
+})
+```
+
+#### Inherited from
+
+[`ToolDefinitionInstance`](ToolDefinitionInstance.md).[`outputSchema`](ToolDefinitionInstance.md#outputschema)
+
+***
+
+### server()
+
+```ts
+server: <TContext>(execute) => ServerTool<TInput, TOutput, TName, TContext>;
+```
+
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:124](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L124)
+
+Create a server-side tool with execute function
+
+#### Type Parameters
+
+##### TContext
+
+`TContext` = `unknown`
+
+#### Parameters
+
+##### execute
+
+[`ToolExecuteFunction`](../type-aliases/ToolExecuteFunction.md)\<`TInput`, `TOutput`, `TContext`\>
+
+#### Returns
+
+[`ServerTool`](ServerTool.md)\<`TInput`, `TOutput`, `TName`, `TContext`\>

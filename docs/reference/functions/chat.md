@@ -1,0 +1,114 @@
+---
+id: chat
+title: chat
+---
+
+# Function: chat()
+
+```ts
+function chat<TAdapter, TSchema, TStream, TTools, TMiddleware>(options): TextActivityResult<TSchema, TStream>;
+```
+
+Defined in: [packages/ai/src/activities/chat/index.ts:2619](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/index.ts#L2619)
+
+Text activity - handles agentic text generation, one-shot text generation, and agentic structured output.
+
+This activity supports four modes:
+1. **Streaming agentic text**: Stream responses with automatic tool execution
+2. **Streaming one-shot text**: Simple streaming request/response without tools
+3. **Non-streaming text**: Returns collected text as a string (stream: false)
+4. **Agentic structured output**: Run tools, then return structured data
+
+## Type Parameters
+
+### TAdapter
+
+`TAdapter` *extends* [`AnyTextAdapter`](../type-aliases/AnyTextAdapter.md)
+
+### TSchema
+
+`TSchema` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) \| `undefined` = `undefined`
+
+### TStream
+
+`TStream` *extends* `boolean` = `boolean`
+
+### TTools
+
+`TTools` *extends* 
+  \| (
+  \| `Omit`\<[`Tool`](../interfaces/Tool.md)\<`any`, `any`, `any`, `any`\>, `"execute"`\> & `object` & `object`
+  \| [`ProviderTool`](../interfaces/ProviderTool.md)\<`string`, `TAdapter`\[`"~types"`\]\[`"toolCapabilities"`\]\[`number`\]\>)[]
+  \| `undefined` = 
+  \| (
+  \| `Omit`\<[`Tool`](../interfaces/Tool.md)\<`any`, `any`, `any`, `any`\>, `"execute"`\> & `object` & `object`
+  \| [`ProviderTool`](../interfaces/ProviderTool.md)\<`string`, `TAdapter`\[`"~types"`\]\[`"toolCapabilities"`\]\[`number`\]\>)[]
+  \| `undefined`
+
+### TMiddleware
+
+`TMiddleware` *extends* 
+  \| [`ChatMiddleware`](../interfaces/ChatMiddleware.md)\<`any`\>[]
+  \| `undefined` = 
+  \| [`ChatMiddleware`](../interfaces/ChatMiddleware.md)\<`any`\>[]
+  \| `undefined`
+
+## Parameters
+
+### options
+
+`TextActivityOptionsWithContext`\<`TAdapter`, `TSchema`, `TStream`, `TTools`, `TMiddleware`\>
+
+## Returns
+
+`TextActivityResult`\<`TSchema`, `TStream`\>
+
+## Examples
+
+```ts
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+
+for await (const chunk of chat({
+  adapter: openaiText('gpt-4o'),
+  messages: [{ role: 'user', content: 'What is the weather?' }],
+  tools: [weatherTool]
+})) {
+  if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+    console.log(chunk.delta)
+  }
+}
+```
+
+```ts
+for await (const chunk of chat({
+  adapter: openaiText('gpt-4o'),
+  messages: [{ role: 'user', content: 'Hello!' }]
+})) {
+  console.log(chunk)
+}
+```
+
+```ts
+const text = await chat({
+  adapter: openaiText('gpt-4o'),
+  messages: [{ role: 'user', content: 'Hello!' }],
+  stream: false
+})
+// text is a string with the full response
+```
+
+```ts
+import { z } from 'zod'
+
+const result = await chat({
+  adapter: openaiText('gpt-4o'),
+  messages: [{ role: 'user', content: 'Research and summarize the topic' }],
+  tools: [researchTool, analyzeTool],
+  outputSchema: z.object({
+    summary: z.string(),
+    keyPoints: z.array(z.string())
+  })
+})
+// result is { summary: string, keyPoints: string[] }
+```
