@@ -202,10 +202,14 @@ export function withSandbox(
 
       await state.watcher?.stop()
 
-      if (definition.lifecycle?.destroyOnComplete) {
-        await definition.destroy(state.ensureCtx)
-        await definition.hooks?.onDestroy?.()
-      }
+      // ALWAYS tear down on an explicit abort, regardless of `destroyOnComplete`.
+      // The in-sandbox agent process is not killed by closing its IO stream
+      // (e.g. a Docker exec survives client disconnect), so the only reliable way
+      // to stop it — and the token/cost drain of its ongoing API calls — is to
+      // destroy the sandbox (stop the container/VM). `keepAlive` /
+      // `destroyOnComplete:false` governs *successful completion*, never cancel.
+      await definition.destroy(state.ensureCtx)
+      await definition.hooks?.onDestroy?.()
     },
 
     async onError(ctx, info) {

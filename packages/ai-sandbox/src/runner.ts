@@ -58,6 +58,19 @@ export async function* spawnNdjson(
     await proc.stdin.end()
   }
 
+  // Drain stderr concurrently. A CLI that fails before producing stdout (a
+  // broken install, an auth/permission refusal, …) prints to stderr and exits
+  // non-zero; without this, stdout-only parsing yields nothing and the failure
+  // vanishes. Capturing it lets us surface the cause below.
+  const stderrChunks: Array<string> = []
+  const stderrDrained = (async () => {
+    try {
+      for await (const chunk of proc.stderr) stderrChunks.push(chunk)
+    } catch {
+      // stderr stream torn down — use whatever was captured
+    }
+  })()
+
   for await (const line of toLines(proc.stdout)) {
     const trimmed = line.trim()
     if (trimmed === '') continue
@@ -71,5 +84,16 @@ export async function* spawnNdjson(
     yield parsed
   }
 
-  await proc.wait()
+  const exitCode = await proc.wait()
+  await stderrDrained
+  // A non-zero exit means the agent CLI itself failed. Throw so the adapter's
+  // catch turns it into a RUN_ERROR the UI can show, instead of ending the
+  // stream silently with no events.
+  if (exitCode !== 0) {
+    const stderr = stderrChunks.join('').trim()
+    throw new Error(
+      `Agent process exited with code ${exitCode}` +
+        (stderr ? `: ${stderr.slice(0, 1000)}` : ''),
+    )
+  }
 }
