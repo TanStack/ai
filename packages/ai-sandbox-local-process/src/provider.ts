@@ -24,6 +24,13 @@ export interface LocalProcessSandboxConfig {
   baseDir?: string
   /** Remove the backing dir on destroy. Defaults: true (generated), false (fixed `dir`). */
   removeOnDestroy?: boolean
+  /**
+   * Env vars to remove from the inherited `process.env` before spawning. Use to
+   * let a host CLI fall back to its own stored auth — e.g. scrub
+   * `ANTHROPIC_API_KEY` so Claude Code uses your logged-in subscription instead
+   * of billing the API.
+   */
+  scrubEnv?: Array<string>
 }
 
 class LocalProcessProvider implements SandboxProvider {
@@ -43,6 +50,7 @@ class LocalProcessProvider implements SandboxProvider {
     return new LocalProcessHandle({
       root,
       removeOnDestroy: this.removeDefault(),
+      scrubEnv: this.config.scrubEnv,
       forkFactory: async (sourceRoot) => {
         const dest = path.join(this.baseDir(), `fork-${randomUUID()}`)
         await fsp.mkdir(dest, { recursive: true })

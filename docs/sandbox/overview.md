@@ -79,6 +79,20 @@ const daytona = daytonaSandbox({ apiKey: process.env.DAYTONA_API_KEY }) // manag
 const vercel = vercelSandbox({ runtime: 'node24' }) // managed Vercel microVM
 ```
 
+#### Use a host CLI's own auth (`scrubEnv`)
+
+`localProcessSandbox` runs the harness on your host, so it inherits your host
+environment. Use `scrubEnv` to remove vars before spawning — e.g. drop
+`ANTHROPIC_API_KEY` so Claude Code falls back to your logged-in **subscription**
+(`claude login`) instead of billing the API:
+
+```ts
+const subscription = localProcessSandbox({ scrubEnv: ['ANTHROPIC_API_KEY'] })
+```
+
+Only local-process can do this (it runs your host CLI); isolated/cloud providers
+have no host login and use an injected API key.
+
 Providers declare what they support via `capabilities()`
 (`fs`, `exec`, `env`, `ports`, `backgroundProcesses`, `snapshots`,
 `networkPolicy`, `durableFilesystem`, `fork`). Code that uses an optional

@@ -10,7 +10,7 @@
  * Cloudflare providers.
  */
 import { spawn } from 'node:child_process'
-import { watch as watchFs } from 'node:fs'
+import { existsSync, watch as watchFs } from 'node:fs'
 import * as fsp from 'node:fs/promises'
 import * as path from 'node:path'
 import {
@@ -26,6 +26,72 @@ import type {
   SandboxHandle,
   SpawnHandle,
 } from '@tanstack/ai-sandbox'
+
+/**
+ * Resolve a POSIX `sh` to run commands through. Commands are built with POSIX
+ * single-quote quoting (e.g. `--permission-mode 'bypassPermissions'`), so they
+ * must run under a POSIX shell on EVERY platform — on native Windows, `cmd.exe`
+ * (what Node's `shell: true` uses) does not strip single quotes and breaks them.
+ *
+ * - Unix: `sh` resolves via PATH (`/bin/sh`).
+ * - Windows: no POSIX shell on the default PATH, so locate git-bash / WSL's
+ *   `sh.exe` — from the `TANSTACK_SANDBOX_SH` override, derived from `git` on
+ *   PATH (`…\Git\cmd` → `…\Git\usr\bin\sh.exe`), or common install dirs.
+ * Cached after first resolution.
+ */
+let cachedShell: string | undefined
+function posixShell(): string {
+  if (cachedShell !== undefined) return cachedShell
+  if (process.platform !== 'win32') return (cachedShell = 'sh')
+
+  const candidates: Array<string> = []
+  if (process.env.TANSTACK_SANDBOX_SH) {
+    candidates.push(process.env.TANSTACK_SANDBOX_SH)
+  }
+  for (const dir of (process.env.PATH ?? '').split(path.delimiter)) {
+    if (/\\git\\cmd\\?$/i.test(dir)) {
+      candidates.push(path.join(dir, '..', 'usr', 'bin', 'sh.exe'))
+      candidates.push(path.join(dir, '..', 'bin', 'sh.exe'))
+    }
+  }
+  candidates.push(
+    'C:\\Program Files\\Git\\usr\\bin\\sh.exe',
+    'C:\\Program Files\\Git\\bin\\sh.exe',
+  )
+  for (const candidate of candidates) {
+    if (candidate && existsSync(candidate)) return (cachedShell = candidate)
+  }
+  // Last resort: rely on PATH (a clear ENOENT if no POSIX sh is installed).
+  return (cachedShell = 'sh')
+}
+
+/**
+ * Extra PATH dirs so a Windows git-bash `sh` can find its Unix tools (`sed`,
+ * `dirname`, `uname`, `git`, …). Node spawns `sh.exe` with the bare Windows PATH,
+ * which omits git-bash's `usr/bin`/`mingw64/bin` — so npm CLI shims that are
+ * POSIX shell scripts (e.g. `codex`) fail with "command not found". Empty on
+ * non-Windows or when no real git-bash sh was resolved.
+ */
+let cachedShellPathDirs: Array<string> | undefined
+function posixShellPathDirs(): Array<string> {
+  if (cachedShellPathDirs !== undefined) return cachedShellPathDirs
+  const sh = posixShell()
+  if (process.platform !== 'win32' || sh === 'sh') {
+    return (cachedShellPathDirs = [])
+  }
+  const dirs = [path.dirname(sh)] // …\Git\usr\bin — holds sed/dirname/uname/sh
+  let dir = path.dirname(sh)
+  for (let i = 0; i < 3; i += 1) {
+    if (/\\git$/i.test(dir)) {
+      for (const sub of ['usr\\bin', 'bin', 'mingw64\\bin']) {
+        dirs.push(path.join(dir, sub))
+      }
+      break
+    }
+    dir = path.dirname(dir)
+  }
+  return (cachedShellPathDirs = [...new Set(dirs)].filter((d) => existsSync(d)))
+}
 
 export const LOCAL_PROCESS_CAPS: SandboxCapabilities = {
   fs: true,
@@ -54,6 +120,8 @@ export interface LocalProcessHandleOptions {
   removeOnDestroy: boolean
   /** Create a fork by copying this sandbox's dir to a new root. */
   forkFactory: (sourceRoot: string) => Promise<SandboxHandle>
+  /** Env vars to delete from the inherited `process.env` before spawning. */
+  scrubEnv?: Array<string>
 }
 
 export class LocalProcessHandle implements SandboxHandle {
@@ -190,13 +258,32 @@ export class LocalProcessHandle implements SandboxHandle {
   }
 
   private mergedEnv(extra?: Record<string, string>): NodeJS.ProcessEnv {
-    return { ...process.env, ...this.envVars, ...extra }
+    const env: NodeJS.ProcessEnv = { ...process.env, ...this.envVars, ...extra }
+    // Drop scrubbed vars so a host CLI falls back to its own stored auth
+    // (e.g. remove ANTHROPIC_API_KEY → Claude Code uses the logged-in
+    // subscription instead of billing the API). Delete (not blank) so the var
+    // is truly absent, not present-but-empty.
+    for (const key of this.options.scrubEnv ?? []) delete env[key]
+    // Prepend git-bash's tool dirs (Windows) so the POSIX `sh` can find sed/uname/
+    // git/etc. that npm CLI shims depend on. Respect the existing PATH key casing
+    // (Windows uses `Path`) to avoid creating a duplicate, ignored variable.
+    const extraPaths = posixShellPathDirs()
+    if (extraPaths.length > 0) {
+      const pathKey =
+        Object.keys(env).find((k) => k.toUpperCase() === 'PATH') ?? 'PATH'
+      env[pathKey] = [...extraPaths, env[pathKey] ?? '']
+        .filter(Boolean)
+        .join(path.delimiter)
+    }
+    return env
   }
 
   private exec(command: string, opts?: ProcessOptions): Promise<ExecResult> {
     return new Promise<ExecResult>((resolve, reject) => {
-      const child = spawn(command, {
-        shell: true,
+      // Run via a POSIX `sh` on every platform (see posixShell) so the adapter's
+      // single-quote-quoted commands work identically — including native Windows,
+      // where `shell: true` would be cmd.exe and mangle the quoting.
+      const child = spawn(posixShell(), ['-c', command], {
         cwd: this.resolveCwd(opts?.cwd),
         env: this.mergedEnv(opts?.env),
       })
@@ -220,8 +307,8 @@ export class LocalProcessHandle implements SandboxHandle {
     command: string,
     opts?: ProcessOptions,
   ): Promise<SpawnHandle> {
-    const child = spawn(command, {
-      shell: true,
+    // Via POSIX `sh` on every platform (see posixShell / exec above).
+    const child = spawn(posixShell(), ['-c', command], {
       cwd: this.resolveCwd(opts?.cwd),
       env: this.mergedEnv(opts?.env),
     })
