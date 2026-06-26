@@ -7,6 +7,15 @@ import type {
   InferAudioRecordingOutput,
 } from '@tanstack/ai-client'
 
+export type UseAudioRecorderOptions<TOnComplete> = AudioRecorderOptions & {
+  /**
+   * Optional transform applied to the recording when `stop()` resolves. Its
+   * (awaited) return value becomes `recording` and the resolved value of
+   * `stop()`. Return nothing to keep the raw `AudioRecording`.
+   */
+  onComplete?: TOnComplete
+}
+
 export interface UseAudioRecorderReturn<TOutput> {
   /** Readonly ref: latest recording (transformed if `onComplete` provided), or null. */
   recording: Readonly<Ref<TOutput | null>>
@@ -15,7 +24,9 @@ export interface UseAudioRecorderReturn<TOutput> {
   /** Whether the browser supports recording. */
   isSupported: boolean
   start: () => Promise<void>
+  /** Stop and resolve with the completed recording (transformed if `onComplete` provided). */
   stop: () => Promise<TOutput>
+  /** Discard the in-progress recording and release the mic. */
   cancel: () => void
 }
 
@@ -23,21 +34,29 @@ export interface UseAudioRecorderReturn<TOutput> {
  * Vue composable for recording an audio message. The resolved recording
  * carries `.part` (for `useChat.sendMessage`) and `.base64` (for generation
  * hooks).
+ *
+ * Errors are delivered via `onError`. `start()` and `stop()` also reject on
+ * failure (and `stop()` rejects with `Recording cancelled` if `cancel()` runs
+ * while a stop is in flight, e.g. on unmount) — handle one channel, not both.
  */
 export function useAudioRecorder<
-  TOnComplete extends ((recording: AudioRecording) => any) | undefined =
-    undefined,
+  TOnComplete extends (recording: AudioRecording) => unknown,
 >(
-  options: AudioRecorderOptions & { onComplete?: TOnComplete } = {},
-): UseAudioRecorderReturn<InferAudioRecordingOutput<TOnComplete>> {
-  type TOutput = InferAudioRecordingOutput<TOnComplete>
+  options: UseAudioRecorderOptions<TOnComplete>,
+): UseAudioRecorderReturn<InferAudioRecordingOutput<TOnComplete>>
+export function useAudioRecorder(
+  options?: UseAudioRecorderOptions<undefined>,
+): UseAudioRecorderReturn<AudioRecording>
+export function useAudioRecorder(
+  options: UseAudioRecorderOptions<(recording: AudioRecording) => unknown> = {},
+): UseAudioRecorderReturn<unknown> {
   const recorder = new AudioRecorder({
     ...(options.audio !== undefined && { audio: options.audio }),
     ...(options.mimeType !== undefined && { mimeType: options.mimeType }),
     ...(options.onError !== undefined && { onError: options.onError }),
   })
   const isRecording = ref(false)
-  const recording = shallowRef<TOutput | null>(null)
+  const recording = shallowRef<unknown>(null)
 
   const unsubscribe = recorder.subscribe((state) => {
     isRecording.value = state === 'recording'
@@ -48,10 +67,10 @@ export function useAudioRecorder<
     recorder.cancel()
   })
 
-  const stop = async (): Promise<TOutput> => {
+  const stop = async (): Promise<unknown> => {
     const rawRecording = await recorder.stop()
     const transformed = await options.onComplete?.(rawRecording)
-    const output = (transformed ?? rawRecording) as TOutput
+    const output = transformed ?? rawRecording
     recording.value = output
     return output
   }

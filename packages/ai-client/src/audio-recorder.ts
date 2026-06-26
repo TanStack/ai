@@ -28,7 +28,7 @@ export interface AudioRecorderOptions {
  * @template TFn - The transform callback type (or undefined if not provided)
  */
 export type InferAudioRecordingOutput<TFn> = TFn extends (
-  recording: any,
+  recording: AudioRecording,
 ) => infer R
   ? [Exclude<Awaited<R>, null | void | undefined>] extends [never]
     ? AudioRecording
@@ -158,10 +158,13 @@ export class AudioRecorder {
     this.setState('stopping')
     const recorder = this.recorder
     return new Promise<AudioRecording>((resolve, reject) => {
-      // ponytail: some browsers/codecs never fire onstop; this watchdog
-      // unwedges the recorder instead of leaking this promise forever.
+      // Some browsers/codecs never fire onstop; this watchdog unwedges the
+      // recorder instead of leaking this promise forever.
       const watchdog = setTimeout(() => {
         if (this._state === 'stopping') {
+          // Detach handlers so a late onstop/onerror from the stalled recorder
+          // can't reach back in and fire finalize()/onError a second time.
+          this.detachRecorder()
           this.handleError(new Error('Recording stop timed out'))
         }
       }, 10_000)
@@ -183,8 +186,9 @@ export class AudioRecorder {
     }
     const recorder = this.recorder
     if (recorder) {
-      // Detach onstop so finalize() never runs for a discarded recording.
-      recorder.onstop = null
+      // Detach handlers so finalize()/onError never run for a discarded
+      // recording.
+      this.detachRecorder()
       try {
         recorder.stop()
       } catch {
@@ -247,5 +251,16 @@ export class AudioRecorder {
   private releaseStream(): void {
     this.stream?.getTracks().forEach((t) => t.stop())
     this.stream = null
+  }
+
+  /** Detach all event handlers so a stale recorder can't mutate our state. */
+  private detachRecorder(): void {
+    const recorder = this.recorder
+    if (!recorder) {
+      return
+    }
+    recorder.onstop = null
+    recorder.onerror = null
+    recorder.ondataavailable = null
   }
 }

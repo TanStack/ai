@@ -35,6 +35,10 @@ export interface UseAudioRecorderReturn<TOutput> {
  * {@link AudioRecording} carries `.part` (an audio content part for
  * `useChat.sendMessage`) and `.base64` (for the generation hooks).
  *
+ * Errors are delivered via `onError`. `start()` and `stop()` also reject on
+ * failure (and `stop()` rejects with `Recording cancelled` if the component
+ * unmounts while a stop is in flight) — handle one channel, not both.
+ *
  * @example
  * ```tsx
  * const { isRecording, start, stop, recording } = useAudioRecorder()
@@ -45,7 +49,7 @@ export interface UseAudioRecorderReturn<TOutput> {
  * ```
  */
 export function useAudioRecorder<
-  TOnComplete extends (recording: AudioRecording) => any,
+  TOnComplete extends (recording: AudioRecording) => unknown,
 >(
   options: UseAudioRecorderOptions<TOnComplete>,
 ): UseAudioRecorderReturn<InferAudioRecordingOutput<TOnComplete>>
@@ -53,10 +57,10 @@ export function useAudioRecorder(
   options?: UseAudioRecorderOptions<undefined>,
 ): UseAudioRecorderReturn<AudioRecording>
 export function useAudioRecorder(
-  options: UseAudioRecorderOptions<any> = {},
-): UseAudioRecorderReturn<any> {
+  options: UseAudioRecorderOptions<(recording: AudioRecording) => unknown> = {},
+): UseAudioRecorderReturn<unknown> {
   const [isRecording, setIsRecording] = useState(false)
-  const [recording, setRecording] = useState<any>(null)
+  const [recording, setRecording] = useState<unknown>(null)
   // Read the freshest callbacks at fire time without recreating the recorder.
   const optionsRef = useRef(options)
   optionsRef.current = options
@@ -96,7 +100,7 @@ export function useAudioRecorder(
   return {
     recording,
     isRecording,
-    // ponytail: recording is client-only; if SSR'd, gate UI on a mounted flag.
+    // recording is client-only; if SSR'd, gate UI on a mounted flag.
     isSupported: AudioRecorder.isSupported(),
     start,
     stop,

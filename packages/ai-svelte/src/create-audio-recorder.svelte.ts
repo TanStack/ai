@@ -5,6 +5,15 @@ import type {
   InferAudioRecordingOutput,
 } from '@tanstack/ai-client'
 
+export type CreateAudioRecorderOptions<TOnComplete> = AudioRecorderOptions & {
+  /**
+   * Optional transform applied to the recording when `stop()` resolves. Its
+   * (awaited) return value becomes `recording` and the resolved value of
+   * `stop()`. Return nothing to keep the raw `AudioRecording`.
+   */
+  onComplete?: TOnComplete
+}
+
 export interface CreateAudioRecorderReturn<TOutput> {
   /** Reactive: latest recording (transformed if `onComplete` provided), or null. */
   readonly recording: TOutput | null
@@ -13,6 +22,7 @@ export interface CreateAudioRecorderReturn<TOutput> {
   /** Whether the browser supports recording. */
   readonly isSupported: boolean
   start: () => Promise<void>
+  /** Stop and resolve with the completed recording (transformed if `onComplete` provided). */
   stop: () => Promise<TOutput>
   /**
    * Discard the in-progress recording and release the mic. Svelte 5 runes
@@ -26,30 +36,40 @@ export interface CreateAudioRecorderReturn<TOutput> {
  * Svelte 5 factory for recording an audio message. The resolved recording
  * carries `.part` (for `createChat.sendMessage`) and `.base64` (for the
  * generation factories).
+ *
+ * Errors are delivered via `onError`. `start()` and `stop()` also reject on
+ * failure (and `stop()` rejects with `Recording cancelled` if `cancel()` runs
+ * while a stop is in flight) — handle one channel, not both.
  */
 export function createAudioRecorder<
-  TOnComplete extends ((recording: AudioRecording) => any) | undefined =
-    undefined,
+  TOnComplete extends (recording: AudioRecording) => unknown,
 >(
-  options: AudioRecorderOptions & { onComplete?: TOnComplete } = {},
-): CreateAudioRecorderReturn<InferAudioRecordingOutput<TOnComplete>> {
-  type TOutput = InferAudioRecordingOutput<TOnComplete>
+  options: CreateAudioRecorderOptions<TOnComplete>,
+): CreateAudioRecorderReturn<InferAudioRecordingOutput<TOnComplete>>
+export function createAudioRecorder(
+  options?: CreateAudioRecorderOptions<undefined>,
+): CreateAudioRecorderReturn<AudioRecording>
+export function createAudioRecorder(
+  options: CreateAudioRecorderOptions<
+    (recording: AudioRecording) => unknown
+  > = {},
+): CreateAudioRecorderReturn<unknown> {
   const recorder = new AudioRecorder({
     ...(options.audio !== undefined && { audio: options.audio }),
     ...(options.mimeType !== undefined && { mimeType: options.mimeType }),
     ...(options.onError !== undefined && { onError: options.onError }),
   })
   let isRecording = $state(false)
-  let recording = $state<TOutput | null>(null)
+  let recording = $state<unknown>(null)
 
   recorder.subscribe((state) => {
     isRecording = state === 'recording'
   })
 
-  const stop = async (): Promise<TOutput> => {
+  const stop = async (): Promise<unknown> => {
     const rawRecording = await recorder.stop()
     const transformed = await options.onComplete?.(rawRecording)
-    const output = (transformed ?? rawRecording) as TOutput
+    const output = transformed ?? rawRecording
     recording = output
     return output
   }

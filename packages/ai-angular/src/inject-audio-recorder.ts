@@ -12,6 +12,15 @@ import type {
   InferAudioRecordingOutput,
 } from '@tanstack/ai-client'
 
+export type InjectAudioRecorderOptions<TOnComplete> = AudioRecorderOptions & {
+  /**
+   * Optional transform applied to the recording when `stop()` resolves. Its
+   * (awaited) return value becomes `recording` and the resolved value of
+   * `stop()`. Return nothing to keep the raw `AudioRecording`.
+   */
+  onComplete?: TOnComplete
+}
+
 export interface InjectAudioRecorderResult<TOutput> {
   /** Reactive: latest recording (transformed if `onComplete` provided), or null. */
   recording: Signal<TOutput | null>
@@ -20,7 +29,9 @@ export interface InjectAudioRecorderResult<TOutput> {
   /** Whether the browser supports recording. */
   isSupported: boolean
   start: () => Promise<void>
+  /** Stop and resolve with the completed recording (transformed if `onComplete` provided). */
   stop: () => Promise<TOutput>
+  /** Discard the in-progress recording and release the mic. */
   cancel: () => void
 }
 
@@ -28,15 +39,25 @@ export interface InjectAudioRecorderResult<TOutput> {
  * Angular injectable for recording an audio message. The resolved recording
  * carries `.part` (for `injectChat`'s `sendMessage`) and `.base64` (for the
  * generation injectables). Must be called in an injection context.
+ *
+ * Errors are delivered via `onError`. `start()` and `stop()` also reject on
+ * failure (and `stop()` rejects with `Recording cancelled` if `cancel()` runs
+ * while a stop is in flight, e.g. on destroy) — handle one channel, not both.
  */
 export function injectAudioRecorder<
-  TOnComplete extends ((recording: AudioRecording) => any) | undefined =
-    undefined,
+  TOnComplete extends (recording: AudioRecording) => unknown,
 >(
-  options: AudioRecorderOptions & { onComplete?: TOnComplete } = {},
-): InjectAudioRecorderResult<InferAudioRecordingOutput<TOnComplete>> {
+  options: InjectAudioRecorderOptions<TOnComplete>,
+): InjectAudioRecorderResult<InferAudioRecordingOutput<TOnComplete>>
+export function injectAudioRecorder(
+  options?: InjectAudioRecorderOptions<undefined>,
+): InjectAudioRecorderResult<AudioRecording>
+export function injectAudioRecorder(
+  options: InjectAudioRecorderOptions<
+    (recording: AudioRecording) => unknown
+  > = {},
+): InjectAudioRecorderResult<unknown> {
   assertInInjectionContext(injectAudioRecorder)
-  type TOutput = InferAudioRecordingOutput<TOnComplete>
   const destroyRef = inject(DestroyRef)
   const recorder = new AudioRecorder({
     ...(options.audio !== undefined && { audio: options.audio }),
@@ -44,7 +65,7 @@ export function injectAudioRecorder<
     ...(options.onError !== undefined && { onError: options.onError }),
   })
   const isRecording = signal(false)
-  const recording = signal<TOutput | null>(null)
+  const recording = signal<unknown>(null)
 
   const unsubscribe = recorder.subscribe((state) => {
     isRecording.set(state === 'recording')
@@ -54,10 +75,10 @@ export function injectAudioRecorder<
     recorder.cancel()
   })
 
-  const stop = async (): Promise<TOutput> => {
+  const stop = async (): Promise<unknown> => {
     const rawRecording = await recorder.stop()
     const transformed = await options.onComplete?.(rawRecording)
-    const output = (transformed ?? rawRecording) as TOutput
+    const output = transformed ?? rawRecording
     recording.set(output)
     return output
   }

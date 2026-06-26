@@ -38,7 +38,10 @@ export type {
 
 // Audio Recorder
 export { injectAudioRecorder } from './inject-audio-recorder'
-export type { InjectAudioRecorderResult } from './inject-audio-recorder'
+export type {
+  InjectAudioRecorderOptions,
+  InjectAudioRecorderResult,
+} from './inject-audio-recorder'
 
 // Summarize
 export { injectSummarize } from './inject-summarize'

@@ -56,6 +56,21 @@ function RecordButton() {
 | `mimeType`   | `string`    | Native recorder type, e.g. `audio/webm;codecs=opus`                          |
 | `durationMs` | `number`    | Recording length in milliseconds                                             |
 
+## Handling errors
+
+Failures reach you through **two** channels — pick one, don't handle both:
+
+- `onError(error)` fires for permission denial and recorder errors.
+- `start()` and `stop()` also **reject**. `start()` rejects on permission
+  denial; `stop()` rejects on a recorder error or with `Recording cancelled` if
+  the recording is cancelled while a stop is in flight (for example when the
+  component unmounts mid-recording).
+
+So if you `await start()` / `await stop()`, wrap them in `try`/`catch` rather
+than discarding the promise with `void`. The recorder's native `mimeType` may
+differ from a requested `mimeType` (browsers ignore unsupported types), so read
+`recording.mimeType` if a downstream step requires a specific format.
+
 ## Read the latest recording reactively
 
 The same value is also exposed as the reactive `recording` field, so you can
@@ -111,12 +126,17 @@ function VoiceComposer() {
   })
 
   const toggle = async () => {
-    if (!isRecording) {
-      await start()
-      return
+    try {
+      if (!isRecording) {
+        await start()
+        return
+      }
+      const rec = await stop()
+      await sendMessage({ content: [rec.part] })
+    } catch (error) {
+      // start()/stop() reject on permission denial, recorder error, or cancel.
+      console.error(error)
     }
-    const rec = await stop()
-    await sendMessage({ content: [rec.part] })
   }
 
   return (
@@ -146,12 +166,16 @@ function Transcriber() {
   })
 
   const toggle = async () => {
-    if (!isRecording) {
-      await start()
-      return
+    try {
+      if (!isRecording) {
+        await start()
+        return
+      }
+      const rec = await stop()
+      await generate({ audio: rec.base64 })
+    } catch (error) {
+      console.error(error)
     }
-    const rec = await stop()
-    await generate({ audio: rec.base64 })
   }
 
   return (

@@ -14,8 +14,8 @@ recording exposes a ready-to-use audio content part (`.part`) for `sendMessage`
 and base64 (`.base64`) for the generation hooks. Native recorder output
 (webm/mp4), no transcoding, no new dependency.
 
-Each hook also returns a reactive `content` field — the latest resolved
+Each hook also returns a reactive `recording` field — the latest resolved
 recording (`AudioRecording | null`), available without awaiting `stop()`. Pass
 `onComplete: (recording) => T | Promise<T>` to transform the output: `stop()`
-then resolves to `T` and `content` becomes `T | null`. Omitting `onComplete`
+then resolves to `T` and `recording` becomes `T | null`. Omitting `onComplete`
 keeps the raw `AudioRecording`.

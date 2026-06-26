@@ -51,7 +51,10 @@ export type {
 } from './create-generate-video.svelte'
 
 export { createAudioRecorder } from './create-audio-recorder.svelte'
-export type { CreateAudioRecorderReturn } from './create-audio-recorder.svelte'
+export type {
+  CreateAudioRecorderOptions,
+  CreateAudioRecorderReturn,
+} from './create-audio-recorder.svelte'
 
 // Re-export from ai-client for convenience
 export {

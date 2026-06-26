@@ -148,6 +148,50 @@ describe('AudioRecorder', () => {
     expect(recorder.state).toBe('idle')
   })
 
+  it('cancel during finalize settles stop() exactly once', async () => {
+    const recorder = new AudioRecorder()
+    await recorder.start()
+
+    let resolved = 0
+    let rejected = 0
+    // The sync fake fires onstop -> finalize(), which then suspends on the
+    // async blob.arrayBuffer(). We cancel before that microtask runs, so the
+    // pending stop() must reject exactly once and finalize's late resolve must
+    // be a no-op.
+    const settled = recorder.stop().then(
+      () => {
+        resolved++
+      },
+      () => {
+        rejected++
+      },
+    )
+    recorder.cancel()
+    await settled
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(rejected).toBe(1)
+    expect(resolved).toBe(0)
+    expect(recorder.state).toBe('idle')
+  })
+
+  it('routes a finalize failure to onError and rejects stop()', async () => {
+    const onError = vi.fn()
+    const recorder = new AudioRecorder({ onError })
+    await recorder.start()
+    const spy = vi
+      .spyOn(Blob.prototype, 'arrayBuffer')
+      .mockRejectedValueOnce(new Error('decode failed'))
+
+    await expect(recorder.stop()).rejects.toThrow('decode failed')
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'decode failed' }),
+    )
+    expect(recorder.state).toBe('idle')
+    spy.mockRestore()
+  })
+
   it('stop() watchdog rejects if onstop never fires', async () => {
     vi.useFakeTimers()
     try {
