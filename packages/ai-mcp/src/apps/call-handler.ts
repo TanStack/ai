@@ -162,6 +162,24 @@ function buildRegistry(clients: McpAppClientsInput): AppRegistry {
 }
 
 /**
+ * Invoke an optional `onError` hook, absorbing BOTH synchronous and asynchronous
+ * throws from the hook itself. The hook runs inside the promise chain (not as a
+ * bare argument) so a sync `throw` becomes a rejection that `.catch` swallows —
+ * a host's observability callback must never break the handler's result or mask
+ * the real error.
+ */
+function reportError(
+  onError: McpAppCallHandlerOptions['onError'],
+  error: unknown,
+  info: { phase: 'call' | 'close'; req: McpAppCallRequest },
+): Promise<void> {
+  if (!onError) return Promise.resolve()
+  return Promise.resolve()
+    .then(() => onError(error, info))
+    .catch(() => undefined)
+}
+
+/**
  * Creates a server-side handler that resolves an MCP server descriptor from the
  * provided client(s), reconnects per-call (stateless/serverless-safe), enforces
  * a same-server allowlist, and proxies `callTool` to the underlying MCP server.
@@ -246,9 +264,7 @@ export function createMcpAppCallHandler(opts: McpAppCallHandlerOptions) {
     } catch (err) {
       // Surface the failure for server-side observability before flattening it
       // into the opaque wire error; never let the hook itself break the result.
-      await Promise.resolve(opts.onError?.(err, { phase: 'call', req })).catch(
-        () => undefined,
-      )
+      await reportError(opts.onError, err, { phase: 'call', req })
       return {
         ok: false,
         error: err instanceof Error ? err.message : 'MCP call failed',
@@ -260,9 +276,7 @@ export function createMcpAppCallHandler(opts: McpAppCallHandlerOptions) {
       await client
         .close()
         .catch((err: unknown) =>
-          Promise.resolve(opts.onError?.(err, { phase: 'close', req })).catch(
-            () => undefined,
-          ),
+          reportError(opts.onError, err, { phase: 'close', req }),
         )
     }
   }

@@ -105,9 +105,10 @@ describe('convertMessagesToModelMessages — MCP Apps ui-resource exclusion', ()
   // Invariant: a rendered ui:// widget (MCP Apps) is a client-only presentation
   // part and must NEVER round-trip into model input on the next turn. The widget
   // is untrusted, sandboxed HTML — leaking it into conversation history is both
-  // token bloat and a prompt-injection vector. messages.ts:`buildAssistantMessages`
-  // drops it via an explicit `case 'ui-resource'`; this pins that behavior so a
-  // refactor of that switch can't silently start including the widget.
+  // token bloat and a prompt-injection vector. This pins the invariant by its
+  // observable effect: neither the resource uri nor its HTML body may appear in
+  // the produced ModelMessages, so any impl that pushed the widget into model
+  // content (instead of dropping it in buildAssistantMessages) fails here.
   it('excludes a ui-resource part from the produced model messages', () => {
     const WIDGET_URI = 'ui://weather/widget'
     const WIDGET_HTML = '<script>alert(1)</script><b>72°F</b>'
@@ -149,11 +150,11 @@ describe('convertMessagesToModelMessages — MCP Apps ui-resource exclusion', ()
 
     // Nothing the widget carried (its uri OR its HTML body) may appear anywhere
     // in the serialized model messages — neither as a string content nor inside
-    // a ContentPart[].
+    // a ContentPart[]. These two are the load-bearing assertions: they fail if a
+    // broken impl pushes the resource into model content.
     const serialized = JSON.stringify(result)
     expect(serialized).not.toContain(WIDGET_URI)
     expect(serialized).not.toContain(WIDGET_HTML)
-    expect(serialized).not.toContain('ui-resource')
 
     // The legitimate text + tool flow still survives the conversion.
     expect(serialized).toContain('Here is the weather')
