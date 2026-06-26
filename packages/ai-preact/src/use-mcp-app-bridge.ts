@@ -29,9 +29,7 @@ export type UseMcpAppBridgeOptions = CreateMcpAppBridgeOptions
  * the *presence* of `onLink` changes — passing a new inline `onLink`/`sendMessage`
  * each render does not churn it.
  */
-export function useMcpAppBridge(
-  options: UseMcpAppBridgeOptions,
-): McpAppBridge {
+export function useMcpAppBridge(options: UseMcpAppBridgeOptions): McpAppBridge {
   const { threadId, callEndpoint, chat, fetchImpl, onLink } = options
 
   // Latest-value refs so the bridge identity stays stable but its callbacks are
