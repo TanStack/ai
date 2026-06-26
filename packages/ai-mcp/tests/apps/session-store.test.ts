@@ -50,6 +50,30 @@ describe('inMemoryMcpSessionStore', () => {
       expect(await store.get('t2', 'srv')).toBeNull()
     })
 
+    it('sweeps expired entries on set() while preserving live + fresh ones', async () => {
+      const store = inMemoryMcpSessionStore({ ttlMs: 1000 })
+      // Two threads recorded but never read (the set-but-never-read case the
+      // sweep targets).
+      await store.set('stale1', {
+        srv: { transport: { type: 'http', url: 'https://1/mcp' } },
+      })
+      await store.set('stale2', {
+        srv: { transport: { type: 'http', url: 'https://2/mcp' } },
+      })
+      // Let them lapse, then a fresh set() triggers the opportunistic sweep.
+      vi.advanceTimersByTime(1001)
+      await store.set('fresh', {
+        srv: { transport: { type: 'http', url: 'https://3/mcp' } },
+      })
+      // The expired threads are gone and the just-written one is retrievable —
+      // set() stays correct across the sweep.
+      expect(await store.get('stale1', 'srv')).toBeNull()
+      expect(await store.get('stale2', 'srv')).toBeNull()
+      expect(await store.get('fresh', 'srv')).toEqual({
+        transport: { type: 'http', url: 'https://3/mcp' },
+      })
+    })
+
     it('slides the TTL on a successful get within the window', async () => {
       const store = inMemoryMcpSessionStore({ ttlMs: 1000 })
       await store.set('t2', {

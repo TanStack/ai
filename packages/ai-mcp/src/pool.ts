@@ -160,8 +160,7 @@ export async function createMCPClients<
       // resolve an unrelated URI, so only accept a result whose `contents`
       // actually include the requested `uri`; otherwise keep trying. A ui://
       // read must reach the server that owns it.
-      let lastError: unknown
-      let anyThrew = false
+      const errors: Array<unknown> = []
       const all = Object.values(clients)
       for (const c of all) {
         try {
@@ -172,18 +171,20 @@ export async function createMCPClients<
             return result
           }
         } catch (err) {
-          anyThrew = true
-          lastError = err
+          errors.push(err)
         }
       }
       // Distinguish the two failure modes and never leave `cause` undefined:
-      // - at least one client threw → surface the last thrown error as `cause`.
+      // - at least one client threw → attach EVERY thrown error as an
+      //   AggregateError cause. Keeping all of them matters in a multi-server
+      //   pool: if the owning server fails first and an unrelated server fails
+      //   after, a "last error wins" cause would bury the error you actually need.
       // - every client responded but none owned the uri → there is no thrown
       //   error to attach, so explain that the uri was not found on any server.
-      if (anyThrew) {
+      if (errors.length > 0) {
         throw new Error(
-          `Failed to read MCP resource "${uri}": no client could resolve it (last error attached)`,
-          { cause: lastError },
+          `Failed to read MCP resource "${uri}": no client could resolve it (${errors.length} error(s) attached)`,
+          { cause: new AggregateError(errors) },
         )
       }
       throw new Error(

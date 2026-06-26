@@ -422,8 +422,8 @@ export interface UIResourcePart {
   resource: { uri: string; mimeType: string; text?: string; blob?: string }
   /** Pool prefix / config key — routes interactive calls to the right MCP server. */
   serverId?: string
-  /** Links to the originating tool call; the client seeds toolInput/toolResult from
-   *  the sibling ToolCallPart/ToolResultPart in the same message. */
+  /** Links the widget to the originating tool call — correlates it with the
+   *  sibling ToolCallPart/ToolResultPart in the same message. */
   toolCallId: string
   /** Server-native (unprefixed) MCP tool name whose UI this resource renders.
    *  Required by the renderer (`@mcp-ui/client`'s `AppRenderer` `toolName` prop). */

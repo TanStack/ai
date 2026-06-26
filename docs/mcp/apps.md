@@ -201,6 +201,8 @@ export const Route = createFileRoute('/api/mcp-apps/call')({
 ```
 
 > **`link` actions need an `onLink` handler.** If the widget emits a `link` action and no `onLink` handler is wired in the bridge, the bridge drops the link (logging a warning) and `openLink` returns `{ isError: true }` — the call does not hang, and the widget cannot open arbitrary URLs in the host page. Pass `onLink` explicitly to opt in.
+>
+> Even with an `onLink` handler, the bridge only forwards `http:`, `https:`, and `mailto:` URLs. Unsafe schemes (`javascript:`, `data:`, `file:`, …) are **always rejected** before your handler runs, so a sandboxed widget can't smuggle a script-executing or local-resource URL through.
 
 #### Same-server allowlist
 

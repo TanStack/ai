@@ -54,6 +54,13 @@ export interface McpAppCallRequest {
  * this is single-instance only. The `McpSessionStore` interface is the
  * extension point for persistent/SQL backends, which can drop in later with no
  * API change.
+ *
+ * Growth is bounded by an opportunistic sweep on `set()`: prune-on-read alone
+ * never reclaims a thread that is recorded but never has a widget interaction
+ * (the common case — most threads never touch a `ui://` widget), so without the
+ * sweep the map would grow by one entry per chat thread for the process
+ * lifetime. The sweep drops every entry older than the TTL whenever a new one is
+ * written, keeping the map bounded to threads active within the TTL window.
  */
 export function inMemoryMcpSessionStore(
   opts: { ttlMs?: number } = {},
@@ -66,7 +73,13 @@ export function inMemoryMcpSessionStore(
 
   return {
     async set(threadId, servers) {
-      map.set(threadId, { at: Date.now(), servers })
+      // Opportunistic sweep: reclaim every expired entry, not just this thread,
+      // so set-but-never-read threads can't accumulate unbounded.
+      const now = Date.now()
+      for (const [id, e] of map) {
+        if (now - e.at > ttl) map.delete(id)
+      }
+      map.set(threadId, { at: now, servers })
     },
     async get(threadId, serverId) {
       const e = map.get(threadId)

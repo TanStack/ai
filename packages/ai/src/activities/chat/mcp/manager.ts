@@ -11,6 +11,12 @@ import type { ChatMCPOptions, MCPToolSource } from './types'
  * actually link a `ui://` resource (their discovery stamped
  * `metadata.mcp.uiResourceUri`) and whose source can read resources get bound;
  * everything else is left untouched.
+ *
+ * This mutates the discovered tool's `metadata.mcp` in place. That is safe
+ * because discovery returns fresh tool objects per `discover()` call: the bound
+ * `readResource` closes over `source`, whose connection stays live until the run
+ * drains. If discovery results were ever cached and reused across runs, this
+ * would bind a closure over an already-closed source — bind onto a copy then.
  */
 function bindReadResource(tool: ServerTool, source: MCPToolSource): void {
   if (!source.readResource) return

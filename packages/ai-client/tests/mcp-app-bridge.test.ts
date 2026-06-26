@@ -315,5 +315,25 @@ describe('createMcpAppBridge', () => {
       expect(bridge.openLink('mailto:a@b.com')).toEqual({ isError: false })
       expect(onLink).toHaveBeenCalledWith('mailto:a@b.com')
     })
+
+    it('returns { isError: true } (fail-soft) when a provided onLink throws', () => {
+      // A host onLink handler that throws must not escape the bridge — the
+      // widget gets a typed error instead of an unhandled exception.
+      const onLink = vi.fn(() => {
+        throw new Error('window.open blocked')
+      })
+      const chat = makeChatMock()
+      const bridge = createMcpAppBridge({
+        threadId,
+        callEndpoint,
+        chat,
+        onLink,
+      })
+
+      expect(bridge.openLink('https://example.com/page')).toEqual({
+        isError: true,
+      })
+      expect(onLink).toHaveBeenCalledOnce()
+    })
   })
 })
