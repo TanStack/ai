@@ -67,17 +67,29 @@ export const Route = createFileRoute('/api/run')({
           )
         }
 
-        const hasVercelToken =
-          !!process.env.VERCEL_TOKEN || !!process.env.VERCEL_OIDC_TOKEN
-        if (
-          !hasVercelToken ||
-          !process.env.VERCEL_TEAM_ID ||
-          !process.env.VERCEL_PROJECT_ID
-        ) {
+        // Credential check depends on WHERE this server runs:
+        //
+        // • Off-platform (any non-Vercel Node host: local, Render, Fly, a VM…)
+        //   the @vercel/sandbox SDK needs explicit creds in the environment:
+        //   VERCEL_TOKEN (or VERCEL_OIDC_TOKEN) + VERCEL_TEAM_ID + VERCEL_PROJECT_ID.
+        //
+        // • ON Vercel itself (`process.env.VERCEL` is set) the SDK authenticates
+        //   automatically via OIDC Federation — at runtime the token arrives as
+        //   the `x-vercel-oidc-token` request header (NOT process.env), and
+        //   `VERCEL_PROJECT_ID` is an auto-provided system env var. There is no
+        //   `VERCEL_TEAM_ID` env there and the `VERCEL_` prefix can't be set as a
+        //   custom var, so requiring the explicit trio would reject every request.
+        //   Just enable OIDC Federation in Project Settings.
+        const onVercel = !!process.env.VERCEL
+        const hasExplicitVercelCreds =
+          (!!process.env.VERCEL_TOKEN || !!process.env.VERCEL_OIDC_TOKEN) &&
+          !!process.env.VERCEL_TEAM_ID &&
+          !!process.env.VERCEL_PROJECT_ID
+        if (!onVercel && !hasExplicitVercelCreds) {
           return new Response(
             JSON.stringify({
               error:
-                'Vercel credentials are not set. Export VERCEL_TOKEN (or VERCEL_OIDC_TOKEN), VERCEL_TEAM_ID, and VERCEL_PROJECT_ID, then restart.',
+                'Vercel credentials are not set. Export VERCEL_TOKEN (or VERCEL_OIDC_TOKEN), VERCEL_TEAM_ID, and VERCEL_PROJECT_ID, then restart. (Deploying on Vercel itself? Enable OIDC Federation in Project Settings instead — the SDK authenticates automatically.)',
             }),
             { status: 500, headers: { 'content-type': 'application/json' } },
           )

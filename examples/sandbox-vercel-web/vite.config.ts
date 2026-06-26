@@ -18,16 +18,29 @@ loadEnv({ path: ['.env.local', '.env'] })
 // the agent a pre-minted public preview URL.
 //
 // `@vercel/sandbox` is a server-only dependency used exclusively in the
-// `/api/run` route. Keep it out of the client bundle and the dev-time dep
-// pre-bundler:
-//   • `optimizeDeps.exclude` keeps esbuild from scanning it.
-//   • `ssr.external` keeps it a runtime require in the SSR build (Nitro traces it
-//     into the node-server output, so it resolves at runtime).
+// `/api/run` route. `optimizeDeps.exclude` keeps Vite's dev dep pre-bundler
+// (esbuild) from scanning a server-only Node lib into the client graph.
+//
+// We deliberately do NOT mark it `ssr.external`: that would leave a bare
+// `import "@vercel/sandbox"` in the server build, and `vercel deploy --prebuilt`
+// ships only `.vercel/output` with no install step — so the external would be
+// MODULE_NOT_FOUND at runtime. Letting Nitro bundle it into the function keeps the
+// deployed output self-contained. (Dev is unaffected: Vite auto-externalizes node
+// deps for SSR in dev regardless.)
 const SERVER_ONLY = ['@vercel/sandbox']
 
 export default defineConfig({
   optimizeDeps: { exclude: SERVER_ONLY },
-  ssr: { external: SERVER_ONLY },
-  build: { rollupOptions: { external: SERVER_ONLY } },
-  plugins: [nitro(), tailwindcss(), tanstackStart(), viteReact()],
+  plugins: [
+    // `vercel.functions.maxDuration` is written into the function's
+    // `.vc-config.json` by Nitro's Vercel preset. The agent run streams for
+    // minutes (create a microVM, install the `claude` CLI, scaffold + run an
+    // app), so we raise it toward Vercel's ceiling. 800s needs Fluid Compute on a
+    // Pro/Enterprise plan; Vercel clamps it to the plan limit otherwise. Ignored
+    // by the default (node-server) build.
+    nitro({ vercel: { functions: { maxDuration: 800 } } }),
+    tailwindcss(),
+    tanstackStart(),
+    viteReact(),
+  ],
 })
