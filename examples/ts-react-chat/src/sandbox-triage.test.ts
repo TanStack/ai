@@ -38,3 +38,64 @@ describe('parseVerdict', () => {
     expect(parseVerdict('VERDICT: maybe')).toBeNull()
   })
 })
+
+import {
+  HARNESSES,
+  PROVIDERS,
+  buildTriagePrompt,
+  isHarness,
+  isProvider,
+  missingEnv,
+} from './sandbox-triage'
+
+describe('registries', () => {
+  it('has 4 harnesses and 4 providers with labels + required env arrays', () => {
+    expect(Object.keys(HARNESSES).sort()).toEqual([
+      'claude-code',
+      'codex',
+      'gemini-cli',
+      'opencode',
+    ])
+    expect(Object.keys(PROVIDERS).sort()).toEqual([
+      'daytona',
+      'docker',
+      'local',
+      'vercel',
+    ])
+    for (const spec of Object.values(HARNESSES)) {
+      expect(typeof spec.label).toBe('string')
+      expect(Array.isArray(spec.requiredEnv)).toBe(true)
+    }
+  })
+
+  it('guards narrow unknown picker values', () => {
+    expect(isHarness('codex')).toBe(true)
+    expect(isHarness('nope')).toBe(false)
+    expect(isProvider('docker')).toBe(true)
+    expect(isProvider(42)).toBe(false)
+  })
+
+  it('missingEnv reports unset required vars', () => {
+    delete process.env.ANTHROPIC_API_KEY
+    delete process.env.DAYTONA_API_KEY
+    expect(missingEnv('claude-code', 'docker')).toContain('ANTHROPIC_API_KEY')
+    expect(missingEnv('claude-code', 'daytona')).toEqual(
+      expect.arrayContaining(['ANTHROPIC_API_KEY', 'DAYTONA_API_KEY']),
+    )
+    process.env.ANTHROPIC_API_KEY = 'x'
+    expect(missingEnv('claude-code', 'docker')).toEqual([])
+  })
+})
+
+describe('buildTriagePrompt', () => {
+  it('includes the issue + the required VERDICT-line instruction', () => {
+    const prompt = buildTriagePrompt(
+      { number: 9, title: 'Boom', body: 'crashes on save', url: 'u' },
+      'a/b',
+    )
+    expect(prompt).toContain('#9')
+    expect(prompt).toContain('crashes on save')
+    expect(prompt).toMatch(/VERDICT:/)
+    expect(prompt).toMatch(/relevant \| not-relevant \| uncertain/)
+  })
+})
