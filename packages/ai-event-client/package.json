@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-event-client",
-  "version": "0.6.1",
+  "version": "0.6.8",
   "description": "Typed event client for TanStack AI devtools, observability, and streamed runtime events.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -43,9 +43,6 @@
   },
   "dependencies": {
     "@tanstack/devtools-event-client": "^0.4.1"
-  },
-  "peerDependencies": {
-    "@tanstack/ai": "workspace:*"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "4.0.14"

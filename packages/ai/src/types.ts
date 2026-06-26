@@ -655,11 +655,27 @@ export interface Tool<
   /** If true, tool execution requires user approval before running. Works with both server and client tools. */
   needsApproval?: boolean
 
-  /** If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Only meaningful when used with chat(). */
+  /** If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Works with both chat() (the synthetic discovery tool) and Code Mode (kept out of the system prompt and revealed via discover_tools). */
   lazy?: boolean
 
   /** Additional metadata for adapters or custom extensions */
   metadata?: Record<string, any> | undefined
+}
+
+/**
+ * Configuration for the lazy-tool discovery catalog, shared by chat() and
+ * Code Mode. Optional in both — lazy behavior is triggered purely by tools
+ * marked `lazy: true`; this only tunes how much of each lazy tool's
+ * description appears in the pre-discovery catalog. The post-discovery payload
+ * always returns the full description + schema.
+ */
+export interface LazyToolsConfig {
+  /**
+   * How much of each lazy tool's description appears in the pre-discovery
+   * catalog (the names list shown before the model discovers the tool).
+   * @default 'none'
+   */
+  includeDescription?: 'full' | 'first-sentence' | 'none'
 }
 
 export type AnyTool = Omit<Tool<any, any, any, any>, 'execute'> & {
@@ -821,14 +837,20 @@ export interface TextOptions<
   systemPrompts?: Array<SystemPrompt>
   agentLoopStrategy?: AgentLoopStrategy
   /**
-   * Additional metadata to attach to the request.
-   * Can be used for tracking, debugging, or passing custom information.
-   * Structure and constraints vary by provider.
+   * Optional configuration for lazy-tool discovery (tools marked `lazy: true`).
+   * Tunes how much of each lazy tool's description appears in the discovery
+   * catalog. Optional — defaults to `{ includeDescription: 'none' }`.
+   */
+  lazyToolsConfig?: LazyToolsConfig
+  /**
+   * Observability metadata attached to this call. Surfaced to middleware,
+   * devtools, and the event client; values may be arbitrarily structured
+   * (objects, arrays). Adapters never forward this field onto the provider
+   * wire request.
    *
-   * Provider usage:
-   * - OpenAI: `metadata` (Record<string, string>) - max 16 key-value pairs, keys max 64 chars, values max 512 chars
-   * - Anthropic: `metadata` (Record<string, any>) - includes optional user_id (max 256 chars)
-   * - Gemini: Not directly available in TextProviderOptions
+   * To send provider-side request metadata, use the provider's
+   * `modelOptions` field instead, where the provider supports one (e.g.
+   * OpenAI's and OpenRouter's `metadata` are both Record<string, string>).
    */
   metadata?: Record<string, any> | undefined
   modelOptions?: TProviderOptionsForModel
@@ -1491,6 +1513,99 @@ export interface SummarizationResult {
 // ============================================================================
 
 /**
+ * Optional role hint on a media input part (image / video / audio). Adapters
+ * read `metadata.role` to route the part to the provider-specific request
+ * field — e.g. `'mask'` → OpenAI `mask` / fal `mask_url`, `'end_frame'` → fal
+ * `end_image_url`, `'reference'` → fal `reference_image_urls`. When omitted
+ * the adapter falls back to positional routing.
+ */
+export type MediaInputRole =
+  | 'reference'
+  | 'mask'
+  | 'control'
+  | 'start_frame'
+  | 'end_frame'
+  | 'character'
+
+/**
+ * Metadata convention for image / video / audio inputs to media generation.
+ * Carried on `ImagePart.metadata` / `VideoPart.metadata` / `AudioPart.metadata`
+ * when used as conditioning inputs to `generateImage()` or `generateVideo()`.
+ */
+export interface MediaInputMetadata {
+  /** Optional role hint disambiguating the part's intent for the adapter */
+  role?: MediaInputRole
+  /**
+   * Optional user-defined label for this input (e.g. `'woman-in-red-dress'`).
+   * **Informational only** — adapters never read it and the SDK never
+   * rewrites prompt text based on it. Use it to correlate parts with the
+   * references you write in your prompt using the provider's own syntax
+   * (fal's `@Image1`, OpenAI's "image 1", etc.), or for your own
+   * bookkeeping/logging.
+   */
+  tag?: string
+}
+
+/**
+ * A single part of a multimodal media-generation prompt. Reuses the chat
+ * content-part shapes: text parts carry the instruction, image / video /
+ * audio parts carry conditioning inputs (with an optional
+ * `metadata.role` hint — see {@link MediaInputRole}).
+ */
+export type MediaPromptPart =
+  | TextPart
+  | ImagePart<MediaInputMetadata>
+  | VideoPart<MediaInputMetadata>
+  | AudioPart<MediaInputMetadata>
+
+/**
+ * Prompt accepted by `generateImage()` / `generateVideo()`: a plain string,
+ * or an ordered array of content parts for image-conditioned generation
+ * ("not like this *(image)*, more like this *(image)*"). Part order is
+ * meaningful — adapters with native multimodal prompts (Gemini, OpenRouter)
+ * preserve the interleaving; named-field providers (fal, OpenAI, xAI)
+ * extract the media parts and flatten the text. Text is always sent
+ * verbatim: to reference inputs from the prompt, write the provider's own
+ * syntax yourself (e.g. fal's `@Image1`, OpenAI's "image 1"). An array may
+ * be media-only (e.g. upscalers or pure img2img endpoints that take no
+ * instruction text).
+ */
+export type MediaPrompt = string | Array<MediaPromptPart>
+
+/**
+ * Non-text modalities a media-generation model can accept in its prompt.
+ */
+export type MediaPromptModality = 'image' | 'video' | 'audio'
+
+/** Maps a prompt modality to its content-part type. @internal */
+interface MediaPartByModality {
+  image: ImagePart<MediaInputMetadata>
+  video: VideoPart<MediaInputMetadata>
+  audio: AudioPart<MediaInputMetadata>
+}
+
+/**
+ * Prompt type narrowed to the modalities a specific model supports.
+ * `MediaPromptFor<never>` (a text-only model) is `string | Array<TextPart>`;
+ * `MediaPromptFor<'image'>` additionally admits image parts, etc. Used by
+ * the activity option types together with the adapter's per-model input
+ * modality map so unsupported parts fail at compile time.
+ */
+export type MediaPromptFor<TModalities extends MediaPromptModality = never> =
+  | string
+  | Array<TextPart | MediaPartByModality[TModalities]>
+
+/**
+ * Per-model map from model name to the prompt modalities it accepts, used as
+ * an adapter type parameter (`TModelInputModalitiesByName`). Models absent
+ * from the map fall back to the unconstrained {@link MediaPrompt}.
+ */
+export type ModelInputModalitiesByName = Record<
+  string,
+  ReadonlyArray<MediaPromptModality>
+>
+
+/**
  * Options for image generation.
  * These are the common options supported across providers.
  */
@@ -1500,8 +1615,16 @@ export interface ImageGenerationOptions<
 > {
   /** The model to use for image generation */
   model: string
-  /** Text description of the desired image(s) */
-  prompt: string
+  /**
+   * Description of the desired image(s): a plain string, or an ordered array
+   * of content parts for image-conditioned generation (image-to-image,
+   * reference-guided, edit, multi-reference). Media parts may carry
+   * `metadata.role` to disambiguate intent (mask, control, reference, …).
+   * Adapters map parts onto the provider-native request — e.g. Gemini
+   * multimodal `contents`, OpenAI `images.edit()`, fal `image_url` /
+   * `mask_url` — and throw a clear runtime error for unsupported modalities.
+   */
+  prompt: MediaPrompt
   /** Number of images to generate (default: 1) */
   numberOfImages?: number
   /** Image size in WIDTHxHEIGHT format (e.g., "1024x1024") */
@@ -1619,15 +1742,27 @@ export interface AudioGenerationResult {
 export interface VideoGenerationOptions<
   TProviderOptions extends object = object,
   TSize extends string | undefined = string,
+  TDuration extends string | number | undefined = number,
 > {
   /** The model to use for video generation */
   model: string
-  /** Text description of the desired video */
-  prompt: string
+  /**
+   * Description of the desired video: a plain string, or an ordered array of
+   * content parts for image-conditioned generation. Image parts may carry
+   * `metadata.role` (`'start_frame' | 'end_frame' | 'reference' |
+   * 'character'`) to disambiguate intent; adapters route them onto the
+   * provider-native request (e.g. OpenAI Sora `input_reference`, fal
+   * `image_url` / `end_image_url`) and throw at runtime if unsupported.
+   */
+  prompt: MediaPrompt
   /** Video size — format depends on the provider (e.g., "16:9", "1280x720") */
   size?: TSize
-  /** Video duration in seconds */
-  duration?: number
+  /**
+   * Video duration in seconds. Adapters that declare a per-model duration
+   * map narrow this to the model's valid union; use
+   * `adapter.snapDuration(seconds)` to coerce raw seconds to a valid value.
+   */
+  duration?: TDuration
   /** Model-specific options for video generation */
   modelOptions?: TProviderOptions
   /**

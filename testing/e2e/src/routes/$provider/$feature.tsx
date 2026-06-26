@@ -42,9 +42,11 @@ export const Route = createFileRoute('/$provider/$feature')({
 
 const MEDIA_FEATURES = new Set<Feature>([
   'image-gen',
+  'image-to-image',
   'tts',
   'transcription',
   'video-gen',
+  'image-to-video',
   'audio-gen',
   'sound-effects',
 ])
@@ -132,6 +134,16 @@ function MediaFeature({
           aimockPort={aimockPort}
         />
       )
+    case 'image-to-image':
+      return (
+        <ImageGenUI
+          provider={provider}
+          mode={mode}
+          testId={testId}
+          aimockPort={aimockPort}
+          withImageInput
+        />
+      )
     case 'tts':
       return (
         <TTSUI
@@ -157,6 +169,16 @@ function MediaFeature({
           mode={mode}
           testId={testId}
           aimockPort={aimockPort}
+        />
+      )
+    case 'image-to-video':
+      return (
+        <VideoGenUI
+          provider={provider}
+          mode={mode}
+          testId={testId}
+          aimockPort={aimockPort}
+          withImageInput
         />
       )
     case 'audio-gen':

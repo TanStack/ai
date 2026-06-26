@@ -111,6 +111,13 @@ export interface ChatMiddlewareContext<TContext = unknown> {
 
   // --- Provider / adapter info (immutable for the lifetime of the request) ---
 
+  /**
+   * Which activity this context describes — always `'chat'`. Present so the
+   * chat context structurally satisfies the base `GenerationMiddlewareContext`,
+   * letting an observe-only middleware authored against the base (e.g.
+   * `otelMiddleware`) run on both chat and media activities.
+   */
+  activity: 'chat'
   /** Provider name (e.g., 'openai', 'anthropic') */
   provider: string
   /** Model identifier (e.g., 'gpt-4o') */

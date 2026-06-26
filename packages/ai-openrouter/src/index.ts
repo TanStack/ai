@@ -70,6 +70,7 @@ export type {
   ReasoningOptions,
   StreamOptions,
   ImageConfig,
+  OpenRouterSystemPromptMetadata,
 } from './text/text-provider-options'
 
 // ============================================================================

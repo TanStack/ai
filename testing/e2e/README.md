@@ -32,6 +32,8 @@ Each test iterates over supported providers using `providersFor('feature')`:
 | summarize                | 6         | `tests/summarize.spec.ts`                |
 | summarize-stream         | 6         | `tests/summarize-stream.spec.ts`         |
 | image-gen                | 7         | `tests/image-gen.spec.ts`                |
+| image-to-image           | 1         | `tests/image-to-image.spec.ts`           |
+| image-to-video           | 1         | `tests/image-to-video.spec.ts`           |
 | tts                      | 3         | `tests/tts.spec.ts`                      |
 | transcription            | 3         | `tests/transcription.spec.ts`            |
 | audio-gen                | 1         | `tests/audio-gen.spec.ts`                |

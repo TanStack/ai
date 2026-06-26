@@ -47,7 +47,7 @@ function createSummarizeAdapter(
       }),
     ollama: () => createOllamaSummarize('mistral', llmockBase(aimockPort)),
     grok: () =>
-      createGrokSummarize('grok-3', DUMMY_KEY, {
+      createGrokSummarize('grok-build-0.1', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),

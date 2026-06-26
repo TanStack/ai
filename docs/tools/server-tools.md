@@ -64,6 +64,7 @@ sequenceDiagram
 ```typescript
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
+import { db } from "./db";
 
 const getUserDataDef = toolDefinition({
   name: "get_user_data",
@@ -96,6 +97,7 @@ Server tools use the isomorphic `toolDefinition()` API with the `.server()` meth
 ```typescript
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
+import { db } from "./db";
 
 // Step 1: Define the tool schema
 const getUserDataDef = toolDefinition({
@@ -175,6 +177,7 @@ Server tools can receive typed runtime context as their second argument. Use thi
 import { chat, toolDefinition, toServerSentEventsResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { z } from "zod";
+import { getSession, getDb } from "./auth";
 
 type AppContext = {
   userId: string;
@@ -229,7 +232,7 @@ For middleware and client-to-server handoff patterns, see [Runtime Context](../a
 
 For better organization, define tool schemas and implementations separately:
 
-```typescript
+```typescript ignore
 // tools/definitions.ts
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
@@ -296,6 +299,10 @@ You don't need to manually handle tool execution - it's automatic!
 Tools should handle errors gracefully:
 
 ```typescript
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
+import { db } from "./db";
+
 const getUserDataDef = toolDefinition({
   name: "get_user_data",
   description: "Get user information",
@@ -316,7 +323,7 @@ const getUserData = getUserDataDef.server(async ({ userId }) => {
       return { error: "User not found" };
     }
     return { name: user.name, email: user.email };
-  } catch (error) {
+  } catch {
     return { error: "Failed to fetch user data" };
   }
 });
@@ -331,6 +338,7 @@ If you have existing JSON Schema definitions or prefer not to use Zod, you can d
 ```typescript
 import { toolDefinition } from "@tanstack/ai";
 import type { JSONSchema } from "@tanstack/ai";
+import { db } from "./db";
 
 const inputSchema: JSONSchema = {
   type: "object",

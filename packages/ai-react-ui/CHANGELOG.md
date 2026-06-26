@@ -1,5 +1,45 @@
 # @tanstack/ai-react-ui
 
+## 0.8.11
+
+### Patch Changes
+
+- [#844](https://github.com/TanStack/ai/pull/844) [`a6cceba`](https://github.com/TanStack/ai/commit/a6cceba4812e7e986183ee856112fcf5f8fa12ff) - Republish all packages with their compiled `dist/` output.
+
+  Releases `0.33.0`–`0.36.0` were published without a `dist/` directory: the
+  release workflow relied on an Nx-cached `build` whose outputs were not
+  materialized to disk before `changeset publish` packed the tarballs, and
+  `files: ["dist"]` silently includes nothing when `dist/` is absent. The
+  published packages therefore contained only `src/`, so every export
+  (`./dist/esm/*.js`) resolved to a missing file and the packages were
+  uninstallable.
+
+  The publish step now runs a fresh, cache-bypassing build of all packages
+  immediately before publishing, guaranteeing compiled artifacts are present in
+  every tarball.
+
+- Updated dependencies [[`a6cceba`](https://github.com/TanStack/ai/commit/a6cceba4812e7e986183ee856112fcf5f8fa12ff)]:
+  - @tanstack/ai-client@0.18.6
+  - @tanstack/ai-react@0.15.15
+
+## 0.8.10
+
+### Patch Changes
+
+- [#783](https://github.com/TanStack/ai/pull/783) [`0278a90`](https://github.com/TanStack/ai/commit/0278a900e80ab7203124a74c841222b20b1c3bd3) - Fix `ChatMessage` rendering of multimodal tool results. Tool-result content is `string | Array<ContentPart>`, but the renderer previously typed the message part as `any` and passed the raw content straight to React — an array of content-part objects would throw React's "Objects are not valid as a React child". The part is now typed as `UIMessage['parts'][number]`, and array content is flattened to the concatenation of its text parts (non-text parts are skipped) before rendering, both for the built-in renderer and the `toolResultRenderer` prop.
+
+- Updated dependencies [[`540cbf1`](https://github.com/TanStack/ai/commit/540cbf18a2f7d6c07b44f7f4da0ac3873c0d2581)]:
+  - @tanstack/ai-client@0.18.3
+  - @tanstack/ai-react@0.15.12
+
+## 0.8.9
+
+### Patch Changes
+
+- Updated dependencies [[`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f)]:
+  - @tanstack/ai-client@0.18.0
+  - @tanstack/ai-react@0.15.9
+
 ## 0.8.8
 
 ### Patch Changes

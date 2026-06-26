@@ -5,7 +5,7 @@ import {
   toRunErrorPayload,
   toRunErrorRawEvent,
 } from '@tanstack/ai/adapter-internals'
-import { generateId, transformNullsToUndefined } from '@tanstack/ai-utils'
+import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../internal/request-options'
 import { makeStructuredOutputCompatible } from '../internal/schema-converter'
 import { convertFunctionToolToResponsesFormat } from '../internal/responses-tool-converter'
@@ -697,14 +697,12 @@ export class OpenRouterResponsesTextAdapter<
 
   /**
    * OpenRouter routes through a wide variety of upstream providers; some
-   * return `null` as a distinct sentinel rather than collapsing it to absent.
-   * Stripping nulls would erase that distinction, so we passthrough.
-   *
-   * `transformNullsToUndefined` is imported for parity with the other
-   * provider adapters but intentionally not invoked here.
+   * return `null` as a distinct sentinel rather than collapsing it to absent,
+   * so we passthrough and let the engine un-widen strict-mode nulls precisely.
+   * Matches the base adapters' default — kept as an explicit override because
+   * OpenRouter extends `BaseTextAdapter` directly, not the OpenAI base.
    */
   protected transformStructuredOutput(parsed: unknown): unknown {
-    void transformNullsToUndefined
     return parsed
   }
 
@@ -1175,6 +1173,7 @@ export class OpenRouterResponsesTextAdapter<
                 toolCallId: item.id,
                 toolCallName: metadata.name,
                 toolName: metadata.name,
+                parentMessageId: aguiState.messageId,
                 model: model || options.model,
                 timestamp: Date.now(),
                 index: chunk.outputIndex ?? 0,
@@ -1288,6 +1287,7 @@ export class OpenRouterResponsesTextAdapter<
                 toolCallId: item.id,
                 toolCallName: metadata.name,
                 toolName: metadata.name,
+                parentMessageId: aguiState.messageId,
                 model: model || options.model,
                 timestamp: Date.now(),
                 index: metadata.index,
@@ -1363,6 +1363,7 @@ export class OpenRouterResponsesTextAdapter<
                 toolCallId: item.id,
                 toolCallName: metadata.name,
                 toolName: metadata.name,
+                parentMessageId: aguiState.messageId,
                 model: model || options.model,
                 timestamp: Date.now(),
                 index: metadata.index,
@@ -1580,7 +1581,11 @@ export class OpenRouterResponsesTextAdapter<
     > = {
       ...modelOptions,
       model: options.model + variantSuffix,
-      ...(options.metadata !== undefined && { metadata: options.metadata }),
+      // Root `metadata` is observability-only and intentionally not forwarded:
+      // the SDK validates wire `metadata` as `Record<string, string>`, while
+      // root metadata may carry arbitrarily structured values (#735). Callers
+      // set wire metadata via `modelOptions.metadata`, which flows through
+      // the spread.
       ...(() => {
         const prompts = normalizeSystemPrompts(options.systemPrompts)
         if (prompts.length === 0) return {}

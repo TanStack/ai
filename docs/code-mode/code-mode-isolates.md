@@ -187,6 +187,8 @@ Each round-trip adds network latency, so the `maxToolRounds` limit both prevents
 All three drivers satisfy this interface, exported from `@tanstack/ai-code-mode`:
 
 ```typescript
+import type { ToolBinding, NormalizedError } from "@tanstack/ai-code-mode";
+
 interface IsolateDriver {
   createContext(config: IsolateConfig): Promise<IsolateContext>
 }

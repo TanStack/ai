@@ -107,7 +107,8 @@
         {
           "label": "Lazy Tool Discovery",
           "to": "tools/lazy-tool-discovery",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-06-08"
         }
       ]
     },
@@ -172,7 +173,8 @@
         {
           "label": "Overview",
           "to": "structured-outputs/overview",
-          "addedAt": "2026-05-19"
+          "addedAt": "2026-05-19",
+          "updatedAt": "2026-06-10"
         },
         {
           "label": "One-Shot Extraction",
@@ -212,12 +214,18 @@
         {
           "label": "Code Mode with Skills",
           "to": "code-mode/code-mode-with-skills",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-06-10"
         },
         {
           "label": "Code Mode Isolate Drivers",
           "to": "code-mode/code-mode-isolates",
           "addedAt": "2026-04-15"
+        },
+        {
+          "label": "Lazy Tools",
+          "to": "code-mode/lazy-tools",
+          "addedAt": "2026-06-08"
         }
       ]
     },
@@ -245,6 +253,12 @@
           "addedAt": "2026-04-15"
         },
         {
+          "label": "Audio Recording",
+          "to": "media/audio-recording",
+          "addedAt": "2026-06-23",
+          "updatedAt": "2026-06-26"
+        },
+        {
           "label": "Audio Generation",
           "to": "media/audio-generation",
           "addedAt": "2026-04-23",
@@ -260,7 +274,7 @@
           "label": "Video Generation",
           "to": "media/video-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-06-08"
+          "updatedAt": "2026-06-24"
         },
         {
           "label": "Generation Hooks",
@@ -287,7 +301,7 @@
           "label": "OpenTelemetry",
           "to": "advanced/otel",
           "addedAt": "2026-05-08",
-          "updatedAt": "2026-06-11"
+          "updatedAt": "2026-06-17"
         }
       ]
     },
@@ -443,7 +457,8 @@
         {
           "label": "Grok (xAI)",
           "to": "adapters/grok",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-06-24"
         },
         {
           "label": "Groq",
@@ -468,7 +483,8 @@
         {
           "label": "OpenAI-Compatible",
           "to": "adapters/openai-compatible",
-          "addedAt": "2026-06-01"
+          "addedAt": "2026-06-01",
+          "updatedAt": "2026-06-20"
         },
         {
           "label": "Claude Code",

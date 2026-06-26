@@ -31,7 +31,7 @@ yarn add @tanstack/ai @tanstack/ai-angular @tanstack/ai-openai
 
 Angular apps typically use a separate backend. Here's an Express server that streams chat responses:
 
-```typescript
+```typescript ignore
 import express from 'express'
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
@@ -88,7 +88,7 @@ app.listen(3000, () => console.log('Server running on port 3000'))
 
 Create a standalone `ChatComponent` using the `injectChat` function:
 
-```typescript
+```typescript group=quick-start-angular
 import { Component, signal } from '@angular/core'
 import { FormsModule } from '@angular/forms'
 import { injectChat } from '@tanstack/ai-angular'
@@ -166,7 +166,7 @@ Your server reads this key at runtime. Never expose it to the browser.
 
 **State is exposed as Angular `Signal`s.** The `injectChat` function returns state wrapped in read-only `Signal`s. Read them by calling them as functions:
 
-```typescript
+```typescript ignore
 // In component class
 if (this.chat.isLoading()) { /* ... */ }
 const count = this.chat.messages().length
@@ -185,13 +185,16 @@ const count = this.chat.messages().length
 **`injectChat` must be called in an injection context.** Angular's dependency injection requires that `inject()` is called during component construction. The recommended approach is a field initializer (shown above). You can also call it in the constructor or inside `runInInjectionContext`:
 
 ```typescript
+import { injectChat } from '@tanstack/ai-angular'
+import { fetchServerSentEvents } from '@tanstack/ai-client'
+
 // Field initializer (recommended)
-export class MyComponent {
+export class MyComponentA {
   chat = injectChat({ connection: fetchServerSentEvents('/api/chat') })
 }
 
 // Constructor
-export class MyComponent {
+export class MyComponentB {
   chat: ReturnType<typeof injectChat>
   constructor() {
     this.chat = injectChat({ connection: fetchServerSentEvents('/api/chat') })

@@ -4,7 +4,7 @@ import {
   toRunErrorPayload,
   toRunErrorRawEvent,
 } from '@tanstack/ai/adapter-internals'
-import { generateId, transformNullsToUndefined } from '@tanstack/ai-utils'
+import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../utils/request-options'
 import { makeStructuredOutputCompatible } from '../utils/schema-converter'
 import { buildChatCompletionsUsage } from '../usage'
@@ -213,10 +213,8 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         )
       }
 
-      // Transform null values to undefined to match original Zod schema expectations
-      // Provider returns null for optional fields we made nullable in the schema.
-      // Subclasses can override `transformStructuredOutput` to skip this — e.g.
-      // OpenRouter historically passed nulls through unchanged.
+      // Final provider-specific shaping pass (default passthrough). Null-widening
+      // from strict mode is undone by the engine, not here.
       const transformed = this.transformStructuredOutput(parsed)
 
       return {
@@ -595,13 +593,17 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
 
   /**
    * Final shaping pass applied to parsed structured-output JSON before it is
-   * returned to the caller. Default converts `null` values to `undefined` so
-   * the result aligns with the original Zod schema's optional-field
-   * semantics. Subclasses with different conventions (OpenRouter historically
-   * preserves nulls) can override.
+   * returned to the caller. Default is a passthrough.
+   *
+   * Provider `null`s are no longer stripped here: strict-mode null-widening is
+   * now undone precisely by the engine (`undoNullWidening`, driven by the
+   * schema's null-widening map) the moment the result is captured, so a blind
+   * `transformNullsToUndefined` at the adapter would only destroy genuine
+   * `.nullable()` nulls. Subclasses may still override to remap or reshape the
+   * provider's structured output.
    */
   protected transformStructuredOutput(parsed: unknown): unknown {
-    return transformNullsToUndefined(parsed)
+    return parsed
   }
 
   /**
@@ -838,6 +840,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
                 toolCallId: toolCall.id,
                 toolCallName: toolCall.name,
                 toolName: toolCall.name,
+                parentMessageId: aguiState.messageId,
                 model: chunk.model || options.model,
                 timestamp: Date.now(),
                 index,

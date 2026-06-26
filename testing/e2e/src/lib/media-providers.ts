@@ -4,7 +4,11 @@ import {
   createOpenaiTranscription,
   createOpenaiVideo,
 } from '@tanstack/ai-openai'
-import { createGeminiAudio, createGeminiImage } from '@tanstack/ai-gemini'
+import {
+  createGeminiAudio,
+  createGeminiImage,
+  createGeminiVideo,
+} from '@tanstack/ai-gemini'
 import {
   createGrokImage,
   createGrokSpeech,
@@ -128,6 +132,10 @@ export function createVideoAdapter(
       createOpenaiVideo('sora-2', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
+      }),
+    gemini: () =>
+      createGeminiVideo('veo-3.1-generate-preview', DUMMY_KEY, {
+        httpOptions: { baseUrl: llmockBase(aimockPort), headers },
       }),
   }
   const factory = factories[provider]

@@ -18,11 +18,16 @@ import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
 import rehypeHighlight from 'rehype-highlight'
 import remarkGfm from 'remark-gfm'
-import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import {
+  fetchServerSentEvents,
+  useAudioRecorder,
+  useChat,
+  useTranscription,
+} from '@tanstack/ai-react'
 import { clientTools } from '@tanstack/ai-client'
 import { ThinkingPart } from '@tanstack/ai-react-ui'
 import type { UIMessage } from '@tanstack/ai-react'
-import type { ContentPart } from '@tanstack/ai'
+import type { ContentPart, TranscriptionResult } from '@tanstack/ai'
 import type { GeminiInteractionsCustomEventValue } from '@tanstack/ai-gemini/experimental'
 import type { ModelOption } from '@/lib/model-selection'
 import GuitarRecommendation from '@/components/example-GuitarRecommendation'
@@ -420,6 +425,60 @@ function ChatPage() {
   })
   const [input, setInput] = useState('')
 
+  // Voice input: record from the mic, transcribe via /api/transcribe, then drop
+  // the text into the composer for the user to review/edit/send. (Text chat
+  // models don't accept raw audio; transcription is the path that works.)
+  // NOTE: the explicit type arg works around an inference bug in the generation
+  // hooks' `onResult` (same root cause as the recorder's `onComplete`, now
+  // fixed there) — without it, `r` is implicitly `any` and the call won't
+  // typecheck under strict mode.
+  // Surface voice-input failures (permission denied, recorder error,
+  // transcription error) to the user rather than only logging them — a silent
+  // mic button is the worst outcome.
+  const [recordError, setRecordError] = useState<string | null>(null)
+
+  const { generate: transcribe, isLoading: isTranscribing } = useTranscription<
+    (r: TranscriptionResult) => void
+  >({
+    connection: fetchServerSentEvents('/api/transcribe'),
+    onResult: (r) => setInput((prev) => (prev ? `${prev} ${r.text}` : r.text)),
+    // A failed transcription (network/provider) is just as silent as a mic
+    // failure if only logged — surface it in the same banner below.
+    onError: (err) => {
+      console.error('[transcribe]', err)
+      setRecordError(
+        err instanceof Error ? err.message : 'Could not transcribe audio',
+      )
+    },
+  })
+  // Errors reach us by rejecting start()/stop(), so we handle them in the
+  // try/catch below — a single channel, not an additional `onError` callback.
+  const {
+    isRecording,
+    isSupported: micSupported,
+    start: startRecording,
+    stop: stopRecording,
+  } = useAudioRecorder()
+
+  const handleMicToggle = async () => {
+    try {
+      if (isRecording) {
+        const rec = await stopRecording()
+        // Strip the `;codecs=...` parameter so the provider gets a clean type.
+        const mimeType = rec.mimeType.split(';')[0]
+        await transcribe({ audio: `data:${mimeType};base64,${rec.base64}` })
+      } else {
+        setRecordError(null)
+        await startRecording()
+      }
+    } catch (err) {
+      console.error('[audio-recorder]', err)
+      setRecordError(
+        err instanceof Error ? err.message : 'Could not record audio',
+      )
+    }
+  }
+
   /**
    * Handle file selection for image attachment
    */
@@ -569,6 +628,19 @@ function ChatPage() {
           </div>
         )}
 
+        {recordError && (
+          <div className="mx-4 mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm flex items-center justify-between gap-2">
+            <span>Voice input error: {recordError}</span>
+            <button
+              onClick={() => setRecordError(null)}
+              className="text-red-300 hover:text-red-200"
+              aria-label="Dismiss"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         <ChatInputArea>
           <div className="space-y-3">
             {isLoading && (
@@ -624,6 +696,32 @@ function ChatPage() {
               >
                 <ImagePlus className="w-5 h-5" />
               </button>
+
+              {/* Mic / voice-input button */}
+              {micSupported && (
+                <button
+                  onClick={() => void handleMicToggle()}
+                  disabled={isLoading || isTranscribing}
+                  className={`p-3 transition-colors focus:outline-none disabled:text-gray-600 ${
+                    isRecording
+                      ? 'text-red-500 hover:text-red-400 animate-pulse'
+                      : 'text-gray-400 hover:text-orange-500'
+                  }`}
+                  title={
+                    isRecording
+                      ? 'Stop and transcribe'
+                      : isTranscribing
+                        ? 'Transcribing…'
+                        : 'Record voice input'
+                  }
+                >
+                  {isRecording ? (
+                    <Square className="w-5 h-5" />
+                  ) : (
+                    <Mic className="w-5 h-5" />
+                  )}
+                </button>
+              )}
 
               <div className="flex-1 relative">
                 <textarea

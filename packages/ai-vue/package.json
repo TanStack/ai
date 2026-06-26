@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-vue",
-  "version": "0.13.7",
+  "version": "0.13.15",
   "description": "Vue composables for TanStack AI streaming chat, structured outputs, and media generation.",
   "author": "Tanner Linsley",
   "license": "MIT",

@@ -5,7 +5,7 @@ title: AbortInfo
 
 # Interface: AbortInfo
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:293](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L293)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:327](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L327)
 
 Information passed to onAbort.
 
@@ -17,7 +17,7 @@ Information passed to onAbort.
 duration: number;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:297](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L297)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:331](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L331)
 
 Duration until abort in milliseconds
 
@@ -29,6 +29,6 @@ Duration until abort in milliseconds
 optional reason: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:295](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L295)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:329](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L329)
 
 The reason for the abort, if provided

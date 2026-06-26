@@ -97,6 +97,10 @@ export type {
   CustomEvent,
   DocumentPart,
   ImagePart,
+  MediaInputMetadata,
+  MediaInputRole,
+  MediaPrompt,
+  MediaPromptPart,
   MessagePart,
   ModelMessage,
   RunErrorEvent,
@@ -116,6 +120,8 @@ export type {
 
 export type {
   AudioVisualization,
+  RealtimeAdapter,
+  RealtimeConnection,
   RealtimeError,
   RealtimeErrorCode,
   RealtimeEvent,

@@ -68,8 +68,7 @@ With an explicit API key:
 import { chat } from "@tanstack/ai";
 import { createOpenaiChatCompletions } from "@tanstack/ai-openai";
 
-const adapter = createOpenaiChatCompletions("gpt-5.2", {
-  apiKey: process.env.OPENAI_API_KEY!,
+const adapter = createOpenaiChatCompletions("gpt-5.2", process.env.OPENAI_API_KEY!, {
   // organization, baseURL, headers — all optional
 });
 
@@ -131,7 +130,7 @@ export async function POST(request: Request) {
 ## Example: With Tools
 
 ```typescript
-import { chat, toolDefinition } from "@tanstack/ai";
+import { chat, toServerSentEventsResponse, toolDefinition } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { z } from "zod";
 
@@ -148,11 +147,17 @@ const getWeather = getWeatherDef.server(async ({ location }) => {
   return { temperature: 72, conditions: "sunny" };
 });
 
-const stream = chat({
-  adapter: openaiText("gpt-5.2"),
-  messages,
-  tools: [getWeather],
-});
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter: openaiText("gpt-5.2"),
+    messages,
+    tools: [getWeather],
+  });
+
+  return toServerSentEventsResponse(stream);
+}
 ```
 
 ## Model Options
@@ -160,16 +165,16 @@ const stream = chat({
 OpenAI supports various provider-specific options. Sampling parameters live here too — `temperature`, `top_p`, and `max_output_tokens` (the Responses API token-limit key) — rather than as root-level props on `chat()`:
 
 ```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
 const stream = chat({
   adapter: openaiText("gpt-5.2"),
-  messages,
+  messages: [{ role: "user", content: "Hello!" }],
   modelOptions: {
     temperature: 0.7,
     max_output_tokens: 1000,
     top_p: 0.9,
-    frequency_penalty: 0.5,
-    presence_penalty: 0.5,
-    stop: ["END"],
   },
 });
 ```
@@ -180,7 +185,7 @@ const stream = chat({
 
 Enable reasoning for models that support it (e.g., GPT-5, O3). This allows the model to show its reasoning process, which is streamed as `thinking` chunks:
 
-```typescript
+```typescript ignore
 modelOptions: {
   reasoning: {
     effort: "medium", // "none" | "minimal" | "low" | "medium" | "high"
@@ -230,12 +235,14 @@ console.log(result.images);
 ### Image Model Options
 
 ```typescript
+import { generateImage } from "@tanstack/ai";
+import { openaiImage } from "@tanstack/ai-openai";
+
 const result = await generateImage({
   adapter: openaiImage("gpt-image-1"),
   prompt: "...",
   modelOptions: {
-    quality: "hd", // "standard" | "hd"
-    style: "natural", // "natural" | "vivid"
+    quality: "high", // "high" | "medium" | "low" | "auto"
   },
 });
 ```
@@ -266,11 +273,14 @@ Available voices: `alloy`, `echo`, `fable`, `onyx`, `nova`, `shimmer`, `ash`, `b
 ### TTS Model Options
 
 ```typescript
+import { generateSpeech } from "@tanstack/ai";
+import { openaiSpeech } from "@tanstack/ai-openai";
+
 const result = await generateSpeech({
   adapter: openaiSpeech("tts-1-hd"),
   text: "High quality speech",
   modelOptions: {
-    speed: 1.0, // 0.25 to 4.0
+    instructions: "Speak slowly and clearly.", // voice instructions (not supported by tts-1/tts-1-hd)
   },
 });
 ```
@@ -282,6 +292,7 @@ Transcribe audio to text:
 ```typescript
 import { generateTranscription } from "@tanstack/ai";
 import { openaiTranscription } from "@tanstack/ai-openai";
+import { audioFile } from "./audio";
 
 const result = await generateTranscription({
   adapter: openaiTranscription("whisper-1"),
@@ -295,18 +306,20 @@ console.log(result.text); // Transcribed text
 ### Transcription Model Options
 
 ```typescript
+import { generateTranscription } from "@tanstack/ai";
+import { openaiTranscription } from "@tanstack/ai-openai";
+import { audioFile } from "./audio";
+
 const result = await generateTranscription({
   adapter: openaiTranscription("whisper-1"),
   audio: audioFile,
   modelOptions: {
-    response_format: "verbose_json", // Get timestamps
     temperature: 0,
-    prompt: "Technical terms: API, SDK",
   },
 });
 
-// Access segments with timestamps
-console.log(result.segments);
+// Access the transcribed text
+console.log(result.text);
 ```
 
 ## Environment Variables

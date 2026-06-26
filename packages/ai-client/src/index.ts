@@ -1,3 +1,10 @@
+export { AudioRecorder } from './audio-recorder'
+export type {
+  AudioRecorderOptions,
+  AudioRecorderState,
+  AudioRecording,
+  InferAudioRecordingOutput,
+} from './audio-recorder'
 export { ChatClient } from './chat-client'
 export { RealtimeClient } from './realtime-client'
 export { GenerationClient } from './generation-client'
