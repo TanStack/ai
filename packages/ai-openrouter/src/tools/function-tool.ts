@@ -1,14 +1,5 @@
+import type { ChatContentCacheControl } from '@openrouter/sdk/models'
 import type { JSONSchema, Tool } from '@tanstack/ai'
-
-/**
- * Anthropic-style ephemeral cache-control marker. The OpenRouter SDK accepts
- * this (camelCase) on a function tool and remaps it to `cache_control` on the
- * wire, enabling Anthropic prompt caching of tool definitions.
- */
-export interface CacheControl {
-  type: 'ephemeral'
-  ttl?: '5m' | '1h'
-}
 
 export interface FunctionTool {
   type: 'function'
@@ -17,7 +8,17 @@ export interface FunctionTool {
     description?: string
     parameters: Record<string, unknown>
   }
-  cacheControl?: CacheControl
+  /**
+   * Anthropic-style prompt-cache breakpoint for the tool definition.
+   *
+   * The SDK accepts this camelCase field as a top-level sibling of `function`
+   * and remaps it to `cache_control` on the wire (its outbound Zod schema
+   * strips an unrecognized snake_case `cache_control`, so the field must be
+   * `cacheControl`). Forwarding it lets callers cache tool definitions through
+   * OpenRouter exactly as `@tanstack/ai-anthropic` does directly. Uses the
+   * SDK's `ChatContentCacheControl` type, matching `OpenRouterSystemPromptMetadata`.
+   */
+  cacheControl?: ChatContentCacheControl
 }
 
 /**
@@ -33,26 +34,25 @@ export function convertFunctionToolToAdapterFormat(tool: Tool): FunctionTool {
     required: [],
   }) as JSONSchema
 
-  const result: FunctionTool = {
+  // Forward an optional cache-control marker so OpenRouter can cache the tool
+  // definition (Anthropic prompt caching). Mirrors
+  // `convertCustomToolToAdapterFormat` in `@tanstack/ai-anthropic`. The SDK
+  // remaps `cacheControl` -> `cache_control` on the wire; a snake_case key is
+  // silently stripped by its outbound schema.
+  //
+  // `Tool.metadata` is `Record<string, any>`, so the field is already
+  // assignable here — the annotation narrows it without a cast.
+  const cacheControl: ChatContentCacheControl | null | undefined =
+    tool.metadata?.cacheControl
+
+  return {
     type: 'function',
     function: {
       name: tool.name,
       description: tool.description,
       parameters: inputSchema,
     },
+    // Only present when supplied — additive and non-breaking.
+    ...(cacheControl ? { cacheControl } : {}),
   }
-
-  // Forward an optional cache-control marker so OpenRouter can cache the tool
-  // definition (Anthropic prompt caching). Mirrors
-  // `convertCustomToolToAdapterFormat` in `@tanstack/ai-anthropic`. The SDK
-  // remaps `cacheControl` -> `cache_control` on the wire; a snake_case key is
-  // silently stripped by its outbound schema.
-  const cacheControl = (
-    tool.metadata as { cacheControl?: CacheControl } | undefined
-  )?.cacheControl
-  if (cacheControl) {
-    result.cacheControl = cacheControl
-  }
-
-  return result
 }

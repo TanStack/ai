@@ -107,6 +107,16 @@ describe('OpenRouter function-tool cacheControl (post-SDK serialization)', () =>
     })
   })
 
+  it('forwards the cache TTL when supplied', async () => {
+    const wireTool = await captureSerializedTool({
+      ...baseTool,
+      metadata: { cacheControl: { type: 'ephemeral', ttl: '1h' } },
+    })
+    expect(wireTool).toMatchObject({
+      cache_control: { type: 'ephemeral', ttl: '1h' },
+    })
+  })
+
   it('omits cache_control entirely when no cacheControl metadata is supplied', async () => {
     const wireTool = await captureSerializedTool(baseTool)
     expect(wireTool).toMatchObject({
