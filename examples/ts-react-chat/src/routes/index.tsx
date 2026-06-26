@@ -440,14 +440,17 @@ function ChatPage() {
     onError: (err) => console.error('[transcribe]', err),
   })
 
+  // Surface recorder failures (permission denied, recorder error) to the user
+  // rather than only logging them — a silent mic button is the worst outcome.
+  const [recordError, setRecordError] = useState<string | null>(null)
+  // Errors reach us by rejecting start()/stop(), so we handle them in the
+  // try/catch below — a single channel, not an additional `onError` callback.
   const {
     isRecording,
     isSupported: micSupported,
     start: startRecording,
     stop: stopRecording,
-  } = useAudioRecorder({
-    onError: (err) => console.error('[audio-recorder]', err),
-  })
+  } = useAudioRecorder()
 
   const handleMicToggle = async () => {
     try {
@@ -457,10 +460,14 @@ function ChatPage() {
         const mimeType = rec.mimeType.split(';')[0]
         await transcribe({ audio: `data:${mimeType};base64,${rec.base64}` })
       } else {
+        setRecordError(null)
         await startRecording()
       }
     } catch (err) {
       console.error('[audio-recorder]', err)
+      setRecordError(
+        err instanceof Error ? err.message : 'Could not record audio',
+      )
     }
   }
 
@@ -610,6 +617,19 @@ function ChatPage() {
         {error && (
           <div className="mx-4 mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
             {error.message}
+          </div>
+        )}
+
+        {recordError && (
+          <div className="mx-4 mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm flex items-center justify-between gap-2">
+            <span>Microphone error: {recordError}</span>
+            <button
+              onClick={() => setRecordError(null)}
+              className="text-red-300 hover:text-red-200"
+              aria-label="Dismiss"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         )}
 

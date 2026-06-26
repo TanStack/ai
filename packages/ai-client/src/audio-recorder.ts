@@ -63,6 +63,11 @@ export class AudioRecorder {
   private chunks: Array<Blob> = []
   private startedAt = 0
   private _state: AudioRecorderState = 'idle'
+  // True while start() is awaiting getUserMedia (state is still 'idle' then).
+  private starting = false
+  // Set by cancel()/teardown during that window so start() releases the
+  // freshly acquired stream instead of beginning a leaked recording.
+  private pendingCancel = false
   private readonly listeners = new Set<(state: AudioRecorderState) => void>()
   private stopResolve: ((recording: AudioRecording) => void) | null = null
   private stopReject: ((error: Error) => void) | null = null
@@ -100,13 +105,21 @@ export class AudioRecorder {
   }
 
   async start(): Promise<void> {
-    if (this._state !== 'idle') {
+    if (this._state !== 'idle' || this.starting) {
       return
     }
+    this.starting = true
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: this.options.audio ?? true,
       })
+      // cancel()/teardown ran while we were awaiting the mic: release the
+      // freshly acquired stream and bail rather than starting a recording the
+      // caller can no longer stop (a leaked live microphone).
+      if (this.pendingCancel) {
+        stream.getTracks().forEach((t) => t.stop())
+        return
+      }
       this.stream = stream
       const wanted = this.options.mimeType
       const useMimeType =
@@ -146,6 +159,11 @@ export class AudioRecorder {
       this.options.onError?.(error)
       this.setState('idle')
       throw error
+    } finally {
+      this.starting = false
+      // Reset here (not before the await) so a cancel() that arrives mid-start
+      // is observed above; clearing it afterward keeps the next start() clean.
+      this.pendingCancel = false
     }
   }
 
@@ -161,11 +179,21 @@ export class AudioRecorder {
       // Some browsers/codecs never fire onstop; this watchdog unwedges the
       // recorder instead of leaking this promise forever.
       const watchdog = setTimeout(() => {
-        if (this._state === 'stopping') {
-          // Detach handlers so a late onstop/onerror from the stalled recorder
-          // can't reach back in and fire finalize()/onError a second time.
-          this.detachRecorder()
-          this.handleError(new Error('Recording stop timed out'))
+        if (this._state !== 'stopping') {
+          return
+        }
+        // Detach handlers so a late onstop/onerror from the stalled recorder
+        // can't reach back in and fire finalize()/onError a second time.
+        this.detachRecorder()
+        if (this.chunks.length > 0) {
+          // onstop never fired, but ondataavailable already delivered the
+          // audio — finalize from the buffered chunks rather than discarding a
+          // recording the user successfully captured.
+          void this.finalize()
+        } else {
+          this.handleError(
+            new Error('Recording stop timed out after 10s with no audio'),
+          )
         }
       }, 10_000)
       this.stopResolve = (rec) => {
@@ -181,6 +209,12 @@ export class AudioRecorder {
   }
 
   cancel(): void {
+    if (this.starting) {
+      // A start() is awaiting getUserMedia; flag it so the resolved stream is
+      // released instead of beginning a recording with no handle to stop it.
+      this.pendingCancel = true
+      return
+    }
     if (this._state === 'idle') {
       return
     }
@@ -191,8 +225,17 @@ export class AudioRecorder {
       this.detachRecorder()
       try {
         recorder.stop()
-      } catch {
-        // Recorder may already be inactive; nothing to do.
+      } catch (err) {
+        // Stopping an already-inactive recorder throws InvalidStateError —
+        // that's expected here. Anything else is unexpected; surface it rather
+        // than swallowing it silently.
+        if (
+          !(err instanceof DOMException && err.name === 'InvalidStateError')
+        ) {
+          this.options.onError?.(
+            err instanceof Error ? err : new Error('Failed to stop recorder'),
+          )
+        }
       }
     }
     this.releaseStream()

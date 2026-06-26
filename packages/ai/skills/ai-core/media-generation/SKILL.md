@@ -359,7 +359,7 @@ const { generate, result, isLoading } = useGenerateSpeech({
 Adapter: `openaiTranscription` (whisper-1, gpt-4o-transcribe,
 gpt-4o-mini-transcribe).
 
-> **Capturing audio in the browser:** Use `useAudioRecorder` from `@tanstack/ai-react` to record directly in the browser, then pass `recording.base64` as the `audio` input to `generate()`, or use `recording.part` as a prompt part in chat/generation calls. No transcoding or extra dependencies required — the recorder returns the native browser format (`audio/webm` or `audio/mp4`).
+> **Capturing audio in the browser:** Use `useAudioRecorder` from `@tanstack/ai-react` to record directly in the browser, then pass the recording as the `audio` input to `generate()`, or use `recording.part` as a prompt part in chat/generation calls. No transcoding or extra dependencies required — the recorder returns the native browser format (`audio/webm` or `audio/mp4`). For transcription, wrap it as a `data:` URL so the provider gets the real content type; passing raw `recording.base64` makes the adapter assume `audio/mpeg` and mislabel the webm/mp4 bytes.
 >
 > ```typescript
 > const { isRecording, start, stop } = useAudioRecorder()
@@ -368,7 +368,8 @@ gpt-4o-mini-transcribe).
 > })
 > // ...
 > const recording = await stop()
-> await generate({ audio: recording.base64 })
+> const mimeType = recording.mimeType.split(';')[0] // strip ;codecs=...
+> await generate({ audio: `data:${mimeType};base64,${recording.base64}` })
 > ```
 
 ```typescript

@@ -149,7 +149,9 @@ function VoiceComposer() {
 
 ## Transcribe a recording
 
-Feed `recording.base64` to a transcription request. See
+Wrap the recording as a `data:` URL so the provider receives the recorder's
+native content type — passing raw `base64` makes the transcription adapter
+assume `audio/mpeg` and mislabel the webm/mp4 bytes. See
 [Transcription](./transcription) for the matching server route.
 
 ```tsx
@@ -172,7 +174,12 @@ function Transcriber() {
         return
       }
       const rec = await stop()
-      await generate({ audio: rec.base64 })
+      // Wrap as a data URL so the provider gets the recorder's real content
+      // type. Passing raw base64 makes the transcription adapter assume
+      // `audio/mpeg`, which mislabels the native webm/mp4 bytes. Strip the
+      // `;codecs=...` parameter for a clean type.
+      const mimeType = rec.mimeType.split(';')[0]
+      await generate({ audio: `data:${mimeType};base64,${rec.base64}` })
     } catch (error) {
       console.error(error)
     }
