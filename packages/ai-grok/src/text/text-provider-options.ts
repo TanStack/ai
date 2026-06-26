@@ -29,11 +29,9 @@ export interface GrokBaseOptions {
 }
 
 /**
- * Grok-specific provider options for text/chat
- * Based on xAI Responses API options
+ * Sampling and response controls for Grok text/chat models.
  */
-export interface GrokTextProviderOptions
-  extends GrokBaseOptions, Record<string, unknown> {
+export interface GrokSamplingOptions {
   /**
    * Temperature for response generation (0-2)
    * Higher values make output more random, lower values more focused
@@ -61,6 +59,21 @@ export interface GrokTextProviderOptions
    */
   reasoning?: GrokReasoning
 }
+
+/**
+ * Grok-specific provider options for text/chat
+ * Based on xAI Responses API options.
+ *
+ * Declared as a type-alias intersection of interfaces with all-optional props
+ * (matching the OpenAI text adapter), NOT an `interface ... extends
+ * Record<string, unknown>`. An explicit index signature makes `object`
+ * un-assignable to these options, which breaks the contravariantly-checked
+ * `summarize()` adapter constraint (`SummarizeAdapter<string, object>`); see
+ * issue #821. Without the index signature these options no longer satisfy a
+ * `Record<string, unknown>` constraint, so the text adapter's provider-options
+ * generic is widened to `Record<string, any>` to match OpenAI.
+ */
+export type GrokTextProviderOptions = GrokBaseOptions & GrokSamplingOptions
 
 export type GrokBuildProviderOptions = Omit<
   GrokTextProviderOptions,

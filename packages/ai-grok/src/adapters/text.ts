@@ -43,7 +43,11 @@ export type { ExternalTextProviderOptions as GrokTextProviderOptions } from '../
  */
 export class GrokTextAdapter<
   TModel extends (typeof GROK_CHAT_MODELS)[number],
-  TProviderOptions extends Record<string, unknown> =
+  // Use `Record<string, any>` (not `unknown`) to match the OpenAI text
+  // adapter: the resolved Grok provider options are a type-alias intersection
+  // with no explicit index signature, which is assignable to
+  // `Record<string, any>` but not `Record<string, unknown>`. See issue #821.
+  TProviderOptions extends Record<string, any> =
     ResolveProviderOptions<TModel>,
   TInputModalities extends ReadonlyArray<Modality> =
     ResolveInputModalities<TModel>,
