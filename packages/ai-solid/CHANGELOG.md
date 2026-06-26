@@ -1,5 +1,44 @@
 # @tanstack/ai-solid
 
+## 0.14.0
+
+### Minor Changes
+
+- [#810](https://github.com/TanStack/ai/pull/810) [`33acdd4`](https://github.com/TanStack/ai/commit/33acdd4df4aef13d594700d9b52087252091bd40) - Add `AudioRecorder` (`@tanstack/ai-client`) and framework hooks for recording an
+  audio message in the browser: `useAudioRecorder` (React/Solid/Vue),
+  `createAudioRecorder` (Svelte), and `injectAudioRecorder` (Angular). The
+  recording exposes a ready-to-use audio content part (`.part`) for `sendMessage`
+  and base64 (`.base64`) for the generation hooks. Native recorder output
+  (webm/mp4), no transcoding, no new dependency.
+
+  Each hook also returns a reactive `recording` field — the latest resolved
+  recording (`AudioRecording | null`), available without awaiting `stop()`. Pass
+  `onComplete: (recording) => T | Promise<T>` to transform the output: `stop()`
+  then resolves to `T` and `recording` becomes `T | null`. Omitting `onComplete`
+  keeps the raw `AudioRecording`.
+
+### Patch Changes
+
+- [#856](https://github.com/TanStack/ai/pull/856) [`c22c663`](https://github.com/TanStack/ai/commit/c22c6632fdca761033cb9c4273bf61fc8ce86662) - Fix `onResult` transform type inference on the generation hooks across every
+  framework package — the base generation hook plus `generateImage`,
+  `generateAudio`, `generateSpeech`, `generateVideo`, `transcription`, and
+  `summarize` (React `use*`, Vue `use*`, Solid `use*`, Svelte `create*`, and
+  Angular `inject*`).
+
+  The hooks declared the `onResult` transform via a single defaulted type
+  parameter inferred from an optional nested property, which TypeScript collapses
+  to its default — leaving the callback parameter typed `any` (a hard error under
+  `strict`) and never narrowing `result` to the transform's return type. The
+  hooks now infer the transform type from the `onResult` return position (a
+  covariant inference site that works for an optional nested property), so the
+  callback parameter is typed as the raw result and `result` narrows to the
+  transform's return type; omitting the transform keeps the raw result type. See
+  issue [#848](https://github.com/TanStack/ai/issues/848).
+
+- Updated dependencies [[`33acdd4`](https://github.com/TanStack/ai/commit/33acdd4df4aef13d594700d9b52087252091bd40), [`c1a8732`](https://github.com/TanStack/ai/commit/c1a87327b4a3463d37158f32ca90184b5fd092bb)]:
+  - @tanstack/ai-client@0.19.0
+  - @tanstack/ai@0.38.0
+
 ## 0.13.15
 
 ### Patch Changes
