@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ThreadsRouteImport } from './routes/threads'
 import { Route as ServerFnChatRouteImport } from './routes/server-fn-chat'
+import { Route as SandboxesRouteImport } from './routes/sandboxes'
 import { Route as RealtimeRouteImport } from './routes/realtime'
 import { Route as McpDemoRouteImport } from './routes/mcp-demo'
 import { Route as Issue176ToolResultRouteImport } from './routes/issue-176-tool-result'
@@ -33,6 +34,7 @@ import { Route as ApiTanchatRouteImport } from './routes/api.tanchat'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiStructuredOutputRouteImport } from './routes/api.structured-output'
 import { Route as ApiStructuredChatRouteImport } from './routes/api.structured-chat'
+import { Route as ApiSandboxTriageRouteImport } from './routes/api.sandbox-triage'
 import { Route as ApiMcpStatusRouteImport } from './routes/api.mcp-status'
 import { Route as ApiMcpPoolRouteImport } from './routes/api.mcp-pool'
 import { Route as ApiMcpManualRouteImport } from './routes/api.mcp-manual'
@@ -55,6 +57,11 @@ const ThreadsRoute = ThreadsRouteImport.update({
 const ServerFnChatRoute = ServerFnChatRouteImport.update({
   id: '/server-fn-chat',
   path: '/server-fn-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SandboxesRoute = SandboxesRouteImport.update({
+  id: '/sandboxes',
+  path: '/sandboxes',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RealtimeRoute = RealtimeRouteImport.update({
@@ -170,6 +177,11 @@ const ApiStructuredChatRoute = ApiStructuredChatRouteImport.update({
   path: '/api/structured-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSandboxTriageRoute = ApiSandboxTriageRouteImport.update({
+  id: '/api/sandbox-triage',
+  path: '/api/sandbox-triage',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMcpStatusRoute = ApiMcpStatusRouteImport.update({
   id: '/api/mcp-status',
   path: '/api/mcp-status',
@@ -245,6 +257,7 @@ export interface FileRoutesByFullPath {
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/mcp-demo': typeof McpDemoRoute
   '/realtime': typeof RealtimeRoute
+  '/sandboxes': typeof SandboxesRoute
   '/server-fn-chat': typeof ServerFnChatRoute
   '/threads': typeof ThreadsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
@@ -254,6 +267,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp-manual': typeof ApiMcpManualRoute
   '/api/mcp-pool': typeof ApiMcpPoolRoute
   '/api/mcp-status': typeof ApiMcpStatusRoute
+  '/api/sandbox-triage': typeof ApiSandboxTriageRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -284,6 +298,7 @@ export interface FileRoutesByTo {
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/mcp-demo': typeof McpDemoRoute
   '/realtime': typeof RealtimeRoute
+  '/sandboxes': typeof SandboxesRoute
   '/server-fn-chat': typeof ServerFnChatRoute
   '/threads': typeof ThreadsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
@@ -293,6 +308,7 @@ export interface FileRoutesByTo {
   '/api/mcp-manual': typeof ApiMcpManualRoute
   '/api/mcp-pool': typeof ApiMcpPoolRoute
   '/api/mcp-status': typeof ApiMcpStatusRoute
+  '/api/sandbox-triage': typeof ApiSandboxTriageRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -324,6 +340,7 @@ export interface FileRoutesById {
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/mcp-demo': typeof McpDemoRoute
   '/realtime': typeof RealtimeRoute
+  '/sandboxes': typeof SandboxesRoute
   '/server-fn-chat': typeof ServerFnChatRoute
   '/threads': typeof ThreadsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
@@ -333,6 +350,7 @@ export interface FileRoutesById {
   '/api/mcp-manual': typeof ApiMcpManualRoute
   '/api/mcp-pool': typeof ApiMcpPoolRoute
   '/api/mcp-status': typeof ApiMcpStatusRoute
+  '/api/sandbox-triage': typeof ApiSandboxTriageRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -365,6 +383,7 @@ export interface FileRouteTypes {
     | '/issue-176-tool-result'
     | '/mcp-demo'
     | '/realtime'
+    | '/sandboxes'
     | '/server-fn-chat'
     | '/threads'
     | '/api/capability-demo'
@@ -374,6 +393,7 @@ export interface FileRouteTypes {
     | '/api/mcp-manual'
     | '/api/mcp-pool'
     | '/api/mcp-status'
+    | '/api/sandbox-triage'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
@@ -404,6 +424,7 @@ export interface FileRouteTypes {
     | '/issue-176-tool-result'
     | '/mcp-demo'
     | '/realtime'
+    | '/sandboxes'
     | '/server-fn-chat'
     | '/threads'
     | '/api/capability-demo'
@@ -413,6 +434,7 @@ export interface FileRouteTypes {
     | '/api/mcp-manual'
     | '/api/mcp-pool'
     | '/api/mcp-status'
+    | '/api/sandbox-triage'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
@@ -443,6 +465,7 @@ export interface FileRouteTypes {
     | '/issue-176-tool-result'
     | '/mcp-demo'
     | '/realtime'
+    | '/sandboxes'
     | '/server-fn-chat'
     | '/threads'
     | '/api/capability-demo'
@@ -452,6 +475,7 @@ export interface FileRouteTypes {
     | '/api/mcp-manual'
     | '/api/mcp-pool'
     | '/api/mcp-status'
+    | '/api/sandbox-triage'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
@@ -483,6 +507,7 @@ export interface RootRouteChildren {
   Issue176ToolResultRoute: typeof Issue176ToolResultRoute
   McpDemoRoute: typeof McpDemoRoute
   RealtimeRoute: typeof RealtimeRoute
+  SandboxesRoute: typeof SandboxesRoute
   ServerFnChatRoute: typeof ServerFnChatRoute
   ThreadsRoute: typeof ThreadsRoute
   ApiCapabilityDemoRoute: typeof ApiCapabilityDemoRoute
@@ -492,6 +517,7 @@ export interface RootRouteChildren {
   ApiMcpManualRoute: typeof ApiMcpManualRoute
   ApiMcpPoolRoute: typeof ApiMcpPoolRoute
   ApiMcpStatusRoute: typeof ApiMcpStatusRoute
+  ApiSandboxTriageRoute: typeof ApiSandboxTriageRoute
   ApiStructuredChatRoute: typeof ApiStructuredChatRoute
   ApiStructuredOutputRoute: typeof ApiStructuredOutputRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
@@ -528,6 +554,13 @@ declare module '@tanstack/react-router' {
       path: '/server-fn-chat'
       fullPath: '/server-fn-chat'
       preLoaderRoute: typeof ServerFnChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sandboxes': {
+      id: '/sandboxes'
+      path: '/sandboxes'
+      fullPath: '/sandboxes'
+      preLoaderRoute: typeof SandboxesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/realtime': {
@@ -684,6 +717,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiStructuredChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/sandbox-triage': {
+      id: '/api/sandbox-triage'
+      path: '/api/sandbox-triage'
+      fullPath: '/api/sandbox-triage'
+      preLoaderRoute: typeof ApiSandboxTriageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/mcp-status': {
       id: '/api/mcp-status'
       path: '/api/mcp-status'
@@ -787,6 +827,7 @@ const rootRouteChildren: RootRouteChildren = {
   Issue176ToolResultRoute: Issue176ToolResultRoute,
   McpDemoRoute: McpDemoRoute,
   RealtimeRoute: RealtimeRoute,
+  SandboxesRoute: SandboxesRoute,
   ServerFnChatRoute: ServerFnChatRoute,
   ThreadsRoute: ThreadsRoute,
   ApiCapabilityDemoRoute: ApiCapabilityDemoRoute,
@@ -796,6 +837,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpManualRoute: ApiMcpManualRoute,
   ApiMcpPoolRoute: ApiMcpPoolRoute,
   ApiMcpStatusRoute: ApiMcpStatusRoute,
+  ApiSandboxTriageRoute: ApiSandboxTriageRoute,
   ApiStructuredChatRoute: ApiStructuredChatRoute,
   ApiStructuredOutputRoute: ApiStructuredOutputRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
