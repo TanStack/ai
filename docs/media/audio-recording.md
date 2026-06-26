@@ -28,7 +28,7 @@ returns the recorder's native output (`audio/webm` or `audio/mp4`).
 Start with a button; end with a working recorder that toggles capture and hands
 you the result.
 
-```tsx
+```tsx group=audio-recording
 import { useAudioRecorder } from '@tanstack/ai-react'
 
 function RecordButton() {
@@ -77,9 +77,11 @@ The same value is also exposed as the reactive `recording` field, so you can
 render a preview without capturing `stop()`'s return value yourself. It's `null`
 until the first `stop()`:
 
-```tsx
-const { recording, isRecording, start, stop } = useAudioRecorder()
-// recording is AudioRecording | null
+```tsx group=audio-recording
+function Preview() {
+  const { recording, isRecording, start, stop } = useAudioRecorder()
+  // recording is AudioRecording | null
+}
 ```
 
 > Across frameworks `recording` follows the same shape as the other reactive
@@ -94,14 +96,16 @@ after upload, an encoded blob, or a custom object. Both `stop()` and the
 reactive `recording` field then resolve to your transformed value, and the
 transform can be `async`:
 
-```tsx
-const { recording, stop } = useAudioRecorder({
-  onComplete: async (rec) => {
-    const res = await fetch('/api/upload', { method: 'POST', body: rec.blob })
-    const { url } = await res.json()
-    return url // `recording` and `stop()` now resolve to string
-  },
-})
+```tsx group=audio-recording
+function Uploader() {
+  const { recording, stop } = useAudioRecorder({
+    onComplete: async (rec) => {
+      const res = await fetch('/api/upload', { method: 'POST', body: rec.blob })
+      const { url } = await res.json()
+      return url // `recording` and `stop()` now resolve to string
+    },
+  })
+}
 ```
 
 Return nothing (`undefined`) to keep the raw `AudioRecording`; any returned
