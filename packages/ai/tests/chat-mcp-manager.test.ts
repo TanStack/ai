@@ -196,7 +196,7 @@ async function runToolResult(
   tool: ServerTool,
   toolCallId: string,
   onEvent: (event: EmittedEvent) => void,
-): Promise<void> {
+): Promise<Array<ToolResult>> {
   const toolCall: ToolCall = {
     id: toolCallId,
     type: 'function',
@@ -230,6 +230,9 @@ async function runToolResult(
   for await (const ev of gen) {
     onEvent({ name: ev.name, value: ev.value })
   }
+  // Return the tool results so callers can assert the normal tool-result still
+  // flows even when the ui:// read fails (the fail-soft guarantee).
+  return results
 }
 
 describe('MCPManager.discover — ui:// readResource binding', () => {
@@ -307,7 +310,7 @@ describe('executeServerTool — ui:// resource emit (MCP Apps)', () => {
     warn.mockRestore()
   })
 
-  it('is fail-soft: read failure emits nothing and does not throw', async () => {
+  it('is fail-soft: read failure emits nothing, does not throw, and the tool result still flows', async () => {
     const emitted: Array<unknown> = []
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const t = uiTool('weather_show')
@@ -315,12 +318,14 @@ describe('executeServerTool — ui:// resource emit (MCP Apps)', () => {
       throw new Error('boom')
     }
 
-    await expect(
-      runToolResult(t, 'call_1', () => emitted.push(1)),
-    ).resolves.not.toThrow()
+    const results = await runToolResult(t, 'call_1', () => emitted.push(1))
 
     expect(emitted).toHaveLength(0)
     expect(warn).toHaveBeenCalled()
+    // The whole point of fail-soft: a broken widget must not swallow the model's
+    // tool result. The tool's text output ('Processing') must still be present.
+    expect(results.length).toBeGreaterThan(0)
+    expect(JSON.stringify(results)).toContain('Processing')
     warn.mockRestore()
   })
 

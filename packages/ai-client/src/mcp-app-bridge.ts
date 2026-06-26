@@ -34,9 +34,12 @@ interface ToolCallResponse {
 }
 
 function isToolCallResponse(value: unknown): value is ToolCallResponse {
-  if (value === null || typeof value !== 'object') return false
-  const record = value as Record<string, unknown>
-  return typeof record['ok'] === 'boolean'
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    'ok' in value &&
+    typeof value.ok === 'boolean'
+  )
 }
 
 // Links arrive from an untrusted sandboxed widget. Only hand http(s)/mailto

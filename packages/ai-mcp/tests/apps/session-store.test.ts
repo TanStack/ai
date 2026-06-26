@@ -50,6 +50,31 @@ describe('inMemoryMcpSessionStore', () => {
       expect(await store.get('t2', 'srv')).toBeNull()
     })
 
+    it('keeps set() correct across the opportunistic expiry sweep', async () => {
+      // NOTE: the sweep's real purpose — bounding `map` growth for
+      // set-but-never-read threads — is internal and not observable through the
+      // public API (a later get() would prune-on-read anyway). This test only
+      // guards that running the sweep loop inside set() doesn't corrupt the
+      // store: expired threads stay gone and the just-written entry is intact.
+      const store = inMemoryMcpSessionStore({ ttlMs: 1000 })
+      await store.set('stale1', {
+        srv: { transport: { type: 'http', url: 'https://1/mcp' } },
+      })
+      await store.set('stale2', {
+        srv: { transport: { type: 'http', url: 'https://2/mcp' } },
+      })
+      // Let them lapse, then a fresh set() triggers the sweep over the map.
+      vi.advanceTimersByTime(1001)
+      await store.set('fresh', {
+        srv: { transport: { type: 'http', url: 'https://3/mcp' } },
+      })
+      expect(await store.get('stale1', 'srv')).toBeNull()
+      expect(await store.get('stale2', 'srv')).toBeNull()
+      expect(await store.get('fresh', 'srv')).toEqual({
+        transport: { type: 'http', url: 'https://3/mcp' },
+      })
+    })
+
     it('slides the TTL on a successful get within the window', async () => {
       const store = inMemoryMcpSessionStore({ ttlMs: 1000 })
       await store.set('t2', {

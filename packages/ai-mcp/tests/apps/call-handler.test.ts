@@ -396,4 +396,82 @@ describe('createMcpAppCallHandler', () => {
     })
     expect(createMCPClient).not.toHaveBeenCalled()
   })
+
+  describe('onError observability hook', () => {
+    it('invokes onError with phase "call" on a proxied-call failure and still returns ok:false', async () => {
+      const boom = new Error('upstream MCP exploded')
+      callToolMock.mockRejectedValueOnce(boom)
+      const onError = vi.fn()
+      const handler = weatherPoolHandler({ onError })
+
+      const res = await handler({
+        threadId: 't1',
+        serverId: 'weather',
+        toolName: 'place_order',
+        args: { qty: 1 },
+      })
+
+      expect(res).toEqual({ ok: false, error: 'upstream MCP exploded' })
+      expect(onError).toHaveBeenCalledWith(boom, {
+        phase: 'call',
+        req: expect.objectContaining({ toolName: 'place_order' }),
+      })
+    })
+
+    it('does not let a synchronously-throwing onError break the handler result', async () => {
+      callToolMock.mockRejectedValueOnce(new Error('upstream'))
+      const onError = vi.fn(() => {
+        // A sync-throwing observability hook must never escape the handler.
+        throw new Error('logger blew up')
+      })
+      const handler = weatherPoolHandler({ onError })
+
+      // Resolves to a normal fail-soft result rather than rejecting.
+      await expect(
+        handler({
+          threadId: 't1',
+          serverId: 'weather',
+          toolName: 'place_order',
+        }),
+      ).resolves.toEqual({ ok: false, error: 'upstream' })
+      expect(onError).toHaveBeenCalledOnce()
+    })
+
+    it('does not let an asynchronously-rejecting onError break the handler result', async () => {
+      callToolMock.mockRejectedValueOnce(new Error('upstream'))
+      const onError = vi.fn(async () => {
+        throw new Error('async logger blew up')
+      })
+      const handler = weatherPoolHandler({ onError })
+
+      await expect(
+        handler({
+          threadId: 't1',
+          serverId: 'weather',
+          toolName: 'place_order',
+        }),
+      ).resolves.toEqual({ ok: false, error: 'upstream' })
+      expect(onError).toHaveBeenCalledOnce()
+    })
+
+    it('reports a failing client.close() via phase "close" without affecting the result', async () => {
+      closeMock.mockRejectedValueOnce(new Error('socket stuck'))
+      const onError = vi.fn()
+      const handler = weatherPoolHandler({ onError })
+
+      const res = await handler({
+        threadId: 't1',
+        serverId: 'weather',
+        toolName: 'place_order',
+        args: { qty: 1 },
+      })
+
+      // The successful call result is unaffected by the close failure.
+      expect(res).toEqual({ ok: true, result: expect.anything() })
+      expect(onError).toHaveBeenCalledWith(expect.any(Error), {
+        phase: 'close',
+        req: expect.objectContaining({ toolName: 'place_order' }),
+      })
+    })
+  })
 })

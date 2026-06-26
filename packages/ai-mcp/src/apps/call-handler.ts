@@ -8,6 +8,11 @@ import type {
 } from './session-store'
 import type { ServerTool } from '@tanstack/ai'
 
+/** Type guard: a plain (non-array) object usable as a tool-args record. */
+function isArgsRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
 /**
  * The UNPREFIXED, server-native tool name for an exposed ServerTool.
  * ai-mcp stamps it on `metadata.mcp.serverToolName`; the `name` fallback is a
@@ -16,11 +21,6 @@ import type { ServerTool } from '@tanstack/ai'
  * only reached for hand-built ServerTools. `metadata` is
  * `Record<string, unknown>`, so narrow each hop instead of asserting a shape.
  */
-/** Type guard: a plain (non-array) object usable as a tool-args record. */
-function isArgsRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-}
-
 function serverToolNameOf(tool: ServerTool): string {
   const mcp = tool.metadata?.mcp
   if (mcp !== null && typeof mcp === 'object' && 'serverToolName' in mcp) {
@@ -64,6 +64,21 @@ export interface McpAppCallHandlerOptions {
    * top of the server-exposure check, not a replacement for it.
    */
   allowTool?: (req: McpAppCallRequest) => boolean | Promise<boolean>
+  /**
+   * Optional server-side observability hook. The handler is otherwise opaque on
+   * failure — it returns a fail-soft `{ ok: false, error }` to the (untrusted)
+   * widget and logs nothing, so on a serverless backend there is no trace of
+   * WHY a proxied call failed. `onError` is invoked (and awaited if async) with
+   * the caught error and the originating request before that result is
+   * returned. `phase` distinguishes a `'call'` failure (connect/exposure
+   * lookup/execution/serialization) from a `'close'` failure (per-call client
+   * cleanup, which is swallowed and never affects the result). This library
+   * never writes to `console`; wire your logger here to capture failures.
+   */
+  onError?: (
+    error: unknown,
+    info: { phase: 'call' | 'close'; req: McpAppCallRequest },
+  ) => void | Promise<void>
 }
 
 /** Structurally distinguish a pool (has getServers) from a single client. */
@@ -144,6 +159,24 @@ function buildRegistry(clients: McpAppClientsInput): AppRegistry {
     }
   }
   return { byServerId, fallback, total }
+}
+
+/**
+ * Invoke an optional `onError` hook, absorbing BOTH synchronous and asynchronous
+ * throws from the hook itself. The hook runs inside the promise chain (not as a
+ * bare argument) so a sync `throw` becomes a rejection that `.catch` swallows —
+ * a host's observability callback must never break the handler's result or mask
+ * the real error.
+ */
+function reportError(
+  onError: McpAppCallHandlerOptions['onError'],
+  error: unknown,
+  info: { phase: 'call' | 'close'; req: McpAppCallRequest },
+): Promise<void> {
+  if (!onError) return Promise.resolve()
+  return Promise.resolve()
+    .then(() => onError(error, info))
+    .catch(() => undefined)
 }
 
 /**
@@ -229,12 +262,22 @@ export function createMcpAppCallHandler(opts: McpAppCallHandlerOptions) {
       const result = await client.callTool(req.toolName, args)
       return { ok: true, result }
     } catch (err) {
+      // Surface the failure for server-side observability before flattening it
+      // into the opaque wire error; never let the hook itself break the result.
+      await reportError(opts.onError, err, { phase: 'call', req })
       return {
         ok: false,
         error: err instanceof Error ? err.message : 'MCP call failed',
       }
     } finally {
-      await client.close().catch(() => undefined)
+      // Per-call reconnect handler closes its client every call; a consistently
+      // failing close leaks handles silently. Don't rethrow (it would mask the
+      // real result), but report it through the same hook.
+      await client
+        .close()
+        .catch((err: unknown) =>
+          reportError(opts.onError, err, { phase: 'close', req }),
+        )
     }
   }
 }

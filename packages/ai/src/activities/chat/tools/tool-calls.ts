@@ -18,6 +18,7 @@ import type {
   AfterToolCallInfo,
   BeforeToolCallDecision,
 } from '../middleware/types'
+import type { McpResourceReadResult } from '../mcp/types'
 import type {
   ContextFromTool,
   DefinedContext,
@@ -54,14 +55,7 @@ interface McpToolAppMeta {
   serverId?: string
   /** Server-native (unprefixed) MCP tool name — used as the renderer's toolName. */
   serverToolName?: string
-  readResource?: (uri: string) => Promise<{
-    contents: Array<{
-      uri: string
-      mimeType?: string
-      text?: string
-      blob?: string
-    }>
-  }>
+  readResource?: (uri: string) => Promise<McpResourceReadResult>
 }
 
 function readMcpAppMeta(tool: AnyTool): McpToolAppMeta | undefined {
@@ -85,6 +79,10 @@ async function emitUiResourceIfLinked<TContext>(
   const mcp = readMcpAppMeta(tool)
   const uiUri = mcp?.uiResourceUri
   if (!uiUri || !mcp.readResource) return
+
+  // The try covers ONLY the fallible read — keep `emitCustomEvent` out of it so
+  // an exception from the emit path can't be mislabeled as a read failure.
+  let matched: McpResourceReadResult['contents'][number] | undefined
   try {
     const res = await mcp.readResource(uiUri)
     // Emit ONLY the content whose uri matches the requested `uiUri`. A source
@@ -92,33 +90,34 @@ async function emitUiResourceIfLinked<TContext>(
     // rendering a widget that doesn't correspond to the linked resource. This
     // is a display widget — a mismatched resource is worse than none, so if no
     // content matches we fail-soft (warn + return) rather than emit.
-    const r = res.contents.find((c) => c.uri === uiUri)
-    if (!r) {
-      console.warn(
-        `[mcp-apps] ui resource ${uiUri} returned no content matching that uri; not emitting`,
-      )
-      return
-    }
-    // NOTE: `toolCallId` is intentionally NOT set here — it is stamped onto
-    // every emitted event by the `executeToolCalls` context wrapper, so the
-    // UIResourceEvent.value.toolCallId / UIResourcePart.toolCallId contract is
-    // still satisfied downstream.
-    context.emitCustomEvent('ui-resource', {
-      resource: {
-        uri: r.uri,
-        mimeType: r.mimeType ?? 'text/html',
-        text: r.text,
-        blob: r.blob,
-      },
-      serverId: mcp.serverId,
-      toolName: mcp.serverToolName ?? tool.name,
-      meta: undefined,
-    })
+    matched = res.contents.find((c) => c.uri === uiUri)
   } catch (err) {
     // fail-soft — the text tool-result already flows; a broken widget must
     // not break the run.
     console.warn(`[mcp-apps] failed to read ui resource ${uiUri}:`, err)
+    return
   }
+  if (!matched) {
+    console.warn(
+      `[mcp-apps] ui resource ${uiUri} returned no content matching that uri; not emitting`,
+    )
+    return
+  }
+  // NOTE: `toolCallId` is intentionally NOT set here — it is stamped onto
+  // every emitted event by the `executeToolCalls` context wrapper, so the
+  // UIResourceEvent.value.toolCallId / UIResourcePart.toolCallId contract is
+  // still satisfied downstream.
+  context.emitCustomEvent('ui-resource', {
+    resource: {
+      uri: matched.uri,
+      mimeType: matched.mimeType ?? 'text/html',
+      text: matched.text,
+      blob: matched.blob,
+    },
+    serverId: mcp.serverId,
+    toolName: mcp.serverToolName ?? tool.name,
+    meta: undefined,
+  })
 }
 
 /**
