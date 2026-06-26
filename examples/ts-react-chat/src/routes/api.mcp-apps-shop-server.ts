@@ -33,9 +33,27 @@ interface Product {
 }
 
 const PRODUCTS: Array<Product> = [
-  { id: 'aurora-headphones', name: 'Aurora Headphones', emoji: '🎧', price: 199, blurb: 'Wireless ANC over-ear' },
-  { id: 'nimbus-keyboard', name: 'Nimbus Keyboard', emoji: '⌨️', price: 129, blurb: 'Low-profile mechanical' },
-  { id: 'lumen-lamp', name: 'Lumen Desk Lamp', emoji: '💡', price: 79, blurb: 'Warm/cool dimmable' },
+  {
+    id: 'aurora-headphones',
+    name: 'Aurora Headphones',
+    emoji: '🎧',
+    price: 199,
+    blurb: 'Wireless ANC over-ear',
+  },
+  {
+    id: 'nimbus-keyboard',
+    name: 'Nimbus Keyboard',
+    emoji: '⌨️',
+    price: 129,
+    blurb: 'Low-profile mechanical',
+  },
+  {
+    id: 'lumen-lamp',
+    name: 'Lumen Desk Lamp',
+    emoji: '💡',
+    price: 79,
+    blurb: 'Warm/cool dimmable',
+  },
 ]
 
 // Hand-rolled MCP Apps widget. Plain JS (no bundler): it completes the
@@ -208,7 +226,8 @@ function createShopMcpServer(): McpServer {
   server.registerTool(
     'buy_product',
     {
-      description: 'Place an order for a product by id. Called by the storefront widget.',
+      description:
+        'Place an order for a product by id. Called by the storefront widget.',
       inputSchema: { productId: z.string() },
       outputSchema: {
         orderId: z.string(),
@@ -223,7 +242,9 @@ function createShopMcpServer(): McpServer {
       const product = PRODUCTS.find((p) => p.id === productId)
       if (!product) {
         return {
-          content: [{ type: 'text' as const, text: `Unknown product: ${productId}` }],
+          content: [
+            { type: 'text' as const, text: `Unknown product: ${productId}` },
+          ],
           isError: true,
         }
       }
@@ -249,7 +270,9 @@ function createShopMcpServer(): McpServer {
     PRODUCTS_URI,
     { description: 'Interactive storefront widget', mimeType: 'text/html' },
     () => ({
-      contents: [{ uri: PRODUCTS_URI, mimeType: 'text/html', text: widgetHtml() }],
+      contents: [
+        { uri: PRODUCTS_URI, mimeType: 'text/html', text: widgetHtml() },
+      ],
     }),
   )
 
