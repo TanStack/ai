@@ -8,11 +8,7 @@ import { useTranscription } from '../src/use-transcription'
 import { useSummarize } from '../src/use-summarize'
 import { useGenerateVideo } from '../src/use-generate-video'
 import { createMockConnectionAdapter } from './test-utils'
-import type {
-  StreamChunk,
-  TTSResult,
-  TranscriptionResult,
-} from '@tanstack/ai'
+import type { StreamChunk, TTSResult, TranscriptionResult } from '@tanstack/ai'
 import { EventType } from '@tanstack/ai'
 
 // Helper to create generation stream chunks

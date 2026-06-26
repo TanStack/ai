@@ -112,9 +112,11 @@ export function useTranscription<TTransformed = void>(
     outputKind: 'text' as const,
   }
   const { generate, result, isLoading, error, status, stop, reset } =
-    useGeneration<TranscriptionGenerateInput, TranscriptionResult, TTransformed>(
-      { ...options, devtools },
-    )
+    useGeneration<
+      TranscriptionGenerateInput,
+      TranscriptionResult,
+      TTransformed
+    >({ ...options, devtools })
 
   return {
     generate: generate as (input: TranscriptionGenerateInput) => Promise<void>,

@@ -9,11 +9,7 @@ import { useTranscription } from '../src/use-transcription'
 import { useSummarize } from '../src/use-summarize'
 import { useGenerateVideo } from '../src/use-generate-video'
 import { createMockConnectionAdapter } from './test-utils'
-import type {
-  StreamChunk,
-  TTSResult,
-  TranscriptionResult,
-} from '@tanstack/ai'
+import type { StreamChunk, TTSResult, TranscriptionResult } from '@tanstack/ai'
 import type { DeepReadonly } from 'vue'
 
 // Helper to create generation stream chunks
@@ -785,9 +781,11 @@ describe('onResult transform', () => {
         onResult: (raw) => ({ playable: raw.audio.length > 0 }),
       }),
     )
-    expectTypeOf(result.result.value).toEqualTypeOf<DeepReadonly<{
-      playable: boolean
-    } | null>>()
+    expectTypeOf(result.result.value).toEqualTypeOf<
+      DeepReadonly<{
+        playable: boolean
+      } | null>
+    >()
 
     await result.generate({ prompt: 'test' })
     await flushPromises()
@@ -847,9 +845,11 @@ describe('onResult transform', () => {
         onResult: (raw: StreamResult) => ({ count: raw.images.length }),
       }),
     )
-    expectTypeOf(result.result.value).toEqualTypeOf<DeepReadonly<{
-      count: number
-    } | null>>()
+    expectTypeOf(result.result.value).toEqualTypeOf<
+      DeepReadonly<{
+        count: number
+      } | null>
+    >()
 
     await result.generate({ prompt: 'test' })
     await flushPromises()
@@ -878,9 +878,11 @@ describe('onResult transform', () => {
         }),
       }),
     )
-    expectTypeOf(result.result.value).toEqualTypeOf<DeepReadonly<{
-      audioUrl: string
-    } | null>>()
+    expectTypeOf(result.result.value).toEqualTypeOf<
+      DeepReadonly<{
+        audioUrl: string
+      } | null>
+    >()
 
     await result.generate({ text: 'Hello' })
     await flushPromises()

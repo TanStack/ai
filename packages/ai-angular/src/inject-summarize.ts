@@ -39,10 +39,12 @@ export function injectSummarize<TTransformed = void>(
     outputKind: 'text' as const,
   }
   const { generate, result, isLoading, error, status, stop, reset } =
-    injectGeneration<SummarizeGenerateInput, SummarizationResult, TTransformed>({
-      ...options,
-      devtools,
-    })
+    injectGeneration<SummarizeGenerateInput, SummarizationResult, TTransformed>(
+      {
+        ...options,
+        devtools,
+      },
+    )
   return {
     generate: generate as (input: SummarizeGenerateInput) => Promise<void>,
     result,

@@ -8,11 +8,7 @@ import { useTranscription } from '../src/use-transcription'
 import { useSummarize } from '../src/use-summarize'
 import { useGenerateVideo } from '../src/use-generate-video'
 import { createMockConnectionAdapter } from './test-utils'
-import type {
-  StreamChunk,
-  TTSResult,
-  TranscriptionResult,
-} from '@tanstack/ai'
+import type { StreamChunk, TTSResult, TranscriptionResult } from '@tanstack/ai'
 import { EventType } from '@tanstack/ai'
 
 // Helper to create generation stream chunks
@@ -811,7 +807,9 @@ describe('onResult transform', () => {
       }),
     )
     // Without a transform, `result` stays the raw TranscriptionResult.
-    expectTypeOf(result.current.result).toEqualTypeOf<TranscriptionResult | null>()
+    expectTypeOf(
+      result.current.result,
+    ).toEqualTypeOf<TranscriptionResult | null>()
   })
 
   it('narrows the wrapper result type to the transform return', () => {

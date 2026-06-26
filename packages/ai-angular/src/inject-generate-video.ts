@@ -64,7 +64,10 @@ export function injectGenerateVideo<TTransformed = void>(
 > {
   assertInInjectionContext(injectGenerateVideo)
 
-  type TOutput = InferGenerationOutputFromReturn<VideoGenerateResult, TTransformed>
+  type TOutput = InferGenerationOutputFromReturn<
+    VideoGenerateResult,
+    TTransformed
+  >
 
   const destroyRef = inject(DestroyRef)
   const injector = inject(Injector)
