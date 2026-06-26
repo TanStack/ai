@@ -1,16 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { chat, toServerSentEventsStream } from '@tanstack/ai'
-import { withSandbox } from '@tanstack/ai-sandbox'
-import {
-  HARNESSES,
-  buildSandbox,
-  buildTriagePrompt,
-  fetchIssue,
-  isHarness,
-  isProvider,
-  missingEnv,
-  parseIssueUrl,
-} from '../sandbox-triage'
 import type { StreamChunk } from '@tanstack/ai'
 
 interface TriageData {
@@ -32,6 +20,14 @@ export const Route = createFileRoute('/api/sandbox-triage')({
     handlers: {
       POST: async ({ request }) => {
         if (request.signal.aborted) return new Response(null, { status: 499 })
+
+        const [{ chat, toServerSentEventsStream }, { withSandbox }, triage] =
+          await Promise.all([
+            import('@tanstack/ai'),
+            import('@tanstack/ai-sandbox'),
+            import('../sandbox-triage'),
+          ])
+        const { HARNESSES, buildSandbox, buildTriagePrompt, fetchIssue, isHarness, isProvider, missingEnv, parseIssueUrl } = triage
 
         let data: TriageData
         try {

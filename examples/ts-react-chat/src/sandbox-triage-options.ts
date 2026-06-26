@@ -1,14 +1,31 @@
 /**
- * Client-safe re-exports from sandbox-triage for use in the /sandboxes page.
+ * Client-safe definitions for use in the /sandboxes page.
  *
- * This module deliberately does NOT import the harness/provider adapter
- * packages (ai-claude-code, ai-codex, etc.) because those pull in
- * server-only native deps (dockerode, @anthropic-ai/sdk, …) that must not
- * reach the client bundle.  The page only needs picker labels + parseVerdict.
+ * This module deliberately does NOT import from sandbox-triage.ts or any
+ * harness/provider adapter packages (ai-claude-code, ai-codex, etc.) because
+ * those pull in server-only native deps (dockerode, @anthropic-ai/sdk,
+ * @modelcontextprotocol/sdk/server/streamableHttp → @hono/node-server, …)
+ * that must not reach the client bundle. All values here are pure, no imports.
  */
 
-export type { HarnessName, ProviderName, Verdict } from './sandbox-triage'
-export { parseVerdict } from './sandbox-triage'
+// Pure string-literal types — kept in sync with sandbox-triage.ts manually.
+export type HarnessName = 'claude-code' | 'codex' | 'gemini-cli' | 'opencode'
+export type ProviderName = 'docker' | 'local' | 'vercel' | 'daytona'
+export type Verdict = 'relevant' | 'not-relevant' | 'uncertain'
+
+const VERDICTS: ReadonlySet<Verdict> = new Set([
+  'relevant',
+  'not-relevant',
+  'uncertain',
+])
+
+/** Read the agent's required `VERDICT: <value>` first line. Returns null if missing/unknown. */
+export function parseVerdict(text: string): Verdict | null {
+  const line = text.split('\n').find((l) => /^\s*verdict\s*:/i.test(l))
+  if (!line) return null
+  const value = line.split(':')[1]?.trim().toLowerCase()
+  return value && VERDICTS.has(value as Verdict) ? (value as Verdict) : null
+}
 
 // Picker-safe shape: only the label, no factory functions or server-only deps.
 export interface PickerSpec {
