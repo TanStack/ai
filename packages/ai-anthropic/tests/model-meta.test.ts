@@ -1,6 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import {
   ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS,
+  ANTHROPIC_MAX_NONSTREAMING_TOKENS,
   getAnthropicDefaultMaxTokens,
 } from '../src/model-meta'
 import type {
@@ -350,5 +351,42 @@ describe('getAnthropicDefaultMaxTokens (#849)', () => {
     expect(getAnthropicDefaultMaxTokens('claude-opus-4.8')).toBeGreaterThan(
       1024,
     )
+  })
+
+  it('clamps the default to the non-streaming limit for non-streaming requests (#849)', () => {
+    // The Anthropic SDK refuses non-streaming requests whose `max_tokens`
+    // could exceed its 10-minute timeout (~21_333). The streaming path keeps
+    // the full ceiling; the non-streaming (`structuredOutput`) path must clamp.
+    expect(ANTHROPIC_MAX_NONSTREAMING_TOKENS).toBeLessThanOrEqual(21_333)
+
+    // Opus 128K and Sonnet 64K both exceed the non-streaming limit → clamped.
+    expect(
+      getAnthropicDefaultMaxTokens('claude-opus-4.8', { stream: false }),
+    ).toBe(ANTHROPIC_MAX_NONSTREAMING_TOKENS)
+    expect(
+      getAnthropicDefaultMaxTokens('claude-sonnet-4-6', { stream: false }),
+    ).toBe(ANTHROPIC_MAX_NONSTREAMING_TOKENS)
+    // Unknown model fallback (64K) is also above the limit → clamped.
+    expect(
+      getAnthropicDefaultMaxTokens('some-future-claude-model', {
+        stream: false,
+      }),
+    ).toBe(ANTHROPIC_MAX_NONSTREAMING_TOKENS)
+  })
+
+  it('does not clamp a model whose ceiling is already below the non-streaming limit (#849)', () => {
+    // claude-3-haiku's 4K ceiling is under the non-streaming limit, so the
+    // non-streaming path returns the real ceiling, not the (larger) cap.
+    expect(
+      getAnthropicDefaultMaxTokens('claude-3-haiku', { stream: false }),
+    ).toBe(4_000)
+  })
+
+  it('keeps the full ceiling for streaming requests (default) (#849)', () => {
+    expect(
+      getAnthropicDefaultMaxTokens('claude-opus-4.8', { stream: true }),
+    ).toBe(128_000)
+    // Omitting the option defaults to streaming.
+    expect(getAnthropicDefaultMaxTokens('claude-opus-4.8')).toBe(128_000)
   })
 })

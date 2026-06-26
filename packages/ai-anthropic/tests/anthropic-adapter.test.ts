@@ -8,6 +8,7 @@ import {
 } from '@tanstack/ai'
 import { AnthropicTextAdapter } from '../src/adapters/text'
 import type { AnthropicTextProviderOptions } from '../src/adapters/text'
+import { ANTHROPIC_MAX_NONSTREAMING_TOKENS } from '../src/model-meta'
 import { z } from 'zod'
 
 const mocks = vi.hoisted(() => {
@@ -547,6 +548,51 @@ describe('Anthropic adapter option mapping', () => {
       String(call[0]).includes('truncated at the default max_tokens'),
     )
     expect(truncationWarning).toBeUndefined()
+  })
+
+  it('clamps the default max_tokens on the non-streaming structured-output path so it never trips the SDK 10-minute guard (#849)', async () => {
+    // The structured-output fallback issues a NON-streaming
+    // `messages.create({ stream: false })`. The Anthropic SDK throws
+    // "Streaming is required for operations that may take longer than 10
+    // minutes" once max_tokens exceeds ~21_333, so the defaulted ceiling must
+    // be clamped here even though the streaming chat path keeps the full 64K.
+    mocks.betaMessagesCreate.mockResolvedValueOnce({
+      id: 'msg_structured',
+      type: 'message',
+      role: 'assistant',
+      model: 'claude-3-7-sonnet',
+      content: [
+        {
+          type: 'tool_use',
+          id: 'toolu_structured_output',
+          name: 'structured_output',
+          input: { recommendation: 'Strat', price: 1299 },
+        },
+      ],
+      stop_reason: 'tool_use',
+      usage: { input_tokens: 10, output_tokens: 20 },
+    })
+
+    const adapter = createAdapter('claude-3-7-sonnet')
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'recommend a guitar as json' }],
+      outputSchema: z.object({
+        recommendation: z.string(),
+        price: z.number(),
+      }),
+      stream: true,
+    })) {
+      // consume stream
+    }
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+    expect(payload.stream).toBe(false)
+    // Clamped to the non-streaming limit — NOT claude-3-7-sonnet's full 64K
+    // streaming ceiling, which would make the SDK throw before the request.
+    expect(payload.max_tokens).toBe(ANTHROPIC_MAX_NONSTREAMING_TOKENS)
+    expect(payload.max_tokens).toBeLessThanOrEqual(21_333)
   })
 
   it('native combined mode (#605): wires outputSchema into output_format alongside tools on Claude 4.5+', async () => {

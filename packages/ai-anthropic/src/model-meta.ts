@@ -550,15 +550,41 @@ const ANTHROPIC_MODEL_MAX_OUTPUT_TOKENS: Record<string, number> = {
 }
 
 /**
+ * Largest `max_tokens` the Anthropic SDK permits on a **non-streaming**
+ * request. The SDK refuses to make a non-streaming call it estimates could
+ * exceed its 10-minute timeout, computed as
+ * `(60min * max_tokens) / 128_000 > 10min` — i.e. it throws
+ * `"Streaming is required for operations that may take longer than 10 minutes"`
+ * once `max_tokens > 128_000 * 10 / 60 ≈ 21_333`
+ * (`@anthropic-ai/sdk`'s `calculateNonstreamingTimeout`). The text adapter's
+ * only non-streaming call is the forced-tool `structuredOutput()` request, so
+ * its defaulted ceiling must stay at or below this; the streaming chat path
+ * keeps the model's full {@link getAnthropicDefaultMaxTokens} ceiling. We sit
+ * just under the boundary (`21_333` would round-trip to exactly 10min). This
+ * caps only the *default* — an explicit oversized `max_tokens` from the caller
+ * still surfaces the SDK's "use streaming" error, which is the correct signal.
+ */
+export const ANTHROPIC_MAX_NONSTREAMING_TOKENS = 21_000
+
+/**
  * Resolve the default `max_tokens` for a model: its known `max_output_tokens`
  * ceiling, or {@link ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS} for unknown models.
  * Callers that pass an explicit `max_tokens` bypass this entirely.
+ *
+ * Pass `stream: false` for non-streaming requests (the `structuredOutput()`
+ * path): the result is then clamped to {@link ANTHROPIC_MAX_NONSTREAMING_TOKENS}
+ * so the defaulted ceiling doesn't trip the SDK's non-streaming 10-minute guard
+ * (issue #849). Streaming requests (the default) are unaffected and get the
+ * model's full ceiling.
  */
-export function getAnthropicDefaultMaxTokens(model: string): number {
-  return (
+export function getAnthropicDefaultMaxTokens(
+  model: string,
+  { stream = true }: { stream?: boolean } = {},
+): number {
+  const ceiling =
     ANTHROPIC_MODEL_MAX_OUTPUT_TOKENS[model] ??
     ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS
-  )
+  return stream ? ceiling : Math.min(ceiling, ANTHROPIC_MAX_NONSTREAMING_TOKENS)
 }
 
 /**
