@@ -197,9 +197,17 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
       })
 
       if (config.workspace) {
-        await bootstrapWorkspace(created, config.workspace, {
-          signal: ctx.signal,
-        })
+        try {
+          await bootstrapWorkspace(created, config.workspace, {
+            signal: ctx.signal,
+          })
+        } catch (error) {
+          // Bootstrap failed after the sandbox was created but before it was
+          // recorded — destroy the orphan so a failed/retried run doesn't leak
+          // a (billed) sandbox, then surface the original error.
+          await created.destroy().catch(() => {})
+          throw error
+        }
       }
 
       let latestSnapshotId: string | undefined

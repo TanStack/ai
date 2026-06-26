@@ -97,7 +97,9 @@ export function exposePreviewTool(input: StartRunInput, env: PreviewToolEnv) {
     // created — pass `transport: 'rpc'` on EVERY `getSandbox()` for this id (in your
     // sandbox provider too), or the differing transport disconnects the run's active
     // client. See the SDK `SandboxOptions.transport` note.
-    const sandbox = getSandbox(env.Sandbox, input.threadId, { transport: 'rpc' })
+    const sandbox = getSandbox(env.Sandbox, input.threadId, {
+      transport: 'rpc',
+    })
     // A Cloudflare quick tunnel (`*.trycloudflare.com`) run by `cloudflared` INSIDE
     // the sandbox: it bypasses the local Vite dev server's port entirely (so Vite
     // can't hijack the preview's asset requests) and needs no custom domain on a

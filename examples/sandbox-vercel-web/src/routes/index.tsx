@@ -100,8 +100,8 @@ function PreviewLink({ url }: { url: string }) {
 /**
  * Shown while a request is in flight but no stream chunk has arrived yet — that
  * window is the sandbox booting: `withSandbox` is creating (or resuming) the
- * sandbox and preparing the coding agent before the agent loop streams. It's the
- * slow part of the first message, so make the wait legible.
+ * Vercel microVM and installing the `claude` CLI before the agent loop streams.
+ * It's the slow part of the first message, so make the wait legible.
  */
 function SandboxBooting() {
   return (
@@ -117,8 +117,8 @@ function SandboxBooting() {
               Starting sandbox…
             </span>{' '}
             <span className="text-gray-400">
-              starting the Cloudflare container and installing the coding agent.
-              The first message takes a moment.
+              creating a Vercel microVM and installing the coding agent. The
+              first message takes a moment.
             </span>
           </p>
         </div>
@@ -146,8 +146,8 @@ function Messages({
       <div className="flex-1 flex items-center justify-center px-6 text-center text-gray-500">
         <p className="max-w-md">
           Ask the sandbox agent to build a self-contained TanStack Start app —
-          it scaffolds it, runs it in the container, and hands back a live
-          preview URL. No API keys needed.
+          it scaffolds it, runs it in a Vercel Sandbox microVM, and hands back a
+          live preview URL. No API keys needed for the app.
         </p>
       </div>
     )
@@ -261,9 +261,9 @@ function SandboxAgentPage() {
       <header className="flex items-center justify-between border-b border-indigo-500/10 bg-gray-900/80 px-4 py-3 backdrop-blur-sm">
         <div className="flex items-center gap-2 text-white">
           <Server className="w-5 h-5 text-indigo-400" />
-          <span className="font-semibold">Cloudflare Sandbox Agent</span>
+          <span className="font-semibold">Sandbox Coding Agent</span>
           <span className="text-xs text-gray-500">
-            Claude Code · Worker → Durable Object → Container
+            Claude Code · Vercel Sandbox microVM
           </span>
         </div>
         <div className="flex items-center gap-2 text-sm text-indigo-300">
