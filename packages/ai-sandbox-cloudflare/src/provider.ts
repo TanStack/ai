@@ -74,7 +74,11 @@ class CloudflareProvider implements SandboxProvider {
     // The Durable Object is durable, so the sandbox is always addressable by
     // id. (The container disk may have been wiped on cold start — withSandbox
     // re-bootstraps under the same identity when durableFilesystem is false.)
-    const sandbox = getSandbox(this.config.binding, input.id, this.sandboxOptions)
+    const sandbox = getSandbox(
+      this.config.binding,
+      input.id,
+      this.sandboxOptions,
+    )
     return Promise.resolve(
       new CloudflareHandle(
         input.id,
@@ -86,7 +90,11 @@ class CloudflareProvider implements SandboxProvider {
   }
 
   async destroy(input: SandboxDestroyInput): Promise<void> {
-    const sandbox = getSandbox(this.config.binding, input.id, this.sandboxOptions)
+    const sandbox = getSandbox(
+      this.config.binding,
+      input.id,
+      this.sandboxOptions,
+    )
     await sandbox.destroy()
   }
 }

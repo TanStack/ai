@@ -24,7 +24,8 @@ const { tunnelGetMock, getSandboxMock } = vi.hoisted(() => {
 vi.mock('@cloudflare/sandbox', () => ({ getSandbox: getSandboxMock }))
 
 // Imported AFTER the mock is registered.
-const { PREVIEW_GUIDANCE, exposePreviewTool } = await import('../src/preview-tool')
+const { PREVIEW_GUIDANCE, exposePreviewTool } =
+  await import('../src/preview-tool')
 
 const SANDBOX = {} as unknown as DurableObjectNamespace<Sandbox>
 
