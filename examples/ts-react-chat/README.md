@@ -368,3 +368,23 @@ Files prefixed with `demo` can be safely deleted. They are there to provide a st
 # Learn More
 
 You can learn more about all of the offerings from TanStack in the [TanStack documentation](https://tanstack.com).
+
+## Sandboxes — GitHub issue triage (`/sandboxes`)
+
+Pick a harness adapter (Claude Code, Codex, Gemini CLI, OpenCode) and a sandbox
+provider (Docker, local process, Vercel, Daytona), paste a GitHub **issue URL**,
+and the agent clones that repo into a sandbox, investigates read-only, and
+reports whether the bug is still relevant and its root cause — streaming tool
+calls and file activity live.
+
+### Requirements (real runs)
+
+- **Docker** provider needs a running Docker daemon. **Local** runs the chosen
+  CLI on your host PATH (no isolation). **Vercel**/**Daytona** need their cloud
+  token: `VERCEL_TOKEN` / `DAYTONA_API_KEY`.
+- The chosen harness needs its key in the dev server's env:
+  `ANTHROPIC_API_KEY` (Claude Code / OpenCode), `CODEX_API_KEY` (Codex),
+  `GEMINI_API_KEY` (Gemini CLI).
+- Optional `GITHUB_TOKEN` for private repos / higher rate limits.
+
+Set keys in `.env.local`, then `pnpm dev` and open `/sandboxes`.
