@@ -103,18 +103,31 @@ class DockerProvider implements SandboxProvider {
           : {}),
       },
     })
-    await container.start()
 
-    const handle = new DockerHandle({
-      docker: this.docker,
-      container,
-      workdir: this.workdir,
-      forkFactory: this.forkFactory,
-      removeOnDestroy: this.config.removeOnDestroy ?? true,
-    })
-    // Ensure the workspace dir exists.
-    await handle.fs.mkdir(this.workdir)
-    return handle
+    // If anything after createContainer fails (start, or the first exec to
+    // create the workspace dir), the container already exists and would leak as
+    // a stopped container — these accumulate and strain the daemon. Tear it down
+    // on any instantiation failure before propagating the error.
+    try {
+      await container.start()
+      const handle = new DockerHandle({
+        docker: this.docker,
+        container,
+        workdir: this.workdir,
+        forkFactory: this.forkFactory,
+        removeOnDestroy: this.config.removeOnDestroy ?? true,
+      })
+      // Ensure the workspace dir exists.
+      await handle.fs.mkdir(this.workdir)
+      return handle
+    } catch (error) {
+      try {
+        await container.remove({ force: true, v: true })
+      } catch {
+        // best-effort cleanup — container may not have started / already gone
+      }
+      throw error
+    }
   }
 
   async create(input: SandboxCreateInput): Promise<SandboxHandle> {

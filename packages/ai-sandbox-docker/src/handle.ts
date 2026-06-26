@@ -30,7 +30,11 @@ export const DOCKER_CAPS: SandboxCapabilities = {
   env: true,
   ports: true,
   backgroundProcesses: true,
-  writableStdin: true,
+  // Docker's exec runs over a single hijacked duplex stream; signalling stdin
+  // EOF (`stream.end()`) also tears down stdout, so a process fed its prompt
+  // over stdin loses its streamed output. Declare stdin non-writable so adapters
+  // use the file-redirect path (`cmd < promptfile`) instead — reliable here.
+  writableStdin: false,
   snapshots: true,
   networkPolicy: false,
   durableFilesystem: true, // container fs persists across stop/start (not removal)
