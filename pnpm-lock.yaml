@@ -395,6 +395,12 @@ importers:
 
   examples/ts-react-chat:
     dependencies:
+      '@mcp-ui/client':
+        specifier: ^7.1.1
+        version: 7.1.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.29.0
+        version: 1.29.0(zod@4.2.1)
       '@tailwindcss/vite':
         specifier: ^4.1.18
         version: 4.1.18(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
@@ -528,6 +534,9 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^5.1.2
         version: 5.1.2(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+      concurrently:
+        specifier: ^9.1.2
+        version: 9.2.1
       jsdom:
         specifier: ^27.2.0
         version: 27.3.0(postcss@8.5.15)
@@ -10619,10 +10628,6 @@ packages:
     resolution: {integrity: sha512-tAAg/72/VxOUW7RQSX1pIxJVucYKcjFjfvj60L57jrZpYCHC3XN0WCQ3sNYL4Gmvv+7GPvTAjc+KSdeNuE8oWQ==}
     engines: {node: '>=12.22.0'}
 
-  ip-address@10.1.0:
-    resolution: {integrity: sha512-XXADHxXmvT9+CRxhXg56LJovE+bmWnEWB78LB83VZTprKTmaC5QfruXocxzTZ2Kl0DNwKuBdlIhjL8LeY8Sf8Q==}
-    engines: {node: '>= 12'}
-
   ip-address@10.2.0:
     resolution: {integrity: sha512-/+S6j4E9AHvW9SWMSEY9Xfy66O5PWvVEJ08O0y5JGyEKQpojb0K0GKpz/v5HJ/G0vi3D2sjGK78119oXZeE0qA==}
     engines: {node: '>= 12'}
@@ -17472,7 +17477,7 @@ snapshots:
 
   '@mcp-ui/client@7.1.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
     dependencies:
-      '@modelcontextprotocol/ext-apps': 1.7.4(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(zod@3.25.76)
+      '@modelcontextprotocol/ext-apps': 1.7.4(@modelcontextprotocol/sdk@1.29.0(zod@4.2.1))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(zod@3.25.76)
       '@modelcontextprotocol/sdk': 1.29.0(zod@3.25.76)
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
@@ -17516,9 +17521,9 @@ snapshots:
 
   '@microsoft/tsdoc@0.15.1': {}
 
-  '@modelcontextprotocol/ext-apps@1.7.4(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(zod@3.25.76)':
+  '@modelcontextprotocol/ext-apps@1.7.4(@modelcontextprotocol/sdk@1.29.0(zod@4.2.1))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(zod@3.25.76)':
     dependencies:
-      '@modelcontextprotocol/sdk': 1.29.0(zod@3.25.76)
+      '@modelcontextprotocol/sdk': 1.29.0(zod@4.2.1)
       '@standard-schema/spec': 1.1.0
       zod: 3.25.76
     optionalDependencies:
@@ -17544,6 +17549,28 @@ snapshots:
       raw-body: 3.0.2
       zod: 3.25.76
       zod-to-json-schema: 3.25.2(zod@3.25.76)
+    transitivePeerDependencies:
+      - supports-color
+
+  '@modelcontextprotocol/sdk@1.29.0(zod@4.2.1)':
+    dependencies:
+      '@hono/node-server': 1.19.14(hono@4.12.23)
+      ajv: 8.20.0
+      ajv-formats: 3.0.1(ajv@8.20.0)
+      content-type: 1.0.5
+      cors: 2.8.6
+      cross-spawn: 7.0.6
+      eventsource: 3.0.7
+      eventsource-parser: 3.1.0
+      express: 5.2.1
+      express-rate-limit: 8.5.2(express@5.2.1)
+      hono: 4.12.23
+      jose: 6.2.0
+      json-schema-typed: 8.0.2
+      pkce-challenge: 5.0.1
+      raw-body: 3.0.2
+      zod: 4.2.1
+      zod-to-json-schema: 3.25.2(zod@4.2.1)
     transitivePeerDependencies:
       - supports-color
 
@@ -24461,8 +24488,6 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  ip-address@10.1.0: {}
-
   ip-address@10.2.0: {}
 
   ipaddr.js@1.9.1: {}
@@ -28062,7 +28087,7 @@ snapshots:
 
   socks@2.8.7:
     dependencies:
-      ip-address: 10.1.0
+      ip-address: 10.2.0
       smart-buffer: 4.2.0
 
   solid-js@1.9.10:
@@ -29638,6 +29663,10 @@ snapshots:
   zod-to-json-schema@3.25.2(zod@3.25.76):
     dependencies:
       zod: 3.25.76
+
+  zod-to-json-schema@3.25.2(zod@4.2.1):
+    dependencies:
+      zod: 4.2.1
 
   zod-to-json-schema@3.25.2(zod@4.3.6):
     dependencies:
