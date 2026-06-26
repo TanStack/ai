@@ -223,10 +223,15 @@ export function makeExposePreviewTool(
         .int()
         .min(1024)
         .max(65535)
-        .describe(`The port the dev server is listening on, e.g. ${PREVIEW_PORT}.`),
+        .describe(
+          `The port the dev server is listening on, e.g. ${PREVIEW_PORT}.`,
+        ),
     }),
   }).server(async ({ port }) => {
-    const handle = await definition.ensure({ threadId, runId: 'expose-preview' })
+    const handle = await definition.ensure({
+      threadId,
+      runId: 'expose-preview',
+    })
     const channel = await handle.ports.connect(port)
     return { url: channel.url }
   })

@@ -328,7 +328,7 @@ honest.
 
 1. **Container → Worker bridge needs a reachable host.** The agent's container calls
    back to the Worker for the `/_bridge` MCP tool-bridge + `/tool-exec`: it just needs
-   to *reach* the Worker. **Local** → `host.docker.internal:3001` (Docker host gateway,
+   to _reach_ the Worker. **Local** → `host.docker.internal:3001` (Docker host gateway,
    http); **deploy** → the request host (no `PUBLIC_HOSTNAME` needed; request-derivation
    is safe on Cloudflare because the edge only routes hostnames you own). A wrong
    `PUBLIC_HOSTNAME` override surfaces as **"the tanstack MCP server hasn't come up"**
