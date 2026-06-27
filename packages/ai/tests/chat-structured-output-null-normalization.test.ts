@@ -293,6 +293,66 @@ describe('convertSchemaForStructuredOutput → undoNullWidening round trip', () 
     expect('meta' in result).toBe(false)
   })
 
+  it('handles a required array property with boolean items: false without crashing', () => {
+    // All required + no optional fields → nullWideningMap is undefined (pruned).
+    // The important thing is that it doesn't crash and preserves the boolean items.
+    const { jsonSchema } = convertSchemaForStructuredOutput({
+      type: 'object',
+      properties: { tags: { type: 'array', items: false } },
+      required: ['tags'],
+    })
+    expect(jsonSchema).toBeDefined()
+    expect(jsonSchema!.properties?.tags).toBeDefined()
+  })
+
+  it('handles an optional array property with boolean items: false', () => {
+    const schema = {
+      type: 'object',
+      properties: { tags: { type: 'array', items: false } },
+      required: [],
+    } as const
+    const { nullWideningMap } = convertSchemaForStructuredOutput(schema)
+    // The outer field is widened (optional → nullable), but items (boolean) is untouched
+    expect(nullWideningMap).toBeDefined()
+    const tagsMap = nullWideningMap!.properties?.tags as Record<string, unknown> | undefined
+    expect(tagsMap).toBeDefined()
+    // widened: true because the field itself was made nullable
+    expect((tagsMap as Record<string, unknown>).widened).toBe(true)
+  })
+
+  it('handles a required array property with items: true', () => {
+    // All required → nullWideningMap is undefined; just check no crash.
+    const { jsonSchema } = convertSchemaForStructuredOutput({
+      type: 'object',
+      properties: { tags: { type: 'array', items: true } },
+      required: ['tags'],
+    })
+    expect(jsonSchema).toBeDefined()
+  })
+
+  it('handles tuple items containing a boolean element', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        mixed: {
+          type: 'array',
+          items: [
+            false,
+            { type: 'object', properties: { val: { type: 'string' } }, required: ['val'] },
+          ],
+        },
+      },
+      required: ['mixed'],
+    } as const
+    const { jsonSchema } =
+      convertSchemaForStructuredOutput(schema)
+    // Boolean items should be preserved
+    expect(jsonSchema!.properties?.mixed.items).toBeInstanceOf(Array)
+    const items = jsonSchema!.properties?.mixed.items as Array<unknown>
+    expect(items[0]).toBe(false)
+    expect((items[1] as Record<string, unknown>).additionalProperties).toBe(false)
+  })
+
   it('keeps a genuine `.nullable()` null inside array items', () => {
     // The widener does NOT touch `note` (it's `.nullable()`, not `.optional()`),
     // so its null must survive even though it sits inside an array item — the

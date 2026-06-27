@@ -1,4 +1,4 @@
-import { makeStructuredOutputCompatible } from './schema-converter'
+import { makeStructuredOutputCompatible } from '@tanstack/ai-utils'
 import type { JSONSchema, Tool } from '@tanstack/ai'
 
 /**
