@@ -5,9 +5,8 @@ import {
   toRunErrorPayload,
   toRunErrorRawEvent,
 } from '@tanstack/ai/adapter-internals'
-import { generateId } from '@tanstack/ai-utils'
+import { generateId, makeStructuredOutputCompatible } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../internal/request-options'
-import { makeStructuredOutputCompatible } from '../internal/schema-converter'
 import { convertFunctionToolToResponsesFormat } from '../internal/responses-tool-converter'
 import { isWebSearchTool } from '../tools/web-search-tool'
 import { isWebFetchTool } from '../tools/web-fetch-tool'

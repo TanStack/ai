@@ -5,9 +5,8 @@ import {
   toRunErrorPayload,
   toRunErrorRawEvent,
 } from '@tanstack/ai/adapter-internals'
-import { generateId } from '@tanstack/ai-utils'
+import { generateId, makeStructuredOutputCompatible  } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../internal/request-options'
-import { makeStructuredOutputCompatible } from '../internal/schema-converter'
 import { convertToolsToProviderFormat } from '../tools'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
 import { buildOpenRouterUsage } from '../usage'

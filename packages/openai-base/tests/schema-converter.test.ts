@@ -392,6 +392,86 @@ describe('makeStructuredOutputCompatible', () => {
     expect(resultTuple.properties.tupleField.items[1].properties).toBeDefined()
     expect(resultTuple.properties.tupleField.items[1].additionalProperties).toBe(false)
   })
+
+  it('should handle tuple items with mixed boolean and object elements', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        mixed: {
+          type: 'array',
+          items: [
+            false,
+            { type: 'object', properties: { val: { type: 'number' } }, required: ['val'] },
+            true,
+            { type: 'string' },
+          ],
+        },
+      },
+      required: ['mixed'],
+    }
+    const result: any = makeStructuredOutputCompatible(schema, ['mixed'])
+    expect(result.properties.mixed.items).toBeInstanceOf(Array)
+    expect(result.properties.mixed.items[0]).toBe(false)
+    expect(result.properties.mixed.items[1].additionalProperties).toBe(false)
+    expect(result.properties.mixed.items[1].properties.val.type).toBe('number')
+    expect(result.properties.mixed.items[2]).toBe(true)
+    expect(result.properties.mixed.items[3].type).toBe('string')
+  })
+
+  it('should handle tuple items where all elements are boolean', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        allBool: {
+          type: 'array',
+          items: [false, true, false],
+        },
+      },
+      required: ['allBool'],
+    }
+    const result: any = makeStructuredOutputCompatible(schema, ['allBool'])
+    expect(result.properties.allBool.items).toBeInstanceOf(Array)
+    expect(result.properties.allBool.items).toEqual([false, true, false])
+  })
+
+  it('should handle top-level array with tuple items containing booleans', () => {
+    const topLevelTuple = {
+      type: 'array',
+      items: [false, { type: 'object', properties: { x: { type: 'string' } } }, true],
+    }
+    const result: any = makeStructuredOutputCompatible(topLevelTuple)
+    expect(result.items).toBeInstanceOf(Array)
+    expect(result.items[0]).toBe(false)
+    expect(result.items[1].additionalProperties).toBe(false)
+    expect(result.items[2]).toBe(true)
+  })
+
+  it('should handle top-level array with single object items', () => {
+    const topLevelArray = {
+      type: 'array',
+      items: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+    }
+    const result: any = makeStructuredOutputCompatible(topLevelArray)
+    expect(result.items.additionalProperties).toBe(false)
+    expect(result.items.required).toEqual(['id'])
+  })
+
+  it('should handle optional array with boolean items without crashing on null-widening', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        optFalseItems: { type: 'array', items: false },
+        optTrueItems: { type: 'array', items: true },
+      },
+      required: [],
+    }
+    const result: any = makeStructuredOutputCompatible(schema, [])
+    // Optional fields should have type widened to include null
+    expect(result.properties.optFalseItems.type).toEqual(['array', 'null'])
+    expect(result.properties.optFalseItems.items).toBe(false)
+    expect(result.properties.optTrueItems.type).toEqual(['array', 'null'])
+    expect(result.properties.optTrueItems.items).toBe(true)
+  })
 })
 
 describe('isStrictModeCompatible', () => {

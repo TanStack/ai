@@ -1,7 +1,6 @@
 /**
  * Transform a JSON schema to be compatible with OpenAI-style structured output requirements.
- * The base requirements (which OpenRouter inherits because it routes to upstream OpenAI-compatible
- * structured-output backends) are:
+ * The base requirements are:
  * - All properties must be in the `required` array
  * - Optional fields should have null added to their type union
  * - additionalProperties must be false for objects
@@ -31,22 +30,17 @@ export function makeStructuredOutputCompatible(
       if (prop.type === 'object' && prop.properties) {
         prop = makeStructuredOutputCompatible(prop, prop.required || [])
       } else if (prop.type === 'array' && prop.items) {
-        let coercedItems = prop.items
-        if (Array.isArray(prop.items)) {
-          coercedItems = prop.items.map((item) =>
-            typeof item === 'object' && item !== null
-              ? makeStructuredOutputCompatible(item, item.required || [])
-              : item,
-          )
-        } else if (typeof prop.items === 'object' && prop.items !== null) {
-          coercedItems = makeStructuredOutputCompatible(
-            prop.items,
-            prop.items.required || [],
-          )
-        }
-        prop = {
-          ...prop,
-          items: coercedItems,
+        if (typeof prop.items !== 'boolean') {
+          prop = {
+            ...prop,
+            items: Array.isArray(prop.items)
+              ? prop.items.map((item: any) =>
+                  typeof item !== 'boolean'
+                    ? makeStructuredOutputCompatible(item, item.required || [])
+                    : item,
+                )
+              : makeStructuredOutputCompatible(prop.items, prop.items.required || []),
+          }
         }
       } else if (prop.anyOf) {
         prop = makeStructuredOutputCompatible(prop, prop.required || [])
@@ -79,17 +73,14 @@ export function makeStructuredOutputCompatible(
   }
 
   if (result.type === 'array' && result.items) {
-    if (Array.isArray(result.items)) {
-      result.items = result.items.map((item) =>
-        typeof item === 'object' && item !== null
-          ? makeStructuredOutputCompatible(item, item.required || [])
-          : item,
-      )
-    } else if (typeof result.items === 'object' && result.items !== null) {
-      result.items = makeStructuredOutputCompatible(
-        result.items,
-        result.items.required || [],
-      )
+    if (typeof result.items !== 'boolean') {
+      result.items = Array.isArray(result.items)
+        ? result.items.map((item: any) =>
+            typeof item !== 'boolean'
+              ? makeStructuredOutputCompatible(item, item.required || [])
+              : item,
+          )
+        : makeStructuredOutputCompatible(result.items, result.items.required || [])
     }
   }
 

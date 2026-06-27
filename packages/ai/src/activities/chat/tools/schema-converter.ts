@@ -148,7 +148,9 @@ function makeStructuredOutputCompatible(
       } else if (prop.type === 'array' && prop.items) {
         if (Array.isArray(prop.items)) {
           const nestedItemsList = prop.items.map((item) =>
-            makeStructuredOutputCompatible(item, item.required || []),
+            typeof item !== 'boolean'
+              ? makeStructuredOutputCompatible(item, item.required || [])
+              : { schema: item, nullWidening: {} },
           )
           const schemas = nestedItemsList.map((n) => n.schema)
           const maps: Array<NullWideningMap> = nestedItemsList.map((n) => n.nullWidening ?? {})
@@ -209,7 +211,9 @@ function makeStructuredOutputCompatible(
   if (result.type === 'array' && result.items) {
     if (Array.isArray(result.items)) {
       const nestedItemsList = result.items.map((item) =>
-        makeStructuredOutputCompatible(item, item.required || []),
+        typeof item !== 'boolean'
+          ? makeStructuredOutputCompatible(item, item.required || [])
+          : { schema: item, nullWidening: {} },
       )
       result.items = nestedItemsList.map((n) => n.schema)
       const maps: Array<NullWideningMap> = nestedItemsList.map((n) => n.nullWidening ?? {})
