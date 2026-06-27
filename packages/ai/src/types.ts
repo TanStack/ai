@@ -70,7 +70,7 @@ export type ToolOutputState = 'output-available' | 'output-error'
 export interface JSONSchema {
   type?: string | Array<string>
   properties?: Record<string, JSONSchema>
-  items?: JSONSchema | Array<JSONSchema>
+  items?: boolean | JSONSchema | Array<JSONSchema>
   required?: Array<string>
   enum?: Array<unknown>
   const?: unknown
