@@ -206,7 +206,9 @@ function coerceStrictSchema(
       } else if (prop.type === 'array' && prop.items) {
         prop = {
           ...prop,
-          items: coerceStrictSchema(prop.items, prop.items.required || []),
+          items: typeof prop.items === 'object' && prop.items !== null
+            ? coerceStrictSchema(prop.items, prop.items.required || [])
+            : prop.items,
         }
       } else if (prop.anyOf) {
         prop = coerceStrictSchema(prop, prop.required || [])
@@ -239,7 +241,9 @@ function coerceStrictSchema(
   }
 
   if (result.type === 'array' && result.items) {
-    result.items = coerceStrictSchema(result.items, result.items.required || [])
+    result.items = typeof result.items === 'object' && result.items !== null
+      ? coerceStrictSchema(result.items, result.items.required || [])
+      : result.items
   }
 
   if (result.anyOf && Array.isArray(result.anyOf)) {

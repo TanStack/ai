@@ -147,7 +147,7 @@ function makeStructuredOutputCompatible(
         childMap = nested.nullWidening
       } else if (prop.type === 'array' && prop.items) {
         const items = Array.isArray(prop.items) ? prop.items[0] : prop.items
-        const nestedItems = items
+        const nestedItems = items && typeof items === 'object'
           ? makeStructuredOutputCompatible(items, items.required || [])
           : undefined
         properties[propName] = {
@@ -191,7 +191,7 @@ function makeStructuredOutputCompatible(
   // Handle array types with object items
   if (result.type === 'array' && result.items) {
     const items = Array.isArray(result.items) ? result.items[0] : result.items
-    if (items) {
+    if (items && typeof items === 'object') {
       const nestedItems = makeStructuredOutputCompatible(
         items,
         items.required || [],

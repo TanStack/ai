@@ -33,10 +33,12 @@ export function makeStructuredOutputCompatible(
       } else if (prop.type === 'array' && prop.items) {
         prop = {
           ...prop,
-          items: makeStructuredOutputCompatible(
-            prop.items,
-            prop.items.required || [],
-          ),
+          items: typeof prop.items === 'object' && prop.items !== null
+            ? makeStructuredOutputCompatible(
+                prop.items,
+                prop.items.required || [],
+              )
+            : prop.items,
         }
       } else if (prop.anyOf) {
         prop = makeStructuredOutputCompatible(prop, prop.required || [])
@@ -69,10 +71,12 @@ export function makeStructuredOutputCompatible(
   }
 
   if (result.type === 'array' && result.items) {
-    result.items = makeStructuredOutputCompatible(
-      result.items,
-      result.items.required || [],
-    )
+    result.items = typeof result.items === 'object' && result.items !== null
+      ? makeStructuredOutputCompatible(
+          result.items,
+          result.items.required || [],
+        )
+      : result.items
   }
 
   if (result.anyOf && Array.isArray(result.anyOf)) {

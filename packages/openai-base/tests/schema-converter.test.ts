@@ -336,6 +336,27 @@ describe('makeStructuredOutputCompatible', () => {
     // Original definition is untouched — the strip pass returns a fresh tree.
     expect(schema.properties.data.format).toBe('uri')
   })
+
+  it('should handle boolean items without crashing or recursing', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        list: {
+          type: 'array',
+          items: false,
+        },
+        listTrue: {
+          type: 'array',
+          items: true,
+        },
+      },
+      required: ['list', 'listTrue'],
+    }
+
+    const result: any = makeStructuredOutputCompatible(schema, ['list', 'listTrue'])
+    expect(result.properties.list.items).toBe(false)
+    expect(result.properties.listTrue.items).toBe(true)
+  })
 })
 
 describe('isStrictModeCompatible', () => {
