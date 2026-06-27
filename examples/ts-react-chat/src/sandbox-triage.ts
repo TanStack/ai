@@ -59,6 +59,13 @@ export interface HarnessSpec {
    * with either/or auth — returns the missing env vars, or `[]` if satisfied.
    */
   envCheck?: () => Array<string>
+  /**
+   * Optional secrets to inject into a SANDBOXED run (overrides the default
+   * requiredEnv-based injection for this harness). Use when the in-sandbox CLI
+   * reads a differently-named var — e.g. `codex exec` authenticates via
+   * `CODEX_API_KEY`, not `OPENAI_API_KEY` (the latter hits its OAuth/WS path → 401).
+   */
+  sandboxSecrets?: () => Record<string, string>
 }
 
 export const HARNESSES: Record<HarnessName, HarnessSpec> = {
@@ -85,13 +92,19 @@ export const HARNESSES: Record<HarnessName, HarnessSpec> = {
         provider === 'local' ? { sandboxMode: 'danger-full-access' } : {},
       ),
     installCommand: 'npm install -g @openai/codex',
-    // Codex authenticates with OPENAI_API_KEY or CODEX_API_KEY (or a host
-    // `codex login` on local-process). Inject whichever is set; require either.
-    requiredEnv: ['OPENAI_API_KEY', 'CODEX_API_KEY'],
+    // `codex exec` authenticates headlessly via CODEX_API_KEY (a bare
+    // OPENAI_API_KEY makes it try the OAuth WebSocket transport → 401). Accept
+    // either env var; inject the value AS CODEX_API_KEY into the sandbox. On
+    // local-process it uses the host `codex login` instead, so nothing is needed.
+    requiredEnv: ['CODEX_API_KEY'],
     envCheck: () =>
-      process.env.OPENAI_API_KEY || process.env.CODEX_API_KEY
+      process.env.CODEX_API_KEY || process.env.OPENAI_API_KEY
         ? []
-        : ['OPENAI_API_KEY (or CODEX_API_KEY)'],
+        : ['CODEX_API_KEY (or OPENAI_API_KEY)'],
+    sandboxSecrets: () => {
+      const key = process.env.CODEX_API_KEY ?? process.env.OPENAI_API_KEY
+      return key ? { CODEX_API_KEY: key } : {}
+    },
   },
   'gemini-cli': {
     label: 'Gemini CLI',
@@ -293,13 +306,21 @@ export function buildSandbox(opts: {
     : PROVIDERS[opts.provider].make()
 
   // Inject auth secrets only for sandboxed providers — local-process inherits the
-  // host's own env (API key, or `claude login` subscription), so nothing to inject.
+  // host's own env (API key, or a `claude login`/`codex login`), so nothing to inject.
   const secretEnv: Record<string, string> = {}
   if (opts.provider !== 'local') {
-    for (const key of [
-      ...harness.requiredEnv,
-      ...PROVIDERS[opts.provider].requiredEnv,
-    ]) {
+    // Harness auth: a custom mapping (e.g. codex → CODEX_API_KEY) if provided,
+    // otherwise inject whichever of its requiredEnv vars are set.
+    if (harness.sandboxSecrets) {
+      Object.assign(secretEnv, harness.sandboxSecrets())
+    } else {
+      for (const key of harness.requiredEnv) {
+        const value = process.env[key]
+        if (value) secretEnv[key] = value
+      }
+    }
+    // Provider auth (e.g. DAYTONA_API_KEY) — used host-side, harmless in-sandbox.
+    for (const key of PROVIDERS[opts.provider].requiredEnv) {
       const value = process.env[key]
       if (value) secretEnv[key] = value
     }
