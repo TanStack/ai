@@ -204,11 +204,19 @@ function coerceStrictSchema(
       if (prop.type === 'object' && prop.properties) {
         prop = coerceStrictSchema(prop, prop.required || [])
       } else if (prop.type === 'array' && prop.items) {
+        let coercedItems = prop.items
+        if (Array.isArray(prop.items)) {
+          coercedItems = prop.items.map((item) =>
+            typeof item === 'object' && item !== null
+              ? coerceStrictSchema(item, item.required || [])
+              : item,
+          )
+        } else if (typeof prop.items === 'object' && prop.items !== null) {
+          coercedItems = coerceStrictSchema(prop.items, prop.items.required || [])
+        }
         prop = {
           ...prop,
-          items: typeof prop.items === 'object' && prop.items !== null
-            ? coerceStrictSchema(prop.items, prop.items.required || [])
-            : prop.items,
+          items: coercedItems,
         }
       } else if (prop.anyOf) {
         prop = coerceStrictSchema(prop, prop.required || [])
@@ -241,9 +249,15 @@ function coerceStrictSchema(
   }
 
   if (result.type === 'array' && result.items) {
-    result.items = typeof result.items === 'object' && result.items !== null
-      ? coerceStrictSchema(result.items, result.items.required || [])
-      : result.items
+    if (Array.isArray(result.items)) {
+      result.items = result.items.map((item) =>
+        typeof item === 'object' && item !== null
+          ? coerceStrictSchema(item, item.required || [])
+          : item,
+      )
+    } else if (typeof result.items === 'object' && result.items !== null) {
+      result.items = coerceStrictSchema(result.items, result.items.required || [])
+    }
   }
 
   if (result.anyOf && Array.isArray(result.anyOf)) {

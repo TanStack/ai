@@ -146,19 +146,36 @@ function makeStructuredOutputCompatible(
         widenedHere = wasOptional
         childMap = nested.nullWidening
       } else if (prop.type === 'array' && prop.items) {
-        const items = Array.isArray(prop.items) ? prop.items[0] : prop.items
-        const nestedItems = items && typeof items === 'object'
-          ? makeStructuredOutputCompatible(items, items.required || [])
-          : undefined
-        properties[propName] = {
-          ...prop,
-          items: nestedItems ? nestedItems.schema : prop.items,
-          ...(wasOptional ? { type: ['array', 'null'] } : {}),
+        if (Array.isArray(prop.items)) {
+          const nestedItemsList = prop.items.map((item) =>
+            makeStructuredOutputCompatible(item, item.required || []),
+          )
+          const schemas = nestedItemsList.map((n) => n.schema)
+          const maps: Array<NullWideningMap> = nestedItemsList.map((n) => n.nullWidening ?? {})
+          properties[propName] = {
+            ...prop,
+            items: schemas,
+            ...(wasOptional ? { type: ['array', 'null'] } : {}),
+          }
+          widenedHere = wasOptional
+          childMap = maps.some((m) => Object.keys(m).length > 0)
+            ? { items: maps }
+            : undefined
+        } else {
+          const items = prop.items
+          const nestedItems = typeof items !== 'boolean'
+            ? makeStructuredOutputCompatible(items, items.required || [])
+            : undefined
+          properties[propName] = {
+            ...prop,
+            items: nestedItems ? nestedItems.schema : prop.items,
+            ...(wasOptional ? { type: ['array', 'null'] } : {}),
+          }
+          widenedHere = wasOptional
+          childMap = nestedItems?.nullWidening
+            ? { items: nestedItems.nullWidening }
+            : undefined
         }
-        widenedHere = wasOptional
-        childMap = nestedItems?.nullWidening
-          ? { items: nestedItems.nullWidening }
-          : undefined
       } else if (wasOptional) {
         // Make optional fields nullable by adding null to the type. Mark
         // `widenedHere` only where we actually add `null`; a field already
@@ -190,11 +207,19 @@ function makeStructuredOutputCompatible(
 
   // Handle array types with object items
   if (result.type === 'array' && result.items) {
-    const items = Array.isArray(result.items) ? result.items[0] : result.items
-    if (items && typeof items === 'object') {
+    if (Array.isArray(result.items)) {
+      const nestedItemsList = result.items.map((item) =>
+        makeStructuredOutputCompatible(item, item.required || []),
+      )
+      result.items = nestedItemsList.map((n) => n.schema)
+      const maps: Array<NullWideningMap> = nestedItemsList.map((n) => n.nullWidening ?? {})
+      if (maps.some((m) => Object.keys(m).length > 0)) {
+        map.items = maps
+      }
+    } else if (typeof result.items !== 'boolean') {
       const nestedItems = makeStructuredOutputCompatible(
-        items,
-        items.required || [],
+        result.items,
+        result.items.required || [],
       )
       result.items = nestedItems.schema
       if (nestedItems.nullWidening) map.items = nestedItems.nullWidening

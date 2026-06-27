@@ -356,6 +356,41 @@ describe('makeStructuredOutputCompatible', () => {
     const result: any = makeStructuredOutputCompatible(schema, ['list', 'listTrue'])
     expect(result.properties.list.items).toBe(false)
     expect(result.properties.listTrue.items).toBe(true)
+
+    // Direct top-level array schema with boolean items
+    const topLevelArrayFalse = {
+      type: 'array',
+      items: false,
+    }
+    const resultFalse: any = makeStructuredOutputCompatible(topLevelArrayFalse)
+    expect(resultFalse.items).toBe(false)
+
+    const topLevelArrayTrue = {
+      type: 'array',
+      items: true,
+    }
+    const resultTrue: any = makeStructuredOutputCompatible(topLevelArrayTrue)
+    expect(resultTrue.items).toBe(true)
+
+    // Tuple-style arrays
+    const tupleSchema = {
+      type: 'object',
+      properties: {
+        tupleField: {
+          type: 'array',
+          items: [
+            { type: 'string' },
+            { type: 'object', properties: { nestedVal: { type: 'number' } } },
+          ],
+        },
+      },
+      required: ['tupleField'],
+    }
+    const resultTuple: any = makeStructuredOutputCompatible(tupleSchema, ['tupleField'])
+    expect(resultTuple.properties.tupleField.items).toBeInstanceOf(Array)
+    expect(resultTuple.properties.tupleField.items[0].type).toBe('string')
+    expect(resultTuple.properties.tupleField.items[1].properties).toBeDefined()
+    expect(resultTuple.properties.tupleField.items[1].additionalProperties).toBe(false)
   })
 })
 
