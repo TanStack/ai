@@ -11,10 +11,13 @@ import * as fsp from 'node:fs/promises'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
-import { SandboxCapability } from '@tanstack/ai-sandbox'
+import {
+  SandboxCapability,
+  provideToolBridgeProvisioner,
+} from '@tanstack/ai-sandbox'
 import { codexText } from '../src/index'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
-import type { CapabilityContext, StreamChunk } from '@tanstack/ai'
+import type { AnyTool, CapabilityContext, StreamChunk } from '@tanstack/ai'
 import type { SandboxHandle } from '@tanstack/ai-sandbox'
 
 const baseDir = path.join(os.tmpdir(), `tanstack-ai-codex-test-${Date.now()}`)
@@ -24,9 +27,12 @@ afterAll(async () => {
   await fsp.rm(baseDir, { recursive: true, force: true })
 })
 
-// Stand-in for `codex exec --experimental-json`: ignores flags, reads the
-// prompt from stdin, emits codex thread-event JSONL.
+// Stand-in for `codex exec --experimental-json`: records the argv it was spawned
+// with (so a test can assert the generated CLI flags), reads the prompt from
+// stdin, and emits codex thread-event JSONL.
 const FAKE_CODEX = [
+  `import { writeFileSync } from 'node:fs'`,
+  `writeFileSync('codex-argv.txt', process.argv.join(' '))`,
   `let input = ''`,
   `process.stdin.on('data', (d) => { input += d })`,
   `process.stdin.on('end', () => {`,
@@ -89,6 +95,49 @@ describe('codex in-sandbox adapter', () => {
       .join('')
     expect(text).toContain('pong')
     expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(true)
+    await sbx.destroy()
+  })
+
+  it('bridges chat() tools via http_headers, not the streamable-http-rejected bearer_token', async () => {
+    // Codex's streamable-HTTP MCP transport REJECTS inline `bearer_token`
+    // ("bearer_token is not supported for streamable_http"); the per-run bearer
+    // must ride an `Authorization` header instead. Stub the provisioner so the
+    // bridge url/token are deterministic, then assert the generated CLI flags.
+    const sbx = await provider.create({})
+    await sbx.fs.write('/workspace/fake-codex.mjs', FAKE_CODEX)
+
+    const ctx = capabilityContextWith(sbx)
+    provideToolBridgeProvisioner(ctx, {
+      provision: () =>
+        Promise.resolve({
+          name: 'tanstack',
+          url: 'http://bridge.test/_bridge/run1',
+          token: 'secret-token-xyz',
+          close: () => Promise.resolve(),
+        }),
+    })
+
+    const adapter = codexText('gpt-5.5-codex', {
+      codexExecutable: 'node fake-codex.mjs',
+    })
+    await collect(
+      adapter.chatStream({
+        model: 'gpt-5.5-codex',
+        messages: [{ role: 'user', content: 'use a tool' }],
+        logger: noopLogger,
+        capabilities: ctx,
+        // Non-empty tools array activates the bridge path; the stub provisioner
+        // ignores the contents, so a placeholder is enough.
+        tools: [{ name: 'demo' } as unknown as AnyTool],
+      }),
+    )
+
+    const argv = await sbx.fs.read('/workspace/codex-argv.txt')
+    expect(argv).toContain('mcp_servers.tanstack.url="http://bridge.test/_bridge/run1"')
+    expect(argv).toContain(
+      'mcp_servers.tanstack.http_headers={ "Authorization" = "Bearer secret-token-xyz" }',
+    )
+    expect(argv).not.toContain('bearer_token')
     await sbx.destroy()
   })
 

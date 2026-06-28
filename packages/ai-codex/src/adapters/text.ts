@@ -168,11 +168,16 @@ export class CodexTextAdapter<
       ...(config.webSearchMode
         ? { web_search: `"${config.webSearchMode}"` }
         : {}),
-      // Bridge chat()-provided tools via a streamable-HTTP MCP server.
+      // Bridge chat()-provided tools via a streamable-HTTP MCP server. A `url`
+      // makes codex use its streamable-HTTP transport, which authenticates via an
+      // `Authorization` header — codex REJECTS inline `bearer_token` for this
+      // transport ("bearer_token is not supported for streamable_http"; that field
+      // is only for the stdio transport). Pass the per-run bearer as an HTTP header
+      // instead; the host tool-bridge checks `Authorization: Bearer <token>`.
       ...(bridge
         ? {
             [`mcp_servers.${bridge.name}.url`]: `"${bridge.url}"`,
-            [`mcp_servers.${bridge.name}.bearer_token`]: `"${bridge.token}"`,
+            [`mcp_servers.${bridge.name}.http_headers`]: `{ "Authorization" = "Bearer ${bridge.token}" }`,
           }
         : {}),
       ...config.config,

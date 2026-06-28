@@ -441,20 +441,54 @@ exported from `@tanstack/ai-sandbox-cloudflare/agent`:
 - **`PREVIEW_GUIDANCE`** — a system prompt that tells the agent how to start a dev
   server whose tunnel preview works. App-agnostic on purpose.
 
+The factory is **harness-agnostic about auth**: it binds no API key of its own.
+Your app declares the key its harness needs (`ANTHROPIC_API_KEY` for Claude Code,
+`CODEX_API_KEY` for Codex, …) on its own env type and supplies it as a workspace
+secret — the coordinator injects each declared secret into the sandbox env by name.
+
 ```ts
 import {
   PREVIEW_GUIDANCE,
   createCloudflareSandboxAgent,
   exposePreviewTool,
+  resolvePreviewHost,
 } from '@tanstack/ai-sandbox-cloudflare/agent'
+import { cloudflareSandbox } from '@tanstack/ai-sandbox-cloudflare'
+import { createSecrets, defineSandbox, defineWorkspace } from '@tanstack/ai-sandbox'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
+import type { SandboxAgentEnv } from '@tanstack/ai-sandbox-cloudflare/agent'
 
-export const agent = createCloudflareSandboxAgent({
+// Extend the package's harness-agnostic env with the key YOUR harness needs.
+interface AppEnv extends SandboxAgentEnv {
+  ANTHROPIC_API_KEY: string
+}
+
+export const agent = createCloudflareSandboxAgent<AppEnv>({
   adapter: () => claudeCodeText('sonnet'),
   systemPrompts: [PREVIEW_GUIDANCE],
   tools: (input, env) => [exposePreviewTool(input, env)],
+  // Supply the harness's auth here — the package binds no key. The `sandbox`
+  // resolver receives the Worker `env` per run, so the secret VALUE is read from
+  // it. A non-Anthropic harness declares its own, e.g. `CODEX_API_KEY` for Codex.
+  sandbox: (input, env) =>
+    defineSandbox({
+      id: 'cf-edge-agent',
+      provider: cloudflareSandbox({
+        binding: env.Sandbox,
+        previewHostname: resolvePreviewHost(env, input),
+      }),
+      workspace: defineWorkspace({
+        source: { type: 'none' },
+        secrets: createSecrets({ ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY }),
+      }),
+      lifecycle: { reuse: 'thread' },
+    }),
 })
 ```
+
+> The Codex variant of this example lives at
+> [`examples/sandbox-cloudflare-codex`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare-codex)
+> — same edge topology, `codexText('gpt-5.3-codex')` + `CODEX_API_KEY` instead.
 
 **Why a quick tunnel, not `exposePort`.** `exposePort` + `proxyToSandbox` routes the
 preview through the Worker's own origin. In local dev that origin is your Vite dev

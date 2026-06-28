@@ -1,0 +1,25 @@
+# Local dev secrets for `wrangler dev`. Copy to `.dev.vars` and fill in.
+# `.dev.vars` is gitignored; never commit real keys.
+
+# OpenAI API key for the in-sandbox `codex` CLI. Set EITHER var — the app injects
+# whichever is present into the sandbox AS CODEX_API_KEY (never persisted to logs/
+# snapshots). It's a normal OpenAI key from https://platform.openai.com/api-keys
+# (the SAME value as OPENAI_API_KEY); `codex exec` authenticates with it headlessly.
+# (Inside the sandbox the name must be CODEX_API_KEY — a bare OPENAI_API_KEY makes
+# codex try the OAuth WebSocket transport → 401 — but the app handles that mapping,
+# so just set one of these to your OpenAI key here.)
+CODEX_API_KEY=sk-...
+# OPENAI_API_KEY=sk-...   # works too; used as the codex key when CODEX_API_KEY is unset
+
+# Local dev needs NO host config. The container reaches the Worker's tool-bridge at
+# `host.docker.internal:3001`, and preview URLs use a Cloudflare quick tunnel
+# (`*.trycloudflare.com`) served from inside the sandbox — no tunnel setup, no
+# custom domain, local or deployed. These vars are only OVERRIDES:
+#
+# PUBLIC_HOSTNAME  — pin the container→Worker bridge host (e.g. a stable named
+#                    tunnel). Unset → host.docker.internal locally.
+# PREVIEW_HOSTNAME — ONLY for the optional `exposePort`-fronted preview path (Worker
+#                    serves the preview on a custom domain). Not needed for the
+#                    default quick-tunnel previews. Requires a `*.<domain>` route.
+# PUBLIC_HOSTNAME=your-host.example.com
+# PREVIEW_HOSTNAME=preview.example.com

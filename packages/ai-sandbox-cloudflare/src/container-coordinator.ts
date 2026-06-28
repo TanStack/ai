@@ -48,8 +48,14 @@ const RUNNER_PORT = 8080
  * The Env bindings a {@link ContainerSandboxCoordinator} requires. The
  * `tool-exec` URL the CONTAINER calls back on needs a hostname; `PUBLIC_HOSTNAME`
  * is OPTIONAL (request-derived when unset; locally → `host.docker.internal` — see
- * {@link resolveBridgeOrigin}). The Anthropic key is injected into the container
- * env for the in-container CLI.
+ * {@link resolveBridgeOrigin}).
+ *
+ * Auth is HARNESS-AGNOSTIC: the in-container CLI's API key is NOT a fixed field on
+ * this env. Instead each run's workspace DECLARES the secret names it needs (via
+ * `createSecrets`), and the coordinator copies those names out of the Worker `env`
+ * into the container env at boot. So a Claude run declares `ANTHROPIC_API_KEY`, a
+ * codex run declares `CODEX_API_KEY`, and neither name is baked into the package —
+ * the concrete key binding lives on the APP's env type, not here.
  */
 export interface ContainerCoordinatorEnv {
   /** The `@cloudflare/sandbox` Sandbox DO namespace (the container hosts). */
@@ -60,8 +66,6 @@ export interface ContainerCoordinatorEnv {
    * `host.docker.internal`). Set it only to override. See {@link resolveBridgeOrigin}.
    */
   PUBLIC_HOSTNAME?: string
-  /** Anthropic key injected into the CONTAINER env for the in-container CLI. */
-  ANTHROPIC_API_KEY: string
 }
 
 /** What {@link ContainerSandboxCoordinator.config} returns for one run. */
@@ -239,7 +243,7 @@ export abstract class ContainerSandboxCoordinator<
     token: string,
   ): AsyncIterable<StreamChunk> {
     const sandbox = getSandbox(this.env.Sandbox, input.threadId)
-    await this.ensureRunner(sandbox)
+    await this.ensureRunner(sandbox, runConfig.workspace)
     // Container→Worker origin: `PUBLIC_HOSTNAME` if set, else derived from the
     // trigger request (locally → host.docker.internal). The tool-exec token rides
     // this URL. See `resolveBridgeOrigin`.
@@ -286,21 +290,54 @@ export abstract class ContainerSandboxCoordinator<
    * bundled runner as a background process via that control server. Idempotent
    * for a thread-reused container: if `/health` already answers, we skip spawn.
    */
-  private ensureRunner(sandbox: Sandbox): Promise<void> {
+  private ensureRunner(
+    sandbox: Sandbox,
+    workspace: WorkspaceDefinition,
+  ): Promise<void> {
     // Memoize so concurrent runs on this instance share ONE boot.
     if (this.runnerBoot) return this.runnerBoot
-    const boot = this.bootRunner(sandbox).finally(() => {
+    const boot = this.bootRunner(sandbox, workspace).finally(() => {
       this.runnerBoot = undefined
     })
     this.runnerBoot = boot
     return boot
   }
 
-  private async bootRunner(sandbox: Sandbox): Promise<void> {
+  /**
+   * Copy the run's DECLARED secret names out of the Worker `env` into a plain
+   * record for the container env. The workspace's `createSecrets` carries only the
+   * names across the `/run` boundary; the VALUES come from `env` by that name —
+   * which is how `ANTHROPIC_API_KEY` / `CODEX_API_KEY` / any harness key reach the
+   * CLI without the package hardcoding which one. A declared name missing from
+   * `env` is skipped here and fails loudly later in the runner's
+   * `reconstituteWorkspace` (never a silent keyless run).
+   */
+  private secretEnvFromWorkspace(
+    workspace: WorkspaceDefinition,
+  ): Record<string, string> {
+    const env = this.env as Record<string, unknown>
+    const out: Record<string, string> = {}
+    for (const name of Object.keys(workspace.secrets ?? {})) {
+      const value = env[name]
+      if (typeof value === 'string' && value !== '') out[name] = value
+    }
+    return out
+  }
+
+  private async bootRunner(
+    sandbox: Sandbox,
+    workspace: WorkspaceDefinition,
+  ): Promise<void> {
     if (await this.runnerHealthy(sandbox)) return
-    // Inject the Anthropic key into the container env so the in-container CLI can
-    // authenticate. The key never lands in argv or the run-log.
-    await sandbox.setEnvVars({ ANTHROPIC_API_KEY: this.env.ANTHROPIC_API_KEY })
+    // Inject the run's declared secrets into the container env so the in-container
+    // CLI can authenticate. Values never land in argv or the run-log. Harness-
+    // agnostic: whichever secret names the workspace declared (ANTHROPIC_API_KEY,
+    // CODEX_API_KEY, …) are read from `env` by name. The runner process inherits
+    // this env at boot, so secrets must be set BEFORE startProcess.
+    const secretEnv = this.secretEnvFromWorkspace(workspace)
+    if (Object.keys(secretEnv).length > 0) {
+      await sandbox.setEnvVars(secretEnv)
+    }
     // The Dockerfile copies the bundled runner to /app/container-runner.mjs.
     await sandbox.startProcess(`node /app/container-runner.mjs`, {
       env: { RUNNER_PORT: String(RUNNER_PORT) },

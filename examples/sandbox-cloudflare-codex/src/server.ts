@@ -18,7 +18,7 @@
  *
  * Binding types come from `worker-configuration.d.ts` (`pnpm cf-typegen`); the
  * env *shape* the agent expects is this app's `AppEnv` (the package's harness-
- * agnostic `SandboxAgentEnv` plus the app's `ANTHROPIC_API_KEY`).
+ * agnostic `SandboxAgentEnv` plus the app's `CODEX_API_KEY`).
  *
  * @see https://developers.cloudflare.com/workers/framework-guides/web-apps/tanstack-start/
  */

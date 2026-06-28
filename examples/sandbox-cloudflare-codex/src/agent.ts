@@ -9,9 +9,17 @@
  *
  * This is the DEFAULT `do-drives` model: the coordinator DO runs `chat()` itself and
  * serves the MCP tool-bridge from its own `fetch` handler; the container only runs
- * the `claude` CLI. The package also supports a `colocated` mode (the harness loop
+ * the `codex` CLI. The package also supports a `colocated` mode (the harness loop
  * runs inside the container) — see the README and `docs/sandbox/overview.md` for the
  * tradeoff; this example intentionally shows the simpler `do-drives` path.
+ *
+ * This example runs **OpenAI Codex** (`@tanstack/ai-codex`) instead of Claude Code.
+ * The harness is the only thing that changes — the run-log / WebSocket / tool-bridge
+ * topology is adapter-agnostic. Codex runs on the Cloudflare sandbox because:
+ *   • the adapter delivers the prompt via a file + in-shell stdin-redirection
+ *     (`codex exec … < file`) when the sandbox advertises `writableStdin: false`; and
+ *   • `chat()`-provided tools reach codex as a streamable-HTTP MCP server, which is
+ *     exactly the transport the DO-served `/_bridge` endpoint speaks.
  *
  * NOTE: Workers-runtime code — it compiles against the real Cloudflare + TanStack AI
  * types, but the end-to-end container run is only exercised on a real Cloudflare
@@ -27,7 +35,7 @@ import {
   defineSandbox,
   defineWorkspace,
 } from '@tanstack/ai-sandbox'
-import { claudeCodeText } from '@tanstack/ai-claude-code'
+import { codexText } from '@tanstack/ai-codex'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 import { namedCloudflareSandbox } from './sandbox-provider'
@@ -35,13 +43,21 @@ import type { SandboxAgentEnv } from '@tanstack/ai-sandbox-cloudflare/agent'
 
 /**
  * The Worker env this app binds. The base `SandboxAgentEnv` is harness-agnostic —
- * it binds NO API key — so we extend it with `ANTHROPIC_API_KEY`, the secret the
- * in-sandbox `claude` CLI authenticates with. (A different harness declares a
- * different key here; see the codex example's `CODEX_API_KEY`.)
+ * it carries the `Sandbox` binding, the coordinator namespace, and the optional host
+ * overrides, but binds NO API key. We extend it with the OpenAI key the in-sandbox
+ * `codex` CLI authenticates with.
+ *
+ * Accept it under EITHER name for convenience: `codex exec` authenticates headlessly
+ * via `CODEX_API_KEY`, but most setups already have a plain `OPENAI_API_KEY` — so we
+ * take either and inject it AS `CODEX_API_KEY` (a bare `OPENAI_API_KEY` in the sandbox
+ * makes codex try the OAuth WebSocket transport → 401). Both are optional on the type;
+ * the resolver fails clearly at run time if neither is set.
  */
 export interface AppEnv extends SandboxAgentEnv {
-  /** Anthropic API key. Injected into the sandbox env for the `claude` CLI. */
-  ANTHROPIC_API_KEY: string
+  /** OpenAI Codex API key. Injected into the sandbox env as CODEX_API_KEY. */
+  CODEX_API_KEY?: string
+  /** A plain OpenAI API key; used as the codex key when CODEX_API_KEY is unset. */
+  OPENAI_API_KEY?: string
 }
 
 /**
@@ -50,10 +66,9 @@ export interface AppEnv extends SandboxAgentEnv {
  * services, so its sandbox preview URL works for anyone with zero setup.
  *
  * It's a `chat()` server tool, so the factory bridges it to the in-sandbox agent
- * over the DO-served MCP endpoint — the agent (Claude Code) sees it as
- * `mcp__tanstack__tanstackStartRecipe`, calls it BEFORE scaffolding, the DO runs
- * it on the host, and the result streams back. Returning it from `tools` is what
- * exercises the `/_bridge` path.
+ * over the DO-served MCP endpoint — codex sees it as a `tanstack` MCP server tool,
+ * calls it BEFORE scaffolding, the DO runs it on the host, and the result streams
+ * back. Returning it from `tools` is what exercises the `/_bridge` path.
  *
  * The recipe scaffolds via `npx --yes @tanstack/cli create … --intent` — no global
  * install needed in the container image (npm/npx ship on the base image) — which
@@ -88,7 +103,19 @@ const tanstackStartRecipe = toolDefinition({
  * agent's HTTP surface (`/runs`, `/_bridge`, `/tool-exec`) to `agent.worker`.
  */
 export const agent = createCloudflareSandboxAgent<AppEnv>({
-  adapter: () => claudeCodeText('sonnet'),
+  // OpenAI Codex via `@tanstack/ai-codex`. The adapter spawns
+  // `codex exec --experimental-json` inside the sandbox and streams its JSONL
+  // thread events back as AG-UI chunks.
+  //
+  // `sandboxMode: 'danger-full-access'` is REQUIRED on Cloudflare: codex's default
+  // `workspace-write` mode wraps every shell command in its own OS sandbox
+  // (`bwrap`/bubblewrap on Linux), which needs to create new user namespaces — and
+  // the Cloudflare container forbids that ("bwrap: No permissions to create a new
+  // namespace"), so every command codex runs would fail. The Cloudflare container
+  // is ALREADY the isolation boundary, so we disable codex's redundant inner
+  // sandbox. (This is the same reason the triage example uses full-access on
+  // local-process — the host/container is the real boundary there too.)
+  adapter: () => codexText('gpt-5.3-codex', { sandboxMode: 'danger-full-access' }),
   // App-agnostic transport guidance, prepended to every run's system prompt: how to
   // start a dev server whose quick-tunnel preview works (bind wide, allow all hosts
   // so the tunnel hostname is accepted). Package-owned because it's the transport's
@@ -103,15 +130,10 @@ export const agent = createCloudflareSandboxAgent<AppEnv>({
   // container's NAME. We pin the container to the run's `threadId` via
   // `namedCloudflareSandbox` so `exposePreview` can address the same container to
   // expose a port. Each `createSecrets` entry becomes an env var the agent can read;
-  // the demo app needs none, so `ANTHROPIC_API_KEY` here is only for the `claude` CLI.
+  // the demo app needs none, so `CODEX_API_KEY` here is only for the `codex` CLI.
   // Values come from the Worker `env`: set them in `.dev.vars` (local) or
   // `wrangler secret put` (prod). Secrets are injected at create/resume, never
   // written to snapshots.
-  //
-  // To add a var that isn't already on the env type, extend it and pass it as the
-  // type param:
-  //   interface AppEnv extends SandboxAgentEnv { OPENAI_API_KEY: string }
-  //   createCloudflareSandboxAgent<AppEnv>({ ... })  // then env.OPENAI_API_KEY
   sandbox: (input, env) =>
     defineSandbox({
       id: 'cf-edge-agent',
@@ -119,12 +141,15 @@ export const agent = createCloudflareSandboxAgent<AppEnv>({
       // container (and survives DO eviction for `reuse: 'thread'`).
       provider: namedCloudflareSandbox(env.Sandbox, input.threadId),
       workspace: defineWorkspace({
-        // No source to clone — the container image already ships the claude CLI.
+        // No source to clone — the container image already ships the codex CLI.
         source: { type: 'none' },
+        // `codex exec` authenticates headlessly via CODEX_API_KEY. Take it from
+        // either `CODEX_API_KEY` or a plain `OPENAI_API_KEY` and inject it AS
+        // CODEX_API_KEY (a bare OPENAI_API_KEY in the sandbox makes codex try the
+        // OAuth WebSocket transport → 401). Empty if neither is set, which surfaces
+        // as a clear codex auth error rather than a silent keyless run.
         secrets: createSecrets({
-          ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY,
-          // Add more env here (and to `.dev.vars`), e.g.:
-          // OPENAI_API_KEY: env.OPENAI_API_KEY,
+          CODEX_API_KEY: env.CODEX_API_KEY ?? env.OPENAI_API_KEY ?? '',
         }),
       }),
       // One sandbox per thread, so a follow-up message resumes the same workspace.

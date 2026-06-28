@@ -30,16 +30,16 @@
  *    browser-facing `exposePort` preview URLs. Unset → request-derived (local dev →
  *    `localhost`); REQUIRED on a `*.workers.dev` deploy, which has no wildcard
  *    subdomains. See `resolvePreviewHost`.
- *  - `ANTHROPIC_API_KEY` — injected into the sandbox/container env for the CLI.
+ *  - The harness's API key (`ANTHROPIC_API_KEY` for Claude Code, `CODEX_API_KEY` for
+ *    codex, …) — supplied by YOUR app, never by the package. Declare it as a secret
+ *    on the run's workspace (via a `sandbox`/`workspace` resolver) and add the field
+ *    to your own env type; the coordinator injects each declared secret into the
+ *    sandbox env by name. The package itself is harness-agnostic and binds no key.
  *
  * NOTE: Workers-runtime code — compiles against the real Cloudflare + TanStack
  * AI types; not runtime-verified in this repo (no Workers runtime here).
  */
-import {
-  createSecrets,
-  defineSandbox,
-  defineWorkspace,
-} from '@tanstack/ai-sandbox'
+import { defineSandbox, defineWorkspace } from '@tanstack/ai-sandbox'
 import { Sandbox } from '@cloudflare/sandbox'
 import { cloudflareSandbox } from './provider'
 import { ChatSandboxCoordinator } from './chat-coordinator'
@@ -101,12 +101,18 @@ export interface DoDrivesAgentConfig<
   systemPrompts?: Array<SystemPrompt>
   /**
    * The sandbox the agent runs in, resolved per run. When omitted, a default
-   * Cloudflare sandbox (one per thread, no source clone) is built from the
-   * `Sandbox` binding, the resolved preview host, and `ANTHROPIC_API_KEY`,
-   * optionally bootstrapping `workspace`.
+   * Cloudflare sandbox (one per thread, no source clone, NO auth secrets) is built
+   * from the `Sandbox` binding and the resolved preview host, optionally
+   * bootstrapping `workspace`. Supply the harness's API key either here (a custom
+   * `sandbox` resolver whose workspace declares the secret) or via `workspace`
+   * below — the package binds no key of its own.
    */
   sandbox?: (input: StartRunInput, env: TEnv) => SandboxDefinition
-  /** Workspace for the default sandbox (ignored when `sandbox` is provided). */
+  /**
+   * Workspace for the default sandbox (ignored when `sandbox` is provided). This is
+   * where a default-sandbox app declares its harness auth, e.g.
+   * `defineWorkspace({ source: { type: 'none' }, secrets: createSecrets({ ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY }) })`.
+   */
   workspace?: WorkspaceDefinition
 }
 
@@ -157,12 +163,15 @@ function defaultSandbox<TEnv extends SandboxAgentEnv>(
     }),
     workspace:
       workspace ??
-      defineWorkspace({
-        // The container image ships the harness CLI; no source to clone. The
-        // Anthropic key is injected into the sandbox env, never logged.
-        source: { type: 'none' },
-        secrets: createSecrets({ ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY }),
-      }),
+      // The container image ships the harness CLI; no source to clone, and NO auth
+      // secrets — the package is harness-agnostic, so it can't know which key the
+      // CLI needs. Supply the harness's API key via a `workspace` with `secrets`
+      // (or a custom `sandbox` resolver), e.g.:
+      //   workspace: defineWorkspace({
+      //     source: { type: 'none' },
+      //     secrets: createSecrets({ ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY }),
+      //   })
+      defineWorkspace({ source: { type: 'none' } }),
     // One sandbox per thread, so a follow-up run resumes the same workspace.
     lifecycle: { reuse: 'thread' },
   })
