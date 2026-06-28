@@ -105,6 +105,64 @@ function toUsage(
   })
 }
 
+// Fallback emitter for when the real Grok Build CLI emits events
+// that don't match our emulated Codex-like schema. Tries to pull
+// any text/content/delta/message and render it as assistant text
+// so the UI shows progress instead of silence.
+function* emitTextFromUnknown(obj: unknown): Generator<StreamChunk> {
+  if (typeof obj === 'string' && obj.trim()) {
+    const messageId = 'fallback-' + Date.now()
+    yield {
+      type: EventType.TEXT_MESSAGE_START,
+      messageId,
+      model: 'grok-build',
+      timestamp: Date.now(),
+      role: 'assistant',
+    }
+    yield {
+      type: EventType.TEXT_MESSAGE_CONTENT,
+      messageId,
+      model: 'grok-build',
+      timestamp: Date.now(),
+      delta: obj,
+      content: obj,
+    }
+    yield {
+      type: EventType.TEXT_MESSAGE_END,
+      messageId,
+      model: 'grok-build',
+      timestamp: Date.now(),
+    }
+  } else if (obj && typeof obj === 'object') {
+    const o = obj as Record<string, unknown>
+    const text = (o.text as string) || (o.content as string) || (o.message as string) || (o.delta as string) || (o.output as string)
+    if (text && typeof text === 'string' && text.trim()) {
+      const messageId = 'fallback-' + Date.now()
+      yield {
+        type: EventType.TEXT_MESSAGE_START,
+        messageId,
+        model: 'grok-build',
+        timestamp: Date.now(),
+        role: 'assistant',
+      }
+      yield {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId,
+        model: 'grok-build',
+        timestamp: Date.now(),
+        delta: text,
+        content: text,
+      }
+      yield {
+        type: EventType.TEXT_MESSAGE_END,
+        messageId,
+        model: 'grok-build',
+        timestamp: Date.now(),
+      }
+    }
+  }
+}
+
 export async function* translateThreadEvents(
   events: AsyncIterable<GrokBuildThreadEvent>,
   ctx: TranslateContext,
@@ -336,6 +394,9 @@ export async function* translateThreadEvents(
           break
         }
         default:
+          // Fallback for real Grok Build CLI: try to surface any text content
+          // from unknown event shapes so the UI at least shows something.
+          yield* emitTextFromUnknown(event)
           break
       }
     }
