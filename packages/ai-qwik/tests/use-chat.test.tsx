@@ -1,8 +1,51 @@
 import { createDOM } from '@qwik.dev/core/testing'
-import { component$ } from '@qwik.dev/core'
+import { $, component$, useSignal } from '@qwik.dev/core'
 import { describe, expect, test } from 'vitest'
 import { useChat } from '../src'
 import type { UIMessage } from '../src'
+import type { StreamChunk } from '@tanstack/ai'
+
+declare global {
+  // eslint-disable-next-line no-var -- global test sink used from QRL callbacks
+  var __aiQwikTestEvents: Array<string> | undefined
+}
+
+export function pushQwikTestEvent(value: string): void {
+  globalThis.__aiQwikTestEvents?.push(value)
+}
+
+export function createQwikTestChunks(text = 'ok'): Array<StreamChunk> {
+  return [
+    {
+      type: 'TEXT_MESSAGE_CONTENT',
+      messageId: `message-${text}`,
+      model: 'test',
+      timestamp: Date.now(),
+      delta: text,
+      content: text,
+    },
+    {
+      type: 'RUN_FINISHED',
+      runId: `run-${text}`,
+      threadId: `thread-${text}`,
+      model: 'test',
+      timestamp: Date.now(),
+      finishReason: 'stop',
+    },
+  ] as Array<StreamChunk>
+}
+
+function createSseResponse(chunks: Array<StreamChunk>): Response {
+  return new Response(
+    chunks.map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`).join(''),
+    {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/event-stream',
+      },
+    },
+  )
+}
 
 const initialMessages: Array<UIMessage> = [
   {
@@ -42,5 +85,166 @@ describe('@tanstack/ai-qwik useChat', () => {
 
     expect(screen.outerHTML).toContain('Status ready')
     expect(screen.outerHTML).toContain('Initial chat message')
+  })
+
+  test('sends the latest forwarded props after option changes', async () => {
+    const originalFetch = globalThis.fetch
+    const requestBodies: Array<any> = []
+
+    globalThis.fetch = async (_, init) => {
+      requestBodies.push(JSON.parse(String(init?.body)))
+      return new Response('', {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/event-stream',
+        },
+      })
+    }
+
+    const DynamicOptionsHarness = component$(() => {
+      const model = useSignal('initial-model')
+      const chat = useChat({
+        api: '/api/chat',
+        forwardedProps: {
+          model: model.value,
+        },
+      })
+
+      const send = $(async () => {
+        await chat.sendMessage('hello')
+      })
+
+      return (
+        <section>
+          <p>Model {model.value}</p>
+          <button
+            type="button"
+            onClick$={() => {
+              model.value = 'updated-model'
+            }}
+          >
+            Change model
+          </button>
+          <button type="button" onClick$={send}>
+            Send
+          </button>
+        </section>
+      )
+    })
+
+    try {
+      const { render, screen, userEvent } = await createDOM()
+
+      await render(<DynamicOptionsHarness />)
+      const buttons = screen.querySelectorAll('button')
+
+      await userEvent(buttons[0]!, 'click')
+      expect(screen.outerHTML).toContain('updated-model')
+      await userEvent(buttons[1]!, 'click')
+
+      expect(requestBodies).toHaveLength(1)
+      expect(requestBodies[0]?.forwardedProps?.model).toBe('updated-model')
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  test('calls the latest QRL chunk callback after option changes', async () => {
+    const originalFetch = globalThis.fetch
+    globalThis.__aiQwikTestEvents = []
+
+    globalThis.fetch = async () => createSseResponse(createQwikTestChunks())
+
+    const DynamicCallbackHarness = component$(() => {
+      const useUpdatedCallback = useSignal(false)
+      const initialChunk$ = $(() => {
+        pushQwikTestEvent('initial')
+      })
+      const updatedChunk$ = $(() => {
+        pushQwikTestEvent('updated')
+      })
+      const chat = useChat({
+        api: '/api/chat',
+        onChunk$: useUpdatedCallback.value ? updatedChunk$ : initialChunk$,
+      })
+
+      const send = $(async () => {
+        await chat.sendMessage('hello')
+      })
+
+      return (
+        <section>
+          <p>Updated {String(useUpdatedCallback.value)}</p>
+          <button
+            type="button"
+            onClick$={() => {
+              useUpdatedCallback.value = true
+            }}
+          >
+            Use updated callback
+          </button>
+          <button type="button" onClick$={send}>
+            Send
+          </button>
+        </section>
+      )
+    })
+
+    try {
+      const { render, screen, userEvent } = await createDOM()
+
+      await render(<DynamicCallbackHarness />)
+      const buttons = screen.querySelectorAll('button')
+
+      await userEvent(buttons[0]!, 'click')
+      expect(screen.outerHTML).toContain('Updated true')
+      globalThis.__aiQwikTestEvents = []
+      await userEvent(buttons[1]!, 'click')
+
+      expect(globalThis.__aiQwikTestEvents).toContain('updated')
+      expect(globalThis.__aiQwikTestEvents).not.toContain('initial')
+    } finally {
+      globalThis.fetch = originalFetch
+      globalThis.__aiQwikTestEvents = undefined
+    }
+  })
+
+  test('creates a runtime connection from connection$', async () => {
+    globalThis.__aiQwikTestEvents = []
+
+    const ConnectionFactoryHarness = component$(() => {
+      const chat = useChat({
+        forwardedProps: {
+          model: 'factory-model',
+        },
+        connection$: $(() => ({
+          async *connect(_messages: unknown, data?: Record<string, unknown>) {
+            pushQwikTestEvent(String(data?.model))
+            yield* createQwikTestChunks('factory')
+          },
+        })),
+      })
+
+      const send = $(async () => {
+        await chat.sendMessage('hello')
+      })
+
+      return (
+        <button type="button" onClick$={send}>
+          Send
+        </button>
+      )
+    })
+
+    try {
+      const { render, screen, userEvent } = await createDOM()
+
+      await render(<ConnectionFactoryHarness />)
+      await userEvent(screen.querySelector('button')!, 'click')
+
+      expect(globalThis.__aiQwikTestEvents).toEqual(['factory-model'])
+    } finally {
+      globalThis.__aiQwikTestEvents = undefined
+    }
   })
 })

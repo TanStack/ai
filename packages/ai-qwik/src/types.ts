@@ -3,6 +3,7 @@ import type {
   InferSchemaType,
   ModelMessage,
   SchemaInput,
+  StreamChunk,
 } from '@tanstack/ai'
 import type {
   AIDevtoolsDisplayOptions,
@@ -57,6 +58,32 @@ export type UseChatOptions<
    * implementations capture browser APIs such as localStorage.
    */
   tools$?: QRL<() => TTools | Promise<TTools>>
+  /**
+   * Qwik-friendly connection factory. Prefer this over `connection` when the
+   * adapter contains functions, sockets, browser APIs, or other non-serializable
+   * state.
+   */
+  connection$?: QRL<() => ConnectionAdapter | Promise<ConnectionAdapter>>
+  /**
+   * Qwik-friendly fetcher factory. Prefer this over `fetcher` when the fetcher
+   * captures browser-only or non-serializable state.
+   */
+  fetcher$?: QRL<() => ChatFetcher | Promise<ChatFetcher>>
+  /**
+   * Qwik-friendly callback variants. Prefer `$` callbacks for inline handlers
+   * and handlers that capture component state.
+   */
+  onResponse$?: QRL<(response?: Response) => void | Promise<void>>
+  onChunk$?: QRL<(chunk: StreamChunk) => void | Promise<void>>
+  onFinish$?: QRL<(message: UIMessage<TTools>) => void | Promise<void>>
+  onError$?: QRL<(error: Error) => void | Promise<void>>
+  onCustomEvent$?: QRL<
+    (
+      eventType: string,
+      data: unknown,
+      context: { toolCallId?: string },
+    ) => void | Promise<void>
+  >
   connection?: ConnectionAdapter
   fetcher?: ChatFetcher
   devtools?: AIDevtoolsDisplayOptions

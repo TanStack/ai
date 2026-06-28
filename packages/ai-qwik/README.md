@@ -47,3 +47,43 @@ export default component$(() => {
   return <button onClick$={() => chat.sendMessage('Recommend something')} />
 })
 ```
+
+Use the `$` callback options for handlers that capture component state:
+
+```tsx
+import { $, component$, useSignal } from '@qwik.dev/core'
+import { useChat } from '@tanstack/ai-qwik'
+
+export default component$(() => {
+  const chunkCount = useSignal(0)
+
+  const chat = useChat({
+    api: '/api/chat',
+    onChunk$: $(() => {
+      chunkCount.value++
+    }),
+  })
+
+  return <button onClick$={() => chat.sendMessage('Stream updates')} />
+})
+```
+
+For custom transports with non-serializable functions or browser-only state,
+create the adapter inside `connection$` or `fetcher$`:
+
+```tsx
+import { $, component$ } from '@qwik.dev/core'
+import { useChat } from '@tanstack/ai-qwik'
+
+export default component$(() => {
+  const chat = useChat({
+    connection$: $(() => ({
+      async *connect() {
+        // Create or call browser-only transport code here.
+      },
+    })),
+  })
+
+  return <button onClick$={() => chat.sendMessage('Use custom transport')} />
+})
+```
