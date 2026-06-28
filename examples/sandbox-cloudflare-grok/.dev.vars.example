@@ -1,0 +1,3 @@
+# xAI API key for the in-sandbox Grok Build harness.
+# The agent reads XAI_API_KEY (or GROK_API_KEY) and injects it for the CLI.
+XAI_API_KEY=your_xai_key_here

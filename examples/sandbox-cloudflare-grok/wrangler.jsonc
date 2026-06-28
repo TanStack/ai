@@ -1,0 +1,35 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tanstack-ai-sandbox-cloudflare-grok",
+  "main": "src/server.ts",
+  "compatibility_date": "2026-05-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "containers": [
+    {
+      "class_name": "Sandbox",
+      "image": "./Dockerfile",
+      "max_instances": 5,
+    },
+  ],
+
+  "durable_objects": {
+    "bindings": [
+      { "name": "RUN_COORDINATOR", "class_name": "RunCoordinator" },
+      { "name": "Sandbox", "class_name": "Sandbox" },
+    ],
+  },
+
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["RunCoordinator", "Sandbox"],
+    },
+  ],
+
+  "vars": {
+    "SANDBOX_TRANSPORT": "rpc",
+  },
+
+  "observability": { "enabled": true },
+}

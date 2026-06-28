@@ -1,0 +1,8 @@
+@import 'tailwindcss';
+
+.markdown-content { color: #e5e7eb; font-size: 0.95rem; line-height: 1.6; }
+.markdown-content p { margin: 0.5rem 0; }
+.markdown-content pre { background: #111827; border: 1px solid rgba(99,102,241,0.2); border-radius: 0.5rem; padding: 0.75rem; overflow-x: auto; margin: 0.5rem 0; }
+.markdown-content code { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.85rem; }
+.markdown-content :not(pre) > code { background: rgba(99,102,241,0.12); padding: 0.1rem 0.3rem; border-radius: 0.25rem; }
+.markdown-content ul, .markdown-content ol { margin: 0.5rem 0; }
