@@ -1545,8 +1545,10 @@ export interface RerankResult<TDocument = string> {
   /** The documents reordered by relevance — `ranking.map(r => r.document)`. */
   rerankedDocuments: Array<TDocument>
   /**
-   * Usage for the request. Rerank bills in provider-defined "search units"
-   * rather than tokens, surfaced via `usage.unitsBilled`; token counts are 0.
+   * Usage for the request. Rerank typically bills in provider-defined "search
+   * units" (`usage.unitsBilled`) rather than tokens. Some providers (e.g.
+   * OpenRouter) may also report `totalTokens` and `cost`; Cohere reports only
+   * search units and leaves the token counts at 0.
    */
   usage: TokenUsage
 }

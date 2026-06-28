@@ -7,6 +7,7 @@
 
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { resolveDebugOption } from '../../logger/resolve'
+import { isAbortShapedError } from '../error-payload'
 import {
   createGenerationContext,
   runGenerationAbort,
@@ -99,10 +100,16 @@ function serializeDocument(document: string | object): string {
 }
 
 function isAbortError(error: unknown, signal?: AbortSignal): boolean {
-  return (
-    signal?.aborted === true ||
-    (error instanceof Error && error.name === 'AbortError')
-  )
+  // Prefer the error's own identity over the signal state. A genuine
+  // cancellation throws an abort-shaped error (DOM `AbortError`, the OpenRouter
+  // SDK's `RequestAbortedError`, …). Classifying on `signal.aborted` alone would
+  // misroute a real failure — e.g. the out-of-range-index throw below — to the
+  // abort hook whenever a shared/long-lived signal happens to already be
+  // aborted, hiding it from `onError` observers.
+  if (isAbortShapedError(error)) return true
+  // Fall back to signal state only for non-Error throws we can't otherwise
+  // identify; a real Error with a non-abort name is never an abort.
+  return error instanceof Error ? false : signal?.aborted === true
 }
 
 // ===========================

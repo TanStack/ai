@@ -66,6 +66,9 @@ export class OpenRouterRerankAdapter<
 
       // The SDK types the response as `CreateRerankResponseBody | string`; the
       // bare-string form is an error/non-JSON payload, not a valid result.
+      // (A malformed object body never reaches here — the SDK zod-validates the
+      // response and throws "Response validation failed" first, so `results` is
+      // a runtime-guaranteed array below.)
       if (typeof response === 'string') {
         throw new Error('OpenRouter rerank returned an unexpected response')
       }

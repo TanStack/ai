@@ -164,8 +164,9 @@ interface RerankResult<TDocument = string> {
   ranking: Array<{ index: number; score: number; document: TDocument }>
   // The documents reordered by relevance (ranking.map(r => r.document)).
   rerankedDocuments: Array<TDocument>
-  // Rerank bills in provider "search units", surfaced on usage.unitsBilled;
-  // token counts are 0.
+  // Rerank typically bills in provider "search units" (usage.unitsBilled).
+  // Some providers (e.g. OpenRouter) also report totalTokens and cost; Cohere
+  // reports only search units and leaves token counts at 0.
   usage: TokenUsage
 }
 ```

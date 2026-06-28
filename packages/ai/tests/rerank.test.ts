@@ -209,6 +209,31 @@ describe('rerank() activity', () => {
     expect(events.finish).toHaveLength(0)
   })
 
+  it('classifies a real error as onError even when the signal is already aborted', async () => {
+    // A shared/long-lived signal can be aborted while a genuine (non-abort)
+    // error is thrown. The error's identity — not the signal state — decides.
+    const { middleware, events } = recordingMiddleware()
+    const controller = new AbortController()
+    const adapter = mockRerankAdapter(async () => {
+      controller.abort()
+      throw new Error('genuine provider failure')
+    })
+
+    await expect(
+      rerank({
+        adapter,
+        query: 'q',
+        documents: ['a'],
+        abortSignal: controller.signal,
+        middleware: [middleware],
+        debug: false,
+      }),
+    ).rejects.toThrow('genuine provider failure')
+
+    expect(events.error).toHaveLength(1)
+    expect(events.abort).toHaveLength(0)
+  })
+
   it('forwards topN and abortSignal to the adapter', async () => {
     const controller = new AbortController()
     const adapter = mockRerankAdapter(async () => ranked(0))

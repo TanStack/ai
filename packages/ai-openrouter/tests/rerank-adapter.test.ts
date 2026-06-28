@@ -120,6 +120,19 @@ describe('OpenRouterRerankAdapter', () => {
     expect(body.provider).toEqual({ order: ['cohere'] })
   })
 
+  it('rejects loudly on a malformed response body (SDK runtime validation)', async () => {
+    // The SDK zod-validates the response, so a body missing `results` throws
+    // before the adapter maps it — the caller never sees a silent bad result
+    // or a cryptic `undefined.map` TypeError.
+    fetchMock.mockResolvedValue(
+      rerankResponse({ id: 'or-1', model: 'cohere/rerank-v3.5', usage: {} }),
+    )
+
+    await expect(
+      rerank({ adapter: adapter(), query: 'q', documents, debug: false }),
+    ).rejects.toThrow()
+  })
+
   it('throws on a non-200 response', async () => {
     fetchMock.mockResolvedValue(
       new Response('bad request', { status: 400, statusText: 'Bad Request' }),

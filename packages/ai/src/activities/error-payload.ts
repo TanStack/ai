@@ -18,6 +18,21 @@ const ABORT_ERROR_NAMES = new Set([
   'RequestAbortedError',
 ])
 
+/**
+ * True when a thrown value is an abort-shaped error (DOM `AbortError`, OpenAI
+ * `APIUserAbortError`, OpenRouter `RequestAbortedError`) — i.e. user-initiated
+ * cancellation rather than a genuine failure. Matches on the error `name` so
+ * callers can discriminate aborts without depending on a signal's state or on
+ * provider-specific message strings.
+ */
+export function isAbortShapedError(error: unknown): boolean {
+  if (error && typeof error === 'object') {
+    const name = (error as { name?: unknown }).name
+    return typeof name === 'string' && ABORT_ERROR_NAMES.has(name)
+  }
+  return false
+}
+
 // HTTP status codes carried as numbers (e.g. `error.status = 429`) are a
 // common variant on SDK error classes; coerce so the resulting `code` field
 // is stable as a string for downstream consumers.
@@ -33,11 +48,8 @@ export function toRunErrorPayload(
   error: unknown,
   fallbackMessage = 'Unknown error occurred',
 ): { message: string; code: string | undefined } {
-  if (error && typeof error === 'object') {
-    const name = (error as { name?: unknown }).name
-    if (typeof name === 'string' && ABORT_ERROR_NAMES.has(name)) {
-      return { message: 'Request aborted', code: 'aborted' }
-    }
+  if (isAbortShapedError(error)) {
+    return { message: 'Request aborted', code: 'aborted' }
   }
   if (error instanceof Error) {
     const codeField = (error as Error & { code?: unknown }).code
