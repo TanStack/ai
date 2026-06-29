@@ -128,7 +128,7 @@ function resolveToolAt(
   const backtick = slice.match(/^`([^`]+)`/)
   if (backtick?.[1] !== undefined) {
     const inner = backtick[1].trim()
-    if ((GROK_NATIVE_TOOL_NAMES as readonly string[]).includes(inner)) {
+    if ((GROK_NATIVE_TOOL_NAMES as ReadonlyArray<string>).includes(inner)) {
       return { name: inner as NativeToolName }
     }
     if (isShellCommand(inner)) {
@@ -214,9 +214,13 @@ export class GrokThoughtRouter {
   private *emitPlanning(text: string): Generator<StreamChunk> {
     if (!text) return
     yield* this.ensureReasoning()
+    // ensureReasoning guarantees a reasoningId; capture it so the type is
+    // non-null without a `!` assertion.
+    const messageId = this.reasoningId
+    if (messageId === null) return
     yield {
       type: EventType.REASONING_MESSAGE_CONTENT,
-      messageId: this.reasoningId!,
+      messageId,
       delta: text,
       model: this.ctx.model,
       timestamp: this.ctx.now(),
@@ -318,7 +322,11 @@ export class GrokThoughtRouter {
     this.cursor = index
   }
 
-  private *drainPlanning(): Generator<StreamChunk> {
+  // Returns the mode after draining ('tool' once a tool entry is reached,
+  // otherwise still 'planning'). Returned rather than read from `this.mode` at
+  // the call site so the caller sees the post-mutation value (TS can't narrow a
+  // field across the generator call).
+  private *drainPlanning(): Generator<StreamChunk, 'planning' | 'tool'> {
     while (this.cursor < this.buffer.length) {
       const entry = findEarliestToolEntry(this.buffer, this.cursor)
       if (!entry) {
@@ -336,8 +344,9 @@ export class GrokThoughtRouter {
         this.cursor = entry.index
       }
       yield* this.startToolAt(entry.index, entry.name)
-      return
+      return this.mode
     }
+    return this.mode
   }
 
   *push(delta: string): Generator<StreamChunk> {
@@ -346,8 +355,8 @@ export class GrokThoughtRouter {
 
     while (this.cursor < this.buffer.length) {
       if (this.mode === 'planning') {
-        yield* this.drainPlanning()
-        if (this.mode === 'planning') break
+        const mode = yield* this.drainPlanning()
+        if (mode === 'planning') break
         continue
       }
 

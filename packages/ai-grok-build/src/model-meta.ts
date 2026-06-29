@@ -4,7 +4,11 @@
  * autocomplete — any string is accepted via the `(string & {})` escape hatch
  * in {@link GrokBuildModel}.
  */
-export const GROK_BUILD_MODELS = ['grok-build', 'grok-build-0.1'] as const
+export const GROK_BUILD_MODELS = [
+  'grok-build',
+  'grok-build-0.1',
+  'composer-2.5',
+] as const
 
 export type KnownGrokBuildModel = (typeof GROK_BUILD_MODELS)[number]
 

@@ -1,6 +1,6 @@
 import { EventType, buildBaseUsage } from '@tanstack/ai'
-import type { StreamChunk, TokenUsage } from '@tanstack/ai'
 import { GrokThoughtRouter } from './thought-router'
+import type { StreamChunk, TokenUsage } from '@tanstack/ai'
 import type {
   GrokBuildStreamEvent,
   GrokBuildThreadItem,

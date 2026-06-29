@@ -556,6 +556,11 @@
           "label": "OpenCode",
           "to": "adapters/opencode",
           "addedAt": "2026-06-12"
+        },
+        {
+          "label": "Grok Build",
+          "to": "adapters/grok-build",
+          "addedAt": "2026-06-29"
         }
       ]
     },
