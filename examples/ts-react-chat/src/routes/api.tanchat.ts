@@ -308,12 +308,19 @@ export const Route = createFileRoute('/api/tanchat')({
             }),
           bedrock: () =>
             createChatOptions({
-              // Default Converse API; reads BEDROCK_API_KEY / AWS_BEARER_TOKEN_BEDROCK
-              // (or the SigV4 credential chain). Region defaults to us-east-1.
+              // Default Converse API. Auth is 'auto' (BEDROCK_API_KEY /
+              // AWS_BEARER_TOKEN_BEDROCK, then the SigV4 credential chain) unless
+              // BEDROCK_AUTH=sigv4 forces SigV4 via the AWS credential chain
+              // (env vars or `aws configure` profile). Region defaults to us-east-1.
               adapter: bedrockText(
                 (model ||
                   'us.anthropic.claude-haiku-4-5-20251001-v1:0') as 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
-                { region: process.env.AWS_REGION || 'us-east-1' },
+                {
+                  region: process.env.AWS_REGION || 'us-east-1',
+                  ...(process.env.BEDROCK_AUTH === 'sigv4' && {
+                    auth: 'sigv4' as const,
+                  }),
+                },
               ),
             }),
           ollama: () =>
