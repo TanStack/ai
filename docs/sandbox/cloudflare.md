@@ -178,13 +178,10 @@ export const agent = createCloudflareSandboxAgent<AppEnv>({
 })
 ```
 
-> The runnable variants live at
-> [`examples/sandbox-cloudflare-grok`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare-grok)
-> (this Grok Build setup),
-> [`examples/sandbox-cloudflare`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare)
-> (Claude Code), and
-> [`examples/sandbox-cloudflare-codex`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare-codex)
-> (Codex) — same edge topology, different harness + key.
+> The runnable example lives at
+> [`examples/sandbox-cloudflare`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare):
+> one app that runs Claude Code, Codex, or Grok Build — pick the harness in the
+> UI (or via the `HARNESS` var). Same edge topology, different adapter + key.
 
 ### Why a quick tunnel, not `exposePort`
 

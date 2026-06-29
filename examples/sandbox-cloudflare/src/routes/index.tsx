@@ -1,6 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { ExternalLink, Send, Server, Square } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronRight,
+  ExternalLink,
+  Send,
+  Server,
+  Square,
+} from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import rehypeHighlight from 'rehype-highlight'
 import rehypeRaw from 'rehype-raw'
@@ -12,6 +19,20 @@ import type { UIMessage } from '@tanstack/ai-react'
 export const Route = createFileRoute('/')({
   component: SandboxAgentPage,
 })
+
+// The coding agents the container image ships. The value is forwarded to the
+// server as `metadata.harness`; `resolveHarness` in src/agent.ts validates it.
+const HARNESS_OPTIONS = [
+  { value: 'claude-code', label: 'Claude Code' },
+  { value: 'codex', label: 'Codex' },
+  { value: 'grok', label: 'Grok' },
+] as const
+
+type HarnessName = (typeof HARNESS_OPTIONS)[number]['value']
+
+function isHarnessName(value: string): value is HarnessName {
+  return HARNESS_OPTIONS.some((o) => o.value === value)
+}
 
 const PROMPT_SUGGESTIONS = [
   'Build a self-contained TanStack Start app — a polished kanban board with drag-and-drop and localStorage (no APIs or env). Call the tanstackStartRecipe tool first, scaffold it, install deps, start the dev server, and give me the preview URL.',
@@ -64,19 +85,64 @@ function ToolCall({
 
 /** Pull the preview URL out of an `exposePreview` tool result (object or JSON string). */
 function previewUrlFrom(output: unknown): string | null {
-  let value = output
-  if (typeof value === 'string') {
+  let value: unknown = output
+  if (typeof output === 'string') {
     try {
-      value = JSON.parse(value)
+      value = JSON.parse(output)
     } catch {
-      return /^https?:\/\//.test(output as string) ? (output as string) : null
+      return /^https?:\/\//.test(output) ? output : null
     }
   }
   if (value !== null && typeof value === 'object' && 'url' in value) {
-    const url = (value as { url: unknown }).url
+    const url = value.url
     return typeof url === 'string' ? url : null
   }
   return null
+}
+
+/**
+ * The agent's planning / "thinking" stream, collapsed by default. Codex and Grok
+ * emit a lot of it before they act; Claude Code emits some too. Auto-opens while
+ * it's the live tail and collapses once real output (text / a tool call) follows.
+ */
+function PlanningPanel({
+  content,
+  streaming,
+}: {
+  content: string
+  streaming: boolean
+}) {
+  const [open, setOpen] = useState(streaming)
+  useEffect(() => {
+    if (!streaming) setOpen(false)
+  }, [streaming])
+
+  return (
+    <div className="mb-2 rounded-lg border border-gray-700/60 bg-gray-800/40 text-xs">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-300 hover:bg-white/5"
+      >
+        {open ? (
+          <ChevronDown className="h-3.5 w-3.5" />
+        ) : (
+          <ChevronRight className="h-3.5 w-3.5" />
+        )}
+        <span className="font-medium">
+          {streaming ? 'Planning…' : 'Planning'}
+        </span>
+        {streaming && (
+          <div className="ml-auto h-3 w-3 animate-spin rounded-full border-2 border-gray-500 border-t-transparent" />
+        )}
+      </button>
+      {open && (
+        <pre className="max-h-48 overflow-auto whitespace-pre-wrap border-t border-white/10 px-3 py-2 text-gray-400">
+          {content}
+        </pre>
+      )}
+    </div>
+  )
 }
 
 /** The headline result of the demo: a clickable link to the app the agent built. */
@@ -192,6 +258,19 @@ function Messages({
               </div>
               <div className="flex-1 min-w-0">
                 {message.parts.map((part, index) => {
+                  if (part.type === 'thinking' && part.content.trim()) {
+                    // Streaming while no later part is real output yet.
+                    const streaming = !message.parts
+                      .slice(index + 1)
+                      .some((p) => p.type === 'text' || p.type === 'tool-call')
+                    return (
+                      <PlanningPanel
+                        key={`thinking-${index}`}
+                        content={part.content}
+                        streaming={streaming}
+                      />
+                    )
+                  }
                   if (part.type === 'text' && part.content) {
                     return (
                       <div key={`text-${index}`} className="markdown-content">
@@ -238,15 +317,29 @@ function Messages({
 }
 
 function SandboxAgentPage() {
-  // A stable thread id per page load: the agent reuses one sandbox per thread,
-  // so every follow-up message lands in the same workspace.
-  const [threadId] = useState(() => crypto.randomUUID())
+  // One sandbox per thread, so every follow-up message lands in the same
+  // workspace. Switching the harness starts a FRESH thread: the container's
+  // injected secret env + the running agent are per-harness, so a new harness
+  // needs a new sandbox (and a clean conversation).
+  const [threadId, setThreadId] = useState(() => crypto.randomUUID())
+  const [harness, setHarness] = useState<HarnessName>('claude-code')
   const [input, setInput] = useState('')
 
-  const { messages, sendMessage, isLoading, stop } = useChat({
+  // Memoized so a body identity change only happens on a real thread/harness
+  // switch, not on every keystroke-driven render.
+  const body = useMemo(() => ({ threadId, harness }), [threadId, harness])
+
+  const { messages, sendMessage, isLoading, stop, clear } = useChat({
     connection: fetchServerSentEvents('/api/run'),
-    body: { threadId },
+    body,
   })
+
+  function changeHarness(next: HarnessName) {
+    if (next === harness || isLoading) return
+    clear()
+    setHarness(next)
+    setThreadId(crypto.randomUUID())
+  }
 
   // A request is in flight but nothing has streamed back yet (the last message is
   // still the user's) → the sandbox is booting. Once the first chunk arrives an
@@ -263,10 +356,30 @@ function SandboxAgentPage() {
           <Server className="w-5 h-5 text-indigo-400" />
           <span className="font-semibold">Cloudflare Sandbox Agent</span>
           <span className="text-xs text-gray-500">
-            Claude Code · Worker → Durable Object → Container
+            Worker → Durable Object → Container
           </span>
         </div>
-        <div className="flex items-center gap-2 text-sm text-indigo-300">
+        <div className="flex items-center gap-3 text-sm text-indigo-300">
+          <label
+            className="flex items-center gap-2"
+            title="Switching starts a fresh sandbox + conversation."
+          >
+            <span className="text-xs text-gray-500">harness</span>
+            <select
+              value={harness}
+              onChange={(e) => {
+                if (isHarnessName(e.target.value)) changeHarness(e.target.value)
+              }}
+              disabled={isLoading}
+              className="rounded-md border border-indigo-500/20 bg-gray-800 px-2 py-1 text-sm text-white disabled:opacity-50"
+            >
+              {HARNESS_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <span className="font-mono">thread {threadId.slice(0, 8)}</span>
         </div>
       </header>

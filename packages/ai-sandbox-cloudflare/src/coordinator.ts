@@ -53,6 +53,14 @@ export interface StartRunInput {
    * Cloudflare-specific reason request-derivation is safe to trust).
    */
   publicHost?: string
+  /**
+   * Free-form per-run input forwarded verbatim from the trigger to the app's
+   * `adapter` / `sandbox` / `tools` resolvers (it reaches them through `config`
+   * unchanged; it is NOT persisted to the run-log). Use it to carry browser-chosen
+   * run options the base trigger has no field for — e.g. which harness to run, or a
+   * model id. The package never inspects it; the app validates whatever it reads.
+   */
+  metadata?: Record<string, unknown>
 }
 
 // Host resolvers live in their own (Workers-free) module so they stay pure and

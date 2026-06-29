@@ -36,6 +36,8 @@ export type ResolveCoordinator<TEnv> = (
 interface CreateRunBody {
   threadId: string
   messages: Array<ModelMessage>
+  /** Forwarded verbatim to the app's resolvers — see {@link StartRunInput.metadata}. */
+  metadata?: Record<string, unknown>
 }
 
 /** Narrow the parsed JSON body without casting (project rule: no `as`). */
@@ -64,7 +66,20 @@ function parseCreateRunBody(value: unknown): CreateRunBody {
       throw new Error('each message must be an object')
     }
   }
-  return { threadId: value.threadId, messages: value.messages }
+  // Optional free-form pass-through (app-validated). Must be an object if present.
+  let metadata: Record<string, unknown> | undefined
+  if ('metadata' in value && value.metadata !== undefined) {
+    if (!isRecord(value.metadata)) {
+      throw new Error('body.metadata must be an object')
+    }
+    metadata = value.metadata
+  }
+  return { threadId: value.threadId, messages: value.messages, metadata }
+}
+
+/** A JSON object — narrows `unknown` to `Record<string, unknown>` cast-free. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
 /** A Worker env that carries the Sandbox DO namespace `proxyToSandbox` needs. */
@@ -133,6 +148,8 @@ export function createSandboxAgentWorker<TEnv>(
           // hostnames you own to your Worker. See `resolveBridgeOrigin` /
           // `resolvePreviewHost`.
           publicHost: url.host,
+          // Forwarded verbatim to the app's resolvers (e.g. the chosen harness).
+          metadata: body.metadata,
         }
         // RPC into the coordinator. `startRun` registers the run and returns
         // immediately under `ctx.waitUntil`; we do NOT await the agent loop.

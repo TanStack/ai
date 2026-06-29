@@ -16,6 +16,8 @@
     "@cloudflare/sandbox": "^0.12.1",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-claude-code": "workspace:*",
+    "@tanstack/ai-codex": "workspace:*",
+    "@tanstack/ai-grok-build": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
     "@tanstack/ai-sandbox": "workspace:*",
     "@tanstack/ai-sandbox-cloudflare": "workspace:*",

@@ -9,9 +9,15 @@
  *
  * This is the DEFAULT `do-drives` model: the coordinator DO runs `chat()` itself and
  * serves the MCP tool-bridge from its own `fetch` handler; the container only runs
- * the `claude` CLI. The package also supports a `colocated` mode (the harness loop
- * runs inside the container) — see the README and `docs/sandbox/overview.md` for the
- * tradeoff; this example intentionally shows the simpler `do-drives` path.
+ * the coding-agent CLI. The package also supports a `colocated` mode (the harness
+ * loop runs inside the container) — see the README and `docs/sandbox/overview.md`
+ * for the tradeoff; this example intentionally shows the simpler `do-drives` path.
+ *
+ * SWITCHABLE HARNESS: one app, three coding agents. The `HARNESS` var
+ * (`claude-code` | `codex` | `grok`, default `claude-code`) picks which CLI
+ * `chat()` drives — the run-log / WebSocket / tool-bridge topology is
+ * adapter-agnostic, so only the adapter + the injected API key change. The
+ * container image ships all three CLIs (see Dockerfile); selection is host-side.
  *
  * NOTE: Workers-runtime code — it compiles against the real Cloudflare + TanStack AI
  * types, but the end-to-end container run is only exercised on a real Cloudflare
@@ -28,20 +34,128 @@ import {
   defineWorkspace,
 } from '@tanstack/ai-sandbox'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
+import { codexText } from '@tanstack/ai-codex'
+import { grokBuildText } from '@tanstack/ai-grok-build'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 import { namedCloudflareSandbox } from './sandbox-provider'
-import type { SandboxAgentEnv } from '@tanstack/ai-sandbox-cloudflare/agent'
+import type { AnyTextAdapter } from '@tanstack/ai'
+import type {
+  SandboxAgentEnv,
+  StartRunInput,
+} from '@tanstack/ai-sandbox-cloudflare/agent'
 
 /**
  * The Worker env this app binds. The base `SandboxAgentEnv` is harness-agnostic —
- * it binds NO API key — so we extend it with `ANTHROPIC_API_KEY`, the secret the
- * in-sandbox `claude` CLI authenticates with. (A different harness declares a
- * different key here; see the codex example's `CODEX_API_KEY`.)
+ * it binds NO API key — so we extend it with the `HARNESS` selector and the API
+ * key each harness's in-sandbox CLI authenticates with. Keys are optional on the
+ * type (you only need the one for your chosen harness); {@link selectHarness} /
+ * {@link HARNESSES} fail with a clear error at run time if the selected harness's
+ * key is missing.
  */
 export interface AppEnv extends SandboxAgentEnv {
-  /** Anthropic API key. Injected into the sandbox env for the `claude` CLI. */
-  ANTHROPIC_API_KEY: string
+  /**
+   * Which in-sandbox coding agent to run: `claude-code` (default) | `codex` |
+   * `grok`. Set as a wrangler `var` (see wrangler.jsonc / .dev.vars). The
+   * container image ships all three CLIs; this only picks which `chat()` drives.
+   */
+  HARNESS?: string
+  /** Anthropic API key — the `claude-code` harness's in-sandbox CLI auth. */
+  ANTHROPIC_API_KEY?: string
+  /** OpenAI Codex key — the `codex` harness. Injected into the sandbox AS CODEX_API_KEY. */
+  CODEX_API_KEY?: string
+  /** Plain OpenAI key, used as the codex key when CODEX_API_KEY is unset. */
+  OPENAI_API_KEY?: string
+  /** xAI key — the `grok` harness. Injected as XAI_API_KEY. */
+  XAI_API_KEY?: string
+  /** Alternate name for the xAI key. */
+  GROK_API_KEY?: string
+}
+
+export type HarnessName = 'claude-code' | 'codex' | 'grok'
+
+interface HarnessSpec {
+  /** Build the harness/text adapter `chat()` runs in the coordinator DO. */
+  adapter: () => AnyTextAdapter
+  /**
+   * The secret env injected into the sandbox container for the in-CLI auth.
+   * Throws a clear error if the harness's required key isn't set, rather than
+   * starting a keyless run that fails deep inside the CLI.
+   */
+  secrets: (env: AppEnv) => Record<string, string>
+}
+
+const HARNESSES: Record<HarnessName, HarnessSpec> = {
+  'claude-code': {
+    adapter: () => claudeCodeText('sonnet'),
+    secrets: (env) => {
+      const key = env.ANTHROPIC_API_KEY
+      if (!key) throw new Error('claude-code harness needs ANTHROPIC_API_KEY.')
+      return { ANTHROPIC_API_KEY: key }
+    },
+  },
+  codex: {
+    // `danger-full-access` is REQUIRED on Cloudflare: codex's default
+    // `workspace-write` mode wraps every shell command in its own OS sandbox
+    // (bubblewrap), which needs to create a new user namespace — and the
+    // Cloudflare container forbids that ("bwrap: No permissions to create a new
+    // namespace"). The container is ALREADY the isolation boundary, so we disable
+    // codex's redundant inner sandbox.
+    adapter: () =>
+      codexText('gpt-5.3-codex', { sandboxMode: 'danger-full-access' }),
+    // `codex exec` authenticates headlessly via CODEX_API_KEY; a bare
+    // OPENAI_API_KEY makes it try the OAuth WebSocket transport (→ 401), so we
+    // accept either name and inject the value AS CODEX_API_KEY.
+    secrets: (env) => {
+      const key = env.CODEX_API_KEY ?? env.OPENAI_API_KEY
+      if (!key) {
+        throw new Error(
+          'codex harness needs CODEX_API_KEY (or OPENAI_API_KEY).',
+        )
+      }
+      return { CODEX_API_KEY: key }
+    },
+  },
+  grok: {
+    // No special sandboxMode needed for the xAI Grok Build CLI (unlike codex).
+    adapter: () => grokBuildText('grok-build-0.1'),
+    secrets: (env) => {
+      const key = env.XAI_API_KEY ?? env.GROK_API_KEY
+      if (!key) {
+        throw new Error('grok harness needs XAI_API_KEY (or GROK_API_KEY).')
+      }
+      return { XAI_API_KEY: key }
+    },
+  },
+}
+
+function isHarnessName(value: unknown): value is HarnessName {
+  return value === 'claude-code' || value === 'codex' || value === 'grok'
+}
+
+/**
+ * Resolve the active harness for a run. A per-run `metadata.harness` (chosen in
+ * the UI and forwarded through the trigger) wins; otherwise the deploy default
+ * `env.HARNESS`; otherwise `claude-code`. Throws on an unknown value.
+ */
+function resolveHarness(input: StartRunInput, env: AppEnv): HarnessName {
+  const override = input.metadata?.harness
+  if (override !== undefined) {
+    if (!isHarnessName(override)) {
+      throw new Error(
+        `Unknown harness "${String(override)}". Use claude-code | codex | grok.`,
+      )
+    }
+    return override
+  }
+  const fromEnv = env.HARNESS
+  if (fromEnv === undefined || fromEnv === '') return 'claude-code'
+  if (!isHarnessName(fromEnv)) {
+    throw new Error(
+      `Unknown HARNESS "${fromEnv}". Set it to claude-code | codex | grok.`,
+    )
+  }
+  return fromEnv
 }
 
 /**
@@ -88,7 +202,9 @@ const tanstackStartRecipe = toolDefinition({
  * agent's HTTP surface (`/runs`, `/_bridge`, `/tool-exec`) to `agent.worker`.
  */
 export const agent = createCloudflareSandboxAgent<AppEnv>({
-  adapter: () => claudeCodeText('sonnet'),
+  // The adapter is resolved per run: the UI's `metadata.harness` picks the coding
+  // agent `chat()` drives, falling back to the `HARNESS` deploy default.
+  adapter: (input, env) => HARNESSES[resolveHarness(input, env)].adapter(),
   // App-agnostic transport guidance, prepended to every run's system prompt: how to
   // start a dev server whose quick-tunnel preview works (bind wide, allow all hosts
   // so the tunnel hostname is accepted). Package-owned because it's the transport's
@@ -102,16 +218,10 @@ export const agent = createCloudflareSandboxAgent<AppEnv>({
   // Custom sandbox so we control (a) the env injected into the container and (b) the
   // container's NAME. We pin the container to the run's `threadId` via
   // `namedCloudflareSandbox` so `exposePreview` can address the same container to
-  // expose a port. Each `createSecrets` entry becomes an env var the agent can read;
-  // the demo app needs none, so `ANTHROPIC_API_KEY` here is only for the `claude` CLI.
-  // Values come from the Worker `env`: set them in `.dev.vars` (local) or
-  // `wrangler secret put` (prod). Secrets are injected at create/resume, never
-  // written to snapshots.
-  //
-  // To add a var that isn't already on the env type, extend it and pass it as the
-  // type param:
-  //   interface AppEnv extends SandboxAgentEnv { OPENAI_API_KEY: string }
-  //   createCloudflareSandboxAgent<AppEnv>({ ... })  // then env.OPENAI_API_KEY
+  // expose a port. The injected secret is the selected harness's API key only (the
+  // demo app the agent builds needs none); the value comes from the Worker `env`:
+  // set it in `.dev.vars` (local) or `wrangler secret put` (prod). Secrets are
+  // injected at create/resume, never written to snapshots.
   sandbox: (input, env) =>
     defineSandbox({
       id: 'cf-edge-agent',
@@ -119,13 +229,11 @@ export const agent = createCloudflareSandboxAgent<AppEnv>({
       // container (and survives DO eviction for `reuse: 'thread'`).
       provider: namedCloudflareSandbox(env.Sandbox, input.threadId),
       workspace: defineWorkspace({
-        // No source to clone — the container image already ships the claude CLI.
+        // No source to clone — the container image already ships the harness CLIs.
         source: { type: 'none' },
-        secrets: createSecrets({
-          ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY,
-          // Add more env here (and to `.dev.vars`), e.g.:
-          // OPENAI_API_KEY: env.OPENAI_API_KEY,
-        }),
+        secrets: createSecrets(
+          HARNESSES[resolveHarness(input, env)].secrets(env),
+        ),
       }),
       // One sandbox per thread, so a follow-up message resumes the same workspace.
       lifecycle: { reuse: 'thread' },

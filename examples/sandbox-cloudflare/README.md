@@ -12,17 +12,35 @@ Worker, one `wrangler deploy`**.
 > keys, or external services**, so the preview works for anyone — an agent shipping
 > a running app on the edge with zero config.
 
+> **One app, three harnesses.** A header dropdown picks which coding agent runs
+> in the sandbox — **`claude-code`** (default), **`codex`**, or **`grok`** (the
+> `HARNESS` var is the fallback default). The run-log / WebSocket / tool-bridge
+> topology is adapter-agnostic, so only the adapter and the injected API key
+> change. The container image ships all three CLIs — see
+> [Choosing the harness](#choosing-the-harness).
+
 The agent itself is still **one function call**:
 `createCloudflareSandboxAgent()` (from `@tanstack/ai-sandbox-cloudflare/agent`)
 returns the run-coordinator Durable Object, the `@cloudflare/sandbox` Sandbox DO,
-and a stateless Worker fetch handler. `src/agent.ts` configures it:
+and a stateless Worker fetch handler. `src/agent.ts` configures it — the adapter
+is resolved per run, so the UI's choice (or the `HARNESS` default) selects it:
 
 ```ts
 import { createCloudflareSandboxAgent } from '@tanstack/ai-sandbox-cloudflare/agent'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
+import { codexText } from '@tanstack/ai-codex'
+import { grokBuildText } from '@tanstack/ai-grok-build'
+
+const HARNESSES = {
+  'claude-code': () => claudeCodeText('sonnet'),
+  codex: () =>
+    codexText('gpt-5.3-codex', { sandboxMode: 'danger-full-access' }),
+  grok: () => grokBuildText('grok-build-0.1'),
+}
 
 export const agent = createCloudflareSandboxAgent({
-  adapter: () => claudeCodeText('sonnet'),
+  // input.metadata.harness (from the UI) wins; else the HARNESS env default.
+  adapter: (input, env) => HARNESSES[resolveHarness(input, env)](),
   tools: () => [tanstackStartRecipe], // optional chat() server tools, bridged over MCP
 })
 ```
@@ -78,8 +96,8 @@ cursors** so a reconnect never loses or replays an event. All of that lives insi
 
 This example uses the **default `do-drives` model**: the coordinator Durable
 Object runs `chat()` itself and serves the MCP tool-bridge from its own `fetch`
-handler; the container only runs the `claude` CLI. The whole MCP protocol crosses
-the container→DO boundary.
+handler; the container only runs the coding-agent CLI. The whole MCP protocol
+crosses the container→DO boundary.
 
 `@tanstack/ai-sandbox-cloudflare` also supports a **`colocated` model** (pass
 `mode: 'colocated'` + a `runInContainerHarness` container program from
@@ -89,6 +107,40 @@ the MCP transport on container localhost at the cost of a second build target
 (the in-container runner must be bundled into the image). The DO-drives path is
 the simpler one to teach and run, so it's what this example shows; see
 `docs/sandbox/overview.md` ("Edge execution: two models") for the full tradeoff.
+
+---
+
+## Choosing the harness
+
+One app runs any of three in-sandbox coding agents. The container image bakes in
+all three CLIs, so switching never rebuilds the image — pick one live in the UI,
+or set the `HARNESS` default for headless/deployed runs.
+
+| `HARNESS`     | Adapter                           | Secret to set                         | Notes                                                      |
+| ------------- | --------------------------------- | ------------------------------------- | ---------------------------------------------------------- |
+| `claude-code` | `claudeCodeText('sonnet')`        | `ANTHROPIC_API_KEY`                   | Default.                                                   |
+| `codex`       | `codexText('gpt-5.3-codex', …)`   | `CODEX_API_KEY` (or `OPENAI_API_KEY`) | Runs with `sandboxMode: 'danger-full-access'` — see below. |
+| `grok`        | `grokBuildText('grok-build-0.1')` | `XAI_API_KEY` (or `GROK_API_KEY`)     | —                                                          |
+
+**Switch it live in the UI** — the header has a harness dropdown. Picking one
+forwards `metadata: { harness }` on the run trigger; `resolveHarness` in
+`src/agent.ts` reads it (per-run override), falling back to the `HARNESS` var
+(`wrangler.jsonc` for deploys / `.dev.vars` locally), then `claude-code`.
+Switching starts a **fresh thread** (new sandbox + clean conversation), since the
+container's injected key and the running agent are per-harness. Only the chosen
+harness's key is injected into the sandbox — set the keys you want available.
+
+> The `metadata` lane is a generic per-run pass-through on `StartRunInput`
+> (forwarded verbatim to the app's resolvers, never persisted) — not
+> harness-specific. The HTTP `POST /runs` API accepts it too:
+> `{ "metadata": { "harness": "codex" }, … }`.
+
+> **Why codex needs `danger-full-access`:** codex's default `workspace-write` mode
+> wraps every shell command in its own OS sandbox (bubblewrap), which needs to
+> create a new user namespace — and the Cloudflare container forbids that
+> (`bwrap: No permissions to create a new namespace`). The container is already the
+> isolation boundary, so codex's redundant inner sandbox is disabled. Claude Code
+> and Grok need no equivalent flag.
 
 ---
 
@@ -127,7 +179,7 @@ factory builds exactly this topology for you:
                                 │ @cloudflare/sandbox  (exec / files / ports)
                                 ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  Cloudflare Sandbox (Container)  — the `claude` CLI runs here (Dockerfile).  │
+│  Cloudflare Sandbox (Container)  — the harness CLI runs here (Dockerfile).   │
 │   • The in-sandbox agent calls the tool-bridge over MCP at                   │
 │     https://<PUBLIC_HOSTNAME>/_bridge/:runId  → back up to the DO.           │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -189,12 +241,12 @@ instead:
 
 No raw socket is ever opened; the bridge rides the same fetch surface as the rest
 of the DO. The demo `tanstackStartRecipe` tool in `src/agent.ts` exercises this
-path: the in-sandbox agent calls it before building. The container ships the
-`tanstack` CLI (the Dockerfile `npm i -g @tanstack/cli`), so the recipe scaffolds
-with `tanstack create … --intent` — which writes **TanStack Intent** skill mappings
-into the generated project for coding agents. (This is the fix for "the in-sandbox
-`claude` is a bare install with none of your host skills": rather than ship the
-skill files, ship the CLI that provisions them.) The bridge still carries the
+path: the in-sandbox agent calls it before building. The recipe scaffolds with
+`npx --yes @tanstack/cli create … --intent` (no global install needed — npm/npx
+ship on the base image) — which writes **TanStack Intent** skill mappings into the
+generated project for coding agents. (This is the fix for "the in-sandbox agent is
+a bare install with none of your host skills": rather than ship the skill files,
+provision them via the CLI at scaffold time.) The bridge still carries the
 sandbox-specific guidance the generic skill can't know — build a no-env app, and
 bind/expose the dev server for a preview URL.
 
@@ -202,30 +254,31 @@ bind/expose the dev server for a preview URL.
 
 ## Files
 
-| File                      | Role                                                                                                        |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `src/agent.ts`            | `createCloudflareSandboxAgent()` + the `tanstackStartRecipe` and `exposePreview` host tools.                |
-| `src/sandbox-provider.ts` | `namedCloudflareSandbox` — pins the container to the run's `threadId` so `exposePreview` can reach it.      |
-| `src/server.ts`           | Custom Cloudflare entry: re-exports the DOs and composes `proxyToSandbox` + the agent + Start SSR.          |
-| `src/routes/index.tsx`    | The chat UI (`useChat` → `/api/run`) + the clickable **Open preview** link.                                 |
-| `src/routes/api.run.ts`   | Same-origin proxy: bridges the agent's POST-then-WebSocket run protocol to the SSE stream `useChat` reads.  |
-| `wrangler.jsonc`          | DO + Container + Sandbox bindings (`RUN_COORDINATOR` + `Sandbox`), migrations, `nodejs_compat`.             |
-| `Dockerfile`              | Container image: `@cloudflare/sandbox` base + the `claude` CLI + the `tanstack` CLI (scaffolding + Intent). |
-| `vite.config.ts`          | `@cloudflare/vite-plugin` + `tanstackStart()` — builds + runs the Worker in `workerd`.                      |
+| File                      | Role                                                                                                                  |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `src/agent.ts`            | `createCloudflareSandboxAgent()`, the `HARNESS` selector, + the `tanstackStartRecipe` and `exposePreview` host tools. |
+| `src/sandbox-provider.ts` | `namedCloudflareSandbox` — pins the container to the run's `threadId` so `exposePreview` can reach it.                |
+| `src/server.ts`           | Custom Cloudflare entry: re-exports the DOs and composes `proxyToSandbox` + the agent + Start SSR.                    |
+| `src/routes/index.tsx`    | The chat UI (`useChat` → `/api/run`) + the clickable **Open preview** link.                                           |
+| `src/routes/api.run.ts`   | Same-origin proxy: bridges the agent's POST-then-WebSocket run protocol to the SSE stream `useChat` reads.            |
+| `wrangler.jsonc`          | DO + Container + Sandbox bindings (`RUN_COORDINATOR` + `Sandbox`), migrations, `nodejs_compat`.                       |
+| `Dockerfile`              | Container image: `@cloudflare/sandbox` base + all three harness CLIs (`claude`, `codex`, `grok`).                     |
+| `vite.config.ts`          | `@cloudflare/vite-plugin` + `tanstackStart()` — builds + runs the Worker in `workerd`.                                |
 
 ## Run it locally
 
 **Prerequisites:** Docker running (the plugin builds + runs the Container image
-locally), Node 20+, `pnpm`, and an `ANTHROPIC_API_KEY`.
+locally), Node 20+, `pnpm`, and the API key for your chosen `HARNESS` (defaults to
+`claude-code` → `ANTHROPIC_API_KEY`; see [Choosing the harness](#choosing-the-harness)).
 
 ```bash
 # 1) Install workspace deps (from the repo root)
 pnpm install
 
 # 2) From THIS directory, provide your key for local dev. The plugin reads
-#    .dev.vars; the factory injects it into the sandbox env for the `claude` CLI.
+#    .dev.vars; the factory injects it into the sandbox env for the harness CLI.
 cd examples/sandbox-cloudflare
-cp .dev.vars.example .dev.vars      # then edit .dev.vars and set ANTHROPIC_API_KEY
+cp .dev.vars.example .dev.vars      # then edit .dev.vars: set HARNESS + its key
 
 # 3) (Optional) regenerate Cloudflare binding types after editing wrangler.jsonc
 pnpm cf-typegen
@@ -270,8 +323,10 @@ websocat "ws://localhost:3001/runs/<runId>/stream?threadId=t1&lastSeq=-1"
 curl -s "http://localhost:3001/runs/<runId>?threadId=t1"
 ```
 
-**Deploying:** `pnpm deploy` and set the production key with
-`wrangler secret put ANTHROPIC_API_KEY`. The **agent run** works with no host config —
+**Deploying:** `pnpm deploy` and set the production key for your harness with
+`wrangler secret put <KEY>` (e.g. `ANTHROPIC_API_KEY` for the default
+`claude-code` — see [Choosing the harness](#choosing-the-harness)). The **agent
+run** works with no host config —
 the container reaches `/_bridge` over the request host, which is safe on Cloudflare
 (the edge only routes hostnames you own to your Worker), so a `*.workers.dev` deploy
 needs no `PUBLIC_HOSTNAME`. **Preview URLs** work with no host config either — they
@@ -307,8 +362,8 @@ accept the tunnel host (`server: { host: true, allowedHosts: true }` for Vite).
 
 Which env vars get injected into the container is controlled by the `sandbox`
 resolver in `src/agent.ts`: each `createSecrets({ … })` entry becomes an env var
-the agent can read. (The demo app the agent builds needs none — `ANTHROPIC_API_KEY`
-here is only for the `claude` CLI, i.e. the agent itself.)
+the agent can read. (The demo app the agent builds needs none — the selected
+harness's API key here is only for its CLI, i.e. the agent itself.)
 Values come from the Worker `env`, so to add one:
 
 1. add the value to `.dev.vars` (local) / `wrangler secret put` (prod), and

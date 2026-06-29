@@ -34,7 +34,60 @@ interface ProxyBody {
   // message validation (in `startRun`) is what actually checks shape; we only
   // assert "non-empty array" here for a fast, clear 400 on garbage input.
   messages: Array<ModelMessage>
-  data?: { threadId?: unknown }
+  threadId?: string
+  /** The UI's chosen harness, forwarded to the agent as `metadata.harness`. */
+  harness?: string
+}
+
+/**
+ * The layers `useChat` may nest forwarded props in (top level, `data`, or
+ * `forwardedProps`) depending on the connection adapter.
+ */
+function bodyLayers(value: object): Array<object> {
+  const layers: Array<object> = [value]
+  if (
+    'data' in value &&
+    value.data !== null &&
+    typeof value.data === 'object'
+  ) {
+    layers.push(value.data)
+  }
+  if (
+    'forwardedProps' in value &&
+    value.forwardedProps !== null &&
+    typeof value.forwardedProps === 'object'
+  ) {
+    layers.push(value.forwardedProps)
+  }
+  return layers
+}
+
+/** First non-empty `threadId` string across the body layers. */
+function readThreadId(value: object): string | undefined {
+  for (const layer of bodyLayers(value)) {
+    if (
+      'threadId' in layer &&
+      typeof layer.threadId === 'string' &&
+      layer.threadId !== ''
+    ) {
+      return layer.threadId
+    }
+  }
+  return undefined
+}
+
+/** First non-empty `harness` string across the body layers. */
+function readHarness(value: object): string | undefined {
+  for (const layer of bodyLayers(value)) {
+    if (
+      'harness' in layer &&
+      typeof layer.harness === 'string' &&
+      layer.harness !== ''
+    ) {
+      return layer.harness
+    }
+  }
+  return undefined
 }
 
 function parseBody(value: unknown): ProxyBody {
@@ -45,15 +98,11 @@ function parseBody(value: unknown): ProxyBody {
   if (!Array.isArray(messages) || messages.length === 0) {
     throw new Error('body.messages must be a non-empty array')
   }
-  let data: { threadId?: unknown } | undefined
-  if (
-    'data' in value &&
-    value.data !== null &&
-    typeof value.data === 'object'
-  ) {
-    data = value.data
+  return {
+    messages,
+    threadId: readThreadId(value),
+    harness: readHarness(value),
   }
-  return { messages, data }
 }
 
 /** The run coordinator DO for a thread, addressed over the `RUN_COORDINATOR` binding. */
@@ -191,10 +240,7 @@ export const Route = createFileRoute('/api/run')({
           })
         }
 
-        const threadId =
-          typeof body.data?.threadId === 'string' && body.data.threadId !== ''
-            ? body.data.threadId
-            : crypto.randomUUID()
+        const threadId = body.threadId ?? crypto.randomUUID()
 
         const abortController = new AbortController()
         request.signal.addEventListener('abort', () => abortController.abort())
@@ -211,6 +257,9 @@ export const Route = createFileRoute('/api/run')({
             // localhost). Safe to trust on Cloudflare (the edge only routes hosts
             // you own to this Worker). See resolveBridgeOrigin / resolvePreviewHost.
             publicHost: new URL(request.url).host,
+            // The UI's chosen coding agent. `resolveHarness` in src/agent.ts reads
+            // it; absent → the HARNESS deploy default. Omitted entirely when unset.
+            metadata: body.harness ? { harness: body.harness } : undefined,
           })
           const chunks = tailRun(
             coordinator,

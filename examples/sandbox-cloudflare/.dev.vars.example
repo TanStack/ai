@@ -1,12 +1,23 @@
 # Local dev secrets for `wrangler dev`. Copy to `.dev.vars` and fill in.
 # `.dev.vars` is gitignored; never commit real keys.
 
-# Anthropic API key for the in-sandbox `claude` CLI. Injected into the sandbox
-# env via the workspace `secrets` (never persisted to logs/snapshots).
+# Which in-sandbox coding agent to run: claude-code (default) | codex | grok.
+# (Also set in wrangler.jsonc `vars`; .dev.vars overrides it locally.) Only the
+# matching key below is needed for your choice.
+HARNESS=claude-code
+
+# claude-code → Anthropic API key for the in-sandbox `claude` CLI.
 ANTHROPIC_API_KEY=sk-ant-...
 
-# Optional: an OAuth token instead of an API key (set one or the other).
-# CLAUDE_CODE_OAUTH_TOKEN=
+# codex → OpenAI Codex key. Injected into the sandbox AS CODEX_API_KEY (a bare
+# OPENAI_API_KEY is accepted too and mapped to it).
+# CODEX_API_KEY=sk-...
+
+# grok → xAI key for the Grok Build CLI (GROK_API_KEY accepted as an alias).
+# XAI_API_KEY=xai-...
+
+# The key is injected into the sandbox env via the workspace `secrets` (never
+# persisted to logs/snapshots).
 
 # Local dev needs NO host config. The container reaches the Worker's tool-bridge at
 # `host.docker.internal:3001`, and preview URLs use a Cloudflare quick tunnel

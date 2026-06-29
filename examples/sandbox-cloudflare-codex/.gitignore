@@ -1,7 +1,0 @@
-node_modules
-.wrangler
-dist
-.dev.vars
-.nitro
-.output
-.tanstack

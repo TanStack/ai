@@ -158,8 +158,9 @@ A complete, runnable version of this flow ships at
 [`examples/sandbox-coding-agent`](https://github.com/TanStack/ai/tree/main/examples/sandbox-coding-agent)
 — it uses the Claude Code harness (so it needs `ANTHROPIC_API_KEY`), but the
 shape is identical: clone a buggy repo, fix it, stream the diff. Run it with
-Docker or with `SANDBOX=local` on your host. For a Grok Build app running at the
-edge, see [`examples/sandbox-cloudflare-grok`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare-grok).
+Docker or with `SANDBOX=local` on your host. For a coding agent running at the
+edge (Claude Code, Codex, or Grok Build — pick the harness in the UI), see
+[`examples/sandbox-cloudflare`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare).
 
 From here:
 
