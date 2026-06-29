@@ -291,6 +291,24 @@ describe('BedrockConverseTextAdapter', () => {
     expect(errors[0]?.code).toBe('parse-error')
   })
 
+  it('prefers the bearer auth scheme for a token (SDK defaults to SigV4 otherwise)', () => {
+    class Probe extends BedrockConverseTextAdapter<'us.amazon.nova-pro-v1:0'> {
+      bearer(token: string) {
+        return this.buildClientConfig(
+          { kind: 'bearer' as const, token },
+          'us-east-1',
+          undefined,
+        )
+      }
+    }
+    const a = new Probe({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
+    const cfg = a.bearer('ABSK-test-token')
+    // Without authSchemePreference the SDK tries SigV4 first and the token is
+    // ignored — this is the contract that keeps API-key auth working.
+    expect(cfg.authSchemePreference).toEqual(['httpBearerAuth'])
+    expect(cfg.token).toEqual({ token: 'ABSK-test-token' })
+  })
+
   it('declares it does not support combined tools and schema', () => {
     const a = new BedrockConverseTextAdapter(
       { apiKey: 'k' },

@@ -2,6 +2,7 @@ import { EventType, convertSchemaToJsonSchema } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { resolveBedrockAuth } from '../utils/auth'
+import type { ResolvedBedrockAuth } from '../utils/auth'
 import { toConverseMessages } from '../converse/message-converter'
 import { toToolConfig } from '../converse/tool-converter'
 import {
@@ -16,6 +17,7 @@ import type { ConverseToolInput } from '../converse/tool-converter'
 import type * as BedrockRuntime from '@aws-sdk/client-bedrock-runtime'
 import type {
   BedrockRuntimeClient,
+  BedrockRuntimeClientConfig,
   ContentBlock,
   ConverseCommandInput,
   ConverseCommandOutput,
@@ -121,24 +123,9 @@ export class BedrockConverseTextAdapter<
           },
           'runtime',
         )
-        const endpoint = this.clientConfig.baseURL
-        // Recent @aws-sdk/client-bedrock-runtime exposes a first-class
-        // `token: TokenIdentity | TokenIdentityProvider` config field
-        // (HttpAuthSchemeInputConfig) for Bedrock API-key bearer auth — no
-        // custom requestHandler/middleware needed. SigV4 uses the credential
-        // provider.
-        if (resolved.kind === 'bearer') {
-          return new BedrockRuntimeClient({
-            region,
-            token: { token: resolved.token },
-            ...(endpoint ? { endpoint } : {}),
-          })
-        }
-        return new BedrockRuntimeClient({
-          region: resolved.region,
-          credentials: resolved.credentials,
-          ...(endpoint ? { endpoint } : {}),
-        })
+        return new BedrockRuntimeClient(
+          this.buildClientConfig(resolved, region, this.clientConfig.baseURL),
+        )
       })().catch((error: unknown) => {
         // Don't cache a rejected promise — clear it so a later call can retry
         // (e.g. after a transient import failure or fixed auth config).
@@ -147,6 +134,37 @@ export class BedrockConverseTextAdapter<
       })
     }
     return this.clientPromise
+  }
+
+  /**
+   * Map resolved auth + endpoint to a `BedrockRuntimeClientConfig`.
+   *
+   * Recent `@aws-sdk/client-bedrock-runtime` exposes a first-class `token`
+   * config field for Bedrock API-key bearer auth. But the client's default
+   * auth-scheme order is SigV4 first, then bearer — so passing `token` alone is
+   * not enough: the SDK still resolves SigV4 and throws "Could not load
+   * credentials from any providers". Pinning `authSchemePreference` to the
+   * bearer scheme makes the API key actually get used. SigV4 uses the AWS
+   * credential provider chain and the default scheme order.
+   */
+  protected buildClientConfig(
+    resolved: ResolvedBedrockAuth,
+    region: string,
+    endpoint: string | undefined,
+  ): BedrockRuntimeClientConfig {
+    if (resolved.kind === 'bearer') {
+      return {
+        region,
+        token: { token: resolved.token },
+        authSchemePreference: ['httpBearerAuth'],
+        ...(endpoint ? { endpoint } : {}),
+      }
+    }
+    return {
+      region: resolved.region,
+      credentials: resolved.credentials,
+      ...(endpoint ? { endpoint } : {}),
+    }
   }
 
   // ---------------------------------------------------------------------------
