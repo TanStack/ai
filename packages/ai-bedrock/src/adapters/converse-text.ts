@@ -2,7 +2,6 @@ import { EventType, convertSchemaToJsonSchema } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { resolveBedrockAuth } from '../utils/auth'
-import type { ResolvedBedrockAuth } from '../utils/auth'
 import { toConverseMessages } from '../converse/message-converter'
 import { toToolConfig } from '../converse/tool-converter'
 import {
@@ -13,6 +12,7 @@ import {
   STRUCTURED_TOOL_NAME,
   buildStructuredToolConfig,
 } from '../converse/structured-output'
+import type { ResolvedBedrockAuth } from '../utils/auth'
 import type { ConverseToolInput } from '../converse/tool-converter'
 import type * as BedrockRuntime from '@aws-sdk/client-bedrock-runtime'
 import type {
