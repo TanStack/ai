@@ -15,7 +15,6 @@
     "@tanstack/ai-claude-code": "workspace:*",
     "@tanstack/ai-client": "workspace:*",
     "@tanstack/ai-codex": "workspace:*",
-    "@tanstack/ai-gemini-cli": "workspace:*",
     "@tanstack/ai-opencode": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
     "@tanstack/nitro-v2-vite-plugin": "^1.154.7",

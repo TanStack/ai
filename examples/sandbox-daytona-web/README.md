@@ -61,7 +61,7 @@ drag-and-drop and localStorage, then give me the preview URL."_
 
 ## Extending it
 
-- **Another harness** (OpenCode, Codex, Gemini CLI…): swap the `adapter` in
+- **Another harness** (OpenCode, Codex…): swap the `adapter` in
   `src/sandbox-agent.ts`. Harnesses that connect from the host to an in-sandbox
   server (e.g. OpenCode) need that port exposed via `getPreviewLink` too.
 - **Another sandbox** (Vercel, Docker, edge containers…): swap the `provider:`

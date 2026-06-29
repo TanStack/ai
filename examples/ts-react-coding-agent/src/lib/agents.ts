@@ -3,27 +3,22 @@
  *
  * Each entry maps to a harness adapter on the server (see
  * `src/routes/api.chat.ts`): Claude Code (`@tanstack/ai-claude-code`),
- * Codex (`@tanstack/ai-codex`), Gemini CLI (`@tanstack/ai-gemini-cli`), and
- * OpenCode (`@tanstack/ai-opencode`).
+ * Codex (`@tanstack/ai-codex`), and OpenCode (`@tanstack/ai-opencode`).
  */
 export const AGENTS = [
   { id: 'claude-code', label: 'Claude Code' },
   { id: 'codex', label: 'Codex' },
-  { id: 'gemini-cli', label: 'Gemini CLI' },
   { id: 'opencode', label: 'OpenCode' },
 ] as const
 
 /** Agent ids with a working adapter behind them. */
-export type AgentId = 'claude-code' | 'codex' | 'gemini-cli' | 'opencode'
+export type AgentId = 'claude-code' | 'codex' | 'opencode'
 
 export const DEFAULT_AGENT: AgentId = 'claude-code'
 
 export function isAgentId(value: unknown): value is AgentId {
   return (
-    value === 'claude-code' ||
-    value === 'codex' ||
-    value === 'gemini-cli' ||
-    value === 'opencode'
+    value === 'claude-code' || value === 'codex' || value === 'opencode'
   )
 }
 
@@ -88,27 +83,6 @@ export const AGENT_SETUP: Record<AgentId, AgentSetup> = {
     ],
     docsUrl: 'https://developers.openai.com/codex',
   },
-  'gemini-cli': {
-    label: 'Gemini CLI',
-    summary:
-      'Drives the Gemini CLI over ACP through @tanstack/ai-gemini-cli. Needs a recent CLI and an ACP auth method chosen up front.',
-    steps: [
-      {
-        text: 'Install a current Gemini CLI (ACP mode needs a recent build):',
-        code: 'npm i -g @google/gemini-cli',
-      },
-      { text: 'Log in with Google once (interactive):', code: 'gemini' },
-      {
-        text: 'Headless ACP runs can’t show an auth picker, so tell the adapter which method to use and start the server:',
-        code: 'GEMINI_ACP_AUTH_METHOD=oauth-personal GEMINI_CLI_TRUST_WORKSPACE=true pnpm dev',
-      },
-      {
-        text: '…or use an API key instead (set GEMINI_ACP_AUTH_METHOD=gemini-api-key):',
-        code: 'export GEMINI_API_KEY=…',
-      },
-    ],
-    docsUrl: 'https://github.com/google-gemini/gemini-cli',
-  },
   opencode: {
     label: 'OpenCode',
     summary:
@@ -136,10 +110,10 @@ export const AGENT_SETUP: Record<AgentId, AgentSetup> = {
  * What the agent is allowed to do in the workspace:
  * - `read-only`: it can read and search, but file edits and shell commands
  *   are blocked.
- * - `edit`: file edits are auto-approved; with Claude Code, Gemini CLI, and
- *   OpenCode, shell commands still get denied by each adapter's default
- *   permission policy (a deliberate demo of the permission system), while
- *   Codex sandboxes them inside the workspace instead.
+ * - `edit`: file edits are auto-approved; with Claude Code and OpenCode,
+ *   shell commands still get denied by each adapter's default permission
+ *   policy (a deliberate demo of the permission system), while Codex
+ *   sandboxes them inside the workspace instead.
  */
 export type AgentMode = 'read-only' | 'edit'
 

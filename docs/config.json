@@ -312,7 +312,7 @@
           "label": "Overview",
           "to": "sandbox/overview",
           "addedAt": "2026-06-16",
-          "updatedAt": "2026-06-28"
+          "updatedAt": "2026-06-29"
         }
       ]
     },
@@ -494,11 +494,6 @@
         {
           "label": "Codex",
           "to": "adapters/codex",
-          "addedAt": "2026-06-12"
-        },
-        {
-          "label": "Gemini CLI",
-          "to": "adapters/gemini-cli",
           "addedAt": "2026-06-12"
         },
         {

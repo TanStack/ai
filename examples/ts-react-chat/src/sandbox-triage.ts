@@ -1,6 +1,5 @@
 import { claudeCodeText } from '@tanstack/ai-claude-code'
 import { codexText } from '@tanstack/ai-codex'
-import { geminiCliText } from '@tanstack/ai-gemini-cli'
 import { opencodeText } from '@tanstack/ai-opencode'
 import {
   createSecrets,
@@ -66,6 +65,9 @@ export interface HarnessSpec {
    * `CODEX_API_KEY`, not `OPENAI_API_KEY` (the latter hits its OAuth/WS path → 401).
    */
   sandboxSecrets?: () => Record<string, string>
+  /** Port the in-sandbox CLI listens on that the host must reach (e.g. opencode's
+   * `opencode serve`). Sandboxed providers publish/expose it; undefined = none. */
+  exposePort?: number
 }
 
 export const HARNESSES: Record<HarnessName, HarnessSpec> = {
@@ -89,7 +91,7 @@ export const HARNESSES: Record<HarnessName, HarnessSpec> = {
     // (Daytona), where it fails with "os error 2". The outer sandbox is the
     // real boundary; the read-only triage prompt constrains behavior.
     makeAdapter: () =>
-      codexText('gpt-5.3-codex', { sandboxMode: 'danger-full-access' }),
+      codexText('gpt-5.5', { sandboxMode: 'danger-full-access' }),
     // `--include=optional`: codex's native binary ships as a platform-specific
     // optional dep; images whose npm omits optional deps (some Daytona/Vercel
     // bases) otherwise install a broken `codex` (or fail the install).
@@ -103,54 +105,69 @@ export const HARNESSES: Record<HarnessName, HarnessSpec> = {
       process.env.CODEX_API_KEY || process.env.OPENAI_API_KEY
         ? []
         : ['CODEX_API_KEY (or OPENAI_API_KEY)'],
-    sandboxSecrets: () => {
+    sandboxSecrets: (): Record<string, string> => {
       const key = process.env.CODEX_API_KEY ?? process.env.OPENAI_API_KEY
       return key ? { CODEX_API_KEY: key } : {}
     },
   },
-  'gemini-cli': {
-    label: 'Gemini CLI',
-    makeAdapter: () => geminiCliText('gemini-3-pro-preview'),
-    installCommand: 'npm install -g @google/gemini-cli',
-    requiredEnv: ['GEMINI_API_KEY'],
-  },
   opencode: {
     label: 'OpenCode',
     makeAdapter: () =>
-      opencodeText('anthropic/claude-sonnet-4-5', {
+      opencodeText('openai/gpt-5.1-codex', {
         directory: WORKDIR,
         permissionMode: 'bypassPermissions',
       }),
     installCommand: 'npm install -g opencode-ai',
-    requiredEnv: ['ANTHROPIC_API_KEY'],
+    requiredEnv: ['OPENAI_API_KEY'],
+    // `opencode serve` listens on this port inside the sandbox; the host reaches
+    // it over HTTP, so sandboxed providers must publish/expose it (Docker
+    // `publishPorts`, Vercel `ports`). Local/Daytona need nothing (localhost /
+    // auto-exposed). Matches the opencode adapter's DEFAULT_PORT.
+    exposePort: 4096,
   },
 }
 
 export interface ProviderSpec {
   label: string
-  make: () => SandboxProvider
+  /** `ports` are host-reachable ports the harness needs exposed (e.g. opencode's). */
+  make: (ports: Array<number>) => SandboxProvider
   requiredEnv: Array<string>
   /**
    * Optional custom env check (overrides `requiredEnv`) for providers with
    * either/or auth — returns the list of missing env vars, or `[]` if satisfied.
    */
   envCheck?: () => Array<string>
+  /**
+   * Whether the host tool bridge is reachable from inside this provider's
+   * sandbox. The bridge is a `localhost` HTTP server, so only same-machine
+   * providers (local, docker via `host.docker.internal`) can reach it. Remote
+   * cloud sandboxes (daytona, vercel) can't reach the host without a public
+   * tunnel, so chat()-provided tools / code mode can't be bridged there.
+   */
+  toolBridge: boolean
 }
 
 export const PROVIDERS: Record<ProviderName, ProviderSpec> = {
   docker: {
     label: 'Docker',
-    make: () => dockerSandbox({ image: SANDBOX_IMAGE }),
+    make: (ports) =>
+      dockerSandbox({
+        image: SANDBOX_IMAGE,
+        ...(ports.length ? { publishPorts: ports } : {}),
+      }),
     requiredEnv: [],
+    toolBridge: true,
   },
   local: {
     label: 'Local process',
     make: () => localProcessSandbox(),
     requiredEnv: [],
+    toolBridge: true,
   },
   vercel: {
     label: 'Vercel',
-    make: () => vercelSandbox(),
+    make: (ports) => vercelSandbox(ports.length ? { ports } : {}),
+    toolBridge: false,
     // Either a self-contained OIDC token (`vercel env pull` → VERCEL_OIDC_TOKEN),
     // OR token + team + project (off-Vercel, no OIDC). With only VERCEL_TOKEN the
     // SDK falls back to OIDC and fails.
@@ -164,8 +181,10 @@ export const PROVIDERS: Record<ProviderName, ProviderSpec> = {
   },
   daytona: {
     label: 'Daytona',
+    // Daytona auto-exposes ports via preview URLs, so it ignores `ports`.
     make: () => daytonaSandbox(),
     requiredEnv: ['DAYTONA_API_KEY'],
+    toolBridge: false,
   },
 }
 
@@ -303,9 +322,11 @@ export function buildSandbox(opts: {
 
   // Subscription mode scrubs ANTHROPIC_API_KEY from the host claude's env (via the
   // provider's `scrubEnv` flag) so it falls back to the logged-in subscription.
+  // Ports the in-sandbox CLI needs reachable from the host (e.g. opencode's serve port).
+  const ports = harness.exposePort !== undefined ? [harness.exposePort] : []
   const provider = subscription
     ? localProcessSandbox({ scrubEnv: ['ANTHROPIC_API_KEY'] })
-    : PROVIDERS[opts.provider].make()
+    : PROVIDERS[opts.provider].make(ports)
 
   // Inject auth secrets only for sandboxed providers — local-process inherits the
   // host's own env (API key, or a `claude login`/`codex login`), so nothing to inject.

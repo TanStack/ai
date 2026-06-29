@@ -9,7 +9,7 @@
  */
 
 // Pure string-literal types — re-exported by sandbox-triage.ts (single source of truth here).
-export type HarnessName = 'claude-code' | 'codex' | 'gemini-cli' | 'opencode'
+export type HarnessName = 'claude-code' | 'codex' | 'opencode'
 export type ProviderName = 'docker' | 'local' | 'vercel' | 'daytona'
 export type Verdict = 'relevant' | 'not-relevant' | 'uncertain'
 
@@ -35,7 +35,6 @@ export interface PickerSpec {
 export const HARNESSES: Record<string, PickerSpec> = {
   'claude-code': { label: 'Claude Code' },
   codex: { label: 'Codex' },
-  'gemini-cli': { label: 'Gemini CLI' },
   opencode: { label: 'OpenCode' },
 }
 

@@ -20,14 +20,22 @@ function json(status: number, error: string): Response {
 export async function triagePost(request: Request): Promise<Response> {
   if (request.signal.aborted) return new Response(null, { status: 499 })
 
-  const [{ chat, toServerSentEventsStream }, { withSandbox }, triage] =
-    await Promise.all([
-      import('@tanstack/ai'),
-      import('@tanstack/ai-sandbox'),
-      import('../sandbox-triage'),
-    ])
+  const [
+    { chat, toServerSentEventsStream },
+    { withSandbox },
+    triage,
+    { createTriageTools },
+    { withNgrokBridge, ngrokConfigured },
+  ] = await Promise.all([
+    import('@tanstack/ai'),
+    import('@tanstack/ai-sandbox'),
+    import('../sandbox-triage'),
+    import('../triage-tools'),
+    import('@tanstack/ai-sandbox/ngrok'),
+  ])
   const {
     HARNESSES,
+    PROVIDERS,
     buildSandbox,
     buildTriagePrompt,
     fetchIssue,
@@ -87,11 +95,35 @@ export async function triagePost(request: Request): Promise<Response> {
       keepAlive: data.keepAlive === true,
       useSubscription: data.useSubscription === true,
     })
+    // The host tool bridge is a localhost server: same-machine providers
+    // (local, docker) reach it directly. Remote cloud sandboxes (daytona,
+    // vercel) can't — UNLESS we tunnel the bridge out with ngrok (set
+    // NGROK_AUTHTOKEN). When neither applies, skip the tools so the agent
+    // doesn't flail on tools it can never call, and run a plain triage.
+    const useNgrok = !PROVIDERS[data.provider].toolBridge && ngrokConfigured()
+    const bridgeReachable = PROVIDERS[data.provider].toolBridge || useNgrok
+    const triageTools = bridgeReachable
+      ? createTriageTools(repo, issueNumber)
+      : null
     const stream = chat({
       threadId,
       adapter: HARNESSES[data.harness].makeAdapter(data.provider),
       messages: [{ role: 'user', content: buildTriagePrompt(issue, repo) }],
-      middleware: [withSandbox(sandbox)],
+      // For cloud providers, route the bridge through ngrok so the in-sandbox
+      // harness can reach the host tools. Local/Docker use the default bridge.
+      middleware: useNgrok
+        ? [withSandbox(sandbox), withNgrokBridge]
+        : [withSandbox(sandbox)],
+      // Bridged tools + the mandate forcing both to run before any repo work.
+      ...(triageTools
+        ? {
+            tools: triageTools.tools,
+            systemPrompts: [
+              triageTools.mandate,
+              triageTools.codeModeSystemPrompt,
+            ],
+          }
+        : {}),
       abortController,
     }) as AsyncIterable<StreamChunk>
     return new Response(toServerSentEventsStream(stream, abortController), {

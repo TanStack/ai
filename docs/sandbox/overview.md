@@ -170,7 +170,7 @@ mcpSkill('my-mcp', {
 
 `skills` is an array of `WorkspaceSkill` values. During bootstrap each harness
 projector maps them to its native format (Claude Code `.mcp.json`, Codex
-`.codex/config.toml`, Gemini CLI settings JSON, OpenCode `opencode.json`).
+`.codex/config.toml`, OpenCode `opencode.json`).
 Concepts that a given CLI lacks (e.g. plugins in Codex) emit a warning and are
 silently skipped rather than throwing.
 
@@ -352,6 +352,48 @@ chat({
   middleware: [withSandbox(sandbox)],
 })
 ```
+
+### Reaching the bridge from a remote sandbox
+
+The bridge is an HTTP endpoint the **sandbox calls back to**, so the sandbox must
+be able to open a connection to your orchestrator. That holds in two cases and
+breaks in a third:
+
+- **Local process / Docker** — the orchestrator is the same machine, reached on
+  `localhost` / `host.docker.internal`. Bridged tools work with no extra setup.
+- **A deployed orchestrator (production)** — it already has a public URL, so the
+  bridge is reachable out of the box. The provisioner advertises your public host
+  (derived from the incoming request) instead of `localhost`, and every call is
+  gated by a random per-run bearer token, so the public endpoint is not an open
+  door. This is the same path the serverless/edge model uses (see
+  [Edge execution](#edge-execution-two-models)).
+- **A remote cloud sandbox driven from your laptop** (Daytona, Vercel in local
+  dev) — the sandbox is a remote VM and **cannot dial your machine's
+  `localhost`**, and your laptop has no public URL. Bridged tools / code mode
+  can't reach the host until you expose the bridge.
+
+For that last case, the `@tanstack/ai-sandbox/ngrok` subpath tunnels the loopback
+bridge through [ngrok](https://ngrok.com) so a remote sandbox can reach it. Set
+`NGROK_AUTHTOKEN`, then add `withNgrokBridge` after `withSandbox(...)`:
+
+```ts
+import { withNgrokBridge } from '@tanstack/ai-sandbox/ngrok'
+
+chat({
+  threadId,
+  adapter: claudeCodeText('sonnet'),
+  messages,
+  tools: [getTodos.server(async ({ userId }) => db.todos.find({ userId }))],
+  // Cloud provider in local dev → tunnel the host bridge so the remote sandbox
+  // can reach it. Local process / Docker don't need this.
+  middleware: [withSandbox(sandbox), withNgrokBridge],
+})
+```
+
+`@ngrok/ngrok` is an **optional peer dependency** — install it alongside the
+subpath (`npm i @ngrok/ngrok`). `withNgrokBridge` is purely a local-dev
+convenience: in production your deployed orchestrator is already reachable, so you
+ship without it.
 
 ### Edge execution: two models
 

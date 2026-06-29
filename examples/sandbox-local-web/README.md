@@ -70,7 +70,7 @@ drag-and-drop and localStorage, then give me the preview URL."_
 
 ## Adding more providers
 
-- **Another harness** (codex, gemini-cli, …): add an entry to the `HARNESSES`
+- **Another harness** (codex, opencode, …): add an entry to the `HARNESSES`
   registry in `src/sandbox-agent.ts` — its adapter factory, install command, and
   any extra port to publish.
 - **Another sandbox** (a hosted provider, edge containers, …): extend

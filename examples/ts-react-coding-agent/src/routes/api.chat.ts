@@ -7,7 +7,6 @@ import {
 } from '@tanstack/ai'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
 import { codexText } from '@tanstack/ai-codex'
-import { geminiCliText } from '@tanstack/ai-gemini-cli'
 import { opencodeText } from '@tanstack/ai-opencode'
 import { isAgentId, isAgentMode } from '@/lib/agents'
 import { lookupStyleGuide } from '@/lib/style-guide-tool'
@@ -47,27 +46,12 @@ function createAdapter(
         cwd,
         sandboxMode: mode === 'edit' ? 'workspace-write' : 'read-only',
       })
-    case 'gemini-cli':
-      return geminiCliText('gemini-3-pro-preview', {
-        cwd,
-        // Edit mode auto-approves file edits; shell commands still get
-        // rejected by the adapter's default permission policy, same demo
-        // as Claude Code above.
-        permissionMode: mode === 'edit' ? 'acceptEdits' : 'default',
-        // Headless ACP runs must select an auth method up front (the CLI
-        // can't pop an interactive picker). Set GEMINI_ACP_AUTH_METHOD to
-        // the method your CLI is set up for, e.g. `oauth-personal` (Log in
-        // with Google) or `gemini-api-key`. See this example's README.
-        ...(process.env.GEMINI_ACP_AUTH_METHOD && {
-          authMethodId: process.env.GEMINI_ACP_AUTH_METHOD,
-        }),
-      })
     case 'opencode':
       return opencodeText('anthropic/claude-sonnet-4-5', {
         directory: cwd,
         // Edit mode auto-approves file edits; shell commands still get
         // rejected by the adapter's default permission policy, same demo
-        // as Claude Code and Gemini CLI above.
+        // as Claude Code above.
         permissionMode: mode === 'edit' ? 'acceptEdits' : 'default',
       })
   }

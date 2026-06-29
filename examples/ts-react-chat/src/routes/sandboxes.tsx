@@ -7,6 +7,7 @@ import {
   Play,
   Server,
   Square,
+  Terminal,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import rehypeHighlight from 'rehype-highlight'
@@ -80,6 +81,48 @@ function FileEventsStrip({ events }: { events: Array<FileChangedEvent> }) {
           </pre>
         </div>
       ))}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// CodeModeStrip — live log from code-mode (execute_typescript) custom events,
+// bridged back from inside the sandbox via the tool bridge.
+// ---------------------------------------------------------------------------
+
+interface CodeModeLine {
+  kind: 'start' | 'console'
+  level?: string
+  text: string
+}
+
+const LEVEL_CLS: Record<string, string> = {
+  error: 'text-red-300',
+  warn: 'text-amber-300',
+  info: 'text-sky-300',
+  log: 'text-gray-300',
+}
+
+function CodeModeStrip({ lines }: { lines: Array<CodeModeLine> }) {
+  if (lines.length === 0) return null
+  return (
+    <div className="border-t border-violet-500/10 bg-gray-900/60 px-4 py-2 text-xs font-mono">
+      <div className="mb-1 flex items-center gap-1 text-violet-300">
+        <Terminal className="w-3 h-3" /> code mode
+      </div>
+      <pre className="overflow-x-auto max-h-40 overflow-y-auto whitespace-pre-wrap bg-gray-800/50 rounded p-2">
+        {lines.map((line, i) =>
+          line.kind === 'start' ? (
+            <div key={i} className="text-violet-200">
+              ▶ {line.text}
+            </div>
+          ) : (
+            <div key={i} className={LEVEL_CLS[line.level ?? 'log'] ?? 'text-gray-300'}>
+              {line.text}
+            </div>
+          ),
+        )}
+      </pre>
     </div>
   )
 }
@@ -293,8 +336,11 @@ function SandboxesPage() {
   const [threadId] = useState(() => crypto.randomUUID())
   const [harness, setHarness] = useState<HarnessName>('claude-code')
   const [provider, setProvider] = useState<ProviderName>('docker')
-  const [issueUrl, setIssueUrl] = useState('')
+  const [issueUrl, setIssueUrl] = useState(
+    'https://github.com/TanStack/ai/issues/859',
+  )
   const [fileEvents, setFileEvents] = useState<Array<FileChangedEvent>>([])
+  const [codeModeLines, setCodeModeLines] = useState<Array<CodeModeLine>>([])
   const [keepAlive, setKeepAlive] = useState(false)
   const [useSubscription, setUseSubscription] = useState(false)
 
@@ -312,10 +358,9 @@ function SandboxesPage() {
       useSubscription: canUseSubscription && useSubscription,
     },
     onCustomEvent: (eventType, data) => {
+      if (data === null || typeof data !== 'object') return
       if (
         eventType === 'file.changed' &&
-        data !== null &&
-        typeof data === 'object' &&
         'diff' in data &&
         typeof data.diff === 'string'
       ) {
@@ -323,9 +368,48 @@ function SandboxesPage() {
         const path =
           'path' in data && typeof data.path === 'string' ? data.path : '.'
         setFileEvents((prev) => [...prev, { path, diff }])
+        return
+      }
+      // Code-mode progress, bridged from inside the sandbox.
+      if (eventType === 'code_mode:execution_started') {
+        const chars =
+          'codeLength' in data && typeof data.codeLength === 'number'
+            ? ` (${data.codeLength} chars)`
+            : ''
+        setCodeModeLines((prev) => [
+          ...prev,
+          { kind: 'start', text: `executing TypeScript${chars}…` },
+        ])
+        return
+      }
+      if (eventType === 'code_mode:console') {
+        const level =
+          'level' in data && typeof data.level === 'string' ? data.level : 'log'
+        const message =
+          'message' in data && typeof data.message === 'string'
+            ? data.message
+            : JSON.stringify(data)
+        setCodeModeLines((prev) => [
+          ...prev,
+          { kind: 'console', level, text: message },
+        ])
       }
     },
   })
+
+  // Live elapsed timer while a run is in flight — makes a long, quiet step
+  // (e.g. a code-mode execution) visibly "still running", not hung.
+  const [elapsed, setElapsed] = useState(0)
+  useEffect(() => {
+    if (!isLoading) return
+    const startedAt = Date.now()
+    setElapsed(0)
+    const id = setInterval(
+      () => setElapsed(Math.floor((Date.now() - startedAt) / 1000)),
+      1000,
+    )
+    return () => clearInterval(id)
+  }, [isLoading])
 
   const canRun = useMemo(
     () => /\/issues\/\d+/.test(issueUrl) && !isLoading,
@@ -340,8 +424,11 @@ function SandboxesPage() {
   function run() {
     if (!canRun) return
     setFileEvents([])
+    setCodeModeLines([])
     sendMessage(`Triage ${issueUrl}`)
   }
+
+  const elapsedLabel = `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')}`
 
   return (
     <div className="flex flex-col h-screen bg-gray-900 text-white">
@@ -424,6 +511,9 @@ function SandboxesPage() {
             className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium hover:bg-red-700"
           >
             <Square className="w-4 h-4 fill-current" /> Stop
+            <span className="font-mono tabular-nums text-red-100/80">
+              {elapsedLabel}
+            </span>
           </button>
         ) : (
           <button
@@ -463,6 +553,7 @@ function SandboxesPage() {
           booting={isLoading && messages.at(-1)?.role === 'user'}
         />
       </div>
+      <CodeModeStrip lines={codeModeLines} />
       <FileEventsStrip events={fileEvents} />
     </div>
   )
