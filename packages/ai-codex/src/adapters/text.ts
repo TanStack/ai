@@ -121,7 +121,6 @@ export class CodexTextAdapter<
   private buildCommand(
     options: TextOptions<CodexTextProviderOptions>,
     resume: string | undefined,
-    cwd: string,
     bridge: HostToolBridge | undefined,
     policyFlags: CodexPolicyFlags,
   ): string {
@@ -150,7 +149,12 @@ export class CodexTextAdapter<
 
     args.push('--model', q(this.model))
     args.push('--sandbox', q(sandboxMode))
-    args.push('--cd', q(cwd))
+    // NOTE: do NOT pass `--cd <cwd>`. `cwd` is the VIRTUAL `/workspace` root; the
+    // provider handle already maps it to the sandbox's real workdir and runs the
+    // process there (e.g. Daytona's `/home/daytona/workspace`). Passing it as a
+    // literal `--cd` makes codex chdir to a path that doesn't exist on the real
+    // filesystem → "No such file or directory (os error 2)". Codex inherits the
+    // handle-set process cwd instead.
     if (skipGitRepoCheck !== false) args.push('--skip-git-repo-check')
     for (const dir of config.additionalDirectories ?? []) {
       args.push('--add-dir', q(dir))
@@ -244,7 +248,6 @@ export class CodexTextAdapter<
       const command = this.buildCommand(
         options,
         resume,
-        cwd,
         bridge,
         mapPolicyToCodexFlags(policy),
       )
