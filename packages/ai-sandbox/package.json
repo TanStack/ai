@@ -28,6 +28,10 @@
     ".": {
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
+    },
+    "./ngrok": {
+      "types": "./dist/esm/ngrok.d.ts",
+      "import": "./dist/esm/ngrok.js"
     }
   },
   "files": [
@@ -49,9 +53,16 @@
     "@modelcontextprotocol/sdk": "^1.29.0"
   },
   "peerDependencies": {
+    "@ngrok/ngrok": "^1.0.0",
     "@tanstack/ai": "workspace:^"
   },
+  "peerDependenciesMeta": {
+    "@ngrok/ngrok": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@ngrok/ngrok": "^1.7.0",
     "@tanstack/ai": "workspace:*",
     "@vitest/coverage-v8": "4.0.14"
   }

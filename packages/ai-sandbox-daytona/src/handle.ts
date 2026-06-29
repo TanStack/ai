@@ -335,7 +335,17 @@ export class DaytonaHandle implements SandboxHandle {
 
   private async connectPort(port: number): Promise<SandboxChannel> {
     const link = await this.sandbox.getPreviewLink(port)
-    return link.token ? { url: link.url, token: link.token } : { url: link.url }
+    // A private sandbox's preview URL is gated by a token sent in the
+    // `x-daytona-preview-token` header (NOT `Authorization: Bearer`). Surface it
+    // as ready-to-send `headers` so HTTP consumers authenticate without knowing
+    // Daytona's header name; keep `token` too for any bearer-style consumer.
+    return link.token
+      ? {
+          url: link.url,
+          token: link.token,
+          headers: { 'x-daytona-preview-token': link.token },
+        }
+      : { url: link.url }
   }
 
   // Daytona snapshots/fork are not wired through the uniform handle yet.

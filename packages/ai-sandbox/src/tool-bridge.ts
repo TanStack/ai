@@ -62,6 +62,15 @@ export interface ToolBridgeCoreOptions {
   /** Abort signal forwarded to each tool's `execute()`. */
   signal?: AbortSignal
   /**
+   * Forwarded to each tool's `execute()` so a bridged tool can stream progress /
+   * custom events back to the client mid-execution (e.g. code mode's
+   * `code_mode:console` logs). Without it those events are silently dropped — the
+   * bridge runs out-of-band from the main tool executor, so the executor's own
+   * `emitCustomEvent` never reaches a bridged tool. The harness adapter supplies
+   * one that injects a CUSTOM chunk into its live output stream.
+   */
+  emitCustomEvent?: (eventName: string, value: Record<string, unknown>) => void
+  /**
    * Optional permission-prompt tool (e.g. for Claude Code's
    * `--permission-prompt-tool`). When set, the bridge exposes an extra MCP tool
    * `<name>` whose handler returns the orchestrator's allow/deny decision.
@@ -152,6 +161,9 @@ export function createToolBridgeCore(
         const result: unknown = await tool.execute(args ?? {}, {
           context: options.context,
           abortSignal: options.signal,
+          // No-op default so tools that always call it (e.g. code mode) don't
+          // crash when the transport didn't wire a sink.
+          emitCustomEvent: options.emitCustomEvent ?? (() => {}),
         })
         const text =
           typeof result === 'string' ? result : JSON.stringify(result)

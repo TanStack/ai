@@ -4,9 +4,11 @@ import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   SandboxCapability,
   buildApprovalRequestedEvent,
+  createBridgeEventChannel,
   getSandbox,
   getToolBridgeProvisioner,
   getWorkspaceProjection,
+  mergeChunkStreams,
   nodeHttpBridgeProvisioner,
 } from '@tanstack/ai-sandbox'
 import { buildPrompt } from '../messages/prompt'
@@ -128,6 +130,15 @@ export class OpencodeTextAdapter<
     const externalSignal =
       options.abortController?.signal ?? options.request?.signal ?? undefined
     let onAbort: (() => void) | undefined
+    const runId = options.runId ?? this.generateId()
+    const threadId = options.threadId ?? this.generateId()
+    // Surfaces custom events from bridged tools (e.g. code mode console logs)
+    // on this run's live output stream.
+    const channel = createBridgeEventChannel({
+      model: this.model,
+      threadId,
+      runId,
+    })
 
     try {
       const sandbox = this.sandboxFrom(options)
@@ -165,12 +176,11 @@ export class OpencodeTextAdapter<
         bridge = await provisioner.provision(options.tools, {
           provider: sandbox.provider,
           context: options.context,
+          emitCustomEvent: channel.emitCustomEvent,
           ...(externalSignal ? { signal: externalSignal } : {}),
         })
       }
 
-      const runId = options.runId ?? this.generateId()
-      const threadId = options.threadId ?? this.generateId()
       // Approval-requested events for `ask`-policy actions with no client
       // decision yet, emitted after the stream so the client can approve + re-run.
       const approvalRequests: Array<StreamChunk> = []
@@ -235,7 +245,16 @@ export class OpencodeTextAdapter<
 
       handle = await startOpencodeSession({
         baseUrl: server.baseUrl,
-        directory,
+        // Forward the channel's auth headers (e.g. Daytona's preview token) so
+        // the host client can reach a token-gated preview proxy.
+        ...(server.headers !== undefined && { headers: server.headers }),
+        // NOTE: do NOT pass `directory` here. `directory` is the VIRTUAL sandbox
+        // path (e.g. `/workspace`); the server is already spawned with that as its
+        // cwd (the provider handle maps it to the real workdir — `/workspace`
+        // inside Docker, a host temp dir for local-process). Forwarding the
+        // virtual path to the host-side opencode HTTP API breaks local-process,
+        // where `/workspace` doesn't exist → the API stalls until the request
+        // times out. Omitting it makes opencode use the server's (correct) cwd.
         providerID,
         modelID,
         ...(sessionId !== undefined && { resumeSessionId: sessionId }),
@@ -268,20 +287,23 @@ export class OpencodeTextAdapter<
         })
         .catch((error: unknown) => queue.fail(error))
 
-      yield* translateOpencodeStream(queue, {
-        model: this.model,
-        runId,
-        threadId,
-        ...(options.parentRunId !== undefined && {
-          parentRunId: options.parentRunId,
-        }),
-        genId: () => this.generateId(),
-        bridgedToolNames,
-        onStreamEvent: (event) =>
-          logger.provider(`provider=opencode kind=${event.kind}`, {
-            chunk: event,
+      yield* mergeChunkStreams(
+        translateOpencodeStream(queue, {
+          model: this.model,
+          runId,
+          threadId,
+          ...(options.parentRunId !== undefined && {
+            parentRunId: options.parentRunId,
           }),
-      })
+          genId: () => this.generateId(),
+          bridgedToolNames,
+          onStreamEvent: (event) =>
+            logger.provider(`provider=opencode kind=${event.kind}`, {
+              chunk: event,
+            }),
+        }),
+        channel.stream,
+      )
 
       // Surface pending approval requests (ask-policy actions awaiting a client
       // decision); the client approves and re-runs to continue.
@@ -309,6 +331,7 @@ export class OpencodeTextAdapter<
       if (externalSignal !== undefined && onAbort !== undefined) {
         externalSignal.removeEventListener('abort', onAbort)
       }
+      channel.close()
       await handle?.dispose()
       await server?.dispose()
       await bridge?.close()

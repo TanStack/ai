@@ -1,6 +1,6 @@
 /**
  * Workspace projection capability — provided by `withSandbox` and consumed by
- * harness adapters (claude-code, codex, gemini-cli, opencode) to idempotently
+ * harness adapters (claude-code, codex, opencode) to idempotently
  * project skills, plugins, and resolved secrets into the native harness format.
  *
  * The capability carries the raw provisioning inputs (skills, plugins, a

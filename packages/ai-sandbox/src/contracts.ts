@@ -137,6 +137,14 @@ export interface SandboxChannel {
   url: string
   /** Bearer token gating the channel, when the provider issues one. */
   token?: string
+  /**
+   * Ready-to-send HTTP headers that authenticate requests to {@link url}, when
+   * the provider's auth doesn't fit a plain `Authorization: Bearer <token>`
+   * (e.g. Daytona's `x-daytona-preview-token`). Consumers that speak HTTP to the
+   * channel should attach these verbatim; the provider owns the header names so
+   * consumers stay provider-agnostic.
+   */
+  headers?: Record<string, string>
 }
 
 export interface SandboxPorts {

@@ -30,7 +30,10 @@ const config = defineConfig({
 export default mergeConfig(
   config,
   tanstackViteConfig({
-    entry: ['./src/index.ts'],
+    // Core entry + the optional ngrok tool-bridge provisioner subpath
+    // (`@tanstack/ai-sandbox/ngrok`), which lazy-loads the optional `@ngrok/ngrok`
+    // peer dep so the core never pulls in its native binary.
+    entry: ['./src/index.ts', './src/ngrok.ts'],
     srcDir: './src',
     cjs: false,
   }),

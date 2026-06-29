@@ -9,7 +9,7 @@
  * context where host compromise matters. For isolation use the Docker or
  * Cloudflare providers.
  */
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, watch as watchFs } from 'node:fs'
 import * as fsp from 'node:fs/promises'
 import * as path from 'node:path'
@@ -18,6 +18,7 @@ import {
   UnsupportedCapabilityError,
   createExecBackedGit,
 } from '@tanstack/ai-sandbox'
+import type { ChildProcess } from 'node:child_process'
 import type { Readable } from 'node:stream'
 import type {
   ExecResult,
@@ -111,6 +112,28 @@ async function* decodeStream(stream: Readable | null): AsyncIterable<string> {
   for await (const chunk of stream) {
     yield typeof chunk === 'string' ? chunk : (chunk as Buffer).toString('utf8')
   }
+}
+
+/**
+ * Kill a spawned child AND all its descendants.
+ *
+ * We spawn every command through `sh -c <command>`, so `child` is the `sh`
+ * wrapper. `child.kill()` signals only that wrapper — its grandchildren (e.g.
+ * `node` → a harness binary like `opencode serve`) keep running and hold their
+ * ports, orphaning a server that then blocks the next run's port. On Windows
+ * there are no POSIX process groups, so we use `taskkill /T` to walk the tree;
+ * elsewhere we fall back to signalling the wrapper (sh forwards on exec).
+ */
+function killTree(child: ChildProcess, signal?: NodeJS.Signals | number): void {
+  const pid = child.pid
+  if (pid !== undefined && process.platform === 'win32') {
+    const res = spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], {
+      stdio: 'ignore',
+    })
+    if (res.error === undefined) return
+    // taskkill missing/failed → fall through to the best-effort signal.
+  }
+  child.kill(signal)
 }
 
 export interface LocalProcessHandleOptions {
@@ -292,7 +315,7 @@ export class LocalProcessHandle implements SandboxHandle {
       child.stdout.on('data', (d: Buffer) => (stdout += d.toString('utf8')))
       child.stderr.on('data', (d: Buffer) => (stderr += d.toString('utf8')))
       const onAbort = (): void => {
-        child.kill()
+        killTree(child)
       }
       opts?.signal?.addEventListener('abort', onAbort, { once: true })
       child.on('error', reject)
@@ -313,7 +336,9 @@ export class LocalProcessHandle implements SandboxHandle {
       env: this.mergedEnv(opts?.env),
     })
     if (opts?.signal) {
-      opts.signal.addEventListener('abort', () => child.kill(), { once: true })
+      opts.signal.addEventListener('abort', () => killTree(child), {
+        once: true,
+      })
     }
     const handle: SpawnHandle = {
       pid: child.pid ?? -1,
@@ -335,7 +360,7 @@ export class LocalProcessHandle implements SandboxHandle {
           child.on('close', (code) => resolve(code ?? 0))
         }),
       kill: (signal) => {
-        child.kill(signal)
+        killTree(child, signal)
         return Promise.resolve()
       },
     }

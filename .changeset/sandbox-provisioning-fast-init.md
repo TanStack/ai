@@ -2,7 +2,6 @@
 '@tanstack/ai-sandbox': minor
 '@tanstack/ai-claude-code': minor
 '@tanstack/ai-codex': minor
-'@tanstack/ai-gemini-cli': minor
 '@tanstack/ai-opencode': minor
 '@tanstack/ai-sandbox-docker': patch
 ---
@@ -17,7 +16,7 @@ Declarative sandbox provisioning + faster headless init.
   `gitSkill` (private-repo clone with `secret`), `mcpSkill` (MCP server with
   resolved header values), and `fileSkill` are projected per harness into each
   CLI's native format (Claude Code `.mcp.json`, Codex `.codex/config.toml`,
-  Gemini CLI settings JSON, OpenCode `opencode.json`). `instructions` is written
+  OpenCode `opencode.json`). `instructions` is written
   as a canonical `AGENTS.md` at the workspace root; `CLAUDE.md` and `GEMINI.md`
   are symlinked (copy fallback). Concepts a CLI lacks emit a warning and are
   skipped rather than throwing.

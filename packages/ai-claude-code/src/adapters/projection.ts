@@ -1,6 +1,6 @@
 /**
  * Claude Code workspace projector — the reference implementation the other
- * harness projectors (codex, gemini-cli, opencode) mirror.
+ * harness projectors (codex, opencode) mirror.
  *
  * `withSandbox` surfaces a portable `WorkspaceProjection` (skills, plugins, a
  * secret resolver, and a one-time marker path) via a capability. Each harness

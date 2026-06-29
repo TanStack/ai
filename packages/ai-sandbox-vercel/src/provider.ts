@@ -84,10 +84,17 @@ class VercelProvider implements SandboxProvider {
   /** Auth overrides shared by create/get/stop, omitting undefined fields. */
   private auth(): { token?: string; teamId?: string; projectId?: string } {
     const out: { token?: string; teamId?: string; projectId?: string } = {}
-    if (this.config.token !== undefined) out.token = this.config.token
-    if (this.config.teamId !== undefined) out.teamId = this.config.teamId
-    if (this.config.projectId !== undefined)
-      out.projectId = this.config.projectId
+    // Fall back to env when not set in config. We must resolve these ourselves:
+    // when given no explicit `token`, the Vercel SDK runs its OWN credential
+    // resolution, which PREFERS `VERCEL_OIDC_TOKEN` over the access-token path —
+    // so a stale/expired OIDC token wins and access-token auth never kicks in.
+    // Passing `token` explicitly forces access-token auth.
+    const token = this.config.token ?? process.env.VERCEL_TOKEN
+    const teamId = this.config.teamId ?? process.env.VERCEL_TEAM_ID
+    const projectId = this.config.projectId ?? process.env.VERCEL_PROJECT_ID
+    if (token) out.token = token
+    if (teamId) out.teamId = teamId
+    if (projectId) out.projectId = projectId
     return out
   }
 

@@ -72,10 +72,12 @@ function makeScriptedSpawn(forkCwd: string): {
             const sentinel = `__BSSH_${counter}__`
             counter += 1
             // Answer pwd / export -p so forkState resolves; everything else
-            // succeeds with no stdout.
-            if (data.startsWith('pwd;')) {
+            // succeeds with no stdout. Commands are wrapped as `{ <cmd> ; } 2>&1`
+            // by the bootstrap shell (stderr merged into stdout), so match the
+            // wrapped form rather than a bare `pwd;` / `export -p;` prefix.
+            if (data.startsWith('{ pwd ')) {
               emit(`${forkCwd}\n`)
-            } else if (data.startsWith('export -p;')) {
+            } else if (data.startsWith('{ export -p ')) {
               emit('declare -x SETUP_VAR="from-shell"\n')
             }
             emit(`${sentinel} 0\n`)

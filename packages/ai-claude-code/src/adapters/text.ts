@@ -5,10 +5,12 @@ import {
   SandboxCapability,
   approvalId,
   buildApprovalRequestedEvent,
+  createBridgeEventChannel,
   getSandbox,
   getSandboxPolicy,
   getToolBridgeProvisioner,
   getWorkspaceProjection,
+  mergeChunkStreams,
   nodeHttpBridgeProvisioner,
   resolveApproval,
   spawnNdjson,
@@ -19,6 +21,7 @@ import { mapPolicyToClaudeFlags } from './policy-map'
 import { projectClaudeWorkspace } from './projection'
 import type { ClaudePolicyFlags } from './policy-map'
 import type {
+  BridgeEventChannel,
   HostToolBridge,
   PermissionToolResult,
   SandboxHandle,
@@ -285,6 +288,7 @@ export class ClaudeCodeTextAdapter<
   ): AsyncIterable<StreamChunk> {
     const { logger } = options
     let bridge: HostToolBridge | undefined
+    let channel: BridgeEventChannel | undefined
     const approvalRequests: Array<StreamChunk> = []
     // Temp files written for the run (bridge MCP config, redirected prompt) that
     // carry the bearer token / prompt; removed in `finally` so they don't linger
@@ -297,6 +301,9 @@ export class ClaudeCodeTextAdapter<
       const cwd = this.workdir(options)
       const runId = options.runId ?? this.generateId()
       const threadId = options.threadId ?? this.generateId()
+      // Surfaces custom events from bridged tools (e.g. code mode console logs)
+      // on this run's live output stream.
+      channel = createBridgeEventChannel({ model: this.model, threadId, runId })
 
       // Idempotently project workspace skills/plugins/MCP into the sandbox in
       // claude's native format (guarded by the projection marker file).
@@ -336,6 +343,7 @@ export class ClaudeCodeTextAdapter<
         bridge = await provisioner.provision(options.tools ?? [], {
           provider: sandbox.provider,
           context: options.context,
+          emitCustomEvent: channel.emitCustomEvent,
           ...(permission !== undefined ? { permission } : {}),
           ...(options.abortController?.signal
             ? { signal: options.abortController.signal }
@@ -350,17 +358,25 @@ export class ClaudeCodeTextAdapter<
       // The bridge MCP config carries the per-run bearer token. Write it to a
       // file and pass claude the PATH, so the token never appears in argv (where
       // any process in the sandbox could read it via `ps` / `/proc/<pid>/cmdline`).
-      let mcpConfigPath: string | undefined
+      let mcpConfigArg: string | undefined
       if (bridge) {
-        mcpConfigPath = `${cwd}/.tanstack-mcp-bridge-${runId}.json`
+        // Pass claude a path RELATIVE to its cwd (the real workdir the handle
+        // runs the process in). An absolute VIRTUAL path like `/workspace/…` is
+        // wrong wherever claude runs outside a sandbox that literally uses
+        // `/workspace` — e.g. local-process on Windows, where git-bash resolves
+        // `/workspace` to `C:\Program Files\Git\workspace` and the file is "not
+        // found". The bare filename resolves correctly on every provider.
+        const mcpConfigFile = `.tanstack-mcp-bridge-${runId}.json`
+        const mcpConfigPath = `${cwd}/${mcpConfigFile}`
         await sandbox.fs.write(mcpConfigPath, bridgeToMcpConfig(bridge))
         tempFiles.push(mcpConfigPath)
+        mcpConfigArg = mcpConfigFile
       }
       const command = this.buildCommand(
         options,
         resume,
         mapPolicyToClaudeFlags(policy),
-        mcpConfigPath,
+        mcpConfigArg,
         bridge && permission
           ? `mcp__${bridge.name}__${permission.toolName}`
           : undefined,
@@ -410,19 +426,22 @@ export class ClaudeCodeTextAdapter<
         for await (const event of rawEvents) yield event as AgentSdkMessage
       }
 
-      yield* translateSdkStream(asMessages(), {
-        model: this.model,
-        runId,
-        threadId,
-        ...(options.parentRunId !== undefined && {
-          parentRunId: options.parentRunId,
-        }),
-        genId: () => this.generateId(),
-        onSdkMessage: (message) =>
-          logger.provider(`provider=claude-code type=${message.type}`, {
-            chunk: message,
+      yield* mergeChunkStreams(
+        translateSdkStream(asMessages(), {
+          model: this.model,
+          runId,
+          threadId,
+          ...(options.parentRunId !== undefined && {
+            parentRunId: options.parentRunId,
           }),
-      })
+          genId: () => this.generateId(),
+          onSdkMessage: (message) =>
+            logger.provider(`provider=claude-code type=${message.type}`, {
+              chunk: message,
+            }),
+        }),
+        channel.stream,
+      )
 
       // Surface the working-tree diff so UIs can render what the agent changed.
       if (this.adapterConfig.emitDiff !== false) {
@@ -468,6 +487,7 @@ export class ClaudeCodeTextAdapter<
         },
       }
     } finally {
+      channel?.close()
       if (bridge) await bridge.close()
       // Remove the per-run token/prompt files. Best-effort: a cleanup failure
       // must not mask the run's own outcome.

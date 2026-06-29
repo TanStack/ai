@@ -1,7 +1,7 @@
 ---
 name: ai-sandbox
 description: >
-  Run harness adapters (Claude Code, Codex, Gemini CLI, OpenCode) INSIDE
+  Run harness adapters (Claude Code, Codex, OpenCode) INSIDE
   isolated sandboxes via defineSandbox + withSandbox + a provider
   (localProcessSandbox / dockerSandbox). Covers declarative provisioning:
   createSecrets + secret/bearer, skills (agentSkill/gitSkill/mcpSkill/
@@ -121,7 +121,7 @@ defineWorkspace({
 ```
 
 Each skill type is projected per harness (Claude Code → `.mcp.json`; Codex →
-`.codex/config.toml`; Gemini CLI → settings JSON; OpenCode → `opencode.json`).
+`.codex/config.toml`; OpenCode → `opencode.json`).
 `instructions` is written as `AGENTS.md` at the workspace root; `CLAUDE.md` and
 `GEMINI.md` are created as symlinks (falling back to copies on symlink failure).
 Skills/plugins that a CLI lacks emit a `console.warn` and are skipped.

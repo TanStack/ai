@@ -3,10 +3,12 @@ import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   SandboxCapability,
+  createBridgeEventChannel,
   getSandbox,
   getSandboxPolicy,
   getToolBridgeProvisioner,
   getWorkspaceProjection,
+  mergeChunkStreams,
   nodeHttpBridgeProvisioner,
   spawnNdjson,
 } from '@tanstack/ai-sandbox'
@@ -203,6 +205,15 @@ export class CodexTextAdapter<
     let bridge: HostToolBridge | undefined
     const tempFiles: Array<string> = []
     let cleanupSandbox: SandboxHandle | undefined
+    const runId = options.runId ?? this.generateId()
+    const threadId = options.threadId ?? this.generateId()
+    // Surfaces custom events from bridged tools (e.g. code mode console logs)
+    // on this run's live output stream.
+    const channel = createBridgeEventChannel({
+      model: this.model,
+      threadId,
+      runId,
+    })
     try {
       const sandbox = this.sandboxFrom(options)
       cleanupSandbox = sandbox
@@ -224,6 +235,7 @@ export class CodexTextAdapter<
         bridge = await provisioner.provision(options.tools, {
           provider: sandbox.provider,
           context: options.context,
+          emitCustomEvent: channel.emitCustomEvent,
           ...(options.abortController?.signal
             ? { signal: options.abortController.signal }
             : {}),
@@ -291,19 +303,22 @@ export class CodexTextAdapter<
         for await (const event of rawEvents) yield event as CodexThreadEvent
       }
 
-      yield* translateThreadEvents(asEvents(), {
-        model: this.model,
-        runId: options.runId ?? this.generateId(),
-        threadId: options.threadId ?? this.generateId(),
-        ...(options.parentRunId !== undefined && {
-          parentRunId: options.parentRunId,
-        }),
-        genId: () => this.generateId(),
-        onThreadEvent: (event) =>
-          logger.provider(`provider=codex type=${event.type}`, {
-            chunk: event,
+      yield* mergeChunkStreams(
+        translateThreadEvents(asEvents(), {
+          model: this.model,
+          runId,
+          threadId,
+          ...(options.parentRunId !== undefined && {
+            parentRunId: options.parentRunId,
           }),
-      })
+          genId: () => this.generateId(),
+          onThreadEvent: (event) =>
+            logger.provider(`provider=codex type=${event.type}`, {
+              chunk: event,
+            }),
+        }),
+        channel.stream,
+      )
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
       const rawEvent = toRunErrorRawEvent(error)
@@ -324,6 +339,7 @@ export class CodexTextAdapter<
         },
       }
     } finally {
+      channel.close()
       await bridge?.close()
       if (cleanupSandbox) {
         for (const path of tempFiles) {
