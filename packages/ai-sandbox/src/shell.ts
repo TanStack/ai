@@ -152,8 +152,13 @@ export async function createBootstrapShell(
     counter += 1
     const sentinel = `__BSSH_${id}__`
 
-    // Write the command followed by a sentinel printf to stdin.
-    await proc.stdin.write(`${command}; printf "\\n${sentinel} $?\\n"\n`)
+    // Write the command followed by a sentinel printf to stdin. Merge the
+    // command's stderr into stdout (`{ … ; } 2>&1`) so a failing setup step's
+    // error text is captured and can be surfaced — otherwise only the exit code
+    // is visible. `$?` after the group is still the command's own exit code.
+    await proc.stdin.write(
+      `{ ${command} ; } 2>&1; printf "\\n${sentinel} $?\\n"\n`,
+    )
 
     const outputLines: Array<string> = []
 

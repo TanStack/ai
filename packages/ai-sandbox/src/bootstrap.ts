@@ -146,8 +146,9 @@ export async function bootstrapWorkspace(
         if (group.kind === 'serial') {
           const result = await shell.run(group.command)
           if (result.exitCode !== 0) {
+            const tail = result.stdout.trim().slice(-1500)
             throw new Error(
-              `setup step failed: ${group.command} (exit ${result.exitCode})`,
+              `setup step failed: ${group.command} (exit ${result.exitCode})${tail ? `\n${tail}` : ''}`,
             )
           }
           ranSetup.push(group.command)
@@ -166,8 +167,11 @@ export async function bootstrapWorkspace(
           )
           const failed = results.find((entry) => entry.res.exitCode !== 0)
           if (failed !== undefined) {
+            const tail = `${failed.res.stdout}\n${failed.res.stderr}`
+              .trim()
+              .slice(-1500)
             throw new Error(
-              `setup step failed: ${failed.command} (exit ${failed.res.exitCode})`,
+              `setup step failed: ${failed.command} (exit ${failed.res.exitCode})${tail ? `\n${tail}` : ''}`,
             )
           }
           ranSetup.push(...group.commands)
