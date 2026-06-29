@@ -161,6 +161,7 @@ export {
   createBedrockConverse,
   type BedrockConverseConfig,
 } from './adapters/converse-text'
+export type { BedrockConverseProviderOptions } from './converse/provider-options'
 export {
   resolveBedrockAuth,
   withBedrockDefaults,

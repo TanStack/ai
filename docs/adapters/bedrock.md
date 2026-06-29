@@ -25,7 +25,10 @@ The Bedrock adapter connects TanStack AI to [Amazon Bedrock](https://aws.amazon.
 - **Chat Completions** (`api: 'chat'`) — Bedrock's OpenAI-compatible Chat Completions endpoint. Reaches open-weight models only (gpt-oss, DeepSeek V3.x, Gemma, Qwen, Mistral open models, GLM, etc.). Does NOT reach Claude, Nova, or Llama.
 - **Responses** (`api: 'responses'`) — Bedrock's OpenAI-compatible Responses API, mantle-only. Currently the OpenAI gpt-oss family.
 
-All paths support streaming, client-side tool calling, and reasoning.
+All paths support streaming and client-side tool calling. Reasoning output is
+surfaced when the model emits it (e.g. DeepSeek R1, gpt-oss); on the Converse
+path, request-side enablement of extended thinking (e.g. a Claude thinking
+budget) is not yet wired, so only models that reason by default surface it.
 
 ## Installation
 
@@ -132,7 +135,7 @@ const novaAdapter = bedrockText('us.amazon.nova-pro-v1:0', {
 })
 
 // Meta Llama via Converse
-const llamaAdapter = bedrockText('us.meta.llama3-3-70b-instruct-v1:0', {
+const llamaAdapter = bedrockText('us.meta.llama4-maverick-17b-instruct-v1:0', {
   region: 'us-east-1',
 })
 ```
@@ -213,7 +216,7 @@ For the full list of models and which API endpoints they support, see the [AWS A
 
 - Streaming chat completions
 - Client-side tool calling
-- Reasoning (extended thinking)
+- Reasoning output (extended thinking surfaced when the model emits it; request-side enablement on Converse is not yet wired)
 - Multimodal input (text, images, documents — model-dependent)
 - JSON schema / structured output
 

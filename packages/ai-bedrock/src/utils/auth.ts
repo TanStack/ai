@@ -23,11 +23,14 @@ function readApiKeyFromEnv(): string | undefined {
   // Bedrock is server-only (the AWS SDK is Node-only), so the key always comes
   // from process.env. Read it directly: a property access never throws, so —
   // unlike the previous try/catch around getApiKeyFromEnv — we no longer swallow
-  // unrelated errors as "key not set". Empty/whitespace values are treated as
-  // absent so a present-but-blank var falls through to the next auth source.
+  // unrelated errors as "key not set". Each var is blank-checked independently
+  // so a present-but-blank BEDROCK_API_KEY falls through to
+  // AWS_BEARER_TOKEN_BEDROCK (and only then to SigV4) rather than masking it.
   const env = typeof process !== 'undefined' ? process.env : undefined
-  const key = env?.BEDROCK_API_KEY ?? env?.AWS_BEARER_TOKEN_BEDROCK
-  return key && key.trim() !== '' ? key : undefined
+  for (const value of [env?.BEDROCK_API_KEY, env?.AWS_BEARER_TOKEN_BEDROCK]) {
+    if (value && value.trim() !== '') return value
+  }
+  return undefined
 }
 
 export interface BedrockAuthConfig {

@@ -3,25 +3,56 @@ import type { RunFinishedEvent, StreamChunk } from '@tanstack/ai'
 import type { ConverseStreamOutput } from '@aws-sdk/client-bedrock-runtime'
 
 /**
+ * Converse delivers server-side failures — throttling, request validation,
+ * mid-stream model faults, and service-unavailable — as in-band stream events
+ * rather than thrown exceptions. If they were ignored the iterator would simply
+ * end and the run would look like a clean, truncated success. Throw the
+ * underlying exception (these SDK members extend `Error`) so the adapter's
+ * `chatStream` / `structuredOutputStream` catch converts it into a `RUN_ERROR`.
+ */
+export function throwIfConverseStreamError(ev: ConverseStreamOutput): void {
+  if ('internalServerException' in ev && ev.internalServerException) {
+    throw ev.internalServerException
+  }
+  if ('modelStreamErrorException' in ev && ev.modelStreamErrorException) {
+    throw ev.modelStreamErrorException
+  }
+  if ('validationException' in ev && ev.validationException) {
+    throw ev.validationException
+  }
+  if ('throttlingException' in ev && ev.throttlingException) {
+    throw ev.throttlingException
+  }
+  if ('serviceUnavailableException' in ev && ev.serviceUnavailableException) {
+    throw ev.serviceUnavailableException
+  }
+}
+
+/**
  * Maps a Bedrock Converse `ConverseStreamOutput` event stream to the TanStack
- * AG-UI `StreamChunk` lifecycle. This mirrors, field-for-field, how
- * `openai-base`'s `processStreamChunks` constructs each event so the activity
- * layer / agent loop behave identically across providers.
+ * AG-UI `StreamChunk` lifecycle, following `openai-base`'s `processStreamChunks`
+ * lifecycle shape so the activity layer / agent loop behave identically across
+ * providers. (Reasoning surfaces only the message-level events —
+ * `REASONING_MESSAGE_START/CONTENT/END` — which is all the core accumulator
+ * consumes; the `REASONING_START`/`REASONING_END`/`STEP_*` boundary events
+ * openai-base also emits are no-ops in the engine and are not reproduced here.)
  *
  * Lifecycle ownership matches openai-base: this processor emits the full
  * success-path lifecycle itself — `RUN_STARTED` lazily before the first event,
- * `TEXT_MESSAGE_*` / `TOOL_CALL_*` / `REASONING_*` for content, and a single
- * terminal `RUN_FINISHED` once the iterator is exhausted (so the trailing
+ * `TEXT_MESSAGE_*` / `TOOL_CALL_*` / `REASONING_MESSAGE_*` for content, and a
+ * single terminal `RUN_FINISHED` once the iterator is exhausted (so the trailing
  * `metadata` usage event is folded into the finish event regardless of arrival
- * order). The calling adapter only owns the catch/`RUN_ERROR` path.
+ * order). The calling adapter only owns the catch/`RUN_ERROR` path — so any
+ * in-band Converse error event (see `throwIfConverseStreamError`) is thrown to
+ * surface there rather than ending the stream as a clean truncated success.
  *
  * Converse streams tool-call arguments as partial-JSON string fragments inside
  * `contentBlockDelta.delta.toolUse.input`; each fragment is emitted as a
  * `TOOL_CALL_ARGS` `delta`, mirroring OpenAI's `function.arguments` deltas.
  *
  * @param stream - The Converse event stream from `ConverseStreamCommand`.
- * @param newMessageId - Factory for fresh message/tool-call ids (the adapter
- *   passes `() => this.generateId()`).
+ * @param newMessageId - Factory for fresh ids — run, thread, message, and
+ *   tool-call ids (the adapter passes `() => this.generateId()`).
  * @param lifecycle - Incoming run lifecycle ids, threaded onto the emitted
  *   `RUN_STARTED`/`RUN_FINISHED` so the chat path matches every sibling adapter
  *   (openai-base reuses `options.threadId`/`parentRunId`). Defaults preserve the
@@ -92,6 +123,9 @@ export async function* processConverseStream(
 
   for await (const ev of stream) {
     yield* ensureRunStarted()
+
+    // Surface in-band server/throttle/validation errors instead of dropping them.
+    throwIfConverseStreamError(ev)
 
     // messageStart carries only the role; no AG-UI event maps to it.
     if ('messageStart' in ev) continue

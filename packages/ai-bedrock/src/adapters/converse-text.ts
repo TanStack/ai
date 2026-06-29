@@ -4,7 +4,10 @@ import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { resolveBedrockAuth } from '../utils/auth'
 import { toConverseMessages } from '../converse/message-converter'
 import { toToolConfig } from '../converse/tool-converter'
-import { processConverseStream } from '../converse/stream-processor'
+import {
+  processConverseStream,
+  throwIfConverseStreamError,
+} from '../converse/stream-processor'
 import {
   STRUCTURED_TOOL_NAME,
   buildStructuredToolConfig,
@@ -34,8 +37,8 @@ import type { BedrockClientConfig } from '../utils/client'
 import type { BedrockMessageMetadataByModality } from '../message-types'
 import type {
   BedrockConverseModels,
+  ResolveConverseProviderOptions,
   ResolveInputModalities,
-  ResolveProviderOptions,
 } from '../model-meta'
 
 /** Config for the Converse adapter — same client config as the chat adapter. */
@@ -48,8 +51,8 @@ export interface BedrockConverseConfig extends BedrockClientConfig {}
  * `@aws-sdk/client-bedrock-runtime` `BedrockRuntimeClient`.
  *
  * The success-path AG-UI lifecycle (`RUN_STARTED`..`RUN_FINISHED`) is owned by
- * `processConverseStream` (per C3); this adapter only owns the catch/`RUN_ERROR`
- * path, mirroring openai-base's `chatStream`.
+ * `processConverseStream`; this adapter only owns the catch/`RUN_ERROR` path,
+ * mirroring openai-base's `chatStream`.
  *
  * The actual SDK calls live behind two protected seams (`sendStream` / `send`)
  * so tests can subclass and inject canned Converse SDK shapes without a real
@@ -58,12 +61,13 @@ export interface BedrockConverseConfig extends BedrockClientConfig {}
 export class BedrockConverseTextAdapter<
   TModel extends BedrockConverseModels,
   // Constraint mirrors the chat adapter (text.ts): the base parameterises
-  // `TProviderOptions extends Record<string, unknown>`, but our default
-  // `ResolveProviderOptions<TModel>` resolves to an interface lacking an
-  // implicit index signature. `Record<string, any>` is the only constraint
-  // that accepts that interface AND satisfies the base. Confined to the
-  // generic constraint — no value `as` cast is introduced.
-  TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
+  // `TProviderOptions extends Record<string, any>`, and our default
+  // `ResolveConverseProviderOptions<TModel>` resolves to an interface lacking an
+  // implicit index signature — which `Record<string, unknown>` would reject but
+  // `Record<string, any>` accepts. Confined to the generic constraint (the
+  // established adapter pattern) — no value `as` cast is introduced.
+  TProviderOptions extends Record<string, any> =
+    ResolveConverseProviderOptions<TModel>,
   TInputModalities extends ReadonlyArray<Modality> =
     ResolveInputModalities<TModel>,
 > extends BaseTextAdapter<
@@ -118,10 +122,10 @@ export class BedrockConverseTextAdapter<
           'runtime',
         )
         const endpoint = this.clientConfig.baseURL
-        // The installed @aws-sdk/client-bedrock-runtime (v3.1057) exposes a
-        // first-class `token: TokenIdentity | TokenIdentityProvider` config
-        // field (HttpAuthSchemeInputConfig) for Bedrock API-key bearer auth —
-        // no custom requestHandler/middleware needed. SigV4 uses the credential
+        // Recent @aws-sdk/client-bedrock-runtime exposes a first-class
+        // `token: TokenIdentity | TokenIdentityProvider` config field
+        // (HttpAuthSchemeInputConfig) for Bedrock API-key bearer auth — no
+        // custom requestHandler/middleware needed. SigV4 uses the credential
         // provider.
         if (resolved.kind === 'bearer') {
           return new BedrockRuntimeClient({
@@ -271,8 +275,7 @@ export class BedrockConverseTextAdapter<
     let hasEmittedRunStarted = false
     let hasEmittedTextMessageStart = false
     let accumulatedRaw = ''
-    let finishReason: 'stop' | 'tool_calls' | 'length' | 'content_filter' =
-      'stop'
+    let finishReason: 'stop' | 'length' | 'content_filter' = 'stop'
 
     try {
       chatOptions.logger.request(
@@ -301,6 +304,10 @@ export class BedrockConverseTextAdapter<
             parentRunId: chatOptions.parentRunId,
           }
         }
+
+        // Surface in-band server/throttle/validation errors instead of
+        // letting them fall through and masquerade as an empty response.
+        throwIfConverseStreamError(ev)
 
         if ('contentBlockDelta' in ev) {
           const delta = ev.contentBlockDelta?.delta
@@ -332,12 +339,15 @@ export class BedrockConverseTextAdapter<
 
         if ('messageStop' in ev) {
           const stopReason = ev.messageStop?.stopReason
+          // The forced structured-output tool produces stopReason 'tool_use' on
+          // success, but that's an implementation detail — a cleanly-completed
+          // structured run reports 'stop', matching openai-base's contract.
           finishReason =
             stopReason === 'max_tokens'
               ? 'length'
               : stopReason === 'content_filtered'
                 ? 'content_filter'
-                : 'tool_calls'
+                : 'stop'
           continue
         }
       }
@@ -477,27 +487,34 @@ export class BedrockConverseTextAdapter<
     const { system, messages } = toConverseMessages(
       options.messages,
       options.systemPrompts,
-      options.logger,
     )
 
     const toolConfig = options.tools
       ? toToolConfig(convertTools(options.tools), 'auto')
       : undefined
 
-    // Sampling options live on `modelOptions` (Bedrock surfaces the OpenAI
-    // Chat Completions field names); translate them into Converse's
-    // `inferenceConfig`, which uses AWS-native camelCase keys.
+    // Sampling options live on `modelOptions` (typed as the narrowed
+    // `BedrockConverseProviderOptions`, which surfaces the OpenAI Chat
+    // Completions field names); translate them into Converse's `inferenceConfig`,
+    // which uses AWS-native camelCase keys.
     const modelOptions = options.modelOptions
     const temperature = modelOptions?.temperature
     const topP = modelOptions?.top_p
     const maxTokens = modelOptions?.max_completion_tokens
+    const stop = modelOptions?.stop
+    const stopSequences =
+      stop == null ? undefined : Array.isArray(stop) ? stop : [stop]
 
     const inferenceConfig =
-      temperature != null || topP != null || maxTokens != null
+      temperature != null ||
+      topP != null ||
+      maxTokens != null ||
+      stopSequences != null
         ? {
             ...(temperature != null && { temperature }),
             ...(topP != null && { topP }),
             ...(maxTokens != null && { maxTokens }),
+            ...(stopSequences != null && { stopSequences }),
           }
         : undefined
 

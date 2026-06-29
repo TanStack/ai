@@ -1,5 +1,6 @@
 import { GENERATED_BEDROCK_MODELS } from './model-catalog.generated'
 import type { BedrockTextProviderOptions } from './text/text-provider-options'
+import type { BedrockConverseProviderOptions } from './converse/provider-options'
 
 type Entry = (typeof GENERATED_BEDROCK_MODELS)[number]
 
@@ -42,6 +43,11 @@ export type BedrockChatModelProviderOptionsByName = {
   [E in Entry as E['id']]: BedrockTextProviderOptions
 }
 
+/** Converse provider options per model (narrower than the Chat Completions set). */
+export type BedrockConverseModelProviderOptionsByName = {
+  [E in Entry as E['id']]: BedrockConverseProviderOptions
+}
+
 /** No provider-specific tools — empty tuple makes cross-provider ProviderTool a compile error. */
 export type BedrockChatModelToolCapabilitiesByName = {
   [E in Entry as E['id']]: readonly []
@@ -51,6 +57,11 @@ export type ResolveProviderOptions<TModel extends string> =
   TModel extends keyof BedrockChatModelProviderOptionsByName
     ? BedrockChatModelProviderOptionsByName[TModel]
     : BedrockTextProviderOptions
+
+export type ResolveConverseProviderOptions<TModel extends string> =
+  TModel extends keyof BedrockConverseModelProviderOptionsByName
+    ? BedrockConverseModelProviderOptionsByName[TModel]
+    : BedrockConverseProviderOptions
 
 export type ResolveInputModalities<TModel extends string> =
   TModel extends keyof BedrockModelInputModalitiesByName

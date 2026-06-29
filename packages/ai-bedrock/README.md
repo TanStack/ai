@@ -73,9 +73,11 @@ Auth is resolved in this order:
 3. `AWS_BEARER_TOKEN_BEDROCK` environment variable
 4. SigV4 via the AWS credential chain
 
-SigV4 signing is built in (via the bundled `@smithy/signature-v4`) — no
-additional packages required. Set `auth: 'sigv4'` and provide AWS credentials
-through the standard credential chain (env vars, shared config, instance role):
+SigV4 signing is built in — no additional packages required. On the Converse
+(default) path the `@aws-sdk/client-bedrock-runtime` client signs requests
+itself; the OpenAI-compatible chat/responses paths sign via the bundled
+`@smithy/signature-v4`. Set `auth: 'sigv4'` and provide AWS credentials through
+the standard credential chain (env vars, shared config, instance role):
 
 ```typescript
 const adapter = bedrockText('us.anthropic.claude-haiku-4-5-20251001-v1:0', {

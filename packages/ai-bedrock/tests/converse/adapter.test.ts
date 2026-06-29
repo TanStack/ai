@@ -4,6 +4,7 @@ import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { BedrockConverseTextAdapter } from '../../src/adapters/converse-text'
 import type {
   ConverseCommandOutput,
+  ConverseStreamCommandInput,
   ConverseStreamOutput,
 } from '@aws-sdk/client-bedrock-runtime'
 import type { StreamChunk, TextOptions } from '@tanstack/ai'
@@ -17,10 +18,12 @@ class StubAdapter extends BedrockConverseTextAdapter<'us.amazon.nova-pro-v1:0'> 
   streamEvents: Array<ConverseStreamOutput> = []
   nonStreamOutput: ConverseCommandOutput =
     {} as unknown as ConverseCommandOutput
+  capturedStreamInput?: ConverseStreamCommandInput
 
-  protected override async sendStream(): Promise<
-    AsyncIterable<ConverseStreamOutput>
-  > {
+  protected override async sendStream(
+    input: ConverseStreamCommandInput,
+  ): Promise<AsyncIterable<ConverseStreamOutput>> {
+    this.capturedStreamInput = input
     const evs = this.streamEvents
     return (async function* () {
       for (const e of evs) yield e
@@ -74,6 +77,48 @@ describe('BedrockConverseTextAdapter', () => {
     }
     expect(types).toContain(EventType.TEXT_MESSAGE_CONTENT)
     expect(types).toContain(EventType.RUN_FINISHED)
+  })
+
+  it('maps modelOptions sampling + stop into Converse inferenceConfig', async () => {
+    const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
+    a.streamEvents = [{ messageStop: { stopReason: 'end_turn' } }]
+    for await (const _ of a.chatStream(
+      textOptions({
+        modelOptions: {
+          temperature: 0.5,
+          top_p: 0.9,
+          max_completion_tokens: 128,
+          stop: ['STOP'],
+        },
+      }),
+    )) {
+      // drain
+    }
+    expect(a.capturedStreamInput?.inferenceConfig).toEqual({
+      temperature: 0.5,
+      topP: 0.9,
+      maxTokens: 128,
+      stopSequences: ['STOP'],
+    })
+  })
+
+  it('emits RUN_ERROR on an in-band Converse error event', async () => {
+    const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
+    a.streamEvents = [
+      { messageStart: { role: 'assistant' } },
+      { contentBlockDelta: { delta: { text: 'partial' }, contentBlockIndex: 0 } },
+      // In-band server fault Bedrock delivers as a stream event, not a throw.
+      {
+        throttlingException: new Error('rate limited'),
+      } as unknown as ConverseStreamOutput,
+    ]
+    const errors: Array<{ message?: string }> = []
+    for await (const c of a.chatStream(textOptions())) {
+      if (c.type === EventType.RUN_ERROR)
+        errors.push(c as unknown as { message?: string })
+    }
+    expect(errors).toHaveLength(1)
+    expect(errors[0]?.message).toMatch(/rate limited/)
   })
 
   it('emits RUN_ERROR when the stream seam throws', async () => {
@@ -157,6 +202,12 @@ describe('BedrockConverseTextAdapter', () => {
     )
     expect(complete).toBeDefined()
     expect((complete?.value as { object: unknown }).object).toEqual({ n: 5 })
+    // The forced-tool 'tool_use' stopReason is internal — a clean structured
+    // run reports 'stop', not 'tool_calls'.
+    const finished = events.find((e) => e.type === EventType.RUN_FINISHED)
+    expect((finished as { finishReason?: string } | undefined)?.finishReason).toBe(
+      'stop',
+    )
   })
 
   it('rejects a non-forced tool-use block in structuredOutput', async () => {

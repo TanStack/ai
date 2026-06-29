@@ -244,4 +244,81 @@ describe('processConverseStream', () => {
     }
     expect(finished.threadId).toBe('thread-x')
   })
+
+  it('throws on an in-band Converse error event instead of ending cleanly', async () => {
+    const drain = async () => {
+      for await (const _ of processConverseStream(
+        gen(
+          { contentBlockDelta: { delta: { text: 'partial' }, contentBlockIndex: 0 } },
+          { throttlingException: new Error('rate limited') },
+        ),
+        counter(),
+      )) {
+        // consume
+      }
+    }
+    await expect(drain()).rejects.toThrow(/rate limited/)
+  })
+
+  it('keeps two concurrent tool-use blocks distinct by contentBlockIndex', async () => {
+    const events = await collect(
+      {
+        contentBlockStart: {
+          start: { toolUse: { toolUseId: 'a', name: 'toolA' } },
+          contentBlockIndex: 0,
+        },
+      },
+      {
+        contentBlockStart: {
+          start: { toolUse: { toolUseId: 'b', name: 'toolB' } },
+          contentBlockIndex: 1,
+        },
+      },
+      // Interleaved arg fragments for both blocks.
+      {
+        contentBlockDelta: {
+          delta: { toolUse: { input: '{"x":' } },
+          contentBlockIndex: 0,
+        },
+      },
+      {
+        contentBlockDelta: {
+          delta: { toolUse: { input: '{"y":' } },
+          contentBlockIndex: 1,
+        },
+      },
+      {
+        contentBlockDelta: {
+          delta: { toolUse: { input: '1}' } },
+          contentBlockIndex: 0,
+        },
+      },
+      {
+        contentBlockDelta: {
+          delta: { toolUse: { input: '2}' } },
+          contentBlockIndex: 1,
+        },
+      },
+      { contentBlockStop: { contentBlockIndex: 0 } },
+      { contentBlockStop: { contentBlockIndex: 1 } },
+      { messageStop: { stopReason: 'tool_use' } },
+    )
+    const starts = events.filter(
+      (e) => e.type === EventType.TOOL_CALL_START,
+    ) as Array<{ toolCallName: string }>
+    expect(starts.map((s) => s.toolCallName)).toEqual(['toolA', 'toolB'])
+    const argsById: Record<string, string> = {}
+    for (const e of events) {
+      if (e.type === EventType.TOOL_CALL_ARGS) {
+        const a = e as { toolCallId: string; delta: string }
+        argsById[a.toolCallId] = (argsById[a.toolCallId] ?? '') + a.delta
+      }
+    }
+    // No cross-talk: each block's fragments accumulate against its own id.
+    expect(argsById['a']).toBe('{"x":1}')
+    expect(argsById['b']).toBe('{"y":2}')
+    expect(events.filter((e) => e.type === EventType.TOOL_CALL_END)).toHaveLength(
+      2,
+    )
+  })
 })

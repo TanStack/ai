@@ -28,13 +28,12 @@ type ResolveToolCapabilities<TModel extends string> =
  */
 export class BedrockResponsesTextAdapter<
   TModel extends BedrockResponsesModels,
-  // Constraint mirrors the chat adapter (and ai-groq / ai-openai): the base
-  // parameterises `TProviderOptions extends Record<string, unknown>`, but our
-  // default `ExternalResponsesProviderOptions` is an interface that (lacking
-  // an implicit index signature) does not satisfy `Record<string, unknown>`.
-  // `Record<string, any>` is the only constraint that both accepts that
-  // interface default AND satisfies the base's constraint. This `any` is
-  // confined to the generic constraint — no value/shape `as` cast is introduced.
+  // Constraint mirrors the chat adapter (and ai-groq / ai-openai) and the base,
+  // which parameterises `TProviderOptions extends Record<string, any>`. Our
+  // default `ExternalResponsesProviderOptions` is an interface that (lacking an
+  // implicit index signature) `Record<string, unknown>` would reject but
+  // `Record<string, any>` accepts. This `any` is confined to the generic
+  // constraint — no value/shape `as` cast is introduced.
   TProviderOptions extends Record<string, any> =
     ExternalResponsesProviderOptions,
   TInputModalities extends ReadonlyArray<Modality> =

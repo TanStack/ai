@@ -66,6 +66,42 @@ describe('toConverseMessages', () => {
     })
   })
 
+  it('throws on malformed JSON tool-call arguments instead of forwarding {}', () => {
+    expect(() =>
+      toConverseMessages([
+        {
+          role: 'assistant',
+          content: '',
+          toolCalls: [
+            {
+              id: 't1',
+              type: 'function',
+              function: { name: 'getX', arguments: '{"a":' },
+            },
+          ],
+        },
+      ]),
+    ).toThrow(/malformed JSON/)
+  })
+
+  it('throws when tool-call arguments parse to a non-object', () => {
+    expect(() =>
+      toConverseMessages([
+        {
+          role: 'assistant',
+          content: '',
+          toolCalls: [
+            {
+              id: 't1',
+              type: 'function',
+              function: { name: 'getX', arguments: '[1,2]' },
+            },
+          ],
+        },
+      ]),
+    ).toThrow(/must be a JSON object/)
+  })
+
   it('maps a data-source image part to a Converse image block', () => {
     const { messages } = toConverseMessages([
       {

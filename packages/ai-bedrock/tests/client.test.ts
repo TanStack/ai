@@ -98,6 +98,39 @@ describe('resolveBedrockAuth', () => {
     expect(r).toEqual({ kind: 'bearer', token: 'from-aws-env' })
   })
 
+  it('resolves precedence apiKey > BEDROCK_API_KEY > AWS_BEARER_TOKEN_BEDROCK', () => {
+    vi.stubEnv('BEDROCK_API_KEY', 'bedrock-env')
+    vi.stubEnv('AWS_BEARER_TOKEN_BEDROCK', 'aws-env')
+    // Explicit apiKey wins over both env vars.
+    expect(resolveBedrockAuth({ apiKey: 'explicit' }, 'runtime')).toEqual({
+      kind: 'bearer',
+      token: 'explicit',
+    })
+    // With no apiKey, BEDROCK_API_KEY wins over AWS_BEARER_TOKEN_BEDROCK.
+    expect(resolveBedrockAuth({}, 'runtime')).toEqual({
+      kind: 'bearer',
+      token: 'bedrock-env',
+    })
+  })
+
+  it('treats a present-but-blank BEDROCK_API_KEY as absent', () => {
+    vi.stubEnv('BEDROCK_API_KEY', '   ')
+    vi.stubEnv('AWS_BEARER_TOKEN_BEDROCK', 'aws-env')
+    expect(resolveBedrockAuth({}, 'runtime')).toEqual({
+      kind: 'bearer',
+      token: 'aws-env',
+    })
+  })
+
+  it("uses service 'bedrock-mantle' for the mantle endpoint under sigv4", () => {
+    const r = resolveBedrockAuth({ auth: 'sigv4', region: 'us-west-2' }, 'mantle')
+    expect(r.kind).toBe('sigv4')
+    if (r.kind === 'sigv4') {
+      expect(r.region).toBe('us-west-2')
+      expect(r.service).toBe('bedrock-mantle')
+    }
+  })
+
   it("auth: 'apikey' with no key throws an actionable error", () => {
     vi.stubEnv('BEDROCK_API_KEY', '')
     vi.stubEnv('AWS_BEARER_TOKEN_BEDROCK', '')
