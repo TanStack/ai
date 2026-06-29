@@ -319,6 +319,51 @@
           "to": "sandbox/overview",
           "addedAt": "2026-06-16",
           "updatedAt": "2026-06-29"
+        },
+        {
+          "label": "Quick Start",
+          "to": "sandbox/quick-start",
+          "addedAt": "2026-06-29"
+        },
+        {
+          "label": "Providers",
+          "to": "sandbox/providers",
+          "addedAt": "2026-06-29"
+        },
+        {
+          "label": "Workspace",
+          "to": "sandbox/workspace",
+          "addedAt": "2026-06-29"
+        },
+        {
+          "label": "Provisioning",
+          "to": "sandbox/provisioning",
+          "addedAt": "2026-06-29"
+        },
+        {
+          "label": "Tools",
+          "to": "sandbox/tools",
+          "addedAt": "2026-06-29"
+        },
+        {
+          "label": "Policy",
+          "to": "sandbox/policy",
+          "addedAt": "2026-06-29"
+        },
+        {
+          "label": "Lifecycle & Snapshots",
+          "to": "sandbox/lifecycle",
+          "addedAt": "2026-06-29"
+        },
+        {
+          "label": "Events & File Hooks",
+          "to": "sandbox/events",
+          "addedAt": "2026-06-29"
+        },
+        {
+          "label": "Cloudflare (Edge)",
+          "to": "sandbox/cloudflare",
+          "addedAt": "2026-06-29"
         }
       ]
     },
