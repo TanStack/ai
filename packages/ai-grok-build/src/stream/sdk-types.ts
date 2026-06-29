@@ -1,9 +1,12 @@
 /**
  * Structural event types emitted by the Grok Build harness CLI (NDJSON).
  *
- * These are intentionally defined structurally so the translator stays a
- * pure, fixture-testable state machine and the package does not depend on
- * any external SDK types.
+ * The real `grok --output-format streaming-json` CLI emits the **native**
+ * shapes (`thought`, `text`, `end`). Tool execution is narrated inside
+ * `thought` — there are no separate tool-call events in this format (use
+ * `grok agent stdio` / ACP for structured `tool_call` updates). The
+ * **legacy** Codex-like shapes below are kept for fixture tests and backward
+ * compatibility.
  */
 
 export interface GrokBuildUsage {
@@ -11,6 +14,18 @@ export interface GrokBuildUsage {
   output_tokens?: number
   cached_input_tokens?: number
 }
+
+/** Native streaming-json events from `grok -p … --output-format streaming-json`. */
+export type GrokBuildNativeEvent =
+  | { type: 'thought'; data: string }
+  | { type: 'text'; data: string }
+  | {
+      type: 'end'
+      stopReason?: string
+      sessionId?: string
+      requestId?: string
+    }
+  | { type: 'error'; message: string }
 
 export type GrokBuildToolItem =
   | {
@@ -45,6 +60,7 @@ export type GrokBuildThreadItem =
   | { id: string; type: 'web_search'; query: string }
   | { id: string; type: 'error'; message: string }
 
+/** Legacy Codex-like events (fixture tests / older harness builds). */
 export type GrokBuildThreadEvent =
   | { type: 'thread.started'; thread_id: string }
   | { type: 'turn.started' }
@@ -54,3 +70,6 @@ export type GrokBuildThreadEvent =
   | { type: 'item.updated'; item: GrokBuildThreadItem }
   | { type: 'item.completed'; item: GrokBuildThreadItem }
   | { type: 'error'; message: string }
+
+/** Any NDJSON line the adapter may receive from the harness stdout. */
+export type GrokBuildStreamEvent = GrokBuildNativeEvent | GrokBuildThreadEvent

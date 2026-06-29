@@ -11,8 +11,9 @@ import {
   spawnNdjson,
 } from '@tanstack/ai-sandbox'
 import { buildPrompt } from '../messages/prompt'
+import { resolveGrokCliModel } from '../model-meta'
 import { translateThreadEvents } from '../stream/translate'
-import { projectGrokWorkspace } from './projection'
+import { projectGrokMcpBridge, projectGrokWorkspace } from './projection'
 import { mapPolicyToGrokBuildFlags } from './policy-map'
 import type { GrokBuildPolicyFlags } from './policy-map'
 import type { HostToolBridge, SandboxHandle } from '@tanstack/ai-sandbox'
@@ -28,7 +29,7 @@ import type {
 } from '@tanstack/ai'
 import type { GrokBuildModel } from '../model-meta'
 import type { GrokBuildTextProviderOptions } from '../provider-options'
-import type { GrokBuildThreadEvent } from '../stream/sdk-types'
+import type { GrokBuildStreamEvent } from '../stream/sdk-types'
 
 const DEFAULT_WORKDIR = '/workspace'
 
@@ -47,18 +48,6 @@ export interface GrokBuildTextConfig {
 
 function q(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
-}
-
-function bridgeToMcpConfig(bridge: HostToolBridge): string {
-  return JSON.stringify({
-    mcpServers: {
-      [bridge.name]: {
-        type: 'http',
-        url: bridge.url,
-        headers: { Authorization: `Bearer ${bridge.token}` },
-      },
-    },
-  })
 }
 
 export class GrokBuildTextAdapter<
@@ -104,34 +93,32 @@ export class GrokBuildTextAdapter<
   private buildCommand(
     options: TextOptions<GrokBuildTextProviderOptions>,
     resume: string | undefined,
-    _cwd: string,
-    bridge: HostToolBridge | undefined,
-    policyFlags: GrokBuildPolicyFlags,
+    cwd: string,
+    _policyFlags: GrokBuildPolicyFlags,
     prompt: string,
   ): string {
     const config = this.adapterConfig
     const modelOptions = options.modelOptions
     const exe = config.grokExecutable ?? 'grok'
+    const cliModel = resolveGrokCliModel(this.model)
 
-    // Use the documented flag. Pass the prompt as the value to -p (the way the
-    // real Grok Build CLI expects it for non-interactive runs).
-    const args: Array<string> = ['-p', q(prompt), '--output-format', 'streaming-json']
-
-    args.push('--model', q(this.model))
+    const args: Array<string> = [
+      '-p',
+      q(prompt),
+      '--output-format',
+      'streaming-json',
+      '--model',
+      q(cliModel),
+      '--cwd',
+      q(cwd),
+      // Headless runs in sandboxes must auto-approve tool calls.
+      '--always-approve',
+    ]
 
     if (resume !== undefined) args.push('--resume', q(resume))
 
     const maxTurns = modelOptions?.maxTurns
     if (maxTurns !== undefined) args.push('--max-turns', String(maxTurns))
-
-    if (bridge) {
-      // MCP config is passed via --mcp-config file (see caller) so the bearer
-      // stays out of argv / process list.
-    }
-
-    if (policyFlags.readOnly) {
-      args.push('--read-only')
-    }
 
     for (const a of config.extraArgs ?? []) args.push(a)
 
@@ -143,11 +130,8 @@ export class GrokBuildTextAdapter<
   ): AsyncIterable<StreamChunk> {
     const { logger } = options
     let bridge: HostToolBridge | undefined
-    const tempFiles: Array<string> = []
-    let cleanupSandbox: SandboxHandle | undefined
     try {
       const sandbox = this.sandboxFrom(options)
-      cleanupSandbox = sandbox
       const cwd = this.workdir(options)
       const runId = options.runId ?? this.generateId()
       const threadId = options.threadId ?? this.generateId()
@@ -174,6 +158,8 @@ export class GrokBuildTextAdapter<
             ? { signal: options.abortController.signal }
             : {}),
         })
+        // Grok reads MCP from `<cwd>/.grok/config.toml`, not `--mcp-config`.
+        await projectGrokMcpBridge(sandbox, cwd, bridge)
       }
 
       const { prompt, resume } = buildPrompt(
@@ -188,48 +174,18 @@ export class GrokBuildTextAdapter<
           ? `${systemPrompts.join('\n\n')}\n\n${prompt}`
           : prompt
 
-      // Write MCP config (if any) to a file so the bearer token is not in argv.
-      let mcpConfigPath: string | undefined
-      if (bridge) {
-        mcpConfigPath = `${cwd}/.tanstack-grok-mcp-${runId}.json`
-        await sandbox.fs.write(mcpConfigPath, bridgeToMcpConfig(bridge))
-        tempFiles.push(mcpConfigPath)
-      }
-
-      const command = this.buildCommand(
+      const runCommand = this.buildCommand(
         options,
         resume,
         cwd,
-        bridge,
         mapPolicyToGrokBuildFlags(policy),
         fullPrompt,
       )
 
-      // Append MCP config file (bearer stays out of argv).
-      let runCommand = command
-      if (mcpConfigPath !== undefined) {
-        runCommand = `${command} --mcp-config ${q(mcpConfigPath)}`
-      }
-
-      // Note: prompt is passed via -p "..." (see buildCommand). We no longer
-      // rely on stdin redirect for the prompt text itself for the real Grok
-      // Build CLI. The MCP config is still delivered via a side file.
-
       logger.request(
-        `activity=chat provider=grok-build model=${this.model} sandbox=${sandbox.provider} messages=${options.messages.length} resume=${resume ?? 'none'}`,
+        `activity=chat provider=grok-build model=${this.model} cliModel=${resolveGrokCliModel(this.model)} sandbox=${sandbox.provider} messages=${options.messages.length} resume=${resume ?? 'none'}`,
         { provider: 'grok-build', model: this.model },
       )
-
-      // Always surface RUN_STARTED early so the UI shows activity even if the
-      // real Grok Build CLI's streaming-json format doesn't match the exact
-      // event shapes our translator was originally written for.
-      yield {
-        type: EventType.RUN_STARTED,
-        runId,
-        threadId,
-        model: this.model,
-        timestamp: Date.now(),
-      }
 
       const rawEvents = spawnNdjson(sandbox, runCommand, {
         cwd,
@@ -245,8 +201,9 @@ export class GrokBuildTextAdapter<
           }),
       })
 
-      async function* asEvents(): AsyncIterable<GrokBuildThreadEvent> {
-        for await (const event of rawEvents) yield event as GrokBuildThreadEvent
+      async function* asEvents(): AsyncIterable<GrokBuildStreamEvent> {
+        for await (const event of rawEvents)
+          yield event as GrokBuildStreamEvent
       }
 
       yield* translateThreadEvents(asEvents(), {
@@ -263,7 +220,6 @@ export class GrokBuildTextAdapter<
           }),
       })
 
-      // Surface working-tree diff (best effort).
       if (this.adapterConfig.emitDiff !== false) {
         try {
           const diff = await sandbox.process.exec(`git -C ${q(cwd)} diff`, {
@@ -304,15 +260,6 @@ export class GrokBuildTextAdapter<
       }
     } finally {
       await bridge?.close()
-      if (cleanupSandbox) {
-        for (const path of tempFiles) {
-          try {
-            await cleanupSandbox.fs.remove(path)
-          } catch {
-            // ignore
-          }
-        }
-      }
     }
   }
 

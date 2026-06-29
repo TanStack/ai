@@ -34,7 +34,32 @@ interface ProxyBody {
   // message validation (in `startRun`) is what actually checks shape; we only
   // assert "non-empty array" here for a fast, clear 400 on garbage input.
   messages: Array<ModelMessage>
-  data?: { threadId?: unknown }
+  threadId?: string
+}
+
+function readThreadId(value: object): string | undefined {
+  const candidates: Array<unknown> = []
+  if ('threadId' in value) candidates.push(value.threadId)
+  if (
+    'data' in value &&
+    value.data !== null &&
+    typeof value.data === 'object' &&
+    'threadId' in value.data
+  ) {
+    candidates.push((value.data as { threadId?: unknown }).threadId)
+  }
+  if (
+    'forwardedProps' in value &&
+    value.forwardedProps !== null &&
+    typeof value.forwardedProps === 'object' &&
+    'threadId' in value.forwardedProps
+  ) {
+    candidates.push((value.forwardedProps as { threadId?: unknown }).threadId)
+  }
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate !== '') return candidate
+  }
+  return undefined
 }
 
 function parseBody(value: unknown): ProxyBody {
@@ -45,15 +70,7 @@ function parseBody(value: unknown): ProxyBody {
   if (!Array.isArray(messages) || messages.length === 0) {
     throw new Error('body.messages must be a non-empty array')
   }
-  let data: { threadId?: unknown } | undefined
-  if (
-    'data' in value &&
-    value.data !== null &&
-    typeof value.data === 'object'
-  ) {
-    data = value.data
-  }
-  return { messages, data }
+  return { messages, threadId: readThreadId(value) }
 }
 
 /** The run coordinator DO for a thread, addressed over the `RUN_COORDINATOR` binding. */
@@ -191,10 +208,7 @@ export const Route = createFileRoute('/api/run')({
           })
         }
 
-        const threadId =
-          typeof body.data?.threadId === 'string' && body.data.threadId !== ''
-            ? body.data.threadId
-            : crypto.randomUUID()
+        const threadId = body.threadId ?? crypto.randomUUID()
 
         const abortController = new AbortController()
         request.signal.addEventListener('abort', () => abortController.abort())

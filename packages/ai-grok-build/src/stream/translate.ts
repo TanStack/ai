@@ -1,7 +1,8 @@
 import { EventType, buildBaseUsage } from '@tanstack/ai'
 import type { StreamChunk, TokenUsage } from '@tanstack/ai'
+import { GrokThoughtRouter } from './thought-router'
 import type {
-  GrokBuildThreadEvent,
+  GrokBuildStreamEvent,
   GrokBuildThreadItem,
   GrokBuildUsage,
 } from './sdk-types'
@@ -20,8 +21,8 @@ export interface TranslateContext {
   genId: () => string
   /** Called as soon as the harness reports its thread id. */
   onSessionId?: (sessionId: string) => void
-  /** Called for each raw harness thread event, for logging. */
-  onThreadEvent?: (event: GrokBuildThreadEvent) => void
+  /** Called for each raw harness event, for logging. */
+  onThreadEvent?: (event: GrokBuildStreamEvent) => void
 }
 
 /**
@@ -105,66 +106,39 @@ function toUsage(
   })
 }
 
-// Fallback emitter for when the real Grok Build CLI emits events
-// that don't match our emulated Codex-like schema. Tries to pull
-// any text/content/delta/message and render it as assistant text
-// so the UI shows progress instead of silence.
-function* emitTextFromUnknown(obj: unknown): Generator<StreamChunk> {
-  if (typeof obj === 'string' && obj.trim()) {
-    const messageId = 'fallback-' + Date.now()
-    yield {
-      type: EventType.TEXT_MESSAGE_START,
-      messageId,
-      model: 'grok-build',
-      timestamp: Date.now(),
-      role: 'assistant',
-    }
-    yield {
-      type: EventType.TEXT_MESSAGE_CONTENT,
-      messageId,
-      model: 'grok-build',
-      timestamp: Date.now(),
-      delta: obj,
-      content: obj,
-    }
-    yield {
-      type: EventType.TEXT_MESSAGE_END,
-      messageId,
-      model: 'grok-build',
-      timestamp: Date.now(),
-    }
-  } else if (obj && typeof obj === 'object') {
-    const o = obj as Record<string, unknown>
-    const text = (o.text as string) || (o.content as string) || (o.message as string) || (o.delta as string) || (o.output as string)
-    if (text && typeof text === 'string' && text.trim()) {
-      const messageId = 'fallback-' + Date.now()
-      yield {
-        type: EventType.TEXT_MESSAGE_START,
-        messageId,
-        model: 'grok-build',
-        timestamp: Date.now(),
-        role: 'assistant',
-      }
-      yield {
-        type: EventType.TEXT_MESSAGE_CONTENT,
-        messageId,
-        model: 'grok-build',
-        timestamp: Date.now(),
-        delta: text,
-        content: text,
-      }
-      yield {
-        type: EventType.TEXT_MESSAGE_END,
-        messageId,
-        model: 'grok-build',
-        timestamp: Date.now(),
-      }
-    }
-  }
+function isNativeEvent(
+  event: GrokBuildStreamEvent,
+): event is Extract<
+  GrokBuildStreamEvent,
+  { type: 'thought' | 'text' | 'end' }
+> {
+  return (
+    event.type === 'thought' ||
+    event.type === 'text' ||
+    event.type === 'end'
+  )
+}
+
+function* finalizeThoughtRouter(
+  router: GrokThoughtRouter | null,
+): Generator<StreamChunk> {
+  if (router) yield* router.finalize()
+}
+
+function isLegacyEvent(event: GrokBuildStreamEvent): boolean {
+  return (
+    event.type === 'thread.started' ||
+    event.type === 'turn.started' ||
+    event.type === 'turn.completed' ||
+    event.type === 'turn.failed' ||
+    event.type === 'item.started' ||
+    event.type === 'item.updated' ||
+    event.type === 'item.completed'
+  )
 }
 
 export async function* translateThreadEvents(
-  events: AsyncIterable<GrokBuildThreadEvent>,
+  events: AsyncIterable<GrokBuildStreamEvent>,
   ctx: TranslateContext,
 ): AsyncIterable<StreamChunk> {
   const { model, runId, threadId, parentRunId, genId, onSessionId, onThreadEvent } =
@@ -172,10 +146,24 @@ export async function* translateThreadEvents(
   const now = () => Date.now()
 
   let runStarted = false
-  /** Tool calls started but with no result yet. */
+  let runFinished = false
+  let assistantMessageId: string | null = null
+  let reasoningMessageId: string | null = null
+  let thoughtRouter: GrokThoughtRouter | null = null
+
   const unresolvedToolCalls = new Set<string>()
-  /** Item ids that already emitted TOOL_CALL_START/ARGS/END. */
   const openedToolItems = new Set<string>()
+
+  const getThoughtRouter = () => {
+    if (thoughtRouter === null) {
+      thoughtRouter = new GrokThoughtRouter({
+        model,
+        genId,
+        now,
+      })
+    }
+    return thoughtRouter
+  }
 
   function* startRun(): Generator<StreamChunk> {
     if (runStarted) return
@@ -187,6 +175,101 @@ export async function* translateThreadEvents(
       model,
       timestamp: now(),
       ...(parentRunId !== undefined && { parentRunId }),
+    }
+  }
+
+  function* finishRun(usage?: GrokBuildUsage): Generator<StreamChunk> {
+    if (runFinished) return
+    runFinished = true
+    yield {
+      type: EventType.RUN_FINISHED,
+      runId,
+      threadId,
+      timestamp: now(),
+      finishReason: 'stop',
+      ...(toUsage(usage) ? { usage: toUsage(usage) as NonNullable<ReturnType<typeof toUsage>> } : {}),
+    }
+  }
+
+  function* closeReasoning(): Generator<StreamChunk> {
+    if (reasoningMessageId === null) return
+    yield {
+      type: EventType.REASONING_MESSAGE_END,
+      messageId: reasoningMessageId,
+      model,
+      timestamp: now(),
+    }
+    yield {
+      type: EventType.REASONING_END,
+      messageId: reasoningMessageId,
+      model,
+      timestamp: now(),
+    }
+    reasoningMessageId = null
+  }
+
+  function* closeAssistant(): Generator<StreamChunk> {
+    if (assistantMessageId === null) return
+    yield {
+      type: EventType.TEXT_MESSAGE_END,
+      messageId: assistantMessageId,
+      model,
+      timestamp: now(),
+    }
+    assistantMessageId = null
+  }
+
+  function* handleNative(
+    event: Extract<GrokBuildStreamEvent, { type: 'thought' | 'text' | 'end' }>,
+  ): Generator<StreamChunk> {
+    yield* startRun()
+
+    switch (event.type) {
+      case 'thought': {
+        yield* getThoughtRouter().push(event.data)
+        break
+      }
+      case 'text': {
+        yield* getThoughtRouter().finalize()
+        yield* closeReasoning()
+        if (assistantMessageId === null) {
+          assistantMessageId = genId()
+          yield {
+            type: EventType.TEXT_MESSAGE_START,
+            messageId: assistantMessageId,
+            model,
+            timestamp: now(),
+            role: 'assistant',
+          }
+        }
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: assistantMessageId,
+          delta: event.data,
+          content: event.data,
+          model,
+          timestamp: now(),
+        }
+        break
+      }
+      case 'end': {
+        yield* getThoughtRouter().finalize()
+        yield* closeReasoning()
+        yield* closeAssistant()
+        if (event.sessionId) {
+          onSessionId?.(event.sessionId)
+          yield {
+            type: EventType.CUSTOM,
+            name: SESSION_ID_EVENT,
+            value: { sessionId: event.sessionId },
+            timestamp: now(),
+            threadId,
+            runId,
+          }
+        }
+        yield* finishRun()
+        break
+      }
     }
   }
 
@@ -322,6 +405,29 @@ export async function* translateThreadEvents(
     for await (const event of events) {
       onThreadEvent?.(event)
 
+      if (isNativeEvent(event)) {
+        yield* handleNative(event)
+        continue
+      }
+
+      if (event.type === 'error') {
+        yield* synthesizeUnresolvedResults()
+        yield* closeReasoning()
+        yield* closeAssistant()
+        yield {
+          type: EventType.RUN_ERROR,
+          runId,
+          threadId,
+          timestamp: now(),
+          message: event.message,
+          error: { message: event.message },
+        }
+        runFinished = true
+        continue
+      }
+
+      if (!isLegacyEvent(event)) continue
+
       switch (event.type) {
         case 'thread.started': {
           onSessionId?.(event.thread_id)
@@ -344,11 +450,23 @@ export async function* translateThreadEvents(
         case 'item.updated':
         case 'item.completed': {
           const item = event.item
-          if (item.type === 'agent_message' || item.type === 'reasoning' || item.type === 'command_execution' || item.type === 'mcp_tool_call' || item.type === 'file_change' || item.type === 'web_search') {
+          if (
+            item.type === 'agent_message' ||
+            item.type === 'reasoning' ||
+            item.type === 'command_execution' ||
+            item.type === 'mcp_tool_call' ||
+            item.type === 'file_change' ||
+            item.type === 'web_search'
+          ) {
             if (event.type === 'item.completed') {
               yield* handleItemCompleted(item)
-            } else if (event.type === 'item.started' && (item.type === 'command_execution' || item.type === 'mcp_tool_call' || item.type === 'file_change' || item.type === 'web_search')) {
-              // Start the tool call tracking on 'started' for streaming feel
+            } else if (
+              event.type === 'item.started' &&
+              (item.type === 'command_execution' ||
+                item.type === 'mcp_tool_call' ||
+                item.type === 'file_change' ||
+                item.type === 'web_search')
+            ) {
               if (!openedToolItems.has(item.id)) {
                 const tname = toolNameForItem(item)
                 yield {
@@ -368,21 +486,13 @@ export async function* translateThreadEvents(
         }
         case 'turn.completed': {
           yield* synthesizeUnresolvedResults()
-          yield {
-            type: EventType.RUN_FINISHED,
-            runId,
-            threadId,
-            timestamp: now(),
-            finishReason: 'stop',
-            ...(toUsage(event.usage) ? { usage: toUsage(event.usage) as NonNullable<ReturnType<typeof toUsage>> } : {}),
-          }
+          yield* finishRun(event.usage)
           break
         }
-        case 'turn.failed':
-        case 'error': {
+        case 'turn.failed': {
           yield* synthesizeUnresolvedResults()
-          const errObj = (event as { error?: { message?: string }; message?: string })
-          const message = errObj.error?.message ?? errObj.message ?? 'Grok Build harness error'
+          const message =
+            event.error?.message ?? 'Grok Build harness error'
           yield {
             type: EventType.RUN_ERROR,
             runId,
@@ -391,16 +501,16 @@ export async function* translateThreadEvents(
             message,
             error: { message },
           }
+          runFinished = true
           break
         }
-        default:
-          // Fallback for real Grok Build CLI: try to surface any text content
-          // from unknown event shapes so the UI at least shows something.
-          yield* emitTextFromUnknown(event)
-          break
       }
     }
   } finally {
+    yield* finalizeThoughtRouter(thoughtRouter)
     yield* synthesizeUnresolvedResults()
+    yield* closeReasoning()
+    yield* closeAssistant()
+    if (!runFinished) yield* finishRun()
   }
 }
