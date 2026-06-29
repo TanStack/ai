@@ -152,6 +152,7 @@ command up front.
 A policy is portable. Each harness adapter translates the same
 `allow` / `ask` / `deny` description into its own native permission system:
 
+- A Grok Build harness maps it onto the `grok` CLI's permission flags.
 - A Claude Code harness maps it onto Claude Code's permission rules
   (allowed/ask/denied tool and command rules).
 - A Codex harness maps it onto Codex's approval and sandbox settings.

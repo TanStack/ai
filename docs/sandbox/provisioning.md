@@ -9,7 +9,7 @@ Provisioning is how you hand the in-sandbox agent everything beyond the working
 tree: typed secrets, skill repos, MCP servers, plugins, and a universal
 instruction file. You declare it all on [`defineWorkspace()`](./workspace), and
 each harness adapter projects it into its own native format at bootstrap — so
-the same definition works whether the agent is Claude Code, Codex, or OpenCode.
+the same definition works whether the agent is Grok Build, Claude Code, Codex, or OpenCode.
 
 ```ts
 import {

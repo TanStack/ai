@@ -50,7 +50,7 @@ delegates to a `RemoteToolExecutor` (`httpRemoteToolExecutor(url, token)` POSTs
 
 ```ts
 import { chat } from '@tanstack/ai'
-import { claudeCodeText } from '@tanstack/ai-claude-code'
+import { grokBuildText } from '@tanstack/ai-grok-build'
 import {
   defineSandbox,
   defineWorkspace,
@@ -67,7 +67,7 @@ import { request } from './run-request'
 // transport, and only that one tool-exec call leaves the container.
 chat({
   threadId: request.threadId,
-  adapter: claudeCodeText('sonnet'),
+  adapter: grokBuildText('grok-build'),
   messages: request.messages,
   tools: remoteToolStubs(
     request.toolDescriptors,
@@ -132,10 +132,10 @@ exported from `@tanstack/ai-sandbox-cloudflare/agent`:
   dev server whose tunnel preview works. App-agnostic on purpose.
 
 The factory is **harness-agnostic about auth**: it binds no API key of its own.
-Your app declares the key its harness needs (`ANTHROPIC_API_KEY` for Claude
-Code, `CODEX_API_KEY` for Codex, …) on its own env type and supplies it as a
-[workspace secret](./provisioning) — the coordinator injects each declared
-secret into the sandbox env by name.
+Your app declares the key its harness needs (`XAI_API_KEY` for Grok Build,
+`ANTHROPIC_API_KEY` for Claude Code, `CODEX_API_KEY` for Codex, …) on its own env
+type and supplies it as a [workspace secret](./provisioning) — the coordinator
+injects each declared secret into the sandbox env by name.
 
 ```ts
 import {
@@ -146,21 +146,22 @@ import {
 } from '@tanstack/ai-sandbox-cloudflare/agent'
 import { cloudflareSandbox } from '@tanstack/ai-sandbox-cloudflare'
 import { createSecrets, defineSandbox, defineWorkspace } from '@tanstack/ai-sandbox'
-import { claudeCodeText } from '@tanstack/ai-claude-code'
+import { grokBuildText } from '@tanstack/ai-grok-build'
 import type { SandboxAgentEnv } from '@tanstack/ai-sandbox-cloudflare/agent'
 
 // Extend the package's harness-agnostic env with the key YOUR harness needs.
 interface AppEnv extends SandboxAgentEnv {
-  ANTHROPIC_API_KEY: string
+  XAI_API_KEY: string
 }
 
 export const agent = createCloudflareSandboxAgent<AppEnv>({
-  adapter: () => claudeCodeText('sonnet'),
+  adapter: () => grokBuildText('grok-build'),
   systemPrompts: [PREVIEW_GUIDANCE],
   tools: (input, env) => [exposePreviewTool(input, env)],
   // Supply the harness's auth here — the package binds no key. The `sandbox`
   // resolver receives the Worker `env` per run, so the secret VALUE is read from
-  // it. A non-Anthropic harness declares its own, e.g. `CODEX_API_KEY` for Codex.
+  // it. A different harness declares its own, e.g. `ANTHROPIC_API_KEY` for Claude
+  // Code or `CODEX_API_KEY` for Codex.
   sandbox: (input, env) =>
     defineSandbox({
       id: 'cf-edge-agent',
@@ -170,16 +171,20 @@ export const agent = createCloudflareSandboxAgent<AppEnv>({
       }),
       workspace: defineWorkspace({
         source: { type: 'none' },
-        secrets: createSecrets({ ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY }),
+        secrets: createSecrets({ XAI_API_KEY: env.XAI_API_KEY }),
       }),
       lifecycle: { reuse: 'thread' },
     }),
 })
 ```
 
-> The Codex variant of this example lives at
+> The runnable variants live at
+> [`examples/sandbox-cloudflare-grok`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare-grok)
+> (this Grok Build setup),
+> [`examples/sandbox-cloudflare`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare)
+> (Claude Code), and
 > [`examples/sandbox-cloudflare-codex`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare-codex)
-> — same edge topology, `codexText('gpt-5.3-codex')` + `CODEX_API_KEY` instead.
+> (Codex) — same edge topology, different harness + key.
 
 ### Why a quick tunnel, not `exposePort`
 

@@ -25,7 +25,7 @@ defineWorkspace({
   // Named commands the agent can run.
   scripts: { test: 'pnpm test', build: 'pnpm build' },
   // Injected into the sandbox env at create/resume — never persisted.
-  secrets: createSecrets({ ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '' }),
+  secrets: createSecrets({ XAI_API_KEY: process.env.XAI_API_KEY ?? '' }),
 })
 ```
 

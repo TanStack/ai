@@ -2,12 +2,12 @@
 id: overview
 order: 1
 title: Sandboxes Overview
-description: "Run coding-agent CLIs (Claude Code, Codex, OpenCode) inside an isolated sandbox with a real filesystem and a cloned repo, and stream their work back through chat()."
+description: "Run coding-agent CLIs (Grok Build, Claude Code, Codex, OpenCode) inside an isolated sandbox with a real filesystem and a cloned repo, and stream their work back through chat()."
 ---
 
 A **sandbox** gives a coding agent a real computer to work in: a filesystem, a
 shell, processes, and a cloned repository. You point a **harness adapter** (a
-coding-agent CLI like Claude Code) at it through `chat()`, and the agent's work —
+coding-agent CLI like Grok Build) at it through `chat()`, and the agent's work —
 edits, commands, tool calls — streams back to you like any other chat run.
 
 The same code runs on your laptop, in CI, in a Docker container, or on the edge.
@@ -15,7 +15,7 @@ Only the **provider** changes.
 
 ```ts
 import { chat } from '@tanstack/ai'
-import { claudeCodeText } from '@tanstack/ai-claude-code'
+import { grokBuildText } from '@tanstack/ai-grok-build'
 import {
   createSecrets,
   defineSandbox,
@@ -35,7 +35,7 @@ const repoSandbox = defineSandbox({
     setup: ['corepack enable', 'pnpm install'],
     scripts: { test: 'pnpm test', typecheck: 'pnpm test:types' },
     secrets: createSecrets({
-      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '',
+      XAI_API_KEY: process.env.XAI_API_KEY ?? '',
     }),
   }),
   lifecycle: { reuse: 'thread', snapshot: 'after-setup', keepAlive: '30m' },
@@ -43,7 +43,7 @@ const repoSandbox = defineSandbox({
 
 chat({
   threadId,
-  adapter: claudeCodeText('sonnet'),
+  adapter: grokBuildText('grok-build'),
   messages,
   middleware: [withSandbox(repoSandbox)],
 })
@@ -58,7 +58,7 @@ any one without touching the others.
 | --- | --- | --- |
 | **Provider** | The isolation primitive — *where* the agent runs (your host, a container, a cloud VM). | A provider package (`dockerSandbox`, `localProcessSandbox`, …) |
 | **Workspace** | *What the agent sees* — the source repo, package manager, setup commands, secrets. | `defineWorkspace({ … })` |
-| **Harness adapter** | *Which agent runs* and how its output is translated to chat chunks. | `claudeCodeText`, `codexText`, `opencodeText` |
+| **Harness adapter** | *Which agent runs* and how its output is translated to chat chunks. | `grokBuildText`, `claudeCodeText`, `codexText`, `opencodeText` |
 
 `defineSandbox()` binds a provider + workspace (+ optional policy, lifecycle, and
 hooks) into a reusable definition. `withSandbox(definition)` is the `chat()`
@@ -67,10 +67,10 @@ middleware that turns it on for a run.
 ### How a run executes
 
 ```txt
-chat({ adapter: claudeCodeText(), middleware: [withSandbox(repoSandbox)] })
+chat({ adapter: grokBuildText(), middleware: [withSandbox(repoSandbox)] })
   │
   ├─ withSandbox.setup    → ensure the sandbox: resume → restore snapshot → create + bootstrap
-  ├─ adapter.chatStream   → spawn `claude` INSIDE the sandbox; stream its events back as AG-UI chunks
+  ├─ adapter.chatStream   → spawn `grok` INSIDE the sandbox; stream its events back as AG-UI chunks
   └─ withSandbox.onFinish → snapshot / destroy per the lifecycle
 ```
 

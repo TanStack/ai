@@ -64,13 +64,14 @@ const dev = localProcessSandbox()
 Because `localProcessSandbox` runs the harness on your host, it inherits your host
 environment — including any API keys exported there. Use `scrubEnv` to remove
 variables before spawning, so the host CLI falls back to its own logged-in
-subscription instead of billing the API. For example, drop `ANTHROPIC_API_KEY` so
-Claude Code uses your `claude login` **subscription**:
+session instead of billing the API. For example, drop `XAI_API_KEY` so Grok Build
+uses your **grok.com login** (the same trick works for Claude Code with
+`ANTHROPIC_API_KEY` → `claude login`):
 
 ```ts
 import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 
-const subscription = localProcessSandbox({ scrubEnv: ['ANTHROPIC_API_KEY'] })
+const hostLogin = localProcessSandbox({ scrubEnv: ['XAI_API_KEY'] })
 ```
 
 > Only local-process can do this — it is the only provider that runs your host

@@ -95,14 +95,14 @@ transitions — pass the `sandbox` debug category to `chat()`:
 
 ```ts
 import { chat } from '@tanstack/ai'
-import { claudeCodeText } from '@tanstack/ai-claude-code'
+import { grokBuildText } from '@tanstack/ai-grok-build'
 import { withSandbox } from '@tanstack/ai-sandbox'
 import { repoSandbox } from './sandbox'
 import { messages } from './chat-context'
 
 chat({
   threadId: 'thread-1',
-  adapter: claudeCodeText('sonnet'),
+  adapter: grokBuildText('grok-build'),
   messages,
   middleware: [withSandbox(repoSandbox)],
   debug: { sandbox: true }, // or `debug: true` for all categories

@@ -35,7 +35,7 @@ the boundary. The tool keeps running where it was defined.
 
 ```ts
 import { chat } from '@tanstack/ai'
-import { claudeCodeText } from '@tanstack/ai-claude-code'
+import { grokBuildText } from '@tanstack/ai-grok-build'
 import { withSandbox } from '@tanstack/ai-sandbox'
 import { repoSandbox } from './sandbox'
 import { messages, threadId } from './chat-context'
@@ -44,7 +44,7 @@ import { db } from './db'
 
 chat({
   threadId,
-  adapter: claudeCodeText('sonnet'),
+  adapter: grokBuildText('grok-build'),
   messages,
   // `execute()` closes over `db` and runs on the host — never in the sandbox.
   tools: [
@@ -98,7 +98,7 @@ The `@tanstack/ai-sandbox/ngrok` subpath tunnels the loopback bridge through
 
 ```ts
 import { chat } from '@tanstack/ai'
-import { claudeCodeText } from '@tanstack/ai-claude-code'
+import { grokBuildText } from '@tanstack/ai-grok-build'
 import { withSandbox } from '@tanstack/ai-sandbox'
 import { withNgrokBridge } from '@tanstack/ai-sandbox/ngrok'
 import { repoSandbox } from './sandbox'
@@ -108,7 +108,7 @@ import { db } from './db'
 
 chat({
   threadId,
-  adapter: claudeCodeText('sonnet'),
+  adapter: grokBuildText('grok-build'),
   messages,
   tools: [
     getTodos.server(async ({ userId }: { userId: string }) =>

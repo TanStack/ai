@@ -2,11 +2,11 @@
 title: Quick Start
 id: quick-start
 order: 2
-description: "Run a Claude Code coding agent inside a sandbox, fix a bug in a cloned repo, and stream the diff — in minutes."
+description: "Run a Grok Build coding agent inside a sandbox, fix a bug in a cloned repo, and stream the diff — in minutes."
 ---
 
-You have an app that already calls `chat()`, and you have an `ANTHROPIC_API_KEY`
-(or you've run `claude login`). By the end of this guide a Claude Code agent will
+You have an app that already calls `chat()`, and you have an `XAI_API_KEY` (or
+you've logged in on grok.com). By the end of this guide a Grok Build agent will
 clone a repo into a Docker sandbox, fix a bug, and stream the resulting `git diff`
 back to you.
 
@@ -16,17 +16,18 @@ here.
 ## 1. Install the packages
 
 ```bash
-npm i @tanstack/ai @tanstack/ai-claude-code @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+npm i @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
 ```
 
 - `@tanstack/ai` — the core `chat()` pipeline.
-- `@tanstack/ai-claude-code` — the Claude Code **harness adapter**.
+- `@tanstack/ai-grok-build` — the Grok Build **harness adapter**.
 - `@tanstack/ai-sandbox` — `defineSandbox`, `defineWorkspace`, `withSandbox`.
 - `@tanstack/ai-sandbox-docker` — the Docker **provider** that runs the agent in a
   container.
 
-You'll also need Docker running locally. (No Docker? See
-[the local-process alternative](#no-docker-run-on-your-host) below.)
+You'll also need Docker running locally, and the **`grok` CLI available in your
+sandbox image** (the Grok Build harness spawns it inside the sandbox). No Docker?
+See [the local-process alternative](#no-docker-run-on-your-host) below.
 
 ## 2. Define the sandbox
 
@@ -55,7 +56,7 @@ export const repoSandbox = defineSandbox({
     // Injected into the sandbox env at create/resume — never persisted to
     // snapshots, the sandbox store, or the event log.
     secrets: createSecrets({
-      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '',
+      XAI_API_KEY: process.env.XAI_API_KEY ?? '',
     }),
   }),
   lifecycle: { reuse: 'thread', snapshot: 'after-setup', keepAlive: '30m' },
@@ -71,20 +72,20 @@ parallel setup groups, clone depth — see [Workspace](./workspace).
 
 ## 3. Call `chat()` with the harness adapter
 
-The Claude Code adapter declares that it `requires` a sandbox capability.
+The Grok Build adapter declares that it `requires` a sandbox capability.
 `withSandbox(...)` is the middleware that **provides** it: it resumes-or-creates
 the sandbox, bootstraps the workspace, and tears it down per the lifecycle.
 
 ```ts
 import { chat } from '@tanstack/ai'
-import { claudeCodeText } from '@tanstack/ai-claude-code'
+import { grokBuildText } from '@tanstack/ai-grok-build'
 import { withSandbox } from '@tanstack/ai-sandbox'
 import { messages, threadId } from './chat-context'
 import { repoSandbox } from './sandbox'
 
 const stream = chat({
   threadId,
-  adapter: claudeCodeText('sonnet'),
+  adapter: grokBuildText('grok-build'),
   messages,
   middleware: [withSandbox(repoSandbox)],
 })
@@ -92,13 +93,13 @@ const stream = chat({
 
 Here `messages` is your conversation (e.g. a user turn asking the agent to fix the
 bug), and `threadId` keys the sandbox so the same thread reuses the same container.
-Spawning `claude` happens **inside** the sandbox; its events stream back as normal
+Spawning `grok` happens **inside** the sandbox; its events stream back as normal
 `chat()` chunks.
 
 ## 4. Stream the result and read the diff
 
 Harness runs emit standard AG-UI chunks (text, tool calls, reasoning) plus a
-namespaced `CUSTOM` event. When the run finishes, the Claude Code adapter emits a
+namespaced `CUSTOM` event. When the run finishes, the Grok Build adapter emits a
 `file.changed` event carrying the working-tree `git diff`:
 
 ```ts
@@ -148,17 +149,17 @@ export const repoSandbox = defineSandbox({
 ```
 
 Because local-process inherits your host environment, you can drop the
-`ANTHROPIC_API_KEY` secret and let Claude Code fall back to your `claude login`
-subscription. For that (and for Daytona, Vercel, and Cloudflare runtimes), see
-[Providers](./providers).
+`XAI_API_KEY` secret and let Grok Build fall back to your grok.com login. For that
+(and for Daytona, Vercel, and Cloudflare runtimes), see [Providers](./providers).
 
 ## Run the working example
 
-A complete, runnable version of this guide ships at
-[`examples/sandbox-coding-agent`](https://github.com/TanStack/ai/tree/main/examples/sandbox-coding-agent):
-it clones a tiny repo with a deliberate bug, asks Claude Code to fix it, streams the
-agent's output, and prints the diff. Run it with Docker or with `SANDBOX=local` on
-your host (it needs `ANTHROPIC_API_KEY`).
+A complete, runnable version of this flow ships at
+[`examples/sandbox-coding-agent`](https://github.com/TanStack/ai/tree/main/examples/sandbox-coding-agent)
+— it uses the Claude Code harness (so it needs `ANTHROPIC_API_KEY`), but the
+shape is identical: clone a buggy repo, fix it, stream the diff. Run it with
+Docker or with `SANDBOX=local` on your host. For a Grok Build app running at the
+edge, see [`examples/sandbox-cloudflare-grok`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare-grok).
 
 From here:
 
