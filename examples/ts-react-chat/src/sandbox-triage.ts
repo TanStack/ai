@@ -82,16 +82,18 @@ export const HARNESSES: Record<HarnessName, HarnessSpec> = {
   },
   codex: {
     label: 'Codex',
-    // On local-process the host is the (unsandboxed, trusted) workspace, and
-    // codex's OS sandbox (`workspace-write`) isn't supported on Windows — it
-    // fails with "os error 2". Disable codex's own sandbox there; sandboxed
-    // providers keep the default `workspace-write` (container is the boundary).
-    makeAdapter: (provider) =>
-      codexText(
-        'gpt-5.3-codex',
-        provider === 'local' ? { sandboxMode: 'danger-full-access' } : {},
-      ),
-    installCommand: 'npm install -g @openai/codex',
+    // Always run codex with its OWN OS sandbox disabled (`danger-full-access`):
+    // it already runs inside an isolated sandbox (Docker/Vercel/Daytona) or on a
+    // trusted host (local-process), so codex's inner Landlock/seccomp sandbox is
+    // redundant — and it's unsupported on Windows and on some Linux images
+    // (Daytona), where it fails with "os error 2". The outer sandbox is the
+    // real boundary; the read-only triage prompt constrains behavior.
+    makeAdapter: () =>
+      codexText('gpt-5.3-codex', { sandboxMode: 'danger-full-access' }),
+    // `--include=optional`: codex's native binary ships as a platform-specific
+    // optional dep; images whose npm omits optional deps (some Daytona/Vercel
+    // bases) otherwise install a broken `codex` (or fail the install).
+    installCommand: 'npm install -g @openai/codex --include=optional',
     // `codex exec` authenticates headlessly via CODEX_API_KEY (a bare
     // OPENAI_API_KEY makes it try the OAuth WebSocket transport → 401). Accept
     // either env var; inject the value AS CODEX_API_KEY into the sandbox. On
@@ -335,7 +337,13 @@ export function buildSandbox(opts: {
         // EXCEPT local-process, which uses the host's CLI already on PATH.
         // Remote/container images (docker/vercel/daytona) don't ship it.
         if (opts.provider !== 'local' && harness.installCommand) {
-          serial(harness.installCommand)
+          // Some images (e.g. Daytona) run as a non-root user with a root-owned
+          // global npm dir → `npm install -g` fails EACCES. Fall back to
+          // passwordless sudo, preserving PATH so nvm's npm/node still resolve.
+          // Docker runs as root, so the direct install succeeds and sudo never
+          // runs. `sudo -n` never prompts (fails fast if sudo isn't available).
+          const cmd = harness.installCommand
+          serial(`${cmd} || sudo -n env "PATH=$PATH" ${cmd}`)
         }
       },
       instructions:
