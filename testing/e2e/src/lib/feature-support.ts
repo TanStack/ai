@@ -17,6 +17,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'grok',
     'openrouter',
     'openai-compatible',
+    'litellm',
   ]),
   'one-shot-text': new Set([
     'openai',
@@ -27,6 +28,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'grok',
     'openrouter',
     'openai-compatible',
+    'litellm',
   ]),
   reasoning: new Set(['openai', 'anthropic', 'gemini']),
   'multi-turn': new Set([
@@ -38,6 +40,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'grok',
     'openrouter',
     'openai-compatible',
+    'litellm',
   ]),
   'tool-calling': new Set([
     'openai',
@@ -48,6 +51,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'grok',
     'openrouter',
     'openai-compatible',
+    'litellm',
   ]),
   'parallel-tool-calls': new Set([
     'openai',
@@ -57,6 +61,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'grok',
     'openrouter',
     'openai-compatible',
+    'litellm',
   ]),
   // Gemini excluded: approval flow timing issues with Gemini's streaming format
   'tool-approval': new Set([
@@ -67,6 +72,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'grok',
     'openrouter',
     'openai-compatible',
+    'litellm',
   ]),
   // Ollama excluded: aimock doesn't support content+toolCalls for /api/chat format
   'text-tool-text': new Set([
@@ -77,6 +83,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'grok',
     'openrouter',
     'openai-compatible',
+    'litellm',
   ]),
   'structured-output': new Set([
     'openai',
@@ -87,6 +94,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'grok',
     'openrouter',
     'openai-compatible',
+    'litellm',
   ]),
   // Streaming structured output: only providers with native streaming JSON
   // schema support are listed here. Other providers fall back to the
@@ -98,6 +106,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'grok',
     'openrouter',
     'openai-compatible',
+    'litellm',
   ]),
   // Multi-turn structured output: every turn produces its own typed
   // `structured-output` part on the assistant message, and historical
@@ -125,6 +134,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'grok',
     'openrouter',
     'openai-compatible',
+    'litellm',
   ]),
   'agentic-structured': new Set([
     'openai',
@@ -135,6 +145,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'grok',
     'openrouter',
     'openai-compatible',
+    'litellm',
   ]),
   // Native-combined-mode adapters only. Each provider's default test model
   // (or per-feature override in `features.ts`) must opt into combined mode
