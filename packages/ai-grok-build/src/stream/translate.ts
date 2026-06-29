@@ -93,9 +93,7 @@ function toolResultForItem(item: ToolItem): {
   }
 }
 
-function toUsage(
-  usage: GrokBuildUsage | undefined,
-): TokenUsage | undefined {
+function toUsage(usage: GrokBuildUsage | undefined): TokenUsage | undefined {
   if (!usage) return undefined
   const promptTokens = usage.input_tokens ?? 0
   const completionTokens = usage.output_tokens ?? 0
@@ -113,9 +111,7 @@ function isNativeEvent(
   { type: 'thought' | 'text' | 'end' }
 > {
   return (
-    event.type === 'thought' ||
-    event.type === 'text' ||
-    event.type === 'end'
+    event.type === 'thought' || event.type === 'text' || event.type === 'end'
   )
 }
 
@@ -141,8 +137,15 @@ export async function* translateThreadEvents(
   events: AsyncIterable<GrokBuildStreamEvent>,
   ctx: TranslateContext,
 ): AsyncIterable<StreamChunk> {
-  const { model, runId, threadId, parentRunId, genId, onSessionId, onThreadEvent } =
-    ctx
+  const {
+    model,
+    runId,
+    threadId,
+    parentRunId,
+    genId,
+    onSessionId,
+    onThreadEvent,
+  } = ctx
   const now = () => Date.now()
 
   let runStarted = false
@@ -187,7 +190,9 @@ export async function* translateThreadEvents(
       threadId,
       timestamp: now(),
       finishReason: 'stop',
-      ...(toUsage(usage) ? { usage: toUsage(usage) as NonNullable<ReturnType<typeof toUsage>> } : {}),
+      ...(toUsage(usage)
+        ? { usage: toUsage(usage) as NonNullable<ReturnType<typeof toUsage>> }
+        : {}),
     }
   }
 
@@ -321,7 +326,9 @@ export async function* translateThreadEvents(
     unresolvedToolCalls.add(item.id)
   }
 
-  function* handleItemCompleted(item: GrokBuildThreadItem): Generator<StreamChunk> {
+  function* handleItemCompleted(
+    item: GrokBuildThreadItem,
+  ): Generator<StreamChunk> {
     if (item.type === 'agent_message') {
       const messageId = item.id
       yield {
@@ -491,8 +498,7 @@ export async function* translateThreadEvents(
         }
         case 'turn.failed': {
           yield* synthesizeUnresolvedResults()
-          const message =
-            event.error?.message ?? 'Grok Build harness error'
+          const message = event.error?.message ?? 'Grok Build harness error'
           yield {
             type: EventType.RUN_ERROR,
             runId,

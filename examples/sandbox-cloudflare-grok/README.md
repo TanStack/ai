@@ -207,16 +207,16 @@ for a preview URL.
 
 ## Files
 
-| File                      | Role                                                                                                        |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `src/agent.ts`            | `createCloudflareSandboxAgent()` + the `tanstackStartRecipe` and `exposePreview` host tools.                |
-| `src/sandbox-provider.ts` | `namedCloudflareSandbox` — pins the container to the run's `threadId` so `exposePreview` can reach it.      |
-| `src/server.ts`           | Custom Cloudflare entry: re-exports the DOs and composes `proxyToSandbox` + the agent + Start SSR.          |
-| `src/routes/index.tsx`    | The chat UI (`useChat` → `/api/run`) + the clickable **Open preview** link.                                 |
-| `src/routes/api.run.ts`   | Same-origin proxy: bridges the agent's POST-then-WebSocket run protocol to the SSE stream `useChat` reads.  |
-| `wrangler.jsonc`          | DO + Container + Sandbox bindings (`RUN_COORDINATOR` + `Sandbox`), migrations, `nodejs_compat`.             |
+| File                      | Role                                                                                                                      |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `src/agent.ts`            | `createCloudflareSandboxAgent()` + the `tanstackStartRecipe` and `exposePreview` host tools.                              |
+| `src/sandbox-provider.ts` | `namedCloudflareSandbox` — pins the container to the run's `threadId` so `exposePreview` can reach it.                    |
+| `src/server.ts`           | Custom Cloudflare entry: re-exports the DOs and composes `proxyToSandbox` + the agent + Start SSR.                        |
+| `src/routes/index.tsx`    | The chat UI (`useChat` → `/api/run`) + the clickable **Open preview** link.                                               |
+| `src/routes/api.run.ts`   | Same-origin proxy: bridges the agent's POST-then-WebSocket run protocol to the SSE stream `useChat` reads.                |
+| `wrangler.jsonc`          | DO + Container + Sandbox bindings (`RUN_COORDINATOR` + `Sandbox`), migrations, `nodejs_compat`.                           |
 | `Dockerfile`              | Container image: `@cloudflare/sandbox` base + the `grok` CLI (`@openai/grok`). The recipe runs `@tanstack/cli` via `npx`. |
-| `vite.config.ts`          | `@cloudflare/vite-plugin` + `tanstackStart()` — builds + runs the Worker in `workerd`.                      |
+| `vite.config.ts`          | `@cloudflare/vite-plugin` + `tanstackStart()` — builds + runs the Worker in `workerd`.                                    |
 
 ## Run it locally
 
@@ -226,7 +226,7 @@ OpenAI API key**. It's a normal key from <https://platform.openai.com/api-keys> 
 same value as `GROK_API_KEY`, billed to your OpenAI **API** account (not a ChatGPT
 subscription). `grok exec` authenticates with it headlessly. Set it as either
 `XAI_API_KEY` **or** `GROK_API_KEY` (the app injects whichever into the sandbox as
-`XAI_API_KEY`). The demo app the agent *builds* needs no keys of its own.
+`XAI_API_KEY`). The demo app the agent _builds_ needs no keys of its own.
 
 ```bash
 # 1) Install workspace deps (from the repo root) and build the workspace packages
@@ -370,7 +370,7 @@ honest.
    two-way stdin would still need the future Cloudflare stdin path.)
 
    **Auth:** `grok exec` authenticates headlessly via `XAI_API_KEY` (a normal
-   OpenAI API key). You can set it as `XAI_API_KEY` *or* `GROK_API_KEY` on the
+   OpenAI API key). You can set it as `XAI_API_KEY` _or_ `GROK_API_KEY` on the
    Worker env; the `sandbox` resolver reads either and injects it INTO the sandbox
    under the name `XAI_API_KEY` — because a bare `GROK_API_KEY` inside the
    sandbox makes grok try the OAuth WebSocket transport → 401.
@@ -379,9 +379,9 @@ honest.
    Grok Build's default `workspace-write` mode wraps every shell command in its own OS
    sandbox (`bwrap`/bubblewrap on Linux), which must create a new user namespace —
    and the Cloudflare container forbids that (`bwrap: No permissions to create a new
-   namespace`), so every command grok ran would fail. The Cloudflare container is
+namespace`), so every command grok ran would fail. The Cloudflare container is
    already the isolation boundary, so grok's inner sandbox is disabled. (The
-   `danger-` name is about grok's *own* sandbox; the real boundary — the ephemeral,
+   `danger-` name is about grok's _own_ sandbox; the real boundary — the ephemeral,
    network-and-filesystem-scoped CF container — is unchanged.)
 
 3. **Container disk is ephemeral.** The Cloudflare sandbox's

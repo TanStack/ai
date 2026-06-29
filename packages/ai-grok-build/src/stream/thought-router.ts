@@ -23,8 +23,14 @@ const TOOL_ENTRY_PATTERNS: Array<{ re: RegExp; name: NativeToolName }> = [
   { re: /`run_terminal_command`/i, name: 'run_terminal_command' },
   { re: /Use\s+run_terminal_command/i, name: 'run_terminal_command' },
   { re: /\brun_terminal_command\b/i, name: 'run_terminal_command' },
-  { re: /`get_command_or_subagent_output`/i, name: 'get_command_or_subagent_output' },
-  { re: /get_command_or_subagent_output/i, name: 'get_command_or_subagent_output' },
+  {
+    re: /`get_command_or_subagent_output`/i,
+    name: 'get_command_or_subagent_output',
+  },
+  {
+    re: /get_command_or_subagent_output/i,
+    name: 'get_command_or_subagent_output',
+  },
   {
     re: /`(?:npx|pnpm|npm|ls|cd|mkdir|git|curl|node|bash|sh)\b[^`]*`/i,
     name: 'run_terminal_command',
@@ -296,7 +302,10 @@ export class GrokThoughtRouter {
     this.mode = 'planning'
   }
 
-  private *startToolAt(index: number, name: NativeToolName): Generator<StreamChunk> {
+  private *startToolAt(
+    index: number,
+    name: NativeToolName,
+  ): Generator<StreamChunk> {
     yield* this.closeReasoning()
     this.mode = 'tool'
     const resolved = resolveToolAt(index, name, this.buffer)

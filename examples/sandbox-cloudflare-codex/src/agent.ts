@@ -115,7 +115,8 @@ export const agent = createCloudflareSandboxAgent<AppEnv>({
   // is ALREADY the isolation boundary, so we disable codex's redundant inner
   // sandbox. (This is the same reason the triage example uses full-access on
   // local-process — the host/container is the real boundary there too.)
-  adapter: () => codexText('gpt-5.3-codex', { sandboxMode: 'danger-full-access' }),
+  adapter: () =>
+    codexText('gpt-5.3-codex', { sandboxMode: 'danger-full-access' }),
   // App-agnostic transport guidance, prepended to every run's system prompt: how to
   // start a dev server whose quick-tunnel preview works (bind wide, allow all hosts
   // so the tunnel hostname is accepted). Package-owned because it's the transport's

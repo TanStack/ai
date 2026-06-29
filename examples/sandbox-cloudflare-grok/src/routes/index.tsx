@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { ChevronDown, ChevronRight, ExternalLink, Send, Server, Square } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronRight,
+  ExternalLink,
+  Send,
+  Server,
+  Square,
+} from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import rehypeHighlight from 'rehype-highlight'
 import rehypeRaw from 'rehype-raw'
@@ -44,11 +51,15 @@ function ToolCall({
         <span className="font-mono font-medium">{name}</span>
       </div>
       <pre className="px-3 py-2 text-xs text-gray-300 overflow-x-auto max-h-40 overflow-y-auto">
-        {typeof parsedArgs === 'string' ? parsedArgs : JSON.stringify(parsedArgs, null, 2)}
+        {typeof parsedArgs === 'string'
+          ? parsedArgs
+          : JSON.stringify(parsedArgs, null, 2)}
       </pre>
       {output !== undefined && (
         <pre className="px-3 pb-3 text-xs text-gray-400 border-t border-indigo-500/20 overflow-x-auto max-h-40 overflow-y-auto">
-          {typeof output === 'string' ? output : JSON.stringify(output, null, 2)}
+          {typeof output === 'string'
+            ? output
+            : JSON.stringify(output, null, 2)}
         </pre>
       )}
     </div>
@@ -74,8 +85,14 @@ function PlanningPanel({
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-300 hover:bg-white/5"
       >
-        {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-        <span className="font-medium">{streaming ? 'Planning…' : 'Planning'}</span>
+        {open ? (
+          <ChevronDown className="h-3.5 w-3.5" />
+        ) : (
+          <ChevronRight className="h-3.5 w-3.5" />
+        )}
+        <span className="font-medium">
+          {streaming ? 'Planning…' : 'Planning'}
+        </span>
         {streaming && (
           <div className="ml-auto h-3 w-3 animate-spin rounded-full border-2 border-gray-500 border-t-transparent" />
         )}
@@ -92,7 +109,11 @@ function PlanningPanel({
 function previewUrlFrom(output: unknown): string | null {
   let value = output
   if (typeof value === 'string') {
-    try { value = JSON.parse(value) } catch { return /^https?:\/\//.test(output as string) ? (output as string) : null }
+    try {
+      value = JSON.parse(value)
+    } catch {
+      return /^https?:\/\//.test(output as string) ? (output as string) : null
+    }
   }
   if (value && typeof value === 'object' && 'url' in value) {
     const url = (value as { url: unknown }).url
@@ -149,7 +170,8 @@ function Messages({
   if (!messages.length) {
     return (
       <div className="text-sm text-gray-400">
-        Ask the agent to build a self-contained app. It will scaffold, run, and hand back a preview URL.
+        Ask the agent to build a self-contained app. It will scaffold, run, and
+        hand back a preview URL.
       </div>
     )
   }
@@ -172,7 +194,10 @@ function Messages({
         const isUser = message.role === 'user'
 
         return (
-          <div key={message.id} className={`mb-4 ${isUser ? 'text-right' : 'text-left'}`}>
+          <div
+            key={message.id}
+            className={`mb-4 ${isUser ? 'text-right' : 'text-left'}`}
+          >
             {isUser ? (
               <div className="inline-block max-w-[85%] rounded-2xl bg-indigo-600 px-4 py-2 text-sm text-white">
                 {message.parts
@@ -205,7 +230,11 @@ function Messages({
                         <div className="markdown-content">
                           <ReactMarkdown
                             remarkPlugins={[remarkGfm]}
-                            rehypePlugins={[rehypeRaw, rehypeSanitize, rehypeHighlight]}
+                            rehypePlugins={[
+                              rehypeRaw,
+                              rehypeSanitize,
+                              rehypeHighlight,
+                            ]}
                           >
                             {part.content}
                           </ReactMarkdown>
@@ -217,7 +246,10 @@ function Messages({
                   if (part.type === 'tool-call') {
                     const resultContent = results.get(part.id)
                     const output = part.output ?? resultContent
-                    if (part.name === 'exposePreview' || part.name === 'expose_preview') {
+                    if (
+                      part.name === 'exposePreview' ||
+                      part.name === 'expose_preview'
+                    ) {
                       const url = previewUrlFrom(output)
                       if (url) {
                         onPreviewUrl(url)
@@ -280,10 +312,19 @@ function SandboxAgentPage() {
     <div className="min-h-screen bg-gray-900 text-gray-200 flex flex-col">
       <header className="border-b border-white/10 px-4 py-3 flex items-center gap-3">
         <Server className="h-5 w-5 text-indigo-400" />
-        <div className="font-semibold">TanStack AI — Grok Build (Cloudflare Sandbox)</div>
-        <span className="text-xs text-gray-500 font-mono">thread {threadId.slice(0, 8)}</span>
+        <div className="font-semibold">
+          TanStack AI — Grok Build (Cloudflare Sandbox)
+        </div>
+        <span className="text-xs text-gray-500 font-mono">
+          thread {threadId.slice(0, 8)}
+        </span>
         {previewUrl && (
-          <a href={previewUrl} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1 text-sm text-indigo-400 hover:text-indigo-300">
+          <a
+            href={previewUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="ml-auto inline-flex items-center gap-1 text-sm text-indigo-400 hover:text-indigo-300"
+          >
             Open preview <ExternalLink className="h-3.5 w-3.5" />
           </a>
         )}
@@ -302,7 +343,14 @@ function SandboxAgentPage() {
       <div className="border-t border-white/10 p-3">
         <div className="mb-2 flex flex-wrap gap-2">
           {PROMPT_SUGGESTIONS.map((s, i) => (
-            <button key={i} onClick={() => handleSend(s)} className="rounded-lg border border-white/10 bg-white/5 px-3 py-1 text-xs hover:bg-white/10 text-left" disabled={isLoading}>{s.length > 80 ? s.slice(0, 77) + '…' : s}</button>
+            <button
+              key={i}
+              onClick={() => handleSend(s)}
+              className="rounded-lg border border-white/10 bg-white/5 px-3 py-1 text-xs hover:bg-white/10 text-left"
+              disabled={isLoading}
+            >
+              {s.length > 80 ? s.slice(0, 77) + '…' : s}
+            </button>
           ))}
         </div>
         <div className="flex items-end gap-2">
@@ -315,12 +363,25 @@ function SandboxAgentPage() {
             disabled={isLoading}
           />
           {isLoading ? (
-            <button onClick={stop} className="rounded-xl bg-rose-600 px-3 py-2 text-sm"><Square className="h-4 w-4" /></button>
+            <button
+              onClick={stop}
+              className="rounded-xl bg-rose-600 px-3 py-2 text-sm"
+            >
+              <Square className="h-4 w-4" />
+            </button>
           ) : (
-            <button onClick={() => handleSend()} disabled={!input.trim()} className="rounded-xl bg-indigo-600 px-3 py-2 text-sm disabled:opacity-50"><Send className="h-4 w-4" /></button>
+            <button
+              onClick={() => handleSend()}
+              disabled={!input.trim()}
+              className="rounded-xl bg-indigo-600 px-3 py-2 text-sm disabled:opacity-50"
+            >
+              <Send className="h-4 w-4" />
+            </button>
           )}
         </div>
-        <div className="mt-1 text-[10px] text-gray-500">Runs inside a Cloudflare sandbox container using Grok Build harness.</div>
+        <div className="mt-1 text-[10px] text-gray-500">
+          Runs inside a Cloudflare sandbox container using Grok Build harness.
+        </div>
       </div>
     </div>
   )

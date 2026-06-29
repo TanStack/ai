@@ -17,9 +17,7 @@ export type AgentId = 'claude-code' | 'codex' | 'opencode'
 export const DEFAULT_AGENT: AgentId = 'claude-code'
 
 export function isAgentId(value: unknown): value is AgentId {
-  return (
-    value === 'claude-code' || value === 'codex' || value === 'opencode'
-  )
+  return value === 'claude-code' || value === 'codex' || value === 'opencode'
 }
 
 /** A single, optionally command-bearing step in an agent's setup guide. */

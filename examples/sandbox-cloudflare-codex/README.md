@@ -207,16 +207,16 @@ for a preview URL.
 
 ## Files
 
-| File                      | Role                                                                                                        |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `src/agent.ts`            | `createCloudflareSandboxAgent()` + the `tanstackStartRecipe` and `exposePreview` host tools.                |
-| `src/sandbox-provider.ts` | `namedCloudflareSandbox` — pins the container to the run's `threadId` so `exposePreview` can reach it.      |
-| `src/server.ts`           | Custom Cloudflare entry: re-exports the DOs and composes `proxyToSandbox` + the agent + Start SSR.          |
-| `src/routes/index.tsx`    | The chat UI (`useChat` → `/api/run`) + the clickable **Open preview** link.                                 |
-| `src/routes/api.run.ts`   | Same-origin proxy: bridges the agent's POST-then-WebSocket run protocol to the SSE stream `useChat` reads.  |
-| `wrangler.jsonc`          | DO + Container + Sandbox bindings (`RUN_COORDINATOR` + `Sandbox`), migrations, `nodejs_compat`.             |
+| File                      | Role                                                                                                                        |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `src/agent.ts`            | `createCloudflareSandboxAgent()` + the `tanstackStartRecipe` and `exposePreview` host tools.                                |
+| `src/sandbox-provider.ts` | `namedCloudflareSandbox` — pins the container to the run's `threadId` so `exposePreview` can reach it.                      |
+| `src/server.ts`           | Custom Cloudflare entry: re-exports the DOs and composes `proxyToSandbox` + the agent + Start SSR.                          |
+| `src/routes/index.tsx`    | The chat UI (`useChat` → `/api/run`) + the clickable **Open preview** link.                                                 |
+| `src/routes/api.run.ts`   | Same-origin proxy: bridges the agent's POST-then-WebSocket run protocol to the SSE stream `useChat` reads.                  |
+| `wrangler.jsonc`          | DO + Container + Sandbox bindings (`RUN_COORDINATOR` + `Sandbox`), migrations, `nodejs_compat`.                             |
 | `Dockerfile`              | Container image: `@cloudflare/sandbox` base + the `codex` CLI (`@openai/codex`). The recipe runs `@tanstack/cli` via `npx`. |
-| `vite.config.ts`          | `@cloudflare/vite-plugin` + `tanstackStart()` — builds + runs the Worker in `workerd`.                      |
+| `vite.config.ts`          | `@cloudflare/vite-plugin` + `tanstackStart()` — builds + runs the Worker in `workerd`.                                      |
 
 ## Run it locally
 
@@ -226,7 +226,7 @@ OpenAI API key**. It's a normal key from <https://platform.openai.com/api-keys> 
 same value as `OPENAI_API_KEY`, billed to your OpenAI **API** account (not a ChatGPT
 subscription). `codex exec` authenticates with it headlessly. Set it as either
 `CODEX_API_KEY` **or** `OPENAI_API_KEY` (the app injects whichever into the sandbox as
-`CODEX_API_KEY`). The demo app the agent *builds* needs no keys of its own.
+`CODEX_API_KEY`). The demo app the agent _builds_ needs no keys of its own.
 
 ```bash
 # 1) Install workspace deps (from the repo root) and build the workspace packages
@@ -370,7 +370,7 @@ honest.
    two-way stdin would still need the future Cloudflare stdin path.)
 
    **Auth:** `codex exec` authenticates headlessly via `CODEX_API_KEY` (a normal
-   OpenAI API key). You can set it as `CODEX_API_KEY` *or* `OPENAI_API_KEY` on the
+   OpenAI API key). You can set it as `CODEX_API_KEY` _or_ `OPENAI_API_KEY` on the
    Worker env; the `sandbox` resolver reads either and injects it INTO the sandbox
    under the name `CODEX_API_KEY` — because a bare `OPENAI_API_KEY` inside the
    sandbox makes codex try the OAuth WebSocket transport → 401.
@@ -379,9 +379,9 @@ honest.
    Codex's default `workspace-write` mode wraps every shell command in its own OS
    sandbox (`bwrap`/bubblewrap on Linux), which must create a new user namespace —
    and the Cloudflare container forbids that (`bwrap: No permissions to create a new
-   namespace`), so every command codex ran would fail. The Cloudflare container is
+namespace`), so every command codex ran would fail. The Cloudflare container is
    already the isolation boundary, so codex's inner sandbox is disabled. (The
-   `danger-` name is about codex's *own* sandbox; the real boundary — the ephemeral,
+   `danger-` name is about codex's _own_ sandbox; the real boundary — the ephemeral,
    network-and-filesystem-scoped CF container — is unchanged.)
 
 3. **Container disk is ephemeral.** The Cloudflare sandbox's

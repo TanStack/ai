@@ -58,9 +58,7 @@ describe('translateThreadEvents (native grok streaming-json)', () => {
   })
 
   it('surfaces native error events as RUN_ERROR', async () => {
-    const chunks = await collect([
-      { type: 'error', message: 'bad model' },
-    ])
+    const chunks = await collect([{ type: 'error', message: 'bad model' }])
     expect(chunks.some((c) => c.type === 'RUN_ERROR')).toBe(true)
     const err = chunks.find((c) => c.type === 'RUN_ERROR') as {
       message?: string

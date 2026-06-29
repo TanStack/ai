@@ -117,7 +117,10 @@ function CodeModeStrip({ lines }: { lines: Array<CodeModeLine> }) {
               ▶ {line.text}
             </div>
           ) : (
-            <div key={i} className={LEVEL_CLS[line.level ?? 'log'] ?? 'text-gray-300'}>
+            <div
+              key={i}
+              className={LEVEL_CLS[line.level ?? 'log'] ?? 'text-gray-300'}
+            >
               {line.text}
             </div>
           ),

@@ -10,9 +10,7 @@ describe('renderGrokMcpToml', () => {
       close: async () => {},
     })
     expect(toml).toContain('[mcp_servers.tanstack]')
-    expect(toml).toContain(
-      'url = "http://host.docker.internal:3001/_bridge"',
-    )
+    expect(toml).toContain('url = "http://host.docker.internal:3001/_bridge"')
     expect(toml).toContain('Authorization = "Bearer secret-token"')
   })
 })

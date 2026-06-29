@@ -149,10 +149,7 @@ export type {
 
 // Surface bridged-tool custom events (e.g. code mode console logs) on a harness
 // adapter's live output stream.
-export {
-  createBridgeEventChannel,
-  mergeChunkStreams,
-} from './bridge-events'
+export { createBridgeEventChannel, mergeChunkStreams } from './bridge-events'
 export type { BridgeEventChannel } from './bridge-events'
 
 // Host-tool delegation for the co-located ("combined") model: harness + bridge

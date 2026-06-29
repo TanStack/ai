@@ -5,7 +5,11 @@
  * `--mcp-config` file like Claude Code. The host tool-bridge is written there
  * on every run so the bearer token stays fresh.
  */
-import type { HostToolBridge, SandboxHandle, WorkspaceProjection } from '@tanstack/ai-sandbox'
+import type {
+  HostToolBridge,
+  SandboxHandle,
+  WorkspaceProjection,
+} from '@tanstack/ai-sandbox'
 
 /** Escape a string for use as a double-quoted TOML basic string. */
 function tomlString(value: string): string {

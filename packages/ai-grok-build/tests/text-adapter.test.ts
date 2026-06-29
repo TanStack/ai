@@ -13,7 +13,10 @@ import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type { CapabilityContext, StreamChunk } from '@tanstack/ai'
 import type { SandboxHandle } from '@tanstack/ai-sandbox'
 
-const baseDir = path.join(os.tmpdir(), `tanstack-ai-grok-build-test-${Date.now()}`)
+const baseDir = path.join(
+  os.tmpdir(),
+  `tanstack-ai-grok-build-test-${Date.now()}`,
+)
 const provider = localProcessSandbox({ baseDir, removeOnDestroy: true })
 
 afterAll(async () => {

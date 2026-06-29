@@ -202,8 +202,7 @@ export class GrokBuildTextAdapter<
       })
 
       async function* asEvents(): AsyncIterable<GrokBuildStreamEvent> {
-        for await (const event of rawEvents)
-          yield event as GrokBuildStreamEvent
+        for await (const event of rawEvents) yield event as GrokBuildStreamEvent
       }
 
       yield* translateThreadEvents(asEvents(), {

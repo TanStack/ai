@@ -19,15 +19,16 @@ describe('parseIssueUrl', () => {
   })
 
   it('tolerates a trailing slash, query, and hash', () => {
-    expect(
-      parseIssueUrl('https://github.com/a/b/issues/7/?x=1#note'),
-    ).toEqual({ repo: 'a/b', issueNumber: 7 })
+    expect(parseIssueUrl('https://github.com/a/b/issues/7/?x=1#note')).toEqual({
+      repo: 'a/b',
+      issueNumber: 7,
+    })
   })
 
   it('throws on a pull-request URL', () => {
-    expect(() =>
-      parseIssueUrl('https://github.com/a/b/pull/7'),
-    ).toThrow(/issue url/i)
+    expect(() => parseIssueUrl('https://github.com/a/b/pull/7')).toThrow(
+      /issue url/i,
+    )
   })
 
   it('throws on a non-github / malformed URL', () => {

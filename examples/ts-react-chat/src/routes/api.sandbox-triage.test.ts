@@ -19,7 +19,12 @@ describe('POST /api/sandbox-triage', () => {
   it('400s on an invalid harness/provider', async () => {
     const res = await post({
       messages: [{ role: 'user', content: 'go' }],
-      data: { harness: 'nope', provider: 'docker', issueUrl: 'x', threadId: 't' },
+      data: {
+        harness: 'nope',
+        provider: 'docker',
+        issueUrl: 'x',
+        threadId: 't',
+      },
     })
     expect(res.status).toBe(400)
   })

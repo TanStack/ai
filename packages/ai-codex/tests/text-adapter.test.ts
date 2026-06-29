@@ -133,7 +133,9 @@ describe('codex in-sandbox adapter', () => {
     )
 
     const argv = await sbx.fs.read('/workspace/codex-argv.txt')
-    expect(argv).toContain('mcp_servers.tanstack.url="http://bridge.test/_bridge/run1"')
+    expect(argv).toContain(
+      'mcp_servers.tanstack.url="http://bridge.test/_bridge/run1"',
+    )
     expect(argv).toContain(
       'mcp_servers.tanstack.http_headers={ "Authorization" = "Bearer secret-token-xyz" }',
     )
