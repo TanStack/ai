@@ -5,8 +5,8 @@
  * app; it scaffolds it inside the sandbox, runs the dev server, and hands back a
  * live preview URL.
  *
- *   HARNESS  = claude-code | codex | opencode    (which coding agent runs)
- *   PROVIDER = docker | local | vercel | daytona (where it runs)
+ *   HARNESS  = claude-code | codex | opencode | grok (which coding agent runs)
+ *   PROVIDER = docker | local | vercel | daytona     (where it runs)
  *
  * The same `chat()` + `withSandbox()` wiring drives every combination. The ONE
  * provider-dependent seam is the PREVIEW + host-tool story (`toolBridge`):
@@ -24,6 +24,7 @@
 import { toolDefinition } from '@tanstack/ai'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
 import { codexText } from '@tanstack/ai-codex'
+import { grokBuildText } from '@tanstack/ai-grok-build'
 import { opencodeText } from '@tanstack/ai-opencode'
 import {
   createSecrets,
@@ -65,7 +66,12 @@ export const PREVIEW_PORT = 5173
 
 interface HarnessSpec {
   makeAdapter: () => AnyTextAdapter
-  /** CLI install run once on first create (sandboxed providers only); null = none. */
+  /**
+   * The COMPLETE shell command to install the CLI on first create (sandboxed
+   * providers only); null = nothing to install. Each harness owns its own retry
+   * strategy — npm-based ones use {@link npmGlobal} (EACCES → sudo fallback); grok
+   * runs its own installer script.
+   */
   installCommand: string | null
   /** Env vars the in-sandbox CLI needs; any that are set are injected as secrets. */
   requiredEnv: Array<string>
@@ -77,13 +83,23 @@ interface HarnessSpec {
   exposePort?: number
 }
 
+/**
+ * A global npm install with a sudo fallback: some images (Daytona) run as a
+ * non-root user with a root-owned global npm prefix → `-g` fails EACCES; retry
+ * under passwordless sudo, preserving PATH so nvm's npm/node still resolve. Docker
+ * runs as root, so the direct install succeeds and sudo never runs.
+ */
+function npmGlobal(spec: string): string {
+  const cmd = `npm install -g ${spec}`
+  return `${cmd} || sudo -n env "PATH=$PATH" ${cmd}`
+}
+
 const HARNESSES: Record<HarnessName, HarnessSpec> = {
   'claude-code': {
     makeAdapter: () => claudeCodeText('sonnet'),
     // `--include=optional`: the CLI's native binary ships as a platform-specific
     // OPTIONAL dep; a plain `-g` install can skip it, leaving a broken `claude`.
-    installCommand:
-      'npm install -g @anthropic-ai/claude-code --include=optional',
+    installCommand: npmGlobal('@anthropic-ai/claude-code --include=optional'),
     requiredEnv: ['ANTHROPIC_API_KEY'],
   },
   codex: {
@@ -92,7 +108,7 @@ const HARNESSES: Record<HarnessName, HarnessSpec> = {
     // some images (Daytona) / Windows. The outer sandbox is the real boundary.
     makeAdapter: () =>
       codexText('gpt-5.5', { sandboxMode: 'danger-full-access' }),
-    installCommand: 'npm install -g @openai/codex --include=optional',
+    installCommand: npmGlobal('@openai/codex --include=optional'),
     // `codex exec` authenticates headlessly via CODEX_API_KEY (a bare
     // OPENAI_API_KEY hits its OAuth WebSocket path → 401). Accept either; inject
     // the value AS CODEX_API_KEY into the sandbox.
@@ -113,11 +129,32 @@ const HARNESSES: Record<HarnessName, HarnessSpec> = {
         // Isolated sandbox → let the harness edit + run without prompting.
         permissionMode: 'bypassPermissions',
       }),
-    installCommand: 'npm install -g opencode-ai',
+    installCommand: npmGlobal('opencode-ai'),
     requiredEnv: ['OPENAI_API_KEY'],
     // `opencode serve` listens here; the host SDK reaches it over HTTP, so
     // sandboxed providers must publish/expose it. Matches the adapter default.
     exposePort: 4096,
+  },
+  grok: {
+    makeAdapter: () => grokBuildText('grok-build-0.1'),
+    // Grok Build ships its own installer (not npm) — see https://x.ai/cli. It
+    // drops the binary at `$HOME/.grok/bin/grok`, so symlink it onto PATH (best
+    // effort: try as the user, then sudo; the run fails clearly if `grok` is still
+    // missing). Needs `curl` in the image (the default `node:22` has it).
+    installCommand:
+      'curl -fsSL https://x.ai/cli/install.sh | bash && ' +
+      '(ln -sf "$HOME/.grok/bin/grok" /usr/local/bin/grok 2>/dev/null || ' +
+      'sudo -n ln -sf "$HOME/.grok/bin/grok" /usr/local/bin/grok 2>/dev/null || true)',
+    // The `grok` CLI authenticates headlessly via XAI_API_KEY (GROK_API_KEY alias).
+    requiredEnv: ['XAI_API_KEY'],
+    envCheck: () =>
+      process.env.XAI_API_KEY || process.env.GROK_API_KEY
+        ? []
+        : ['XAI_API_KEY (or GROK_API_KEY)'],
+    sandboxSecrets: (): Record<string, string> => {
+      const key = process.env.XAI_API_KEY ?? process.env.GROK_API_KEY
+      return key ? { XAI_API_KEY: key } : {}
+    },
   },
 }
 
@@ -335,13 +372,10 @@ export function buildSandbox(opts: {
       source: { type: 'none' },
       setup: ({ serial }) => {
         // Install the harness CLI into the fresh sandbox for every provider EXCEPT
-        // local-process (uses the host's CLI on PATH). Some images (Daytona) run
-        // as a non-root user with a root-owned npm dir → `-g` fails EACCES; fall
-        // back to passwordless sudo, preserving PATH. Docker runs as root, so the
-        // direct install succeeds and sudo never runs.
+        // local-process (which uses the host's CLI on PATH). Each command is
+        // self-contained (its own EACCES/sudo handling) — see HarnessSpec.
         if (opts.provider !== 'local' && harness.installCommand) {
-          const cmd = harness.installCommand
-          serial(`${cmd} || sudo -n env "PATH=$PATH" ${cmd}`)
+          serial(harness.installCommand)
         }
       },
       secrets: createSecrets(secretEnv),

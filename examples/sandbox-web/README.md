@@ -6,8 +6,8 @@ independent axes**, picked live in the UI, to show off the provider-agnostic
 design:
 
 ```
-HARNESS  = claude-code | codex | opencode     # which coding agent runs
-PROVIDER = docker | local | vercel | daytona  # where it runs
+HARNESS  = claude-code | codex | opencode | grok  # which coding agent runs
+PROVIDER = docker | local | vercel | daytona      # where it runs
 ```
 
 Defaults are `claude-code` on `docker`. The same UI, the same `chat()` +
@@ -59,6 +59,7 @@ one is missing). See [`.env.example`](./.env.example).
 | Harness  | `claude-code` | `ANTHROPIC_API_KEY`                                                              |
 | Harness  | `codex`       | `CODEX_API_KEY` (or `OPENAI_API_KEY`)                                            |
 | Harness  | `opencode`    | `OPENAI_API_KEY`                                                                 |
+| Harness  | `grok`        | `XAI_API_KEY` (or `GROK_API_KEY`)                                                |
 | Provider | `docker`      | a running **Docker daemon**                                                      |
 | Provider | `local`       | the chosen CLI on your PATH — no isolation, no key (uses your host login)        |
 | Provider | `vercel`      | `VERCEL_TOKEN` (or `VERCEL_OIDC_TOKEN`) + `VERCEL_TEAM_ID` + `VERCEL_PROJECT_ID` |

@@ -8,7 +8,7 @@
  * types and guards. Single source of truth for the two axes.
  */
 
-export type HarnessName = 'claude-code' | 'codex' | 'opencode'
+export type HarnessName = 'claude-code' | 'codex' | 'opencode' | 'grok'
 export type ProviderName = 'docker' | 'local' | 'vercel' | 'daytona'
 
 export interface PickerOption<T> {
@@ -20,6 +20,7 @@ export const HARNESS_OPTIONS: ReadonlyArray<PickerOption<HarnessName>> = [
   { value: 'claude-code', label: 'Claude Code' },
   { value: 'codex', label: 'Codex' },
   { value: 'opencode', label: 'OpenCode' },
+  { value: 'grok', label: 'Grok' },
 ]
 
 export const PROVIDER_OPTIONS: ReadonlyArray<PickerOption<ProviderName>> = [
