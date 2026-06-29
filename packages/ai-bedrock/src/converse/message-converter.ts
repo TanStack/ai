@@ -194,7 +194,11 @@ function messageToBlocks(
           `Bedrock Converse: tool call "${call.function.name}" has malformed JSON arguments (${String(error)}). Raw: ${rawArguments}`,
         )
       }
-      if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      if (
+        parsed === null ||
+        typeof parsed !== 'object' ||
+        Array.isArray(parsed)
+      ) {
         throw new Error(
           `Bedrock Converse: tool call "${call.function.name}" arguments must be a JSON object, got ${Array.isArray(parsed) ? 'array' : typeof parsed}.`,
         )

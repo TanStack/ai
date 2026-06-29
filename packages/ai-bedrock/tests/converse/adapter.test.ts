@@ -106,7 +106,9 @@ describe('BedrockConverseTextAdapter', () => {
     const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
     a.streamEvents = [
       { messageStart: { role: 'assistant' } },
-      { contentBlockDelta: { delta: { text: 'partial' }, contentBlockIndex: 0 } },
+      {
+        contentBlockDelta: { delta: { text: 'partial' }, contentBlockIndex: 0 },
+      },
       // In-band server fault Bedrock delivers as a stream event, not a throw.
       {
         throttlingException: new Error('rate limited'),
@@ -205,9 +207,9 @@ describe('BedrockConverseTextAdapter', () => {
     // The forced-tool 'tool_use' stopReason is internal — a clean structured
     // run reports 'stop', not 'tool_calls'.
     const finished = events.find((e) => e.type === EventType.RUN_FINISHED)
-    expect((finished as { finishReason?: string } | undefined)?.finishReason).toBe(
-      'stop',
-    )
+    expect(
+      (finished as { finishReason?: string } | undefined)?.finishReason,
+    ).toBe('stop')
   })
 
   it('rejects a non-forced tool-use block in structuredOutput', async () => {

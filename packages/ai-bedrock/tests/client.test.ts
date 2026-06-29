@@ -123,7 +123,10 @@ describe('resolveBedrockAuth', () => {
   })
 
   it("uses service 'bedrock-mantle' for the mantle endpoint under sigv4", () => {
-    const r = resolveBedrockAuth({ auth: 'sigv4', region: 'us-west-2' }, 'mantle')
+    const r = resolveBedrockAuth(
+      { auth: 'sigv4', region: 'us-west-2' },
+      'mantle',
+    )
     expect(r.kind).toBe('sigv4')
     if (r.kind === 'sigv4') {
       expect(r.region).toBe('us-west-2')

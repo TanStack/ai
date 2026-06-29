@@ -249,7 +249,12 @@ describe('processConverseStream', () => {
     const drain = async () => {
       for await (const _ of processConverseStream(
         gen(
-          { contentBlockDelta: { delta: { text: 'partial' }, contentBlockIndex: 0 } },
+          {
+            contentBlockDelta: {
+              delta: { text: 'partial' },
+              contentBlockIndex: 0,
+            },
+          },
           { throttlingException: new Error('rate limited') },
         ),
         counter(),
@@ -317,8 +322,8 @@ describe('processConverseStream', () => {
     // No cross-talk: each block's fragments accumulate against its own id.
     expect(argsById['a']).toBe('{"x":1}')
     expect(argsById['b']).toBe('{"y":2}')
-    expect(events.filter((e) => e.type === EventType.TOOL_CALL_END)).toHaveLength(
-      2,
-    )
+    expect(
+      events.filter((e) => e.type === EventType.TOOL_CALL_END),
+    ).toHaveLength(2)
   })
 })
