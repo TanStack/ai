@@ -32,7 +32,7 @@ events (`chunk.type === 'CUSTOM'`), each with a `name` and a `value`:
 | `claude-code.session-id` | Claude Code adapter | once, when the in-sandbox session is created or resumed | the resumable harness session id |
 | `codex.session-id` | Codex adapter | once, when the session is created or resumed | the resumable harness session id |
 | `opencode.session-id` | OpenCode adapter | once, when the session is created or resumed | the resumable harness session id |
-| `file.changed` | harness adapter (e.g. Claude Code) | after the run completes | `{ path: string; diff: string }` — the working-tree `git diff` |
+| `file.changed` | harness adapter (e.g. Claude Code) | after the run completes | `{ path: string; diff: string }` — the whole working-tree `git diff` (`path` is always `'.'`, the tree root) |
 | `sandbox.file` | the engine, automatically | per file create / change / delete while a sandbox is active | `{ type: 'create' \| 'change' \| 'delete'; path: string; timestamp: number }` |
 
 The `*.session-id` event lets you resume a harness session on a follow-up run

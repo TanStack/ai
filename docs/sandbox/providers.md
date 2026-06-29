@@ -104,7 +104,9 @@ const daytona = daytonaSandbox({ apiKey: process.env.DAYTONA_API_KEY })
 - **Isolation:** a managed cloud sandbox — a remote VM you don't run yourself.
 - **Auth / env:** needs `DAYTONA_API_KEY`. Harness credentials are injected as
   workspace secrets; there is no host login to fall back on.
-- **Snapshot / resume:** resume-by-id, plus port preview links for live previews.
+- **Snapshot / resume:** no snapshots; resume-by-id reconnects to a still-running
+  sandbox (not a restored point-in-time snapshot), plus port preview links for
+  live previews.
 - **Bridge:** the sandbox is remote, so a [bridged tool](./tools) call can't reach
   your laptop's `localhost`. In local dev, tunnel the bridge (see [tools](./tools));
   a deployed orchestrator is reachable out of the box.
@@ -136,6 +138,7 @@ Providers declare what they support via `capabilities()`. The flags are:
 | `env` | Inject environment variables. |
 | `ports` | Expose/forward ports (preview URLs). |
 | `backgroundProcesses` | Keep long-running processes alive between calls. |
+| `writableStdin` | A spawned process exposes a writable host→process stdin. `true` for local-process and Docker; `false` on remote/edge providers (Daytona, Vercel, Cloudflare), where stdin-fed harnesses deliver the prompt via a file + shell redirection instead. |
 | `snapshots` | Capture and restore point-in-time snapshots. |
 | `networkPolicy` | Enforce network allow/deny rules. |
 | `durableFilesystem` | Disk that survives across resumes. |
