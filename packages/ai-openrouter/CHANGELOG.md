@@ -1,5 +1,43 @@
 # @tanstack/ai-openrouter
 
+## 0.15.4
+
+### Patch Changes
+
+- [#823](https://github.com/TanStack/ai/pull/823) [`234d54e`](https://github.com/TanStack/ai/commit/234d54e394034a568e531c3b2e3027a451a59567) - Forward tool-definition `cacheControl` through the OpenRouter function-tool converter so Anthropic prompt caching of tool definitions works over OpenRouter. Previously `metadata.cacheControl` was dropped before serialization, so the cache breakpoint never reached the wire. The OpenRouter SDK already accepts `cacheControl` on a function tool and remaps it to `cache_control`; this mirrors `convertCustomToolToAdapterFormat` in `@tanstack/ai-anthropic`.
+
+- Updated dependencies [[`c1a8732`](https://github.com/TanStack/ai/commit/c1a87327b4a3463d37158f32ca90184b5fd092bb)]:
+  - @tanstack/ai@0.38.0
+
+## 0.15.3
+
+### Patch Changes
+
+- [#844](https://github.com/TanStack/ai/pull/844) [`a6cceba`](https://github.com/TanStack/ai/commit/a6cceba4812e7e986183ee856112fcf5f8fa12ff) - Republish all packages with their compiled `dist/` output.
+
+  Releases `0.33.0`–`0.36.0` were published without a `dist/` directory: the
+  release workflow relied on an Nx-cached `build` whose outputs were not
+  materialized to disk before `changeset publish` packed the tarballs, and
+  `files: ["dist"]` silently includes nothing when `dist/` is absent. The
+  published packages therefore contained only `src/`, so every export
+  (`./dist/esm/*.js`) resolved to a missing file and the packages were
+  uninstallable.
+
+  The publish step now runs a fresh, cache-bypassing build of all packages
+  immediately before publishing, guaranteeing compiled artifacts are present in
+  every tarball.
+
+- Updated dependencies [[`a6cceba`](https://github.com/TanStack/ai/commit/a6cceba4812e7e986183ee856112fcf5f8fa12ff)]:
+  - @tanstack/ai@0.37.0
+  - @tanstack/ai-utils@0.3.1
+
+## 0.15.2
+
+### Patch Changes
+
+- Updated dependencies [[`fbd3762`](https://github.com/TanStack/ai/commit/fbd37623b287e370aa5678e161dec19cf13ae33b)]:
+  - @tanstack/ai@0.36.0
+
 ## 0.15.1
 
 ### Patch Changes

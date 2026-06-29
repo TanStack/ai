@@ -1,0 +1,12 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[lazy-wire] discover and describe inventory tools"
+      },
+      "response": {
+        "content": "Here are the inventory tools."
+      }
+    }
+  ]
+}

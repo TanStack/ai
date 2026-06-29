@@ -107,7 +107,8 @@
         {
           "label": "Lazy Tool Discovery",
           "to": "tools/lazy-tool-discovery",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-06-08"
         }
       ]
     },
@@ -133,6 +134,12 @@
           "label": "MCP Type Generation",
           "to": "tools/mcp-codegen",
           "addedAt": "2026-06-05"
+        },
+        {
+          "label": "MCP Apps",
+          "to": "mcp/apps",
+          "addedAt": "2026-06-24",
+          "updatedAt": "2026-06-26"
         }
       ]
     },
@@ -220,6 +227,11 @@
           "label": "Code Mode Isolate Drivers",
           "to": "code-mode/code-mode-isolates",
           "addedAt": "2026-04-15"
+        },
+        {
+          "label": "Lazy Tools",
+          "to": "code-mode/lazy-tools",
+          "addedAt": "2026-06-08"
         }
       ]
     },
@@ -245,6 +257,12 @@
           "label": "Transcription",
           "to": "media/transcription",
           "addedAt": "2026-04-15"
+        },
+        {
+          "label": "Audio Recording",
+          "to": "media/audio-recording",
+          "addedAt": "2026-06-23",
+          "updatedAt": "2026-06-26"
         },
         {
           "label": "Audio Generation",

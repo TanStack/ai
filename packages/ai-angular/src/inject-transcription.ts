@@ -3,7 +3,7 @@ import type { Signal } from '@angular/core'
 import type { TranscriptionResult } from '@tanstack/ai'
 import type {
   GenerationClientState,
-  InferGenerationOutput,
+  InferGenerationOutputFromReturn,
   TranscriptionGenerateInput,
 } from '@tanstack/ai-client'
 import type { InjectGenerationOptions } from './inject-generation'
@@ -29,15 +29,12 @@ export interface InjectTranscriptionResult<TOutput = TranscriptionResult> {
   reset: () => void
 }
 
-export function injectTranscription<
-  TOnResult extends ((result: TranscriptionResult) => any) | undefined =
-    undefined,
->(
+export function injectTranscription<TTransformed = void>(
   options: Omit<InjectTranscriptionOptions, 'onResult'> & {
-    onResult?: TOnResult
+    onResult?: (result: TranscriptionResult) => TTransformed
   },
 ): InjectTranscriptionResult<
-  InferGenerationOutput<TranscriptionResult, TOnResult>
+  InferGenerationOutputFromReturn<TranscriptionResult, TTransformed>
 > {
   const devtools = {
     ...options.devtools,
@@ -49,7 +46,7 @@ export function injectTranscription<
     injectGeneration<
       TranscriptionGenerateInput,
       TranscriptionResult,
-      TOnResult
+      TTransformed
     >({
       ...options,
       devtools,

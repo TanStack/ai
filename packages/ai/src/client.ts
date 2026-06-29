@@ -114,6 +114,7 @@ export type {
   ToolCallPart,
   ToolResultPart,
   UIMessage,
+  UIResourcePart,
   VideoPart,
   InferSchemaType,
 } from './types'

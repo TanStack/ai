@@ -40,6 +40,10 @@ import { Route as ApiMcpStatusTestRouteImport } from './routes/api.mcp-status-te
 import { Route as ApiMcpServerRouteImport } from './routes/api.mcp-server'
 import { Route as ApiMcpManagedTestRouteImport } from './routes/api.mcp-managed-test'
 import { Route as ApiMcpLifecycleTestRouteImport } from './routes/api.mcp-lifecycle-test'
+import { Route as ApiMcpAppsServerRouteImport } from './routes/api.mcp-apps-server'
+import { Route as ApiMcpAppsChatRouteImport } from './routes/api.mcp-apps-chat'
+import { Route as ApiMcpAppsCallRouteImport } from './routes/api.mcp-apps-call'
+import { Route as ApiLazyToolsWireRouteImport } from './routes/api.lazy-tools-wire'
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
@@ -213,6 +217,26 @@ const ApiMcpLifecycleTestRoute = ApiMcpLifecycleTestRouteImport.update({
   path: '/api/mcp-lifecycle-test',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMcpAppsServerRoute = ApiMcpAppsServerRouteImport.update({
+  id: '/api/mcp-apps-server',
+  path: '/api/mcp-apps-server',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpAppsChatRoute = ApiMcpAppsChatRouteImport.update({
+  id: '/api/mcp-apps-chat',
+  path: '/api/mcp-apps-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpAppsCallRoute = ApiMcpAppsCallRouteImport.update({
+  id: '/api/mcp-apps-call',
+  path: '/api/mcp-apps-call',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiLazyToolsWireRoute = ApiLazyToolsWireRouteImport.update({
+  id: '/api/lazy-tools-wire',
+  path: '/api/lazy-tools-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiImageRoute = ApiImageRouteImport.update({
   id: '/api/image',
   path: '/api/image',
@@ -300,6 +324,10 @@ export interface FileRoutesByFullPath {
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
+  '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
+  '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
+  '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
+  '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
   '/api/mcp-server': typeof ApiMcpServerRoute
@@ -346,6 +374,10 @@ export interface FileRoutesByTo {
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
+  '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
+  '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
+  '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
+  '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
   '/api/mcp-server': typeof ApiMcpServerRoute
@@ -393,6 +425,10 @@ export interface FileRoutesById {
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
+  '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
+  '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
+  '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
+  '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
   '/api/mcp-server': typeof ApiMcpServerRoute
@@ -441,6 +477,10 @@ export interface FileRouteTypes {
     | '/api/audio'
     | '/api/chat'
     | '/api/image'
+    | '/api/lazy-tools-wire'
+    | '/api/mcp-apps-call'
+    | '/api/mcp-apps-chat'
+    | '/api/mcp-apps-server'
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
     | '/api/mcp-server'
@@ -487,6 +527,10 @@ export interface FileRouteTypes {
     | '/api/audio'
     | '/api/chat'
     | '/api/image'
+    | '/api/lazy-tools-wire'
+    | '/api/mcp-apps-call'
+    | '/api/mcp-apps-chat'
+    | '/api/mcp-apps-server'
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
     | '/api/mcp-server'
@@ -533,6 +577,10 @@ export interface FileRouteTypes {
     | '/api/audio'
     | '/api/chat'
     | '/api/image'
+    | '/api/lazy-tools-wire'
+    | '/api/mcp-apps-call'
+    | '/api/mcp-apps-chat'
+    | '/api/mcp-apps-server'
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
     | '/api/mcp-server'
@@ -580,6 +628,10 @@ export interface RootRouteChildren {
   ApiAudioRoute: typeof ApiAudioRouteWithChildren
   ApiChatRoute: typeof ApiChatRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
+  ApiLazyToolsWireRoute: typeof ApiLazyToolsWireRoute
+  ApiMcpAppsCallRoute: typeof ApiMcpAppsCallRoute
+  ApiMcpAppsChatRoute: typeof ApiMcpAppsChatRoute
+  ApiMcpAppsServerRoute: typeof ApiMcpAppsServerRoute
   ApiMcpLifecycleTestRoute: typeof ApiMcpLifecycleTestRoute
   ApiMcpManagedTestRoute: typeof ApiMcpManagedTestRoute
   ApiMcpServerRoute: typeof ApiMcpServerRoute
@@ -821,6 +873,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMcpLifecycleTestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mcp-apps-server': {
+      id: '/api/mcp-apps-server'
+      path: '/api/mcp-apps-server'
+      fullPath: '/api/mcp-apps-server'
+      preLoaderRoute: typeof ApiMcpAppsServerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-apps-chat': {
+      id: '/api/mcp-apps-chat'
+      path: '/api/mcp-apps-chat'
+      fullPath: '/api/mcp-apps-chat'
+      preLoaderRoute: typeof ApiMcpAppsChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-apps-call': {
+      id: '/api/mcp-apps-call'
+      path: '/api/mcp-apps-call'
+      fullPath: '/api/mcp-apps-call'
+      preLoaderRoute: typeof ApiMcpAppsCallRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/lazy-tools-wire': {
+      id: '/api/lazy-tools-wire'
+      path: '/api/lazy-tools-wire'
+      fullPath: '/api/lazy-tools-wire'
+      preLoaderRoute: typeof ApiLazyToolsWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/image': {
       id: '/api/image'
       path: '/api/image'
@@ -993,6 +1073,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAudioRoute: ApiAudioRouteWithChildren,
   ApiChatRoute: ApiChatRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
+  ApiLazyToolsWireRoute: ApiLazyToolsWireRoute,
+  ApiMcpAppsCallRoute: ApiMcpAppsCallRoute,
+  ApiMcpAppsChatRoute: ApiMcpAppsChatRoute,
+  ApiMcpAppsServerRoute: ApiMcpAppsServerRoute,
   ApiMcpLifecycleTestRoute: ApiMcpLifecycleTestRoute,
   ApiMcpManagedTestRoute: ApiMcpManagedTestRoute,
   ApiMcpServerRoute: ApiMcpServerRoute,

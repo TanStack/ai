@@ -1,5 +1,29 @@
 # @tanstack/ai-event-client
 
+## 0.6.8
+
+### Patch Changes
+
+- [#844](https://github.com/TanStack/ai/pull/844) [`a6cceba`](https://github.com/TanStack/ai/commit/a6cceba4812e7e986183ee856112fcf5f8fa12ff) - Republish all packages with their compiled `dist/` output.
+
+  Releases `0.33.0`–`0.36.0` were published without a `dist/` directory: the
+  release workflow relied on an Nx-cached `build` whose outputs were not
+  materialized to disk before `changeset publish` packed the tarballs, and
+  `files: ["dist"]` silently includes nothing when `dist/` is absent. The
+  published packages therefore contained only `src/`, so every export
+  (`./dist/esm/*.js`) resolved to a missing file and the packages were
+  uninstallable.
+
+  The publish step now runs a fresh, cache-bypassing build of all packages
+  immediately before publishing, guaranteeing compiled artifacts are present in
+  every tarball.
+
+## 0.6.7
+
+### Patch Changes
+
+- [#809](https://github.com/TanStack/ai/pull/809) [`e3ee4ae`](https://github.com/TanStack/ai/commit/e3ee4ae385d124619586f7c6de96b5c7de5954c5) - Remove the unused `@tanstack/ai` peer dependency and the matching Nx dependency-graph override.
+
 ## 0.6.6
 
 ### Patch Changes
