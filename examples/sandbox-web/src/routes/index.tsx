@@ -1,12 +1,19 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { ExternalLink, Send, Server, Square } from 'lucide-react'
+import { AlertTriangle, ExternalLink, Send, Server, Square } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import rehypeHighlight from 'rehype-highlight'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import {
+  HARNESS_OPTIONS,
+  PROVIDER_OPTIONS,
+  isHarness,
+  isProvider,
+} from '../sandbox-options'
+import type { HarnessName, ProviderName } from '../sandbox-options'
 import type { UIMessage } from '@tanstack/ai-react'
 
 export const Route = createFileRoute('/')({
@@ -14,7 +21,7 @@ export const Route = createFileRoute('/')({
 })
 
 const PROMPT_SUGGESTIONS = [
-  'Build a self-contained TanStack Start app — a polished kanban board with drag-and-drop and localStorage (no APIs or env). Call the tanstackStartRecipe tool first, scaffold it, install deps, start the dev server, and give me the preview URL.',
+  'Build a self-contained TanStack Start app — a polished kanban board with drag-and-drop and localStorage (no APIs or env). Scaffold it, install deps, start the dev server, and give me the preview URL.',
   'Build a TanStack Start dashboard with a sortable/filterable table over bundled sample data — no keys needed — and give me the preview URL.',
   'Add a dark-mode toggle and a second route with a detail view.',
 ]
@@ -64,16 +71,16 @@ function ToolCall({
 
 /** Pull the preview URL out of an `exposePreview` tool result (object or JSON string). */
 function previewUrlFrom(output: unknown): string | null {
-  let value = output
-  if (typeof value === 'string') {
+  let value: unknown = output
+  if (typeof output === 'string') {
     try {
-      value = JSON.parse(value)
+      value = JSON.parse(output)
     } catch {
-      return /^https?:\/\//.test(output as string) ? (output as string) : null
+      return /^https?:\/\//.test(output) ? output : null
     }
   }
   if (value !== null && typeof value === 'object' && 'url' in value) {
-    const url = (value as { url: unknown }).url
+    const url = value.url
     return typeof url === 'string' ? url : null
   }
   return null
@@ -100,8 +107,8 @@ function PreviewLink({ url }: { url: string }) {
 /**
  * Shown while a request is in flight but no stream chunk has arrived yet — that
  * window is the sandbox booting: `withSandbox` is creating (or resuming) the
- * Vercel microVM and installing the `claude` CLI before the agent loop streams.
- * It's the slow part of the first message, so make the wait legible.
+ * sandbox and preparing the coding agent before the agent loop streams. It's the
+ * slow part of the first message, so make the wait legible.
  */
 function SandboxBooting() {
   return (
@@ -117,8 +124,8 @@ function SandboxBooting() {
               Starting sandbox…
             </span>{' '}
             <span className="text-gray-400">
-              creating a Vercel microVM and installing the coding agent. The
-              first message takes a moment.
+              creating the sandbox and coding agent. The first message takes a
+              moment (longer on a cloud provider).
             </span>
           </p>
         </div>
@@ -145,9 +152,10 @@ function Messages({
     return (
       <div className="flex-1 flex items-center justify-center px-6 text-center text-gray-500">
         <p className="max-w-md">
-          Ask the sandbox agent to build a self-contained TanStack Start app —
-          it scaffolds it, runs it in a Vercel Sandbox microVM, and hands back a
-          live preview URL. No API keys needed for the app.
+          Pick a harness and provider, then ask the agent to build a
+          self-contained TanStack Start app — it scaffolds it, runs it in the
+          sandbox, and hands back a live preview URL. No API keys needed for the
+          app it builds.
         </p>
       </div>
     )
@@ -238,38 +246,107 @@ function Messages({
 }
 
 function SandboxAgentPage() {
-  // A stable thread id per page load: the agent reuses one sandbox per thread,
-  // so every follow-up message lands in the same workspace.
-  const [threadId] = useState(() => crypto.randomUUID())
+  // One sandbox per thread. Switching either picker starts a FRESH thread (a new
+  // sandbox is needed for a different harness/provider) and clears the chat.
+  const [threadId, setThreadId] = useState(() => crypto.randomUUID())
+  const [harness, setHarness] = useState<HarnessName>('claude-code')
+  const [provider, setProvider] = useState<ProviderName>('docker')
   const [input, setInput] = useState('')
 
-  const { messages, sendMessage, isLoading, stop } = useChat({
+  // Memoized so the body identity only changes on a real thread/picker switch.
+  const body = useMemo(
+    () => ({ threadId, harness, provider }),
+    [threadId, harness, provider],
+  )
+
+  const { messages, sendMessage, isLoading, stop, error, clear } = useChat({
     connection: fetchServerSentEvents('/api/run'),
-    body: { threadId },
+    body,
   })
 
+  function changeHarness(next: HarnessName) {
+    if (next === harness || isLoading) return
+    clear()
+    setHarness(next)
+    setThreadId(crypto.randomUUID())
+  }
+
+  function changeProvider(next: ProviderName) {
+    if (next === provider || isLoading) return
+    clear()
+    setProvider(next)
+    setThreadId(crypto.randomUUID())
+  }
+
   // A request is in flight but nothing has streamed back yet (the last message is
-  // still the user's) → the sandbox is booting. Once the first chunk arrives an
-  // assistant message is appended and this clears.
+  // still the user's) → the sandbox is booting.
   const booting =
     isLoading &&
     messages.length > 0 &&
     messages[messages.length - 1].role === 'user'
 
+  function send(text: string) {
+    const content = text.trim()
+    if (!content || isLoading) return
+    sendMessage(content)
+    setInput('')
+  }
+
   return (
     <div className="flex flex-col h-screen bg-gray-900">
-      <header className="flex items-center justify-between border-b border-indigo-500/10 bg-gray-900/80 px-4 py-3 backdrop-blur-sm">
+      <header className="flex flex-wrap items-center gap-3 border-b border-indigo-500/10 bg-gray-900/80 px-4 py-3 backdrop-blur-sm">
         <div className="flex items-center gap-2 text-white">
           <Server className="w-5 h-5 text-indigo-400" />
-          <span className="font-semibold">Sandbox Coding Agent</span>
+          <span className="font-semibold">Sandbox Web</span>
           <span className="text-xs text-gray-500">
-            Claude Code · Vercel Sandbox microVM
+            agent builds an app → live preview
           </span>
         </div>
-        <div className="flex items-center gap-2 text-sm text-indigo-300">
-          <span className="font-mono">thread {threadId.slice(0, 8)}</span>
+        <div className="ml-auto flex items-center gap-2 text-sm">
+          <select
+            value={harness}
+            onChange={(e) => {
+              if (isHarness(e.target.value)) changeHarness(e.target.value)
+            }}
+            disabled={isLoading}
+            title="Which coding agent runs in the sandbox"
+            className="rounded-md border border-indigo-500/20 bg-gray-800 px-2 py-1 text-white disabled:opacity-50"
+          >
+            {HARNESS_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <select
+            value={provider}
+            onChange={(e) => {
+              if (isProvider(e.target.value)) changeProvider(e.target.value)
+            }}
+            disabled={isLoading}
+            title="Where the sandbox runs"
+            className="rounded-md border border-indigo-500/20 bg-gray-800 px-2 py-1 text-white disabled:opacity-50"
+          >
+            {PROVIDER_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <span className="font-mono text-indigo-300">
+            thread {threadId.slice(0, 8)}
+          </span>
         </div>
       </header>
+
+      {error && (
+        <div className="mx-auto mt-3 flex w-full max-w-4xl items-start gap-2 rounded-lg border border-red-500/40 bg-red-900/20 px-4 py-3 text-sm text-red-200">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
+          <pre className="min-w-0 whitespace-pre-wrap break-words font-mono text-xs text-red-200/90">
+            {error.message}
+          </pre>
+        </div>
+      )}
 
       <div className="flex-1 flex flex-col min-w-0">
         <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full overflow-hidden">
@@ -293,32 +370,26 @@ function SandboxAgentPage() {
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask the sandbox agent to write or run code…"
+                placeholder="Ask the sandbox agent to build an app…"
                 className="w-full rounded-lg border border-indigo-500/20 bg-gray-800/50 pl-4 pr-12 py-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 resize-none overflow-hidden shadow-lg"
                 rows={1}
                 style={{ minHeight: '44px', maxHeight: '200px' }}
                 disabled={isLoading}
                 onInput={(e) => {
-                  const target = e.target as HTMLTextAreaElement
+                  const target = e.currentTarget
                   target.style.height = 'auto'
                   target.style.height =
                     Math.min(target.scrollHeight, 200) + 'px'
                 }}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey && input.trim()) {
+                  if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault()
-                    sendMessage(input)
-                    setInput('')
+                    send(input)
                   }
                 }}
               />
               <button
-                onClick={() => {
-                  if (input.trim()) {
-                    sendMessage(input)
-                    setInput('')
-                  }
-                }}
+                onClick={() => send(input)}
                 disabled={!input.trim() || isLoading}
                 className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-indigo-400 hover:text-indigo-300 disabled:text-gray-500 transition-colors focus:outline-none"
               >
@@ -330,9 +401,7 @@ function SandboxAgentPage() {
               {PROMPT_SUGGESTIONS.map((suggestion) => (
                 <button
                   key={suggestion}
-                  onClick={() => {
-                    if (!isLoading) sendMessage(suggestion)
-                  }}
+                  onClick={() => send(suggestion)}
                   disabled={isLoading}
                   className="px-3 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 border border-indigo-500/20 hover:border-indigo-500/40 text-gray-300 hover:text-white rounded-full transition-all disabled:opacity-50"
                 >

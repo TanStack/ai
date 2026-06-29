@@ -129,9 +129,9 @@ writes a Markdown report locally — using [file-event hooks](./events) to log t
 agent's edits live.
 
 For a **web** chat where the agent builds and runs an app inside a sandbox and
-hands back a live preview URL, see `examples/sandbox-local-web` (Docker / local),
-`examples/sandbox-daytona-web` (managed Daytona sandbox), and
-`examples/sandbox-vercel-web` (Vercel microVM).
+hands back a live preview URL, see `examples/sandbox-web` — one app with harness
+(Claude Code / Codex / OpenCode) and provider (Docker / local / Vercel / Daytona)
+pickers.
 
 > **Persistence-ready:** the sandbox layer ships with in-memory stores for
 > resume bookkeeping. A future persistence package can provide durable

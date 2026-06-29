@@ -131,7 +131,7 @@ function CodeModeStrip({ lines }: { lines: Array<CodeModeLine> }) {
 }
 
 // ---------------------------------------------------------------------------
-// ToolCall — copied verbatim from sandbox-local-web/src/routes/index.tsx
+// ToolCall — copied verbatim from sandbox-web/src/routes/index.tsx
 // ---------------------------------------------------------------------------
 
 function ToolCall({
@@ -177,7 +177,7 @@ function ToolCall({
 }
 
 // ---------------------------------------------------------------------------
-// SandboxBooting — copied verbatim from sandbox-local-web/src/routes/index.tsx
+// SandboxBooting — copied verbatim from sandbox-web/src/routes/index.tsx
 // ---------------------------------------------------------------------------
 
 function SandboxBooting() {
@@ -205,7 +205,7 @@ function SandboxBooting() {
 }
 
 // ---------------------------------------------------------------------------
-// Messages — adapted from sandbox-local-web/src/routes/index.tsx:
+// Messages — adapted from sandbox-web/src/routes/index.tsx:
 //   - drops exposePreview / PreviewLink branch
 //   - computes verdict per assistant message and renders VerdictChip
 // ---------------------------------------------------------------------------
