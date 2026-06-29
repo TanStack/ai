@@ -9,7 +9,7 @@ title: AGUIEventType
 type AGUIEventType = `${EventType}`;
 ```
 
-Defined in: [packages/ai/src/types.ts:949](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L949)
+Defined in: [packages/ai/src/types.ts:967](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L967)
 
 AG-UI Protocol event types.
 

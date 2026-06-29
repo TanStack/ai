@@ -6,6 +6,8 @@ export type {
   InferAudioRecordingOutput,
 } from './audio-recorder'
 export { ChatClient } from './chat-client'
+export { createMcpAppBridge } from './mcp-app-bridge'
+export type { McpAppBridge, CreateMcpAppBridgeOptions } from './mcp-app-bridge'
 export { RealtimeClient } from './realtime-client'
 export { GenerationClient } from './generation-client'
 export { VideoGenerationClient } from './video-generation-client'
@@ -37,6 +39,7 @@ export type {
 // Generation client types
 export type {
   InferGenerationOutput,
+  InferGenerationOutputFromReturn,
   GenerationClientState,
   GenerationClientOptions,
   GenerationFetcher,

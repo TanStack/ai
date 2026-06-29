@@ -75,7 +75,7 @@ import { updateCartUIDef } from '@/tools/definitions'
 export async function POST(request: Request) {
   const { messages } = await request.json()
   const stream = chat({
-    adapter: openaiText('gpt-4o'),
+    adapter: openaiText('gpt-5.5'),
     messages,
     tools: [getProducts, updateCartUIDef], // server tool + client definition
   })
@@ -158,7 +158,7 @@ const getUserData = getUserDataDef.server(async ({ userId }) => {
 
 // In your route handler:
 const stream = chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.5'),
   messages,
   tools: [getUserData],
 })
@@ -188,7 +188,7 @@ Server -- pass definition only (no execute function):
 
 ```typescript
 const stream = chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.5'),
   messages,
   tools: [showNotificationDef],
 })
@@ -404,6 +404,13 @@ The post-discovery payload always returns the full description and schema regard
 
 `@tanstack/ai-mcp` lets a server-side `chat()` call discover and invoke tools
 hosted on any MCP server (Streamable HTTP, SSE, or stdio).
+
+**MCP tools and UI resources:** When an MCP tool result carries a `ui://`
+resource URI (via `_meta.ui.resourceUri`), TanStack AI surfaces it as a
+`UIResourcePart` on the assistant `UIMessage` in the client message list.
+`UIResourcePart` is a presentational-only part — it never enters model input.
+See the `@tanstack/ai-mcp` skill for the full MCP Apps API
+(`createMcpAppCallHandler`, `createMcpAppBridge`, `MCPAppResource`).
 
 ### Basic usage — auto-discovery
 

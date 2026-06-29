@@ -6,7 +6,7 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  InferGenerationOutput,
+  InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
 
 /**
@@ -91,15 +91,12 @@ export interface CreateGenerateAudioReturn<TOutput = AudioGenerationResult> {
  * </div>
  * ```
  */
-export function createGenerateAudio<
-  TOnResult extends ((result: AudioGenerationResult) => any) | undefined =
-    undefined,
->(
+export function createGenerateAudio<TTransformed = void>(
   options: Omit<CreateGenerateAudioOptions, 'onResult'> & {
-    onResult?: TOnResult
+    onResult?: (result: AudioGenerationResult) => TTransformed
   },
 ): CreateGenerateAudioReturn<
-  InferGenerationOutput<AudioGenerationResult, TOnResult>
+  InferGenerationOutputFromReturn<AudioGenerationResult, TTransformed>
 > {
   const devtools = {
     ...options.devtools,
@@ -110,7 +107,7 @@ export function createGenerateAudio<
   const gen = createGeneration<
     AudioGenerateInput,
     AudioGenerationResult,
-    TOnResult
+    TTransformed
   >({
     ...options,
     devtools,

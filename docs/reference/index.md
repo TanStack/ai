@@ -148,6 +148,8 @@ title: "@tanstack/ai"
 - [TTSOptions](interfaces/TTSOptions.md)
 - [TTSResult](interfaces/TTSResult.md)
 - [UIMessage](interfaces/UIMessage.md)
+- [UIResourceEvent](interfaces/UIResourceEvent.md)
+- [UIResourcePart](interfaces/UIResourcePart.md)
 - [UsageInfo](interfaces/UsageInfo.md)
 - [VADConfig](interfaces/VADConfig.md)
 - [VideoAdapter](interfaces/VideoAdapter.md)

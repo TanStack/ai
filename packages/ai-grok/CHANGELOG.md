@@ -1,5 +1,26 @@
 # @tanstack/ai-grok
 
+## 0.14.5
+
+### Patch Changes
+
+- [#854](https://github.com/TanStack/ai/pull/854) [`301adc3`](https://github.com/TanStack/ai/commit/301adc3529992e7ebf0a04283f1359595f899f4f) - Fix `grokSummarize`/`createGrokSummarize` not being assignable to `summarize()`'s
+  `adapter` param for any current Grok model (`grok-4.3`, `grok-build-0.1`).
+
+  `GrokTextProviderOptions` was declared as an `interface` extending
+  `Record<string, unknown>`, giving it an explicit index signature. Under
+  `strictFunctionTypes`, the `SummarizeAdapter` constraint is checked
+  contravariantly, which requires `object` to be assignable to the provider
+  options — but `object` is not assignable to an index-signature type, so the
+  check failed (Grok-only; OpenAI's all-optional, no-index-signature options
+  passed). The options are now a type-alias intersection matching the OpenAI
+  shape, and the text adapter's provider-options constraint is widened to
+  `Record<string, any>` to mirror `OpenAITextAdapter`.
+
+- Updated dependencies [[`c1a8732`](https://github.com/TanStack/ai/commit/c1a87327b4a3463d37158f32ca90184b5fd092bb)]:
+  - @tanstack/ai@0.38.0
+  - @tanstack/openai-base@0.9.5
+
 ## 0.14.4
 
 ### Patch Changes

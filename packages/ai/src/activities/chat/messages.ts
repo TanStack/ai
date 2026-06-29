@@ -322,6 +322,11 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
         }
         break
 
+      case 'ui-resource':
+        // MCP Apps widget — rendered client-side only. It must never enter
+        // model input, so it is intentionally dropped from the model message.
+        break
+
       default:
         break
     }

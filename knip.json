@@ -46,6 +46,12 @@
     "packages/ai-sandbox-cloudflare": {
       "ignoreDependencies": ["cloudflare"]
     },
+    "packages/ai-react": {
+      "ignoreDependencies": ["@mcp-ui/client"]
+    },
+    "packages/ai-preact": {
+      "ignoreDependencies": ["@mcp-ui/client"]
+    },
     "packages/ai-react-ui": {
       "ignoreDependencies": ["react-dom"]
     },

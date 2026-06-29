@@ -7,27 +7,46 @@ interface ConvertOptions {
   lazy?: boolean
 }
 
+/** Reads the MCP Apps `_meta.ui.resourceUri` link from a tool def, if present. */
+export function extractUiResourceUri(def: McpToolDef): string | undefined {
+  const meta = (def as { _meta?: { ui?: { resourceUri?: unknown } } })._meta
+  const uri = meta?.ui?.resourceUri
+  return typeof uri === 'string' ? uri : undefined
+}
+
 export function mcpContentToTanstack(
   content: Array<any>,
 ): string | Array<ContentPart> {
+  // A valid MCP result may carry only structuredContent (no content[]) → guard
+  // against undefined/non-array before reading length/map.
+  if (!Array.isArray(content)) return ''
   // Single text block → plain string (most common, best for the model).
   if (content.length === 1 && content[0]?.type === 'text')
     return content[0].text
-  return content.map((c): ContentPart => {
-    switch (c.type) {
-      case 'text':
-        return { type: 'text', content: c.text }
-      case 'image':
-        return {
-          type: 'image',
-          source: { type: 'data', value: c.data, mimeType: c.mimeType },
+  const parts = content
+    .map((c): ContentPart => {
+      switch (c.type) {
+        case 'text':
+          return { type: 'text', content: c.text }
+        case 'image':
+          return {
+            type: 'image',
+            source: { type: 'data', value: c.data, mimeType: c.mimeType },
+          }
+        case 'resource': {
+          const uri = c.resource?.uri
+          if (typeof uri === 'string' && uri.startsWith('ui://')) {
+            // ui:// resources are surfaced via readResource (MCP Apps); omit from model text.
+            return { type: 'text', content: '' }
+          }
+          return { type: 'text', content: JSON.stringify(c.resource) }
         }
-      case 'resource':
-        return { type: 'text', content: JSON.stringify(c.resource) }
-      default:
-        return { type: 'text', content: JSON.stringify(c) }
-    }
-  })
+        default:
+          return { type: 'text', content: JSON.stringify(c) }
+      }
+    })
+    .filter((p) => !(p.type === 'text' && p.content === ''))
+  return parts.length ? parts : ''
 }
 
 /**
@@ -55,9 +74,16 @@ export function makeMcpExecute(
       const text = Array.isArray(result.content)
         ? mcpContentToTanstack(result.content)
         : undefined
-      const detail = typeof text === 'string' ? text : JSON.stringify(text)
+      const detail =
+        typeof text === 'string'
+          ? text
+          : text === undefined
+            ? undefined
+            : JSON.stringify(text)
+      // An empty/absent detail (e.g. a ui://-only error body) would render a
+      // dangling colon — fall back to the bare message.
       throw new Error(
-        text === undefined
+        !detail
           ? `MCP tool "${mcpName}" returned an error`
           : `MCP tool "${mcpName}" returned an error: ${detail}`,
       )
@@ -103,7 +129,13 @@ export function toServerTools(
         },
         ...(def.outputSchema ? { outputSchema: def.outputSchema as any } : {}),
         ...(options.lazy ? { lazy: true } : {}),
-        metadata: { mcp: { serverToolName: def.name } },
+        metadata: {
+          mcp: {
+            serverToolName: def.name,
+            serverId: options.prefix,
+            uiResourceUri: extractUiResourceUri(def),
+          },
+        },
         execute: makeMcpExecute(client, def.name, Boolean(def.outputSchema)),
       }
       return tool

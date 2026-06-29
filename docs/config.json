@@ -134,6 +134,12 @@
           "label": "MCP Type Generation",
           "to": "tools/mcp-codegen",
           "addedAt": "2026-06-05"
+        },
+        {
+          "label": "MCP Apps",
+          "to": "mcp/apps",
+          "addedAt": "2026-06-24",
+          "updatedAt": "2026-06-26"
         }
       ]
     },
