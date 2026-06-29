@@ -79,3 +79,7 @@ solo.yml
 .agent/gap-analysis/
 .agent/triage/
 .agent/research/
+
+/OpenCode.md
+.agentsroom/
+.opencode/

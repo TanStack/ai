@@ -1,0 +1,41 @@
+{
+  "name": "coco",
+  "private": true,
+  "type": "module",
+  "description": "Coco — drop-in CLI that overlays an AI coding-agent chat panel on your dev server.",
+  "bin": {
+    "coco": "./src/cli.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./vite": "./src/vite/plugin.ts"
+  },
+  "scripts": {
+    "dev": "tsx src/cli.ts",
+    "start": "tsx src/cli.ts",
+    "build:client": "vite build",
+    "build": "pnpm build:client",
+    "test": "exit 0",
+    "test:types": "tsc --noEmit",
+    "sample:install": "pnpm -C sample-apps/simple-app install --ignore-workspace",
+    "sample:dev": "pnpm sample:ensure && cd sample-apps/simple-app && tsx ../../src/cli.ts",
+    "sample:ensure": "node -e \"const fs=require('node:fs');const p='sample-apps/simple-app/node_modules';if(!fs.existsSync(p)){console.error('[coco] sample-apps/simple-app deps missing. Run: pnpm --filter coco sample:install');process.exit(1)}\"",
+    "sample:reset": "node scripts/reset-sample.mjs"
+  },
+  "dependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-claude-code": "workspace:*",
+    "@tanstack/ai-client": "workspace:*",
+    "@tanstack/ai-codex": "workspace:*",
+    "@tanstack/ai-gemini-cli": "workspace:*",
+    "@tanstack/ai-opencode": "workspace:*",
+    "http-proxy": "^1.18.1",
+    "tsx": "^4.21.0"
+  },
+  "devDependencies": {
+    "@types/http-proxy": "^1.17.17",
+    "@types/node": "^24.10.1",
+    "typescript": "5.9.3",
+    "vite": "^7.3.3"
+  }
+}
