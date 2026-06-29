@@ -1,6 +1,7 @@
 ---
 title: Tools
 id: tools
+order: 6
 description: "Bridge your app's host tools — with their DB, secrets, and closures — into the in-sandbox agent over an authenticated MCP tool-proxy."
 ---
 
@@ -46,7 +47,11 @@ chat({
   adapter: claudeCodeText('sonnet'),
   messages,
   // `execute()` closes over `db` and runs on the host — never in the sandbox.
-  tools: [getTodos.server(async ({ userId }) => db.todos.find({ userId }))],
+  tools: [
+    getTodos.server(async ({ userId }: { userId: string }) =>
+      db.todos.find({ userId }),
+    ),
+  ],
   middleware: [withSandbox(repoSandbox)],
 })
 ```
@@ -105,7 +110,11 @@ chat({
   threadId,
   adapter: claudeCodeText('sonnet'),
   messages,
-  tools: [getTodos.server(async ({ userId }) => db.todos.find({ userId }))],
+  tools: [
+    getTodos.server(async ({ userId }: { userId: string }) =>
+      db.todos.find({ userId }),
+    ),
+  ],
   // Cloud provider in local dev → tunnel the host bridge so the remote sandbox
   // can reach it. Local process / Docker don't need this.
   middleware: [withSandbox(repoSandbox), withNgrokBridge],

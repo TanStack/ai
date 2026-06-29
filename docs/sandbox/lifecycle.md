@@ -1,6 +1,7 @@
 ---
 title: Lifecycle & Snapshots
 id: lifecycle
+order: 8
 description: "Control sandbox reuse, snapshot the bootstrapped workspace after setup, and resume across runs to cut cold-start cost."
 ---
 

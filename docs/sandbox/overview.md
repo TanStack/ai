@@ -1,5 +1,6 @@
 ---
 id: overview
+order: 1
 title: Sandboxes Overview
 description: "Run coding-agent CLIs (Claude Code, Codex, OpenCode) inside an isolated sandbox with a real filesystem and a cloned repo, and stream their work back through chat()."
 ---

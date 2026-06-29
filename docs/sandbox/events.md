@@ -1,18 +1,20 @@
 ---
-title: Events & File Hooks
+title: Events
 id: events
-description: "Stream a harness agent's text, tool calls, reasoning, and file edits to the client, and run server-side hooks on every file change inside the sandbox."
+order: 9
+description: "Everything a harness agent does inside a sandbox — text, tool calls, reasoning, session ids, and file edits — streams back as AG-UI chunks plus namespaced CUSTOM events."
 ---
 
-When a harness adapter runs inside a [sandbox](./overview), everything it does —
-text, reasoning, tool calls, and the files it touches — is observable. This page
-covers the two halves of that story: the **stream** the client reads, and the
-**file-event hooks** that fire server-side.
+When a harness adapter runs inside a [sandbox](./overview), everything it does is
+observable on the `chat()` stream: the same AG-UI `StreamChunk`s any `chat()` run
+produces, plus namespaced `CUSTOM` events for sandbox- and harness-specifics.
+
+This page is about the **stream the client reads**. To run server-side callbacks
+on file changes, or to log sandbox internals, see [Observability](./observability).
 
 ## The stream
 
-A harness run produces standard AG-UI `StreamChunk`s, the same shape any
-`chat()` run produces:
+A harness run produces standard AG-UI `StreamChunk`s:
 
 - **Text** — incremental assistant output.
 - **Tool calls** — including bridged [tools](./tools), which surface as ordinary
@@ -20,18 +22,35 @@ A harness run produces standard AG-UI `StreamChunk`s, the same shape any
 - **Reasoning** — the agent's thinking, where the harness exposes it.
 - **Run lifecycle** — run started / finished and related boundaries.
 
-On top of those, the sandbox layer emits namespaced `CUSTOM` events for
-sandbox-specifics. The in-sandbox Claude Code adapter emits:
+## Custom events
 
-- `claude-code.session-id` — the resumable harness session id.
-- `file.changed` — the working-tree `git diff` after the run.
-- `sandbox.file` — emitted automatically, once per file create/change/delete,
-  whenever a sandbox is active (see [File-event hooks](#file-event-hooks)).
+On top of the standard chunks, the sandbox and harness layers emit `CUSTOM`
+events (`chunk.type === 'CUSTOM'`), each with a `name` and a `value`:
 
-### Reading CUSTOM events on the client
+| Event `name` | Emitted by | When | `value` |
+| --- | --- | --- | --- |
+| `claude-code.session-id` | Claude Code adapter | once, when the in-sandbox session is created or resumed | the resumable harness session id |
+| `codex.session-id` | Codex adapter | once, when the session is created or resumed | the resumable harness session id |
+| `opencode.session-id` | OpenCode adapter | once, when the session is created or resumed | the resumable harness session id |
+| `file.changed` | harness adapter (e.g. Claude Code) | after the run completes | `{ path: string; diff: string }` — the working-tree `git diff` |
+| `sandbox.file` | the engine, automatically | per file create / change / delete while a sandbox is active | `{ type: 'create' \| 'change' \| 'delete'; path: string; timestamp: number }` |
 
-A `CUSTOM` chunk carries a `name` and a `value` of unknown shape, so narrow
-`value` with `typeof` / `in` checks before you read its fields — never cast:
+The `*.session-id` event lets you resume a harness session on a follow-up run
+(pass it back via the adapter's `modelOptions.sessionId`). `sandbox.file` is
+emitted automatically whenever a sandbox is active and file watching is on —
+no hooks required; see [Observability](./observability) to also handle these
+server-side or to turn the watcher off.
+
+> **Bridged tools emit their own events too.** A `chat()` tool that runs through
+> the [tool bridge](./tools) can stream `CUSTOM` events back mid-execution. Code
+> mode, for example, emits `code_mode:execution_started` and `code_mode:console`
+> (plus `code_mode:external_call` / `…_result` / `…_error`) so you can show its
+> progress live. Read them with the same pattern below.
+
+## Reading CUSTOM events on the client
+
+A `CUSTOM` chunk's `value` is of unknown shape, so narrow it with `typeof` / `in`
+checks before reading its fields — never cast:
 
 ```ts
 import { stream } from './my-run'
@@ -66,132 +85,8 @@ for await (const chunk of stream) {
 }
 ```
 
-## File-event hooks
-
-Listen to files being created, changed, or deleted inside a sandbox — for
-example to watch what the agent edits as it works. The watcher is
-provider-agnostic: it uses native OS watching where the provider supports it
-(local-process) and falls back to a portable `find` poll everywhere else (Docker
-and other exec-only providers), with no extra dependencies or image changes.
-
-There are two places to declare these hooks, with different scopes.
-
-### Sandbox-scoped hooks
-
-Declared directly on `defineSandbox({ hooks })`. They fire **once per file
-event**, regardless of how many runs share the sandbox, alongside the
-sandbox's own lifecycle callbacks:
-
-```ts
-import { defineSandbox } from '@tanstack/ai-sandbox'
-import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
-
-const repoSandbox = defineSandbox({
-  id: 'repo-agent',
-  provider: dockerSandbox({ image: 'node:22' }),
-  hooks: {
-    // catch-all: fires for every event
-    onFile: (e) => console.log(`[${e.type}] ${e.path}`),
-    // type-specific variants
-    onFileCreate: (e) => console.log('created', e.path),
-    onFileChange: (e) => console.log('changed', e.path),
-    onFileDelete: (e) => console.log('deleted', e.path),
-    // lifecycle
-    onReady: (handle) => console.log('sandbox ready', handle.id),
-    onError: (err) => console.error('sandbox error', err),
-    onDestroy: () => console.log('sandbox destroyed'),
-  },
-})
-```
-
-### Run-scoped hooks
-
-To handle file events inside a middleware (for example per-request audit
-logging), use the `sandbox` hook group on `defineChatMiddleware`. These fire
-**per-run**, and each handler receives the current run's
-`ChatMiddlewareContext`:
-
-```ts
-import { defineChatMiddleware } from '@tanstack/ai-sandbox'
-import { db } from './db'
-
-const auditMiddleware = defineChatMiddleware({
-  name: 'audit',
-  // ctx is the ChatMiddlewareContext for the current run
-  sandbox: {
-    onFile: (ctx, e) => console.log(ctx.runId, e.type, e.path),
-    onFileCreate: (ctx, e) => db.log({ run: ctx.runId, event: e }),
-  },
-})
-```
-
-Both hook groups fire **server-side**. They are independent of the stream: the
-engine automatically emits one `CUSTOM` `sandbox.file` event per change into the
-stream regardless of whether you register any hooks — so the client can react to
-the same edits without extra middleware (see
-[Reading CUSTOM events](#reading-custom-events-on-the-client)).
-
-## Disabling file watching
-
-To stop the watcher and suppress `sandbox.file` events for a sandbox entirely,
-set `fileEvents: false`:
-
-```ts
-import { defineSandbox } from '@tanstack/ai-sandbox'
-import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
-
-const sandbox = defineSandbox({
-  id: 'quiet-agent',
-  provider: dockerSandbox({ image: 'node:22' }),
-  fileEvents: false, // watcher not started; no sandbox.file events emitted
-})
-```
-
-## Debugging
-
-To log sandbox internals — watcher start/stop, event dispatch, lifecycle
-transitions — pass the `sandbox` debug category to `chat()`:
-
-```ts
-import { chat } from '@tanstack/ai'
-import { claudeCodeText } from '@tanstack/ai-claude-code'
-import { withSandbox } from '@tanstack/ai-sandbox'
-import { repoSandbox } from './sandbox'
-import { messages } from './messages'
-
-chat({
-  threadId: 'thread-1',
-  adapter: claudeCodeText('sonnet'),
-  messages,
-  middleware: [withSandbox(repoSandbox)],
-  debug: { sandbox: true }, // or `debug: true` for all categories
-})
-```
-
-## Low-level: `watchWorkspace()`
-
-`watchWorkspace()` is the building block the hooks are built on. Reach for it
-when you want the watcher **outside** a `chat()` run:
-
-```ts
-import { watchWorkspace } from '@tanstack/ai-sandbox'
-import { repoSandbox } from './sandbox'
-
-const handle = await repoSandbox.ensure({ threadId: 'thread-1', runId: 'run-1' })
-const watcher = await watchWorkspace(handle, {
-  onEvent: (event) => {
-    // event.type is 'create' | 'change' | 'delete'
-    console.log(`${event.type} ${event.path}`)
-  },
-  ignore: ['.git', 'node_modules'], // default
-})
-// …do work outside a chat run…
-await watcher.stop()
-```
-
 ## Related
 
-- [Sandboxes overview](./overview) — where these runs execute.
-- [Quick start](./quick-start) — get a sandbox running end to end.
-- [Tools](./tools) — bridged host tools that surface as tool-call chunks.
-- [Lifecycle &amp; resume](./lifecycle) — when sandboxes are created and torn down.
+- [Observability](./observability) — server-side file-event hooks, debug logging, and the low-level watcher.
+- [Tools](./tools) — bridged host tools that surface as tool-call (and CUSTOM) chunks.
+- [Quick Start](./quick-start) — read the `file.changed` diff end to end.

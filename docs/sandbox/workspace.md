@@ -1,6 +1,7 @@
 ---
 title: Workspace
 id: workspace
+order: 4
 description: "Describe what the agent sees inside the sandbox — source repo, package manager, setup commands, and named scripts — with one portable, harness-agnostic definition."
 ---
 

@@ -1,6 +1,7 @@
 ---
 title: Cloudflare (Edge)
 id: cloudflare
+order: 11
 description: "Run a coding-agent harness and a live preview at the edge with @tanstack/ai-sandbox-cloudflare — Workers, Containers, and Durable Objects in one deploy."
 ---
 
@@ -50,7 +51,13 @@ delegates to a `RemoteToolExecutor` (`httpRemoteToolExecutor(url, token)` POSTs
 ```ts
 import { chat } from '@tanstack/ai'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
-import { remoteToolStubs, httpRemoteToolExecutor, withSandbox } from '@tanstack/ai-sandbox'
+import {
+  defineSandbox,
+  defineWorkspace,
+  httpRemoteToolExecutor,
+  remoteToolStubs,
+  withSandbox,
+} from '@tanstack/ai-sandbox'
 import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 import { request } from './run-request'
 
@@ -66,7 +73,17 @@ chat({
     request.toolDescriptors,
     httpRemoteToolExecutor(request.toolExecUrl, request.toolExecToken),
   ),
-  middleware: [withSandbox(localProcessSandbox())],
+  // The in-container sandbox is just local-process (native stdin + a localhost
+  // node:http bridge).
+  middleware: [
+    withSandbox(
+      defineSandbox({
+        id: 'in-container',
+        provider: localProcessSandbox(),
+        workspace: defineWorkspace({ source: { type: 'none' } }),
+      }),
+    ),
+  ],
 })
 ```
 

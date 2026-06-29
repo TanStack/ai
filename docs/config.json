@@ -356,8 +356,13 @@
           "addedAt": "2026-06-29"
         },
         {
-          "label": "Events & File Hooks",
+          "label": "Events",
           "to": "sandbox/events",
+          "addedAt": "2026-06-29"
+        },
+        {
+          "label": "Observability",
+          "to": "sandbox/observability",
           "addedAt": "2026-06-29"
         },
         {

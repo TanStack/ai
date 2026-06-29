@@ -1,6 +1,7 @@
 ---
 title: Policy
 id: policy
+order: 7
 description: "Set allow/ask/deny guardrails over the commands and capabilities the in-sandbox agent may run, ask about, or never run — one portable description each harness maps onto its native permissions."
 ---
 

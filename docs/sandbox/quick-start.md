@@ -1,6 +1,7 @@
 ---
 title: Quick Start
 id: quick-start
+order: 2
 description: "Run a Claude Code coding agent inside a sandbox, fix a bug in a cloned repo, and stream the diff — in minutes."
 ---
 
@@ -101,6 +102,8 @@ namespaced `CUSTOM` event. When the run finishes, the Claude Code adapter emits 
 `file.changed` event carrying the working-tree `git diff`:
 
 ```ts
+import { stream } from './my-run'
+
 for await (const chunk of stream) {
   if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
     process.stdout.write(chunk.delta)

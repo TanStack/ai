@@ -1,6 +1,7 @@
 ---
 title: Providers
 id: providers
+order: 3
 description: "Pick and configure where a TanStack AI sandbox runs — local process, Docker, Daytona, or Vercel — and understand the capabilities each one exposes."
 ---
 

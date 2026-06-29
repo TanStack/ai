@@ -1,6 +1,7 @@
 ---
 title: Provisioning
 id: provisioning
+order: 5
 description: "Give the in-sandbox agent secrets, skill repos, MCP servers, plugins, and instructions with one portable definition that each harness projects into its own native format."
 ---
 
