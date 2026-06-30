@@ -71,7 +71,7 @@ export {
 export type { SecretRef, Secrets, BearerRef } from './secrets'
 
 // Policy
-export { defineSandboxPolicy, evaluateCommand } from './policy'
+export { defineSandboxPolicy, evaluateCommand, commandAliases } from './policy'
 export type {
   SandboxPolicy,
   PolicyDecision,
@@ -114,7 +114,12 @@ export { resolveHarnessCwd } from './harness-cwd'
 export type { BootstrapResult } from './bootstrap'
 
 // AGENTS.md writer + gitSkill path helper (used by bootstrap + harness adapters)
-export { writeAgentsFile, resolveGitSkillDir } from './agents-file'
+export {
+  writeAgentsFile,
+  resolveGitSkillDir,
+  formatWorkspaceScriptsSection,
+  mergeAgentsContent,
+} from './agents-file'
 
 // Exec-backed git helper (for providers without native git)
 export { createExecBackedGit } from './git-exec'

@@ -13,7 +13,6 @@ the same definition works whether the agent is Grok Build, Claude Code, Codex, o
 
 ```ts
 import {
-  agentSkill,
   bearer,
   createSecrets,
   defineWorkspace,
@@ -32,7 +31,7 @@ defineWorkspace({
   source: githubRepo({ repo: 'owner/repo', ref: 'main' }),
   secrets,
   skills: [
-    agentSkill('tanstack'),
+    gitSkill({ repo: 'owner/tanstack-skills' }),
     gitSkill({ repo: 'owner/private-skills', secret: secrets.GH }),
     mcpSkill('my-mcp', {
       url: 'https://mcp.example.com',
@@ -131,14 +130,13 @@ of capability:
 
 | Builder      | What it provisions                                                                 |
 | ------------ | ---------------------------------------------------------------------------------- |
-| `agentSkill` | A public agent skill loaded by name (Claude Code).                                 |
+| `agentSkill` | A named public skill (portable placeholder; Claude Code warns and skips — use `gitSkill` instead). |
 | `gitSkill`   | A skill repo cloned into the workspace, with optional auth and clone path.         |
 | `mcpSkill`   | A third-party MCP server, with URL and headers.                                    |
 | `fileSkill`  | An arbitrary file written into the workspace.                                      |
 
 ```ts
 import {
-  agentSkill,
   bearer,
   createSecrets,
   defineWorkspace,
@@ -157,8 +155,8 @@ defineWorkspace({
   source: githubRepo({ repo: 'owner/repo' }),
   secrets,
   skills: [
-    // Load a public agent skill by name.
-    agentSkill('tanstack'),
+    // Clone a public skill repo (preferred over agentSkill on Claude Code).
+    gitSkill({ repo: 'owner/tanstack-skills' }),
     // Clone a private skill repo; `secret` is resolved from the secrets registry.
     gitSkill({ repo: 'owner/private-skills', secret: secrets.GH }),
     // Wire an MCP server with a resolved bearer token in the Authorization header.
@@ -209,9 +207,12 @@ format:
 | OpenCode    | `opencode.json`          |
 
 A concept a given CLI lacks — for example, `plugins` on Codex — **emits a
-warning and is silently skipped** rather than throwing. That keeps one portable
-definition usable across harnesses: you declare everything once, and each agent
-takes the parts it understands.
+warning and is silently skipped** rather than throwing. The same applies to
+`agentSkill` on Claude Code: there is no reliable primitive to install a public
+skill by bare name, so the projector warns and skips it. Prefer `gitSkill` (or a
+`plugins` entry) when you need that skill on Claude Code. That keeps one
+portable definition usable across harnesses: you declare everything once, and
+each agent takes the parts it understands.
 
 > These MCP servers are third-party services you point the agent at. Bridging
 > your **own app's host tools** into the agent (a `chat()` server tool whose

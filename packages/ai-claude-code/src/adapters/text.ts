@@ -227,6 +227,7 @@ export class ClaudeCodeTextAdapter<
   private buildPermissionResolver(
     policy: SandboxPolicy | undefined,
     approvals: ReadonlyMap<string, boolean> | undefined,
+    scripts: Record<string, string> | undefined,
     sink: Array<StreamChunk>,
     threadId: string,
     runId: string,
@@ -258,6 +259,7 @@ export class ClaudeCodeTextAdapter<
         policy,
         approvals,
         id,
+        scripts,
         ...(command !== undefined ? { command } : {}),
         ...(capability !== undefined ? { capability } : {}),
       })
@@ -325,6 +327,7 @@ export class ClaudeCodeTextAdapter<
               resolve: this.buildPermissionResolver(
                 policy,
                 options.approvals,
+                projection?.scripts,
                 approvalRequests,
                 threadId,
                 runId,

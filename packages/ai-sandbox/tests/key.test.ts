@@ -73,5 +73,19 @@ describe('computeWorkspaceHash', () => {
       }),
     )
     expect(a).not.toBe(b)
+
+    const withTest = computeWorkspaceHash(
+      defineWorkspace({
+        source: githubRepo({ repo: 'TanStack/ai' }),
+        scripts: { test: 'pnpm test' },
+      }),
+    )
+    const withTypecheck = computeWorkspaceHash(
+      defineWorkspace({
+        source: githubRepo({ repo: 'TanStack/ai' }),
+        scripts: { typecheck: 'pnpm test:types' },
+      }),
+    )
+    expect(withTest).not.toBe(withTypecheck)
   })
 })

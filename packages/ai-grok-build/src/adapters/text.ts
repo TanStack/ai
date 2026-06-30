@@ -143,7 +143,7 @@ export class GrokBuildTextAdapter<
     options: TextOptions<GrokBuildTextProviderOptions>,
     resume: string | undefined,
     harnessCwd: string,
-    _policyFlags: GrokBuildPolicyFlags,
+    policyFlags: GrokBuildPolicyFlags,
     prompt: string,
     exe: string,
   ): string {
@@ -160,9 +160,19 @@ export class GrokBuildTextAdapter<
       q(cliModel),
       '--cwd',
       q(harnessCwd),
-      // Headless runs in sandboxes must auto-approve tool calls.
-      '--always-approve',
     ]
+
+    const alwaysApprove = !policyFlags.readOnly && !policyFlags.conservative
+    if (alwaysApprove) {
+      // Headless runs auto-approve tool calls only when sandbox policy is permissive.
+      args.push('--always-approve')
+    } else {
+      // Restrictive policy: headless `-p` auto-denies prompts under `default` mode.
+      args.push('--permission-mode', 'default')
+    }
+
+    if (policyFlags.readOnly) args.push('--sandbox', 'read-only')
+    if (policyFlags.networkDisabled) args.push('--disable-web-search')
 
     if (resume !== undefined) args.push('--resume', q(resume))
 

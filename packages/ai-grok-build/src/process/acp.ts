@@ -36,6 +36,9 @@ function buildAgentPrefix(
   cliModel: string,
   extraArgs: Array<string> | undefined,
 ): string {
+  // ACP path: keep `--always-approve` for now. Sandbox policy is mapped only on
+  // the legacy NDJSON `buildCommand` path; ACP uses `permissionMode` on the
+  // session instead (see `chatStreamAcp`).
   const args = ['agent', '-m', q(cliModel), '--always-approve']
   for (const arg of extraArgs ?? []) args.push(arg)
   return `${exe} ${args.join(' ')}`

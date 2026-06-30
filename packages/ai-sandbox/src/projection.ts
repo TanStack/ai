@@ -35,6 +35,8 @@ export interface WorkspaceProjection {
   markerPath: string
   /** Workspace root inside the sandbox (e.g. `/workspace`). */
   root: string
+  /** Named commands declared on the workspace (e.g. `{ test: 'pnpm test' }`). */
+  scripts?: Record<string, string>
 }
 
 export const ProjectionCapability =

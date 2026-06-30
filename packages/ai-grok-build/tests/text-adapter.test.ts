@@ -6,12 +6,16 @@ import * as fsp from 'node:fs/promises'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
-import { SandboxCapability } from '@tanstack/ai-sandbox'
+import {
+  SandboxCapability,
+  SandboxPolicyCapability,
+  defineSandboxPolicy,
+} from '@tanstack/ai-sandbox'
 import { grokBuildText } from '../src/index'
 import { GROK_BUILD_MODELS, resolveGrokCliModel } from '../src/model-meta'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type { CapabilityContext, StreamChunk } from '@tanstack/ai'
-import type { SandboxHandle } from '@tanstack/ai-sandbox'
+import type { SandboxHandle, SandboxPolicy } from '@tanstack/ai-sandbox'
 
 const baseDir = path.join(
   os.tmpdir(),
@@ -50,12 +54,17 @@ const noopLogger = {
   debug: () => {},
 } as unknown as InternalLogger
 
-function capabilityContextWith(handle: SandboxHandle): CapabilityContext {
+function capabilityContextWith(
+  handle: SandboxHandle,
+  policy?: SandboxPolicy,
+): CapabilityContext {
   const [, provideSandbox] = SandboxCapability
+  const [, provideSandboxPolicy] = SandboxPolicyCapability
   const ctx = {
     capabilities: { markProvided: () => {}, has: () => true },
   } as unknown as CapabilityContext
   provideSandbox(ctx, handle)
+  if (policy) provideSandboxPolicy(ctx, policy)
   return ctx
 }
 
@@ -115,6 +124,37 @@ describe('grok-build in-sandbox adapter', () => {
     // local-process: harness cwd must be the real host dir, not virtual /workspace.
     expect(argv).toContain(sbx.id)
     expect(argv).not.toContain('/workspace')
+
+    await sbx.destroy()
+  })
+
+  it('omits --always-approve when sandbox policy is read-only', async () => {
+    const sbx = await provider.create({})
+    await sbx.fs.write('/workspace/fake-grok.mjs', LEGACY_FAKE_GROK)
+
+    const adapter = grokBuildText('grok-build-0.1', {
+      grokExecutable: 'node fake-grok.mjs',
+      protocol: 'streaming-json',
+    })
+
+    await collect(
+      adapter.chatStream({
+        model: 'grok-build-0.1',
+        messages: [{ role: 'user', content: 'say pong' }],
+        logger: noopLogger,
+        capabilities: capabilityContextWith(
+          sbx,
+          defineSandboxPolicy({ capabilities: { fileWrite: 'deny' } }),
+        ),
+      }),
+    )
+
+    const argv = await sbx.fs.read('/workspace/grok-argv.txt')
+    expect(argv).not.toContain('--always-approve')
+    expect(argv).toContain('--sandbox')
+    expect(argv).toContain('read-only')
+    expect(argv).toContain('--permission-mode')
+    expect(argv).toContain('default')
 
     await sbx.destroy()
   })

@@ -718,6 +718,65 @@ describe('bootstrapWorkspace AGENTS.md + instructions', () => {
     const agentsWrite = writeCalls.find((w) => w.path.endsWith('AGENTS.md'))
     expect(agentsWrite).toBeUndefined()
   })
+
+  it('writes AGENTS.md with a Workspace scripts section when only scripts is set', async () => {
+    const { handle, writeCalls } = makeProvisioningHandle()
+
+    const workspace: WorkspaceDefinition = {
+      source: { type: 'git', url: 'https://github.com/me/app' },
+      scripts: { test: 'pnpm test', build: 'pnpm build' },
+    }
+
+    await bootstrapWorkspace(handle, workspace)
+
+    const agentsWrite = writeCalls.find(
+      (w) => w.path === '/workspace/AGENTS.md',
+    )
+    expect(agentsWrite).toBeDefined()
+    expect(agentsWrite?.content).toContain('## Workspace scripts')
+    expect(agentsWrite?.content).toContain('- build → pnpm build')
+    expect(agentsWrite?.content).toContain('- test → pnpm test')
+  })
+
+  it('merges instructions with the Workspace scripts section', async () => {
+    const { handle, writeCalls } = makeProvisioningHandle()
+
+    const workspace: WorkspaceDefinition = {
+      source: { type: 'git', url: 'https://github.com/me/app' },
+      instructions: 'You are a helpful assistant.',
+      scripts: { test: 'pnpm test' },
+    }
+
+    await bootstrapWorkspace(handle, workspace)
+
+    const agentsWrite = writeCalls.find(
+      (w) => w.path === '/workspace/AGENTS.md',
+    )
+    expect(agentsWrite?.content).toBe(
+      'You are a helpful assistant.\n\n## Workspace scripts\n\n- test → pnpm test',
+    )
+  })
+
+  it('merges a fileSkill AGENTS.md with the Workspace scripts section', async () => {
+    const { handle, writeCalls } = makeProvisioningHandle()
+
+    const workspace: WorkspaceDefinition = {
+      source: { type: 'git', url: 'https://github.com/me/app' },
+      skills: [
+        fileSkill({ path: 'AGENTS.md', content: 'Skill instructions.' }),
+      ],
+      scripts: { lint: 'pnpm lint' },
+    }
+
+    await bootstrapWorkspace(handle, workspace)
+
+    const agentsWrite = writeCalls.find(
+      (w) => w.path === '/workspace/AGENTS.md',
+    )
+    expect(agentsWrite?.content).toBe(
+      'Skill instructions.\n\n## Workspace scripts\n\n- lint → pnpm lint',
+    )
+  })
 })
 
 // ---------------------------------------------------------------------------

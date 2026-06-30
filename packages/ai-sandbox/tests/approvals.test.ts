@@ -114,6 +114,24 @@ describe('resolveApproval', () => {
       needsApproval: true,
     })
   })
+
+  it('resolves script aliases when matching command policy', () => {
+    const scripts = { test: 'pnpm test' }
+    const scriptPolicy = defineSandboxPolicy({
+      commands: { allow: ['test'] },
+      default: 'deny',
+    })
+
+    expect(
+      resolveApproval({
+        policy: scriptPolicy,
+        approvals: undefined,
+        id: 'test',
+        command: 'pnpm test',
+        scripts,
+      }),
+    ).toEqual({ decision: 'allow', needsApproval: false })
+  })
 })
 
 describe('buildApprovalRequestedEvent', () => {

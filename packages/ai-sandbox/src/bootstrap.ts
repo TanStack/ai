@@ -10,7 +10,11 @@
  */
 import { buildSetupPlan } from './setup-plan'
 import { createBootstrapShell } from './shell'
-import { resolveGitSkillDir, writeAgentsFile } from './agents-file'
+import {
+  mergeAgentsContent,
+  resolveGitSkillDir,
+  writeAgentsFile,
+} from './agents-file'
 import { resolveAllSecrets, resolveSecret } from './secrets'
 import type { SandboxHandle } from './contracts'
 import type { PackageManager, WorkspaceDefinition } from './workspace'
@@ -109,20 +113,26 @@ export async function bootstrapWorkspace(
   }
 
   // Write AGENTS.md (and its per-CLI symlinks) when instructions are provided
-  // directly on the workspace, or via a fileSkill whose path is `AGENTS.md`.
+  // directly on the workspace, via a fileSkill whose path is `AGENTS.md`, or
+  // when named workspace scripts should be surfaced for the agent.
+  let agentsContent: string | undefined
   if (
     workspace.instructions !== undefined &&
     workspace.instructions.length > 0
   ) {
-    await writeAgentsFile(handle, root, workspace.instructions)
+    agentsContent = workspace.instructions
   } else {
     const agentsFileSkill = skills.find(
       (s): s is Extract<typeof s, { kind: 'file' }> =>
         s.kind === 'file' && s.path === 'AGENTS.md',
     )
     if (agentsFileSkill !== undefined) {
-      await writeAgentsFile(handle, root, agentsFileSkill.content)
+      agentsContent = agentsFileSkill.content
     }
+  }
+  agentsContent = mergeAgentsContent(agentsContent, workspace.scripts)
+  if (agentsContent !== undefined) {
+    await writeAgentsFile(handle, root, agentsContent)
   }
 
   // Write all other fileSkills directly into the workspace root.

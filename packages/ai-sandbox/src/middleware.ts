@@ -140,6 +140,9 @@ export function withSandbox(
           },
           markerPath: `${root}/.tanstack-projected-${workspaceHash}`,
           root,
+          ...(workspace.scripts !== undefined
+            ? { scripts: workspace.scripts }
+            : {}),
         })
       }
 

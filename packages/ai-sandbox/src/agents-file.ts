@@ -43,6 +43,32 @@ export function resolveGitSkillDir(
   return `${root}/.tanstack-skills/${basename}`
 }
 
+/** Format workspace scripts as a `## Workspace scripts` markdown section. */
+export function formatWorkspaceScriptsSection(
+  scripts: Record<string, string>,
+): string {
+  const names = Object.keys(scripts).sort()
+  if (names.length === 0) return ''
+  const lines = names.map((name) => `- ${name} → ${scripts[name]}`)
+  return `## Workspace scripts\n\n${lines.join('\n')}`
+}
+
+/**
+ * Merge base AGENTS.md content with an optional workspace scripts section.
+ * Returns `undefined` when there is nothing to write.
+ */
+export function mergeAgentsContent(
+  base: string | undefined,
+  scripts: Record<string, string> | undefined,
+): string | undefined {
+  const scriptsSection =
+    scripts !== undefined ? formatWorkspaceScriptsSection(scripts) : ''
+  if (base === undefined && scriptsSection.length === 0) return undefined
+  if (base === undefined) return scriptsSection
+  if (scriptsSection.length === 0) return base
+  return `${base.trimEnd()}\n\n${scriptsSection}`
+}
+
 /** Escape a string for safe use as a single-quoted shell argument. */
 function sqEscape(value: string): string {
   return value.replace(/'/g, `'\\''`)

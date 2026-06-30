@@ -51,4 +51,22 @@ describe('evaluateCommand', () => {
     // 'rm -rf *' must not match an unrelated 'confirm -rf safe' string.
     expect(evaluateCommand('confirm -rf safe', policy)).toBe('ask')
   })
+
+  it('matches policy patterns against script names and expanded values', () => {
+    const scripts = { test: 'pnpm test', build: 'pnpm build' }
+    const scriptPolicy = defineSandboxPolicy({
+      commands: {
+        allow: ['test', 'pnpm build'],
+        deny: ['deploy'],
+      },
+      default: 'ask',
+    })
+
+    expect(evaluateCommand('test', scriptPolicy, scripts)).toBe('allow')
+    expect(evaluateCommand('pnpm test', scriptPolicy, scripts)).toBe('allow')
+    expect(evaluateCommand('build', scriptPolicy, scripts)).toBe('allow')
+    expect(evaluateCommand('pnpm build', scriptPolicy, scripts)).toBe('allow')
+    expect(evaluateCommand('deploy', scriptPolicy, scripts)).toBe('deny')
+    expect(evaluateCommand('pnpm deploy', scriptPolicy, scripts)).toBe('ask')
+  })
 })

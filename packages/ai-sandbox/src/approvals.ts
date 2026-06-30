@@ -40,6 +40,8 @@ export interface ResolveApprovalInput {
   id: string
   /** A shell command to match against `policy.commands`. */
   command?: string
+  /** Named workspace scripts for policy alias resolution. */
+  scripts?: Record<string, string>
   /** A coarse capability to match against `policy.capabilities`. */
   capability?: 'fileWrite' | 'network'
 }
@@ -54,7 +56,7 @@ export interface ApprovalOutcome {
 export function resolveApproval(input: ResolveApprovalInput): ApprovalOutcome {
   const base =
     input.command !== undefined
-      ? evaluateCommand(input.command, input.policy)
+      ? evaluateCommand(input.command, input.policy, input.scripts)
       : input.capability !== undefined
         ? (input.policy?.capabilities?.[input.capability] ??
           input.policy?.default ??
