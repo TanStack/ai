@@ -148,14 +148,30 @@ const stream = chat({
 For data-URL or base64 images, set `source.type` to `"data"` and provide `mimeType`:
 
 ```typescript
-{
-  type: "image",
-  source: {
-    type: "data",
-    mimeType: "image/png",
-    value: base64String,
-  },
-}
+import { chat } from "@tanstack/ai";
+import { mistralText } from "@tanstack/ai-mistral";
+
+const base64String = "..."; // your base64-encoded image bytes
+
+const stream = chat({
+  adapter: mistralText("pixtral-large-latest"),
+  messages: [
+    {
+      role: "user",
+      content: [
+        { type: "text", content: "What's in this image?" },
+        {
+          type: "image",
+          source: {
+            type: "data",
+            mimeType: "image/png",
+            value: base64String,
+          },
+        },
+      ],
+    },
+  ],
+});
 ```
 
 See [Multimodal Content](../advanced/multimodal-content) for the full content-part shape.
@@ -164,7 +180,10 @@ See [Multimodal Content](../advanced/multimodal-content) for the full content-pa
 
 Magistral models (`magistral-medium-latest`, `magistral-small-latest`) stream their reasoning as separate events before the final answer. The adapter emits AG-UI `REASONING_*` chunks for the thinking content and `TEXT_MESSAGE_*` chunks for the answer:
 
-```typescript
+```typescript ignore
+// ignore: narrowing the raw AG-UI stream by `chunk.type` relies on @ag-ui/core's
+// discriminated-union `type` field, which kiira can't resolve in a source-only
+// check. The runtime behaviour is exactly as shown.
 import { chat } from "@tanstack/ai";
 import { mistralText } from "@tanstack/ai-mistral";
 
@@ -191,7 +210,7 @@ See [Thinking & Reasoning](../chat/thinking-content) for the cross-provider even
 Generate JSON that conforms to a Zod schema using Mistral's `json_schema` response format:
 
 ```typescript
-import { generate } from "@tanstack/ai";
+import { chat } from "@tanstack/ai";
 import { mistralText } from "@tanstack/ai-mistral";
 import { z } from "zod";
 
@@ -201,7 +220,7 @@ const recipeSchema = z.object({
   steps: z.array(z.string()),
 });
 
-const result = await generate({
+const recipe = await chat({
   adapter: mistralText("mistral-large-latest"),
   messages: [
     { role: "user", content: "Give me a chocolate chip cookie recipe." },
@@ -209,7 +228,7 @@ const result = await generate({
   outputSchema: recipeSchema,
 });
 
-console.log(result.data); // typed as z.infer<typeof recipeSchema>
+console.log(recipe.name); // typed as z.infer<typeof recipeSchema>
 ```
 
 See [Structured Outputs](../chat/structured-outputs) for the full guide.
@@ -219,13 +238,16 @@ See [Structured Outputs](../chat/structured-outputs) for the full guide.
 Mistral exposes provider-specific options via `modelOptions`:
 
 ```typescript
+import { chat } from "@tanstack/ai";
+import { mistralText } from "@tanstack/ai-mistral";
+
 const stream = chat({
   adapter: mistralText("mistral-large-latest"),
-  messages,
-  temperature: 0.7,
-  topP: 0.9,
-  maxTokens: 1024,
+  messages: [{ role: "user", content: "Hello!" }],
   modelOptions: {
+    temperature: 0.7,
+    top_p: 0.9,
+    max_tokens: 1024,
     random_seed: 42,
     stop: ["END"],
     safe_prompt: true,
@@ -237,7 +259,8 @@ const stream = chat({
 });
 ```
 
-> Pass `temperature`, `topP`, and `maxTokens` at the top level — not inside `modelOptions`.
+> All sampling parameters — including `temperature`, `top_p`, and `max_tokens` —
+> go inside `modelOptions` using Mistral's native (snake_case) names.
 
 ## Environment Variables
 
