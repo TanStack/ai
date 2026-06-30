@@ -14,19 +14,13 @@ import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 import { SandboxCapability } from '@tanstack/ai-sandbox'
-import {
-  acpCompatible,
-  acpCompatibleText,
-  buildAcpPrompt,
-} from '../src/index'
+import { acpCompatible, acpCompatibleText, buildAcpPrompt } from '../src/index'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type { CapabilityContext, ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { SandboxHandle } from '@tanstack/ai-sandbox'
 
 const require = createRequire(import.meta.url)
-const SDK_URL = pathToFileURL(
-  require.resolve('@agentclientprotocol/sdk'),
-).href
+const SDK_URL = pathToFileURL(require.resolve('@agentclientprotocol/sdk')).href
 
 /** A minimal ACP agent that replies "pong" and records the prompt it received. */
 const FAKE_ACP_AGENT = `
@@ -132,9 +126,9 @@ describe('buildAcpPrompt', () => {
   })
 
   it('throws (with the harness name) when the trailing message is not user text', () => {
-    expect(() => buildAcpPrompt(msgs(['assistant', 'hi']), undefined, 'pi')).toThrow(
-      /pi adapter requires a trailing user message/,
-    )
+    expect(() =>
+      buildAcpPrompt(msgs(['assistant', 'hi']), undefined, 'pi'),
+    ).toThrow(/pi adapter requires a trailing user message/)
   })
 })
 
@@ -172,7 +166,8 @@ describe('acpCompatible in-sandbox adapter (stdio)', () => {
     // The session id is surfaced as a `<name>.session-id` CUSTOM event.
     const sessionEvent = chunks.find(
       (c) =>
-        c.type === 'CUSTOM' && (c as { name?: string }).name === 'pi.session-id',
+        c.type === 'CUSTOM' &&
+        (c as { name?: string }).name === 'pi.session-id',
     )
     expect((sessionEvent as { value?: { sessionId?: string } }).value).toEqual({
       sessionId: 'sess-1',

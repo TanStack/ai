@@ -180,10 +180,10 @@ Full guides on [tanstack.com/ai](https://tanstack.com/ai/latest/docs/sandbox/ove
 
 ## Examples
 
-| Example                         | What it demonstrates                                                  |
-| ------------------------------- | --------------------------------------------------------------------- |
-| `examples/sandbox-web`          | Build-and-preview with harness × provider matrix (Grok default in UI) |
-| `examples/sandbox-cloudflare`   | Edge deploy with live preview URL                                     |
+| Example                       | What it demonstrates                                                  |
+| ----------------------------- | --------------------------------------------------------------------- |
+| `examples/sandbox-web`        | Build-and-preview with harness × provider matrix (Grok default in UI) |
+| `examples/sandbox-cloudflare` | Edge deploy with live preview URL                                     |
 
 ## When to use a sandbox
 

@@ -226,7 +226,8 @@ export class AcpCompatibleTextAdapter<
     threadId: string
     runId: string
   }): PermissionHandler {
-    if (this.harness.onPermissionRequest) return this.harness.onPermissionRequest
+    if (this.harness.onPermissionRequest)
+      return this.harness.onPermissionRequest
 
     if (this.harness.permissions === 'interactive') {
       return (request) => {

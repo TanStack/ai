@@ -65,7 +65,8 @@ import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
 // Configure the "pi" agent harness once (it speaks ACP over stdio):
 const pi = acpCompatible({
   name: 'pi',
-  command: ({ model, harnessCwd }) => `pi --acp -m ${model} --cwd ${harnessCwd}`,
+  command: ({ model, harnessCwd }) =>
+    `pi --acp -m ${model} --cwd ${harnessCwd}`,
   authMethodId: 'pi-api-key', // when the harness advertises it
   refusalMessage: 'Pi refused the request.',
 })
@@ -73,7 +74,9 @@ const pi = acpCompatible({
 // Then drive it like any other adapter, inside a sandbox:
 const stream = chat({
   adapter: pi('pi-fast'),
-  messages: [{ role: 'user', content: 'Add a health check route and run the tests.' }],
+  messages: [
+    { role: 'user', content: 'Add a health check route and run the tests.' },
+  ],
   middleware: [
     withSandbox(
       defineSandbox({
@@ -92,22 +95,22 @@ abort, and AG-UI translation.
 
 ### Configuration
 
-| Field | Purpose |
-| ----- | ------- |
-| `name` (required) | Provider label, log prefix, and the `<name>.session-id` CUSTOM event name. |
-| `command` | Build the **stdio** launch command (`({ model, cwd, harnessCwd, sandbox, env, signal }) => string`). Required unless `openTransport` is given. |
-| `openTransport` | Full transport escape hatch — open any `AcpSessionTransport` yourself (e.g. boot a `serve` process and connect over WebSocket). Overrides `command`. |
-| `cwd` | Working directory inside the sandbox (default `/workspace`). |
-| `env` | Extra environment variables for the harness process. |
-| `authMethodId` | ACP auth method to select before the session starts. |
-| `permissionMode` | `'default'` \| `'acceptEdits'` \| `'bypassPermissions'` (default). |
-| `permissions` | `'headless'` (auto-resolve, default) or `'interactive'` (emit approval-requested events for `ask` prompts). |
-| `onPermissionRequest` | Custom `PermissionHandler`; overrides `permissions`/`permissionMode`. |
-| `refusalMessage` | `RUN_ERROR` message when the harness refuses. |
-| `planEventName` | Emit ACP `plan` updates as a CUSTOM event under this name. |
-| `emitDiff` | Emit the post-run `git diff` of `cwd` as a `file.changed` CUSTOM event (off by default). |
-| `onExtNotification` | Handle vendor `_x/…` JSON-RPC notifications. |
-| `buildPrompt` | Override how chat history maps to the harness prompt (defaults to `buildAcpPrompt`). |
+| Field                 | Purpose                                                                                                                                              |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name` (required)     | Provider label, log prefix, and the `<name>.session-id` CUSTOM event name.                                                                           |
+| `command`             | Build the **stdio** launch command (`({ model, cwd, harnessCwd, sandbox, env, signal }) => string`). Required unless `openTransport` is given.       |
+| `openTransport`       | Full transport escape hatch — open any `AcpSessionTransport` yourself (e.g. boot a `serve` process and connect over WebSocket). Overrides `command`. |
+| `cwd`                 | Working directory inside the sandbox (default `/workspace`).                                                                                         |
+| `env`                 | Extra environment variables for the harness process.                                                                                                 |
+| `authMethodId`        | ACP auth method to select before the session starts.                                                                                                 |
+| `permissionMode`      | `'default'` \| `'acceptEdits'` \| `'bypassPermissions'` (default).                                                                                   |
+| `permissions`         | `'headless'` (auto-resolve, default) or `'interactive'` (emit approval-requested events for `ask` prompts).                                          |
+| `onPermissionRequest` | Custom `PermissionHandler`; overrides `permissions`/`permissionMode`.                                                                                |
+| `refusalMessage`      | `RUN_ERROR` message when the harness refuses.                                                                                                        |
+| `planEventName`       | Emit ACP `plan` updates as a CUSTOM event under this name.                                                                                           |
+| `emitDiff`            | Emit the post-run `git diff` of `cwd` as a `file.changed` CUSTOM event (off by default).                                                             |
+| `onExtNotification`   | Handle vendor `_x/…` JSON-RPC notifications.                                                                                                         |
+| `buildPrompt`         | Override how chat history maps to the harness prompt (defaults to `buildAcpPrompt`).                                                                 |
 
 For WebSocket/`serve` harnesses, return your own transport from `openTransport`
 (see how `@tanstack/ai-grok-build` boots `grok agent serve` with
