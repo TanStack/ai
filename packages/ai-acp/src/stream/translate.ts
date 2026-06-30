@@ -289,7 +289,6 @@ export async function* translateAcpStream(
         if (!knownToolCalls.has(update.toolCallId)) {
           yield* openToolCall(update)
         } else {
-          const toolCallName = resolveToolName(update, ctx.bridgedToolNames)
           const input = {
             ...(update.title != null && { title: update.title }),
             ...(typeof update.rawInput === 'object' && update.rawInput !== null
