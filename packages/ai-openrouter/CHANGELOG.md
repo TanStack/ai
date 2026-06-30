@@ -1,5 +1,11 @@
 # @tanstack/ai-openrouter
 
+## 0.15.5
+
+### Patch Changes
+
+- [#824](https://github.com/TanStack/ai/pull/824) [`80dad77`](https://github.com/TanStack/ai/commit/80dad77030810665377b123d31acf375bc73f741) - Update `@openrouter/sdk` to `0.13.20`. This removes the duplicate `rootDir` key from the published SDK package metadata (fixes [#712](https://github.com/TanStack/ai/issues/712)) and picks up the fix to the `getVideoContent` download helper, which previously requested `Accept: application/octet-stream` and matched the streamed 200 response without a content type, so the upstream `video/mp4` body failed to match. The SDK now requests `Accept: video/mp4` and matches the stream with `ctype: "video/mp4"`.
+
 ## 0.15.4
 
 ### Patch Changes

@@ -529,6 +529,10 @@
           "addedAt": "2026-04-15"
         },
         {
+          "label": "Mistral",
+          "to": "adapters/mistral"
+        },
+        {
           "label": "ElevenLabs",
           "to": "adapters/elevenlabs",
           "addedAt": "2026-04-15"
