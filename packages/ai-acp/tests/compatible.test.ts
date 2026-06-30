@@ -33,6 +33,8 @@ import { AgentSideConnection, ndJsonStream, PROTOCOL_VERSION } from ${JSON.strin
 import { Readable, Writable } from 'node:stream'
 import { writeFileSync } from 'node:fs'
 
+writeFileSync('acp-argv.txt', process.argv.join(' '))
+
 const input = Readable.toWeb(process.stdin)
 const output = Writable.toWeb(process.stdout)
 const stream = ndJsonStream(output, input)
@@ -212,6 +214,38 @@ describe('acpCompatible in-sandbox adapter (stdio)', () => {
     const sentText = recorded.prompt.map((part) => part.text).join('')
     expect(sentText).toBe('follow up')
     expect(sentText).not.toContain('Previous conversation')
+
+    await sbx.destroy()
+  })
+
+  it('passes declared models and custom modelOptions through to the command', async () => {
+    const sbx = await provider.create({})
+    await sbx.fs.write('/workspace/fake-acp-agent.mjs', FAKE_ACP_AGENT)
+
+    const pi = acpCompatible({
+      name: 'pi',
+      models: ['pi-fast', 'pi-pro'],
+      modelOptions: {} as { reasoningEffort?: 'low' | 'high' },
+      command: ({ model, modelOptions }) =>
+        `node fake-acp-agent.mjs --model ${model}` +
+        (modelOptions?.reasoningEffort
+          ? ` --effort ${modelOptions.reasoningEffort}`
+          : ''),
+    })
+
+    await collect(
+      pi('pi-pro').chatStream({
+        model: 'pi-pro',
+        messages: [{ role: 'user', content: 'hi' }],
+        logger: noopLogger,
+        capabilities: capabilityContextWith(sbx),
+        modelOptions: { reasoningEffort: 'high' },
+      }),
+    )
+
+    const argv = await sbx.fs.read('/workspace/acp-argv.txt')
+    expect(argv).toContain('--model pi-pro')
+    expect(argv).toContain('--effort high')
 
     await sbx.destroy()
   })

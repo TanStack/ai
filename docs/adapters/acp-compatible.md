@@ -89,12 +89,57 @@ const stream = chat({
 })
 ```
 
+## Typed models & options
+
+Like `openaiCompatible`, you can declare the harness's **models** and its
+per-call **options** so the whole thing is type-checked. `models` constrains the
+factory's argument; `modelOptions` is a type-only brand (`{} as { … }`, unused at
+runtime) describing what `chat({ modelOptions })` accepts. Declared options are
+merged with the base ACP options and handed to `command` / `openTransport` as
+`ctx.modelOptions`, so you can turn them into CLI flags:
+
+```ts
+import { acpCompatible } from '@tanstack/ai-acp'
+
+const pi = acpCompatible({
+  name: 'pi',
+  models: ['pi-fast', 'pi-pro'],
+  modelOptions: {} as { reasoningEffort?: 'low' | 'high' },
+  command: ({ model, harnessCwd, modelOptions }) =>
+    `pi --acp -m ${model} --cwd ${harnessCwd}` +
+    (modelOptions?.reasoningEffort ? ` --effort ${modelOptions.reasoningEffort}` : ''),
+})
+
+pi('pi-pro') // ok
+// pi('pi-ultra') // type error — not in `models`
+```
+
+```ts
+import { chat } from '@tanstack/ai'
+import { withSandbox } from '@tanstack/ai-sandbox'
+import { pi } from './pi-harness'
+import { sandbox } from './sandbox'
+import { messages } from './chat-context'
+
+const stream = chat({
+  adapter: pi('pi-pro'),
+  modelOptions: { reasoningEffort: 'high' }, // typed against the declared options
+  messages,
+  middleware: [withSandbox(sandbox)],
+})
+```
+
+The base options are always available on `modelOptions` regardless of what you
+declare: `sessionId` (resume), `cwd`, `authMethodId`, and `permissionMode`.
+
 ## Configuration
 
 | Field | Purpose |
 | --- | --- |
 | `name` (required) | Harness label, log prefix, and the `<name>.session-id` CUSTOM event name. |
-| `command` | Build the **stdio** launch command from `{ model, cwd, harnessCwd, sandbox, env, signal }`. Required unless `openTransport` is given. |
+| `models` | The model ids this harness accepts — declaring them makes `harness('id')` type-safe (unknown ids are rejected). Omit to accept any string. |
+| `modelOptions` | Type-only brand for the per-call options accepted via `chat({ modelOptions })`. Declare with `{} as { … }`; merged with the base options and exposed on `ctx.modelOptions` in `command` / `openTransport`. |
+| `command` | Build the **stdio** launch command from `{ model, cwd, harnessCwd, sandbox, env, modelOptions, signal }`. Required unless `openTransport` is given. |
 | `openTransport` | Open any `AcpSessionTransport` yourself (e.g. boot a `serve` process and connect over WebSocket). Overrides `command`. |
 | `cwd` | Working directory inside the sandbox (default `/workspace`). |
 | `env` | Extra environment variables for the harness process. |

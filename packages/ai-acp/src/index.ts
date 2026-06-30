@@ -75,6 +75,7 @@ export type {
   AcpCompatibleConfig,
   AcpCompatibleProviderOptions,
   AcpHarnessContext,
+  AcpModelNameOf,
 } from './adapters/compatible'
 
 export { buildAcpPrompt } from './messages/prompt'

@@ -45,7 +45,9 @@ const DEFAULT_WORKDIR = '/workspace'
  * sandbox. Passed to {@link AcpCompatibleConfig.command} /
  * {@link AcpCompatibleConfig.openTransport}.
  */
-export interface AcpHarnessContext {
+export interface AcpHarnessContext<
+  TModelOptions extends Record<string, any> = AcpCompatibleProviderOptions,
+> {
   /** The sandbox the harness runs in (from `withSandbox(...)` middleware). */
   sandbox: SandboxHandle
   /** The selected model id. */
@@ -56,22 +58,53 @@ export interface AcpHarnessContext {
   harnessCwd: string
   /** Extra env vars configured for the harness process. */
   env: Record<string, string> | undefined
+  /**
+   * Per-call options from `chat({ modelOptions })` — the base ACP options plus
+   * whatever you declared via {@link AcpCompatibleConfig.modelOptions}. Read
+   * these to turn options into CLI flags / transport choices.
+   */
+  modelOptions: TModelOptions | undefined
   /** Abort signal for the run, when one was provided. */
   signal: AbortSignal | undefined
 }
 
-export interface AcpCompatibleConfig {
+/** Union of selectable model names from a `models` tuple (any string if omitted). */
+export type AcpModelNameOf<TModels extends ReadonlyArray<string>> =
+  TModels[number]
+
+export interface AcpCompatibleConfig<
+  TModels extends ReadonlyArray<string> = ReadonlyArray<string>,
+  TModelOptions extends Record<string, any> = AcpCompatibleProviderOptions,
+> {
   /**
    * Harness name. Used as the provider label, the log prefix, and the CUSTOM
    * session-id event name (`<name>.session-id`).
    */
   name: string
   /**
+   * The models this harness accepts. Declaring them makes the returned factory
+   * type-safe — `harness('known-model')` is checked, unknown ids are rejected.
+   * Omit to accept any string.
+   */
+  models?: TModels
+  /**
+   * Type-only brand for the per-call options accepted via `chat({ modelOptions })`.
+   * Declare your harness's options here with `{} as { ... }` (the value is unused
+   * at runtime); they are merged with the base {@link AcpCompatibleProviderOptions}
+   * and exposed on {@link AcpHarnessContext.modelOptions} so `command` /
+   * `openTransport` can turn them into CLI flags.
+   *
+   * @example modelOptions: {} as { reasoningEffort?: 'low' | 'high' }
+   */
+  modelOptions?: TModelOptions
+  /**
    * Build the shell command that launches the harness's ACP server over
    * **stdio** inside the sandbox (e.g. `` `pi --acp -m ${model}` ``). Required
    * unless {@link openTransport} is provided.
    */
-  command?: (ctx: AcpHarnessContext) => string
+  command?: (
+    ctx: AcpHarnessContext<AcpCompatibleProviderOptions & TModelOptions>,
+  ) => string
   /**
    * Full transport escape hatch — open any {@link AcpSessionTransport} yourself
    * (e.g. boot a `serve` process and connect over WebSocket, as Grok Build
@@ -80,7 +113,7 @@ export interface AcpCompatibleConfig {
    * session ends.
    */
   openTransport?: (
-    ctx: AcpHarnessContext,
+    ctx: AcpHarnessContext<AcpCompatibleProviderOptions & TModelOptions>,
   ) => Promise<AcpSessionTransport> | AcpSessionTransport
   /** Working directory inside the sandbox. Defaults to `/workspace`. */
   cwd?: string
@@ -144,6 +177,10 @@ export interface AcpCompatibleProviderOptions {
   permissionMode?: AcpPermissionMode
 }
 
+/** Per-call options the adapter sees: the base ACP options + the harness's own. */
+type ResolvedOptions<TModelOptions extends Record<string, any>> =
+  AcpCompatibleProviderOptions & TModelOptions
+
 function q(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
@@ -163,9 +200,10 @@ async function disposeTransport(transport: AcpSessionTransport): Promise<void> {
  */
 export class AcpCompatibleTextAdapter<
   TModel extends string,
+  TModelOptions extends Record<string, any> = AcpCompatibleProviderOptions,
 > extends BaseTextAdapter<
   TModel,
-  AcpCompatibleProviderOptions,
+  ResolvedOptions<TModelOptions>,
   ReadonlyArray<Modality> & readonly ['text'],
   DefaultMessageMetadataByModality,
   ReadonlyArray<string>,
@@ -176,9 +214,12 @@ export class AcpCompatibleTextAdapter<
 
   override readonly requires = [SandboxCapability] as const
 
-  private readonly harness: AcpCompatibleConfig
+  private readonly harness: AcpCompatibleConfig<ReadonlyArray<string>, TModelOptions>
 
-  constructor(config: AcpCompatibleConfig, model: TModel) {
+  constructor(
+    config: AcpCompatibleConfig<ReadonlyArray<string>, TModelOptions>,
+    model: TModel,
+  ) {
     super({}, model)
     if (config.command === undefined && config.openTransport === undefined) {
       throw new Error(
@@ -190,7 +231,7 @@ export class AcpCompatibleTextAdapter<
   }
 
   private sandboxFrom(
-    options: TextOptions<AcpCompatibleProviderOptions>,
+    options: TextOptions<ResolvedOptions<TModelOptions>>,
   ): SandboxHandle {
     const ctx = options.capabilities
     if (!ctx) {
@@ -261,7 +302,7 @@ export class AcpCompatibleTextAdapter<
   }
 
   async *chatStream(
-    options: TextOptions<AcpCompatibleProviderOptions>,
+    options: TextOptions<ResolvedOptions<TModelOptions>>,
   ): AsyncIterable<StreamChunk> {
     const { logger } = options
     let handle: AcpSessionHandle | undefined
@@ -307,12 +348,13 @@ export class AcpCompatibleTextAdapter<
         })
       }
 
-      const ctx: AcpHarnessContext = {
+      const ctx: AcpHarnessContext<ResolvedOptions<TModelOptions>> = {
         sandbox,
         model: this.model,
         cwd,
         harnessCwd,
         env: this.harness.env,
+        modelOptions,
         signal: externalSignal,
       }
       transport = this.harness.openTransport
@@ -469,7 +511,7 @@ export class AcpCompatibleTextAdapter<
   }
 
   private async openStdioTransport(
-    ctx: AcpHarnessContext,
+    ctx: AcpHarnessContext<ResolvedOptions<TModelOptions>>,
   ): Promise<AcpSessionTransport> {
     const build = this.harness.command
     if (build === undefined) {
@@ -512,7 +554,7 @@ export class AcpCompatibleTextAdapter<
   }
 
   structuredOutput(
-    _options: StructuredOutputOptions<AcpCompatibleProviderOptions>,
+    _options: StructuredOutputOptions<ResolvedOptions<TModelOptions>>,
   ): Promise<StructuredOutputResult<unknown>> {
     return Promise.reject(
       new Error(
@@ -537,23 +579,34 @@ export class AcpCompatibleTextAdapter<
  *
  * const pi = acpCompatible({
  *   name: 'pi',
- *   command: ({ model, harnessCwd }) => `pi --acp -m ${model} --cwd ${harnessCwd}`,
+ *   // declaring `models` makes pi('…') type-safe; omit to accept any string
+ *   models: ['pi-fast', 'pi-pro'],
+ *   // declare per-call options; merged with the base ACP options and exposed
+ *   // on ctx.modelOptions inside `command` / `openTransport`
+ *   modelOptions: {} as { reasoningEffort?: 'low' | 'high' },
+ *   command: ({ model, harnessCwd, modelOptions }) =>
+ *     `pi --acp -m ${model} --cwd ${harnessCwd}` +
+ *     (modelOptions?.reasoningEffort ? ` --effort ${modelOptions.reasoningEffort}` : ''),
  *   authMethodId: 'pi-api-key',
  * })
  *
  * chat({
- *   adapter: pi('pi-fast'),
+ *   adapter: pi('pi-pro'),
+ *   modelOptions: { reasoningEffort: 'high' }, // typed
  *   messages,
  *   middleware: [withSandbox(defineSandbox({ /* provider, install pi *\/ }))],
  * })
  * ```
  */
-export function acpCompatible(config: AcpCompatibleConfig) {
-  return <TModel extends string>(
+export function acpCompatible<
+  const TModels extends ReadonlyArray<string> = ReadonlyArray<string>,
+  TModelOptions extends Record<string, any> = AcpCompatibleProviderOptions,
+>(config: AcpCompatibleConfig<TModels, TModelOptions>) {
+  return <TModel extends AcpModelNameOf<TModels>>(
     model: TModel,
-    overrides?: Partial<AcpCompatibleConfig>,
-  ): AcpCompatibleTextAdapter<TModel> =>
-    new AcpCompatibleTextAdapter<TModel>(
+    overrides?: Partial<AcpCompatibleConfig<TModels, TModelOptions>>,
+  ): AcpCompatibleTextAdapter<TModel, TModelOptions> =>
+    new AcpCompatibleTextAdapter<TModel, TModelOptions>(
       overrides ? { ...config, ...overrides } : config,
       model,
     )
@@ -574,9 +627,12 @@ export function acpCompatible(config: AcpCompatibleConfig) {
  * })
  * ```
  */
-export function acpCompatibleText<TModel extends string>(
+export function acpCompatibleText<
+  TModel extends string,
+  TModelOptions extends Record<string, any> = AcpCompatibleProviderOptions,
+>(
   model: TModel,
-  config: AcpCompatibleConfig,
-): AcpCompatibleTextAdapter<TModel> {
-  return new AcpCompatibleTextAdapter<TModel>(config, model)
+  config: AcpCompatibleConfig<ReadonlyArray<string>, TModelOptions>,
+): AcpCompatibleTextAdapter<TModel, TModelOptions> {
+  return new AcpCompatibleTextAdapter<TModel, TModelOptions>(config, model)
 }

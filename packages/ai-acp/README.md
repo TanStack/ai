@@ -65,6 +65,7 @@ import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
 // Configure the "pi" agent harness once (it speaks ACP over stdio):
 const pi = acpCompatible({
   name: 'pi',
+  models: ['pi-fast', 'pi-pro'], // optional — makes pi('…') type-safe
   command: ({ model, harnessCwd }) =>
     `pi --acp -m ${model} --cwd ${harnessCwd}`,
   authMethodId: 'pi-api-key', // when the harness advertises it
@@ -98,7 +99,9 @@ abort, and AG-UI translation.
 | Field                 | Purpose                                                                                                                                              |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `name` (required)     | Provider label, log prefix, and the `<name>.session-id` CUSTOM event name.                                                                           |
-| `command`             | Build the **stdio** launch command (`({ model, cwd, harnessCwd, sandbox, env, signal }) => string`). Required unless `openTransport` is given.       |
+| `models`              | Model ids the harness accepts — declaring them makes `harness('id')` type-safe. Omit to accept any string.                                            |
+| `modelOptions`        | Type-only brand (`{} as { … }`) for the per-call options of `chat({ modelOptions })`; merged with the base options and exposed on `ctx.modelOptions`. |
+| `command`             | Build the **stdio** launch command (`({ model, cwd, harnessCwd, sandbox, env, modelOptions, signal }) => string`). Required unless `openTransport` is given. |
 | `openTransport`       | Full transport escape hatch — open any `AcpSessionTransport` yourself (e.g. boot a `serve` process and connect over WebSocket). Overrides `command`. |
 | `cwd`                 | Working directory inside the sandbox (default `/workspace`).                                                                                         |
 | `env`                 | Extra environment variables for the harness process.                                                                                                 |
