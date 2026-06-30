@@ -5,7 +5,7 @@ title: AgentLoopState
 
 # Interface: AgentLoopState
 
-Defined in: [packages/typescript/ai/src/types.ts:639](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L639)
+Defined in: [packages/ai/src/types.ts:801](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L801)
 
 State passed to agent loop strategy for determining whether to continue
 
@@ -17,7 +17,7 @@ State passed to agent loop strategy for determining whether to continue
 finishReason: string | null;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:645](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L645)
+Defined in: [packages/ai/src/types.ts:807](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L807)
 
 Finish reason from the last response
 
@@ -29,7 +29,7 @@ Finish reason from the last response
 iterationCount: number;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:641](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L641)
+Defined in: [packages/ai/src/types.ts:803](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L803)
 
 Current iteration count (0-indexed)
 
@@ -44,6 +44,6 @@ messages: ModelMessage<
   | null>[];
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:643](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L643)
+Defined in: [packages/ai/src/types.ts:805](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L805)
 
 Current messages array

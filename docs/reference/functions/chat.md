@@ -6,10 +6,10 @@ title: chat
 # Function: chat()
 
 ```ts
-function chat<TAdapter, TSchema, TStream>(options): TextActivityResult<TSchema, TStream>;
+function chat<TAdapter, TSchema, TStream, TTools, TMiddleware>(options): TextActivityResult<TSchema, TStream>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/index.ts:1575](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/index.ts#L1575)
+Defined in: [packages/ai/src/activities/chat/index.ts:2619](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/index.ts#L2619)
 
 Text activity - handles agentic text generation, one-shot text generation, and agentic structured output.
 
@@ -31,13 +31,33 @@ This activity supports four modes:
 
 ### TStream
 
-`TStream` *extends* `boolean` = `true`
+`TStream` *extends* `boolean` = `boolean`
+
+### TTools
+
+`TTools` *extends* 
+  \| (
+  \| `Omit`\<[`Tool`](../interfaces/Tool.md)\<`any`, `any`, `any`, `any`\>, `"execute"`\> & `object` & `object`
+  \| [`ProviderTool`](../interfaces/ProviderTool.md)\<`string`, `TAdapter`\[`"~types"`\]\[`"toolCapabilities"`\]\[`number`\]\>)[]
+  \| `undefined` = 
+  \| (
+  \| `Omit`\<[`Tool`](../interfaces/Tool.md)\<`any`, `any`, `any`, `any`\>, `"execute"`\> & `object` & `object`
+  \| [`ProviderTool`](../interfaces/ProviderTool.md)\<`string`, `TAdapter`\[`"~types"`\]\[`"toolCapabilities"`\]\[`number`\]\>)[]
+  \| `undefined`
+
+### TMiddleware
+
+`TMiddleware` *extends* 
+  \| [`ChatMiddleware`](../interfaces/ChatMiddleware.md)\<`any`\>[]
+  \| `undefined` = 
+  \| [`ChatMiddleware`](../interfaces/ChatMiddleware.md)\<`any`\>[]
+  \| `undefined`
 
 ## Parameters
 
 ### options
 
-`TextActivityOptions`\<`TAdapter`, `TSchema`, `TStream`\>
+`TextActivityOptionsWithContext`\<`TAdapter`, `TSchema`, `TStream`, `TTools`, `TMiddleware`\>
 
 ## Returns
 
@@ -54,7 +74,7 @@ for await (const chunk of chat({
   messages: [{ role: 'user', content: 'What is the weather?' }],
   tools: [weatherTool]
 })) {
-  if (chunk.type === 'content') {
+  if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
     console.log(chunk.delta)
   }
 }

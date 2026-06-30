@@ -1,0 +1,74 @@
+{
+  "name": "@tanstack/ai-code-mode",
+  "version": "0.3.2",
+  "description": "Secure TypeScript Code Mode for TanStack AI agents to execute sandboxed tool orchestration programs.",
+  "author": "Tanner Linsley",
+  "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-code-mode"
+  },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist",
+    "src",
+    "skills"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:build": "publint --strict",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "code-mode",
+    "agents",
+    "llm",
+    "tool-calling",
+    "sandbox",
+    "isolate",
+    "code-execution",
+    "tanstack-intent"
+  ],
+  "dependencies": {
+    "sucrase": "^3.35.0"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:*",
+    "zod": "^3.0.0 || ^4.0.0"
+  },
+  "devDependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@vitest/coverage-v8": "4.0.14",
+    "zod": "^4.2.0"
+  }
+}

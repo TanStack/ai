@@ -17,6 +17,8 @@ keywords:
 
 The OpenAI adapter provides access to OpenAI's models, including GPT-4o, GPT-5, image generation (DALL-E), text-to-speech (TTS), and audio transcription (Whisper).
 
+> Using a third-party provider that speaks the OpenAI API (DeepSeek, Moonshot/Kimi, Together, Fireworks, a local LM Studio/vLLM server, …)? See the [OpenAI-Compatible Adapter](./openai-compatible) for a generic `openaiCompatible({ baseURL, apiKey, models })` factory.
+
 ## Installation
 
 ```bash
@@ -35,18 +37,61 @@ const stream = chat({
 });
 ```
 
+## Chat Completions API
+
+`@tanstack/ai-openai` ships two text adapters that hit different OpenAI endpoints. `openaiText` (default) calls the Responses API (`/v1/responses`). `openaiChatCompletions` calls the older Chat Completions API (`/v1/chat/completions`).
+
+Pick whichever fits your wire format and feature needs:
+
+| | `openaiText` (Responses) | `openaiChatCompletions` (Chat Completions) |
+|---|---|---|
+| Endpoint | `/v1/responses` | `/v1/chat/completions` |
+| Reasoning summaries | Yes — set `modelOptions.reasoning.summary: 'auto'` to surface reasoning text via `REASONING_*` events | No — reasoning tokens are still consumed but cannot be exposed |
+| Wire-format compatibility | OpenAI-only | Matches the older de-facto industry shape (Grok, Groq, OpenRouter, many local model servers) |
+| Structured output streaming | `text.format: { type: 'json_schema', strict: true }` + `stream: true` | `response_format: { type: 'json_schema', strict: true }` + `stream: true` |
+
+Use `openaiText` when you want reasoning-summary streaming or OpenAI-specific Responses features. Use `openaiChatCompletions` when you're migrating off a Chat-Completions-style provider, share request-building code with other Chat-Completions adapters in your stack, or want the more battle-tested wire format.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiChatCompletions } from "@tanstack/ai-openai";
+
+const stream = chat({
+  adapter: openaiChatCompletions("gpt-5.2"),
+  messages: [{ role: "user", content: "Hello!" }],
+});
+```
+
+With an explicit API key:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { createOpenaiChatCompletions } from "@tanstack/ai-openai";
+
+const adapter = createOpenaiChatCompletions("gpt-5.2", process.env.OPENAI_API_KEY!, {
+  // organization, baseURL, headers — all optional
+});
+
+const stream = chat({
+  adapter,
+  messages: [{ role: "user", content: "Hello!" }],
+});
+```
+
+Both adapters work identically with [Structured Outputs](../structured-outputs/overview) — including `stream: true` — and accept the same `modelOptions` (temperature, top_p, max_tokens, stop, …). The reasoning section below applies to `openaiText`; `openaiChatCompletions` accepts `modelOptions.reasoning.effort` but cannot stream summary text.
+
 ## Basic Usage - Custom API Key
 
 ```typescript
 import { chat } from "@tanstack/ai";
 import { createOpenaiChat } from "@tanstack/ai-openai";
 
-const adapter = createOpenaiChat(process.env.OPENAI_API_KEY!, {
+const adapter = createOpenaiChat("gpt-5.2", process.env.OPENAI_API_KEY!, {
   // ... your config options
 });
 
 const stream = chat({
-  adapter: adapter("gpt-5.2"),
+  adapter,
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
@@ -54,14 +99,14 @@ const stream = chat({
 ## Configuration
 
 ```typescript
-import { createOpenaiChat, type OpenAIChatConfig } from "@tanstack/ai-openai";
+import { createOpenaiChat, type OpenAITextConfig } from "@tanstack/ai-openai";
 
-const config: Omit<OpenAIChatConfig, 'apiKey'> = {
+const config: Omit<OpenAITextConfig, "apiKey"> = {
   organization: "org-...", // Optional
   baseURL: "https://api.openai.com/v1", // Optional, for custom endpoints
 };
 
-const adapter = createOpenaiChat(process.env.OPENAI_API_KEY!, config);
+const adapter = createOpenaiChat("gpt-5.2", process.env.OPENAI_API_KEY!, config);
 ```
  
 ## Example: Chat Completion
@@ -85,7 +130,7 @@ export async function POST(request: Request) {
 ## Example: With Tools
 
 ```typescript
-import { chat, toolDefinition } from "@tanstack/ai";
+import { chat, toServerSentEventsResponse, toolDefinition } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { z } from "zod";
 
@@ -102,37 +147,45 @@ const getWeather = getWeatherDef.server(async ({ location }) => {
   return { temperature: 72, conditions: "sunny" };
 });
 
-const stream = chat({
-  adapter: openaiText("gpt-5.2"),
-  messages,
-  tools: [getWeather],
-});
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter: openaiText("gpt-5.2"),
+    messages,
+    tools: [getWeather],
+  });
+
+  return toServerSentEventsResponse(stream);
+}
 ```
 
 ## Model Options
 
-OpenAI supports various provider-specific options:
+OpenAI supports various provider-specific options. Sampling parameters live here too — `temperature`, `top_p`, and `max_output_tokens` (the Responses API token-limit key) — rather than as root-level props on `chat()`:
 
 ```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
 const stream = chat({
   adapter: openaiText("gpt-5.2"),
-  messages,
+  messages: [{ role: "user", content: "Hello!" }],
   modelOptions: {
     temperature: 0.7,
-    max_tokens: 1000,
+    max_output_tokens: 1000,
     top_p: 0.9,
-    frequency_penalty: 0.5,
-    presence_penalty: 0.5,
-    stop: ["END"],
   },
 });
 ```
+
+> The `openaiChatCompletions` adapter targets `/v1/chat/completions`, where the token-limit key is `max_tokens` (not `max_output_tokens`). If you previously passed `temperature` / `topP` / `maxTokens` at the root of `chat()`, see [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
 
 ### Reasoning
 
 Enable reasoning for models that support it (e.g., GPT-5, O3). This allows the model to show its reasoning process, which is streamed as `thinking` chunks:
 
-```typescript
+```typescript ignore
 modelOptions: {
   reasoning: {
     effort: "medium", // "none" | "minimal" | "low" | "medium" | "high"
@@ -182,12 +235,14 @@ console.log(result.images);
 ### Image Model Options
 
 ```typescript
+import { generateImage } from "@tanstack/ai";
+import { openaiImage } from "@tanstack/ai-openai";
+
 const result = await generateImage({
   adapter: openaiImage("gpt-image-1"),
   prompt: "...",
   modelOptions: {
-    quality: "hd", // "standard" | "hd"
-    style: "natural", // "natural" | "vivid"
+    quality: "high", // "high" | "medium" | "low" | "auto"
   },
 });
 ```
@@ -198,10 +253,10 @@ Generate speech from text:
 
 ```typescript
 import { generateSpeech } from "@tanstack/ai";
-import { openaiTTS } from "@tanstack/ai-openai";
+import { openaiSpeech } from "@tanstack/ai-openai";
 
 const result = await generateSpeech({
-  adapter: openaiTTS("tts-1"),
+  adapter: openaiSpeech("tts-1"),
   text: "Hello, welcome to TanStack AI!",
   voice: "alloy",
   format: "mp3",
@@ -218,11 +273,14 @@ Available voices: `alloy`, `echo`, `fable`, `onyx`, `nova`, `shimmer`, `ash`, `b
 ### TTS Model Options
 
 ```typescript
+import { generateSpeech } from "@tanstack/ai";
+import { openaiSpeech } from "@tanstack/ai-openai";
+
 const result = await generateSpeech({
-  adapter: openaiTTS("tts-1-hd"),
+  adapter: openaiSpeech("tts-1-hd"),
   text: "High quality speech",
   modelOptions: {
-    speed: 1.0, // 0.25 to 4.0
+    instructions: "Speak slowly and clearly.", // voice instructions (not supported by tts-1/tts-1-hd)
   },
 });
 ```
@@ -234,6 +292,7 @@ Transcribe audio to text:
 ```typescript
 import { generateTranscription } from "@tanstack/ai";
 import { openaiTranscription } from "@tanstack/ai-openai";
+import { audioFile } from "./audio";
 
 const result = await generateTranscription({
   adapter: openaiTranscription("whisper-1"),
@@ -247,18 +306,20 @@ console.log(result.text); // Transcribed text
 ### Transcription Model Options
 
 ```typescript
+import { generateTranscription } from "@tanstack/ai";
+import { openaiTranscription } from "@tanstack/ai-openai";
+import { audioFile } from "./audio";
+
 const result = await generateTranscription({
   adapter: openaiTranscription("whisper-1"),
   audio: audioFile,
   modelOptions: {
-    response_format: "verbose_json", // Get timestamps
     temperature: 0,
-    prompt: "Technical terms: API, SDK",
   },
 });
 
-// Access segments with timestamps
-console.log(result.segments);
+// Access the transcribed text
+console.log(result.text);
 ```
 
 ## Environment Variables
@@ -271,71 +332,53 @@ OPENAI_API_KEY=sk-...
 
 ## API Reference
 
-### `openaiText(config?)`
+Every factory pair follows the same shape: the short factory (`openaiText`, `openaiImage`, …) reads `OPENAI_API_KEY` from the environment, while the `create*` variant takes an explicit API key. Both take `model` as the first argument.
 
-Creates an OpenAI chat adapter using environment variables.
+### `openaiText(model, config?)`
 
-**Returns:** An OpenAI chat adapter instance.
-
-### `createOpenaiChat(apiKey, config?)`
-
-Creates an OpenAI chat adapter with an explicit API key.
+Creates an OpenAI text adapter against the Responses API (`/v1/responses`) using `OPENAI_API_KEY` from the environment.
 
 **Parameters:**
 
-- `apiKey` - Your OpenAI API key
-- `config.organization?` - Organization ID (optional)
-- `config.baseURL?` - Custom base URL (optional)
+- `model` - OpenAI chat model id (e.g. `"gpt-5.2"`, `"gpt-4o-mini"`)
+- `config?.organization` - Organization ID (optional)
+- `config?.baseURL` - Custom base URL (optional)
 
-**Returns:** An OpenAI chat adapter instance.
+### `createOpenaiChat(model, apiKey, config?)`
 
-### `openaiSummarize(config?)`
+Creates an OpenAI text adapter (Responses API) with an explicit API key.
 
-Creates an OpenAI summarization adapter using environment variables.
+### `openaiChatCompletions(model, config?)`
 
-**Returns:** An OpenAI summarize adapter instance.
+Creates an OpenAI text adapter that targets `/v1/chat/completions` instead of the Responses API. See [Chat Completions API](#chat-completions-api) for when to use this over `openaiText`.
 
-### `createOpenaiSummarize(apiKey, config?)`
+### `createOpenaiChatCompletions(model, apiKey, config?)`
 
-Creates an OpenAI summarization adapter with an explicit API key.
+Creates an OpenAI chat-completions adapter with an explicit API key.
 
-**Returns:** An OpenAI summarize adapter instance.
+### `openaiSummarize(model, config?)` / `createOpenaiSummarize(model, apiKey, config?)`
 
-### `openaiImage(config?)`
+Creates an OpenAI summarization adapter.
 
-Creates an OpenAI image generation adapter using environment variables.
+### `openaiImage(model, config?)` / `createOpenaiImage(model, apiKey, config?)`
 
-**Returns:** An OpenAI image adapter instance.
+Creates an OpenAI image generation adapter (DALL-E, gpt-image).
 
-### `createOpenaiImage(apiKey, config?)`
+### `openaiSpeech(model, config?)` / `createOpenaiSpeech(model, apiKey, config?)`
 
-Creates an OpenAI image generation adapter with an explicit API key.
+Creates an OpenAI text-to-speech adapter.
 
-**Returns:** An OpenAI image adapter instance.
+### `openaiTranscription(model, config?)` / `createOpenaiTranscription(model, apiKey, config?)`
 
-### `openaiTTS(config?)`
+Creates an OpenAI transcription adapter (Whisper).
 
-Creates an OpenAI TTS adapter using environment variables.
+### `openaiVideo(model, config?)` / `createOpenaiVideo(model, apiKey, config?)`
 
-**Returns:** An OpenAI TTS adapter instance.
+Creates an OpenAI video generation adapter (Sora). _Experimental._
 
-### `createOpenaiTTS(apiKey, config?)`
+### `openaiRealtime(...)` / `openaiRealtimeToken(...)`
 
-Creates an OpenAI TTS adapter with an explicit API key.
-
-**Returns:** An OpenAI TTS adapter instance.
-
-### `openaiTranscription(config?)`
-
-Creates an OpenAI transcription adapter using environment variables.
-
-**Returns:** An OpenAI transcription adapter instance.
-
-### `createOpenaiTranscription(apiKey, config?)`
-
-Creates an OpenAI transcription adapter with an explicit API key.
-
-**Returns:** An OpenAI transcription adapter instance.
+Realtime voice adapters. See [Realtime Voice Chat](../media/realtime-chat) for usage.
 
 ## Next Steps
 
@@ -543,7 +586,8 @@ const stream = chat({
 ### `shellTool`
 
 A function-style shell tool that exposes shell execution as a structured
-function call. Takes no arguments.
+function call. Pass an `environment` object to attach container config and
+hosted skills.
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -557,7 +601,43 @@ const stream = chat({
 });
 ```
 
-**Supported models:** GPT-5.x and other agent-capable models. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+**Supported models:** GPT-5.x and other agent-capable models. Responses API
+only — Chat Completions does not support the shell tool. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+
+#### Attaching hosted skills
+
+Pass `environment.skills` to load provider-managed skill bundles into the
+shell's container (Responses API only).
+
+```typescript
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { shellTool } from "@tanstack/ai-openai/tools";
+
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter: openaiText("gpt-5.2"),
+    messages,
+    tools: [
+      shellTool({
+        environment: {
+          type: "container_auto",
+          skills: [
+            { type: "skill_reference", skill_id: "skill_abc", version: "2" },
+          ],
+        },
+      }),
+    ],
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+For the full reference — skill shape, `version` string format, and the
+Anthropic equivalent — see [Provider Skills](../tools/provider-skills.md).
 
 ### `applyPatchTool`
 

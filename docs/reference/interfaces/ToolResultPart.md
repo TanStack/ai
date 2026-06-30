@@ -5,17 +5,19 @@ title: ToolResultPart
 
 # Interface: ToolResultPart
 
-Defined in: [packages/typescript/ai/src/types.ts:333](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L333)
+Defined in: [packages/ai/src/types.ts:368](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L368)
 
 ## Properties
 
 ### content
 
 ```ts
-content: string;
+content: 
+  | string
+  | ContentPart<unknown, unknown, unknown, unknown, unknown>[];
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:336](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L336)
+Defined in: [packages/ai/src/types.ts:371](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L371)
 
 ***
 
@@ -25,7 +27,7 @@ Defined in: [packages/typescript/ai/src/types.ts:336](https://github.com/TanStac
 optional error: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:338](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L338)
+Defined in: [packages/ai/src/types.ts:373](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L373)
 
 ***
 
@@ -35,7 +37,7 @@ Defined in: [packages/typescript/ai/src/types.ts:338](https://github.com/TanStac
 state: ToolResultState;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:337](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L337)
+Defined in: [packages/ai/src/types.ts:372](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L372)
 
 ***
 
@@ -45,7 +47,7 @@ Defined in: [packages/typescript/ai/src/types.ts:337](https://github.com/TanStac
 toolCallId: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:335](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L335)
+Defined in: [packages/ai/src/types.ts:370](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L370)
 
 ***
 
@@ -55,4 +57,4 @@ Defined in: [packages/typescript/ai/src/types.ts:335](https://github.com/TanStac
 type: "tool-result";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:334](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L334)
+Defined in: [packages/ai/src/types.ts:369](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L369)

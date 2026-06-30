@@ -5,7 +5,7 @@ title: AudioGenerationResult
 
 # Interface: AudioGenerationResult
 
-Defined in: [packages/typescript/ai/src/types.ts:1319](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1319)
+Defined in: [packages/ai/src/types.ts:1732](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1732)
 
 Result of audio generation
 
@@ -17,7 +17,7 @@ Result of audio generation
 audio: GeneratedAudio;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1325](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1325)
+Defined in: [packages/ai/src/types.ts:1738](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1738)
 
 The generated audio
 
@@ -29,7 +29,7 @@ The generated audio
 id: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1321](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1321)
+Defined in: [packages/ai/src/types.ts:1734](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1734)
 
 Unique identifier for the generation
 
@@ -41,7 +41,7 @@ Unique identifier for the generation
 model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1323](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1323)
+Defined in: [packages/ai/src/types.ts:1736](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1736)
 
 Model used for generation
 
@@ -50,27 +50,9 @@ Model used for generation
 ### usage?
 
 ```ts
-optional usage: object;
+optional usage: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1327](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1327)
+Defined in: [packages/ai/src/types.ts:1740](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1740)
 
 Token usage information (if available)
-
-#### inputTokens?
-
-```ts
-optional inputTokens: number;
-```
-
-#### outputTokens?
-
-```ts
-optional outputTokens: number;
-```
-
-#### totalTokens?
-
-```ts
-optional totalTokens: number;
-```

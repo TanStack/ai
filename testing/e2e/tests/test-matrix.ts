@@ -21,6 +21,8 @@ export const providers: Provider[] = [
   'groq',
   'grok',
   'openrouter',
+  'openrouter-responses',
+  'openai-compatible',
   'mistral',
   'elevenlabs',
 ]

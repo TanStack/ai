@@ -5,7 +5,7 @@ title: ToolCallPart
 
 # Interface: ToolCallPart\<TMetadata\>
 
-Defined in: [packages/typescript/ai/src/types.ts:314](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L314)
+Defined in: [packages/ai/src/types.ts:349](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L349)
 
 ## Type Parameters
 
@@ -21,7 +21,7 @@ Defined in: [packages/typescript/ai/src/types.ts:314](https://github.com/TanStac
 optional approval: object;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:321](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L321)
+Defined in: [packages/ai/src/types.ts:356](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L356)
 
 Approval metadata if tool requires user approval
 
@@ -51,7 +51,7 @@ needsApproval: boolean;
 arguments: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:318](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L318)
+Defined in: [packages/ai/src/types.ts:353](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L353)
 
 ***
 
@@ -61,7 +61,7 @@ Defined in: [packages/typescript/ai/src/types.ts:318](https://github.com/TanStac
 id: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:316](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L316)
+Defined in: [packages/ai/src/types.ts:351](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L351)
 
 ***
 
@@ -71,7 +71,7 @@ Defined in: [packages/typescript/ai/src/types.ts:316](https://github.com/TanStac
 optional metadata: TMetadata;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:330](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L330)
+Defined in: [packages/ai/src/types.ts:365](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L365)
 
 Provider-specific metadata that round-trips with the tool call.
 Typed per-adapter via `TToolCallMetadata`.
@@ -84,7 +84,7 @@ Typed per-adapter via `TToolCallMetadata`.
 name: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:317](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L317)
+Defined in: [packages/ai/src/types.ts:352](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L352)
 
 ***
 
@@ -94,7 +94,7 @@ Defined in: [packages/typescript/ai/src/types.ts:317](https://github.com/TanStac
 optional output: any;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:327](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L327)
+Defined in: [packages/ai/src/types.ts:362](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L362)
 
 Tool execution output (for client tools or after approval)
 
@@ -106,7 +106,7 @@ Tool execution output (for client tools or after approval)
 state: ToolCallState;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:319](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L319)
+Defined in: [packages/ai/src/types.ts:354](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L354)
 
 ***
 
@@ -116,4 +116,4 @@ Defined in: [packages/typescript/ai/src/types.ts:319](https://github.com/TanStac
 type: "tool-call";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:315](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L315)
+Defined in: [packages/ai/src/types.ts:350](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L350)

@@ -1,0 +1,11 @@
+{
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "vitest.explorer",
+    "nrwl.angular-console",
+    "svelte.svelte-vscode",
+    "Vue.volar",
+    "EditorConfig.EditorConfig"
+  ]
+}

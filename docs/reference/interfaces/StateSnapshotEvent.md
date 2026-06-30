@@ -5,7 +5,7 @@ title: StateSnapshotEvent
 
 # Interface: StateSnapshotEvent
 
-Defined in: [packages/typescript/ai/src/types.ts:1028](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1028)
+Defined in: [packages/ai/src/types.ts:1227](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1227)
 
 Emitted to provide a full state snapshot.
 
@@ -30,7 +30,7 @@ TanStack AI adds: `model?`, `state?` (deprecated alias for snapshot)
 optional model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1030](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1030)
+Defined in: [packages/ai/src/types.ts:1229](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1229)
 
 Model identifier for multi-model support
 
@@ -42,7 +42,7 @@ Model identifier for multi-model support
 optional state: Record<string, unknown>;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1035](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1035)
+Defined in: [packages/ai/src/types.ts:1234](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1234)
 
 #### Deprecated
 

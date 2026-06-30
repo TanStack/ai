@@ -5,7 +5,7 @@ title: ContentPartUrlSource
 
 # Interface: ContentPartUrlSource
 
-Defined in: [packages/typescript/ai/src/types.ts:165](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L165)
+Defined in: [packages/ai/src/types.ts:200](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L200)
 
 Source specification for URL-based content.
 mimeType is optional as it can often be inferred from the URL or response headers.
@@ -18,7 +18,7 @@ mimeType is optional as it can often be inferred from the URL or response header
 optional mimeType: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:177](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L177)
+Defined in: [packages/ai/src/types.ts:212](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L212)
 
 Optional MIME type hint for cases where providers can't infer it from the URL.
 
@@ -30,7 +30,7 @@ Optional MIME type hint for cases where providers can't infer it from the URL.
 type: "url";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:169](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L169)
+Defined in: [packages/ai/src/types.ts:204](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L204)
 
 Indicates this is URL-referenced content.
 
@@ -42,6 +42,6 @@ Indicates this is URL-referenced content.
 value: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:173](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L173)
+Defined in: [packages/ai/src/types.ts:208](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L208)
 
 HTTP(S) URL or data URI pointing to the content.

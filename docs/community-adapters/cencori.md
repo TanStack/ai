@@ -23,17 +23,20 @@ npm install @cencori/ai-sdk
 
 ## Basic Usage
 
-```typescript
+```typescript ignore
+// ignore: @cencori/ai-sdk/tanstack is a subpath export; kiira's paths["*"] wildcard maps it
+// to a flat directory lookup and does not consult the package.json exports field,
+// so the subpath cannot be resolved until kiira.config.ts adds an explicit path entry.
 import { chat } from "@tanstack/ai";
 import { cencori } from "@cencori/ai-sdk/tanstack";
 
-const adapter = cencori("gpt-4o");
+const adapter = cencori("o1");
 
 for await (const chunk of chat({
   adapter,
   messages: [{ role: "user", content: "Hello!" }],
 })) {
-  if (chunk.type === "content") {
+  if (chunk.type === "TEXT_MESSAGE_CONTENT") {
     console.log(chunk.delta);
   }
 }
@@ -41,20 +44,22 @@ for await (const chunk of chat({
 
 ## Configuration
 
-```typescript
+```typescript ignore
+// ignore: @cencori/ai-sdk/tanstack subpath not resolvable via kiira's paths["*"] wildcard.
 import { createCencori } from "@cencori/ai-sdk/tanstack";
 
-const cencori = createCencori({
+const myCencori = createCencori({
   apiKey: process.env.CENCORI_API_KEY!,
   baseUrl: "https://cencori.com", // Optional
 });
 
-const adapter = cencori("gpt-4o");
+const adapter = myCencori("o1");
 ```
 
 ## Streaming
 
-```typescript
+```typescript ignore
+// ignore: @cencori/ai-sdk/tanstack subpath not resolvable via kiira's paths["*"] wildcard.
 import { chat } from "@tanstack/ai";
 import { cencori } from "@cencori/ai-sdk/tanstack";
 
@@ -64,10 +69,10 @@ for await (const chunk of chat({
   adapter,
   messages: [{ role: "user", content: "Tell me a story" }],
 })) {
-  if (chunk.type === "content") {
+  if (chunk.type === "TEXT_MESSAGE_CONTENT") {
     process.stdout.write(chunk.delta);
-  } else if (chunk.type === "done") {
-    console.log("\nDone:", chunk.finishReason);
+  } else if (chunk.type === "RUN_FINISHED") {
+    console.log("\nDone");
   }
 }
 ```
@@ -75,28 +80,34 @@ for await (const chunk of chat({
 
 ## Tool Calling
 
-```typescript
-import { chat } from "@tanstack/ai";
+```typescript ignore
+// ignore: @cencori/ai-sdk/tanstack subpath not resolvable via kiira's paths["*"] wildcard.
+import { chat, toolDefinition } from "@tanstack/ai";
 import { cencori } from "@cencori/ai-sdk/tanstack";
+import { z } from "zod";
 
-const adapter = cencori("gpt-4o");
+const adapter = cencori("o1");
+
+const getWeatherDef = toolDefinition({
+  name: "getWeather",
+  description: "Get weather for a location",
+  inputSchema: z.object({ location: z.string() }),
+});
+
+const getWeather = getWeatherDef.server(async ({ location }) => {
+  // Look up the weather for `location`
+  return { temperature: 72, conditions: "Sunny" };
+});
 
 for await (const chunk of chat({
   adapter,
   messages: [{ role: "user", content: "What's the weather in NYC?" }],
-  tools: {
-    getWeather: {
-      name: "getWeather",
-      description: "Get weather for a location",
-      inputSchema: {
-        type: "object",
-        properties: { location: { type: "string" } },
-      },
-    },
-  },
+  tools: [getWeather],
 })) {
-  if (chunk.type === "tool_call") {
-    console.log("Tool call:", chunk.toolCall);
+  if (chunk.type === "TOOL_CALL_START") {
+    console.log("Tool call:", chunk.toolCallName);
+  } else if (chunk.type === "TOOL_CALL_END") {
+    console.log("Tool call finished:", chunk.toolCallId);
   }
 }
 ```
@@ -106,11 +117,12 @@ for await (const chunk of chat({
 
 Switch between providers with a single parameter:
 
-```typescript
+```typescript ignore
+// ignore: @cencori/ai-sdk/tanstack subpath not resolvable via kiira's paths["*"] wildcard.
 import { cencori } from "@cencori/ai-sdk/tanstack";
 
-// OpenAI
-const openai = cencori("gpt-4o");
+// OpenAI-compatible
+const openaiCompat = cencori("o1");
 
 // Anthropic
 const anthropic = cencori("claude-3-5-sonnet");
@@ -138,6 +150,8 @@ All responses use the same unified format regardless of provider.
 | Mistral | `mistral-large`, `codestral`, `devstral` |
 | DeepSeek | `deepseek-v3.2`, `deepseek-reasoner` |
 | + More | Groq, Cohere, Perplexity, Together, Qwen, OpenRouter |
+
+> **Note:** Cencori is an external package and its catalogue changes over time. Verify the model ids above against [Cencori's current catalogue](https://cencori.com/docs) before relying on them.
 
 ## Environment Variables
 

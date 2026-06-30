@@ -5,48 +5,45 @@
     "type": "git",
     "url": "git+https://github.com/TanStack/ai.git"
   },
-  "packageManager": "pnpm@10.17.0",
+  "packageManager": "pnpm@11.9.0",
   "type": "module",
-  "pnpm": {
-    "overrides": {
-      "abbrev": "^3.0.0"
-    },
-    "ignoredBuiltDependencies": [
-      "isolated-vm"
-    ],
-    "patchedDependencies": {
-      "@changesets/assemble-release-plan@6.0.9": "patches/@changesets__assemble-release-plan@6.0.9.patch"
-    }
+  "engines": {
+    "pnpm": ">=11.9.0"
   },
   "scripts": {
     "clean": "pnpm --filter \"./packages/**\" run clean",
     "clean:all": "git clean -fdx --exclude=\"!.env\"",
     "test": "pnpm run test:ci",
-    "test:pr": "nx affected --targets=test:sherif,test:knip,test:docs,test:eslint,test:lib,test:types,test:build,build",
-    "test:ci": "nx run-many --targets=test:sherif,test:knip,test:docs,test:eslint,test:lib,test:types,test:build,build",
-    "test:eslint": "nx affected --target=test:eslint --exclude=examples/**",
+    "test:pr": "pnpm run test:react-native && nx affected --targets=test:sherif,test:knip,test:docs,test:kiira,test:eslint,test:lib,test:types,test:build,build --exclude=examples/**,testing/**",
+    "test:ci": "pnpm run test:react-native && nx run-many --targets=test:sherif,test:knip,test:docs,test:kiira,test:eslint,test:lib,test:types,test:build,build --exclude=examples/**,testing/**",
+    "test:eslint": "nx affected --target=test:eslint --exclude=examples/**,testing/**",
     "test:sherif": "sherif",
-    "test:lib": "nx affected --targets=test:lib --exclude=examples/**",
+    "test:lib": "nx affected --targets=test:lib --exclude=examples/**,testing/**",
     "test:lib:dev": "pnpm test:lib && nx watch --all -- pnpm test:lib",
-    "test:coverage": "nx affected --targets=test:coverage --exclude=examples/**",
-    "test:build": "nx affected --target=test:build --exclude=examples/**",
-    "test:types": "nx affected --targets=test:types --exclude=examples/**",
+    "test:coverage": "nx affected --targets=test:coverage --exclude=examples/**,testing/**",
+    "test:build": "nx affected --target=test:build --exclude=examples/**,testing/**",
+    "test:types": "nx affected --targets=test:types --exclude=examples/**,testing/**",
     "test:knip": "knip",
     "test:docs": "node scripts/verify-links.ts",
+    "test:kiira": "kiira check",
+    "test:react-native": "pnpm --filter @tanstack/ai-react-native-smoke smoke",
     "test:e2e": "pnpm --filter @tanstack/ai-e2e test:e2e",
     "test:e2e:ui": "pnpm --filter @tanstack/ai-e2e test:e2e:ui",
-    "build": "nx affected --skip-nx-cache --targets=build --exclude=examples/**",
-    "build:all": "nx run-many --targets=build --exclude=examples/**",
+    "codemod:ag-ui-compliance": "pnpm --filter @tanstack/ai-codemods exec node ./run.mjs ag-ui-compliance",
+    "codemod:move-sampling-to-model-options": "pnpm --filter @tanstack/ai-codemods exec node ./run.mjs move-sampling-to-model-options",
+    "build": "nx affected --skip-nx-cache --targets=build --exclude=examples/**,testing/**",
+    "build:all": "nx run-many --targets=build --exclude=examples/**,testing/**",
     "watch": "pnpm run build:all && env NX_DAEMON=true nx watch --all -- pnpm run build:all",
     "dev": "pnpm run watch",
     "dev:chat": "pnpm --filter ts-react-chat dev",
     "format": "prettier --experimental-cli --ignore-unknown '**/*' --write",
     "generate-docs": "node scripts/generate-docs.ts && pnpm run copy:readme",
+    "generate:fal-image-fields": "tsx scripts/generate-fal-image-field-map.ts",
     "generate:models": "pnpm generate:models:fetch && pnpm regenerate:models && tsx scripts/sync-provider-models.ts && pnpm format",
     "generate:models:fetch": "tsx scripts/fetch-openrouter-models.ts",
     "regenerate:models": "tsx scripts/convert-openrouter-models.ts",
     "sync-docs-config": "node scripts/sync-docs-config.ts",
-    "copy:readme": "cp README.md packages/typescript/ai/README.md && cp README.md packages/typescript/ai-devtools/README.md && cp README.md packages/typescript/preact-ai-devtools/README.md && cp README.md packages/typescript/ai-client/README.md && cp README.md packages/typescript/ai-gemini/README.md && cp README.md packages/typescript/ai-ollama/README.md && cp README.md packages/typescript/ai-openai/README.md && cp README.md packages/typescript/ai-react/README.md && cp README.md packages/typescript/ai-react-ui/README.md && cp README.md packages/typescript/react-ai-devtools/README.md && cp README.md packages/typescript/solid-ai-devtools/README.md",
+    "copy:readme": "node scripts/copy-readme.js",
     "changeset": "changeset",
     "changeset:publish": "changeset publish",
     "changeset:version": "changeset version && pnpm install --no-frozen-lockfile && pnpm format"
@@ -54,21 +51,23 @@
   "nx": {
     "includedScripts": [
       "test:docs",
+      "test:kiira",
       "test:knip",
       "test:sherif"
     ]
   },
   "devDependencies": {
+    "@changesets/changelog-github": "^0.7.0",
     "@changesets/cli": "^2.30.0",
     "@faker-js/faker": "^10.1.0",
-    "@svitejs/changesets-changelog-github-compact": "^1.2.0",
-    "@tanstack/eslint-config": "0.3.3",
+    "@tanstack/eslint-config": "0.4.0",
     "@tanstack/typedoc-config": "0.3.1",
     "@tanstack/vite-config": "0.4.1",
     "@types/node": "^24.10.1",
     "eslint": "^9.39.1",
     "eslint-plugin-unused-imports": "^4.3.0",
     "happy-dom": "^20.0.10",
+    "kiira": "0.5.0",
     "knip": "^5.70.2",
     "markdown-link-extractor": "^4.0.3",
     "nx": "22.1.2",
@@ -80,7 +79,7 @@
     "tinyglobby": "^0.2.15",
     "tsx": "^4.21.0",
     "typescript": "5.9.3",
-    "vite": "^7.2.7",
+    "vite": "^7.3.3",
     "vitest": "^4.0.14"
   }
 }

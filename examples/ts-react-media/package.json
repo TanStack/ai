@@ -14,6 +14,7 @@
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-fal": "workspace:*",
     "@tanstack/ai-gemini": "workspace:*",
+    "@tanstack/ai-grok": "workspace:*",
     "@tanstack/react-router": "^1.158.4",
     "@tanstack/react-start": "^1.159.0",
     "@tanstack/router-plugin": "^1.158.4",
@@ -30,6 +31,6 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.2",
     "typescript": "5.9.3",
-    "vite": "^7.2.7"
+    "vite": "^7.3.3"
   }
 }

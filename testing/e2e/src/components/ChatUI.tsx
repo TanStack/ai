@@ -18,6 +18,13 @@ interface ChatUIProps {
   }) => Promise<void>
   showImageInput?: boolean
   onStop?: () => void
+  /** When the streaming structured-output CUSTOM event lands, the page
+   *  exposes the parsed object here so e2e tests can assert that the event
+   *  reached the client (not just that the JSON text was rendered). */
+  structuredObject?: unknown
+  /** Number of TEXT_MESSAGE_CONTENT chunks observed. Used by streaming e2e
+   *  tests to verify the response actually streamed in multiple deltas. */
+  contentDeltaCount?: number
 }
 
 export function ChatUI({
@@ -28,9 +35,12 @@ export function ChatUI({
   addToolApprovalResponse,
   showImageInput,
   onStop,
+  structuredObject,
+  contentDeltaCount,
 }: ChatUIProps) {
   const [input, setInput] = useState('')
   const messagesRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (messagesRef.current) {
@@ -46,6 +56,20 @@ export function ChatUI({
 
   return (
     <div className="flex flex-col h-[calc(100vh-60px)]">
+      {structuredObject != null && (
+        <div
+          data-testid="structured-output-complete"
+          data-structured-output={JSON.stringify(structuredObject)}
+          hidden
+        />
+      )}
+      {contentDeltaCount != null && (
+        <div
+          data-testid="content-delta-count"
+          data-count={String(contentDeltaCount)}
+          hidden
+        />
+      )}
       <div
         ref={messagesRef}
         data-testid="message-list"
@@ -68,6 +92,7 @@ export function ChatUI({
                 return (
                   <div
                     key={i}
+                    data-testid="text-part"
                     className="prose prose-invert prose-sm max-w-none"
                   >
                     <ReactMarkdown
@@ -135,6 +160,26 @@ export function ChatUI({
                   </div>
                 )
               }
+              if (part.type === 'structured-output') {
+                // Render the streamed JSON so the assistant message has
+                // visible content for selectors (e.g. `getLastAssistantMessage`).
+                // Previously this content arrived as a `text` part — the new
+                // routing puts it on a `structured-output` part instead.
+                const sop = part as any
+                const text =
+                  sop.raw ||
+                  (sop.data !== undefined ? JSON.stringify(sop.data) : '')
+                if (text === '') return null
+                return (
+                  <div
+                    key={i}
+                    data-testid="structured-output-part"
+                    className="prose prose-invert prose-sm max-w-none whitespace-pre-wrap break-words"
+                  >
+                    {text}
+                  </div>
+                )
+              }
               return null
             })}
           </div>
@@ -159,14 +204,20 @@ export function ChatUI({
             className="text-xs text-gray-400"
             onChange={(e) => {
               const file = e.target.files?.[0]
-              if (file && input.trim() && onSendMessageWithImage) {
-                onSendMessageWithImage(input.trim(), file)
+              // Read the prompt from the live input DOM value rather than the
+              // `input` React state. Attaching a file auto-sends, and under
+              // load a controlled input's state can lag the committed DOM
+              // value — reading state here would send an empty/partial prompt.
+              const text = (inputRef.current?.value ?? input).trim()
+              if (file && text && onSendMessageWithImage) {
+                onSendMessageWithImage(text, file)
                 setInput('')
               }
             }}
           />
         )}
         <input
+          ref={inputRef}
           data-testid="chat-input"
           type="text"
           value={input}

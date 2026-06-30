@@ -1,0 +1,86 @@
+{
+  "name": "@tanstack/ai-react",
+  "version": "0.16.0",
+  "description": "React hooks for TanStack AI streaming chat, realtime voice, structured outputs, and media generation.",
+  "author": "Tanner Linsley",
+  "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-react"
+  },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    },
+    "./mcp-apps": {
+      "types": "./dist/esm/mcp-apps.d.ts",
+      "import": "./dist/esm/mcp-apps.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest run",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc",
+    "test:build": "publint --strict",
+    "build": "vite build"
+  },
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "react",
+    "hooks",
+    "chat",
+    "streaming",
+    "realtime",
+    "tool-calling",
+    "structured-outputs",
+    "media-generation"
+  ],
+  "dependencies": {
+    "@tanstack/ai-client": "workspace:*"
+  },
+  "peerDependencies": {
+    "@mcp-ui/client": "^7",
+    "@tanstack/ai": "workspace:^",
+    "@types/react": ">=18.0.0",
+    "react": ">=18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@mcp-ui/client": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@mcp-ui/client": "^7.1.1",
+    "@standard-schema/spec": "^1.1.0",
+    "@tanstack/ai": "workspace:*",
+    "@testing-library/react": "^16.3.0",
+    "@types/react": "^19.2.7",
+    "@vitest/coverage-v8": "4.0.14",
+    "jsdom": "^27.2.0",
+    "react": "^19.2.3",
+    "vite": "^7.3.3"
+  }
+}

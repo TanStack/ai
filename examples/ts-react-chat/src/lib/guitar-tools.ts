@@ -2,6 +2,56 @@ import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 import guitars from '@/data/example-guitars'
 
+export const runtimeLoyaltyTiers = ['standard', 'gold', 'platinum'] as const
+export const runtimePreferredStyles = [
+  'acoustic',
+  'electric',
+  'experimental',
+] as const
+
+export type RuntimeLoyaltyTier = (typeof runtimeLoyaltyTiers)[number]
+export type RuntimePreferredStyle = (typeof runtimePreferredStyles)[number]
+
+export type ClientRuntimeContext = {
+  userId: string
+  tenantId: string
+  loyaltyTier: RuntimeLoyaltyTier
+  preferredStyle: RuntimePreferredStyle
+}
+
+export type ServerRuntimeContext = ClientRuntimeContext & {
+  requestSource: 'react-chat'
+  serverRegion: string
+}
+
+const runtimeContextBaseOutputSchema = z.object({
+  userId: z.string(),
+  tenantId: z.string(),
+  loyaltyTier: z.enum(runtimeLoyaltyTiers),
+  preferredStyle: z.enum(runtimePreferredStyles),
+})
+
+export const inspectClientRuntimeContextToolDef = toolDefinition({
+  name: 'inspectClientRuntimeContext',
+  description: 'Read typed runtime context that is available in the browser.',
+  inputSchema: z.object({}),
+  outputSchema: runtimeContextBaseOutputSchema.extend({
+    source: z.literal('client'),
+  }),
+})
+
+export const inspectServerRuntimeContextToolDef = toolDefinition({
+  name: 'inspectServerRuntimeContext',
+  description:
+    'Read typed runtime context that the server mapped from the chat request.',
+  inputSchema: z.object({}),
+  outputSchema: runtimeContextBaseOutputSchema.extend({
+    requestSource: z.literal('react-chat'),
+    serverRegion: z.string(),
+    source: z.literal('server'),
+  }),
+})
+
 // Tool definition for getting guitars
 export const getGuitarsToolDef = toolDefinition({
   name: 'getGuitars',

@@ -178,11 +178,11 @@ export const Route = createFileRoute('/api/chat')({
               }),
             gemini: () =>
               createChatOptions({
-                adapter: geminiText((model || 'gemini-2.0-flash') as any),
+                adapter: geminiText((model || 'gemini-2.5-flash') as any),
               }),
             grok: () =>
               createChatOptions({
-                adapter: grokText((model || 'grok-3') as any),
+                adapter: grokText((model || 'grok-build-0.1') as any),
               }),
             ollama: () =>
               createChatOptions({

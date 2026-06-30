@@ -3,9 +3,9 @@ id: ImageAdapter
 title: ImageAdapter
 ---
 
-# Interface: ImageAdapter\<TModel, TProviderOptions, TModelProviderOptionsByName, TModelSizeByName\>
+# Interface: ImageAdapter\<TModel, TProviderOptions, TModelProviderOptionsByName, TModelSizeByName, TModelInputModalitiesByName\>
 
-Defined in: [packages/typescript/ai/src/activities/generateImage/adapter.ts:33](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateImage/adapter.ts#L33)
+Defined in: [packages/ai/src/activities/generateImage/adapter.ts:39](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateImage/adapter.ts#L39)
 
 Image adapter interface with pre-resolved generics.
 
@@ -17,6 +17,8 @@ Generic parameters:
 - TProviderOptions: Base provider-specific options (already resolved)
 - TModelProviderOptionsByName: Map from model name to its specific provider options
 - TModelSizeByName: Map from model name to its supported sizes
+- TModelInputModalitiesByName: Map from model name to the non-text prompt
+  modalities it accepts (constrains the `prompt` part types at compile time)
 
 ## Type Parameters
 
@@ -34,7 +36,11 @@ Generic parameters:
 
 ### TModelSizeByName
 
-`TModelSizeByName` *extends* `Record`\<`string`, `string`\> = `Record`\<`string`, `string`\>
+`TModelSizeByName` *extends* `Record`\<`string`, `string` \| `undefined`\> = `Record`\<`string`, `string`\>
+
+### TModelInputModalitiesByName
+
+`TModelInputModalitiesByName` *extends* [`ModelInputModalitiesByName`](../type-aliases/ModelInputModalitiesByName.md) = [`ModelInputModalitiesByName`](../type-aliases/ModelInputModalitiesByName.md)
 
 ## Properties
 
@@ -44,11 +50,17 @@ Generic parameters:
 ~types: object;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateImage/adapter.ts:49](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateImage/adapter.ts#L49)
+Defined in: [packages/ai/src/activities/generateImage/adapter.ts:60](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateImage/adapter.ts#L60)
 
 **`Internal`**
 
 Type-only properties for inference. Not assigned at runtime.
+
+#### modelInputModalitiesByName
+
+```ts
+modelInputModalitiesByName: TModelInputModalitiesByName;
+```
 
 #### modelProviderOptionsByName
 
@@ -76,7 +88,7 @@ providerOptions: TProviderOptions;
 generateImages: (options) => Promise<ImageGenerationResult>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateImage/adapter.ts:58](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateImage/adapter.ts#L58)
+Defined in: [packages/ai/src/activities/generateImage/adapter.ts:70](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateImage/adapter.ts#L70)
 
 Generate images from a prompt
 
@@ -98,7 +110,7 @@ Generate images from a prompt
 readonly kind: "image";
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateImage/adapter.ts:40](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateImage/adapter.ts#L40)
+Defined in: [packages/ai/src/activities/generateImage/adapter.ts:51](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateImage/adapter.ts#L51)
 
 Discriminator for adapter kind - used by generate() to determine API shape
 
@@ -110,7 +122,7 @@ Discriminator for adapter kind - used by generate() to determine API shape
 readonly model: TModel;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateImage/adapter.ts:44](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateImage/adapter.ts#L44)
+Defined in: [packages/ai/src/activities/generateImage/adapter.ts:55](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateImage/adapter.ts#L55)
 
 The model this adapter is configured for
 
@@ -122,6 +134,6 @@ The model this adapter is configured for
 readonly name: string;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateImage/adapter.ts:42](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateImage/adapter.ts#L42)
+Defined in: [packages/ai/src/activities/generateImage/adapter.ts:53](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateImage/adapter.ts#L53)
 
 Adapter name identifier

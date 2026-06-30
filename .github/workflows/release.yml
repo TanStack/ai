@@ -12,27 +12,49 @@ env:
   NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
 
 permissions:
-  contents: write
-  id-token: write
-  pull-requests: write
+  contents: read
 
 jobs:
-  release:
-    name: Release
+  test:
+    name: Test
     if: github.repository_owner == 'TanStack'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Setup Tools
-        uses: TanStack/config/.github/setup@main
+        uses: TanStack/config/.github/setup@190f659075ff0845850e330883eb26d7ffd0671f # main
       - name: Run Tests
         run: pnpm run test:ci
+
+  release:
+    name: Release
+    needs: test
+    if: github.repository_owner == 'TanStack'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Setup Tools
+        uses: TanStack/config/.github/setup@190f659075ff0845850e330883eb26d7ffd0671f # main
+      - name: Build packages
+        # Fresh, cache-bypassing build so dist/ is on disk when changeset
+        # publish packs tarballs. A cached build can report success without
+        # materializing dist/, shipping src-only packages (see 0.33.0-0.36.0).
+        run: pnpm exec nx run-many --targets=build --exclude=examples/**,testing/** --skip-nx-cache
       - name: Run Changesets (version or publish)
         id: changesets
-        uses: changesets/action@v1.7.0
+        uses: changesets/action@6a0a831ff30acef54f2c6aa1cbbc1096b066edaf # v1.7.0
         with:
           version: pnpm run changeset:version
           publish: pnpm run changeset:publish
@@ -48,16 +70,16 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             BRANCH_NAME="docs/auto-update-$(date +%s)"
-            git checkout -b $BRANCH_NAME
+            git checkout -b "$BRANCH_NAME"
             git add .
             git commit -m "docs: regenerate API documentation"
-            git push origin $BRANCH_NAME
-            gh pr create --title "docs: regenerate API documentation" --body "Automated documentation update from release" --base main --head $BRANCH_NAME
+            git push origin "$BRANCH_NAME"
+            gh pr create --title "docs: regenerate API documentation" --body "Automated documentation update from release" --base main --head "$BRANCH_NAME"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Comment on PRs about release
         if: steps.changesets.outputs.published == 'true'
-        uses: TanStack/config/.github/comment-on-release@main
+        uses: TanStack/config/.github/comment-on-release@190f659075ff0845850e330883eb26d7ffd0671f # main
         with:
           published-packages: ${{ steps.changesets.outputs.publishedPackages }}

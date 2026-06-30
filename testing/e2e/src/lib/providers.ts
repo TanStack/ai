@@ -2,14 +2,19 @@ import { createChatOptions } from '@tanstack/ai'
 import { createOpenaiChat } from '@tanstack/ai-openai'
 import { createAnthropicChat } from '@tanstack/ai-anthropic'
 import { createGeminiChat } from '@tanstack/ai-gemini'
+import { createGeminiTextInteractions } from '@tanstack/ai-gemini/experimental'
 import { createOllamaChat } from '@tanstack/ai-ollama'
 import { createGroqText } from '@tanstack/ai-groq'
 import { createGrokText } from '@tanstack/ai-grok'
-import { createOpenRouterText } from '@tanstack/ai-openrouter'
+import { openaiCompatibleText } from '@tanstack/ai-openai/compatible'
+import {
+  createOpenRouterResponsesText,
+  createOpenRouterText,
+} from '@tanstack/ai-openrouter'
 import { createMistralText } from '@tanstack/ai-mistral'
 import { HTTPClient } from '@openrouter/sdk'
 import type { AnyTextAdapter } from '@tanstack/ai'
-import type { Provider } from '@/lib/types'
+import type { Feature, Provider } from '@/lib/types'
 
 const LLMOCK_DEFAULT_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
 const DUMMY_KEY = 'sk-e2e-test-dummy-key'
@@ -17,11 +22,13 @@ const DUMMY_KEY = 'sk-e2e-test-dummy-key'
 const defaultModels: Record<Provider, string> = {
   openai: 'gpt-4o',
   anthropic: 'claude-sonnet-4-5',
-  gemini: 'gemini-2.0-flash',
+  gemini: 'gemini-2.5-flash',
   ollama: 'mistral',
   groq: 'llama-3.3-70b-versatile',
-  grok: 'grok-3',
+  grok: 'grok-build-0.1',
   openrouter: 'openai/gpt-4o',
+  'openrouter-responses': 'openai/gpt-4o',
+  'openai-compatible': 'gpt-4o',
   mistral: 'mistral-large-latest',
   // ElevenLabs has no chat/text model — the support matrix already filters
   // it out of text features, but we still need an entry to satisfy the
@@ -32,8 +39,9 @@ const defaultModels: Record<Provider, string> = {
 export function createTextAdapter(
   provider: Provider,
   modelOverride?: string,
-  aimockPort?: number,
+  _aimockPort?: number,
   testId?: string,
+  feature?: Feature,
 ): { adapter: AnyTextAdapter } {
   const model = modelOverride ?? defaultModels[provider]
 
@@ -44,6 +52,24 @@ export function createTextAdapter(
 
   // X-Test-Id header for per-test sequenceIndex isolation in aimock
   const testHeaders = testId ? { 'X-Test-Id': testId } : undefined
+
+  // The Gemini Interactions API lives at a different endpoint
+  // (POST /v1beta/interactions) and uses a different adapter than the
+  // standard Gemini chat path.
+  if (provider === 'gemini' && feature === 'stateful-interactions') {
+    return createChatOptions({
+      adapter: createGeminiTextInteractions(
+        model as 'gemini-2.5-flash',
+        DUMMY_KEY,
+        {
+          httpOptions: {
+            baseUrl: base,
+            headers: testHeaders,
+          },
+        },
+      ),
+    })
+  }
 
   const factories: Record<Provider, () => { adapter: AnyTextAdapter }> = {
     openai: () =>
@@ -62,7 +88,7 @@ export function createTextAdapter(
       }),
     gemini: () =>
       createChatOptions({
-        adapter: createGeminiChat(model as 'gemini-2.0-flash', DUMMY_KEY, {
+        adapter: createGeminiChat(model as 'gemini-2.5-flash', DUMMY_KEY, {
           httpOptions: {
             baseUrl: base,
             headers: testHeaders,
@@ -85,7 +111,7 @@ export function createTextAdapter(
       }),
     grok: () =>
       createChatOptions({
-        adapter: createGrokText(model as 'grok-3', DUMMY_KEY, {
+        adapter: createGrokText(model as 'grok-build-0.1', DUMMY_KEY, {
           baseURL: openaiUrl,
           defaultHeaders: testHeaders,
         }),
@@ -112,6 +138,34 @@ export function createTextAdapter(
         }),
       })
     },
+    'openrouter-responses': () => {
+      // Same X-Test-Id injection rationale as the chat-completions factory
+      // above. The beta Responses endpoint uses the same SDK base URL +
+      // HTTPClient surface.
+      const httpClient = new HTTPClient()
+      if (testId) {
+        httpClient.addHook('beforeRequest', (req) => {
+          const next = new Request(req)
+          next.headers.set('X-Test-Id', testId)
+          return next
+        })
+      }
+      return createChatOptions({
+        adapter: createOpenRouterResponsesText(
+          model as 'openai/gpt-4o',
+          DUMMY_KEY,
+          { serverURL: openaiUrl, httpClient },
+        ),
+      })
+    },
+    'openai-compatible': () =>
+      createChatOptions({
+        adapter: openaiCompatibleText(model, {
+          baseURL: openaiUrl,
+          apiKey: DUMMY_KEY,
+          defaultHeaders: testHeaders,
+        }),
+      }),
     mistral: () =>
       createChatOptions({
         adapter: createMistralText(model as 'mistral-large-latest', DUMMY_KEY, {
