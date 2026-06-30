@@ -54,6 +54,13 @@ function bodyLayers(value: object): Array<object> {
   ) {
     layers.push(value.data)
   }
+  if (
+    'forwardedProps' in value &&
+    value.forwardedProps !== null &&
+    typeof value.forwardedProps === 'object'
+  ) {
+    layers.push(value.forwardedProps)
+  }
   return layers
 }
 
@@ -123,7 +130,10 @@ export const Route = createFileRoute('/api/run')({
         }
 
         if (!isHarness(body.harness) || !isProvider(body.provider)) {
-          return jsonError(400, 'Unknown harness or provider.')
+          return jsonError(
+            400,
+            `Unknown harness or provider (got harness=${String(body.harness)}, provider=${String(body.provider)}).`,
+          )
         }
         const harness = body.harness
         const provider = body.provider

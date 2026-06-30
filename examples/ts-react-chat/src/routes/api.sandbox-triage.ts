@@ -49,11 +49,15 @@ export async function triagePost(request: Request): Promise<Response> {
 
   let data: TriageData
   try {
-    const body = (await request.json()) as { data?: TriageData }
-    if (body.data == null || typeof body.data !== 'object') {
-      throw new Error('body.data is required')
+    const body = (await request.json()) as {
+      data?: TriageData
+      forwardedProps?: TriageData
     }
-    data = body.data
+    const layer = body.data ?? body.forwardedProps
+    if (layer == null || typeof layer !== 'object') {
+      throw new Error('body.data (or forwardedProps) is required')
+    }
+    data = layer
   } catch (error) {
     return json(400, error instanceof Error ? error.message : 'invalid body')
   }

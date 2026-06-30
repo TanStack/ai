@@ -278,7 +278,28 @@ function SandboxAgentPage() {
   )
 
   const { messages, sendMessage, isLoading, stop, error, clear } = useChat({
-    connection: fetchServerSentEvents('/api/run'),
+    connection: fetchServerSentEvents('/api/run', {
+      // Surface the server's JSON `{ error }` on 4xx instead of a bare status code.
+      fetchClient: async (url, init) => {
+        const response = await fetch(url, init)
+        if (!response.ok) {
+          const text = await response.text()
+          try {
+            const parsed = JSON.parse(text) as { error?: unknown }
+            if (typeof parsed.error === 'string' && parsed.error !== '') {
+              throw new Error(parsed.error)
+            }
+          } catch (error) {
+            if (error instanceof Error && error.message !== text) throw error
+          }
+          throw new Error(
+            text.trim() ||
+              `HTTP error! status: ${response.status} ${response.statusText}`,
+          )
+        }
+        return response
+      },
+    }),
     body,
   })
 
