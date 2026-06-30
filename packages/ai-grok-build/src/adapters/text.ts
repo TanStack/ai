@@ -19,6 +19,7 @@ import {
   spawnNdjson,
 } from '@tanstack/ai-sandbox'
 import { buildPrompt } from '../messages/prompt'
+import { resolveGrokAcpAuthMethod } from '../auth'
 import { openGrokAcpConnection } from '../process/acp'
 import { resolveGrokCliModel } from '../model-meta'
 import { SESSION_ID_EVENT, translateThreadEvents } from '../stream/translate'
@@ -67,7 +68,10 @@ export interface GrokBuildTextConfig {
   protocol?: GrokBuildProtocol
   /** ACP transport when `protocol` is `'acp'`. Defaults to `'auto'`. */
   transport?: AcpTransportPreference
-  /** ACP auth method (grok: typically `'cached_token'`). */
+  /**
+   * ACP auth method (`xai.api_key` for API-key runs, `grok.com` for host login).
+   * Defaults via {@link resolveGrokAcpAuthMethod}.
+   */
   authMethodId?: string
   /** ACP permission policy. Defaults to `'bypassPermissions'`. */
   permissionMode?: AcpPermissionMode
@@ -241,7 +245,10 @@ export class GrokBuildTextAdapter<
       const authMethodId =
         modelOptions?.authMethodId ??
         this.adapterConfig.authMethodId ??
-        'cached_token'
+        resolveGrokAcpAuthMethod({
+          ...process.env,
+          ...this.adapterConfig.env,
+        })
 
       const queue = new AsyncQueue<AcpStreamEvent>()
 

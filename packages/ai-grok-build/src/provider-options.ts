@@ -25,7 +25,9 @@ export interface GrokBuildTextProviderOptions {
   protocol?: GrokBuildProtocol
   /** ACP transport when `protocol` is `'acp'`. Defaults to `'auto'`. */
   transport?: AcpTransportPreference
-  /** ACP auth method (grok: typically `'cached_token'`). */
+  /**
+   * ACP auth method (`xai.api_key` | `grok.com`). Omitted → auto from env keys.
+   */
   authMethodId?: string
   /** ACP permission policy for tool approvals. Defaults to `'bypassPermissions'`. */
   permissionMode?: AcpPermissionMode
