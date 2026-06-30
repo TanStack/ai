@@ -242,7 +242,9 @@ export const Route = createFileRoute('/api/run')({
                 messages,
                 systemPrompts,
                 tools,
-                ...(sessionId !== undefined ? { modelOptions: { sessionId } } : {}),
+                ...(sessionId !== undefined
+                  ? { modelOptions: { sessionId } }
+                  : {}),
                 middleware: needsNgrokBridge(provider)
                   ? [withSandbox(sandbox), withNgrokBridge]
                   : [withSandbox(sandbox)],
