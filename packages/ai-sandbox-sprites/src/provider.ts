@@ -124,8 +124,8 @@ class SpritesProvider implements SandboxProvider {
 
 /**
  * Sprites sandbox provider — runs harness adapters inside isolated Fly.io
- * Sprite cloud sandboxes ([sprites.dev](https://sprites.dev)). Requires a
- * Sprites API token (`config.apiKey` or the `SPRITES_API_KEY` env var).
+ * Sprite stateful sandboxes. Requires a Sprites API token (`config.apiKey` or
+ * the `SPRITES_API_KEY` env var).
  */
 export function spritesSandbox(
   config: SpritesSandboxConfig = {},

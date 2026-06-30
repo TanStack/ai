@@ -24,7 +24,7 @@ same.
 | Docker | `@tanstack/ai-sandbox-docker` | container | Real isolation; commit-based snapshots, fork, resume-by-id. |
 | Daytona | `@tanstack/ai-sandbox-daytona` | cloud sandbox | Managed [Daytona](https://www.daytona.io/) sandboxes; port preview links, resume-by-id. Needs `DAYTONA_API_KEY`. |
 | Vercel | `@tanstack/ai-sandbox-vercel` | microVM | Managed [Vercel Sandbox](https://vercel.com/docs/sandbox) microVMs; exposed-port domains, resume-by-id (persistent). Needs `VERCEL_TOKEN` + team/project. |
-| Sprites | `@tanstack/ai-sandbox-sprites` | cloud sandbox | Managed [Sprites](https://sprites.dev) (Fly.io) sandboxes; durable filesystem, in-place checkpoints, single proxied public-URL port, resume-by-id. Needs `SPRITES_API_KEY`. |
+| Sprites | `@tanstack/ai-sandbox-sprites` | stateful sandbox | Managed [Sprites](https://sprites.dev) (Fly.io) sandboxes; durable filesystem, in-place checkpoints, single proxied public-URL port, resume-by-id. Needs `SPRITES_API_KEY`. |
 
 Each provider is its own package, and the constructor is the only thing that
 differs between them:
@@ -141,8 +141,8 @@ import { spritesSandbox } from '@tanstack/ai-sandbox-sprites'
 const sprites = spritesSandbox({ apiKey: process.env.SPRITES_API_KEY })
 ```
 
-- **Isolation:** a managed [Sprites](https://sprites.dev) cloud sandbox (Fly.io) —
-  a remote, stateful VM you don't run yourself.
+- **Isolation:** a managed [Sprites](https://sprites.dev) stateful sandbox
+  (Fly.io) — a remote VM you don't run yourself.
 - **Auth / env:** needs `SPRITES_API_KEY` (token form
   `org/projectNumber/tokenId/secret`); override the control-plane URL with
   `apiUrl` / `SPRITES_API_URL`. Harness credentials are injected as workspace

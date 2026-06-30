@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-sandbox-sprites",
   "version": "0.1.0",
-  "description": "Sprites (sprites.dev) sandbox provider for TanStack AI — run harness adapters inside isolated Fly.io Sprite cloud sandboxes through the uniform SandboxHandle.",
+  "description": "Sprites sandbox provider for TanStack AI — run harness adapters inside isolated Fly.io Sprite stateful sandboxes through the uniform SandboxHandle.",
   "author": "",
   "license": "MIT",
   "repository": {

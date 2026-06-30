@@ -192,13 +192,12 @@ describe('SpritesHandle checkpoints', () => {
     const { handle, restoreCheckpoint } = makeHandle({})
     await handle.restoreCheckpoint('v2')
     await handle.restoreCheckpoint('my-sprite#v3')
-    expect(restoreCheckpoint).toHaveBeenNthCalledWith(1, 'my-sprite', 'v2', undefined)
-    expect(restoreCheckpoint).toHaveBeenNthCalledWith(
-      2,
-      'my-sprite',
-      'v3',
-      undefined,
-    )
+    expect(restoreCheckpoint).toHaveBeenNthCalledWith(1, 'my-sprite', 'v2', {
+      probePath: '/home/sprite',
+    })
+    expect(restoreCheckpoint).toHaveBeenNthCalledWith(2, 'my-sprite', 'v3', {
+      probePath: '/home/sprite',
+    })
   })
 
   it('advertises the snapshots capability', () => {

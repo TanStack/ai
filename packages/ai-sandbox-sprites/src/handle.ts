@@ -1,7 +1,7 @@
 /**
- * SandboxHandle backed by a Sprites ([sprites.dev](https://sprites.dev)) cloud
- * sandbox. Real isolation: fs/exec/git operate inside the remote Sprite; paths
- * are real Sprite paths (default workdir `/home/sprite`).
+ * SandboxHandle backed by a Sprites stateful sandbox. Real isolation:
+ * fs/exec/git operate inside the remote Sprite; paths are real Sprite paths
+ * (default workdir `/home/sprite`).
  *
  * Filesystem data ops (read/write/list) use the Sprite's native `/fs` endpoints;
  * metadata ops (mkdir/remove/rename/exists) desugar to `exec`. Commands run over
@@ -265,7 +265,12 @@ export class SpritesHandle implements SandboxHandle {
     const version = idOrRef.includes('#')
       ? idOrRef.slice(idOrRef.indexOf('#') + 1)
       : idOrRef
-    return this.client.restoreCheckpoint(this.name, version, options)
+    return this.client.restoreCheckpoint(this.name, version, {
+      ...options,
+      // Probe the workdir so readiness reflects the restored overlay, not just
+      // the (always-listable) root.
+      probePath: this.workdir,
+    })
   }
 
   fork = (): Promise<SandboxHandle> => {

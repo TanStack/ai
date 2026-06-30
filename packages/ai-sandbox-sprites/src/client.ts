@@ -1,6 +1,6 @@
 /**
- * Thin client over the Sprites ([sprites.dev](https://sprites.dev)) control
- * plane. Sprites has no published SDK, so this talks the REST + WebSocket API
+ * Thin client over the Sprites control plane. Sprites has no published SDK, so
+ * this talks the REST + WebSocket API
  * directly: lifecycle (create/get/delete), URL auth, filesystem, and process
  * execution all go through the authenticated cloud endpoint at `baseUrl`.
  *
@@ -88,7 +88,7 @@ export interface SpritesClientLike {
   restoreCheckpoint: (
     name: string,
     id: string,
-    options?: { signal?: AbortSignal; readyTimeoutMs?: number },
+    options?: { signal?: AbortSignal; readyTimeoutMs?: number; probePath?: string },
   ) => Promise<void>
 }
 
@@ -340,7 +340,12 @@ export class SpritesClient implements SpritesClientLike {
   async restoreCheckpoint(
     name: string,
     id: string,
-    options: { signal?: AbortSignal; readyTimeoutMs?: number } = {},
+    options: {
+      signal?: AbortSignal
+      readyTimeoutMs?: number
+      /** Path probed to confirm readiness; should live on the restored overlay. */
+      probePath?: string
+    } = {},
   ): Promise<void> {
     const url = this.spritePath(
       name,
@@ -358,7 +363,11 @@ export class SpritesClient implements SpritesClientLike {
     // Let the restart begin before probing, so we don't get a stale success from
     // the pre-restart agent.
     await new Promise((resolve) => setTimeout(resolve, 3000))
-    await this.waitUntilReady(name, options.readyTimeoutMs ?? 240_000)
+    await this.waitUntilReady(
+      name,
+      options.readyTimeoutMs ?? 600_000,
+      options.probePath ?? '/',
+    )
   }
 
   /**
@@ -366,11 +375,23 @@ export class SpritesClient implements SpritesClientLike {
    * time out. Uses `fetch` (not the exec WebSocket) so each attempt is reliably
    * bounded by its abort signal — during a restart the socket can stall in
    * CONNECTING without ever opening or closing.
+   *
+   * Requires two consecutive successes on `probePath`: right after a restore the
+   * overlay can briefly return `5x`/`input/output error` even once the root is
+   * listable, so a single success is not enough to call it ready.
    */
-  private async waitUntilReady(name: string, timeoutMs: number): Promise<void> {
+  private async waitUntilReady(
+    name: string,
+    timeoutMs: number,
+    probePath: string,
+  ): Promise<void> {
     const deadline = Date.now() + timeoutMs
-    const url = this.spritePath(name, `/fs/list?path=${encodeURIComponent('/')}`)
+    const url = this.spritePath(
+      name,
+      `/fs/list?path=${encodeURIComponent(probePath)}`,
+    )
     let lastError: unknown
+    let consecutive = 0
     while (Date.now() < deadline) {
       try {
         const response = await fetch(url, {
@@ -379,9 +400,16 @@ export class SpritesClient implements SpritesClientLike {
           signal: AbortSignal.timeout(8000),
         })
         await response.body?.cancel()
-        if (response.ok) return
+        if (response.ok) {
+          consecutive += 1
+          if (consecutive >= 2) return
+          await new Promise((resolve) => setTimeout(resolve, 2000))
+          continue
+        }
+        consecutive = 0
         lastError = new Error(`readiness probe HTTP ${response.status}`)
       } catch (error) {
+        consecutive = 0
         lastError = error
       }
       await new Promise((resolve) => setTimeout(resolve, 2000))
