@@ -12,6 +12,10 @@ it are provider-agnostic. Pick a provider for the isolation, auth, and
 snapshot/resume behaviour you need; the rest of your sandbox definition stays the
 same.
 
+> The provider is _where_ the agent runs. For _which_ agent runs — Grok Build,
+> Claude Code, Codex, OpenCode, or any ACP agent via `acpCompatible` — see
+> [Harnesses](./harnesses).
+
 ## Choosing a provider
 
 | Provider | Package | Isolation | Notes |

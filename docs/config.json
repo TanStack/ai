@@ -329,7 +329,13 @@
         {
           "label": "Providers",
           "to": "sandbox/providers",
-          "addedAt": "2026-06-29"
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-06-30"
+        },
+        {
+          "label": "Harnesses",
+          "to": "sandbox/harnesses",
+          "addedAt": "2026-06-30"
         },
         {
           "label": "Workspace",

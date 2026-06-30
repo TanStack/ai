@@ -58,7 +58,7 @@ any one without touching the others.
 | --- | --- | --- |
 | **Provider** | The isolation primitive — *where* the agent runs (your host, a container, a cloud VM). | A provider package (`dockerSandbox`, `localProcessSandbox`, …) |
 | **Workspace** | *What the agent sees* — the source repo, package manager, setup commands, secrets. | `defineWorkspace({ … })` |
-| **Harness adapter** | *Which agent runs* and how its output is translated to chat chunks. | `grokBuildText`, `claudeCodeText`, `codexText`, `opencodeText` |
+| **Harness adapter** | *Which agent runs* and how its output is translated to chat chunks. | `grokBuildText`, `claudeCodeText`, `codexText`, `opencodeText`, or `acpCompatible` for [any ACP agent](./harnesses) |
 
 `defineSandbox()` binds a provider + workspace (+ optional policy, lifecycle, and
 hooks) into a reusable definition. `withSandbox(definition)` is the `chat()`
@@ -108,6 +108,7 @@ sandbox on your laptop. Then dive into the piece you need:
 
 - **[Quick Start](./quick-start)** — from a `chat()` app to an agent fixing a bug, in minutes.
 - **[Providers](./providers)** — local process, Docker, Daytona, Vercel: isolation, auth, and capabilities.
+- **[Harnesses](./harnesses)** — which agent runs: Grok Build, Claude Code, Codex, OpenCode, or any ACP agent via `acpCompatible`.
 - **[Workspace](./workspace)** — the source repo, clone depth, and serial/parallel setup.
 - **[Provisioning](./provisioning)** — secrets, skills, MCP servers, plugins, and `AGENTS.md`.
 - **[Tools](./tools)** — bridge your app's own host tools into the in-sandbox agent.
