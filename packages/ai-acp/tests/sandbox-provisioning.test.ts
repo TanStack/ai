@@ -26,7 +26,10 @@ import {
   provideWorkspaceProjection,
 } from '@tanstack/ai-sandbox'
 import { acpCompatibleText } from '../src/index'
-import { projectAcpWorkspace, workspaceMcpServers } from '../src/adapters/projection'
+import {
+  projectAcpWorkspace,
+  workspaceMcpServers,
+} from '../src/adapters/projection'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type { CapabilityContext, StreamChunk } from '@tanstack/ai'
 import type {
@@ -231,7 +234,9 @@ describe('permission modes (the acpCompatible guardrail surface)', () => {
   }
 
   it('bypassPermissions auto-approves the tool', async () => {
-    const report = textOf(await runPermission({ permissionMode: 'bypassPermissions' }))
+    const report = textOf(
+      await runPermission({ permissionMode: 'bypassPermissions' }),
+    )
     expect(report).toContain('"optionId":"allow"')
   })
 
@@ -241,7 +246,10 @@ describe('permission modes (the acpCompatible guardrail surface)', () => {
   })
 
   it('interactive emits an approval-requested event for ask prompts', async () => {
-    const chunks = await runPermission({ permissions: 'interactive', permissionMode: 'default' })
+    const chunks = await runPermission({
+      permissions: 'interactive',
+      permissionMode: 'default',
+    })
     const approval = chunks.find(
       (c) =>
         c.type === 'CUSTOM' &&
@@ -249,9 +257,9 @@ describe('permission modes (the acpCompatible guardrail surface)', () => {
           ?.approvalId !== undefined,
     )
     expect(approval).toBeDefined()
-    expect(
-      (approval as { value: { title: string } }).value.title,
-    ).toContain('rm -rf')
+    expect((approval as { value: { title: string } }).value.title).toContain(
+      'rm -rf',
+    )
   })
 })
 
@@ -264,7 +272,9 @@ describe('workspace skill projection', () => {
       skills: [
         mcpSkill('weather', {
           url: 'https://mcp.example/weather',
-          headers: { Authorization: bearer({ __secretName: 'W' } as SecretRef) },
+          headers: {
+            Authorization: bearer({ __secretName: 'W' } as SecretRef),
+          },
         }),
       ],
       plugins: [],
@@ -284,7 +294,12 @@ describe('workspace skill projection', () => {
 
     const session = JSON.parse(
       await sbx.fs.read('/workspace/acp-session.json'),
-    ) as { mcpServers?: Array<{ name: string; headers?: Array<{ name: string; value: string }> }> }
+    ) as {
+      mcpServers?: Array<{
+        name: string
+        headers?: Array<{ name: string; value: string }>
+      }>
+    }
     const weather = session.mcpServers?.find((s) => s.name === 'weather')
     expect(weather).toBeDefined()
     expect(weather?.headers).toContainEqual({
@@ -300,7 +315,12 @@ describe('workspace skill projection', () => {
     await sbx.fs.write('/workspace/.tanstack-skills/my-skill/SKILL.md', 'hi')
 
     const projection: WorkspaceProjection = {
-      skills: [gitSkill({ repo: 'owner/my-skill', into: '/workspace/.tanstack-skills/my-skill' })],
+      skills: [
+        gitSkill({
+          repo: 'owner/my-skill',
+          into: '/workspace/.tanstack-skills/my-skill',
+        }),
+      ],
       plugins: [],
       resolveSecret: () => '',
       markerPath: '/workspace/.tanstack-projected',
@@ -312,7 +332,9 @@ describe('workspace skill projection', () => {
       harnessName: 'pi',
     })
 
-    expect(await sbx.fs.read('/workspace/.pi/skills/my-skill/SKILL.md')).toBe('hi')
+    expect(await sbx.fs.read('/workspace/.pi/skills/my-skill/SKILL.md')).toBe(
+      'hi',
+    )
     await sbx.destroy()
   })
 })
@@ -332,7 +354,11 @@ describe('workspaceMcpServers', () => {
       ],
       plugins: [],
       resolveSecret: (ref: SecretRef) =>
-        ref.__secretName === 'TOK' ? 'tok' : ref.__secretName === 'KEY' ? 'key' : '',
+        ref.__secretName === 'TOK'
+          ? 'tok'
+          : ref.__secretName === 'KEY'
+            ? 'key'
+            : '',
       markerPath: '/m',
       root: '/workspace',
     } satisfies WorkspaceProjection
