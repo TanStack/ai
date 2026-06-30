@@ -2647,7 +2647,12 @@ describe('StreamProcessor', () => {
               },
             ],
           },
-          { id: 't1', role: 'tool', content: '{"temp":72}', toolCallId: 'tc-1' },
+          {
+            id: 't1',
+            role: 'tool',
+            content: '{"temp":72}',
+            toolCallId: 'tc-1',
+          },
         ],
         timestamp: Date.now(),
       } as unknown as StreamChunk)
@@ -2696,7 +2701,12 @@ describe('StreamProcessor', () => {
         messages: [
           { id: 'u1', role: 'user', content: 'weather in Berlin?' },
           { id: 'a1', role: 'assistant', content: 'Let me check.' },
-          { id: 't1', role: 'tool', content: '{"temp":72}', toolCallId: 'tc-1' },
+          {
+            id: 't1',
+            role: 'tool',
+            content: '{"temp":72}',
+            toolCallId: 'tc-1',
+          },
         ],
         timestamp: Date.now(),
       } as unknown as StreamChunk)
@@ -2746,7 +2756,12 @@ describe('StreamProcessor', () => {
               },
             ],
           },
-          { id: 't1', role: 'tool', content: '{"temp":72}', toolCallId: 'tc-1' },
+          {
+            id: 't1',
+            role: 'tool',
+            content: '{"temp":72}',
+            toolCallId: 'tc-1',
+          },
         ],
         timestamp: Date.now(),
       } as unknown as StreamChunk)

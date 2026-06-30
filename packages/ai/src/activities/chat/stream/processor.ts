@@ -946,9 +946,7 @@ export class StreamProcessor {
     for (const msg of snapshot) {
       const toolResultPart =
         msg.role === 'assistant' && msg.parts.length === 1
-          ? msg.parts.find(
-              (p): p is ToolResultPart => p.type === 'tool-result',
-            )
+          ? msg.parts.find((p): p is ToolResultPart => p.type === 'tool-result')
           : undefined
 
       if (!toolResultPart) {
