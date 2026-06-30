@@ -52,6 +52,7 @@ Pick a **provider** package for where the sandbox runs:
 | `@tanstack/ai-sandbox-cloudflare`    | Cloudflare Workers + Containers        |
 | `@tanstack/ai-sandbox-vercel`        | Vercel Sandbox                         |
 | `@tanstack/ai-sandbox-daytona`       | Daytona dev environments               |
+| `@tanstack/ai-sandbox-sprites`       | Sprites (sprites.dev) cloud sandboxes  |
 
 **Harness adapters** are separate packages. The default path is **Grok Build** (`@tanstack/ai-grok-build`); others include `@tanstack/ai-claude-code`, `@tanstack/ai-codex`, and `@tanstack/ai-opencode`. All require `withSandbox(...)` middleware — `chat()` fails fast without it.
 

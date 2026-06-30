@@ -2155,6 +2155,15 @@ importers:
         specifier: 4.0.14
         version: 4.0.14(vitest@4.1.4)
 
+  packages/ai-sandbox-sprites:
+    devDependencies:
+      '@tanstack/ai-sandbox':
+        specifier: workspace:*
+        version: link:../ai-sandbox
+      '@vitest/coverage-v8':
+        specifier: 4.0.14
+        version: 4.0.14(vitest@4.1.4)
+
   packages/ai-sandbox-vercel:
     dependencies:
       '@vercel/sandbox':
