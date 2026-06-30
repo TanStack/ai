@@ -318,12 +318,13 @@
           "label": "Overview",
           "to": "sandbox/overview",
           "addedAt": "2026-06-16",
-          "updatedAt": "2026-06-29"
+          "updatedAt": "2026-06-30"
         },
         {
           "label": "Quick Start",
           "to": "sandbox/quick-start",
-          "addedAt": "2026-06-29"
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-06-30"
         },
         {
           "label": "Providers",
@@ -545,22 +546,30 @@
         {
           "label": "Claude Code",
           "to": "adapters/claude-code",
-          "addedAt": "2026-06-12"
+          "addedAt": "2026-06-12",
+          "updatedAt": "2026-06-30"
         },
         {
           "label": "Codex",
           "to": "adapters/codex",
-          "addedAt": "2026-06-12"
+          "addedAt": "2026-06-12",
+          "updatedAt": "2026-06-30"
         },
         {
           "label": "OpenCode",
           "to": "adapters/opencode",
-          "addedAt": "2026-06-12"
+          "addedAt": "2026-06-12",
+          "updatedAt": "2026-06-30"
         },
         {
           "label": "Grok Build",
           "to": "adapters/grok-build",
           "addedAt": "2026-06-29"
+        },
+        {
+          "label": "ACP-Compatible",
+          "to": "adapters/acp-compatible",
+          "addedAt": "2026-06-30"
         }
       ]
     },

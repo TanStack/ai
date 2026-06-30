@@ -2,7 +2,10 @@
 
 Shared [Agent Client Protocol](https://agentclientprotocol.com) (ACP) plumbing for TanStack AI **harness adapters** — the code that turns a coding-agent CLI (`grok`, `gemini --acp`, …) into a `chat()` backend inside a sandbox.
 
-Most apps should use a harness package directly (`@tanstack/ai-grok-build`, …). Reach for `@tanstack/ai-acp` when you are **building or extending** one of those adapters and need the transport, session, permission, and stream-translation layers in one place.
+Most apps should use a harness package directly (`@tanstack/ai-grok-build`, …). Reach for `@tanstack/ai-acp` when:
+
+- you want to plug an ACP agent that **has no dedicated adapter package** into a sandbox — use [`acpCompatible`](#plug-in-any-acp-agent-acpcompatible) (the `openaiCompatible` of harnesses), or
+- you are **building or extending** a harness adapter and need the transport, session, permission, and stream-translation layers in one place.
 
 ## Installation
 
@@ -46,9 +49,76 @@ Responsibilities split roughly as:
 | **Translation**    | `stream/translate`       | ACP `sessionUpdate` events → TanStack `StreamChunk`s                       |
 | **Permissions**    | `permissions`            | Map harness permission prompts to allow/reject (and optional approval ids) |
 
+## Plug in any ACP agent (`acpCompatible`)
+
+`acpCompatible` is the **easy path**: it builds a `chat()` text adapter for any
+ACP-compliant agent CLI without a dedicated package — the harness equivalent of
+`openaiCompatible`. Configure the harness once, select a model per call, pass it
+into a sandbox.
+
+```typescript
+import { acpCompatible } from '@tanstack/ai-acp'
+import { chat } from '@tanstack/ai'
+import { defineSandbox, withSandbox } from '@tanstack/ai-sandbox'
+import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
+
+// Configure the "pi" agent harness once (it speaks ACP over stdio):
+const pi = acpCompatible({
+  name: 'pi',
+  command: ({ model, harnessCwd }) => `pi --acp -m ${model} --cwd ${harnessCwd}`,
+  authMethodId: 'pi-api-key', // when the harness advertises it
+  refusalMessage: 'Pi refused the request.',
+})
+
+// Then drive it like any other adapter, inside a sandbox:
+const stream = chat({
+  adapter: pi('pi-fast'),
+  messages: [{ role: 'user', content: 'Add a health check route and run the tests.' }],
+  middleware: [
+    withSandbox(
+      defineSandbox({
+        id: 'pi-demo',
+        provider: dockerSandbox({ image: 'node:22' }),
+        // …workspace: clone source, install the `pi` CLI, inject its API key
+      }),
+    ),
+  ],
+})
+```
+
+You get the full ACP flow for free: sandbox resolution, `chat()`-tool → MCP
+bridging, session resume (via `modelOptions.sessionId`), permission modes,
+abort, and AG-UI translation.
+
+### Configuration
+
+| Field | Purpose |
+| ----- | ------- |
+| `name` (required) | Provider label, log prefix, and the `<name>.session-id` CUSTOM event name. |
+| `command` | Build the **stdio** launch command (`({ model, cwd, harnessCwd, sandbox, env, signal }) => string`). Required unless `openTransport` is given. |
+| `openTransport` | Full transport escape hatch — open any `AcpSessionTransport` yourself (e.g. boot a `serve` process and connect over WebSocket). Overrides `command`. |
+| `cwd` | Working directory inside the sandbox (default `/workspace`). |
+| `env` | Extra environment variables for the harness process. |
+| `authMethodId` | ACP auth method to select before the session starts. |
+| `permissionMode` | `'default'` \| `'acceptEdits'` \| `'bypassPermissions'` (default). |
+| `permissions` | `'headless'` (auto-resolve, default) or `'interactive'` (emit approval-requested events for `ask` prompts). |
+| `onPermissionRequest` | Custom `PermissionHandler`; overrides `permissions`/`permissionMode`. |
+| `refusalMessage` | `RUN_ERROR` message when the harness refuses. |
+| `planEventName` | Emit ACP `plan` updates as a CUSTOM event under this name. |
+| `emitDiff` | Emit the post-run `git diff` of `cwd` as a `file.changed` CUSTOM event (off by default). |
+| `onExtNotification` | Handle vendor `_x/…` JSON-RPC notifications. |
+| `buildPrompt` | Override how chat history maps to the harness prompt (defaults to `buildAcpPrompt`). |
+
+For WebSocket/`serve` harnesses, return your own transport from `openTransport`
+(see how `@tanstack/ai-grok-build` boots `grok agent serve` with
+`startAcpServerInSandbox` + `connectAcpWebSocket`). Use `acpCompatibleText(model,
+config)` for a one-shot single-model adapter.
+
 ## Quick start (building a harness adapter)
 
-The pattern every ACP harness adapter follows:
+If `acpCompatible` doesn't fit (you need a typed provider-options surface, custom
+structured output, vendor projections, …), build the adapter by hand. The
+pattern every ACP harness adapter follows:
 
 1. Spawn the CLI inside a sandbox (`withSandbox` middleware).
 2. Open an ACP transport (stdio or WebSocket).
@@ -268,6 +338,13 @@ const { outcome, approvalId } = resolveInteractivePermission(
 Pass a custom `PermissionHandler` to override the policy entirely.
 
 ## Public API
+
+### Harness adapter
+
+- `acpCompatible(config)` → `(model, overrides?) => AcpCompatibleTextAdapter`
+- `acpCompatibleText(model, config)` → `AcpCompatibleTextAdapter`
+- `buildAcpPrompt(messages, sessionId, harnessName?)` → `{ prompt, resume? }`
+- `AcpCompatibleConfig`, `AcpCompatibleProviderOptions`, `AcpHarnessContext`, `BuiltAcpPrompt`
 
 ### Session
 

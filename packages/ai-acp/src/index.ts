@@ -65,3 +65,17 @@ export type {
 } from './session/acp-client'
 
 export { resolveInteractivePermission, resolvePermission } from './permissions'
+
+export {
+  AcpCompatibleTextAdapter,
+  acpCompatible,
+  acpCompatibleText,
+} from './adapters/compatible'
+export type {
+  AcpCompatibleConfig,
+  AcpCompatibleProviderOptions,
+  AcpHarnessContext,
+} from './adapters/compatible'
+
+export { buildAcpPrompt } from './messages/prompt'
+export type { BuiltAcpPrompt } from './messages/prompt'
