@@ -1,5 +1,6 @@
 import { claudeCodeText } from '@tanstack/ai-claude-code'
 import { codexText } from '@tanstack/ai-codex'
+import { grokBuildText } from '@tanstack/ai-grok-build'
 import { opencodeText } from '@tanstack/ai-opencode'
 import {
   createSecrets,
@@ -13,6 +14,8 @@ import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 import { vercelSandbox } from '@tanstack/ai-sandbox-vercel'
 import { parseVerdict } from './sandbox-triage-options'
 import type {
+  GrokBuildProtocol,
+  GrokTransport,
   HarnessName,
   ProviderName,
   Verdict,
@@ -125,6 +128,44 @@ export const HARNESSES: Record<HarnessName, HarnessSpec> = {
     // auto-exposed). Matches the opencode adapter's DEFAULT_PORT.
     exposePort: 4096,
   },
+  grok: {
+    label: 'Grok',
+    makeAdapter: () => grokBuildText('grok-build-0.1'),
+    installCommand:
+      'curl -fsSL https://x.ai/cli/install.sh | bash && ' +
+      '(ln -sf "$HOME/.grok/bin/grok" /usr/local/bin/grok 2>/dev/null || ' +
+      'sudo -n ln -sf "$HOME/.grok/bin/grok" /usr/local/bin/grok 2>/dev/null || true)',
+    requiredEnv: ['XAI_API_KEY'],
+    envCheck: () =>
+      process.env.XAI_API_KEY || process.env.GROK_API_KEY
+        ? []
+        : ['XAI_API_KEY (or GROK_API_KEY)'],
+    sandboxSecrets: (): Record<string, string> => {
+      const key = process.env.XAI_API_KEY ?? process.env.GROK_API_KEY
+      return key ? { XAI_API_KEY: key } : {}
+    },
+    exposePort: 2419,
+  },
+}
+
+export interface GrokHarnessOptions {
+  protocol?: GrokBuildProtocol
+  transport?: GrokTransport
+}
+
+/** Build the adapter for a harness run, including per-run Grok protocol options. */
+export function buildHarnessAdapter(
+  harness: HarnessName,
+  provider: ProviderName,
+  grokOptions?: GrokHarnessOptions,
+): AnyTextAdapter {
+  if (harness === 'grok') {
+    return grokBuildText('grok-build-0.1', {
+      protocol: grokOptions?.protocol ?? 'acp',
+      transport: grokOptions?.transport ?? 'auto',
+    })
+  }
+  return HARNESSES[harness].makeAdapter(provider)
 }
 
 export interface ProviderSpec {

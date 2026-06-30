@@ -15,8 +15,18 @@ import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import { HARNESSES, PROVIDERS, parseVerdict } from '../sandbox-triage-options'
+import {
+  GROK_PROTOCOL_OPTIONS,
+  GROK_TRANSPORT_OPTIONS,
+  HARNESSES,
+  PROVIDERS,
+  isGrokProtocol,
+  isGrokTransport,
+  parseVerdict,
+} from '../sandbox-triage-options'
 import type {
+  GrokBuildProtocol,
+  GrokTransport,
   HarnessName,
   ProviderName,
   Verdict,
@@ -346,6 +356,8 @@ function SandboxesPage() {
   const [codeModeLines, setCodeModeLines] = useState<Array<CodeModeLine>>([])
   const [keepAlive, setKeepAlive] = useState(false)
   const [useSubscription, setUseSubscription] = useState(false)
+  const [grokProtocol, setGrokProtocol] = useState<GrokBuildProtocol>('acp')
+  const [grokTransport, setGrokTransport] = useState<GrokTransport>('auto')
 
   // Subscription auth only applies to Claude Code on the local-process provider.
   const canUseSubscription = provider === 'local' && harness === 'claude-code'
@@ -359,6 +371,7 @@ function SandboxesPage() {
       threadId,
       keepAlive,
       useSubscription: canUseSubscription && useSubscription,
+      ...(harness === 'grok' ? { grokProtocol, grokTransport } : {}),
     },
     onCustomEvent: (eventType, data) => {
       if (data === null || typeof data !== 'object') return
@@ -468,6 +481,46 @@ function SandboxesPage() {
             </option>
           ))}
         </select>
+        {harness === 'grok' && (
+          <>
+            <select
+              value={grokProtocol}
+              onChange={(e) => {
+                if (isGrokProtocol(e.target.value)) {
+                  setGrokProtocol(e.target.value)
+                }
+              }}
+              disabled={isLoading}
+              title="Grok Build wire protocol"
+              className="rounded-lg border border-indigo-500/20 bg-gray-800 px-3 py-2 text-sm"
+            >
+              {GROK_PROTOCOL_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            {grokProtocol === 'acp' && (
+              <select
+                value={grokTransport}
+                onChange={(e) => {
+                  if (isGrokTransport(e.target.value)) {
+                    setGrokTransport(e.target.value)
+                  }
+                }}
+                disabled={isLoading}
+                title="ACP transport (auto picks stdio vs WebSocket)"
+                className="rounded-lg border border-indigo-500/20 bg-gray-800 px-3 py-2 text-sm"
+              >
+                {GROK_TRANSPORT_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            )}
+          </>
+        )}
         <input
           value={issueUrl}
           onChange={(e) => setIssueUrl(e.target.value)}

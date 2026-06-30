@@ -25,6 +25,7 @@
     "@tanstack/ai-fal": "workspace:*",
     "@tanstack/ai-gemini": "workspace:*",
     "@tanstack/ai-grok": "workspace:*",
+    "@tanstack/ai-grok-build": "workspace:*",
     "@tanstack/ai-groq": "workspace:*",
     "@tanstack/ai-isolate-node": "workspace:*",
     "@tanstack/ai-mcp": "workspace:*",

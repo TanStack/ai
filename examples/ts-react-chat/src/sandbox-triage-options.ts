@@ -9,8 +9,10 @@
  */
 
 // Pure string-literal types — re-exported by sandbox-triage.ts (single source of truth here).
-export type HarnessName = 'claude-code' | 'codex' | 'opencode'
+export type HarnessName = 'claude-code' | 'codex' | 'opencode' | 'grok'
 export type ProviderName = 'docker' | 'local' | 'vercel' | 'daytona'
+export type GrokBuildProtocol = 'acp' | 'streaming-json'
+export type GrokTransport = 'auto' | 'stdio' | 'websocket'
 export type Verdict = 'relevant' | 'not-relevant' | 'uncertain'
 
 const VERDICTS: ReadonlySet<Verdict> = new Set([
@@ -36,6 +38,26 @@ export const HARNESSES: Record<string, PickerSpec> = {
   'claude-code': { label: 'Claude Code' },
   codex: { label: 'Codex' },
   opencode: { label: 'OpenCode' },
+  grok: { label: 'Grok' },
+}
+
+export const GROK_PROTOCOL_OPTIONS = [
+  { value: 'acp', label: 'ACP (default)' },
+  { value: 'streaming-json', label: 'streaming-json (legacy)' },
+] as const satisfies ReadonlyArray<{ value: GrokBuildProtocol; label: string }>
+
+export const GROK_TRANSPORT_OPTIONS = [
+  { value: 'auto', label: 'auto' },
+  { value: 'stdio', label: 'stdio' },
+  { value: 'websocket', label: 'websocket' },
+] as const satisfies ReadonlyArray<{ value: GrokTransport; label: string }>
+
+export function isGrokProtocol(value: unknown): value is GrokBuildProtocol {
+  return GROK_PROTOCOL_OPTIONS.some((o) => o.value === value)
+}
+
+export function isGrokTransport(value: unknown): value is GrokTransport {
+  return GROK_TRANSPORT_OPTIONS.some((o) => o.value === value)
 }
 
 export const PROVIDERS: Record<string, PickerSpec> = {

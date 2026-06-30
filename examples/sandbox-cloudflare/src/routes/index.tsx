@@ -30,8 +30,31 @@ const HARNESS_OPTIONS = [
 
 type HarnessName = (typeof HARNESS_OPTIONS)[number]['value']
 
+const GROK_PROTOCOL_OPTIONS = [
+  { value: 'acp', label: 'ACP (default)' },
+  { value: 'streaming-json', label: 'streaming-json (legacy)' },
+] as const
+
+type GrokBuildProtocol = (typeof GROK_PROTOCOL_OPTIONS)[number]['value']
+
+const GROK_TRANSPORT_OPTIONS = [
+  { value: 'auto', label: 'auto' },
+  { value: 'stdio', label: 'stdio' },
+  { value: 'websocket', label: 'websocket' },
+] as const
+
+type GrokTransport = (typeof GROK_TRANSPORT_OPTIONS)[number]['value']
+
 function isHarnessName(value: string): value is HarnessName {
   return HARNESS_OPTIONS.some((o) => o.value === value)
+}
+
+function isGrokProtocol(value: string): value is GrokBuildProtocol {
+  return GROK_PROTOCOL_OPTIONS.some((o) => o.value === value)
+}
+
+function isGrokTransport(value: string): value is GrokTransport {
+  return GROK_TRANSPORT_OPTIONS.some((o) => o.value === value)
 }
 
 const PROMPT_SUGGESTIONS = [
@@ -323,11 +346,22 @@ function SandboxAgentPage() {
   // needs a new sandbox (and a clean conversation).
   const [threadId, setThreadId] = useState(() => crypto.randomUUID())
   const [harness, setHarness] = useState<HarnessName>('claude-code')
+  const [grokProtocol, setGrokProtocol] = useState<GrokBuildProtocol>('acp')
+  const [grokTransport, setGrokTransport] = useState<GrokTransport>('auto')
   const [input, setInput] = useState('')
 
   // Memoized so a body identity change only happens on a real thread/harness
   // switch, not on every keystroke-driven render.
-  const body = useMemo(() => ({ threadId, harness }), [threadId, harness])
+  const body = useMemo(
+    () => ({
+      threadId,
+      harness,
+      ...(harness === 'grok'
+        ? { grokProtocol, grokTransport }
+        : {}),
+    }),
+    [threadId, harness, grokProtocol, grokTransport],
+  )
 
   const { messages, sendMessage, isLoading, stop, clear } = useChat({
     connection: fetchServerSentEvents('/api/run'),
@@ -380,6 +414,53 @@ function SandboxAgentPage() {
               ))}
             </select>
           </label>
+          {harness === 'grok' && (
+            <>
+              <label className="flex items-center gap-2" title="Grok Build wire protocol">
+                <span className="text-xs text-gray-500">protocol</span>
+                <select
+                  value={grokProtocol}
+                  onChange={(e) => {
+                    if (isGrokProtocol(e.target.value)) {
+                      setGrokProtocol(e.target.value)
+                    }
+                  }}
+                  disabled={isLoading}
+                  className="rounded-md border border-indigo-500/20 bg-gray-800 px-2 py-1 text-sm text-white disabled:opacity-50"
+                >
+                  {GROK_PROTOCOL_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {grokProtocol === 'acp' && (
+                <label
+                  className="flex items-center gap-2"
+                  title="ACP transport (auto picks stdio vs WebSocket)"
+                >
+                  <span className="text-xs text-gray-500">transport</span>
+                  <select
+                    value={grokTransport}
+                    onChange={(e) => {
+                      if (isGrokTransport(e.target.value)) {
+                        setGrokTransport(e.target.value)
+                      }
+                    }}
+                    disabled={isLoading}
+                    className="rounded-md border border-indigo-500/20 bg-gray-800 px-2 py-1 text-sm text-white disabled:opacity-50"
+                  >
+                    {GROK_TRANSPORT_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+            </>
+          )}
           <span className="font-mono">thread {threadId.slice(0, 8)}</span>
         </div>
       </header>

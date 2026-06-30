@@ -37,6 +37,8 @@ interface ProxyBody {
   threadId?: string
   /** The UI's chosen harness, forwarded to the agent as `metadata.harness`. */
   harness?: string
+  grokProtocol?: string
+  grokTransport?: string
 }
 
 /**
@@ -76,15 +78,16 @@ function readThreadId(value: object): string | undefined {
   return undefined
 }
 
-/** First non-empty `harness` string across the body layers. */
-function readHarness(value: object): string | undefined {
+/** First non-empty string field across the body layers. */
+function readStringField(
+  value: object,
+  field: 'harness' | 'grokProtocol' | 'grokTransport',
+): string | undefined {
   for (const layer of bodyLayers(value)) {
-    if (
-      'harness' in layer &&
-      typeof layer.harness === 'string' &&
-      layer.harness !== ''
-    ) {
-      return layer.harness
+    const record = layer as Record<string, unknown>
+    const candidate = record[field]
+    if (typeof candidate === 'string' && candidate !== '') {
+      return candidate
     }
   }
   return undefined
@@ -101,7 +104,9 @@ function parseBody(value: unknown): ProxyBody {
   return {
     messages,
     threadId: readThreadId(value),
-    harness: readHarness(value),
+    harness: readStringField(value, 'harness'),
+    grokProtocol: readStringField(value, 'grokProtocol'),
+    grokTransport: readStringField(value, 'grokTransport'),
   }
 }
 
@@ -259,7 +264,20 @@ export const Route = createFileRoute('/api/run')({
             publicHost: new URL(request.url).host,
             // The UI's chosen coding agent. `resolveHarness` in src/agent.ts reads
             // it; absent → the HARNESS deploy default. Omitted entirely when unset.
-            metadata: body.harness ? { harness: body.harness } : undefined,
+            metadata:
+              body.harness ||
+              body.grokProtocol ||
+              body.grokTransport
+                ? {
+                    ...(body.harness ? { harness: body.harness } : {}),
+                    ...(body.grokProtocol
+                      ? { grokProtocol: body.grokProtocol }
+                      : {}),
+                    ...(body.grokTransport
+                      ? { grokTransport: body.grokTransport }
+                      : {}),
+                  }
+                : undefined,
           })
           const chunks = tailRun(
             coordinator,

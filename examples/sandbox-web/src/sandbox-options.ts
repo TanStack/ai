@@ -11,6 +11,11 @@
 export type HarnessName = 'claude-code' | 'codex' | 'opencode' | 'grok'
 export type ProviderName = 'docker' | 'local' | 'vercel' | 'daytona'
 
+/** Grok Build wire protocol (ACP default; streaming-json is the legacy NDJSON path). */
+export type GrokBuildProtocol = 'acp' | 'streaming-json'
+/** ACP transport when protocol is `acp` (`auto` picks stdio vs WebSocket). */
+export type GrokTransport = 'auto' | 'stdio' | 'websocket'
+
 export interface PickerOption<T> {
   value: T
   label: string
@@ -36,4 +41,26 @@ export function isHarness(value: unknown): value is HarnessName {
 
 export function isProvider(value: unknown): value is ProviderName {
   return PROVIDER_OPTIONS.some((o) => o.value === value)
+}
+
+export const GROK_PROTOCOL_OPTIONS: ReadonlyArray<
+  PickerOption<GrokBuildProtocol>
+> = [
+  { value: 'acp', label: 'ACP (default)' },
+  { value: 'streaming-json', label: 'streaming-json (legacy)' },
+]
+
+export const GROK_TRANSPORT_OPTIONS: ReadonlyArray<PickerOption<GrokTransport>> =
+  [
+    { value: 'auto', label: 'auto' },
+    { value: 'stdio', label: 'stdio' },
+    { value: 'websocket', label: 'websocket' },
+  ]
+
+export function isGrokProtocol(value: unknown): value is GrokBuildProtocol {
+  return GROK_PROTOCOL_OPTIONS.some((o) => o.value === value)
+}
+
+export function isGrokTransport(value: unknown): value is GrokTransport {
+  return GROK_TRANSPORT_OPTIONS.some((o) => o.value === value)
 }

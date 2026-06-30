@@ -8,6 +8,8 @@ interface TriageData {
   threadId: unknown
   keepAlive: unknown
   useSubscription: unknown
+  grokProtocol: unknown
+  grokTransport: unknown
 }
 
 function json(status: number, error: string): Response {
@@ -34,8 +36,8 @@ export async function triagePost(request: Request): Promise<Response> {
     import('@tanstack/ai-sandbox/ngrok'),
   ])
   const {
-    HARNESSES,
     PROVIDERS,
+    buildHarnessAdapter,
     buildSandbox,
     buildTriagePrompt,
     fetchIssue,
@@ -58,6 +60,23 @@ export async function triagePost(request: Request): Promise<Response> {
 
   if (!isHarness(data.harness) || !isProvider(data.provider)) {
     return json(400, 'Unknown harness or provider.')
+  }
+  const { isGrokProtocol, isGrokTransport } = await import(
+    '../sandbox-triage-options'
+  )
+  if (
+    data.harness === 'grok' &&
+    data.grokProtocol !== undefined &&
+    !isGrokProtocol(data.grokProtocol)
+  ) {
+    return json(400, 'Unknown grokProtocol.')
+  }
+  if (
+    data.harness === 'grok' &&
+    data.grokTransport !== undefined &&
+    !isGrokTransport(data.grokTransport)
+  ) {
+    return json(400, 'Unknown grokTransport.')
   }
   if (typeof data.issueUrl !== 'string') {
     return json(400, 'issueUrl is required.')
@@ -107,7 +126,20 @@ export async function triagePost(request: Request): Promise<Response> {
       : null
     const stream = chat({
       threadId,
-      adapter: HARNESSES[data.harness].makeAdapter(data.provider),
+      adapter: buildHarnessAdapter(
+        data.harness,
+        data.provider,
+        data.harness === 'grok'
+          ? {
+              protocol: isGrokProtocol(data.grokProtocol)
+                ? data.grokProtocol
+                : 'acp',
+              transport: isGrokTransport(data.grokTransport)
+                ? data.grokTransport
+                : 'auto',
+            }
+          : undefined,
+      ),
       messages: [{ role: 'user', content: buildTriagePrompt(issue, repo) }],
       // For cloud providers, route the bridge through ngrok so the in-sandbox
       // harness can reach the host tools. Local/Docker use the default bridge.

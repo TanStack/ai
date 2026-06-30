@@ -37,7 +37,12 @@ import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 import { vercelSandbox } from '@tanstack/ai-sandbox-vercel'
 import { z } from 'zod'
 import { isHarness, isProvider } from './sandbox-options'
-import type { HarnessName, ProviderName } from './sandbox-options'
+import type {
+  GrokBuildProtocol,
+  GrokTransport,
+  HarnessName,
+  ProviderName,
+} from './sandbox-options'
 import type { AnyTextAdapter } from '@tanstack/ai'
 import type { SandboxDefinition, SandboxProvider } from '@tanstack/ai-sandbox'
 
@@ -137,6 +142,8 @@ const HARNESSES: Record<HarnessName, HarnessSpec> = {
   },
   grok: {
     makeAdapter: () => grokBuildText('grok-build-0.1'),
+    // `grok agent serve` listens here for WebSocket ACP when stdin isn't wired.
+    exposePort: 2419,
     // Grok Build ships its own installer (not npm) — see https://x.ai/cli. It
     // drops the binary at `$HOME/.grok/bin/grok`, so symlink it onto PATH (best
     // effort: try as the user, then sudo; the run fails clearly if `grok` is still
@@ -221,8 +228,22 @@ export function usesToolBridge(provider: ProviderName): boolean {
   return PROVIDERS[provider].toolBridge
 }
 
+export interface GrokHarnessOptions {
+  protocol?: GrokBuildProtocol
+  transport?: GrokTransport
+}
+
 /** The harness adapter `chat()` runs for the chosen harness. */
-export function buildAdapter(harness: HarnessName): AnyTextAdapter {
+export function buildAdapter(
+  harness: HarnessName,
+  grokOptions?: GrokHarnessOptions,
+): AnyTextAdapter {
+  if (harness === 'grok') {
+    return grokBuildText('grok-build-0.1', {
+      protocol: grokOptions?.protocol ?? 'acp',
+      transport: grokOptions?.transport ?? 'auto',
+    })
+  }
   return HARNESSES[harness].makeAdapter()
 }
 

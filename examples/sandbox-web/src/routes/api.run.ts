@@ -15,6 +15,11 @@ import {
   tanstackStartRecipe,
   usesToolBridge,
 } from '../sandbox-agent'
+import {
+  isGrokProtocol,
+  isGrokTransport,
+} from '../sandbox-options'
+import type { GrokBuildProtocol, GrokTransport } from '../sandbox-options'
 import type { AnyTool, ModelMessage, StreamChunk } from '@tanstack/ai'
 
 /**
@@ -35,6 +40,8 @@ interface RunBody {
   threadId?: string
   harness?: unknown
   provider?: unknown
+  grokProtocol?: unknown
+  grokTransport?: unknown
 }
 
 /** The layers `useChat` may nest forwarded props in, depending on the adapter. */
@@ -81,6 +88,12 @@ function parseBody(value: unknown): RunBody {
     provider: readForwarded(value, (l) =>
       'provider' in l ? l.provider : undefined,
     ),
+    grokProtocol: readForwarded(value, (l) =>
+      'grokProtocol' in l ? l.grokProtocol : undefined,
+    ),
+    grokTransport: readForwarded(value, (l) =>
+      'grokTransport' in l ? l.grokTransport : undefined,
+    ),
   }
 }
 
@@ -114,6 +127,20 @@ export const Route = createFileRoute('/api/run')({
         }
         const harness = body.harness
         const provider = body.provider
+        if (
+          harness === 'grok' &&
+          body.grokProtocol !== undefined &&
+          !isGrokProtocol(body.grokProtocol)
+        ) {
+          return jsonError(400, 'Unknown grokProtocol.')
+        }
+        if (
+          harness === 'grok' &&
+          body.grokTransport !== undefined &&
+          !isGrokTransport(body.grokTransport)
+        ) {
+          return jsonError(400, 'Unknown grokTransport.')
+        }
 
         const missing = missingEnv(harness, provider)
         if (missing.length > 0) {
@@ -133,7 +160,19 @@ export const Route = createFileRoute('/api/run')({
 
         try {
           const sandbox = buildSandbox({ harness, provider, threadId })
-          const adapter = buildAdapter(harness)
+          const adapter = buildAdapter(
+            harness,
+            harness === 'grok'
+              ? {
+                  protocol: isGrokProtocol(body.grokProtocol)
+                    ? body.grokProtocol
+                    : ('acp' as GrokBuildProtocol),
+                  transport: isGrokTransport(body.grokTransport)
+                    ? body.grokTransport
+                    : ('auto' as GrokTransport),
+                }
+              : undefined,
+          )
 
           // The one provider-dependent seam: same-machine providers bridge host
           // tools and let the agent mint the preview on demand; hosted providers

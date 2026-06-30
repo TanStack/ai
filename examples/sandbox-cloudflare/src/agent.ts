@@ -73,10 +73,17 @@ export interface AppEnv extends SandboxAgentEnv {
 }
 
 export type HarnessName = 'claude-code' | 'codex' | 'grok'
+export type GrokBuildProtocol = 'acp' | 'streaming-json'
+export type GrokTransport = 'auto' | 'stdio' | 'websocket'
+
+export interface GrokHarnessOptions {
+  protocol?: GrokBuildProtocol
+  transport?: GrokTransport
+}
 
 interface HarnessSpec {
   /** Build the harness/text adapter `chat()` runs in the coordinator DO. */
-  adapter: () => AnyTextAdapter
+  adapter: (grokOptions?: GrokHarnessOptions) => AnyTextAdapter
   /**
    * The secret env injected into the sandbox container for the in-CLI auth.
    * Throws a clear error if the harness's required key isn't set, rather than
@@ -118,7 +125,11 @@ const HARNESSES: Record<HarnessName, HarnessSpec> = {
   },
   grok: {
     // No special sandboxMode needed for the xAI Grok Build CLI (unlike codex).
-    adapter: () => grokBuildText('grok-build-0.1'),
+    adapter: (grokOptions?: GrokHarnessOptions) =>
+      grokBuildText('grok-build-0.1', {
+        protocol: grokOptions?.protocol ?? 'acp',
+        transport: grokOptions?.transport ?? 'auto',
+      }),
     secrets: (env) => {
       const key = env.XAI_API_KEY ?? env.GROK_API_KEY
       if (!key) {
@@ -131,6 +142,39 @@ const HARNESSES: Record<HarnessName, HarnessSpec> = {
 
 function isHarnessName(value: unknown): value is HarnessName {
   return value === 'claude-code' || value === 'codex' || value === 'grok'
+}
+
+function isGrokProtocol(value: unknown): value is GrokBuildProtocol {
+  return value === 'acp' || value === 'streaming-json'
+}
+
+function isGrokTransport(value: unknown): value is GrokTransport {
+  return value === 'auto' || value === 'stdio' || value === 'websocket'
+}
+
+/** Per-run Grok options from UI metadata (`metadata.grokProtocol` / `grokTransport`). */
+function resolveGrokOptions(input: StartRunInput): GrokHarnessOptions {
+  const metadata = input.metadata
+  return {
+    protocol:
+      metadata && isGrokProtocol(metadata.grokProtocol)
+        ? metadata.grokProtocol
+        : 'acp',
+    transport:
+      metadata && isGrokTransport(metadata.grokTransport)
+        ? metadata.grokTransport
+        : 'auto',
+  }
+}
+
+function buildAdapter(
+  harness: HarnessName,
+  input: StartRunInput,
+): AnyTextAdapter {
+  if (harness === 'grok') {
+    return HARNESSES.grok.adapter(resolveGrokOptions(input))
+  }
+  return HARNESSES[harness].adapter()
 }
 
 /**
@@ -204,7 +248,8 @@ const tanstackStartRecipe = toolDefinition({
 export const agent = createCloudflareSandboxAgent<AppEnv>({
   // The adapter is resolved per run: the UI's `metadata.harness` picks the coding
   // agent `chat()` drives, falling back to the `HARNESS` deploy default.
-  adapter: (input, env) => HARNESSES[resolveHarness(input, env)].adapter(),
+  adapter: (input, env) =>
+    buildAdapter(resolveHarness(input, env), input),
   // App-agnostic transport guidance, prepended to every run's system prompt: how to
   // start a dev server whose quick-tunnel preview works (bind wide, allow all hosts
   // so the tunnel hostname is accepted). Package-owned because it's the transport's

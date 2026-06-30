@@ -8,12 +8,21 @@ import rehypeSanitize from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import {
+  GROK_PROTOCOL_OPTIONS,
+  GROK_TRANSPORT_OPTIONS,
   HARNESS_OPTIONS,
   PROVIDER_OPTIONS,
+  isGrokProtocol,
+  isGrokTransport,
   isHarness,
   isProvider,
 } from '../sandbox-options'
-import type { HarnessName, ProviderName } from '../sandbox-options'
+import type {
+  GrokBuildProtocol,
+  GrokTransport,
+  HarnessName,
+  ProviderName,
+} from '../sandbox-options'
 import type { UIMessage } from '@tanstack/ai-react'
 
 export const Route = createFileRoute('/')({
@@ -251,12 +260,21 @@ function SandboxAgentPage() {
   const [threadId, setThreadId] = useState(() => crypto.randomUUID())
   const [harness, setHarness] = useState<HarnessName>('claude-code')
   const [provider, setProvider] = useState<ProviderName>('docker')
+  const [grokProtocol, setGrokProtocol] = useState<GrokBuildProtocol>('acp')
+  const [grokTransport, setGrokTransport] = useState<GrokTransport>('auto')
   const [input, setInput] = useState('')
 
   // Memoized so the body identity only changes on a real thread/picker switch.
   const body = useMemo(
-    () => ({ threadId, harness, provider }),
-    [threadId, harness, provider],
+    () => ({
+      threadId,
+      harness,
+      provider,
+      ...(harness === 'grok'
+        ? { grokProtocol, grokTransport }
+        : {}),
+    }),
+    [threadId, harness, provider, grokProtocol, grokTransport],
   )
 
   const { messages, sendMessage, isLoading, stop, error, clear } = useChat({
@@ -333,6 +351,46 @@ function SandboxAgentPage() {
               </option>
             ))}
           </select>
+          {harness === 'grok' && (
+            <>
+              <select
+                value={grokProtocol}
+                onChange={(e) => {
+                  if (isGrokProtocol(e.target.value)) {
+                    setGrokProtocol(e.target.value)
+                  }
+                }}
+                disabled={isLoading}
+                title="Grok Build wire protocol"
+                className="rounded-md border border-indigo-500/20 bg-gray-800 px-2 py-1 text-white disabled:opacity-50"
+              >
+                {GROK_PROTOCOL_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              {grokProtocol === 'acp' && (
+                <select
+                  value={grokTransport}
+                  onChange={(e) => {
+                    if (isGrokTransport(e.target.value)) {
+                      setGrokTransport(e.target.value)
+                    }
+                  }}
+                  disabled={isLoading}
+                  title="ACP transport (auto picks stdio vs WebSocket)"
+                  className="rounded-md border border-indigo-500/20 bg-gray-800 px-2 py-1 text-white disabled:opacity-50"
+                >
+                  {GROK_TRANSPORT_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </>
+          )}
           <span className="font-mono text-indigo-300">
             thread {threadId.slice(0, 8)}
           </span>
