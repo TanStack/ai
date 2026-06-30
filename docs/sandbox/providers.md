@@ -154,7 +154,11 @@ const sprites = spritesSandbox({ apiKey: process.env.SPRITES_API_KEY })
   `listCheckpoints()`. A checkpoint does not survive Sprite deletion, so the
   provider intentionally does **not** implement the reconstruct-after-gone
   `restoreSnapshot` — when a Sprite is gone the framework degrades to a fresh
-  create instead. Restore restarts the environment and can take minutes.
+  create instead. Restore restarts the environment and can take minutes;
+  `restoreCheckpoint()` polls the workspace until it is listable again before
+  resolving. Note that immediately after a restore the overlay can be listable
+  while individual file reads briefly return an I/O error as it settles — retry
+  reads if you act on the filesystem the instant restore returns.
 - **Ports:** a Sprite proxies a single internal HTTP port (default `8080`,
   configurable via `httpPort`) to its always-on public URL. `ports.connect(8080)`
   switches the URL to `public` auth and returns it; other ports are not exposed.
