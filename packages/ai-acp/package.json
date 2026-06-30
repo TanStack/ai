@@ -1,27 +1,23 @@
 {
-  "name": "@tanstack/ai-grok-build",
+  "name": "@tanstack/ai-acp",
   "version": "0.1.0",
-  "description": "Grok Build harness adapter for TanStack AI — run Grok Build as a chat backend with local tool execution and stateful sessions.",
+  "description": "Shared Agent Client Protocol (ACP) transport, session, and AG-UI translation for TanStack AI harness adapters.",
   "author": "",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/TanStack/ai.git",
-    "directory": "packages/ai-grok-build"
+    "directory": "packages/ai-acp"
   },
   "keywords": [
     "ai",
     "ai-sdk",
     "typescript",
     "tanstack",
-    "xai",
-    "grok",
-    "grok-build",
+    "acp",
+    "agent-client-protocol",
     "harness",
-    "agent",
-    "adapter",
-    "chat",
-    "tool-calling"
+    "sandbox"
   ],
   "type": "module",
   "module": "./dist/esm/index.js",
@@ -47,7 +43,7 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "@tanstack/ai-acp": "workspace:^"
+    "@agentclientprotocol/sdk": "^0.25.0"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
@@ -55,9 +51,7 @@
   },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
-    "@tanstack/ai-acp": "workspace:*",
     "@tanstack/ai-sandbox": "workspace:*",
-    "@tanstack/ai-sandbox-local-process": "workspace:*",
     "@vitest/coverage-v8": "4.0.14"
   }
 }

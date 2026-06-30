@@ -20,3 +20,10 @@ export type {
 } from './stream/sdk-types'
 export { buildPrompt } from './messages/prompt'
 export type { BuiltPrompt } from './messages/prompt'
+export {
+  buildGrokAcpServeCommand,
+  buildGrokAcpStdioCommand,
+  openGrokAcpConnection,
+  DEFAULT_GROK_ACP_PORT,
+} from './process/acp'
+export type { GrokBuildProtocol } from './provider-options'

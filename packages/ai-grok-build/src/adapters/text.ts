@@ -2,21 +2,37 @@ import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
+  AsyncQueue,
+  resolvePermission,
+  startAcpSession,
+  translateAcpStream,
+} from '@tanstack/ai-acp'
+import {
   SandboxCapability,
+  createBridgeEventChannel,
   getSandbox,
   getSandboxPolicy,
   getToolBridgeProvisioner,
   getWorkspaceProjection,
+  mergeChunkStreams,
   nodeHttpBridgeProvisioner,
   spawnNdjson,
 } from '@tanstack/ai-sandbox'
 import { buildPrompt } from '../messages/prompt'
+import { openGrokAcpConnection } from '../process/acp'
 import { resolveGrokCliModel } from '../model-meta'
-import { translateThreadEvents } from '../stream/translate'
+import { SESSION_ID_EVENT, translateThreadEvents } from '../stream/translate'
 import { projectGrokMcpBridge, projectGrokWorkspace } from './projection'
 import { mapPolicyToGrokBuildFlags } from './policy-map'
 import type { GrokBuildPolicyFlags } from './policy-map'
+import type {
+  AcpPermissionMode,
+  AcpSessionHandle,
+  AcpStreamEvent,
+  AcpTransportPreference,
+} from '@tanstack/ai-acp'
 import type { HostToolBridge, SandboxHandle } from '@tanstack/ai-sandbox'
+import type { GrokBuildProtocol } from '../provider-options'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
@@ -44,6 +60,19 @@ export interface GrokBuildTextConfig {
   emitDiff?: boolean
   /** Extra raw CLI flags appended verbatim (advanced). */
   extraArgs?: Array<string>
+  /**
+   * Harness wire protocol. Defaults to `'acp'`. Use `'streaming-json'` for the
+   * legacy headless NDJSON path.
+   */
+  protocol?: GrokBuildProtocol
+  /** ACP transport when `protocol` is `'acp'`. Defaults to `'auto'`. */
+  transport?: AcpTransportPreference
+  /** ACP auth method (grok: typically `'cached_token'`). */
+  authMethodId?: string
+  /** ACP permission policy. Defaults to `'bypassPermissions'`. */
+  permissionMode?: AcpPermissionMode
+  /** Port for in-sandbox `grok agent serve` when using WebSocket transport. */
+  acpPort?: number
 }
 
 function q(value: string): string {
@@ -125,7 +154,239 @@ export class GrokBuildTextAdapter<
     return `${exe} ${args.join(' ')}`
   }
 
+  private protocol(
+    options: TextOptions<GrokBuildTextProviderOptions>,
+  ): GrokBuildProtocol {
+    return (
+      options.modelOptions?.protocol ??
+      this.adapterConfig.protocol ??
+      'acp'
+    )
+  }
+
   async *chatStream(
+    options: TextOptions<GrokBuildTextProviderOptions>,
+  ): AsyncIterable<StreamChunk> {
+    if (this.protocol(options) === 'streaming-json') {
+      yield* this.chatStreamNdjson(options)
+      return
+    }
+    yield* this.chatStreamAcp(options)
+  }
+
+  private async *chatStreamAcp(
+    options: TextOptions<GrokBuildTextProviderOptions>,
+  ): AsyncIterable<StreamChunk> {
+    const { logger } = options
+    let handle: AcpSessionHandle | undefined
+    let bridge: HostToolBridge | undefined
+    const externalSignal =
+      options.abortController?.signal ?? options.request?.signal ?? undefined
+    let onAbort: (() => void) | undefined
+
+    try {
+      const sandbox = this.sandboxFrom(options)
+      const cwd = this.workdir(options)
+      const runId = options.runId ?? this.generateId()
+      const threadId = options.threadId ?? this.generateId()
+      const channel = createBridgeEventChannel({
+        model: this.model,
+        threadId,
+        runId,
+      })
+
+      const projection = options.capabilities
+        ? getWorkspaceProjection(options.capabilities, { optional: true })
+        : undefined
+      if (projection) await projectGrokWorkspace(sandbox, projection)
+
+      const modelOptions = options.modelOptions
+      const sessionId = modelOptions?.sessionId
+      const { prompt: resumePrompt } = buildPrompt(options.messages, sessionId)
+
+      const bridgedToolNames = new Set(
+        (options.tools ?? []).map((tool) => tool.name),
+      )
+      if (options.tools && options.tools.length > 0) {
+        const provisioner =
+          (options.capabilities
+            ? getToolBridgeProvisioner(options.capabilities, { optional: true })
+            : undefined) ?? nodeHttpBridgeProvisioner
+        bridge = await provisioner.provision(options.tools, {
+          provider: sandbox.provider,
+          context: options.context,
+          emitCustomEvent: channel.emitCustomEvent,
+          ...(externalSignal ? { signal: externalSignal } : {}),
+        })
+      }
+
+      const cliModel = resolveGrokCliModel(this.model)
+      const exe = this.adapterConfig.grokExecutable ?? 'grok'
+      const connection = await openGrokAcpConnection({
+        sandbox,
+        exe,
+        cliModel,
+        cwd,
+        ...(this.adapterConfig.env ? { env: this.adapterConfig.env } : {}),
+        extraArgs: this.adapterConfig.extraArgs,
+        port: modelOptions?.acpPort ?? this.adapterConfig.acpPort,
+        transportPreference:
+          modelOptions?.transport ?? this.adapterConfig.transport ?? 'auto',
+        ...(externalSignal ? { signal: externalSignal } : {}),
+      })
+      const mode =
+        modelOptions?.permissionMode ??
+        this.adapterConfig.permissionMode ??
+        'bypassPermissions'
+      const authMethodId =
+        modelOptions?.authMethodId ??
+        this.adapterConfig.authMethodId ??
+        'cached_token'
+
+      const queue = new AsyncQueue<AcpStreamEvent>()
+
+      logger.request(
+        `activity=chat provider=grok-build model=${this.model} cliModel=${cliModel} protocol=acp sandbox=${sandbox.provider} messages=${options.messages.length} resume=${sessionId ?? 'none'}`,
+        { provider: 'grok-build', model: this.model },
+      )
+
+      handle = await startAcpSession({
+        transport: connection.transport,
+        cwd,
+        authMethodId,
+        ...(sessionId !== undefined && { resumeSessionId: sessionId }),
+        ...(bridge !== undefined && {
+          mcpServers: [
+            {
+              name: bridge.name,
+              url: bridge.url,
+              headers: [
+                { name: 'Authorization', value: `Bearer ${bridge.token}` },
+              ],
+            },
+          ],
+        }),
+        onUpdate: (update) => queue.push({ kind: 'update', update }),
+        onPermissionRequest: (request) =>
+          resolvePermission(request, mode, bridgedToolNames),
+      })
+      const session = handle
+
+      if (externalSignal !== undefined) {
+        onAbort = () => void session.cancel().catch(() => undefined)
+        if (externalSignal.aborted) onAbort()
+        else externalSignal.addEventListener('abort', onAbort, { once: true })
+      }
+
+      queue.push({ kind: 'session', sessionId: session.sessionId })
+
+      const systemPrompts = normalizeSystemPrompts(options.systemPrompts)
+        .map((p) => p.content)
+        .filter((c) => c.trim() !== '')
+      const promptText = this.applySystemPrompts(
+        systemPrompts,
+        session.resumed || sessionId === undefined
+          ? resumePrompt
+          : buildPrompt(options.messages, undefined).prompt,
+      )
+
+      session
+        .prompt(promptText)
+        .then(({ stopReason, usage }) => {
+          queue.push({
+            kind: 'done',
+            stopReason,
+            ...(usage !== undefined && { usage }),
+          })
+          queue.end()
+        })
+        .catch((error: unknown) => queue.fail(error))
+
+      yield* mergeChunkStreams(
+        translateAcpStream(queue, {
+          model: this.model,
+          runId,
+          threadId,
+          ...(options.parentRunId !== undefined && {
+            parentRunId: options.parentRunId,
+          }),
+          genId: () => this.generateId(),
+          bridgedToolNames,
+          labels: {
+            sessionIdEvent: SESSION_ID_EVENT,
+            refusalMessage: 'Grok Build refused the request.',
+          },
+          onAcpEvent: (event) =>
+            logger.provider(`provider=grok-build kind=${event.kind}`, {
+              chunk: event,
+            }),
+        }),
+        channel.stream,
+      )
+
+      if (this.adapterConfig.emitDiff !== false) {
+        yield* this.emitDiffChunks(sandbox, cwd, threadId, runId)
+      }
+    } catch (error: unknown) {
+      const err = error as Error & { code?: string }
+      const rawEvent = toRunErrorRawEvent(error)
+      logger.errors('grok-build.chatStream fatal', {
+        error,
+        source: 'grok-build.chatStream',
+      })
+      yield {
+        type: EventType.RUN_ERROR,
+        model: options.model,
+        timestamp: Date.now(),
+        message: err.message || 'Unknown error occurred',
+        ...(err.code !== undefined && { code: err.code }),
+        ...(rawEvent !== undefined && { rawEvent }),
+        error: {
+          message: err.message || 'Unknown error occurred',
+          ...(err.code !== undefined && { code: err.code }),
+        },
+      }
+    } finally {
+      if (onAbort !== undefined && externalSignal !== undefined) {
+        externalSignal.removeEventListener('abort', onAbort)
+      }
+      await handle?.dispose()
+      await bridge?.close()
+    }
+  }
+
+  private applySystemPrompts(
+    systemPrompts: Array<string>,
+    prompt: string,
+  ): string {
+    if (systemPrompts.length === 0) return prompt
+    return `${systemPrompts.join('\n\n')}\n\n${prompt}`
+  }
+
+  private async *emitDiffChunks(
+    sandbox: SandboxHandle,
+    cwd: string,
+    threadId: string,
+    runId: string,
+  ): AsyncIterable<StreamChunk> {
+    try {
+      const diff = await sandbox.process.exec(`git -C ${q(cwd)} diff`, { cwd })
+      if (diff.exitCode === 0 && diff.stdout.trim() !== '') {
+        yield {
+          type: EventType.CUSTOM,
+          name: 'file.changed',
+          value: { path: '.', diff: diff.stdout },
+          timestamp: Date.now(),
+          threadId,
+          runId,
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  private async *chatStreamNdjson(
     options: TextOptions<GrokBuildTextProviderOptions>,
   ): AsyncIterable<StreamChunk> {
     const { logger } = options
@@ -220,23 +481,7 @@ export class GrokBuildTextAdapter<
       })
 
       if (this.adapterConfig.emitDiff !== false) {
-        try {
-          const diff = await sandbox.process.exec(`git -C ${q(cwd)} diff`, {
-            cwd,
-          })
-          if (diff.exitCode === 0 && diff.stdout.trim() !== '') {
-            yield {
-              type: EventType.CUSTOM,
-              name: 'file.changed',
-              value: { path: '.', diff: diff.stdout },
-              timestamp: Date.now(),
-              threadId,
-              runId,
-            }
-          }
-        } catch {
-          // ignore
-        }
+        yield* this.emitDiffChunks(sandbox, cwd, threadId, runId)
       }
     } catch (error: unknown) {
       const err = error as Error & { code?: string }

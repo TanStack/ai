@@ -8,7 +8,7 @@ import * as path from 'node:path'
 import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 import { SandboxCapability } from '@tanstack/ai-sandbox'
 import { grokBuildText } from '../src/index'
-import { resolveGrokCliModel } from '../src/model-meta'
+import { GROK_BUILD_MODELS, resolveGrokCliModel } from '../src/model-meta'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type { CapabilityContext, StreamChunk } from '@tanstack/ai'
 import type { SandboxHandle } from '@tanstack/ai-sandbox'
@@ -72,6 +72,11 @@ describe('resolveGrokCliModel', () => {
     expect(resolveGrokCliModel('grok-build-0.1')).toBe('grok-build-0.1')
     expect(resolveGrokCliModel('grok-build')).toBe('grok-build-0.1')
   })
+
+  it('passes composer-2.5 through unchanged', () => {
+    expect(GROK_BUILD_MODELS).toContain('composer-2.5')
+    expect(resolveGrokCliModel('composer-2.5')).toBe('composer-2.5')
+  })
 })
 
 describe('grok-build in-sandbox adapter', () => {
@@ -81,6 +86,7 @@ describe('grok-build in-sandbox adapter', () => {
 
     const adapter = grokBuildText('grok-build-0.1', {
       grokExecutable: 'node fake-grok.mjs',
+      protocol: 'streaming-json',
     })
 
     const chunks = await collect(
@@ -116,6 +122,7 @@ describe('grok-build in-sandbox adapter', () => {
 
     const adapter = grokBuildText('grok-build', {
       grokExecutable: 'node fake-grok.mjs',
+      protocol: 'streaming-json',
     })
 
     const chunks = await collect(
