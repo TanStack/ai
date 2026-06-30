@@ -2626,6 +2626,137 @@ describe('StreamProcessor', () => {
       expect(messages[0]?.id).toBe('snap-1')
       expect(messages[0]?.role).toBe('assistant')
     })
+
+    it('should anchor a snapshot tool message into the preceding assistant message', () => {
+      const processor = new StreamProcessor()
+
+      // AG-UI fan-out: assistant turn + a separate `role: 'tool'` message.
+      processor.processChunk({
+        type: EventType.MESSAGES_SNAPSHOT,
+        messages: [
+          { id: 'u1', role: 'user', content: 'weather in Berlin?' },
+          {
+            id: 'a1',
+            role: 'assistant',
+            content: 'Let me check.',
+            toolCalls: [
+              {
+                id: 'tc-1',
+                type: 'function',
+                function: { name: 'getWeather', arguments: '{"loc":"Berlin"}' },
+              },
+            ],
+          },
+          { id: 't1', role: 'tool', content: '{"temp":72}', toolCallId: 'tc-1' },
+        ],
+        timestamp: Date.now(),
+      } as unknown as StreamChunk)
+
+      const messages = processor.getMessages()
+      // The detached tool message is anchored into the assistant turn rather
+      // than left as a standalone message.
+      expect(messages).toHaveLength(2)
+      expect(messages[0]?.role).toBe('user')
+      expect(messages[1]?.id).toBe('a1')
+      expect(messages[1]?.parts).toEqual([
+        { type: 'text', content: 'Let me check.' },
+        {
+          type: 'tool-call',
+          id: 'tc-1',
+          name: 'getWeather',
+          arguments: '{"loc":"Berlin"}',
+          state: 'input-complete',
+        },
+        {
+          type: 'tool-result',
+          toolCallId: 'tc-1',
+          content: '{"temp":72}',
+          state: 'complete',
+        },
+      ])
+    })
+
+    it('should preserve an in-flight tool-call part the snapshot omits so addToolResult still works (#859)', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const processor = new StreamProcessor()
+
+      // Stream a client-side tool call: the assistant message gains a
+      // `tool-call` part with name + arguments the client observed.
+      processor.prepareAssistantMessage()
+      processor.processChunk(ev.toolStart('tc-1', 'getWeather'))
+      processor.processChunk(ev.toolArgs('tc-1', '{"loc":"Berlin"}'))
+      processor.processChunk(ev.toolEnd('tc-1', 'getWeather'))
+
+      // A snapshot arrives that re-describes the assistant turn WITHOUT the
+      // tool-call metadata (only `content`), plus a `role: 'tool'` message that
+      // references the call id. The wire payload cannot reconstruct the
+      // tool-call name/arguments.
+      processor.processChunk({
+        type: EventType.MESSAGES_SNAPSHOT,
+        messages: [
+          { id: 'u1', role: 'user', content: 'weather in Berlin?' },
+          { id: 'a1', role: 'assistant', content: 'Let me check.' },
+          { id: 't1', role: 'tool', content: '{"temp":72}', toolCallId: 'tc-1' },
+        ],
+        timestamp: Date.now(),
+      } as unknown as StreamChunk)
+
+      // The tool-call part is carried forward from the pre-snapshot state and
+      // anchored into the assistant turn alongside its tool-result.
+      const afterSnapshot = processor.getMessages()
+      expect(afterSnapshot).toHaveLength(2)
+      const toolCallPart = afterSnapshot[1]?.parts.find(
+        (p): p is ToolCallPart => p.type === 'tool-call' && p.id === 'tc-1',
+      )
+      expect(toolCallPart).toBeDefined()
+      expect(toolCallPart?.name).toBe('getWeather')
+      expect(toolCallPart?.arguments).toBe('{"loc":"Berlin"}')
+
+      // addToolResult can now locate the call instead of warning + no-op'ing.
+      processor.addToolResult('tc-1', { temp: 72 })
+      expect(warn).not.toHaveBeenCalled()
+
+      const updated = processor
+        .getMessages()[1]
+        ?.parts.find(
+          (p): p is ToolCallPart => p.type === 'tool-call' && p.id === 'tc-1',
+        )
+      expect(updated?.state).toBe('complete')
+      expect(updated?.output).toEqual({ temp: 72 })
+
+      warn.mockRestore()
+    })
+
+    it('should not duplicate a tool-call part the snapshot already supplies', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk({
+        type: EventType.MESSAGES_SNAPSHOT,
+        messages: [
+          { id: 'u1', role: 'user', content: 'weather?' },
+          {
+            id: 'a1',
+            role: 'assistant',
+            content: 'Checking.',
+            toolCalls: [
+              {
+                id: 'tc-1',
+                type: 'function',
+                function: { name: 'getWeather', arguments: '{}' },
+              },
+            ],
+          },
+          { id: 't1', role: 'tool', content: '{"temp":72}', toolCallId: 'tc-1' },
+        ],
+        timestamp: Date.now(),
+      } as unknown as StreamChunk)
+
+      const parts = processor.getMessages()[1]?.parts ?? []
+      const toolCallParts = parts.filter((p) => p.type === 'tool-call')
+      const toolResultParts = parts.filter((p) => p.type === 'tool-result')
+      expect(toolCallParts).toHaveLength(1)
+      expect(toolResultParts).toHaveLength(1)
+    })
   })
 
   describe('per-message tool calls', () => {

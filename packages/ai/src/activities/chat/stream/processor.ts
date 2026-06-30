@@ -881,8 +881,112 @@ export class StreamProcessor {
     // them directly to UIMessage[] is unsafe and causes "Cannot read properties
     // of undefined (reading 'find')" when code later reads message.parts (e.g.
     // the onToolCallStateChange devtools handler).
-    this.messages = chunk.messages.map(aguiSnapshotMessageToUIMessage)
+    //
+    // The AG-UI `MESSAGES_SNAPSHOT` wire shape cannot reconstruct client-side
+    // tool-call metadata a server may omit: a `role: 'tool'` message only carries
+    // `toolCallId` + `content`, and an assistant message in the snapshot may
+    // drop `toolCalls` the client already observed via `TOOL_CALL_*` events.
+    // Without the matching `tool-call` part, later `addToolResult(toolCallId)`
+    // calls cannot locate the call and silently no-op (see #859). To keep the
+    // UI representation consistent with the streaming fan-out and preserve the
+    // unreconstructable metadata, run a post-pass that (a) anchors detached
+    // `tool-result`-only assistant messages (produced by `aguiSnapshotMessageToUIMessage`
+    // for `role: 'tool'` wire messages) into the preceding assistant message,
+    // and (b) carries forward any `tool-call` part from the pre-snapshot state
+    // when the snapshot references its `toolCallId` via a `tool-result` but does
+    // not itself supply the corresponding `tool-call` part.
+    const prevMessages = this.messages
+    const normalized = chunk.messages.map(aguiSnapshotMessageToUIMessage)
+    this.messages = this.reconcileSnapshotToolCalls(normalized, prevMessages)
     this.emitMessagesChange()
+  }
+
+  /**
+   * Reconcile a freshly normalized snapshot with the pre-snapshot message
+   * state so unreconstructable tool-call metadata is preserved.
+   *
+   * Post-pass (a): anchor `tool-result`-only assistant messages (emitted by
+   * `aguiSnapshotMessageToUIMessage` for AG-UI `role: 'tool'` wire messages)
+   * into the preceding assistant message, matching the in-stream fan-out
+   * shape `assistant: [text, tool-call, tool-result, ...]`. Detached messages
+   * with no preceding assistant in the snapshot are kept verbatim.
+   *
+   * Post-pass (b): when a `tool-result` part references a `toolCallId` whose
+   * `tool-call` part is absent from the snapshot, carry the `tool-call` part
+   * forward from the pre-snapshot state (state and output untouched) so a
+   * subsequent `addToolResult(toolCallId)` can still locate the call.
+   */
+  private reconcileSnapshotToolCalls(
+    snapshot: Array<UIMessage>,
+    prevMessages: Array<UIMessage>,
+  ): Array<UIMessage> {
+    // Index tool-call parts observed before the snapshot by id so we can
+    // restore metadata the snapshot cannot re-emit. Bump last-write-wins: a
+    // tool call can route through multiple messages across reconnects.
+    const prevToolCalls = new Map<string, ToolCallPart>()
+    for (const msg of prevMessages) {
+      for (const part of msg.parts) {
+        if (part.type === 'tool-call') {
+          prevToolCalls.set(part.id, part)
+        }
+      }
+    }
+    // Index tool-call parts already present in the snapshot so (b) only fills
+    // genuine gaps rather than overwriting the server's own description.
+    const snapshotToolCallIds = new Set<string>()
+    for (const msg of snapshot) {
+      for (const part of msg.parts) {
+        if (part.type === 'tool-call') {
+          snapshotToolCallIds.add(part.id)
+        }
+      }
+    }
+
+    const reconciled: Array<UIMessage> = []
+    for (const msg of snapshot) {
+      const toolResultPart =
+        msg.role === 'assistant' && msg.parts.length === 1
+          ? msg.parts.find(
+              (p): p is ToolResultPart => p.type === 'tool-result',
+            )
+          : undefined
+
+      if (!toolResultPart) {
+        reconciled.push(msg)
+        continue
+      }
+
+      const target = reconciled.findLast(
+        (m) => m.role === 'assistant' && m !== msg,
+      )
+
+      if (!target) {
+        // No assistant to anchor into — keep the detached message intact.
+        reconciled.push(msg)
+        continue
+      }
+
+      // (b) Fill in a missing tool-call part from the pre-snapshot state when
+      // the snapshot references its id via a tool-result but supplies no
+      // tool-call metadata of its own.
+      if (
+        !snapshotToolCallIds.has(toolResultPart.toolCallId) &&
+        !target.parts.some(
+          (p) => p.type === 'tool-call' && p.id === toolResultPart.toolCallId,
+        )
+      ) {
+        const prev = prevToolCalls.get(toolResultPart.toolCallId)
+        if (prev) {
+          // Append the carried-over tool-call part first so the resulting
+          // call→result ordering matches the streaming fan-out.
+          target.parts.push(prev)
+          snapshotToolCallIds.add(prev.id)
+        }
+      }
+      target.parts.push(toolResultPart)
+    }
+
+    return reconciled
   }
 
   /**
