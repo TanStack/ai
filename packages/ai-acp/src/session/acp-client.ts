@@ -20,6 +20,19 @@ import type {
 } from '../types/acp-types'
 import type { AcpJsonRpcStream, AcpSessionTransport } from '../transport/types'
 
+/**
+ * Identifies this client to the agent in the ACP `initialize` handshake. The
+ * `version` is informational (sent in `clientInfo`); keep it loosely in step
+ * with the package version. `clientInfo` is currently optional in the protocol
+ * but will become required, so we always send it.
+ * ponytail: hardcoded — clientInfo is diagnostic; a stale patch version is harmless.
+ */
+const CLIENT_INFO = {
+  name: '@tanstack/ai-acp',
+  title: 'TanStack AI',
+  version: '0.1.0',
+} as const
+
 export interface AcpSessionHandle {
   sessionId: string
   resumed: boolean
@@ -115,11 +128,30 @@ export async function startAcpSession(
     const initResult = await race(
       connection.initialize({
         protocolVersion: PROTOCOL_VERSION,
+        clientInfo: CLIENT_INFO,
         clientCapabilities: {
+          // The agent runs inside the sandbox with direct filesystem + shell
+          // access, so it never needs to delegate file/terminal I/O back to the
+          // client. We advertise these as unsupported; per the ACP spec the
+          // agent MUST then treat them as unavailable and not call them.
           fs: { readTextFile: false, writeTextFile: false },
         },
       }),
     )
+
+    // Protocol-version negotiation: the agent echoes the version it will speak.
+    // The spec says a client SHOULD close the connection if that version is one
+    // it doesn't support. We only implement the current PROTOCOL_VERSION, so a
+    // higher number means the agent needs a newer client than this one.
+    if (
+      typeof initResult.protocolVersion === 'number' &&
+      initResult.protocolVersion > PROTOCOL_VERSION
+    ) {
+      throw new Error(
+        `ACP agent negotiated protocol version ${initResult.protocolVersion}, ` +
+          `but this client supports up to ${PROTOCOL_VERSION}. Update @tanstack/ai-acp.`,
+      )
+    }
 
     if (options.authMethodId !== undefined) {
       const available = initResult.authMethods ?? []

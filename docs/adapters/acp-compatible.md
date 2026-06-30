@@ -185,6 +185,35 @@ export async function POST(request: Request) {
 }
 ```
 
+## Protocol coverage
+
+`acpCompatible` implements the **client / orchestration** side of ACP — enough to
+drive an agent through a full prompt turn, not the entire protocol surface. It is
+a compliant *minimal* client: everything it doesn't implement is either
+capability-gated (so advertising non-support is the spec-defined behavior) or a
+rendering choice, never a violation.
+
+**Covered:**
+
+- `initialize` handshake — sends `clientInfo` + the protocol version, negotiates the version, advertises capabilities.
+- `authenticate` (when the agent advertises auth methods), `session/new`, `session/load` (resume), `session/prompt`, `session/cancel`.
+- `session/request_permission` with all four option kinds, mapped by [permission mode](#permissions).
+- All streamed `session/update`s that carry turn output: `agent_message_chunk`, `agent_thought_chunk` (→ reasoning), `tool_call` / `tool_call_update`, `plan`.
+- All five stop reasons (`end_turn`, `max_tokens`, `max_turn_requests`, `refusal`, `cancelled`).
+
+**Surfaced as `CUSTOM` stream events** (the AG-UI chat-event protocol has no
+first-class event for non-text assistant output, so these ride on `CUSTOM`):
+
+- `<name>.session-id` — the harness session id, for [resume](#session-resume).
+- `<name>.message-content` — non-text agent content (`image` / `audio` / `resource` / `resource_link` blocks). Its `value` is `{ content: <ACP content block> }`. Non-text **tool** content (diffs, terminal, images) is preserved inside the `TOOL_CALL_RESULT` payload.
+- the plan event, when you set `planEventName`.
+
+**Not implemented (by design):**
+
+- `fs/read_text_file`, `fs/write_text_file`, `terminal/*` — advertised as unsupported. The agent runs inside the sandbox with direct filesystem and shell access, so it never delegates these back to the client.
+- Sending **multimodal prompts** — prompts are sent as text. (Agent multimodal *output* is surfaced via `message-content` above.)
+- Incremental `usage_update` (final turn usage is reported instead), `available_commands_update`, `current_mode_update`, and experimental features (elicitation, NES, providers, session modes/config).
+
 ## Next Steps
 
 - [Sandbox Overview](../sandbox/overview) — how harnesses run inside a sandbox

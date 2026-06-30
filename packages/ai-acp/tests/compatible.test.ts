@@ -22,8 +22,13 @@ import type { SandboxHandle } from '@tanstack/ai-sandbox'
 const require = createRequire(import.meta.url)
 const SDK_URL = pathToFileURL(require.resolve('@agentclientprotocol/sdk')).href
 
-/** A minimal ACP agent that replies "pong" and records the prompt it received. */
-const FAKE_ACP_AGENT = `
+/**
+ * A minimal ACP agent that replies "pong", records the `initialize` and `prompt`
+ * params it received, and reports the given protocol version (defaults to the
+ * SDK's `PROTOCOL_VERSION`).
+ */
+function fakeAcpAgent(protocolVersionExpr = 'PROTOCOL_VERSION'): string {
+  return `
 import { AgentSideConnection, ndJsonStream, PROTOCOL_VERSION } from ${JSON.stringify(SDK_URL)}
 import { Readable, Writable } from 'node:stream'
 import { writeFileSync } from 'node:fs'
@@ -33,8 +38,9 @@ const output = Writable.toWeb(process.stdout)
 const stream = ndJsonStream(output, input)
 
 new AgentSideConnection((conn) => ({
-  async initialize() {
-    return { protocolVersion: PROTOCOL_VERSION, agentCapabilities: { loadSession: true }, authMethods: [] }
+  async initialize(params) {
+    writeFileSync('acp-init.txt', JSON.stringify(params))
+    return { protocolVersion: ${protocolVersionExpr}, agentCapabilities: { loadSession: true }, authMethods: [] }
   },
   async newSession() {
     return { sessionId: 'sess-1' }
@@ -53,6 +59,9 @@ new AgentSideConnection((conn) => ({
   async cancel() {},
 }), stream)
 `
+}
+
+const FAKE_ACP_AGENT = fakeAcpAgent()
 
 const baseDir = path.join(os.tmpdir(), `tanstack-ai-acp-test-${Date.now()}`)
 const provider = localProcessSandbox({ baseDir, removeOnDestroy: true })
@@ -203,6 +212,61 @@ describe('acpCompatible in-sandbox adapter (stdio)', () => {
     const sentText = recorded.prompt.map((part) => part.text).join('')
     expect(sentText).toBe('follow up')
     expect(sentText).not.toContain('Previous conversation')
+
+    await sbx.destroy()
+  })
+
+  it('sends clientInfo in the initialize handshake', async () => {
+    const sbx = await provider.create({})
+    await sbx.fs.write('/workspace/fake-acp-agent.mjs', FAKE_ACP_AGENT)
+
+    await collect(
+      acpCompatibleText('pi-fast', {
+        name: 'pi',
+        command: () => 'node fake-acp-agent.mjs',
+      }).chatStream({
+        model: 'pi-fast',
+        messages: [{ role: 'user', content: 'hi' }],
+        logger: noopLogger,
+        capabilities: capabilityContextWith(sbx),
+      }),
+    )
+
+    const init = JSON.parse(await sbx.fs.read('/workspace/acp-init.txt')) as {
+      clientInfo?: { name?: string; version?: string }
+      protocolVersion?: number
+    }
+    expect(init.clientInfo).toMatchObject({ name: '@tanstack/ai-acp' })
+    expect(typeof init.clientInfo?.version).toBe('string')
+    expect(typeof init.protocolVersion).toBe('number')
+
+    await sbx.destroy()
+  })
+
+  it('errors when the agent negotiates an unsupported protocol version', async () => {
+    const sbx = await provider.create({})
+    await sbx.fs.write(
+      '/workspace/fake-acp-agent.mjs',
+      fakeAcpAgent('PROTOCOL_VERSION + 1'),
+    )
+
+    const chunks = await collect(
+      acpCompatibleText('pi-fast', {
+        name: 'pi',
+        command: () => 'node fake-acp-agent.mjs',
+      }).chatStream({
+        model: 'pi-fast',
+        messages: [{ role: 'user', content: 'hi' }],
+        logger: noopLogger,
+        capabilities: capabilityContextWith(sbx),
+      }),
+    )
+
+    const error = chunks.find((c) => c.type === 'RUN_ERROR') as {
+      message?: string
+    }
+    expect(error).toBeDefined()
+    expect(error.message).toMatch(/protocol version/i)
 
     await sbx.destroy()
   })

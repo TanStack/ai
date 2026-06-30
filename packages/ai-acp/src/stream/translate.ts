@@ -18,6 +18,13 @@ export interface AcpTranslateLabels {
   sessionIdEvent: string
   planEvent?: string
   refusalMessage?: string
+  /**
+   * When set, non-text agent message content (image / audio / resource /
+   * resource_link blocks) is surfaced as a CUSTOM event under this name instead
+   * of being dropped. Each event's `value` is `{ content: <ACP content block> }`.
+   * Omit to keep the text-only behavior.
+   */
+  contentEvent?: string
 }
 
 export interface TranslateContext {
@@ -60,13 +67,22 @@ function stringifyToolOutput(update: AcpToolCallUpdate): string {
       ? update.rawOutput
       : JSON.stringify(update.rawOutput)
   }
-  const text = (update.content ?? [])
+  const blocks = update.content ?? []
+  const text = blocks
     .map((block) =>
       block.content && typeof block.content.text === 'string'
         ? block.content.text
         : '',
     )
     .join('')
+  // Preserve non-text tool content (diff / terminal / image / resource blocks)
+  // by serializing the structured array, rather than collapsing to a stub.
+  const hasNonText = blocks.some(
+    (block) =>
+      block.type !== 'content' ||
+      (block.content !== undefined && block.content.type !== 'text'),
+  )
+  if (hasNonText) return JSON.stringify(blocks)
   if (text !== '') return text
   return JSON.stringify({ status: update.status ?? 'completed' })
 }
@@ -220,6 +236,21 @@ export async function* translateAcpStream(
   function* handleUpdate(update: AcpSessionUpdate): Generator<StreamChunk> {
     if (update.sessionUpdate === 'agent_message_chunk') {
       yield* closeReasoning()
+      // Non-text content (image / audio / resource / resource_link): surface it
+      // as a CUSTOM event when the harness opted in, instead of dropping it.
+      if (update.content.type !== 'text') {
+        if (labels.contentEvent !== undefined) {
+          yield* closeText()
+          yield {
+            type: EventType.CUSTOM,
+            model,
+            timestamp: now(),
+            name: labels.contentEvent,
+            value: { content: update.content },
+          }
+        }
+        return
+      }
       const text =
         typeof update.content.text === 'string' ? update.content.text : ''
       if (text === '') return

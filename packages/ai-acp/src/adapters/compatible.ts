@@ -411,6 +411,9 @@ export class AcpCompatibleTextAdapter<
           bridgedToolNames,
           labels: {
             sessionIdEvent: `${this.name}.session-id`,
+            // Surface non-text agent content (image/audio/resource) instead of
+            // dropping it — emitted as a CUSTOM `<name>.message-content` event.
+            contentEvent: `${this.name}.message-content`,
             ...(this.harness.planEventName !== undefined && {
               planEvent: this.harness.planEventName,
             }),

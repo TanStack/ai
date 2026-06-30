@@ -117,6 +117,29 @@ For WebSocket/`serve` harnesses, return your own transport from `openTransport`
 `startAcpServerInSandbox` + `connectAcpWebSocket`). Use `acpCompatibleText(model,
 config)` for a one-shot single-model adapter.
 
+### Protocol coverage
+
+This is a compliant **minimal client** for the orchestration role — it drives a
+full prompt turn, not the entire spec surface. Everything it omits is either
+capability-gated (advertising non-support *is* the spec-defined behavior) or a
+rendering choice, not a violation.
+
+- **Covered:** `initialize` (with `clientInfo` + version negotiation),
+  `authenticate`, `session/new`, `session/load`, `session/prompt`,
+  `session/cancel`, `session/request_permission` (all four option kinds), the
+  turn-output updates (`agent_message_chunk`, `agent_thought_chunk`, `tool_call`,
+  `tool_call_update`, `plan`), and all five stop reasons.
+- **Surfaced as `CUSTOM` events** (the AG-UI chat-event protocol has no
+  first-class event for non-text assistant *output*): `<name>.session-id`, the
+  plan event, and `<name>.message-content` for non-text agent content (image /
+  audio / resource blocks). Non-text **tool** content is preserved inside the
+  `TOOL_CALL_RESULT` payload.
+- **Not implemented (by design):** `fs/read_text_file`, `fs/write_text_file`,
+  `terminal/*` (advertised unsupported — the agent has direct sandbox FS/shell
+  access); sending multimodal *prompts* (text only); incremental `usage_update`
+  (final usage is reported); `available_commands_update` / `current_mode_update`;
+  and experimental features (elicitation, NES, providers, session modes).
+
 ## Quick start (building a harness adapter)
 
 If `acpCompatible` doesn't fit (you need a typed provider-options surface, custom

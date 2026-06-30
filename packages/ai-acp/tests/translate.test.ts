@@ -463,6 +463,67 @@ describe('translateAcpStream', () => {
   })
 })
 
+describe('translateAcpStream — non-text content', () => {
+  const imageChunk: AcpStreamEvent = {
+    kind: 'update',
+    update: {
+      sessionUpdate: 'agent_message_chunk',
+      content: { type: 'image', data: 'aGk=', mimeType: 'image/png' },
+    },
+  }
+
+  it('surfaces non-text agent content as a CUSTOM event when contentEvent is set', async () => {
+    const ctx = makeCtx({
+      labels: {
+        sessionIdEvent: SESSION_ID_EVENT,
+        contentEvent: 'test.message-content',
+      },
+    })
+    const chunks = await collect([session, imageChunk, done], ctx)
+    const custom = chunks.filter((c) => c.type === 'CUSTOM')
+    // session-id event + the surfaced image content event
+    expect(custom).toHaveLength(2)
+    expect(custom[1]).toMatchObject({
+      name: 'test.message-content',
+      value: { content: { type: 'image', data: 'aGk=', mimeType: 'image/png' } },
+    })
+  })
+
+  it('drops non-text agent content when contentEvent is unset (back-compat)', async () => {
+    const ctx = makeCtx({ labels: { sessionIdEvent: SESSION_ID_EVENT } })
+    const chunks = await collect([session, imageChunk, done], ctx)
+    expect(chunks.map((c) => c.type)).toEqual([
+      'RUN_STARTED',
+      'CUSTOM', // session-id only
+      'RUN_FINISHED',
+    ])
+  })
+
+  it('preserves non-text tool content (e.g. a diff) in the tool result', async () => {
+    const diffBlocks = [
+      { type: 'diff', path: 'a.ts', oldText: 'old', newText: 'new' },
+    ]
+    const chunks = await collect([
+      session,
+      {
+        kind: 'update',
+        update: {
+          sessionUpdate: 'tool_call',
+          toolCallId: 'tc-1',
+          title: 'edit',
+          status: 'completed',
+          content: diffBlocks,
+        },
+      },
+      done,
+    ])
+    const result = chunks.find((c) => c.type === 'TOOL_CALL_RESULT') as {
+      content: string
+    }
+    expect(JSON.parse(result.content)).toEqual(diffBlocks)
+  })
+})
+
 describe('matchBridgedToolName', () => {
   const names = new Set(['lookup_user', 'get_weather'])
 
