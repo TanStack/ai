@@ -21,6 +21,7 @@ import {
 } from '@tanstack/ai-sandbox'
 import { buildPrompt } from '../messages/prompt'
 import { resolveGrokAcpAuthMethod } from '../auth'
+import { createGrokAcpNotificationHandler } from '../process/grok-acp-notifications'
 import { openGrokAcpConnection } from '../process/acp'
 import { resolveGrokCliModel } from '../model-meta'
 import { SESSION_ID_EVENT, translateThreadEvents } from '../stream/translate'
@@ -30,6 +31,7 @@ import type { GrokBuildPolicyFlags } from './policy-map'
 import type {
   AcpPermissionMode,
   AcpSessionHandle,
+  AcpSessionUpdate,
   AcpStreamEvent,
   AcpTransportPreference,
 } from '@tanstack/ai-acp'
@@ -271,6 +273,8 @@ export class GrokBuildTextAdapter<
         { provider: 'grok-build', model: this.model },
       )
 
+      const onAcpUpdate = (update: AcpSessionUpdate) =>
+        queue.push({ kind: 'update', update })
       handle = await startAcpSession({
         transport: connection.transport,
         cwd: harnessCwd,
@@ -287,7 +291,8 @@ export class GrokBuildTextAdapter<
             },
           ],
         }),
-        onUpdate: (update) => queue.push({ kind: 'update', update }),
+        onUpdate: onAcpUpdate,
+        onExtNotification: createGrokAcpNotificationHandler(onAcpUpdate),
         onPermissionRequest: (request) =>
           resolvePermission(request, mode, bridgedToolNames),
       })

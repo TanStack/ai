@@ -228,6 +228,18 @@ export function usesToolBridge(provider: ProviderName): boolean {
   return PROVIDERS[provider].toolBridge
 }
 
+/**
+ * System-prompt guidance for local-process: the real workspace is a host temp dir,
+ * not `/workspace`. Grok/Claude tools resolve paths literally on the host.
+ */
+export function localWorkspaceGuidance(workspacePath: string): string {
+  return [
+    `WORKSPACE: your working directory is ${workspacePath}.`,
+    'Do NOT use /workspace — that path does not exist on this machine.',
+    'Run commands, scaffold projects, and read/write files only under this directory (or subdirs).',
+  ].join('\n')
+}
+
 export interface GrokHarnessOptions {
   protocol?: GrokBuildProtocol
   transport?: GrokTransport

@@ -8,6 +8,7 @@ import {
   buildSandbox,
   isHarness,
   isProvider,
+  localWorkspaceGuidance,
   makeExposePreviewTool,
   missingEnv,
   previewGuidance,
@@ -170,6 +171,7 @@ export const Route = createFileRoute('/api/run')({
 
         try {
           const sandbox = buildSandbox({ harness, provider, threadId })
+          const handle = await sandbox.ensure({ threadId, runId: 'run' })
           const adapter = buildAdapter(
             harness,
             harness === 'grok'
@@ -189,8 +191,10 @@ export const Route = createFileRoute('/api/run')({
           // can't reach us, so we inline the recipe and pre-mint the URL up front.
           let systemPrompts: Array<string>
           let tools: Array<AnyTool>
+          const localWorkspaceHint =
+            provider === 'local' ? [localWorkspaceGuidance(handle.id)] : []
           if (usesToolBridge(provider)) {
-            systemPrompts = [PREVIEW_GUIDANCE]
+            systemPrompts = [...localWorkspaceHint, PREVIEW_GUIDANCE]
             tools = [
               tanstackStartRecipe,
               makeExposePreviewTool(sandbox, threadId),
@@ -205,7 +209,11 @@ export const Route = createFileRoute('/api/run')({
                 error,
               )
             }
-            systemPrompts = [RECIPE_GUIDANCE, previewGuidance(previewUrl)]
+            systemPrompts = [
+              ...localWorkspaceHint,
+              RECIPE_GUIDANCE,
+              previewGuidance(previewUrl),
+            ]
             tools = []
           }
 

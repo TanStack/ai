@@ -44,6 +44,14 @@ export interface StartAcpSessionOptions {
   onPermissionRequest: (
     request: AcpPermissionRequest,
   ) => Promise<AcpPermissionOutcome> | AcpPermissionOutcome
+  /**
+   * Harness-specific JSON-RPC notifications (e.g. Grok `_x.ai/session_notification`).
+   * Return without throwing — unknown vendor extensions must not tear down the session.
+   */
+  onExtNotification?: (
+    method: string,
+    params: Record<string, unknown>,
+  ) => void
 }
 
 function streamFromTransport(transport: AcpSessionTransport): {
@@ -93,6 +101,10 @@ export async function startAcpSession(
       if (!replaying) {
         options.onUpdate(params.update as AcpSessionUpdate)
       }
+      return Promise.resolve()
+    },
+    extNotification: (method, params) => {
+      options.onExtNotification?.(method, params)
       return Promise.resolve()
     },
   }
