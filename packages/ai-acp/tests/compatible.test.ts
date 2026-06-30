@@ -66,10 +66,17 @@ new AgentSideConnection((conn) => ({
 const FAKE_ACP_AGENT = fakeAcpAgent()
 
 const baseDir = path.join(os.tmpdir(), `tanstack-ai-acp-test-${Date.now()}`)
-const provider = localProcessSandbox({ baseDir, removeOnDestroy: true })
+// No removeOnDestroy: destroying a sandbox right after killing its agent races
+// the OS releasing the dir (EBUSY on Windows). Clean the tree once at the end.
+const provider = localProcessSandbox({ baseDir })
 
 afterAll(async () => {
-  await fsp.rm(baseDir, { recursive: true, force: true })
+  await fsp.rm(baseDir, {
+    recursive: true,
+    force: true,
+    maxRetries: 10,
+    retryDelay: 100,
+  })
 })
 
 const noopLogger = {

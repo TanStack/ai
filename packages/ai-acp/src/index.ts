@@ -80,3 +80,6 @@ export type {
 
 export { buildAcpPrompt } from './messages/prompt'
 export type { BuiltAcpPrompt } from './messages/prompt'
+
+export { projectAcpWorkspace, workspaceMcpServers } from './adapters/projection'
+export type { AcpMcpServer } from './adapters/projection'

@@ -104,6 +104,7 @@ abort, and AG-UI translation.
 | `command`             | Build the **stdio** launch command (`({ model, cwd, harnessCwd, sandbox, env, modelOptions, signal }) => string`). Required unless `openTransport` is given. |
 | `openTransport`       | Full transport escape hatch — open any `AcpSessionTransport` yourself (e.g. boot a `serve` process and connect over WebSocket). Overrides `command`.         |
 | `cwd`                 | Working directory inside the sandbox (default `/workspace`).                                                                                                 |
+| `skillsDir`           | The harness's skills dir relative to the workspace root (e.g. `'.pi/skills'`) — `withSandbox` workspace `gitSkill`s are linked here. MCP skills ride ACP natively, so they need no path. |
 | `env`                 | Extra environment variables for the harness process.                                                                                                         |
 | `authMethodId`        | ACP auth method to select before the session starts.                                                                                                         |
 | `permissionMode`      | `'default'` \| `'acceptEdits'` \| `'bypassPermissions'` (default).                                                                                           |
@@ -137,6 +138,9 @@ rendering choice, not a violation.
   plan event, and `<name>.message-content` for non-text agent content (image /
   audio / resource blocks). Non-text **tool** content is preserved inside the
   `TOOL_CALL_RESULT` payload.
+- **Workspace projection:** MCP skills → ACP `mcpServers` natively;
+  `gitSkill`s → linked into `skillsDir`; `fileSkill`/`instructions`/`secrets` →
+  handled by bootstrap. `agentSkill`/`plugins` are warned-and-skipped.
 - **Not implemented (by design):** `fs/read_text_file`, `fs/write_text_file`,
   `terminal/*` (advertised unsupported — the agent has direct sandbox FS/shell
   access); sending multimodal _prompts_ (text only); incremental `usage_update`

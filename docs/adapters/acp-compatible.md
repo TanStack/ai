@@ -140,6 +140,7 @@ declare: `sessionId` (resume), `cwd`, `authMethodId`, and `permissionMode`.
 | `models` | The model ids this harness accepts — declaring them makes `harness('id')` type-safe (unknown ids are rejected). Omit to accept any string. |
 | `modelOptions` | Type-only brand for the per-call options accepted via `chat({ modelOptions })`. Declare with `{} as { … }`; merged with the base options and exposed on `ctx.modelOptions` in `command` / `openTransport`. |
 | `command` | Build the **stdio** launch command from `{ model, cwd, harnessCwd, sandbox, env, modelOptions, signal }`. Required unless `openTransport` is given. |
+| `skillsDir` | The harness's skills directory (relative to the workspace root, e.g. `'.pi/skills'`) — its native convention, like Claude Code's `.claude/skills`. `withSandbox` workspace `gitSkill`s are linked here. Omit and gitSkills are left unlinked (warned). |
 | `openTransport` | Open any `AcpSessionTransport` yourself (e.g. boot a `serve` process and connect over WebSocket). Overrides `command`. |
 | `cwd` | Working directory inside the sandbox (default `/workspace`). |
 | `env` | Extra environment variables for the harness process. |
@@ -229,6 +230,24 @@ export async function POST(request: Request) {
   return toServerSentEventsResponse(stream)
 }
 ```
+
+## Workspace skills
+
+When you provision a [workspace](../sandbox/workspace) via `withSandbox`,
+`acpCompatible` projects its skills into the harness — each kind lands where that
+harness expects it:
+
+| Workspace input | How `acpCompatible` projects it |
+| --- | --- |
+| `mcpSkill(name, config)` | Passed to the agent over **ACP natively** via `newSession`'s `mcpServers` (secrets/bearer headers resolved). No config file — that's the ACP advantage over file-based harnesses. |
+| `gitSkill({ repo })` | Cloned during bootstrap, then linked into your declared [`skillsDir`](#configuration) (e.g. `.pi/skills`). Omit `skillsDir` and it's left unlinked (with a warning). |
+| `fileSkill({ path, content })` | Written into the workspace root during bootstrap (provider-agnostic). |
+| `instructions` | Written to `AGENTS.md` (and symlinks) during bootstrap. |
+| `agentSkill(name)`, `plugins` | No generic ACP primitive — warned and skipped. Provide a `gitSkill` or MCP server instead. |
+
+`secrets` declared on the workspace are injected into the agent's environment at
+create/resume (never persisted to snapshots), so the harness CLI picks them up
+like any env var.
 
 ## Protocol coverage
 

@@ -7,6 +7,7 @@ import {
   createBridgeEventChannel,
   getSandbox,
   getToolBridgeProvisioner,
+  getWorkspaceProjection,
   mergeChunkStreams,
   nodeHttpBridgeProvisioner,
   resolveHarnessCwd,
@@ -16,6 +17,8 @@ import { startAcpSession } from '../session/acp-client'
 import { translateAcpStream } from '../stream/translate'
 import { resolveInteractivePermission, resolvePermission } from '../permissions'
 import { buildAcpPrompt } from '../messages/prompt'
+import { projectAcpWorkspace, workspaceMcpServers } from './projection'
+import type { AcpMcpServer } from './projection'
 import type { HostToolBridge, SandboxHandle } from '@tanstack/ai-sandbox'
 import type {
   StructuredOutputOptions,
@@ -117,6 +120,14 @@ export interface AcpCompatibleConfig<
   ) => Promise<AcpSessionTransport> | AcpSessionTransport
   /** Working directory inside the sandbox. Defaults to `/workspace`. */
   cwd?: string
+  /**
+   * The harness's skills directory, relative to the workspace root (e.g.
+   * `'.pi/skills'`) — its native convention for where it auto-discovers skills,
+   * the way Claude Code uses `.claude/skills`. When set, `withSandbox` workspace
+   * `gitSkill`s are linked here. MCP skills don't need this: they're passed to
+   * the agent over ACP natively. Omit and `gitSkill`s are left unlinked (warned).
+   */
+  skillsDir?: string
   /** Extra environment variables for the harness process. */
   env?: Record<string, string>
   /**
@@ -351,6 +362,22 @@ export class AcpCompatibleTextAdapter<
         })
       }
 
+      // Project workspace skills declared via withSandbox. MCP skills ride ACP's
+      // native `mcpServers` (below); gitSkills are linked into `skillsDir`.
+      let workspaceServers: Array<AcpMcpServer> = []
+      const projection = options.capabilities
+        ? getWorkspaceProjection(options.capabilities, { optional: true })
+        : undefined
+      if (projection !== undefined) {
+        await projectAcpWorkspace(sandbox, projection, {
+          ...(this.harness.skillsDir !== undefined && {
+            skillsDir: this.harness.skillsDir,
+          }),
+          harnessName: this.name,
+        })
+        workspaceServers = workspaceMcpServers(projection)
+      }
+
       const ctx: AcpHarnessContext<ResolvedOptions<TModelOptions>> = {
         sandbox,
         model: this.model,
@@ -388,6 +415,23 @@ export class AcpCompatibleTextAdapter<
         { provider: this.name, model: this.model },
       )
 
+      // The host tool-bridge (chat() tools) + workspace MCP skills, both over
+      // ACP's native MCP channel.
+      const mcpServers: Array<AcpMcpServer> = [
+        ...(bridge !== undefined
+          ? [
+              {
+                name: bridge.name,
+                url: bridge.url,
+                headers: [
+                  { name: 'Authorization', value: `Bearer ${bridge.token}` },
+                ],
+              },
+            ]
+          : []),
+        ...workspaceServers,
+      ]
+
       const onAcpUpdate = (update: AcpSessionUpdate) =>
         queue.push({ kind: 'update', update })
       handle = await startAcpSession({
@@ -395,17 +439,7 @@ export class AcpCompatibleTextAdapter<
         cwd: harnessCwd,
         ...(authMethodId !== undefined && { authMethodId }),
         ...(sessionId !== undefined && { resumeSessionId: sessionId }),
-        ...(bridge !== undefined && {
-          mcpServers: [
-            {
-              name: bridge.name,
-              url: bridge.url,
-              headers: [
-                { name: 'Authorization', value: `Bearer ${bridge.token}` },
-              ],
-            },
-          ],
-        }),
+        ...(mcpServers.length > 0 && { mcpServers }),
         onUpdate: onAcpUpdate,
         ...(this.harness.onExtNotification && {
           onExtNotification: this.harness.onExtNotification,
