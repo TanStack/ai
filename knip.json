@@ -1,6 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "ignoreDependencies": ["@faker-js/faker"],
+  "ignoreDependencies": ["@faker-js/faker", "@aws-sdk/client-bedrock"],
   "ignoreWorkspaces": [
     "examples/**",
     "testing/**",
@@ -57,6 +57,7 @@
     },
     "packages/ai-vue-ui": {
       "ignore": ["src/use-chat-context.ts"]
-    }
+    },
+    "packages/ai-bedrock": {}
   }
 }

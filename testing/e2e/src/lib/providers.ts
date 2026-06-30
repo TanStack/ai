@@ -6,6 +6,7 @@ import { createGeminiTextInteractions } from '@tanstack/ai-gemini/experimental'
 import { createOllamaChat } from '@tanstack/ai-ollama'
 import { createGroqText } from '@tanstack/ai-groq'
 import { createGrokText } from '@tanstack/ai-grok'
+import { createBedrockText } from '@tanstack/ai-bedrock'
 import { openaiCompatibleText } from '@tanstack/ai-openai/compatible'
 import {
   createOpenRouterResponsesText,
@@ -26,6 +27,8 @@ const defaultModels: Record<Provider, string> = {
   ollama: 'mistral',
   groq: 'llama-3.3-70b-versatile',
   grok: 'grok-build-0.1',
+  bedrock: 'openai.gpt-oss-120b-1:0',
+  'bedrock-responses': 'openai.gpt-oss-120b-1:0',
   openrouter: 'openai/gpt-4o',
   'openrouter-responses': 'openai/gpt-4o',
   'openai-compatible': 'gpt-4o',
@@ -115,6 +118,37 @@ export function createTextAdapter(
           baseURL: openaiUrl,
           defaultHeaders: testHeaders,
         }),
+      }),
+    // NOTE: Only the OpenAI-compatible Bedrock paths are E2E-covered here.
+    // The default `bedrock-converse` adapter uses the AWS binary event-stream
+    // (vnd.amazon.eventstream) Converse protocol, which aimock cannot replay —
+    // that path is covered by unit tests in packages/ai-bedrock/tests/converse/
+    // instead. See testing/e2e/README.md § "Bedrock Converse coverage gap".
+    bedrock: () =>
+      createChatOptions({
+        adapter: createBedrockText(
+          model as 'openai.gpt-oss-120b-1:0',
+          DUMMY_KEY,
+          {
+            baseURL: openaiUrl,
+            defaultHeaders: testHeaders,
+            // Converse is now the default; this matrix entry exercises the
+            // OpenAI-compatible Chat Completions path, so pin api: 'chat'.
+            api: 'chat',
+          },
+        ),
+      }),
+    'bedrock-responses': () =>
+      createChatOptions({
+        adapter: createBedrockText(
+          model as 'openai.gpt-oss-120b-1:0',
+          DUMMY_KEY,
+          {
+            baseURL: openaiUrl,
+            defaultHeaders: testHeaders,
+            api: 'responses',
+          },
+        ),
       }),
     openrouter: () => {
       // OpenRouter SDK exposes an HTTPClient with beforeRequest hooks. Use
