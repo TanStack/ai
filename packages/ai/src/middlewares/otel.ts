@@ -83,6 +83,7 @@ const OPERATION_NAME: Record<GenerationActivity, string> = {
   audio: 'audio_generation',
   tts: 'text_to_speech',
   transcription: 'transcription',
+  rerank: 'rerank',
 }
 
 export interface OtelMiddlewareOptions {

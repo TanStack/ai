@@ -1520,6 +1520,71 @@ export interface SummarizationResult {
 }
 
 // ============================================================================
+// Rerank Types
+// ============================================================================
+
+/**
+ * Options passed to a {@link RerankAdapter}. Documents reach the adapter
+ * already serialized to strings — the `rerank()` activity stringifies object
+ * documents and maps results back to the original elements, so adapters never
+ * deal with the caller's document type.
+ */
+export interface RerankOptions<
+  TProviderOptions extends object = Record<string, unknown>,
+> {
+  model: string
+  /** The search query documents are scored against. */
+  query: string
+  /** Documents to rerank, pre-serialized to strings by the activity. */
+  documents: Array<string>
+  /** Return only the top N results. Passed through to the provider. */
+  topN?: number
+  /** Provider-specific options forwarded by the rerank() activity. */
+  modelOptions?: TProviderOptions
+  /** Forwarded to the provider request for cancellation. */
+  abortSignal?: AbortSignal
+  /**
+   * Internal logger threaded from the rerank() entry point. Adapters must call
+   * logger.request() before the provider call and logger.errors() in catch
+   * blocks.
+   */
+  logger: InternalLogger
+}
+
+/**
+ * Provider-level rerank result. Adapters return scored indices into the
+ * (serialized) `documents` array plus usage — never the documents themselves.
+ * The activity attaches the original documents.
+ */
+export interface RerankAdapterResult {
+  id: string
+  /** Scored results, highest relevance first, as indices into `documents`. */
+  ranking: Array<{ index: number; score: number }>
+  usage: TokenUsage
+}
+
+/**
+ * Public result of the `rerank()` activity, generic over the caller's document
+ * element type so `document` / `rerankedDocuments` carry the original values
+ * (strings or objects), not their serialized form.
+ */
+export interface RerankResult<TDocument = string> {
+  id: string
+  model: string
+  /** Scored results, highest relevance first. */
+  ranking: Array<{ index: number; score: number; document: TDocument }>
+  /** The documents reordered by relevance — `ranking.map(r => r.document)`. */
+  rerankedDocuments: Array<TDocument>
+  /**
+   * Usage for the request. Rerank typically bills in provider-defined "search
+   * units" (`usage.unitsBilled`) rather than tokens. Some providers (e.g.
+   * OpenRouter) may also report `totalTokens` and `cost`; Cohere reports only
+   * search units and leaves the token counts at 0.
+   */
+  usage: TokenUsage
+}
+
+// ============================================================================
 // Image Generation Types
 // ============================================================================
 

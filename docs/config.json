@@ -290,6 +290,16 @@
       ]
     },
     {
+      "label": "Reranking",
+      "children": [
+        {
+          "label": "Reranking",
+          "to": "rerank/rerank",
+          "addedAt": "2026-06-25"
+        }
+      ]
+    },
+    {
       "label": "Middleware",
       "children": [
         {
@@ -477,13 +487,19 @@
         {
           "label": "OpenRouter Adapter",
           "to": "adapters/openrouter",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-06-25"
         },
         {
           "label": "OpenAI-Compatible",
           "to": "adapters/openai-compatible",
           "addedAt": "2026-06-01",
           "updatedAt": "2026-06-20"
+        },
+        {
+          "label": "Cohere",
+          "to": "adapters/cohere",
+          "addedAt": "2026-06-25"
         }
       ]
     },
