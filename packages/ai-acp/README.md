@@ -38,13 +38,13 @@ Harness CLIs that support ACP expose a long-lived JSON-RPC session. They stream 
 
 Responsibilities split roughly as:
 
-| Layer | Module | Role |
-| ----- | ------ | ---- |
-| **Transport** | `transport/*` | Bytes ↔ JSON-RPC: stdio (NDJSON) or WebSocket |
-| **Session** | `session/acp-client` | `initialize` → `authenticate` → `newSession` / `loadSession` → `prompt` |
-| **Sandbox server** | `session/sandbox-server` | Boot an in-sandbox `serve` process and connect over an exposed port |
-| **Translation** | `stream/translate` | ACP `sessionUpdate` events → TanStack `StreamChunk`s |
-| **Permissions** | `permissions` | Map harness permission prompts to allow/reject (and optional approval ids) |
+| Layer              | Module                   | Role                                                                       |
+| ------------------ | ------------------------ | -------------------------------------------------------------------------- |
+| **Transport**      | `transport/*`            | Bytes ↔ JSON-RPC: stdio (NDJSON) or WebSocket                              |
+| **Session**        | `session/acp-client`     | `initialize` → `authenticate` → `newSession` / `loadSession` → `prompt`    |
+| **Sandbox server** | `session/sandbox-server` | Boot an in-sandbox `serve` process and connect over an exposed port        |
+| **Translation**    | `stream/translate`       | ACP `sessionUpdate` events → TanStack `StreamChunk`s                       |
+| **Permissions**    | `permissions`            | Map harness permission prompts to allow/reject (and optional approval ids) |
 
 ## Quick start (building a harness adapter)
 
@@ -68,7 +68,9 @@ import {
 import { withSandbox } from '@tanstack/ai-sandbox'
 
 // Inside your adapter's chatStream():
-const proc = await sandbox.process.spawn('my-cli --acp -m auto', { cwd: '/workspace' })
+const proc = await sandbox.process.spawn('my-cli --acp -m auto', {
+  cwd: '/workspace',
+})
 
 const queue = new AsyncQueue()
 const session = await startAcpSession({
@@ -77,11 +79,23 @@ const session = await startAcpSession({
   authMethodId: 'gemini-api-key', // when the harness advertises it
   resumeSessionId: options.modelOptions?.sessionId,
   mcpServers: bridge
-    ? [{ name: bridge.name, url: bridge.url, headers: [{ name: 'Authorization', value: `Bearer ${bridge.token}` }] }]
+    ? [
+        {
+          name: bridge.name,
+          url: bridge.url,
+          headers: [{ name: 'Authorization', value: `Bearer ${bridge.token}` }],
+        },
+      ]
     : undefined,
   onUpdate: (update) => queue.push({ kind: 'update', update }),
   onPermissionRequest: (request) =>
-    resolveInteractivePermission(request, 'acceptEdits', bridgedToolNames, options.approvals, 'my-harness').outcome,
+    resolveInteractivePermission(
+      request,
+      'acceptEdits',
+      bridgedToolNames,
+      options.approvals,
+      'my-harness',
+    ).outcome,
 })
 
 queue.push({ kind: 'session', sessionId: session.sessionId })
@@ -89,23 +103,28 @@ queue.push({ kind: 'session', sessionId: session.sessionId })
 session
   .prompt(userText)
   .then(({ stopReason, usage }) => {
-    queue.push({ kind: 'done', stopReason, ...(usage !== undefined && { usage }) })
+    queue.push({
+      kind: 'done',
+      stopReason,
+      ...(usage !== undefined && { usage }),
+    })
     queue.end()
   })
   .catch((error) => queue.fail(error))
 
-yield* translateAcpStream(queue, {
-  model: 'auto',
-  runId,
-  threadId,
-  genId: () => crypto.randomUUID(),
-  labels: {
-    sessionIdEvent: 'my-harness.session-id',
-    planEvent: 'my-harness.plan',
-    refusalMessage: 'Harness refused the request.',
-  },
-  bridgedToolNames,
-})
+yield *
+  translateAcpStream(queue, {
+    model: 'auto',
+    runId,
+    threadId,
+    genId: () => crypto.randomUUID(),
+    labels: {
+      sessionIdEvent: 'my-harness.session-id',
+      planEvent: 'my-harness.plan',
+      refusalMessage: 'Harness refused the request.',
+    },
+    bridgedToolNames,
+  })
 ```
 
 Wire the adapter into `chat()` with `withSandbox(...)` like any other harness package.
@@ -159,10 +178,10 @@ await startAcpSession({
 
 `resolveAcpTransportMode(sandbox, preference)` implements the selection table:
 
-| Preference | Behavior |
-| ---------- | -------- |
-| `'stdio'` | Requires `writableStdin`; throws if unavailable |
-| `'websocket'` | Requires `ports` + `backgroundProcesses` |
+| Preference         | Behavior                                                                                                |
+| ------------------ | ------------------------------------------------------------------------------------------------------- |
+| `'stdio'`          | Requires `writableStdin`; throws if unavailable                                                         |
+| `'websocket'`      | Requires `ports` + `backgroundProcesses`                                                                |
 | `'auto'` (default) | Prefer stdio when writable; else WebSocket when ports are available; else throw with a actionable error |
 
 Helpers: `connectAcpWebSocket`, `httpChannelUrlToWsBase`, `webSocketFrameToAcpStream`, `parseWebSocketUrlFromServeOutput`.
@@ -193,22 +212,22 @@ Thread that `sessionId` through `modelOptions.sessionId` on the next `chat()` ca
 
 `translateAcpStream(events, ctx)` is a pure async generator. Feed it `AcpStreamEvent` values:
 
-| Event | When |
-| ----- | ---- |
-| `{ kind: 'session', sessionId }` | Right after `newSession` / `loadSession` |
-| `{ kind: 'update', update }` | Each `onUpdate` callback from the harness |
-| `{ kind: 'done', stopReason, usage? }` | After `prompt` resolves |
+| Event                                  | When                                      |
+| -------------------------------------- | ----------------------------------------- |
+| `{ kind: 'session', sessionId }`       | Right after `newSession` / `loadSession`  |
+| `{ kind: 'update', update }`           | Each `onUpdate` callback from the harness |
+| `{ kind: 'done', stopReason, usage? }` | After `prompt` resolves                   |
 
 ACP → AG-UI mapping (high level):
 
-| ACP `sessionUpdate` | StreamChunk(s) |
-| ------------------- | -------------- |
-| `agent_message_chunk` | `TEXT_MESSAGE_*` |
-| `agent_thought_chunk` | `REASONING_*` |
-| `tool_call` / `tool_call_update` | `TOOL_CALL_*` + `TOOL_CALL_RESULT` |
-| `plan` | `CUSTOM` (when `labels.planEvent` is set) |
-| (terminal) `stopReason: 'refusal'` | `RUN_ERROR` |
-| (terminal) other stop reasons | `RUN_FINISHED` + usage |
+| ACP `sessionUpdate`                | StreamChunk(s)                            |
+| ---------------------------------- | ----------------------------------------- |
+| `agent_message_chunk`              | `TEXT_MESSAGE_*`                          |
+| `agent_thought_chunk`              | `REASONING_*`                             |
+| `tool_call` / `tool_call_update`   | `TOOL_CALL_*` + `TOOL_CALL_RESULT`        |
+| `plan`                             | `CUSTOM` (when `labels.planEvent` is set) |
+| (terminal) `stopReason: 'refusal'` | `RUN_ERROR`                               |
+| (terminal) other stop reasons      | `RUN_FINISHED` + usage                    |
 
 `matchBridgedToolName` rewrites tool titles from the harness MCP namespace back to TanStack tool names when host tools are bridged in. `BRIDGED_MCP_SERVER_NAME` (`'tanstack'`) is the conventional MCP server name adapters use for the bridge.
 
@@ -219,7 +238,10 @@ ACP → AG-UI mapping (high level):
 Harnesses can pause mid-turn and ask the client to approve a tool call. Wire `onPermissionRequest` on `startAcpSession`:
 
 ```typescript
-import { resolvePermission, resolveInteractivePermission } from '@tanstack/ai-acp'
+import {
+  resolvePermission,
+  resolveInteractivePermission,
+} from '@tanstack/ai-acp'
 
 // Headless / sandboxed: auto-approve bridged tools + edits, reject everything else
 onPermissionRequest: (request) =>
@@ -237,11 +259,11 @@ const { outcome, approvalId } = resolveInteractivePermission(
 
 `AcpPermissionMode`:
 
-| Mode | Behavior |
-| ---- | -------- |
-| `'default'` | Approve TanStack-bridged tools; reject other permission prompts |
-| `'acceptEdits'` | Also auto-approve file mutations (`edit`, `move`, `delete`) |
-| `'bypassPermissions'` | Approve everything |
+| Mode                  | Behavior                                                        |
+| --------------------- | --------------------------------------------------------------- |
+| `'default'`           | Approve TanStack-bridged tools; reject other permission prompts |
+| `'acceptEdits'`       | Also auto-approve file mutations (`edit`, `move`, `delete`)     |
+| `'bypassPermissions'` | Approve everything                                              |
 
 Pass a custom `PermissionHandler` to override the policy entirely.
 
@@ -283,10 +305,10 @@ Structural subsets of ACP shapes (`AcpSessionUpdate`, `AcpToolCallUpdate`, `AcpU
 
 ## Consumers in this repo
 
-| Package | How it uses `@tanstack/ai-acp` |
-| ------- | ------------------------------ |
-| `@tanstack/ai-grok-build` | Stdio + WebSocket (`grok agent serve`); vendor `extNotification` handling |
-| `@tanstack/ai-antigravity-cli` | Stdio (`antigravity --acp`) |
+| Package                        | How it uses `@tanstack/ai-acp`                                            |
+| ------------------------------ | ------------------------------------------------------------------------- |
+| `@tanstack/ai-grok-build`      | Stdio + WebSocket (`grok agent serve`); vendor `extNotification` handling |
+| `@tanstack/ai-antigravity-cli` | Stdio (`antigravity --acp`)                                               |
 
 Both re-export commonly needed symbols (`startAcpSession`, `translateAcpStream`, permission helpers) from their own entry points so app code rarely imports `@tanstack/ai-acp` directly.
 
