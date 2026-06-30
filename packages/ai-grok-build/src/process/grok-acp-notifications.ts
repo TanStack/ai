@@ -90,7 +90,9 @@ export function createGrokAcpNotificationHandler(
 
     if (kind === 'interaction_resolved') {
       const id =
-        typeof update.tool_call_id === 'string' ? update.tool_call_id : undefined
+        typeof update.tool_call_id === 'string'
+          ? update.tool_call_id
+          : undefined
       if (id === undefined) return
       const state = tools.get(id)
       if (state === undefined) return

@@ -13,7 +13,10 @@ async function* empty(): AsyncIterable<string> {
   // no output
 }
 
-function fakeProc(stdout: AsyncIterable<string>, stderr: AsyncIterable<string>): {
+function fakeProc(
+  stdout: AsyncIterable<string>,
+  stderr: AsyncIterable<string>,
+): {
   proc: SpawnHandle
   killed: { value: boolean }
 } {
@@ -65,7 +68,9 @@ describe('startAcpServerInSandbox', () => {
       timeoutMs: 2_000,
     })
 
-    expect(server.wsUrl).toBe('wss://2419-preview.example.test/ws?server-key=abc')
+    expect(server.wsUrl).toBe(
+      'wss://2419-preview.example.test/ws?server-key=abc',
+    )
     expect(connect).toHaveBeenCalledWith(2419)
 
     await server.dispose()

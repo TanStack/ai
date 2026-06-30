@@ -10,10 +10,7 @@ import * as path from 'node:path'
 import { DEFAULT_WORKSPACE_ROOT } from './bootstrap'
 import type { SandboxHandle } from './contracts'
 
-function mapVirtualWorkspacePath(
-  virtualCwd: string,
-  realRoot: string,
-): string {
+function mapVirtualWorkspacePath(virtualCwd: string, realRoot: string): string {
   if (virtualCwd === DEFAULT_WORKSPACE_ROOT) return realRoot
   if (virtualCwd.startsWith(`${DEFAULT_WORKSPACE_ROOT}/`)) {
     const rel = virtualCwd.slice(DEFAULT_WORKSPACE_ROOT.length + 1)

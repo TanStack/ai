@@ -159,10 +159,7 @@ export interface AcpWebSocketConnection {
  * {@link ClientSideConnection}.
  */
 interface WebSocketWithHeaders {
-  new (
-    url: string,
-    options?: { headers?: Record<string, string> },
-  ): WebSocket
+  new (url: string, options?: { headers?: Record<string, string> }): WebSocket
 }
 
 const WebSocketCtor = WebSocket as unknown as WebSocketWithHeaders

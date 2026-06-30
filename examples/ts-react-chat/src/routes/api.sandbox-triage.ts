@@ -66,9 +66,8 @@ export async function triagePost(request: Request): Promise<Response> {
   if (!isHarness(data.harness) || !isProvider(data.provider)) {
     return json(400, 'Unknown harness or provider.')
   }
-  const { isGrokModel, isGrokProtocol, isGrokTransport } = await import(
-    '../sandbox-triage-options'
-  )
+  const { isGrokModel, isGrokProtocol, isGrokTransport } =
+    await import('../sandbox-triage-options')
   if (
     data.harness === 'grok' &&
     data.grokModel !== undefined &&

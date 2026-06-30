@@ -30,7 +30,10 @@ describe('DaytonaHandle.ports.connect', () => {
       signedUrl: 'https://5173-signed-tok.proxy.daytona.work',
       signedToken: 'signed-tok',
     })
-    const handle = new DaytonaHandle({ sandbox, workdir: '/home/daytona/workspace' })
+    const handle = new DaytonaHandle({
+      sandbox,
+      workdir: '/home/daytona/workspace',
+    })
 
     const channel = await handle.ports.connect(5173)
 
@@ -47,7 +50,10 @@ describe('DaytonaHandle.ports.connect', () => {
     const sandbox = fakeSandbox({
       url: 'https://5173-sbx-1.proxy.daytona.work',
     })
-    const handle = new DaytonaHandle({ sandbox, workdir: '/home/daytona/workspace' })
+    const handle = new DaytonaHandle({
+      sandbox,
+      workdir: '/home/daytona/workspace',
+    })
 
     const channel = await handle.ports.connect(5173)
 

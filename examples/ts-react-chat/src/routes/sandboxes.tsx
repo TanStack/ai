@@ -375,9 +375,7 @@ function SandboxesPage() {
       threadId,
       keepAlive,
       useSubscription: canUseSubscription && useSubscription,
-      ...(harness === 'grok'
-        ? { grokModel, grokProtocol, grokTransport }
-        : {}),
+      ...(harness === 'grok' ? { grokModel, grokProtocol, grokTransport } : {}),
     },
     onCustomEvent: (eventType, data) => {
       if (data === null || typeof data !== 'object') return

@@ -5,7 +5,9 @@
 import type { SpawnHandle } from '@tanstack/ai-sandbox'
 import type { AcpByteTransport } from './types'
 
-export function spawnHandleToAcpTransport(handle: SpawnHandle): AcpByteTransport {
+export function spawnHandleToAcpTransport(
+  handle: SpawnHandle,
+): AcpByteTransport {
   const encoder = new TextEncoder()
   const decoder = new TextDecoder()
 

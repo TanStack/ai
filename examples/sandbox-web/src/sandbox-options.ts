@@ -57,12 +57,13 @@ export const GROK_PROTOCOL_OPTIONS: ReadonlyArray<
   { value: 'streaming-json', label: 'streaming-json' },
 ]
 
-export const GROK_TRANSPORT_OPTIONS: ReadonlyArray<PickerOption<GrokTransport>> =
-  [
-    { value: 'auto', label: 'auto' },
-    { value: 'stdio', label: 'stdio' },
-    { value: 'websocket', label: 'websocket' },
-  ]
+export const GROK_TRANSPORT_OPTIONS: ReadonlyArray<
+  PickerOption<GrokTransport>
+> = [
+  { value: 'auto', label: 'auto' },
+  { value: 'stdio', label: 'stdio' },
+  { value: 'websocket', label: 'websocket' },
+]
 
 export function isGrokModel(value: unknown): value is GrokBuildModel {
   return GROK_MODEL_OPTIONS.some((o) => o.value === value)

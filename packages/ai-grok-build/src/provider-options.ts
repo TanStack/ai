@@ -2,7 +2,10 @@
  * Per-call provider options for the Grok Build adapter, passed via
  * `modelOptions` on `chat()`.
  */
-import type { AcpPermissionMode, AcpTransportPreference } from '@tanstack/ai-acp'
+import type {
+  AcpPermissionMode,
+  AcpTransportPreference,
+} from '@tanstack/ai-acp'
 
 export type GrokBuildProtocol = 'acp' | 'streaming-json'
 

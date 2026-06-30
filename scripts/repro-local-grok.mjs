@@ -1,7 +1,11 @@
 import * as fsp from 'node:fs/promises'
 import { chat } from '@tanstack/ai'
 import { grokBuildText } from '@tanstack/ai-grok-build'
-import { withSandbox, defineSandbox, defineWorkspace } from '@tanstack/ai-sandbox'
+import {
+  withSandbox,
+  defineSandbox,
+  defineWorkspace,
+} from '@tanstack/ai-sandbox'
 import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 
 const threadId = 'repro-' + Date.now()

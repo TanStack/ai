@@ -259,8 +259,7 @@ const tanstackStartRecipe = toolDefinition({
 export const agent = createCloudflareSandboxAgent<AppEnv>({
   // The adapter is resolved per run: the UI's `metadata.harness` picks the coding
   // agent `chat()` drives, falling back to the `HARNESS` deploy default.
-  adapter: (input, env) =>
-    buildAdapter(resolveHarness(input, env), input),
+  adapter: (input, env) => buildAdapter(resolveHarness(input, env), input),
   // App-agnostic transport guidance, prepended to every run's system prompt: how to
   // start a dev server whose quick-tunnel preview works (bind wide, allow all hosts
   // so the tunnel hostname is accepted). Package-owned because it's the transport's

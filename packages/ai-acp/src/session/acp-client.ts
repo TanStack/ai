@@ -48,10 +48,7 @@ export interface StartAcpSessionOptions {
    * Harness-specific JSON-RPC notifications (e.g. Grok `_x.ai/session_notification`).
    * Return without throwing — unknown vendor extensions must not tear down the session.
    */
-  onExtNotification?: (
-    method: string,
-    params: Record<string, unknown>,
-  ) => void
+  onExtNotification?: (method: string, params: Record<string, unknown>) => void
 }
 
 function streamFromTransport(transport: AcpSessionTransport): {
@@ -197,7 +194,11 @@ export async function startAcpSession(
   } catch (error) {
     await teardown()
     const tail = stderrTail().trim()
-    if (error instanceof Error && tail !== '' && !error.message.includes(tail)) {
+    if (
+      error instanceof Error &&
+      tail !== '' &&
+      !error.message.includes(tail)
+    ) {
       throw new Error(`${error.message}\nstderr: ${tail}`, { cause: error })
     }
     throw error

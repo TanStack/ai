@@ -27,11 +27,7 @@ export function mapPolicyToGrokBuildFlags(
   const hasAskOrDeny =
     (policy.commands?.ask?.length ?? 0) > 0 ||
     (policy.commands?.deny?.length ?? 0) > 0
-  if (
-    hasAskOrDeny ||
-    policy.default === 'deny' ||
-    policy.default === 'ask'
-  ) {
+  if (hasAskOrDeny || policy.default === 'deny' || policy.default === 'ask') {
     flags.conservative = true
   }
 

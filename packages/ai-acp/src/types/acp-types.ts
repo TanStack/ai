@@ -72,10 +72,7 @@ export type AcpPermissionOutcome =
   | { outcome: 'cancelled' }
   | { outcome: 'selected'; optionId: string }
 
-export type AcpPermissionMode =
-  | 'default'
-  | 'acceptEdits'
-  | 'bypassPermissions'
+export type AcpPermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions'
 
 export type PermissionHandler = (
   request: AcpPermissionRequest,

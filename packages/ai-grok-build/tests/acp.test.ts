@@ -14,7 +14,9 @@ describe('resolveGrokAcpAuthMethod', () => {
   it('prefers xai.api_key when an API key env is set', () => {
     process.env.XAI_API_KEY = 'sk-test'
     expect(resolveGrokAcpAuthMethod()).toBe('xai.api_key')
-    expect(resolveGrokAcpAuthMethod({ GROK_API_KEY: 'alt' })).toBe('xai.api_key')
+    expect(resolveGrokAcpAuthMethod({ GROK_API_KEY: 'alt' })).toBe(
+      'xai.api_key',
+    )
   })
 
   it('falls back to grok.com for host login flows', () => {

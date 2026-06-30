@@ -15,11 +15,14 @@ function mockSandbox(
 
 describe('resolveGrokExecutable', () => {
   it('returns host grok on local-process', async () => {
-    const sandbox = mockSandbox(async () => ({
-      stdout: '',
-      stderr: '',
-      exitCode: 1,
-    }), 'local-process')
+    const sandbox = mockSandbox(
+      async () => ({
+        stdout: '',
+        stderr: '',
+        exitCode: 1,
+      }),
+      'local-process',
+    )
     await expect(resolveGrokExecutable(sandbox)).resolves.toBe('grok')
   })
 
@@ -29,9 +32,9 @@ describe('resolveGrokExecutable', () => {
       stderr: '',
       exitCode: 1,
     }))
-    await expect(
-      resolveGrokExecutable(sandbox, '/opt/grok'),
-    ).resolves.toBe('/opt/grok')
+    await expect(resolveGrokExecutable(sandbox, '/opt/grok')).resolves.toBe(
+      '/opt/grok',
+    )
   })
 
   it('probes the sandbox when grok is not on PATH', async () => {

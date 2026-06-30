@@ -15,9 +15,9 @@ describe('resolveHarnessCwd', () => {
   it('maps virtual /workspace to the host root on local-process', () => {
     const root = '/tmp/tanstack-ai-sandboxes/abc'
     expect(resolveHarnessCwd(fakeHandle('local-process', root))).toBe(root)
-    expect(resolveHarnessCwd(fakeHandle('local-process', root), '/workspace')).toBe(
-      root,
-    )
+    expect(
+      resolveHarnessCwd(fakeHandle('local-process', root), '/workspace'),
+    ).toBe(root)
   })
 
   it('maps nested virtual paths under /workspace on local-process', () => {

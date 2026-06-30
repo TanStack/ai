@@ -188,9 +188,7 @@ export class GrokBuildTextAdapter<
     options: TextOptions<GrokBuildTextProviderOptions>,
   ): GrokBuildProtocol {
     return (
-      options.modelOptions?.protocol ??
-      this.adapterConfig.protocol ??
-      'acp'
+      options.modelOptions?.protocol ?? this.adapterConfig.protocol ?? 'acp'
     )
   }
 

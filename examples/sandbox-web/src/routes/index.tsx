@@ -274,9 +274,7 @@ function SandboxAgentPage() {
       threadId,
       harness,
       provider,
-      ...(harness === 'grok'
-        ? { grokModel, grokProtocol, grokTransport }
-        : {}),
+      ...(harness === 'grok' ? { grokModel, grokProtocol, grokTransport } : {}),
     }),
     [threadId, harness, provider, grokModel, grokProtocol, grokTransport],
   )

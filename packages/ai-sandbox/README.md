@@ -45,23 +45,23 @@ npm install @tanstack/ai @tanstack/ai-sandbox @tanstack/ai-grok-build
 
 Pick a **provider** package for where the sandbox runs:
 
-| Package | Use when |
-| --- | --- |
-| `@tanstack/ai-sandbox-local-process` | Dev loop on your host (no isolation) |
-| `@tanstack/ai-sandbox-docker` | Isolated containers, snapshots, resume |
-| `@tanstack/ai-sandbox-cloudflare` | Cloudflare Workers + Containers |
-| `@tanstack/ai-sandbox-vercel` | Vercel Sandbox |
-| `@tanstack/ai-sandbox-daytona` | Daytona dev environments |
+| Package                              | Use when                               |
+| ------------------------------------ | -------------------------------------- |
+| `@tanstack/ai-sandbox-local-process` | Dev loop on your host (no isolation)   |
+| `@tanstack/ai-sandbox-docker`        | Isolated containers, snapshots, resume |
+| `@tanstack/ai-sandbox-cloudflare`    | Cloudflare Workers + Containers        |
+| `@tanstack/ai-sandbox-vercel`        | Vercel Sandbox                         |
+| `@tanstack/ai-sandbox-daytona`       | Daytona dev environments               |
 
 **Harness adapters** are separate packages. The default path is **Grok Build** (`@tanstack/ai-grok-build`); others include `@tanstack/ai-claude-code`, `@tanstack/ai-codex`, and `@tanstack/ai-opencode`. All require `withSandbox(...)` middleware — `chat()` fails fast without it.
 
 ## Three moving parts
 
-| Part | What it is | How you configure it |
-| --- | --- | --- |
-| **Provider** | Isolation primitive — host, container, cloud VM | `dockerSandbox()`, `localProcessSandbox()`, … |
-| **Workspace** | What the agent boots into — repo, setup, secrets, skills | `defineWorkspace({ … })` |
-| **Harness adapter** | Which agent CLI runs and how output is translated | `grokBuildText()` (default), `claudeCodeText()`, `codexText()`, … |
+| Part                | What it is                                               | How you configure it                                              |
+| ------------------- | -------------------------------------------------------- | ----------------------------------------------------------------- |
+| **Provider**        | Isolation primitive — host, container, cloud VM          | `dockerSandbox()`, `localProcessSandbox()`, …                     |
+| **Workspace**       | What the agent boots into — repo, setup, secrets, skills | `defineWorkspace({ … })`                                          |
+| **Harness adapter** | Which agent CLI runs and how output is translated        | `grokBuildText()` (default), `claudeCodeText()`, `codexText()`, … |
 
 `defineSandbox()` binds provider + workspace (+ optional policy, lifecycle, hooks). `withSandbox(definition)` is the `chat()` middleware that creates or resumes the sandbox for each run.
 
@@ -82,7 +82,10 @@ defineWorkspace({
   instructions: 'Run tests before proposing changes.',
   skills: [
     gitSkill({ repo: 'owner/skills', secret: secrets.GH }),
-    mcpSkill('api', { url: 'https://mcp.example.com', headers: { Authorization: bearer(secrets.TOKEN) } }),
+    mcpSkill('api', {
+      url: 'https://mcp.example.com',
+      headers: { Authorization: bearer(secrets.TOKEN) },
+    }),
     fileSkill({ path: '.hints.md', content: '# Hints\nPrefer pnpm.' }),
   ],
   plugins: ['@anthropic/plugin-foo'], // Claude Code only; other harnesses warn+skip
@@ -148,9 +151,9 @@ chat({ adapter: grokBuildText(), middleware: [withSandbox(sandbox)] })
 
 ## Subpath exports
 
-| Import | Purpose |
-| --- | --- |
-| `@tanstack/ai-sandbox` | Core sandbox APIs |
+| Import                       | Purpose                                               |
+| ---------------------------- | ----------------------------------------------------- |
+| `@tanstack/ai-sandbox`       | Core sandbox APIs                                     |
 | `@tanstack/ai-sandbox/ngrok` | Optional ngrok tunnel helper for remote tool bridging |
 
 ## Verification
@@ -177,12 +180,12 @@ Full guides on [tanstack.com/ai](https://tanstack.com/ai/latest/docs/sandbox/ove
 
 ## Examples
 
-| Example | What it demonstrates |
-| --- | --- |
-| `examples/sandbox-coding-agent` | Minimal E2E — Claude Code fixes a bug (Docker or local-process) |
-| `examples/sandbox-issue-triage` | GitHub issue triage with file hooks |
-| `examples/sandbox-web` | Build-and-preview with harness × provider matrix (Grok default in UI) |
-| `examples/sandbox-cloudflare` | Edge deploy with live preview URL |
+| Example                         | What it demonstrates                                                  |
+| ------------------------------- | --------------------------------------------------------------------- |
+| `examples/sandbox-coding-agent` | Minimal E2E — Claude Code fixes a bug (Docker or local-process)       |
+| `examples/sandbox-issue-triage` | GitHub issue triage with file hooks                                   |
+| `examples/sandbox-web`          | Build-and-preview with harness × provider matrix (Grok default in UI) |
+| `examples/sandbox-cloudflare`   | Edge deploy with live preview URL                                     |
 
 ## When to use a sandbox
 

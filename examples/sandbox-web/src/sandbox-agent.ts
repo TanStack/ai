@@ -24,7 +24,10 @@
 import { toolDefinition } from '@tanstack/ai'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
 import { codexText } from '@tanstack/ai-codex'
-import { GROK_CLI_INSTALL_COMMAND, grokBuildText } from '@tanstack/ai-grok-build'
+import {
+  GROK_CLI_INSTALL_COMMAND,
+  grokBuildText,
+} from '@tanstack/ai-grok-build'
 import { opencodeText } from '@tanstack/ai-opencode'
 import {
   createSecrets,

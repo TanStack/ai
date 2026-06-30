@@ -51,9 +51,9 @@ function fakeSpawn(stdoutChunks: AsyncIterable<string>): {
   return { handle, writes }
 }
 
-function caps(
-  overrides: Partial<SandboxCapabilities>,
-): { capabilities: SandboxCapabilities } {
+function caps(overrides: Partial<SandboxCapabilities>): {
+  capabilities: SandboxCapabilities
+} {
   return {
     capabilities: {
       fs: true,
@@ -118,9 +118,9 @@ describe('webSocketFrameToAcpStream', () => {
 
 describe('resolveAcpTransportMode', () => {
   it('prefers stdio when writableStdin is available', () => {
-    expect(resolveAcpTransportMode(caps({ writableStdin: true }) as never)).toBe(
-      'stdio',
-    )
+    expect(
+      resolveAcpTransportMode(caps({ writableStdin: true }) as never),
+    ).toBe('stdio')
   })
 
   it('falls back to websocket on edge sandboxes', () => {

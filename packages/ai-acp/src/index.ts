@@ -59,6 +59,9 @@ export type {
 } from './session/sandbox-server'
 
 export { startAcpSession } from './session/acp-client'
-export type { AcpSessionHandle, StartAcpSessionOptions } from './session/acp-client'
+export type {
+  AcpSessionHandle,
+  StartAcpSessionOptions,
+} from './session/acp-client'
 
 export { resolveInteractivePermission, resolvePermission } from './permissions'

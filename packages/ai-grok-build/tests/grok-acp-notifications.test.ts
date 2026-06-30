@@ -5,7 +5,9 @@ import type { AcpSessionUpdate } from '@tanstack/ai-acp'
 describe('createGrokAcpNotificationHandler', () => {
   it('maps Grok tool_call_delta_chunk notifications to ACP tool_call updates', () => {
     const updates: Array<AcpSessionUpdate> = []
-    const handle = createGrokAcpNotificationHandler((update) => updates.push(update))
+    const handle = createGrokAcpNotificationHandler((update) =>
+      updates.push(update),
+    )
 
     handle('_x.ai/session_notification', {
       update: {
@@ -45,7 +47,9 @@ describe('createGrokAcpNotificationHandler', () => {
 
   it('ignores unrelated vendor notifications', () => {
     const updates: Array<AcpSessionUpdate> = []
-    const handle = createGrokAcpNotificationHandler((update) => updates.push(update))
+    const handle = createGrokAcpNotificationHandler((update) =>
+      updates.push(update),
+    )
     handle('_x.ai/mcp/init_progress', { total: 1, connected: 0 })
     expect(updates).toEqual([])
   })

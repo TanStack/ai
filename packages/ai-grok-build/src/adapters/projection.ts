@@ -123,7 +123,9 @@ function buildMcpServers(
 
 /** Extract the MCP server name from a `[mcp_servers.<name>]` table header. */
 function mcpServerNameFromHeader(line: string): string | undefined {
-  const match = /^\[mcp_servers\.([^\].]+)(?:\.headers)?\]\s*$/.exec(line.trim())
+  const match = /^\[mcp_servers\.([^\].]+)(?:\.headers)?\]\s*$/.exec(
+    line.trim(),
+  )
   return match?.[1]
 }
 
@@ -149,7 +151,10 @@ function stripMcpServerSections(toml: string, names: Set<string>): string {
     if (!skipping) out.push(line)
   }
 
-  return out.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd()
+  return out
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trimEnd()
 }
 
 /** Render one grok `[mcp_servers.<name>]` block with optional headers table. */
@@ -178,7 +183,10 @@ function mergeWorkspaceMcpIntoToml(
   existing: string,
   servers: Record<string, GrokMcpServer>,
 ): string {
-  const stripped = stripMcpServerSections(existing, new Set(Object.keys(servers)))
+  const stripped = stripMcpServerSections(
+    existing,
+    new Set(Object.keys(servers)),
+  )
   const blocks = Object.entries(servers)
     .map(([name, server]) => renderMcpServerBlock(name, server))
     .join('\n\n')

@@ -368,9 +368,7 @@ function SandboxAgentPage() {
     () => ({
       threadId,
       harness,
-      ...(harness === 'grok'
-        ? { grokModel, grokProtocol, grokTransport }
-        : {}),
+      ...(harness === 'grok' ? { grokModel, grokProtocol, grokTransport } : {}),
     }),
     [threadId, harness, grokModel, grokProtocol, grokTransport],
   )
@@ -428,7 +426,10 @@ function SandboxAgentPage() {
           </label>
           {harness === 'grok' && (
             <>
-              <label className="flex items-center gap-2" title="Grok Build model">
+              <label
+                className="flex items-center gap-2"
+                title="Grok Build model"
+              >
                 <span className="text-xs text-gray-500">model</span>
                 <select
                   value={grokModel}
@@ -447,7 +448,10 @@ function SandboxAgentPage() {
                   ))}
                 </select>
               </label>
-              <label className="flex items-center gap-2" title="Grok Build wire protocol">
+              <label
+                className="flex items-center gap-2"
+                title="Grok Build wire protocol"
+              >
                 <span className="text-xs text-gray-500">protocol</span>
                 <select
                   value={grokProtocol}

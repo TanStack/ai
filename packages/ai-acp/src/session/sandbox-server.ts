@@ -1,5 +1,9 @@
 import { connectAcpWebSocket } from '../transport/websocket'
-import type { SandboxChannel, SandboxHandle, SpawnHandle } from '@tanstack/ai-sandbox'
+import type {
+  SandboxChannel,
+  SandboxHandle,
+  SpawnHandle,
+} from '@tanstack/ai-sandbox'
 import type { AcpMessageFraming } from '../transport/types'
 import type { AcpWebSocketConnection } from '../transport/websocket'
 
@@ -9,9 +13,7 @@ export interface AcpSandboxServer {
   /** Sandbox channel used to build {@link wsUrl} (auth headers, when issued). */
   channel: SandboxChannel
   /** Open the ACP JSON-RPC stream over WebSocket. */
-  connect: (
-    signal?: AbortSignal,
-  ) => Promise<AcpWebSocketConnection>
+  connect: (signal?: AbortSignal) => Promise<AcpWebSocketConnection>
   /** Stop the in-sandbox server process. */
   dispose: () => Promise<void>
 }
@@ -45,15 +47,11 @@ const DEFAULT_READY_MARKER = 'WebSocket URL:'
 
 function waitForReady(
   proc: SpawnHandle,
-  options: Pick<
-    StartAcpServerOptions,
-    'isReady' | 'readyMarker' | 'timeoutMs'
-  >,
+  options: Pick<StartAcpServerOptions, 'isReady' | 'readyMarker' | 'timeoutMs'>,
 ): Promise<{ stdout: string; stderr: string }> {
   const readyMarker = options.readyMarker ?? DEFAULT_READY_MARKER
   const isReady =
-    options.isReady ??
-    ((output: string) => output.includes(readyMarker))
+    options.isReady ?? ((output: string) => output.includes(readyMarker))
 
   return new Promise((resolve, reject) => {
     let stdout = ''
