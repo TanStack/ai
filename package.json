@@ -24,7 +24,7 @@
     "test:build": "nx affected --target=test:build --exclude=examples/**,testing/**",
     "test:types": "nx affected --targets=test:types --exclude=examples/**,testing/**",
     "test:knip": "knip",
-    "test:docs": "node scripts/verify-links.ts",
+    "test:docs": "tsx scripts/verify-links.ts",
     "test:kiira": "kiira check",
     "test:react-native": "pnpm --filter @tanstack/ai-react-native-smoke smoke",
     "test:e2e": "pnpm --filter @tanstack/ai-e2e test:e2e",

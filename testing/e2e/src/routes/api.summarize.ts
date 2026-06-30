@@ -4,6 +4,7 @@ import { createOpenaiSummarize } from '@tanstack/ai-openai'
 import { createAnthropicSummarize } from '@tanstack/ai-anthropic'
 import { createGeminiSummarize } from '@tanstack/ai-gemini'
 import { createOllamaSummarize } from '@tanstack/ai-ollama'
+import { createGroqSummarize } from '@tanstack/ai-groq'
 import { createGrokSummarize } from '@tanstack/ai-grok'
 import { createOpenRouterSummarize } from '@tanstack/ai-openrouter'
 import type { Provider } from '@/lib/types'
@@ -46,6 +47,11 @@ function createSummarizeAdapter(
         httpOptions: { baseUrl: llmockBase(aimockPort), headers },
       }),
     ollama: () => createOllamaSummarize('mistral', llmockBase(aimockPort)),
+    groq: () =>
+      createGroqSummarize('llama-3.3-70b-versatile', DUMMY_KEY, {
+        baseURL: llmockBase(aimockPort),
+        defaultHeaders: headers,
+      }),
     grok: () =>
       createGrokSummarize('grok-build-0.1', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),

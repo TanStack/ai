@@ -14,6 +14,14 @@ export {
   type GroqTextProviderOptions,
 } from './adapters/text'
 
+// Summarize - thin factory functions over @tanstack/ai's ChatStreamSummarizeAdapter
+export {
+  createGroqSummarize,
+  groqSummarize,
+  type GroqSummarizeConfig,
+  type GroqSummarizeModel,
+} from './adapters/summarize'
+
 // Types
 export type {
   GroqChatModelProviderOptionsByName,

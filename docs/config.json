@@ -458,7 +458,8 @@
         {
           "label": "Groq",
           "to": "adapters/groq",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-06-18"
         },
         {
           "label": "Mistral",
