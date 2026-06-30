@@ -156,16 +156,6 @@ chat({ adapter: grokBuildText(), middleware: [withSandbox(sandbox)] })
 | `@tanstack/ai-sandbox`       | Core sandbox APIs                                     |
 | `@tanstack/ai-sandbox/ngrok` | Optional ngrok tunnel helper for remote tool bridging |
 
-## Verification
-
-From the repo root:
-
-```bash
-node scripts/sandbox-live-smoke.mjs
-```
-
-Runs core unit tests offline; auto-runs Docker provider tests when a daemon is reachable.
-
 ## Documentation
 
 Full guides on [tanstack.com/ai](https://tanstack.com/ai/latest/docs/sandbox/overview):
