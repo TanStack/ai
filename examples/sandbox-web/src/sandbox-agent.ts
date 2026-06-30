@@ -102,8 +102,7 @@ interface HarnessSpec {
  * runs as root, so the direct install succeeds and sudo never runs.
  */
 function npmGlobal(spec: string): string {
-  const cmd = `npm install -g ${spec}`
-  return `${cmd} || sudo -n env "PATH=$PATH" ${cmd}`
+  return `npm install -g ${spec}`
 }
 
 const HARNESSES: Record<HarnessName, HarnessSpec> = {
