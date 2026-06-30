@@ -27,6 +27,7 @@ import {
   PREVIEW_GUIDANCE,
   createCloudflareSandboxAgent,
   exposePreviewTool,
+  resolvePreviewHost,
 } from '@tanstack/ai-sandbox-cloudflare/agent'
 import {
   createSecrets,
@@ -282,7 +283,11 @@ export const agent = createCloudflareSandboxAgent<AppEnv>({
       id: 'cf-edge-agent',
       // Named by `threadId` so `exposePreview`'s quick tunnel targets this exact
       // container (and survives DO eviction for `reuse: 'thread'`).
-      provider: namedCloudflareSandbox(env.Sandbox, input.threadId),
+      provider: namedCloudflareSandbox(
+        env.Sandbox,
+        input.threadId,
+        resolvePreviewHost(env, input),
+      ),
       workspace: defineWorkspace({
         // No source to clone — the container image already ships the harness CLIs.
         source: { type: 'none' },

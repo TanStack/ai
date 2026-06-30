@@ -37,6 +37,7 @@ const SANDBOX_OPTIONS = { transport: 'rpc' } as const
 export function namedCloudflareSandbox(
   binding: DurableObjectNamespace<Sandbox>,
   name: string,
+  previewHostname?: string,
 ): SandboxProvider {
   return {
     name: 'cloudflare-named',
@@ -47,7 +48,7 @@ export function namedCloudflareSandbox(
         await sandbox.setEnvVars(input.env)
       }
       await sandbox.mkdir(WORKDIR, { recursive: true })
-      return new CloudflareHandle(name, sandbox, WORKDIR)
+      return new CloudflareHandle(name, sandbox, WORKDIR, previewHostname)
     },
     resume: (input: SandboxResumeInput): Promise<SandboxHandle> =>
       Promise.resolve(
@@ -55,6 +56,7 @@ export function namedCloudflareSandbox(
           input.id,
           getSandbox(binding, input.id, SANDBOX_OPTIONS),
           WORKDIR,
+          previewHostname,
         ),
       ),
     async destroy(input: SandboxDestroyInput): Promise<void> {
