@@ -30,7 +30,7 @@ RUN curl -fsSL https://x.ai/cli/install.sh | bash \
  && grok --version || true
 
 # Antigravity CLI (HARNESS=antigravity-cli).
-RUN npm install -g @google/antigravity-cli && antigravity --version || true
+RUN curl -fsSL https://antigravity.google/cli/install.sh | bash && agy --version || true
 
 # NOTE: the Cloudflare sandbox has no writable host→process stdin
 # (`capabilities.writableStdin: false`). Each harness adapter detects this and

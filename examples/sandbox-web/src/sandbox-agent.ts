@@ -108,7 +108,7 @@ function npmGlobal(spec: string): string {
 const HARNESSES: Record<HarnessName, HarnessSpec> = {
   'antigravity-cli': {
     makeAdapter: () => antigravityCliText('auto'),
-    installCommand: null, // Not released yet; assume pre-installed in the sandbox image or host
+    installCommand: 'curl -fsSL https://antigravity.google/cli/install.sh | bash',
     requiredEnv: ['GEMINI_API_KEY'],
   },
   'claude-code': {

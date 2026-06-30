@@ -106,7 +106,7 @@ export class AntigravityCliTextAdapter<
   }
 
   private acpCommand(): string {
-    const exe = this.adapterConfig.executablePath ?? 'antigravity'
+    const exe = this.adapterConfig.executablePath ?? 'agy'
     const args = ['--acp', '-m', q(this.model)]
     for (const arg of this.adapterConfig.extraArgs ?? []) args.push(q(arg))
     return `${exe} ${args.join(' ')}`
@@ -345,10 +345,10 @@ export class AntigravityCliTextAdapter<
 /**
  * Creates a Antigravity CLI harness adapter that runs **inside a sandbox**.
  *
- * It declares `requires: [SandboxCapability]` and spawns `antigravity --acp` inside
+ * It declares `requires: [SandboxCapability]` and spawns `agy --acp` inside
  * the sandbox provided by `withSandbox(...)`, driving it over the Agent Client
  * Protocol via the sandbox's duplex process IO. The sandbox image must provide
- * the `antigravity` executable, authenticated for headless use (or pass
+ * the `agy` executable, authenticated for headless use (or pass
  * `authMethodId`). chat()-provided tools aren't bridged yet (the agent uses its
  * native tools).
  */
