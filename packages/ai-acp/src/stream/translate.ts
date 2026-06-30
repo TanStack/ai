@@ -280,6 +280,32 @@ export async function* translateAcpStream(
     } else if (update.sessionUpdate === 'tool_call_update') {
       if (update.status === 'completed' || update.status === 'failed') {
         yield* resolveToolCall(update)
+      } else if (
+        update.status === 'in_progress' &&
+        update.rawInput !== undefined
+      ) {
+        yield* closeText()
+        yield* closeReasoning()
+        if (!knownToolCalls.has(update.toolCallId)) {
+          yield* openToolCall(update)
+        } else {
+          const toolCallName = resolveToolName(update, ctx.bridgedToolNames)
+          const input = {
+            ...(update.title != null && { title: update.title }),
+            ...(typeof update.rawInput === 'object' && update.rawInput !== null
+              ? (update.rawInput as Record<string, unknown>)
+              : { input: update.rawInput }),
+          }
+          const args = JSON.stringify(input)
+          yield {
+            type: EventType.TOOL_CALL_ARGS,
+            toolCallId: update.toolCallId,
+            model,
+            timestamp: now(),
+            delta: args,
+            args,
+          }
+        }
       }
     } else if (
       update.sessionUpdate === 'plan' &&

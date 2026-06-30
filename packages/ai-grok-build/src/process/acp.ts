@@ -19,7 +19,10 @@ export interface OpenGrokAcpConnectionOptions {
   sandbox: SandboxHandle
   exe: string
   cliModel: string
+  /** Virtual sandbox cwd for spawn (provider handle maps `/workspace`). */
   cwd: string
+  /** Literal cwd for `grok agent --cwd` and ACP `newSession` (see resolveHarnessCwd). */
+  harnessCwd: string
   env?: Record<string, string>
   extraArgs?: Array<string>
   port?: number
@@ -34,12 +37,20 @@ function q(value: string): string {
 function buildAgentPrefix(
   exe: string,
   cliModel: string,
+  harnessCwd: string,
   extraArgs: Array<string> | undefined,
 ): string {
   // ACP path: keep `--always-approve` for now. Sandbox policy is mapped only on
   // the legacy NDJSON `buildCommand` path; ACP uses `permissionMode` on the
   // session instead (see `chatStreamAcp`).
-  const args = ['agent', '-m', q(cliModel), '--always-approve']
+  const args = [
+    'agent',
+    '-m',
+    q(cliModel),
+    '--cwd',
+    q(harnessCwd),
+    '--always-approve',
+  ]
   for (const arg of extraArgs ?? []) args.push(arg)
   return `${exe} ${args.join(' ')}`
 }
@@ -47,21 +58,23 @@ function buildAgentPrefix(
 export function buildGrokAcpStdioCommand(options: {
   exe: string
   cliModel: string
+  harnessCwd: string
   extraArgs?: Array<string>
 }): string {
-  return `${buildAgentPrefix(options.exe, options.cliModel, options.extraArgs)} stdio`
+  return `${buildAgentPrefix(options.exe, options.cliModel, options.harnessCwd, options.extraArgs)} stdio`
 }
 
 export function buildGrokAcpServeCommand(options: {
   exe: string
   cliModel: string
+  harnessCwd: string
   port: number
   secret: string
   hostname?: string
   extraArgs?: Array<string>
 }): string {
   const hostname = options.hostname ?? `0.0.0.0:${options.port}`
-  return `${buildAgentPrefix(options.exe, options.cliModel, options.extraArgs)} serve --bind ${q(hostname)} --secret ${q(options.secret)}`
+  return `${buildAgentPrefix(options.exe, options.cliModel, options.harnessCwd, options.extraArgs)} serve --bind ${q(hostname)} --secret ${q(options.secret)}`
 }
 
 /**
@@ -81,6 +94,7 @@ export async function openGrokAcpConnection(
     const command = buildGrokAcpStdioCommand({
       exe: options.exe,
       cliModel: options.cliModel,
+      harnessCwd: options.harnessCwd,
       extraArgs: options.extraArgs,
     })
     const proc = await options.sandbox.process.spawn(command, {
@@ -102,6 +116,7 @@ export async function openGrokAcpConnection(
     command: buildGrokAcpServeCommand({
       exe: options.exe,
       cliModel: options.cliModel,
+      harnessCwd: options.harnessCwd,
       port,
       secret,
       extraArgs: options.extraArgs,

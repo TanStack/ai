@@ -259,6 +259,7 @@ export class GrokBuildTextAdapter<
         exe,
         cliModel,
         cwd,
+        harnessCwd,
         ...(this.adapterConfig.env ? { env: this.adapterConfig.env } : {}),
         extraArgs: this.adapterConfig.extraArgs,
         port: modelOptions?.acpPort ?? this.adapterConfig.acpPort,

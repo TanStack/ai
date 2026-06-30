@@ -220,6 +220,49 @@ describe('translateAcpStream', () => {
     expect(chunks[5]).toMatchObject({ content: 'found it' })
   })
 
+  it('streams in_progress tool_call_update args after the tool is opened', async () => {
+    const chunks = await collect([
+      session,
+      {
+        kind: 'update',
+        update: {
+          sessionUpdate: 'tool_call',
+          toolCallId: 'tc-stream',
+          title: 'list_dir',
+          kind: 'list_dir',
+          status: 'in_progress',
+        },
+      },
+      {
+        kind: 'update',
+        update: {
+          sessionUpdate: 'tool_call_update',
+          toolCallId: 'tc-stream',
+          title: 'list_dir',
+          kind: 'list_dir',
+          status: 'in_progress',
+          rawInput: { target_directory: '.' },
+        },
+      },
+      {
+        kind: 'update',
+        update: {
+          sessionUpdate: 'tool_call_update',
+          toolCallId: 'tc-stream',
+          status: 'completed',
+          rawOutput: 'ok',
+        },
+      },
+      done,
+    ])
+    const argChunks = chunks.filter((c) => c.type === 'TOOL_CALL_ARGS')
+    expect(argChunks).toHaveLength(2)
+    expect(argChunks[1]).toMatchObject({
+      toolCallId: 'tc-stream',
+      args: JSON.stringify({ title: 'list_dir', target_directory: '.' }),
+    })
+  })
+
   it('opens a synthetic pair for a tool_call_update with an unknown id', async () => {
     const chunks = await collect([
       session,
