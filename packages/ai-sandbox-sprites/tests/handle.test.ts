@@ -59,6 +59,7 @@ function fakeClient(options: FakeClientOptions = {}): {
 
   const client: SpritesClientLike = {
     baseUrl: 'https://api.test',
+    authHeader: () => ({ authorization: 'Bearer test-token' }),
     getSprite: () => Promise.reject(new Error('not used')),
     deleteSprite,
     setUrlAuth,
@@ -93,13 +94,17 @@ function fakeClient(options: FakeClientOptions = {}): {
   }
 }
 
-function makeHandle(deps: Partial<FakeClientOptions> = {}) {
-  const fake = fakeClient(deps)
+function makeHandle(
+  deps: Partial<FakeClientOptions> & { urlAuth?: 'public' | 'sprite' } = {},
+) {
+  const { urlAuth, ...clientOpts } = deps
+  const fake = fakeClient(clientOpts)
   const handle = new SpritesHandle({
     client: fake.client,
     name: 'my-sprite',
     url: 'https://my-sprite-x.sprites.app',
     workdir: '/home/sprite',
+    ...(urlAuth ? { urlAuth } : {}),
   })
   return { handle, ...fake }
 }
@@ -165,11 +170,22 @@ describe('SpritesHandle.fs', () => {
 })
 
 describe('SpritesHandle.ports.connect', () => {
-  it('makes the URL public and returns it for the proxied port', async () => {
-    const { handle, setUrlAuth } = makeHandle({})
+  it('returns the plain URL for a public Sprite without mutating auth', async () => {
+    const { handle, setUrlAuth } = makeHandle({ urlAuth: 'public' })
     const channel = await handle.ports.connect(8080)
-    expect(setUrlAuth).toHaveBeenCalledWith('my-sprite', 'public')
     expect(channel).toEqual({ url: 'https://my-sprite-x.sprites.app' })
+    // It must NOT silently flip auth as a side effect.
+    expect(setUrlAuth).not.toHaveBeenCalled()
+  })
+
+  it('returns an authenticated channel for a sprite-auth Sprite (no downgrade)', async () => {
+    const { handle, setUrlAuth } = makeHandle({ urlAuth: 'sprite' })
+    const channel = await handle.ports.connect(8080)
+    expect(channel).toEqual({
+      url: 'https://my-sprite-x.sprites.app',
+      headers: { authorization: 'Bearer test-token' },
+    })
+    expect(setUrlAuth).not.toHaveBeenCalled()
   })
 
   it('rejects a non-proxied port', async () => {
@@ -198,6 +214,14 @@ describe('SpritesHandle checkpoints', () => {
     expect(restoreCheckpoint).toHaveBeenNthCalledWith(2, 'my-sprite', 'v3', {
       probePath: '/home/sprite',
     })
+  })
+
+  it('rejects a checkpoint ref belonging to another Sprite', async () => {
+    const { handle, restoreCheckpoint } = makeHandle({})
+    await expect(handle.restoreCheckpoint('other-sprite#v3')).rejects.toThrow(
+      /belongs to "other-sprite"/,
+    )
+    expect(restoreCheckpoint).not.toHaveBeenCalled()
   })
 
   it('advertises the snapshots capability', () => {

@@ -42,6 +42,9 @@
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
   },
+  "engines": {
+    "node": ">=22.4.0"
+  },
   "peerDependencies": {
     "@tanstack/ai-sandbox": "workspace:^"
   },

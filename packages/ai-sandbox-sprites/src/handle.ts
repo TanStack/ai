@@ -27,7 +27,11 @@ import type {
   SnapshotRef,
   SpawnHandle,
 } from '@tanstack/ai-sandbox'
-import type { SpriteCheckpoint, SpritesClientLike } from './client'
+import type {
+  SpriteCheckpoint,
+  SpriteUrlAuth,
+  SpritesClientLike,
+} from './client'
 
 export const SPRITES_CAPS: SandboxCapabilities = {
   fs: true,
@@ -72,6 +76,12 @@ export interface SpritesHandleDeps {
   workdir: string
   /** Internal port proxied to the public URL. Defaults to 8080. */
   httpPort?: number
+  /**
+   * The Sprite's URL auth mode. `ports.connect()` returns a token-authenticated
+   * channel when this is `'sprite'`, and a plain public URL when `'public'`;
+   * it never mutates the mode. Defaults to `'public'`.
+   */
+  urlAuth?: SpriteUrlAuth
 }
 
 export class SpritesHandle implements SandboxHandle {
@@ -90,6 +100,7 @@ export class SpritesHandle implements SandboxHandle {
   private readonly url: string
   private readonly workdir: string
   private readonly httpPort: number
+  private readonly urlAuth: SpriteUrlAuth
   private readonly envVars: Record<string, string> = {}
 
   constructor(deps: SpritesHandleDeps) {
@@ -99,6 +110,7 @@ export class SpritesHandle implements SandboxHandle {
     this.workdir = deps.workdir
     this.workspaceRoot = deps.workdir
     this.httpPort = deps.httpPort ?? SPRITE_DEFAULT_HTTP_PORT
+    this.urlAuth = deps.urlAuth ?? 'public'
     this.id = deps.name
 
     this.process = {
@@ -129,19 +141,15 @@ export class SpritesHandle implements SandboxHandle {
       },
       mkdir: async (p) => {
         const r = await this.exec(`mkdir -p ${q(this.abs(p))}`)
-        if (r.exitCode !== 0) throw new Error(`mkdir failed: ${r.stderr.trim()}`)
+        if (r.exitCode !== 0) throw new Error(`mkdir failed: ${errText(r)}`)
       },
       remove: async (p) => {
         const r = await this.exec(`rm -rf ${q(this.abs(p))}`)
-        if (r.exitCode !== 0)
-          throw new Error(`remove failed: ${r.stderr.trim()}`)
+        if (r.exitCode !== 0) throw new Error(`remove failed: ${errText(r)}`)
       },
       rename: async (from, to) => {
-        const r = await this.exec(
-          `mv ${q(this.abs(from))} ${q(this.abs(to))}`,
-        )
-        if (r.exitCode !== 0)
-          throw new Error(`rename failed: ${r.stderr.trim()}`)
+        const r = await this.exec(`mv ${q(this.abs(from))} ${q(this.abs(to))}`)
+        if (r.exitCode !== 0) throw new Error(`rename failed: ${errText(r)}`)
       },
       exists: async (p) => {
         const r = await this.exec(`test -e ${q(this.abs(p))}`)
@@ -222,16 +230,25 @@ export class SpritesHandle implements SandboxHandle {
     })
   }
 
-  private async connectPort(port: number): Promise<SandboxChannel> {
+  private connectPort(port: number): Promise<SandboxChannel> {
     if (port !== this.httpPort) {
-      throw new Error(
-        `sprites: only the proxied HTTP port ${this.httpPort} is reachable via the public URL; port ${port} is not exposed.`,
+      return Promise.reject(
+        new Error(
+          `sprites: only the proxied HTTP port ${this.httpPort} is reachable via the public URL; port ${port} is not exposed.`,
+        ),
       )
     }
-    // The public URL must be in `public` auth mode to be reachable without an
-    // org token (the analog of Daytona's signed preview URL). Idempotent.
-    await this.client.setUrlAuth(this.name, 'public')
-    return { url: this.url }
+    // Honor the configured auth mode rather than silently forcing the URL public
+    // (which would strip access control a caller deliberately asked for). A
+    // `public` Sprite is reachable as-is; a `sprite`-auth Sprite needs the org
+    // bearer token attached to each request.
+    if (this.urlAuth === 'public') {
+      return Promise.resolve({ url: this.url })
+    }
+    return Promise.resolve({
+      url: this.url,
+      headers: this.client.authHeader(),
+    })
   }
 
   /**
@@ -262,9 +279,19 @@ export class SpritesHandle implements SandboxHandle {
     idOrRef: string,
     options?: { readyTimeoutMs?: number },
   ): Promise<void> {
-    const version = idOrRef.includes('#')
-      ? idOrRef.slice(idOrRef.indexOf('#') + 1)
-      : idOrRef
+    let version = idOrRef
+    if (idOrRef.includes('#')) {
+      const hash = idOrRef.indexOf('#')
+      const refName = idOrRef.slice(0, hash)
+      version = idOrRef.slice(hash + 1)
+      if (refName !== this.name) {
+        return Promise.reject(
+          new Error(
+            `sprites: checkpoint ref "${idOrRef}" belongs to "${refName}", not this Sprite "${this.name}".`,
+          ),
+        )
+      }
+    }
     return this.client.restoreCheckpoint(this.name, version, {
       ...options,
       // Probe the workdir so readiness reflects the restored overlay, not just
@@ -285,4 +312,13 @@ export class SpritesHandle implements SandboxHandle {
 /** POSIX single-quote escape for embedding paths in `bash -c`. */
 function q(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
+}
+
+/**
+ * Best error text from an exec result. Near-instant commands hit the Sprite
+ * agent's fast path, which folds stderr into stdout, so prefer stderr but fall
+ * back to stdout to avoid throwing with an empty reason.
+ */
+function errText(r: { stdout: string; stderr: string }): string {
+  return r.stderr.trim() || r.stdout.trim() || '(no output)'
 }

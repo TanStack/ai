@@ -4,11 +4,12 @@
  * directly: lifecycle (create/get/delete), URL auth, filesystem, and process
  * execution all go through the authenticated cloud endpoint at `baseUrl`.
  *
- * Dependency-free: uses the Node ≥ 20 global `fetch` and `WebSocket` (undici).
- * The exec control socket needs an `Authorization` header on the upgrade
- * request — supported via undici's non-standard `headers` constructor option,
- * which the WHATWG `WebSocket` spec does not define — so this targets the Node
- * runtime, not spec-compliant `WebSocket` environments (browsers, Deno, edge).
+ * Dependency-free: uses the global `fetch` and `WebSocket` (undici). The exec
+ * control socket needs an `Authorization` header on the upgrade request —
+ * supported via undici's non-standard `headers` constructor option, which the
+ * WHATWG `WebSocket` spec does not define — so this targets the Node runtime
+ * (>= 22.4, where the global `WebSocket` is unflagged), not spec-compliant
+ * `WebSocket` environments (browsers, Deno, edge).
  */
 
 export const SPRITES_DEFAULT_BASE_URL = 'https://api.sprites.dev'
@@ -52,6 +53,12 @@ export interface SpritesExecOptions {
   /** Extra environment variables, merged over the Sprite defaults. */
   env?: Record<string, string>
   signal?: AbortSignal
+  /**
+   * Max ms to wait for the control socket to open before failing. Bounds the
+   * `CONNECTING`-stall case (e.g. probing a Sprite that is still restarting) so
+   * `wait()` cannot hang forever when no `signal` is supplied. Defaults to 30s.
+   */
+  connectTimeoutMs?: number
 }
 
 /** A live exec stream over the control WebSocket. */
@@ -66,6 +73,8 @@ export interface SpritesExecStream {
 /** The subset of the client the {@link import('./handle').SpritesHandle} needs. */
 export interface SpritesClientLike {
   readonly baseUrl: string
+  /** Authorization header for control-plane and authenticated proxy requests. */
+  authHeader: () => Record<string, string>
   getSprite: (name: string, signal?: AbortSignal) => Promise<SpriteResource>
   deleteSprite: (name: string, signal?: AbortSignal) => Promise<void>
   setUrlAuth: (
@@ -162,6 +171,10 @@ export class SpritesClient implements SpritesClientLike {
 
   private headers(extra?: Record<string, string>): Record<string, string> {
     return { authorization: `Bearer ${this.apiKey}`, ...extra }
+  }
+
+  authHeader(): Record<string, string> {
+    return { authorization: `Bearer ${this.apiKey}` }
   }
 
   private spritePath(name: string, suffix = ''): string {
@@ -300,6 +313,12 @@ export class SpritesClient implements SpritesClientLike {
     name: string,
     options: { comment?: string; signal?: AbortSignal } = {},
   ): Promise<string> {
+    // Snapshot the existing versions first so we can identify the one THIS call
+    // creates, rather than blindly returning the current max (which a concurrent
+    // create — e.g. handle.snapshot() racing an after-run snapshot — would make
+    // ambiguous, or an eventually-consistent list would make stale).
+    const before = new Set(await this.checkpointVersions(name, options.signal))
+
     const url = this.spritePath(name, '/checkpoint')
     const response = await fetch(url, {
       method: 'POST',
@@ -310,21 +329,37 @@ export class SpritesClient implements SpritesClientLike {
       ...(options.signal ? { signal: options.signal } : {}),
     })
     if (!response.ok) await this.fail('POST', url, response)
-    // Drain the NDJSON progress stream so the checkpoint is committed before we
-    // read the list back.
-    await response.text()
+    // The create stream closes promptly; drain it so the checkpoint is committed
+    // before we read the list back, and mine it for the new version id.
+    const streamText = await response.text()
+    const streamVersions = [...streamText.matchAll(/\bv(\d+)\b/g)].map((m) =>
+      Number(m[1]),
+    )
 
-    const versions = (await this.listCheckpoints(name, options.signal))
-      .filter((c) => !c.isAuto)
-      .map((c) => /^v(\d+)$/.exec(c.id))
-      .filter((m): m is RegExpExecArray => m !== null)
-      .map((m) => Number(m[1]))
-    if (versions.length === 0) {
+    const after = await this.checkpointVersions(name, options.signal)
+    const fresh = after.filter((v) => !before.has(v))
+    // Prefer a version that did not exist before this call; fall back to the
+    // stream-reported version, then to the overall max.
+    const candidates = fresh.length > 0 ? fresh : streamVersions
+    const pool = candidates.length > 0 ? candidates : after
+    if (pool.length === 0) {
       throw new Error(
         `Sprites: checkpoint created for "${name}" but no versioned checkpoint was found.`,
       )
     }
-    return `v${Math.max(...versions)}`
+    return `v${Math.max(...pool)}`
+  }
+
+  /** Numeric ids of the Sprite's non-auto `vN` checkpoints. */
+  private async checkpointVersions(
+    name: string,
+    signal?: AbortSignal,
+  ): Promise<Array<number>> {
+    return (await this.listCheckpoints(name, signal))
+      .filter((c) => !c.isAuto)
+      .map((c) => /^v(\d+)$/.exec(c.id))
+      .filter((m): m is RegExpExecArray => m !== null)
+      .map((m) => Number(m[1]))
   }
 
   /**
@@ -333,9 +368,10 @@ export class SpritesClient implements SpritesClientLike {
    *
    * The restore endpoint streams progress but holds the connection open across
    * the restart (it does not close cleanly), so we must NOT drain it — we cancel
-   * the body once the restore is accepted, then poll a trivial `exec` until the
-   * Sprite is ready again (or `readyTimeoutMs`, default 240s, elapses). Restart
-   * can take minutes; raise `readyTimeoutMs` for large overlays.
+   * the body once the restore is accepted, then poll the filesystem until the
+   * Sprite is ready again (or `readyTimeoutMs`, default 600s, elapses). Restart
+   * can take minutes; raise `readyTimeoutMs` for large overlays. The caller's
+   * `signal` cancels the wait, not just the initial request.
    */
   async restoreCheckpoint(
     name: string,
@@ -343,7 +379,7 @@ export class SpritesClient implements SpritesClientLike {
     options: {
       signal?: AbortSignal
       readyTimeoutMs?: number
-      /** Path probed to confirm readiness; should live on the restored overlay. */
+      /** Directory on the restored overlay used for the readiness probe. */
       probePath?: string
     } = {},
   ): Promise<void> {
@@ -362,63 +398,113 @@ export class SpritesClient implements SpritesClientLike {
     await response.body?.cancel().catch(() => undefined)
     // Let the restart begin before probing, so we don't get a stale success from
     // the pre-restart agent.
-    await new Promise((resolve) => setTimeout(resolve, 3000))
+    await delay(3000, options.signal)
     await this.waitUntilReady(
       name,
       options.readyTimeoutMs ?? 600_000,
       options.probePath ?? '/',
+      options.signal,
     )
   }
 
   /**
-   * Poll a lightweight filesystem op until the Sprite agent serves it again, or
+   * Poll the filesystem until the restored overlay actually serves reads, or
    * time out. Uses `fetch` (not the exec WebSocket) so each attempt is reliably
    * bounded by its abort signal — during a restart the socket can stall in
-   * CONNECTING without ever opening or closing.
+   * CONNECTING without opening or closing.
    *
-   * Requires two consecutive successes on `probePath`: right after a restore the
-   * overlay can briefly return `5x`/`input/output error` even once the root is
-   * listable, so a single success is not enough to call it ready.
+   * Probes a write→read round-trip of a sentinel under `probePath` rather than a
+   * directory listing: right after a restore the overlay becomes *listable
+   * before file reads work* (a transient I/O error), so listing alone reports
+   * ready too early. Two consecutive round-trips are required before the sentinel
+   * is removed and the Sprite is declared ready.
    */
   private async waitUntilReady(
     name: string,
     timeoutMs: number,
     probePath: string,
+    signal?: AbortSignal,
   ): Promise<void> {
     const deadline = Date.now() + timeoutMs
-    const url = this.spritePath(
-      name,
-      `/fs/list?path=${encodeURIComponent(probePath)}`,
-    )
+    const sentinel = `${probePath.replace(/\/$/, '')}/.tanstack-restore-probe`
+    const marker = `ready-${Date.now()}`
     let lastError: unknown
     let consecutive = 0
     while (Date.now() < deadline) {
+      signal?.throwIfAborted()
       try {
-        const response = await fetch(url, {
-          method: 'GET',
-          headers: this.headers(),
-          signal: AbortSignal.timeout(8000),
-        })
-        await response.body?.cancel()
-        if (response.ok) {
-          consecutive += 1
-          if (consecutive >= 2) return
-          await new Promise((resolve) => setTimeout(resolve, 2000))
-          continue
+        await this.probeReadWrite(name, sentinel, marker, signal)
+        consecutive += 1
+        if (consecutive >= 2) {
+          // Best-effort cleanup; ignore failures.
+          await this.deleteSentinel(name, sentinel).catch(() => undefined)
+          return
         }
-        consecutive = 0
-        lastError = new Error(`readiness probe HTTP ${response.status}`)
       } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') throw error
         consecutive = 0
         lastError = error
       }
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+      await delay(2000, signal)
     }
     throw new Error(
       `Sprites: "${name}" did not become ready within ${timeoutMs}ms after restore${
         lastError instanceof Error ? ` (last error: ${lastError.message})` : ''
       }.`,
     )
+  }
+
+  /** Write a sentinel and read it back; throws unless the round-trip matches. */
+  private async probeReadWrite(
+    name: string,
+    path: string,
+    marker: string,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const attemptSignal = signal
+      ? AbortSignal.any([signal, AbortSignal.timeout(8000)])
+      : AbortSignal.timeout(8000)
+    const writeUrl = this.spritePath(
+      name,
+      `/fs/write?path=${encodeURIComponent(path)}`,
+    )
+    const writeRes = await fetch(writeUrl, {
+      method: 'PUT',
+      headers: this.headers({ 'content-type': 'application/octet-stream' }),
+      body: new TextEncoder().encode(marker),
+      signal: attemptSignal,
+    })
+    await writeRes.body?.cancel()
+    if (!writeRes.ok) throw new Error(`probe write HTTP ${writeRes.status}`)
+
+    const readUrl = this.spritePath(
+      name,
+      `/fs/read?path=${encodeURIComponent(path)}`,
+    )
+    const readRes = await fetch(readUrl, {
+      method: 'GET',
+      headers: this.headers(),
+      signal: attemptSignal,
+    })
+    if (!readRes.ok) {
+      await readRes.body?.cancel()
+      throw new Error(`probe read HTTP ${readRes.status}`)
+    }
+    if ((await readRes.text()) !== marker) {
+      throw new Error('probe read mismatch')
+    }
+  }
+
+  private async deleteSentinel(name: string, path: string): Promise<void> {
+    const res = await fetch(
+      this.spritePath(name, `/fs/write?path=${encodeURIComponent(path)}`),
+      {
+        method: 'PUT',
+        headers: this.headers({ 'content-type': 'application/octet-stream' }),
+        body: new Uint8Array(0),
+      },
+    ).catch(() => undefined)
+    await res?.body?.cancel()
   }
 
   private async killSession(name: string, sessionId: string): Promise<void> {
@@ -452,13 +538,21 @@ export class SpritesClient implements SpritesClientLike {
     let sessionId: string | undefined
     let exitCode: number | undefined
     let exitObserved = false
+    let killedByCaller = false
+    let opened = false
     let settled = false
     let socketError: Error | undefined
-    const pendingParses: Array<Promise<void>> = []
     let onAbort: (() => void) | undefined
     let resolveClosed!: () => void
     const closed = new Promise<void>((resolve) => {
       resolveClosed = resolve
+    })
+    // Resolves when the session id is known (or the socket closes without one),
+    // so kill() can reach the server-side kill endpoint even if it is called
+    // before the `session_info` frame arrives.
+    let resolveSession!: (id: string | undefined) => void
+    const sessionReady = new Promise<string | undefined>((resolve) => {
+      resolveSession = resolve
     })
 
     // The global (undici) WebSocket accepts a `headers` constructor option at
@@ -469,12 +563,31 @@ export class SpritesClient implements SpritesClientLike {
     const ws = new WebSocketCtor(url, { headers: this.headers() })
     ws.binaryType = 'arraybuffer'
 
-    const finish = (): void => {
+    // Bound the connect phase: if the socket never opens (e.g. the Sprite is
+    // restarting and stalls in CONNECTING), fail instead of hanging wait().
+    const connectTimer: ReturnType<typeof setTimeout> = setTimeout(() => {
+      if (!opened) {
+        socketError ??= new Error(
+          `Sprites exec WebSocket did not connect within ${options.connectTimeoutMs ?? 30_000}ms (${safeUrl}).`,
+        )
+        try {
+          ws.close()
+        } catch {
+          // ignore
+        }
+        finish()
+      }
+    }, options.connectTimeoutMs ?? 30_000)
+    connectTimer.unref()
+
+    function finish(): void {
       if (settled) return
       settled = true
+      clearTimeout(connectTimer)
       if (onAbort && options.signal) {
         options.signal.removeEventListener('abort', onAbort)
       }
+      resolveSession(sessionId)
       stdoutQ.push(outDecoder.decode())
       stderrQ.push(errDecoder.decode())
       stdoutQ.end()
@@ -482,24 +595,30 @@ export class SpritesClient implements SpritesClientLike {
       resolveClosed()
     }
 
+    ws.addEventListener('open', () => {
+      opened = true
+      clearTimeout(connectTimer)
+    })
+
     ws.addEventListener('message', (event: MessageEvent) => {
       const data: unknown = event.data
       if (typeof data === 'string') {
-        pendingParses.push(
-          parseJson(data).then((message) => {
-            if (message === undefined) return
-            if (message.type === 'session_info') {
-              if (typeof message.session_id === 'string') {
-                sessionId = message.session_id
-              }
-            } else if (message.type === 'exit') {
-              if (typeof message.exit_code === 'number') {
-                exitCode = message.exit_code
-                exitObserved = true
-              }
-            }
-          }),
-        )
+        // Parse the small control JSON synchronously so the session id / exit
+        // code are set before any subsequent `close` runs `finish()` — an async
+        // parse here would let `finish()` read a stale (undefined) session id.
+        const message = parseControlMessage(data)
+        if (message === undefined) return
+        if (message.type === 'session_info') {
+          if (typeof message.session_id === 'string') {
+            sessionId = message.session_id
+            resolveSession(sessionId)
+          }
+        } else if (message.type === 'exit') {
+          if (typeof message.exit_code === 'number') {
+            exitCode = message.exit_code
+            exitObserved = true
+          }
+        }
         return
       }
       if (data instanceof ArrayBuffer && data.byteLength > 0) {
@@ -526,9 +645,34 @@ export class SpritesClient implements SpritesClientLike {
 
     ws.addEventListener('close', () => finish())
 
-    const kill = async (): Promise<void> => {
-      await Promise.allSettled(pendingParses)
-      if (sessionId !== undefined) await this.killSession(name, sessionId)
+    // Resolve the session id if/when it is known, bounded by `ms`, so an early
+    // kill still reaches the server-side kill endpoint rather than only dropping
+    // the local socket (which would orphan the remote process).
+    const waitForSessionId = (ms: number): Promise<string | undefined> => {
+      if (sessionId !== undefined || settled) return Promise.resolve(sessionId)
+      return new Promise((resolve) => {
+        let done = false
+        const timer = setTimeout(() => {
+          if (!done) {
+            done = true
+            resolve(sessionId)
+          }
+        }, ms)
+        timer.unref()
+        void sessionReady.then((id) => {
+          if (!done) {
+            done = true
+            clearTimeout(timer)
+            resolve(id)
+          }
+        })
+      })
+    }
+
+    // Terminate the remote process and close the socket.
+    const terminate = async (): Promise<void> => {
+      const id = await waitForSessionId(5000)
+      if (id !== undefined) await this.killSession(name, id)
       try {
         ws.close()
       } catch {
@@ -538,7 +682,7 @@ export class SpritesClient implements SpritesClientLike {
 
     if (options.signal) {
       onAbort = (): void => {
-        void kill()
+        void terminate()
       }
       if (options.signal.aborted) onAbort()
       else options.signal.addEventListener('abort', onAbort)
@@ -549,13 +693,13 @@ export class SpritesClient implements SpritesClientLike {
       stderr: stderrQ,
       wait: async (): Promise<number> => {
         await closed
-        await Promise.allSettled(pendingParses)
+        // A real exit wins, even if a kill/abort raced in at the same instant.
         if (exitObserved) return exitCode ?? 0
-        if (options.signal?.aborted) {
-          throw options.signal.reason instanceof Error
-            ? options.signal.reason
-            : new Error('Sprites exec aborted')
-        }
+        // Caller-initiated abort is a cancellation → reject with the reason.
+        if (options.signal?.aborted) throw signalReason(options.signal)
+        // An explicit kill() is normal teardown → resolve with a conventional
+        // "terminated by signal" code rather than throwing.
+        if (killedByCaller) return 137
         // Closed without an exit: a dropped/abnormal connection. Surface it
         // rather than masquerading as a successful exit 0.
         throw (
@@ -565,7 +709,10 @@ export class SpritesClient implements SpritesClientLike {
           )
         )
       },
-      kill,
+      kill: async (): Promise<void> => {
+        killedByCaller = true
+        await terminate()
+      },
     }
   }
 
@@ -589,14 +736,36 @@ interface ExecControlMessage {
   exit_code?: unknown
 }
 
-function parseJson(text: string): Promise<ExecControlMessage | undefined> {
-  return Promise.resolve().then(() => {
-    try {
-      return JSON.parse(text) as ExecControlMessage
-    } catch {
-      return undefined
+/** Abortable delay: resolves after `ms`, or rejects with AbortError if aborted. */
+function delay(ms: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) return Promise.reject(signalReason(signal))
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    const onAbort = (): void => {
+      clearTimeout(timer)
+      reject(signalReason(signal))
     }
+    signal?.addEventListener('abort', onAbort, { once: true })
   })
+}
+
+function signalReason(signal: AbortSignal | undefined): Error {
+  const reason = signal?.reason
+  if (reason instanceof Error) return reason
+  const error = new Error('The operation was aborted')
+  error.name = 'AbortError'
+  return error
+}
+
+function parseControlMessage(text: string): ExecControlMessage | undefined {
+  try {
+    return JSON.parse(text) as ExecControlMessage
+  } catch {
+    return undefined
+  }
 }
 
 function parseSprite(text: string): SpriteResource {

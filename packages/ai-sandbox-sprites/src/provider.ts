@@ -72,6 +72,10 @@ class SpritesProvider implements SandboxProvider {
     return this.config.httpPort ?? SPRITE_DEFAULT_HTTP_PORT
   }
 
+  private get urlAuth(): SpriteUrlAuth {
+    return this.config.urlAuth ?? 'public'
+  }
+
   private handle(sprite: {
     name: string
     url: string
@@ -82,6 +86,7 @@ class SpritesProvider implements SandboxProvider {
       url: sprite.url,
       workdir: this.workdir,
       httpPort: this.httpPort,
+      urlAuth: this.urlAuth,
     })
   }
 
@@ -94,15 +99,26 @@ class SpritesProvider implements SandboxProvider {
       ...(input.signal ? { signal: input.signal } : {}),
     })
 
-    const urlAuth = this.config.urlAuth ?? 'public'
-    if (sprite.urlAuth !== urlAuth) {
-      await this.client.setUrlAuth(sprite.name, urlAuth, input.signal)
+    if (sprite.urlAuth !== this.urlAuth) {
+      await this.client.setUrlAuth(sprite.name, this.urlAuth, input.signal)
     }
 
     // Ensure the workspace dir exists before any cwd-bound command runs in it.
-    const handle = this.handle(sprite)
-    await handle.fs.mkdir(this.workdir)
+    // Run from `/` (not the workdir, which does not exist yet) so the exec's own
+    // cwd resolution does not fail for a non-default `workdir`.
+    const mkdir = this.client.exec(sprite.name, {
+      argv: ['mkdir', '-p', this.workdir],
+      cwd: '/',
+      ...(input.signal ? { signal: input.signal } : {}),
+    })
+    const code = await mkdir.wait()
+    if (code !== 0) {
+      throw new Error(
+        `Sprites: failed to create workspace directory "${this.workdir}" (exit ${code}).`,
+      )
+    }
 
+    const handle = this.handle(sprite)
     if (input.env) await handle.env.set(input.env)
     return handle
   }
