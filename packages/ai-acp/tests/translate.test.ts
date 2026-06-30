@@ -485,7 +485,9 @@ describe('translateAcpStream — non-text content', () => {
     expect(custom).toHaveLength(2)
     expect(custom[1]).toMatchObject({
       name: 'test.message-content',
-      value: { content: { type: 'image', data: 'aGk=', mimeType: 'image/png' } },
+      value: {
+        content: { type: 'image', data: 'aGk=', mimeType: 'image/png' },
+      },
     })
   })
 
