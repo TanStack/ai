@@ -1,10 +1,10 @@
 # @tanstack/ai-sandbox
 
-Provider-agnostic sandbox layer for [TanStack AI](https://tanstack.com/ai). Run coding-agent harness adapters (Claude Code, Codex, Grok Build, OpenCode, Gemini CLI) **inside** an isolated environment with a real filesystem, shell, and cloned repo — and stream their work back through `chat()`.
+Provider-agnostic sandbox layer for [TanStack AI](https://tanstack.com/ai). Run coding-agent harness adapters (Grok Build, Claude Code, Codex, OpenCode, Gemini CLI) **inside** an isolated environment with a real filesystem, shell, and cloned repo — and stream their work back through `chat()`.
 
 ```typescript
 import { chat } from '@tanstack/ai'
-import { claudeCodeText } from '@tanstack/ai-claude-code'
+import { grokBuildText } from '@tanstack/ai-grok-build'
 import {
   createSecrets,
   defineSandbox,
@@ -23,7 +23,7 @@ const sandbox = defineSandbox({
     setup: ['corepack enable', 'pnpm install'],
     scripts: { test: 'pnpm test', build: 'pnpm build' },
     secrets: createSecrets({
-      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '',
+      XAI_API_KEY: process.env.XAI_API_KEY ?? '',
     }),
   }),
   lifecycle: { reuse: 'thread', snapshot: 'after-setup' },
@@ -31,7 +31,7 @@ const sandbox = defineSandbox({
 
 const stream = chat({
   threadId: 'my-thread',
-  adapter: claudeCodeText('sonnet'),
+  adapter: grokBuildText('grok-build'),
   messages: [{ role: 'user', content: 'Fix the failing test.' }],
   middleware: [withSandbox(sandbox)],
 })
@@ -40,7 +40,7 @@ const stream = chat({
 ## Installation
 
 ```bash
-npm install @tanstack/ai-sandbox @tanstack/ai
+npm install @tanstack/ai @tanstack/ai-sandbox @tanstack/ai-grok-build
 ```
 
 Pick a **provider** package for where the sandbox runs:
@@ -53,7 +53,7 @@ Pick a **provider** package for where the sandbox runs:
 | `@tanstack/ai-sandbox-vercel` | Vercel Sandbox |
 | `@tanstack/ai-sandbox-daytona` | Daytona dev environments |
 
-Harness adapters live in separate packages (`@tanstack/ai-claude-code`, `@tanstack/ai-codex`, etc.) and **require** `withSandbox(...)` middleware — `chat()` fails fast without it.
+**Harness adapters** are separate packages. The default path is **Grok Build** (`@tanstack/ai-grok-build`); others include `@tanstack/ai-claude-code`, `@tanstack/ai-codex`, and `@tanstack/ai-opencode`. All require `withSandbox(...)` middleware — `chat()` fails fast without it.
 
 ## Three moving parts
 
@@ -61,7 +61,7 @@ Harness adapters live in separate packages (`@tanstack/ai-claude-code`, `@tansta
 | --- | --- | --- |
 | **Provider** | Isolation primitive — host, container, cloud VM | `dockerSandbox()`, `localProcessSandbox()`, … |
 | **Workspace** | What the agent boots into — repo, setup, secrets, skills | `defineWorkspace({ … })` |
-| **Harness adapter** | Which agent CLI runs and how output is translated | `claudeCodeText()`, `grokBuildText()`, … |
+| **Harness adapter** | Which agent CLI runs and how output is translated | `grokBuildText()` (default), `claudeCodeText()`, `codexText()`, … |
 
 `defineSandbox()` binds provider + workspace (+ optional policy, lifecycle, hooks). `withSandbox(definition)` is the `chat()` middleware that creates or resumes the sandbox for each run.
 
@@ -85,12 +85,12 @@ defineWorkspace({
     mcpSkill('api', { url: 'https://mcp.example.com', headers: { Authorization: bearer(secrets.TOKEN) } }),
     fileSkill({ path: '.hints.md', content: '# Hints\nPrefer pnpm.' }),
   ],
-  plugins: ['@anthropic/plugin-foo'], // harness-specific; Claude Code installs, others warn+skip
+  plugins: ['@anthropic/plugin-foo'], // Claude Code only; other harnesses warn+skip
   secrets: createSecrets({ GH: process.env.GH_TOKEN ?? '' }),
 })
 ```
 
-Skills and plugins are **projected** into each harness's native format at run time (`.mcp.json`, `.codex/config.toml`, `opencode.json`, …). Bootstrap writes `AGENTS.md` and clones `gitSkill` repos; harness adapters handle the rest.
+Skills and plugins are **projected** into each harness's native format at run time (`.grok/config.toml`, `.mcp.json`, `.codex/config.toml`, `opencode.json`, …). Bootstrap writes `AGENTS.md` and clones `gitSkill` repos; harness adapters handle the rest.
 
 ### Policy
 
@@ -110,7 +110,7 @@ const policy = defineSandboxPolicy({
 defineSandbox({ id: 'agent', provider, workspace, policy })
 ```
 
-Precedence is `deny` > `ask` > `allow`. Harness adapters map policy onto their native permission systems; Claude Code supports the full interactive `approval-requested` flow.
+Precedence is `deny` > `ask` > `allow`. Each harness adapter maps policy onto its native permission system (coarse flags for Grok Build/Codex; full interactive `approval-requested` on Claude Code).
 
 ### Lifecycle
 
@@ -128,8 +128,8 @@ lifecycle: {
 Use `createSecrets()` so values stay behind opaque `SecretRef` tokens — never written to snapshots, the sandbox store, or event logs:
 
 ```typescript
-const secrets = createSecrets({ API_KEY: process.env.API_KEY ?? '' })
-// secrets.API_KEY is a ref, not the string
+const secrets = createSecrets({ XAI_API_KEY: process.env.XAI_API_KEY ?? '' })
+// secrets.XAI_API_KEY is a ref, not the string
 ```
 
 ### Host tool bridge
@@ -139,10 +139,10 @@ const secrets = createSecrets({ API_KEY: process.env.API_KEY ?? '' })
 ## Run flow
 
 ```text
-chat({ adapter, middleware: [withSandbox(sandbox)] })
+chat({ adapter: grokBuildText(), middleware: [withSandbox(sandbox)] })
   │
   ├─ withSandbox.setup     → resume → restore snapshot → create + bootstrap
-  ├─ adapter.chatStream    → spawn harness CLI inside sandbox; stream AG-UI chunks
+  ├─ adapter.chatStream    → spawn `grok` (or other harness CLI) inside sandbox; stream AG-UI chunks
   └─ withSandbox.onFinish  → snapshot / destroy per lifecycle
 ```
 
@@ -167,7 +167,7 @@ Runs core unit tests offline; auto-runs Docker provider tests when a daemon is r
 
 Full guides on [tanstack.com/ai](https://tanstack.com/ai/latest/docs/sandbox/overview):
 
-- [Quick Start](https://tanstack.com/ai/latest/docs/sandbox/quick-start)
+- [Quick Start](https://tanstack.com/ai/latest/docs/sandbox/quick-start) — Grok Build in Docker
 - [Providers](https://tanstack.com/ai/latest/docs/sandbox/providers)
 - [Workspace](https://tanstack.com/ai/latest/docs/sandbox/workspace)
 - [Provisioning](https://tanstack.com/ai/latest/docs/sandbox/provisioning) (skills, MCP, plugins)
@@ -179,9 +179,9 @@ Full guides on [tanstack.com/ai](https://tanstack.com/ai/latest/docs/sandbox/ove
 
 | Example | What it demonstrates |
 | --- | --- |
-| `examples/sandbox-coding-agent` | Minimal E2E — agent fixes a bug in Docker or local-process |
+| `examples/sandbox-coding-agent` | Minimal E2E — Claude Code fixes a bug (Docker or local-process) |
 | `examples/sandbox-issue-triage` | GitHub issue triage with file hooks |
-| `examples/sandbox-web` | Build-and-preview with harness × provider matrix |
+| `examples/sandbox-web` | Build-and-preview with harness × provider matrix (Grok default in UI) |
 | `examples/sandbox-cloudflare` | Edge deploy with live preview URL |
 
 ## When to use a sandbox
