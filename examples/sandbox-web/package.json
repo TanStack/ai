@@ -11,6 +11,7 @@
     "test:types": "tsc --noEmit"
   },
   "dependencies": {
+    "@ngrok/ngrok": "^1.7.0",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-claude-code": "workspace:*",
     "@tanstack/ai-codex": "workspace:*",

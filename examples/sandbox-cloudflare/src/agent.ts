@@ -40,6 +40,18 @@ import { grokBuildText } from '@tanstack/ai-grok-build'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 import { namedCloudflareSandbox } from './sandbox-provider'
+import {
+  isGrokModel,
+  isGrokProtocol,
+  isGrokTransport,
+  isHarness,
+} from './sandbox-options'
+import type {
+  GrokBuildModel,
+  GrokBuildProtocol,
+  GrokTransport,
+  HarnessName,
+} from './sandbox-options'
 import type { AnyTextAdapter } from '@tanstack/ai'
 import type {
   SandboxAgentEnv,
@@ -73,10 +85,7 @@ export interface AppEnv extends SandboxAgentEnv {
   GROK_API_KEY?: string
 }
 
-export type HarnessName = 'claude-code' | 'codex' | 'grok'
-export type GrokBuildModel = 'grok-build-0.1' | 'composer-2.5'
-export type GrokBuildProtocol = 'acp' | 'streaming-json'
-export type GrokTransport = 'auto' | 'stdio' | 'websocket'
+export type { HarnessName, GrokBuildModel, GrokBuildProtocol, GrokTransport }
 
 export interface GrokHarnessOptions {
   model?: GrokBuildModel
@@ -143,22 +152,6 @@ const HARNESSES: Record<HarnessName, HarnessSpec> = {
   },
 }
 
-function isHarnessName(value: unknown): value is HarnessName {
-  return value === 'claude-code' || value === 'codex' || value === 'grok'
-}
-
-function isGrokProtocol(value: unknown): value is GrokBuildProtocol {
-  return value === 'acp' || value === 'streaming-json'
-}
-
-function isGrokTransport(value: unknown): value is GrokTransport {
-  return value === 'auto' || value === 'stdio' || value === 'websocket'
-}
-
-function isGrokModel(value: unknown): value is GrokBuildModel {
-  return value === 'grok-build-0.1' || value === 'composer-2.5'
-}
-
 /** Per-run Grok options from UI metadata (`metadata.grokModel` / protocol / transport). */
 function resolveGrokOptions(input: StartRunInput): GrokHarnessOptions {
   const metadata = input.metadata
@@ -196,7 +189,7 @@ function buildAdapter(
 function resolveHarness(input: StartRunInput, env: AppEnv): HarnessName {
   const override = input.metadata?.harness
   if (override !== undefined) {
-    if (!isHarnessName(override)) {
+    if (!isHarness(override)) {
       throw new Error(
         `Unknown harness "${String(override)}". Use claude-code | codex | grok.`,
       )
@@ -205,7 +198,7 @@ function resolveHarness(input: StartRunInput, env: AppEnv): HarnessName {
   }
   const fromEnv = env.HARNESS
   if (fromEnv === undefined || fromEnv === '') return 'claude-code'
-  if (!isHarnessName(fromEnv)) {
+  if (!isHarness(fromEnv)) {
     throw new Error(
       `Unknown HARNESS "${fromEnv}". Set it to claude-code | codex | grok.`,
     )

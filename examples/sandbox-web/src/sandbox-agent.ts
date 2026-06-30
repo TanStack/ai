@@ -14,9 +14,10 @@
  * - **Same-machine** providers (docker, local) can reach the host, so we BRIDGE
  *   host tools (`tanstackStartRecipe`, `exposePreview`) into the agent over MCP and
  *   let it mint the preview URL on demand once its dev server is up.
- * - **Hosted** providers (vercel, daytona) CANNOT reach your laptop's localhost, so
- *   there is no bridge: the recipe is inlined as system-prompt text and the host
- *   pre-mints the deterministic preview URL up front ({@link resolvePreviewUrl}).
+ * - **Hosted** providers (vercel, daytona) can't reach loopback by default, so the
+ *   recipe is inlined and the host pre-mints the preview URL ({@link resolvePreviewUrl}).
+ *   Set `NGROK_AUTHTOKEN` (or deploy with a public bridge URL) to tunnel the bridge
+ *   out so remote sandboxes can call `tanstackStartRecipe` + `exposePreview` instead.
  *
  * The structure mirrors `ts-react-chat`'s `sandbox-triage.ts` (the read-only issue
  * triage demo); this is its build-and-preview sibling.
@@ -38,6 +39,7 @@ import { daytonaSandbox } from '@tanstack/ai-sandbox-daytona'
 import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
 import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 import { vercelSandbox } from '@tanstack/ai-sandbox-vercel'
+import { ngrokConfigured } from '@tanstack/ai-sandbox/ngrok'
 import { z } from 'zod'
 import { isHarness, isProvider } from './sandbox-options'
 import type {
@@ -221,9 +223,26 @@ const PROVIDERS: Record<ProviderName, ProviderSpec> = {
   },
 }
 
-/** Whether the chosen provider bridges host tools (vs pre-minting the preview). */
+/**
+ * Whether the in-sandbox agent can reach the default bridge (localhost /
+ * `host.docker.internal`) without a tunnel.
+ */
 export function usesToolBridge(provider: ProviderName): boolean {
   return PROVIDERS[provider].toolBridge
+}
+
+/**
+ * Whether host tools can be bridged for this provider on this run. Same-machine
+ * providers reach the bridge directly; remote providers need `NGROK_AUTHTOKEN`
+ * (local dev) or a deployed orchestrator public URL.
+ */
+export function isBridgeReachable(provider: ProviderName): boolean {
+  return usesToolBridge(provider) || ngrokConfigured()
+}
+
+/** Route the bridge through ngrok for remote providers when configured. */
+export function needsNgrokBridge(provider: ProviderName): boolean {
+  return !usesToolBridge(provider) && ngrokConfigured()
 }
 
 /**

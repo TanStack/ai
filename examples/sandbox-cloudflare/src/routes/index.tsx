@@ -14,59 +14,27 @@ import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import {
+  GROK_MODEL_OPTIONS,
+  GROK_PROTOCOL_OPTIONS,
+  GROK_TRANSPORT_OPTIONS,
+  HARNESS_OPTIONS,
+  isGrokModel,
+  isGrokProtocol,
+  isGrokTransport,
+  isHarness,
+} from '../sandbox-options'
+import type {
+  GrokBuildModel,
+  GrokBuildProtocol,
+  GrokTransport,
+  HarnessName,
+} from '../sandbox-options'
 import type { UIMessage } from '@tanstack/ai-react'
 
 export const Route = createFileRoute('/')({
   component: SandboxAgentPage,
 })
-
-// The coding agents the container image ships. The value is forwarded to the
-// server as `metadata.harness`; `resolveHarness` in src/agent.ts validates it.
-const HARNESS_OPTIONS = [
-  { value: 'grok', label: 'Grok Build' },
-  { value: 'claude-code', label: 'Claude Code' },
-  { value: 'codex', label: 'Codex' },
-] as const
-
-type HarnessName = (typeof HARNESS_OPTIONS)[number]['value']
-
-const GROK_MODEL_OPTIONS = [
-  { value: 'composer-2.5', label: 'Composer 2.5' },
-  { value: 'grok-build-0.1', label: 'grok-build-0.1' },
-] as const
-
-type GrokBuildModel = (typeof GROK_MODEL_OPTIONS)[number]['value']
-
-const GROK_PROTOCOL_OPTIONS = [
-  { value: 'acp', label: 'ACP (default)' },
-  { value: 'streaming-json', label: 'streaming-json' },
-] as const
-
-type GrokBuildProtocol = (typeof GROK_PROTOCOL_OPTIONS)[number]['value']
-
-const GROK_TRANSPORT_OPTIONS = [
-  { value: 'auto', label: 'auto' },
-  { value: 'stdio', label: 'stdio' },
-  { value: 'websocket', label: 'websocket' },
-] as const
-
-type GrokTransport = (typeof GROK_TRANSPORT_OPTIONS)[number]['value']
-
-function isHarnessName(value: string): value is HarnessName {
-  return HARNESS_OPTIONS.some((o) => o.value === value)
-}
-
-function isGrokModel(value: string): value is GrokBuildModel {
-  return GROK_MODEL_OPTIONS.some((o) => o.value === value)
-}
-
-function isGrokProtocol(value: string): value is GrokBuildProtocol {
-  return GROK_PROTOCOL_OPTIONS.some((o) => o.value === value)
-}
-
-function isGrokTransport(value: string): value is GrokTransport {
-  return GROK_TRANSPORT_OPTIONS.some((o) => o.value === value)
-}
 
 const PROMPT_SUGGESTIONS = [
   'Build a self-contained TanStack Start app — a polished kanban board with drag-and-drop and localStorage (no APIs or env). Call the tanstackStartRecipe tool first, scaffold it, install deps, start the dev server, and give me the preview URL.',
@@ -197,13 +165,19 @@ function PreviewLink({ url }: { url: string }) {
   )
 }
 
+type SandboxWaitKind = 'boot' | 'continue'
+
 /**
- * Shown while a request is in flight but no stream chunk has arrived yet — that
- * window is the sandbox booting: `withSandbox` is creating (or resuming) the
- * sandbox and preparing the coding agent before the agent loop streams. It's the
- * slow part of the first message, so make the wait legible.
+ * Shown while a request is in flight but no stream chunk has arrived yet.
+ * First message: cold boot. Follow-ups: resume the same thread's container.
  */
-function SandboxBooting() {
+function SandboxWaiting({ kind }: { kind: SandboxWaitKind }) {
+  const headline =
+    kind === 'boot' ? 'Starting sandbox…' : 'Agent is working…'
+  const detail =
+    kind === 'boot'
+      ? 'starting the Cloudflare container and installing the coding agent. The first message takes a moment.'
+      : 'reconnecting to the container and continuing the conversation.'
   return (
     <div className="p-4">
       <div className="flex items-start gap-4">
@@ -213,13 +187,8 @@ function SandboxBooting() {
         <div className="flex items-center gap-3 rounded-lg border border-indigo-500/30 bg-indigo-900/10 px-4 py-3">
           <div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
           <p className="text-sm">
-            <span className="font-medium text-indigo-200">
-              Starting sandbox…
-            </span>{' '}
-            <span className="text-gray-400">
-              starting the Cloudflare container and installing the coding agent.
-              The first message takes a moment.
-            </span>
+            <span className="font-medium text-indigo-200">{headline}</span>{' '}
+            <span className="text-gray-400">{detail}</span>
           </p>
         </div>
       </div>
@@ -227,19 +196,33 @@ function SandboxBooting() {
   )
 }
 
+function sandboxWaitKind(
+  isLoading: boolean,
+  messages: Array<UIMessage>,
+): SandboxWaitKind | false {
+  if (
+    !isLoading ||
+    messages.length === 0 ||
+    messages[messages.length - 1].role !== 'user'
+  ) {
+    return false
+  }
+  return messages.some((m) => m.role === 'assistant') ? 'continue' : 'boot'
+}
+
 function Messages({
   messages,
-  booting,
+  waiting,
 }: {
   messages: Array<UIMessage>
-  booting: boolean
+  waiting: SandboxWaitKind | false
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight
     }
-  }, [messages, booting])
+  }, [messages, waiting])
 
   if (!messages.length) {
     return (
@@ -345,7 +328,7 @@ function Messages({
           </div>
         )
       })}
-      {booting && <SandboxBooting />}
+      {waiting && <SandboxWaiting kind={waiting} />}
     </div>
   )
 }
@@ -385,13 +368,7 @@ function SandboxAgentPage() {
     setThreadId(crypto.randomUUID())
   }
 
-  // A request is in flight but nothing has streamed back yet (the last message is
-  // still the user's) → the sandbox is booting. Once the first chunk arrives an
-  // assistant message is appended and this clears.
-  const booting =
-    isLoading &&
-    messages.length > 0 &&
-    messages[messages.length - 1].role === 'user'
+  const waiting = sandboxWaitKind(isLoading, messages)
 
   return (
     <div className="flex flex-col h-screen bg-gray-900">
@@ -412,7 +389,7 @@ function SandboxAgentPage() {
             <select
               value={harness}
               onChange={(e) => {
-                if (isHarnessName(e.target.value)) changeHarness(e.target.value)
+                if (isHarness(e.target.value)) changeHarness(e.target.value)
               }}
               disabled={isLoading}
               className="rounded-md border border-indigo-500/20 bg-gray-800 px-2 py-1 text-sm text-white disabled:opacity-50"
@@ -502,7 +479,7 @@ function SandboxAgentPage() {
 
       <div className="flex-1 flex flex-col min-w-0">
         <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full overflow-hidden">
-          <Messages messages={messages} booting={booting} />
+          <Messages messages={messages} waiting={waiting} />
         </div>
 
         <div className="border-t border-indigo-500/10 bg-gray-900/80 backdrop-blur-sm">

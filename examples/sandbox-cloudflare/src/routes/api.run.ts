@@ -1,5 +1,19 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { createMiddleware } from '@tanstack/react-start'
 import { toServerSentEventsStream } from '@tanstack/ai'
+import { z } from 'zod'
+import {
+  isGrokModel,
+  isGrokProtocol,
+  isGrokTransport,
+  isHarness,
+} from '../sandbox-options'
+import type {
+  GrokBuildModel,
+  GrokBuildProtocol,
+  GrokTransport,
+  HarnessName,
+} from '../sandbox-options'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { StartRunInput } from '@tanstack/ai-sandbox-cloudflare/agent'
 
@@ -29,23 +43,7 @@ import type { StartRunInput } from '@tanstack/ai-sandbox-cloudflare/agent'
  * hops the agent Worker would make) — no public round-trip, no 1042.
  */
 
-interface ProxyBody {
-  // `Array.isArray` in `parseBody` narrows to `any[]`, so the chat engine's own
-  // message validation (in `startRun`) is what actually checks shape; we only
-  // assert "non-empty array" here for a fast, clear 400 on garbage input.
-  messages: Array<ModelMessage>
-  threadId?: string
-  /** The UI's chosen harness, forwarded to the agent as `metadata.harness`. */
-  harness?: string
-  grokModel?: string
-  grokProtocol?: string
-  grokTransport?: string
-}
-
-/**
- * The layers `useChat` may nest forwarded props in (top level, `data`, or
- * `forwardedProps`) depending on the connection adapter.
- */
+/** The layers `useChat` may nest forwarded props in, depending on the adapter. */
 function bodyLayers(value: object): Array<object> {
   const layers: Array<object> = [value]
   if (
@@ -65,52 +63,90 @@ function bodyLayers(value: object): Array<object> {
   return layers
 }
 
-/** First non-empty `threadId` string across the body layers. */
-function readThreadId(value: object): string | undefined {
+/** First non-empty string for `key` across any body layer (top layer wins). */
+function readForwarded(value: object, key: string): string | undefined {
   for (const layer of bodyLayers(value)) {
-    if (
-      'threadId' in layer &&
-      typeof layer.threadId === 'string' &&
-      layer.threadId !== ''
-    ) {
-      return layer.threadId
-    }
+    const candidate: unknown = Reflect.get(layer, key)
+    if (typeof candidate === 'string' && candidate !== '') return candidate
   }
   return undefined
 }
 
-/** First non-empty string field across the body layers. */
-function readStringField(
-  value: object,
-  field: 'harness' | 'grokModel' | 'grokProtocol' | 'grokTransport',
-): string | undefined {
-  for (const layer of bodyLayers(value)) {
-    const record = layer as Record<string, unknown>
-    const candidate = record[field]
-    if (typeof candidate === 'string' && candidate !== '') {
-      return candidate
-    }
+const FORWARDED_KEYS = [
+  'threadId',
+  'harness',
+  'grokModel',
+  'grokProtocol',
+  'grokTransport',
+] as const
+
+/** Flatten the nested `data`/`forwardedProps` layers into one object to validate. */
+function flattenRunBody(value: unknown): unknown {
+  if (value === null || typeof value !== 'object') return value
+  const flat: Record<string, unknown> = {}
+  if ('messages' in value) flat.messages = value.messages
+  for (const key of FORWARDED_KEYS) {
+    const found = readForwarded(value, key)
+    if (found !== undefined) flat[key] = found
   }
-  return undefined
+  return flat
 }
 
-function parseBody(value: unknown): ProxyBody {
-  if (value === null || typeof value !== 'object' || !('messages' in value)) {
-    throw new Error('body.messages is required')
-  }
-  const { messages } = value
-  if (!Array.isArray(messages) || messages.length === 0) {
-    throw new Error('body.messages must be a non-empty array')
-  }
-  return {
-    messages,
-    threadId: readThreadId(value),
-    harness: readStringField(value, 'harness'),
-    grokModel: readStringField(value, 'grokModel'),
-    grokProtocol: readStringField(value, 'grokProtocol'),
-    grokTransport: readStringField(value, 'grokTransport'),
-  }
+/**
+ * Validates the proxy body. Harness/grok fields reuse the same type guards as the
+ * picker UI (`sandbox-options.ts`). Harness is optional — absent values fall back
+ * to the deploy-time `HARNESS` var in `resolveHarness`.
+ */
+const runBodySchema = z.preprocess(
+  flattenRunBody,
+  z.object({
+    messages: z
+      .array(z.custom<ModelMessage>())
+      .min(1, 'body.messages must be a non-empty array'),
+    threadId: z.string().optional(),
+    harness: z.custom<HarnessName>(isHarness, 'Unknown harness').optional(),
+    grokModel: z
+      .custom<GrokBuildModel>(isGrokModel, 'Unknown grokModel')
+      .optional(),
+    grokProtocol: z
+      .custom<GrokBuildProtocol>(isGrokProtocol, 'Unknown grokProtocol')
+      .optional(),
+    grokTransport: z
+      .custom<GrokTransport>(isGrokTransport, 'Unknown grokTransport')
+      .optional(),
+  }),
+)
+
+function jsonError(status: number, error: string): Response {
+  return new Response(JSON.stringify({ error }), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  })
 }
+
+/**
+ * Request middleware: parse + validate the body once and hand the typed result
+ * to the POST handler via context, short-circuiting with a 4xx on a bad request
+ * so the handler only ever sees a valid `runBody`.
+ */
+const runBodyMiddleware = createMiddleware().server(
+  async ({ next, request }) => {
+    if (request.signal.aborted) {
+      return new Response(null, { status: 499 })
+    }
+    let raw: unknown
+    try {
+      raw = await request.json()
+    } catch {
+      return jsonError(400, 'invalid JSON body')
+    }
+    const parsed = runBodySchema.safeParse(raw)
+    if (!parsed.success) {
+      return jsonError(400, parsed.error.issues[0]?.message ?? 'invalid body')
+    }
+    return next({ context: { runBody: parsed.data } })
+  },
+)
 
 /** The run coordinator DO for a thread, addressed over the `RUN_COORDINATOR` binding. */
 async function getCoordinator(threadId: string) {
@@ -229,87 +265,77 @@ async function* tailRun(
 
 export const Route = createFileRoute('/api/run')({
   server: {
-    handlers: {
-      POST: async ({ request }) => {
-        if (request.signal.aborted) {
-          return new Response(null, { status: 499 })
-        }
+    handlers: ({ createHandlers }) =>
+      createHandlers({
+        POST: {
+          middleware: [runBodyMiddleware],
+          handler: async ({ request, context }) => {
+            const {
+              messages,
+              threadId: threadIdInput,
+              harness,
+              grokModel,
+              grokProtocol,
+              grokTransport,
+            } = context.runBody
 
-        let body: ProxyBody
-        try {
-          body = parseBody(await request.json())
-        } catch (error) {
-          const message =
-            error instanceof Error ? error.message : 'invalid body'
-          return new Response(JSON.stringify({ error: message }), {
-            status: 400,
-            headers: { 'content-type': 'application/json' },
-          })
-        }
+            const threadId = threadIdInput ?? crypto.randomUUID()
 
-        const threadId = body.threadId ?? crypto.randomUUID()
+            const abortController = new AbortController()
+            request.signal.addEventListener('abort', () =>
+              abortController.abort(),
+            )
 
-        const abortController = new AbortController()
-        request.signal.addEventListener('abort', () => abortController.abort())
-
-        try {
-          const coordinator = await getCoordinator(threadId)
-          const runId = await triggerRun(coordinator, {
-            runId: crypto.randomUUID(),
-            threadId,
-            messages: body.messages,
-            // The host this user request arrived on — the coordinators derive the
-            // container's bridge + preview hosts from it when PUBLIC_HOSTNAME /
-            // PREVIEW_HOSTNAME are unset (local dev → host.docker.internal +
-            // localhost). Safe to trust on Cloudflare (the edge only routes hosts
-            // you own to this Worker). See resolveBridgeOrigin / resolvePreviewHost.
-            publicHost: new URL(request.url).host,
-            // The UI's chosen coding agent. `resolveHarness` in src/agent.ts reads
-            // it; absent → the HARNESS deploy default. Omitted entirely when unset.
-            metadata:
-              body.harness ||
-              body.grokModel ||
-              body.grokProtocol ||
-              body.grokTransport
-                ? {
-                    ...(body.harness ? { harness: body.harness } : {}),
-                    ...(body.grokModel ? { grokModel: body.grokModel } : {}),
-                    ...(body.grokProtocol
-                      ? { grokProtocol: body.grokProtocol }
-                      : {}),
-                    ...(body.grokTransport
-                      ? { grokTransport: body.grokTransport }
-                      : {}),
-                  }
-                : undefined,
-          })
-          const chunks = tailRun(
-            coordinator,
-            runId,
-            threadId,
-            abortController.signal,
-          )
-          const sseStream = toServerSentEventsStream(chunks, abortController)
-          return new Response(sseStream, {
-            headers: {
-              'Content-Type': 'text/event-stream',
-              'Cache-Control': 'no-cache',
-              Connection: 'keep-alive',
-            },
-          })
-        } catch (error) {
-          if (abortController.signal.aborted) {
-            return new Response(null, { status: 499 })
-          }
-          console.error('[api/run] proxy error:', error)
-          return new Response(
-            JSON.stringify({
-              error: error instanceof Error ? error.message : 'proxy error',
-            }),
-            { status: 502, headers: { 'content-type': 'application/json' } },
-          )
-        }
-      },
-    },
+            try {
+              const coordinator = await getCoordinator(threadId)
+              const runId = await triggerRun(coordinator, {
+                runId: crypto.randomUUID(),
+                threadId,
+                messages,
+                // The host this user request arrived on — the coordinators derive the
+                // container's bridge + preview hosts from it when PUBLIC_HOSTNAME /
+                // PREVIEW_HOSTNAME are unset (local dev → host.docker.internal +
+                // localhost). Safe to trust on Cloudflare (the edge only routes hosts
+                // you own to this Worker). See resolveBridgeOrigin / resolvePreviewHost.
+                publicHost: new URL(request.url).host,
+                // The UI's chosen coding agent. `resolveHarness` in src/agent.ts reads
+                // it; absent → the HARNESS deploy default. Omitted entirely when unset.
+                metadata:
+                  harness || grokModel || grokProtocol || grokTransport
+                    ? {
+                        ...(harness ? { harness } : {}),
+                        ...(grokModel ? { grokModel } : {}),
+                        ...(grokProtocol ? { grokProtocol } : {}),
+                        ...(grokTransport ? { grokTransport } : {}),
+                      }
+                    : undefined,
+              })
+              const chunks = tailRun(
+                coordinator,
+                runId,
+                threadId,
+                abortController.signal,
+              )
+              const sseStream = toServerSentEventsStream(chunks, abortController)
+              return new Response(sseStream, {
+                headers: {
+                  'Content-Type': 'text/event-stream',
+                  'Cache-Control': 'no-cache',
+                  Connection: 'keep-alive',
+                },
+              })
+            } catch (error) {
+              if (abortController.signal.aborted) {
+                return new Response(null, { status: 499 })
+              }
+              console.error('[api/run] proxy error:', error)
+              return jsonError(
+                502,
+                error instanceof Error ? error.message : 'proxy error',
+              )
+            }
+          },
+        },
+      }),
   },
 })

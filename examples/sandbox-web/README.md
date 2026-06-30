@@ -41,10 +41,12 @@ The one provider-dependent seam is the **preview + host-tool story**:
   `tanstackStartRecipe` + `exposePreview` host tools are bridged into the agent
   over MCP; the agent mints the preview URL on demand once its dev server is up
   (`http://localhost:<mapped-port>` on docker, `http://127.0.0.1:5173` on local).
-- **Hosted** providers (`vercel`, `daytona`) can't reach your laptop, so there is
-  no bridge: the recipe is inlined into the system prompt and the host pre-mints
-  the deterministic **public** preview URL up front (Vercel `domain(port)` /
-  Daytona `getPreviewLink(port)`), then tells the agent to share it.
+- **Hosted** providers (`vercel`, `daytona`) can't reach loopback by default, so
+  without a tunnel the recipe is inlined and the host pre-mints the **public**
+  preview URL up front (Vercel `domain(port)` / Daytona `getPreviewLink(port)`).
+  Set `NGROK_AUTHTOKEN` while developing locally to tunnel the bridge out (same
+  pattern as `ts-react-chat` `/sandboxes`) so the agent can call `tanstackStartRecipe`
+  + `exposePreview` over MCP instead.
 
 Switching either picker starts a fresh thread (a new sandbox is needed for a
 different harness/provider) and clears the chat.
@@ -64,6 +66,7 @@ one is missing). See [`.env.example`](./.env.example).
 | Provider | `local`       | the chosen CLI on your PATH — no isolation, no key (uses your host login)        |
 | Provider | `vercel`      | `VERCEL_TOKEN` (or `VERCEL_OIDC_TOKEN`) + `VERCEL_TEAM_ID` + `VERCEL_PROJECT_ID` |
 | Provider | `daytona`     | `DAYTONA_API_KEY`                                                                |
+| Bridge   | `vercel`/`daytona` (optional) | `NGROK_AUTHTOKEN` — tunnels host tools to remote sandboxes during local dev |
 
 ## Run
 

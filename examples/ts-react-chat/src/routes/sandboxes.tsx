@@ -190,10 +190,18 @@ function ToolCall({
 }
 
 // ---------------------------------------------------------------------------
-// SandboxBooting — copied verbatim from sandbox-web/src/routes/index.tsx
+// SandboxWaiting — aligned with sandbox-web/src/routes/index.tsx
 // ---------------------------------------------------------------------------
 
-function SandboxBooting() {
+type SandboxWaitKind = 'boot' | 'continue'
+
+function SandboxWaiting({ kind }: { kind: SandboxWaitKind }) {
+  const headline =
+    kind === 'boot' ? 'Starting sandbox…' : 'Agent is working…'
+  const detail =
+    kind === 'boot'
+      ? 'starting the sandbox container and coding agent. The first message takes a moment.'
+      : 'resuming the sandbox and continuing the conversation.'
   return (
     <div className="p-4">
       <div className="flex items-start gap-4">
@@ -203,18 +211,27 @@ function SandboxBooting() {
         <div className="flex items-center gap-3 rounded-lg border border-indigo-500/30 bg-indigo-900/10 px-4 py-3">
           <div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
           <p className="text-sm">
-            <span className="font-medium text-indigo-200">
-              Starting sandbox…
-            </span>{' '}
-            <span className="text-gray-400">
-              starting the sandbox container and coding agent. The first message
-              takes a moment.
-            </span>
+            <span className="font-medium text-indigo-200">{headline}</span>{' '}
+            <span className="text-gray-400">{detail}</span>
           </p>
         </div>
       </div>
     </div>
   )
+}
+
+function sandboxWaitKind(
+  isLoading: boolean,
+  messages: Array<UIMessage>,
+): SandboxWaitKind | false {
+  if (
+    !isLoading ||
+    messages.length === 0 ||
+    messages[messages.length - 1].role !== 'user'
+  ) {
+    return false
+  }
+  return messages.some((m) => m.role === 'assistant') ? 'continue' : 'boot'
 }
 
 // ---------------------------------------------------------------------------
@@ -225,17 +242,17 @@ function SandboxBooting() {
 
 function Messages({
   messages,
-  booting,
+  waiting,
 }: {
   messages: Array<UIMessage>
-  booting: boolean
+  waiting: SandboxWaitKind | false
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight
     }
-  }, [messages, booting])
+  }, [messages, waiting])
 
   if (!messages.length) {
     return (
@@ -339,7 +356,7 @@ function Messages({
           </div>
         )
       })}
-      {booting && <SandboxBooting />}
+      {waiting && <SandboxWaiting kind={waiting} />}
     </div>
   )
 }
@@ -627,7 +644,7 @@ function SandboxesPage() {
       <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full overflow-hidden">
         <Messages
           messages={messages}
-          booting={isLoading && messages.at(-1)?.role === 'user'}
+          waiting={sandboxWaitKind(isLoading, messages)}
         />
       </div>
       <CodeModeStrip lines={codeModeLines} />
