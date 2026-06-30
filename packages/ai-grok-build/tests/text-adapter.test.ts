@@ -112,6 +112,9 @@ describe('grok-build in-sandbox adapter', () => {
     expect(argv).not.toContain('--mcp-config')
     expect(argv).toContain('--always-approve')
     expect(argv).toContain('--cwd')
+    // local-process: harness cwd must be the real host dir, not virtual /workspace.
+    expect(argv).toContain(sbx.id)
+    expect(argv).not.toContain('/workspace')
 
     await sbx.destroy()
   })

@@ -110,6 +110,7 @@ export {
   detectPackageManager,
   DEFAULT_WORKSPACE_ROOT,
 } from './bootstrap'
+export { resolveHarnessCwd } from './harness-cwd'
 export type { BootstrapResult } from './bootstrap'
 
 // AGENTS.md writer + gitSkill path helper (used by bootstrap + harness adapters)

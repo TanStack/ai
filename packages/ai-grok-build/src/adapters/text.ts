@@ -16,6 +16,7 @@ import {
   getWorkspaceProjection,
   mergeChunkStreams,
   nodeHttpBridgeProvisioner,
+  resolveHarnessCwd,
   spawnNdjson,
 } from '@tanstack/ai-sandbox'
 import { buildPrompt } from '../messages/prompt'
@@ -123,10 +124,22 @@ export class GrokBuildTextAdapter<
     )
   }
 
+  /**
+   * Cwd for harness-facing APIs (`--cwd`, ACP `newSession`). Virtual `/workspace`
+   * is mapped to the real filesystem path on local-process; spawn/fs still use
+   * the virtual path via the provider handle.
+   */
+  private harnessCwd(
+    sandbox: SandboxHandle,
+    options: TextOptions<GrokBuildTextProviderOptions>,
+  ): string {
+    return resolveHarnessCwd(sandbox, this.workdir(options))
+  }
+
   private buildCommand(
     options: TextOptions<GrokBuildTextProviderOptions>,
     resume: string | undefined,
-    cwd: string,
+    harnessCwd: string,
     _policyFlags: GrokBuildPolicyFlags,
     prompt: string,
   ): string {
@@ -143,7 +156,7 @@ export class GrokBuildTextAdapter<
       '--model',
       q(cliModel),
       '--cwd',
-      q(cwd),
+      q(harnessCwd),
       // Headless runs in sandboxes must auto-approve tool calls.
       '--always-approve',
     ]
@@ -191,6 +204,7 @@ export class GrokBuildTextAdapter<
     try {
       const sandbox = this.sandboxFrom(options)
       const cwd = this.workdir(options)
+      const harnessCwd = this.harnessCwd(sandbox, options)
       const runId = options.runId ?? this.generateId()
       const threadId = options.threadId ?? this.generateId()
       const channel = createBridgeEventChannel({
@@ -259,7 +273,7 @@ export class GrokBuildTextAdapter<
 
       handle = await startAcpSession({
         transport: connection.transport,
-        cwd,
+        cwd: harnessCwd,
         authMethodId,
         ...(sessionId !== undefined && { resumeSessionId: sessionId }),
         ...(bridge !== undefined && {
@@ -401,6 +415,7 @@ export class GrokBuildTextAdapter<
     try {
       const sandbox = this.sandboxFrom(options)
       const cwd = this.workdir(options)
+      const harnessCwd = this.harnessCwd(sandbox, options)
       const runId = options.runId ?? this.generateId()
       const threadId = options.threadId ?? this.generateId()
 
@@ -445,7 +460,7 @@ export class GrokBuildTextAdapter<
       const runCommand = this.buildCommand(
         options,
         resume,
-        cwd,
+        harnessCwd,
         mapPolicyToGrokBuildFlags(policy),
         fullPrompt,
       )
