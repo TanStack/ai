@@ -214,7 +214,10 @@ export class AcpCompatibleTextAdapter<
 
   override readonly requires = [SandboxCapability] as const
 
-  private readonly harness: AcpCompatibleConfig<ReadonlyArray<string>, TModelOptions>
+  private readonly harness: AcpCompatibleConfig<
+    ReadonlyArray<string>,
+    TModelOptions
+  >
 
   constructor(
     config: AcpCompatibleConfig<ReadonlyArray<string>, TModelOptions>,
