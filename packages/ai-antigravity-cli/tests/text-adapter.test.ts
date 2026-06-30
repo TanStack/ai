@@ -1,8 +1,8 @@
 /**
- * Tests for the in-sandbox Gemini CLI adapter.
+ * Tests for the in-sandbox Antigravity CLI adapter.
  *
  * The ACP protocol handling itself is the `@agentclientprotocol/sdk`'s and is
- * reused unchanged; the new piece is the transport that drives `gemini --acp`
+ * reused unchanged; the new piece is the transport that drives `antigravity --acp`
  * over a sandbox {@link SpawnHandle} instead of a local child process. We test
  * that transport adapter directly (bytes flow both ways, exit propagates) and
  * the adapter's missing-sandbox path. A full ACP round-trip is covered by the
@@ -10,7 +10,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { spawnHandleToAcpTransport } from '@tanstack/ai-acp'
-import { geminiCliText } from '../src/index'
+import { antigravityCliText } from '../src/index'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type { StreamChunk } from '@tanstack/ai'
 import type { SpawnHandle } from '@tanstack/ai-sandbox'
@@ -90,9 +90,9 @@ describe('spawnHandleToAcpTransport', () => {
   })
 })
 
-describe('gemini-cli adapter', () => {
+describe('antigravity-cli adapter', () => {
   it('requires a sandbox capability', async () => {
-    const adapter = geminiCliText('gemini-2.5-pro')
+    const adapter = antigravityCliText('gemini-2.5-pro')
     const chunks = await collect(
       adapter.chatStream({
         model: 'gemini-2.5-pro',

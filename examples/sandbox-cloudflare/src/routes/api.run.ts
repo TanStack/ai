@@ -75,6 +75,7 @@ function readForwarded(value: object, key: string): string | undefined {
 const FORWARDED_KEYS = [
   'threadId',
   'harness',
+  'sessionId',
   'grokModel',
   'grokProtocol',
   'grokTransport',
@@ -105,6 +106,7 @@ const runBodySchema = z.preprocess(
       .min(1, 'body.messages must be a non-empty array'),
     threadId: z.string().optional(),
     harness: z.custom<HarnessName>(isHarness, 'Unknown harness').optional(),
+    sessionId: z.string().optional(),
     grokModel: z
       .custom<GrokBuildModel>(isGrokModel, 'Unknown grokModel')
       .optional(),
@@ -274,6 +276,7 @@ export const Route = createFileRoute('/api/run')({
               messages,
               threadId: threadIdInput,
               harness,
+              sessionId,
               grokModel,
               grokProtocol,
               grokTransport,
@@ -301,9 +304,14 @@ export const Route = createFileRoute('/api/run')({
                 // The UI's chosen coding agent. `resolveHarness` in src/agent.ts reads
                 // it; absent → the HARNESS deploy default. Omitted entirely when unset.
                 metadata:
-                  harness || grokModel || grokProtocol || grokTransport
+                  harness ||
+                  sessionId ||
+                  grokModel ||
+                  grokProtocol ||
+                  grokTransport
                     ? {
                         ...(harness ? { harness } : {}),
+                        ...(sessionId ? { sessionId } : {}),
                         ...(grokModel ? { grokModel } : {}),
                         ...(grokProtocol ? { grokProtocol } : {}),
                         ...(grokTransport ? { grokTransport } : {}),

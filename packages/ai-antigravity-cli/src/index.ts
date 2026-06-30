@@ -1,8 +1,8 @@
-export { GeminiCliTextAdapter, geminiCliText } from './adapters/text'
-export type { GeminiCliTextConfig } from './adapters/text'
-export type { GeminiCliTextProviderOptions } from './provider-options'
-export { GEMINI_CLI_MODELS } from './model-meta'
-export type { GeminiCliModel, KnownGeminiCliModel } from './model-meta'
+export { AntigravityCliTextAdapter, antigravityCliText } from './adapters/text'
+export type { AntigravityCliTextConfig } from './adapters/text'
+export type { AntigravityCliTextProviderOptions } from './provider-options'
+export { ANTIGRAVITY_CLI_MODELS } from './model-meta'
+export type { AntigravityCliModel, KnownAntigravityCliModel } from './model-meta'
 export { SESSION_ID_EVENT, PLAN_EVENT } from './labels'
 export {
   BRIDGED_MCP_SERVER_NAME,
@@ -22,7 +22,7 @@ export type {
   AcpStopReason,
   AcpToolCallUpdate,
   AcpUsage,
-  AcpPermissionMode as GeminiCliPermissionMode,
+  AcpPermissionMode as AntigravityCliPermissionMode,
   PermissionHandler,
   AcpSessionHandle,
   StartAcpSessionOptions,

@@ -1,13 +1,13 @@
 {
-  "name": "@tanstack/ai-gemini-cli",
+  "name": "@tanstack/ai-antigravity-cli",
   "version": "0.1.0",
-  "description": "Gemini CLI harness adapter for TanStack AI — run Gemini CLI as a chat backend with local tool execution and stateful sessions.",
+  "description": "Antigravity CLI harness adapter for TanStack AI — run Antigravity CLI as a chat backend with local tool execution and stateful sessions.",
   "author": "",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/TanStack/ai.git",
-    "directory": "packages/ai-gemini-cli"
+    "directory": "packages/ai-antigravity-cli"
   },
   "keywords": [
     "ai",
@@ -15,8 +15,8 @@
     "typescript",
     "tanstack",
     "google",
-    "gemini",
-    "gemini-cli",
+    "antigravity",
+    "antigravity-cli",
     "harness",
     "agent",
     "adapter",

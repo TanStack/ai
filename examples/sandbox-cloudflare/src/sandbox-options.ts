@@ -10,6 +10,13 @@ export const HARNESS_OPTIONS = [
 
 export type HarnessName = (typeof HARNESS_OPTIONS)[number]['value']
 
+/** CUSTOM event name each harness emits so follow-up runs can resume its session. */
+export const HARNESS_SESSION_ID_EVENT: Record<HarnessName, string> = {
+  grok: 'grok-build.session-id',
+  'claude-code': 'claude-code.session-id',
+  codex: 'codex.session-id',
+}
+
 export const GROK_MODEL_OPTIONS = [
   { value: 'composer-2.5', label: 'Composer 2.5' },
   { value: 'grok-build-0.1', label: 'grok-build-0.1' },

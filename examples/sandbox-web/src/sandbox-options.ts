@@ -41,6 +41,14 @@ export function isHarness(value: unknown): value is HarnessName {
   return HARNESS_OPTIONS.some((o) => o.value === value)
 }
 
+/** CUSTOM event name each harness emits so follow-up runs can resume its session. */
+export const HARNESS_SESSION_ID_EVENT: Record<HarnessName, string> = {
+  grok: 'grok-build.session-id',
+  'claude-code': 'claude-code.session-id',
+  codex: 'codex.session-id',
+  opencode: 'opencode.session-id',
+}
+
 export function isProvider(value: unknown): value is ProviderName {
   return PROVIDER_OPTIONS.some((o) => o.value === value)
 }

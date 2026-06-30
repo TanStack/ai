@@ -2,7 +2,7 @@ import type { ModelMessage } from '@tanstack/ai'
 
 export interface BuiltPrompt {
   prompt: string
-  /** Gemini CLI session id to resume, when the caller threaded one through. */
+  /** Antigravity CLI session id to resume, when the caller threaded one through. */
   resume?: string
 }
 
@@ -37,7 +37,7 @@ export function buildPrompt(
 
   if (!lastUserText) {
     throw new Error(
-      'Gemini CLI adapter requires a trailing user message with text content.',
+      'Antigravity CLI adapter requires a trailing user message with text content.',
     )
   }
 

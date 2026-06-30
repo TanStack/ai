@@ -28,7 +28,7 @@ import type { ToolDescriptor, WorkspaceDefinition } from '@tanstack/ai-sandbox'
  * validates against it — so the runtime guard and the compile-time type can
  * never drift.
  */
-const HARNESS_IDS = ['claude-code', 'codex', 'gemini-cli', 'opencode'] as const
+const HARNESS_IDS = ['claude-code', 'codex', 'antigravity-cli', 'opencode'] as const
 
 /**
  * Identifier for the in-sandbox harness the runner spawns. The runner maps this

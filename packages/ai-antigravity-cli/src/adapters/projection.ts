@@ -1,28 +1,28 @@
 /**
- * Gemini CLI workspace projector — mirrors the Claude Code reference
+ * Antigravity CLI workspace projector — mirrors the Claude Code reference
  * implementation in `@tanstack/ai-claude-code`.
  *
  * `withSandbox` surfaces a portable `WorkspaceProjection` (skills, plugins, a
  * secret resolver, and a one-time marker path) via a capability. Each harness
  * adapter reads it in its `chatStream` setup and projects those inputs into the
- * CLI's native format. For Gemini CLI that means:
+ * CLI's native format. For Antigravity CLI that means:
  *
- *   - MCP servers   → `~/.gemini/settings.json` (re-written on EVERY call).
- *   - gitSkill repos → linked under `.gemini/skills/<basename>` inside the
+ *   - MCP servers   → `~/.antigravity/settings.json` (re-written on EVERY call).
+ *   - gitSkill repos → linked under `.antigravity/skills/<basename>` inside the
  *                      sandbox if that directory is accessible; otherwise
- *                      warn-and-skip (Gemini CLI has no documented global skills
+ *                      warn-and-skip (Antigravity CLI has no documented global skills
  *                      directory equivalent to Claude Code's `.claude/skills`).
  *   - agentSkill    → no bare-name primitive; warn-and-skip.
- *   - plugins       → no `gemini extension install` primitive; warn-and-skip.
+ *   - plugins       → no `antigravity extension install` primitive; warn-and-skip.
  *
  * The secret-bearing `settings.json` is (re)written on EVERY call, re-resolving
- * secrets each time, so Gemini CLI always reads current values and a snapshot
+ * secrets each time, so Antigravity CLI always reads current values and a snapshot
  * can never serve a stale or rotated secret. Only the safe, idempotent,
  * non-secret operations (gitSkill links) are guarded by a one-time marker file
  * under the workspace.
  *
- * External-convention caveat: the `~/.gemini/settings.json` path and the MCP
- * server shape are verified against the installed `gemini` CLI. Where Gemini
+ * External-convention caveat: the `~/.antigravity/settings.json` path and the MCP
+ * server shape are verified against the installed `antigravity` CLI. Where Antigravity
  * CLI has no clean primitive (agentSkill by bare name, plugin installs) we
  * no-op with a warning instead of fabricating a command.
  */
@@ -69,22 +69,22 @@ function resolveHeaderValue(
   return value
 }
 
-/** A Gemini-CLI-format MCP server entry (used in `~/.gemini/settings.json`). */
-interface GeminiMcpServer {
+/** A Antigravity-CLI-format MCP server entry (used in `~/.antigravity/settings.json`). */
+interface AntigravityMcpServer {
   url: string
   headers: Record<string, string>
 }
 
 /**
- * Build Gemini CLI's settings `mcpServers` map from the `{ kind: 'mcp' }` skills,
+ * Build Antigravity CLI's settings `mcpServers` map from the `{ kind: 'mcp' }` skills,
  * resolving every header value (SecretRef / bearer / string). Returns
  * `undefined` when there are no MCP skills so the caller can skip the write.
  */
 function buildMcpConfig(
   skills: Array<WorkspaceSkill>,
   resolveSecret: (ref: SecretRef) => string,
-): { mcpServers: Record<string, GeminiMcpServer> } | undefined {
-  const mcpServers: Record<string, GeminiMcpServer> = {}
+): { mcpServers: Record<string, AntigravityMcpServer> } | undefined {
+  const mcpServers: Record<string, AntigravityMcpServer> = {}
   let count = 0
   for (const skill of skills) {
     if (skill.kind !== 'mcp') continue
@@ -102,8 +102,8 @@ function buildMcpConfig(
 }
 
 /**
- * Write `~/.gemini/settings.json`, re-resolving every secret. This runs on
- * EVERY projection call (never gated by the marker) so Gemini CLI always reads
+ * Write `~/.antigravity/settings.json`, re-resolving every secret. This runs on
+ * EVERY projection call (never gated by the marker) so Antigravity CLI always reads
  * the current secret values and a snapshot can never serve a stale or rotated
  * one. When there are no MCP skills the write is skipped.
  */
@@ -113,7 +113,7 @@ async function projectMcpServers(
 ): Promise<void> {
   const config = buildMcpConfig(projection.skills, projection.resolveSecret)
   if (config === undefined) return
-  const settingsDir = `${homeDir(handle)}.gemini`
+  const settingsDir = `${homeDir(handle)}.antigravity`
   await handle.fs.mkdir(settingsDir)
   const target = `${settingsDir}/settings.json`
   await handle.fs.write(target, JSON.stringify(config, null, 2))
@@ -128,19 +128,19 @@ function homeDir(_handle: SandboxHandle): string {
 }
 
 /**
- * Ensure each cloned `gitSkill` repo is available under a Gemini-accessible
- * skills directory (`<root>/.gemini/skills/<basename>`) via a symlink, falling
+ * Ensure each cloned `gitSkill` repo is available under a Antigravity-accessible
+ * skills directory (`<root>/.antigravity/skills/<basename>`) via a symlink, falling
  * back to a recursive copy on platforms without `ln -s`.
  *
- * NOTE: Gemini CLI has no publicly documented equivalent to Claude Code's
- * `.claude/skills/` directory. If the `.gemini/skills` directory does not exist
+ * NOTE: Antigravity CLI has no publicly documented equivalent to Claude Code's
+ * `.claude/skills/` directory. If the `.antigravity/skills` directory does not exist
  * the operation warns and skips rather than inventing a convention.
  */
 async function projectGitSkills(
   handle: SandboxHandle,
   projection: WorkspaceProjection,
 ): Promise<void> {
-  const skillsDir = `${projection.root}/.gemini/skills`
+  const skillsDir = `${projection.root}/.antigravity/skills`
   let madeDir = false
   for (const skill of projection.skills) {
     if (skill.kind !== 'git') continue
@@ -157,7 +157,7 @@ async function projectGitSkills(
       const copied = await handle.process.exec(cpCmd, { cwd: projection.root })
       if (copied.exitCode !== 0) {
         console.warn(
-          `[gemini-cli] failed to link gitSkill "${skill.repo}" into ${target}: ${copied.stderr.trim()}`,
+          `[antigravity-cli] failed to link gitSkill "${skill.repo}" into ${target}: ${copied.stderr.trim()}`,
         )
       }
     }
@@ -165,7 +165,7 @@ async function projectGitSkills(
 }
 
 /**
- * `agentSkill` references a public skill by bare name. Gemini CLI has no
+ * `agentSkill` references a public skill by bare name. Antigravity CLI has no
  * primitive to fetch a skill from a bare name, so we warn and skip rather than
  * fabricate a command.
  */
@@ -173,7 +173,7 @@ function projectAgentSkills(projection: WorkspaceProjection): void {
   for (const skill of projection.skills) {
     if (skill.kind !== 'agent-skill') continue
     console.warn(
-      `[gemini-cli] agentSkill "${skill.name}" cannot be projected: Gemini CLI has ` +
+      `[antigravity-cli] agentSkill "${skill.name}" cannot be projected: Antigravity CLI has ` +
         'no command to install a public skill by bare name. Provide it as a gitSkill ' +
         'instead. Skipping.',
     )
@@ -181,22 +181,22 @@ function projectAgentSkills(projection: WorkspaceProjection): void {
 }
 
 /**
- * Gemini CLI has no documented plugin-install primitive equivalent to Claude
+ * Antigravity CLI has no documented plugin-install primitive equivalent to Claude
  * Code's `claude plugin install`. Warn and skip for every declared plugin.
  */
 function projectPlugins(projection: WorkspaceProjection): void {
   for (const name of projection.plugins) {
     console.warn(
-      `[gemini-cli] plugin "${name}" cannot be installed: Gemini CLI has no ` +
+      `[antigravity-cli] plugin "${name}" cannot be installed: Antigravity CLI has no ` +
         'plugin-install primitive. Skipping.',
     )
   }
 }
 
 /**
- * Project a `WorkspaceProjection` into the Gemini CLI sandbox. Safe to call on
- * every `chatStream`. The secret-bearing `~/.gemini/settings.json` is
- * (re)written on every call, re-resolving secrets, so Gemini CLI always reads
+ * Project a `WorkspaceProjection` into the Antigravity CLI sandbox. Safe to call on
+ * every `chatStream`. The secret-bearing `~/.antigravity/settings.json` is
+ * (re)written on every call, re-resolving secrets, so Antigravity CLI always reads
  * current values and a snapshot can never serve a stale or rotated secret. The
  * safe, idempotent, non-secret operations (gitSkill links) are guarded by a
  * one-time marker so they run only on the first call after create/restore.
@@ -204,7 +204,7 @@ function projectPlugins(projection: WorkspaceProjection): void {
  * @param handle     - The sandbox handle (`fs` + `process`).
  * @param projection - The portable workspace inputs from `withSandbox`.
  */
-export async function projectGeminiWorkspace(
+export async function projectAntigravityWorkspace(
   handle: SandboxHandle,
   projection: WorkspaceProjection,
 ): Promise<void> {

@@ -19,7 +19,7 @@ import {
 } from '@tanstack/ai-acp'
 import { buildPrompt } from '../messages/prompt'
 import { PLAN_EVENT, SESSION_ID_EVENT } from '../labels'
-import { projectGeminiWorkspace } from './projection'
+import { projectAntigravityWorkspace } from './projection'
 import type { HostToolBridge, SandboxHandle } from '@tanstack/ai-sandbox'
 import type {
   StructuredOutputOptions,
@@ -34,29 +34,29 @@ import type {
 import type {
   AcpSessionHandle,
   AcpStreamEvent,
-  AcpPermissionMode as GeminiCliPermissionMode,
+  AcpPermissionMode as AntigravityCliPermissionMode,
   PermissionHandler,
 } from '@tanstack/ai-acp'
-import type { GeminiCliModel } from '../model-meta'
-import type { GeminiCliTextProviderOptions } from '../provider-options'
+import type { AntigravityCliModel } from '../model-meta'
+import type { AntigravityCliTextProviderOptions } from '../provider-options'
 
 const DEFAULT_WORKDIR = '/workspace'
 
-export interface GeminiCliTextConfig {
+export interface AntigravityCliTextConfig {
   /** Working directory inside the sandbox. Defaults to `/workspace`. */
   cwd?: string
-  /** Path/name of the Gemini CLI executable inside the sandbox. Defaults to `gemini`. */
+  /** Path/name of the Antigravity CLI executable inside the sandbox. Defaults to `antigravity`. */
   executablePath?: string
   /** Extra CLI arguments appended after `--acp`. */
   extraArgs?: Array<string>
-  /** Extra environment variables for the gemini process inside the sandbox. */
+  /** Extra environment variables for the antigravity process inside the sandbox. */
   env?: Record<string, string>
   /**
-   * Gemini CLI permission mode. Defaults to `'default'`; set `'acceptEdits'` /
+   * Antigravity CLI permission mode. Defaults to `'default'`; set `'acceptEdits'` /
    * `'bypassPermissions'` to let the harness edit files and run commands
    * autonomously inside the sandbox.
    */
-  permissionMode?: GeminiCliPermissionMode
+  permissionMode?: AntigravityCliPermissionMode
   /** Custom permission handler; replaces the adapter's default policy. */
   onPermissionRequest?: PermissionHandler
   /**
@@ -71,49 +71,49 @@ function q(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
-export class GeminiCliTextAdapter<
-  TModel extends GeminiCliModel,
+export class AntigravityCliTextAdapter<
+  TModel extends AntigravityCliModel,
 > extends BaseTextAdapter<
   TModel,
-  GeminiCliTextProviderOptions,
+  AntigravityCliTextProviderOptions,
   ReadonlyArray<Modality> & readonly ['text'],
   DefaultMessageMetadataByModality,
   ReadonlyArray<string>,
   unknown,
   never
 > {
-  readonly name = 'gemini-cli' as const
+  readonly name = 'antigravity-cli' as const
 
   override readonly requires = [SandboxCapability] as const
 
-  private readonly adapterConfig: GeminiCliTextConfig
+  private readonly adapterConfig: AntigravityCliTextConfig
 
-  constructor(config: GeminiCliTextConfig, model: TModel) {
+  constructor(config: AntigravityCliTextConfig, model: TModel) {
     super({}, model)
     this.adapterConfig = config
   }
 
   private sandboxFrom(
-    options: TextOptions<GeminiCliTextProviderOptions>,
+    options: TextOptions<AntigravityCliTextProviderOptions>,
   ): SandboxHandle {
     const ctx = options.capabilities
     if (!ctx) {
       throw new Error(
-        'Adapter "gemini-cli" requires a sandbox. Add withSandbox(defineSandbox({ ... })) to chat() middleware.',
+        'Adapter "antigravity-cli" requires a sandbox. Add withSandbox(defineSandbox({ ... })) to chat() middleware.',
       )
     }
     return getSandbox(ctx)
   }
 
   private acpCommand(): string {
-    const exe = this.adapterConfig.executablePath ?? 'gemini'
+    const exe = this.adapterConfig.executablePath ?? 'antigravity'
     const args = ['--acp', '-m', q(this.model)]
     for (const arg of this.adapterConfig.extraArgs ?? []) args.push(q(arg))
     return `${exe} ${args.join(' ')}`
   }
 
   private applySystemPrompts(
-    options: TextOptions<GeminiCliTextProviderOptions>,
+    options: TextOptions<AntigravityCliTextProviderOptions>,
     prompt: string,
   ): string {
     const systemPrompts = normalizeSystemPrompts(options.systemPrompts)
@@ -124,7 +124,7 @@ export class GeminiCliTextAdapter<
   }
 
   async *chatStream(
-    options: TextOptions<GeminiCliTextProviderOptions>,
+    options: TextOptions<AntigravityCliTextProviderOptions>,
   ): AsyncIterable<StreamChunk> {
     const { logger } = options
     let handle: AcpSessionHandle | undefined
@@ -137,13 +137,13 @@ export class GeminiCliTextAdapter<
       const sandbox = this.sandboxFrom(options)
 
       // Project workspace skills (MCP servers, gitSkills, …) into the sandbox
-      // before spawning gemini. The MCP config is always re-written so rotated
+      // before spawning antigravity. The MCP config is always re-written so rotated
       // secrets re-apply; the marker gates the idempotent non-secret ops.
       const projection = options.capabilities
         ? getWorkspaceProjection(options.capabilities, { optional: true })
         : undefined
       if (projection !== undefined)
-        await projectGeminiWorkspace(sandbox, projection)
+        await projectAntigravityWorkspace(sandbox, projection)
 
       const cwd =
         options.modelOptions?.cwd ?? this.adapterConfig.cwd ?? DEFAULT_WORKDIR
@@ -194,7 +194,7 @@ export class GeminiCliTextAdapter<
             mode,
             bridgedToolNames,
             options.approvals,
-            'gemini-cli',
+            'antigravity-cli',
           )
           if (result.approvalId !== undefined) {
             approvalRequests.push(
@@ -206,7 +206,7 @@ export class GeminiCliTextAdapter<
                   request.toolCall.toolCallId,
                 threadId,
                 runId,
-                detail: { provider: 'gemini-cli' },
+                detail: { provider: 'antigravity-cli' },
               }),
             )
           }
@@ -214,8 +214,8 @@ export class GeminiCliTextAdapter<
         })
 
       logger.request(
-        `activity=chat provider=gemini-cli model=${this.model} sandbox=${sandbox.provider} messages=${options.messages.length} resume=${sessionId ?? 'none'}`,
-        { provider: 'gemini-cli', model: this.model },
+        `activity=chat provider=antigravity-cli model=${this.model} sandbox=${sandbox.provider} messages=${options.messages.length} resume=${sessionId ?? 'none'}`,
+        { provider: 'antigravity-cli', model: this.model },
       )
 
       const proc = await sandbox.process.spawn(this.acpCommand(), {
@@ -289,10 +289,10 @@ export class GeminiCliTextAdapter<
           labels: {
             sessionIdEvent: SESSION_ID_EVENT,
             planEvent: PLAN_EVENT,
-            refusalMessage: 'Gemini CLI refused the request.',
+            refusalMessage: 'Antigravity CLI refused the request.',
           },
           onAcpEvent: (event) =>
-            logger.provider(`provider=gemini-cli kind=${event.kind}`, {
+            logger.provider(`provider=antigravity-cli kind=${event.kind}`, {
               chunk: event,
             }),
         }),
@@ -305,9 +305,9 @@ export class GeminiCliTextAdapter<
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
       const rawEvent = toRunErrorRawEvent(error)
-      logger.errors('gemini-cli.chatStream fatal', {
+      logger.errors('antigravity-cli.chatStream fatal', {
         error,
-        source: 'gemini-cli.chatStream',
+        source: 'antigravity-cli.chatStream',
       })
       yield {
         type: EventType.RUN_ERROR,
@@ -331,11 +331,11 @@ export class GeminiCliTextAdapter<
   }
 
   structuredOutput(
-    _options: StructuredOutputOptions<GeminiCliTextProviderOptions>,
+    _options: StructuredOutputOptions<AntigravityCliTextProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
     return Promise.reject(
       new Error(
-        'Structured output is not yet supported by the in-sandbox Gemini CLI adapter. ' +
+        'Structured output is not yet supported by the in-sandbox Antigravity CLI adapter. ' +
           'Use a model adapter for structured output, or omit outputSchema.',
       ),
     )
@@ -343,18 +343,18 @@ export class GeminiCliTextAdapter<
 }
 
 /**
- * Creates a Gemini CLI harness adapter that runs **inside a sandbox**.
+ * Creates a Antigravity CLI harness adapter that runs **inside a sandbox**.
  *
- * It declares `requires: [SandboxCapability]` and spawns `gemini --acp` inside
+ * It declares `requires: [SandboxCapability]` and spawns `antigravity --acp` inside
  * the sandbox provided by `withSandbox(...)`, driving it over the Agent Client
  * Protocol via the sandbox's duplex process IO. The sandbox image must provide
- * the `gemini` executable, authenticated for headless use (or pass
+ * the `antigravity` executable, authenticated for headless use (or pass
  * `authMethodId`). chat()-provided tools aren't bridged yet (the agent uses its
  * native tools).
  */
-export function geminiCliText<TModel extends GeminiCliModel>(
+export function antigravityCliText<TModel extends AntigravityCliModel>(
   model: TModel,
-  config: GeminiCliTextConfig = {},
-): GeminiCliTextAdapter<TModel> {
-  return new GeminiCliTextAdapter(config, model)
+  config: AntigravityCliTextConfig = {},
+): AntigravityCliTextAdapter<TModel> {
+  return new AntigravityCliTextAdapter(config, model)
 }

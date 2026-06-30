@@ -80,6 +80,7 @@ const FORWARDED_KEYS = [
   'threadId',
   'harness',
   'provider',
+  'sessionId',
   'grokModel',
   'grokProtocol',
   'grokTransport',
@@ -111,6 +112,7 @@ const runBodySchema = z.preprocess(
     threadId: z.string().optional(),
     harness: z.custom<HarnessName>(isHarness, 'Unknown harness'),
     provider: z.custom<ProviderName>(isProvider, 'Unknown provider'),
+    sessionId: z.string().optional(),
     grokModel: z
       .custom<GrokBuildModel>(isGrokModel, 'Unknown grokModel')
       .optional(),
@@ -166,6 +168,7 @@ export const Route = createFileRoute('/api/run')({
               threadId: threadIdInput,
               harness,
               provider,
+              sessionId,
               grokModel,
               grokProtocol,
               grokTransport,
@@ -239,6 +242,7 @@ export const Route = createFileRoute('/api/run')({
                 messages,
                 systemPrompts,
                 tools,
+                ...(sessionId !== undefined ? { modelOptions: { sessionId } } : {}),
                 middleware: needsNgrokBridge(provider)
                   ? [withSandbox(sandbox), withNgrokBridge]
                   : [withSandbox(sandbox)],

@@ -1,10 +1,10 @@
 /**
- * Unit test for the Gemini CLI workspace projector.
+ * Unit test for the Antigravity CLI workspace projector.
  *
- * Drives `projectGeminiWorkspace` with a fake `SandboxHandle` (recording every
+ * Drives `projectAntigravityWorkspace` with a fake `SandboxHandle` (recording every
  * `fs.write` / `process.exec`) and a `WorkspaceProjection` carrying one of each
- * skill kind plus a plugin. Asserts the native projection (`~/.gemini/settings.json`
- * with the secret RESOLVED, gitSkill linked under `.gemini/skills`, plugin
+ * skill kind plus a plugin. Asserts the native projection (`~/.antigravity/settings.json`
+ * with the secret RESOLVED, gitSkill linked under `.antigravity/skills`, plugin
  * warn-and-skip, marker written), that a second call still REWRITES the MCP
  * config but does NOT re-run the marker-gated gitSkill links, and that a
  * `bearer(ref)` header resolves to `Bearer <value>`. Also verifies that absent
@@ -19,7 +19,7 @@ import {
   gitSkill,
   resolveGitSkillDir,
 } from '@tanstack/ai-sandbox'
-import { projectGeminiWorkspace } from '../src/adapters/projection'
+import { projectAntigravityWorkspace } from '../src/adapters/projection'
 import type {
   ExecResult,
   SandboxHandle,
@@ -68,9 +68,9 @@ function makeFakeHandle(execResult: ExecResult): FakeHandle {
 
 const ROOT = '/workspace'
 const MARKER = `${ROOT}/.tanstack-projected-abc123`
-const SETTINGS_PATH = '/root/.gemini/settings.json'
+const SETTINGS_PATH = '/root/.antigravity/settings.json'
 
-describe('projectGeminiWorkspace', () => {
+describe('projectAntigravityWorkspace', () => {
   function buildScenario() {
     const secrets = createSecrets({ MCP_TOKEN: 'super-secret' })
     const skills: Array<WorkspaceSkill> = [
@@ -102,9 +102,9 @@ describe('projectGeminiWorkspace', () => {
     const fake = makeFakeHandle({ stdout: '', stderr: '', exitCode: 0 })
     const { projection, gitDir } = buildScenario()
 
-    await projectGeminiWorkspace(fake.handle, projection)
+    await projectAntigravityWorkspace(fake.handle, projection)
 
-    // MCP config written to ~/.gemini/settings.json with the SECRET RESOLVED.
+    // MCP config written to ~/.antigravity/settings.json with the SECRET RESOLVED.
     const settingsRaw = fake.writes.get(SETTINGS_PATH)
     expect(settingsRaw).toBeDefined()
     const settings = JSON.parse(settingsRaw ?? '{}')
@@ -114,15 +114,15 @@ describe('projectGeminiWorkspace', () => {
     )
     expect(settingsRaw).not.toContain('__secretName')
 
-    // gitSkill linked (or copied) under .gemini/skills/<basename>.
-    const target = `${ROOT}/.gemini/skills/my-skill`
+    // gitSkill linked (or copied) under .antigravity/skills/<basename>.
+    const target = `${ROOT}/.antigravity/skills/my-skill`
     const linkExec = fake.execs.find(
       (e) => e.command.includes('ln -s') && e.command.includes(target),
     )
     expect(linkExec).toBeDefined()
     expect(linkExec?.command).toContain(gitDir)
 
-    // agentSkill and plugin both warned (no gemini-cli primitives).
+    // agentSkill and plugin both warned (no antigravity-cli primitives).
     expect(warn).toHaveBeenCalled()
 
     // Marker written.
@@ -148,7 +148,7 @@ describe('projectGeminiWorkspace', () => {
       root: ROOT,
     }
 
-    await projectGeminiWorkspace(fake.handle, projection)
+    await projectAntigravityWorkspace(fake.handle, projection)
 
     const settings = JSON.parse(fake.writes.get(SETTINGS_PATH) ?? '{}')
     expect(settings.mcpServers.issues.headers['X-Plain']).toBe('literal-value')
@@ -173,7 +173,7 @@ describe('projectGeminiWorkspace', () => {
       root: ROOT,
     }
 
-    await projectGeminiWorkspace(fake.handle, projection)
+    await projectAntigravityWorkspace(fake.handle, projection)
 
     const settingsRaw = fake.writes.get(SETTINGS_PATH)
     const settings = JSON.parse(settingsRaw ?? '{}')
@@ -189,14 +189,14 @@ describe('projectGeminiWorkspace', () => {
     const fake = makeFakeHandle({ stdout: '', stderr: '', exitCode: 0 })
     const { projection } = buildScenario()
 
-    await projectGeminiWorkspace(fake.handle, projection)
+    await projectAntigravityWorkspace(fake.handle, projection)
     const execsAfterFirst = fake.execs.length
     expect(fake.writes.get(SETTINGS_PATH)).toContain('super-secret')
 
     // Clear the recorded MCP write so we can prove the second call rewrites it.
     fake.writes.delete(SETTINGS_PATH)
 
-    await projectGeminiWorkspace(fake.handle, projection)
+    await projectAntigravityWorkspace(fake.handle, projection)
 
     // The secret-bearing MCP config is rewritten every call.
     const rewritten = fake.writes.get(SETTINGS_PATH)
@@ -224,7 +224,7 @@ describe('projectGeminiWorkspace', () => {
     }
 
     await expect(
-      projectGeminiWorkspace(fake.handle, projection),
+      projectAntigravityWorkspace(fake.handle, projection),
     ).resolves.toBeUndefined()
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('agentSkill'))
 
@@ -245,7 +245,7 @@ describe('projectGeminiWorkspace', () => {
     }
 
     await expect(
-      projectGeminiWorkspace(fake.handle, projection),
+      projectAntigravityWorkspace(fake.handle, projection),
     ).resolves.toBeUndefined()
     expect(warn).toHaveBeenCalledWith(
       expect.stringContaining('@acme/some-plugin'),
@@ -267,7 +267,7 @@ describe('projectGeminiWorkspace', () => {
     }
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
-    await projectGeminiWorkspace(fake.handle, projection)
+    await projectAntigravityWorkspace(fake.handle, projection)
 
     expect(fake.writes.has(SETTINGS_PATH)).toBe(false)
 

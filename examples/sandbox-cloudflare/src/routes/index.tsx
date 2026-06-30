@@ -14,11 +14,13 @@ import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import { EventType } from '@tanstack/ai'
 import {
   GROK_MODEL_OPTIONS,
   GROK_PROTOCOL_OPTIONS,
   GROK_TRANSPORT_OPTIONS,
   HARNESS_OPTIONS,
+  HARNESS_SESSION_ID_EVENT,
   isGrokModel,
   isGrokProtocol,
   isGrokTransport,
@@ -30,7 +32,24 @@ import type {
   GrokTransport,
   HarnessName,
 } from '../sandbox-options'
+import type { StreamChunk } from '@tanstack/ai'
 import type { UIMessage } from '@tanstack/ai-react'
+
+function readHarnessSessionId(
+  chunk: StreamChunk,
+  harness: HarnessName,
+): string | undefined {
+  if (chunk.type !== EventType.CUSTOM) return undefined
+  if (chunk.name !== HARNESS_SESSION_ID_EVENT[harness]) return undefined
+  const value = chunk.value
+  if (value === null || typeof value !== 'object' || !('sessionId' in value)) {
+    return undefined
+  }
+  const sessionId = value.sessionId
+  return typeof sessionId === 'string' && sessionId !== ''
+    ? sessionId
+    : undefined
+}
 
 export const Route = createFileRoute('/')({
   component: SandboxAgentPage,
@@ -342,6 +361,7 @@ function SandboxAgentPage() {
   const [grokModel, setGrokModel] = useState<GrokBuildModel>('composer-2.5')
   const [grokProtocol, setGrokProtocol] = useState<GrokBuildProtocol>('acp')
   const [grokTransport, setGrokTransport] = useState<GrokTransport>('auto')
+  const [harnessSessionId, setHarnessSessionId] = useState<string | undefined>()
   const [input, setInput] = useState('')
 
   // Memoized so a body identity change only happens on a real thread/harness
@@ -350,19 +370,32 @@ function SandboxAgentPage() {
     () => ({
       threadId,
       harness,
+      ...(harnessSessionId ? { sessionId: harnessSessionId } : {}),
       ...(harness === 'grok' ? { grokModel, grokProtocol, grokTransport } : {}),
     }),
-    [threadId, harness, grokModel, grokProtocol, grokTransport],
+    [
+      threadId,
+      harness,
+      harnessSessionId,
+      grokModel,
+      grokProtocol,
+      grokTransport,
+    ],
   )
 
   const { messages, sendMessage, isLoading, stop, clear } = useChat({
     connection: fetchServerSentEvents('/api/run'),
     body,
+    onChunk: (chunk) => {
+      const sessionId = readHarnessSessionId(chunk, harness)
+      if (sessionId !== undefined) setHarnessSessionId(sessionId)
+    },
   })
 
   function changeHarness(next: HarnessName) {
     if (next === harness || isLoading) return
     clear()
+    setHarnessSessionId(undefined)
     setHarness(next)
     setThreadId(crypto.randomUUID())
   }

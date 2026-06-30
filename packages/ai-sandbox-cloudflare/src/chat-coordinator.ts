@@ -119,6 +119,11 @@ export abstract class ChatSandboxCoordinator<
     input: StartRunInput,
   ): AsyncIterable<StreamChunk> {
     const { adapter, sandbox, tools, systemPrompts } = this.config(input)
+    const sessionId = input.metadata?.sessionId
+    const modelOptions =
+      typeof sessionId === 'string' && sessionId !== ''
+        ? { sessionId }
+        : undefined
     return chat({
       threadId: input.threadId,
       adapter,
@@ -126,6 +131,7 @@ export abstract class ChatSandboxCoordinator<
       stream: true,
       ...(tools !== undefined ? { tools } : {}),
       ...(systemPrompts !== undefined ? { systemPrompts } : {}),
+      ...(modelOptions !== undefined ? { modelOptions } : {}),
       middleware: [
         this.bridgeProvisionerMiddleware(input),
         withSandbox(sandbox),
