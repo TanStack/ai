@@ -182,8 +182,6 @@ Full guides on [tanstack.com/ai](https://tanstack.com/ai/latest/docs/sandbox/ove
 
 | Example                         | What it demonstrates                                                  |
 | ------------------------------- | --------------------------------------------------------------------- |
-| `examples/sandbox-coding-agent` | Minimal E2E — Claude Code fixes a bug (Docker or local-process)       |
-| `examples/sandbox-issue-triage` | GitHub issue triage with file hooks                                   |
 | `examples/sandbox-web`          | Build-and-preview with harness × provider matrix (Grok default in UI) |
 | `examples/sandbox-cloudflare`   | Edge deploy with live preview URL                                     |
 

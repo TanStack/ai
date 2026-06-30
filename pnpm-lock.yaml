@@ -205,50 +205,6 @@ importers:
         specifier: ^4.103.0
         version: 4.103.0(@cloudflare/workers-types@4.20260317.1)
 
-  examples/sandbox-coding-agent:
-    dependencies:
-      '@tanstack/ai':
-        specifier: workspace:*
-        version: link:../../packages/ai
-      '@tanstack/ai-claude-code':
-        specifier: workspace:*
-        version: link:../../packages/ai-claude-code
-      '@tanstack/ai-sandbox':
-        specifier: workspace:*
-        version: link:../../packages/ai-sandbox
-      '@tanstack/ai-sandbox-docker':
-        specifier: workspace:*
-        version: link:../../packages/ai-sandbox-docker
-      '@tanstack/ai-sandbox-local-process':
-        specifier: workspace:*
-        version: link:../../packages/ai-sandbox-local-process
-    devDependencies:
-      tsx:
-        specifier: ^4.21.0
-        version: 4.21.0
-
-  examples/sandbox-issue-triage:
-    dependencies:
-      '@tanstack/ai':
-        specifier: workspace:*
-        version: link:../../packages/ai
-      '@tanstack/ai-claude-code':
-        specifier: workspace:*
-        version: link:../../packages/ai-claude-code
-      '@tanstack/ai-sandbox':
-        specifier: workspace:*
-        version: link:../../packages/ai-sandbox
-      '@tanstack/ai-sandbox-docker':
-        specifier: workspace:*
-        version: link:../../packages/ai-sandbox-docker
-      '@tanstack/ai-sandbox-local-process':
-        specifier: workspace:*
-        version: link:../../packages/ai-sandbox-local-process
-    devDependencies:
-      tsx:
-        specifier: ^4.21.0
-        version: 4.21.0
-
   examples/sandbox-web:
     dependencies:
       '@ngrok/ngrok':
@@ -836,76 +792,6 @@ importers:
         specifier: ^5.1.0
         version: 5.1.0
 
-  examples/ts-react-coding-agent:
-    dependencies:
-      '@tailwindcss/vite':
-        specifier: ^4.1.18
-        version: 4.1.18(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
-      '@tanstack/ai':
-        specifier: workspace:*
-        version: link:../../packages/ai
-      '@tanstack/ai-claude-code':
-        specifier: workspace:*
-        version: link:../../packages/ai-claude-code
-      '@tanstack/ai-client':
-        specifier: workspace:*
-        version: link:../../packages/ai-client
-      '@tanstack/ai-codex':
-        specifier: workspace:*
-        version: link:../../packages/ai-codex
-      '@tanstack/ai-opencode':
-        specifier: workspace:*
-        version: link:../../packages/ai-opencode
-      '@tanstack/ai-react':
-        specifier: workspace:*
-        version: link:../../packages/ai-react
-      '@tanstack/nitro-v2-vite-plugin':
-        specifier: ^1.154.7
-        version: 1.154.7(aws4fetch@1.0.20)(rolldown@1.1.3)(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
-      '@tanstack/react-router':
-        specifier: ^1.158.4
-        version: 1.159.5(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@tanstack/react-start':
-        specifier: ^1.159.0
-        version: 1.159.5(crossws@0.4.6(srvx@0.11.17))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(vite-plugin-solid@2.11.10(solid-js@1.9.10)(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)))(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
-      '@tanstack/router-plugin':
-        specifier: ^1.158.4
-        version: 1.159.5(@tanstack/react-router@1.159.5(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(vite-plugin-solid@2.11.10(solid-js@1.9.10)(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)))(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
-      react:
-        specifier: ^19.2.3
-        version: 19.2.3
-      react-dom:
-        specifier: ^19.2.3
-        version: 19.2.3(react@19.2.3)
-      tailwindcss:
-        specifier: ^4.1.18
-        version: 4.1.18
-      vite-tsconfig-paths:
-        specifier: ^5.1.4
-        version: 5.1.4(typescript@5.9.3)(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
-      zod:
-        specifier: ^4.2.0
-        version: 4.3.6
-    devDependencies:
-      '@types/node':
-        specifier: ^24.10.1
-        version: 24.10.3
-      '@types/react':
-        specifier: ^19.2.7
-        version: 19.2.7
-      '@types/react-dom':
-        specifier: ^19.2.3
-        version: 19.2.3(@types/react@19.2.7)
-      '@vitejs/plugin-react':
-        specifier: ^5.1.2
-        version: 5.1.2(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
-      typescript:
-        specifier: 5.9.3
-        version: 5.9.3
-      vite:
-        specifier: ^7.3.3
-        version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
-
   examples/ts-react-media:
     dependencies:
       '@tailwindcss/vite':
@@ -1460,6 +1346,9 @@ importers:
       '@tanstack/ai-sandbox':
         specifier: workspace:*
         version: link:../ai-sandbox
+      '@tanstack/ai-sandbox-local-process':
+        specifier: workspace:*
+        version: link:../ai-sandbox-local-process
       '@vitest/coverage-v8':
         specifier: 4.0.14
         version: 4.0.14(vitest@4.1.4)
@@ -5503,6 +5392,12 @@ packages:
       '@emnapi/core': ^1.7.1
       '@emnapi/runtime': ^1.7.1
 
+  '@napi-rs/wasm-runtime@1.1.6':
+    resolution: {integrity: sha512-ZLv/JdUfkvOy9eCnnBaGfiO+XimbjebAeO+MRQqD/B+FR1tnRN0tpKSJHRbE8sFfS6aqsXZ67TQjfwfsxULVbg==}
+    peerDependencies:
+      '@emnapi/core': ^1.7.1
+      '@emnapi/runtime': ^1.7.1
+
   '@ngrok/ngrok-android-arm64@1.7.0':
     resolution: {integrity: sha512-8tco3ID6noSaNy+CMS7ewqPoIkIM6XO5COCzsUp3Wv3XEbMSyn65RN6cflX2JdqLfUCHcMyD0ahr9IEiHwqmbQ==}
     engines: {node: '>= 10'}
@@ -8787,6 +8682,9 @@ packages:
 
   '@tybys/wasm-util@0.10.1':
     resolution: {integrity: sha512-9tTaPJLSiejZKx+Bmog4uSubteqTvFrVrURwkmHixBo0G4seD0zUxp98E1DzUBJxLQ3NPwXrGKDiVjwx/DpPsg==}
+
+  '@tybys/wasm-util@0.10.3':
+    resolution: {integrity: sha512-F3fo1MYrRJYL3zER0OUOmkutjr1Vp23m7OsSgp7nq4SP6OqX6C/56XFIPAl5bt3zaBRjmW7SGz3u/6LwFpYcOg==}
 
   '@tybys/wasm-util@0.9.0':
     resolution: {integrity: sha512-6+7nlbMVX/PVDCwaIQ8nTOPveOcFLSt8GcXdx8hD0bt39uWxYT88uXzqTd4fTvqta7oeUJqudepapKNt2DYJFw==}
@@ -19159,6 +19057,13 @@ snapshots:
       '@tybys/wasm-util': 0.10.1
     optional: true
 
+  '@napi-rs/wasm-runtime@1.1.6(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)':
+    dependencies:
+      '@emnapi/core': 1.11.1
+      '@emnapi/runtime': 1.11.1
+      '@tybys/wasm-util': 0.10.3
+    optional: true
+
   '@ngrok/ngrok-android-arm64@1.7.0':
     optional: true
 
@@ -19689,7 +19594,7 @@ snapshots:
 
   '@oxc-resolver/binding-wasm32-wasi@11.15.0(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)':
     dependencies:
-      '@napi-rs/wasm-runtime': 1.1.4(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)
+      '@napi-rs/wasm-runtime': 1.1.6(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)
     transitivePeerDependencies:
       - '@emnapi/core'
       - '@emnapi/runtime'
@@ -20859,6 +20764,7 @@ snapshots:
     dependencies:
       '@emnapi/core': 1.11.1
       '@emnapi/runtime': 1.11.1
+      '@napi-rs/wasm-runtime': 1.1.6(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)
     optional: true
 
   '@rolldown/binding-win32-arm64-msvc@1.0.0-beta.53':
@@ -22921,6 +22827,11 @@ snapshots:
       path-browserify: 1.0.1
 
   '@tybys/wasm-util@0.10.1':
+    dependencies:
+      tslib: 2.8.1
+    optional: true
+
+  '@tybys/wasm-util@0.10.3':
     dependencies:
       tslib: 2.8.1
     optional: true

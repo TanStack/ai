@@ -85,7 +85,7 @@ not just talk about one. A few shapes this takes:
 
 - **CI issue triage / bug-fix bots.** On a new issue, clone the repo into a
   sandbox, let the agent reproduce and root-cause it, and post the findings (or
-  a draft fix) back. See `examples/sandbox-issue-triage`.
+  a draft fix) back.
 - **PR review automation.** Check out a branch, run the test/lint scripts, and
   have the agent comment on what it found.
 - **Build-and-preview.** Ask the agent to scaffold or modify an app, run the dev
@@ -118,15 +118,14 @@ sandbox on your laptop. Then dive into the piece you need:
 
 ## Try it
 
-A runnable end-to-end demo lives at `examples/sandbox-coding-agent`: it clones a
-tiny repo with a deliberate bug into a sandbox, asks Claude Code to fix it,
-streams the agent's output, and prints the resulting diff. Run it with Docker or
-with `SANDBOX=local` on your host (requires `ANTHROPIC_API_KEY`).
-
-`examples/sandbox-issue-triage` goes further: it fetches the first open issue on
-`TanStack/ai`, clones the repo into a sandbox, runs Claude Code to triage it, and
-writes a Markdown report locally — using [file-event hooks](./events) to log the
-agent's edits live.
+A runnable end-to-end demo lives at
+[`examples/sandbox-web`](https://github.com/TanStack/ai/tree/main/examples/sandbox-web):
+a "build me an app" agent you can point at any harness (Claude Code, Codex,
+OpenCode, Grok Build) and any provider (Docker, local-process, Vercel, Daytona)
+per run from the UI — it scaffolds an app inside the sandbox, runs the dev server,
+and hands back a live preview URL, streaming the agent's output and the resulting
+diff. For a coding agent running at the edge, see
+[`examples/sandbox-cloudflare`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare).
 
 For a **web** chat where the agent builds and runs an app inside a sandbox and
 hands back a live preview URL, see `examples/sandbox-web` — one app with harness

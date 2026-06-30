@@ -24,7 +24,7 @@ The Codex adapter runs [OpenAI Codex](https://developers.openai.com/codex) (via 
 npm install @tanstack/ai-codex
 ```
 
-A runnable demo lives at [`examples/ts-react-coding-agent`](https://github.com/TanStack/ai/tree/main/examples/ts-react-coding-agent) — session resume, the harness tool timeline, sandbox modes, and tool bridging, wired into a React app.
+A runnable demo lives at [`examples/sandbox-web`](https://github.com/TanStack/ai/tree/main/examples/sandbox-web) — switch the harness (Claude Code, Codex, OpenCode, Grok Build) and sandbox provider per run, with session resume, the harness tool timeline, sandbox modes, and tool bridging, wired into a TanStack Start app.
 
 ## Authentication
 

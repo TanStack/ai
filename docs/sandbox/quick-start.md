@@ -154,12 +154,13 @@ Because local-process inherits your host environment, you can drop the
 
 ## Run the working example
 
-A complete, runnable version of this flow ships at
-[`examples/sandbox-coding-agent`](https://github.com/TanStack/ai/tree/main/examples/sandbox-coding-agent)
-— it uses the Claude Code harness (so it needs `ANTHROPIC_API_KEY`), but the
-shape is identical: clone a buggy repo, fix it, stream the diff. Run it with
-Docker or with `SANDBOX=local` on your host. For a coding agent running at the
-edge (Claude Code, Codex, or Grok Build — pick the harness in the UI), see
+A complete, runnable app ships at
+[`examples/sandbox-web`](https://github.com/TanStack/ai/tree/main/examples/sandbox-web)
+— a "build me an app" agent where you pick the harness (Claude Code, Codex,
+OpenCode, Grok Build) and provider (Docker, local-process, Vercel, Daytona) per
+run from the UI; it scaffolds an app in the sandbox, runs the dev server, and
+streams back a live preview URL and the diff. For a coding agent running at the
+edge, see
 [`examples/sandbox-cloudflare`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare).
 
 From here:
