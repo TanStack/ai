@@ -1,6 +1,5 @@
 ---
 '@tanstack/ai-acp': minor
-'@tanstack/ai-gemini-cli': patch
 '@tanstack/ai-grok-build': minor
 ---
 
