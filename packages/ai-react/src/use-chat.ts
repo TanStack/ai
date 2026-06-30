@@ -51,23 +51,29 @@ export function useChat<
   const messagesRef = useRef<Array<UIMessage<TTools>>>(
     options.initialMessages || [],
   )
-  const isFirstMountRef = useRef(true)
   const activeClientRef = useRef<ChatClient | null>(null)
   const cleanupInvalidationRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   )
 
-  // Update ref synchronously during render so it's always current when useMemo runs.
+  // Update ref synchronously during render so it's always current when the
+  // client is created (createClient runs during render via the useState lazy
+  // initializer / the clientId-reset below).
   messagesRef.current = messages
 
   // Track current options in a ref to avoid recreating client when options change
   const optionsRef = useRef<UseChatOptions<TTools, TSchema, TContext>>(options)
   optionsRef.current = options
 
-  // Create ChatClient instance with callbacks to sync state
-  const client = useMemo(() => {
+  // Create the ChatClient eagerly, but exactly once per `clientId`.
+  // `useState`'s lazy initializer runs once per mount (a semantic guarantee),
+  // whereas `useMemo` is only a performance hint React may discard and
+  // recompute — which would spuriously construct a second ChatClient (it owns
+  // a StreamProcessor, a devtools bridge, and a connection). When `clientId`
+  // changes we swap synchronously via the "adjust state during render"
+  // pattern; the `[client]` effect below disposes the superseded instance.
+  const createClient = (): ChatClient<TTools, TContext> => {
     const messagesToUse = options.initialMessages || []
-    isFirstMountRef.current = false
 
     // Build options with conditional spreads for fields whose source
     // type is `T | undefined` but the ChatClient target uses a strict
@@ -159,7 +165,18 @@ export function useChat<
     })
     activeClientRef.current = instance
     return instance
-  }, [clientId])
+  }
+
+  const [client, setClient] =
+    useState<ChatClient<TTools, TContext>>(createClient)
+  const [trackedClientId, setTrackedClientId] = useState(clientId)
+  if (clientId !== trackedClientId) {
+    // `clientId` changed (e.g. `options.id` was swapped): build a fresh client
+    // for the new identity during this render. React re-renders immediately,
+    // and the `[client]` effect disposes the previous instance.
+    setTrackedClientId(clientId)
+    setClient(createClient())
+  }
 
   useEffect(() => {
     const clientMessages = client.getMessages()
