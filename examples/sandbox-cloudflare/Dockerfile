@@ -5,7 +5,7 @@
 # the SandboxHandle in @tanstack/ai-sandbox-cloudflare drives) and adds the
 # coding-agent CLIs so any harness this example supports can run.
 #
-# All four CLIs are baked in so the `HARNESS` var (see src/agent.ts) can select
+# All three CLIs are baked in so the `HARNESS` var (see src/agent.ts) can select
 # one at run time without rebuilding the image. The unused CLIs just sit on disk.
 #
 # Pin the base tag to the @cloudflare/sandbox version in package.json so the
@@ -28,11 +28,6 @@ RUN npm install -g @openai/codex --include=optional && codex --version
 RUN curl -fsSL https://x.ai/cli/install.sh | bash \
  && ln -sf /root/.grok/bin/grok /usr/local/bin/grok \
  && grok --version || true
-
-# Antigravity CLI (HARNESS=antigravity-cli).
-RUN curl -fsSL https://antigravity.google/cli/install.sh | bash \
- && ln -sf /root/.antigravity/bin/agy /usr/local/bin/agy \
- && agy --version || true
 
 # NOTE: the Cloudflare sandbox has no writable host→process stdin
 # (`capabilities.writableStdin: false`). Each harness adapter detects this and

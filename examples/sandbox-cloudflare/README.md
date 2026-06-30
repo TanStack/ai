@@ -12,9 +12,8 @@ Worker, one `wrangler deploy`**.
 > keys, or external services**, so the preview works for anyone — an agent shipping
 > a running app on the edge with zero config.
 
-> **One app, four harnesses.** A header dropdown picks which coding agent runs
-> in the sandbox — **`claude-code`** (default), **`codex`**, **`grok`**, or
-> **`antigravity-cli`** (the
+> **One app, three harnesses.** A header dropdown picks which coding agent runs
+> in the sandbox — **`claude-code`** (default), **`codex`**, or **`grok`** (the
 > `HARNESS` var is the fallback default). The run-log / WebSocket / tool-bridge
 > topology is adapter-agnostic, so only the adapter and the injected API key
 > change. The container image ships all three CLIs — see
@@ -113,8 +112,8 @@ the simpler one to teach and run, so it's what this example shows; see
 
 ## Choosing the harness
 
-One app runs any of four in-sandbox coding agents. The container image bakes in
-all four CLIs, so switching never rebuilds the image — pick one live in the UI,
+One app runs any of three in-sandbox coding agents. The container image bakes in
+all three CLIs, so switching never rebuilds the image — pick one live in the UI,
 or set the `HARNESS` default for headless/deployed runs.
 
 | `HARNESS`         | Adapter                           | Secret to set                         | Notes                                                      |
@@ -122,7 +121,6 @@ or set the `HARNESS` default for headless/deployed runs.
 | `claude-code`     | `claudeCodeText('sonnet')`        | `ANTHROPIC_API_KEY`                   | Default.                                                   |
 | `codex`           | `codexText('gpt-5.3-codex', …)`   | `CODEX_API_KEY` (or `OPENAI_API_KEY`) | Runs with `sandboxMode: 'danger-full-access'` — see below. |
 | `grok`            | `grokBuildText('grok-build-0.1')` | `XAI_API_KEY` (or `GROK_API_KEY`)     | —                                                          |
-| `antigravity-cli` | `antigravityCliText('auto')`      | `GEMINI_API_KEY`                      | —                                                          |
 
 **Switch it live in the UI** — the header has a harness dropdown. Picking one
 forwards `metadata: { harness }` on the run trigger; `resolveHarness` in

@@ -13,8 +13,8 @@
  * loop runs inside the container) — see the README and `docs/sandbox/overview.md`
  * for the tradeoff; this example intentionally shows the simpler `do-drives` path.
  *
- * SWITCHABLE HARNESS: one app, four coding agents. The `HARNESS` var
- * (`claude-code` | `codex` | `grok` | `antigravity-cli`, default `claude-code`) picks which CLI
+ * SWITCHABLE HARNESS: one app, three coding agents. The `HARNESS` var
+ * (`claude-code` | `codex` | `grok`, default `claude-code`) picks which CLI
  * `chat()` drives — the run-log / WebSocket / tool-bridge topology is
  * adapter-agnostic, so only the adapter + the injected API key change. The
  * container image ships all three CLIs (see Dockerfile); selection is host-side.
@@ -34,7 +34,6 @@ import {
   defineSandbox,
   defineWorkspace,
 } from '@tanstack/ai-sandbox'
-import { antigravityCliText } from '@tanstack/ai-antigravity-cli'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
 import { codexText } from '@tanstack/ai-codex'
 import { grokBuildText } from '@tanstack/ai-grok-build'
@@ -70,8 +69,8 @@ import type {
 export interface AppEnv extends SandboxAgentEnv {
   /**
    * Which in-sandbox coding agent to run: `claude-code` (default) | `codex` |
-   * `grok` | `antigravity-cli`. Set as a wrangler `var` (see wrangler.jsonc /
-   * `.dev.vars`). The container image ships all four CLIs; this only picks which
+   * `grok`. Set as a wrangler `var` (see wrangler.jsonc /
+   * `.dev.vars`). The container image ships all three CLIs; this only picks which
    * `chat()` drives.
    */
   HARNESS?: string
@@ -85,8 +84,6 @@ export interface AppEnv extends SandboxAgentEnv {
   XAI_API_KEY?: string
   /** Alternate name for the xAI key. */
   GROK_API_KEY?: string
-  /** Gemini API key — the `antigravity-cli` harness. Injected as GEMINI_API_KEY. */
-  GEMINI_API_KEY?: string
 }
 
 export type { HarnessName, GrokBuildModel, GrokBuildProtocol, GrokTransport }
@@ -154,16 +151,6 @@ const HARNESSES: Record<HarnessName, HarnessSpec> = {
       return { XAI_API_KEY: key }
     },
   },
-  'antigravity-cli': {
-    adapter: () => antigravityCliText('auto'),
-    secrets: (env) => {
-      const key = env.GEMINI_API_KEY
-      if (!key) {
-        throw new Error('antigravity-cli harness needs GEMINI_API_KEY.')
-      }
-      return { GEMINI_API_KEY: key }
-    },
-  },
 }
 
 /** Per-run Grok options from UI metadata (`metadata.grokModel` / protocol / transport). */
@@ -205,7 +192,7 @@ function resolveHarness(input: StartRunInput, env: AppEnv): HarnessName {
   if (override !== undefined) {
     if (!isHarness(override)) {
       throw new Error(
-        `Unknown harness "${String(override)}". Use claude-code | codex | grok | antigravity-cli.`,
+        `Unknown harness "${String(override)}". Use claude-code | codex | grok.`,
       )
     }
     return override
@@ -214,7 +201,7 @@ function resolveHarness(input: StartRunInput, env: AppEnv): HarnessName {
   if (fromEnv === undefined || fromEnv === '') return 'claude-code'
   if (!isHarness(fromEnv)) {
     throw new Error(
-      `Unknown HARNESS "${fromEnv}". Set it to claude-code | codex | grok | antigravity-cli.`,
+      `Unknown HARNESS "${fromEnv}". Set it to claude-code | codex | grok.`,
     )
   }
   return fromEnv

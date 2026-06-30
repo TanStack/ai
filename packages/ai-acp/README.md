@@ -1,8 +1,8 @@
 # @tanstack/ai-acp
 
-Shared [Agent Client Protocol](https://agentclientprotocol.com) (ACP) plumbing for TanStack AI **harness adapters** — the code that turns a coding-agent CLI (`grok`, `antigravity`, `gemini --acp`, …) into a `chat()` backend inside a sandbox.
+Shared [Agent Client Protocol](https://agentclientprotocol.com) (ACP) plumbing for TanStack AI **harness adapters** — the code that turns a coding-agent CLI (`grok`, `gemini --acp`, …) into a `chat()` backend inside a sandbox.
 
-Most apps should use a harness package directly (`@tanstack/ai-grok-build`, `@tanstack/ai-antigravity-cli`, …). Reach for `@tanstack/ai-acp` when you are **building or extending** one of those adapters and need the transport, session, permission, and stream-translation layers in one place.
+Most apps should use a harness package directly (`@tanstack/ai-grok-build`, …). Reach for `@tanstack/ai-acp` when you are **building or extending** one of those adapters and need the transport, session, permission, and stream-translation layers in one place.
 
 ## Installation
 
@@ -140,7 +140,7 @@ Use when the sandbox can write to process stdin (`capabilities.writableStdin ===
 ```typescript
 import { spawnHandleToAcpTransport } from '@tanstack/ai-acp'
 
-const proc = await sandbox.process.spawn('antigravity --acp -m auto', { cwd })
+const proc = await sandbox.process.spawn('grok agent --acp -m auto', { cwd })
 // spawnHandleToAcpTransport adapts SpawnHandle stdout/stdin for ndJsonStream
 await startAcpSession({ transport: { kind: 'stdio', process: proc }, ... })
 ```
@@ -305,15 +305,14 @@ Structural subsets of ACP shapes (`AcpSessionUpdate`, `AcpToolCallUpdate`, `AcpU
 
 ## Consumers in this repo
 
-| Package                        | How it uses `@tanstack/ai-acp`                                            |
-| ------------------------------ | ------------------------------------------------------------------------- |
-| `@tanstack/ai-grok-build`      | Stdio + WebSocket (`grok agent serve`); vendor `extNotification` handling |
-| `@tanstack/ai-antigravity-cli` | Stdio (`antigravity --acp`)                                               |
+| Package                   | How it uses `@tanstack/ai-acp`                                            |
+| ------------------------- | ------------------------------------------------------------------------- |
+| `@tanstack/ai-grok-build` | Stdio + WebSocket (`grok agent serve`); vendor `extNotification` handling |
 
-Both re-export commonly needed symbols (`startAcpSession`, `translateAcpStream`, permission helpers) from their own entry points so app code rarely imports `@tanstack/ai-acp` directly.
+Harness adapters re-export commonly needed symbols (`startAcpSession`, `translateAcpStream`, permission helpers) from their own entry points so app code rarely imports `@tanstack/ai-acp` directly.
 
 ## Further reading
 
 - [Agent Client Protocol](https://agentclientprotocol.com)
-- TanStack harness adapters: `@tanstack/ai-grok-build`, `@tanstack/ai-antigravity-cli`
+- TanStack harness adapters: `@tanstack/ai-grok-build`
 - Sandbox layer: `@tanstack/ai-sandbox` ([README](../ai-sandbox/README.md))

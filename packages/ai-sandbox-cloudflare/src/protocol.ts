@@ -31,7 +31,6 @@ import type { ToolDescriptor, WorkspaceDefinition } from '@tanstack/ai-sandbox'
 const HARNESS_IDS = [
   'claude-code',
   'codex',
-  'antigravity-cli',
   'opencode',
 ] as const
 

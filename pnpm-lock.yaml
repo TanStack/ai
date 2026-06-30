@@ -116,9 +116,6 @@ importers:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../../packages/ai
-      '@tanstack/ai-antigravity-cli':
-        specifier: workspace:*
-        version: link:../../packages/ai-antigravity-cli
       '@tanstack/ai-claude-code':
         specifier: workspace:*
         version: link:../../packages/ai-claude-code
@@ -260,9 +257,6 @@ importers:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../../packages/ai
-      '@tanstack/ai-antigravity-cli':
-        specifier: workspace:*
-        version: link:../../packages/ai-antigravity-cli
       '@tanstack/ai-claude-code':
         specifier: workspace:*
         version: link:../../packages/ai-claude-code
@@ -1543,22 +1537,6 @@ importers:
       zod:
         specifier: ^4.2.0
         version: 4.2.1
-
-  packages/ai-antigravity-cli:
-    dependencies:
-      '@tanstack/ai-acp':
-        specifier: workspace:^
-        version: link:../ai-acp
-    devDependencies:
-      '@tanstack/ai':
-        specifier: workspace:*
-        version: link:../ai
-      '@tanstack/ai-sandbox':
-        specifier: workspace:*
-        version: link:../ai-sandbox
-      '@vitest/coverage-v8':
-        specifier: 4.0.14
-        version: 4.0.14(vitest@4.1.4)
 
   packages/ai-claude-code:
     devDependencies:

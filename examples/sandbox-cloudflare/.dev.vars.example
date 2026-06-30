@@ -1,7 +1,7 @@
 # Local dev secrets for `wrangler dev`. Copy to `.dev.vars` and fill in.
 # `.dev.vars` is gitignored; never commit real keys.
 
-# Which in-sandbox coding agent to run: claude-code (default) | codex | grok | antigravity-cli.
+# Which in-sandbox coding agent to run: claude-code (default) | codex | grok.
 # (Also set in wrangler.jsonc `vars`; .dev.vars overrides it locally.) Only the
 # matching key below is needed for your choice.
 HARNESS=claude-code
@@ -15,9 +15,6 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 # grok → xAI key for the Grok Build CLI (GROK_API_KEY accepted as an alias).
 # XAI_API_KEY=xai-...
-
-# antigravity-cli → Gemini API key for the in-sandbox `antigravity` CLI.
-# GEMINI_API_KEY=...
 
 # The key is injected into the sandbox env via the workspace `secrets` (never
 # persisted to logs/snapshots).

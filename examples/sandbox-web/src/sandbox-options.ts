@@ -13,7 +13,6 @@ export type HarnessName =
   | 'codex'
   | 'opencode'
   | 'grok'
-  | 'antigravity-cli'
 export type ProviderName = 'docker' | 'local' | 'vercel' | 'daytona'
 
 /** Grok Build model ids accepted by the in-sandbox `grok` CLI. */
@@ -33,7 +32,6 @@ export const HARNESS_OPTIONS: ReadonlyArray<PickerOption<HarnessName>> = [
   { value: 'claude-code', label: 'Claude Code' },
   { value: 'codex', label: 'Codex' },
   { value: 'opencode', label: 'OpenCode' },
-  { value: 'antigravity-cli', label: 'Antigravity' },
 ]
 
 export const PROVIDER_OPTIONS: ReadonlyArray<PickerOption<ProviderName>> = [
@@ -53,7 +51,6 @@ export const HARNESS_SESSION_ID_EVENT: Record<HarnessName, string> = {
   'claude-code': 'claude-code.session-id',
   codex: 'codex.session-id',
   opencode: 'opencode.session-id',
-  'antigravity-cli': 'antigravity-cli.session-id',
 }
 
 export function isProvider(value: unknown): value is ProviderName {
