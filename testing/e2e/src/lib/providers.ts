@@ -1,4 +1,3 @@
-import type { AnyTextAdapter } from '@tanstack/ai'
 import { createChatOptions } from '@tanstack/ai'
 import { createOpenaiChat } from '@tanstack/ai-openai'
 import { createAnthropicChat } from '@tanstack/ai-anthropic'
@@ -13,7 +12,9 @@ import {
   createOpenRouterResponsesText,
   createOpenRouterText,
 } from '@tanstack/ai-openrouter'
+import { createMistralText } from '@tanstack/ai-mistral'
 import { HTTPClient } from '@openrouter/sdk'
+import type { AnyTextAdapter } from '@tanstack/ai'
 import type { Feature, Provider } from '@/lib/types'
 
 const LLMOCK_DEFAULT_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
@@ -31,6 +32,7 @@ const defaultModels: Record<Provider, string> = {
   openrouter: 'openai/gpt-4o',
   'openrouter-responses': 'openai/gpt-4o',
   'openai-compatible': 'gpt-4o',
+  mistral: 'mistral-large-latest',
   // ElevenLabs has no chat/text model — the support matrix already filters
   // it out of text features, but we still need an entry to satisfy the
   // Record<Provider, …> constraint.
@@ -195,6 +197,13 @@ export function createTextAdapter(
         adapter: openaiCompatibleText(model, {
           baseURL: openaiUrl,
           apiKey: DUMMY_KEY,
+          defaultHeaders: testHeaders,
+        }),
+      }),
+    mistral: () =>
+      createChatOptions({
+        adapter: createMistralText(model as 'mistral-large-latest', DUMMY_KEY, {
+          serverURL: base,
           defaultHeaders: testHeaders,
         }),
       }),

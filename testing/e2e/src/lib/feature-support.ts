@@ -19,6 +19,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock-responses',
     'openrouter',
     'openai-compatible',
+    'mistral',
   ]),
   'one-shot-text': new Set([
     'openai',
@@ -31,8 +32,9 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock-responses',
     'openrouter',
     'openai-compatible',
+    'mistral',
   ]),
-  reasoning: new Set(['openai', 'anthropic', 'gemini']),
+  reasoning: new Set(['openai', 'anthropic', 'gemini', 'mistral']),
   'multi-turn': new Set([
     'openai',
     'anthropic',
@@ -44,6 +46,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock-responses',
     'openrouter',
     'openai-compatible',
+    'mistral',
   ]),
   'tool-calling': new Set([
     'openai',
@@ -56,6 +59,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock-responses',
     'openrouter',
     'openai-compatible',
+    'mistral',
   ]),
   'parallel-tool-calls': new Set([
     'openai',
@@ -67,6 +71,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock-responses',
     'openrouter',
     'openai-compatible',
+    'mistral',
   ]),
   // Gemini excluded: approval flow timing issues with Gemini's streaming format
   'tool-approval': new Set([
@@ -79,6 +84,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock-responses',
     'openrouter',
     'openai-compatible',
+    'mistral',
   ]),
   // Ollama excluded: aimock doesn't support content+toolCalls for /api/chat format
   'text-tool-text': new Set([
@@ -91,6 +97,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock-responses',
     'openrouter',
     'openai-compatible',
+    'mistral',
   ]),
   'structured-output': new Set([
     'openai',
@@ -103,6 +110,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock-responses',
     'openrouter',
     'openai-compatible',
+    'mistral',
   ]),
   // Streaming structured output: only providers with native streaming JSON
   // schema support are listed here. Other providers fall back to the
@@ -157,6 +165,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock-responses',
     'openrouter',
     'openai-compatible',
+    'mistral',
   ]),
   // Native-combined-mode adapters only. Each provider's default test model
   // (or per-feature override in `features.ts`) must opt into combined mode
@@ -171,6 +180,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
   // Bedrock excluded: the default e2e model (openai.gpt-oss-120b) is text-only
   // (input: ['text'], no vision) — image input isn't supported, so the
   // multimodal request never carries the image and the description comes back empty.
+  // Mistral excluded: mistral-large-latest is text-only; vision requires pixtral
   'multimodal-image': new Set([
     'openai',
     'anthropic',
@@ -195,6 +205,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'mistral',
   ]),
   'summarize-stream': new Set([
     'openai',
@@ -205,6 +216,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'mistral',
   ]),
   // Gemini excluded: aimock doesn't mock Gemini's Imagen predict endpoint format
   'image-gen': new Set(['openai', 'grok']),

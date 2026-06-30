@@ -25,6 +25,7 @@ export const providers: Provider[] = [
   'openrouter',
   'openrouter-responses',
   'openai-compatible',
+  'mistral',
   'elevenlabs',
 ]
 
