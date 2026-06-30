@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { spritesSandbox } from '../src/index'
+import type { SpritesHandle } from '../src/index'
 import type { SandboxHandle } from '@tanstack/ai-sandbox'
 
 // Auto-gate: only run when a Sprites API key is present (these tests create
@@ -53,6 +54,27 @@ describe.skipIf(!apiKey)('sprites provider (gated on SPRITES_API_KEY)', () => {
       expect(out).toContain('line1')
       expect(out).toContain('line3')
       expect(await proc.wait()).toBe(0)
+    } finally {
+      await sbx?.destroy()
+    }
+  }, 180_000)
+
+  it('creates a checkpoint and lists it', async () => {
+    // NOTE: in-place restore restarts the Sprite (the restore stream stays open
+    // across a multi-minute overlay swap), so it's covered by unit tests and the
+    // README rather than this gated suite, which stays fast and deterministic.
+    const provider = spritesSandbox({ apiKey })
+    let sbx: SpritesHandle | undefined
+    try {
+      sbx = (await provider.create({})) as SpritesHandle
+      await sbx.fs.write('/workspace/state.txt', 'original')
+
+      const ref = await sbx.snapshot('baseline')
+      expect(ref.id).toMatch(/^tanstack-ai-.*#v\d+$/)
+
+      const checkpoints = await sbx.listCheckpoints()
+      const version = ref.id.slice(ref.id.indexOf('#') + 1)
+      expect(checkpoints.some((c) => c.id === version)).toBe(true)
     } finally {
       await sbx?.destroy()
     }

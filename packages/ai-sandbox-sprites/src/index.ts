@@ -8,6 +8,7 @@ export type {
   SpritesClientLike,
   SpriteResource,
   SpriteFsEntry,
+  SpriteCheckpoint,
   SpriteUrlAuth,
   SpritesExecOptions,
   SpritesExecStream,

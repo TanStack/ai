@@ -2,6 +2,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { SpritesHandle } from '../src/handle'
 import type {
+  SpriteCheckpoint,
   SpriteFsEntry,
   SpriteUrlAuth,
   SpritesClientLike,
@@ -29,6 +30,8 @@ function fakeStream(opts: {
 interface FakeClientOptions {
   files?: Record<string, Uint8Array>
   entries?: Array<SpriteFsEntry>
+  checkpoints?: Array<SpriteCheckpoint>
+  newVersion?: string
   onExec?: (name: string, options: SpritesExecOptions) => SpritesExecStream
 }
 
@@ -36,12 +39,21 @@ function fakeClient(options: FakeClientOptions = {}): {
   client: SpritesClientLike
   setUrlAuth: ReturnType<typeof vi.fn>
   deleteSprite: ReturnType<typeof vi.fn>
+  createCheckpoint: ReturnType<typeof vi.fn>
+  restoreCheckpoint: ReturnType<typeof vi.fn>
   execCalls: Array<SpritesExecOptions>
 } {
   const setUrlAuth = vi.fn(
     async (_name: string, _auth: SpriteUrlAuth) => undefined,
   )
   const deleteSprite = vi.fn(async (_name: string) => undefined)
+  const createCheckpoint = vi.fn(
+    async (_name: string, _opts?: { comment?: string }) =>
+      options.newVersion ?? 'v1',
+  )
+  const restoreCheckpoint = vi.fn(
+    async (_name: string, _id: string) => undefined,
+  )
   const execCalls: Array<SpritesExecOptions> = []
   const files = options.files ?? {}
 
@@ -67,8 +79,18 @@ function fakeClient(options: FakeClientOptions = {}): {
         execOptions,
       )
     },
+    createCheckpoint,
+    listCheckpoints: () => Promise.resolve(options.checkpoints ?? []),
+    restoreCheckpoint,
   }
-  return { client, setUrlAuth, deleteSprite, execCalls }
+  return {
+    client,
+    setUrlAuth,
+    deleteSprite,
+    createCheckpoint,
+    restoreCheckpoint,
+    execCalls,
+  }
 }
 
 function makeHandle(deps: Partial<FakeClientOptions> = {}) {
@@ -153,6 +175,35 @@ describe('SpritesHandle.ports.connect', () => {
   it('rejects a non-proxied port', async () => {
     const { handle } = makeHandle({})
     await expect(handle.ports.connect(3000)).rejects.toThrow(/8080/)
+  })
+})
+
+describe('SpritesHandle checkpoints', () => {
+  it('snapshot() creates a checkpoint and returns a name-qualified ref', async () => {
+    const { handle, createCheckpoint } = makeHandle({ newVersion: 'v4' })
+    const ref = await handle.snapshot('after-setup')
+    expect(createCheckpoint).toHaveBeenCalledWith('my-sprite', {
+      comment: 'after-setup',
+    })
+    expect(ref).toEqual({ id: 'my-sprite#v4', label: 'after-setup' })
+  })
+
+  it('restoreCheckpoint() accepts a bare version or a snapshot ref id', async () => {
+    const { handle, restoreCheckpoint } = makeHandle({})
+    await handle.restoreCheckpoint('v2')
+    await handle.restoreCheckpoint('my-sprite#v3')
+    expect(restoreCheckpoint).toHaveBeenNthCalledWith(1, 'my-sprite', 'v2', undefined)
+    expect(restoreCheckpoint).toHaveBeenNthCalledWith(
+      2,
+      'my-sprite',
+      'v3',
+      undefined,
+    )
+  })
+
+  it('advertises the snapshots capability', () => {
+    const { handle } = makeHandle({})
+    expect(handle.capabilities.snapshots).toBe(true)
   })
 })
 

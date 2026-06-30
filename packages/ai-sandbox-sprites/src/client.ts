@@ -33,6 +33,16 @@ export interface SpriteFsEntry {
   type: 'file' | 'dir'
 }
 
+/** A Sprite checkpoint (filesystem-overlay save point). */
+export interface SpriteCheckpoint {
+  /** Sequential version id, e.g. `v3`. The live overlay lists as `Current`. */
+  id: string
+  createTime?: string
+  comment?: string
+  /** `true` for platform-created automatic checkpoints. */
+  isAuto: boolean
+}
+
 /** Options for {@link SpritesClient.exec}. */
 export interface SpritesExecOptions {
   /** Argument vector; `argv[0]` is the executable. */
@@ -67,6 +77,19 @@ export interface SpritesClientLike {
   fsWrite: (name: string, path: string, data: Uint8Array) => Promise<void>
   fsList: (name: string, path: string) => Promise<Array<SpriteFsEntry>>
   exec: (name: string, options: SpritesExecOptions) => SpritesExecStream
+  createCheckpoint: (
+    name: string,
+    options?: { comment?: string; signal?: AbortSignal },
+  ) => Promise<string>
+  listCheckpoints: (
+    name: string,
+    signal?: AbortSignal,
+  ) => Promise<Array<SpriteCheckpoint>>
+  restoreCheckpoint: (
+    name: string,
+    id: string,
+    options?: { signal?: AbortSignal; readyTimeoutMs?: number },
+  ) => Promise<void>
 }
 
 const WS_FRAME_STDOUT = 0x01
@@ -238,6 +261,136 @@ export class SpritesClient implements SpritesClientLike {
       path: String(entry.path ?? ''),
       type: entry.isDir === true ? ('dir' as const) : ('file' as const),
     }))
+  }
+
+  async listCheckpoints(
+    name: string,
+    signal?: AbortSignal,
+  ): Promise<Array<SpriteCheckpoint>> {
+    const url = this.spritePath(name, '/checkpoints')
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: this.headers(),
+      ...(signal ? { signal } : {}),
+    })
+    if (!response.ok) await this.fail('GET', url, response)
+    const body = (await response.json()) as Array<{
+      id?: unknown
+      create_time?: unknown
+      comment?: unknown
+      is_auto?: unknown
+    }>
+    return body.map((entry) => ({
+      id: String(entry.id ?? ''),
+      ...(typeof entry.create_time === 'string'
+        ? { createTime: entry.create_time }
+        : {}),
+      ...(typeof entry.comment === 'string' ? { comment: entry.comment } : {}),
+      isAuto: entry.is_auto === true,
+    }))
+  }
+
+  /**
+   * Create a checkpoint and return its new version id (e.g. `v3`). The create
+   * endpoint streams NDJSON progress; we drain it to completion, then resolve
+   * the new id as the highest sequential `vN` checkpoint (autos and the live
+   * `Current` pointer are ignored).
+   */
+  async createCheckpoint(
+    name: string,
+    options: { comment?: string; signal?: AbortSignal } = {},
+  ): Promise<string> {
+    const url = this.spritePath(name, '/checkpoint')
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: this.headers({ 'content-type': 'application/json' }),
+      body: JSON.stringify(
+        options.comment !== undefined ? { comment: options.comment } : {},
+      ),
+      ...(options.signal ? { signal: options.signal } : {}),
+    })
+    if (!response.ok) await this.fail('POST', url, response)
+    // Drain the NDJSON progress stream so the checkpoint is committed before we
+    // read the list back.
+    await response.text()
+
+    const versions = (await this.listCheckpoints(name, options.signal))
+      .filter((c) => !c.isAuto)
+      .map((c) => /^v(\d+)$/.exec(c.id))
+      .filter((m): m is RegExpExecArray => m !== null)
+      .map((m) => Number(m[1]))
+    if (versions.length === 0) {
+      throw new Error(
+        `Sprites: checkpoint created for "${name}" but no versioned checkpoint was found.`,
+      )
+    }
+    return `v${Math.max(...versions)}`
+  }
+
+  /**
+   * Restore a checkpoint in place. The Sprite's writable overlay is replaced and
+   * the environment restarts, so the agent is briefly unreachable.
+   *
+   * The restore endpoint streams progress but holds the connection open across
+   * the restart (it does not close cleanly), so we must NOT drain it — we cancel
+   * the body once the restore is accepted, then poll a trivial `exec` until the
+   * Sprite is ready again (or `readyTimeoutMs`, default 240s, elapses). Restart
+   * can take minutes; raise `readyTimeoutMs` for large overlays.
+   */
+  async restoreCheckpoint(
+    name: string,
+    id: string,
+    options: { signal?: AbortSignal; readyTimeoutMs?: number } = {},
+  ): Promise<void> {
+    const url = this.spritePath(
+      name,
+      `/checkpoints/${encodeURIComponent(id)}/restore`,
+    )
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: this.headers(),
+      ...(options.signal ? { signal: options.signal } : {}),
+    })
+    if (!response.ok) await this.fail('POST', url, response)
+    // The restore is server-side and asynchronous; the open NDJSON stream would
+    // block indefinitely, so release it and wait for readiness by polling.
+    await response.body?.cancel().catch(() => undefined)
+    // Let the restart begin before probing, so we don't get a stale success from
+    // the pre-restart agent.
+    await new Promise((resolve) => setTimeout(resolve, 3000))
+    await this.waitUntilReady(name, options.readyTimeoutMs ?? 240_000)
+  }
+
+  /**
+   * Poll a lightweight filesystem op until the Sprite agent serves it again, or
+   * time out. Uses `fetch` (not the exec WebSocket) so each attempt is reliably
+   * bounded by its abort signal — during a restart the socket can stall in
+   * CONNECTING without ever opening or closing.
+   */
+  private async waitUntilReady(name: string, timeoutMs: number): Promise<void> {
+    const deadline = Date.now() + timeoutMs
+    const url = this.spritePath(name, `/fs/list?path=${encodeURIComponent('/')}`)
+    let lastError: unknown
+    while (Date.now() < deadline) {
+      try {
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: this.headers(),
+          signal: AbortSignal.timeout(8000),
+        })
+        await response.body?.cancel()
+        if (response.ok) return
+        lastError = new Error(`readiness probe HTTP ${response.status}`)
+      } catch (error) {
+        lastError = error
+      }
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+    }
+    throw new Error(
+      `Sprites: "${name}" did not become ready within ${timeoutMs}ms after restore${
+        lastError instanceof Error ? ` (last error: ${lastError.message})` : ''
+      }.`,
+    )
   }
 
   private async killSession(name: string, sessionId: string): Promise<void> {

@@ -9,6 +9,10 @@
  * — except for near-instant commands, where the Sprite agent's "fast path"
  * replays buffered output as a single stdout stream (stderr content folds into
  * stdout; the exit code is preserved).
+ *
+ * Checkpoints (filesystem-overlay save points) are exposed via {@link snapshot}
+ * (create) and {@link restoreCheckpoint} / {@link listCheckpoints}. Restore is
+ * in-place and restarts the Sprite.
  */
 import {
   UnsupportedCapabilityError,
@@ -20,9 +24,10 @@ import type {
   SandboxCapabilities,
   SandboxChannel,
   SandboxHandle,
+  SnapshotRef,
   SpawnHandle,
 } from '@tanstack/ai-sandbox'
-import type { SpritesClientLike } from './client'
+import type { SpriteCheckpoint, SpritesClientLike } from './client'
 
 export const SPRITES_CAPS: SandboxCapabilities = {
   fs: true,
@@ -34,7 +39,13 @@ export const SPRITES_CAPS: SandboxCapabilities = {
   // stdin channel here, so adapters that feed a prompt over stdin must deliver
   // it via a file + shell redirection instead.
   writableStdin: false,
-  snapshots: false,
+  // Sprites checkpoints capture the writable filesystem overlay. Exposed via
+  // `snapshot()` (create) and the provider-specific `restoreCheckpoint()` /
+  // `listCheckpoints()`. Note: restore is in-place on the same Sprite, and a
+  // checkpoint does not survive Sprite deletion — so `SandboxProvider`'s
+  // reconstruct-after-gone `restoreSnapshot` is intentionally not implemented
+  // (the framework degrades to a fresh create instead).
+  snapshots: true,
   networkPolicy: false,
   // The Sprite filesystem persists for the sandbox's lifetime (across exec
   // calls and idle suspend/resume) until it is deleted.
@@ -223,8 +234,39 @@ export class SpritesHandle implements SandboxHandle {
     return { url: this.url }
   }
 
-  // Sprites checkpoints/fork are not wired through the uniform handle yet.
-  snapshot = undefined
+  /**
+   * Create a checkpoint of the Sprite's writable filesystem overlay. Returns a
+   * {@link SnapshotRef} whose `id` is `<spriteName>#<version>` (e.g.
+   * `my-sprite#v3`) so it round-trips through {@link restoreCheckpoint}.
+   */
+  async snapshot(label?: string): Promise<SnapshotRef> {
+    const version = await this.client.createCheckpoint(this.name, {
+      ...(label !== undefined ? { comment: label } : {}),
+    })
+    return { id: `${this.name}#${version}`, ...(label !== undefined ? { label } : {}) }
+  }
+
+  /** List this Sprite's checkpoints (newest live overlay shows as `Current`). */
+  listCheckpoints(): Promise<Array<SpriteCheckpoint>> {
+    return this.client.listCheckpoints(this.name)
+  }
+
+  /**
+   * Restore a checkpoint in place and wait for the Sprite to restart. Accepts a
+   * bare version (`v3`) or a {@link SnapshotRef} id (`<spriteName>#v3`).
+   *
+   * Restore is destructive: it replaces the current overlay. Take a
+   * {@link snapshot} first if you need to keep the present state.
+   */
+  restoreCheckpoint(
+    idOrRef: string,
+    options?: { readyTimeoutMs?: number },
+  ): Promise<void> {
+    const version = idOrRef.includes('#')
+      ? idOrRef.slice(idOrRef.indexOf('#') + 1)
+      : idOrRef
+    return this.client.restoreCheckpoint(this.name, version, options)
+  }
 
   fork = (): Promise<SandboxHandle> => {
     throw new UnsupportedCapabilityError('sprites', 'fork')
