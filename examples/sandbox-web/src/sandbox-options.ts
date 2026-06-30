@@ -11,7 +11,9 @@
 export type HarnessName = 'claude-code' | 'codex' | 'opencode' | 'grok'
 export type ProviderName = 'docker' | 'local' | 'vercel' | 'daytona'
 
-/** Grok Build wire protocol (ACP default; streaming-json is the legacy NDJSON path). */
+/** Grok Build model ids accepted by the in-sandbox `grok` CLI. */
+export type GrokBuildModel = 'grok-build-0.1' | 'composer-2.5'
+/** Grok Build wire protocol (ACP default; streaming-json is the NDJSON stdout path). */
 export type GrokBuildProtocol = 'acp' | 'streaming-json'
 /** ACP transport when protocol is `acp` (`auto` picks stdio vs WebSocket). */
 export type GrokTransport = 'auto' | 'stdio' | 'websocket'
@@ -22,10 +24,10 @@ export interface PickerOption<T> {
 }
 
 export const HARNESS_OPTIONS: ReadonlyArray<PickerOption<HarnessName>> = [
+  { value: 'grok', label: 'Grok Build' },
   { value: 'claude-code', label: 'Claude Code' },
   { value: 'codex', label: 'Codex' },
   { value: 'opencode', label: 'OpenCode' },
-  { value: 'grok', label: 'Grok' },
 ]
 
 export const PROVIDER_OPTIONS: ReadonlyArray<PickerOption<ProviderName>> = [
@@ -43,11 +45,16 @@ export function isProvider(value: unknown): value is ProviderName {
   return PROVIDER_OPTIONS.some((o) => o.value === value)
 }
 
+export const GROK_MODEL_OPTIONS: ReadonlyArray<PickerOption<GrokBuildModel>> = [
+  { value: 'composer-2.5', label: 'Composer 2.5' },
+  { value: 'grok-build-0.1', label: 'grok-build-0.1' },
+]
+
 export const GROK_PROTOCOL_OPTIONS: ReadonlyArray<
   PickerOption<GrokBuildProtocol>
 > = [
   { value: 'acp', label: 'ACP (default)' },
-  { value: 'streaming-json', label: 'streaming-json (legacy)' },
+  { value: 'streaming-json', label: 'streaming-json' },
 ]
 
 export const GROK_TRANSPORT_OPTIONS: ReadonlyArray<PickerOption<GrokTransport>> =
@@ -56,6 +63,10 @@ export const GROK_TRANSPORT_OPTIONS: ReadonlyArray<PickerOption<GrokTransport>> 
     { value: 'stdio', label: 'stdio' },
     { value: 'websocket', label: 'websocket' },
   ]
+
+export function isGrokModel(value: unknown): value is GrokBuildModel {
+  return GROK_MODEL_OPTIONS.some((o) => o.value === value)
+}
 
 export function isGrokProtocol(value: unknown): value is GrokBuildProtocol {
   return GROK_PROTOCOL_OPTIONS.some((o) => o.value === value)

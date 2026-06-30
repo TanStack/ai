@@ -73,10 +73,12 @@ export interface AppEnv extends SandboxAgentEnv {
 }
 
 export type HarnessName = 'claude-code' | 'codex' | 'grok'
+export type GrokBuildModel = 'grok-build-0.1' | 'composer-2.5'
 export type GrokBuildProtocol = 'acp' | 'streaming-json'
 export type GrokTransport = 'auto' | 'stdio' | 'websocket'
 
 export interface GrokHarnessOptions {
+  model?: GrokBuildModel
   protocol?: GrokBuildProtocol
   transport?: GrokTransport
 }
@@ -126,7 +128,7 @@ const HARNESSES: Record<HarnessName, HarnessSpec> = {
   grok: {
     // No special sandboxMode needed for the xAI Grok Build CLI (unlike codex).
     adapter: (grokOptions?: GrokHarnessOptions) =>
-      grokBuildText('grok-build-0.1', {
+      grokBuildText(grokOptions?.model ?? 'composer-2.5', {
         protocol: grokOptions?.protocol ?? 'acp',
         transport: grokOptions?.transport ?? 'auto',
       }),
@@ -152,10 +154,18 @@ function isGrokTransport(value: unknown): value is GrokTransport {
   return value === 'auto' || value === 'stdio' || value === 'websocket'
 }
 
-/** Per-run Grok options from UI metadata (`metadata.grokProtocol` / `grokTransport`). */
+function isGrokModel(value: unknown): value is GrokBuildModel {
+  return value === 'grok-build-0.1' || value === 'composer-2.5'
+}
+
+/** Per-run Grok options from UI metadata (`metadata.grokModel` / protocol / transport). */
 function resolveGrokOptions(input: StartRunInput): GrokHarnessOptions {
   const metadata = input.metadata
   return {
+    model:
+      metadata && isGrokModel(metadata.grokModel)
+        ? metadata.grokModel
+        : 'composer-2.5',
     protocol:
       metadata && isGrokProtocol(metadata.grokProtocol)
         ? metadata.grokProtocol

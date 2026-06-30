@@ -16,15 +16,18 @@ import rehypeSanitize from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import {
+  GROK_MODEL_OPTIONS,
   GROK_PROTOCOL_OPTIONS,
   GROK_TRANSPORT_OPTIONS,
   HARNESSES,
   PROVIDERS,
+  isGrokModel,
   isGrokProtocol,
   isGrokTransport,
   parseVerdict,
 } from '../sandbox-triage-options'
 import type {
+  GrokBuildModel,
   GrokBuildProtocol,
   GrokTransport,
   HarnessName,
@@ -347,7 +350,7 @@ function Messages({
 
 function SandboxesPage() {
   const [threadId] = useState(() => crypto.randomUUID())
-  const [harness, setHarness] = useState<HarnessName>('claude-code')
+  const [harness, setHarness] = useState<HarnessName>('grok')
   const [provider, setProvider] = useState<ProviderName>('docker')
   const [issueUrl, setIssueUrl] = useState(
     'https://github.com/TanStack/ai/issues/859',
@@ -356,6 +359,7 @@ function SandboxesPage() {
   const [codeModeLines, setCodeModeLines] = useState<Array<CodeModeLine>>([])
   const [keepAlive, setKeepAlive] = useState(false)
   const [useSubscription, setUseSubscription] = useState(false)
+  const [grokModel, setGrokModel] = useState<GrokBuildModel>('composer-2.5')
   const [grokProtocol, setGrokProtocol] = useState<GrokBuildProtocol>('acp')
   const [grokTransport, setGrokTransport] = useState<GrokTransport>('auto')
 
@@ -371,7 +375,9 @@ function SandboxesPage() {
       threadId,
       keepAlive,
       useSubscription: canUseSubscription && useSubscription,
-      ...(harness === 'grok' ? { grokProtocol, grokTransport } : {}),
+      ...(harness === 'grok'
+        ? { grokModel, grokProtocol, grokTransport }
+        : {}),
     },
     onCustomEvent: (eventType, data) => {
       if (data === null || typeof data !== 'object') return
@@ -483,6 +489,23 @@ function SandboxesPage() {
         </select>
         {harness === 'grok' && (
           <>
+            <select
+              value={grokModel}
+              onChange={(e) => {
+                if (isGrokModel(e.target.value)) {
+                  setGrokModel(e.target.value)
+                }
+              }}
+              disabled={isLoading}
+              title="Grok Build model"
+              className="rounded-lg border border-indigo-500/20 bg-gray-800 px-3 py-2 text-sm"
+            >
+              {GROK_MODEL_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
             <select
               value={grokProtocol}
               onChange={(e) => {

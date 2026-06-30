@@ -38,6 +38,7 @@ import { vercelSandbox } from '@tanstack/ai-sandbox-vercel'
 import { z } from 'zod'
 import { isHarness, isProvider } from './sandbox-options'
 import type {
+  GrokBuildModel,
   GrokBuildProtocol,
   GrokTransport,
   HarnessName,
@@ -141,7 +142,7 @@ const HARNESSES: Record<HarnessName, HarnessSpec> = {
     exposePort: 4096,
   },
   grok: {
-    makeAdapter: () => grokBuildText('grok-build-0.1'),
+    makeAdapter: () => grokBuildText('composer-2.5'),
     // `grok agent serve` listens here for WebSocket ACP when stdin isn't wired.
     exposePort: 2419,
     // Grok Build ships its own installer (not npm) — see https://x.ai/cli. It
@@ -241,6 +242,7 @@ export function localWorkspaceGuidance(workspacePath: string): string {
 }
 
 export interface GrokHarnessOptions {
+  model?: GrokBuildModel
   protocol?: GrokBuildProtocol
   transport?: GrokTransport
 }
@@ -251,7 +253,7 @@ export function buildAdapter(
   grokOptions?: GrokHarnessOptions,
 ): AnyTextAdapter {
   if (harness === 'grok') {
-    return grokBuildText('grok-build-0.1', {
+    return grokBuildText(grokOptions?.model ?? 'composer-2.5', {
       protocol: grokOptions?.protocol ?? 'acp',
       transport: grokOptions?.transport ?? 'auto',
     })

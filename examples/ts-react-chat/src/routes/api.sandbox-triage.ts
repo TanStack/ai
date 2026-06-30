@@ -8,6 +8,7 @@ interface TriageData {
   threadId: unknown
   keepAlive: unknown
   useSubscription: unknown
+  grokModel: unknown
   grokProtocol: unknown
   grokTransport: unknown
 }
@@ -65,9 +66,16 @@ export async function triagePost(request: Request): Promise<Response> {
   if (!isHarness(data.harness) || !isProvider(data.provider)) {
     return json(400, 'Unknown harness or provider.')
   }
-  const { isGrokProtocol, isGrokTransport } = await import(
+  const { isGrokModel, isGrokProtocol, isGrokTransport } = await import(
     '../sandbox-triage-options'
   )
+  if (
+    data.harness === 'grok' &&
+    data.grokModel !== undefined &&
+    !isGrokModel(data.grokModel)
+  ) {
+    return json(400, 'Unknown grokModel.')
+  }
   if (
     data.harness === 'grok' &&
     data.grokProtocol !== undefined &&
@@ -135,6 +143,9 @@ export async function triagePost(request: Request): Promise<Response> {
         data.provider,
         data.harness === 'grok'
           ? {
+              model: isGrokModel(data.grokModel)
+                ? data.grokModel
+                : 'composer-2.5',
               protocol: isGrokProtocol(data.grokProtocol)
                 ? data.grokProtocol
                 : 'acp',

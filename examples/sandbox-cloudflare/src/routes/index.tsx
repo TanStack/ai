@@ -23,16 +23,23 @@ export const Route = createFileRoute('/')({
 // The coding agents the container image ships. The value is forwarded to the
 // server as `metadata.harness`; `resolveHarness` in src/agent.ts validates it.
 const HARNESS_OPTIONS = [
+  { value: 'grok', label: 'Grok Build' },
   { value: 'claude-code', label: 'Claude Code' },
   { value: 'codex', label: 'Codex' },
-  { value: 'grok', label: 'Grok' },
 ] as const
 
 type HarnessName = (typeof HARNESS_OPTIONS)[number]['value']
 
+const GROK_MODEL_OPTIONS = [
+  { value: 'composer-2.5', label: 'Composer 2.5' },
+  { value: 'grok-build-0.1', label: 'grok-build-0.1' },
+] as const
+
+type GrokBuildModel = (typeof GROK_MODEL_OPTIONS)[number]['value']
+
 const GROK_PROTOCOL_OPTIONS = [
   { value: 'acp', label: 'ACP (default)' },
-  { value: 'streaming-json', label: 'streaming-json (legacy)' },
+  { value: 'streaming-json', label: 'streaming-json' },
 ] as const
 
 type GrokBuildProtocol = (typeof GROK_PROTOCOL_OPTIONS)[number]['value']
@@ -47,6 +54,10 @@ type GrokTransport = (typeof GROK_TRANSPORT_OPTIONS)[number]['value']
 
 function isHarnessName(value: string): value is HarnessName {
   return HARNESS_OPTIONS.some((o) => o.value === value)
+}
+
+function isGrokModel(value: string): value is GrokBuildModel {
+  return GROK_MODEL_OPTIONS.some((o) => o.value === value)
 }
 
 function isGrokProtocol(value: string): value is GrokBuildProtocol {
@@ -345,7 +356,8 @@ function SandboxAgentPage() {
   // injected secret env + the running agent are per-harness, so a new harness
   // needs a new sandbox (and a clean conversation).
   const [threadId, setThreadId] = useState(() => crypto.randomUUID())
-  const [harness, setHarness] = useState<HarnessName>('claude-code')
+  const [harness, setHarness] = useState<HarnessName>('grok')
+  const [grokModel, setGrokModel] = useState<GrokBuildModel>('composer-2.5')
   const [grokProtocol, setGrokProtocol] = useState<GrokBuildProtocol>('acp')
   const [grokTransport, setGrokTransport] = useState<GrokTransport>('auto')
   const [input, setInput] = useState('')
@@ -357,10 +369,10 @@ function SandboxAgentPage() {
       threadId,
       harness,
       ...(harness === 'grok'
-        ? { grokProtocol, grokTransport }
+        ? { grokModel, grokProtocol, grokTransport }
         : {}),
     }),
-    [threadId, harness, grokProtocol, grokTransport],
+    [threadId, harness, grokModel, grokProtocol, grokTransport],
   )
 
   const { messages, sendMessage, isLoading, stop, clear } = useChat({
@@ -416,6 +428,25 @@ function SandboxAgentPage() {
           </label>
           {harness === 'grok' && (
             <>
+              <label className="flex items-center gap-2" title="Grok Build model">
+                <span className="text-xs text-gray-500">model</span>
+                <select
+                  value={grokModel}
+                  onChange={(e) => {
+                    if (isGrokModel(e.target.value)) {
+                      setGrokModel(e.target.value)
+                    }
+                  }}
+                  disabled={isLoading}
+                  className="rounded-md border border-indigo-500/20 bg-gray-800 px-2 py-1 text-sm text-white disabled:opacity-50"
+                >
+                  {GROK_MODEL_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <label className="flex items-center gap-2" title="Grok Build wire protocol">
                 <span className="text-xs text-gray-500">protocol</span>
                 <select

@@ -37,6 +37,7 @@ interface ProxyBody {
   threadId?: string
   /** The UI's chosen harness, forwarded to the agent as `metadata.harness`. */
   harness?: string
+  grokModel?: string
   grokProtocol?: string
   grokTransport?: string
 }
@@ -81,7 +82,7 @@ function readThreadId(value: object): string | undefined {
 /** First non-empty string field across the body layers. */
 function readStringField(
   value: object,
-  field: 'harness' | 'grokProtocol' | 'grokTransport',
+  field: 'harness' | 'grokModel' | 'grokProtocol' | 'grokTransport',
 ): string | undefined {
   for (const layer of bodyLayers(value)) {
     const record = layer as Record<string, unknown>
@@ -105,6 +106,7 @@ function parseBody(value: unknown): ProxyBody {
     messages,
     threadId: readThreadId(value),
     harness: readStringField(value, 'harness'),
+    grokModel: readStringField(value, 'grokModel'),
     grokProtocol: readStringField(value, 'grokProtocol'),
     grokTransport: readStringField(value, 'grokTransport'),
   }
@@ -266,10 +268,12 @@ export const Route = createFileRoute('/api/run')({
             // it; absent → the HARNESS deploy default. Omitted entirely when unset.
             metadata:
               body.harness ||
+              body.grokModel ||
               body.grokProtocol ||
               body.grokTransport
                 ? {
                     ...(body.harness ? { harness: body.harness } : {}),
+                    ...(body.grokModel ? { grokModel: body.grokModel } : {}),
                     ...(body.grokProtocol
                       ? { grokProtocol: body.grokProtocol }
                       : {}),

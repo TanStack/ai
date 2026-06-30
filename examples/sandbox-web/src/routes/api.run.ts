@@ -17,10 +17,15 @@ import {
   usesToolBridge,
 } from '../sandbox-agent'
 import {
+  isGrokModel,
   isGrokProtocol,
   isGrokTransport,
 } from '../sandbox-options'
-import type { GrokBuildProtocol, GrokTransport } from '../sandbox-options'
+import type {
+  GrokBuildModel,
+  GrokBuildProtocol,
+  GrokTransport,
+} from '../sandbox-options'
 import type { AnyTool, ModelMessage, StreamChunk } from '@tanstack/ai'
 
 /**
@@ -41,6 +46,7 @@ interface RunBody {
   threadId?: string
   harness?: unknown
   provider?: unknown
+  grokModel?: unknown
   grokProtocol?: unknown
   grokTransport?: unknown
 }
@@ -96,6 +102,9 @@ function parseBody(value: unknown): RunBody {
     provider: readForwarded(value, (l) =>
       'provider' in l ? l.provider : undefined,
     ),
+    grokModel: readForwarded(value, (l) =>
+      'grokModel' in l ? l.grokModel : undefined,
+    ),
     grokProtocol: readForwarded(value, (l) =>
       'grokProtocol' in l ? l.grokProtocol : undefined,
     ),
@@ -140,6 +149,13 @@ export const Route = createFileRoute('/api/run')({
         const provider = body.provider
         if (
           harness === 'grok' &&
+          body.grokModel !== undefined &&
+          !isGrokModel(body.grokModel)
+        ) {
+          return jsonError(400, 'Unknown grokModel.')
+        }
+        if (
+          harness === 'grok' &&
           body.grokProtocol !== undefined &&
           !isGrokProtocol(body.grokProtocol)
         ) {
@@ -176,6 +192,9 @@ export const Route = createFileRoute('/api/run')({
             harness,
             harness === 'grok'
               ? {
+                  model: isGrokModel(body.grokModel)
+                    ? body.grokModel
+                    : ('composer-2.5' as GrokBuildModel),
                   protocol: isGrokProtocol(body.grokProtocol)
                     ? body.grokProtocol
                     : ('acp' as GrokBuildProtocol),

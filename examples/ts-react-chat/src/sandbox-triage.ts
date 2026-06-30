@@ -14,6 +14,7 @@ import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 import { vercelSandbox } from '@tanstack/ai-sandbox-vercel'
 import { parseVerdict } from './sandbox-triage-options'
 import type {
+  GrokBuildModel,
   GrokBuildProtocol,
   GrokTransport,
   HarnessName,
@@ -129,8 +130,8 @@ export const HARNESSES: Record<HarnessName, HarnessSpec> = {
     exposePort: 4096,
   },
   grok: {
-    label: 'Grok',
-    makeAdapter: () => grokBuildText('grok-build-0.1'),
+    label: 'Grok Build',
+    makeAdapter: () => grokBuildText('composer-2.5'),
     installCommand:
       'curl -fsSL https://x.ai/cli/install.sh | bash && ' +
       '(ln -sf "$HOME/.grok/bin/grok" /usr/local/bin/grok 2>/dev/null || ' +
@@ -149,6 +150,7 @@ export const HARNESSES: Record<HarnessName, HarnessSpec> = {
 }
 
 export interface GrokHarnessOptions {
+  model?: GrokBuildModel
   protocol?: GrokBuildProtocol
   transport?: GrokTransport
 }
@@ -160,7 +162,7 @@ export function buildHarnessAdapter(
   grokOptions?: GrokHarnessOptions,
 ): AnyTextAdapter {
   if (harness === 'grok') {
-    return grokBuildText('grok-build-0.1', {
+    return grokBuildText(grokOptions?.model ?? 'composer-2.5', {
       protocol: grokOptions?.protocol ?? 'acp',
       transport: grokOptions?.transport ?? 'auto',
     })
