@@ -158,20 +158,20 @@ export interface AcpWebSocketConnection {
  * Open a WebSocket to an in-sandbox ACP server and adapt it for
  * {@link ClientSideConnection}.
  */
-interface WebSocketWithHeaders {
-  new (url: string, options?: { headers?: Record<string, string> }): WebSocket
+function openWebSocket(
+  url: string,
+  headers?: Record<string, string>,
+): WebSocket {
+  if (headers === undefined) return new WebSocket(url)
+  // Node/ws accepts `{ headers }`; DOM lib constructor types omit this overload.
+  return Reflect.construct(WebSocket, [url, { headers }]) as WebSocket
 }
-
-const WebSocketCtor = WebSocket as unknown as WebSocketWithHeaders
 
 export async function connectAcpWebSocket(
   url: string,
   options: ConnectAcpWebSocketOptions = {},
 ): Promise<AcpWebSocketConnection> {
-  const ws =
-    options.headers !== undefined
-      ? new WebSocketCtor(url, { headers: options.headers })
-      : new WebSocketCtor(url)
+  const ws = openWebSocket(url, options.headers)
   await waitForWebSocketOpen(ws, options.signal)
 
   const framing = options.framing ?? 'frame'

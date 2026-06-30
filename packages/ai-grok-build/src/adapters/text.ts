@@ -37,7 +37,10 @@ import type {
   AcpTransportPreference,
 } from '@tanstack/ai-acp'
 import type { HostToolBridge, SandboxHandle } from '@tanstack/ai-sandbox'
-import type { GrokBuildProtocol } from '../provider-options'
+import type {
+  GrokBuildProtocol,
+  GrokBuildTextProviderOptions,
+} from '../provider-options'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
@@ -49,7 +52,6 @@ import type {
   TextOptions,
 } from '@tanstack/ai'
 import type { GrokBuildModel } from '../model-meta'
-import type { GrokBuildTextProviderOptions } from '../provider-options'
 import type { GrokBuildStreamEvent } from '../stream/sdk-types'
 
 const DEFAULT_WORKDIR = '/workspace'
