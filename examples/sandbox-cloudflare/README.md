@@ -116,11 +116,11 @@ One app runs any of three in-sandbox coding agents. The container image bakes in
 all three CLIs, so switching never rebuilds the image — pick one live in the UI,
 or set the `HARNESS` default for headless/deployed runs.
 
-| `HARNESS`         | Adapter                           | Secret to set                         | Notes                                                      |
-| ----------------- | --------------------------------- | ------------------------------------- | ---------------------------------------------------------- |
-| `claude-code`     | `claudeCodeText('sonnet')`        | `ANTHROPIC_API_KEY`                   | Default.                                                   |
-| `codex`           | `codexText('gpt-5.3-codex', …)`   | `CODEX_API_KEY` (or `OPENAI_API_KEY`) | Runs with `sandboxMode: 'danger-full-access'` — see below. |
-| `grok`            | `grokBuildText('grok-build-0.1')` | `XAI_API_KEY` (or `GROK_API_KEY`)     | —                                                          |
+| `HARNESS`     | Adapter                           | Secret to set                         | Notes                                                      |
+| ------------- | --------------------------------- | ------------------------------------- | ---------------------------------------------------------- |
+| `claude-code` | `claudeCodeText('sonnet')`        | `ANTHROPIC_API_KEY`                   | Default.                                                   |
+| `codex`       | `codexText('gpt-5.3-codex', …)`   | `CODEX_API_KEY` (or `OPENAI_API_KEY`) | Runs with `sandboxMode: 'danger-full-access'` — see below. |
+| `grok`        | `grokBuildText('grok-build-0.1')` | `XAI_API_KEY` (or `GROK_API_KEY`)     | —                                                          |
 
 **Switch it live in the UI** — the header has a harness dropdown. Picking one
 forwards `metadata: { harness }` on the run trigger; `resolveHarness` in

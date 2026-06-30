@@ -8,11 +8,7 @@
  * types and guards. Single source of truth for the two axes.
  */
 
-export type HarnessName =
-  | 'claude-code'
-  | 'codex'
-  | 'opencode'
-  | 'grok'
+export type HarnessName = 'claude-code' | 'codex' | 'opencode' | 'grok'
 export type ProviderName = 'docker' | 'local' | 'vercel' | 'daytona'
 
 /** Grok Build model ids accepted by the in-sandbox `grok` CLI. */
