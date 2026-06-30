@@ -89,6 +89,7 @@ class OutputQueue {
 export class CloudflareHandle implements SandboxHandle {
   readonly id: string
   readonly provider = 'cloudflare'
+  readonly workspaceRoot: string
   readonly capabilities = CLOUDFLARE_CAPS
   readonly fs: SandboxHandle['fs']
   readonly git: SandboxHandle['git']
@@ -109,6 +110,7 @@ export class CloudflareHandle implements SandboxHandle {
     this.id = id
     this.sandbox = sandbox
     this.workdir = workdir
+    this.workspaceRoot = workdir
     this.previewHostname = previewHostname
 
     this.process = {

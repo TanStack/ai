@@ -106,6 +106,7 @@ export interface DaytonaHandleDeps {
 export class DaytonaHandle implements SandboxHandle {
   readonly id: string
   readonly provider = 'daytona'
+  readonly workspaceRoot: string
   readonly capabilities = DAYTONA_CAPS
   readonly fs: SandboxHandle['fs']
   readonly git: SandboxHandle['git']
@@ -120,6 +121,7 @@ export class DaytonaHandle implements SandboxHandle {
   constructor(deps: DaytonaHandleDeps) {
     this.sandbox = deps.sandbox
     this.workdir = deps.workdir
+    this.workspaceRoot = deps.workdir
     this.id = deps.sandbox.id
 
     this.process = {
@@ -335,17 +337,17 @@ export class DaytonaHandle implements SandboxHandle {
 
   private async connectPort(port: number): Promise<SandboxChannel> {
     const link = await this.sandbox.getPreviewLink(port)
-    // A private sandbox's preview URL is gated by a token sent in the
-    // `x-daytona-preview-token` header (NOT `Authorization: Bearer`). Surface it
-    // as ready-to-send `headers` so HTTP consumers authenticate without knowing
-    // Daytona's header name; keep `token` too for any bearer-style consumer.
-    return link.token
-      ? {
-          url: link.url,
-          token: link.token,
-          headers: { 'x-daytona-preview-token': link.token },
-        }
-      : { url: link.url }
+    if (!link.token) {
+      return { url: link.url }
+    }
+
+    // Standard preview URLs need `x-daytona-preview-token` on every request —
+    // browsers cannot send that when the user clicks a link. Mint a signed URL
+    // (token embedded in the hostname) so preview links open without custom headers.
+    // Signed and standard tokens are not interchangeable; do not attach the
+    // standard token as headers when returning a signed URL.
+    const signed = await this.sandbox.getSignedPreviewUrl(port, 3600)
+    return { url: signed.url, token: signed.token }
   }
 
   // Daytona snapshots/fork are not wired through the uniform handle yet.

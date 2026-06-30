@@ -32,37 +32,63 @@ function waitForWebSocketOpen(
 }
 
 /**
+ * Wrap a stream controller so its terminal calls are idempotent. A WebSocket can
+ * fire `close` after `error` (or after the reader cancels), and closing/erroring
+ * an already-settled controller throws `ERR_INVALID_STATE` out of the listener.
+ */
+function idempotentController<T>(
+  controller: ReadableStreamDefaultController<T>,
+): {
+  enqueue: (chunk: T) => void
+  close: () => void
+  error: (reason: unknown) => void
+} {
+  let settled = false
+  return {
+    enqueue: (chunk) => {
+      if (!settled) controller.enqueue(chunk)
+    },
+    close: () => {
+      if (settled) return
+      settled = true
+      controller.close()
+    },
+    error: (reason) => {
+      if (settled) return
+      settled = true
+      controller.error(reason)
+    },
+  }
+}
+
+/**
  * One JSON-RPC object per WebSocket text frame (e.g. `grok agent serve`).
  */
 export function webSocketFrameToAcpStream(ws: WebSocket): AcpJsonRpcStream {
   const decoder = new TextDecoder()
-  let readController: ReadableStreamDefaultController | undefined
 
-  ws.addEventListener('message', (event) => {
-    if (readController === undefined) return
-    const text =
-      typeof event.data === 'string'
-        ? event.data
-        : decoder.decode(event.data as ArrayBuffer)
-    const trimmed = text.trim()
-    if (trimmed === '') return
-    try {
-      readController.enqueue(JSON.parse(trimmed))
-    } catch (error) {
-      readController.error(
-        error instanceof Error ? error : new Error(String(error)),
+  const readable = new ReadableStream<unknown>({
+    start(rawController) {
+      const controller = idempotentController(rawController)
+      ws.addEventListener('message', (event) => {
+        const text =
+          typeof event.data === 'string'
+            ? event.data
+            : decoder.decode(event.data as ArrayBuffer)
+        const trimmed = text.trim()
+        if (trimmed === '') return
+        try {
+          controller.enqueue(JSON.parse(trimmed))
+        } catch (error) {
+          controller.error(
+            error instanceof Error ? error : new Error(String(error)),
+          )
+        }
+      })
+      ws.addEventListener('close', () => controller.close())
+      ws.addEventListener('error', () =>
+        controller.error(new Error('WebSocket connection error')),
       )
-    }
-  })
-
-  ws.addEventListener('close', () => readController?.close())
-  ws.addEventListener('error', () => {
-    readController?.error(new Error('WebSocket connection error'))
-  })
-
-  const readable = new ReadableStream({
-    start(controller) {
-      readController = controller
     },
     cancel() {
       ws.close()
@@ -86,7 +112,8 @@ function webSocketNdjsonToAcpStream(ws: WebSocket): AcpJsonRpcStream {
   const decoder = new TextDecoder()
 
   const readable = new ReadableStream<Uint8Array>({
-    start(controller) {
+    start(rawController) {
+      const controller = idempotentController(rawController)
       ws.addEventListener('message', (event) => {
         const text =
           typeof event.data === 'string'

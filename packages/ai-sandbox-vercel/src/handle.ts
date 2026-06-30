@@ -96,6 +96,7 @@ export interface VercelHandleDeps {
 export class VercelHandle implements SandboxHandle {
   readonly id: string
   readonly provider = 'vercel'
+  readonly workspaceRoot: string
   readonly capabilities = VERCEL_CAPS
   readonly fs: SandboxHandle['fs']
   readonly git: SandboxHandle['git']
@@ -111,6 +112,7 @@ export class VercelHandle implements SandboxHandle {
   constructor(deps: VercelHandleDeps) {
     this.sandbox = deps.sandbox
     this.workdir = deps.workdir
+    this.workspaceRoot = deps.workdir
     this.exposedPorts = deps.ports
     // v2 of `@vercel/sandbox` identifies a sandbox by its `name`; that name is
     // what `Sandbox.get({ name })` reconnects with.

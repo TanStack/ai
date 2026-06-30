@@ -1,6 +1,6 @@
 import { claudeCodeText } from '@tanstack/ai-claude-code'
 import { codexText } from '@tanstack/ai-codex'
-import { grokBuildText } from '@tanstack/ai-grok-build'
+import { GROK_CLI_INSTALL_COMMAND, grokBuildText } from '@tanstack/ai-grok-build'
 import { opencodeText } from '@tanstack/ai-opencode'
 import {
   createSecrets,
@@ -132,10 +132,7 @@ export const HARNESSES: Record<HarnessName, HarnessSpec> = {
   grok: {
     label: 'Grok Build',
     makeAdapter: () => grokBuildText('composer-2.5'),
-    installCommand:
-      'curl -fsSL https://x.ai/cli/install.sh | bash && ' +
-      '(ln -sf "$HOME/.grok/bin/grok" /usr/local/bin/grok 2>/dev/null || ' +
-      'sudo -n ln -sf "$HOME/.grok/bin/grok" /usr/local/bin/grok 2>/dev/null || true)',
+    installCommand: GROK_CLI_INSTALL_COMMAND,
     requiredEnv: ['XAI_API_KEY'],
     envCheck: () =>
       process.env.XAI_API_KEY || process.env.GROK_API_KEY

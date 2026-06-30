@@ -168,6 +168,13 @@ export interface SandboxHandle {
   readonly id: string
   /** Provider name (e.g. "docker", "cloudflare", "local-process"). */
   readonly provider: string
+  /**
+   * Real filesystem path backing the virtual workspace root (`/workspace`).
+   * Harness CLIs and ACP `newSession` interpret cwd literally — use
+   * {@link resolveHarnessCwd} rather than the virtual path when the provider
+   * maps `/workspace` elsewhere (Daytona, Vercel, local-process).
+   */
+  readonly workspaceRoot?: string
   /** What this sandbox can do. */
   readonly capabilities: SandboxCapabilities
   readonly fs: SandboxFs

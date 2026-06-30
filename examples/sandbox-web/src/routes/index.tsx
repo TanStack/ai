@@ -105,11 +105,11 @@ function PreviewLink({ url }: { url: string }) {
       href={url}
       target="_blank"
       rel="noreferrer"
-      className="mt-3 inline-flex items-center gap-2 rounded-lg bg-linear-to-r from-emerald-500 to-teal-600 px-4 py-2 text-sm font-medium text-white shadow-lg transition-transform hover:scale-[1.02]"
+      className="mt-3 inline-flex items-center gap-2 rounded-lg bg-linear-to-r from-pink-500 to-fuchsia-500 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-pink-500/30 transition-transform hover:scale-[1.02] hover:from-pink-400 hover:to-fuchsia-400"
     >
       <ExternalLink className="w-4 h-4" />
       Open preview
-      <span className="font-mono text-xs text-emerald-100/80">
+      <span className="font-mono text-xs text-pink-50/90">
         {url.replace(/^https?:\/\//, '')}
       </span>
     </a>

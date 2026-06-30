@@ -23,6 +23,7 @@ import { buildPrompt } from '../messages/prompt'
 import { resolveGrokAcpAuthMethod } from '../auth'
 import { createGrokAcpNotificationHandler } from '../process/grok-acp-notifications'
 import { openGrokAcpConnection } from '../process/acp'
+import { resolveGrokExecutable } from '../process/resolve-executable'
 import { resolveGrokCliModel } from '../model-meta'
 import { SESSION_ID_EVENT, translateThreadEvents } from '../stream/translate'
 import { projectGrokMcpBridge, projectGrokWorkspace } from './projection'
@@ -144,10 +145,10 @@ export class GrokBuildTextAdapter<
     harnessCwd: string,
     _policyFlags: GrokBuildPolicyFlags,
     prompt: string,
+    exe: string,
   ): string {
     const config = this.adapterConfig
     const modelOptions = options.modelOptions
-    const exe = config.grokExecutable ?? 'grok'
     const cliModel = resolveGrokCliModel(this.model)
 
     const args: Array<string> = [
@@ -241,7 +242,10 @@ export class GrokBuildTextAdapter<
       }
 
       const cliModel = resolveGrokCliModel(this.model)
-      const exe = this.adapterConfig.grokExecutable ?? 'grok'
+      const exe = await resolveGrokExecutable(
+        sandbox,
+        this.adapterConfig.grokExecutable,
+      )
       const connection = await openGrokAcpConnection({
         sandbox,
         exe,
@@ -462,12 +466,17 @@ export class GrokBuildTextAdapter<
           ? `${systemPrompts.join('\n\n')}\n\n${prompt}`
           : prompt
 
+      const exe = await resolveGrokExecutable(
+        sandbox,
+        this.adapterConfig.grokExecutable,
+      )
       const runCommand = this.buildCommand(
         options,
         resume,
         harnessCwd,
         mapPolicyToGrokBuildFlags(policy),
         fullPrompt,
+        exe,
       )
 
       logger.request(

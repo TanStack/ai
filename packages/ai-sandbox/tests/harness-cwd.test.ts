@@ -3,8 +3,12 @@ import * as path from 'node:path'
 import { resolveHarnessCwd } from '../src/harness-cwd'
 import type { SandboxHandle } from '../src/contracts'
 
-function fakeHandle(provider: string, id: string): SandboxHandle {
-  return { provider, id } as SandboxHandle
+function fakeHandle(
+  provider: string,
+  id: string,
+  workspaceRoot?: string,
+): SandboxHandle {
+  return { provider, id, workspaceRoot } as SandboxHandle
 }
 
 describe('resolveHarnessCwd', () => {
@@ -23,12 +27,34 @@ describe('resolveHarnessCwd', () => {
     ).toBe(path.join(root, 'my-app'))
   })
 
-  it('passes virtual paths through for container providers', () => {
+  it('passes virtual paths through when workspaceRoot is /workspace', () => {
     expect(
-      resolveHarnessCwd(fakeHandle('docker', 'container-1'), '/workspace'),
+      resolveHarnessCwd(
+        fakeHandle('docker', 'container-1', '/workspace'),
+        '/workspace',
+      ),
     ).toBe('/workspace')
     expect(
-      resolveHarnessCwd(fakeHandle('docker', 'container-1'), '/workspace/app'),
+      resolveHarnessCwd(
+        fakeHandle('docker', 'container-1', '/workspace'),
+        '/workspace/app',
+      ),
     ).toBe('/workspace/app')
+  })
+
+  it('maps virtual /workspace to the provider workspaceRoot on Daytona', () => {
+    const daytonaRoot = '/home/daytona/workspace'
+    expect(
+      resolveHarnessCwd(
+        fakeHandle('daytona', 'sbx-1', daytonaRoot),
+        '/workspace',
+      ),
+    ).toBe(daytonaRoot)
+    expect(
+      resolveHarnessCwd(
+        fakeHandle('daytona', 'sbx-1', daytonaRoot),
+        '/workspace/my-app',
+      ),
+    ).toBe('/home/daytona/workspace/my-app')
   })
 })

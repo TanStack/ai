@@ -65,6 +65,7 @@ export interface DockerHandleDeps {
 export class DockerHandle implements SandboxHandle {
   readonly id: string
   readonly provider = 'docker'
+  readonly workspaceRoot: string
   readonly capabilities = DOCKER_CAPS
   readonly fs: SandboxHandle['fs']
   readonly git: SandboxHandle['git']
@@ -82,6 +83,7 @@ export class DockerHandle implements SandboxHandle {
     this.docker = deps.docker
     this.container = deps.container
     this.workdir = deps.workdir
+    this.workspaceRoot = deps.workdir
     this.deps = deps
     this.id = deps.container.id
 

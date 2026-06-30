@@ -24,7 +24,7 @@
 import { toolDefinition } from '@tanstack/ai'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
 import { codexText } from '@tanstack/ai-codex'
-import { grokBuildText } from '@tanstack/ai-grok-build'
+import { GROK_CLI_INSTALL_COMMAND, grokBuildText } from '@tanstack/ai-grok-build'
 import { opencodeText } from '@tanstack/ai-opencode'
 import {
   createSecrets,
@@ -145,14 +145,8 @@ const HARNESSES: Record<HarnessName, HarnessSpec> = {
     makeAdapter: () => grokBuildText('composer-2.5'),
     // `grok agent serve` listens here for WebSocket ACP when stdin isn't wired.
     exposePort: 2419,
-    // Grok Build ships its own installer (not npm) — see https://x.ai/cli. It
-    // drops the binary at `$HOME/.grok/bin/grok`, so symlink it onto PATH (best
-    // effort: try as the user, then sudo; the run fails clearly if `grok` is still
-    // missing). Needs `curl` in the image (the default `node:22` has it).
-    installCommand:
-      'curl -fsSL https://x.ai/cli/install.sh | bash && ' +
-      '(ln -sf "$HOME/.grok/bin/grok" /usr/local/bin/grok 2>/dev/null || ' +
-      'sudo -n ln -sf "$HOME/.grok/bin/grok" /usr/local/bin/grok 2>/dev/null || true)',
+    // Grok Build ships its own installer (not npm) — see https://x.ai/cli.
+    installCommand: GROK_CLI_INSTALL_COMMAND,
     // The `grok` CLI authenticates headlessly via XAI_API_KEY (GROK_API_KEY alias).
     requiredEnv: ['XAI_API_KEY'],
     envCheck: () =>

@@ -4,8 +4,22 @@ import {
   parseWebSocketUrlFromServeOutput,
   resolveAcpTransportMode,
   spawnHandleToAcpTransport,
+  webSocketFrameToAcpStream,
 } from '../src/index'
 import type { SandboxCapabilities, SpawnHandle } from '@tanstack/ai-sandbox'
+
+class FakeWebSocket extends EventTarget {
+  sent: Array<string> = []
+  send(data: string): void {
+    this.sent.push(data)
+  }
+  close(): void {}
+  emitMessage(data: string): void {
+    const event = new Event('message') as Event & { data: string }
+    event.data = data
+    this.dispatchEvent(event)
+  }
+}
 
 async function* once(value: string): AsyncIterable<string> {
   await Promise.resolve()
@@ -70,6 +84,35 @@ describe('spawnHandleToAcpTransport', () => {
     const reader = transport.readable.getReader()
     const chunk = await reader.read()
     expect(new TextDecoder().decode(chunk.value)).toBe('{"jsonrpc":"2.0"}\n')
+  })
+})
+
+describe('webSocketFrameToAcpStream', () => {
+  it('parses one JSON-RPC object per text frame', async () => {
+    const ws = new FakeWebSocket()
+    const { readable } = webSocketFrameToAcpStream(ws as unknown as WebSocket)
+    const reader = (readable as ReadableStream).getReader()
+    ws.emitMessage('{"jsonrpc":"2.0","id":1}\n')
+    expect((await reader.read()).value).toEqual({ jsonrpc: '2.0', id: 1 })
+  })
+
+  it('treats close after error as idempotent (no ERR_INVALID_STATE)', async () => {
+    const ws = new FakeWebSocket()
+    const { readable } = webSocketFrameToAcpStream(ws as unknown as WebSocket)
+    const read = (readable as ReadableStream)
+      .getReader()
+      .read()
+      .catch(() => undefined)
+    ws.dispatchEvent(new Event('error'))
+    expect(() => ws.dispatchEvent(new Event('close'))).not.toThrow()
+    await read
+  })
+
+  it('treats a redundant close as a no-op', () => {
+    const ws = new FakeWebSocket()
+    webSocketFrameToAcpStream(ws as unknown as WebSocket)
+    ws.dispatchEvent(new Event('close'))
+    expect(() => ws.dispatchEvent(new Event('close'))).not.toThrow()
   })
 })
 
