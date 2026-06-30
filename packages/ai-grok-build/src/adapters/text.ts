@@ -130,7 +130,7 @@ export class GrokBuildTextAdapter<
   }
 
   /**
-   * Cwd for harness-facing APIs (`--cwd`, ACP `newSession`). Virtual `/workspace`
+   * Cwd for harness-facing APIs (NDJSON `--cwd`, ACP `newSession`). Virtual `/workspace`
    * is mapped to the real filesystem path on local-process; spawn/fs still use
    * the virtual path via the provider handle.
    */

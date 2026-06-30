@@ -25,29 +25,25 @@ describe('resolveGrokAcpAuthMethod', () => {
 })
 
 describe('grok ACP commands', () => {
-  it('builds stdio command with harness cwd, model, and always-approve', () => {
+  it('builds stdio command with model and always-approve', () => {
     expect(
       buildGrokAcpStdioCommand({
         exe: 'grok',
         cliModel: 'composer-2.5',
-        harnessCwd: '/workspace',
       }),
-    ).toBe(
-      "grok agent -m 'composer-2.5' --cwd '/workspace' --always-approve stdio",
-    )
+    ).toBe("grok agent -m 'composer-2.5' --always-approve stdio")
   })
 
-  it('builds serve command with harness cwd, bind, and secret', () => {
+  it('builds serve command with bind and secret', () => {
     expect(
       buildGrokAcpServeCommand({
         exe: 'grok',
         cliModel: 'composer-2.5',
-        harnessCwd: '/workspace',
         port: 2419,
         secret: 'abc123',
       }),
     ).toBe(
-      "grok agent -m 'composer-2.5' --cwd '/workspace' --always-approve serve --bind '0.0.0.0:2419' --secret 'abc123'",
+      "grok agent -m 'composer-2.5' --always-approve serve --bind '0.0.0.0:2419' --secret 'abc123'",
     )
   })
 })

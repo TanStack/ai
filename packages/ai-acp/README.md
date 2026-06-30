@@ -163,7 +163,7 @@ const mode = resolveAcpTransportMode(sandbox, 'auto') // 'stdio' | 'websocket'
 const server = await startAcpServerInSandbox(sandbox, {
   port: 2419,
   cwd: '/workspace',
-  command: 'grok agent -m composer-2.5 --cwd /workspace serve --bind 0.0.0.0:2419 --secret …',
+  command: 'grok agent -m composer-2.5 --always-approve serve --bind 0.0.0.0:2419 --secret …',
   buildWsUrl: ({ channel }) => buildGrokServeWebSocketUrl(channel.url, secret),
   readyMarker: 'WebSocket URL:',
   framing: 'frame',
