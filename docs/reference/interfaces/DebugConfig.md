@@ -5,7 +5,7 @@ title: DebugConfig
 
 # Interface: DebugConfig
 
-Defined in: [packages/ai/src/logger/types.ts:68](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/types.ts#L68)
+Defined in: [packages/ai/src/logger/types.ts:73](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/types.ts#L73)
 
 Granular debug configuration combining per-category toggles with an optional custom logger. Any unspecified category flag defaults to `true`.
 
@@ -69,7 +69,7 @@ Caught errors throughout the pipeline. Unlike other categories, defaults to `tru
 optional logger: Logger;
 ```
 
-Defined in: [packages/ai/src/logger/types.ts:72](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/types.ts#L72)
+Defined in: [packages/ai/src/logger/types.ts:77](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/types.ts#L77)
 
 Custom `Logger` implementation. When omitted, a default `ConsoleLogger` routes output to `console.debug`/`info`/`warn`/`error`.
 
@@ -136,6 +136,23 @@ Outgoing call metadata (provider, model, message/tool counts) emitted before eac
 #### Inherited from
 
 [`DebugCategories`](DebugCategories.md).[`request`](DebugCategories.md#request)
+
+***
+
+### sandbox?
+
+```ts
+optional sandbox: boolean;
+```
+
+Defined in: [packages/ai/src/logger/types.ts:67](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/types.ts#L67)
+
+Sandbox internals: watcher start/stop + mechanism, file events, sandbox
+hook dispatch, ensure/bootstrap and lifecycle transitions. Chat-only.
+
+#### Inherited from
+
+[`DebugCategories`](DebugCategories.md).[`sandbox`](DebugCategories.md#sandbox)
 
 ***
 
