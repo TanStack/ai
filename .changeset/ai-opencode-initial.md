@@ -1,5 +1,0 @@
----
-'@tanstack/ai-opencode': minor
----
-
-New `@tanstack/ai-opencode` package: an OpenCode **harness adapter that runs inside a sandbox**. It declares `requires: [SandboxCapability]`, spawns `opencode serve` inside the sandbox provided by `withSandbox(...)`, exposes its port, and connects the `@opencode-ai/sdk` HTTP client to it via `baseUrl`. OpenCode owns the agent loop and executes its built-in tools (shell, file edits, search) against the sandbox workspace; assistant text/thinking stream as token-level deltas and tool activity as resolved tool-call events. Sessions are resumable, and OpenCode permission requests are answered by a configurable `permissionMode` (`default` / `acceptEdits` / `bypassPermissions` or a custom handler), and a request the policy would reject with no client decision yet surfaces an `approval-requested` event so the client can approve and re-run to grant it (interactive approvals). Requires the `opencode` CLI in the sandbox (Docker: publish the server port via `publishPorts`). chat()-provided server tools are bridged into the agent via the host MCP tool-proxy.

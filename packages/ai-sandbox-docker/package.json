@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-sandbox-docker",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Docker sandbox provider for TanStack AI — run harness adapters inside isolated Docker containers through the uniform SandboxHandle.",
   "author": "",
   "license": "MIT",

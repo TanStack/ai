@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-sandbox-vercel",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Vercel Sandbox provider for TanStack AI — run harness adapters inside isolated Vercel microVM sandboxes through the uniform SandboxHandle.",
   "author": "",
   "license": "MIT",

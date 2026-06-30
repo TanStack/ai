@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-sandbox-local-process",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Local-process sandbox provider for TanStack AI — runs the agent directly on the host through the uniform SandboxHandle (no isolation; trusted/dev use).",
   "author": "",
   "license": "MIT",
