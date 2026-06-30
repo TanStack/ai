@@ -53,7 +53,7 @@ function waitForReady(
   const readyMarker = options.readyMarker ?? DEFAULT_READY_MARKER
   const isReady =
     options.isReady ??
-    ((stdout: string) => stdout.includes(readyMarker))
+    ((output: string) => output.includes(readyMarker))
 
   return new Promise((resolve, reject) => {
     let stdout = ''
@@ -71,6 +71,27 @@ function waitForReady(
         .filter(Boolean)
         .join('\n')
         .slice(-500)
+    const combined = (): string => stdout + stderr
+    let stdoutDone = false
+    let stderrDone = false
+    const tryFinish = (): void => {
+      if (state.settled) return
+      if (isReady(combined())) {
+        settle(() => resolve({ stdout, stderr }))
+        return
+      }
+      if (stdoutDone && stderrDone) {
+        settle(() =>
+          reject(
+            new Error(
+              `ACP server exited before becoming ready${
+                diagnostics() ? `: ${diagnostics()}` : ' (no output)'
+              }`,
+            ),
+          ),
+        )
+      }
+    }
 
     const timer = setTimeout(
       () =>
@@ -88,9 +109,16 @@ function waitForReady(
 
     void (async () => {
       try {
-        for await (const chunk of proc.stderr) stderr += chunk
+        for await (const chunk of proc.stderr) {
+          stderr += chunk
+          tryFinish()
+          if (state.settled) return
+        }
       } catch {
         // non-fatal
+      } finally {
+        stderrDone = true
+        tryFinish()
       }
     })()
 
@@ -98,22 +126,15 @@ function waitForReady(
       try {
         for await (const chunk of proc.stdout) {
           stdout += chunk
-          if (isReady(stdout)) {
-            settle(() => resolve({ stdout, stderr }))
-            return
-          }
+          tryFinish()
+          if (state.settled) return
         }
-        settle(() =>
-          reject(
-            new Error(
-              `ACP server exited before becoming ready${
-                diagnostics() ? `: ${diagnostics()}` : ' (no output)'
-              }`,
-            ),
-          ),
-        )
       } catch (error) {
         settle(() => reject(error))
+        return
+      } finally {
+        stdoutDone = true
+        tryFinish()
       }
     })()
   })
@@ -160,9 +181,9 @@ export async function startAcpServerInSandbox(
 
 /** Parse a `WebSocket URL: ws://…` line printed by `grok agent serve`. */
 export function parseWebSocketUrlFromServeOutput(
-  stdout: string,
+  output: string,
 ): string | undefined {
-  const match = stdout.match(/WebSocket URL:\s*(ws\S+)/i)
+  const match = output.match(/WebSocket URL:\s*(ws\S+)/i)
   return match?.[1]
 }
 
