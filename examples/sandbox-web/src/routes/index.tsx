@@ -124,8 +124,7 @@ type SandboxWaitKind = 'boot' | 'continue'
  * same thread's sandbox via `withSandbox` → `ensure()` → `provider.resume()`.
  */
 function SandboxWaiting({ kind }: { kind: SandboxWaitKind }) {
-  const headline =
-    kind === 'boot' ? 'Starting sandbox…' : 'Agent is working…'
+  const headline = kind === 'boot' ? 'Starting sandbox…' : 'Agent is working…'
   const detail =
     kind === 'boot'
       ? 'creating the sandbox and coding agent. The first message takes a moment (longer on a cloud provider).'

@@ -46,7 +46,7 @@ The one provider-dependent seam is the **preview + host-tool story**:
   preview URL up front (Vercel `domain(port)` / Daytona `getPreviewLink(port)`).
   Set `NGROK_AUTHTOKEN` while developing locally to tunnel the bridge out (same
   pattern as `ts-react-chat` `/sandboxes`) so the agent can call `tanstackStartRecipe`
-  + `exposePreview` over MCP instead.
+  - `exposePreview` over MCP instead.
 
 Switching either picker starts a fresh thread (a new sandbox is needed for a
 different harness/provider) and clears the chat.
@@ -56,17 +56,17 @@ different harness/provider) and clears the chat.
 Set the keys only for the combination you run (the server returns a clear error if
 one is missing). See [`.env.example`](./.env.example).
 
-| Axis     | Option        | Needs                                                                            |
-| -------- | ------------- | -------------------------------------------------------------------------------- |
-| Harness  | `claude-code` | `ANTHROPIC_API_KEY`                                                              |
-| Harness  | `codex`       | `CODEX_API_KEY` (or `OPENAI_API_KEY`)                                            |
-| Harness  | `opencode`    | `OPENAI_API_KEY`                                                                 |
-| Harness  | `grok`        | `XAI_API_KEY` (or `GROK_API_KEY`)                                                |
-| Provider | `docker`      | a running **Docker daemon**                                                      |
-| Provider | `local`       | the chosen CLI on your PATH — no isolation, no key (uses your host login)        |
-| Provider | `vercel`      | `VERCEL_TOKEN` (or `VERCEL_OIDC_TOKEN`) + `VERCEL_TEAM_ID` + `VERCEL_PROJECT_ID` |
-| Provider | `daytona`     | `DAYTONA_API_KEY`                                                                |
-| Bridge   | `vercel`/`daytona` (optional) | `NGROK_AUTHTOKEN` — tunnels host tools to remote sandboxes during local dev |
+| Axis     | Option                        | Needs                                                                            |
+| -------- | ----------------------------- | -------------------------------------------------------------------------------- |
+| Harness  | `claude-code`                 | `ANTHROPIC_API_KEY`                                                              |
+| Harness  | `codex`                       | `CODEX_API_KEY` (or `OPENAI_API_KEY`)                                            |
+| Harness  | `opencode`                    | `OPENAI_API_KEY`                                                                 |
+| Harness  | `grok`                        | `XAI_API_KEY` (or `GROK_API_KEY`)                                                |
+| Provider | `docker`                      | a running **Docker daemon**                                                      |
+| Provider | `local`                       | the chosen CLI on your PATH — no isolation, no key (uses your host login)        |
+| Provider | `vercel`                      | `VERCEL_TOKEN` (or `VERCEL_OIDC_TOKEN`) + `VERCEL_TEAM_ID` + `VERCEL_PROJECT_ID` |
+| Provider | `daytona`                     | `DAYTONA_API_KEY`                                                                |
+| Bridge   | `vercel`/`daytona` (optional) | `NGROK_AUTHTOKEN` — tunnels host tools to remote sandboxes during local dev      |
 
 ## Run
 

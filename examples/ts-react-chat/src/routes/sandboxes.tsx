@@ -196,8 +196,7 @@ function ToolCall({
 type SandboxWaitKind = 'boot' | 'continue'
 
 function SandboxWaiting({ kind }: { kind: SandboxWaitKind }) {
-  const headline =
-    kind === 'boot' ? 'Starting sandbox…' : 'Agent is working…'
+  const headline = kind === 'boot' ? 'Starting sandbox…' : 'Agent is working…'
   const detail =
     kind === 'boot'
       ? 'starting the sandbox container and coding agent. The first message takes a moment.'

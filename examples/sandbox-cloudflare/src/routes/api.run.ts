@@ -316,7 +316,10 @@ export const Route = createFileRoute('/api/run')({
                 threadId,
                 abortController.signal,
               )
-              const sseStream = toServerSentEventsStream(chunks, abortController)
+              const sseStream = toServerSentEventsStream(
+                chunks,
+                abortController,
+              )
               return new Response(sseStream, {
                 headers: {
                   'Content-Type': 'text/event-stream',

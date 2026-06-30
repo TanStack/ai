@@ -172,8 +172,7 @@ type SandboxWaitKind = 'boot' | 'continue'
  * First message: cold boot. Follow-ups: resume the same thread's container.
  */
 function SandboxWaiting({ kind }: { kind: SandboxWaitKind }) {
-  const headline =
-    kind === 'boot' ? 'Starting sandbox…' : 'Agent is working…'
+  const headline = kind === 'boot' ? 'Starting sandbox…' : 'Agent is working…'
   const detail =
     kind === 'boot'
       ? 'starting the Cloudflare container and installing the coding agent. The first message takes a moment.'
