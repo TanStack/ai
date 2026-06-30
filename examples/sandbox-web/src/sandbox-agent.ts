@@ -23,6 +23,7 @@
  * triage demo); this is its build-and-preview sibling.
  */
 import { toolDefinition } from '@tanstack/ai'
+import { antigravityCliText } from '@tanstack/ai-antigravity-cli'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
 import { codexText } from '@tanstack/ai-codex'
 import {
@@ -106,6 +107,11 @@ function npmGlobal(spec: string): string {
 }
 
 const HARNESSES: Record<HarnessName, HarnessSpec> = {
+  'antigravity-cli': {
+    makeAdapter: () => antigravityCliText('auto'),
+    installCommand: npmGlobal('@tanstack/ai-antigravity-cli'),
+    requiredEnv: ['GEMINI_API_KEY'],
+  },
   'claude-code': {
     makeAdapter: () => claudeCodeText('sonnet'),
     // `--include=optional`: the CLI's native binary ships as a platform-specific

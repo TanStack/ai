@@ -36,7 +36,7 @@ loadEnv({ path: ['.env.local', '.env'] })
 //     output by default, so the production build needs no extra config.)
 // So `dockerode` is excluded from optimization AND SSR-externalized; it runs only
 // in the `/api/run` server route, never in the client bundle.
-const SERVER_ONLY_NATIVE = ['dockerode']
+const SERVER_ONLY_NATIVE = ['dockerode', '@ngrok/ngrok']
 
 export default defineConfig({
   optimizeDeps: { exclude: SERVER_ONLY_NATIVE },

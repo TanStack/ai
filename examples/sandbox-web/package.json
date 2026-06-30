@@ -13,6 +13,7 @@
   "dependencies": {
     "@ngrok/ngrok": "^1.7.0",
     "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-antigravity-cli": "workspace:*",
     "@tanstack/ai-claude-code": "workspace:*",
     "@tanstack/ai-codex": "workspace:*",
     "@tanstack/ai-grok-build": "workspace:*",

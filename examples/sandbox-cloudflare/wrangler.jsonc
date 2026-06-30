@@ -11,7 +11,7 @@
   "compatibility_flags": ["nodejs_compat"],
 
   // The container image that the @cloudflare/sandbox Sandbox DO runs. It ships
-  // all three harness CLIs — claude, codex, grok (see Dockerfile + README
+  // all four harness CLIs — claude, codex, grok, antigravity (see Dockerfile + README
   // Limitations re: stdin) — so `HARNESS` can select one without a rebuild.
   "containers": [
     {
@@ -64,11 +64,12 @@
   // logs/snapshots):
   //   claude-code → wrangler secret put ANTHROPIC_API_KEY
   //   codex       → wrangler secret put CODEX_API_KEY   (or OPENAI_API_KEY)
-  //   grok        → wrangler secret put XAI_API_KEY     (or GROK_API_KEY)
+  //   grok            → wrangler secret put XAI_API_KEY         (or GROK_API_KEY)
+  //   antigravity-cli → wrangler secret put GEMINI_API_KEY
 
   "vars": {
-    // Which in-sandbox coding agent to run: claude-code (default) | codex | grok.
-    // The container image ships all three CLIs; this just picks which one chat()
+    // Which in-sandbox coding agent to run: claude-code (default) | codex | grok | antigravity-cli.
+    // The container image ships all four CLIs; this just picks which one chat()
     // drives (see selectHarness in src/agent.ts). Change it + redeploy to switch.
     "HARNESS": "claude-code",
     // Container-control transport for the Sandbox DO. `rpc` is required for

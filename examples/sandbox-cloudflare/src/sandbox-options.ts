@@ -6,6 +6,7 @@ export const HARNESS_OPTIONS = [
   { value: 'grok', label: 'Grok Build' },
   { value: 'claude-code', label: 'Claude Code' },
   { value: 'codex', label: 'Codex' },
+  { value: 'antigravity-cli', label: 'Antigravity' },
 ] as const
 
 export type HarnessName = (typeof HARNESS_OPTIONS)[number]['value']
@@ -15,6 +16,7 @@ export const HARNESS_SESSION_ID_EVENT: Record<HarnessName, string> = {
   grok: 'grok-build.session-id',
   'claude-code': 'claude-code.session-id',
   codex: 'codex.session-id',
+  'antigravity-cli': 'antigravity-cli.session-id',
 }
 
 export const GROK_MODEL_OPTIONS = [

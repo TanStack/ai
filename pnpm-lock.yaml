@@ -116,6 +116,9 @@ importers:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../../packages/ai
+      '@tanstack/ai-antigravity-cli':
+        specifier: workspace:*
+        version: link:../../packages/ai-antigravity-cli
       '@tanstack/ai-claude-code':
         specifier: workspace:*
         version: link:../../packages/ai-claude-code
@@ -257,6 +260,9 @@ importers:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../../packages/ai
+      '@tanstack/ai-antigravity-cli':
+        specifier: workspace:*
+        version: link:../../packages/ai-antigravity-cli
       '@tanstack/ai-claude-code':
         specifier: workspace:*
         version: link:../../packages/ai-claude-code
