@@ -1,49 +1,32 @@
 ---
-id: ChatMiddleware
-title: ChatMiddleware
+id: DefinedChatMiddleware
+title: DefinedChatMiddleware
 ---
 
-# Interface: ChatMiddleware\<TContext\>
+# Interface: DefinedChatMiddleware\<TContext, TRequires, TProvides\>
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:408](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L408)
+Defined in: [packages/ai/src/activities/chat/middleware/define.ts:8](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/define.ts#L8)
 
-Chat middleware interface.
+A middleware whose `requires`/`provides` tuple types are captured precisely
+(via `const` inference) for the array coverage check and the builder.
 
-All hooks are optional. Middleware is composed in array order:
-- `onConfig`: config piped through middlewares in order (first transform influences later)
-- `onChunk`: each output chunk is fed into the next middleware in order
+## Extends
 
-## Examples
-
-```ts
-const loggingMiddleware: ChatMiddleware = {
-  name: 'logging',
-  onStart(ctx) { console.log('Chat started', ctx.requestId) },
-  onChunk(ctx, chunk) { console.log('Chunk:', chunk.type) },
-  onFinish(ctx, info) { console.log('Done:', info.duration, 'ms') },
-}
-```
-
-```ts
-const redactionMiddleware: ChatMiddleware = {
-  name: 'redaction',
-  onChunk(ctx, chunk) {
-    if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
-      return { ...chunk, delta: redact(chunk.delta) }
-    }
-  },
-}
-```
-
-## Extended by
-
-- [`DefinedChatMiddleware`](DefinedChatMiddleware.md)
+- [`ChatMiddleware`](ChatMiddleware.md)\<`TContext`\>
 
 ## Type Parameters
 
 ### TContext
 
-`TContext` = `unknown`
+`TContext`
+
+### TRequires
+
+`TRequires` *extends* `ReadonlyArray`\<[`CapabilityHandle`](../type-aliases/CapabilityHandle.md)\>
+
+### TProvides
+
+`TProvides` *extends* `ReadonlyArray`\<[`CapabilityHandle`](../type-aliases/CapabilityHandle.md)\>
 
 ## Properties
 
@@ -56,6 +39,10 @@ optional name: string;
 Defined in: [packages/ai/src/activities/chat/middleware/types.ts:410](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L410)
 
 Optional name for debugging and identification
+
+#### Inherited from
+
+[`ChatMiddleware`](ChatMiddleware.md).[`name`](ChatMiddleware.md#name)
 
 ***
 
@@ -84,6 +71,10 @@ Exactly one of onFinish/onAbort/onError will be called per run.
 
 `void` \| `Promise`\<`void`\>
 
+#### Inherited from
+
+[`ChatMiddleware`](ChatMiddleware.md).[`onAbort`](ChatMiddleware.md#onabort)
+
 ***
 
 ### onAfterToolCall()?
@@ -109,6 +100,10 @@ Called after a tool execution completes (success or failure).
 #### Returns
 
 `void` \| `Promise`\<`void`\>
+
+#### Inherited from
+
+[`ChatMiddleware`](ChatMiddleware.md).[`onAfterToolCall`](ChatMiddleware.md#onaftertoolcall)
 
 ***
 
@@ -139,6 +134,10 @@ Can observe, transform args, skip execution, or abort the run.
 
   \| [`BeforeToolCallDecision`](../type-aliases/BeforeToolCallDecision.md)
   \| `Promise`\<[`BeforeToolCallDecision`](../type-aliases/BeforeToolCallDecision.md)\>
+
+#### Inherited from
+
+[`ChatMiddleware`](ChatMiddleware.md).[`onBeforeToolCall`](ChatMiddleware.md#onbeforetoolcall)
 
 ***
 
@@ -177,6 +176,10 @@ Can observe, transform, expand, or drop chunks.
   \| `null`
 
 void (pass through), chunk (replace), chunk[] (expand), null (drop)
+
+#### Inherited from
+
+[`ChatMiddleware`](ChatMiddleware.md).[`onChunk`](ChatMiddleware.md#onchunk)
 
 ***
 
@@ -221,6 +224,10 @@ Only the fields you return are overwritten — everything else is preserved.
   \| `null`\>
   \| `null`
 
+#### Inherited from
+
+[`ChatMiddleware`](ChatMiddleware.md).[`onConfig`](ChatMiddleware.md#onconfig)
+
 ***
 
 ### onError()?
@@ -247,6 +254,10 @@ Exactly one of onFinish/onAbort/onError will be called per run.
 #### Returns
 
 `void` \| `Promise`\<`void`\>
+
+#### Inherited from
+
+[`ChatMiddleware`](ChatMiddleware.md).[`onError`](ChatMiddleware.md#onerror)
 
 ***
 
@@ -275,6 +286,10 @@ Exactly one of onFinish/onAbort/onError will be called per run.
 
 `void` \| `Promise`\<`void`\>
 
+#### Inherited from
+
+[`ChatMiddleware`](ChatMiddleware.md).[`onFinish`](ChatMiddleware.md#onfinish)
+
 ***
 
 ### onIteration()?
@@ -302,6 +317,10 @@ is created. Use this to observe iteration boundaries.
 
 `void` \| `Promise`\<`void`\>
 
+#### Inherited from
+
+[`ChatMiddleware`](ChatMiddleware.md).[`onIteration`](ChatMiddleware.md#oniteration)
+
 ***
 
 ### onStart()?
@@ -323,6 +342,10 @@ Called when the chat run starts (after initial onConfig).
 #### Returns
 
 `void` \| `Promise`\<`void`\>
+
+#### Inherited from
+
+[`ChatMiddleware`](ChatMiddleware.md).[`onStart`](ChatMiddleware.md#onstart)
 
 ***
 
@@ -375,6 +398,10 @@ outputSchema or apply structured-output-specific behavior.
   \| `null`\>
   \| `null`
 
+#### Inherited from
+
+[`ChatMiddleware`](ChatMiddleware.md).[`onStructuredOutputConfig`](ChatMiddleware.md#onstructuredoutputconfig)
+
 ***
 
 ### onToolPhaseComplete()?
@@ -401,6 +428,10 @@ Provides aggregate data about tool execution results, approvals, and client tool
 #### Returns
 
 `void` \| `Promise`\<`void`\>
+
+#### Inherited from
+
+[`ChatMiddleware`](ChatMiddleware.md).[`onToolPhaseComplete`](ChatMiddleware.md#ontoolphasecomplete)
 
 ***
 
@@ -429,6 +460,10 @@ Called once per model iteration that reports usage.
 
 `void` \| `Promise`\<`void`\>
 
+#### Inherited from
+
+[`ChatMiddleware`](ChatMiddleware.md).[`onUsage`](ChatMiddleware.md#onusage)
+
 ***
 
 ### optionalRequires?
@@ -443,34 +478,46 @@ Capabilities this middleware uses if present but does not require.
 Non-gating: never causes a validation error. Read with
 `getX(ctx, { optional: true })`.
 
+#### Inherited from
+
+[`ChatMiddleware`](ChatMiddleware.md).[`optionalRequires`](ChatMiddleware.md#optionalrequires)
+
 ***
 
 ### provides?
 
 ```ts
-optional provides: readonly CapabilityHandle[];
+optional provides: TProvides;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:425](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L425)
+Defined in: [packages/ai/src/activities/chat/middleware/define.ts:14](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/define.ts#L14)
 
 Capabilities this middleware provides. Each declared capability MUST be
 provided (via its `provide` accessor) inside `setup`, or `chat()` throws
 after the setup phase.
+
+#### Overrides
+
+[`ChatMiddleware`](ChatMiddleware.md).[`provides`](ChatMiddleware.md#provides)
 
 ***
 
 ### requires?
 
 ```ts
-optional requires: readonly CapabilityHandle[];
+optional requires: TRequires;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:418](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L418)
+Defined in: [packages/ai/src/activities/chat/middleware/define.ts:13](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/define.ts#L13)
 
 Capabilities this middleware requires. `chat()` validates that some
 middleware (or the adapter) provides each one; unsatisfied requirements are
 a compile-time error (array coverage / builder) and a runtime error before
 the adapter runs.
+
+#### Overrides
+
+[`ChatMiddleware`](ChatMiddleware.md).[`requires`](ChatMiddleware.md#requires)
 
 ***
 
@@ -484,6 +531,10 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:578](https://gi
 
 Sandbox file-event hooks. Fire when a sandbox provided by `withSandbox` is
 active during the run and a file is created/changed/deleted. Server-side.
+
+#### Inherited from
+
+[`ChatMiddleware`](ChatMiddleware.md).[`sandbox`](ChatMiddleware.md#sandbox)
 
 ***
 
@@ -509,3 +560,7 @@ stable context; does NOT receive the mutable config.
 #### Returns
 
 `void` \| `Promise`\<`void`\>
+
+#### Inherited from
+
+[`ChatMiddleware`](ChatMiddleware.md).[`setup`](ChatMiddleware.md#setup)

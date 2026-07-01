@@ -9,7 +9,7 @@ title: UsageTotals
 type UsageTotals = TokenUsage;
 ```
 
-Defined in: [packages/ai/src/types.ts:1018](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1018)
+Defined in: [packages/ai/src/types.ts:1038](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1038)
 
 ## Deprecated
 

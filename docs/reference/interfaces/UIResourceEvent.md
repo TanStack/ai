@@ -5,7 +5,7 @@ title: UIResourceEvent
 
 # Interface: UIResourceEvent
 
-Defined in: [packages/ai/src/types.ts:1331](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1331)
+Defined in: [packages/ai/src/types.ts:1351](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1351)
 
 Emitted when an MCP tool returns a ui:// resource (MCP Apps). Reconciled into
  a UIResourcePart on the assistant UIMessage. Never enters model input.
@@ -28,7 +28,7 @@ Emitted when an MCP tool returns a ui:// resource (MCP Apps). Reconciled into
 optional model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1256](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1256)
+Defined in: [packages/ai/src/types.ts:1276](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1276)
 
 Model identifier for multi-model support
 
@@ -44,7 +44,7 @@ Model identifier for multi-model support
 name: "ui-resource";
 ```
 
-Defined in: [packages/ai/src/types.ts:1332](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1332)
+Defined in: [packages/ai/src/types.ts:1352](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1352)
 
 #### Overrides
 
@@ -60,7 +60,7 @@ CustomEvent.name
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1333](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1333)
+Defined in: [packages/ai/src/types.ts:1353](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1353)
 
 #### meta?
 

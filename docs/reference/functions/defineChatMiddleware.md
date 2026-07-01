@@ -38,4 +38,4 @@ exact `requires`/`provides`.
 
 ## Returns
 
-`DefinedChatMiddleware`\<`TContext`, `TRequires`, `TProvides`\>
+[`DefinedChatMiddleware`](../interfaces/DefinedChatMiddleware.md)\<`TContext`, `TRequires`, `TProvides`\>

@@ -784,6 +784,39 @@ const GEMINI_3_5_FLASH = {
     GeminiThinkingOptions
 >
 
+const GEMINI_3_1_FLASH_LITE_IMAGE = {
+  name: 'gemini-3.1-flash-lite-image',
+  max_input_tokens: 65_536,
+  max_output_tokens: 66_000,
+  supports: {
+    input: ['image', 'text'],
+    output: ['text'],
+    capabilities: [
+      'batch_api',
+      'caching',
+      'function_calling',
+      'structured_output',
+      'thinking',
+    ],
+    tools: ['code_execution', 'file_search', 'google_search', 'url_context'],
+  },
+  pricing: {
+    input: {
+      normal: 0.25,
+    },
+    output: {
+      normal: 1.5,
+    },
+  },
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions &
+    GeminiThinkingOptions
+>
+
 export const GEMINI_MODELS = [
   GEMINI_3_5_FLASH.name,
   GEMINI_3_1_PRO.name,
@@ -793,6 +826,8 @@ export const GEMINI_MODELS = [
   GEMINI_2_5_PRO.name,
   GEMINI_2_5_FLASH.name,
   GEMINI_2_5_FLASH_LITE.name,
+
+  GEMINI_3_1_FLASH_LITE_IMAGE.name,
 ] as const
 
 /**
@@ -945,6 +980,12 @@ export type GeminiChatModelProviderOptionsByName = {
     GeminiCachedContentOptions &
     GeminiStructuredOutputOptions &
     GeminiThinkingOptions
+  [GEMINI_3_1_FLASH_LITE_IMAGE.name]: GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions &
+    GeminiThinkingOptions
 }
 
 /**
@@ -987,4 +1028,5 @@ export type GeminiModelInputModalitiesByName = {
 
   // Models with text, image, audio, video (no document)
   [GEMINI_2_5_FLASH.name]: typeof GEMINI_2_5_FLASH.supports.input
+  [GEMINI_3_1_FLASH_LITE_IMAGE.name]: typeof GEMINI_3_1_FLASH_LITE_IMAGE.supports.input
 }
