@@ -107,7 +107,7 @@ Start with the [Quick Start](./quick-start) to get an agent fixing a bug in a
 sandbox on your laptop. Then dive into the piece you need:
 
 - **[Quick Start](./quick-start)** — from a `chat()` app to an agent fixing a bug, in minutes.
-- **[Providers](./providers)** — local process, Docker, Daytona, Vercel: isolation, auth, and capabilities.
+- **[Providers](./providers)** — local process, Docker, Daytona, Vercel, Sprites: isolation, auth, and capabilities.
 - **[Harnesses](./harnesses)** — which agent runs: Grok Build, Claude Code, Codex, OpenCode, or any ACP agent via `acpCompatible`.
 - **[Workspace](./workspace)** — the source repo, clone depth, and serial/parallel setup.
 - **[Provisioning](./provisioning)** — secrets, skills, MCP servers, plugins, and `AGENTS.md`.
