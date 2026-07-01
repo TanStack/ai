@@ -62,7 +62,8 @@
         {
           "label": "TanStack AI vs Vercel AI SDK",
           "to": "comparison/vercel-ai-sdk",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-01"
         }
       ]
     },
@@ -256,7 +257,8 @@
         {
           "label": "Transcription",
           "to": "media/transcription",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-01"
         },
         {
           "label": "Audio Recording",
@@ -274,13 +276,13 @@
           "label": "Image Generation",
           "to": "media/image-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-06-08"
+          "updatedAt": "2026-07-01"
         },
         {
           "label": "Video Generation",
           "to": "media/video-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-06-24"
+          "updatedAt": "2026-07-01"
         },
         {
           "label": "Generation Hooks",
@@ -510,7 +512,8 @@
         {
           "label": "Google Gemini",
           "to": "adapters/gemini",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-01"
         },
         {
           "label": "Ollama",
@@ -526,7 +529,8 @@
         {
           "label": "Groq",
           "to": "adapters/groq",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-01"
         },
         {
           "label": "Mistral",

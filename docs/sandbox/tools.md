@@ -88,7 +88,7 @@ same path the edge/Cloudflare deployment uses; see [Cloudflare](./cloudflare).
 
 ### A remote cloud sandbox, driven from your laptop
 
-With a cloud provider (Daytona, Vercel) in **local dev**, the sandbox is a remote
+With a cloud provider (Daytona, Vercel, Sprites) in **local dev**, the sandbox is a remote
 VM. It **cannot dial your machine's `localhost`**, and your laptop has no public
 URL, so bridged tools can't reach the host until you expose the bridge.
 

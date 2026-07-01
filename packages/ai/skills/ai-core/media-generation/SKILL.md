@@ -151,7 +151,7 @@ function ImageGenerator() {
 
 Supported adapters: `openaiImage` (dall-e-2, dall-e-3, gpt-image-1,
 gpt-image-1-mini, gpt-image-2) and `geminiImage` (gemini-3.1-flash-image-preview,
-imagen-4.0-generate-001, etc.).
+gemini-3.1-flash-lite-image, imagen-4.0-generate-001, etc.).
 
 ```typescript
 import { generateImage } from '@tanstack/ai'
