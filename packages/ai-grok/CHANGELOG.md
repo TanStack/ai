@@ -1,5 +1,340 @@
 # @tanstack/ai-grok
 
+## 0.14.6
+
+### Patch Changes
+
+- Updated dependencies [[`b628a4d`](https://github.com/TanStack/ai/commit/b628a4da5fd21184922c6944059768d1ed6071d4), [`b628a4d`](https://github.com/TanStack/ai/commit/b628a4da5fd21184922c6944059768d1ed6071d4)]:
+  - @tanstack/ai@0.39.0
+  - @tanstack/openai-base@0.9.6
+
+## 0.14.5
+
+### Patch Changes
+
+- [#854](https://github.com/TanStack/ai/pull/854) [`301adc3`](https://github.com/TanStack/ai/commit/301adc3529992e7ebf0a04283f1359595f899f4f) - Fix `grokSummarize`/`createGrokSummarize` not being assignable to `summarize()`'s
+  `adapter` param for any current Grok model (`grok-4.3`, `grok-build-0.1`).
+
+  `GrokTextProviderOptions` was declared as an `interface` extending
+  `Record<string, unknown>`, giving it an explicit index signature. Under
+  `strictFunctionTypes`, the `SummarizeAdapter` constraint is checked
+  contravariantly, which requires `object` to be assignable to the provider
+  options — but `object` is not assignable to an index-signature type, so the
+  check failed (Grok-only; OpenAI's all-optional, no-index-signature options
+  passed). The options are now a type-alias intersection matching the OpenAI
+  shape, and the text adapter's provider-options constraint is widened to
+  `Record<string, any>` to mirror `OpenAITextAdapter`.
+
+- Updated dependencies [[`c1a8732`](https://github.com/TanStack/ai/commit/c1a87327b4a3463d37158f32ca90184b5fd092bb)]:
+  - @tanstack/ai@0.38.0
+  - @tanstack/openai-base@0.9.5
+
+## 0.14.4
+
+### Patch Changes
+
+- [#844](https://github.com/TanStack/ai/pull/844) [`a6cceba`](https://github.com/TanStack/ai/commit/a6cceba4812e7e986183ee856112fcf5f8fa12ff) - Republish all packages with their compiled `dist/` output.
+
+  Releases `0.33.0`–`0.36.0` were published without a `dist/` directory: the
+  release workflow relied on an Nx-cached `build` whose outputs were not
+  materialized to disk before `changeset publish` packed the tarballs, and
+  `files: ["dist"]` silently includes nothing when `dist/` is absent. The
+  published packages therefore contained only `src/`, so every export
+  (`./dist/esm/*.js`) resolved to a missing file and the packages were
+  uninstallable.
+
+  The publish step now runs a fresh, cache-bypassing build of all packages
+  immediately before publishing, guaranteeing compiled artifacts are present in
+  every tarball.
+
+- Updated dependencies [[`a6cceba`](https://github.com/TanStack/ai/commit/a6cceba4812e7e986183ee856112fcf5f8fa12ff)]:
+  - @tanstack/ai@0.37.0
+  - @tanstack/ai-utils@0.3.1
+  - @tanstack/openai-base@0.9.4
+
+## 0.14.3
+
+### Patch Changes
+
+- Updated dependencies [[`fbd3762`](https://github.com/TanStack/ai/commit/fbd37623b287e370aa5678e161dec19cf13ae33b)]:
+  - @tanstack/ai@0.36.0
+  - @tanstack/openai-base@0.9.3
+
+## 0.14.2
+
+### Patch Changes
+
+- Updated dependencies [[`92a6d50`](https://github.com/TanStack/ai/commit/92a6d50de4fd7ee9ea954e4ed655cf2379d2db54)]:
+  - @tanstack/openai-base@0.9.2
+
+## 0.14.1
+
+### Patch Changes
+
+- [#830](https://github.com/TanStack/ai/pull/830) [`c04abd3`](https://github.com/TanStack/ai/commit/c04abd35284d464d830bb9f15129c7a7c2533d3f) - Move the `RealtimeAdapter` / `RealtimeConnection` contract into `@tanstack/ai` and stop provider adapters from depending on `@tanstack/ai-client`.
+
+  Provider packages (`@tanstack/ai-openai`, `@tanstack/ai-elevenlabs`, `@tanstack/ai-grok`) are usable server-side (text, embeddings, images, transcription, token minting, etc.) and must not pull in the client-only `@tanstack/ai-client`. The only thing their realtime adapters needed from it were the `RealtimeAdapter` / `RealtimeConnection` type shapes.
+
+  Those two interfaces now live in `@tanstack/ai` — the shared layer that both provider packages and `@tanstack/ai-client` already depend on, and where every other realtime type (`RealtimeToken`, `RealtimeEvent`, `RealtimeSessionConfig`, …) already lives. They're exported from `@tanstack/ai` and `@tanstack/ai/client`. `@tanstack/ai-client` re-exports them unchanged, so `import { RealtimeAdapter } from '@tanstack/ai-client'` keeps working.
+
+  As a result `@tanstack/ai-client` is no longer a dependency (peer or otherwise) of any provider package, and the previously-duplicated local contract + drift test in `@tanstack/ai-grok` are removed in favor of the single shared definition. Consumers only need `@tanstack/ai-client` at the point where they actually construct a `RealtimeClient`.
+
+- Updated dependencies [[`c04abd3`](https://github.com/TanStack/ai/commit/c04abd35284d464d830bb9f15129c7a7c2533d3f)]:
+  - @tanstack/ai@0.35.0
+  - @tanstack/openai-base@0.9.1
+
+## 0.14.0
+
+### Minor Changes
+
+- [#742](https://github.com/TanStack/ai/pull/742) [`9ce99ea`](https://github.com/TanStack/ai/commit/9ce99ea3db28c78c9d22a506a142a91d533688b5) - Add a `grokVideo` adapter for xAI's Imagine video models. `grok-imagine-video` (v1.0) supports text-to-video and image-to-video; `grok-imagine-video-1.5` is image-to-video only — a text-only prompt is rejected by the API, so the adapter fails fast with a clear error telling you to add a starting-frame image or use `grok-imagine-video`. Image-to-video starting frames are supplied as an `image` prompt part (public URL or base64 data source), with the text part describing the motion. Follows the experimental `generateVideo()` jobs/polling architecture: `createVideoJob` posts to `/v1/videos/generations`, status polling reads `/v1/videos/{request_id}`, and the completed result carries the hosted video URL plus usage (`unitsBilled` seconds and exact `cost` in USD). Sizing uses the aspect-ratio template consistent with the grok-imagine image models (`size: '16:9_720p'` → `aspect_ratio` / `resolution`), and durations are 1–15 integer seconds.
+
+## 0.13.0
+
+### Minor Changes
+
+- [#812](https://github.com/TanStack/ai/pull/812) [`19fc1c7`](https://github.com/TanStack/ai/commit/19fc1c73ce5e228028d71f4fd3c3bf5d1aff4a13) - Migrate Grok text and summarize adapters to xAI's Responses API with support for grok-4.3, grok-build-0.1, reasoning options, structured output, function tools, and xAI server-side tools.
+
+## 0.12.4
+
+### Patch Changes
+
+- Updated dependencies [[`31de22b`](https://github.com/TanStack/ai/commit/31de22b1ae780c53e3abbf9cf17e1db7b62de84a), [`eddfbbd`](https://github.com/TanStack/ai/commit/eddfbbdfd979cad7874f0fb33695c5c41331631e)]:
+  - @tanstack/ai-utils@0.3.0
+  - @tanstack/ai@0.34.0
+  - @tanstack/openai-base@0.9.0
+
+## 0.12.3
+
+### Patch Changes
+
+- Updated dependencies [[`2cb0313`](https://github.com/TanStack/ai/commit/2cb0313c1f13e1db37c5550308e36bb0b9b73b98), [`18e5f4d`](https://github.com/TanStack/ai/commit/18e5f4d9746a26c3194929ea4b49673728e8eaa5), [`21720dd`](https://github.com/TanStack/ai/commit/21720dd73524d624594a6dfb7e4669c03cc08af0), [`243b8fa`](https://github.com/TanStack/ai/commit/243b8fad7e8a48b68a1a96962ee1443cbd6a0ced)]:
+  - @tanstack/ai@0.33.0
+  - @tanstack/openai-base@0.8.8
+
+## 0.12.2
+
+### Patch Changes
+
+- Updated dependencies [[`22ccaaa`](https://github.com/TanStack/ai/commit/22ccaaa4fe018af5a1f34bfabc0480246b11bd14)]:
+  - @tanstack/openai-base@0.8.7
+
+## 0.12.1
+
+### Patch Changes
+
+- Updated dependencies [[`c55764a`](https://github.com/TanStack/ai/commit/c55764a4cb55a384dc50390191e4842a3e64604a)]:
+  - @tanstack/openai-base@0.8.6
+
+## 0.12.0
+
+### Minor Changes
+
+- [#624](https://github.com/TanStack/ai/pull/624) [`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f) - `generateImage()` and `generateVideo()` now accept a multimodal `prompt`: a plain string, or an ordered array of content parts (`TextPart` / `ImagePart` / `VideoPart` / `AudioPart`) for image-conditioned generation, image-to-image, multi-reference, image-to-video, and edit / inpaint flows. Part order is meaningful — "not like this _(image)_, more like this _(image)_" — and each media part may carry a `metadata.role` hint (`'reference' | 'mask' | 'control' | 'start_frame' | 'end_frame' | 'character'`) that adapters use to route to the provider-specific field, plus an informational `metadata.tag` label for your own bookkeeping. The accepted part types are narrowed per model at compile time via each adapter's input-modality map, so passing an image part to a text-only model is a type error (with a clear runtime throw as backstop).
+
+  Prompt text is always sent **verbatim** — the SDK never injects or rewrites in-prompt referencing markers. To reference inputs from your prompt, write the provider's own convention (fal Kling / Seedance `@Image1`, OpenAI / FLUX.2 `"image 1"` prose, Gemini content descriptions); see the image-generation docs for the per-provider table.
+
+  Provider behavior in this release:
+  - **OpenAI image** — Prompts with image parts route `gpt-image-2` / `gpt-image-1` / `gpt-image-1-mini` to `images.edit()` (up to 16 source images plus optional mask); `dall-e-2` routes to `images.edit()` with one source image; `dall-e-3` rejects image parts at compile time and at runtime.
+  - **OpenAI video** — Sora-2 / Sora-2-Pro accept a single image part as `input_reference`; passing more than one throws.
+  - **Gemini image** — Native models (`gemini-*-flash-image`, "nano-banana") map prompt parts 1:1 onto multimodal `contents`, preserving interleaved order. Imagen is text-only (compile-time + runtime rejection).
+  - **fal.ai** — Field names resolve per endpoint from a map generated from the fal SDK's endpoint types (362 endpoints with nonstandard fields, e.g. nano-banana edit → `image_urls`, Kling i2v start frame → `image_url`, Veo first-last-frame → `first_frame_url` / `last_frame_url`). Defaults for endpoints not in the map: single → `image_url`, multiple → `image_urls`; `role: 'mask'` → `mask_url`; `role: 'control'` → `control_image_url`; `role: 'reference'` / `'character'` → `reference_image_urls`; video `role: 'start_frame'` / `'end_frame'` → `start_image_url` / `end_image_url`. Per-model prompt modalities are derived at the type level from the SDK's endpoint input types. Regenerate the map after a fal SDK bump with `pnpm generate:fal-image-fields` (a unit test fails when it goes stale). In `FalImageProviderOptions` / `FalVideoProviderOptions`, media-conditioning fields the mappers can populate (`image_url`, `start_image_url`, `video_url`, `audio_url`, …) are demoted from required to optional — supply them as prompt parts, or keep passing them explicitly via `modelOptions`.
+  - **Grok** — New `grok-imagine-image` / `grok-imagine-image-quality` models. Prompts with image parts route to xAI's JSON `/v1/images/edits` endpoint (up to 3 source images, addressed by xAI in request order; the prompt is sent verbatim). `role: 'mask'` / `'control'` throw. Their `size` uses an `aspectRatio_resolution` template (`'16:9_2k'`, suffix optional) mirroring Gemini's native image models. `grok-2-image-1212` remains text-to-image only.
+  - **OpenRouter** — Prompt parts map 1:1 onto multimodal `text` / `image_url` chat content parts, preserving interleaved order, and are forwarded to the underlying image model. URL sources pass through verbatim (no fetching or re-encoding in your process); `data` sources become data URIs.
+  - **Anthropic** — Unchanged (no image generation API).
+
+  A new `resolveMediaPrompt()` utility (exported from `@tanstack/ai`) is the single downrev point from the canonical interleaved prompt shape to flattened text + per-modality part buckets, for adapter authors.
+
+  On the client side, `ImageGenerateInput.prompt` and `VideoGenerateInput.prompt` (`@tanstack/ai-client`, and the `useGenerateImage` / `useGenerateVideo` hooks built on them) are widened from `string` to the same `MediaPrompt` shape, so prompt parts can be sent from the browser through your server route to `generateImage()` / `generateVideo()`.
+
+  Closes [#618](https://github.com/TanStack/ai/issues/618).
+
+### Patch Changes
+
+- Updated dependencies [[`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f), [`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f)]:
+  - @tanstack/ai@0.32.0
+  - @tanstack/openai-base@0.8.5
+
+## 0.11.5
+
+### Patch Changes
+
+- Updated dependencies [[`07aaf8b`](https://github.com/TanStack/ai/commit/07aaf8b9e5a8e699be25f936cc9cd651a46c16c5)]:
+  - @tanstack/ai@0.31.0
+  - @tanstack/openai-base@0.8.4
+
+## 0.11.4
+
+### Patch Changes
+
+- [#769](https://github.com/TanStack/ai/pull/769) [`1d1bb52`](https://github.com/TanStack/ai/commit/1d1bb5219a38d9718cc926148e93fc27d5d2305b) - Add repository metadata (`homepage`, `bugs`, `funding`), fix `repository.directory` to point at each package, and include an MIT `LICENSE` file in every published package.
+
+- Updated dependencies [[`7103348`](https://github.com/TanStack/ai/commit/71033488212bff05dcccc857e721ab9262ebc2a6), [`1d1bb52`](https://github.com/TanStack/ai/commit/1d1bb5219a38d9718cc926148e93fc27d5d2305b)]:
+  - @tanstack/ai@0.30.0
+  - @tanstack/ai-utils@0.2.2
+  - @tanstack/openai-base@0.8.3
+
+## 0.11.3
+
+### Patch Changes
+
+- Updated dependencies [[`ff267a5`](https://github.com/TanStack/ai/commit/ff267a5536327b006979f9f28ce2df7cc27f6e23), [`570c08a`](https://github.com/TanStack/ai/commit/570c08a8d1a35746c3d31a63188249cba2d2475a), [`22c9b42`](https://github.com/TanStack/ai/commit/22c9b42baec74914b720e440f29bd02be04eb164), [`215b6b4`](https://github.com/TanStack/ai/commit/215b6b401aa95d1d38da342aa09603cb1d616929), [`7d44569`](https://github.com/TanStack/ai/commit/7d445693ea079d7a85498a4465179ddd5f548cb0)]:
+  - @tanstack/ai@0.29.0
+  - @tanstack/openai-base@0.8.2
+
+## 0.11.2
+
+### Patch Changes
+
+- Updated dependencies [[`496e814`](https://github.com/TanStack/ai/commit/496e8143435746965b10e0bbd12f26ebf04ae2a6), [`c0af426`](https://github.com/TanStack/ai/commit/c0af4262d269be67c69d6f878d9618f25fdeee19), [`00e0c93`](https://github.com/TanStack/ai/commit/00e0c932e6cb5e31f75f4b5e94486d7eb02b9ce1), [`496e814`](https://github.com/TanStack/ai/commit/496e8143435746965b10e0bbd12f26ebf04ae2a6), [`496e814`](https://github.com/TanStack/ai/commit/496e8143435746965b10e0bbd12f26ebf04ae2a6)]:
+  - @tanstack/ai@0.28.0
+  - @tanstack/openai-base@0.8.1
+
+## 0.11.1
+
+### Patch Changes
+
+- [#695](https://github.com/TanStack/ai/pull/695) [`786b3e4`](https://github.com/TanStack/ai/commit/786b3e4d68815349f3157bdfea1791038c978519) - feat: attach hosted provider Skills to code-execution / shell tools
+
+  Hosted, provider-managed Agent Skills can now be attached to the server-side execution tool that runs them:
+  - **Anthropic** — `codeExecutionTool(config, { skills: [{ type: 'anthropic', skill_id: 'pptx', version: 'latest' }] })`. The adapter lifts the skills into the request's top-level `container.skills` and automatically attaches the required beta headers (`code-execution-2025-08-25` — or `code-execution-2025-05-22` for the legacy `code_execution_20250522` variant — plus `skills-2025-10-02`).
+  - **OpenAI** — `shellTool({ environment: { type: 'container_auto', skills: [{ type: 'skill_reference', skill_id: '...', version: '2' }] } })`, threaded through the Responses API shell tool.
+
+  Scope: hosted/managed skills referenced by id + version. Skills are inert without the execution tool that runs them.
+
+  Setting skills via Anthropic's `modelOptions.container.skills` is deprecated in favor of `codeExecutionTool(config, { skills })`.
+
+  Bumps the `openai` SDK to `^6.41.0` (required for the typed shell `environment.skills` surface).
+
+- Updated dependencies [[`786b3e4`](https://github.com/TanStack/ai/commit/786b3e4d68815349f3157bdfea1791038c978519)]:
+  - @tanstack/openai-base@0.8.0
+
+## 0.11.0
+
+### Minor Changes
+
+- [#660](https://github.com/TanStack/ai/pull/660) [`6df32b5`](https://github.com/TanStack/ai/commit/6df32b53026673d159e6df0892ce89effcb5c7b8) - **BREAKING:** Sampling options (`temperature`, `topP`, `maxTokens`) have moved off the root of `chat()` / `ai()` / `generate()` and into provider-native `modelOptions`. There is no longer a generic root-level sampling surface — each provider accepts its own native keys, fully typed per model:
+  - OpenAI (Responses): `modelOptions: { temperature, top_p, max_output_tokens }`
+  - Anthropic: `modelOptions: { temperature, top_p, max_tokens }`
+  - Gemini: `modelOptions: { temperature, topP, maxOutputTokens }`
+  - Grok: `modelOptions: { temperature, top_p, max_tokens }`
+  - Groq: `modelOptions: { temperature, top_p, max_completion_tokens }`
+  - Ollama: `modelOptions: { options: { temperature, top_p, num_predict } }` (nested)
+  - OpenRouter (chat): `modelOptions: { temperature, topP, maxCompletionTokens }`
+
+  Middleware no longer sees `temperature`/`topP`/`maxTokens` as first-class fields on `ChatMiddlewareConfig`; mutate `config.modelOptions` (with the provider-native keys above) instead. `metadata` is unaffected and stays at the root.
+
+  The public `OllamaTextProviderOptions` type export has also been removed from `@tanstack/ai-ollama`. `modelOptions` is now typed per model — use the exported `OllamaChatModelOptionsByName` map (indexed by model name) or the underlying `ChatRequest` from the `ollama` SDK for arbitrary model strings.
+
+  Migrate automatically with the codemod, which resolves the provider from the adapter and rewrites the keys for you:
+
+  ```bash
+  pnpm codemod:move-sampling-to-model-options "src/**/*.{ts,tsx}"
+  ```
+
+  See the [Sampling Options migration guide](https://tanstack.com/ai/latest/docs/migration/sampling-options-to-model-options) for details.
+
+### Patch Changes
+
+- Updated dependencies [[`6df32b5`](https://github.com/TanStack/ai/commit/6df32b53026673d159e6df0892ce89effcb5c7b8)]:
+  - @tanstack/ai@0.27.0
+  - @tanstack/openai-base@0.7.0
+
+## 0.10.1
+
+### Patch Changes
+
+- Updated dependencies [[`5d6cd28`](https://github.com/TanStack/ai/commit/5d6cd2834ba7ac1d7c7c1bd24ede202bf3e78010)]:
+  - @tanstack/ai@0.26.0
+  - @tanstack/openai-base@0.6.1
+
+## 0.10.0
+
+### Minor Changes
+
+- [#242](https://github.com/TanStack/ai/pull/242) [`c251038`](https://github.com/TanStack/ai/commit/c251038c6d8aa84e498f89e314ce5bb233bc689f) - Enhanced token usage reporting for every provider.
+
+  `TokenUsage` is now the single canonical run-usage type. It is defined once in
+  `@tanstack/ai-event-client` (the dependency-free leaf package) and re-exported by
+  `@tanstack/ai`, so the two packages can no longer drift. It carries optional
+  detailed breakdowns alongside the core token counts: `promptTokensDetails` /
+  `completionTokensDetails` (cached, reasoning, audio, and per-modality tokens),
+  `durationSeconds` for duration-billed models (e.g. Whisper transcription),
+  `providerUsageDetails` for provider-specific metrics, and `cost` / `costDetails`
+  for provider-reported cost — so a single `usage` shape covers counts, detailed
+  breakdowns, and cost.
+
+  `TokenUsage` is generic over its provider details bag —
+  `TokenUsage<TProviderDetails = ProviderUsageDetails>` — so adapters return a
+  strongly-typed `providerUsageDetails` (e.g. `TokenUsage<AnthropicProviderUsageDetails>`)
+  while generic consumers keep the open-record default. The default,
+  `ProviderUsageDetails` (`Record<string, NonNullable<unknown>>`), is now exported and
+  uses non-nullish values rather than `unknown` so `TokenUsage` stays assignable across
+  JSON-serialization boundaries (e.g. TanStack Start server-fn return types). Each
+  provider's usage
+  extractor now returns `undefined` (rather than fabricating zeroed totals) when
+  the provider reports no usage object, so an absent `usage` is distinguishable
+  from a genuine zero-token run.
+
+  `@tanstack/ai` still exports `UsageTotals` as a `@deprecated` alias of
+  `TokenUsage` for backward compatibility; it will be removed in a future release.
+
+  Detailed usage is extracted in one place per SDK surface: OpenAI-compatible
+  providers (OpenAI, Grok, Groq) share the extractors in `@tanstack/openai-base`,
+  while Anthropic, Gemini, Ollama, and OpenRouter normalize their own provider
+  usage. The devtools surface cached and reasoning token badges per iteration.
+
+  Usage is now unified across **every modality**, not just text/chat. Image, audio,
+  and text-to-speech results report the same canonical `TokenUsage` (with
+  per-modality breakdowns) instead of a minimal `inputTokens`/`outputTokens` shape:
+  - `ImageGenerationResult.usage`, `AudioGenerationResult.usage`, and the new
+    `TTSResult.usage` are now typed as `TokenUsage`. **Breaking:** consumers of
+    these fields should read `promptTokens`/`completionTokens` instead of
+    `inputTokens`/`outputTokens`. `@tanstack/ai-event-client`'s `ImageUsage` is now
+    a `@deprecated` alias of `TokenUsage`.
+  - OpenAI/Grok image generation surface the text-vs-image input token breakdown
+    (`promptTokensDetails`), Gemini image/audio/TTS now surface their full
+    `usageMetadata` (previously dropped), and OpenRouter image generation surfaces
+    the chat usage it already returns.
+  - Bug fixes: Ollama no longer produces `NaN` totals or discards duration-only
+    usage; Anthropic defaults missing `output_tokens` and no longer emits empty
+    `promptTokensDetails`/`providerUsageDetails` objects; OpenAI GPT-4o
+    transcription reads the real audio/text input token breakdown and never falls
+    back to duration billing.
+
+  Cross-adapter usage parity fixes:
+  - `PromptTokensDetails`/`CompletionTokensDetails` gain a `documentTokens` field,
+    and Gemini now surfaces `DOCUMENT` modality token counts (e.g. PDF inputs)
+    instead of silently dropping them.
+  - OpenAI-compatible chat (OpenAI/Grok/Groq via `@tanstack/openai-base`) now
+    surfaces Predicted-Outputs `acceptedPredictionTokens`/`rejectedPredictionTokens`
+    under `providerUsageDetails`, matching the OpenRouter adapter (rejected
+    prediction tokens are billed).
+  - Grok transcription (`/v1/stt`) now reports `durationSeconds`, mirroring the
+    Whisper-1 path in the OpenAI transcription adapter.
+
+### Patch Changes
+
+- Updated dependencies [[`c251038`](https://github.com/TanStack/ai/commit/c251038c6d8aa84e498f89e314ce5bb233bc689f)]:
+  - @tanstack/ai@0.25.0
+  - @tanstack/openai-base@0.6.0
+
+## 0.9.2
+
+### Patch Changes
+
+- Updated dependencies [[`c1ae8b9`](https://github.com/TanStack/ai/commit/c1ae8b94c83d70508975568eb4fc9b45f1af540b), [`a452ae8`](https://github.com/TanStack/ai/commit/a452ae8bcda8abfdc6309983976ed0fbf6df1915), [`8036b50`](https://github.com/TanStack/ai/commit/8036b5054330a180023c6e3225b8d2735a43a919)]:
+  - @tanstack/ai@0.24.0
+  - @tanstack/openai-base@0.5.0
+
+## 0.9.1
+
+### Patch Changes
+
+- Updated dependencies [[`980ff9b`](https://github.com/TanStack/ai/commit/980ff9ba925f5dbae62a9318cc1e787d0ae24314), [`d5645cf`](https://github.com/TanStack/ai/commit/d5645cfd4d1b9cfc877f7d4d714517e166a99ce3)]:
+  - @tanstack/ai@0.23.0
+  - @tanstack/openai-base@0.4.1
+
 ## 0.9.0
 
 ### Minor Changes

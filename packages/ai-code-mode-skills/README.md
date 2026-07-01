@@ -17,9 +17,11 @@ pnpm add @tanstack/ai-code-mode-skills
 ```typescript
 import {
   codeModeWithSkills,
-  createFileSkillStorage,
   createAlwaysTrustedStrategy,
 } from '@tanstack/ai-code-mode-skills'
+// Node-only file storage lives behind the `/storage` subpath so the root
+// export stays safe for Worker/browser bundlers.
+import { createFileSkillStorage } from '@tanstack/ai-code-mode-skills/storage'
 import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
 
 // Create skill storage
@@ -37,20 +39,21 @@ const codeModeConfig = {
 }
 
 // Build a dynamic registry and system prompt with skills
-const { registry, systemPrompt, selectedSkills } = await codeModeWithSkills({
-  config: codeModeConfig,
-  adapter: anthropic('claude-3-haiku'), // Cheap model for skill selection
-  skills: {
-    storage: skillStorage,
-    maxSkillsInContext: 5,
-  },
-  messages,
-})
+const { toolsRegistry, systemPrompt, selectedSkills } =
+  await codeModeWithSkills({
+    config: codeModeConfig,
+    adapter: anthropic('claude-3-haiku'), // Cheap model for skill selection
+    skills: {
+      storage: skillStorage,
+      maxSkillsInContext: 5,
+    },
+    messages,
+  })
 
 // Use in chat
 const stream = chat({
   adapter: anthropic('claude-sonnet-4-20250514'), // Main model
-  toolRegistry: registry,
+  toolRegistry: toolsRegistry,
   messages,
   systemPrompts: [basePrompt, systemPrompt],
 })
@@ -151,11 +154,17 @@ Creates Code Mode tools and system prompt with skills integration.
 
 ### Storage
 
-Storage is available from both the root export and the explicit storage subpath:
+The worker/browser-safe in-memory storage (`createMemorySkillStorage`) is
+re-exported from the root entry. The Node-only file storage
+(`createFileSkillStorage`) imports `node:fs` / `node:path`, so it is only
+available from the `/storage` subpath — keeping the root export safe to import
+from Cloudflare Workers and browser bundlers:
 
 ```typescript
-import { createFileSkillStorage } from '@tanstack/ai-code-mode-skills'
-// or
+// Worker/browser-safe — root export
+import { createMemorySkillStorage } from '@tanstack/ai-code-mode-skills'
+
+// Node-only — `/storage` subpath
 import { createFileSkillStorage } from '@tanstack/ai-code-mode-skills/storage'
 ```
 

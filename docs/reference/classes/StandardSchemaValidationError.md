@@ -5,7 +5,7 @@ title: StandardSchemaValidationError
 
 # Class: StandardSchemaValidationError
 
-Defined in: [packages/ai/src/activities/chat/tools/schema-converter.ts:347](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/schema-converter.ts#L347)
+Defined in: [packages/ai/src/activities/chat/tools/schema-converter.ts:418](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/schema-converter.ts#L418)
 
 Error thrown when Standard Schema validation fails. Carries the original
 `issues` array so consumers (middleware `onError`, callers catching from
@@ -23,7 +23,7 @@ Error thrown when Standard Schema validation fails. Carries the original
 new StandardSchemaValidationError(issues): StandardSchemaValidationError;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/schema-converter.ts:351](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/schema-converter.ts#L351)
+Defined in: [packages/ai/src/activities/chat/tools/schema-converter.ts:422](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/schema-converter.ts#L422)
 
 #### Parameters
 
@@ -49,7 +49,7 @@ Error.constructor
 readonly issues: readonly Issue[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/schema-converter.ts:349](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/schema-converter.ts#L349)
+Defined in: [packages/ai/src/activities/chat/tools/schema-converter.ts:420](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/schema-converter.ts#L420)
 
 ***
 
@@ -59,7 +59,7 @@ Defined in: [packages/ai/src/activities/chat/tools/schema-converter.ts:349](http
 readonly name: "StandardSchemaValidationError" = 'StandardSchemaValidationError';
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/schema-converter.ts:348](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/schema-converter.ts#L348)
+Defined in: [packages/ai/src/activities/chat/tools/schema-converter.ts:419](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/schema-converter.ts#L419)
 
 #### Overrides
 

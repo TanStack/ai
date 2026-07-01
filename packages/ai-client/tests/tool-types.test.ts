@@ -1,8 +1,9 @@
 import { describe, it, expectTypeOf } from 'vitest'
 import { z } from 'zod'
 import type { UIMessage, ToolCallPart, InferChatMessages } from '../src/types'
-import { createChatClientOptions } from '../src/types'
-import { toolDefinition } from '@tanstack/ai'
+import { clientTools, createChatClientOptions } from '../src/types'
+import { ChatClient } from '../src/chat-client'
+import { toolDefinition } from '@tanstack/ai/client'
 
 // Define some test tools
 const guitarTool = toolDefinition({
@@ -57,6 +58,58 @@ const recommendToolClient = recommendTool.client(() => ({
 }))
 
 describe('Tool Type Narrowing', () => {
+  it('types ChatClient message APIs from registered tools', () => {
+    const client = new ChatClient({
+      connection: {
+        async *connect() {},
+      },
+      tools: [guitarToolClient] as const,
+    })
+
+    const messages = client.getMessages()
+    expectTypeOf(messages).toEqualTypeOf<
+      Array<UIMessage<readonly [typeof guitarToolClient]>>
+    >()
+
+    client.setMessagesManually(messages)
+
+    client.setMessagesManually([
+      {
+        id: 'm1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            id: 'tc-1',
+            name: 'getGuitar',
+            arguments: '{}',
+            state: 'complete',
+            input: { id: 'g1' },
+            output: { id: 'g1', name: 'Strat', price: 1000 },
+          },
+        ],
+      },
+    ])
+
+    client.setMessagesManually([
+      {
+        id: 'm2',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            id: 'tc-2',
+            // @ts-expect-error - tool name must come from registered tools
+            name: 'addToCart',
+            arguments: '{}',
+            state: 'input-complete',
+            input: { id: 'g1' },
+          },
+        ],
+      },
+    ])
+  })
+
   it('should correctly narrow part.name type', () => {
     const messages: Array<
       UIMessage<
@@ -230,5 +283,271 @@ describe('Tool Type Narrowing', () => {
         }
       }
     }
+  })
+
+  it('types client tool runtime context from ChatClientOptions', () => {
+    type ClientContext = { localUserId: string }
+    const tool = toolDefinition({
+      name: 'clientContextTool',
+      description: 'Uses client context',
+    }).client<ClientContext>((_input, ctx) => {
+      expectTypeOf(ctx.context.localUserId).toEqualTypeOf<string>()
+      return { ok: true }
+    })
+
+    const options = createChatClientOptions({
+      connection: {
+        connect: async function* () {},
+      },
+      context: { localUserId: 'local-1' },
+      tools: clientTools(tool),
+    })
+
+    expectTypeOf(options.context).toEqualTypeOf<ClientContext>()
+  })
+
+  it('preserves client tool context constraints in ChatClient.updateOptions', () => {
+    type ClientContext = { localUserId: string }
+    const requiredContextTool = toolDefinition({
+      name: 'updateOptionsRequiredContextTool',
+      description: 'Requires client context',
+    }).client<ClientContext>(() => ({ ok: true }))
+    const otherRequiredContextTool = toolDefinition({
+      name: 'updateOptionsOtherRequiredContextTool',
+      description: 'Requires a different client context',
+    }).client<{ tenantId: string }>(() => ({ ok: true }))
+
+    const client = new ChatClient({
+      connection: {
+        async *connect() {},
+      },
+      tools: clientTools(requiredContextTool),
+      context: { localUserId: 'local-1' },
+    })
+
+    client.updateOptions({ context: { localUserId: 'local-2' } })
+    client.updateOptions({ tools: clientTools(requiredContextTool) })
+
+    client.updateOptions({
+      // @ts-expect-error - required client context cannot be cleared
+      context: undefined,
+    })
+
+    client.updateOptions({
+      // @ts-expect-error - updateOptions cannot swap in tools outside TTools
+      tools: clientTools(otherRequiredContextTool),
+      context: { tenantId: 'tenant-1' },
+    })
+  })
+
+  it('allows ChatClient.updateOptions to clear optional client context', () => {
+    type OptionalContext = { localUserId: string } | undefined
+    const optionalContextTool = toolDefinition({
+      name: 'updateOptionsOptionalContextTool',
+      description: 'Accepts optional client context',
+    }).client<OptionalContext>(() => ({ ok: true }))
+
+    const client = new ChatClient({
+      connection: {
+        async *connect() {},
+      },
+      tools: clientTools(optionalContextTool),
+    })
+
+    client.updateOptions({ context: { localUserId: 'local-1' } })
+    client.updateOptions({ context: undefined })
+  })
+
+  it('requires context matching typed client tools', () => {
+    type ClientContext = { localUserId: string; a: 'literal' }
+    const tool = toolDefinition({
+      name: 'clientStrictContextTool',
+      description: 'Requires strict client context',
+    }).client<ClientContext>((_input, ctx) => {
+      expectTypeOf(ctx.context.a).toEqualTypeOf<'literal'>()
+      return { ok: true }
+    })
+
+    createChatClientOptions({
+      connection: {
+        connect: async function* () {},
+      },
+      tools: clientTools(tool),
+      context: { localUserId: 'local-1', a: 'literal' },
+    })
+
+    // @ts-expect-error - context is required when a client tool declares it
+    createChatClientOptions({
+      connection: {
+        connect: async function* () {},
+      },
+      tools: clientTools(tool),
+    })
+
+    createChatClientOptions({
+      connection: {
+        connect: async function* () {},
+      },
+      tools: clientTools(tool),
+      // @ts-expect-error - the literal context property is required
+      context: { localUserId: 'local-1' },
+    })
+  })
+
+  it('allows context omission when typed client tools accept undefined', () => {
+    type OptionalContext = { localUserId: string } | undefined
+    const tool = toolDefinition({
+      name: 'clientOptionalContextTool',
+      description: 'Accepts optional client context',
+    }).client<OptionalContext>((_input, ctx) => {
+      expectTypeOf(ctx?.context).toEqualTypeOf<OptionalContext>()
+      return { localUserId: ctx?.context?.localUserId ?? null }
+    })
+
+    createChatClientOptions({
+      connection: {
+        connect: async function* () {},
+      },
+      tools: clientTools(tool),
+    })
+  })
+
+  it('requires context satisfying every typed client tool', () => {
+    type UserContext = { localUserId: string }
+    type TenantContext = { tenantId: string }
+
+    const userTool = toolDefinition({
+      name: 'clientUserContextTool',
+      description: 'Requires user context',
+    }).client<UserContext>(() => ({ ok: true }))
+    const tenantTool = toolDefinition({
+      name: 'clientTenantContextTool',
+      description: 'Requires tenant context',
+    }).client<TenantContext>(() => ({ ok: true }))
+
+    createChatClientOptions({
+      connection: {
+        connect: async function* () {},
+      },
+      tools: clientTools(userTool, tenantTool),
+      context: { localUserId: 'local-1', tenantId: 'tenant-1' },
+    })
+
+    createChatClientOptions({
+      connection: {
+        connect: async function* () {},
+      },
+      tools: clientTools(userTool, tenantTool),
+      // @ts-expect-error - tenantId is required by tenantTool
+      context: { localUserId: 'local-1' },
+    })
+  })
+
+  it('requires context satisfying every typed client tool in widened arrays', () => {
+    type UserContext = { localUserId: string }
+    type TenantContext = { tenantId: string }
+
+    const userTool = toolDefinition({
+      name: 'widenedClientUserContextTool',
+      description: 'Requires user context',
+    }).client<UserContext>(() => ({ ok: true }))
+    const tenantTool = toolDefinition({
+      name: 'widenedClientTenantContextTool',
+      description: 'Requires tenant context',
+    }).client<TenantContext>(() => ({ ok: true }))
+    const tools: Array<typeof userTool | typeof tenantTool> = [
+      userTool,
+      tenantTool,
+    ]
+
+    createChatClientOptions({
+      connection: {
+        connect: async function* () {},
+      },
+      tools,
+      context: { localUserId: 'local-1', tenantId: 'tenant-1' },
+    })
+
+    createChatClientOptions({
+      connection: {
+        connect: async function* () {},
+      },
+      tools,
+      // @ts-expect-error - widened arrays still require both context shapes
+      context: { localUserId: 'local-1' },
+    })
+  })
+
+  it('handles optional typed client context in widened arrays', () => {
+    type UserContext = { localUserId: string }
+    type OptionalTenantContext = { tenantId: string } | undefined
+
+    const requiredTool = toolDefinition({
+      name: 'widenedClientRequiredContextTool',
+      description: 'Requires user context',
+    }).client<UserContext>(() => ({ ok: true }))
+    const optionalTool = toolDefinition({
+      name: 'widenedClientOptionalContextTool',
+      description: 'Accepts optional tenant context',
+    }).client<OptionalTenantContext>((_input, ctx) => {
+      expectTypeOf(ctx?.context).toEqualTypeOf<OptionalTenantContext>()
+      return { tenantId: ctx?.context?.tenantId ?? null }
+    })
+
+    const mixedTools: Array<typeof requiredTool | typeof optionalTool> = [
+      requiredTool,
+      optionalTool,
+    ]
+
+    createChatClientOptions({
+      connection: {
+        connect: async function* () {},
+      },
+      tools: mixedTools,
+      context: { localUserId: 'local-1', tenantId: 'tenant-1' },
+    })
+
+    // @ts-expect-error - required client tools still force a context value
+    createChatClientOptions({
+      connection: {
+        connect: async function* () {},
+      },
+      tools: mixedTools,
+    })
+
+    createChatClientOptions({
+      connection: {
+        connect: async function* () {},
+      },
+      tools: mixedTools,
+      // @ts-expect-error - provided context must satisfy optional tools too
+      context: { localUserId: 'local-1' },
+    })
+
+    const optionalTools: Array<typeof optionalTool> = [optionalTool]
+
+    createChatClientOptions({
+      connection: {
+        connect: async function* () {},
+      },
+      tools: optionalTools,
+    })
+
+    createChatClientOptions({
+      connection: {
+        connect: async function* () {},
+      },
+      tools: optionalTools,
+      context: { tenantId: 'tenant-1' },
+    })
+
+    createChatClientOptions({
+      connection: {
+        connect: async function* () {},
+      },
+      tools: optionalTools,
+      // @ts-expect-error - if context is provided, it must match the typed tools
+      context: { localUserId: 'local-1' },
+    })
   })
 })

@@ -4,8 +4,9 @@ description: >
   Image, audio, video, speech (TTS), and transcription generation using
   activity-specific adapters: generateImage() with openaiImage/geminiImage,
   generateAudio() with geminiAudio/falAudio, generateVideo() with async
-  polling, generateSpeech() with openaiSpeech, generateTranscription() with
-  openaiTranscription. React hooks: useGenerateImage, useGenerateAudio,
+  polling (openaiVideo/geminiVideo/grokVideo/falVideo, per-model typed
+  durations), generateSpeech() with openaiSpeech, generateTranscription()
+  with openaiTranscription. React hooks: useGenerateImage, useGenerateAudio,
   useGenerateSpeech, useTranscription, useGenerateVideo.
   TanStack Start server function integration with toServerSentEventsResponse.
 type: sub-skill
@@ -150,7 +151,7 @@ function ImageGenerator() {
 
 Supported adapters: `openaiImage` (dall-e-2, dall-e-3, gpt-image-1,
 gpt-image-1-mini, gpt-image-2) and `geminiImage` (gemini-3.1-flash-image-preview,
-imagen-4.0-generate-001, etc.).
+gemini-3.1-flash-lite-image, imagen-4.0-generate-001, etc.).
 
 ```typescript
 import { generateImage } from '@tanstack/ai'
@@ -188,6 +189,103 @@ const imagenResult = await generateImage({
 Result shape: `ImageGenerationResult` with `images` array where each entry
 has `b64Json?`, `url?`, and `revisedPrompt?`. OpenAI image URLs expire
 after 1 hour -- download or display immediately.
+
+#### Image-conditioned generation: multimodal `prompt` parts
+
+Both `generateImage()` and `generateVideo()` accept the `prompt` either as
+a plain string or as an ordered array of content parts (`TextPart` /
+`ImagePart` / `VideoPart` / `AudioPart` — the same shapes used elsewhere in
+TanStack AI). Part order is meaningful: natively multimodal providers
+(Gemini, OpenRouter) receive parts in order; named-field providers (OpenAI,
+fal, xAI) extract media parts and flatten the text. Prompt text is always
+sent verbatim — to reference inputs from the prompt, write the provider's
+own syntax (fal `@Image1`, OpenAI "image 1" prose); the SDK never injects
+or rewrites markers. Each media part may carry an optional
+`metadata.role` hint that adapters use to route the part to the
+provider-specific field. The accepted part types are narrowed per model at
+compile time via the adapter's input-modality map.
+
+```typescript
+import { generateImage } from '@tanstack/ai'
+import { openaiImage } from '@tanstack/ai-openai'
+
+// Image-to-image (OpenAI gpt-image-2 / gpt-image-1, dall-e-2)
+await generateImage({
+  adapter: openaiImage('gpt-image-2'),
+  prompt: [
+    { type: 'text', content: 'Turn this into a cinematic product photo' },
+    { type: 'image', source: { type: 'url', value: 'https://…/product.png' } },
+  ],
+})
+
+// Multi-reference (up to 16 for gpt-image models; up to ~14 for Gemini native
+// — a provider limit, not enforced by the SDK)
+await generateImage({
+  adapter: openaiImage('gpt-image-2'),
+  prompt: [
+    { type: 'text', content: 'Apply the second image as style to the first' },
+    { type: 'image', source: { type: 'url', value: 'https://…/product.png' } },
+    { type: 'image', source: { type: 'url', value: 'https://…/style.png' } },
+  ],
+})
+
+// Inpaint via metadata.role === 'mask' (OpenAI gpt-image models, dall-e-2; fal mask_url)
+await generateImage({
+  adapter: openaiImage('gpt-image-2'),
+  prompt: [
+    { type: 'text', content: 'Replace the masked region with a tree' },
+    { type: 'image', source: { type: 'url', value: photoUrl } },
+    {
+      type: 'image',
+      source: { type: 'url', value: maskUrl },
+      metadata: { role: 'mask' },
+    },
+  ],
+})
+
+// Image-to-video (OpenAI Sora: single input_reference; fal: image_url + optional end_image_url)
+import { generateVideo } from '@tanstack/ai'
+import { falVideo } from '@tanstack/ai-fal'
+
+await generateVideo({
+  adapter: falVideo('fal-ai/kling-video/v3/pro/image-to-video'),
+  prompt: [
+    { type: 'image', source: { type: 'url', value: firstFrameUrl } },
+    { type: 'text', content: 'Slow cinematic push-in' },
+    {
+      type: 'image',
+      source: { type: 'url', value: lastFrameUrl },
+      metadata: { role: 'end_frame' },
+    },
+  ],
+})
+```
+
+**Role hints** (`metadata.role`):
+
+| Role            | Maps to                                                                                               |
+| --------------- | ----------------------------------------------------------------------------------------------------- |
+| `'reference'`   | fal `reference_image_urls`; Gemini multimodal part; positional otherwise                              |
+| `'character'`   | Same as `'reference'`; Veo `referenceImages` slot (planned — no Veo adapter yet)                      |
+| `'mask'`        | OpenAI `mask` (gpt-image-2, gpt-image-1, dall-e-2); fal `mask_url`                                    |
+| `'control'`     | fal `control_image_url` (ControlNet / depth / pose)                                                   |
+| `'start_frame'` | fal `start_image_url` (or the endpoint's field, e.g. `image_url` on Kling i2v); Veo `image` (planned) |
+| `'end_frame'`   | fal `end_image_url` (or e.g. `tail_image_url` / `last_frame_url`); Veo `lastFrame` (planned)          |
+
+**Provider support matrix:**
+
+| Provider   | `generateImage` image parts                                                                                                                                                                              | `generateVideo` image parts                                                                                                                                                                        |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OpenAI     | gpt-image-2 / gpt-image-1 / -mini → `images.edit()` (up to 16). dall-e-2 → edit (1). dall-e-3 throws.                                                                                                    | Sora-2 / -pro → `input_reference` (single). Throws if >1.                                                                                                                                          |
+| Gemini     | Native (gemini-\*-flash-image, "nano-banana") → multimodal `contents`. Imagen throws.                                                                                                                    | No native Veo adapter yet — deferred to a follow-up.                                                                                                                                               |
+| fal        | Per-endpoint field names from a generated map (`pnpm generate:fal-image-fields`). Defaults: 1 input → `image_url`; >1 → `image_urls`; roles → `mask_url` / `control_image_url` / `reference_image_urls`. | Per-endpoint map (e.g. Kling i2v start frame → `image_url`). Defaults: 1 input → `image_url`; `start_frame`/`end_frame` → `start_image_url`/`end_image_url`; `reference` → `reference_image_urls`. |
+| Grok       | grok-imagine models → `/v1/images/edits` JSON endpoint (≤3 sources, addressed by xAI in request order; prompt sent verbatim; mask/control throw). grok-2-image-1212 throws.                              | n/a                                                                                                                                                                                                |
+| OpenRouter | Prompt parts map 1:1 onto multimodal `text` / `image_url` content parts, preserving interleaved order.                                                                                                   | n/a                                                                                                                                                                                                |
+| Anthropic  | n/a (no image generation API).                                                                                                                                                                           | n/a                                                                                                                                                                                                |
+
+Video and audio prompt parts follow the same `metadata.role` convention
+for video-to-video and lipsync flows on fal; other providers throw when
+they're passed.
 
 ### 2. Audio Generation (Music, Sound Effects)
 
@@ -261,6 +359,19 @@ const { generate, result, isLoading } = useGenerateSpeech({
 Adapter: `openaiTranscription` (whisper-1, gpt-4o-transcribe,
 gpt-4o-mini-transcribe).
 
+> **Capturing audio in the browser:** Use `useAudioRecorder` from `@tanstack/ai-react` to record directly in the browser, then pass the recording as the `audio` input to `generate()`, or use `recording.part` as a prompt part in chat/generation calls. No transcoding or extra dependencies required — the recorder returns the native browser format (`audio/webm` or `audio/mp4`). For transcription, wrap it as a `data:` URL so the provider gets the real content type; passing raw `recording.base64` makes the adapter assume `audio/mpeg` and mislabel the webm/mp4 bytes.
+>
+> ```typescript
+> const { isRecording, start, stop } = useAudioRecorder()
+> const { generate } = useTranscription({
+>   connection: fetchServerSentEvents('/api/transcribe'),
+> })
+> // ...
+> const recording = await stop()
+> const mimeType = recording.mimeType.split(';')[0] // strip ;codecs=...
+> await generate({ audio: `data:${mimeType};base64,${recording.base64}` })
+> ```
+
 ```typescript
 import { generateTranscription } from '@tanstack/ai'
 import { openaiTranscription } from '@tanstack/ai-openai'
@@ -331,6 +442,38 @@ const stream = generateVideo({
 return toServerSentEventsResponse(stream)
 ```
 
+Google Veo (`@tanstack/ai-gemini`) uses the same jobs/polling flow. Its
+`duration` option is typed per model (e.g. `4 | 6 | 8` for Veo 3.x,
+`5 | 6 | 8` for Veo 2); use `adapter.snapDuration(seconds)` to coerce raw
+seconds and `adapter.availableDurations()` to enumerate the valid set.
+Image prompt parts route by `metadata.role`: first un-roled /
+`'start_frame'` image → input image, `'end_frame'` → `lastFrame`,
+`'reference'` / `'character'` → `referenceImages`:
+
+```typescript
+import { geminiVideo } from '@tanstack/ai-gemini'
+
+const adapter = geminiVideo('veo-3.1-generate-preview')
+adapter.availableDurations() // { kind: 'discrete', values: [4, 6, 8] }
+
+const { jobId } = await generateVideo({
+  adapter,
+  prompt: 'A golden retriever playing in sunflowers',
+  size: '16:9', // Veo sizes are aspect ratios: '16:9' | '9:16'
+  duration: adapter.snapDuration(7), // 6
+  modelOptions: { resolution: '1080p', generateAudio: true },
+})
+// Note: Veo result URLs require the Google API key to download
+// (x-goog-api-key header or ?key= query parameter).
+```
+
+Other video adapters: `openaiVideo('sora-2')` (pixel sizes like `'1280x720'`,
+durations 4/8/12s, single `input_reference` image prompt part), `grokVideo(...)`
+(`grok-imagine-video` does text-to-video + image-to-video; `grok-imagine-video-1.5` is
+image-to-video only — needs an `image` prompt part as the starting frame, text-only throws;
+aspect-ratio size template like `'16:9_720p'`, integer durations 1-15s, reports
+`usage.unitsBilled` seconds and exact `usage.cost`), and `falVideo(...)` (hosted models, see cost tracking below).
+
 Client hook with job tracking:
 
 ```tsx
@@ -343,9 +486,37 @@ const { generate, result, jobId, videoStatus, isLoading } = useGenerateVideo({
     console.log(`${status.status} (${status.progress}%)`),
 })
 
-// videoStatus: { jobId, status, progress?, url?, error? }
+// videoStatus: { jobId, status, progress?, url?, error?, usage? }
 // result (on completion): { url }
 ```
+
+### 6. Cost tracking (fal billable units)
+
+fal bills media generation by usage-based units, not tokens. Every fal media
+adapter (`falImage`, `falAudio`, `falSpeech`, `falTranscription`, `falVideo`)
+surfaces the real billed quantity on the result as `usage.unitsBilled`, read
+from fal's `x-fal-billable-units` response header — no `fetch` interceptor
+needed. It rides on the canonical `TokenUsage` shape (token fields are `0` for
+media), mirroring how duration-billed transcription surfaces `durationSeconds`.
+
+```typescript
+import { generateImage } from '@tanstack/ai'
+import { falImage } from '@tanstack/ai-fal'
+
+const result = await generateImage({
+  adapter: falImage('fal-ai/flux/dev'),
+  prompt: 'a serene mountain lake',
+})
+
+// usage.unitsBilled is the priced quantity. Multiply by the endpoint unit
+// price (GET https://api.fal.ai/v1/models/pricing?endpoint_id=…) for exact cost.
+if (result.usage?.unitsBilled != null) {
+  const cost = result.usage.unitsBilled * unitPrice
+}
+```
+
+For video, the units arrive with the completed result: `getVideoJobStatus()`
+returns `usage` and emits a `video:usage` devtools event when fal reports it.
 
 ---
 
@@ -579,7 +750,54 @@ generateSpeech({
 
 > Source: Gemini TTS adapter validation; CodeRabbit review of PR #463.
 
-### h. LOW: Writing a logging middleware to see media chunks flow through
+### h. HIGH: Passing image prompt parts to a model that doesn't support image-conditioned generation
+
+Not every model accepts image-conditioned prompts. The `prompt` type is
+narrowed per model, so passing an image part to a text-only model
+(dall-e-3, Imagen, grok-2-image) is a **compile-time error**; adapters
+also throw a clear runtime error as a backstop, so users learn at call
+time rather than getting silently wrong output.
+
+```typescript
+// WRONG — dall-e-3 has no edit/inputs API; image parts are a type error
+generateImage({
+  adapter: openaiImage('dall-e-3'),
+  prompt: [
+    { type: 'text', content: 'Edit this' },
+    { type: 'image', source: { type: 'url', value: url } }, // ❌ type error
+  ],
+})
+
+// WRONG — Imagen is text-to-image only; same compile-time rejection
+generateImage({
+  adapter: geminiImage('imagen-4.0-generate-001'),
+  prompt: [
+    { type: 'text', content: 'Edit this' },
+    { type: 'image', source: { type: 'url', value: url } }, // ❌ type error
+  ],
+})
+
+// CORRECT — use a model that supports image-conditioned generation
+generateImage({
+  adapter: openaiImage('gpt-image-2'), // edits up to 16 images
+  prompt: [
+    { type: 'text', content: 'Edit this' },
+    { type: 'image', source: { type: 'url', value: url } },
+  ],
+})
+
+generateImage({
+  adapter: geminiImage('gemini-3.1-flash-image-preview'), // native multimodal
+  prompt: [
+    { type: 'text', content: 'Edit this' },
+    { type: 'image', source: { type: 'url', value: url } },
+  ],
+})
+```
+
+> Source: docs/media/image-generation.md, docs/media/video-generation.md.
+
+### i. LOW: Writing a logging middleware to see media chunks flow through
 
 Every media activity — `generateAudio`, `generateSpeech`,
 `generateTranscription`, `generateImage`, `generateVideo` — accepts the

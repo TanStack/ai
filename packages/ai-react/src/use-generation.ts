@@ -1,12 +1,14 @@
 import { GenerationClient } from '@tanstack/ai-client'
+import { createGenerationDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { StreamChunk } from '@tanstack/ai'
 import type {
+  AIDevtoolsDisplayOptions,
   ConnectConnectionAdapter,
   GenerationClientOptions,
   GenerationClientState,
   GenerationFetcher,
-  InferGenerationOutput,
+  InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
 
 /**
@@ -27,6 +29,8 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
   /**
    * Callback when a result is received. Can optionally return a transformed value.
    *
@@ -84,16 +88,22 @@ export interface UseGenerationReturn<TOutput> {
  * await generate({ prompt: 'Hello' })
  * ```
  */
+// `TTransformed` infers from the `onResult` return position (a covariant
+// inference site that works even for an optional nested property), which types
+// the callback parameter as `TResult` and narrows `result`. Inferring the
+// whole callback as a defaulted type parameter instead collapses to the
+// default, leaving the parameter `any` — a hard error under `strict`. See
+// issue #848.
 export function useGeneration<
   TInput extends Record<string, any>,
   TResult,
-  TOnResult extends ((result: TResult) => any) | undefined = undefined,
+  TTransformed = void,
 >(
   options: Omit<UseGenerationOptions<TInput, TResult>, 'onResult'> & {
-    onResult?: TOnResult
+    onResult?: (result: TResult) => TTransformed
   },
-): UseGenerationReturn<InferGenerationOutput<TResult, TOnResult>> {
-  type TOutput = InferGenerationOutput<TResult, TOnResult>
+): UseGenerationReturn<InferGenerationOutputFromReturn<TResult, TTransformed>> {
+  type TOutput = InferGenerationOutputFromReturn<TResult, TTransformed>
   const hookId = useId()
   const clientId = options.id || hookId
 
@@ -115,7 +125,18 @@ export function useGeneration<
     const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
       id: clientId,
       body: opts.body,
-      onResult: (r: TResult) => optionsRef.current.onResult?.(r),
+      devtoolsBridgeFactory: createGenerationDevtoolsBridge,
+      devtools: {
+        hookName: 'useGeneration',
+        framework: 'react',
+        ...opts.devtools,
+      },
+      // The transform's raw return type (`TTransformed`) and the stored output
+      // (`TOutput`, with null/void/undefined stripped) are identical at runtime;
+      // the cast bridges the relationship that the conditional type hides.
+      onResult: ((r: TResult) => optionsRef.current.onResult?.(r)) as (
+        result: TResult,
+      ) => TOutput | null | void,
       onError: (e: Error) => {
         optionsRef.current.onError?.(e)
       },
@@ -160,8 +181,10 @@ export function useGeneration<
 
   // Cleanup on unmount
   useEffect(() => {
+    client.mountDevtools()
+
     return () => {
-      client.stop()
+      client.dispose()
     }
   }, [client])
 

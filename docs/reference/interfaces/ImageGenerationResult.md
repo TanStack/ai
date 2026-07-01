@@ -5,7 +5,7 @@ title: ImageGenerationResult
 
 # Interface: ImageGenerationResult
 
-Defined in: [packages/ai/src/types.ts:1483](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1483)
+Defined in: [packages/ai/src/types.ts:1701](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1701)
 
 Result of image generation
 
@@ -17,7 +17,7 @@ Result of image generation
 id: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1485](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1485)
+Defined in: [packages/ai/src/types.ts:1703](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1703)
 
 Unique identifier for the generation
 
@@ -29,7 +29,7 @@ Unique identifier for the generation
 images: GeneratedImage[];
 ```
 
-Defined in: [packages/ai/src/types.ts:1489](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1489)
+Defined in: [packages/ai/src/types.ts:1707](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1707)
 
 Array of generated images
 
@@ -41,7 +41,7 @@ Array of generated images
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1487](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1487)
+Defined in: [packages/ai/src/types.ts:1705](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1705)
 
 Model used for generation
 
@@ -50,27 +50,9 @@ Model used for generation
 ### usage?
 
 ```ts
-optional usage: object;
+optional usage: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1491](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1491)
+Defined in: [packages/ai/src/types.ts:1709](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1709)
 
 Token usage information (if available)
-
-#### inputTokens?
-
-```ts
-optional inputTokens: number;
-```
-
-#### outputTokens?
-
-```ts
-optional outputTokens: number;
-```
-
-#### totalTokens?
-
-```ts
-optional totalTokens: number;
-```

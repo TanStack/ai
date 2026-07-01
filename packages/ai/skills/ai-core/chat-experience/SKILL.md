@@ -137,8 +137,10 @@ import { anthropicText } from '@tanstack/ai-anthropic'
 const stream = chat({
   adapter: anthropicText('claude-sonnet-4-5'),
   messages,
-  temperature: 0.7,
-  maxTokens: 2000,
+  modelOptions: {
+    temperature: 0.7,
+    max_tokens: 2000, // Anthropic-native key
+  },
   systemPrompts: ['You are a helpful assistant.'],
   abortController,
 })
@@ -276,7 +278,35 @@ if (part.type === 'image') {
 }
 ```
 
-### 4. HTTP Stream Format (Alternative to SSE)
+### 4. Sending Audio Messages (Browser Recording)
+
+Use `useAudioRecorder` from `@tanstack/ai-react` (or `createAudioRecorder` in Svelte) to capture audio in the browser. The resolved `AudioRecording` includes a ready-to-use `part` that slots directly into `sendMessage`.
+
+```typescript
+import {
+  useAudioRecorder,
+  useChat,
+  fetchServerSentEvents,
+} from '@tanstack/ai-react'
+
+const { isRecording, isSupported, start, stop } = useAudioRecorder()
+const { sendMessage } = useChat({
+  connection: fetchServerSentEvents('/api/chat'),
+})
+
+async function toggle() {
+  if (!isRecording) {
+    await start()
+    return
+  }
+  const recording = await stop()
+  await sendMessage({ content: [recording.part] })
+}
+```
+
+`recording.part` is `{ type: 'audio', source: { type: 'data', value: base64, mimeType } }`. Returns the recorder's native format (`audio/webm` or `audio/mp4`) with no transcoding.
+
+### 5. HTTP Stream Format (Alternative to SSE)
 
 Use `toHttpResponse` + `fetchHttpStream` for newline-delimited JSON instead of SSE.
 
@@ -307,6 +337,77 @@ const { messages, sendMessage } = useChat({
 
 The only difference is swapping `toServerSentEventsResponse` / `fetchServerSentEvents`
 for `toHttpResponse` / `fetchHttpStream`. Everything else stays identical.
+
+### 6. MCP Tool Discovery via `chat({ mcp })`
+
+Pass `mcp` to let `chat()` own discovery **and** lifecycle for one or more MCP
+clients. Useful when you want minimal boilerplate and don't need to reuse the
+clients across calls.
+
+```typescript
+// Prop shape:
+// chat({
+//   ...,
+//   mcp: {
+//     clients: Array<MCPClient | MCPClients>,
+//     connection?: 'close' | 'keep-alive',  // default: 'close'
+//     lazyTools?: boolean,
+//     onDiscoveryError?: (error: unknown, source) => void,
+//   }
+// })
+```
+
+- **`clients`** — one or more `MCPClient` / `MCPClients` instances.
+- **`connection`** — `'close'` (default) closes each client when the run ends
+  (after the agent loop completes and the stream is drained); with
+  `'keep-alive'`, `chat()` never closes the clients — the caller owns their
+  lifecycle (keep connections warm across requests).
+- **`lazyTools`** — forwarded to `tools({ lazy: true })` so tool schemas are
+  sent to the LLM on demand.
+- **`onDiscoveryError`** — throw (or re-throw) to fail the entire call fast;
+  return normally to skip that source and continue. Omit to rethrow (fail-fast).
+
+**When to use `mcp` vs. the tools spread:**
+
+| Approach                                                | Use when                                                                                        |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `chat({ mcp: { clients: [...] } })`                     | You want discovery + lifecycle managed for you, and don't need fully-typed input/output schemas |
+| `tools: [...await client.tools([toolDefinition(...)])]` | You want fully-typed MCP tools with Zod input/output validation                                 |
+
+**Server-side example:**
+
+```typescript
+import { createFileRoute } from '@tanstack/react-router'
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+export const Route = createFileRoute('/api/chat')({
+  server: {
+    handlers: {
+      POST: async ({ request }) => {
+        const { messages } = await request.json()
+
+        const mcpClient = await createMCPClient({
+          transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+        })
+
+        const stream = chat({
+          adapter: openaiText('gpt-5.5'),
+          messages,
+          mcp: {
+            clients: [mcpClient],
+            connection: 'keep-alive', // chat() won't close it — reuse across requests
+          },
+        })
+
+        return toServerSentEventsResponse(stream)
+        // connection: 'keep-alive' — chat() never closes mcpClient; it stays open for reuse across runs.
+      },
+    },
+  },
+})
+```
 
 ## Common Mistakes
 
@@ -377,17 +478,32 @@ chat({ adapter: openaiText('gpt-5.2'), messages })
 
 The model is passed to the adapter factory, not to `chat()`.
 
-### f. HIGH: Nesting temperature/maxTokens in options object
+### f. HIGH: Passing sampling options at the root of chat()
+
+Sampling options (`temperature`, token limits, `top_p`/`topP`) are **not**
+top-level fields on `chat()`. They live inside `modelOptions` using the
+provider's native key.
 
 ```typescript
-// WRONG
+// WRONG — temperature/maxTokens are not root options
+chat({ adapter, messages, temperature: 0.7, maxTokens: 1000 })
+
+// WRONG — there is no `options` field either
 chat({ adapter, messages, options: { temperature: 0.7, maxTokens: 1000 } })
 
-// CORRECT
-chat({ adapter, messages, temperature: 0.7, maxTokens: 1000 })
+// CORRECT — inside modelOptions, provider-native keys (OpenAI shown)
+chat({
+  adapter,
+  messages,
+  modelOptions: { temperature: 0.7, max_output_tokens: 1000 },
+})
 ```
 
-All parameters are top-level on the `chat()` options object.
+`temperature` is universal across providers; token limits use provider-native
+keys (`max_output_tokens` for OpenAI, `max_tokens` for Anthropic/Grok,
+`maxOutputTokens` for Gemini, `max_completion_tokens` for Groq,
+`maxCompletionTokens` for OpenRouter, and `num_predict` nested under
+`modelOptions.options` for Ollama). See ai-core/adapter-configuration/SKILL.md.
 
 ### g. HIGH: Using providerOptions instead of modelOptions
 

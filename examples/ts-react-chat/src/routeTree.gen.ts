@@ -9,10 +9,17 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as ThreadsRouteImport } from './routes/threads'
 import { Route as ServerFnChatRouteImport } from './routes/server-fn-chat'
+import { Route as SandboxesRouteImport } from './routes/sandboxes'
 import { Route as RealtimeRouteImport } from './routes/realtime'
+import { Route as McpDemoRouteImport } from './routes/mcp-demo'
+import { Route as McpAppsRouteImport } from './routes/mcp-apps'
 import { Route as Issue176ToolResultRouteImport } from './routes/issue-176-tool-result'
+import { Route as ImageToolReproRouteImport } from './routes/image-tool-repro'
 import { Route as ImageGenRouteImport } from './routes/image-gen'
+import { Route as GenerationHooksRouteImport } from './routes/generation-hooks'
+import { Route as CapabilityDemoRouteImport } from './routes/capability-demo'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GenerationsVideoRouteImport } from './routes/generations.video'
 import { Route as GenerationsTranscriptionRouteImport } from './routes/generations.transcription'
@@ -22,12 +29,24 @@ import { Route as GenerationsStructuredChatRouteImport } from './routes/generati
 import { Route as GenerationsSpeechRouteImport } from './routes/generations.speech'
 import { Route as GenerationsImageRouteImport } from './routes/generations.image'
 import { Route as GenerationsAudioRouteImport } from './routes/generations.audio'
+import { Route as ExampleRuntimeContextRouteImport } from './routes/example.runtime-context'
 import { Route as ApiTranscribeRouteImport } from './routes/api.transcribe'
 import { Route as ApiTanchatRouteImport } from './routes/api.tanchat'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiStructuredOutputRouteImport } from './routes/api.structured-output'
 import { Route as ApiStructuredChatRouteImport } from './routes/api.structured-chat'
+import { Route as ApiSandboxTriageRouteImport } from './routes/api.sandbox-triage'
+import { Route as ApiMcpStatusRouteImport } from './routes/api.mcp-status'
+import { Route as ApiMcpPoolRouteImport } from './routes/api.mcp-pool'
+import { Route as ApiMcpManualRouteImport } from './routes/api.mcp-manual'
+import { Route as ApiMcpChatRouteImport } from './routes/api.mcp-chat'
+import { Route as ApiMcpAppsWeatherServerRouteImport } from './routes/api.mcp-apps-weather-server'
+import { Route as ApiMcpAppsShopServerRouteImport } from './routes/api.mcp-apps-shop-server'
+import { Route as ApiMcpAppsChatRouteImport } from './routes/api.mcp-apps-chat'
+import { Route as ApiMcpAppsCallRouteImport } from './routes/api.mcp-apps-call'
+import { Route as ApiImageToolReproRouteImport } from './routes/api.image-tool-repro'
 import { Route as ApiImageGenRouteImport } from './routes/api.image-gen'
+import { Route as ApiCapabilityDemoRouteImport } from './routes/api.capability-demo'
 import { Route as ExampleGuitarsIndexRouteImport } from './routes/example.guitars/index'
 import { Route as ExampleGuitarsGuitarIdRouteImport } from './routes/example.guitars/$guitarId'
 import { Route as ApiGenerateVideoRouteImport } from './routes/api.generate.video'
@@ -35,9 +54,19 @@ import { Route as ApiGenerateSpeechRouteImport } from './routes/api.generate.spe
 import { Route as ApiGenerateImageRouteImport } from './routes/api.generate.image'
 import { Route as ApiGenerateAudioRouteImport } from './routes/api.generate.audio'
 
+const ThreadsRoute = ThreadsRouteImport.update({
+  id: '/threads',
+  path: '/threads',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ServerFnChatRoute = ServerFnChatRouteImport.update({
   id: '/server-fn-chat',
   path: '/server-fn-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SandboxesRoute = SandboxesRouteImport.update({
+  id: '/sandboxes',
+  path: '/sandboxes',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RealtimeRoute = RealtimeRouteImport.update({
@@ -45,14 +74,39 @@ const RealtimeRoute = RealtimeRouteImport.update({
   path: '/realtime',
   getParentRoute: () => rootRouteImport,
 } as any)
+const McpDemoRoute = McpDemoRouteImport.update({
+  id: '/mcp-demo',
+  path: '/mcp-demo',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const McpAppsRoute = McpAppsRouteImport.update({
+  id: '/mcp-apps',
+  path: '/mcp-apps',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const Issue176ToolResultRoute = Issue176ToolResultRouteImport.update({
   id: '/issue-176-tool-result',
   path: '/issue-176-tool-result',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ImageToolReproRoute = ImageToolReproRouteImport.update({
+  id: '/image-tool-repro',
+  path: '/image-tool-repro',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ImageGenRoute = ImageGenRouteImport.update({
   id: '/image-gen',
   path: '/image-gen',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GenerationHooksRoute = GenerationHooksRouteImport.update({
+  id: '/generation-hooks',
+  path: '/generation-hooks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CapabilityDemoRoute = CapabilityDemoRouteImport.update({
+  id: '/capability-demo',
+  path: '/capability-demo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -103,6 +157,11 @@ const GenerationsAudioRoute = GenerationsAudioRouteImport.update({
   path: '/generations/audio',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ExampleRuntimeContextRoute = ExampleRuntimeContextRouteImport.update({
+  id: '/example/runtime-context',
+  path: '/example/runtime-context',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiTranscribeRoute = ApiTranscribeRouteImport.update({
   id: '/api/transcribe',
   path: '/api/transcribe',
@@ -128,9 +187,64 @@ const ApiStructuredChatRoute = ApiStructuredChatRouteImport.update({
   path: '/api/structured-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSandboxTriageRoute = ApiSandboxTriageRouteImport.update({
+  id: '/api/sandbox-triage',
+  path: '/api/sandbox-triage',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpStatusRoute = ApiMcpStatusRouteImport.update({
+  id: '/api/mcp-status',
+  path: '/api/mcp-status',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpPoolRoute = ApiMcpPoolRouteImport.update({
+  id: '/api/mcp-pool',
+  path: '/api/mcp-pool',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpManualRoute = ApiMcpManualRouteImport.update({
+  id: '/api/mcp-manual',
+  path: '/api/mcp-manual',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpChatRoute = ApiMcpChatRouteImport.update({
+  id: '/api/mcp-chat',
+  path: '/api/mcp-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpAppsWeatherServerRoute = ApiMcpAppsWeatherServerRouteImport.update({
+  id: '/api/mcp-apps-weather-server',
+  path: '/api/mcp-apps-weather-server',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpAppsShopServerRoute = ApiMcpAppsShopServerRouteImport.update({
+  id: '/api/mcp-apps-shop-server',
+  path: '/api/mcp-apps-shop-server',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpAppsChatRoute = ApiMcpAppsChatRouteImport.update({
+  id: '/api/mcp-apps-chat',
+  path: '/api/mcp-apps-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpAppsCallRoute = ApiMcpAppsCallRouteImport.update({
+  id: '/api/mcp-apps-call',
+  path: '/api/mcp-apps-call',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiImageToolReproRoute = ApiImageToolReproRouteImport.update({
+  id: '/api/image-tool-repro',
+  path: '/api/image-tool-repro',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiImageGenRoute = ApiImageGenRouteImport.update({
   id: '/api/image-gen',
   path: '/api/image-gen',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCapabilityDemoRoute = ApiCapabilityDemoRouteImport.update({
+  id: '/api/capability-demo',
+  path: '/api/capability-demo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ExampleGuitarsIndexRoute = ExampleGuitarsIndexRouteImport.update({
@@ -166,16 +280,35 @@ const ApiGenerateAudioRoute = ApiGenerateAudioRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/capability-demo': typeof CapabilityDemoRoute
+  '/generation-hooks': typeof GenerationHooksRoute
   '/image-gen': typeof ImageGenRoute
+  '/image-tool-repro': typeof ImageToolReproRoute
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
+  '/mcp-apps': typeof McpAppsRoute
+  '/mcp-demo': typeof McpDemoRoute
   '/realtime': typeof RealtimeRoute
+  '/sandboxes': typeof SandboxesRoute
   '/server-fn-chat': typeof ServerFnChatRoute
+  '/threads': typeof ThreadsRoute
+  '/api/capability-demo': typeof ApiCapabilityDemoRoute
   '/api/image-gen': typeof ApiImageGenRoute
+  '/api/image-tool-repro': typeof ApiImageToolReproRoute
+  '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
+  '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
+  '/api/mcp-apps-shop-server': typeof ApiMcpAppsShopServerRoute
+  '/api/mcp-apps-weather-server': typeof ApiMcpAppsWeatherServerRoute
+  '/api/mcp-chat': typeof ApiMcpChatRoute
+  '/api/mcp-manual': typeof ApiMcpManualRoute
+  '/api/mcp-pool': typeof ApiMcpPoolRoute
+  '/api/mcp-status': typeof ApiMcpStatusRoute
+  '/api/sandbox-triage': typeof ApiSandboxTriageRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tanchat': typeof ApiTanchatRoute
   '/api/transcribe': typeof ApiTranscribeRoute
+  '/example/runtime-context': typeof ExampleRuntimeContextRoute
   '/generations/audio': typeof GenerationsAudioRoute
   '/generations/image': typeof GenerationsImageRoute
   '/generations/speech': typeof GenerationsSpeechRoute
@@ -193,16 +326,35 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/capability-demo': typeof CapabilityDemoRoute
+  '/generation-hooks': typeof GenerationHooksRoute
   '/image-gen': typeof ImageGenRoute
+  '/image-tool-repro': typeof ImageToolReproRoute
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
+  '/mcp-apps': typeof McpAppsRoute
+  '/mcp-demo': typeof McpDemoRoute
   '/realtime': typeof RealtimeRoute
+  '/sandboxes': typeof SandboxesRoute
   '/server-fn-chat': typeof ServerFnChatRoute
+  '/threads': typeof ThreadsRoute
+  '/api/capability-demo': typeof ApiCapabilityDemoRoute
   '/api/image-gen': typeof ApiImageGenRoute
+  '/api/image-tool-repro': typeof ApiImageToolReproRoute
+  '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
+  '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
+  '/api/mcp-apps-shop-server': typeof ApiMcpAppsShopServerRoute
+  '/api/mcp-apps-weather-server': typeof ApiMcpAppsWeatherServerRoute
+  '/api/mcp-chat': typeof ApiMcpChatRoute
+  '/api/mcp-manual': typeof ApiMcpManualRoute
+  '/api/mcp-pool': typeof ApiMcpPoolRoute
+  '/api/mcp-status': typeof ApiMcpStatusRoute
+  '/api/sandbox-triage': typeof ApiSandboxTriageRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tanchat': typeof ApiTanchatRoute
   '/api/transcribe': typeof ApiTranscribeRoute
+  '/example/runtime-context': typeof ExampleRuntimeContextRoute
   '/generations/audio': typeof GenerationsAudioRoute
   '/generations/image': typeof GenerationsImageRoute
   '/generations/speech': typeof GenerationsSpeechRoute
@@ -221,16 +373,35 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/capability-demo': typeof CapabilityDemoRoute
+  '/generation-hooks': typeof GenerationHooksRoute
   '/image-gen': typeof ImageGenRoute
+  '/image-tool-repro': typeof ImageToolReproRoute
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
+  '/mcp-apps': typeof McpAppsRoute
+  '/mcp-demo': typeof McpDemoRoute
   '/realtime': typeof RealtimeRoute
+  '/sandboxes': typeof SandboxesRoute
   '/server-fn-chat': typeof ServerFnChatRoute
+  '/threads': typeof ThreadsRoute
+  '/api/capability-demo': typeof ApiCapabilityDemoRoute
   '/api/image-gen': typeof ApiImageGenRoute
+  '/api/image-tool-repro': typeof ApiImageToolReproRoute
+  '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
+  '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
+  '/api/mcp-apps-shop-server': typeof ApiMcpAppsShopServerRoute
+  '/api/mcp-apps-weather-server': typeof ApiMcpAppsWeatherServerRoute
+  '/api/mcp-chat': typeof ApiMcpChatRoute
+  '/api/mcp-manual': typeof ApiMcpManualRoute
+  '/api/mcp-pool': typeof ApiMcpPoolRoute
+  '/api/mcp-status': typeof ApiMcpStatusRoute
+  '/api/sandbox-triage': typeof ApiSandboxTriageRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tanchat': typeof ApiTanchatRoute
   '/api/transcribe': typeof ApiTranscribeRoute
+  '/example/runtime-context': typeof ExampleRuntimeContextRoute
   '/generations/audio': typeof GenerationsAudioRoute
   '/generations/image': typeof GenerationsImageRoute
   '/generations/speech': typeof GenerationsSpeechRoute
@@ -250,16 +421,35 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/capability-demo'
+    | '/generation-hooks'
     | '/image-gen'
+    | '/image-tool-repro'
     | '/issue-176-tool-result'
+    | '/mcp-apps'
+    | '/mcp-demo'
     | '/realtime'
+    | '/sandboxes'
     | '/server-fn-chat'
+    | '/threads'
+    | '/api/capability-demo'
     | '/api/image-gen'
+    | '/api/image-tool-repro'
+    | '/api/mcp-apps-call'
+    | '/api/mcp-apps-chat'
+    | '/api/mcp-apps-shop-server'
+    | '/api/mcp-apps-weather-server'
+    | '/api/mcp-chat'
+    | '/api/mcp-manual'
+    | '/api/mcp-pool'
+    | '/api/mcp-status'
+    | '/api/sandbox-triage'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
     | '/api/tanchat'
     | '/api/transcribe'
+    | '/example/runtime-context'
     | '/generations/audio'
     | '/generations/image'
     | '/generations/speech'
@@ -277,16 +467,35 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/capability-demo'
+    | '/generation-hooks'
     | '/image-gen'
+    | '/image-tool-repro'
     | '/issue-176-tool-result'
+    | '/mcp-apps'
+    | '/mcp-demo'
     | '/realtime'
+    | '/sandboxes'
     | '/server-fn-chat'
+    | '/threads'
+    | '/api/capability-demo'
     | '/api/image-gen'
+    | '/api/image-tool-repro'
+    | '/api/mcp-apps-call'
+    | '/api/mcp-apps-chat'
+    | '/api/mcp-apps-shop-server'
+    | '/api/mcp-apps-weather-server'
+    | '/api/mcp-chat'
+    | '/api/mcp-manual'
+    | '/api/mcp-pool'
+    | '/api/mcp-status'
+    | '/api/sandbox-triage'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
     | '/api/tanchat'
     | '/api/transcribe'
+    | '/example/runtime-context'
     | '/generations/audio'
     | '/generations/image'
     | '/generations/speech'
@@ -304,16 +513,35 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/capability-demo'
+    | '/generation-hooks'
     | '/image-gen'
+    | '/image-tool-repro'
     | '/issue-176-tool-result'
+    | '/mcp-apps'
+    | '/mcp-demo'
     | '/realtime'
+    | '/sandboxes'
     | '/server-fn-chat'
+    | '/threads'
+    | '/api/capability-demo'
     | '/api/image-gen'
+    | '/api/image-tool-repro'
+    | '/api/mcp-apps-call'
+    | '/api/mcp-apps-chat'
+    | '/api/mcp-apps-shop-server'
+    | '/api/mcp-apps-weather-server'
+    | '/api/mcp-chat'
+    | '/api/mcp-manual'
+    | '/api/mcp-pool'
+    | '/api/mcp-status'
+    | '/api/sandbox-triage'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
     | '/api/tanchat'
     | '/api/transcribe'
+    | '/example/runtime-context'
     | '/generations/audio'
     | '/generations/image'
     | '/generations/speech'
@@ -332,16 +560,35 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CapabilityDemoRoute: typeof CapabilityDemoRoute
+  GenerationHooksRoute: typeof GenerationHooksRoute
   ImageGenRoute: typeof ImageGenRoute
+  ImageToolReproRoute: typeof ImageToolReproRoute
   Issue176ToolResultRoute: typeof Issue176ToolResultRoute
+  McpAppsRoute: typeof McpAppsRoute
+  McpDemoRoute: typeof McpDemoRoute
   RealtimeRoute: typeof RealtimeRoute
+  SandboxesRoute: typeof SandboxesRoute
   ServerFnChatRoute: typeof ServerFnChatRoute
+  ThreadsRoute: typeof ThreadsRoute
+  ApiCapabilityDemoRoute: typeof ApiCapabilityDemoRoute
   ApiImageGenRoute: typeof ApiImageGenRoute
+  ApiImageToolReproRoute: typeof ApiImageToolReproRoute
+  ApiMcpAppsCallRoute: typeof ApiMcpAppsCallRoute
+  ApiMcpAppsChatRoute: typeof ApiMcpAppsChatRoute
+  ApiMcpAppsShopServerRoute: typeof ApiMcpAppsShopServerRoute
+  ApiMcpAppsWeatherServerRoute: typeof ApiMcpAppsWeatherServerRoute
+  ApiMcpChatRoute: typeof ApiMcpChatRoute
+  ApiMcpManualRoute: typeof ApiMcpManualRoute
+  ApiMcpPoolRoute: typeof ApiMcpPoolRoute
+  ApiMcpStatusRoute: typeof ApiMcpStatusRoute
+  ApiSandboxTriageRoute: typeof ApiSandboxTriageRoute
   ApiStructuredChatRoute: typeof ApiStructuredChatRoute
   ApiStructuredOutputRoute: typeof ApiStructuredOutputRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
   ApiTanchatRoute: typeof ApiTanchatRoute
   ApiTranscribeRoute: typeof ApiTranscribeRoute
+  ExampleRuntimeContextRoute: typeof ExampleRuntimeContextRoute
   GenerationsAudioRoute: typeof GenerationsAudioRoute
   GenerationsImageRoute: typeof GenerationsImageRoute
   GenerationsSpeechRoute: typeof GenerationsSpeechRoute
@@ -360,11 +607,25 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/threads': {
+      id: '/threads'
+      path: '/threads'
+      fullPath: '/threads'
+      preLoaderRoute: typeof ThreadsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/server-fn-chat': {
       id: '/server-fn-chat'
       path: '/server-fn-chat'
       fullPath: '/server-fn-chat'
       preLoaderRoute: typeof ServerFnChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sandboxes': {
+      id: '/sandboxes'
+      path: '/sandboxes'
+      fullPath: '/sandboxes'
+      preLoaderRoute: typeof SandboxesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/realtime': {
@@ -374,6 +635,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RealtimeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/mcp-demo': {
+      id: '/mcp-demo'
+      path: '/mcp-demo'
+      fullPath: '/mcp-demo'
+      preLoaderRoute: typeof McpDemoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mcp-apps': {
+      id: '/mcp-apps'
+      path: '/mcp-apps'
+      fullPath: '/mcp-apps'
+      preLoaderRoute: typeof McpAppsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/issue-176-tool-result': {
       id: '/issue-176-tool-result'
       path: '/issue-176-tool-result'
@@ -381,11 +656,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Issue176ToolResultRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/image-tool-repro': {
+      id: '/image-tool-repro'
+      path: '/image-tool-repro'
+      fullPath: '/image-tool-repro'
+      preLoaderRoute: typeof ImageToolReproRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/image-gen': {
       id: '/image-gen'
       path: '/image-gen'
       fullPath: '/image-gen'
       preLoaderRoute: typeof ImageGenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/generation-hooks': {
+      id: '/generation-hooks'
+      path: '/generation-hooks'
+      fullPath: '/generation-hooks'
+      preLoaderRoute: typeof GenerationHooksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/capability-demo': {
+      id: '/capability-demo'
+      path: '/capability-demo'
+      fullPath: '/capability-demo'
+      preLoaderRoute: typeof CapabilityDemoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -451,6 +747,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GenerationsAudioRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/example/runtime-context': {
+      id: '/example/runtime-context'
+      path: '/example/runtime-context'
+      fullPath: '/example/runtime-context'
+      preLoaderRoute: typeof ExampleRuntimeContextRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/transcribe': {
       id: '/api/transcribe'
       path: '/api/transcribe'
@@ -486,11 +789,88 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiStructuredChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/sandbox-triage': {
+      id: '/api/sandbox-triage'
+      path: '/api/sandbox-triage'
+      fullPath: '/api/sandbox-triage'
+      preLoaderRoute: typeof ApiSandboxTriageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-status': {
+      id: '/api/mcp-status'
+      path: '/api/mcp-status'
+      fullPath: '/api/mcp-status'
+      preLoaderRoute: typeof ApiMcpStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-pool': {
+      id: '/api/mcp-pool'
+      path: '/api/mcp-pool'
+      fullPath: '/api/mcp-pool'
+      preLoaderRoute: typeof ApiMcpPoolRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-manual': {
+      id: '/api/mcp-manual'
+      path: '/api/mcp-manual'
+      fullPath: '/api/mcp-manual'
+      preLoaderRoute: typeof ApiMcpManualRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-chat': {
+      id: '/api/mcp-chat'
+      path: '/api/mcp-chat'
+      fullPath: '/api/mcp-chat'
+      preLoaderRoute: typeof ApiMcpChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-apps-weather-server': {
+      id: '/api/mcp-apps-weather-server'
+      path: '/api/mcp-apps-weather-server'
+      fullPath: '/api/mcp-apps-weather-server'
+      preLoaderRoute: typeof ApiMcpAppsWeatherServerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-apps-shop-server': {
+      id: '/api/mcp-apps-shop-server'
+      path: '/api/mcp-apps-shop-server'
+      fullPath: '/api/mcp-apps-shop-server'
+      preLoaderRoute: typeof ApiMcpAppsShopServerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-apps-chat': {
+      id: '/api/mcp-apps-chat'
+      path: '/api/mcp-apps-chat'
+      fullPath: '/api/mcp-apps-chat'
+      preLoaderRoute: typeof ApiMcpAppsChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-apps-call': {
+      id: '/api/mcp-apps-call'
+      path: '/api/mcp-apps-call'
+      fullPath: '/api/mcp-apps-call'
+      preLoaderRoute: typeof ApiMcpAppsCallRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/image-tool-repro': {
+      id: '/api/image-tool-repro'
+      path: '/api/image-tool-repro'
+      fullPath: '/api/image-tool-repro'
+      preLoaderRoute: typeof ApiImageToolReproRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/image-gen': {
       id: '/api/image-gen'
       path: '/api/image-gen'
       fullPath: '/api/image-gen'
       preLoaderRoute: typeof ApiImageGenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/capability-demo': {
+      id: '/api/capability-demo'
+      path: '/api/capability-demo'
+      fullPath: '/api/capability-demo'
+      preLoaderRoute: typeof ApiCapabilityDemoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/example/guitars/': {
@@ -540,16 +920,35 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CapabilityDemoRoute: CapabilityDemoRoute,
+  GenerationHooksRoute: GenerationHooksRoute,
   ImageGenRoute: ImageGenRoute,
+  ImageToolReproRoute: ImageToolReproRoute,
   Issue176ToolResultRoute: Issue176ToolResultRoute,
+  McpAppsRoute: McpAppsRoute,
+  McpDemoRoute: McpDemoRoute,
   RealtimeRoute: RealtimeRoute,
+  SandboxesRoute: SandboxesRoute,
   ServerFnChatRoute: ServerFnChatRoute,
+  ThreadsRoute: ThreadsRoute,
+  ApiCapabilityDemoRoute: ApiCapabilityDemoRoute,
   ApiImageGenRoute: ApiImageGenRoute,
+  ApiImageToolReproRoute: ApiImageToolReproRoute,
+  ApiMcpAppsCallRoute: ApiMcpAppsCallRoute,
+  ApiMcpAppsChatRoute: ApiMcpAppsChatRoute,
+  ApiMcpAppsShopServerRoute: ApiMcpAppsShopServerRoute,
+  ApiMcpAppsWeatherServerRoute: ApiMcpAppsWeatherServerRoute,
+  ApiMcpChatRoute: ApiMcpChatRoute,
+  ApiMcpManualRoute: ApiMcpManualRoute,
+  ApiMcpPoolRoute: ApiMcpPoolRoute,
+  ApiMcpStatusRoute: ApiMcpStatusRoute,
+  ApiSandboxTriageRoute: ApiSandboxTriageRoute,
   ApiStructuredChatRoute: ApiStructuredChatRoute,
   ApiStructuredOutputRoute: ApiStructuredOutputRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
   ApiTanchatRoute: ApiTanchatRoute,
   ApiTranscribeRoute: ApiTranscribeRoute,
+  ExampleRuntimeContextRoute: ExampleRuntimeContextRoute,
   GenerationsAudioRoute: GenerationsAudioRoute,
   GenerationsImageRoute: GenerationsImageRoute,
   GenerationsSpeechRoute: GenerationsSpeechRoute,

@@ -5,7 +5,7 @@ title: StreamProcessor
 
 # Class: StreamProcessor
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:135](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L135)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:155](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L155)
 
 StreamProcessor - State machine for processing AI response streams
 
@@ -32,7 +32,7 @@ State tracking:
 new StreamProcessor(options): StreamProcessor;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:165](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L165)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:192](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L192)
 
 #### Parameters
 
@@ -52,7 +52,7 @@ Defined in: [packages/ai/src/activities/chat/stream/processor.ts:165](https://gi
 addToolApprovalResponse(approvalId, approved): void;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:323](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L323)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:350](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L350)
 
 Add an approval response (called by client after handling onApprovalRequest)
 
@@ -81,7 +81,7 @@ addToolResult(
    error?): void;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:279](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L279)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:306](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L306)
 
 Add a tool result (called by client after handling onToolCall)
 
@@ -111,7 +111,7 @@ Add a tool result (called by client after handling onToolCall)
 addUserMessage(content, id?): UIMessage;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:212](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L212)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:239](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L239)
 
 Add a user message to the conversation.
 Supports both simple string content and multimodal content arrays.
@@ -160,7 +160,7 @@ processor.addUserMessage('Hello!', 'custom-id-123')
 areAllToolsComplete(): boolean;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:354](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L354)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:381](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L381)
 
 Check if all tool calls in the last assistant message are complete
 Useful for auto-continue logic
@@ -177,7 +177,7 @@ Useful for auto-continue logic
 clearMessages(): void;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:420](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L420)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:450](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L450)
 
 Clear all messages
 
@@ -193,7 +193,7 @@ Clear all messages
 finalizeStream(): void;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:1684](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L1684)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:1889](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L1889)
 
 Finalize the stream — complete all pending operations.
 
@@ -217,7 +217,7 @@ docs/chat-architecture.md#single-shot-text-response — Finalization step
 getCurrentAssistantMessageId(): string | null;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:263](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L263)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:290](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L290)
 
 Get the current assistant message ID (if one has been created).
 Returns null if prepareAssistantMessage() was called but no content
@@ -235,7 +235,7 @@ has arrived yet.
 getMessages(): UIMessage<unknown>[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:346](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L346)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:373](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L373)
 
 Get current messages
 
@@ -251,7 +251,7 @@ Get current messages
 getRecording(): ChunkRecording | null;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:1845](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L1845)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:2053](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L2053)
 
 Get the current recording
 
@@ -267,7 +267,7 @@ Get the current recording
 getState(): ProcessorState;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:1802](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L1802)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:2010](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L2010)
 
 Get current processor state (aggregated across all messages)
 
@@ -283,7 +283,7 @@ Get current processor state (aggregated across all messages)
 prepareAssistantMessage(): void;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:242](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L242)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:269](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L269)
 
 Prepare for a new assistant message stream.
 Does NOT create the message immediately -- the message is created lazily
@@ -303,7 +303,7 @@ auto-continuation produces no content.
 process(stream): Promise<ProcessorResult>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:437](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L437)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:468](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L468)
 
 Process a stream and emit events through handlers
 
@@ -325,7 +325,7 @@ Process a stream and emit events through handlers
 processChunk(chunk): void;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:471](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L471)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:502](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L502)
 
 Process a single chunk from the stream.
 
@@ -355,7 +355,7 @@ docs/chat-architecture.md#adapter-contract — Expected event types and ordering
 removeMessagesAfter(index): void;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:391](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L391)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:418](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L418)
 
 Remove messages after a certain index (for reload/retry)
 
@@ -377,7 +377,7 @@ Remove messages after a certain index (for reload/retry)
 reset(): void;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:1869](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L1869)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:2078](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L2078)
 
 Full reset (including messages)
 
@@ -393,7 +393,7 @@ Full reset (including messages)
 setMessages(messages): void;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:184](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L184)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:211](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L211)
 
 Set the messages array (e.g., from persisted state)
 
@@ -415,7 +415,7 @@ Set the messages array (e.g., from persisted state)
 startAssistantMessage(messageId?): string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:251](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L251)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:278](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L278)
 
 #### Parameters
 
@@ -440,7 +440,7 @@ an assistant message which can cause empty message flicker.
 startRecording(): void;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:1832](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L1832)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:2040](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L2040)
 
 Start recording chunks
 
@@ -459,7 +459,7 @@ toModelMessages(): ModelMessage<
   | null>[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:335](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L335)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:362](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L362)
 
 Get the conversation as ModelMessages (for sending to LLM)
 
@@ -478,7 +478,7 @@ Get the conversation as ModelMessages (for sending to LLM)
 static replay(recording, options?): Promise<ProcessorResult>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:1888](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L1888)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:2097](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L2097)
 
 Replay a recording through the processor
 

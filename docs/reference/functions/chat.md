@@ -6,10 +6,10 @@ title: chat
 # Function: chat()
 
 ```ts
-function chat<TAdapter, TSchema, TStream>(options): TextActivityResult<TSchema, TStream>;
+function chat<TAdapter, TSchema, TStream, TTools, TMiddleware>(options): TextActivityResult<TSchema, TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/index.ts:2385](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/index.ts#L2385)
+Defined in: [packages/ai/src/activities/chat/index.ts:2658](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/index.ts#L2658)
 
 Text activity - handles agentic text generation, one-shot text generation, and agentic structured output.
 
@@ -33,11 +33,31 @@ This activity supports four modes:
 
 `TStream` *extends* `boolean` = `boolean`
 
+### TTools
+
+`TTools` *extends* 
+  \| (
+  \| `Omit`\<[`Tool`](../interfaces/Tool.md)\<`any`, `any`, `any`, `any`\>, `"execute"`\> & `object` & `object`
+  \| [`ProviderTool`](../interfaces/ProviderTool.md)\<`string`, `TAdapter`\[`"~types"`\]\[`"toolCapabilities"`\]\[`number`\]\>)[]
+  \| `undefined` = 
+  \| (
+  \| `Omit`\<[`Tool`](../interfaces/Tool.md)\<`any`, `any`, `any`, `any`\>, `"execute"`\> & `object` & `object`
+  \| [`ProviderTool`](../interfaces/ProviderTool.md)\<`string`, `TAdapter`\[`"~types"`\]\[`"toolCapabilities"`\]\[`number`\]\>)[]
+  \| `undefined`
+
+### TMiddleware
+
+`TMiddleware` *extends* 
+  \| [`ChatMiddleware`](../interfaces/ChatMiddleware.md)\<`any`\>[]
+  \| `undefined` = 
+  \| [`ChatMiddleware`](../interfaces/ChatMiddleware.md)\<`any`\>[]
+  \| `undefined`
+
 ## Parameters
 
 ### options
 
-`TextActivityOptions`\<`TAdapter`, `TSchema`, `TStream`\>
+`TextActivityOptionsWithContext`\<`TAdapter`, `TSchema`, `TStream`, `TTools`, `TMiddleware`\>
 
 ## Returns
 

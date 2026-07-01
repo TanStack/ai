@@ -30,6 +30,7 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
     modelOverrides: {
       openai: 'o3',
       anthropic: 'claude-sonnet-4-5',
+      mistral: 'magistral-medium-latest',
     },
   },
   'multi-turn': {
@@ -80,7 +81,7 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
     modelOptions: {},
     modelOverrides: {
       gemini: 'gemini-3-flash-preview',
-      grok: 'grok-4-1-fast-non-reasoning',
+      grok: 'grok-build-0.1',
     },
   },
   'multimodal-image': {
@@ -103,6 +104,10 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
     tools: [],
     modelOptions: {},
   },
+  'image-to-image': {
+    tools: [],
+    modelOptions: {},
+  },
   'audio-gen': {
     tools: [],
     modelOptions: {},
@@ -120,6 +125,10 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
     modelOptions: {},
   },
   'video-gen': {
+    tools: [],
+    modelOptions: {},
+  },
+  'image-to-video': {
     tools: [],
     modelOptions: {},
   },

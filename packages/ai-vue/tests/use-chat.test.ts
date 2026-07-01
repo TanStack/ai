@@ -54,6 +54,61 @@ describe('useChat', () => {
       expect(result.current.messages).toEqual(initialMessages)
     })
 
+    it('should initialize with persisted messages', async () => {
+      const adapter = createMockConnectionAdapter()
+      const persistedMessages: Array<UIMessage> = [
+        {
+          id: 'persisted-1',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Persisted' }],
+          createdAt: new Date(),
+        },
+      ]
+      const persistence = {
+        getItem: vi.fn(() => persistedMessages),
+        setItem: vi.fn(),
+        removeItem: vi.fn(),
+      }
+
+      const { result } = renderUseChat({
+        connection: adapter,
+        id: 'persisted-chat',
+        persistence,
+      })
+      await flushPromises()
+
+      expect(result.current.messages).toEqual(persistedMessages)
+      expect(persistence.getItem).toHaveBeenCalledWith('persisted-chat')
+    })
+
+    it('should let persisted empty arrays override initial messages', async () => {
+      const adapter = createMockConnectionAdapter()
+      const initialMessages: Array<UIMessage> = [
+        {
+          id: 'initial-1',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Initial' }],
+          createdAt: new Date(),
+        },
+      ]
+      const persistence = {
+        getItem: vi.fn(() => []),
+        setItem: vi.fn(),
+        removeItem: vi.fn(),
+      }
+
+      const { result } = renderUseChat({
+        connection: adapter,
+        id: 'persisted-chat',
+        initialMessages,
+        persistence,
+      })
+      await flushPromises()
+
+      expect(result.current.messages).toEqual([])
+      expect(persistence.getItem).toHaveBeenCalledWith('persisted-chat')
+    })
+
     it('should use provided id', async () => {
       const chunks = createTextChunks('Response')
       const adapter = createMockConnectionAdapter({ chunks })

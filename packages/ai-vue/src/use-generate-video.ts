@@ -1,11 +1,20 @@
 import { VideoGenerationClient } from '@tanstack/ai-client'
-import { onScopeDispose, readonly, shallowRef, useId, watch } from 'vue'
+import { createVideoDevtoolsBridge } from '@tanstack/ai-client/devtools'
+import {
+  onMounted,
+  onScopeDispose,
+  readonly,
+  shallowRef,
+  useId,
+  watch,
+} from 'vue'
 import type { StreamChunk } from '@tanstack/ai'
 import type {
+  AIDevtoolsDisplayOptions,
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  InferGenerationOutput,
+  InferGenerationOutputFromReturn,
   VideoGenerateInput,
   VideoGenerateResult,
   VideoStatusInfo,
@@ -26,6 +35,8 @@ export interface UseGenerateVideoOptions<TOutput = VideoGenerateResult> {
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
   /**
    * Callback when video generation completes. Can optionally return a transformed value.
    *
@@ -103,17 +114,20 @@ export interface UseGenerateVideoReturn<TOutput = VideoGenerateResult> {
  * </template>
  * ```
  */
-export function useGenerateVideo<
-  TOnResult extends ((result: VideoGenerateResult) => any) | undefined =
-    undefined,
->(
+// `TTransformed` infers from the `onResult` return position so the callback
+// parameter is typed as `VideoGenerateResult` and `result` narrows to the
+// transform's return. See issue #848.
+export function useGenerateVideo<TTransformed = void>(
   options: Omit<UseGenerateVideoOptions, 'onResult'> & {
-    onResult?: TOnResult
+    onResult?: (result: VideoGenerateResult) => TTransformed
   },
 ): UseGenerateVideoReturn<
-  InferGenerationOutput<VideoGenerateResult, TOnResult>
+  InferGenerationOutputFromReturn<VideoGenerateResult, TTransformed>
 > {
-  type TOutput = InferGenerationOutput<VideoGenerateResult, TOnResult>
+  type TOutput = InferGenerationOutputFromReturn<
+    VideoGenerateResult,
+    TTransformed
+  >
   const hookId = useId()
   const clientId = options.id || hookId
 
@@ -130,7 +144,19 @@ export function useGenerateVideo<
   const baseOptions = {
     id: clientId,
     body: options.body,
-    onResult: (r: VideoGenerateResult) => options.onResult?.(r),
+    devtoolsBridgeFactory: createVideoDevtoolsBridge,
+    devtools: {
+      ...options.devtools,
+      framework: 'vue',
+      hookName: 'useGenerateVideo',
+      outputKind: 'video' as const,
+    },
+    // The transform's raw return type (`TTransformed`) and the stored output
+    // (`TOutput`, with null/void/undefined stripped) are identical at runtime;
+    // the cast bridges the relationship that the conditional type hides.
+    onResult: ((r: VideoGenerateResult) => options.onResult?.(r)) as (
+      result: VideoGenerateResult,
+    ) => TOutput | null | void,
     onError: (e: Error) => options.onError?.(e),
     onProgress: (p: number, m?: string) => options.onProgress?.(p, m),
     onChunk: (c: StreamChunk) => options.onChunk?.(c),
@@ -186,9 +212,13 @@ export function useGenerateVideo<
     },
   )
 
-  // Cleanup on scope dispose: stop any in-flight requests or polling
+  onMounted(() => {
+    client.mountDevtools()
+  })
+
+  // Cleanup on scope dispose: stop any in-flight requests and unregister devtools
   onScopeDispose(() => {
-    client.stop()
+    client.dispose()
   })
 
   const generate = async (input: VideoGenerateInput) => {
@@ -205,7 +235,11 @@ export function useGenerateVideo<
 
   return {
     generate,
-    result: readonly(result),
+    // `readonly()` distributes `DeepReadonly`/`UnwrapNestedRefs` over the
+    // `TOutput` conditional, which TS can't prove equal to the declared
+    // `DeepReadonly<ShallowRef<TOutput | null>>` while `TTransformed` is free.
+    // They are identical at runtime; the cast restores the declared shape.
+    result: readonly(result) as UseGenerateVideoReturn<TOutput>['result'],
     jobId: readonly(jobId),
     videoStatus: readonly(videoStatus),
     isLoading: readonly(isLoading),

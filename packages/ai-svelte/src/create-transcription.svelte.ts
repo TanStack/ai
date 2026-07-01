@@ -1,10 +1,11 @@
 import { createGeneration } from './create-generation.svelte'
 import type { StreamChunk, TranscriptionResult } from '@tanstack/ai'
 import type {
+  AIDevtoolsDisplayOptions,
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  InferGenerationOutput,
+  InferGenerationOutputFromReturn,
   TranscriptionGenerateInput,
 } from '@tanstack/ai-client'
 
@@ -22,6 +23,8 @@ export interface CreateTranscriptionOptions<TOutput = TranscriptionResult> {
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
   /**
    * Callback when transcription is complete. Can optionally return a transformed value.
    *
@@ -97,21 +100,27 @@ export interface CreateTranscriptionReturn<TOutput = TranscriptionResult> {
  * </div>
  * ```
  */
-export function createTranscription<
-  TOnResult extends ((result: TranscriptionResult) => any) | undefined =
-    undefined,
->(
+export function createTranscription<TTransformed = void>(
   options: Omit<CreateTranscriptionOptions, 'onResult'> & {
-    onResult?: TOnResult
+    onResult?: (result: TranscriptionResult) => TTransformed
   },
 ): CreateTranscriptionReturn<
-  InferGenerationOutput<TranscriptionResult, TOnResult>
+  InferGenerationOutputFromReturn<TranscriptionResult, TTransformed>
 > {
+  const devtools = {
+    ...options.devtools,
+    framework: 'svelte',
+    hookName: 'createTranscription',
+    outputKind: 'text' as const,
+  }
   const gen = createGeneration<
     TranscriptionGenerateInput,
     TranscriptionResult,
-    TOnResult
-  >(options)
+    TTransformed
+  >({
+    ...options,
+    devtools,
+  })
 
   return {
     get result() {

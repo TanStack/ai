@@ -1,10 +1,11 @@
 import { useGeneration } from './use-generation'
 import type { StreamChunk, TranscriptionResult } from '@tanstack/ai'
 import type {
+  AIDevtoolsDisplayOptions,
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  InferGenerationOutput,
+  InferGenerationOutputFromReturn,
   TranscriptionGenerateInput,
 } from '@tanstack/ai-client'
 
@@ -22,6 +23,8 @@ export interface UseTranscriptionOptions<TOutput = TranscriptionResult> {
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
   /**
    * Callback when transcription is complete. Can optionally return a transformed value.
    *
@@ -94,20 +97,25 @@ export interface UseTranscriptionReturn<TOutput = TranscriptionResult> {
  * }
  * ```
  */
-export function useTranscription<
-  TOnResult extends ((result: TranscriptionResult) => any) | undefined =
-    undefined,
->(
+export function useTranscription<TTransformed = void>(
   options: Omit<UseTranscriptionOptions, 'onResult'> & {
-    onResult?: TOnResult
+    onResult?: (result: TranscriptionResult) => TTransformed
   },
 ): UseTranscriptionReturn<
-  InferGenerationOutput<TranscriptionResult, TOnResult>
+  InferGenerationOutputFromReturn<TranscriptionResult, TTransformed>
 > {
+  const devtools = {
+    ...options.devtools,
+    framework: 'react',
+    hookName: 'useTranscription',
+    outputKind: 'text' as const,
+  }
   const { generate, result, isLoading, error, status, stop, reset } =
-    useGeneration<TranscriptionGenerateInput, TranscriptionResult, TOnResult>(
-      options,
-    )
+    useGeneration<
+      TranscriptionGenerateInput,
+      TranscriptionResult,
+      TTransformed
+    >({ ...options, devtools })
 
   return {
     generate: generate as (input: TranscriptionGenerateInput) => Promise<void>,

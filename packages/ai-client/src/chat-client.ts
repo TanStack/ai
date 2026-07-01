@@ -2,24 +2,36 @@ import {
   StreamProcessor,
   convertSchemaToJsonSchema,
   generateMessageId,
+  isStandardSchema,
   normalizeToUIMessage,
-} from '@tanstack/ai'
-import { DefaultChatClientEventEmitter } from './events'
+  parseWithStandardSchema,
+} from '@tanstack/ai/client'
+import { createNoOpChatDevtoolsBridge } from './devtools-noop'
 import {
   fetcherToConnectionAdapter,
+  getChunkRunId,
   normalizeConnectionAdapter,
 } from './connection-adapters'
+import { ChatPersistor } from './client-persistor'
 import type {
   AnyClientTool,
   ContentPart,
   ModelMessage,
   StreamChunk,
-} from '@tanstack/ai'
+} from '@tanstack/ai/client'
 import type {
   ConnectionAdapter,
   SubscribeConnectionAdapter,
 } from './connection-adapters'
-import type { ChatClientEventEmitter } from './events'
+import type {
+  ChatClientEventEmitter,
+  ChatClientRunEventContext,
+} from './events'
+import type {
+  AIDevtoolsChatSnapshot,
+  ChatDevtoolsBridge,
+  ChatDevtoolsBridgeOptions,
+} from './devtools'
 import type {
   ChatClientOptions,
   ChatClientState,
@@ -30,6 +42,37 @@ import type {
   ToolCallPart,
   UIMessage,
 } from './types'
+
+type ChatClientUpdateOptionsWithoutContext<
+  TTools extends ReadonlyArray<AnyClientTool>,
+> = {
+  connection?: ConnectionAdapter
+  fetcher?: ChatFetcher
+  /** @deprecated Use `forwardedProps` instead. */
+  body?: Record<string, any>
+  forwardedProps?: Record<string, any>
+  tools?: TTools
+  onResponse?: (response?: Response) => void | Promise<void>
+  onChunk?: (chunk: StreamChunk) => void
+  onFinish?: (message: UIMessage) => void
+  onError?: (error: Error) => void
+  onSubscriptionChange?: (isSubscribed: boolean) => void
+  onConnectionStatusChange?: (status: ConnectionStatus) => void
+  onSessionGeneratingChange?: (isGenerating: boolean) => void
+  onCustomEvent?: (
+    eventType: string,
+    data: unknown,
+    context: { toolCallId?: string },
+  ) => void
+}
+
+type ClientToolResult = {
+  toolCallId: string
+  tool: string
+  output: any
+  state?: 'output-available' | 'output-error'
+  errorText?: string
+}
 
 function resolveTransport(transport: {
   connection?: ConnectionAdapter
@@ -46,17 +89,26 @@ function resolveTransport(transport: {
   throw new Error('ChatClient: either `connection` or `fetcher` is required.')
 }
 
-export class ChatClient {
+export class ChatClient<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TContext = unknown,
+> {
   private readonly processor: StreamProcessor
   private connection: SubscribeConnectionAdapter
   private readonly uniqueId: string
   private readonly threadId: string
+  // All persistence concerns (hydrate / save / clear, plus suppression of late
+  // chunks after a mid-stream clear) live in ChatPersistor so this class stays
+  // focused on streaming. Undefined when no `persistence` adapter is configured.
+  private readonly persistor?: ChatPersistor
+  private currentRunId: string | null = null
   // Track the legacy `body` option and the canonical `forwardedProps`
   // option as separate slots so that `updateOptions({ forwardedProps })`
   // doesn't wipe a previously-set `body` (and vice versa). They are
   // merged on every send, with `forwardedProps` winning on key collision.
   private bodyOption: Record<string, any> = {}
   private forwardedPropsOption: Record<string, any> = {}
+  private context: TContext | undefined = undefined
   private pendingMessageBody: Record<string, any> | undefined = undefined
   private isLoading = false
   private isSubscribed = false
@@ -64,13 +116,22 @@ export class ChatClient {
   private status: ChatClientState = 'ready'
   private connectionStatus: ConnectionStatus = 'disconnected'
   private abortController: AbortController | null = null
-  private readonly events: ChatClientEventEmitter
   private readonly clientToolsRef: { current: Map<string, AnyClientTool> }
+  private readonly devtoolsBridge: ChatDevtoolsBridge
+  /**
+   * Alias for `this.events`. The bridge installs an
+   * emitter that auto-attaches run/thread context and auto-emits a
+   * snapshot after every event, so chat-client only ever calls
+   * `this.events.X(...)` exactly like it did before devtools landed.
+   */
+  private readonly events: ChatClientEventEmitter
   private currentStreamId: string | null = null
   private currentMessageId: string | null = null
   private readonly postStreamActions: Array<() => Promise<void>> = []
   // Track pending client tool executions to await them before stream finalization
   private readonly pendingToolExecutions: Map<string, Promise<void>> = new Map()
+  private activeClientTools: Map<string, AnyClientTool> | null = null
+  private activeContext: TContext | undefined = undefined
   // Flag to deduplicate continuation checks during action draining
   private continuationPending = false
   private subscriptionAbortController: AbortController | null = null
@@ -83,6 +144,7 @@ export class ChatClient {
   private draining = false
   private sessionGenerating = false
   private readonly activeRunIds = new Set<string>()
+  private devtoolsMounted = false
 
   private readonly callbacksRef: {
     current: {
@@ -105,9 +167,16 @@ export class ChatClient {
     }
   }
 
-  constructor(options: ChatClientOptions) {
+  constructor(options: ChatClientOptions<TTools, TContext>) {
     this.uniqueId = options.id || this.generateUniqueId('chat')
     this.threadId = options.threadId || this.generateUniqueId('thread')
+    if (options.persistence) {
+      this.persistor = new ChatPersistor(
+        options.persistence,
+        this.uniqueId,
+        (messages) => this.processor.setMessages(messages),
+      )
+    }
     // Both `body` (deprecated) and `forwardedProps` populate the AG-UI
     // `RunAgentInput.forwardedProps` wire field. They are stored
     // separately so `updateOptions` can replace one without touching the
@@ -115,8 +184,8 @@ export class ChatClient {
     // winning on key collision.
     this.bodyOption = options.body || {}
     this.forwardedPropsOption = options.forwardedProps || {}
+    this.context = options.context
     this.connection = normalizeConnectionAdapter(resolveTransport(options))
-    this.events = new DefaultChatClientEventEmitter(this.uniqueId)
 
     // Build client tools map
     this.clientToolsRef = { current: new Map() }
@@ -125,6 +194,11 @@ export class ChatClient {
         this.clientToolsRef.current.set(tool.name, tool)
       }
     }
+
+    this.devtoolsBridge = (
+      options.devtoolsBridgeFactory ?? createNoOpChatDevtoolsBridge
+    )(this.buildDevtoolsBridgeOptions(options.devtools))
+    this.events = this.devtoolsBridge.events
 
     this.callbacksRef = {
       current: {
@@ -148,15 +222,19 @@ export class ChatClient {
     // Create StreamProcessor with event handlers.
     // Use conditional spreads so we don't pass `undefined` into
     // `StreamProcessorOptions` fields under `exactOptionalPropertyTypes`.
+    const persistedMessages = this.persistor?.readInitial()
+    const initialMessages = Array.isArray(persistedMessages)
+      ? persistedMessages
+      : options.initialMessages
+
     this.processor = new StreamProcessor({
       ...(options.streamProcessor?.chunkStrategy
         ? { chunkStrategy: options.streamProcessor.chunkStrategy }
         : {}),
-      ...(options.initialMessages
-        ? { initialMessages: options.initialMessages }
-        : {}),
+      ...(initialMessages ? { initialMessages } : {}),
       events: {
         onMessagesChange: (messages: Array<UIMessage>) => {
+          this.persistor?.notifyMessagesChanged(messages)
           this.callbacksRef.current.onMessagesChange(messages)
         },
         onStreamStart: () => {
@@ -200,8 +278,40 @@ export class ChatClient {
               this.currentStreamId,
               messageId,
               content,
+              undefined,
             )
           }
+        },
+        onStructuredOutputChange: (args) => {
+          const streamId = this.devtoolsBridge.resolveStreamId()
+          const eventName =
+            args.phase === 'start'
+              ? 'structured-output:started'
+              : args.phase === 'complete'
+                ? 'structured-output:completed'
+                : args.phase === 'error'
+                  ? 'structured-output:errored'
+                  : 'structured-output:updated'
+
+          this.currentMessageId = args.messageId
+          this.events.structuredOutputChanged(
+            eventName,
+            streamId,
+            args.messageId,
+            {
+              status: args.status,
+              raw: args.raw,
+              ...(args.partial !== undefined ? { partial: args.partial } : {}),
+              ...(args.data !== undefined ? { data: args.data } : {}),
+              ...(args.reasoning !== undefined
+                ? { reasoning: args.reasoning }
+                : {}),
+              ...(args.errorMessage !== undefined
+                ? { errorMessage: args.errorMessage }
+                : {}),
+              ...(args.delta !== undefined ? { delta: args.delta } : {}),
+            },
+          )
         },
         onToolCallStateChange: (
           messageId: string,
@@ -236,27 +346,51 @@ export class ChatClient {
           input: any
         }) => {
           // Handle client-side tool execution automatically
-          const clientTool = this.clientToolsRef.current.get(args.toolName)
+          const clientTools =
+            this.activeClientTools ?? this.clientToolsRef.current
+          const clientTool = clientTools.get(args.toolName)
           const executeFunc = clientTool?.execute
           if (executeFunc) {
+            // Capture the run context at execution-start so a tool whose
+            // result lands AFTER the originating run finishes still reports
+            // back against the originating run, not whatever run is
+            // current when the result emits.
+            const runEventContext =
+              this.devtoolsBridge.getCurrentRunEventContext()
             // Create and track the execution promise
             const executionPromise = (async () => {
               try {
-                const output = await executeFunc(args.input)
-                await this.addToolResult({
+                const context =
+                  this.activeClientTools === null
+                    ? this.context
+                    : this.activeContext
+                const output = await executeFunc(args.input, {
                   toolCallId: args.toolCallId,
-                  tool: args.toolName,
-                  output,
-                  state: 'output-available',
+                  context: context as TContext,
+                  emitCustomEvent: () => {},
                 })
+                await this.addToolResultForClientTool(
+                  {
+                    toolCallId: args.toolCallId,
+                    tool: args.toolName,
+                    output,
+                    state: 'output-available',
+                  },
+                  clientTool,
+                  runEventContext,
+                )
               } catch (error: any) {
-                await this.addToolResult({
-                  toolCallId: args.toolCallId,
-                  tool: args.toolName,
-                  output: null,
-                  state: 'output-error',
-                  errorText: error.message,
-                })
+                await this.addToolResultForClientTool(
+                  {
+                    toolCallId: args.toolCallId,
+                    tool: args.toolName,
+                    output: null,
+                    state: 'output-error',
+                    errorText: error.message,
+                  },
+                  clientTool,
+                  runEventContext,
+                )
               } finally {
                 // Remove from pending when complete
                 this.pendingToolExecutions.delete(args.toolCallId)
@@ -273,16 +407,20 @@ export class ChatClient {
           input: any
           approvalId: string
         }) => {
-          if (this.currentStreamId) {
-            this.events.approvalRequested(
-              this.currentStreamId,
-              this.currentMessageId || '',
-              args.toolCallId,
-              args.toolName,
-              args.input,
-              args.approvalId,
-            )
-          }
+          const streamId = this.devtoolsBridge.resolveStreamId()
+          const messageIdForApproval =
+            this.findMessageIdForToolCall(args.toolCallId) ??
+            this.currentMessageId ??
+            ''
+
+          this.events.approvalRequested(
+            streamId,
+            messageIdForApproval,
+            args.toolCallId,
+            args.toolName,
+            args.input,
+            args.approvalId,
+          )
         },
         onCustomEvent: (
           eventType: string,
@@ -294,7 +432,61 @@ export class ChatClient {
       },
     })
 
-    this.events.clientCreated(this.processor.getMessages().length)
+    this.persistor?.hydrateAsync(persistedMessages)
+  }
+
+  mountDevtools(): void {
+    if (this.devtoolsMounted) {
+      return
+    }
+
+    this.devtoolsMounted = true
+    this.devtoolsBridge.mountWithTools(this.processor.getMessages().length)
+  }
+
+  /**
+   * Drain a runId-less RUN_ERROR that belongs to a cleared run the client is
+   * still tracking. The persistor owns the cleared-run bookkeeping; the client
+   * owns the active-run / session / processing state.
+   */
+  private drainIgnoredRunlessChunk(chunk: StreamChunk): void {
+    if (chunk.type !== 'RUN_ERROR') return
+    const runId = this.persistor?.takeRunlessRunId()
+    if (!runId) return
+    this.activeRunIds.delete(runId)
+    this.setSessionGenerating(this.activeRunIds.size > 0)
+    this.resolveProcessing()
+  }
+
+  private updateRunLifecycle(
+    chunk: StreamChunk,
+    options?: { resolveProcessing?: boolean },
+  ): void {
+    if (chunk.type === 'RUN_STARTED') {
+      const chunkRunId = getChunkRunId(chunk) ?? chunk.runId
+      this.activeRunIds.add(chunkRunId)
+      this.persistor?.onRunStarted(chunkRunId)
+      this.setSessionGenerating(true)
+      return
+    }
+
+    if (chunk.type !== 'RUN_FINISHED' && chunk.type !== 'RUN_ERROR') {
+      return
+    }
+
+    const runId = getChunkRunId(chunk)
+    if (runId) {
+      this.activeRunIds.delete(runId)
+      this.persistor?.onRunSettled(runId)
+    } else if (chunk.type === 'RUN_ERROR') {
+      // RUN_ERROR without runId is a session-level error; clear all runs.
+      this.activeRunIds.clear()
+      this.persistor?.onSessionRunError()
+    }
+    this.setSessionGenerating(this.activeRunIds.size > 0)
+    if (options?.resolveProcessing !== false) {
+      this.resolveProcessing()
+    }
   }
 
   private generateUniqueId(prefix: string): string {
@@ -310,26 +502,31 @@ export class ChatClient {
   private setStatus(status: ChatClientState): void {
     this.status = status
     this.callbacksRef.current.onStatusChange(status)
+    this.devtoolsBridge.emitSnapshot()
   }
 
   private setIsSubscribed(isSubscribed: boolean): void {
     this.isSubscribed = isSubscribed
     this.callbacksRef.current.onSubscriptionChange(isSubscribed)
+    this.devtoolsBridge.emitSnapshot()
   }
 
   private setConnectionStatus(status: ConnectionStatus): void {
     this.connectionStatus = status
     this.callbacksRef.current.onConnectionStatusChange(status)
+    this.devtoolsBridge.emitSnapshot()
   }
 
   private setSessionGenerating(isGenerating: boolean): void {
     if (this.sessionGenerating === isGenerating) return
     this.sessionGenerating = isGenerating
     this.callbacksRef.current.onSessionGeneratingChange(isGenerating)
+    this.devtoolsBridge.emitSnapshot()
   }
 
   private resetSessionGenerating(): void {
     this.activeRunIds.clear()
+    this.persistor?.resetIgnored()
     this.setSessionGenerating(false)
   }
 
@@ -337,6 +534,57 @@ export class ChatClient {
     this.error = error
     this.callbacksRef.current.onErrorChange(error)
     this.events.errorChanged(error?.message || null)
+  }
+
+  private buildDevtoolsBridgeOptions(
+    devtools: ChatClientOptions['devtools'],
+  ): ChatDevtoolsBridgeOptions {
+    return {
+      hookId: this.uniqueId,
+      clientId: this.uniqueId,
+      threadId: this.threadId,
+      metadata: {
+        hookName: devtools?.hookName ?? 'useChat',
+        outputKind: devtools?.outputKind ?? 'chat',
+        ...(devtools?.framework ? { framework: devtools.framework } : {}),
+        ...(devtools?.name ? { name: devtools.name } : {}),
+      },
+      getSnapshot: () => this.getDevtoolsSnapshot(),
+      getTools: () => this.clientToolsRef.current.values(),
+      getMessages: () => this.processor.getMessages(),
+      setMessages: (messages: Array<UIMessage>) => {
+        this.processor.setMessages(messages)
+      },
+      addToolResult: (toolCallId, output, errorText) => {
+        this.processor.addToolResult(toolCallId, output, errorText)
+      },
+      generateId: (prefix) => this.generateUniqueId(prefix),
+    }
+  }
+
+  private getDevtoolsSnapshot(): AIDevtoolsChatSnapshot {
+    return {
+      messages: this.processor.getMessages(),
+      status: this.status,
+      isLoading: this.isLoading,
+      isSubscribed: this.isSubscribed,
+      connectionStatus: this.connectionStatus,
+      sessionGenerating: this.sessionGenerating,
+      activeRunIds: Array.from(this.activeRunIds),
+      ...(this.error ? { error: this.error.message } : {}),
+    }
+  }
+
+  private findMessageIdForToolCall(toolCallId: string): string | undefined {
+    const messages = this.processor.getMessages()
+    for (const message of messages) {
+      const match = message.parts.find(
+        (part: MessagePart): part is ToolCallPart =>
+          part.type === 'tool-call' && part.id === toolCallId,
+      )
+      if (match) return message.id
+    }
+    return undefined
   }
 
   private abortSubscriptionLoop(): void {
@@ -427,32 +675,27 @@ export class ChatClient {
       if (this.connectionStatus === 'connecting') {
         this.setConnectionStatus('connected')
       }
-      this.callbacksRef.current.onChunk(chunk)
-      this.processor.processChunk(chunk)
-      if (chunk.type === 'RUN_STARTED') {
-        this.activeRunIds.add(chunk.runId)
-        this.setSessionGenerating(true)
-      }
-      // RUN_FINISHED / RUN_ERROR signal run completion — resolve processing
-      // (redundant if onStreamEnd already resolved it, harmless)
-      if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
-        // RUN_FINISHED has runId in its schema; RUN_ERROR carries it via the
-        // AG-UI passthrough so adapters can correlate per-run errors. Extract
-        // both so a RUN_ERROR with a runId only clears that run, not every
-        // active run in the session.
-        const runId =
-          'runId' in chunk && typeof chunk.runId === 'string'
-            ? chunk.runId
-            : undefined
-        if (runId) {
-          this.activeRunIds.delete(runId)
-        } else if (chunk.type === 'RUN_ERROR') {
-          // RUN_ERROR without runId is a session-level error; clear all runs
-          this.activeRunIds.clear()
+      const shouldIgnore = this.persistor?.shouldIgnoreChunk(chunk) ?? false
+      if (shouldIgnore) {
+        if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
+          if (getChunkRunId(chunk)) {
+            this.updateRunLifecycle(chunk, { resolveProcessing: false })
+          } else {
+            this.drainIgnoredRunlessChunk(chunk)
+          }
         }
-        this.setSessionGenerating(this.activeRunIds.size > 0)
-        this.resolveProcessing()
+        continue
       }
+      this.callbacksRef.current.onChunk(chunk)
+      this.devtoolsBridge.observeChunk(chunk)
+      this.processor.processChunk(chunk)
+      // Run lifecycle (active-run tracking, session-generating state, and
+      // processing resolution for RUN_FINISHED / RUN_ERROR) is handled in a
+      // single place so the ignored-chunk path above and this path can't
+      // diverge. RUN_ERROR carries its runId via the AG-UI passthrough so a
+      // per-run error only clears that run, while a runId-less RUN_ERROR is
+      // treated as a session-level error that clears every active run.
+      this.updateRunLifecycle(chunk)
       // Yield control back to event loop for UI updates
       await new Promise((resolve) => setTimeout(resolve, 0))
     }
@@ -529,6 +772,7 @@ export class ChatClient {
     content: string | MultimodalContent,
     body?: Record<string, any>,
   ): Promise<void> {
+    this.mountDevtools()
     const emptyMessage = typeof content === 'string' && !content.trim()
     if (emptyMessage || this.isLoading) {
       return
@@ -567,6 +811,7 @@ export class ChatClient {
    * Append a message and stream the response
    */
   async append(message: UIMessage | ModelMessage): Promise<void> {
+    this.mountDevtools()
     // Normalize the message to ensure it has id and createdAt
     const normalizedMessage = normalizeToUIMessage(message, generateMessageId)
 
@@ -584,6 +829,7 @@ export class ChatClient {
     // Add to messages
     const messages = this.processor.getMessages()
     this.processor.setMessages([...messages, uiMessage])
+    this.devtoolsBridge.emitSnapshot()
 
     // If stream is in progress, queue the response for after it ends
     if (this.isLoading) {
@@ -608,6 +854,8 @@ export class ChatClient {
 
     // Track generation so a superseded stream's cleanup doesn't clobber the new one
     const generation = ++this.streamGeneration
+    const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    this.currentRunId = runId
 
     this.setIsLoading(true)
     this.setStatus('submitted')
@@ -621,10 +869,14 @@ export class ChatClient {
     // Reset pending tool executions for the new stream
     this.pendingToolExecutions.clear()
     let streamCompletedSuccessfully = false
+    let activeDevtoolsRunId: string | null = null
+    let runTerminalEventEmitted = false
 
     try {
       // Get UIMessages with parts (preserves approval state and client tool results)
       const messages = this.processor.getMessages()
+      const clientTools = new Map(this.clientToolsRef.current)
+      const runtimeContext = this.context
 
       // Call onResponse callback
       await this.callbacksRef.current.onResponse()
@@ -658,7 +910,10 @@ export class ChatClient {
 
       // Generate stream ID — assistant message will be created by stream events
       this.currentStreamId = this.generateUniqueId('stream')
+      this.devtoolsBridge.setCurrentStreamId(this.currentStreamId)
       this.currentMessageId = null
+      this.activeClientTools = clientTools
+      this.activeContext = runtimeContext
 
       // Reset processor stream state for new response — prevents stale
       // messageStates entries (from a previous stream) from blocking
@@ -681,18 +936,29 @@ export class ChatClient {
       // serialize to an unusable shape.
       const runContext = {
         threadId: this.threadId,
-        runId: `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        clientTools: Array.from(this.clientToolsRef.current.values()).map(
-          (t) => ({
-            name: t.name,
-            description: t.description,
-            parameters: t.inputSchema
-              ? convertSchemaToJsonSchema(t.inputSchema)
-              : { type: 'object' },
-          }),
-        ),
+        runId,
+        clientTools: Array.from(clientTools.values()).map((t) => ({
+          name: t.name,
+          description: t.description,
+          parameters: t.inputSchema
+            ? convertSchemaToJsonSchema(t.inputSchema)
+            : { type: 'object' },
+        })),
         forwardedProps: { ...mergedBody },
       }
+      this.devtoolsBridge.beginRun(runContext.runId, this.threadId)
+      activeDevtoolsRunId = runContext.runId
+      this.devtoolsBridge.emitRunLifecycle(
+        'run:created',
+        runContext.runId,
+        'created',
+      )
+      this.devtoolsBridge.emitRunLifecycle(
+        'run:started',
+        runContext.runId,
+        'started',
+      )
+      this.devtoolsBridge.emitSnapshot()
 
       // Send through normalized connection (pushes chunks to subscription queue)
       await this.connection.send(messages, mergedBody, signal, runContext)
@@ -709,6 +975,15 @@ export class ChatClient {
       // A RUN_ERROR from the stream transitions status to error.
       // Do not treat this stream as a successful completion.
       if (this.status === 'error') {
+        if (activeDevtoolsRunId) {
+          this.devtoolsBridge.emitRunLifecycle(
+            'run:errored',
+            activeDevtoolsRunId,
+            'errored',
+            this.error ? { error: this.error.message } : {},
+          )
+          runTerminalEventEmitted = true
+        }
         return false
       }
 
@@ -723,10 +998,27 @@ export class ChatClient {
     } catch (err) {
       if (err instanceof Error) {
         if (err.name === 'AbortError') {
+          if (activeDevtoolsRunId) {
+            this.devtoolsBridge.emitRunLifecycle(
+              'run:cancelled',
+              activeDevtoolsRunId,
+              'cancelled',
+            )
+            runTerminalEventEmitted = true
+          }
           return false
         }
         if (generation === this.streamGeneration) {
           this.reportStreamError(err)
+          if (activeDevtoolsRunId) {
+            this.devtoolsBridge.emitRunLifecycle(
+              'run:errored',
+              activeDevtoolsRunId,
+              'errored',
+              { error: err.message },
+            )
+            runTerminalEventEmitted = true
+          }
         }
       }
     } finally {
@@ -735,10 +1027,30 @@ export class ChatClient {
       // clobber the new stream's abortController or isLoading state.
       if (generation === this.streamGeneration) {
         this.currentStreamId = null
+        this.devtoolsBridge.setCurrentStreamId(null)
         this.currentMessageId = null
+        this.currentRunId = null
+        this.activeClientTools = null
+        this.activeContext = undefined
         this.abortController = null
         this.setIsLoading(false)
         this.pendingMessageBody = undefined // Ensure it's cleared even on error
+
+        if (activeDevtoolsRunId && !runTerminalEventEmitted) {
+          if (streamCompletedSuccessfully) {
+            this.devtoolsBridge.emitRunLifecycle(
+              'run:completed',
+              activeDevtoolsRunId,
+              'completed',
+            )
+          } else if (signal.aborted) {
+            this.devtoolsBridge.emitRunLifecycle(
+              'run:cancelled',
+              activeDevtoolsRunId,
+              'cancelled',
+            )
+          }
+        }
 
         // Drain any actions that were queued while the stream was in progress
         await this.drainPostStreamActions()
@@ -761,6 +1073,11 @@ export class ChatClient {
             } catch (error) {
               console.error('Failed to continue flow after tool result:', error)
             }
+          } else if (this.status !== 'ready') {
+            // Terminal run, but onStreamEnd never fired: the processor had no
+            // assistant message to emit it for (e.g. a bare RUN_FINISHED{stop},
+            // #421). The normal path already set 'ready', so this is a no-op.
+            this.setStatus('ready')
           }
         }
       }
@@ -811,7 +1128,7 @@ export class ChatClient {
 
     // Find the last user message
     const lastUserMessageIndex = messages.findLastIndex(
-      (m: UIMessage) => m.role === 'user',
+      (m) => m.role === 'user',
     )
 
     if (lastUserMessageIndex === -1) return
@@ -825,6 +1142,7 @@ export class ChatClient {
 
     // Remove all messages after the last user message
     this.processor.removeMessagesAfter(lastUserMessageIndex)
+    this.devtoolsBridge.emitSnapshot()
 
     // Resend
     await this.streamResponse()
@@ -834,7 +1152,11 @@ export class ChatClient {
    * Stop the current stream
    */
   stop(): void {
+    const hadLocalStream = this.abortController !== null
     this.cancelInFlightStream({ setReadyStatus: true })
+    if (hadLocalStream) {
+      this.resetSessionGenerating()
+    }
     this.events.stopped()
   }
 
@@ -842,7 +1164,24 @@ export class ChatClient {
    * Clear all messages
    */
   clear(): void {
+    if (this.persistor) {
+      this.persistor.snapshotClear({
+        messages: this.processor.getMessages(),
+        activeRunIds: this.activeRunIds,
+        currentRunId: this.currentRunId,
+      })
+      if (this.isLoading) {
+        this.cancelInFlightStream({ setReadyStatus: true })
+        this.resetSessionGenerating()
+      } else if (this.activeRunIds.size > 0) {
+        this.resetSessionGenerating()
+      }
+      // Suppress persisting the empty snapshot that clearMessages emits, then
+      // remove the stored conversation outright.
+      this.persistor.beginClear()
+    }
     this.processor.clearMessages()
+    this.persistor?.remove()
     this.setError(undefined)
     this.events.messagesCleared()
   }
@@ -850,25 +1189,49 @@ export class ChatClient {
   /**
    * Add the result of a client-side tool execution
    */
-  async addToolResult(result: {
-    toolCallId: string
-    tool: string
-    output: any
-    state?: 'output-available' | 'output-error'
-    errorText?: string
-  }): Promise<void> {
+  async addToolResult(result: ClientToolResult): Promise<void> {
+    const clientTool = this.clientToolsRef.current.get(result.tool)
+    await this.addToolResultForClientTool(result, clientTool)
+  }
+
+  private async addToolResultForClientTool(
+    result: ClientToolResult,
+    clientTool: AnyClientTool | undefined,
+    context?: ChatClientRunEventContext,
+  ): Promise<void> {
+    if (clientTool && result.state !== 'output-error') {
+      try {
+        result = {
+          ...result,
+          output: this.validateClientToolOutput(clientTool, result.output),
+        }
+      } catch (error: any) {
+        result = {
+          ...result,
+          output: null,
+          state: 'output-error',
+          errorText: error.message,
+        }
+      }
+    }
+
     this.events.toolResultAdded(
       result.toolCallId,
       result.tool,
       result.output,
       result.state || 'output-available',
+      context,
     )
 
-    // Add result via processor
+    // Forward an error message only for output-error results (with a fallback so
+    // a message-less `throw new Error()` still reaches the terminal 'error'
+    // state); a stray errorText on a successful result must not signal an error.
     this.processor.addToolResult(
       result.toolCallId,
       result.output,
-      result.errorText,
+      result.state === 'output-error'
+        ? result.errorText || 'Tool execution failed'
+        : undefined,
     )
 
     // If stream is in progress, queue continuation check for after it ends
@@ -878,6 +1241,17 @@ export class ChatClient {
     }
 
     await this.checkForContinuation()
+  }
+
+  private validateClientToolOutput(
+    clientTool: AnyClientTool,
+    output: any,
+  ): any {
+    if (clientTool.outputSchema && isStandardSchema(clientTool.outputSchema)) {
+      return parseWithStandardSchema(clientTool.outputSchema, output)
+    }
+
+    return output
   }
 
   /**
@@ -912,6 +1286,7 @@ export class ChatClient {
 
     // Add response via processor
     this.processor.addToolApprovalResponse(response.id, response.approved)
+    this.devtoolsBridge.emitSnapshot()
 
     // If stream is in progress, queue continuation check for after it ends
     if (this.isLoading) {
@@ -997,8 +1372,8 @@ export class ChatClient {
   /**
    * Get current messages
    */
-  getMessages(): Array<UIMessage> {
-    return this.processor.getMessages()
+  getMessages(): Array<UIMessage<TTools>> {
+    return this.processor.getMessages() as Array<UIMessage<TTools>>
   }
 
   /**
@@ -1049,33 +1424,24 @@ export class ChatClient {
   /**
    * Manually set messages
    */
-  setMessagesManually(messages: Array<UIMessage>): void {
+  setMessagesManually(messages: Array<UIMessage<TTools>>): void {
     this.processor.setMessages(messages)
+    this.devtoolsBridge.emitSnapshot()
   }
 
   /**
    * Update options refs (for use in React hooks to avoid recreating client)
    */
-  updateOptions(options: {
-    connection?: ConnectionAdapter
-    fetcher?: ChatFetcher
-    /** @deprecated Use `forwardedProps` instead. */
-    body?: Record<string, any>
-    forwardedProps?: Record<string, any>
-    tools?: ReadonlyArray<AnyClientTool>
-    onResponse?: (response?: Response) => void | Promise<void>
-    onChunk?: (chunk: StreamChunk) => void
-    onFinish?: (message: UIMessage) => void
-    onError?: (error: Error) => void
-    onSubscriptionChange?: (isSubscribed: boolean) => void
-    onConnectionStatusChange?: (status: ConnectionStatus) => void
-    onSessionGeneratingChange?: (isGenerating: boolean) => void
-    onCustomEvent?: (
-      eventType: string,
-      data: unknown,
-      context: { toolCallId?: string },
-    ) => void
-  }): void {
+  updateOptions(options: ChatClientUpdateOptionsWithoutContext<TTools>): void
+  updateOptions(
+    options: ChatClientUpdateOptionsWithoutContext<TTools> &
+      Pick<ChatClientOptions<TTools, TContext>, 'context'>,
+  ): void
+  updateOptions(
+    options: ChatClientUpdateOptionsWithoutContext<TTools> & {
+      context?: TContext | undefined
+    },
+  ): void {
     if (options.connection !== undefined || options.fetcher !== undefined) {
       const wasSubscribed = this.isSubscribed
 
@@ -1102,20 +1468,25 @@ export class ChatClient {
         this.subscribe()
       }
     }
-    // Replace each slot independently so callers can update one without
-    // wiping the other. (Passing `undefined` for either field is a "leave
-    // unchanged" signal — to clear a slot, pass an empty object `{}`.)
+    // Replace each wire-payload slot independently so callers can update one
+    // without wiping the other. Passing `undefined` for `body` or
+    // `forwardedProps` leaves that slot unchanged; context is cleared when the
+    // key is present with an `undefined` value.
     if (options.body !== undefined) {
       this.bodyOption = options.body
     }
     if (options.forwardedProps !== undefined) {
       this.forwardedPropsOption = options.forwardedProps
     }
+    if ('context' in options) {
+      this.context = options.context
+    }
     if (options.tools !== undefined) {
       this.clientToolsRef.current = new Map()
       for (const tool of options.tools) {
         this.clientToolsRef.current.set(tool.name, tool)
       }
+      this.devtoolsBridge.notifyToolsChanged()
     }
     if (options.onResponse !== undefined) {
       this.callbacksRef.current.onResponse = options.onResponse
@@ -1144,5 +1515,11 @@ export class ChatClient {
     if (options.onCustomEvent !== undefined) {
       this.callbacksRef.current.onCustomEvent = options.onCustomEvent
     }
+  }
+
+  dispose(): void {
+    this.unsubscribe()
+    this.devtoolsBridge.dispose()
+    this.devtoolsMounted = false
   }
 }

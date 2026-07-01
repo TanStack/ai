@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { generateImage, toHttpResponse } from '@tanstack/ai'
 import { createImageAdapter } from '@/lib/media-providers'
+import type { MediaPrompt } from '@tanstack/ai'
 import type { Provider } from '@/lib/types'
 
 export const Route = createFileRoute('/api/image/stream')({
@@ -13,7 +14,7 @@ export const Route = createFileRoute('/api/image/stream')({
         const data = body.forwardedProps ?? body.data ?? body
         const { prompt, provider, numberOfImages, testId, aimockPort } =
           data as {
-            prompt: string
+            prompt: MediaPrompt
             provider: Provider
             numberOfImages?: number
             testId?: string

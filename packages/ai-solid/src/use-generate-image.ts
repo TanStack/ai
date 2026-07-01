@@ -1,11 +1,12 @@
 import { useGeneration } from './use-generation'
 import type { ImageGenerationResult, StreamChunk } from '@tanstack/ai'
 import type {
+  AIDevtoolsDisplayOptions,
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
   ImageGenerateInput,
-  InferGenerationOutput,
+  InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
 import type { Accessor } from 'solid-js'
 
@@ -23,6 +24,8 @@ export interface UseGenerateImageOptions<TOutput = ImageGenerationResult> {
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
   /**
    * Callback when images are generated. Can optionally return a transformed value.
    *
@@ -93,18 +96,24 @@ export interface UseGenerateImageReturn<TOutput = ImageGenerationResult> {
  * }
  * ```
  */
-export function useGenerateImage<
-  TOnResult extends ((result: ImageGenerationResult) => any) | undefined =
-    undefined,
->(
+export function useGenerateImage<TTransformed = void>(
   options: Omit<UseGenerateImageOptions, 'onResult'> & {
-    onResult?: TOnResult
+    onResult?: (result: ImageGenerationResult) => TTransformed
   },
 ): UseGenerateImageReturn<
-  InferGenerationOutput<ImageGenerationResult, TOnResult>
+  InferGenerationOutputFromReturn<ImageGenerationResult, TTransformed>
 > {
+  const devtools = {
+    ...options.devtools,
+    framework: 'solid',
+    hookName: 'useGenerateImage',
+    outputKind: 'image' as const,
+  }
   const { generate, result, isLoading, error, status, stop, reset } =
-    useGeneration<ImageGenerateInput, ImageGenerationResult, TOnResult>(options)
+    useGeneration<ImageGenerateInput, ImageGenerationResult, TTransformed>({
+      ...options,
+      devtools,
+    })
 
   return {
     generate: generate as (input: ImageGenerateInput) => Promise<void>,

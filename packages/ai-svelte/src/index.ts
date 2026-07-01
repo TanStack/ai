@@ -50,10 +50,18 @@ export type {
   CreateGenerateVideoReturn,
 } from './create-generate-video.svelte'
 
+export { createAudioRecorder } from './create-audio-recorder.svelte'
+export type {
+  CreateAudioRecorderOptions,
+  CreateAudioRecorderReturn,
+} from './create-audio-recorder.svelte'
+
 // Re-export from ai-client for convenience
 export {
   fetchServerSentEvents,
   fetchHttpStream,
+  xhrServerSentEvents,
+  xhrHttpStream,
   stream,
   rpcStream,
   createChatClientOptions,
@@ -63,6 +71,7 @@ export {
   type SubscribeConnectionAdapter,
   type RunAgentInputContext,
   type FetchConnectionOptions,
+  type XhrConnectionOptions,
   type InferChatMessages,
   type GenerationClientState,
   type ImageGenerateInput,

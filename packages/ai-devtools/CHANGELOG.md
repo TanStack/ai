@@ -1,5 +1,251 @@
 # @tanstack/ai-devtools-core
 
+## 0.4.20
+
+### Patch Changes
+
+- Updated dependencies [[`b628a4d`](https://github.com/TanStack/ai/commit/b628a4da5fd21184922c6944059768d1ed6071d4), [`b628a4d`](https://github.com/TanStack/ai/commit/b628a4da5fd21184922c6944059768d1ed6071d4)]:
+  - @tanstack/ai@0.39.0
+
+## 0.4.19
+
+### Patch Changes
+
+- Updated dependencies [[`c1a8732`](https://github.com/TanStack/ai/commit/c1a87327b4a3463d37158f32ca90184b5fd092bb)]:
+  - @tanstack/ai@0.38.0
+
+## 0.4.18
+
+### Patch Changes
+
+- [#844](https://github.com/TanStack/ai/pull/844) [`a6cceba`](https://github.com/TanStack/ai/commit/a6cceba4812e7e986183ee856112fcf5f8fa12ff) - Republish all packages with their compiled `dist/` output.
+
+  Releases `0.33.0`–`0.36.0` were published without a `dist/` directory: the
+  release workflow relied on an Nx-cached `build` whose outputs were not
+  materialized to disk before `changeset publish` packed the tarballs, and
+  `files: ["dist"]` silently includes nothing when `dist/` is absent. The
+  published packages therefore contained only `src/`, so every export
+  (`./dist/esm/*.js`) resolved to a missing file and the packages were
+  uninstallable.
+
+  The publish step now runs a fresh, cache-bypassing build of all packages
+  immediately before publishing, guaranteeing compiled artifacts are present in
+  every tarball.
+
+- Updated dependencies [[`a6cceba`](https://github.com/TanStack/ai/commit/a6cceba4812e7e986183ee856112fcf5f8fa12ff)]:
+  - @tanstack/ai@0.37.0
+  - @tanstack/ai-event-client@0.6.8
+
+## 0.4.17
+
+### Patch Changes
+
+- Updated dependencies [[`fbd3762`](https://github.com/TanStack/ai/commit/fbd37623b287e370aa5678e161dec19cf13ae33b), [`e3ee4ae`](https://github.com/TanStack/ai/commit/e3ee4ae385d124619586f7c6de96b5c7de5954c5)]:
+  - @tanstack/ai@0.36.0
+  - @tanstack/ai-event-client@0.6.7
+
+## 0.4.16
+
+### Patch Changes
+
+- Updated dependencies [[`c04abd3`](https://github.com/TanStack/ai/commit/c04abd35284d464d830bb9f15129c7a7c2533d3f)]:
+  - @tanstack/ai@0.35.0
+
+## 0.4.15
+
+### Patch Changes
+
+- Updated dependencies [[`2e59b77`](https://github.com/TanStack/ai/commit/2e59b7730ef88a0107e8d7ad916906b070f6a6c0), [`4188693`](https://github.com/TanStack/ai/commit/4188693d09297ce400eb1ba5fab30cfea2fdb8a6)]:
+  - @tanstack/ai-event-client@0.6.6
+  - @tanstack/ai@0.34.1
+
+## 0.4.14
+
+### Patch Changes
+
+- Updated dependencies [[`31de22b`](https://github.com/TanStack/ai/commit/31de22b1ae780c53e3abbf9cf17e1db7b62de84a)]:
+  - @tanstack/ai@0.34.0
+  - @tanstack/ai-event-client@0.6.5
+
+## 0.4.13
+
+### Patch Changes
+
+- Updated dependencies [[`2cb0313`](https://github.com/TanStack/ai/commit/2cb0313c1f13e1db37c5550308e36bb0b9b73b98), [`18e5f4d`](https://github.com/TanStack/ai/commit/18e5f4d9746a26c3194929ea4b49673728e8eaa5), [`21720dd`](https://github.com/TanStack/ai/commit/21720dd73524d624594a6dfb7e4669c03cc08af0), [`243b8fa`](https://github.com/TanStack/ai/commit/243b8fad7e8a48b68a1a96962ee1443cbd6a0ced)]:
+  - @tanstack/ai@0.33.0
+  - @tanstack/ai-event-client@0.6.4
+
+## 0.4.12
+
+### Patch Changes
+
+- Updated dependencies [[`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f), [`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f)]:
+  - @tanstack/ai@0.32.0
+  - @tanstack/ai-event-client@0.6.3
+
+## 0.4.11
+
+### Patch Changes
+
+- Updated dependencies [[`07aaf8b`](https://github.com/TanStack/ai/commit/07aaf8b9e5a8e699be25f936cc9cd651a46c16c5)]:
+  - @tanstack/ai@0.31.0
+  - @tanstack/ai-event-client@0.6.2
+
+## 0.4.10
+
+### Patch Changes
+
+- [#769](https://github.com/TanStack/ai/pull/769) [`1d1bb52`](https://github.com/TanStack/ai/commit/1d1bb5219a38d9718cc926148e93fc27d5d2305b) - Add repository metadata (`homepage`, `bugs`, `funding`), fix `repository.directory` to point at each package, and include an MIT `LICENSE` file in every published package.
+
+- Updated dependencies [[`7103348`](https://github.com/TanStack/ai/commit/71033488212bff05dcccc857e721ab9262ebc2a6), [`1d1bb52`](https://github.com/TanStack/ai/commit/1d1bb5219a38d9718cc926148e93fc27d5d2305b)]:
+  - @tanstack/ai@0.30.0
+  - @tanstack/ai-event-client@0.6.1
+
+## 0.4.9
+
+### Patch Changes
+
+- Updated dependencies [[`ff267a5`](https://github.com/TanStack/ai/commit/ff267a5536327b006979f9f28ce2df7cc27f6e23), [`570c08a`](https://github.com/TanStack/ai/commit/570c08a8d1a35746c3d31a63188249cba2d2475a), [`ff267a5`](https://github.com/TanStack/ai/commit/ff267a5536327b006979f9f28ce2df7cc27f6e23), [`22c9b42`](https://github.com/TanStack/ai/commit/22c9b42baec74914b720e440f29bd02be04eb164), [`215b6b4`](https://github.com/TanStack/ai/commit/215b6b401aa95d1d38da342aa09603cb1d616929), [`7d44569`](https://github.com/TanStack/ai/commit/7d445693ea079d7a85498a4465179ddd5f548cb0)]:
+  - @tanstack/ai@0.29.0
+  - @tanstack/ai-event-client@0.6.0
+
+## 0.4.8
+
+### Patch Changes
+
+- Updated dependencies [[`496e814`](https://github.com/TanStack/ai/commit/496e8143435746965b10e0bbd12f26ebf04ae2a6), [`c0af426`](https://github.com/TanStack/ai/commit/c0af4262d269be67c69d6f878d9618f25fdeee19), [`00e0c93`](https://github.com/TanStack/ai/commit/00e0c932e6cb5e31f75f4b5e94486d7eb02b9ce1), [`496e814`](https://github.com/TanStack/ai/commit/496e8143435746965b10e0bbd12f26ebf04ae2a6)]:
+  - @tanstack/ai@0.28.0
+  - @tanstack/ai-event-client@0.5.4
+
+## 0.4.7
+
+### Patch Changes
+
+- Updated dependencies [[`6df32b5`](https://github.com/TanStack/ai/commit/6df32b53026673d159e6df0892ce89effcb5c7b8)]:
+  - @tanstack/ai@0.27.0
+  - @tanstack/ai-event-client@0.5.3
+
+## 0.4.6
+
+### Patch Changes
+
+- Updated dependencies [[`7adff0f`](https://github.com/TanStack/ai/commit/7adff0f192e50c081b569ffb80bf65df2a404a1f)]:
+  - @tanstack/ai-event-client@0.5.2
+  - @tanstack/ai@0.26.1
+
+## 0.4.5
+
+### Patch Changes
+
+- Updated dependencies [[`5d6cd28`](https://github.com/TanStack/ai/commit/5d6cd2834ba7ac1d7c7c1bd24ede202bf3e78010)]:
+  - @tanstack/ai@0.26.0
+  - @tanstack/ai-event-client@0.5.1
+
+## 0.4.4
+
+### Patch Changes
+
+- [#242](https://github.com/TanStack/ai/pull/242) [`c251038`](https://github.com/TanStack/ai/commit/c251038c6d8aa84e498f89e314ce5bb233bc689f) - Enhanced token usage reporting for every provider.
+
+  `TokenUsage` is now the single canonical run-usage type. It is defined once in
+  `@tanstack/ai-event-client` (the dependency-free leaf package) and re-exported by
+  `@tanstack/ai`, so the two packages can no longer drift. It carries optional
+  detailed breakdowns alongside the core token counts: `promptTokensDetails` /
+  `completionTokensDetails` (cached, reasoning, audio, and per-modality tokens),
+  `durationSeconds` for duration-billed models (e.g. Whisper transcription),
+  `providerUsageDetails` for provider-specific metrics, and `cost` / `costDetails`
+  for provider-reported cost — so a single `usage` shape covers counts, detailed
+  breakdowns, and cost.
+
+  `TokenUsage` is generic over its provider details bag —
+  `TokenUsage<TProviderDetails = ProviderUsageDetails>` — so adapters return a
+  strongly-typed `providerUsageDetails` (e.g. `TokenUsage<AnthropicProviderUsageDetails>`)
+  while generic consumers keep the open-record default. The default,
+  `ProviderUsageDetails` (`Record<string, NonNullable<unknown>>`), is now exported and
+  uses non-nullish values rather than `unknown` so `TokenUsage` stays assignable across
+  JSON-serialization boundaries (e.g. TanStack Start server-fn return types). Each
+  provider's usage
+  extractor now returns `undefined` (rather than fabricating zeroed totals) when
+  the provider reports no usage object, so an absent `usage` is distinguishable
+  from a genuine zero-token run.
+
+  `@tanstack/ai` still exports `UsageTotals` as a `@deprecated` alias of
+  `TokenUsage` for backward compatibility; it will be removed in a future release.
+
+  Detailed usage is extracted in one place per SDK surface: OpenAI-compatible
+  providers (OpenAI, Grok, Groq) share the extractors in `@tanstack/openai-base`,
+  while Anthropic, Gemini, Ollama, and OpenRouter normalize their own provider
+  usage. The devtools surface cached and reasoning token badges per iteration.
+
+  Usage is now unified across **every modality**, not just text/chat. Image, audio,
+  and text-to-speech results report the same canonical `TokenUsage` (with
+  per-modality breakdowns) instead of a minimal `inputTokens`/`outputTokens` shape:
+  - `ImageGenerationResult.usage`, `AudioGenerationResult.usage`, and the new
+    `TTSResult.usage` are now typed as `TokenUsage`. **Breaking:** consumers of
+    these fields should read `promptTokens`/`completionTokens` instead of
+    `inputTokens`/`outputTokens`. `@tanstack/ai-event-client`'s `ImageUsage` is now
+    a `@deprecated` alias of `TokenUsage`.
+  - OpenAI/Grok image generation surface the text-vs-image input token breakdown
+    (`promptTokensDetails`), Gemini image/audio/TTS now surface their full
+    `usageMetadata` (previously dropped), and OpenRouter image generation surfaces
+    the chat usage it already returns.
+  - Bug fixes: Ollama no longer produces `NaN` totals or discards duration-only
+    usage; Anthropic defaults missing `output_tokens` and no longer emits empty
+    `promptTokensDetails`/`providerUsageDetails` objects; OpenAI GPT-4o
+    transcription reads the real audio/text input token breakdown and never falls
+    back to duration billing.
+
+  Cross-adapter usage parity fixes:
+  - `PromptTokensDetails`/`CompletionTokensDetails` gain a `documentTokens` field,
+    and Gemini now surfaces `DOCUMENT` modality token counts (e.g. PDF inputs)
+    instead of silently dropping them.
+  - OpenAI-compatible chat (OpenAI/Grok/Groq via `@tanstack/openai-base`) now
+    surfaces Predicted-Outputs `acceptedPredictionTokens`/`rejectedPredictionTokens`
+    under `providerUsageDetails`, matching the OpenRouter adapter (rejected
+    prediction tokens are billed).
+  - Grok transcription (`/v1/stt`) now reports `durationSeconds`, mirroring the
+    Whisper-1 path in the OpenAI transcription adapter.
+
+- Updated dependencies [[`c251038`](https://github.com/TanStack/ai/commit/c251038c6d8aa84e498f89e314ce5bb233bc689f)]:
+  - @tanstack/ai@0.25.0
+  - @tanstack/ai-event-client@0.5.0
+
+## 0.4.3
+
+### Patch Changes
+
+- Updated dependencies [[`c1ae8b9`](https://github.com/TanStack/ai/commit/c1ae8b94c83d70508975568eb4fc9b45f1af540b), [`a452ae8`](https://github.com/TanStack/ai/commit/a452ae8bcda8abfdc6309983976ed0fbf6df1915), [`8036b50`](https://github.com/TanStack/ai/commit/8036b5054330a180023c6e3225b8d2735a43a919)]:
+  - @tanstack/ai@0.24.0
+  - @tanstack/ai-event-client@0.4.3
+
+## 0.4.2
+
+### Patch Changes
+
+- Updated dependencies [[`94bb9c0`](https://github.com/TanStack/ai/commit/94bb9c0f3a3e56a0c6c8b7c78f44ae41288aecc3)]:
+  - @tanstack/ai@0.23.1
+  - @tanstack/ai-event-client@0.4.2
+
+## 0.4.1
+
+### Patch Changes
+
+- Updated dependencies [[`980ff9b`](https://github.com/TanStack/ai/commit/980ff9ba925f5dbae62a9318cc1e787d0ae24314), [`d5645cf`](https://github.com/TanStack/ai/commit/d5645cfd4d1b9cfc877f7d4d714517e166a99ce3)]:
+  - @tanstack/ai@0.23.0
+  - @tanstack/ai-event-client@0.4.1
+
+## 0.4.0
+
+### Minor Changes
+
+- [#632](https://github.com/TanStack/ai/pull/632) [`5634f18`](https://github.com/TanStack/ai/commit/5634f186a4946ca3e1942fbfcbf1291ec9bd9855) - Add hook-aware AI devtools registration, run tracking, state snapshots, and tool fixture replay.
+
+### Patch Changes
+
+- Updated dependencies [[`5634f18`](https://github.com/TanStack/ai/commit/5634f186a4946ca3e1942fbfcbf1291ec9bd9855)]:
+  - @tanstack/ai-event-client@0.4.0
+  - @tanstack/ai@0.22.1
+
 ## 0.3.38
 
 ### Patch Changes

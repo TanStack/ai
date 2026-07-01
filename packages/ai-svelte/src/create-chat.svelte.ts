@@ -1,7 +1,9 @@
 import { ChatClient } from '@tanstack/ai-client'
+import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import type {
   ChatClientState,
   ConnectionStatus,
+  InferredClientContext,
   StructuredOutputPart,
 } from '@tanstack/ai-client'
 import type {
@@ -52,9 +54,10 @@ import type {
 export function createChat<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
+  TContext = InferredClientContext<TTools>,
 >(
-  options: CreateChatOptions<TTools, TSchema>,
-): CreateChatReturn<TTools, TSchema> {
+  options: CreateChatOptions<TTools, TSchema, TContext>,
+): CreateChatReturn<TTools, TSchema, TContext> {
   // Generate a unique ID for this chat instance
   const clientId =
     options.id ||
@@ -90,16 +93,28 @@ export function createChat<
     ? { connection: options.connection }
     : { fetcher: options.fetcher }
 
-  const client = new ChatClient({
+  const client = new ChatClient<TTools, TContext>({
+    devtoolsBridgeFactory: createChatDevtoolsBridge,
     ...transport,
     id: clientId,
     ...(options.initialMessages !== undefined && {
       initialMessages: options.initialMessages,
     }),
+    ...(options.persistence !== undefined && {
+      persistence: options.persistence,
+    }),
     ...(options.body !== undefined && { body: options.body }),
+    ...(options.threadId !== undefined && { threadId: options.threadId }),
     ...(options.forwardedProps !== undefined && {
       forwardedProps: options.forwardedProps,
     }),
+    ...(options.context !== undefined && { context: options.context }),
+    devtools: {
+      ...options.devtools,
+      framework: 'svelte',
+      hookName: 'useChat',
+      outputKind: options.outputSchema ? 'structured' : 'chat',
+    },
     ...(options.onResponse !== undefined && { onResponse: options.onResponse }),
     onChunk: (chunk: StreamChunk) => {
       options.onChunk?.(chunk)
@@ -140,9 +155,13 @@ export function createChat<
     },
   })
 
+  messages = client.getMessages()
+
   if (options.live) {
     client.subscribe()
   }
+
+  client.mountDevtools()
 
   // Note: Cleanup is handled by calling stop() directly when needed.
   // Unlike React/Vue/Solid, Svelte 5 runes like $effect can only be used
@@ -164,6 +183,10 @@ export function createChat<
 
   const stop = () => {
     client.stop()
+  }
+
+  const dispose = () => {
+    client.dispose()
   }
 
   const clear = () => {
@@ -201,6 +224,10 @@ export function createChat<
 
   const updateForwardedProps = (newForwardedProps: Record<string, any>) => {
     client.updateOptions({ forwardedProps: newForwardedProps })
+  }
+
+  const updateContext = (newContext: TContext) => {
+    client.updateOptions({ context: newContext })
   }
 
   // The "active" structured-output part is the one on the assistant message
@@ -243,7 +270,7 @@ export function createChat<
 
   // Return the chat interface with reactive getters
   // Using getters allows Svelte to track reactivity without needing $ prefix
-  // eslint-disable-next-line no-restricted-syntax -- rune return shape diverges from generic CreateChatReturn<TTools, TSchema> due to TSchema conditional partial/final fields; TS can't structurally narrow.
+  // eslint-disable-next-line no-restricted-syntax -- rune return shape diverges from generic CreateChatReturn<TTools, TSchema, TContext> due to TSchema conditional partial/final fields; TS can't structurally narrow.
   return {
     get messages() {
       return messages
@@ -276,11 +303,13 @@ export function createChat<
     append,
     reload,
     stop,
+    dispose,
     setMessages,
     clear,
     addToolResult,
     addToolApprovalResponse,
     updateBody,
     updateForwardedProps,
-  } as unknown as CreateChatReturn<TTools, TSchema>
+    updateContext,
+  } as unknown as CreateChatReturn<TTools, TSchema, TContext>
 }

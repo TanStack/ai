@@ -22,6 +22,8 @@ export interface ExtendedModelDef<
   TName extends string = string,
   TInput extends ReadonlyArray<Modality> = ReadonlyArray<Modality>,
   TOptions = unknown,
+  TFeatures extends ReadonlyArray<string> = ReadonlyArray<string>,
+  TTools extends ReadonlyArray<string> = ReadonlyArray<string>,
 > {
   /** The model name identifier */
   name: TName
@@ -29,6 +31,23 @@ export interface ExtendedModelDef<
   input: TInput
   /** Type brand for provider options - use `{} as YourOptionsType` */
   modelOptions: TOptions
+  /** Optional declared features (e.g. 'reasoning', 'structured_outputs') */
+  features?: TFeatures
+  /** Optional declared provider tools (e.g. 'web_search') */
+  tools?: TTools
+}
+
+/** Capability bag accepted by the object form of `createModel`. */
+export interface ModelCapabilities<
+  TInput extends ReadonlyArray<Modality> = ReadonlyArray<Modality>,
+  TFeatures extends ReadonlyArray<string> = ReadonlyArray<string>,
+  TTools extends ReadonlyArray<string> = ReadonlyArray<string>,
+  TOptions = unknown,
+> {
+  input?: TInput
+  features?: TFeatures
+  tools?: TTools
+  modelOptions?: TOptions
 }
 
 /**
@@ -57,15 +76,57 @@ export interface ExtendedModelDef<
  *
  * const myOpenai = extendAdapter(openaiText, customModels)
  * ```
+ *
+ * @example
+ * ```typescript
+ * // Capabilities object form - declare features and provider tools
+ * const reasoner = createModel('reasoner', {
+ *   input: ['text'],
+ *   features: ['reasoning', 'structured_outputs'],
+ *   tools: ['web_search'],
+ * })
+ * ```
  */
+// Overload 1 — legacy positional input array (unchanged behavior)
 export function createModel<
   const TName extends string,
   const TInput extends ReadonlyArray<Modality>,
->(name: TName, input: TInput): ExtendedModelDef<TName, TInput> {
+>(name: TName, input: TInput): ExtendedModelDef<TName, TInput>
+// Overload 2 — capabilities object
+export function createModel<
+  const TName extends string,
+  const TCaps extends ModelCapabilities,
+>(
+  name: TName,
+  capabilities: TCaps,
+): ExtendedModelDef<
+  TName,
+  TCaps['input'] extends ReadonlyArray<Modality>
+    ? TCaps['input']
+    : ReadonlyArray<Modality>,
+  TCaps['modelOptions'],
+  TCaps['features'] extends ReadonlyArray<string>
+    ? TCaps['features']
+    : ReadonlyArray<string>,
+  TCaps['tools'] extends ReadonlyArray<string>
+    ? TCaps['tools']
+    : ReadonlyArray<string>
+>
+// Implementation
+export function createModel(
+  name: string,
+  second: ReadonlyArray<Modality> | ModelCapabilities,
+): ExtendedModelDef {
+  if (Array.isArray(second)) {
+    return { name, input: second, modelOptions: {} }
+  }
+  const caps = second as ModelCapabilities
   return {
     name,
-    input,
-    modelOptions: {},
+    input: caps.input ?? (['text'] as ReadonlyArray<Modality>),
+    modelOptions: caps.modelOptions ?? {},
+    features: caps.features,
+    tools: caps.tools,
   }
 }
 
@@ -84,37 +145,57 @@ type ExtractCustomModelNames<TDefs extends ReadonlyArray<ExtendedModelDef>> =
 // ===========================
 
 /**
+ * The widest factory shape `extendAdapter` accepts: any function taking a
+ * model as its first parameter. Parameters are contravariant, so `never`
+ * params and an `unknown` return accept every factory without resorting
+ * to `any`.
+ */
+type AnyAdapterFactory = (model: never, ...args: Array<never>) => unknown
+
+/**
  * Infer the model parameter type from an adapter factory function.
  * For generic functions like `<T extends Union>(model: T)`, this gets `T` which
  * TypeScript treats as the constraint union when used in parameter position.
  */
 type InferFactoryModels<TFactory> = TFactory extends (
   model: infer TModel,
-  ...args: Array<any>
-) => any
+  ...args: Array<never>
+) => unknown
   ? TModel extends string
     ? TModel
     : string
   : string
 
 /**
- * Infer the config parameter type from an adapter factory function.
- */
-type InferConfig<TFactory> = TFactory extends (
-  model: any,
-  config?: infer TConfig,
-) => any
-  ? TConfig
-  : undefined
-
-/**
  * Infer the adapter return type from a factory function.
  */
 type InferAdapterReturn<TFactory> = TFactory extends (
-  ...args: Array<any>
+  ...args: Array<never>
 ) => infer TReturn
   ? TReturn
   : never
+
+/**
+ * Extracts all parameter types after the model parameter from a factory,
+ * preserving labels and optionality (e.g. `[apiKey: string, config?: C]`).
+ * Note: overloaded factories resolve against their last overload (a
+ * `Parameters` limitation).
+ */
+type InferRestArgs<TFactory extends AnyAdapterFactory> =
+  Parameters<TFactory> extends [unknown?, ...infer TRest] ? TRest : []
+
+/**
+ * The factory signature produced by `extendAdapter`: accepts both original
+ * and custom model names while preserving all remaining parameters and the
+ * return type of the original factory.
+ */
+type ExtendedFactory<
+  TFactory extends AnyAdapterFactory,
+  TDefs extends ReadonlyArray<ExtendedModelDef>,
+> = (
+  model: InferFactoryModels<TFactory> | ExtractCustomModelNames<TDefs>,
+  ...args: InferRestArgs<TFactory>
+) => InferAdapterReturn<TFactory>
 
 // ===========================
 // extendAdapter Function
@@ -164,19 +245,17 @@ type InferAdapterReturn<TFactory> = TFactory extends (
  * ```
  */
 export function extendAdapter<
-  TFactory extends (...args: Array<any>) => any,
+  TFactory extends AnyAdapterFactory,
   const TDefs extends ReadonlyArray<ExtendedModelDef>,
->(
-  factory: TFactory,
-  _customModels: TDefs,
-): (
-  model: InferFactoryModels<TFactory> | ExtractCustomModelNames<TDefs>,
-  ...args: InferConfig<TFactory> extends undefined
-    ? []
-    : [config?: InferConfig<TFactory>]
-) => InferAdapterReturn<TFactory> {
+>(factory: TFactory, _customModels: TDefs): ExtendedFactory<TFactory, TDefs>
+// The implementation signature stays at the honest `AnyAdapterFactory` width;
+// the overload above performs the deliberate model-union widening.
+export function extendAdapter(
+  factory: AnyAdapterFactory,
+  _customModels: ReadonlyArray<ExtendedModelDef>,
+): AnyAdapterFactory {
   // At runtime, we simply pass through to the original factory.
   // The _customModels parameter is only used for type inference.
   // No runtime validation - users are trusted to pass valid model names.
-  return factory as any
+  return factory
 }

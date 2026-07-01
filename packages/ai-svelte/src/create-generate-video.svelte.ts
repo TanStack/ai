@@ -1,10 +1,12 @@
 import { VideoGenerationClient } from '@tanstack/ai-client'
+import { createVideoDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import type { StreamChunk } from '@tanstack/ai'
 import type {
+  AIDevtoolsDisplayOptions,
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  InferGenerationOutput,
+  InferGenerationOutputFromReturn,
   VideoGenerateInput,
   VideoGenerateResult,
   VideoStatusInfo,
@@ -24,6 +26,8 @@ export interface CreateGenerateVideoOptions<TOutput = VideoGenerateResult> {
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
   /**
    * Callback when video generation completes. Can optionally return a transformed value.
    *
@@ -68,6 +72,8 @@ export interface CreateGenerateVideoReturn<TOutput = VideoGenerateResult> {
   stop: () => void
   /** Clear all state and return to idle */
   reset: () => void
+  /** Stop in-flight work and unregister devtools listeners */
+  dispose: () => void
   /** Update additional body parameters */
   updateBody: (body: Record<string, any>) => void
 }
@@ -102,17 +108,20 @@ export interface CreateGenerateVideoReturn<TOutput = VideoGenerateResult> {
  * </div>
  * ```
  */
-export function createGenerateVideo<
-  TOnResult extends ((result: VideoGenerateResult) => any) | undefined =
-    undefined,
->(
+// `TTransformed` infers from the `onResult` return position so the callback
+// parameter is typed as `VideoGenerateResult` and `result` narrows to the
+// transform's return. See issue #848.
+export function createGenerateVideo<TTransformed = void>(
   options: Omit<CreateGenerateVideoOptions, 'onResult'> & {
-    onResult?: TOnResult
+    onResult?: (result: VideoGenerateResult) => TTransformed
   },
 ): CreateGenerateVideoReturn<
-  InferGenerationOutput<VideoGenerateResult, TOnResult>
+  InferGenerationOutputFromReturn<VideoGenerateResult, TTransformed>
 > {
-  type TOutput = InferGenerationOutput<VideoGenerateResult, TOnResult>
+  type TOutput = InferGenerationOutputFromReturn<
+    VideoGenerateResult,
+    TTransformed
+  >
   const clientId =
     options.id ||
     `video-${Date.now()}-${Math.random().toString(36).substring(7)}`
@@ -132,7 +141,19 @@ export function createGenerateVideo<
   const baseOptions = {
     id: clientId,
     body: options.body,
-    onResult: (r: VideoGenerateResult) => options.onResult?.(r),
+    devtoolsBridgeFactory: createVideoDevtoolsBridge,
+    devtools: {
+      ...options.devtools,
+      framework: 'svelte',
+      hookName: 'createGenerateVideo',
+      outputKind: 'video' as const,
+    },
+    // The transform's raw return type (`TTransformed`) and the stored output
+    // (`TOutput`, with null/void/undefined stripped) are identical at runtime;
+    // the cast bridges the relationship that the conditional type hides.
+    onResult: ((r: VideoGenerateResult) => options.onResult?.(r)) as (
+      result: VideoGenerateResult,
+    ) => TOutput | null | void,
     onError: (e: Error) => options.onError?.(e),
     onProgress: (p: number, m?: string) => options.onProgress?.(p, m),
     onChunk: (c: StreamChunk) => options.onChunk?.(c),
@@ -176,10 +197,12 @@ export function createGenerateVideo<
     )
   }
 
-  // Note: Cleanup is handled by calling stop() directly when needed.
+  client.mountDevtools()
+
+  // Note: Cleanup is handled by calling dispose() directly when needed.
   // Unlike React/Vue/Solid, Svelte 5 runes like $effect can only be used
   // during component initialization, so we don't add automatic cleanup here.
-  // Users should call video.stop() in their component's cleanup if needed.
+  // Users should call video.dispose() in their component's cleanup if needed.
 
   const generate = async (input: VideoGenerateInput) => {
     await client.generate(input)
@@ -191,6 +214,10 @@ export function createGenerateVideo<
 
   const reset = () => {
     client.reset()
+  }
+
+  const dispose = () => {
+    client.dispose()
   }
 
   const updateBody = (newBody: Record<string, any>) => {
@@ -219,6 +246,7 @@ export function createGenerateVideo<
     generate,
     stop,
     reset,
+    dispose,
     updateBody,
   }
 }

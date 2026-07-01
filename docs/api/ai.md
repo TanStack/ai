@@ -26,8 +26,9 @@ npm install @tanstack/ai
 Creates a streaming chat response.
 
 ```typescript
-import { chat } from "@tanstack/ai";
+import { chat, maxIterations } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
+import { myTool } from "./tools";
 
 const stream = chat({
   adapter: openaiText("gpt-5.2"),
@@ -43,10 +44,11 @@ const stream = chat({
 - `adapter` - An AI adapter instance with model (e.g., `openaiText('gpt-5.2')`, `anthropicText('claude-sonnet-4-5')`)
 - `messages` - Array of chat messages. Accepts mixed `UIMessage | ModelMessage` arrays — internal conversion handles AG-UI fan-out dedup, drops `reasoning`/`activity`, and collapses `developer` → `system`
 - `tools?` - Array of tools for function calling
+- `context?` - Typed runtime context passed to server tools and middleware. If a tool or middleware declares a concrete context type, `chat()` requires a compatible value here
 - `systemPrompts?` - System prompts to prepend to messages
 - `agentLoopStrategy?` - Strategy for agent loops (default: `maxIterations(5)`)
 - `abortController?` - AbortController for cancellation
-- `modelOptions?` - Model-specific options (renamed from `providerOptions`)
+- `modelOptions?` - Provider-native model options. This is where sampling parameters live — `temperature`, `top_p`/`topP`, and the provider's token-limit key (`max_output_tokens`, `max_tokens`, `maxOutputTokens`, …) — under each provider's canonical name, rather than as generic root-level props. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options). (Renamed from `providerOptions`.)
 - `threadId?` - AG-UI thread identifier propagated into `RUN_STARTED` events for run correlation
 - `runId?` - AG-UI run identifier (auto-generated if omitted)
 - `parentRunId?` - AG-UI parent run identifier for nested runs
@@ -88,7 +90,8 @@ A `SummarizationResult` with the summary text.
 Creates an isomorphic tool definition that can be instantiated for server or client execution.
 
 ```typescript
-import { toolDefinition } from "@tanstack/ai";
+import { chat, toolDefinition } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
 import { z } from "zod";
 
 const myToolDef = toolDefinition({
@@ -130,6 +133,37 @@ chat({
 });
 ```
 
+Tools can declare typed runtime context for request-scoped dependencies:
+
+```typescript
+import { chat, toolDefinition, toServerSentEventsResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { session, db } from "./app";
+
+type AppContext = {
+  userId: string;
+  db: { users: { findName(id: string): Promise<string> } };
+};
+
+const currentUser = toolDefinition({
+  name: "current_user",
+  description: "Get the current user",
+}).server<AppContext>(async (_input: unknown, ctx) => {
+  return { name: await ctx.context.db.users.findName(ctx.context.userId) };
+});
+
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+  const stream = chat({
+    adapter: openaiText("gpt-5.2"),
+    messages,
+    tools: [currentUser],
+    context: { userId: session.user.id, db },
+  });
+  return toServerSentEventsResponse(stream);
+}
+```
+
 ### Parameters
 
 - `name` - Tool name (must be unique)
@@ -153,7 +187,7 @@ import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
   adapter: openaiText("gpt-5.2"),
-  messages: [...],
+  messages: [{ role: "user", content: "Hello!" }],
 });
 const readableStream = toServerSentEventsStream(stream);
 ```
@@ -178,11 +212,13 @@ Converts a stream to an HTTP Response with proper SSE headers.
 import { chat, toServerSentEventsResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
-const stream = chat({
-  adapter: openaiText("gpt-5.2"),
-  messages: [...],
-});
-return toServerSentEventsResponse(stream);
+async function POST() {
+  const stream = chat({
+    adapter: openaiText("gpt-5.2"),
+    messages: [{ role: "user", content: "Hello!" }],
+  });
+  return toServerSentEventsResponse(stream);
+}
 ```
 
 ### Parameters
@@ -201,11 +237,12 @@ Reads an HTTP `Request`, parses its JSON body, and validates it against AG-UI `R
 ```typescript
 import { chat, chatParamsFromRequest, toServerSentEventsResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
+import { serverTools } from "./tools";
 
 export async function POST(req: Request) {
   const params = await chatParamsFromRequest(req);
   const stream = chat({
-    adapter: openaiText("gpt-4o"),
+    adapter: openaiText("gpt-5.5"),
     messages: params.messages,
     tools: serverTools,
   });
@@ -219,7 +256,11 @@ export async function POST(req: Request) {
 
 ### Returns
 
-A promise resolving to `{ messages, threadId, runId, parentRunId?, tools, forwardedProps, state, context }`.
+A promise resolving to `{ messages, threadId, runId, parentRunId?, tools, forwardedProps, state, aguiContext, context }`.
+
+The returned `aguiContext` is the AG-UI protocol `RunAgentInput.context` field. It is not the same as TanStack AI runtime `chat({ context })`; validate and map it explicitly if you want those values available to tools or middleware.
+
+The returned `context` field is a deprecated alias of `aguiContext` kept for backward compatibility. Prefer `aguiContext` in new code.
 
 > **Framework note.** Next.js Route Handlers, SvelteKit, Hono, and raw Node do not auto-handle thrown `Response` objects. In those, wrap with try/catch or use `chatParamsFromRequestBody(await req.json())` directly.
 
@@ -228,12 +269,18 @@ A promise resolving to `{ messages, threadId, runId, parentRunId?, tools, forwar
 Lower-level variant of `chatParamsFromRequest` that validates an already-parsed body. Rejects with an `AGUIError` on malformed input. Use this when you need explicit error handling control.
 
 ```typescript
-const body = await req.json();
-try {
-  const params = await chatParamsFromRequestBody(body);
-  // ...
-} catch (error) {
-  return new Response(error.message, { status: 400 });
+import { chatParamsFromRequestBody } from "@tanstack/ai";
+
+async function handler(req: Request): Promise<Response> {
+  const body = await req.json();
+  try {
+    const params = await chatParamsFromRequestBody(body);
+    // ...
+    return new Response("ok");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return new Response(message, { status: 400 });
+  }
 }
 ```
 
@@ -243,13 +290,17 @@ Merges a server-side tool registry with the AG-UI client-declared tools received
 
 ```typescript
 import { chat, chatParamsFromRequest, mergeAgentTools } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { serverTools } from "./tools";
 
-const params = await chatParamsFromRequest(req);
-const stream = chat({
-  adapter: openaiText("gpt-4o"),
-  messages: params.messages,
-  tools: mergeAgentTools(serverTools, params.tools),
-});
+async function handler(req: Request) {
+  const params = await chatParamsFromRequest(req);
+  const stream = chat({
+    adapter: openaiText("gpt-5.5"),
+    messages: params.messages,
+    tools: mergeAgentTools(serverTools, params.tools),
+  });
+}
 ```
 
 ### Parameters
@@ -271,7 +322,7 @@ import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
   adapter: openaiText("gpt-5.2"),
-  messages: [...],
+  messages: [{ role: "user", content: "Hello!" }],
   agentLoopStrategy: maxIterations(20),
 });
 ```
@@ -298,7 +349,7 @@ interface ModelMessage {
 
 ### `StreamChunk`
 
-```typescript
+```typescript ignore
 type StreamChunk =
   | ContentStreamChunk
   | ThinkingStreamChunk
@@ -329,27 +380,101 @@ Stream chunks represent different types of data in the stream:
 ### `Tool`
 
 ```typescript
-interface Tool {
-  type: "function";
-  function: {
-    name: string;
-    description: string;
-    parameters: Record<string, any>;
-  };
-  execute?: (args: any) => Promise<any> | any;
+import type { SchemaInput, ToolExecutionContext } from "@tanstack/ai";
+
+interface Tool<TContext = unknown> {
+  name: string;
+  description: string;
+  inputSchema?: SchemaInput;
+  outputSchema?: SchemaInput;
+  execute?: (
+    args: any,
+    context?: ToolExecutionContext<TContext>
+  ) => Promise<any> | any;
   needsApproval?: boolean;
+  lazy?: boolean;
+  metadata?: Record<string, any>;
 }
 ```
+
+### `ToolExecutionContext<TContext>`
+
+```typescript ignore
+type ToolExecutionContext<TContext = unknown> = {
+  toolCallId?: string;
+  emitCustomEvent: (eventName: string, value: Record<string, any>) => void;
+} & (unknown extends TContext ? { context?: TContext } : { context: TContext });
+```
+
+`context` is the runtime value from `chat({ context })` for server tools, or from `ChatClient` / framework hook options for client tools. It is required when a tool declares a concrete `TContext` and optional for untyped tools where the context type is `unknown`.
+
+### `ChatMiddleware<TContext>`
+
+```typescript
+import type {
+  StreamChunk,
+  ChatMiddlewarePhase,
+  ToolCallHookContext,
+  BeforeToolCallDecision,
+  AfterToolCallInfo,
+  FinishInfo,
+  AbortInfo,
+  ErrorInfo,
+} from "@tanstack/ai";
+
+interface ChatMiddlewareContext<TContext = unknown> {
+  requestId: string;
+  streamId: string;
+  threadId: string;
+  phase: ChatMiddlewarePhase;
+  iteration: number;
+  context: TContext;
+  abort(reason?: string): void;
+  defer(promise: Promise<unknown>): void;
+}
+
+interface ChatMiddleware<TContext = unknown> {
+  name?: string;
+  onStart?: (ctx: ChatMiddlewareContext<TContext>) => void | Promise<void>;
+  onChunk?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    chunk: StreamChunk
+  ) => void | StreamChunk | StreamChunk[] | null | Promise<void | StreamChunk | StreamChunk[] | null>;
+  onBeforeToolCall?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    hookCtx: ToolCallHookContext
+  ) => BeforeToolCallDecision | Promise<BeforeToolCallDecision>;
+  onAfterToolCall?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    info: AfterToolCallInfo
+  ) => void | Promise<void>;
+  onFinish?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    info: FinishInfo
+  ) => void | Promise<void>;
+  onAbort?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    info: AbortInfo
+  ) => void | Promise<void>;
+  onError?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    info: ErrorInfo
+  ) => void | Promise<void>;
+}
+```
+
+See [Runtime Context](../advanced/runtime-context) for the recommended context patterns.
 
 ## Usage Examples
 
 ```typescript
-import { chat, summarize, generateImage } from "@tanstack/ai";
+import { chat, summarize, generateImage, toolDefinition } from "@tanstack/ai";
 import {
   openaiText,
   openaiSummarize,
   openaiImage,
 } from "@tanstack/ai-openai";
+import { z } from "zod";
 
 // --- Streaming chat
 const stream = chat({
@@ -357,66 +482,66 @@ const stream = chat({
   messages: [{ role: "user", content: "Hello!" }],
 });
 
-// --- One-shot chat response (stream: false)
-const response = await chat({
-  adapter: openaiText("gpt-5.2"),
-  messages: [{ role: "user", content: "What's the capital of France?" }],
-  stream: false, // Returns a Promise<string> instead of AsyncIterable
-});
-
-// --- Structured response with outputSchema
-import { z } from "zod";
-const parsed = await chat({
-  adapter: openaiText("gpt-5.2"),
-  messages: [{ role: "user", content: "Summarize this text in JSON with keys 'summary' and 'keywords': ... " }],
-  outputSchema: z.object({
-    summary: z.string(),
-    keywords: z.array(z.string()),
-  }),
-});
-
 // --- Structured response with tools
-import { toolDefinition } from "@tanstack/ai";
 const weatherTool = toolDefinition({
   name: "getWeather",
   description: "Get the current weather for a city",
   inputSchema: z.object({
-    city: z.string().meta({ description: "City name" }),
+    city: z.string(),
   }),
 }).server(async ({ city }) => {
   // Implementation that fetches weather info
   return JSON.stringify({ temperature: 72, condition: "Sunny" });
 });
 
-const toolResult = await chat({
-  adapter: openaiText("gpt-5.2"),
-  messages: [
-    { role: "user", content: "What's the weather in Paris?" }
-  ],
-  tools: [weatherTool],
-  outputSchema: z.object({
-    answer: z.string(),
-    weather: z.object({
-      temperature: z.number(),
-      condition: z.string(),
+async function examples() {
+  // --- One-shot chat response (stream: false)
+  const response = await chat({
+    adapter: openaiText("gpt-5.2"),
+    messages: [{ role: "user", content: "What's the capital of France?" }],
+    stream: false, // Returns a Promise<string> instead of AsyncIterable
+  });
+
+  // --- Structured response with outputSchema
+  const parsed = await chat({
+    adapter: openaiText("gpt-5.2"),
+    messages: [{ role: "user", content: "Summarize this text in JSON with keys 'summary' and 'keywords': ... " }],
+    outputSchema: z.object({
+      summary: z.string(),
+      keywords: z.array(z.string()),
     }),
-  }),
-});
+  });
 
-// --- Summarization
-const summary = await summarize({
-  adapter: openaiSummarize("gpt-5.2"),
-  text: "Long text to summarize...",
-  maxLength: 100,
-});
+  const toolResult = await chat({
+    adapter: openaiText("gpt-5.2"),
+    messages: [
+      { role: "user", content: "What's the weather in Paris?" }
+    ],
+    tools: [weatherTool],
+    outputSchema: z.object({
+      answer: z.string(),
+      weather: z.object({
+        temperature: z.number(),
+        condition: z.string(),
+      }),
+    }),
+  });
 
-// --- Image generation
-const image = await generateImage({
-  adapter: openaiImage("dall-e-3"),
-  prompt: "A futuristic city skyline at sunset",
-  numberOfImages: 1,
-  size: "1024x1024",
-});
+  // --- Summarization
+  const summary = await summarize({
+    adapter: openaiSummarize("gpt-5.2"),
+    text: "Long text to summarize...",
+    maxLength: 100,
+  });
+
+  // --- Image generation
+  const image = await generateImage({
+    adapter: openaiImage("dall-e-3"),
+    prompt: "A futuristic city skyline at sunset",
+    numberOfImages: 1,
+    size: "1024x1024",
+  });
+}
 ```
 
 ## Next Steps

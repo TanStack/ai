@@ -2,8 +2,10 @@ import { fal } from '@fal-ai/client'
 import { BaseTTSAdapter } from '@tanstack/ai/adapters'
 import {
   arrayBufferToBase64,
+  buildFalUsage,
   configureFalClient,
   extractUrlExtension,
+  takeBillableUnits,
   generateId as utilGenerateId,
 } from '../utils'
 import type { OutputType, Result } from '@fal-ai/client'
@@ -133,12 +135,15 @@ export class FalSpeechAdapter<TModel extends FalModel> extends BaseTTSAdapter<
       safeUrlExtension || contentTypeMime?.split('/')[1] || 'wav'
     const format = rawFormat === 'mpeg' ? 'mp3' : rawFormat
 
+    const usage = buildFalUsage(takeBillableUnits(response.requestId))
+
     return {
       id: response.requestId || this.generateId(),
       model: this.model,
       audio: base64,
       format,
       contentType: contentTypeMime || `audio/${format}`,
+      ...(usage ? { usage } : {}),
     }
   }
 }

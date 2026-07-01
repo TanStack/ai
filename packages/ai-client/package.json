@@ -1,13 +1,21 @@
 {
   "name": "@tanstack/ai-client",
-  "version": "0.12.0",
+  "version": "0.19.1",
   "description": "Framework-agnostic headless client for TanStack AI chat, realtime sessions, streaming transports, and media generations.",
-  "author": "",
+  "author": "Tanner Linsley",
   "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/TanStack/ai.git",
     "directory": "packages/ai-client"
+  },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
   },
   "keywords": [
     "ai",
@@ -30,6 +38,10 @@
     ".": {
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
+    },
+    "./devtools": {
+      "types": "./dist/esm/devtools.d.ts",
+      "import": "./dist/esm/devtools.js"
     }
   },
   "files": [
@@ -50,7 +62,8 @@
   },
   "dependencies": {
     "@tanstack/ai": "workspace:*",
-    "@tanstack/ai-event-client": "workspace:*"
+    "@tanstack/ai-event-client": "workspace:*",
+    "@tanstack/ai-utils": "workspace:*"
   },
   "devDependencies": {
     "@standard-schema/spec": "^1.1.0",

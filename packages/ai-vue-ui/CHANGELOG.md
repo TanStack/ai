@@ -1,5 +1,189 @@
 # @tanstack/ai-vue-ui
 
+## 0.2.29
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-vue@0.14.1
+
+## 0.2.28
+
+### Patch Changes
+
+- Updated dependencies [[`33acdd4`](https://github.com/TanStack/ai/commit/33acdd4df4aef13d594700d9b52087252091bd40), [`c22c663`](https://github.com/TanStack/ai/commit/c22c6632fdca761033cb9c4273bf61fc8ce86662)]:
+  - @tanstack/ai-vue@0.14.0
+
+## 0.2.27
+
+### Patch Changes
+
+- [#844](https://github.com/TanStack/ai/pull/844) [`a6cceba`](https://github.com/TanStack/ai/commit/a6cceba4812e7e986183ee856112fcf5f8fa12ff) - Republish all packages with their compiled `dist/` output.
+
+  Releases `0.33.0`–`0.36.0` were published without a `dist/` directory: the
+  release workflow relied on an Nx-cached `build` whose outputs were not
+  materialized to disk before `changeset publish` packed the tarballs, and
+  `files: ["dist"]` silently includes nothing when `dist/` is absent. The
+  published packages therefore contained only `src/`, so every export
+  (`./dist/esm/*.js`) resolved to a missing file and the packages were
+  uninstallable.
+
+  The publish step now runs a fresh, cache-bypassing build of all packages
+  immediately before publishing, guaranteeing compiled artifacts are present in
+  every tarball.
+
+- Updated dependencies [[`a6cceba`](https://github.com/TanStack/ai/commit/a6cceba4812e7e986183ee856112fcf5f8fa12ff)]:
+  - @tanstack/ai-vue@0.13.15
+
+## 0.2.26
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-vue@0.13.14
+
+## 0.2.25
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-vue@0.13.13
+
+## 0.2.24
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-vue@0.13.12
+
+## 0.2.23
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-vue@0.13.11
+
+## 0.2.22
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-vue@0.13.10
+
+## 0.2.21
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-vue@0.13.9
+
+## 0.2.20
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-vue@0.13.8
+
+## 0.2.19
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-vue@0.13.7
+
+## 0.2.18
+
+### Patch Changes
+
+- [#769](https://github.com/TanStack/ai/pull/769) [`1d1bb52`](https://github.com/TanStack/ai/commit/1d1bb5219a38d9718cc926148e93fc27d5d2305b) - Add repository metadata (`homepage`, `bugs`, `funding`), fix `repository.directory` to point at each package, and include an MIT `LICENSE` file in every published package.
+
+- Updated dependencies [[`1d1bb52`](https://github.com/TanStack/ai/commit/1d1bb5219a38d9718cc926148e93fc27d5d2305b)]:
+  - @tanstack/ai-vue@0.13.6
+
+## 0.2.17
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-vue@0.13.5
+
+## 0.2.16
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-vue@0.13.4
+
+## 0.2.15
+
+### Patch Changes
+
+- Updated dependencies [[`d5cb4b9`](https://github.com/TanStack/ai/commit/d5cb4b9445c5b97b06a7fc224dd2c3a92f0e802a)]:
+  - @tanstack/ai-vue@0.13.3
+
+## 0.2.14
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-vue@0.13.2
+
+## 0.2.13
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-vue@0.13.1
+
+## 0.2.12
+
+### Patch Changes
+
+- Updated dependencies [[`755e995`](https://github.com/TanStack/ai/commit/755e9953a31e879c4b88df0e7672ce1224886c97)]:
+  - @tanstack/ai-vue@0.13.0
+
+## 0.2.11
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-vue@0.12.2
+
+## 0.2.10
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-vue@0.12.1
+
+## 0.2.9
+
+### Patch Changes
+
+- Updated dependencies [[`8036b50`](https://github.com/TanStack/ai/commit/8036b5054330a180023c6e3225b8d2735a43a919)]:
+  - @tanstack/ai-vue@0.12.0
+
+## 0.2.8
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-vue@0.11.1
+
+## 0.2.7
+
+### Patch Changes
+
+- Updated dependencies [[`d5645cf`](https://github.com/TanStack/ai/commit/d5645cfd4d1b9cfc877f7d4d714517e166a99ce3)]:
+  - @tanstack/ai-vue@0.11.0
+
+## 0.2.6
+
+### Patch Changes
+
+- Updated dependencies [[`5634f18`](https://github.com/TanStack/ai/commit/5634f186a4946ca3e1942fbfcbf1291ec9bd9855)]:
+  - @tanstack/ai-vue@0.10.11
+
 ## 0.2.5
 
 ### Patch Changes

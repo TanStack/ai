@@ -54,7 +54,7 @@ vi.mock('@google/genai', async () => {
 const createTextAdapter = () =>
   new GeminiTextAdapter({ apiKey: 'test-key' }, 'gemini-2.5-pro')
 const createSummarizeAdapter = () =>
-  createGeminiSummarize('test-key', 'gemini-2.0-flash')
+  createGeminiSummarize('test-key', 'gemini-2.5-flash')
 
 const weatherTool: Tool = {
   name: 'lookup_weather',
@@ -103,10 +103,10 @@ describe('GeminiAdapter through AI', () => {
       messages: [{ role: 'user', content: 'How is the weather in Madrid?' }],
       modelOptions: {
         topK: 9,
+        temperature: 0.4,
+        topP: 0.8,
+        maxOutputTokens: 256,
       },
-      temperature: 0.4,
-      topP: 0.8,
-      maxTokens: 256,
       tools: [weatherTool],
     })) {
       /* consume stream */
@@ -130,6 +130,42 @@ describe('GeminiAdapter through AI', () => {
         parts: [{ text: 'How is the weather in Madrid?' }],
       },
     ])
+  })
+
+  it('reads sampling options (temperature, topP, maxOutputTokens) from modelOptions', async () => {
+    const streamChunks = [
+      {
+        candidates: [
+          {
+            content: { parts: [{ text: 'ok' }] },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: { totalTokenCount: 1 },
+      },
+    ]
+
+    mocks.generateContentStreamSpy.mockResolvedValue(createStream(streamChunks))
+
+    const adapter = createTextAdapter()
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'hi' }],
+      modelOptions: {
+        temperature: 0.6,
+        topP: 0.95,
+        maxOutputTokens: 512,
+      },
+    })) {
+      /* consume stream */
+    }
+
+    expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
+    const [payload] = mocks.generateContentStreamSpy.mock.calls[0]!
+    expect(payload.config.temperature).toBe(0.6)
+    expect(payload.config.topP).toBe(0.95)
+    expect(payload.config.maxOutputTokens).toBe(512)
   })
 
   it('joins object-form systemPrompts into systemInstruction and drops foreign metadata', async () => {
@@ -220,6 +256,9 @@ describe('GeminiAdapter through AI', () => {
 
     const providerOptions: GeminiTextProviderOptions = {
       safetySettings,
+      temperature: 0.61,
+      topP: 0.37,
+      maxOutputTokens: 512,
       stopSequences: ['<done>', '###'],
       responseMimeType: 'application/json',
       responseSchema,
@@ -256,9 +295,6 @@ describe('GeminiAdapter through AI', () => {
     for await (const _ of chat({
       adapter,
       messages: [{ role: 'user', content: 'Provide structured response' }],
-      temperature: 0.61,
-      topP: 0.37,
-      maxTokens: 512,
       systemPrompts: ['Stay concise', 'Return JSON'],
       modelOptions: providerOptions,
     })) {
@@ -335,8 +371,8 @@ describe('GeminiAdapter through AI', () => {
       messages: [{ role: 'user', content: 'Tell me a joke' }],
       modelOptions: {
         topK: 3,
+        temperature: 0.2,
       },
-      temperature: 0.2,
     })) {
       received.push(chunk)
     }
@@ -371,6 +407,67 @@ describe('GeminiAdapter through AI', () => {
     expect(received.at(-1)).toMatchObject({
       type: 'RUN_FINISHED',
     })
+  })
+
+  it('emits parentMessageId on tool-first tool calls matching the assistant message id', async () => {
+    // A functionCall part arrives before any text. parentMessageId must bind the
+    // tool call to the same assistant message id the eventual TEXT_MESSAGE_START
+    // uses so the message id stays stable mid-stream (#477).
+    const streamChunks = [
+      {
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  functionCall: {
+                    name: 'lookup_weather',
+                    args: { location: 'Berlin' },
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+      {
+        candidates: [
+          {
+            content: { parts: [{ text: 'It is sunny.' }] },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: {
+          promptTokenCount: 4,
+          candidatesTokenCount: 7,
+          totalTokenCount: 11,
+        },
+      },
+    ]
+
+    mocks.generateContentStreamSpy.mockResolvedValue(createStream(streamChunks))
+
+    const adapter = createTextAdapter()
+    const received: StreamChunk[] = []
+    for await (const chunk of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'What is the weather in Berlin?' }],
+      tools: [weatherTool],
+    })) {
+      received.push(chunk)
+    }
+
+    const textStart = received.find((c) => c.type === 'TEXT_MESSAGE_START')
+    const toolStart = received.find((c) => c.type === 'TOOL_CALL_START')
+
+    expect(textStart?.type).toBe('TEXT_MESSAGE_START')
+    expect(toolStart?.type).toBe('TOOL_CALL_START')
+    if (
+      textStart?.type === 'TEXT_MESSAGE_START' &&
+      toolStart?.type === 'TOOL_CALL_START'
+    ) {
+      expect(toolStart.parentMessageId).toBe(textStart.messageId)
+    }
   })
 
   it('merges consecutive user messages when tool results precede a follow-up user message', async () => {
@@ -823,7 +920,7 @@ describe('GeminiAdapter through AI', () => {
 
     const adapter = new GeminiTextAdapter(
       { apiKey: 'test-key' },
-      'gemini-3-pro-preview',
+      'gemini-3.1-pro-preview',
     )
     expect(adapter.supportsCombinedToolsAndSchema()).toBe(true)
 
@@ -843,7 +940,7 @@ describe('GeminiAdapter through AI', () => {
 
     expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
     const [payload] = mocks.generateContentStreamSpy.mock.calls[0]!
-    expect(payload.model).toBe('gemini-3-pro-preview')
+    expect(payload.model).toBe('gemini-3.1-pro-preview')
     expect(payload.config).toMatchObject({
       responseMimeType: 'application/json',
       responseSchema: expect.objectContaining({ type: 'object' }),
@@ -897,12 +994,42 @@ describe('GeminiAdapter through AI', () => {
 
     expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
     const [payload] = mocks.generateContentStreamSpy.mock.calls[0]!
-    expect(payload.model).toBe('gemini-2.0-flash')
+    expect(payload.model).toBe('gemini-2.5-flash')
     expect(payload.config.systemInstruction).toContain(
       'professional summarizer',
     )
     expect(payload.config.systemInstruction).toContain('paragraph format')
     expect(payload.config.systemInstruction).toContain('123 tokens')
     expect(result.summary).toBe(summaryText)
+  })
+})
+
+describe('Gemini adapter error handling', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it("forwards the provider's structured error body as RUN_ERROR.rawEvent", async () => {
+    const providerBody = { error: { code: 429, message: 'quota' } }
+    mocks.generateContentStreamSpy.mockRejectedValueOnce(
+      Object.assign(new Error('429'), providerBody),
+    )
+
+    const adapter = createTextAdapter()
+    const chunks: StreamChunk[] = []
+    for await (const chunk of adapter.chatStream({
+      model: 'gemini-2.5-pro',
+      messages: [{ role: 'user', content: 'hi' }],
+      logger: { request: () => {}, errors: () => {} } as any,
+    })) {
+      chunks.push(chunk)
+    }
+
+    const runError = chunks.find((c) => c.type === 'RUN_ERROR')
+    expect(runError).toBeDefined()
+    if (runError?.type === 'RUN_ERROR') {
+      // toRunErrorRawEvent picks up the `.error` object when present
+      expect(runError.rawEvent).toEqual(providerBody.error)
+    }
   })
 })

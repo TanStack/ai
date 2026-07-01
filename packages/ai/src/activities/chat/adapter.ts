@@ -4,7 +4,9 @@ import type {
   Modality,
   StreamChunk,
   TextOptions,
+  TokenUsage,
 } from '../../types'
+import type { CapabilityHandle } from './middleware/capabilities'
 
 /**
  * Configuration for adapter instances
@@ -40,6 +42,8 @@ export interface StructuredOutputResult<T = unknown> {
   data: T
   /** The raw text response from the model before parsing */
   rawText: string
+  /** Token usage information (if provided by the adapter) */
+  usage?: TokenUsage
 }
 
 /**
@@ -75,6 +79,15 @@ export interface TextAdapter<
   readonly name: string
   /** The model this adapter is configured for */
   readonly model: TModel
+
+  /**
+   * Capabilities this adapter requires at runtime. `chat()` validates that the
+   * configured middleware provides each one. Model adapters omit this; harness
+   * adapters (e.g. a future `claudeCode()`) declare e.g. `[sandboxCapability]`.
+   * Runtime access to capabilities from inside the adapter is not yet wired —
+   * this is the declaration/validation surface only.
+   */
+  readonly requires?: ReadonlyArray<CapabilityHandle>
 
   /**
    * @internal Type-only properties for inference. Not assigned at runtime.
@@ -180,6 +193,7 @@ export abstract class BaseTextAdapter<
   readonly kind = 'text' as const
   abstract readonly name: string
   readonly model: TModel
+  readonly requires?: ReadonlyArray<CapabilityHandle> = undefined
 
   // Type-only property - never assigned at runtime
   declare '~types': {

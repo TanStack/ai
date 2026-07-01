@@ -43,6 +43,13 @@ export default async function globalSetup() {
   mock.mount('/v1/text-to-speech', elevenLabsTTSMount())
   mock.mount('/v1/speech-to-text', elevenLabsSTTMount())
 
+  // Gemini Veo video generation. aimock 1.29 mocks Gemini's `:predict`
+  // (Imagen) endpoint but not the long-running `:predictLongRunning` +
+  // operations-polling pair Veo uses, so mount both here. Non-Veo paths
+  // under /v1beta/models (chat, images) return false and fall through to
+  // aimock's native Gemini handlers.
+  mock.mount('/v1beta/models', geminiVeoMount())
+
   // Anthropic server_tool_use bug reproduction (issue #604). aimock can't
   // natively synthesize `server_tool_use` / `web_fetch_tool_result` content
   // blocks, so this mount hand-crafts the raw SSE Claude would emit when a
@@ -50,6 +57,31 @@ export default async function globalSetup() {
   // same response. The corresponding api.anthropic-bug-test.ts route points
   // the Anthropic adapter here.
   mock.mount('/anthropic-bug-test', anthropicServerToolBugMount())
+
+  // OpenRouter per-request cost capture. aimock's OpenAI-compatible chat
+  // helper doesn't synthesize OpenRouter's `usage.cost` / `usage.cost_details`,
+  // and crucially those land on a trailing usage-only chunk (choices: []) that
+  // arrives AFTER the finish_reason chunk. This mount hand-crafts that exact
+  // wire shape so the companion spec can assert cost reaches RUN_FINISHED.usage.
+  mock.mount('/openrouter-cost', openRouterCostMount())
+
+  // OpenAI-compatible detailed usage capture. aimock's chat helper doesn't
+  // synthesize `prompt_tokens_details` / `completion_tokens_details`, so this
+  // mount hand-crafts a chat-completion stream whose trailing usage chunk
+  // carries cached prompt tokens and reasoning completion tokens. The companion
+  // spec asserts those reach `RUN_FINISHED.usage` as the canonical
+  // `promptTokensDetails.cachedTokens` / `completionTokensDetails.reasoningTokens`.
+  mock.mount('/openai-usage-details', openaiUsageDetailsMount())
+
+  // Anthropic structured-output fallback usage (#758). The Anthropic text
+  // adapter has no native `structuredOutputStream`, so streaming structured
+  // output runs through the activity layer's `fallbackStructuredOutputStream`,
+  // which wraps the non-streaming `structuredOutput()`. aimock's native
+  // Anthropic helper doesn't synthesize a tool-forced `structured_output`
+  // response with usage, so this mount hand-crafts the non-streaming
+  // `/v1/messages` JSON the adapter expects. The companion spec asserts the
+  // `usage` survives onto `RUN_FINISHED.usage` on the fallback path.
+  mock.mount('/anthropic-structured-usage', anthropicStructuredUsageMount())
 
   await mock.start()
   console.log(`[aimock] started on port 4010`)
@@ -73,6 +105,19 @@ function registerMediaFixtures(mock: LLMock) {
       url: 'https://example.com/guitar-store.mp4',
       duration: 10,
       id: 'video-job-e2e',
+      status: 'completed',
+    },
+  })
+
+  // Image-to-video: the Sora adapter uploads the image part as
+  // `input_reference`, which makes the OpenAI SDK switch to a multipart
+  // POST /v1/videos. aimock 1.29 extracts the `prompt` form field from
+  // multipart bodies, so matching works the same as the JSON case above.
+  mock.onVideo('animate this product photo', {
+    video: {
+      url: 'https://example.com/product-animated.mp4',
+      duration: 5,
+      id: 'video-job-i2v-e2e',
       status: 'completed',
     },
   })
@@ -240,6 +285,67 @@ function elevenLabsSTTMount(): Mountable {
 }
 
 /**
+ * Mounts Gemini Veo's long-running video generation endpoints:
+ *
+ * - `POST /v1beta/models/{model}:predictLongRunning` — starts the job and
+ *   returns the operation name.
+ * - `GET /v1beta/models/{model}/operations/{id}` — polls the operation. The
+ *   mock completes immediately with the raw MLDev wire shape
+ *   (`response.generateVideoResponse.generatedSamples[0].video.uri`), which
+ *   the `@google/genai` SDK maps to `response.generatedVideos[0].video.uri`.
+ *
+ * Mirrors the openai `onVideo` fixture: same prompt-agnostic completed job,
+ * same target video URL.
+ */
+function geminiVeoMount(): Mountable {
+  const VIDEO_URL = 'https://example.com/guitar-store.mp4'
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      // aimock strips the mount prefix ('/v1beta/models') and any query
+      // string, so pathname looks like '/{model}:predictLongRunning' or
+      // '/{model}/operations/{id}'.
+      pathname: string,
+    ): Promise<boolean> {
+      const createMatch = pathname.match(/^\/([^/:]+):predictLongRunning$/)
+      if (createMatch && req.method === 'POST') {
+        await drainBody(req)
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            name: `models/${createMatch[1]}/operations/veo-job-e2e`,
+          }),
+        )
+        return true
+      }
+
+      const pollMatch = pathname.match(/^\/([^/:]+)\/operations\/([^/]+)$/)
+      if (pollMatch && req.method === 'GET') {
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            name: `models/${pollMatch[1]}/operations/${pollMatch[2]}`,
+            done: true,
+            response: {
+              generateVideoResponse: {
+                generatedSamples: [{ video: { uri: VIDEO_URL } }],
+              },
+            },
+          }),
+        )
+        return true
+      }
+
+      // Not a Veo path — fall through to aimock's native Gemini handlers.
+      return false
+    },
+  }
+}
+
+/**
  * Mounts a Claude-shaped SSE response that includes a client `tool_use` block
  * followed by a `web_fetch` `server_tool_use` block, plus its
  * `web_fetch_tool_result`. Reproduces the streaming scenario from issue #604
@@ -294,6 +400,212 @@ function anthropicServerToolBugMount(): Mountable {
         res.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`)
       }
       res.end()
+      return true
+    },
+  }
+}
+
+/**
+ * Emits an OpenAI-compatible chat-completion SSE stream that ends with a
+ * usage-only trailing chunk carrying OpenRouter's `cost` / `cost_details`.
+ * Snake_case on the wire is camelCased by the `@openrouter/sdk` parser, so the
+ * adapter sees `usage.cost` and `usage.costDetails.upstreamInferenceCost`.
+ */
+function openRouterCostMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      // The mount prefix (/openrouter-cost) is stripped before dispatch; the
+      // SDK posts to <serverURL>/chat/completions where serverURL ends in /v1.
+      if (
+        req.method !== 'POST' ||
+        !pathname.startsWith('/v1/chat/completions')
+      ) {
+        return false
+      }
+      await drainBody(req)
+
+      const base = {
+        id: 'chatcmpl-cost-e2e',
+        object: 'chat.completion.chunk',
+        // The @openrouter/sdk chunk schema requires a numeric `created`.
+        created: 1700000000,
+        model: 'openai/gpt-4o',
+      }
+      const chunks: Array<Record<string, unknown>> = [
+        {
+          ...base,
+          choices: [
+            {
+              index: 0,
+              delta: { role: 'assistant', content: 'Hi' },
+              finish_reason: null,
+            },
+          ],
+        },
+        {
+          ...base,
+          choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+        },
+        // Trailing usage-only chunk — the whole point of the test. Field names
+        // mirror OpenRouter's CostDetails schema (camelCased by the SDK parser).
+        {
+          ...base,
+          choices: [],
+          usage: {
+            prompt_tokens: 11,
+            completion_tokens: 3,
+            total_tokens: 14,
+            cost: 0.0042,
+            cost_details: {
+              upstream_inference_completions_cost: 0.0026,
+              upstream_inference_cost: 0.0038,
+              upstream_inference_prompt_cost: 0.0012,
+            },
+          },
+        },
+      ]
+
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'text/event-stream')
+      res.setHeader('Cache-Control', 'no-cache')
+      res.setHeader('Connection', 'keep-alive')
+      for (const chunk of chunks) {
+        res.write(`data: ${JSON.stringify(chunk)}\n\n`)
+      }
+      res.write('data: [DONE]\n\n')
+      res.end()
+      return true
+    },
+  }
+}
+
+/**
+ * Emits an OpenAI-compatible chat-completion SSE stream that ends with a
+ * usage-only chunk carrying `prompt_tokens_details` / `completion_tokens_details`.
+ * The shared `@tanstack/openai-base` extractor normalizes these into the
+ * canonical `TokenUsage` detail breakdowns, proving detailed usage survives
+ * end-to-end through the chat pipeline.
+ */
+function openaiUsageDetailsMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      // The mount prefix (/openai-usage-details) is stripped before dispatch;
+      // the SDK posts to <serverURL>/chat/completions where serverURL ends /v1.
+      if (
+        req.method !== 'POST' ||
+        !pathname.startsWith('/v1/chat/completions')
+      ) {
+        return false
+      }
+      await drainBody(req)
+
+      const base = {
+        id: 'chatcmpl-usage-details-e2e',
+        object: 'chat.completion.chunk',
+        created: 1700000000,
+        model: 'gpt-4o',
+      }
+      const chunks: Array<Record<string, unknown>> = [
+        {
+          ...base,
+          choices: [
+            {
+              index: 0,
+              delta: { role: 'assistant', content: 'Hi' },
+              finish_reason: null,
+            },
+          ],
+        },
+        {
+          ...base,
+          choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+        },
+        // Trailing usage-only chunk with detailed breakdowns — the point of the
+        // test. Mirrors OpenAI's `stream_options: { include_usage: true }` shape.
+        {
+          ...base,
+          choices: [],
+          usage: {
+            prompt_tokens: 100,
+            completion_tokens: 50,
+            total_tokens: 150,
+            prompt_tokens_details: { cached_tokens: 80 },
+            completion_tokens_details: { reasoning_tokens: 30 },
+          },
+        },
+      ]
+
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'text/event-stream')
+      res.setHeader('Cache-Control', 'no-cache')
+      res.setHeader('Connection', 'keep-alive')
+      for (const chunk of chunks) {
+        res.write(`data: ${JSON.stringify(chunk)}\n\n`)
+      }
+      res.write('data: [DONE]\n\n')
+      res.end()
+      return true
+    },
+  }
+}
+
+/**
+ * Mounts the non-streaming Anthropic `/v1/messages` response the text adapter's
+ * `structuredOutput()` expects: a tool-forced `structured_output` `tool_use`
+ * block plus a `usage` object carrying `input_tokens` / `output_tokens` /
+ * `cache_read_input_tokens`. `buildAnthropicUsage` normalizes those into
+ * `promptTokens` / `completionTokens` / `promptTokensDetails.cachedTokens`.
+ * Drives the #758 fallback-path usage regression.
+ */
+function anthropicStructuredUsageMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      // The mount prefix (/anthropic-structured-usage) is stripped before
+      // dispatch; the Anthropic SDK posts to <baseURL>/v1/messages and aimock
+      // strips the ?beta=... query string from `pathname`.
+      pathname: string,
+    ): Promise<boolean> {
+      if (req.method !== 'POST' || !pathname.startsWith('/v1/messages')) {
+        return false
+      }
+      // structuredOutput() makes a non-streaming request (stream: false), so
+      // respond with a single JSON message rather than an SSE stream.
+      await drainBody(req)
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          id: 'msg_structured_usage_e2e',
+          type: 'message',
+          role: 'assistant',
+          model: 'claude-opus-4-1',
+          content: [
+            {
+              type: 'tool_use',
+              id: 'toolu_structured_output',
+              name: 'structured_output',
+              input: { recommendation: 'Fender Stratocaster', price: 1299 },
+            },
+          ],
+          stop_reason: 'tool_use',
+          stop_sequence: null,
+          usage: {
+            input_tokens: 125,
+            output_tokens: 1346,
+            cache_read_input_tokens: 5760,
+          },
+        }),
+      )
       return true
     },
   }

@@ -629,7 +629,9 @@ describe('message-updaters', () => {
 
       const part = result[0]?.parts[0] as ToolCallPart | undefined
       expect(part?.output).toEqual({ error: 'Tool execution failed' })
-      expect(part?.state).toBe('input-complete')
+      // An error output drives the tool-call part to the terminal 'error'
+      // state (issue #718).
+      expect(part?.state).toBe('error')
     })
 
     it('should search across all messages', () => {
@@ -886,6 +888,114 @@ describe('message-updaters', () => {
 
       expect(result[0]?.parts).not.toBe(originalParts)
       expect(messages[0]?.parts).toBe(originalParts)
+    })
+
+    it('updateToolCallApproval should not mutate the original tool-call part', () => {
+      const originalPart: ToolCallPart = {
+        type: 'tool-call',
+        id: 'call-1',
+        name: 'deleteFile',
+        arguments: '{"path":"/tmp/file"}',
+        state: 'input-complete',
+      }
+      const messages = [createMessage('msg-1', 'assistant', [originalPart])]
+
+      const result = updateToolCallApproval(
+        messages,
+        'msg-1',
+        'call-1',
+        'approval-1',
+      )
+
+      // Original part must be unchanged
+      expect(originalPart.state).toBe('input-complete')
+      expect(originalPart.approval).toBeUndefined()
+
+      // Result must have new values
+      const resultPart = result[0]?.parts[0] as ToolCallPart
+      expect(resultPart).not.toBe(originalPart)
+      expect(resultPart.state).toBe('approval-requested')
+      expect(resultPart.approval).toEqual({
+        id: 'approval-1',
+        needsApproval: true,
+      })
+    })
+
+    it('updateToolCallState should not mutate the original tool-call part', () => {
+      const originalPart: ToolCallPart = {
+        type: 'tool-call',
+        id: 'call-1',
+        name: 'getWeather',
+        arguments: '{}',
+        state: 'input-streaming',
+      }
+      const messages = [createMessage('msg-1', 'assistant', [originalPart])]
+
+      const result = updateToolCallState(
+        messages,
+        'msg-1',
+        'call-1',
+        'input-complete',
+      )
+
+      expect(originalPart.state).toBe('input-streaming')
+
+      const resultPart = result[0]?.parts[0] as ToolCallPart
+      expect(resultPart).not.toBe(originalPart)
+      expect(resultPart.state).toBe('input-complete')
+    })
+
+    it('updateToolCallWithOutput should not mutate the original tool-call part', () => {
+      const originalPart: ToolCallPart = {
+        type: 'tool-call',
+        id: 'call-1',
+        name: 'getWeather',
+        arguments: '{}',
+        state: 'input-complete',
+      }
+      const messages = [createMessage('msg-1', 'assistant', [originalPart])]
+      const output = { temperature: 20 }
+
+      const result = updateToolCallWithOutput(messages, 'call-1', output)
+
+      expect(originalPart.output).toBeUndefined()
+      expect(originalPart.state).toBe('input-complete')
+
+      const resultPart = result[0]?.parts[0] as ToolCallPart
+      expect(resultPart).not.toBe(originalPart)
+      expect(resultPart.output).toEqual(output)
+    })
+
+    it('updateToolCallApprovalResponse should not mutate the original tool-call part', () => {
+      const originalApproval: NonNullable<ToolCallPart['approval']> = {
+        id: 'approval-1',
+        needsApproval: true,
+      }
+      const originalPart: ToolCallPart = {
+        type: 'tool-call',
+        id: 'call-1',
+        name: 'deleteFile',
+        arguments: '{}',
+        state: 'approval-requested',
+        approval: originalApproval,
+      }
+      const messages = [createMessage('msg-1', 'assistant', [originalPart])]
+
+      const result = updateToolCallApprovalResponse(
+        messages,
+        'approval-1',
+        true,
+      )
+
+      // Original part and approval must be unchanged
+      expect(originalPart.state).toBe('approval-requested')
+      expect(originalApproval.approved).toBeUndefined()
+
+      const resultPart = result[0]?.parts[0] as ToolCallPart
+      expect(resultPart).not.toBe(originalPart)
+      expect(resultPart.approval).not.toBe(originalApproval)
+      expect(resultPart.state).toBe('approval-responded')
+      expect(resultPart.approval?.approved).toBe(true)
     })
   })
 

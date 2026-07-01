@@ -1,11 +1,13 @@
 import { GenerationClient } from '@tanstack/ai-client'
+import { createGenerationDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import type { StreamChunk } from '@tanstack/ai'
 import type {
+  AIDevtoolsDisplayOptions,
   ConnectConnectionAdapter,
   GenerationClientOptions,
   GenerationClientState,
   GenerationFetcher,
-  InferGenerationOutput,
+  InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
 
 /**
@@ -26,6 +28,8 @@ export interface CreateGenerationOptions<TInput, TResult, TOutput = TResult> {
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
   /**
    * Callback when a result is received. Can optionally return a transformed value.
    *
@@ -62,6 +66,8 @@ export interface CreateGenerationReturn<TOutput> {
   stop: () => void
   /** Clear result, error, and return to idle */
   reset: () => void
+  /** Stop in-flight work and unregister devtools listeners */
+  dispose: () => void
   /** Update additional body parameters */
   updateBody: (body: Record<string, any>) => void
 }
@@ -97,16 +103,24 @@ export interface CreateGenerationReturn<TOutput> {
  * </div>
  * ```
  */
+// `TTransformed` infers from the `onResult` return position (a covariant
+// inference site that works even for an optional nested property), which types
+// the callback parameter as `TResult` and narrows `result`. Inferring the
+// whole callback as a defaulted type parameter instead collapses to the
+// default, leaving the parameter `any` — a hard error under `strict`. See
+// issue #848.
 export function createGeneration<
   TInput extends Record<string, any>,
   TResult,
-  TOnResult extends ((result: TResult) => any) | undefined = undefined,
+  TTransformed = void,
 >(
   options: Omit<CreateGenerationOptions<TInput, TResult>, 'onResult'> & {
-    onResult?: TOnResult
+    onResult?: (result: TResult) => TTransformed
   },
-): CreateGenerationReturn<InferGenerationOutput<TResult, TOnResult>> {
-  type TOutput = InferGenerationOutput<TResult, TOnResult>
+): CreateGenerationReturn<
+  InferGenerationOutputFromReturn<TResult, TTransformed>
+> {
+  type TOutput = InferGenerationOutputFromReturn<TResult, TTransformed>
   const clientId =
     options.id || `gen-${Date.now()}-${Math.random().toString(36).substring(7)}`
 
@@ -124,7 +138,18 @@ export function createGeneration<
   const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
     id: clientId,
     body: options.body,
-    onResult: (r: TResult) => options.onResult?.(r),
+    devtoolsBridgeFactory: createGenerationDevtoolsBridge,
+    devtools: {
+      ...options.devtools,
+      framework: 'svelte',
+      hookName: 'createGeneration',
+    },
+    // The transform's raw return type (`TTransformed`) and the stored output
+    // (`TOutput`, with null/void/undefined stripped) are identical at runtime;
+    // the cast bridges the relationship that the conditional type hides.
+    onResult: ((r: TResult) => options.onResult?.(r)) as (
+      result: TResult,
+    ) => TOutput | null | void,
     onError: (e: Error) => options.onError?.(e),
     onProgress: (p: number, m?: string) => options.onProgress?.(p, m),
     onChunk: (c: StreamChunk) => options.onChunk?.(c),
@@ -160,10 +185,12 @@ export function createGeneration<
     )
   }
 
-  // Note: Cleanup is handled by calling stop() directly when needed.
+  client.mountDevtools()
+
+  // Note: Cleanup is handled by calling dispose() directly when needed.
   // Unlike React/Vue/Solid, Svelte 5 runes like $effect can only be used
   // during component initialization, so we don't add automatic cleanup here.
-  // Users should call gen.stop() in their component's cleanup if needed.
+  // Users should call gen.dispose() in their component's cleanup if needed.
 
   const generate = async (input: TInput) => {
     await client.generate(input)
@@ -175,6 +202,10 @@ export function createGeneration<
 
   const reset = () => {
     client.reset()
+  }
+
+  const dispose = () => {
+    client.dispose()
   }
 
   const updateBody = (newBody: Record<string, any>) => {
@@ -197,6 +228,7 @@ export function createGeneration<
     generate: generate as (input: Record<string, any>) => Promise<void>,
     stop,
     reset,
+    dispose,
     updateBody,
   }
 }

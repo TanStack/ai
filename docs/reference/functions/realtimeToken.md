@@ -9,7 +9,7 @@ title: realtimeToken
 function realtimeToken(options): Promise<RealtimeToken>;
 ```
 
-Defined in: [packages/ai/src/realtime/index.ts:33](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/index.ts#L33)
+Defined in: [packages/ai/src/realtime/index.ts:31](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/index.ts#L31)
 
 Generate a realtime token using the provided adapter.
 
@@ -41,9 +41,7 @@ export const getRealtimeToken = createServerFn()
   .handler(async () => {
     return realtimeToken({
       adapter: openaiRealtimeToken({
-        model: 'gpt-4o-realtime-preview',
-        voice: 'alloy',
-        instructions: 'You are a helpful assistant...',
+        model: 'gpt-realtime',
       }),
     })
   })

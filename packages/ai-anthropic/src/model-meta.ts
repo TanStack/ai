@@ -632,6 +632,162 @@ const CLAUDE_OPUS_4_7_FAST = {
     AnthropicSamplingOptions
 >
 
+const CLAUDE_OPUS_4_8 = {
+  name: 'claude-opus-4.8',
+  id: 'claude-opus-4.8',
+  context_window: 1_000_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['text', 'image', 'document'],
+    extended_thinking: true,
+    priority_tier: true,
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer_use',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 5,
+      cached: 0.5,
+    },
+    output: {
+      normal: 25,
+    },
+  },
+} as const satisfies ModelMeta<
+  AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+>
+
+const CLAUDE_OPUS_4_8_FAST = {
+  name: 'claude-opus-4.8-fast',
+  id: 'claude-opus-4.8-fast',
+  context_window: 1_000_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['text', 'image', 'document'],
+    extended_thinking: true,
+    priority_tier: true,
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer_use',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 10,
+      cached: 1,
+    },
+    output: {
+      normal: 50,
+    },
+  },
+} as const satisfies ModelMeta<
+  AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+>
+
+const CLAUDE_FABLE_5 = {
+  name: 'claude-fable-5',
+  id: 'claude-fable-5',
+  context_window: 1_000_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['text', 'image', 'document'],
+    extended_thinking: true,
+    priority_tier: true,
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer_use',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 10,
+      cached: 1,
+    },
+    output: {
+      normal: 50,
+    },
+  },
+} as const satisfies ModelMeta<
+  AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+>
+
+const CLAUDE_SONNET_5 = {
+  name: 'claude-sonnet-5',
+  id: 'claude-sonnet-5',
+  context_window: 1_000_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['text', 'image', 'document'],
+    extended_thinking: true,
+    priority_tier: true,
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer_use',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 2,
+      cached: 0.2,
+    },
+    output: {
+      normal: 10,
+    },
+  },
+} as const satisfies ModelMeta<
+  AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+>
+
 export const ANTHROPIC_MODELS = [
   CLAUDE_OPUS_4_6.id,
   CLAUDE_OPUS_4_5.id,
@@ -650,6 +806,12 @@ export const ANTHROPIC_MODELS = [
   CLAUDE_OPUS_4_7.id,
 
   CLAUDE_OPUS_4_7_FAST.id,
+
+  CLAUDE_OPUS_4_8.id,
+  CLAUDE_OPUS_4_8_FAST.id,
+
+  CLAUDE_FABLE_5.id,
+  CLAUDE_SONNET_5.id,
 ] as const
 
 /**
@@ -794,6 +956,38 @@ export type AnthropicChatModelProviderOptionsByName = {
     AnthropicThinkingOptions &
     AnthropicToolChoiceOptions &
     AnthropicSamplingOptions
+  [CLAUDE_OPUS_4_8.id]: AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+  [CLAUDE_OPUS_4_8_FAST.id]: AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+  [CLAUDE_FABLE_5.id]: AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+  [CLAUDE_SONNET_5.id]: AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
 }
 
 export type AnthropicChatModelToolCapabilitiesByName = {
@@ -838,4 +1032,8 @@ export type AnthropicModelInputModalitiesByName = {
   [CLAUDE_OPUS_4_6_FAST.id]: typeof CLAUDE_OPUS_4_6_FAST.supports.input
   [CLAUDE_OPUS_4_7.id]: typeof CLAUDE_OPUS_4_7.supports.input
   [CLAUDE_OPUS_4_7_FAST.id]: typeof CLAUDE_OPUS_4_7_FAST.supports.input
+  [CLAUDE_OPUS_4_8.id]: typeof CLAUDE_OPUS_4_8.supports.input
+  [CLAUDE_OPUS_4_8_FAST.id]: typeof CLAUDE_OPUS_4_8_FAST.supports.input
+  [CLAUDE_FABLE_5.id]: typeof CLAUDE_FABLE_5.supports.input
+  [CLAUDE_SONNET_5.id]: typeof CLAUDE_SONNET_5.supports.input
 }

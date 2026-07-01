@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { chat, createChatOptions } from '../src/activities/chat/index'
+import { DISCOVERY_TOOL_NAME } from '../src/activities/chat/tools/lazy-tool-manager'
 import { EventType } from '../src/types'
 import type { StreamChunk, Tool } from '../src/types'
 import {
@@ -97,7 +98,7 @@ describe('chat()', () => {
       expect(calls[0]!.systemPrompts).toEqual(['You are a helpful assistant'])
     })
 
-    it('should pass temperature, topP, maxTokens to the adapter', async () => {
+    it('should pass sampling modelOptions (temperature, topP, maxTokens) to the adapter', async () => {
       const { adapter, calls } = createMockAdapter({
         iterations: [[ev.runStarted(), ev.runFinished('stop')]],
       })
@@ -105,16 +106,20 @@ describe('chat()', () => {
       const stream = chat({
         adapter,
         messages: [{ role: 'user', content: 'Hello' }],
-        temperature: 0.5,
-        topP: 0.9,
-        maxTokens: 100,
+        modelOptions: {
+          temperature: 0.5,
+          topP: 0.9,
+          maxTokens: 100,
+        },
       })
 
       await collectChunks(stream as AsyncIterable<StreamChunk>)
 
-      expect(calls[0]!.temperature).toBe(0.5)
-      expect(calls[0]!.topP).toBe(0.9)
-      expect(calls[0]!.maxTokens).toBe(100)
+      expect(calls[0]!.modelOptions).toMatchObject({
+        temperature: 0.5,
+        topP: 0.9,
+        maxTokens: 100,
+      })
     })
   })
 
@@ -248,6 +253,7 @@ describe('chat()', () => {
             ev.runStarted(),
             ev.toolStart('call_1', 'failTool'),
             ev.toolArgs('call_1', '{}'),
+            ev.toolEnd('call_1', 'failTool', { input: {} }),
             ev.runFinished('tool_calls'),
           ],
           [
@@ -281,6 +287,72 @@ describe('chat()', () => {
       // Error should be in the content
       const contentStr = (toolResultChunks[0] as any).content
       expect(contentStr).toContain('error')
+
+      // Error state rides on TOOL_CALL_RESULT, not the END
+      const toolResultErr = chunks.find(
+        (c) => c.type === 'TOOL_CALL_RESULT' && c.toolCallId === 'call_1',
+      )
+      expect(toolResultErr).toMatchObject({ state: 'output-error' })
+
+      // No duplicate END (#519)
+      const endChunks = chunks.filter(
+        (c) => c.type === 'TOOL_CALL_END' && c.toolCallId === 'call_1',
+      )
+      expect(endChunks).toHaveLength(1)
+    })
+
+    // #519: post-execution must not duplicate the END the adapter already streamed
+    it('should emit exactly one TOOL_CALL_END per server-executed tool', async () => {
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('call_1', 'getWeather'),
+            ev.toolArgs('call_1', '{"city":"NYC"}'),
+            ev.toolEnd('call_1', 'getWeather', { input: { city: 'NYC' } }),
+            ev.runFinished('tool_calls'),
+          ],
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('72F in NYC.'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Weather?' }],
+        tools: [serverTool('getWeather', () => ({ temp: 72 }))],
+      })
+
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      const starts = chunks.filter(
+        (c) => c.type === 'TOOL_CALL_START' && c.toolCallId === 'call_1',
+      )
+      const ends = chunks.filter(
+        (c) => c.type === 'TOOL_CALL_END' && c.toolCallId === 'call_1',
+      )
+      const results = chunks.filter(
+        (c) => c.type === 'TOOL_CALL_RESULT' && c.toolCallId === 'call_1',
+      )
+
+      // pre-fix `ends` was 2
+      expect(starts).toHaveLength(1)
+      expect(ends).toHaveLength(1)
+      expect(results).toHaveLength(1)
+
+      // Every END has a matching START (the verifyEvents invariant)
+      const open = new Set<string>()
+      for (const c of chunks) {
+        if (c.type === 'TOOL_CALL_START') open.add(c.toolCallId)
+        if (c.type === 'TOOL_CALL_END') {
+          expect(open.has(c.toolCallId)).toBe(true)
+        }
+      }
     })
   })
 
@@ -1273,11 +1345,11 @@ describe('chat()', () => {
       const options = createChatOptions({
         adapter,
         messages: [{ role: 'user', content: 'Hello' }],
-        temperature: 0.7,
+        modelOptions: { temperature: 0.7 },
       })
 
       expect(options.adapter).toBe(adapter)
-      expect(options.temperature).toBe(0.7)
+      expect(options.modelOptions).toEqual({ temperature: 0.7 })
       expect(options.messages).toEqual([{ role: 'user', content: 'Hello' }])
     })
   })
@@ -1519,6 +1591,9 @@ describe('chat()', () => {
                 'call_disc',
                 JSON.stringify({ toolNames: ['getWeather'] }),
               )
+              yield ev.toolEnd('call_disc', '__lazy__tool__discovery__', {
+                input: { toolNames: ['getWeather'] },
+              })
               yield ev.runFinished('tool_calls')
             })()
           } else if (callCount === 2 && toolNames.includes('getWeather')) {
@@ -1527,6 +1602,9 @@ describe('chat()', () => {
               yield ev.runStarted()
               yield ev.toolStart('call_weather', 'getWeather')
               yield ev.toolArgs('call_weather', '{"city":"NYC"}')
+              yield ev.toolEnd('call_weather', 'getWeather', {
+                input: { city: 'NYC' },
+              })
               yield ev.runFinished('tool_calls')
             })()
           } else {
@@ -1689,6 +1767,158 @@ describe('chat()', () => {
       const toolNames = (calls[0] as any).tools.map((t: any) => t.name)
       expect(toolNames).not.toContain('__lazy__tool__discovery__')
       expect(toolNames).toContain('normalTool')
+    })
+
+    it('should not error when the model re-requests discovery after all lazy tools are discovered (#788)', async () => {
+      const weatherExecute = vi.fn().mockReturnValue({ temp: 72 })
+      const toolNamesPerCall: Array<Array<string>> = []
+
+      let callCount = 0
+      const { adapter } = createMockAdapter({
+        chatStreamFn: (opts: any) => {
+          callCount++
+          toolNamesPerCall.push((opts.tools ?? []).map((t: any) => t.name))
+
+          if (callCount === 1) {
+            // Discover the only lazy tool -> all discovered, so the discovery
+            // tool is dropped from the advertised set.
+            return (async function* () {
+              yield ev.runStarted()
+              yield ev.toolStart('c1', DISCOVERY_TOOL_NAME)
+              yield ev.toolArgs(
+                'c1',
+                JSON.stringify({ toolNames: ['getWeather'] }),
+              )
+              yield ev.runFinished('tool_calls')
+            })()
+          } else if (callCount === 2) {
+            // Model overlooks that getWeather is already available and asks to
+            // discover it again, even though the discovery tool is no longer
+            // advertised.
+            return (async function* () {
+              yield ev.runStarted()
+              yield ev.toolStart('c2', DISCOVERY_TOOL_NAME)
+              yield ev.toolArgs(
+                'c2',
+                JSON.stringify({ toolNames: ['getWeather'] }),
+              )
+              yield ev.runFinished('tool_calls')
+            })()
+          }
+          return (async function* () {
+            yield ev.runStarted()
+            yield ev.textStart()
+            yield ev.textContent('done')
+            yield ev.textEnd()
+            yield ev.runFinished('stop')
+          })()
+        },
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Weather?' }],
+        tools: [lazyServerTool('getWeather', weatherExecute)],
+      })
+
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      // The discovery tool was removed from the advertised set on the 2nd call,
+      // proving we fixed execution without re-advertising it.
+      expect(toolNamesPerCall[1]).not.toContain(DISCOVERY_TOOL_NAME)
+      expect(toolNamesPerCall[1]).toContain('getWeather')
+
+      // Re-requesting discovery must NOT produce an "Unknown tool" error.
+      const toolResults = chunks.filter(
+        (c) => c.type === 'TOOL_CALL_RESULT',
+      ) as Array<any>
+      const unknownToolError = toolResults.find(
+        (c: any) =>
+          typeof c.content === 'string' && c.content.includes('Unknown tool'),
+      )
+      expect(unknownToolError).toBeUndefined()
+
+      // The run progressed past the re-discovery turn to the final answer.
+      const text = chunks
+        .filter((c) => c.type === 'TEXT_MESSAGE_CONTENT')
+        .map((c: any) => c.delta)
+        .join('')
+      expect(text).toContain('done')
+    })
+
+    it('should handle a discovery call batched with an already-available tool in one turn', async () => {
+      const lazyAExecute = vi.fn().mockReturnValue({ a: 1 })
+      const lazyBExecute = vi.fn().mockReturnValue({ b: 2 })
+      const toolNamesPerCall: Array<Array<string>> = []
+
+      let callCount = 0
+      const { adapter } = createMockAdapter({
+        chatStreamFn: (opts: any) => {
+          callCount++
+          toolNamesPerCall.push((opts.tools ?? []).map((t: any) => t.name))
+
+          if (callCount === 1) {
+            // Discover lazyA only (lazyB stays undiscovered).
+            return (async function* () {
+              yield ev.runStarted()
+              yield ev.toolStart('d1', DISCOVERY_TOOL_NAME)
+              yield ev.toolArgs('d1', JSON.stringify({ toolNames: ['lazyA'] }))
+              yield ev.runFinished('tool_calls')
+            })()
+          } else if (callCount === 2) {
+            // One batch: call the already-discovered lazyA AND discover lazyB.
+            return (async function* () {
+              yield ev.runStarted()
+              yield ev.toolStart('a1', 'lazyA')
+              yield ev.toolArgs('a1', '{}')
+              yield ev.toolStart('d2', DISCOVERY_TOOL_NAME)
+              yield ev.toolArgs('d2', JSON.stringify({ toolNames: ['lazyB'] }))
+              yield ev.runFinished('tool_calls')
+            })()
+          } else if (callCount === 3) {
+            // lazyB is now available -> call it.
+            return (async function* () {
+              yield ev.runStarted()
+              yield ev.toolStart('b1', 'lazyB')
+              yield ev.toolArgs('b1', '{}')
+              yield ev.runFinished('tool_calls')
+            })()
+          }
+          return (async function* () {
+            yield ev.runStarted()
+            yield ev.textStart()
+            yield ev.textContent('ok')
+            yield ev.textEnd()
+            yield ev.runFinished('stop')
+          })()
+        },
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'go' }],
+        tools: [
+          lazyServerTool('lazyA', lazyAExecute),
+          lazyServerTool('lazyB', lazyBExecute),
+        ],
+      })
+
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      // lazyA executed despite sharing a batch with a discovery call.
+      expect(lazyAExecute).toHaveBeenCalledTimes(1)
+      // lazyB became available after the batched discovery and executed.
+      expect(toolNamesPerCall[2]).toContain('lazyB')
+      expect(lazyBExecute).toHaveBeenCalledTimes(1)
+
+      const toolResults = chunks.filter(
+        (c) => c.type === 'TOOL_CALL_RESULT',
+      ) as Array<any>
+      const unknownToolError = toolResults.find(
+        (c: any) =>
+          typeof c.content === 'string' && c.content.includes('Unknown tool'),
+      )
+      expect(unknownToolError).toBeUndefined()
     })
   })
 

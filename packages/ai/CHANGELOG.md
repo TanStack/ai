@@ -1,5 +1,600 @@
 # @tanstack/ai
 
+## 0.39.0
+
+### Minor Changes
+
+- [#774](https://github.com/TanStack/ai/pull/774) [`b628a4d`](https://github.com/TanStack/ai/commit/b628a4da5fd21184922c6944059768d1ed6071d4) - Declarative sandbox file-event hooks: observe file create / change / delete
+  inside a sandbox and have them fire automatically during a chat run.
+  - `@tanstack/ai`: chat middleware gains an optional `sandbox` hook group
+    (`onFile`/`onFileCreate`/`onFileChange`/`onFileDelete`), a `SandboxFileEvent`
+    type, and a `sandbox` debug-logging category. The engine auto-emits a
+    `CUSTOM` `sandbox.file` event per change (client reads it from `parts`).
+  - `@tanstack/ai-sandbox`: `defineSandbox({ hooks, fileEvents })` declares
+    file + lifecycle hooks (`onFile*`/`onReady`/`onError`/`onDestroy`) that fire
+    automatically while the sandbox runs in a chat — `withSandbox` owns the
+    watcher. The watcher is provider-agnostic: a native `fs.watch` fast-path when
+    the provider advertises it, otherwise a portable `find -printf` mtime
+    snapshot-diff poll (no extra deps; `.git`/`node_modules` ignored by default).
+    `watchWorkspace()` / `diffSnapshots` remain as low-level building blocks.
+  - `@tanstack/ai-sandbox-local-process`: implements the optional `fs.watch` seam
+    via Node's recursive `fs.watch` (Windows/macOS); Linux falls back to the core
+    exec-poll automatically.
+
+- [#774](https://github.com/TanStack/ai/pull/774) [`b628a4d`](https://github.com/TanStack/ai/commit/b628a4da5fd21184922c6944059768d1ed6071d4) - New provider-agnostic sandbox layer so harness adapters can run **inside** isolated sandboxes.
+  - **`@tanstack/ai-sandbox`** — `defineSandbox()` (lazy controller + resume→restoreSnapshot→create+bootstrap ensure algorithm), `withSandbox()` middleware, `defineWorkspace()` (git/local source, package-manager detection, setup, skills, secrets), `defineSandboxPolicy()`, the `SandboxProvider`/`SandboxHandle`/`SandboxCapabilities` contracts, capability tokens (`SandboxCapability` plus the optional `SandboxStore`/`Locks` persistence seams with in-memory defaults), `bootstrapWorkspace`, `createExecBackedGit`, `spawnNdjson` (run an agent CLI in a sandbox and stream its NDJSON stdout), the host MCP tool-proxy bridge (`startHostToolBridge` — exposes `chat()` server tools to the in-sandbox agent, with an optional permission-prompt tool), and the shared interactive-approval primitives (`resolveApproval`, `approvalId`, `buildApprovalRequestedEvent`) harness adapters use to enforce a policy and surface `approval-requested` events for client-in-the-loop approvals.
+  - **`@tanstack/ai-sandbox-local-process`** — `localProcessSandbox()`: runs the agent on the host through the uniform `SandboxHandle` (no isolation; the fast dev loop).
+  - **`@tanstack/ai-sandbox-docker`** — `dockerSandbox()`: runs the agent inside an isolated Docker container (dockerode), with commit-based snapshots, fork, and resume-by-id.
+  - **`@tanstack/ai`** — `TextOptions.capabilities` exposes the middleware capability context to adapters so harness adapters that declare `requires: [...]` can read provided capabilities from `chatStream`; `TextOptions.approvals` threads client approval decisions through to adapters for the interactive-approval (deny + `approval-requested` + re-run) flow; `DefinedChatMiddleware` and `AnyChatMiddleware` are now exported for portable middleware authoring.
+
+## 0.38.0
+
+### Minor Changes
+
+- [#843](https://github.com/TanStack/ai/pull/843) [`c1a8732`](https://github.com/TanStack/ai/commit/c1a87327b4a3463d37158f32ca90184b5fd092bb) - feat: MCP Apps support — render interactive `ui://` widgets served by MCP servers
+
+  Adds support for the ratified [MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview) standard, letting MCP server tools return interactive UI widgets that render in the chat.
+  - **`@tanstack/ai`** — MCP tool results that link a `ui://` resource (via `_meta.ui.resourceUri`) now surface as a new `UIResourcePart` on the assistant `UIMessage` (carried as an AG-UI `CUSTOM` event). The widget never enters model input. The `ui://` resource is read eagerly during the run, fail-soft.
+  - **`@tanstack/ai-mcp`** — tool discovery now captures `serverId` + the UI resource link; `MCPClient` gains a public `callTool` and `getInfo()` (returns the client's transport descriptor); `MCPClients` gains `getServers()` (returns all pool entries' descriptors). New `@tanstack/ai-mcp/apps` subpath exports `createMcpAppCallHandler` — a server-side tool-call proxy for interactive widgets that takes the MCP client(s)/pool you already created (`clients: MCPClient | MCPClients | Array<MCPClient | MCPClients>`), reads each client's transport descriptor via `MCPClient.getInfo()` / `MCPClients.getServers()` (pure config, no live socket required), and **reconnects per call** (stateless, serverless-safe by default, same-server allowlist). Also exports an in-memory `McpSessionStore` seam for stateful transports.
+  - **`@tanstack/ai-client`** — `createMcpAppBridge`, a framework-agnostic bridge routing widget tool-calls to the call handler, follow-up prompts into the chat, and blocking links unless a handler is supplied.
+  - **`@tanstack/ai-react` / `@tanstack/ai-preact`** — a `MCPAppResource` component (new `./mcp-apps` subpath) that renders a `UIResourcePart` via `@mcp-ui/client`'s `AppRenderer` (optional peer dependency), wired to the bridge. Plus a `useMcpAppBridge` hook (main entry) that returns a stable `createMcpAppBridge` for a given `threadId`/`callEndpoint` while always calling the latest `sendMessage`/`onLink`.
+
+  Persistence is intentionally out of scope (in-memory seams only); Solid/Vue/Svelte/Angular renderers are deferred (the renderer SDK is currently React-only).
+
+## 0.37.0
+
+### Minor Changes
+
+- [#844](https://github.com/TanStack/ai/pull/844) [`a6cceba`](https://github.com/TanStack/ai/commit/a6cceba4812e7e986183ee856112fcf5f8fa12ff) - Republish all packages with their compiled `dist/` output.
+
+  Releases `0.33.0`–`0.36.0` were published without a `dist/` directory: the
+  release workflow relied on an Nx-cached `build` whose outputs were not
+  materialized to disk before `changeset publish` packed the tarballs, and
+  `files: ["dist"]` silently includes nothing when `dist/` is absent. The
+  published packages therefore contained only `src/`, so every export
+  (`./dist/esm/*.js`) resolved to a missing file and the packages were
+  uninstallable.
+
+  The publish step now runs a fresh, cache-bypassing build of all packages
+  immediately before publishing, guaranteeing compiled artifacts are present in
+  every tarball.
+
+### Patch Changes
+
+- Updated dependencies [[`a6cceba`](https://github.com/TanStack/ai/commit/a6cceba4812e7e986183ee856112fcf5f8fa12ff)]:
+  - @tanstack/ai-event-client@0.6.8
+  - @tanstack/ai-utils@0.3.1
+
+## 0.36.0
+
+### Minor Changes
+
+- [#726](https://github.com/TanStack/ai/pull/726) [`fbd3762`](https://github.com/TanStack/ai/commit/fbd37623b287e370aa5678e161dec19cf13ae33b) - Add lazy tool support (progressive disclosure) to Code Mode. Tools marked `lazy: true` are kept out of the `execute_typescript` system prompt and listed in a discoverable catalog; the model fetches their TypeScript signatures on demand via a new `discover_tools` tool. A shared optional `lazyToolsConfig` (`includeDescription: 'none' | 'first-sentence' | 'full'`) tunes the catalog detail for both `chat()` and `createCodeMode()`. `createCodeMode` now also returns `discoveryTool` and a `tools` array (backward compatible — `tool` and `systemPrompt` are unchanged).
+
+### Patch Changes
+
+- Updated dependencies [[`e3ee4ae`](https://github.com/TanStack/ai/commit/e3ee4ae385d124619586f7c6de96b5c7de5954c5)]:
+  - @tanstack/ai-event-client@0.6.7
+
+## 0.35.0
+
+### Minor Changes
+
+- [#830](https://github.com/TanStack/ai/pull/830) [`c04abd3`](https://github.com/TanStack/ai/commit/c04abd35284d464d830bb9f15129c7a7c2533d3f) - Move the `RealtimeAdapter` / `RealtimeConnection` contract into `@tanstack/ai` and stop provider adapters from depending on `@tanstack/ai-client`.
+
+  Provider packages (`@tanstack/ai-openai`, `@tanstack/ai-elevenlabs`, `@tanstack/ai-grok`) are usable server-side (text, embeddings, images, transcription, token minting, etc.) and must not pull in the client-only `@tanstack/ai-client`. The only thing their realtime adapters needed from it were the `RealtimeAdapter` / `RealtimeConnection` type shapes.
+
+  Those two interfaces now live in `@tanstack/ai` — the shared layer that both provider packages and `@tanstack/ai-client` already depend on, and where every other realtime type (`RealtimeToken`, `RealtimeEvent`, `RealtimeSessionConfig`, …) already lives. They're exported from `@tanstack/ai` and `@tanstack/ai/client`. `@tanstack/ai-client` re-exports them unchanged, so `import { RealtimeAdapter } from '@tanstack/ai-client'` keeps working.
+
+  As a result `@tanstack/ai-client` is no longer a dependency (peer or otherwise) of any provider package, and the previously-duplicated local contract + drift test in `@tanstack/ai-grok` are removed in favor of the single shared definition. Consumers only need `@tanstack/ai-client` at the point where they actually construct a `RealtimeClient`.
+
+## 0.34.1
+
+### Patch Changes
+
+- [#698](https://github.com/TanStack/ai/pull/698) [`4188693`](https://github.com/TanStack/ai/commit/4188693d09297ce400eb1ba5fab30cfea2fdb8a6) - Fix `MESSAGES_SNAPSHOT` handling so AG-UI snapshot messages are normalized into `UIMessage[]`.
+
+  AG-UI snapshot messages use the wire shape `{ id, role, content }` and have no `parts` array. The handler previously cast them straight to `UIMessage[]`, so any code that later read `message.parts` (e.g. the devtools `onToolCallStateChange` handler) crashed with `TypeError: Cannot read properties of undefined (reading 'find')`.
+
+  Each snapshot message is now converted to a proper `UIMessage` via a type-safe converter that preserves the original AG-UI `id` (so subsequent `TEXT_MESSAGE_CONTENT` / `TOOL_CALL_*` events still route by `messageId`), maps `toolCalls` to `tool-call` parts and `tool` messages to `tool-result` parts, and falls back to a generated id only when the snapshot omits one.
+
+- Updated dependencies [[`2e59b77`](https://github.com/TanStack/ai/commit/2e59b7730ef88a0107e8d7ad916906b070f6a6c0)]:
+  - @tanstack/ai-event-client@0.6.6
+
+## 0.34.0
+
+### Minor Changes
+
+- [#732](https://github.com/TanStack/ai/pull/732) [`31de22b`](https://github.com/TanStack/ai/commit/31de22b1ae780c53e3abbf9cf17e1db7b62de84a) - Fix structured output validation rejecting `null` for optional fields, across both stream modes and every adapter.
+
+  Strict-mode structured output widens optional fields to `required` + nullable, so the provider returns `null` for an absent optional. Validating that `null` against the original schema then failed, because `.optional()` means `T | undefined`, not `T | null` — surfacing as a `StandardSchemaValidationError` (e.g. `Invalid type: Expected string but received null`).
+
+  The engine now undoes the widening as a single, schema-aware step the moment the structured output is captured, so the fix applies uniformly:
+  - The strict-conversion pass records a `NullWideningMap` marking exactly the positions where it added `null`, so the response can be un-widened precisely — no re-deriving or guessing which nulls were synthetic.
+  - `@tanstack/ai-utils` adds `undoNullWidening(value, map)` — a counterpart to `transformNullsToUndefined` that strips only the nulls the widening pass synthesized, preserving the ones a `.nullable()`/`.nullish()` field genuinely allows.
+  - The engine applies this via a new `finalStructuredOutput.normalize` hook the instant the result is captured, so **both** the `Promise<T>` result **and** the streaming `structured-output.complete` event carry the un-widened object. Previously only the `Promise<T>` path was corrected, and only for adapters that preserved provider nulls.
+  - `@tanstack/openai-base` adapters (and the OpenAI/Grok/Groq adapters built on them) no longer blind-strip every `null` from structured output via `transformStructuredOutput` — that default is now a passthrough. The blind strip masked the validation bug but also destroyed genuine `.nullable()` nulls; precise un-widening in the engine fixes both. The `transformStructuredOutput` hook remains for provider-specific reshaping.
+
+  Adapters that already preserve provider nulls (`@tanstack/ai-openrouter`, Anthropic, Gemini, Ollama) now get correct un-widening on their streaming structured output too, not just `Promise<T>`.
+
+### Patch Changes
+
+- Updated dependencies [[`31de22b`](https://github.com/TanStack/ai/commit/31de22b1ae780c53e3abbf9cf17e1db7b62de84a)]:
+  - @tanstack/ai-utils@0.3.0
+  - @tanstack/ai-event-client@0.6.5
+
+## 0.33.0
+
+### Minor Changes
+
+- [#760](https://github.com/TanStack/ai/pull/760) [`2cb0313`](https://github.com/TanStack/ai/commit/2cb0313c1f13e1db37c5550308e36bb0b9b73b98) - Add activity-agnostic observability to the media activities through the unified middleware system ([#720](https://github.com/TanStack/ai/issues/720)). `generateImage`, `generateVideo`, `generateAudio`, `generateSpeech`, and `generateTranscription` now accept a `middleware` option taking `GenerationMiddleware`s — the base, activity-agnostic contract whose lifecycle hooks (`onStart` / `onUsage` / `onFinish` / `onAbort` / `onError`) receive a `GenerationMiddlewareContext`. `ChatMiddleware` is a superset of this base, so a single `otelMiddleware()` value satisfies both and can be passed to `chat()` and any media activity alike. Like chat middleware, hooks are awaited in order and propagate exceptions (a throwing hook surfaces, rather than being silently swallowed).
+
+  `otelMiddleware()` (on the existing `@tanstack/ai/middlewares/otel` subpath) now emits one `gen_ai.*` span per media call, tagged with the correct `gen_ai.operation.name` (`image_generation`, `video_generation`, `audio_generation`, `text_to_speech`, `transcription`), reusing the same `gen_ai.usage.*` attribute set as chat — now including `tanstack.ai.usage.units_billed` for unit-billed media. With a `Meter` it records the `gen_ai.client.operation.duration` histogram per activity. An abandoned streaming-video consumer ends the span via `onAbort` (status `ERROR`, `tanstack.ai.completion.reason = cancelled`) instead of leaking it. The `GenerationMiddleware` types are exported from the package root; the `otelMiddleware` value stays on the subpath so importing `@tanstack/ai` never requires the optional `@opentelemetry/api` peer.
+
+### Patch Changes
+
+- [#789](https://github.com/TanStack/ai/pull/789) [`18e5f4d`](https://github.com/TanStack/ai/commit/18e5f4d9746a26c3194929ea4b49673728e8eaa5) - fix: forward token usage on the structured-output fallback path
+
+  `fallbackStructuredOutputStream` — used by `chat({ outputSchema, stream: true })`
+  whenever an adapter resolves the schema through the non-streaming
+  `structuredOutput()` rather than a native streaming or combined path (in practice
+  Ollama, plus Anthropic and Gemini models that predate combined tools+schema
+  support) — wrapped `structuredOutput()` but dropped the `usage` from its result.
+  Consumers reading `RUN_FINISHED.usage` saw `undefined`, and the engine's
+  `runOnUsage` middleware hook (gated on `chunk.usage`) never fired, so
+  cost-tracking and observability layers reported zero token counts on that path.
+
+  The synthesized `RUN_FINISHED` now carries the adapter-reported `usage`, matching
+  the native streaming path. Adapters that don't report usage are unaffected (no
+  `usage` key is emitted).
+
+- [#795](https://github.com/TanStack/ai/pull/795) [`21720dd`](https://github.com/TanStack/ai/commit/21720dd73524d624594a6dfb7e4669c03cc08af0) - fix: don't error when an already-discovered lazy tool's discovery is re-requested
+
+  Lazy tools use progressive disclosure: a synthetic `__lazy__tool__discovery__`
+  tool is advertised so the model can reveal a lazy tool's schema on demand. Once
+  **every** lazy tool has been discovered, that discovery tool is (intentionally)
+  dropped from the set advertised to the model to save tokens. But if the model
+  then re-requested discovery anyway — common in long-context or when it overlooks
+  that a tool is already available — the call fell through to tool execution and
+  came back as `Unknown tool: __lazy__tool__discovery__`.
+
+  The discovery tool is now kept _executable_ for the turn whenever a pending call
+  references it, even after it leaves the advertised set, so re-discovery returns
+  the schemas again instead of erroring. The advertised set is unchanged. The
+  discovery tool is also now idempotent — re-requesting an already-discovered tool
+  returns its schema without triggering a redundant tool-list refresh.
+
+  Additionally, `DISCOVERY_TOOL_NAME` is now exported from `@tanstack/ai` so custom
+  message-compaction / history-trimming logic can reference the discovery tool by
+  constant instead of hard-coding the string.
+
+- [#737](https://github.com/TanStack/ai/pull/737) [`243b8fa`](https://github.com/TanStack/ai/commit/243b8fad7e8a48b68a1a96962ee1443cbd6a0ced) - fix(ai-openrouter): stop forwarding root observability `metadata` to the provider wire request ([#735](https://github.com/TanStack/ai/issues/735))
+
+  The OpenRouter chat-completions adapter (since 0.13.0) and responses adapter (since 0.9.0) copied `chat()`'s root-level observability `metadata` onto the wire as `chatRequest.metadata` / `responsesRequest.metadata`. The `@openrouter/sdk` validates those fields as `Record<string, string>`, so structured observability metadata (objects, arrays — the documented usage for middleware/devtools consumers) failed client-side Zod validation with `Input validation failed` on every call. The spread also clobbered an intentional, correctly-typed `modelOptions.metadata`.
+
+  Root `metadata` is observability-only again (middleware, devtools, event client) and `modelOptions.metadata` is the sole source for OpenRouter wire metadata, matching every other adapter. The `TextOptions.metadata` doc comment in `@tanstack/ai` now states this contract explicitly.
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.6.4
+
+## 0.32.0
+
+### Minor Changes
+
+- [#624](https://github.com/TanStack/ai/pull/624) [`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f) - Add a Google Veo video adapter (`geminiVideo` / `createGeminiVideo`) and the
+  per-model typed-duration video contract it is built on ([#534](https://github.com/TanStack/ai/issues/534), [#634](https://github.com/TanStack/ai/issues/634)).
+
+  **`@tanstack/ai`** (additive, non-breaking): `VideoAdapter` /
+  `BaseVideoAdapter` gain a `TModelDurationByName` generic (defaulting to
+  `Record<string, number>`, preserving today's `duration?: number` typing for
+  adapters without a map) plus two introspection methods with safe defaults:
+  - `availableDurations()` — a `DurationOptions` tagged union
+    (`discrete | range | mixed | none`) describing the durations the current
+    model accepts. Default: `{ kind: 'none' }`.
+  - `snapDuration(seconds)` — coerce raw seconds to the closest valid duration
+    (`snapToDurationOption` is exported for adapter authors). Default:
+    `undefined`.
+
+  `generateVideo({ duration })` is now typed per model via
+  `VideoDurationForAdapter<TAdapter>`.
+
+  **`@tanstack/ai-gemini`**: new Veo adapter over the long-running
+  `:predictLongRunning` operation, supporting `veo-3.1-generate-preview`,
+  `veo-3.1-fast-generate-preview`, `veo-3.0-generate-001`,
+  `veo-3.0-fast-generate-001`, and `veo-2.0-generate-001`:
+  - `geminiVideo('veo-3.0-generate-001')` → `duration?: 4 | 6 | 8`
+    (Veo 2: `5 | 6 | 8`); `adapter.snapDuration(7)` → `6`.
+  - Multimodal prompts: the first un-roled / `'start_frame'` image part
+    becomes the input image, `'end_frame'` → `lastFrame`, `'reference'` /
+    `'character'` → `referenceImages`.
+  - `size` takes Veo aspect ratios (`'16:9' | '9:16'`); everything else from
+    the SDK's `GenerateVideosConfig` (e.g. `resolution`, `generateAudio`,
+    `negativePrompt`) is available through `modelOptions`.
+  - Responsible-AI filtering is surfaced as a failed job with the filter
+    reasons.
+
+  Note: Veo result URLs are served by the Gemini Files API and require the
+  Google API key to download (`x-goog-api-key` header or `key` query
+  parameter).
+
+- [#624](https://github.com/TanStack/ai/pull/624) [`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f) - `generateImage()` and `generateVideo()` now accept a multimodal `prompt`: a plain string, or an ordered array of content parts (`TextPart` / `ImagePart` / `VideoPart` / `AudioPart`) for image-conditioned generation, image-to-image, multi-reference, image-to-video, and edit / inpaint flows. Part order is meaningful — "not like this _(image)_, more like this _(image)_" — and each media part may carry a `metadata.role` hint (`'reference' | 'mask' | 'control' | 'start_frame' | 'end_frame' | 'character'`) that adapters use to route to the provider-specific field, plus an informational `metadata.tag` label for your own bookkeeping. The accepted part types are narrowed per model at compile time via each adapter's input-modality map, so passing an image part to a text-only model is a type error (with a clear runtime throw as backstop).
+
+  Prompt text is always sent **verbatim** — the SDK never injects or rewrites in-prompt referencing markers. To reference inputs from your prompt, write the provider's own convention (fal Kling / Seedance `@Image1`, OpenAI / FLUX.2 `"image 1"` prose, Gemini content descriptions); see the image-generation docs for the per-provider table.
+
+  Provider behavior in this release:
+  - **OpenAI image** — Prompts with image parts route `gpt-image-2` / `gpt-image-1` / `gpt-image-1-mini` to `images.edit()` (up to 16 source images plus optional mask); `dall-e-2` routes to `images.edit()` with one source image; `dall-e-3` rejects image parts at compile time and at runtime.
+  - **OpenAI video** — Sora-2 / Sora-2-Pro accept a single image part as `input_reference`; passing more than one throws.
+  - **Gemini image** — Native models (`gemini-*-flash-image`, "nano-banana") map prompt parts 1:1 onto multimodal `contents`, preserving interleaved order. Imagen is text-only (compile-time + runtime rejection).
+  - **fal.ai** — Field names resolve per endpoint from a map generated from the fal SDK's endpoint types (362 endpoints with nonstandard fields, e.g. nano-banana edit → `image_urls`, Kling i2v start frame → `image_url`, Veo first-last-frame → `first_frame_url` / `last_frame_url`). Defaults for endpoints not in the map: single → `image_url`, multiple → `image_urls`; `role: 'mask'` → `mask_url`; `role: 'control'` → `control_image_url`; `role: 'reference'` / `'character'` → `reference_image_urls`; video `role: 'start_frame'` / `'end_frame'` → `start_image_url` / `end_image_url`. Per-model prompt modalities are derived at the type level from the SDK's endpoint input types. Regenerate the map after a fal SDK bump with `pnpm generate:fal-image-fields` (a unit test fails when it goes stale). In `FalImageProviderOptions` / `FalVideoProviderOptions`, media-conditioning fields the mappers can populate (`image_url`, `start_image_url`, `video_url`, `audio_url`, …) are demoted from required to optional — supply them as prompt parts, or keep passing them explicitly via `modelOptions`.
+  - **Grok** — New `grok-imagine-image` / `grok-imagine-image-quality` models. Prompts with image parts route to xAI's JSON `/v1/images/edits` endpoint (up to 3 source images, addressed by xAI in request order; the prompt is sent verbatim). `role: 'mask'` / `'control'` throw. Their `size` uses an `aspectRatio_resolution` template (`'16:9_2k'`, suffix optional) mirroring Gemini's native image models. `grok-2-image-1212` remains text-to-image only.
+  - **OpenRouter** — Prompt parts map 1:1 onto multimodal `text` / `image_url` chat content parts, preserving interleaved order, and are forwarded to the underlying image model. URL sources pass through verbatim (no fetching or re-encoding in your process); `data` sources become data URIs.
+  - **Anthropic** — Unchanged (no image generation API).
+
+  A new `resolveMediaPrompt()` utility (exported from `@tanstack/ai`) is the single downrev point from the canonical interleaved prompt shape to flattened text + per-modality part buckets, for adapter authors.
+
+  On the client side, `ImageGenerateInput.prompt` and `VideoGenerateInput.prompt` (`@tanstack/ai-client`, and the `useGenerateImage` / `useGenerateVideo` hooks built on them) are widened from `string` to the same `MediaPrompt` shape, so prompt parts can be sent from the browser through your server route to `generateImage()` / `generateVideo()`.
+
+  Closes [#618](https://github.com/TanStack/ai/issues/618).
+
+### Patch Changes
+
+- Updated dependencies [[`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f)]:
+  - @tanstack/ai-event-client@0.6.3
+
+## 0.31.0
+
+### Minor Changes
+
+- [#763](https://github.com/TanStack/ai/pull/763) [`07aaf8b`](https://github.com/TanStack/ai/commit/07aaf8b9e5a8e699be25f936cc9cd651a46c16c5) - Add a type-safe capability system to chat middleware. `createCapability<T>()('name')` returns a `[get, provide]` accessor tuple that is also its own identity for `requires`/`provides` declarations — no separate token import. The middleware context also exposes `ctx.get(capability)` / `ctx.getOptional(capability)` / `ctx.provide(capability, value)`, typed by the handle you pass. Middleware gain a `setup` provisioning hook (runs first, before `onConfig`) plus `requires`/`provides`/`optionalRequires`. `chat()` validates that every required capability is provided, at compile time (an array coverage check and the new order-aware `createChatMiddleware()` builder) and at runtime (clear errors before the adapter runs). Adapters can now declare `requires`. This is the primitive layer for upcoming persistence and sandbox middleware; no concrete capabilities ship yet.
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.6.2
+
+## 0.30.0
+
+### Minor Changes
+
+- [#747](https://github.com/TanStack/ai/pull/747) [`7103348`](https://github.com/TanStack/ai/commit/71033488212bff05dcccc857e721ab9262ebc2a6) - `otelMiddleware` now emits the rest of the reported `TokenUsage` on spans instead of only input/output tokens ([#721](https://github.com/TanStack/ai/issues/721)). When the provider reports them, spans carry `gen_ai.usage.total_tokens`, `gen_ai.usage.cost` (provider-reported cost — cache discounts and gateway markup included, so backends like PostHog no longer re-derive cost from price tables), the official semconv cache/reasoning breakdowns (`gen_ai.usage.cache_read.input_tokens`, `gen_ai.usage.cache_creation.input_tokens`, `gen_ai.usage.reasoning.output_tokens`), and TanStack-namespaced attributes for duration-based billing (`tanstack.ai.usage.duration_seconds`) and the upstream cost split (`tanstack.ai.usage.upstream_cost` / `upstream_input_cost` / `upstream_output_cost`). All attributes are guarded — spans stay unchanged when a provider doesn't report a field. Media-oriented fields (`unitsBilled`, per-modality token breakdowns) and the provider-shaped `providerUsageDetails` bag are intentionally not emitted; media-activity observability is tracked in [#720](https://github.com/TanStack/ai/issues/720).
+
+### Patch Changes
+
+- [#769](https://github.com/TanStack/ai/pull/769) [`1d1bb52`](https://github.com/TanStack/ai/commit/1d1bb5219a38d9718cc926148e93fc27d5d2305b) - Add repository metadata (`homepage`, `bugs`, `funding`), fix `repository.directory` to point at each package, and include an MIT `LICENSE` file in every published package.
+
+- Updated dependencies [[`1d1bb52`](https://github.com/TanStack/ai/commit/1d1bb5219a38d9718cc926148e93fc27d5d2305b)]:
+  - @tanstack/ai-event-client@0.6.1
+
+## 0.29.0
+
+### Minor Changes
+
+- [#723](https://github.com/TanStack/ai/pull/723) [`22c9b42`](https://github.com/TanStack/ai/commit/22c9b42baec74914b720e440f29bd02be04eb164) - Surface fal's billed units as `result.usage`. The fal adapters now read fal's `x-fal-billable-units` response header off the result fetch and expose the billed quantity (`usage.unitsBilled`) on the generation result, so consumers can compute exact media-generation cost without wrapping `fetch` themselves.
+  - `TokenUsage` gains an optional `unitsBilled` field for usage-based (non-token) billing, denominated in the provider's priced unit.
+  - `falImage`, `falAudio`, `falVideo`, `falSpeech`, and `falTranscription` populate `result.usage.unitsBilled` when fal reports it.
+  - `VideoUrlResult` gains an optional `usage` slot; `getVideoJobStatus` now emits the `video:usage` event and returns `usage` when the completed result reports billed units.
+
+- [#727](https://github.com/TanStack/ai/pull/727) [`7d44569`](https://github.com/TanStack/ai/commit/7d445693ea079d7a85498a4465179ddd5f548cb0) - Add an `'error'` terminal to `ToolCallState`. When a tool execution produces an output error, the StreamProcessor now transitions the `tool-call` part to `state: 'error'` instead of parking it at `'input-complete'`.
+
+  Previously an errored tool call left the tool-call part at `'input-complete'` forever, so UIs that render lifecycle from the part's `state` could not distinguish "still executing" from "failed" without reverse-engineering the error-shaped `output` or the sibling `tool-result` part. The new terminal makes the tool-call state machine self-describing and symmetric with `ToolResultState` (which already has `'error'`):
+
+  ```ts
+  if (part.type === 'tool-call' && part.state === 'error') {
+    // render failure — no more inferring from output shape
+  }
+  ```
+
+  The completion safety net (`RUN_FINISHED` / stream finalization) no longer downgrades a failed tool call back to `'input-complete'`, including when an `output-error` result arrives before `TOOL_CALL_END`.
+
+### Patch Changes
+
+- [#696](https://github.com/TanStack/ai/pull/696) [`ff267a5`](https://github.com/TanStack/ai/commit/ff267a5536327b006979f9f28ce2df7cc27f6e23) - Fix duplicate `TOOL_CALL_END` for server-executed tools. The adapter already streams `START`/`ARGS`/`END` for each tool call, but `chat()` emitted a second `END` afterwards with no matching `START` — an orphan event that AG-UI-strict consumers (e.g. `@ag-ui/client`'s `verifyEvents`) reject. The post-execution phase now only adds `TOOL_CALL_RESULT`. Fixes [#519](https://github.com/TanStack/ai/issues/519).
+
+- [#734](https://github.com/TanStack/ai/pull/734) [`570c08a`](https://github.com/TanStack/ai/commit/570c08a8d1a35746c3d31a63188249cba2d2475a) - Fix the default debug logger dropping `meta` payloads on Cloudflare Workers / workerd ([#730](https://github.com/TanStack/ai/issues/730)). `ConsoleLogger` previously rendered `meta` with `console.dir`, which workerd never forwards to the terminal — debug mode printed category headlines but no request bodies, chunk contents, or `RUN_ERROR` payloads. The logger now detects the runtime: Node keeps the depth-unlimited `console.dir` dump, Cloudflare Workers renders `meta` as circular-safe pretty-printed JSON (workerd's own inspect truncates nested objects), and other runtimes (browsers, Deno, Bun) receive `meta` as an extra console argument so devtools keep collapsible trees. Detection checks workerd's `navigator.userAgent` marker before `process.versions.node`, since `nodejs_compat` emulates a Node version string.
+
+- [#699](https://github.com/TanStack/ai/pull/699) [`215b6b4`](https://github.com/TanStack/ai/commit/215b6b401aa95d1d38da342aa09603cb1d616929) - Migrate the OpenAI realtime adapters from the retired Beta API (shut down 2026-05-12) to the GA API:
+  - `openaiRealtime()` now exchanges WebRTC SDP via `POST /v1/realtime/calls` (the Beta `?model=` shape returned `beta_api_shape_disabled`).
+  - `openaiRealtimeToken()` now mints ephemeral keys via `POST /v1/realtime/client_secrets` instead of the retired `/v1/realtime/sessions`, and parses the GA top-level `value`/`expires_at` response shape.
+  - `session.update` payloads use the GA shape: required `session.type`, `audio.input.transcription`, `audio.input.turn_detection`, `audio.output.voice`, `output_modalities`, and `max_output_tokens`. `temperature` was removed from the GA session config and is no longer sent (a debug log notes when it is dropped).
+  - Server events are handled under their GA names (`response.output_audio_transcript.*`, `response.output_audio.*`, `output_text`/`output_audio` content parts).
+  - The default realtime model is now `gpt-realtime`; the `gpt-4o-(mini-)realtime-preview` ids (shut down by OpenAI on 2026-05-07) were removed from `OpenAIRealtimeModel`.
+
+- Updated dependencies [[`ff267a5`](https://github.com/TanStack/ai/commit/ff267a5536327b006979f9f28ce2df7cc27f6e23), [`22c9b42`](https://github.com/TanStack/ai/commit/22c9b42baec74914b720e440f29bd02be04eb164), [`7d44569`](https://github.com/TanStack/ai/commit/7d445693ea079d7a85498a4465179ddd5f548cb0)]:
+  - @tanstack/ai-event-client@0.6.0
+
+## 0.28.0
+
+### Minor Changes
+
+- [#700](https://github.com/TanStack/ai/pull/700) [`496e814`](https://github.com/TanStack/ai/commit/496e8143435746965b10e0bbd12f26ebf04ae2a6) - Add an `mcp` option to `chat()` for managing MCP clients directly: `chat({ mcp: { clients, connection, lazyTools, onDiscoveryError } })` discovers the given MCP clients'/pools' tools at run start, merges them into the run, and (by default, `connection: 'close'`) closes them when the run ends — or keeps them warm with `connection: 'keep-alive'`. Also exports `MCPToolSource`, `ChatMCPOptions`, `MCPConnectionPolicy`, and `MCPDuplicateToolNameError` (the error thrown when tools from separate `mcp.clients` entries collide after merging; catchable with `instanceof`).
+
+- [#700](https://github.com/TanStack/ai/pull/700) [`496e814`](https://github.com/TanStack/ai/commit/496e8143435746965b10e0bbd12f26ebf04ae2a6) - Add `@tanstack/ai-mcp`: a host-side Model Context Protocol client. Discover and run MCP server tools (and read resources/prompts) inside any adapter's `chat()` loop, with three type-safety modes (auto-discovery, hand-written `toolDefinition()` binding, and generated end-to-end types via `npx @tanstack/ai-mcp generate`). Includes `createMCPClients` for connecting to multiple servers with auto-prefixed tool names. Also exposes `abortSignal` on `ToolExecutionContext` so long-running tools (e.g. MCP `callTool`) cancel with the chat run.
+
+### Patch Changes
+
+- [#408](https://github.com/TanStack/ai/pull/408) [`c0af426`](https://github.com/TanStack/ai/commit/c0af4262d269be67c69d6f878d9618f25fdeee19) - Fix `extendAdapter` dropping required parameters after the model (e.g. `apiKey` in `createAnthropicChat`). All factory parameters after the model are now preserved, including labels and optionality.
+
+- [#395](https://github.com/TanStack/ai/pull/395) [`00e0c93`](https://github.com/TanStack/ai/commit/00e0c932e6cb5e31f75f4b5e94486d7eb02b9ce1) - fix(ai): produce new object references in tool-call message updaters
+
+  `updateToolCallApproval`, `updateToolCallState`, `updateToolCallWithOutput`,
+  and `updateToolCallApprovalResponse` previously mutated the found tool-call
+  part in-place (`toolCallPart.state = ...`) after spreading the parts array.
+  The shallow `[...msg.parts]` copy created a new array but preserved the
+  original object references, so frameworks that rely on reference identity
+  for change detection (Svelte 5 proxies, Vue 3 reactivity, etc.) could not
+  observe the updates.
+
+  Each function now replaces the part at its index with a spread copy
+  (`parts[index] = { ...toolCallPart, ...changes }`), producing a fresh
+  object on every update. This aligns with the pattern already used by
+  `updateToolCallPart`, `updateTextPart`, and `updateThinkingPart`.
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.5.4
+
+## 0.27.0
+
+### Minor Changes
+
+- [#660](https://github.com/TanStack/ai/pull/660) [`6df32b5`](https://github.com/TanStack/ai/commit/6df32b53026673d159e6df0892ce89effcb5c7b8) - **BREAKING:** Sampling options (`temperature`, `topP`, `maxTokens`) have moved off the root of `chat()` / `ai()` / `generate()` and into provider-native `modelOptions`. There is no longer a generic root-level sampling surface — each provider accepts its own native keys, fully typed per model:
+  - OpenAI (Responses): `modelOptions: { temperature, top_p, max_output_tokens }`
+  - Anthropic: `modelOptions: { temperature, top_p, max_tokens }`
+  - Gemini: `modelOptions: { temperature, topP, maxOutputTokens }`
+  - Grok: `modelOptions: { temperature, top_p, max_tokens }`
+  - Groq: `modelOptions: { temperature, top_p, max_completion_tokens }`
+  - Ollama: `modelOptions: { options: { temperature, top_p, num_predict } }` (nested)
+  - OpenRouter (chat): `modelOptions: { temperature, topP, maxCompletionTokens }`
+
+  Middleware no longer sees `temperature`/`topP`/`maxTokens` as first-class fields on `ChatMiddlewareConfig`; mutate `config.modelOptions` (with the provider-native keys above) instead. `metadata` is unaffected and stays at the root.
+
+  The public `OllamaTextProviderOptions` type export has also been removed from `@tanstack/ai-ollama`. `modelOptions` is now typed per model — use the exported `OllamaChatModelOptionsByName` map (indexed by model name) or the underlying `ChatRequest` from the `ollama` SDK for arbitrary model strings.
+
+  Migrate automatically with the codemod, which resolves the provider from the adapter and rewrites the keys for you:
+
+  ```bash
+  pnpm codemod:move-sampling-to-model-options "src/**/*.{ts,tsx}"
+  ```
+
+  See the [Sampling Options migration guide](https://tanstack.com/ai/latest/docs/migration/sampling-options-to-model-options) for details.
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.5.3
+
+## 0.26.1
+
+### Patch Changes
+
+- Updated dependencies [[`7adff0f`](https://github.com/TanStack/ai/commit/7adff0f192e50c081b569ffb80bf65df2a404a1f)]:
+  - @tanstack/ai-event-client@0.5.2
+
+## 0.26.0
+
+### Minor Changes
+
+- [#676](https://github.com/TanStack/ai/pull/676) [`5d6cd28`](https://github.com/TanStack/ai/commit/5d6cd2834ba7ac1d7c7c1bd24ede202bf3e78010) - `createModel` now accepts a capabilities object — `createModel(name, { input, features, tools, modelOptions })` — in addition to the existing `createModel(name, input)` form. `ExtendedModelDef` gains optional `features` and `tools` fields.
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.5.1
+
+## 0.25.0
+
+### Minor Changes
+
+- [#242](https://github.com/TanStack/ai/pull/242) [`c251038`](https://github.com/TanStack/ai/commit/c251038c6d8aa84e498f89e314ce5bb233bc689f) - Enhanced token usage reporting for every provider.
+
+  `TokenUsage` is now the single canonical run-usage type. It is defined once in
+  `@tanstack/ai-event-client` (the dependency-free leaf package) and re-exported by
+  `@tanstack/ai`, so the two packages can no longer drift. It carries optional
+  detailed breakdowns alongside the core token counts: `promptTokensDetails` /
+  `completionTokensDetails` (cached, reasoning, audio, and per-modality tokens),
+  `durationSeconds` for duration-billed models (e.g. Whisper transcription),
+  `providerUsageDetails` for provider-specific metrics, and `cost` / `costDetails`
+  for provider-reported cost — so a single `usage` shape covers counts, detailed
+  breakdowns, and cost.
+
+  `TokenUsage` is generic over its provider details bag —
+  `TokenUsage<TProviderDetails = ProviderUsageDetails>` — so adapters return a
+  strongly-typed `providerUsageDetails` (e.g. `TokenUsage<AnthropicProviderUsageDetails>`)
+  while generic consumers keep the open-record default. The default,
+  `ProviderUsageDetails` (`Record<string, NonNullable<unknown>>`), is now exported and
+  uses non-nullish values rather than `unknown` so `TokenUsage` stays assignable across
+  JSON-serialization boundaries (e.g. TanStack Start server-fn return types). Each
+  provider's usage
+  extractor now returns `undefined` (rather than fabricating zeroed totals) when
+  the provider reports no usage object, so an absent `usage` is distinguishable
+  from a genuine zero-token run.
+
+  `@tanstack/ai` still exports `UsageTotals` as a `@deprecated` alias of
+  `TokenUsage` for backward compatibility; it will be removed in a future release.
+
+  Detailed usage is extracted in one place per SDK surface: OpenAI-compatible
+  providers (OpenAI, Grok, Groq) share the extractors in `@tanstack/openai-base`,
+  while Anthropic, Gemini, Ollama, and OpenRouter normalize their own provider
+  usage. The devtools surface cached and reasoning token badges per iteration.
+
+  Usage is now unified across **every modality**, not just text/chat. Image, audio,
+  and text-to-speech results report the same canonical `TokenUsage` (with
+  per-modality breakdowns) instead of a minimal `inputTokens`/`outputTokens` shape:
+  - `ImageGenerationResult.usage`, `AudioGenerationResult.usage`, and the new
+    `TTSResult.usage` are now typed as `TokenUsage`. **Breaking:** consumers of
+    these fields should read `promptTokens`/`completionTokens` instead of
+    `inputTokens`/`outputTokens`. `@tanstack/ai-event-client`'s `ImageUsage` is now
+    a `@deprecated` alias of `TokenUsage`.
+  - OpenAI/Grok image generation surface the text-vs-image input token breakdown
+    (`promptTokensDetails`), Gemini image/audio/TTS now surface their full
+    `usageMetadata` (previously dropped), and OpenRouter image generation surfaces
+    the chat usage it already returns.
+  - Bug fixes: Ollama no longer produces `NaN` totals or discards duration-only
+    usage; Anthropic defaults missing `output_tokens` and no longer emits empty
+    `promptTokensDetails`/`providerUsageDetails` objects; OpenAI GPT-4o
+    transcription reads the real audio/text input token breakdown and never falls
+    back to duration billing.
+
+  Cross-adapter usage parity fixes:
+  - `PromptTokensDetails`/`CompletionTokensDetails` gain a `documentTokens` field,
+    and Gemini now surfaces `DOCUMENT` modality token counts (e.g. PDF inputs)
+    instead of silently dropping them.
+  - OpenAI-compatible chat (OpenAI/Grok/Groq via `@tanstack/openai-base`) now
+    surfaces Predicted-Outputs `acceptedPredictionTokens`/`rejectedPredictionTokens`
+    under `providerUsageDetails`, matching the OpenRouter adapter (rejected
+    prediction tokens are billed).
+  - Grok transcription (`/v1/stt`) now reports `durationSeconds`, mirroring the
+    Whisper-1 path in the OpenAI transcription adapter.
+
+### Patch Changes
+
+- Updated dependencies [[`c251038`](https://github.com/TanStack/ai/commit/c251038c6d8aa84e498f89e314ce5bb233bc689f)]:
+  - @tanstack/ai-event-client@0.5.0
+
+## 0.24.0
+
+### Minor Changes
+
+- [#666](https://github.com/TanStack/ai/pull/666) [`c1ae8b9`](https://github.com/TanStack/ai/commit/c1ae8b94c83d70508975568eb4fc9b45f1af540b) - feat: support multimodal (image) tool results
+
+  Tools may now return an `Array<ContentPart>` (e.g. a text part plus an image part) and have it transmitted to the model as structured multimodal tool output instead of a `JSON.stringify`'d blob. This unblocks use cases like returning a screenshot from a tool so the model can see it (issue [#363](https://github.com/TanStack/ai/issues/363)).
+  - Detection is structural and opt-in by shape: a tool that returns a non-empty array whose every element is a valid `ContentPart` is passed through unchanged; strings and all other return values are serialized exactly as before, so there are no breaking changes.
+  - The OpenAI Responses, Anthropic, and Google Gemini adapters convert the content parts into their native multimodal tool-output formats (`function_call_output.output`, `tool_result` content blocks, and `functionResponse.parts` respectively). Providers on the Chat Completions path (Groq, Ollama, Grok, OpenRouter chat) fall back to stringifying, which their APIs require.
+  - AG-UI stream events (`TOOL_CALL_RESULT.content`, `TOOL_CALL_END.result`) remain string-only per the spec; the multimodal array travels on the tool message itself.
+
+- [#673](https://github.com/TanStack/ai/pull/673) [`a452ae8`](https://github.com/TanStack/ai/commit/a452ae8bcda8abfdc6309983976ed0fbf6df1915) - Populate AG-UI `rawEvent` on `RUN_ERROR` events with the provider's structured error body.
+
+  Previously, when a streaming chat call failed the `RUN_ERROR` event carried only an
+  opaque `{ message, code }` headline (e.g. `"Provider returned error"`), and no adapter
+  populated AG-UI's purpose-built `rawEvent` field — so the upstream provider detail was
+  unrecoverable.
+
+  Adapters now forward the provider's **structured error body** (e.g. an SDK `APIError`'s
+  parsed `.error` response body, or OpenRouter's mid-stream `chunk.error`) as `rawEvent`
+  on the `RUN_ERROR` event. The new `toRunErrorRawEvent` helper extracts only known
+  provider-body fields — never the raw SDK exception object, which can carry request
+  metadata such as auth headers. The `{ message, code }` contract of `toRunErrorPayload`
+  is unchanged.
+
+  The error surfaced to consumers via the `ChatClient` / `useChat` `error` (and the
+  `onError` callback) now also carries `code` and `rawEvent` when present, so the upstream
+  cause is recoverable in application code.
+
+  > Note: the OpenRouter SDK parses each in-band stream chunk's `error` through a strict
+  > schema (`{ code, message }`), so provider `metadata` survives only on pre-stream HTTP
+  > errors (rate-limit / overload / BYOK rejection), whose typed error class exposes the
+  > full body via `.error`.
+
+- [#628](https://github.com/TanStack/ai/pull/628) [`8036b50`](https://github.com/TanStack/ai/commit/8036b5054330a180023c6e3225b8d2735a43a919) - Add typed runtime context for tools and middleware.
+
+  Tools and middleware can now declare the runtime context shape they require, and
+  `chat()`, `ChatClient`, and the framework `useChat` / `createChat` hooks infer
+  the merged requirement and type-check the `context` option you pass against it.
+
+  ```typescript
+  type AppContext = { userId: string; db: Db }
+
+  const listNotes = toolDefinition({
+    name: 'list_notes' /* ... */,
+  }).server<AppContext>((_input, ctx) =>
+    ctx.context.db.notes.findMany({ userId: ctx.context.userId }),
+  )
+
+  chat({
+    adapter,
+    messages,
+    tools: [listNotes],
+    context: { userId, db }, // required and type-checked because listNotes declares AppContext
+  })
+  ```
+
+  Runtime context is request-local application state for tool and middleware
+  implementations (authenticated users, database clients, tenancy, feature flags,
+  loggers, browser services). It is never sent to the model and is distinct from
+  the AG-UI `RunAgentInput.context` protocol field.
+
+  Untyped tools and middleware continue to receive `unknown` context and do not
+  force a `context` option. Client tools receive client-local context via
+  `ChatClient` / `useChat`; use `forwardedProps` to hand serializable client data
+  to the server and map it into server context explicitly. See the new Runtime
+  Context guide for details.
+
+  Behavior change: tool output validation now also runs when a tool returns
+  `undefined` or `null`. Previously these values bypassed `outputSchema`
+  validation entirely; now the schema decides whether they are valid, so a tool
+  whose schema forbids `undefined`/`null` surfaces a validation error
+  (`output-error`) instead of silently passing. Tools whose schema permits
+  `null`/`undefined` (e.g. nullable or void outputs) are unaffected.
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.4.3
+
+## 0.23.1
+
+### Patch Changes
+
+- [#662](https://github.com/TanStack/ai/pull/662) [`94bb9c0`](https://github.com/TanStack/ai/commit/94bb9c0f3a3e56a0c6c8b7c78f44ae41288aecc3) - Fix `convertSchemaToJsonSchema` (and tool input/output validation) for ArkType schemas. ArkType's `type()` returns a callable function with `~standard` attached, but the Standard Schema detection guards required `typeof schema === 'object'`, so ArkType schemas were never recognized and the raw validator function was passed through instead of a JSON Schema object. The guards now also accept callable schemas. ([#276](https://github.com/TanStack/ai/issues/276))
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.4.2
+
+## 0.23.0
+
+### Minor Changes
+
+- [#654](https://github.com/TanStack/ai/pull/654) [`980ff9b`](https://github.com/TanStack/ai/commit/980ff9ba925f5dbae62a9318cc1e787d0ae24314) - Surface OpenRouter's per-request cost on `RUN_FINISHED.usage`.
+
+  OpenRouter reports the actual cost of each request inline on the chat response.
+  The `openRouterText` and `openRouterResponsesText` adapters now forward that
+  value on the terminal `RUN_FINISHED` event as `usage.cost`, with OpenRouter's
+  per-request breakdown under `usage.costDetails`. This is the cost OpenRouter
+  itself reports — it is not computed locally from token counts, so it accounts
+  for routing, fallback providers, BYOK, and cached-token pricing.
+
+  `@tanstack/ai` adds a shared `UsageTotals` type with optional `cost` and
+  `costDetails` fields, plus a provider-neutral `UsageCostBreakdown` interface
+  with three canonical fields (`upstreamCost`, `upstreamInputCost`,
+  `upstreamOutputCost`). Each adapter's extractor normalizes its provider's
+  wire-shape onto this canonical form, so consumer code reads the same fields
+  regardless of which gateway populated them — swapping adapters is a one-line
+  change with no consumer rewrites. The OpenRouter adapter collapses its two
+  endpoint naming styles (Chat Completions' `prompt`/`completions` and
+  Responses' `input`/`output`) onto the same canonical input/output split, since
+  they bill against the same tokens. `RunFinishedEvent.usage`, the middleware
+  `UsageInfo` (`onUsage`), and `FinishInfo.usage` (`onFinish`) all use
+  `UsageTotals`. The fields are optional and additive — adapters that do not
+  report cost are unaffected.
+
+- [#647](https://github.com/TanStack/ai/pull/647) [`d5645cf`](https://github.com/TanStack/ai/commit/d5645cfd4d1b9cfc877f7d4d714517e166a99ce3) - Add React Native support for chat clients and framework hooks, including
+  client-safe streaming utilities and connection adapters that work in mobile
+  environments.
+
+  The `fetcher` option is now available on `ChatClient` and the framework chat
+  hooks (`useChat` / `createChat`), mirroring the generation hooks. Pass either
+  `connection` or `fetcher` -- the XOR is enforced at the type level via
+  `ChatTransport`. Fetchers may return either a `Response` (parsed as SSE) or an
+  `AsyncIterable<StreamChunk>` (yielded directly).
+
+  The client-safe `@tanstack/ai/client` subpath is now public for framework
+  packages and mobile bundles. `stream()`, `fetchServerSentEvents`,
+  `fetchHttpStream`, `rpcStream`, `xhrServerSentEvents`, and `xhrHttpStream` are
+  available from the client package and framework re-exports. React Native docs,
+  an Expo chat example, and smoke tests are included for the supported mobile
+  setup.
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.4.1
+
+## 0.22.1
+
+### Patch Changes
+
+- Updated dependencies [[`5634f18`](https://github.com/TanStack/ai/commit/5634f186a4946ca3e1942fbfcbf1291ec9bd9855)]:
+  - @tanstack/ai-event-client@0.4.0
+
 ## 0.22.0
 
 ### Minor Changes

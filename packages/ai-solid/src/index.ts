@@ -47,10 +47,18 @@ export type {
   UseGenerateVideoReturn,
 } from './use-generate-video'
 
+export { useAudioRecorder } from './use-audio-recorder'
+export type {
+  UseAudioRecorderOptions,
+  UseAudioRecorderReturn,
+} from './use-audio-recorder'
+
 // Re-export from ai-client for convenience
 export {
   fetchServerSentEvents,
   fetchHttpStream,
+  xhrServerSentEvents,
+  xhrHttpStream,
   stream,
   rpcStream,
   createChatClientOptions,
@@ -59,6 +67,7 @@ export {
   type SubscribeConnectionAdapter,
   type RunAgentInputContext,
   type FetchConnectionOptions,
+  type XhrConnectionOptions,
   type InferChatMessages,
   type GenerationClientState,
   type ImageGenerateInput,

@@ -1,14 +1,18 @@
 import { OpenRouter } from '@openrouter/sdk'
 import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
-import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
-import { generateId, transformNullsToUndefined } from '@tanstack/ai-utils'
+import {
+  toRunErrorPayload,
+  toRunErrorRawEvent,
+} from '@tanstack/ai/adapter-internals'
+import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../internal/request-options'
 import { makeStructuredOutputCompatible } from '../internal/schema-converter'
 import { convertFunctionToolToResponsesFormat } from '../internal/responses-tool-converter'
 import { isWebSearchTool } from '../tools/web-search-tool'
 import { isWebFetchTool } from '../tools/web-fetch-tool'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
+import { extractUsageCost } from './cost'
 import type { SDKOptions } from '@openrouter/sdk'
 import type { ResponsesFunctionTool } from '../internal/responses-tool-converter'
 import type {
@@ -156,6 +160,7 @@ export class OpenRouterResponsesTextAdapter<
         error,
         `${this.name}.chatStream failed`,
       )
+      const rawEvent = toRunErrorRawEvent(error)
 
       // Emit RUN_STARTED if not yet emitted
       if (!aguiState.hasEmittedRunStarted) {
@@ -176,6 +181,7 @@ export class OpenRouterResponsesTextAdapter<
         timestamp: Date.now(),
         message: errorPayload.message,
         code: errorPayload.code,
+        ...(rawEvent !== undefined && { rawEvent }),
         error: {
           message: errorPayload.message,
           code: errorPayload.code,
@@ -517,6 +523,7 @@ export class OpenRouterResponsesTextAdapter<
           const code =
             normalizeCode(chunk.response?.error?.code) ??
             (chunk.response?.incompleteDetails ? 'incomplete' : undefined)
+          const rawError = chunk.response?.error
           yield {
             type: EventType.RUN_ERROR,
             runId: aguiState.runId,
@@ -524,6 +531,9 @@ export class OpenRouterResponsesTextAdapter<
             timestamp,
             message,
             ...(code !== undefined && { code }),
+            // Forward the provider's structured error body when the failure
+            // carried one, so consumers can recover the upstream detail.
+            ...(rawError != null && { rawEvent: rawError }),
             error: {
               message,
               ...(code !== undefined && { code }),
@@ -623,6 +633,7 @@ export class OpenRouterResponsesTextAdapter<
             promptTokens: usage.inputTokens ?? 0,
             completionTokens: usage.outputTokens ?? 0,
             totalTokens: usage.totalTokens ?? 0,
+            ...extractUsageCost(usage),
           },
         }),
       }
@@ -655,6 +666,7 @@ export class OpenRouterResponsesTextAdapter<
       )
 
       const resolvedCode = isAbort ? 'aborted' : errorPayload.code
+      const rawEvent = isAbort ? undefined : toRunErrorRawEvent(error)
       yield {
         type: EventType.RUN_ERROR,
         runId: aguiState.runId,
@@ -662,6 +674,7 @@ export class OpenRouterResponsesTextAdapter<
         timestamp,
         message: errorPayload.message,
         ...(resolvedCode !== undefined && { code: resolvedCode }),
+        ...(rawEvent !== undefined && { rawEvent }),
         error: {
           message: errorPayload.message,
           ...(resolvedCode !== undefined && { code: resolvedCode }),
@@ -684,14 +697,12 @@ export class OpenRouterResponsesTextAdapter<
 
   /**
    * OpenRouter routes through a wide variety of upstream providers; some
-   * return `null` as a distinct sentinel rather than collapsing it to absent.
-   * Stripping nulls would erase that distinction, so we passthrough.
-   *
-   * `transformNullsToUndefined` is imported for parity with the other
-   * provider adapters but intentionally not invoked here.
+   * return `null` as a distinct sentinel rather than collapsing it to absent,
+   * so we passthrough and let the engine un-widen strict-mode nulls precisely.
+   * Matches the base adapters' default — kept as an explicit override because
+   * OpenRouter extends `BaseTextAdapter` directly, not the OpenAI base.
    */
   protected transformStructuredOutput(parsed: unknown): unknown {
-    void transformNullsToUndefined
     return parsed
   }
 
@@ -923,12 +934,14 @@ export class OpenRouterResponsesTextAdapter<
             normalizeCode(chunk.response?.error?.code) ??
             (chunk.response?.incompleteDetails ? 'incomplete' : undefined) ??
             undefined
+          const rawError = chunk.response?.error
           yield {
             type: EventType.RUN_ERROR,
             model,
             timestamp: Date.now(),
             message: errorMessage,
             ...(errorCode !== undefined && { code: errorCode }),
+            ...(rawError != null && { rawEvent: rawError }),
             error: {
               message: errorMessage,
               ...(errorCode !== undefined && { code: errorCode }),
@@ -1160,6 +1173,7 @@ export class OpenRouterResponsesTextAdapter<
                 toolCallId: item.id,
                 toolCallName: metadata.name,
                 toolName: metadata.name,
+                parentMessageId: aguiState.messageId,
                 model: model || options.model,
                 timestamp: Date.now(),
                 index: chunk.outputIndex ?? 0,
@@ -1273,6 +1287,7 @@ export class OpenRouterResponsesTextAdapter<
                 toolCallId: item.id,
                 toolCallName: metadata.name,
                 toolName: metadata.name,
+                parentMessageId: aguiState.messageId,
                 model: model || options.model,
                 timestamp: Date.now(),
                 index: metadata.index,
@@ -1348,6 +1363,7 @@ export class OpenRouterResponsesTextAdapter<
                 toolCallId: item.id,
                 toolCallName: metadata.name,
                 toolName: metadata.name,
+                parentMessageId: aguiState.messageId,
                 model: model || options.model,
                 timestamp: Date.now(),
                 index: metadata.index,
@@ -1433,6 +1449,7 @@ export class OpenRouterResponsesTextAdapter<
               promptTokens: responseObj.usage?.inputTokens || 0,
               completionTokens: responseObj.usage?.outputTokens || 0,
               totalTokens: responseObj.usage?.totalTokens || 0,
+              ...extractUsageCost(responseObj.usage),
             },
             finishReason,
           }
@@ -1482,6 +1499,7 @@ export class OpenRouterResponsesTextAdapter<
         error,
         `${this.name}.processStreamChunks failed`,
       )
+      const rawEvent = toRunErrorRawEvent(error)
       options.logger.errors(`${this.name}.processStreamChunks fatal`, {
         error: errorPayload,
         source: `${this.name}.processStreamChunks`,
@@ -1492,6 +1510,7 @@ export class OpenRouterResponsesTextAdapter<
         timestamp: Date.now(),
         message: errorPayload.message,
         ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+        ...(rawEvent !== undefined && { rawEvent }),
         error: {
           message: errorPayload.message,
           ...(errorPayload.code !== undefined && { code: errorPayload.code }),
@@ -1526,12 +1545,12 @@ export class OpenRouterResponsesTextAdapter<
       }
     }
 
-    const modelOptions = options.modelOptions as
-      | (Partial<ResponsesRequest> & { variant?: string })
-      | undefined
-    const variantSuffix = modelOptions?.variant
-      ? `:${modelOptions.variant}`
-      : ''
+    // `variant` is OpenRouter metadata used only to build the `:variant` model
+    // suffix — it is not part of the wire `ResponsesRequest`, so strip it out
+    // of the spread body (mirrors the chat-completions adapter).
+    const { variant, ...modelOptions } = (options.modelOptions ??
+      {}) as Partial<ResponsesRequest> & { variant?: string }
+    const variantSuffix = variant ? `:${variant}` : ''
 
     const input = this.convertMessagesToInput(options.messages)
 
@@ -1562,14 +1581,11 @@ export class OpenRouterResponsesTextAdapter<
     > = {
       ...modelOptions,
       model: options.model + variantSuffix,
-      ...(options.temperature !== undefined && {
-        temperature: options.temperature,
-      }),
-      ...(options.maxTokens !== undefined && {
-        maxOutputTokens: options.maxTokens,
-      }),
-      ...(options.topP !== undefined && { topP: options.topP }),
-      ...(options.metadata !== undefined && { metadata: options.metadata }),
+      // Root `metadata` is observability-only and intentionally not forwarded:
+      // the SDK validates wire `metadata` as `Record<string, string>`, while
+      // root metadata may carry arbitrarily structured values (#735). Callers
+      // set wire metadata via `modelOptions.metadata`, which flows through
+      // the spread.
       ...(() => {
         const prompts = normalizeSystemPrompts(options.systemPrompts)
         if (prompts.length === 0) return {}

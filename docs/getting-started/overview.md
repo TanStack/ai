@@ -32,6 +32,7 @@ The framework-agnostic core of TanStack AI provides the building blocks for crea
 
 - **Next.js** - API routes and App Router
 - **TanStack Start** - React Start or Solid Start (recommended!)
+- **React Native / Expo** - Native chat screens with `useChat`, absolute server URLs, and XHR streaming transports
 - **Express** - Node.js server
 - **React Router v7** - Loaders and actions
 
@@ -41,10 +42,12 @@ TanStack AI lets you define a tool once and provide environment-specific impleme
 import { chat, toolDefinition } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { z } from 'zod'
+import { db } from './db'
 
 // Define a tool
 const getProductsDef = toolDefinition({
   name: 'getProducts',
+  description: 'Search for products by query',
   inputSchema: z.object({ query: z.string() }),
   outputSchema: z.array(z.object({ id: z.string(), name: z.string() })),
 })
@@ -109,10 +112,12 @@ With the help of adapters, TanStack AI can connect to various LLM providers. Ava
 - **@tanstack/ai-ollama** - Ollama (local models)
 - **@tanstack/ai-groq** - Groq
 - **@tanstack/ai-grok** - xAI Grok
+- **@tanstack/ai-bedrock** - Amazon Bedrock (Claude, Nova, Llama, and more via AWS)
 - **@tanstack/ai-fal** - fal (image & video generation)
 
 ## Next Steps
 
 - [Quick Start Guide](./quick-start) - Get up and running in minutes
+- [Quick Start: React Native](./quick-start-react-native) - Add mobile chat with Expo and a server-owned provider boundary
 - [Tools Guide](../tools/tools) - Learn about the isomorphic tool system
 - [API Reference](../api/ai) - Explore the full API

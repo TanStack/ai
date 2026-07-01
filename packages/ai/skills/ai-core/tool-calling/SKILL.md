@@ -75,7 +75,7 @@ import { updateCartUIDef } from '@/tools/definitions'
 export async function POST(request: Request) {
   const { messages } = await request.json()
   const stream = chat({
-    adapter: openaiText('gpt-4o'),
+    adapter: openaiText('gpt-5.5'),
     messages,
     tools: [getProducts, updateCartUIDef], // server tool + client definition
   })
@@ -158,7 +158,7 @@ const getUserData = getUserDataDef.server(async ({ userId }) => {
 
 // In your route handler:
 const stream = chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.5'),
   messages,
   tools: [getUserData],
 })
@@ -188,7 +188,7 @@ Server -- pass definition only (no execute function):
 
 ```typescript
 const stream = chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.5'),
   messages,
   tools: [showNotificationDef],
 })
@@ -360,7 +360,7 @@ const compareProducts = compareProductsDef.server(async ({ productIds }) => {
 export async function POST(request: Request) {
   const { messages } = await request.json()
   const stream = chat({
-    adapter: openaiText('gpt-4o'),
+    adapter: openaiText('gpt-5.5'),
     messages,
     tools: [getProducts, compareProducts],
     agentLoopStrategy: maxIterations(20),
@@ -374,6 +374,325 @@ To compare, it first calls `__lazy__tool__discovery__({ toolNames: ["compareProd
 gets the full schema, then calls `compareProducts` directly.
 Once discovered, a tool stays available for the conversation.
 When all lazy tools are discovered, the discovery tool is removed automatically.
+
+### Tuning the lazy catalog with `lazyToolsConfig`
+
+By default the discovery-tool catalog lists only bare names (`'none'`). Pass
+`lazyToolsConfig` to `chat()` to include more context:
+
+```typescript
+const stream = chat({
+  adapter: openaiText('gpt-5.5'),
+  messages,
+  tools: [getProducts, compareProducts],
+  agentLoopStrategy: maxIterations(20),
+  lazyToolsConfig: { includeDescription: 'first-sentence' },
+})
+```
+
+`includeDescription` values:
+
+| Value              | Catalog entry                                                                            | When to use                                                                        |
+| ------------------ | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `'none'` (default) | `compareProducts`                                                                        | Smallest prompt; model discovers by name                                           |
+| `'first-sentence'` | `compareProducts — Compare two or more products side by side.`                           | Helps the model decide whether to discover without extra tokens                    |
+| `'full'`           | `compareProducts — Compare two or more products side by side. Accepts productIds array.` | Use when descriptions are short or the model needs full context to route correctly |
+
+The post-discovery payload always returns the full description and schema regardless of this setting.
+
+## MCP Tools
+
+`@tanstack/ai-mcp` lets a server-side `chat()` call discover and invoke tools
+hosted on any MCP server (Streamable HTTP, SSE, or stdio).
+
+**MCP tools and UI resources:** When an MCP tool result carries a `ui://`
+resource URI (via `_meta.ui.resourceUri`), TanStack AI surfaces it as a
+`UIResourcePart` on the assistant `UIMessage` in the client message list.
+`UIResourcePart` is a presentational-only part — it never enters model input.
+See the `@tanstack/ai-mcp` skill for the full MCP Apps API
+(`createMcpAppCallHandler`, `createMcpAppBridge`, `MCPAppResource`).
+
+### Basic usage — auto-discovery
+
+```typescript
+// src/routes/api.chat.ts
+import { createFileRoute } from '@tanstack/react-router'
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+export const Route = createFileRoute('/api/chat')({
+  server: {
+    handlers: {
+      POST: async ({ request }) => {
+        const { messages } = await request.json()
+
+        // 1. Connect to the MCP server.
+        const mcp = await createMCPClient({
+          transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+        })
+
+        // 2. Discover all tools from the server (returns ServerTool[]).
+        const mcpTools = await mcp.tools()
+
+        // 3. Spread them into chat() — they work exactly like hand-written tools.
+        // Caller owns the lifecycle — chat() never closes the client. Tools run
+        // while the response streams, so close in a middleware terminal hook
+        // (a try/finally around the return would close before tools execute).
+        const stream = chat({
+          adapter: openaiText('gpt-5.5'),
+          messages,
+          tools: [...mcpTools],
+          middleware: [
+            {
+              name: 'mcp-close',
+              onFinish: () => mcp.close(),
+              onAbort: () => mcp.close(),
+              onError: () => mcp.close(),
+            },
+          ],
+        })
+        return toServerSentEventsResponse(stream)
+      },
+    },
+  },
+})
+```
+
+### Typed path — pass toolDefinition instances
+
+Pass bare `toolDefinition()` instances (no `.server()`) to `client.tools([...])`.
+The MCP client supplies a `callTool` proxy as the execute function, while
+input/output validation and types come from the definitions' Zod schemas.
+
+```typescript
+import { toolDefinition } from '@tanstack/ai'
+import { createMCPClient } from '@tanstack/ai-mcp'
+import { z } from 'zod'
+
+const getWeather = toolDefinition({
+  name: 'get_weather',
+  description: 'Current weather for a city',
+  inputSchema: z.object({ city: z.string() }),
+  outputSchema: z.object({ temperature: z.number(), conditions: z.string() }),
+})
+
+const mcp = await createMCPClient({
+  transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+})
+
+// Returns ServerTool[] typed to the definitions' input/output schemas.
+// Throws MCPToolNotFoundError if the server does not expose a tool with that name.
+const tools = await mcp.tools([getWeather])
+
+const stream = chat({ adapter: openaiText('gpt-5.5'), messages, tools })
+```
+
+### Multiple servers with `createMCPClients`
+
+```typescript
+import { createMCPClients } from '@tanstack/ai-mcp'
+
+// Each key becomes the default prefix for that server's tools.
+await using pool = await createMCPClients({
+  github: { transport: { type: 'http', url: 'https://mcp.github.com/mcp' } },
+  linear: { transport: { type: 'http', url: 'https://mcp.linear.app/mcp' } },
+})
+
+// Tools auto-prefixed: 'github_search_repos', 'linear_create_issue', etc.
+const tools = await pool.tools()
+
+const stream = chat({ adapter: openaiText('gpt-5.5'), messages, tools })
+```
+
+Use `pool.clients.<name>` for typed per-server access (resources, prompts, typed
+`tools([defs])` overload).
+
+### `ToolExecutionContext.abortSignal` — cancelling long-running tools
+
+Every server tool's execute function now receives `abortSignal` in its context.
+When the chat run aborts (e.g. the client disconnects or calls the run's
+`abortController`), the signal fires and any in-flight `callTool` call is
+cancelled automatically.
+
+You can also forward it from your own server tools:
+
+```typescript
+const longRunningTool = myToolDef.server(async (args, ctx) => {
+  // Forward to fetch, a DB query, or an MCP callTool call.
+  const response = await fetch('https://slow.api/data', {
+    signal: ctx?.abortSignal,
+  })
+  return response.json()
+})
+```
+
+MCP tools wire this automatically — `makeMcpExecute` passes `ctx?.abortSignal`
+as the `signal` option to `client.callTool(...)`, so MCP server calls cancel
+with the chat run without any extra code.
+
+### stdio transport (Node-only)
+
+```typescript
+import { createMCPClient } from '@tanstack/ai-mcp'
+import { stdioTransport } from '@tanstack/ai-mcp/stdio'
+
+const mcp = await createMCPClient({
+  transport: stdioTransport({ command: 'npx', args: ['-y', 'my-mcp-server'] }),
+})
+```
+
+Import `stdioTransport` from the `/stdio` subpath only — it contains Node.js
+`child_process` imports and must not be bundled for edge runtimes.
+
+### `chat({ mcp })` — discovery + lifecycle in one prop
+
+Instead of manually calling `client.tools()` and managing `close()`, pass an
+`mcp` object and let `chat()` handle discovery and lifecycle.
+
+```typescript
+// Prop shape (ChatMCPOptions):
+// mcp: {
+//   clients: Array<MCPClient | MCPClients>,
+//   connection?: 'close' | 'keep-alive',  // default: 'close'
+//   lazyTools?: boolean,
+//   onDiscoveryError?: (error: unknown, source) => void,
+// }
+```
+
+- At run start, `chat()` calls `.tools()` on every entry in `clients` and merges
+  the results — identical to spreading `await client.tools()` into `tools: [...]`.
+- `lazyTools: true` is forwarded to `tools({ lazy: true })`.
+- `onDiscoveryError`: throw to fail-fast; return to skip that source.
+- `connection: 'close'` (default) closes each client when the run ends (after
+  the agent loop completes and the stream is drained). With `'keep-alive'`,
+  `chat()` never closes the clients — the caller owns their lifecycle (keep
+  connections warm across requests).
+
+**When to use `mcp` vs. the tools spread:**
+
+| Approach                                                | Use when                                                                          |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `chat({ mcp: { clients: [...] } })`                     | Convenience: discovery + lifecycle in one place; untyped tool args are acceptable |
+| `tools: [...await client.tools([toolDefinition(...)])]` | Fully-typed tool args/results via Zod schemas                                     |
+
+**Example:**
+
+```typescript
+import { createFileRoute } from '@tanstack/react-router'
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+export const Route = createFileRoute('/api/chat')({
+  server: {
+    handlers: {
+      POST: async ({ request }) => {
+        const { messages } = await request.json()
+
+        const mcpClient = await createMCPClient({
+          transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+        })
+
+        const stream = chat({
+          adapter: openaiText('gpt-5.5'),
+          messages,
+          mcp: {
+            clients: [mcpClient],
+            connection: 'keep-alive',
+            onDiscoveryError: (err, source) => {
+              console.warn('MCP discovery failed, skipping source:', err)
+              // returning (not throwing) skips this source and continues
+            },
+          },
+        })
+
+        return toServerSentEventsResponse(stream)
+      },
+    },
+  },
+})
+```
+
+## Provider Skills
+
+> **Not to be confused with `@tanstack/ai-code-mode-skills`**, which are locally-generated TypeScript functions executed client-side. Provider Skills are hosted, provider-managed bundles that the model loads on demand and runs inside the provider's server-side sandbox.
+
+Provider Skills are inert without an execution tool. The execution tool is what activates the sandbox; skills are additional capability bundles that run inside it:
+
+- **Anthropic**: skills require the `code_execution` tool (`@tanstack/ai-anthropic/tools`).
+- **OpenAI**: skills live inside the `shell` tool (`@tanstack/ai-openai/tools`) and are Responses API only.
+
+### Anthropic: `codeExecutionTool` with skills
+
+Import from `@tanstack/ai-anthropic/tools`:
+
+```typescript
+import { codeExecutionTool } from '@tanstack/ai-anthropic/tools'
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import { anthropicText } from '@tanstack/ai-anthropic'
+
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+  const stream = chat({
+    adapter: anthropicText('claude-sonnet-4-5'),
+    messages,
+    tools: [
+      codeExecutionTool(
+        { type: 'code_execution_20250825', name: 'code_execution' },
+        {
+          skills: [{ type: 'anthropic', skill_id: 'pptx', version: 'latest' }],
+        },
+      ),
+    ],
+  })
+  return toServerSentEventsResponse(stream)
+}
+```
+
+`AnthropicContainerSkill` shape: `{ type: 'anthropic' | 'custom'; skill_id: string; version?: string }`. Constraints: max 8 skills per request; `skill_id` must be 1–64 characters.
+
+The adapter automatically:
+
+- Lifts the skills into the request's top-level `container.skills` param (the shape Anthropic's API requires).
+- Attaches the required beta headers (`code-execution-2025-08-25` plus `skills-2025-10-02` when skills are present). You do not set these manually.
+
+**Deprecation:** Setting skills via `modelOptions.container.skills` is deprecated. Use `codeExecutionTool(config, { skills })` instead — the legacy path bypasses the beta-header wiring.
+
+### OpenAI: `shellTool` with skills (Responses API only)
+
+Import from `@tanstack/ai-openai/tools`:
+
+```typescript
+import { shellTool } from '@tanstack/ai-openai/tools'
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+  const stream = chat({
+    adapter: openaiText('gpt-5.2'),
+    messages,
+    tools: [
+      shellTool({
+        environment: {
+          type: 'container_auto',
+          skills: [
+            { type: 'skill_reference', skill_id: 'skill_abc', version: '2' },
+          ],
+        },
+      }),
+    ],
+  })
+  return toServerSentEventsResponse(stream)
+}
+```
+
+`SkillReference` shape: `{ type: 'skill_reference'; skill_id: string; version?: string }`. `version` is a string — use a positive integer as a string (e.g. `'2'`) or `'latest'`. This is Responses API only; Chat Completions does not support the shell tool.
+
+### Scope
+
+Only hosted/managed-by-id skills (`type: 'anthropic'` / `type: 'custom'` for Anthropic; `type: 'skill_reference'` for OpenAI) are wired. Inline bundles, local-path, and upload-API skill creation are not handled by these factories.
 
 ## Common Mistakes
 

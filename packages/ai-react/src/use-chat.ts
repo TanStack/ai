@@ -1,4 +1,5 @@
 import { ChatClient } from '@tanstack/ai-client'
+import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type {
   AnyClientTool,
@@ -6,10 +7,11 @@ import type {
   ModelMessage,
   SchemaInput,
   StreamChunk,
-} from '@tanstack/ai'
+} from '@tanstack/ai/client'
 import type {
   ChatClientState,
   ConnectionStatus,
+  InferredClientContext,
   StructuredOutputPart,
 } from '@tanstack/ai-client'
 
@@ -24,7 +26,10 @@ import type {
 export function useChat<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
->(options: UseChatOptions<TTools, TSchema>): UseChatReturn<TTools, TSchema> {
+  TContext = InferredClientContext<TTools>,
+>(
+  options: UseChatOptions<TTools, TSchema, TContext>,
+): UseChatReturn<TTools, TSchema> {
   const hookId = useId()
   const clientId = options.id || hookId
 
@@ -47,20 +52,21 @@ export function useChat<
     options.initialMessages || [],
   )
   const isFirstMountRef = useRef(true)
+  const activeClientRef = useRef<ChatClient | null>(null)
+  const cleanupInvalidationRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  )
 
   // Update ref synchronously during render so it's always current when useMemo runs.
   messagesRef.current = messages
 
   // Track current options in a ref to avoid recreating client when options change
-  const optionsRef = useRef<UseChatOptions<TTools, TSchema>>(options)
+  const optionsRef = useRef<UseChatOptions<TTools, TSchema, TContext>>(options)
   optionsRef.current = options
 
   // Create ChatClient instance with callbacks to sync state
   const client = useMemo(() => {
-    const messagesToUse = isFirstMountRef.current
-      ? options.initialMessages || []
-      : messagesRef.current
-
+    const messagesToUse = options.initialMessages || []
     isFirstMountRef.current = false
 
     // Build options with conditional spreads for fields whose source
@@ -72,77 +78,119 @@ export function useChat<
       ? { connection: initialOptions.connection }
       : { fetcher: initialOptions.fetcher }
 
-    return new ChatClient({
+    const instance = new ChatClient<TTools, TContext>({
+      devtoolsBridgeFactory: createChatDevtoolsBridge,
       ...transport,
       id: clientId,
       initialMessages: messagesToUse,
       ...(initialOptions.body !== undefined && { body: initialOptions.body }),
+      ...(initialOptions.threadId !== undefined && {
+        threadId: initialOptions.threadId,
+      }),
       ...(initialOptions.forwardedProps !== undefined && {
         forwardedProps: initialOptions.forwardedProps,
       }),
+      ...(initialOptions.persistence !== undefined && {
+        persistence: initialOptions.persistence,
+      }),
+      ...(initialOptions.context !== undefined && {
+        context: initialOptions.context,
+      }),
+      devtools: {
+        ...initialOptions.devtools,
+        framework: 'react',
+        hookName: 'useChat',
+        outputKind: initialOptions.outputSchema ? 'structured' : 'chat',
+      },
       onResponse: (response) => {
+        if (activeClientRef.current !== instance) return
         void optionsRef.current.onResponse?.(response)
       },
       onChunk: (chunk: StreamChunk) => {
+        if (activeClientRef.current !== instance) return
         optionsRef.current.onChunk?.(chunk)
       },
       onFinish: (message: UIMessage<TTools>) => {
+        if (activeClientRef.current !== instance) return
         optionsRef.current.onFinish?.(message)
       },
       onError: (error: Error) => {
+        if (activeClientRef.current !== instance) return
         optionsRef.current.onError?.(error)
       },
       ...(initialOptions.tools !== undefined && {
         tools: initialOptions.tools,
       }),
       onCustomEvent: (eventType, data, context) => {
+        if (activeClientRef.current !== instance) return
         optionsRef.current.onCustomEvent?.(eventType, data, context)
       },
       ...(options.streamProcessor !== undefined && {
         streamProcessor: options.streamProcessor,
       }),
       onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
+        if (activeClientRef.current !== instance) return
         setMessages(newMessages)
       },
       onLoadingChange: (newIsLoading: boolean) => {
+        if (activeClientRef.current !== instance) return
         setIsLoading(newIsLoading)
       },
       onErrorChange: (newError: Error | undefined) => {
+        if (activeClientRef.current !== instance) return
         setError(newError)
       },
       onStatusChange: (status: ChatClientState) => {
+        if (activeClientRef.current !== instance) return
         setStatus(status)
       },
       onSubscriptionChange: (nextIsSubscribed: boolean) => {
+        if (activeClientRef.current !== instance) return
         setIsSubscribed(nextIsSubscribed)
       },
       onConnectionStatusChange: (nextStatus: ConnectionStatus) => {
+        if (activeClientRef.current !== instance) return
         setConnectionStatus(nextStatus)
       },
       onSessionGeneratingChange: (isGenerating: boolean) => {
+        if (activeClientRef.current !== instance) return
         setSessionGenerating(isGenerating)
       },
     })
+    activeClientRef.current = instance
+    return instance
   }, [clientId])
 
   useEffect(() => {
-    // Conditional spread: `updateOptions` declares strict-optional
-    // fields and rejects explicit `undefined` under EOPT.
-    client.updateOptions({
-      body: options.body,
-      ...(options.forwardedProps !== undefined && {
-        forwardedProps: options.forwardedProps,
-      }),
-    })
-  }, [client, options.body, options.forwardedProps])
+    const clientMessages = client.getMessages()
+    if (clientMessages !== messagesRef.current) {
+      setMessages(clientMessages)
+    }
+  }, [client])
+
+  // Sync each wire-payload slot in its own effect so an unrelated option
+  // changing doesn't re-run the others. `updateOptions` declares strict-optional
+  // fields and rejects explicit `undefined` under EOPT, so guard the optional
+  // slots before passing them.
+  useEffect(() => {
+    client.updateOptions({ body: options.body })
+  }, [client, options.body])
 
   useEffect(() => {
-    if (options.initialMessages && options.initialMessages.length > 0) {
-      if (messages.length === 0) {
-        client.setMessagesManually(options.initialMessages)
-      }
+    if (options.forwardedProps !== undefined) {
+      client.updateOptions({ forwardedProps: options.forwardedProps })
     }
-  }, [])
+  }, [client, options.forwardedProps])
+
+  useEffect(() => {
+    if (options.tools !== undefined) {
+      client.updateOptions({ tools: options.tools })
+    }
+  }, [client, options.tools])
+
+  useEffect(() => {
+    client.updateOptions({ context: options.context })
+  }, [client, options.context])
 
   useEffect(() => {
     if (options.live) {
@@ -153,14 +201,32 @@ export function useChat<
   }, [client, options.live])
 
   useEffect(() => {
+    if (cleanupInvalidationRef.current) {
+      clearTimeout(cleanupInvalidationRef.current)
+      cleanupInvalidationRef.current = null
+    }
+    activeClientRef.current = client
+    client.mountDevtools()
+
     return () => {
-      if (options.live) {
+      cleanupInvalidationRef.current = setTimeout(() => {
+        if (activeClientRef.current === client) {
+          activeClientRef.current = null
+        }
+        cleanupInvalidationRef.current = null
+      }, 0)
+      // Subscribe/unsubscribe on `options.live` is owned by the dedicated
+      // effect above. This cleanup only fires on unmount or client swap,
+      // so read `live` through the ref to avoid disposing the client every
+      // time `live` toggles.
+      if (optionsRef.current.live) {
         client.unsubscribe()
       } else {
         client.stop()
       }
+      client.dispose()
     }
-  }, [client, options.live])
+  }, [client])
 
   const sendMessage = useCallback(
     async (content: string | MultimodalContent) => {
@@ -225,17 +291,19 @@ export function useChat<
   // a stale assistant turn or a system prompt) we deliberately return null
   // rather than scanning historical assistants — otherwise a `final` from a
   // previous session would leak into the hook value on first render.
+  const renderedMessages = client.getMessages()
+
   const activeStructuredPart = useMemo<StructuredOutputPart | null>(() => {
     let lastUserIndex = -1
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i]?.role === 'user') {
+    for (let i = renderedMessages.length - 1; i >= 0; i--) {
+      if (renderedMessages[i]?.role === 'user') {
         lastUserIndex = i
         break
       }
     }
     if (lastUserIndex === -1) return null
-    for (let i = messages.length - 1; i > lastUserIndex; i--) {
-      const m = messages[i]
+    for (let i = renderedMessages.length - 1; i > lastUserIndex; i--) {
+      const m = renderedMessages[i]
       if (m?.role !== 'assistant') continue
       const part = m.parts.find(
         (p): p is StructuredOutputPart => p.type === 'structured-output',
@@ -243,7 +311,7 @@ export function useChat<
       if (part) return part
     }
     return null
-  }, [messages])
+  }, [renderedMessages])
 
   const partial = useMemo<Partial>(() => {
     if (!activeStructuredPart) return {} as Partial
@@ -263,7 +331,7 @@ export function useChat<
   // structurally narrow across that conditional, so the `as` is the seam.
   // eslint-disable-next-line no-restricted-syntax -- hook return shape diverges from generic UseChatReturn<TTools, TSchema> due to conditional type on TSchema; TS can't structurally narrow
   return {
-    messages,
+    messages: renderedMessages,
     sendMessage,
     append,
     reload,

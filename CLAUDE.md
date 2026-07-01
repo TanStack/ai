@@ -15,6 +15,9 @@ TanStack AI is a type-safe, provider-agnostic AI SDK for building AI-powered app
 - **Linting**: ESLint with custom TanStack config
 - **Formatting**: Prettier
 
+Run `pnpm install` before starting any task and again after every merge with
+`main`.
+
 ## Common Commands
 
 ### Testing
@@ -215,6 +218,34 @@ Each framework integration uses the headless `ai-client` under the hood.
 8. Format code: `pnpm format`
 9. Verify build: `pnpm test:build` or `pnpm build`
 
+### Pre-PR Quality Gate (MANDATORY)
+
+**Before committing, run the narrowest meaningful quality checks for your changes and confirm they pass locally. Before opening a PR or pushing changes intended for review, run the same checks CI runs.** If you make post-commit changes, rebase, or merge before pushing to a PR, rerun the relevant checks first.
+
+Use the repo-preferred package manager, scripts, and Nx targets where applicable. Do **not** commit or push while quality checks are failing unless the user explicitly instructs otherwise; report the exact failing command and failure instead.
+
+The single canonical command is:
+
+```bash
+pnpm test:pr
+```
+
+This runs the exact target set the `PR` workflow runs in CI (`nx affected --targets=test:sherif,test:knip,test:docs,test:eslint,test:lib,test:types,test:build,build --exclude=examples/**,testing/**`).
+
+If you can't run `test:pr` (e.g. it's too slow on your machine), at minimum run each of these and confirm they're green before pushing:
+
+- `pnpm test:sherif` — workspace consistency
+- `pnpm test:knip` — unused dependencies
+- `pnpm test:docs` — doc link verification
+- `pnpm test:eslint` — lint
+- `pnpm test:types` — typecheck
+- `pnpm test:lib` — unit tests
+- `pnpm test:build` — build artifact verification
+- `pnpm build` — build all affected packages
+- `pnpm --filter @tanstack/ai-e2e test:e2e` — E2E suite (mandatory for any behavior change; see E2E Testing)
+
+Do **not** rely on CI as your first signal. Run locally, fix, then push.
+
 ### Working with Examples
 
 Examples are not built by Nx. To run an example:
@@ -290,6 +321,29 @@ OPENAI_API_KEY=sk-... pnpm --filter @tanstack/ai-e2e record
 - Docs are in `docs/` directory (Markdown)
 - Auto-generated docs via `pnpm generate-docs` (TypeDoc)
 - Link verification via `pnpm test:docs`
+- **No `as` type-assertion casts in doc code samples.** Examples must
+  type-check without `as SomeType`. To use a value typed `unknown` (a raw
+  JSON Schema tool input, `request.json()`, `JSON.parse`, custom-event
+  values, etc.), narrow it with a `typeof` / `in` check or a type guard, or
+  validate it with a Standard Schema library — never `as`. (`as const` is
+  allowed; it's a const assertion, not a type cast.)
+- **Show both sides of the coin.** When a doc spans both server and client,
+  include snippets for **both** halves (the server endpoint AND the client
+  consumption), not just one.
+- **Use the latest model per provider in examples**, sourced from each
+  adapter's `model-meta.ts` (the newest `gpt-*`, `claude-*`, `gemini-*`,
+  etc.). Don't introduce superseded model ids in new or edited samples.
+- **Maintain `addedAt` / `updatedAt` on docs entries in `docs/config.json`.**
+  Every page entry carries an `addedAt` (ISO `YYYY-MM-DD`) and, once edited,
+  an `updatedAt`. When you touch a docs page, update its entry:
+  - **New page** → add the entry with `addedAt` set to today's date.
+  - **Content change** to an existing page (new section, new capability,
+    reworked guidance, new examples) → set/refresh `updatedAt` to today's
+    date.
+  - **Bug fixes don't bump anything.** Pure corrections — typos, broken
+    links, code-fence languages, formatting, factual fixes — must **not**
+    touch `addedAt` or `updatedAt`. Only genuinely new or changed content
+    moves these dates.
 
 ## Key Dependencies
 

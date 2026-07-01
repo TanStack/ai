@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { SpanKind, SpanStatusCode } from '@opentelemetry/api'
 import { otelMiddleware } from '../../src/middlewares/otel'
+import { usageAttributes } from '../../src/middlewares/usage-attributes'
 import {
   createFakeTracer,
   createFakeMeter,
@@ -8,12 +9,37 @@ import {
   makeToolCall,
   type FakeSpan,
 } from './fake-otel'
+import type { TokenUsage } from '../../src/types'
 import type {
   ChatMiddleware,
   ChatMiddlewareContext,
   ChatMiddlewareConfig,
 } from '../../src/activities/chat/middleware/types'
+import type {
+  GenerationActivity,
+  GenerationMiddlewareContext,
+} from '../../src/activities/middleware/types'
 import { ev } from '../test-utils'
+
+/**
+ * Build a minimal base GenerationMiddlewareContext for the media-activity unit
+ * tests below. Mirrors what `createGenerationContext` produces inside the media
+ * runners — only the fields otelMiddleware reads need realistic values.
+ */
+function makeGenCtx(
+  overrides: Partial<GenerationMiddlewareContext> = {},
+): GenerationMiddlewareContext {
+  return {
+    requestId: 'req-1',
+    activity: 'image',
+    provider: 'openai',
+    model: 'gpt-image-1',
+    source: 'server',
+    context: undefined,
+    createId: (prefix: string) => `${prefix}-1`,
+    ...overrides,
+  }
+}
 
 async function runToIterationStart(
   mw: ChatMiddleware,
@@ -70,9 +96,9 @@ describe('otelMiddleware — iteration span lifecycle', () => {
 
     await runToIterationStart(mw, ctx, {
       messages: [{ role: 'user', content: 'hi' }],
-      temperature: 0.7,
-      topP: 0.9,
-      maxTokens: 512,
+      // Provider-native spellings: OpenAI Responses uses snake_case `top_p`
+      // and `max_output_tokens`, not the camelCase `topP` / `maxTokens`.
+      modelOptions: { temperature: 0.7, top_p: 0.9, max_output_tokens: 512 },
     })
 
     const [rootSpan, iterSpan] = spans
@@ -81,6 +107,12 @@ describe('otelMiddleware — iteration span lifecycle', () => {
     expect(iterSpan!.name).toBe('chat gpt-4o #0')
     expect(iterSpan!.kind).toBe(SpanKind.CLIENT)
     expect(iterSpan!.ended).toBe(false)
+    // Sampling options are sourced from provider-native modelOptions, whose
+    // key spellings vary per provider. The middleware reads a union of known
+    // spellings so the gen_ai semantic attributes populate regardless.
+    expect(iterSpan!.attributes['gen_ai.request.temperature']).toBe(0.7)
+    expect(iterSpan!.attributes['gen_ai.request.top_p']).toBe(0.9)
+    expect(iterSpan!.attributes['gen_ai.request.max_tokens']).toBe(512)
 
     await mw.onChunk?.(ctx, { ...ev.runFinished('stop'), model: 'gpt-4o' })
     // The iteration span stays open across RUN_FINISHED so tool spans can
@@ -98,6 +130,45 @@ describe('otelMiddleware — iteration span lifecycle', () => {
     })
     expect(iterSpan!.ended).toBe(true)
     expect(rootSpan!.ended).toBe(true)
+  })
+
+  it('reads sampling attributes from Ollama-nested modelOptions.options', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeCtx()
+    ctx.phase = 'init'
+
+    await runToIterationStart(mw, ctx, {
+      messages: [{ role: 'user', content: 'hi' }],
+      // Ollama nests sampling under `options` and caps output via `num_predict`.
+      modelOptions: {
+        options: { temperature: 0.2, top_p: 0.8, num_predict: 256 },
+      },
+    })
+
+    const iterSpan = spans[1]
+    expect(iterSpan!.attributes['gen_ai.request.temperature']).toBe(0.2)
+    expect(iterSpan!.attributes['gen_ai.request.top_p']).toBe(0.8)
+    expect(iterSpan!.attributes['gen_ai.request.max_tokens']).toBe(256)
+  })
+
+  it('reads camelCase sampling spellings (Gemini/OpenRouter)', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeCtx()
+    ctx.phase = 'init'
+
+    await runToIterationStart(mw, ctx, {
+      messages: [{ role: 'user', content: 'hi' }],
+      // Gemini uses `topP` / `maxOutputTokens`; OpenRouter uses
+      // `maxCompletionTokens`.
+      modelOptions: { temperature: 0.5, topP: 0.95, maxOutputTokens: 1024 },
+    })
+
+    const iterSpan = spans[1]
+    expect(iterSpan!.attributes['gen_ai.request.temperature']).toBe(0.5)
+    expect(iterSpan!.attributes['gen_ai.request.top_p']).toBe(0.95)
+    expect(iterSpan!.attributes['gen_ai.request.max_tokens']).toBe(1024)
   })
 
   it('opens a fresh iteration span for each onConfig(beforeModel) and closes the previous one', async () => {
@@ -259,6 +330,147 @@ describe('otelMiddleware — duration histogram and rollup', () => {
     expect(root.attributes['gen_ai.usage.output_tokens']).toBe(50)
     expect(root.attributes['tanstack.ai.iterations']).toBe(1)
     expect(root.ended).toBe(true)
+  })
+})
+
+describe('otelMiddleware — full usage emission', () => {
+  // Everything `TokenUsage` carries beyond input/output tokens: cost,
+  // totals, cache/reasoning breakdowns, duration-based billing, and the
+  // upstream cost split. Backends like PostHog consume `gen_ai.usage.cost`
+  // directly; without it they re-derive cost from their own price tables
+  // and lose cache discounts / gateway markup (OpenRouter).
+  const fullUsage = {
+    promptTokens: 100,
+    completionTokens: 50,
+    totalTokens: 165,
+    promptTokensDetails: { cachedTokens: 80, cacheWriteTokens: 10 },
+    completionTokensDetails: { reasoningTokens: 15 },
+    durationSeconds: 2.5,
+    cost: 0.0123,
+    costDetails: {
+      upstreamCost: 0.01,
+      upstreamInputCost: 0.004,
+      upstreamOutputCost: 0.006,
+    },
+  }
+
+  const expectFullUsageAttrs = (span: FakeSpan) => {
+    expect(span.attributes['gen_ai.usage.input_tokens']).toBe(100)
+    expect(span.attributes['gen_ai.usage.output_tokens']).toBe(50)
+    expect(span.attributes['gen_ai.usage.total_tokens']).toBe(165)
+    expect(span.attributes['gen_ai.usage.cost']).toBe(0.0123)
+    expect(span.attributes['gen_ai.usage.cache_read.input_tokens']).toBe(80)
+    expect(span.attributes['gen_ai.usage.cache_creation.input_tokens']).toBe(10)
+    expect(span.attributes['gen_ai.usage.reasoning.output_tokens']).toBe(15)
+    expect(span.attributes['tanstack.ai.usage.duration_seconds']).toBe(2.5)
+    expect(span.attributes['tanstack.ai.usage.upstream_cost']).toBe(0.01)
+    expect(span.attributes['tanstack.ai.usage.upstream_input_cost']).toBe(0.004)
+    expect(span.attributes['tanstack.ai.usage.upstream_output_cost']).toBe(
+      0.006,
+    )
+  }
+
+  it('emits cost, totals, and detail breakdowns from RUN_FINISHED chunk.usage', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeCtx()
+
+    await runToIterationStart(mw, ctx)
+    await mw.onChunk?.(ctx, {
+      ...ev.runFinished('stop'),
+      model: 'gpt-4o',
+      usage: fullUsage,
+    })
+
+    expectFullUsageAttrs(spans[1]!)
+  })
+
+  it('emits cost, totals, and detail breakdowns from onUsage', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeCtx()
+
+    await runToIterationStart(mw, ctx)
+    await mw.onUsage?.(ctx, fullUsage)
+
+    expectFullUsageAttrs(spans[1]!)
+  })
+
+  it('rolls up cost, totals, and detail breakdowns onto the root span on onFinish', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeCtx()
+
+    await runToIterationStart(mw, ctx)
+    await mw.onChunk?.(ctx, { ...ev.runFinished('stop'), model: 'gpt-4o' })
+    await mw.onFinish?.(ctx, {
+      finishReason: 'stop',
+      duration: 1250,
+      content: '',
+      usage: fullUsage,
+    })
+
+    expectFullUsageAttrs(spans[0]!)
+  })
+
+  it('omits optional usage attributes when the provider does not report them', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeCtx()
+
+    await runToIterationStart(mw, ctx)
+    await mw.onUsage?.(ctx, {
+      promptTokens: 100,
+      completionTokens: 50,
+      totalTokens: 150,
+    })
+
+    const span = spans[1]!
+    expect(span.attributes['gen_ai.usage.input_tokens']).toBe(100)
+    expect(span.attributes['gen_ai.usage.output_tokens']).toBe(50)
+    expect(span.attributes['gen_ai.usage.total_tokens']).toBe(150)
+    expect(span.attributes['gen_ai.usage.cost']).toBeUndefined()
+    expect(
+      span.attributes['gen_ai.usage.cache_read.input_tokens'],
+    ).toBeUndefined()
+    expect(
+      span.attributes['gen_ai.usage.cache_creation.input_tokens'],
+    ).toBeUndefined()
+    expect(
+      span.attributes['gen_ai.usage.reasoning.output_tokens'],
+    ).toBeUndefined()
+    expect(
+      span.attributes['tanstack.ai.usage.duration_seconds'],
+    ).toBeUndefined()
+    expect(span.attributes['tanstack.ai.usage.upstream_cost']).toBeUndefined()
+    expect(
+      span.attributes['tanstack.ai.usage.upstream_input_cost'],
+    ).toBeUndefined()
+    expect(
+      span.attributes['tanstack.ai.usage.upstream_output_cost'],
+    ).toBeUndefined()
+  })
+
+  it('emits zero-valued usage fields instead of dropping them', async () => {
+    // cost 0 is a real report (OpenRouter free models), and the OpenRouter
+    // extractor deliberately preserves it. Pin that the presence guard is
+    // `!== undefined`, not truthiness — a truthy guard would drop zeros.
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeCtx()
+
+    await runToIterationStart(mw, ctx)
+    await mw.onUsage?.(ctx, {
+      promptTokens: 100,
+      completionTokens: 50,
+      totalTokens: 150,
+      cost: 0,
+      promptTokensDetails: { cachedTokens: 0 },
+    })
+
+    const span = spans[1]!
+    expect(span.attributes['gen_ai.usage.cost']).toBe(0)
+    expect(span.attributes['gen_ai.usage.cache_read.input_tokens']).toBe(0)
   })
 })
 
@@ -814,7 +1026,8 @@ describe('otelMiddleware — extension points', () => {
       spanNameFormatter: (info) => {
         if (info.kind === 'chat') return 'my-chat'
         if (info.kind === 'iteration') return `iter-${info.iteration}`
-        return `tool-${info.toolName}`
+        if (info.kind === 'tool') return `tool-${info.toolName}`
+        return `generation-${info.ctx.activity}`
       },
     })
     const ctx = makeCtx({ hasTools: true })
@@ -938,5 +1151,188 @@ describe('otelMiddleware — extension points', () => {
       )
       expect(call).toBeDefined()
     })
+  })
+})
+
+describe('otelMiddleware — media activities', () => {
+  it('opens a CLIENT span with gen_ai attributes on start', () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+
+    mw.onStart?.(makeGenCtx())
+
+    expect(spans).toHaveLength(1)
+    const span = spans[0]!
+    expect(span.kind).toBe(SpanKind.CLIENT)
+    expect(span.name).toBe('image_generation gpt-image-1')
+    expect(span.attributes['gen_ai.system']).toBe('openai')
+    expect(span.attributes['gen_ai.operation.name']).toBe('image_generation')
+    expect(span.attributes['gen_ai.request.model']).toBe('gpt-image-1')
+    expect(span.ended).toBe(false)
+  })
+
+  it('maps each media activity to the right gen_ai.operation.name', () => {
+    const cases: Array<[GenerationActivity, string]> = [
+      ['image', 'image_generation'],
+      ['video', 'video_generation'],
+      ['audio', 'audio_generation'],
+      ['tts', 'text_to_speech'],
+      ['transcription', 'transcription'],
+    ]
+    for (const [activity, operation] of cases) {
+      const { tracer, spans } = createFakeTracer()
+      const mw = otelMiddleware({ tracer })
+      mw.onStart?.(makeGenCtx({ activity }))
+      expect(spans[0]!.attributes['gen_ai.operation.name']).toBe(operation)
+    }
+  })
+
+  it('attaches usage attributes, ends the span, and records duration on finish', () => {
+    const { tracer, spans } = createFakeTracer()
+    const { meter, records } = createFakeMeter()
+    const mw = otelMiddleware({ tracer, meter })
+    const ctx = makeGenCtx()
+    const usage: TokenUsage = {
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      unitsBilled: 1,
+      cost: 0.04,
+    }
+
+    mw.onStart?.(ctx)
+    mw.onUsage?.(ctx, usage)
+    mw.onFinish?.(ctx, { duration: 1500, usage })
+
+    const span = spans[0]!
+    expect(span.ended).toBe(true)
+    expect(span.attributes['gen_ai.usage.cost']).toBe(0.04)
+    expect(span.attributes['tanstack.ai.usage.units_billed']).toBe(1)
+
+    // Media records the duration histogram but NOT the chat token histogram.
+    expect(records).toHaveLength(1)
+    expect(records[0]!.name).toBe('gen_ai.client.operation.duration')
+    expect(records[0]!.value).toBe(1.5)
+    expect(records[0]!.attributes?.['gen_ai.operation.name']).toBe(
+      'image_generation',
+    )
+  })
+
+  it('finishes cleanly when no usage is reported', () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeGenCtx({ activity: 'video', model: 'sora-2' })
+
+    mw.onStart?.(ctx)
+    mw.onFinish?.(ctx, { duration: 10 })
+
+    expect(spans[0]!.ended).toBe(true)
+    expect(spans[0]!.attributes['gen_ai.usage.cost']).toBeUndefined()
+  })
+
+  it('records the exception, ERROR status, and error.type on error', () => {
+    const { tracer, spans } = createFakeTracer()
+    const { meter, records } = createFakeMeter()
+    const mw = otelMiddleware({ tracer, meter })
+    const ctx = makeGenCtx()
+
+    mw.onStart?.(ctx)
+    const error = new TypeError('boom')
+    mw.onError?.(ctx, { error, duration: 200 })
+
+    const span = spans[0]!
+    expect(span.ended).toBe(true)
+    expect(span.status.code).toBe(SpanStatusCode.ERROR)
+    expect(span.status.message).toBe('boom')
+    expect(span.exceptions[0]!.exception).toBe(error)
+    expect(records[0]!.attributes?.['error.type']).toBe('TypeError')
+  })
+
+  it('ends the span as cancelled on abort (e.g. an abandoned video stream)', () => {
+    const { tracer, spans } = createFakeTracer()
+    const { meter, records } = createFakeMeter()
+    const mw = otelMiddleware({ tracer, meter })
+    const ctx = makeGenCtx({ activity: 'video', model: 'sora-2' })
+
+    mw.onStart?.(ctx)
+    mw.onAbort?.(ctx, { reason: 'stream abandoned', duration: 50 })
+
+    const span = spans[0]!
+    expect(span.ended).toBe(true)
+    expect(span.status.code).toBe(SpanStatusCode.ERROR)
+    expect(span.status.message).toBe('stream abandoned')
+    expect(span.attributes['tanstack.ai.completion.reason']).toBe('cancelled')
+    expect(records[0]!.attributes?.['error.type']).toBe('cancelled')
+  })
+
+  it('keys spans by the context object so concurrent calls do not collide', () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctxA = makeGenCtx({ model: 'model-a' })
+    const ctxB = makeGenCtx({ model: 'model-b' })
+
+    mw.onStart?.(ctxA)
+    mw.onStart?.(ctxB)
+    // Finish B first — must end the model-b span, not model-a.
+    mw.onFinish?.(ctxB, { duration: 5 })
+
+    const spanA = spans.find(
+      (s) => s.attributes['gen_ai.request.model'] === 'model-a',
+    )!
+    const spanB = spans.find(
+      (s) => s.attributes['gen_ai.request.model'] === 'model-b',
+    )!
+    expect(spanB.ended).toBe(true)
+    expect(spanA.ended).toBe(false)
+  })
+
+  it('applies spanNameFormatter and attributeEnricher for the generation kind', () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({
+      tracer,
+      spanNameFormatter: (info) =>
+        info.kind === 'generation' ? `custom:${info.ctx.activity}` : 'other',
+      attributeEnricher: () => ({ 'app.tenant': 'acme' }),
+    })
+
+    mw.onStart?.(makeGenCtx())
+    expect(spans[0]!.name).toBe('custom:image')
+    expect(spans[0]!.attributes['app.tenant']).toBe('acme')
+  })
+
+  it('keeps the span when a formatter throws', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({
+      tracer,
+      spanNameFormatter: () => {
+        throw new Error('formatter broke')
+      },
+    })
+
+    mw.onStart?.(makeGenCtx())
+    // Falls back to the default name instead of losing the span.
+    expect(spans).toHaveLength(1)
+    expect(spans[0]!.name).toBe('image_generation gpt-image-1')
+    warn.mockRestore()
+  })
+})
+
+describe('usageAttributes', () => {
+  it('emits guarded media + cost fields, omitting absent ones', () => {
+    const usage: TokenUsage = {
+      promptTokens: 10,
+      completionTokens: 0,
+      totalTokens: 10,
+      durationSeconds: 12.5,
+      unitsBilled: 3,
+    }
+    const attrs = usageAttributes(usage)
+
+    expect(attrs['gen_ai.usage.input_tokens']).toBe(10)
+    expect(attrs['tanstack.ai.usage.duration_seconds']).toBe(12.5)
+    expect(attrs['tanstack.ai.usage.units_billed']).toBe(3)
+    // No cost reported → key absent.
+    expect('gen_ai.usage.cost' in attrs).toBe(false)
   })
 })

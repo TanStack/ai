@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/preact-ai-devtools",
-  "version": "0.1.42",
+  "version": "0.1.63",
   "description": "Preact Devtools plugin for inspecting TanStack AI chat messages, tool calls, streams, and errors.",
   "author": "tannerlinsley",
   "license": "MIT",
@@ -9,6 +9,9 @@
     "type": "git",
     "url": "git+https://github.com/TanStack/ai.git",
     "directory": "packages/preact-ai-devtools"
+  },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
   },
   "funding": {
     "type": "github",

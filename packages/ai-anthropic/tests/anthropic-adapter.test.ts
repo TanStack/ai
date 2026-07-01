@@ -287,6 +287,8 @@ describe('Anthropic adapter option mapping', () => {
       stop_sequences: ['</done>'],
       thinking: { type: 'enabled', budget_tokens: 1500 },
       top_k: 5,
+      max_tokens: 3000,
+      temperature: 0.4,
     } satisfies AnthropicTextProviderOptions
 
     const adapter = createAdapter('claude-3-7-sonnet')
@@ -311,8 +313,6 @@ describe('Anthropic adapter option mapping', () => {
         { role: 'tool', toolCallId: 'call_weather', content: '{"temp":72}' },
       ],
       tools: [weatherTool],
-      maxTokens: 3000,
-      temperature: 0.4,
       modelOptions: providerOptions,
     })) {
       chunks.push(chunk)
@@ -367,6 +367,97 @@ describe('Anthropic adapter option mapping', () => {
       name: 'lookup_weather',
       type: 'custom',
     })
+  })
+
+  it('sources temperature and max_tokens from modelOptions', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
+
+    const adapter = createAdapter('claude-3-7-sonnet')
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+      modelOptions: {
+        temperature: 0.4,
+        max_tokens: 2048,
+      } satisfies AnthropicTextProviderOptions,
+    })) {
+      // consume stream
+    }
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+    expect(payload.temperature).toBe(0.4)
+    expect(payload.max_tokens).toBe(2048)
+  })
+
+  it('does not warn about dropped keys when max_tokens is passed via modelOptions', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
+
+    const adapter = createAdapter('claude-3-7-sonnet')
+
+    const logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+      modelOptions: {
+        max_tokens: 2048,
+      } satisfies AnthropicTextProviderOptions,
+      debug: { logger, errors: true },
+    })) {
+      // consume stream
+    }
+
+    // max_tokens is read via the dedicated defaultMaxTokens path; it must not
+    // be flagged as an unknown/dropped modelOptions key.
+    const droppedKeyError = logger.error.mock.calls.find((call) =>
+      String(call[0]).includes('dropped unknown modelOptions key'),
+    )
+    expect(droppedKeyError).toBeUndefined()
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+    expect(payload.max_tokens).toBe(2048)
+  })
+
+  it('sources top_p from modelOptions', async () => {
+    // top_p is mutually exclusive with temperature, so exercise it alone.
+    mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
+
+    const adapter = createAdapter('claude-3-7-sonnet')
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+      modelOptions: {
+        top_p: 0.7,
+      } satisfies AnthropicTextProviderOptions,
+    })) {
+      // consume stream
+    }
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+    expect(payload.top_p).toBe(0.7)
+  })
+
+  it('defaults max_tokens to 1024 when not provided via modelOptions', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
+
+    const adapter = createAdapter('claude-3-7-sonnet')
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+    })) {
+      // consume stream
+    }
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+    expect(payload.max_tokens).toBe(1024)
   })
 
   it('native combined mode (#605): wires outputSchema into output_format alongside tools on Claude 4.5+', async () => {
@@ -1293,5 +1384,105 @@ describe('Anthropic stream processing', () => {
     expect(runFinished[0]).toMatchObject({
       type: 'RUN_FINISHED',
     })
+  })
+
+  it('emits parentMessageId on tool-first tool call chunks', async () => {
+    const mockStream = (async function* () {
+      yield {
+        type: 'content_block_start',
+        index: 0,
+        content_block: {
+          type: 'tool_use',
+          id: 'toolu_weather',
+          name: 'lookup_weather',
+          input: {},
+        },
+      }
+      yield {
+        type: 'content_block_delta',
+        index: 0,
+        delta: {
+          type: 'input_json_delta',
+          partial_json: '{"location":"Berlin"}',
+        },
+      }
+      yield { type: 'content_block_stop', index: 0 }
+      yield {
+        type: 'content_block_start',
+        index: 1,
+        content_block: { type: 'text', text: '' },
+      }
+      yield {
+        type: 'content_block_delta',
+        index: 1,
+        delta: { type: 'text_delta', text: 'It is sunny.' },
+      }
+      yield { type: 'content_block_stop', index: 1 }
+      yield {
+        type: 'message_delta',
+        delta: { stop_reason: 'end_turn' },
+        usage: { output_tokens: 7 },
+      }
+      yield { type: 'message_stop' }
+    })()
+
+    mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
+
+    const adapter = createAdapter('claude-3-7-sonnet')
+
+    const chunks: StreamChunk[] = []
+    for await (const chunk of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'What is the weather in Berlin?' }],
+      tools: [weatherTool],
+    })) {
+      chunks.push(chunk)
+    }
+
+    const textStart = chunks.find(
+      (chunk): chunk is Extract<StreamChunk, { type: 'TEXT_MESSAGE_START' }> =>
+        chunk.type === 'TEXT_MESSAGE_START',
+    )
+    const toolStart = chunks.find(
+      (chunk): chunk is Extract<StreamChunk, { type: 'TOOL_CALL_START' }> =>
+        chunk.type === 'TOOL_CALL_START',
+    )
+
+    expect(textStart).toBeDefined()
+    expect(toolStart).toBeDefined()
+    expect(toolStart?.parentMessageId).toBe(textStart?.messageId)
+  })
+})
+
+describe('Anthropic adapter error handling', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it("forwards the SDK error's `.error` body as RUN_ERROR.rawEvent", async () => {
+    const providerBody = { type: 'rate_limit_error', message: 'slow down' }
+    mocks.betaMessagesCreate.mockRejectedValueOnce(
+      Object.assign(new Error('429'), {
+        status: 429,
+        error: providerBody,
+      }),
+    )
+
+    const adapter = createAdapter('claude-3-7-sonnet')
+    const chunks: StreamChunk[] = []
+    for await (const chunk of adapter.chatStream({
+      model: 'claude-3-7-sonnet',
+      messages: [{ role: 'user', content: 'hi' }],
+      logger: { request: () => {}, errors: () => {} } as any,
+    })) {
+      chunks.push(chunk)
+    }
+
+    const runError = chunks.find((c) => c.type === 'RUN_ERROR')
+    expect(runError).toBeDefined()
+    if (runError?.type === 'RUN_ERROR') {
+      expect(runError.rawEvent).toEqual(providerBody)
+      expect(runError.code).toBe('429')
+    }
   })
 })

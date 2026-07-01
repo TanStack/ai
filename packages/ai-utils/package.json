@@ -1,13 +1,21 @@
 {
   "name": "@tanstack/ai-utils",
-  "version": "0.2.1",
+  "version": "0.3.1",
   "description": "Shared TypeScript utilities for TanStack AI provider adapters and runtime packages.",
-  "author": "",
+  "author": "Tanner Linsley",
   "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/TanStack/ai.git",
     "directory": "packages/ai-utils"
+  },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
   },
   "type": "module",
   "module": "./dist/esm/index.js",

@@ -9,24 +9,48 @@ import { createOpenRouterSummarize } from '@tanstack/ai-openrouter'
 import type { Provider } from '@/lib/types'
 
 const LLMOCK_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
-const LLMOCK_OPENAI = `${LLMOCK_BASE}/v1`
 const DUMMY_KEY = 'sk-e2e-test-dummy-key'
 
-function createSummarizeAdapter(provider: Provider) {
+function llmockBase(aimockPort?: number): string {
+  if (aimockPort) return `http://127.0.0.1:${aimockPort}`
+  return LLMOCK_BASE
+}
+
+function openaiUrl(aimockPort?: number): string {
+  return `${llmockBase(aimockPort)}/v1`
+}
+
+function testHeaders(testId?: string): Record<string, string> | undefined {
+  return testId ? { 'X-Test-Id': testId } : undefined
+}
+
+function createSummarizeAdapter(
+  provider: Provider,
+  aimockPort?: number,
+  testId?: string,
+) {
+  const headers = testHeaders(testId)
   const factories: Record<string, () => any> = {
     openai: () =>
-      createOpenaiSummarize('gpt-4o', DUMMY_KEY, { baseURL: LLMOCK_OPENAI }),
+      createOpenaiSummarize('gpt-4o', DUMMY_KEY, {
+        baseURL: openaiUrl(aimockPort),
+        defaultHeaders: headers,
+      }),
     anthropic: () =>
       createAnthropicSummarize('claude-sonnet-4-5', DUMMY_KEY, {
-        baseURL: LLMOCK_BASE,
+        baseURL: llmockBase(aimockPort),
+        defaultHeaders: headers,
       }),
     gemini: () =>
-      createGeminiSummarize(DUMMY_KEY, 'gemini-2.0-flash', {
-        httpOptions: { baseUrl: LLMOCK_BASE },
+      createGeminiSummarize(DUMMY_KEY, 'gemini-2.5-flash', {
+        httpOptions: { baseUrl: llmockBase(aimockPort), headers },
       }),
-    ollama: () => createOllamaSummarize('mistral', LLMOCK_BASE),
+    ollama: () => createOllamaSummarize('mistral', llmockBase(aimockPort)),
     grok: () =>
-      createGrokSummarize('grok-3', DUMMY_KEY, { baseURL: LLMOCK_OPENAI }),
+      createGrokSummarize('grok-build-0.1', DUMMY_KEY, {
+        baseURL: openaiUrl(aimockPort),
+        defaultHeaders: headers,
+      }),
     // Both OpenRouter provider rows use the OpenRouter summarize adapter:
     // `createOpenRouterSummarize` wraps the OpenRouter chat-completions
     // text adapter regardless of whether the caller selected the Chat
@@ -34,11 +58,13 @@ function createSummarizeAdapter(provider: Provider) {
     // matrix entries.
     openrouter: () =>
       createOpenRouterSummarize('openai/gpt-4o', DUMMY_KEY, {
-        serverURL: LLMOCK_OPENAI,
+        serverURL: openaiUrl(aimockPort),
+        headers,
       }),
     'openrouter-responses': () =>
       createOpenRouterSummarize('openai/gpt-4o', DUMMY_KEY, {
-        serverURL: LLMOCK_OPENAI,
+        serverURL: openaiUrl(aimockPort),
+        headers,
       }),
   }
   return factories[provider]?.()
@@ -50,10 +76,23 @@ export const Route = createFileRoute('/api/summarize')({
       POST: async ({ request }) => {
         await import('@/lib/llmock-server').then((m) => m.ensureLLMock())
         const body = await request.json()
-        const { text, provider, stream: shouldStream } = body
+        const data = body.forwardedProps ?? body.data ?? body
+        const {
+          text,
+          provider,
+          stream: shouldStream,
+          testId,
+          aimockPort,
+        } = data as {
+          text: string
+          provider: Provider
+          stream?: boolean
+          testId?: string
+          aimockPort?: number
+        }
 
         try {
-          const adapter = createSummarizeAdapter(provider)
+          const adapter = createSummarizeAdapter(provider, aimockPort, testId)
           if (!adapter) {
             return new Response(
               JSON.stringify({

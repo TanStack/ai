@@ -5,6 +5,7 @@
 **/coverage
 **/dist
 **/docs
+packages/ai-fal/src/image/generated/
 pnpm-lock.yaml
 
 .angular

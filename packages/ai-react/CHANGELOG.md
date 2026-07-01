@@ -1,5 +1,324 @@
 # @tanstack/ai-react
 
+## 0.16.2
+
+### Patch Changes
+
+- [#772](https://github.com/TanStack/ai/pull/772) [`00505fe`](https://github.com/TanStack/ai/commit/00505fe6acdbafdd490ba1c903991e067384e0c7) - Restructure the `@tanstack/ai-react/mcp-apps` entry so its source is resolvable by the docs snippet type-checker: the JSX implementation moves to `mcp-app-resource.tsx` and `mcp-apps.ts` re-exports it. Public exports (`MCPAppResource`, `MCPAppResourceProps`) and the subpath are unchanged.
+
+## 0.16.1
+
+### Patch Changes
+
+- Updated dependencies [[`b628a4d`](https://github.com/TanStack/ai/commit/b628a4da5fd21184922c6944059768d1ed6071d4), [`b628a4d`](https://github.com/TanStack/ai/commit/b628a4da5fd21184922c6944059768d1ed6071d4)]:
+  - @tanstack/ai@0.39.0
+  - @tanstack/ai-client@0.19.1
+
+## 0.16.0
+
+### Minor Changes
+
+- [#810](https://github.com/TanStack/ai/pull/810) [`33acdd4`](https://github.com/TanStack/ai/commit/33acdd4df4aef13d594700d9b52087252091bd40) - Add `AudioRecorder` (`@tanstack/ai-client`) and framework hooks for recording an
+  audio message in the browser: `useAudioRecorder` (React/Solid/Vue),
+  `createAudioRecorder` (Svelte), and `injectAudioRecorder` (Angular). The
+  recording exposes a ready-to-use audio content part (`.part`) for `sendMessage`
+  and base64 (`.base64`) for the generation hooks. Native recorder output
+  (webm/mp4), no transcoding, no new dependency.
+
+  Each hook also returns a reactive `recording` field — the latest resolved
+  recording (`AudioRecording | null`), available without awaiting `stop()`. Pass
+  `onComplete: (recording) => T | Promise<T>` to transform the output: `stop()`
+  then resolves to `T` and `recording` becomes `T | null`. Omitting `onComplete`
+  keeps the raw `AudioRecording`.
+
+- [#843](https://github.com/TanStack/ai/pull/843) [`c1a8732`](https://github.com/TanStack/ai/commit/c1a87327b4a3463d37158f32ca90184b5fd092bb) - feat: MCP Apps support — render interactive `ui://` widgets served by MCP servers
+
+  Adds support for the ratified [MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview) standard, letting MCP server tools return interactive UI widgets that render in the chat.
+  - **`@tanstack/ai`** — MCP tool results that link a `ui://` resource (via `_meta.ui.resourceUri`) now surface as a new `UIResourcePart` on the assistant `UIMessage` (carried as an AG-UI `CUSTOM` event). The widget never enters model input. The `ui://` resource is read eagerly during the run, fail-soft.
+  - **`@tanstack/ai-mcp`** — tool discovery now captures `serverId` + the UI resource link; `MCPClient` gains a public `callTool` and `getInfo()` (returns the client's transport descriptor); `MCPClients` gains `getServers()` (returns all pool entries' descriptors). New `@tanstack/ai-mcp/apps` subpath exports `createMcpAppCallHandler` — a server-side tool-call proxy for interactive widgets that takes the MCP client(s)/pool you already created (`clients: MCPClient | MCPClients | Array<MCPClient | MCPClients>`), reads each client's transport descriptor via `MCPClient.getInfo()` / `MCPClients.getServers()` (pure config, no live socket required), and **reconnects per call** (stateless, serverless-safe by default, same-server allowlist). Also exports an in-memory `McpSessionStore` seam for stateful transports.
+  - **`@tanstack/ai-client`** — `createMcpAppBridge`, a framework-agnostic bridge routing widget tool-calls to the call handler, follow-up prompts into the chat, and blocking links unless a handler is supplied.
+  - **`@tanstack/ai-react` / `@tanstack/ai-preact`** — a `MCPAppResource` component (new `./mcp-apps` subpath) that renders a `UIResourcePart` via `@mcp-ui/client`'s `AppRenderer` (optional peer dependency), wired to the bridge. Plus a `useMcpAppBridge` hook (main entry) that returns a stable `createMcpAppBridge` for a given `threadId`/`callEndpoint` while always calling the latest `sendMessage`/`onLink`.
+
+  Persistence is intentionally out of scope (in-memory seams only); Solid/Vue/Svelte/Angular renderers are deferred (the renderer SDK is currently React-only).
+
+### Patch Changes
+
+- [#856](https://github.com/TanStack/ai/pull/856) [`c22c663`](https://github.com/TanStack/ai/commit/c22c6632fdca761033cb9c4273bf61fc8ce86662) - Fix `onResult` transform type inference on the generation hooks across every
+  framework package — the base generation hook plus `generateImage`,
+  `generateAudio`, `generateSpeech`, `generateVideo`, `transcription`, and
+  `summarize` (React `use*`, Vue `use*`, Solid `use*`, Svelte `create*`, and
+  Angular `inject*`).
+
+  The hooks declared the `onResult` transform via a single defaulted type
+  parameter inferred from an optional nested property, which TypeScript collapses
+  to its default — leaving the callback parameter typed `any` (a hard error under
+  `strict`) and never narrowing `result` to the transform's return type. The
+  hooks now infer the transform type from the `onResult` return position (a
+  covariant inference site that works for an optional nested property), so the
+  callback parameter is typed as the raw result and `result` narrows to the
+  transform's return type; omitting the transform keeps the raw result type. See
+  issue [#848](https://github.com/TanStack/ai/issues/848).
+
+- Updated dependencies [[`33acdd4`](https://github.com/TanStack/ai/commit/33acdd4df4aef13d594700d9b52087252091bd40), [`c1a8732`](https://github.com/TanStack/ai/commit/c1a87327b4a3463d37158f32ca90184b5fd092bb)]:
+  - @tanstack/ai-client@0.19.0
+  - @tanstack/ai@0.38.0
+
+## 0.15.15
+
+### Patch Changes
+
+- [#844](https://github.com/TanStack/ai/pull/844) [`a6cceba`](https://github.com/TanStack/ai/commit/a6cceba4812e7e986183ee856112fcf5f8fa12ff) - Republish all packages with their compiled `dist/` output.
+
+  Releases `0.33.0`–`0.36.0` were published without a `dist/` directory: the
+  release workflow relied on an Nx-cached `build` whose outputs were not
+  materialized to disk before `changeset publish` packed the tarballs, and
+  `files: ["dist"]` silently includes nothing when `dist/` is absent. The
+  published packages therefore contained only `src/`, so every export
+  (`./dist/esm/*.js`) resolved to a missing file and the packages were
+  uninstallable.
+
+  The publish step now runs a fresh, cache-bypassing build of all packages
+  immediately before publishing, guaranteeing compiled artifacts are present in
+  every tarball.
+
+- Updated dependencies [[`a6cceba`](https://github.com/TanStack/ai/commit/a6cceba4812e7e986183ee856112fcf5f8fa12ff)]:
+  - @tanstack/ai@0.37.0
+  - @tanstack/ai-client@0.18.6
+
+## 0.15.14
+
+### Patch Changes
+
+- Updated dependencies [[`fbd3762`](https://github.com/TanStack/ai/commit/fbd37623b287e370aa5678e161dec19cf13ae33b)]:
+  - @tanstack/ai@0.36.0
+  - @tanstack/ai-client@0.18.5
+
+## 0.15.13
+
+### Patch Changes
+
+- Updated dependencies [[`c04abd3`](https://github.com/TanStack/ai/commit/c04abd35284d464d830bb9f15129c7a7c2533d3f)]:
+  - @tanstack/ai@0.35.0
+  - @tanstack/ai-client@0.18.4
+
+## 0.15.12
+
+### Patch Changes
+
+- Updated dependencies [[`540cbf1`](https://github.com/TanStack/ai/commit/540cbf18a2f7d6c07b44f7f4da0ac3873c0d2581), [`4188693`](https://github.com/TanStack/ai/commit/4188693d09297ce400eb1ba5fab30cfea2fdb8a6)]:
+  - @tanstack/ai-client@0.18.3
+  - @tanstack/ai@0.34.1
+
+## 0.15.11
+
+### Patch Changes
+
+- Updated dependencies [[`31de22b`](https://github.com/TanStack/ai/commit/31de22b1ae780c53e3abbf9cf17e1db7b62de84a)]:
+  - @tanstack/ai@0.34.0
+  - @tanstack/ai-client@0.18.2
+
+## 0.15.10
+
+### Patch Changes
+
+- Updated dependencies [[`2cb0313`](https://github.com/TanStack/ai/commit/2cb0313c1f13e1db37c5550308e36bb0b9b73b98), [`18e5f4d`](https://github.com/TanStack/ai/commit/18e5f4d9746a26c3194929ea4b49673728e8eaa5), [`21720dd`](https://github.com/TanStack/ai/commit/21720dd73524d624594a6dfb7e4669c03cc08af0), [`243b8fa`](https://github.com/TanStack/ai/commit/243b8fad7e8a48b68a1a96962ee1443cbd6a0ced)]:
+  - @tanstack/ai@0.33.0
+  - @tanstack/ai-client@0.18.1
+
+## 0.15.9
+
+### Patch Changes
+
+- Updated dependencies [[`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f), [`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f)]:
+  - @tanstack/ai@0.32.0
+  - @tanstack/ai-client@0.18.0
+
+## 0.15.8
+
+### Patch Changes
+
+- Updated dependencies [[`07aaf8b`](https://github.com/TanStack/ai/commit/07aaf8b9e5a8e699be25f936cc9cd651a46c16c5)]:
+  - @tanstack/ai@0.31.0
+  - @tanstack/ai-client@0.17.3
+
+## 0.15.7
+
+### Patch Changes
+
+- Updated dependencies [[`4d5141c`](https://github.com/TanStack/ai/commit/4d5141c128c0e9bd33cdbf36a5402811cefc3f8b)]:
+  - @tanstack/ai-client@0.17.2
+
+## 0.15.6
+
+### Patch Changes
+
+- [#769](https://github.com/TanStack/ai/pull/769) [`1d1bb52`](https://github.com/TanStack/ai/commit/1d1bb5219a38d9718cc926148e93fc27d5d2305b) - Add repository metadata (`homepage`, `bugs`, `funding`), fix `repository.directory` to point at each package, and include an MIT `LICENSE` file in every published package.
+
+- Updated dependencies [[`7103348`](https://github.com/TanStack/ai/commit/71033488212bff05dcccc857e721ab9262ebc2a6), [`1d1bb52`](https://github.com/TanStack/ai/commit/1d1bb5219a38d9718cc926148e93fc27d5d2305b)]:
+  - @tanstack/ai@0.30.0
+  - @tanstack/ai-client@0.17.1
+
+## 0.15.5
+
+### Patch Changes
+
+- Updated dependencies [[`ff267a5`](https://github.com/TanStack/ai/commit/ff267a5536327b006979f9f28ce2df7cc27f6e23), [`570c08a`](https://github.com/TanStack/ai/commit/570c08a8d1a35746c3d31a63188249cba2d2475a), [`22c9b42`](https://github.com/TanStack/ai/commit/22c9b42baec74914b720e440f29bd02be04eb164), [`215b6b4`](https://github.com/TanStack/ai/commit/215b6b401aa95d1d38da342aa09603cb1d616929), [`7d44569`](https://github.com/TanStack/ai/commit/7d445693ea079d7a85498a4465179ddd5f548cb0)]:
+  - @tanstack/ai@0.29.0
+  - @tanstack/ai-client@0.17.0
+
+## 0.15.4
+
+### Patch Changes
+
+- Updated dependencies [[`496e814`](https://github.com/TanStack/ai/commit/496e8143435746965b10e0bbd12f26ebf04ae2a6), [`c0af426`](https://github.com/TanStack/ai/commit/c0af4262d269be67c69d6f878d9618f25fdeee19), [`00e0c93`](https://github.com/TanStack/ai/commit/00e0c932e6cb5e31f75f4b5e94486d7eb02b9ce1), [`496e814`](https://github.com/TanStack/ai/commit/496e8143435746965b10e0bbd12f26ebf04ae2a6)]:
+  - @tanstack/ai@0.28.0
+  - @tanstack/ai-client@0.16.3
+
+## 0.15.3
+
+### Patch Changes
+
+- [#689](https://github.com/TanStack/ai/pull/689) [`d5cb4b9`](https://github.com/TanStack/ai/commit/d5cb4b9445c5b97b06a7fc224dd2c3a92f0e802a) - Forward `threadId` option to `ChatClient` in all framework wrappers
+
+## 0.15.2
+
+### Patch Changes
+
+- Updated dependencies [[`6df32b5`](https://github.com/TanStack/ai/commit/6df32b53026673d159e6df0892ce89effcb5c7b8)]:
+  - @tanstack/ai@0.27.0
+  - @tanstack/ai-client@0.16.2
+
+## 0.15.1
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai@0.26.1
+  - @tanstack/ai-client@0.16.1
+
+## 0.15.0
+
+### Minor Changes
+
+- [#661](https://github.com/TanStack/ai/pull/661) [`755e995`](https://github.com/TanStack/ai/commit/755e9953a31e879c4b88df0e7672ce1224886c97) - Add persistence support for chat messages.
+
+### Patch Changes
+
+- Updated dependencies [[`755e995`](https://github.com/TanStack/ai/commit/755e9953a31e879c4b88df0e7672ce1224886c97)]:
+  - @tanstack/ai-client@0.16.0
+
+## 0.14.2
+
+### Patch Changes
+
+- Updated dependencies [[`5d6cd28`](https://github.com/TanStack/ai/commit/5d6cd2834ba7ac1d7c7c1bd24ede202bf3e78010)]:
+  - @tanstack/ai@0.26.0
+  - @tanstack/ai-client@0.15.2
+
+## 0.14.1
+
+### Patch Changes
+
+- Updated dependencies [[`c251038`](https://github.com/TanStack/ai/commit/c251038c6d8aa84e498f89e314ce5bb233bc689f)]:
+  - @tanstack/ai@0.25.0
+  - @tanstack/ai-client@0.15.1
+
+## 0.14.0
+
+### Minor Changes
+
+- [#628](https://github.com/TanStack/ai/pull/628) [`8036b50`](https://github.com/TanStack/ai/commit/8036b5054330a180023c6e3225b8d2735a43a919) - Add typed runtime context for tools and middleware.
+
+  Tools and middleware can now declare the runtime context shape they require, and
+  `chat()`, `ChatClient`, and the framework `useChat` / `createChat` hooks infer
+  the merged requirement and type-check the `context` option you pass against it.
+
+  ```typescript
+  type AppContext = { userId: string; db: Db }
+
+  const listNotes = toolDefinition({
+    name: 'list_notes' /* ... */,
+  }).server<AppContext>((_input, ctx) =>
+    ctx.context.db.notes.findMany({ userId: ctx.context.userId }),
+  )
+
+  chat({
+    adapter,
+    messages,
+    tools: [listNotes],
+    context: { userId, db }, // required and type-checked because listNotes declares AppContext
+  })
+  ```
+
+  Runtime context is request-local application state for tool and middleware
+  implementations (authenticated users, database clients, tenancy, feature flags,
+  loggers, browser services). It is never sent to the model and is distinct from
+  the AG-UI `RunAgentInput.context` protocol field.
+
+  Untyped tools and middleware continue to receive `unknown` context and do not
+  force a `context` option. Client tools receive client-local context via
+  `ChatClient` / `useChat`; use `forwardedProps` to hand serializable client data
+  to the server and map it into server context explicitly. See the new Runtime
+  Context guide for details.
+
+  Behavior change: tool output validation now also runs when a tool returns
+  `undefined` or `null`. Previously these values bypassed `outputSchema`
+  validation entirely; now the schema decides whether they are valid, so a tool
+  whose schema forbids `undefined`/`null` surfaces a validation error
+  (`output-error`) instead of silently passing. Tools whose schema permits
+  `null`/`undefined` (e.g. nullable or void outputs) are unaffected.
+
+### Patch Changes
+
+- Updated dependencies [[`c1ae8b9`](https://github.com/TanStack/ai/commit/c1ae8b94c83d70508975568eb4fc9b45f1af540b), [`a452ae8`](https://github.com/TanStack/ai/commit/a452ae8bcda8abfdc6309983976ed0fbf6df1915), [`8036b50`](https://github.com/TanStack/ai/commit/8036b5054330a180023c6e3225b8d2735a43a919)]:
+  - @tanstack/ai@0.24.0
+  - @tanstack/ai-client@0.15.0
+
+## 0.13.1
+
+### Patch Changes
+
+- Updated dependencies [[`94bb9c0`](https://github.com/TanStack/ai/commit/94bb9c0f3a3e56a0c6c8b7c78f44ae41288aecc3)]:
+  - @tanstack/ai@0.23.1
+  - @tanstack/ai-client@0.14.1
+
+## 0.13.0
+
+### Minor Changes
+
+- [#647](https://github.com/TanStack/ai/pull/647) [`d5645cf`](https://github.com/TanStack/ai/commit/d5645cfd4d1b9cfc877f7d4d714517e166a99ce3) - Add React Native support for chat clients and framework hooks, including
+  client-safe streaming utilities and connection adapters that work in mobile
+  environments.
+
+  The `fetcher` option is now available on `ChatClient` and the framework chat
+  hooks (`useChat` / `createChat`), mirroring the generation hooks. Pass either
+  `connection` or `fetcher` -- the XOR is enforced at the type level via
+  `ChatTransport`. Fetchers may return either a `Response` (parsed as SSE) or an
+  `AsyncIterable<StreamChunk>` (yielded directly).
+
+  The client-safe `@tanstack/ai/client` subpath is now public for framework
+  packages and mobile bundles. `stream()`, `fetchServerSentEvents`,
+  `fetchHttpStream`, `rpcStream`, `xhrServerSentEvents`, and `xhrHttpStream` are
+  available from the client package and framework re-exports. React Native docs,
+  an Expo chat example, and smoke tests are included for the supported mobile
+  setup.
+
+### Patch Changes
+
+- Updated dependencies [[`980ff9b`](https://github.com/TanStack/ai/commit/980ff9ba925f5dbae62a9318cc1e787d0ae24314), [`d5645cf`](https://github.com/TanStack/ai/commit/d5645cfd4d1b9cfc877f7d4d714517e166a99ce3)]:
+  - @tanstack/ai@0.23.0
+  - @tanstack/ai-client@0.14.0
+
+## 0.12.1
+
+### Patch Changes
+
+- [#632](https://github.com/TanStack/ai/pull/632) [`5634f18`](https://github.com/TanStack/ai/commit/5634f186a4946ca3e1942fbfcbf1291ec9bd9855) - Add hook-aware AI devtools registration, run tracking, state snapshots, and tool fixture replay.
+
+- Updated dependencies [[`5634f18`](https://github.com/TanStack/ai/commit/5634f186a4946ca3e1942fbfcbf1291ec9bd9855)]:
+  - @tanstack/ai-client@0.13.0
+  - @tanstack/ai@0.22.1
+
 ## 0.12.0
 
 ### Minor Changes

@@ -1,4 +1,8 @@
-import type { ImageGenerationOptions, ImageGenerationResult } from '../../types'
+import type {
+  ImageGenerationOptions,
+  ImageGenerationResult,
+  ModelInputModalitiesByName,
+} from '../../types'
 
 /**
  * Resolve the size type for a model from the model-size map.
@@ -29,6 +33,8 @@ export interface ImageAdapterConfig {
  * - TProviderOptions: Base provider-specific options (already resolved)
  * - TModelProviderOptionsByName: Map from model name to its specific provider options
  * - TModelSizeByName: Map from model name to its supported sizes
+ * - TModelInputModalitiesByName: Map from model name to the non-text prompt
+ *   modalities it accepts (constrains the `prompt` part types at compile time)
  */
 export interface ImageAdapter<
   TModel extends string = string,
@@ -38,6 +44,8 @@ export interface ImageAdapter<
     string,
     string
   >,
+  TModelInputModalitiesByName extends ModelInputModalitiesByName =
+    ModelInputModalitiesByName,
 > {
   /** Discriminator for adapter kind - used by generate() to determine API shape */
   readonly kind: 'image'
@@ -53,6 +61,7 @@ export interface ImageAdapter<
     providerOptions: TProviderOptions
     modelProviderOptionsByName: TModelProviderOptionsByName
     modelSizeByName: TModelSizeByName
+    modelInputModalitiesByName: TModelInputModalitiesByName
   }
 
   /**
@@ -67,7 +76,7 @@ export interface ImageAdapter<
  * An ImageAdapter with any/unknown type parameters.
  * Useful as a constraint in generic functions and interfaces.
  */
-export type AnyImageAdapter = ImageAdapter<any, any, any, any>
+export type AnyImageAdapter = ImageAdapter<any, any, any, any, any>
 
 /**
  * Abstract base class for image generation adapters.
@@ -83,11 +92,14 @@ export abstract class BaseImageAdapter<
     string,
     string
   >,
+  TModelInputModalitiesByName extends ModelInputModalitiesByName =
+    ModelInputModalitiesByName,
 > implements ImageAdapter<
   TModel,
   TProviderOptions,
   TModelProviderOptionsByName,
-  TModelSizeByName
+  TModelSizeByName,
+  TModelInputModalitiesByName
 > {
   readonly kind = 'image' as const
   abstract readonly name: string
@@ -98,6 +110,7 @@ export abstract class BaseImageAdapter<
     providerOptions: TProviderOptions
     modelProviderOptionsByName: TModelProviderOptionsByName
     modelSizeByName: TModelSizeByName
+    modelInputModalitiesByName: TModelInputModalitiesByName
   }
 
   protected config: ImageAdapterConfig

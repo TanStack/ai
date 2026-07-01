@@ -11,6 +11,7 @@ import type {
   ErrorInfo,
   FinishInfo,
   IterationInfo,
+  SandboxFileEvent,
   StructuredOutputMiddlewareConfig,
   ToolCallHookContext,
   ToolPhaseCompleteInfo,
@@ -18,12 +19,12 @@ import type {
 } from './types'
 
 /** Check if a middleware should be skipped for instrumentation events. */
-function shouldSkipInstrumentation(mw: ChatMiddleware): boolean {
+function shouldSkipInstrumentation(mw: ChatMiddleware<any>): boolean {
   return mw.name === 'devtools' || mw.name === 'strip-to-spec'
 }
 
 /** Build the base context for middleware instrumentation events. */
-function instrumentCtx(ctx: ChatMiddlewareContext) {
+function instrumentCtx(ctx: ChatMiddlewareContext<any>) {
   return {
     requestId: ctx.requestId,
     streamId: ctx.streamId,
@@ -36,12 +37,12 @@ function instrumentCtx(ctx: ChatMiddlewareContext) {
  * Internal middleware runner that manages composed execution of middleware hooks.
  * Created once per chat() invocation.
  */
-export class MiddlewareRunner {
-  private readonly middlewares: ReadonlyArray<ChatMiddleware>
+export class MiddlewareRunner<TContext = unknown> {
+  private readonly middlewares: ReadonlyArray<ChatMiddleware<TContext>>
   private readonly logger: InternalLogger
 
   constructor(
-    middlewares: ReadonlyArray<ChatMiddleware>,
+    middlewares: ReadonlyArray<ChatMiddleware<TContext>>,
     logger: InternalLogger,
   ) {
     this.middlewares = middlewares
@@ -58,7 +59,7 @@ export class MiddlewareRunner {
    * Partial returns are shallow-merged with the current config.
    */
   async runOnConfig(
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     config: ChatMiddlewareConfig,
   ): Promise<ChatMiddlewareConfig> {
     let current = config
@@ -113,7 +114,7 @@ export class MiddlewareRunner {
    * same boundary (which receives a ChatMiddlewareConfig view, no outputSchema).
    */
   async runOnStructuredOutputConfig(
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     config: StructuredOutputMiddlewareConfig,
   ): Promise<StructuredOutputMiddlewareConfig> {
     let current = config
@@ -164,9 +165,60 @@ export class MiddlewareRunner {
   }
 
   /**
+   * Run all `setup` hooks in array order, then assert every declared `provides`
+   * capability was actually provided. Wires the last-wins duplicate-provide
+   * warning into the registry. Runs before init `onConfig`.
+   *
+   * Takes the full `ChatMiddlewareContext` — the same stable context the engine
+   * threads through every other hook — because it both forwards `ctx` to each
+   * `setup` hook and emits instrumentation events from it.
+   */
+  async runSetup(ctx: ChatMiddlewareContext<TContext>): Promise<void> {
+    ctx.capabilities.setOnDuplicate((name) => {
+      this.logger.warn(
+        `capability "${name}" was provided more than once; last provider wins`,
+        { capability: name },
+      )
+    })
+
+    for (const mw of this.middlewares) {
+      if (mw.setup) {
+        const skip = shouldSkipInstrumentation(mw)
+        const start = Date.now()
+        await mw.setup(ctx)
+        if (!skip) {
+          this.logger.middleware(
+            `hook=setup middleware=${mw.name ?? 'unnamed'}`,
+            { middleware: mw.name ?? 'unnamed', hook: 'setup' },
+          )
+          aiEventClient.emit('middleware:hook:executed', {
+            ...instrumentCtx(ctx),
+            middlewareName: mw.name || 'unnamed',
+            hookName: 'setup',
+            iteration: ctx.iteration,
+            duration: Date.now() - start,
+            hasTransform: false,
+          })
+        }
+      }
+    }
+
+    for (const mw of this.middlewares) {
+      for (const handle of mw.provides ?? []) {
+        if (!ctx.capabilities.has(handle)) {
+          throw new Error(
+            `Middleware "${mw.name ?? 'unnamed'}" declares it provides ` +
+              `"${handle.capabilityName}" but never called provide() in setup().`,
+          )
+        }
+      }
+    }
+  }
+
+  /**
    * Call onStart on all middleware in order.
    */
-  async runOnStart(ctx: ChatMiddlewareContext): Promise<void> {
+  async runOnStart(ctx: ChatMiddlewareContext<TContext>): Promise<void> {
     for (const mw of this.middlewares) {
       if (mw.onStart) {
         const skip = shouldSkipInstrumentation(mw)
@@ -200,7 +252,7 @@ export class MiddlewareRunner {
    * - null: drop the chunk entirely
    */
   async runOnChunk(
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     chunk: StreamChunk,
   ): Promise<Array<StreamChunk>> {
     let chunks: Array<StreamChunk> = [chunk]
@@ -294,11 +346,44 @@ export class MiddlewareRunner {
   }
 
   /**
+   * Dispatch a sandbox file event to every middleware's `sandbox` hooks, in
+   * array order: the catch-all `onFile` then the type-specific hook. Errors are
+   * logged and swallowed so one bad hook can't break the run.
+   */
+  async runSandboxFile(
+    ctx: ChatMiddlewareContext<TContext>,
+    event: SandboxFileEvent,
+  ): Promise<void> {
+    const typed = (
+      {
+        create: 'onFileCreate',
+        change: 'onFileChange',
+        delete: 'onFileDelete',
+      } as const
+    )[event.type]
+    for (const mw of this.middlewares) {
+      const hooks = mw.sandbox
+      if (!hooks) continue
+      for (const fn of [hooks.onFile, hooks[typed]]) {
+        if (!fn) continue
+        try {
+          await fn(ctx, event)
+        } catch (error) {
+          this.logger.sandbox(
+            `hook=${typed} middleware=${mw.name ?? 'unnamed'} threw`,
+            { middleware: mw.name ?? 'unnamed', error },
+          )
+        }
+      }
+    }
+  }
+
+  /**
    * Run onBeforeToolCall through middleware in order.
    * Returns the first non-void decision, or undefined to continue normally.
    */
   async runOnBeforeToolCall(
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     hookCtx: ToolCallHookContext,
   ): Promise<BeforeToolCallDecision> {
     for (const mw of this.middlewares) {
@@ -333,7 +418,7 @@ export class MiddlewareRunner {
    * Run onAfterToolCall on all middleware in order.
    */
   async runOnAfterToolCall(
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     info: AfterToolCallInfo,
   ): Promise<void> {
     for (const mw of this.middlewares) {
@@ -363,7 +448,7 @@ export class MiddlewareRunner {
    * Run onUsage on all middleware in order.
    */
   async runOnUsage(
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     usage: UsageInfo,
   ): Promise<void> {
     for (const mw of this.middlewares) {
@@ -393,7 +478,7 @@ export class MiddlewareRunner {
    * Run onFinish on all middleware in order.
    */
   async runOnFinish(
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     info: FinishInfo,
   ): Promise<void> {
     for (const mw of this.middlewares) {
@@ -422,7 +507,10 @@ export class MiddlewareRunner {
   /**
    * Run onAbort on all middleware in order.
    */
-  async runOnAbort(ctx: ChatMiddlewareContext, info: AbortInfo): Promise<void> {
+  async runOnAbort(
+    ctx: ChatMiddlewareContext<TContext>,
+    info: AbortInfo,
+  ): Promise<void> {
     for (const mw of this.middlewares) {
       if (mw.onAbort) {
         const skip = shouldSkipInstrumentation(mw)
@@ -449,7 +537,10 @@ export class MiddlewareRunner {
   /**
    * Run onError on all middleware in order.
    */
-  async runOnError(ctx: ChatMiddlewareContext, info: ErrorInfo): Promise<void> {
+  async runOnError(
+    ctx: ChatMiddlewareContext<TContext>,
+    info: ErrorInfo,
+  ): Promise<void> {
     for (const mw of this.middlewares) {
       if (mw.onError) {
         const skip = shouldSkipInstrumentation(mw)
@@ -478,7 +569,7 @@ export class MiddlewareRunner {
    * Called at the start of each agent loop iteration.
    */
   async runOnIteration(
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     info: IterationInfo,
   ): Promise<void> {
     for (const mw of this.middlewares) {
@@ -509,7 +600,7 @@ export class MiddlewareRunner {
    * Called after all tool calls in an iteration have been processed.
    */
   async runOnToolPhaseComplete(
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     info: ToolPhaseCompleteInfo,
   ): Promise<void> {
     for (const mw of this.middlewares) {

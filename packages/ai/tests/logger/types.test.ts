@@ -29,7 +29,7 @@ describe('logger types', () => {
     expectTypeOf<Logger['error']>().returns.toEqualTypeOf<void>()
   })
 
-  it('DebugCategories has all eight optional boolean flags and allows empty object', () => {
+  it('DebugCategories has all optional boolean flags and allows empty object', () => {
     expectTypeOf<DebugCategories>().toEqualTypeOf<{
       provider?: boolean
       output?: boolean
@@ -39,6 +39,7 @@ describe('logger types', () => {
       config?: boolean
       errors?: boolean
       request?: boolean
+      sandbox?: boolean
     }>()
     const empty: DebugCategories = {}
     void empty

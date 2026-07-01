@@ -27,19 +27,22 @@ import { chat, createChatOptions } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 const chatOptions = createChatOptions({
-  adapter: openaiText('gpt-5.2'),
-  // modelOptions, temperature, systemPrompts, tools — all type-checked
-  // against the adapter+model pair above.
+  adapter: openaiText('gpt-5.5'),
+  // modelOptions, systemPrompts, tools — all type-checked against the
+  // adapter+model pair above. Sampling params (temperature, top_p,
+  // max_output_tokens, …) live inside modelOptions, under each provider's
+  // native key.
   modelOptions: {
+    temperature: 0.3,
     reasoning: { effort: 'medium' },
   },
 })
 
 // Later, anywhere in your codebase:
-const stream = chat({ ...chatOptions, messages })
+const stream = chat({ ...chatOptions, messages: [{ role: 'user', content: 'Hello' }] })
 ```
 
-Without the helper you'd have to either inline the configuration at every call site, or type the object yourself with `TextActivityOptions<...>` and resolve the generics manually — `createChatOptions` does that for you.
+Without the helper you'd have to either inline the configuration at every call site, or hand-write the full chat options type with its adapter/model generics resolved manually — `createChatOptions` does that for you.
 
 ## When to reach for it
 
@@ -75,9 +78,11 @@ Suppose you have several routes that all hit the same model with the same provid
 import { createChatOptions, toolDefinition } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { z } from 'zod'
+import { db } from './db'
 
 const lookupOrderDef = toolDefinition({
   name: 'lookupOrder',
+  description: 'Look up a customer order by ID',
   inputSchema: z.object({ orderId: z.string() }),
 })
 
@@ -86,7 +91,7 @@ const lookupOrder = lookupOrderDef.server(async ({ orderId }) => {
 })
 
 export const supportChatOptions = createChatOptions({
-  adapter: openaiText('gpt-5.2'),
+  adapter: openaiText('gpt-5.5'),
   systemPrompts: ['You are a customer-support assistant for Acme Corp.'],
   tools: [lookupOrder],
   modelOptions: {
@@ -95,7 +100,7 @@ export const supportChatOptions = createChatOptions({
 })
 ```
 
-```typescript
+```typescript ignore
 // routes/api/support/chat.ts
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { supportChatOptions } from '@/lib/ai/chat-options'
@@ -107,7 +112,7 @@ export async function POST(request: Request) {
 }
 ```
 
-```typescript
+```typescript ignore
 // routes/api/support/draft-reply.ts — same adapter+tools, different schema
 import { chat } from '@tanstack/ai'
 import { supportChatOptions } from '@/lib/ai/chat-options'
@@ -135,14 +140,12 @@ import { openaiImage } from '@tanstack/ai-openai'
 
 const heroImageOptions = createImageOptions({
   adapter: openaiImage('gpt-image-1'),
-  size: '1792x1024',
+  prompt: 'A glass sphere refracting a sunset over a calm sea',
+  size: '1536x1024',
   numberOfImages: 1,
 })
 
-const result = await generateImage({
-  ...heroImageOptions,
-  prompt: 'A glass sphere refracting a sunset over a calm sea',
-})
+const result = await generateImage(heroImageOptions)
 ```
 
 The same pattern works for `createVideoOptions`, `createSpeechOptions`, `createTranscriptionOptions`, `createAudioOptions`, and `createSummarizeOptions` — the adapter is captured in the typed options object and every downstream call is narrowed to it.
@@ -150,7 +153,7 @@ The same pattern works for `createVideoOptions`, `createSpeechOptions`, `createT
 ## What the helper does NOT do
 
 - **No runtime behavior.** `createChatOptions(opts)` is `opts`. There is no validation, freezing, cloning, or memoization. If you mutate the returned object after creation, the next call sees the mutation. Treat the result as immutable by convention.
-- **No partial typing.** The helper expects the full options shape it'll be spread into. If you need to build options up incrementally, type the intermediate state yourself (`Partial<TextActivityOptions<...>>`) and only call the helper at the boundary where the shape is complete.
+- **No partial typing.** The helper expects the full options shape it'll be spread into. If you need to build options up incrementally, type the intermediate state yourself (a `Partial<>` of the full chat options shape) and only call the helper at the boundary where the shape is complete.
 - **No request execution.** The helper does not call the model. Only the activity function (`chat`, `generateImage`, …) makes the request.
 
 ## Related

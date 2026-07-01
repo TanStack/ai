@@ -2,10 +2,47 @@ import type {
   JSONSchema,
   ModelMessage,
   StreamChunk,
+  TokenUsage,
   Tool,
   ToolCall,
 } from '../../../types'
 import type { SystemPrompt } from '../../../system-prompts'
+import type {
+  Capability,
+  CapabilityHandle,
+  CapabilityRegistry,
+} from './capabilities'
+
+/** A file change observed inside a sandbox during a chat run. */
+export interface SandboxFileEvent {
+  type: 'create' | 'change' | 'delete'
+  /** Absolute path inside the sandbox (under the workspace root). */
+  path: string
+  timestamp: number
+}
+
+/**
+ * Sandbox file-event hooks a chat middleware can declare. Fire server-side for
+ * every file create/change/delete observed in the sandbox during the run.
+ */
+export interface ChatSandboxHooks<TContext = unknown> {
+  onFile?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    e: SandboxFileEvent,
+  ) => void | Promise<void>
+  onFileCreate?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    e: SandboxFileEvent,
+  ) => void | Promise<void>
+  onFileChange?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    e: SandboxFileEvent,
+  ) => void | Promise<void>
+  onFileDelete?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    e: SandboxFileEvent,
+  ) => void | Promise<void>
+}
 
 // ===========================
 // Middleware Context
@@ -33,11 +70,13 @@ export type ChatMiddlewarePhase =
  * Stable context object passed to all middleware hooks.
  * Created once per chat() invocation and shared across all hooks.
  */
-export interface ChatMiddlewareContext {
+export interface ChatMiddlewareContext<TContext = unknown> {
   /** Unique identifier for this chat request */
   requestId: string
   /** Unique identifier for this stream */
   streamId: string
+  /** AG-UI run identifier for correlating client and server events */
+  runId: string
   /**
    * AG-UI thread identifier — a stable per-conversation ID used to
    * correlate client and server devtools events. Resolves to the
@@ -61,8 +100,8 @@ export interface ChatMiddlewareContext {
   signal?: AbortSignal
   /** Abort the chat run with a reason */
   abort: (reason?: string) => void
-  /** Opaque user-provided value from chat() options */
-  context: unknown
+  /** Runtime context provided by chat() options */
+  context: TContext
   /**
    * Defer a non-blocking side-effect promise.
    * Deferred promises do not block streaming and are awaited
@@ -72,6 +111,13 @@ export interface ChatMiddlewareContext {
 
   // --- Provider / adapter info (immutable for the lifetime of the request) ---
 
+  /**
+   * Which activity this context describes — always `'chat'`. Present so the
+   * chat context structurally satisfies the base `GenerationMiddlewareContext`,
+   * letting an observe-only middleware authored against the base (e.g.
+   * `otelMiddleware`) run on both chat and media activities.
+   */
+  activity: 'chat'
   /** Provider name (e.g., 'openai', 'anthropic') */
   provider: string
   /** Model identifier (e.g., 'gpt-4o') */
@@ -87,7 +133,7 @@ export interface ChatMiddlewareContext {
   systemPrompts: Array<SystemPrompt>
   /** Names of configured tools, if any */
   toolNames?: Array<string>
-  /** Flattened generation options (temperature, topP, maxTokens, metadata) */
+  /** Flattened generation options (metadata) */
   options?: Record<string, unknown> | undefined
   /** Provider-specific model options */
   modelOptions?: Record<string, unknown> | undefined
@@ -112,6 +158,28 @@ export interface ChatMiddlewareContext {
   messages: ReadonlyArray<ModelMessage>
   /** Generate a unique ID with the given prefix */
   createId: (prefix: string) => string
+  /**
+   * Capability bookkeeping for this request. Populated by middleware `setup`
+   * hooks (via `provide` accessors) and read by later middleware (via `get`
+   * accessors). Prefer the accessors returned by `createCapability` over using
+   * this directly. Orthogonal to `context` (the user runtime context).
+   */
+  capabilities: CapabilityRegistry
+  /**
+   * Read a provided capability by its handle. Equivalent to the handle's own
+   * `get` accessor (`getX(ctx)`); throws if the capability was never provided.
+   */
+  get: <TValue>(capability: Capability<TValue>) => TValue
+  /**
+   * Read a capability by its handle, returning `undefined` if it was never
+   * provided (never throws).
+   */
+  getOptional: <TValue>(capability: Capability<TValue>) => TValue | undefined
+  /**
+   * Provide a capability value. Equivalent to the handle's own `provide`
+   * accessor (`provideX(ctx, value)`). Typically called from `setup`.
+   */
+  provide: <TValue>(capability: Capability<TValue>, value: TValue) => void
 }
 
 // ===========================
@@ -127,9 +195,6 @@ export interface ChatMiddlewareConfig {
   messages: Array<ModelMessage>
   systemPrompts: Array<SystemPrompt>
   tools: Array<Tool>
-  temperature?: number
-  topP?: number
-  maxTokens?: number
   metadata?: Record<string, unknown> | undefined
   modelOptions?: Record<string, unknown> | undefined
 }
@@ -262,12 +327,12 @@ export interface ToolPhaseCompleteInfo {
 /**
  * Token usage statistics passed to the onUsage hook.
  * Extracted from the RUN_FINISHED chunk when usage data is present.
+ *
+ * Includes optional provider-reported `cost`/`costDetails` (see {@link TokenUsage}).
+ * Kept as an interface extending `TokenUsage` to preserve declaration merging for
+ * this publicly exported type.
  */
-export interface UsageInfo {
-  promptTokens: number
-  completionTokens: number
-  totalTokens: number
-}
+export interface UsageInfo extends TokenUsage {}
 
 // ===========================
 // Terminal Hook Info
@@ -283,14 +348,8 @@ export interface FinishInfo {
   duration: number
   /** Final accumulated text content */
   content: string
-  /** Final usage totals, if available */
-  usage?:
-    | {
-        promptTokens: number
-        completionTokens: number
-        totalTokens: number
-      }
-    | undefined
+  /** Final usage totals, if available (optionally including provider-reported cost) */
+  usage?: TokenUsage | undefined
 }
 
 /**
@@ -346,9 +405,39 @@ export interface ErrorInfo {
  * }
  * ```
  */
-export interface ChatMiddleware {
+export interface ChatMiddleware<TContext = unknown> {
   /** Optional name for debugging and identification */
   name?: string
+
+  /**
+   * Capabilities this middleware requires. `chat()` validates that some
+   * middleware (or the adapter) provides each one; unsatisfied requirements are
+   * a compile-time error (array coverage / builder) and a runtime error before
+   * the adapter runs.
+   */
+  requires?: ReadonlyArray<CapabilityHandle>
+
+  /**
+   * Capabilities this middleware provides. Each declared capability MUST be
+   * provided (via its `provide` accessor) inside `setup`, or `chat()` throws
+   * after the setup phase.
+   */
+  provides?: ReadonlyArray<CapabilityHandle>
+
+  /**
+   * Capabilities this middleware uses if present but does not require.
+   * Non-gating: never causes a validation error. Read with
+   * `getX(ctx, { optional: true })`.
+   */
+  optionalRequires?: ReadonlyArray<CapabilityHandle>
+
+  /**
+   * Provisioning hook. Runs FIRST — before `onConfig` (init) — across all
+   * middleware in array order. Use it to call `provide` accessors so later
+   * middleware (`onConfig` onward) can consume the capabilities. Receives the
+   * stable context; does NOT receive the mutable config.
+   */
+  setup?: (ctx: ChatMiddlewareContext<TContext>) => void | Promise<void>
 
   /**
    * Called to observe or transform the chat configuration.
@@ -358,7 +447,7 @@ export interface ChatMiddleware {
    * Only the fields you return are overwritten — everything else is preserved.
    */
   onConfig?: (
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     config: ChatMiddlewareConfig,
   ) =>
     | void
@@ -382,7 +471,7 @@ export interface ChatMiddleware {
    * outputSchema or apply structured-output-specific behavior.
    */
   onStructuredOutputConfig?: (
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     config: StructuredOutputMiddlewareConfig,
   ) =>
     | void
@@ -393,14 +482,14 @@ export interface ChatMiddleware {
   /**
    * Called when the chat run starts (after initial onConfig).
    */
-  onStart?: (ctx: ChatMiddlewareContext) => void | Promise<void>
+  onStart?: (ctx: ChatMiddlewareContext<TContext>) => void | Promise<void>
 
   /**
    * Called at the start of each agent loop iteration, after a new assistant message ID
    * is created. Use this to observe iteration boundaries.
    */
   onIteration?: (
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     info: IterationInfo,
   ) => void | Promise<void>
 
@@ -411,7 +500,7 @@ export interface ChatMiddleware {
    * @returns void (pass through), chunk (replace), chunk[] (expand), null (drop)
    */
   onChunk?: (
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     chunk: StreamChunk,
   ) =>
     | void
@@ -425,7 +514,7 @@ export interface ChatMiddleware {
    * Can observe, transform args, skip execution, or abort the run.
    */
   onBeforeToolCall?: (
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     hookCtx: ToolCallHookContext,
   ) => BeforeToolCallDecision | Promise<BeforeToolCallDecision>
 
@@ -433,7 +522,7 @@ export interface ChatMiddleware {
    * Called after a tool execution completes (success or failure).
    */
   onAfterToolCall?: (
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     info: AfterToolCallInfo,
   ) => void | Promise<void>
 
@@ -442,7 +531,7 @@ export interface ChatMiddleware {
    * Provides aggregate data about tool execution results, approvals, and client tools.
    */
   onToolPhaseComplete?: (
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     info: ToolPhaseCompleteInfo,
   ) => void | Promise<void>
 
@@ -451,7 +540,7 @@ export interface ChatMiddleware {
    * Called once per model iteration that reports usage.
    */
   onUsage?: (
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     usage: UsageInfo,
   ) => void | Promise<void>
 
@@ -460,7 +549,7 @@ export interface ChatMiddleware {
    * Exactly one of onFinish/onAbort/onError will be called per run.
    */
   onFinish?: (
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     info: FinishInfo,
   ) => void | Promise<void>
 
@@ -469,7 +558,7 @@ export interface ChatMiddleware {
    * Exactly one of onFinish/onAbort/onError will be called per run.
    */
   onAbort?: (
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     info: AbortInfo,
   ) => void | Promise<void>
 
@@ -478,7 +567,16 @@ export interface ChatMiddleware {
    * Exactly one of onFinish/onAbort/onError will be called per run.
    */
   onError?: (
-    ctx: ChatMiddlewareContext,
+    ctx: ChatMiddlewareContext<TContext>,
     info: ErrorInfo,
   ) => void | Promise<void>
+
+  /**
+   * Sandbox file-event hooks. Fire when a sandbox provided by `withSandbox` is
+   * active during the run and a file is created/changed/deleted. Server-side.
+   */
+  sandbox?: ChatSandboxHooks<TContext>
 }
+
+/** A `ChatMiddleware` with a permissive context — for use as a constraint. */
+export type AnyChatMiddleware = ChatMiddleware<any>

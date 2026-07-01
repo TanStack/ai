@@ -5,7 +5,7 @@ title: StreamProcessorOptions
 
 # Interface: StreamProcessorOptions
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:106](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L106)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:124](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L124)
 
 Options for StreamProcessor
 
@@ -17,7 +17,7 @@ Options for StreamProcessor
 optional chunkStrategy: ChunkStrategy;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:107](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L107)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:125](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L125)
 
 ***
 
@@ -27,7 +27,7 @@ Defined in: [packages/ai/src/activities/chat/stream/processor.ts:107](https://gi
 optional events: StreamProcessorEvents;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:109](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L109)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:127](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L127)
 
 Event-driven handlers
 
@@ -39,7 +39,7 @@ Event-driven handlers
 optional initialMessages: UIMessage<unknown>[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:116](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L116)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:134](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L134)
 
 Initial messages to populate the processor
 
@@ -51,7 +51,7 @@ Initial messages to populate the processor
 optional jsonParser: object;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:110](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L110)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:128](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L128)
 
 #### parse()
 
@@ -77,6 +77,6 @@ parse: (jsonString) => any;
 optional recording: boolean;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:114](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L114)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:132](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L132)
 
 Enable recording for replay testing
