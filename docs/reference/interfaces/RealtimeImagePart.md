@@ -5,7 +5,7 @@ title: RealtimeImagePart
 
 # Interface: RealtimeImagePart
 
-Defined in: [packages/ai/src/realtime/types.ts:136](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L136)
+Defined in: [packages/ai/src/realtime/types.ts:138](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L138)
 
 Image content part in a realtime message
 
@@ -17,7 +17,7 @@ Image content part in a realtime message
 data: string;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:139](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L139)
+Defined in: [packages/ai/src/realtime/types.ts:141](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L141)
 
 Base64-encoded image data or a URL
 
@@ -29,7 +29,7 @@ Base64-encoded image data or a URL
 mimeType: string;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:141](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L141)
+Defined in: [packages/ai/src/realtime/types.ts:143](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L143)
 
 MIME type of the image (e.g., 'image/png', 'image/jpeg')
 
@@ -41,4 +41,4 @@ MIME type of the image (e.g., 'image/png', 'image/jpeg')
 type: "image";
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:137](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L137)
+Defined in: [packages/ai/src/realtime/types.ts:139](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L139)

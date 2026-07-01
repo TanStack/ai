@@ -4,7 +4,7 @@ import type { ImageGenerationResult } from '@tanstack/ai'
 import type {
   GenerationClientState,
   ImageGenerateInput,
-  InferGenerationOutput,
+  InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
 import type { InjectGenerationOptions } from './inject-generation'
 
@@ -25,15 +25,12 @@ export interface InjectGenerateImageResult<TOutput = ImageGenerationResult> {
   reset: () => void
 }
 
-export function injectGenerateImage<
-  TOnResult extends ((result: ImageGenerationResult) => any) | undefined =
-    undefined,
->(
+export function injectGenerateImage<TTransformed = void>(
   options: Omit<InjectGenerateImageOptions, 'onResult'> & {
-    onResult?: TOnResult
+    onResult?: (result: ImageGenerationResult) => TTransformed
   },
 ): InjectGenerateImageResult<
-  InferGenerationOutput<ImageGenerationResult, TOnResult>
+  InferGenerationOutputFromReturn<ImageGenerationResult, TTransformed>
 > {
   const devtools = {
     ...options.devtools,
@@ -42,7 +39,7 @@ export function injectGenerateImage<
     outputKind: 'image' as const,
   }
   const { generate, result, isLoading, error, status, stop, reset } =
-    injectGeneration<ImageGenerateInput, ImageGenerationResult, TOnResult>({
+    injectGeneration<ImageGenerateInput, ImageGenerationResult, TTransformed>({
       ...options,
       devtools,
     })

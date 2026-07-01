@@ -204,7 +204,7 @@ function getTextAdapter(
     case 'gemini':
       return geminiText(modelId as 'gemini-2.5-flash')
     case 'grok':
-      return grokText(modelId as 'grok-3-mini')
+      return grokText(modelId as 'grok-build-0.1')
     case 'groq':
       return groqText(modelId as 'llama-3.3-70b-versatile')
   }
@@ -227,9 +227,9 @@ function maxTokensModelOptions(
       // dropped at the wire.
       return { options: { num_predict: maxTokens, num_ctx: 32768 } }
     case 'openai':
+    case 'grok':
       return { max_output_tokens: maxTokens }
     case 'anthropic':
-    case 'grok':
       return { max_tokens: maxTokens }
     case 'gemini':
       return { maxOutputTokens: maxTokens }

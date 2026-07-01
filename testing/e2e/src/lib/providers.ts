@@ -1,4 +1,3 @@
-import type { AnyTextAdapter } from '@tanstack/ai'
 import { createChatOptions } from '@tanstack/ai'
 import { createOpenaiChat } from '@tanstack/ai-openai'
 import { createAnthropicChat } from '@tanstack/ai-anthropic'
@@ -7,12 +6,15 @@ import { createGeminiTextInteractions } from '@tanstack/ai-gemini/experimental'
 import { createOllamaChat } from '@tanstack/ai-ollama'
 import { createGroqText } from '@tanstack/ai-groq'
 import { createGrokText } from '@tanstack/ai-grok'
+import { createBedrockText } from '@tanstack/ai-bedrock'
 import { openaiCompatibleText } from '@tanstack/ai-openai/compatible'
 import {
   createOpenRouterResponsesText,
   createOpenRouterText,
 } from '@tanstack/ai-openrouter'
+import { createMistralText } from '@tanstack/ai-mistral'
 import { HTTPClient } from '@openrouter/sdk'
+import type { AnyTextAdapter } from '@tanstack/ai'
 import type { Feature, Provider } from '@/lib/types'
 
 const LLMOCK_DEFAULT_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
@@ -24,10 +26,13 @@ const defaultModels: Record<Provider, string> = {
   gemini: 'gemini-2.5-flash',
   ollama: 'mistral',
   groq: 'llama-3.3-70b-versatile',
-  grok: 'grok-3',
+  grok: 'grok-build-0.1',
+  bedrock: 'openai.gpt-oss-120b-1:0',
+  'bedrock-responses': 'openai.gpt-oss-120b-1:0',
   openrouter: 'openai/gpt-4o',
   'openrouter-responses': 'openai/gpt-4o',
   'openai-compatible': 'gpt-4o',
+  mistral: 'mistral-large-latest',
   // ElevenLabs has no chat/text model — the support matrix already filters
   // it out of text features, but we still need an entry to satisfy the
   // Record<Provider, …> constraint.
@@ -109,10 +114,41 @@ export function createTextAdapter(
       }),
     grok: () =>
       createChatOptions({
-        adapter: createGrokText(model as 'grok-3', DUMMY_KEY, {
+        adapter: createGrokText(model as 'grok-build-0.1', DUMMY_KEY, {
           baseURL: openaiUrl,
           defaultHeaders: testHeaders,
         }),
+      }),
+    // NOTE: Only the OpenAI-compatible Bedrock paths are E2E-covered here.
+    // The default `bedrock-converse` adapter uses the AWS binary event-stream
+    // (vnd.amazon.eventstream) Converse protocol, which aimock cannot replay —
+    // that path is covered by unit tests in packages/ai-bedrock/tests/converse/
+    // instead. See testing/e2e/README.md § "Bedrock Converse coverage gap".
+    bedrock: () =>
+      createChatOptions({
+        adapter: createBedrockText(
+          model as 'openai.gpt-oss-120b-1:0',
+          DUMMY_KEY,
+          {
+            baseURL: openaiUrl,
+            defaultHeaders: testHeaders,
+            // Converse is now the default; this matrix entry exercises the
+            // OpenAI-compatible Chat Completions path, so pin api: 'chat'.
+            api: 'chat',
+          },
+        ),
+      }),
+    'bedrock-responses': () =>
+      createChatOptions({
+        adapter: createBedrockText(
+          model as 'openai.gpt-oss-120b-1:0',
+          DUMMY_KEY,
+          {
+            baseURL: openaiUrl,
+            defaultHeaders: testHeaders,
+            api: 'responses',
+          },
+        ),
       }),
     openrouter: () => {
       // OpenRouter SDK exposes an HTTPClient with beforeRequest hooks. Use
@@ -161,6 +197,13 @@ export function createTextAdapter(
         adapter: openaiCompatibleText(model, {
           baseURL: openaiUrl,
           apiKey: DUMMY_KEY,
+          defaultHeaders: testHeaders,
+        }),
+      }),
+    mistral: () =>
+      createChatOptions({
+        adapter: createMistralText(model as 'mistral-large-latest', DUMMY_KEY, {
+          serverURL: base,
           defaultHeaders: testHeaders,
         }),
       }),

@@ -1,5 +1,6 @@
 import { EventType } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
+import { parse as parsePartialJSON } from 'partial-json'
 import {
   createGeminiClient,
   generateId,
@@ -377,10 +378,17 @@ export class GeminiTextInteractionsAdapter<
       },
     })
 
+    // SDK 2.x: `response_mime_type` has been removed and `response_format`
+    // is now polymorphic — each entry has a `type` discriminator and the
+    // mime type lives inside the entry. See:
+    // https://ai.google.dev/gemini-api/docs/interactions-breaking-changes-may-2026
     const request: GeminiInteractionsRequestBody = {
       ...baseRequest,
-      response_mime_type: 'application/json',
-      response_format: outputSchema,
+      response_format: {
+        type: 'text',
+        mime_type: 'application/json',
+        schema: outputSchema,
+      },
     }
 
     try {
@@ -490,7 +498,6 @@ function buildInteractionsRequest(
     background: modelOpts?.background,
     response_modalities: modelOpts?.response_modalities,
     response_format: modelOpts?.response_format,
-    response_mime_type: modelOpts?.response_mime_type,
   }
 }
 
@@ -638,24 +645,24 @@ function messagesAfterLastAssistant(
   return messages
 }
 
-function safeParseToolArguments(
-  raw: string | undefined,
-  logger: InternalLogger,
-): Record<string, unknown> {
-  if (!raw) return {}
+// Leniently parse the *accumulated* streamed tool-call argument buffer.
+// Streamed `arguments_delta` fragments are individually incomplete JSON, so
+// a strict `JSON.parse` would throw (and log noise) on every fragment until
+// the final one. `partial-json` recovers a best-effort object from a
+// truncated buffer instead. Returns `undefined` when nothing usable could be
+// parsed, so callers can keep the last good value rather than clobber
+// previously-merged args with `{}`.
+function parsePartialToolArguments(
+  raw: string,
+): Record<string, unknown> | undefined {
+  if (!raw) return undefined
   try {
-    const parsed = JSON.parse(raw)
-    return parsed && typeof parsed === 'object' ? parsed : {}
-  } catch (error) {
-    logger.errors(
-      'gemini-text-interactions.safeParseToolArguments parse failed',
-      {
-        error,
-        raw,
-        source: 'gemini-text-interactions.chatStream',
-      },
-    )
-    return {}
+    const parsed = parsePartialJSON(raw)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : undefined
+  } catch {
+    return undefined
   }
 }
 
@@ -924,6 +931,17 @@ async function* translateInteractionEvents(
   let thinkingAccumulated = ''
   let reasoningMessageId: string | null = null
   let hasClosedReasoning = false
+  // SDK 2.x routes events by step `index`, not by content id. We need to
+  // map the index of an in-flight `function_call` step back to the tool
+  // call id so subsequent `step.delta` (arguments_delta) and `step.stop`
+  // events can update / close the right TOOL_CALL_*.
+  const indexToToolCallId = new Map<number, string>()
+  // Function-call arguments now stream as partial JSON fragments
+  // (`StepDelta.ArgumentsDelta.arguments`) rather than as pre-parsed
+  // object deltas. Buffer the raw strings per tool call so we can
+  // attempt one JSON parse per delta and recover gracefully if the
+  // fragment isn't yet syntactically complete.
+  const argStringByToolCallId = new Map<string, string>()
 
   const closeReasoningIfNeeded = function* (): Generator<StreamChunk> {
     if (reasoningMessageId && !hasClosedReasoning) {
@@ -997,20 +1015,259 @@ async function* translateInteractionEvents(
   for await (const event of stream) {
     logger.provider(`provider=gemini-text-interactions`, { event })
     switch (event.event_type) {
-      case 'interaction.start': {
+      case 'interaction.created': {
         interactionId = event.interaction.id
         yield* emitRunStartedIfNeeded()
         break
       }
 
-      case 'content.start': {
+      case 'step.start': {
         yield* emitRunStartedIfNeeded()
+        const step = event.step
+        const index = event.index
+        switch (step.type) {
+          case 'function_call': {
+            yield* closeReasoningIfNeeded()
+            sawFunctionCall = true
+            const toolCallId = step.id
+            indexToToolCallId.set(index, toolCallId)
+            // `step.arguments` is required on FunctionCallStep but may
+            // be an empty `{}` placeholder when streaming, where the
+            // real args arrive as `arguments_delta` events. Treat both
+            // uniformly: stash whatever we got, stringify once.
+            const initialArgs = step.arguments
+            const state: ToolCallState = {
+              name: step.name,
+              args: { ...initialArgs },
+              index: nextToolIndex++,
+              started: true,
+              ended: false,
+            }
+            toolCalls.set(toolCallId, state)
+            argStringByToolCallId.set(
+              toolCallId,
+              Object.keys(initialArgs).length > 0
+                ? JSON.stringify(initialArgs)
+                : '',
+            )
+            yield {
+              type: EventType.TOOL_CALL_START,
+              toolCallId,
+              toolCallName: state.name,
+              toolName: state.name,
+              // Bind the tool call to the same assistant message id the
+              // eventual TEXT_MESSAGE_START uses so the message id stays
+              // stable when a function_call arrives before any text (#477).
+              parentMessageId: messageId,
+              model,
+              timestamp,
+              index: state.index,
+            }
+            if (Object.keys(initialArgs).length > 0) {
+              const argsJson = JSON.stringify(initialArgs)
+              yield {
+                type: EventType.TOOL_CALL_ARGS,
+                toolCallId,
+                model,
+                timestamp,
+                delta: argsJson,
+                args: argsJson,
+              }
+            }
+            break
+          }
+          case 'thought': {
+            // Open the reasoning block lazily — content lands here via
+            // `step.delta { thought_summary }` events. If the server
+            // ships a non-empty `summary` array up-front (rare, unary
+            // responses), surface it immediately.
+            if (thinkingStepId === null || reasoningMessageId === null) {
+              thinkingStepId = generateId(adapterName)
+              reasoningMessageId = generateId(adapterName)
+              yield {
+                type: EventType.REASONING_START,
+                messageId: reasoningMessageId,
+                model,
+                timestamp,
+              }
+              yield {
+                type: EventType.REASONING_MESSAGE_START,
+                messageId: reasoningMessageId,
+                role: 'reasoning',
+                model,
+                timestamp,
+              }
+              yield {
+                type: EventType.STEP_STARTED,
+                stepName: thinkingStepId,
+                stepId: thinkingStepId,
+                model,
+                timestamp,
+                stepType: 'thinking',
+              }
+            }
+            for (const part of step.summary ?? []) {
+              if (part.type !== 'text' || !part.text) continue
+              thinkingAccumulated += part.text
+              yield {
+                type: EventType.REASONING_MESSAGE_CONTENT,
+                messageId: reasoningMessageId,
+                delta: part.text,
+                model,
+                timestamp,
+              }
+              yield {
+                type: EventType.STEP_FINISHED,
+                stepName: thinkingStepId,
+                stepId: thinkingStepId,
+                model,
+                timestamp,
+                delta: part.text,
+                content: thinkingAccumulated,
+              }
+            }
+            break
+          }
+          case 'model_output': {
+            yield* closeReasoningIfNeeded()
+            // Some servers ship an initial `content` array on
+            // `step.start` (notably non-streaming and ahead-of-stream
+            // unary completions). Treat any prefilled text content the
+            // same way a `text` step.delta would.
+            for (const part of step.content ?? []) {
+              if (part.type !== 'text' || !part.text) continue
+              if (!hasEmittedTextMessageStart) {
+                hasEmittedTextMessageStart = true
+                yield {
+                  type: EventType.TEXT_MESSAGE_START,
+                  messageId,
+                  model,
+                  timestamp,
+                  role: 'assistant',
+                }
+              }
+              textAccumulated += part.text
+              yield {
+                type: EventType.TEXT_MESSAGE_CONTENT,
+                messageId,
+                model,
+                timestamp,
+                delta: part.text,
+                content: textAccumulated,
+              }
+            }
+            break
+          }
+          case 'google_search_call': {
+            yield* closeReasoningIfNeeded()
+            yield {
+              type: EventType.CUSTOM,
+              name: 'gemini.googleSearchCall',
+              value: step,
+              model,
+              timestamp,
+            }
+            break
+          }
+          case 'google_search_result': {
+            yield* closeReasoningIfNeeded()
+            yield {
+              type: EventType.CUSTOM,
+              name: 'gemini.googleSearchResult',
+              value: step,
+              model,
+              timestamp,
+            }
+            break
+          }
+          case 'code_execution_call': {
+            yield* closeReasoningIfNeeded()
+            yield {
+              type: EventType.CUSTOM,
+              name: 'gemini.codeExecutionCall',
+              value: step,
+              model,
+              timestamp,
+            }
+            break
+          }
+          case 'code_execution_result': {
+            yield* closeReasoningIfNeeded()
+            yield {
+              type: EventType.CUSTOM,
+              name: 'gemini.codeExecutionResult',
+              value: step,
+              model,
+              timestamp,
+            }
+            break
+          }
+          case 'url_context_call': {
+            yield* closeReasoningIfNeeded()
+            yield {
+              type: EventType.CUSTOM,
+              name: 'gemini.urlContextCall',
+              value: step,
+              model,
+              timestamp,
+            }
+            break
+          }
+          case 'url_context_result': {
+            yield* closeReasoningIfNeeded()
+            yield {
+              type: EventType.CUSTOM,
+              name: 'gemini.urlContextResult',
+              value: step,
+              model,
+              timestamp,
+            }
+            break
+          }
+          case 'file_search_call': {
+            yield* closeReasoningIfNeeded()
+            yield {
+              type: EventType.CUSTOM,
+              name: 'gemini.fileSearchCall',
+              value: step,
+              model,
+              timestamp,
+            }
+            break
+          }
+          case 'file_search_result': {
+            yield* closeReasoningIfNeeded()
+            yield {
+              type: EventType.CUSTOM,
+              name: 'gemini.fileSearchResult',
+              value: step,
+              model,
+              timestamp,
+            }
+            break
+          }
+          // Unhandled step types (user_input on GET timelines,
+          // mcp_server_*, google_maps_*, function_result) fall through
+          // to the observability default so SDK drift is visible.
+          case 'user_input':
+          case 'mcp_server_tool_call':
+          case 'mcp_server_tool_result':
+          case 'google_maps_call':
+          case 'google_maps_result':
+          case 'function_result':
+          default:
+            logger.provider(`gemini-text-interactions unhandled step.start`, {
+              step,
+            })
+            break
+        }
         break
       }
 
-      case 'content.delta': {
+      case 'step.delta': {
         yield* emitRunStartedIfNeeded()
         const delta = event.delta
+        const index = event.index
         switch (delta.type) {
           case 'text': {
             yield* closeReasoningIfNeeded()
@@ -1035,135 +1292,39 @@ async function* translateInteractionEvents(
             }
             break
           }
-          case 'function_call': {
-            yield* closeReasoningIfNeeded()
-            sawFunctionCall = true
-            const toolCallId = delta.id
-            const deltaArgs: Record<string, unknown> =
-              typeof delta.arguments === 'string'
-                ? safeParseToolArguments(delta.arguments, logger)
-                : delta.arguments
-            let state = toolCalls.get(toolCallId)
-            if (!state) {
-              state = {
-                name: delta.name,
-                args: { ...deltaArgs },
-                index: nextToolIndex++,
-                started: false,
-                ended: false,
-              }
-              toolCalls.set(toolCallId, state)
-            } else {
-              state.args = { ...state.args, ...deltaArgs }
-              if (delta.name) state.name = delta.name
+          case 'arguments_delta': {
+            // Streamed function-call arguments. Identity (id, name) was
+            // delivered on the matching `step.start` and recorded in
+            // indexToToolCallId.
+            const toolCallId = indexToToolCallId.get(index)
+            if (!toolCallId) {
+              logger.provider(
+                `gemini-text-interactions arguments_delta for unknown step index`,
+                { index, delta },
+              )
+              break
             }
-            if (!state.started) {
-              state.started = true
-              yield {
-                type: EventType.TOOL_CALL_START,
-                toolCallId,
-                toolCallName: state.name,
-                toolName: state.name,
-                model,
-                timestamp,
-                index: state.index,
-              }
-            }
+            const state = toolCalls.get(toolCallId)
+            if (!state) break
+            const fragment = delta.arguments ?? ''
+            const buffer =
+              (argStringByToolCallId.get(toolCallId) ?? '') + fragment
+            argStringByToolCallId.set(toolCallId, buffer)
+            // Parse the accumulated buffer leniently: streamed arg fragments
+            // are individually incomplete JSON, so use a partial-JSON parser
+            // that tolerates truncation rather than logging a parse error per
+            // fragment. Only overwrite `state.args` when we actually recovered
+            // an object, so a momentarily-unparseable fragment can't reset
+            // previously-merged args back to `{}`.
+            const parsed = parsePartialToolArguments(buffer)
+            if (parsed) state.args = parsed
             yield {
               type: EventType.TOOL_CALL_ARGS,
               toolCallId,
               model,
               timestamp,
-              delta: JSON.stringify(deltaArgs),
-              args: JSON.stringify(state.args),
-            }
-            break
-          }
-          case 'google_search_call': {
-            yield* closeReasoningIfNeeded()
-            yield {
-              type: EventType.CUSTOM,
-              name: 'gemini.googleSearchCall',
-              value: delta,
-              model,
-              timestamp,
-            }
-            break
-          }
-          case 'google_search_result': {
-            yield* closeReasoningIfNeeded()
-            yield {
-              type: EventType.CUSTOM,
-              name: 'gemini.googleSearchResult',
-              value: delta,
-              model,
-              timestamp,
-            }
-            break
-          }
-          case 'code_execution_call': {
-            yield* closeReasoningIfNeeded()
-            yield {
-              type: EventType.CUSTOM,
-              name: 'gemini.codeExecutionCall',
-              value: delta,
-              model,
-              timestamp,
-            }
-            break
-          }
-          case 'code_execution_result': {
-            yield* closeReasoningIfNeeded()
-            yield {
-              type: EventType.CUSTOM,
-              name: 'gemini.codeExecutionResult',
-              value: delta,
-              model,
-              timestamp,
-            }
-            break
-          }
-          case 'url_context_call': {
-            yield* closeReasoningIfNeeded()
-            yield {
-              type: EventType.CUSTOM,
-              name: 'gemini.urlContextCall',
-              value: delta,
-              model,
-              timestamp,
-            }
-            break
-          }
-          case 'url_context_result': {
-            yield* closeReasoningIfNeeded()
-            yield {
-              type: EventType.CUSTOM,
-              name: 'gemini.urlContextResult',
-              value: delta,
-              model,
-              timestamp,
-            }
-            break
-          }
-          case 'file_search_call': {
-            yield* closeReasoningIfNeeded()
-            yield {
-              type: EventType.CUSTOM,
-              name: 'gemini.fileSearchCall',
-              value: delta,
-              model,
-              timestamp,
-            }
-            break
-          }
-          case 'file_search_result': {
-            yield* closeReasoningIfNeeded()
-            yield {
-              type: EventType.CUSTOM,
-              name: 'gemini.fileSearchResult',
-              value: delta,
-              model,
-              timestamp,
+              delta: fragment,
+              args: buffer,
             }
             break
           }
@@ -1215,22 +1376,33 @@ async function* translateInteractionEvents(
             }
             break
           }
-          // The following delta types are valid per the SDK type union
-          // but aren't yet translated by this adapter (output modalities
-          // text-only adapter shouldn't see, response-side function_result
-          // / mcp_server_*, thought_signature). Falling through to the
-          // observability default so SDK drift is visible.
+          // The remaining StepDelta variants (image/audio/video/document
+          // for output modalities a text adapter shouldn't see, tool
+          // call/result deltas which are surfaced via step.start in this
+          // adapter, thought_signature, annotation deltas, mcp/google
+          // maps variants) fall through to the observability default.
           case 'image':
           case 'audio':
           case 'video':
           case 'document':
-          case 'function_result':
+          case 'thought_signature':
+          case 'text_annotation_delta':
+          case 'code_execution_call':
+          case 'code_execution_result':
+          case 'url_context_call':
+          case 'url_context_result':
+          case 'google_search_call':
+          case 'google_search_result':
+          case 'file_search_call':
+          case 'file_search_result':
           case 'mcp_server_tool_call':
           case 'mcp_server_tool_result':
-          case 'thought_signature':
+          case 'google_maps_call':
+          case 'google_maps_result':
+          case 'function_result':
           default:
             logger.provider(
-              `gemini-text-interactions unhandled content.delta type`,
+              `gemini-text-interactions unhandled step.delta type`,
               { delta },
             )
             break
@@ -1238,12 +1410,34 @@ async function* translateInteractionEvents(
         break
       }
 
-      case 'content.stop':
+      case 'step.stop': {
+        // Close any open function_call so downstream consumers get the
+        // matching TOOL_CALL_END once the arguments are complete. Other
+        // step types don't carry adapter-level open state.
+        const toolCallId = indexToToolCallId.get(event.index)
+        if (toolCallId) {
+          const state = toolCalls.get(toolCallId)
+          if (state && !state.ended) {
+            state.ended = true
+            yield {
+              type: EventType.TOOL_CALL_END,
+              toolCallId,
+              toolName: state.name,
+              model,
+              timestamp,
+              input: state.args,
+            }
+          }
+          indexToToolCallId.delete(event.index)
+        }
+        break
+      }
+
       case 'interaction.status_update': {
         break
       }
 
-      case 'interaction.complete': {
+      case 'interaction.completed': {
         if (event.interaction.id) {
           interactionId = event.interaction.id
         }
@@ -1347,10 +1541,21 @@ async function* translateInteractionEvents(
 }
 
 function extractTextFromInteraction(interaction: Interaction): string {
+  // SDK 2.x: the response carries a `steps` array; `output_text` is a
+  // convenience the SDK derives from the last model output. Prefer the
+  // SDK sugar when it's populated, then fall back to walking
+  // model_output steps for adapters / responses that don't get the
+  // sugar (e.g. older SDK builds).
+  if (typeof interaction.output_text === 'string' && interaction.output_text) {
+    return interaction.output_text
+  }
   let text = ''
-  for (const output of interaction.outputs ?? []) {
-    if (output.type === 'text') {
-      text += output.text
+  for (const step of interaction.steps ?? []) {
+    if (step.type !== 'model_output' || !step.content) continue
+    for (const part of step.content) {
+      if (part.type === 'text') {
+        text += part.text
+      }
     }
   }
   return text

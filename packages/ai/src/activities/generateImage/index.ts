@@ -8,9 +8,17 @@
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { streamGenerationResult } from '../stream-generation-result.js'
 import { resolveDebugOption } from '../../logger/resolve'
+import {
+  createGenerationContext,
+  runGenerationError,
+  runGenerationFinish,
+  runGenerationStart,
+  runGenerationUsage,
+} from '../middleware'
 import { resolveMediaPrompt } from '../../utilities/media-prompt'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
+import type { GenerationMiddleware } from '../middleware'
 import type { ImageAdapter } from './adapter'
 import type {
   ImageGenerationResult,
@@ -123,6 +131,12 @@ export type ImageActivityOptions<
    * control and/or a custom `Logger`.
    */
   debug?: DebugOption
+  /**
+   * Observe-only middleware notified on start, usage, success, and error. Pass
+   * `otelMiddleware()` to emit OpenTelemetry spans, or implement the
+   * `GenerationMiddleware` contract for a custom backend.
+   */
+  middleware?: Array<GenerationMiddleware>
 } & ({} extends ImageProviderOptionsForModel<TAdapter, TAdapter['model']>
   ? {
       /** Provider-specific options for image generation */ modelOptions?: ImageProviderOptionsForModel<
@@ -228,11 +242,28 @@ async function runGenerateImage<
 >(
   options: ImageActivityOptions<TAdapter, boolean>,
 ): Promise<ImageGenerationResult> {
-  const { adapter, stream: _stream, debug: _debug, ...rest } = options
+  const {
+    adapter,
+    stream: _stream,
+    debug: _debug,
+    middleware,
+    ...rest
+  } = options
   const model = adapter.model
   const requestId = createId('image')
   const startTime = Date.now()
   const logger: InternalLogger = resolveDebugOption(options.debug)
+
+  const mwCtx = createGenerationContext({
+    requestId,
+    activity: 'image',
+    provider: adapter.name,
+    model,
+    modelOptions: rest.modelOptions,
+    createId,
+  })
+
+  await runGenerationStart(middleware, mwCtx)
 
   // Devtools events carry the flattened prompt text plus media-part counts —
   // the wire payload stays `prompt: string` regardless of the prompt shape.
@@ -299,8 +330,18 @@ async function runGenerateImage<
       count: result.images.length,
     })
 
+    if (result.usage) await runGenerationUsage(middleware, mwCtx, result.usage)
+    await runGenerationFinish(middleware, mwCtx, {
+      duration,
+      usage: result.usage,
+    })
+
     return result
   } catch (error) {
+    await runGenerationError(middleware, mwCtx, {
+      error,
+      duration: Date.now() - startTime,
+    })
     logger.errors('generateImage activity failed', {
       error,
       source: 'generateImage',

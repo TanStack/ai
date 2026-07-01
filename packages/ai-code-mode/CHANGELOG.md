@@ -1,5 +1,96 @@
 # @tanstack/ai-code-mode
 
+## 0.3.3
+
+### Patch Changes
+
+- Updated dependencies [[`b628a4d`](https://github.com/TanStack/ai/commit/b628a4da5fd21184922c6944059768d1ed6071d4), [`b628a4d`](https://github.com/TanStack/ai/commit/b628a4da5fd21184922c6944059768d1ed6071d4)]:
+  - @tanstack/ai@0.39.0
+
+## 0.3.2
+
+### Patch Changes
+
+- Updated dependencies [[`c1a8732`](https://github.com/TanStack/ai/commit/c1a87327b4a3463d37158f32ca90184b5fd092bb)]:
+  - @tanstack/ai@0.38.0
+
+## 0.3.1
+
+### Patch Changes
+
+- [#844](https://github.com/TanStack/ai/pull/844) [`a6cceba`](https://github.com/TanStack/ai/commit/a6cceba4812e7e986183ee856112fcf5f8fa12ff) - Republish all packages with their compiled `dist/` output.
+
+  Releases `0.33.0`–`0.36.0` were published without a `dist/` directory: the
+  release workflow relied on an Nx-cached `build` whose outputs were not
+  materialized to disk before `changeset publish` packed the tarballs, and
+  `files: ["dist"]` silently includes nothing when `dist/` is absent. The
+  published packages therefore contained only `src/`, so every export
+  (`./dist/esm/*.js`) resolved to a missing file and the packages were
+  uninstallable.
+
+  The publish step now runs a fresh, cache-bypassing build of all packages
+  immediately before publishing, guaranteeing compiled artifacts are present in
+  every tarball.
+
+- Updated dependencies [[`a6cceba`](https://github.com/TanStack/ai/commit/a6cceba4812e7e986183ee856112fcf5f8fa12ff)]:
+  - @tanstack/ai@0.37.0
+
+## 0.3.0
+
+### Minor Changes
+
+- [#726](https://github.com/TanStack/ai/pull/726) [`fbd3762`](https://github.com/TanStack/ai/commit/fbd37623b287e370aa5678e161dec19cf13ae33b) - Add lazy tool support (progressive disclosure) to Code Mode. Tools marked `lazy: true` are kept out of the `execute_typescript` system prompt and listed in a discoverable catalog; the model fetches their TypeScript signatures on demand via a new `discover_tools` tool. A shared optional `lazyToolsConfig` (`includeDescription: 'none' | 'first-sentence' | 'full'`) tunes the catalog detail for both `chat()` and `createCodeMode()`. `createCodeMode` now also returns `discoveryTool` and a `tools` array (backward compatible — `tool` and `systemPrompt` are unchanged).
+
+### Patch Changes
+
+- Updated dependencies [[`fbd3762`](https://github.com/TanStack/ai/commit/fbd37623b287e370aa5678e161dec19cf13ae33b)]:
+  - @tanstack/ai@0.36.0
+
+## 0.2.13
+
+### Patch Changes
+
+- Updated dependencies [[`c04abd3`](https://github.com/TanStack/ai/commit/c04abd35284d464d830bb9f15129c7a7c2533d3f)]:
+  - @tanstack/ai@0.35.0
+
+## 0.2.12
+
+### Patch Changes
+
+- Updated dependencies [[`4188693`](https://github.com/TanStack/ai/commit/4188693d09297ce400eb1ba5fab30cfea2fdb8a6)]:
+  - @tanstack/ai@0.34.1
+
+## 0.2.11
+
+### Patch Changes
+
+- Updated dependencies [[`31de22b`](https://github.com/TanStack/ai/commit/31de22b1ae780c53e3abbf9cf17e1db7b62de84a)]:
+  - @tanstack/ai@0.34.0
+
+## 0.2.10
+
+### Patch Changes
+
+- [#799](https://github.com/TanStack/ai/pull/799) [`81e3aee`](https://github.com/TanStack/ai/commit/81e3aee318d0e6f869ee00c3d86a7475980d89df) - fix(code-mode): drop esbuild for edge-safe TypeScript stripping
+
+  `@tanstack/ai-code-mode` hard-depended on `esbuild` to strip TypeScript before sandbox execution. esbuild ships a Node-native binary and pulls in Node-only built-ins (e.g. `require("pnpapi")`), which broke browser bundles and edge runtimes such as Cloudflare Workers/Pages. The default transpiler is now `sucrase`, a pure-JavaScript transform that is safe to bundle for browsers and edge runtimes.
+
+  sucrase is a type-stripper rather than a down-leveler, so unlike esbuild it does not compile a few exotic constructs: TypeScript value `namespace` blocks are dropped, decorators / the `accessor` keyword pass through un-lowered, and post-ES2022 syntax (`using`, RegExp `/v`·`/d` flags) is left as-is (fine on modern V8/Node sandboxes, but may fail on older engines like QuickJS). A new `transpile` escape hatch on `createCodeModeTool` lets you swap in a heavier Node-only transpiler (e.g. esbuild) when you need that coverage and don't need edge safety.
+
+- [#794](https://github.com/TanStack/ai/pull/794) [`3bf0dbf`](https://github.com/TanStack/ai/commit/3bf0dbfb3e0a3c252b4769855ba82ffb8cdd69ca) - fix(code-mode): validate tool input/output against schemas
+
+  Code mode converted a tool's input/output schema to JSON Schema for the prompt but never validated against it — unlike the normal agent-loop path. A provided `inputSchema`/`outputSchema` was effectively just documentation: inner (`external_*`) tools received raw, un-coerced sandbox args and outputs went unchecked. `toolToBinding` now runs the same Standard Schema validation, so defaults/coercions apply and invalid input/output throws an agent-readable error.
+
+- Updated dependencies [[`2cb0313`](https://github.com/TanStack/ai/commit/2cb0313c1f13e1db37c5550308e36bb0b9b73b98), [`18e5f4d`](https://github.com/TanStack/ai/commit/18e5f4d9746a26c3194929ea4b49673728e8eaa5), [`21720dd`](https://github.com/TanStack/ai/commit/21720dd73524d624594a6dfb7e4669c03cc08af0), [`243b8fa`](https://github.com/TanStack/ai/commit/243b8fad7e8a48b68a1a96962ee1443cbd6a0ced)]:
+  - @tanstack/ai@0.33.0
+
+## 0.2.9
+
+### Patch Changes
+
+- Updated dependencies [[`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f), [`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f)]:
+  - @tanstack/ai@0.32.0
+
 ## 0.2.8
 
 ### Patch Changes

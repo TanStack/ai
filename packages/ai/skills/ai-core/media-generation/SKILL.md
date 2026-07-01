@@ -3,10 +3,10 @@ name: ai-core/media-generation
 description: >
   Image, audio, video, speech (TTS), and transcription generation using
   activity-specific adapters: generateImage() with openaiImage/geminiImage,
-  generateAudio() with geminiAudio/falAudio, generateVideo() with
-  openaiVideo/geminiVideo (async polling, per-model typed durations),
-  generateSpeech() with openaiSpeech, generateTranscription() with
-  openaiTranscription. React hooks: useGenerateImage, useGenerateAudio,
+  generateAudio() with geminiAudio/falAudio, generateVideo() with async
+  polling (openaiVideo/geminiVideo/grokVideo/falVideo, per-model typed
+  durations), generateSpeech() with openaiSpeech, generateTranscription()
+  with openaiTranscription. React hooks: useGenerateImage, useGenerateAudio,
   useGenerateSpeech, useTranscription, useGenerateVideo.
   TanStack Start server function integration with toServerSentEventsResponse.
 type: sub-skill
@@ -359,6 +359,19 @@ const { generate, result, isLoading } = useGenerateSpeech({
 Adapter: `openaiTranscription` (whisper-1, gpt-4o-transcribe,
 gpt-4o-mini-transcribe).
 
+> **Capturing audio in the browser:** Use `useAudioRecorder` from `@tanstack/ai-react` to record directly in the browser, then pass the recording as the `audio` input to `generate()`, or use `recording.part` as a prompt part in chat/generation calls. No transcoding or extra dependencies required — the recorder returns the native browser format (`audio/webm` or `audio/mp4`). For transcription, wrap it as a `data:` URL so the provider gets the real content type; passing raw `recording.base64` makes the adapter assume `audio/mpeg` and mislabel the webm/mp4 bytes.
+>
+> ```typescript
+> const { isRecording, start, stop } = useAudioRecorder()
+> const { generate } = useTranscription({
+>   connection: fetchServerSentEvents('/api/transcribe'),
+> })
+> // ...
+> const recording = await stop()
+> const mimeType = recording.mimeType.split(';')[0] // strip ;codecs=...
+> await generate({ audio: `data:${mimeType};base64,${recording.base64}` })
+> ```
+
 ```typescript
 import { generateTranscription } from '@tanstack/ai'
 import { openaiTranscription } from '@tanstack/ai-openai'
@@ -453,6 +466,13 @@ const { jobId } = await generateVideo({
 // Note: Veo result URLs require the Google API key to download
 // (x-goog-api-key header or ?key= query parameter).
 ```
+
+Other video adapters: `openaiVideo('sora-2')` (pixel sizes like `'1280x720'`,
+durations 4/8/12s, single `input_reference` image prompt part), `grokVideo(...)`
+(`grok-imagine-video` does text-to-video + image-to-video; `grok-imagine-video-1.5` is
+image-to-video only — needs an `image` prompt part as the starting frame, text-only throws;
+aspect-ratio size template like `'16:9_720p'`, integer durations 1-15s, reports
+`usage.unitsBilled` seconds and exact `usage.cost`), and `falVideo(...)` (hosted models, see cost tracking below).
 
 Client hook with job tracking:
 

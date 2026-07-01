@@ -30,6 +30,9 @@ export type { CodeModeWithSkillsOptions, CodeModeWithSkillsResult }
  *
  * @example
  * ```typescript
+ * // Node-only file storage lives behind the `/storage` subpath:
+ * import { createFileSkillStorage } from '@tanstack/ai-code-mode-skills/storage'
+ *
  * const { toolsRegistry, systemPrompt, selectedSkills } = await codeModeWithSkills({
  *   config: {
  *     driver: createNodeIsolateDriver(),

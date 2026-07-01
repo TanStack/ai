@@ -26,8 +26,9 @@ npm install @tanstack/ai
 Creates a streaming chat response.
 
 ```typescript
-import { chat } from "@tanstack/ai";
+import { chat, maxIterations } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
+import { myTool } from "./tools";
 
 const stream = chat({
   adapter: openaiText("gpt-5.2"),
@@ -89,7 +90,8 @@ A `SummarizationResult` with the summary text.
 Creates an isomorphic tool definition that can be instantiated for server or client execution.
 
 ```typescript
-import { toolDefinition } from "@tanstack/ai";
+import { chat, toolDefinition } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
 import { z } from "zod";
 
 const myToolDef = toolDefinition({
@@ -134,6 +136,10 @@ chat({
 Tools can declare typed runtime context for request-scoped dependencies:
 
 ```typescript
+import { chat, toolDefinition, toServerSentEventsResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { session, db } from "./app";
+
 type AppContext = {
   userId: string;
   db: { users: { findName(id: string): Promise<string> } };
@@ -142,16 +148,20 @@ type AppContext = {
 const currentUser = toolDefinition({
   name: "current_user",
   description: "Get the current user",
-}).server<AppContext>(async (_input, ctx) => {
+}).server<AppContext>(async (_input: unknown, ctx) => {
   return { name: await ctx.context.db.users.findName(ctx.context.userId) };
 });
 
-chat({
-  adapter: openaiText("gpt-5.2"),
-  messages,
-  tools: [currentUser],
-  context: { userId: session.user.id, db },
-});
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+  const stream = chat({
+    adapter: openaiText("gpt-5.2"),
+    messages,
+    tools: [currentUser],
+    context: { userId: session.user.id, db },
+  });
+  return toServerSentEventsResponse(stream);
+}
 ```
 
 ### Parameters
@@ -177,7 +187,7 @@ import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
   adapter: openaiText("gpt-5.2"),
-  messages: [...],
+  messages: [{ role: "user", content: "Hello!" }],
 });
 const readableStream = toServerSentEventsStream(stream);
 ```
@@ -202,11 +212,13 @@ Converts a stream to an HTTP Response with proper SSE headers.
 import { chat, toServerSentEventsResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
-const stream = chat({
-  adapter: openaiText("gpt-5.2"),
-  messages: [...],
-});
-return toServerSentEventsResponse(stream);
+async function POST() {
+  const stream = chat({
+    adapter: openaiText("gpt-5.2"),
+    messages: [{ role: "user", content: "Hello!" }],
+  });
+  return toServerSentEventsResponse(stream);
+}
 ```
 
 ### Parameters
@@ -225,11 +237,12 @@ Reads an HTTP `Request`, parses its JSON body, and validates it against AG-UI `R
 ```typescript
 import { chat, chatParamsFromRequest, toServerSentEventsResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
+import { serverTools } from "./tools";
 
 export async function POST(req: Request) {
   const params = await chatParamsFromRequest(req);
   const stream = chat({
-    adapter: openaiText("gpt-4o"),
+    adapter: openaiText("gpt-5.5"),
     messages: params.messages,
     tools: serverTools,
   });
@@ -256,12 +269,18 @@ The returned `context` field is a deprecated alias of `aguiContext` kept for bac
 Lower-level variant of `chatParamsFromRequest` that validates an already-parsed body. Rejects with an `AGUIError` on malformed input. Use this when you need explicit error handling control.
 
 ```typescript
-const body = await req.json();
-try {
-  const params = await chatParamsFromRequestBody(body);
-  // ...
-} catch (error) {
-  return new Response(error.message, { status: 400 });
+import { chatParamsFromRequestBody } from "@tanstack/ai";
+
+async function handler(req: Request): Promise<Response> {
+  const body = await req.json();
+  try {
+    const params = await chatParamsFromRequestBody(body);
+    // ...
+    return new Response("ok");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return new Response(message, { status: 400 });
+  }
 }
 ```
 
@@ -271,13 +290,17 @@ Merges a server-side tool registry with the AG-UI client-declared tools received
 
 ```typescript
 import { chat, chatParamsFromRequest, mergeAgentTools } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { serverTools } from "./tools";
 
-const params = await chatParamsFromRequest(req);
-const stream = chat({
-  adapter: openaiText("gpt-4o"),
-  messages: params.messages,
-  tools: mergeAgentTools(serverTools, params.tools),
-});
+async function handler(req: Request) {
+  const params = await chatParamsFromRequest(req);
+  const stream = chat({
+    adapter: openaiText("gpt-5.5"),
+    messages: params.messages,
+    tools: mergeAgentTools(serverTools, params.tools),
+  });
+}
 ```
 
 ### Parameters
@@ -299,7 +322,7 @@ import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
   adapter: openaiText("gpt-5.2"),
-  messages: [...],
+  messages: [{ role: "user", content: "Hello!" }],
   agentLoopStrategy: maxIterations(20),
 });
 ```
@@ -326,7 +349,7 @@ interface ModelMessage {
 
 ### `StreamChunk`
 
-```typescript
+```typescript ignore
 type StreamChunk =
   | ContentStreamChunk
   | ThinkingStreamChunk
@@ -357,6 +380,8 @@ Stream chunks represent different types of data in the stream:
 ### `Tool`
 
 ```typescript
+import type { SchemaInput, ToolExecutionContext } from "@tanstack/ai";
+
 interface Tool<TContext = unknown> {
   name: string;
   description: string;
@@ -374,7 +399,7 @@ interface Tool<TContext = unknown> {
 
 ### `ToolExecutionContext<TContext>`
 
-```typescript
+```typescript ignore
 type ToolExecutionContext<TContext = unknown> = {
   toolCallId?: string;
   emitCustomEvent: (eventName: string, value: Record<string, any>) => void;
@@ -386,6 +411,28 @@ type ToolExecutionContext<TContext = unknown> = {
 ### `ChatMiddleware<TContext>`
 
 ```typescript
+import type {
+  StreamChunk,
+  ChatMiddlewarePhase,
+  ToolCallHookContext,
+  BeforeToolCallDecision,
+  AfterToolCallInfo,
+  FinishInfo,
+  AbortInfo,
+  ErrorInfo,
+} from "@tanstack/ai";
+
+interface ChatMiddlewareContext<TContext = unknown> {
+  requestId: string;
+  streamId: string;
+  threadId: string;
+  phase: ChatMiddlewarePhase;
+  iteration: number;
+  context: TContext;
+  abort(reason?: string): void;
+  defer(promise: Promise<unknown>): void;
+}
+
 interface ChatMiddleware<TContext = unknown> {
   name?: string;
   onStart?: (ctx: ChatMiddlewareContext<TContext>) => void | Promise<void>;
@@ -414,17 +461,6 @@ interface ChatMiddleware<TContext = unknown> {
     info: ErrorInfo
   ) => void | Promise<void>;
 }
-
-interface ChatMiddlewareContext<TContext = unknown> {
-  requestId: string;
-  streamId: string;
-  threadId: string;
-  phase: ChatMiddlewarePhase;
-  iteration: number;
-  context: TContext;
-  abort(reason?: string): void;
-  defer(promise: Promise<unknown>): void;
-}
 ```
 
 See [Runtime Context](../advanced/runtime-context) for the recommended context patterns.
@@ -432,12 +468,13 @@ See [Runtime Context](../advanced/runtime-context) for the recommended context p
 ## Usage Examples
 
 ```typescript
-import { chat, summarize, generateImage } from "@tanstack/ai";
+import { chat, summarize, generateImage, toolDefinition } from "@tanstack/ai";
 import {
   openaiText,
   openaiSummarize,
   openaiImage,
 } from "@tanstack/ai-openai";
+import { z } from "zod";
 
 // --- Streaming chat
 const stream = chat({
@@ -445,66 +482,66 @@ const stream = chat({
   messages: [{ role: "user", content: "Hello!" }],
 });
 
-// --- One-shot chat response (stream: false)
-const response = await chat({
-  adapter: openaiText("gpt-5.2"),
-  messages: [{ role: "user", content: "What's the capital of France?" }],
-  stream: false, // Returns a Promise<string> instead of AsyncIterable
-});
-
-// --- Structured response with outputSchema
-import { z } from "zod";
-const parsed = await chat({
-  adapter: openaiText("gpt-5.2"),
-  messages: [{ role: "user", content: "Summarize this text in JSON with keys 'summary' and 'keywords': ... " }],
-  outputSchema: z.object({
-    summary: z.string(),
-    keywords: z.array(z.string()),
-  }),
-});
-
 // --- Structured response with tools
-import { toolDefinition } from "@tanstack/ai";
 const weatherTool = toolDefinition({
   name: "getWeather",
   description: "Get the current weather for a city",
   inputSchema: z.object({
-    city: z.string().meta({ description: "City name" }),
+    city: z.string(),
   }),
 }).server(async ({ city }) => {
   // Implementation that fetches weather info
   return JSON.stringify({ temperature: 72, condition: "Sunny" });
 });
 
-const toolResult = await chat({
-  adapter: openaiText("gpt-5.2"),
-  messages: [
-    { role: "user", content: "What's the weather in Paris?" }
-  ],
-  tools: [weatherTool],
-  outputSchema: z.object({
-    answer: z.string(),
-    weather: z.object({
-      temperature: z.number(),
-      condition: z.string(),
+async function examples() {
+  // --- One-shot chat response (stream: false)
+  const response = await chat({
+    adapter: openaiText("gpt-5.2"),
+    messages: [{ role: "user", content: "What's the capital of France?" }],
+    stream: false, // Returns a Promise<string> instead of AsyncIterable
+  });
+
+  // --- Structured response with outputSchema
+  const parsed = await chat({
+    adapter: openaiText("gpt-5.2"),
+    messages: [{ role: "user", content: "Summarize this text in JSON with keys 'summary' and 'keywords': ... " }],
+    outputSchema: z.object({
+      summary: z.string(),
+      keywords: z.array(z.string()),
     }),
-  }),
-});
+  });
 
-// --- Summarization
-const summary = await summarize({
-  adapter: openaiSummarize("gpt-5.2"),
-  text: "Long text to summarize...",
-  maxLength: 100,
-});
+  const toolResult = await chat({
+    adapter: openaiText("gpt-5.2"),
+    messages: [
+      { role: "user", content: "What's the weather in Paris?" }
+    ],
+    tools: [weatherTool],
+    outputSchema: z.object({
+      answer: z.string(),
+      weather: z.object({
+        temperature: z.number(),
+        condition: z.string(),
+      }),
+    }),
+  });
 
-// --- Image generation
-const image = await generateImage({
-  adapter: openaiImage("dall-e-3"),
-  prompt: "A futuristic city skyline at sunset",
-  numberOfImages: 1,
-  size: "1024x1024",
-});
+  // --- Summarization
+  const summary = await summarize({
+    adapter: openaiSummarize("gpt-5.2"),
+    text: "Long text to summarize...",
+    maxLength: 100,
+  });
+
+  // --- Image generation
+  const image = await generateImage({
+    adapter: openaiImage("dall-e-3"),
+    prompt: "A futuristic city skyline at sunset",
+    numberOfImages: 1,
+    size: "1024x1024",
+  });
+}
 ```
 
 ## Next Steps

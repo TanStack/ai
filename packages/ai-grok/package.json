@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-grok",
-  "version": "0.11.5",
+  "version": "0.14.6",
   "description": "xAI Grok adapter for TanStack AI chat, image generation, realtime, and structured outputs.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -65,7 +65,6 @@
   },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
-    "@tanstack/ai-client": "workspace:*",
     "@vitest/coverage-v8": "4.0.14",
     "vite": "^7.3.3"
   },

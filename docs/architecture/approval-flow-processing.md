@@ -111,7 +111,7 @@ Framework hooks (`useChat` in React, Solid, Vue, Svelte) delegate to
 
 ### ToolCallState
 
-```typescript
+```typescript group=approval-flow-processing
 type ToolCallState =
   | 'awaiting-input'       // TOOL_CALL_START received, no arguments yet
   | 'input-streaming'      // Partial arguments being received
@@ -122,7 +122,7 @@ type ToolCallState =
 
 ### ToolCallPart (approval-relevant fields)
 
-```typescript
+```typescript group=approval-flow-processing
 interface ToolCallPart {
   type: 'tool-call'
   id: string               // Unique tool call ID
@@ -302,24 +302,33 @@ Two flags work together to handle this:
   Checked after `continuationPending` is cleared to trigger a re-evaluation.
 
 ```typescript
-private async checkForContinuation(): Promise<void> {
-  if (this.continuationPending || this.isLoading) {
-    this.continuationSkipped = true   // ← Mark that a check was suppressed
-    return
-  }
+class ChatClient {
+  private continuationPending = false
+  private continuationSkipped = false
+  private isLoading = false
 
-  if (this.shouldAutoSend()) {
-    this.continuationPending = true
-    this.continuationSkipped = false  // ← Reset before entering stream
-    try {
-      await this.streamResponse()
-    } finally {
-      this.continuationPending = false
+  private shouldAutoSend(): boolean { return false }
+  private async streamResponse(): Promise<void> {}
+
+  private async checkForContinuation(): Promise<void> {
+    if (this.continuationPending || this.isLoading) {
+      this.continuationSkipped = true   // ← Mark that a check was suppressed
+      return
     }
-    // If a check was skipped during the stream, re-evaluate now
-    if (this.continuationSkipped) {
-      this.continuationSkipped = false
-      await this.checkForContinuation()  // ← Recurse safely
+
+    if (this.shouldAutoSend()) {
+      this.continuationPending = true
+      this.continuationSkipped = false  // ← Reset before entering stream
+      try {
+        await this.streamResponse()
+      } finally {
+        this.continuationPending = false
+      }
+      // If a check was skipped during the stream, re-evaluate now
+      if (this.continuationSkipped) {
+        this.continuationSkipped = false
+        await this.checkForContinuation()  // ← Recurse safely
+      }
     }
   }
 }
@@ -385,7 +394,7 @@ These are `CUSTOM` events emitted by the TextEngine, not by adapters directly.
 
 Emitted when a tool with `needsApproval: true` has its arguments finalized.
 
-```typescript
+```typescript ignore
 {
   type: 'CUSTOM',
   name: 'approval-requested',

@@ -32,8 +32,18 @@ import {
   createChatClientOptions, 
   type InferChatMessages 
 } from "@tanstack/ai-client";
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
+import { createSignal } from "solid-js";
+
+const updateUIDef = toolDefinition({
+  name: "updateUI",
+  description: "Show a notification in the UI",
+  inputSchema: z.object({ message: z.string() }),
+});
 
 function ChatComponent() {
+  const [, setNotification] = createSignal<string | null>(null);
   // Create client tool implementations
   const updateUI = updateUIDef.client((input) => {
     setNotification(input.message);
@@ -81,6 +91,10 @@ Extends `ChatClientOptions` from `@tanstack/ai-client`:
 ### Returns
 
 ```typescript
+import type { Accessor } from "solid-js";
+import type { UIMessage } from "@tanstack/ai-solid";
+import type { ModelMessage } from "@tanstack/ai/client";
+
 interface UseChatReturn {
   messages: Accessor<UIMessage[]>;
   sendMessage: (content: string) => Promise<void>;
@@ -198,39 +212,40 @@ export function ChatWithApproval() {
       <For each={messages()}>
         {(message) => (
           <For each={message.parts}>
-            {(part) => (
-              <Show
-                when={
-                  part.type === "tool-call" &&
-                  part.state === "approval-requested" &&
-                  part.approval
-                }
-              >
-                <div>
-                  <p>Approve: {part.name}</p>
-                  <button
-                    onClick={() =>
-                      addToolApprovalResponse({
-                        id: part.approval!.id,
-                        approved: true,
-                      })
-                    }
-                  >
-                    Approve
-                  </button>
-                  <button
-                    onClick={() =>
-                      addToolApprovalResponse({
-                        id: part.approval!.id,
-                        approved: false,
-                      })
-                    }
-                  >
-                    Deny
-                  </button>
-                </div>
-              </Show>
-            )}
+            {(part) => {
+              if (
+                part.type === "tool-call" &&
+                part.state === "approval-requested" &&
+                part.approval
+              ) {
+                return (
+                  <div>
+                    <p>Approve: {part.name}</p>
+                    <button
+                      onClick={() =>
+                        addToolApprovalResponse({
+                          id: part.approval!.id,
+                          approved: true,
+                        })
+                      }
+                    >
+                      Approve
+                    </button>
+                    <button
+                      onClick={() =>
+                        addToolApprovalResponse({
+                          id: part.approval!.id,
+                          approved: false,
+                        })
+                      }
+                    >
+                      Deny
+                    </button>
+                  </div>
+                );
+              }
+              return null;
+            }}
           </For>
         )}
       </For>
@@ -248,11 +263,24 @@ import {
   createChatClientOptions, 
   type InferChatMessages 
 } from "@tanstack/ai-client";
-import { updateUIDef, saveToStorageDef } from "./tool-definitions";
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
 import { createSignal, For } from "solid-js";
 
+const updateUIDef = toolDefinition({
+  name: "updateUI",
+  description: "Show a notification in the UI",
+  inputSchema: z.object({ message: z.string(), type: z.string() }),
+});
+
+const saveToStorageDef = toolDefinition({
+  name: "saveToStorage",
+  description: "Save a value to localStorage",
+  inputSchema: z.object({ key: z.string(), value: z.string() }),
+});
+
 export function ChatWithClientTools() {
-  const [notification, setNotification] = createSignal(null);
+  const [notification, setNotification] = createSignal<{ message: string; type: string } | null>(null);
 
   // Create client implementations
   const updateUI = updateUIDef.client((input) => {
@@ -284,6 +312,7 @@ export function ChatWithClientTools() {
                 // ✅ part.input and part.output are fully typed!
                 return <div>Tool executed: {part.name}</div>;
               }
+              return null;
             }}
           </For>
         )}
@@ -303,6 +332,8 @@ import {
   createChatClientOptions, 
   type InferChatMessages 
 } from "@tanstack/ai-client";
+import { fetchServerSentEvents } from "@tanstack/ai-solid";
+import { tool1, tool2 } from "./tools";
 
 // Create typed tools array (no 'as const' needed!)
 const tools = clientTools(tool1, tool2);

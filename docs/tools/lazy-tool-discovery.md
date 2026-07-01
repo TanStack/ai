@@ -47,9 +47,12 @@ sequenceDiagram
 
 Add `lazy: true` to any tool definition:
 
-```typescript
-import { toolDefinition } from "@tanstack/ai";
+```typescript group=lazy-intro
+import { toolDefinition, chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
 import { z } from "zod";
+import { db } from "./db";
+import { getProducts, compareProducts } from "./tools";
 
 const searchProductsDef = toolDefinition({
   name: "searchProducts",
@@ -77,22 +80,65 @@ const searchProducts = searchProductsDef.server(async ({ query }) => {
 
 Then pass it to `chat()` alongside your other tools:
 
+```typescript group=lazy-intro
+async function handleRequest(request: Request) {
+  const { messages } = await request.json();
+  const stream = chat({
+    adapter: openaiText("gpt-5.5"),
+    messages,
+    tools: [
+      getProducts, // Normal tool — sent to LLM immediately
+      searchProducts, // Lazy tool — discovered on demand
+      compareProducts, // Lazy tool — discovered on demand
+    ],
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+## Controlling the Discovery Catalog
+
+By default, the `__lazy__tool__discovery__` tool's description lists only the
+**names** of available lazy tools. The optional `lazyToolsConfig` on `chat()`
+controls how much of each lazy tool's description appears in that pre-discovery
+catalog:
+
 ```typescript
 import { chat, toServerSentEventsResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
+import { getProducts, searchProducts, compareProducts } from "./tools";
 
-const stream = chat({
-  adapter: openaiText("gpt-4o"),
-  messages,
-  tools: [
-    getProducts, // Normal tool — sent to LLM immediately
-    searchProducts, // Lazy tool — discovered on demand
-    compareProducts, // Lazy tool — discovered on demand
-  ],
-});
+async function handleRequest(request: Request) {
+  const { messages } = await request.json();
+  const stream = chat({
+    adapter: openaiText("gpt-5.5"),
+    messages,
+    tools: [getProducts, searchProducts, compareProducts],
+    lazyToolsConfig: {
+      // 'none' (default) | 'first-sentence' | 'full'
+      includeDescription: "first-sentence",
+    },
+  });
 
-return toServerSentEventsResponse(stream);
+  return toServerSentEventsResponse(stream);
+}
 ```
+
+| `includeDescription` | Catalog entry for `searchProducts`              |
+| -------------------- | ----------------------------------------------- |
+| `'none'` (default)   | `searchProducts`                                |
+| `'first-sentence'`   | `searchProducts — Search products by keyword.`  |
+| `'full'`             | `searchProducts — <full description>`           |
+
+This only affects the **pre-discovery** catalog. Regardless of the setting, the
+discovery tool's result always returns each tool's full description and argument
+schema — `includeDescription` just tunes how much the LLM sees before it
+decides what to discover. The default `'none'` keeps the catalog as lean as
+possible.
+
+`lazyToolsConfig` is optional and the same option is accepted by Code Mode's
+`createCodeMode()` — see [Code Mode Lazy Tools](../code-mode/lazy-tools).
 
 ## When to Use Lazy Tools
 
@@ -150,6 +196,7 @@ Here's a complete example with a mix of eager and lazy tools:
 import { toolDefinition, chat, toServerSentEventsResponse, maxIterations } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { z } from "zod";
+import { db } from "./db";
 
 // Eager tool — always available
 const getProductsDef = toolDefinition({
@@ -208,7 +255,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: openaiText("gpt-4o"),
+    adapter: openaiText("gpt-5.5"),
     messages,
     tools: [getProducts, compareProducts, calculateFinancing],
     agentLoopStrategy: maxIterations(20),

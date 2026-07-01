@@ -1,0 +1,69 @@
+{
+  "name": "@tanstack/ai-sandbox",
+  "version": "0.2.0",
+  "description": "Provider-agnostic sandbox layer for TanStack AI — run harness adapters inside isolated sandboxes (defineSandbox, defineWorkspace, withSandbox) with a uniform SandboxHandle, workspace bootstrap, policy, and resumable lifecycle.",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-sandbox"
+  },
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "sandbox",
+    "harness",
+    "agent",
+    "coding-agent",
+    "isolation",
+    "workspace"
+  ],
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    },
+    "./ngrok": {
+      "types": "./dist/esm/ngrok.d.ts",
+      "import": "./dist/esm/ngrok.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "skills"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:build": "publint --strict",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0"
+  },
+  "peerDependencies": {
+    "@ngrok/ngrok": "^1.0.0",
+    "@tanstack/ai": "workspace:^"
+  },
+  "peerDependenciesMeta": {
+    "@ngrok/ngrok": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@ngrok/ngrok": "^1.7.0",
+    "@tanstack/ai": "workspace:*",
+    "@vitest/coverage-v8": "4.0.14"
+  }
+}

@@ -17,7 +17,11 @@
  * @see docs/chat-architecture.md — Canonical reference for AG-UI chunk ordering,
  *   adapter contract, single-shot flows, and expected UIMessage output.
  */
-import { generateMessageId, uiMessageToModelMessages } from '../messages.js'
+import {
+  aguiSnapshotMessageToUIMessage,
+  generateMessageId,
+  uiMessageToModelMessages,
+} from '../messages.js'
 import { normalizeToolResult } from '../../../utilities/tool-result'
 import { defaultJSONParser } from './json-parser'
 import {
@@ -52,6 +56,8 @@ import type {
   ToolCallPart,
   ToolResultPart,
   UIMessage,
+  UIResourceEvent,
+  UIResourcePart,
 } from '../../../types'
 
 /**
@@ -870,8 +876,12 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'MESSAGES_SNAPSHOT' }>,
   ): void {
     this.resetStreamState()
-    // AG-UI Message[] is compatible with UIMessage[] at runtime
-    this.messages = [...chunk.messages] as Array<UIMessage>
+    // Normalize AG-UI snapshot messages to UIMessage[] so every message has a
+    // `parts` array. AG-UI messages carry `content` but no `parts`, so casting
+    // them directly to UIMessage[] is unsafe and causes "Cannot read properties
+    // of undefined (reading 'find')" when code later reads message.parts (e.g.
+    // the onToolCallStateChange devtools handler).
+    this.messages = chunk.messages.map(aguiSnapshotMessageToUIMessage)
     this.emitMessagesChange()
   }
 
@@ -1613,6 +1623,46 @@ export class StreamProcessor {
         input,
         approvalId: approval.id,
       })
+      return
+    }
+
+    // Handle MCP Apps ui-resource events — materialize a UIResourcePart on the
+    // active assistant message. Never falls through to onCustomEvent because
+    // ui-resource is a system event, not a user-defined custom event.
+    if (chunk.name === 'ui-resource' && chunk.value) {
+      const v: UIResourceEvent['value'] = chunk.value
+      // Resolve the target assistant message. When a toolCallId is present, the
+      // tool call's OWNER message is authoritative, so prefer it first; fall
+      // back to the active assistant id only if the tool call isn't mapped.
+      // This avoids misattaching the widget to a different active message in a
+      // multi-message session.
+      const resolvedMessageId =
+        this.toolCallToMessage.get(v.toolCallId) ?? messageId
+      if (resolvedMessageId) {
+        const part: UIResourcePart = {
+          type: 'ui-resource',
+          resource: v.resource,
+          toolCallId: v.toolCallId,
+          toolName: v.toolName,
+          ...(v.serverId !== undefined && { serverId: v.serverId }),
+          ...(v.meta !== undefined && { meta: v.meta }),
+        }
+        this.messages = this.messages.map((msg) =>
+          msg.id === resolvedMessageId
+            ? { ...msg, parts: [...msg.parts, part] }
+            : msg,
+        )
+        this.emitMessagesChange()
+      } else {
+        // No owner message and no active assistant id — the server read and
+        // streamed a widget that has nowhere to attach (e.g. a toolCallId never
+        // registered, or the event arrived after the run cleared its active
+        // ids). Drop fail-soft, but warn: a vanished widget is otherwise
+        // undebuggable from the client.
+        console.warn(
+          `[mcp-apps] dropped ui-resource: no target message for toolCallId "${v.toolCallId}" (toolName "${v.toolName}")`,
+        )
+      }
       return
     }
 

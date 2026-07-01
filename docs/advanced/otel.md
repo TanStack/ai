@@ -38,7 +38,7 @@ const otel = otelMiddleware({
 })
 
 const result = await chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.5'),
   messages: [{ role: 'user', content: 'hi' }],
   middleware: [otel],
   stream: false,
@@ -50,11 +50,11 @@ const result = await chat({
 ### Spans
 
 ```text
-chat gpt-4o              (root, kind: INTERNAL)
-├── chat gpt-4o #0       (iteration, kind: CLIENT)
+chat gpt-5.5              (root, kind: INTERNAL)
+├── chat gpt-5.5 #0       (iteration, kind: CLIENT)
 │   ├── execute_tool get_weather
 │   └── execute_tool get_time
-└── chat gpt-4o #1       (iteration, kind: CLIENT)
+└── chat gpt-5.5 #1       (iteration, kind: CLIENT)
 ```
 
 Iteration spans are numbered (`#0`, `#1`, ...) so distinct iterations of the same chat are easy to pick apart in trace viewers.
@@ -110,6 +110,11 @@ By default, only metadata lands on spans. To record prompt and completion conten
 Pass a `redact` function to strip PII before anything is recorded:
 
 ```ts
+import { otelMiddleware } from '@tanstack/ai/middlewares/otel'
+import { trace } from '@opentelemetry/api'
+
+const tracer = trace.getTracer('my-app')
+
 otelMiddleware({
   tracer,
   captureContent: true,
@@ -134,6 +139,11 @@ All four extensions are optional. Each wraps user code in try/catch — a thrown
 Override default span names. `info.kind` is `'chat' | 'iteration' | 'tool'`.
 
 ```ts
+import { otelMiddleware } from '@tanstack/ai/middlewares/otel'
+import { trace } from '@opentelemetry/api'
+
+const tracer = trace.getTracer('my-app')
+
 otelMiddleware({
   tracer,
   spanNameFormatter: (info) =>
@@ -146,6 +156,12 @@ otelMiddleware({
 Add custom attributes to every span. Fires once per span.
 
 ```ts
+import { otelMiddleware } from '@tanstack/ai/middlewares/otel'
+import { trace } from '@opentelemetry/api'
+import { getCurrentTenant } from './context'
+
+const tracer = trace.getTracer('my-app')
+
 otelMiddleware({
   tracer,
   attributeEnricher: () => ({
@@ -163,6 +179,12 @@ Mutate `SpanOptions` immediately before `tracer.startSpan(...)`. Useful for addi
 Fires just before every `span.end()`. Common uses: record custom events, emit per-tool metrics via your own `Meter`.
 
 ```ts
+import { otelMiddleware } from '@tanstack/ai/middlewares/otel'
+import { trace, metrics } from '@opentelemetry/api'
+
+const tracer = trace.getTracer('my-app')
+const meter = metrics.getMeter('my-app')
+
 const toolDuration = meter.createHistogram('tool.duration')
 otelMiddleware({
   tracer,
@@ -174,6 +196,44 @@ otelMiddleware({
   },
 })
 ```
+
+## Beyond chat: media activities
+
+`otelMiddleware` is not chat-only. The media activities — `generateImage`, `generateVideo`, `generateAudio`, `generateSpeech`, and `generateTranscription` — accept the **same** `otelMiddleware` value on their `middleware` option. Each is a single request → response (or submit → poll for video), so the middleware emits one span per call instead of the chat span tree:
+
+```ts
+import { generateImage } from '@tanstack/ai'
+import { otelMiddleware } from '@tanstack/ai/middlewares/otel'
+import { openaiImage } from '@tanstack/ai-openai'
+import { trace, metrics } from '@opentelemetry/api'
+
+const otel = otelMiddleware({
+  tracer: trace.getTracer('my-app'),
+  meter: metrics.getMeter('my-app'),
+})
+
+const result = await generateImage({
+  adapter: openaiImage('gpt-image-2'),
+  prompt: 'A serene mountain landscape at sunset',
+  middleware: [otel],
+})
+```
+
+The same `otel` value can be passed to `chat()` and to any media activity — its shared lifecycle hooks (`onStart` / `onUsage` / `onFinish` / `onAbort` / `onError`) are authored against the activity-agnostic `GenerationMiddlewareContext`, so the one instance works everywhere.
+
+Each media call produces one `CLIENT` span tagged with the activity's `gen_ai.operation.name`:
+
+| Activity | `gen_ai.operation.name` |
+| --- | --- |
+| `generateImage` | `image_generation` |
+| `generateVideo` | `video_generation` |
+| `generateAudio` | `audio_generation` |
+| `generateSpeech` | `text_to_speech` |
+| `generateTranscription` | `transcription` |
+
+The span carries `gen_ai.system` and `gen_ai.request.model` at start and, on finish, the same `gen_ai.usage.*` / `tanstack.ai.usage.*` attributes documented above — including `tanstack.ai.usage.units_billed` for unit-billed media. When a `Meter` is supplied it records the `gen_ai.client.operation.duration` histogram, tagged per activity. For streaming video the span covers the full create → poll → complete lifecycle; for non-streaming `generateVideo` it covers job submission. If a streaming video consumer abandons the stream before completion, the span is ended via `onAbort` (status `ERROR`, `tanstack.ai.completion.reason = cancelled`) rather than leaked.
+
+`otelMiddleware` applies the same `spanNameFormatter`, `attributeEnricher`, `onBeforeSpanStart`, and `onSpanEnd` extension points to media spans — the span info is discriminated by `kind`, where media spans report `kind: 'generation'`. For a custom backend, implement the base `GenerationMiddleware` contract directly; its hooks (`onStart` / `onUsage` / `onFinish` / `onAbort` / `onError`) receive the `GenerationMiddlewareContext` and fire for every activity, chat included. The `GenerationMiddleware` types are exported from the package root, while the `otelMiddleware` value lives on the `@tanstack/ai/middlewares/otel` subpath so importing `@tanstack/ai` never requires the optional `@opentelemetry/api` peer.
 
 ## Related
 

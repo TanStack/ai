@@ -1,6 +1,21 @@
 import type { ServerTool } from '../tools/tool-definition'
 
 /**
+ * The shape `readResource` resolves to — a structural subset of MCP's
+ * `ReadResourceResult`. Single source of truth shared by
+ * `MCPToolSource.readResource` (this file) and the tool-bound
+ * `McpToolAppMeta.readResource` (tool-calls.ts) so the two copies cannot drift.
+ */
+export interface McpResourceReadResult {
+  contents: Array<{
+    uri: string
+    mimeType?: string
+    text?: string
+    blob?: string
+  }>
+}
+
+/**
  * Minimal structural shape that `chat({ mcp })` needs from an MCP client.
  *
  * `@tanstack/ai-mcp`'s `MCPClient` and `MCPClients` satisfy this interface by
@@ -13,6 +28,14 @@ export interface MCPToolSource {
   // forwards what is declared here.
   tools: (options?: { lazy?: boolean }) => Promise<Array<ServerTool>>
   close: () => Promise<void>
+  /**
+   * Reads an MCP resource by URI. Used by the chat manager to eagerly fetch
+   * `ui://` resource widgets (MCP Apps) after a tool result resolves.
+   *
+   * Optional — sources that do not serve `ui://` resources need not implement
+   * this method. `ai-mcp`'s `MCPClient` satisfies this structurally.
+   */
+  readResource?: (uri: string) => Promise<McpResourceReadResult>
 }
 
 /**

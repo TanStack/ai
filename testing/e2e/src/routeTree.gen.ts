@@ -28,6 +28,7 @@ import { Route as ApiToolsTestRouteImport } from './routes/api.tools-test'
 import { Route as ApiToolCallLifecycleWireRouteImport } from './routes/api.tool-call-lifecycle-wire'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiOtelUsageRouteImport } from './routes/api.otel-usage'
+import { Route as ApiOtelMediaRouteImport } from './routes/api.otel-media'
 import { Route as ApiOpenrouterWebToolsWireRouteImport } from './routes/api.openrouter-web-tools-wire'
 import { Route as ApiOpenrouterCostRouteImport } from './routes/api.openrouter-cost'
 import { Route as ApiOpenaiUsageDetailsRouteImport } from './routes/api.openai-usage-details'
@@ -39,10 +40,15 @@ import { Route as ApiMcpStatusTestRouteImport } from './routes/api.mcp-status-te
 import { Route as ApiMcpServerRouteImport } from './routes/api.mcp-server'
 import { Route as ApiMcpManagedTestRouteImport } from './routes/api.mcp-managed-test'
 import { Route as ApiMcpLifecycleTestRouteImport } from './routes/api.mcp-lifecycle-test'
+import { Route as ApiMcpAppsServerRouteImport } from './routes/api.mcp-apps-server'
+import { Route as ApiMcpAppsChatRouteImport } from './routes/api.mcp-apps-chat'
+import { Route as ApiMcpAppsCallRouteImport } from './routes/api.mcp-apps-call'
+import { Route as ApiLazyToolsWireRouteImport } from './routes/api.lazy-tools-wire'
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
 import { Route as ApiArktypeToolWireRouteImport } from './routes/api.arktype-tool-wire'
+import { Route as ApiAnthropicStructuredUsageRouteImport } from './routes/api.anthropic-structured-usage'
 import { Route as ApiAnthropicSkillsWireRouteImport } from './routes/api.anthropic-skills-wire'
 import { Route as ApiAnthropicBugTestRouteImport } from './routes/api.anthropic-bug-test'
 import { Route as ProviderFeatureRouteImport } from './routes/$provider/$feature'
@@ -148,6 +154,11 @@ const ApiOtelUsageRoute = ApiOtelUsageRouteImport.update({
   path: '/api/otel-usage',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOtelMediaRoute = ApiOtelMediaRouteImport.update({
+  id: '/api/otel-media',
+  path: '/api/otel-media',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiOpenrouterWebToolsWireRoute =
   ApiOpenrouterWebToolsWireRouteImport.update({
     id: '/api/openrouter-web-tools-wire',
@@ -206,6 +217,26 @@ const ApiMcpLifecycleTestRoute = ApiMcpLifecycleTestRouteImport.update({
   path: '/api/mcp-lifecycle-test',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMcpAppsServerRoute = ApiMcpAppsServerRouteImport.update({
+  id: '/api/mcp-apps-server',
+  path: '/api/mcp-apps-server',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpAppsChatRoute = ApiMcpAppsChatRouteImport.update({
+  id: '/api/mcp-apps-chat',
+  path: '/api/mcp-apps-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpAppsCallRoute = ApiMcpAppsCallRouteImport.update({
+  id: '/api/mcp-apps-call',
+  path: '/api/mcp-apps-call',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiLazyToolsWireRoute = ApiLazyToolsWireRouteImport.update({
+  id: '/api/lazy-tools-wire',
+  path: '/api/lazy-tools-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiImageRoute = ApiImageRouteImport.update({
   id: '/api/image',
   path: '/api/image',
@@ -226,6 +257,12 @@ const ApiArktypeToolWireRoute = ApiArktypeToolWireRouteImport.update({
   path: '/api/arktype-tool-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAnthropicStructuredUsageRoute =
+  ApiAnthropicStructuredUsageRouteImport.update({
+    id: '/api/anthropic-structured-usage',
+    path: '/api/anthropic-structured-usage',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAnthropicSkillsWireRoute = ApiAnthropicSkillsWireRouteImport.update({
   id: '/api/anthropic-skills-wire',
   path: '/api/anthropic-skills-wire',
@@ -282,10 +319,15 @@ export interface FileRoutesByFullPath {
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
+  '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
+  '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
+  '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
+  '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
+  '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
   '/api/mcp-server': typeof ApiMcpServerRoute
@@ -297,6 +339,7 @@ export interface FileRoutesByFullPath {
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
+  '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
@@ -326,10 +369,15 @@ export interface FileRoutesByTo {
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
+  '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
+  '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
+  '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
+  '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
+  '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
   '/api/mcp-server': typeof ApiMcpServerRoute
@@ -341,6 +389,7 @@ export interface FileRoutesByTo {
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
+  '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
@@ -371,10 +420,15 @@ export interface FileRoutesById {
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
+  '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
+  '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
+  '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
+  '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
+  '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
   '/api/mcp-server': typeof ApiMcpServerRoute
@@ -386,6 +440,7 @@ export interface FileRoutesById {
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
+  '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
@@ -417,10 +472,15 @@ export interface FileRouteTypes {
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-skills-wire'
+    | '/api/anthropic-structured-usage'
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/chat'
     | '/api/image'
+    | '/api/lazy-tools-wire'
+    | '/api/mcp-apps-call'
+    | '/api/mcp-apps-chat'
+    | '/api/mcp-apps-server'
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
     | '/api/mcp-server'
@@ -432,6 +492,7 @@ export interface FileRouteTypes {
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
     | '/api/openrouter-web-tools-wire'
+    | '/api/otel-media'
     | '/api/otel-usage'
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
@@ -461,10 +522,15 @@ export interface FileRouteTypes {
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-skills-wire'
+    | '/api/anthropic-structured-usage'
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/chat'
     | '/api/image'
+    | '/api/lazy-tools-wire'
+    | '/api/mcp-apps-call'
+    | '/api/mcp-apps-chat'
+    | '/api/mcp-apps-server'
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
     | '/api/mcp-server'
@@ -476,6 +542,7 @@ export interface FileRouteTypes {
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
     | '/api/openrouter-web-tools-wire'
+    | '/api/otel-media'
     | '/api/otel-usage'
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
@@ -505,10 +572,15 @@ export interface FileRouteTypes {
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-skills-wire'
+    | '/api/anthropic-structured-usage'
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/chat'
     | '/api/image'
+    | '/api/lazy-tools-wire'
+    | '/api/mcp-apps-call'
+    | '/api/mcp-apps-chat'
+    | '/api/mcp-apps-server'
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
     | '/api/mcp-server'
@@ -520,6 +592,7 @@ export interface FileRouteTypes {
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
     | '/api/openrouter-web-tools-wire'
+    | '/api/otel-media'
     | '/api/otel-usage'
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
@@ -550,10 +623,15 @@ export interface RootRouteChildren {
   ProviderFeatureRoute: typeof ProviderFeatureRoute
   ApiAnthropicBugTestRoute: typeof ApiAnthropicBugTestRoute
   ApiAnthropicSkillsWireRoute: typeof ApiAnthropicSkillsWireRoute
+  ApiAnthropicStructuredUsageRoute: typeof ApiAnthropicStructuredUsageRoute
   ApiArktypeToolWireRoute: typeof ApiArktypeToolWireRoute
   ApiAudioRoute: typeof ApiAudioRouteWithChildren
   ApiChatRoute: typeof ApiChatRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
+  ApiLazyToolsWireRoute: typeof ApiLazyToolsWireRoute
+  ApiMcpAppsCallRoute: typeof ApiMcpAppsCallRoute
+  ApiMcpAppsChatRoute: typeof ApiMcpAppsChatRoute
+  ApiMcpAppsServerRoute: typeof ApiMcpAppsServerRoute
   ApiMcpLifecycleTestRoute: typeof ApiMcpLifecycleTestRoute
   ApiMcpManagedTestRoute: typeof ApiMcpManagedTestRoute
   ApiMcpServerRoute: typeof ApiMcpServerRoute
@@ -565,6 +643,7 @@ export interface RootRouteChildren {
   ApiOpenaiUsageDetailsRoute: typeof ApiOpenaiUsageDetailsRoute
   ApiOpenrouterCostRoute: typeof ApiOpenrouterCostRoute
   ApiOpenrouterWebToolsWireRoute: typeof ApiOpenrouterWebToolsWireRoute
+  ApiOtelMediaRoute: typeof ApiOtelMediaRoute
   ApiOtelUsageRoute: typeof ApiOtelUsageRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
   ApiToolCallLifecycleWireRoute: typeof ApiToolCallLifecycleWireRoute
@@ -710,6 +789,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOtelUsageRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/otel-media': {
+      id: '/api/otel-media'
+      path: '/api/otel-media'
+      fullPath: '/api/otel-media'
+      preLoaderRoute: typeof ApiOtelMediaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/openrouter-web-tools-wire': {
       id: '/api/openrouter-web-tools-wire'
       path: '/api/openrouter-web-tools-wire'
@@ -787,6 +873,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMcpLifecycleTestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mcp-apps-server': {
+      id: '/api/mcp-apps-server'
+      path: '/api/mcp-apps-server'
+      fullPath: '/api/mcp-apps-server'
+      preLoaderRoute: typeof ApiMcpAppsServerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-apps-chat': {
+      id: '/api/mcp-apps-chat'
+      path: '/api/mcp-apps-chat'
+      fullPath: '/api/mcp-apps-chat'
+      preLoaderRoute: typeof ApiMcpAppsChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-apps-call': {
+      id: '/api/mcp-apps-call'
+      path: '/api/mcp-apps-call'
+      fullPath: '/api/mcp-apps-call'
+      preLoaderRoute: typeof ApiMcpAppsCallRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/lazy-tools-wire': {
+      id: '/api/lazy-tools-wire'
+      path: '/api/lazy-tools-wire'
+      fullPath: '/api/lazy-tools-wire'
+      preLoaderRoute: typeof ApiLazyToolsWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/image': {
       id: '/api/image'
       path: '/api/image'
@@ -813,6 +927,13 @@ declare module '@tanstack/react-router' {
       path: '/api/arktype-tool-wire'
       fullPath: '/api/arktype-tool-wire'
       preLoaderRoute: typeof ApiArktypeToolWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/anthropic-structured-usage': {
+      id: '/api/anthropic-structured-usage'
+      path: '/api/anthropic-structured-usage'
+      fullPath: '/api/anthropic-structured-usage'
+      preLoaderRoute: typeof ApiAnthropicStructuredUsageRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/anthropic-skills-wire': {
@@ -947,10 +1068,15 @@ const rootRouteChildren: RootRouteChildren = {
   ProviderFeatureRoute: ProviderFeatureRoute,
   ApiAnthropicBugTestRoute: ApiAnthropicBugTestRoute,
   ApiAnthropicSkillsWireRoute: ApiAnthropicSkillsWireRoute,
+  ApiAnthropicStructuredUsageRoute: ApiAnthropicStructuredUsageRoute,
   ApiArktypeToolWireRoute: ApiArktypeToolWireRoute,
   ApiAudioRoute: ApiAudioRouteWithChildren,
   ApiChatRoute: ApiChatRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
+  ApiLazyToolsWireRoute: ApiLazyToolsWireRoute,
+  ApiMcpAppsCallRoute: ApiMcpAppsCallRoute,
+  ApiMcpAppsChatRoute: ApiMcpAppsChatRoute,
+  ApiMcpAppsServerRoute: ApiMcpAppsServerRoute,
   ApiMcpLifecycleTestRoute: ApiMcpLifecycleTestRoute,
   ApiMcpManagedTestRoute: ApiMcpManagedTestRoute,
   ApiMcpServerRoute: ApiMcpServerRoute,
@@ -962,6 +1088,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOpenaiUsageDetailsRoute: ApiOpenaiUsageDetailsRoute,
   ApiOpenrouterCostRoute: ApiOpenrouterCostRoute,
   ApiOpenrouterWebToolsWireRoute: ApiOpenrouterWebToolsWireRoute,
+  ApiOtelMediaRoute: ApiOtelMediaRoute,
   ApiOtelUsageRoute: ApiOtelUsageRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
   ApiToolCallLifecycleWireRoute: ApiToolCallLifecycleWireRoute,

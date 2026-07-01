@@ -1,5 +1,7 @@
 export { useChat } from './use-chat'
 export { useRealtimeChat } from './use-realtime-chat'
+export { useMcpAppBridge } from './use-mcp-app-bridge'
+export type { UseMcpAppBridgeOptions } from './use-mcp-app-bridge'
 export type {
   DeepPartial,
   UseChatOptions,
@@ -52,6 +54,12 @@ export type {
   UseGenerateVideoReturn,
 } from './use-generate-video'
 
+export { useAudioRecorder } from './use-audio-recorder'
+export type {
+  UseAudioRecorderOptions,
+  UseAudioRecorderReturn,
+} from './use-audio-recorder'
+
 // Re-export from ai-client for convenience
 export {
   fetchServerSentEvents,
@@ -61,6 +69,9 @@ export {
   stream,
   rpcStream,
   createChatClientOptions,
+  createMcpAppBridge,
+  type McpAppBridge,
+  type CreateMcpAppBridgeOptions,
   type ChatFetcher,
   type ChatFetcherInput,
   type ChatFetcherOptions,

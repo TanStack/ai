@@ -2,18 +2,20 @@
 title: Grok (xAI)
 id: grok-adapter
 order: 5
-description: "Use xAI Grok models with TanStack AI — Grok 4.1, Grok 4, Grok 3, and Grok 2 Image generation via @tanstack/ai-grok."
+description: "Use xAI Grok models with TanStack AI — Grok 4.3, Grok Build 0.1, Grok Imagine image generation, and Grok Imagine video generation via @tanstack/ai-grok."
 keywords:
   - tanstack ai
   - grok
   - xai
-  - grok 4
-  - grok 4.1
+  - grok 4.3
+  - grok build
   - image generation
+  - video generation
+  - grok imagine
   - adapter
 ---
 
-The Grok adapter provides access to xAI's Grok models, including Grok 4.1, Grok 4, Grok 3, and image generation with Grok 2 Image.
+The Grok text and summarization adapters provide access to xAI's Responses API for `grok-4.3` and `grok-build-0.1`, plus Grok Imagine image generation and Grok Imagine video generation.
 
 ## Installation
 
@@ -28,7 +30,7 @@ import { chat } from "@tanstack/ai";
 import { grokText } from "@tanstack/ai-grok";
 
 const stream = chat({
-  adapter: grokText("grok-4"),
+  adapter: grokText("grok-build-0.1"),
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
@@ -39,7 +41,7 @@ const stream = chat({
 import { chat } from "@tanstack/ai";
 import { createGrokText } from "@tanstack/ai-grok";
 
-const adapter = createGrokText("grok-4", process.env.XAI_API_KEY!);
+const adapter = createGrokText("grok-build-0.1", process.env.XAI_API_KEY!);
 
 const stream = chat({
   adapter,
@@ -56,7 +58,7 @@ const config: Omit<GrokTextConfig, "apiKey"> = {
   baseURL: "https://api.x.ai/v1", // Optional, this is the default
 };
 
-const adapter = createGrokText("grok-4", process.env.XAI_API_KEY!, config);
+const adapter = createGrokText("grok-build-0.1", process.env.XAI_API_KEY!, config);
 ```
 
 ## Example: Chat Completion
@@ -69,7 +71,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: grokText("grok-4"),
+    adapter: grokText("grok-build-0.1"),
     messages,
   });
 
@@ -80,7 +82,7 @@ export async function POST(request: Request) {
 ## Example: With Tools
 
 ```typescript
-import { chat, toolDefinition } from "@tanstack/ai";
+import { chat, toServerSentEventsResponse, toolDefinition } from "@tanstack/ai";
 import { grokText } from "@tanstack/ai-grok";
 import { z } from "zod";
 
@@ -97,30 +99,44 @@ const getWeather = getWeatherDef.server(async ({ location }) => {
   return { temperature: 72, conditions: "sunny" };
 });
 
-const stream = chat({
-  adapter: grokText("grok-4-1-fast-reasoning"),
-  messages,
-  tools: [getWeather],
-});
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter: grokText("grok-build-0.1"),
+    messages,
+    tools: [getWeather],
+  });
+
+  return toServerSentEventsResponse(stream);
+}
 ```
 
 ## Model Options
 
-Grok supports various provider-specific options. Sampling parameters live here too — `temperature`, `top_p`, and `max_tokens` — rather than as root-level props on `chat()`:
+Grok supports xAI Responses API options. Sampling parameters live here too — `temperature`, `top_p`, and `max_output_tokens` — rather than as root-level props on `chat()`:
 
 ```typescript
-const stream = chat({
-  adapter: grokText("grok-4"),
-  messages,
-  modelOptions: {
-    temperature: 0.7,
-    top_p: 0.9,
-    max_tokens: 1024,
-    frequency_penalty: 0.5,
-    presence_penalty: 0.5,
-    stop: ["END"],
-  },
-});
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { grokText } from "@tanstack/ai-grok";
+
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter: grokText("grok-build-0.1"),
+    messages,
+    modelOptions: {
+      temperature: 0.7,
+      top_p: 0.9,
+      max_output_tokens: 1024,
+      store: false,
+      include: ["reasoning.encrypted_content"],
+    },
+  });
+
+  return toServerSentEventsResponse(stream);
+}
 ```
 
 > If you previously passed `temperature` / `topP` / `maxTokens` at the root of `chat()`, see [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
@@ -129,12 +145,17 @@ const stream = chat({
 
 Summarize long text content:
 
-```typescript
+<!-- ignored: grokSummarize()'s resolved provider-options type sits in a
+     contravariant position in SummarizeAdapter, so it isn't assignable to
+     summarize()'s adapter param for any current Grok model. Tracked in #821;
+     un-ignore once the adapter type is corrected. -->
+
+```typescript ignore
 import { summarize } from "@tanstack/ai";
 import { grokSummarize } from "@tanstack/ai-grok";
 
 const result = await summarize({
-  adapter: grokSummarize("grok-4"),
+  adapter: grokSummarize("grok-4.3"),
   text: "Your long text to summarize...",
   maxLength: 100,
   style: "concise", // "concise" | "bullet-points" | "paragraph"
@@ -165,6 +186,9 @@ are aspect-ratio sized — `size` takes an `aspectRatio_resolution` template
 like `"16:9_2k"` (the `_2k` suffix is optional):
 
 ```typescript
+import { generateImage } from "@tanstack/ai";
+import { grokImage } from "@tanstack/ai-grok";
+
 const result = await generateImage({
   adapter: grokImage("grok-imagine-image"),
   prompt: "A futuristic cityscape at sunset",
@@ -181,6 +205,9 @@ there is no in-prompt referencing syntax; write the prompt naturally and
 your text is sent verbatim:
 
 ```typescript
+import { generateImage } from "@tanstack/ai";
+import { grokImage } from "@tanstack/ai-grok";
+
 const result = await generateImage({
   adapter: grokImage("grok-imagine-image"),
   prompt: [
@@ -204,6 +231,70 @@ URL sources are fetched by xAI's servers, so they must be publicly
 reachable; use a `data` source for private images. `grok-2-image-1212` is
 text-to-image only — image prompt parts are a compile-time type error and
 throw at runtime.
+
+## Video Generation (Experimental)
+
+Generate short video clips (1–15 seconds, with audio) with the Grok Imagine video models via xAI's asynchronous jobs/polling API.
+
+Available models:
+
+- `grok-imagine-video` (v1.0) — text-to-video and image-to-video, $0.05 per second of video.
+- `grok-imagine-video-1.5` — **image-to-video only**, $0.08 per second of video. A text-only prompt is rejected by the API; the adapter fails fast with a clear error telling you to add a starting-frame image or use `grok-imagine-video`.
+
+Text-to-video with the base `grok-imagine-video` model:
+
+```typescript
+import { generateVideo, getVideoJobStatus } from "@tanstack/ai";
+import { grokVideo } from "@tanstack/ai-grok";
+
+const adapter = grokVideo("grok-imagine-video");
+
+// 1. Create the job
+const { jobId } = await generateVideo({
+  adapter,
+  prompt: "A red panda balancing on a bamboo stalk in the rain",
+  size: "16:9_720p", // "aspectRatio" or "aspectRatio_resolution"
+  duration: 5, // integer seconds, 1–15
+});
+
+// 2. Poll until complete, then read the video URL
+let status = await getVideoJobStatus({ adapter, jobId });
+while (status.status !== "completed" && status.status !== "failed") {
+  await new Promise((r) => setTimeout(r, 5000));
+  status = await getVideoJobStatus({ adapter, jobId });
+}
+
+console.log(status.url); // hosted .mp4 URL
+```
+
+For image-to-video (required for `grok-imagine-video-1.5`, optional for `grok-imagine-video`), include an `image` prompt part as the starting frame and describe the desired motion in the text part. URL sources are fetched by xAI's servers (so they must be publicly reachable); use a `data` source for a base64 starting frame:
+
+```typescript
+import { generateVideo } from "@tanstack/ai";
+import { grokVideo } from "@tanstack/ai-grok";
+
+const { jobId } = await generateVideo({
+  adapter: grokVideo("grok-imagine-video-1.5"),
+  prompt: [
+    {
+      type: "text",
+      content: "Make the waterfall crash down and slowly pan out the camera",
+    },
+    {
+      type: "image",
+      source: { type: "url", value: "https://example.com/waterfall-still.png" },
+    },
+  ],
+  size: "16:9_720p",
+  duration: 10,
+});
+```
+
+Like the Grok Imagine image models, sizing is aspect-ratio based: the `size` option takes an `aspectRatio_resolution` template. Supported aspect ratios are `1:1`, `16:9`, `9:16`, `4:3`, `3:4`, `3:2`, and `2:3`; supported resolutions are `480p`, `720p`, and `1080p` (e.g. `"9:16_1080p"`). The resolution suffix is optional.
+
+When the job completes, the adapter reports usage on the result: `usage.unitsBilled` carries the billed seconds of video and `usage.cost` the exact cost in USD, both as returned by the xAI API.
+
+See [Video Generation](../media/video-generation) for the full jobs/polling flow, streaming mode, and the `useGenerateVideo` hook.
 
 ## Text-to-Speech
 
@@ -230,6 +321,7 @@ Transcribe audio with Grok STT:
 ```typescript
 import { generateTranscription } from "@tanstack/ai";
 import { grokTranscription } from "@tanstack/ai-grok";
+import { audioFile } from "./audio";
 
 const result = await generateTranscription({
   adapter: grokTranscription("grok-stt"),
@@ -253,19 +345,11 @@ XAI_API_KEY=xai-...
 
 ## Implementation Notes
 
-### Why Chat Completions API (Not Responses API)
+### Responses API
 
-The Grok adapter uses xAI's **Chat Completions API** (`/v1/chat/completions`) rather than the Responses API (`/v1/responses`). This is an intentional architectural decision:
+The Grok text and summarize adapters use xAI's **Responses API** (`/v1/responses`). Requests default to `store: false` and include encrypted reasoning content with `include: ["reasoning.encrypted_content"]`; both can be overridden through `modelOptions`.
 
-1. **User-Defined Tools**: The Chat Completions API supports user-defined function tools, which is essential for TanStack AI's tool calling functionality. The Responses API only supports xAI's server-side tools (web search, X search, code execution).
-
-2. **Full Tool Calling Support**: With Chat Completions, you can define custom tools with Zod schemas that run in your application. The Responses API restricts you to xAI's built-in tools only.
-
-3. **Streaming Compatibility**: The streaming event format differs significantly between the two APIs. Chat Completions uses `delta.tool_calls` with argument accumulation, while Responses API uses `response.output_item.added` and `response.function_call_arguments.done`.
-
-4. **OpenAI SDK Compatibility**: xAI's Chat Completions API is fully compatible with the OpenAI SDK, making integration straightforward while maintaining full feature parity for tool calling.
-
-If you need xAI's server-side tools (web search, X/Twitter search, code execution), you would need to use the Responses API directly. However, for most use cases requiring custom tool definitions, the Chat Completions API is the correct choice.
+The shared Responses implementation supports streaming text, reasoning events, structured output via `text.format`, and user-defined function tools.
 
 ## API Reference
 
@@ -275,7 +359,7 @@ Creates a Grok text adapter using environment variables.
 
 **Parameters:**
 
-- `model` - The model name (e.g., `'grok-4'`, `'grok-4-1-fast-reasoning'`)
+- `model` - The model name (`'grok-4.3'` or `'grok-build-0.1'`)
 - `config.baseURL?` - Custom base URL (optional)
 
 **Returns:** A Grok text adapter instance.
@@ -308,6 +392,10 @@ Creates a Grok summarization adapter with an explicit API key.
 
 Creates a Grok image generation adapter.
 
+### `grokVideo(model, config?)` / `createGrokVideo(model, apiKey, config?)`
+
+Creates a Grok video generation adapter (experimental) for the Grok Imagine video models (`'grok-imagine-video'`, `'grok-imagine-video-1.5'`).
+
 ### `grokSpeech(model, config?)` / `createGrokSpeech(model, apiKey, config?)`
 
 Creates a Grok text-to-speech adapter.
@@ -319,10 +407,6 @@ Creates a Grok speech-to-text adapter.
 ### `grokRealtime(...)` / `grokRealtimeToken(...)`
 
 Realtime voice adapter and token issuer. See [Realtime Voice Chat](../media/realtime-chat) for usage.
-
-## Limitations
-
-- **Responses API Tools**: Server-side tools (web search, X search, code execution) are not supported through this adapter. Use the Chat Completions API with custom tools instead.
 
 ## Next Steps
 

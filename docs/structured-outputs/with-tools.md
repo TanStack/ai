@@ -32,7 +32,7 @@ const getProductPrice = toolDefinition({
   name: "get_product_price",
   description: "Get the current price of a product",
   inputSchema: z.object({ productId: z.string() }),
-}).server(async ({ input }) => {
+}).server(async ({ productId }) => {
   return { price: 29.99, currency: "USD" };
 });
 
@@ -75,8 +75,10 @@ The tool-call parts land on the assistant message exactly as they would in a nor
 
 A server tool registered with `needsApproval: true` doesn't execute automatically — the agent loop pauses, the queued tool-call lands on the assistant message as a `ToolCallPart` with `state === "approval-requested"`, and the loop waits for you to call `addToolApprovalResponse({ id, approved })` from the hook return. The structured-output stream only takes over once approval is granted (or denied and the loop resumes).
 
-```tsx
+```tsx ignore
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { RecommendationSchema } from "./api/recommend";
+import { sendEmail } from "./tools";
 
 const { messages, sendMessage, partial, final, addToolApprovalResponse } =
   useChat({
@@ -133,6 +135,8 @@ import { toolDefinition } from "@tanstack/ai";
 import { clientTools } from "@tanstack/ai-client";
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import { z } from "zod";
+import { runLookupOnClient } from "./client-utils";
+import { RecommendationSchema } from "./api/recommend";
 
 const lookupContactDef = toolDefinition({
   name: "lookup_contact",

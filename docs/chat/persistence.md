@@ -22,7 +22,7 @@ This is especially useful for SPAs, Electron apps, and offline-first setups wher
 A persistence adapter is any object with three methods — the same `getItem`/`setItem`/`removeItem` shape used elsewhere in TanStack AI. Each method may be synchronous or return a `Promise`:
 
 ```typescript
-import type { ChatClientPersistence } from "@tanstack/ai-client";
+import type { UIMessage } from "@tanstack/ai-client";
 
 interface ChatClientPersistence {
   getItem: (
@@ -40,6 +40,9 @@ interface ChatClientPersistence {
 The `id` passed to each method is the client's `id` option. Provide a stable `id` per conversation so the right history is loaded back:
 
 ```typescript
+import { ChatClient } from "@tanstack/ai-client";
+import { adapter, myPersistenceAdapter } from "./chat-setup";
+
 const client = new ChatClient({
   id: "conversation-123",
   connection: adapter,
@@ -65,6 +68,9 @@ Every framework wrapper accepts the same `persistence` option and forwards it to
 
 ```tsx
 // React / Preact
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { myPersistenceAdapter } from "./persistence";
+
 const chat = useChat({
   id: "conversation-123",
   connection: fetchServerSentEvents("/api/chat"),
@@ -74,6 +80,9 @@ const chat = useChat({
 
 ```ts
 // Solid / Vue — same option
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-solid";
+import { myPersistenceAdapter } from "./persistence";
+
 const chat = useChat({
   id: "conversation-123",
   connection: fetchServerSentEvents("/api/chat"),
@@ -81,7 +90,7 @@ const chat = useChat({
 });
 ```
 
-```ts
+```ts ignore
 // Svelte
 const chat = createChat({
   id: "conversation-123",
@@ -125,6 +134,7 @@ For larger histories or structured queries, back the adapter with an async store
 
 ```typescript
 import type { ChatClientPersistence } from "@tanstack/ai-client";
+import { db } from "./db";
 
 const indexedDbPersistence: ChatClientPersistence = {
   getItem: async (id) => {

@@ -38,6 +38,7 @@ Tools can be marked as requiring approval by setting `needsApproval: true` in th
 ```typescript
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
+import { emailService } from "./email-service";
 
 // Step 1: Define tool with approval requirement
 const sendEmailDef = toolDefinition({
@@ -136,6 +137,7 @@ function ChatComponent() {
               );
             }
             // ... render other parts
+            return null;
           })}
         </div>
       ))}
@@ -195,7 +197,7 @@ function ApprovalPrompt({
 
 Wire it up from your message renderer. Note the `id` you pass is the **approval id** (`part.approval.id`), not the tool call id:
 
-```tsx
+```tsx ignore
 {part.type === "tool-call" &&
   part.state === "approval-requested" &&
   part.approval && (
@@ -253,6 +255,10 @@ const { messages, addToolApprovalResponse } = useChat({
 ## Example: E-commerce Purchase
 
 ```typescript
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
+import { createOrder } from "./orders";
+
 // Define tool with approval requirement
 const purchaseItemDef = toolDefinition({
   name: "purchase_item",

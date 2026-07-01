@@ -32,6 +32,7 @@ const allOn = {
   config: true,
   errors: true,
   request: true,
+  sandbox: true,
 }
 
 const allOff = {
@@ -43,6 +44,7 @@ const allOff = {
   config: false,
   errors: false,
   request: false,
+  sandbox: false,
 }
 
 describe('InternalLogger', () => {

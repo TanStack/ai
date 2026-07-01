@@ -86,7 +86,9 @@ Pick the journey that matches what you're building. The four guides under "Struc
 
 The streaming and multi-turn paths both build on `useChat({ outputSchema })`. The "with tools" path layers on top of either. Pick the one that describes your shipping shape — start there, follow the cross-links when you need a piece of another story.
 
-> **Note:** Server-side validation is **path-dependent**. For the non-streaming agentic path (`await chat({ outputSchema })`), the engine runs Standard Schema validation inside the finalization step and routes failures through `onError` (the awaited promise rejects). For the streaming path (`chat({ outputSchema, stream: true })`), validation is deliberately deferred to the consumer — the engine forwards the adapter-emitted `structured-output.complete` event verbatim, and consumers read the validated object from the `value.object` field (or call `parseWithStandardSchema` themselves on the raw text). The schema you pass to `useChat({ outputSchema })` on the client is used for TypeScript inference and (in `useChat`) for client-side `parsePartialJSON`-based progressive parsing — the typed-object guarantee comes from the server-side path you pick.
+> **Note:** Server-side validation is **path-dependent**. For the non-streaming agentic path (`await chat({ outputSchema })`), the engine runs Standard Schema validation inside the finalization step and routes failures through `onError` (the awaited promise rejects). For the streaming path (`chat({ outputSchema, stream: true })`), Standard Schema _validation_ is deliberately deferred to the consumer — consumers read the object from the `structured-output.complete` event's `value.object` field (or call `parseWithStandardSchema` themselves on the raw text). The schema you pass to `useChat({ outputSchema })` on the client is used for TypeScript inference and (in `useChat`) for client-side `parsePartialJSON`-based progressive parsing — the typed-object guarantee comes from the server-side path you pick.
+>
+> On **both** paths the engine normalizes the captured object before it reaches you: to satisfy strict providers, optional fields are widened to `required` + nullable, so the provider returns `null` for an absent optional. The engine undoes exactly that widening — an `.optional()` field that came back `null` reads back as **absent** (matching `T | undefined`), while a genuine `.nullable()` field's `null` is **preserved**. So `value.object` (streaming) and the awaited result (non-streaming) both carry the un-widened shape your schema describes.
 
 ## Middleware integration
 
@@ -118,12 +120,16 @@ exactly once at the end of the entire run.
 ```ts
 import { chat } from "@tanstack/ai";
 import type { ChatMiddleware } from "@tanstack/ai";
+import { span } from "./span";
 
 const tracing: ChatMiddleware = {
   name: "tracing",
   onChunk(ctx, chunk) {
     // Fires for chunks from the agent loop AND the final structured-output call
-    span.addEvent("chunk", { phase: ctx.phase, type: chunk.type });
+    // chunk.type narrows inside a conditional — use a discriminant check first:
+    if ("type" in chunk) {
+      span.addEvent("chunk", { phase: ctx.phase, type: chunk.type });
+    }
   },
 };
 ```
@@ -134,6 +140,7 @@ Use the `onStructuredOutputConfig` hook when you need to mutate the schema:
 
 ```ts
 import type { ChatMiddleware } from "@tanstack/ai";
+import { sharedDefs } from "./schema-defs";
 
 const injectDefs: ChatMiddleware = {
   name: "inject-defs",
