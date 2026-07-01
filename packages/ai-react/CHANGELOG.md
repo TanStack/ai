@@ -1,5 +1,11 @@
 # @tanstack/ai-react
 
+## 0.16.2
+
+### Patch Changes
+
+- [#772](https://github.com/TanStack/ai/pull/772) [`00505fe`](https://github.com/TanStack/ai/commit/00505fe6acdbafdd490ba1c903991e067384e0c7) - Restructure the `@tanstack/ai-react/mcp-apps` entry so its source is resolvable by the docs snippet type-checker: the JSX implementation moves to `mcp-app-resource.tsx` and `mcp-apps.ts` re-exports it. Public exports (`MCPAppResource`, `MCPAppResourceProps`) and the subpath are unchanged.
+
 ## 0.16.1
 
 ### Patch Changes
