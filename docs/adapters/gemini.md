@@ -526,6 +526,7 @@ These models use the `generateContent` API and support resolution tiers (1K, 2K,
 | Model | Description |
 |-------|-------------|
 | `gemini-3.1-flash-image-preview` | Latest and fastest Gemini native image generation |
+| `gemini-3.1-flash-lite-image` | Nano Banana 2 Lite — ultra-low-latency, low-cost image generation |
 | `gemini-3-pro-image-preview` | Higher quality Gemini native image generation |
 | `gemini-2.5-flash-image` | Gemini 2.5 Flash with image generation |
 

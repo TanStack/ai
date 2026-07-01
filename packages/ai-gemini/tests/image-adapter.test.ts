@@ -303,6 +303,63 @@ describe('Gemini Image Adapter', () => {
       expect(result.images[0]!.b64Json).toBe('gemini-base64-image')
     })
 
+    it('routes Nano Banana 2 Lite (gemini-3.1-flash-lite-image) through the native generateContent path', async () => {
+      const mockResponse = {
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  inlineData: {
+                    mimeType: 'image/jpeg',
+                    data: 'lite-base64-image',
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      }
+
+      const mockGenerateContent = vi.fn().mockResolvedValueOnce(mockResponse)
+
+      const adapter = createGeminiImage(
+        'gemini-3.1-flash-lite-image',
+        'test-api-key',
+      )
+      ;(
+        adapter as unknown as {
+          client: { models: { generateContent: unknown } }
+        }
+      ).client = {
+        models: {
+          generateContent: mockGenerateContent,
+        },
+      }
+
+      const result = await generateImage({
+        adapter,
+        prompt: 'A red circle',
+        size: '1:1_2K',
+      })
+
+      expect(mockGenerateContent).toHaveBeenCalledWith({
+        model: 'gemini-3.1-flash-lite-image',
+        contents: 'A red circle',
+        config: {
+          responseModalities: ['TEXT', 'IMAGE'],
+          imageConfig: {
+            aspectRatio: '1:1',
+            imageSize: '2K',
+          },
+        },
+      })
+
+      expect(result.model).toBe('gemini-3.1-flash-lite-image')
+      expect(result.images).toHaveLength(1)
+      expect(result.images[0]!.b64Json).toBe('lite-base64-image')
+    })
+
     it('surfaces token usage from usageMetadata (#330)', async () => {
       const mockResponse = {
         candidates: [
