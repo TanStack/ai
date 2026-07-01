@@ -1,5 +1,15 @@
 # @tanstack/ai-groq
 
+## 0.5.0
+
+### Minor Changes
+
+- [#649](https://github.com/TanStack/ai/pull/649) [`011ef69`](https://github.com/TanStack/ai/commit/011ef69b0119713f790c65bc65a34293f5d06716) - Adds Groq as a transcription provider. Groq's API is mostly OpenAI SDK-compatible,
+  but its transcription endpoint additionally accepts HTTP URLs as input, so this
+  is implemented as a custom integration rather than going through the SDK.
+
+- [#346](https://github.com/TanStack/ai/pull/346) [`b3464cb`](https://github.com/TanStack/ai/commit/b3464cb5919ef7fdce41bc71144a43ac23a8d554) - Add tree-shakeable Text-to-Speech (TTS) adapter for Groq with English and Arabic Orpheus voices, multiple output formats (default WAV), configurable speed and sample rate, model metadata, and unit tests.
+
 ## 0.4.16
 
 ### Patch Changes
