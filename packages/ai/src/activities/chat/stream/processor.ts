@@ -955,7 +955,9 @@ export class StreamProcessor {
       }
 
       const target = reconciled.findLast(
-        (m) => m.role === 'assistant' && m !== msg,
+        (m) =>
+          m.role === 'assistant' &&
+          !(m.parts.length === 1 && m.parts[0]?.type === 'tool-result'),
       )
 
       if (!target) {
