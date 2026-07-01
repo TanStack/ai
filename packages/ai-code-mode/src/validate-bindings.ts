@@ -85,7 +85,8 @@ function resolveRef(
   const match = ref.match(/^#\/(\$defs|definitions)\/(.+)$/)
   if (!match) return undefined
   const bucket = match[1] as '$defs' | 'definitions'
-  return root[bucket]?.[match[2]!]
+  const key = match[2]
+  return key === undefined ? undefined : root[bucket]?.[key]
 }
 
 function findSecretParams(
