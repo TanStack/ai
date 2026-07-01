@@ -32,8 +32,21 @@ import {
   createChatClientOptions,
   type InferChatMessages,
 } from "@tanstack/ai-client";
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
+
+const updateUIDef = toolDefinition({
+  name: "updateUI",
+  description: "Update the UI with a notification",
+  inputSchema: z.object({
+    message: z.string(),
+  }),
+  outputSchema: z.object({ success: z.boolean() }),
+});
 
 // In <script> block
+let notification = "";
+
 const updateUI = updateUIDef.client((input) => {
   notification = input.message;
   return { success: true };
@@ -61,7 +74,10 @@ Extends `ChatClientOptions` from `@tanstack/ai-client` (minus internal state cal
 - `tools?` - Array of client tool implementations (with `.client()` method)
 - `initialMessages?` - Initial messages array
 - `id?` - Unique identifier for this chat instance
-- `body?` - Additional body parameters to send
+- `threadId?` - Thread ID for AG-UI run correlation. Persists across sends; auto-generated if omitted
+- `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field (e.g., `{ provider: 'openai', model: 'gpt-4o' }`)
+- `body?` - **Deprecated.** Use `forwardedProps` instead. Still works for backward compatibility; values are merged into `forwardedProps` on the wire
+- `context?` - Typed client-local runtime context passed to client tool implementations. This value is not serialized to the server
 - `live?` - Enable live subscription mode (subscribes on creation)
 - `onResponse?` - Callback when response is received
 - `onChunk?` - Callback when stream chunk is received
@@ -75,7 +91,10 @@ Extends `ChatClientOptions` from `@tanstack/ai-client` (minus internal state cal
 ### Returns
 
 ```typescript
-interface CreateChatReturn {
+import type { UIMessage, MultimodalContent, ChatClientState, ConnectionStatus } from "@tanstack/ai-client";
+import type { ModelMessage } from "@tanstack/ai";
+
+interface CreateChatReturn<TContext = unknown> {
   readonly messages: UIMessage[];
   sendMessage: (content: string | MultimodalContent) => Promise<void>;
   append: (message: ModelMessage | UIMessage) => Promise<void>;
@@ -100,7 +119,10 @@ interface CreateChatReturn {
   readonly sessionGenerating: boolean;
   setMessages: (messages: UIMessage[]) => void;
   clear: () => void;
+  /** @deprecated Use `updateForwardedProps` instead. */
   updateBody: (body: Record<string, any>) => void;
+  updateForwardedProps: (forwardedProps: Record<string, any>) => void;
+  updateContext: (context: TContext) => void;
 }
 ```
 
@@ -109,7 +131,7 @@ interface CreateChatReturn {
 - **`create*` naming** -- factory functions, not hooks. Call outside of any lifecycle.
 - **Reactive getters** -- state properties (`messages`, `isLoading`, `error`, `status`, `isSubscribed`, `connectionStatus`, `sessionGenerating`) are Svelte 5 `$state` via getters. Access directly (e.g., `chat.messages`, not `chat.messages.value`).
 - **No automatic cleanup** -- unlike React/Vue/Solid, `createChat` does not auto-dispose. Call `chat.stop()` manually when the component unmounts (e.g., in `onDestroy` or an `$effect` return).
-- **`updateBody()`** -- update request body parameters dynamically (e.g., for model selection). In Vue, body changes are synced via `watch`; in Svelte, call this method explicitly.
+- **`updateForwardedProps()`** -- update AG-UI `forwardedProps` dynamically (e.g., for model selection). In Vue, changes to the `forwardedProps` option are synced via `watch`; in Svelte, call this method explicitly. The legacy `updateBody()` is still available but deprecated.
 - **`.svelte.ts` files** -- source files use the `.svelte.ts` extension for Svelte 5 rune support.
 
 ## Connection Adapters
@@ -311,8 +333,10 @@ Helper to create typed chat options (re-exported from `@tanstack/ai-client`).
 import {
   clientTools,
   createChatClientOptions,
+  fetchServerSentEvents,
   type InferChatMessages,
 } from "@tanstack/ai-client";
+import { tool1, tool2 } from "./tools";
 
 // Create typed tools array (no 'as const' needed!)
 const tools = clientTools(tool1, tool2);
@@ -335,7 +359,7 @@ Re-exported from `@tanstack/ai-client`:
 - `ThinkingPart` - Thinking content part
 - `ToolCallPart<TTools>` - Tool call part (discriminated union)
 - `ToolResultPart` - Tool result part
-- `ChatClientOptions<TTools>` - Chat client options
+- `ChatClientOptions<TTools, TContext>` - Chat client options with typed client runtime context
 - `ConnectionAdapter` - Connection adapter interface
 - `InferChatMessages<T>` - Extract message type from options
 - `ChatRequestBody` - Request body type

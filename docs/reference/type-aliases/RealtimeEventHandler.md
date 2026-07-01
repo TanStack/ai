@@ -9,7 +9,7 @@ title: RealtimeEventHandler
 type RealtimeEventHandler<TEvent> = (payload) => void;
 ```
 
-Defined in: [packages/typescript/ai/src/realtime/types.ts:269](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L269)
+Defined in: [packages/ai/src/realtime/types.ts:271](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L271)
 
 Handler type for realtime events
 

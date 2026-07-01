@@ -62,7 +62,7 @@ pnpm add @tanstack/ai-isolate-cloudflare
 
 Define your tools with `toolDefinition()` and provide a server-side implementation with `.server()`. These become the `external_*` functions available inside the sandbox.
 
-```typescript
+```typescript group=code-mode
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
 
@@ -82,7 +82,7 @@ const fetchWeather = toolDefinition({
 
 ### 3. Create the Code Mode tool and system prompt
 
-```typescript
+```typescript group=code-mode
 import { createCodeMode } from "@tanstack/ai-code-mode";
 import { createNodeIsolateDriver } from "@tanstack/ai-isolate-node";
 
@@ -95,13 +95,12 @@ const { tool, systemPrompt } = createCodeMode({
 
 ### 4. Use with `chat()`
 
-```typescript
+```typescript group=code-mode
 import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const result = await chat({
-  adapter: openaiText(),
-  model: "gpt-4o",
+  adapter: openaiText("gpt-5.5"),
   systemPrompts: [
     "You are a helpful weather assistant.",
     systemPrompt,
@@ -118,7 +117,7 @@ const result = await chat({
 
 The model will generate something like:
 
-```typescript
+```typescript ignore
 const cities = ["Tokyo", "Paris", "New York City"];
 const results = await Promise.all(
   cities.map((city) => external_fetchWeather({ location: city }))
@@ -146,7 +145,7 @@ All three API calls happen in parallel inside the sandbox. The model receives on
 
 Creates both the `execute_typescript` tool and its matching system prompt from a single config object. This is the recommended entry point.
 
-```typescript
+```typescript ignore
 const { tool, systemPrompt } = createCodeMode({
   driver,          // IsolateDriver — required
   tools,           // Array<ServerTool | ToolDefinition> — required, at least one
@@ -187,6 +186,7 @@ Lower-level functions if you need only the tool or only the prompt. `createCodeM
 
 ```typescript
 import { createCodeModeTool, createCodeModeSystemPrompt } from "@tanstack/ai-code-mode";
+import { config } from "./config";
 
 const tool = createCodeModeTool(config);
 const prompt = createCodeModeSystemPrompt(config);
@@ -197,6 +197,8 @@ const prompt = createCodeModeSystemPrompt(config);
 The interface that sandbox runtimes implement. You do not implement this yourself — pick one of the provided drivers:
 
 ```typescript
+import type { IsolateConfig, IsolateContext } from "@tanstack/ai-code-mode";
+
 interface IsolateDriver {
   createContext(config: IsolateConfig): Promise<IsolateContext>;
 }
@@ -216,7 +218,7 @@ For full configuration options for each driver, see [Isolate Drivers](./code-mod
 
 These utilities are used internally and are exported for custom pipelines:
 
-- **`stripTypeScript(code)`** — Strips TypeScript syntax using esbuild, converting to plain JavaScript.
+- **`stripTypeScript(code)`** — Strips TypeScript syntax using sucrase (edge-safe, no native binary), converting to plain JavaScript.
 - **`toolsToBindings(tools, prefix?)`** — Converts TanStack AI tools into `Record<string, ToolBinding>` for sandbox injection.
 - **`generateTypeStubs(bindings, options?)`** — Generates TypeScript type declarations from tool bindings for system prompts.
 
@@ -242,7 +244,7 @@ To display these events in your React app, see [Showing Code Mode in the UI](./c
 
 ## Model Compatibility
 
-Code Mode asks the model to write valid TypeScript that calls your tools through the sandbox bridge. Not every model handles this equally — many small or older models mishandle the `external_*` calling conventions even when the system prompt is explicit. We track a single multi-step benchmark (joining three tables, filtering customers who bought from every product category, aggregating spend per category) against a gold reference. The full harness lives at `packages/typescript/ai-code-mode/models-eval/`.
+Code Mode asks the model to write valid TypeScript that calls your tools through the sandbox bridge. Not every model handles this equally — many small or older models mishandle the `external_*` calling conventions even when the system prompt is explicit. We track a single multi-step benchmark (joining three tables, filtering customers who bought from every product category, aggregating spend per category) against a gold reference. The full harness lives at `packages/ai-code-mode/models-eval/`.
 
 | Rank | Model | Stars | Acc | Comp | TS | CME | Latency | Tokens |
 |------|-------|:-----:|:---:|:----:|:--:|:---:|--------:|-------:|
@@ -271,7 +273,7 @@ Code Mode asks the model to write valid TypeScript that calls your tools through
 Reproduce locally:
 
 ```bash
-cd packages/typescript/ai-code-mode/models-eval
+cd packages/ai-code-mode/models-eval
 pnpm install
 pnpm eval                    # full suite (needs cloud API keys + Anthropic for judging)
 pnpm eval -- --ollama-only   # local models only

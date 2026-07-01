@@ -5,7 +5,7 @@ title: DebugConfig
 
 # Interface: DebugConfig
 
-Defined in: [packages/typescript/ai/src/logger/types.ts:68](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/logger/types.ts#L68)
+Defined in: [packages/ai/src/logger/types.ts:73](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/types.ts#L73)
 
 Granular debug configuration combining per-category toggles with an optional custom logger. Any unspecified category flag defaults to `true`.
 
@@ -21,7 +21,7 @@ Granular debug configuration combining per-category toggles with an optional cus
 optional agentLoop: boolean;
 ```
 
-Defined in: [packages/typescript/ai/src/logger/types.ts:50](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/logger/types.ts#L50)
+Defined in: [packages/ai/src/logger/types.ts:50](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/types.ts#L50)
 
 Iteration markers and phase transitions in the chat agent loop. Chat-only.
 
@@ -37,7 +37,7 @@ Iteration markers and phase transitions in the chat agent loop. Chat-only.
 optional config: boolean;
 ```
 
-Defined in: [packages/typescript/ai/src/logger/types.ts:54](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/logger/types.ts#L54)
+Defined in: [packages/ai/src/logger/types.ts:54](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/types.ts#L54)
 
 Config transforms returned by middleware `onConfig` hooks. Chat-only.
 
@@ -53,7 +53,7 @@ Config transforms returned by middleware `onConfig` hooks. Chat-only.
 optional errors: boolean;
 ```
 
-Defined in: [packages/typescript/ai/src/logger/types.ts:58](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/logger/types.ts#L58)
+Defined in: [packages/ai/src/logger/types.ts:58](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/types.ts#L58)
 
 Caught errors throughout the pipeline. Unlike other categories, defaults to `true` even when `debug` is unspecified. Explicitly set `errors: false` or `debug: false` to silence.
 
@@ -69,7 +69,7 @@ Caught errors throughout the pipeline. Unlike other categories, defaults to `tru
 optional logger: Logger;
 ```
 
-Defined in: [packages/typescript/ai/src/logger/types.ts:72](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/logger/types.ts#L72)
+Defined in: [packages/ai/src/logger/types.ts:77](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/types.ts#L77)
 
 Custom `Logger` implementation. When omitted, a default `ConsoleLogger` routes output to `console.debug`/`info`/`warn`/`error`.
 
@@ -81,7 +81,7 @@ Custom `Logger` implementation. When omitted, a default `ConsoleLogger` routes o
 optional middleware: boolean;
 ```
 
-Defined in: [packages/typescript/ai/src/logger/types.ts:42](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/logger/types.ts#L42)
+Defined in: [packages/ai/src/logger/types.ts:42](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/types.ts#L42)
 
 Inputs and outputs around each middleware hook invocation. Chat-only.
 
@@ -97,7 +97,7 @@ Inputs and outputs around each middleware hook invocation. Chat-only.
 optional output: boolean;
 ```
 
-Defined in: [packages/typescript/ai/src/logger/types.ts:38](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/logger/types.ts#L38)
+Defined in: [packages/ai/src/logger/types.ts:38](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/types.ts#L38)
 
 Chunks/results yielded to the consumer after all middleware. For streaming activities this fires per chunk; for non-streaming activities it fires once per result.
 
@@ -113,7 +113,7 @@ Chunks/results yielded to the consumer after all middleware. For streaming activ
 optional provider: boolean;
 ```
 
-Defined in: [packages/typescript/ai/src/logger/types.ts:34](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/logger/types.ts#L34)
+Defined in: [packages/ai/src/logger/types.ts:34](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/types.ts#L34)
 
 Raw chunks/frames received from a provider SDK (OpenAI, Anthropic, Gemini, Ollama, Grok, Groq, OpenRouter, fal, ElevenLabs). Emitted inside every streaming adapter's chunk loop.
 
@@ -129,7 +129,7 @@ Raw chunks/frames received from a provider SDK (OpenAI, Anthropic, Gemini, Ollam
 optional request: boolean;
 ```
 
-Defined in: [packages/typescript/ai/src/logger/types.ts:62](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/logger/types.ts#L62)
+Defined in: [packages/ai/src/logger/types.ts:62](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/types.ts#L62)
 
 Outgoing call metadata (provider, model, message/tool counts) emitted before each adapter SDK call.
 
@@ -139,13 +139,30 @@ Outgoing call metadata (provider, model, message/tool counts) emitted before eac
 
 ***
 
+### sandbox?
+
+```ts
+optional sandbox: boolean;
+```
+
+Defined in: [packages/ai/src/logger/types.ts:67](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/types.ts#L67)
+
+Sandbox internals: watcher start/stop + mechanism, file events, sandbox
+hook dispatch, ensure/bootstrap and lifecycle transitions. Chat-only.
+
+#### Inherited from
+
+[`DebugCategories`](DebugCategories.md).[`sandbox`](DebugCategories.md#sandbox)
+
+***
+
 ### tools?
 
 ```ts
 optional tools: boolean;
 ```
 
-Defined in: [packages/typescript/ai/src/logger/types.ts:46](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/logger/types.ts#L46)
+Defined in: [packages/ai/src/logger/types.ts:46](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/types.ts#L46)
 
 Before/after tool-call execution in the chat agent loop. Chat-only.
 

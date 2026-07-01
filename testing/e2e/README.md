@@ -4,7 +4,9 @@ End-to-end tests for TanStack AI using Playwright and [aimock](https://github.co
 
 **Architecture:** Playwright drives a TanStack Start app (`testing/e2e/`) which routes requests through provider adapters pointing at aimock. Fixtures define mock responses. No real API keys needed. All scenarios (including tool execution flows) use aimock fixtures. Tests run in parallel with per-test `X-Test-Id` isolation.
 
-**Providers tested:** openai, anthropic, gemini, ollama, groq, grok, openrouter
+**Providers tested:** openai, anthropic, gemini, ollama, groq, grok, openrouter, bedrock, bedrock-responses
+
+> **Claude Code (`@tanstack/ai-claude-code`) is excluded from the standard matrix.** It's a harness adapter that spawns the Claude Code runtime as a subprocess, so aimock's per-test `X-Test-Id` header isolation can't be injected into its requests. It's covered by unit tests in the package plus a gated live smoke test in `tests/claude-code.spec.ts` — run it with `CLAUDE_CODE_E2E=1` and an `ANTHROPIC_API_KEY` (or a local `claude login`).
 
 ## What's tested
 
@@ -12,25 +14,29 @@ End-to-end tests for TanStack AI using Playwright and [aimock](https://github.co
 
 Each test iterates over supported providers using `providersFor('feature')`:
 
-| Feature               | Providers | Spec file                             |
-| --------------------- | --------- | ------------------------------------- |
-| chat                  | 7         | `tests/chat.spec.ts`                  |
-| one-shot-text         | 7         | `tests/one-shot-text.spec.ts`         |
-| multi-turn            | 7         | `tests/multi-turn.spec.ts`            |
-| structured-output     | 7         | `tests/structured-output.spec.ts`     |
-| tool-calling          | 7         | `tests/tool-calling.spec.ts`          |
-| parallel-tool-calls   | 6         | `tests/parallel-tool-calls.spec.ts`   |
-| tool-approval         | 6         | `tests/tool-approval.spec.ts`         |
-| text-tool-text        | 6         | `tests/text-tool-text.spec.ts`        |
-| agentic-structured    | 7         | `tests/agentic-structured.spec.ts`    |
-| reasoning             | 3         | `tests/reasoning.spec.ts`             |
-| multimodal-image      | 5         | `tests/multimodal-image.spec.ts`      |
-| multimodal-structured | 5         | `tests/multimodal-structured.spec.ts` |
-| summarize             | 6         | `tests/summarize.spec.ts`             |
-| summarize-stream      | 6         | `tests/summarize-stream.spec.ts`      |
-| image-gen             | 7         | `tests/image-gen.spec.ts`             |
-| tts                   | 7         | `tests/tts.spec.ts`                   |
-| transcription         | 7         | `tests/transcription.spec.ts`         |
+| Feature                  | Providers | Spec file                                |
+| ------------------------ | --------- | ---------------------------------------- |
+| chat                     | 7         | `tests/chat.spec.ts`                     |
+| one-shot-text            | 7         | `tests/one-shot-text.spec.ts`            |
+| multi-turn               | 7         | `tests/multi-turn.spec.ts`               |
+| structured-output        | 7         | `tests/structured-output.spec.ts`        |
+| structured-output-stream | 4         | `tests/structured-output-stream.spec.ts` |
+| tool-calling             | 7         | `tests/tool-calling.spec.ts`             |
+| parallel-tool-calls      | 6         | `tests/parallel-tool-calls.spec.ts`      |
+| tool-approval            | 6         | `tests/tool-approval.spec.ts`            |
+| text-tool-text           | 6         | `tests/text-tool-text.spec.ts`           |
+| agentic-structured       | 7         | `tests/agentic-structured.spec.ts`       |
+| reasoning                | 3         | `tests/reasoning.spec.ts`                |
+| multimodal-image         | 5         | `tests/multimodal-image.spec.ts`         |
+| multimodal-structured    | 5         | `tests/multimodal-structured.spec.ts`    |
+| summarize                | 6         | `tests/summarize.spec.ts`                |
+| summarize-stream         | 6         | `tests/summarize-stream.spec.ts`         |
+| image-gen                | 7         | `tests/image-gen.spec.ts`                |
+| image-to-image           | 1         | `tests/image-to-image.spec.ts`           |
+| image-to-video           | 1         | `tests/image-to-video.spec.ts`           |
+| tts                      | 3         | `tests/tts.spec.ts`                      |
+| transcription            | 3         | `tests/transcription.spec.ts`            |
+| audio-gen                | 1         | `tests/audio-gen.spec.ts`                |
 
 ### Tools-test page
 
@@ -122,7 +128,7 @@ Clean up the fixture:
 }
 ```
 
-Existing prefixes: `[chat]`, `[oneshot]`, `[reasoning]`, `[multiturn-1]`, `[multiturn-2]`, `[toolcall]`, `[parallel]`, `[approval]`, `[approval-deny]`, `[text-tool-text]`, `[structured]`, `[agentic]`, `[mmimage]`, `[mmstruct]`, `[summarize]`, `[imagegen]`, `[tts]`, `[transcription]`, `[abort-test]`, `[error-test]`.
+Existing prefixes: `[chat]`, `[oneshot]`, `[reasoning]`, `[multiturn-1]`, `[multiturn-2]`, `[toolcall]`, `[parallel]`, `[approval]`, `[approval-deny]`, `[text-tool-text]`, `[structured]`, `[structured-stream]`, `[structured-stream-abort]`, `[agentic]`, `[mmimage]`, `[mmstruct]`, `[summarize]`, `[imagegen]`, `[tts]`, `[transcription]`, `[abort-test]`, `[error-test]`.
 
 ## 4. Writing a Test
 
@@ -181,6 +187,16 @@ await waitForAssistantText(page, 'Fender Stratocaster')
 2. **Add to `src/lib/feature-support.ts`** — mark which features it supports
 3. **Add to `tests/test-matrix.ts`** — mirror the support matrix
 4. **No fixture changes needed** — aimock translates to correct wire format
+
+### Bedrock Converse coverage gap
+
+The `bedrock` and `bedrock-responses` providers in this matrix use `createBedrockText` with a `baseURL` pointing at aimock — they speak Bedrock's **OpenAI-compatible** endpoint, which aimock's OpenAI replay handles fine.
+
+The default `bedrock-converse` adapter (introduced later) uses `@aws-sdk/client-bedrock-runtime` and speaks AWS's **binary event-stream (`vnd.amazon.eventstream`) Converse protocol**, which `@copilotkit/aimock` does not currently mock. Adding `bedrock-converse` to the live matrix would fail without a Converse-capable aimock provider.
+
+**Coverage today:** the Converse translation layer (message converter, tool converter, stream processor, structured output, adapter) is covered by unit tests in `packages/ai-bedrock/tests/converse/` (64 tests). The OpenAI-compatible `bedrock` and `bedrock-responses` entries remain in the E2E matrix as-is.
+
+**Follow-up:** a Bedrock/Converse provider will be added to aimock to close this gap and enable full E2E coverage of the Converse path.
 
 **SDK baseURL notes:**
 

@@ -6,10 +6,10 @@ title: createChatOptions
 # Function: createChatOptions()
 
 ```ts
-function createChatOptions<TAdapter, TSchema, TStream>(options): TextActivityOptions<TAdapter, TSchema, TStream>;
+function createChatOptions<TAdapter, TSchema, TStream, TTools, TMiddleware>(options): TextActivityOptions<TAdapter, TSchema, TStream, InferredContext<TTools, TMiddleware>>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/index.ts:213](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/index.ts#L213)
+Defined in: [packages/ai/src/activities/chat/index.ts:339](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/index.ts#L339)
 
 Create typed options for the chat() function without executing.
 This is useful for pre-defining configurations with full type inference.
@@ -28,15 +28,35 @@ This is useful for pre-defining configurations with full type inference.
 
 `TStream` *extends* `boolean` = `true`
 
+### TTools
+
+`TTools` *extends* 
+  \| (
+  \| `Omit`\<[`Tool`](../interfaces/Tool.md)\<`any`, `any`, `any`, `any`\>, `"execute"`\> & `object` & `object`
+  \| [`ProviderTool`](../interfaces/ProviderTool.md)\<`string`, `TAdapter`\[`"~types"`\]\[`"toolCapabilities"`\]\[`number`\]\>)[]
+  \| `undefined` = 
+  \| (
+  \| `Omit`\<[`Tool`](../interfaces/Tool.md)\<`any`, `any`, `any`, `any`\>, `"execute"`\> & `object` & `object`
+  \| [`ProviderTool`](../interfaces/ProviderTool.md)\<`string`, `TAdapter`\[`"~types"`\]\[`"toolCapabilities"`\]\[`number`\]\>)[]
+  \| `undefined`
+
+### TMiddleware
+
+`TMiddleware` *extends* 
+  \| [`ChatMiddleware`](../interfaces/ChatMiddleware.md)\<`any`\>[]
+  \| `undefined` = 
+  \| [`ChatMiddleware`](../interfaces/ChatMiddleware.md)\<`any`\>[]
+  \| `undefined`
+
 ## Parameters
 
 ### options
 
-`TextActivityOptions`\<`TAdapter`, `TSchema`, `TStream`\>
+`TextActivityOptionsWithContext`\<`TAdapter`, `TSchema`, `TStream`, `TTools`, `TMiddleware`\>
 
 ## Returns
 
-`TextActivityOptions`\<`TAdapter`, `TSchema`, `TStream`\>
+`TextActivityOptions`\<`TAdapter`, `TSchema`, `TStream`, `InferredContext`\<`TTools`, `TMiddleware`\>\>
 
 ## Example
 

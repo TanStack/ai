@@ -34,7 +34,7 @@
       "Bash(pnpm --filter @tanstack/ai-vue test:lib)",
       "Bash(pnpm --filter @tanstack/ai-svelte test:lib)",
       "Bash(pnpm test:docs)",
-      "Bash(npx vitest run packages/typescript/ai-vue/tests/use-generation.test.ts)",
+      "Bash(npx vitest run packages/ai-vue/tests/use-generation.test.ts)",
       "Bash(pnpm test:types)",
       "Bash(npx tsr generate)",
       "Bash(npx nx run ts-react-media:build)",

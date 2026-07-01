@@ -62,7 +62,7 @@ interface ProviderConfig {
 const PROVIDER_MAP: Record<string, ProviderConfig> = {
   'openai/': {
     packageName: '@tanstack/ai-openai',
-    metaFile: resolve(ROOT, 'packages/typescript/ai-openai/src/model-meta.ts'),
+    metaFile: resolve(ROOT, 'packages/ai-openai/src/model-meta.ts'),
     arrayRef: '.name',
     contextField: 'context_window',
     chatArrayName: 'OPENAI_CHAT_MODELS',
@@ -89,10 +89,7 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
   },
   'anthropic/': {
     packageName: '@tanstack/ai-anthropic',
-    metaFile: resolve(
-      ROOT,
-      'packages/typescript/ai-anthropic/src/model-meta.ts',
-    ),
+    metaFile: resolve(ROOT, 'packages/ai-anthropic/src/model-meta.ts'),
     arrayRef: '.id',
     contextField: 'context_window',
     chatArrayName: 'ANTHROPIC_MODELS',
@@ -112,7 +109,7 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
   },
   'google/': {
     packageName: '@tanstack/ai-gemini',
-    metaFile: resolve(ROOT, 'packages/typescript/ai-gemini/src/model-meta.ts'),
+    metaFile: resolve(ROOT, 'packages/ai-gemini/src/model-meta.ts'),
     arrayRef: '.name',
     contextField: 'max_input_tokens',
     chatArrayName: 'GEMINI_MODELS',
@@ -123,9 +120,9 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     capabilities: ['batch_api', 'caching', 'function_calling', 'structured_output', 'thinking'],
     tools: ['code_execution', 'file_search', 'google_search', 'url_context'],`,
     referenceSatisfies:
-      'ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions & GeminiThinkingAdvancedOptions>',
+      'ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions>',
     referenceProviderOptionsEntry:
-      'GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions & GeminiThinkingAdvancedOptions',
+      'GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions',
     hasBothNameAndId: false,
     providerOptionsIsMappedType: false,
     skipPatterns: [
@@ -134,7 +131,7 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
   },
   'x-ai/': {
     packageName: '@tanstack/ai-grok',
-    metaFile: resolve(ROOT, 'packages/typescript/ai-grok/src/model-meta.ts'),
+    metaFile: resolve(ROOT, 'packages/ai-grok/src/model-meta.ts'),
     arrayRef: '.name',
     contextField: 'context_window',
     chatArrayName: 'GROK_CHAT_MODELS',
@@ -264,15 +261,18 @@ function outputsText(model: OpenRouterModel): boolean {
 }
 
 /**
- * Check if an OpenRouter model outputs ONLY images (no text output).
- * Image-only models are skipped entirely because image model arrays
- * require manual curation with specialized type maps (sizes, provider options).
+ * Check if an OpenRouter model produces image output.
+ *
+ * Image-generation models are skipped entirely by the sync — regardless of
+ * whether they ALSO output text — because image model arrays require manual
+ * curation with specialized type maps (sizes, provider options, the native
+ * image union). This covers text+image "native" image models such as the
+ * Gemini "Nano Banana" family (`gemini-*-image`, e.g.
+ * `gemini-3.1-flash-lite-image`), which would otherwise be misclassified as
+ * chat models (they output text) and inserted with a bogus `output: ['text']`.
  */
-function isImageOnlyModel(model: OpenRouterModel): boolean {
-  return (
-    model.architecture.output_modalities.includes('image') &&
-    !model.architecture.output_modalities.includes('text')
-  )
+function outputsImage(model: OpenRouterModel): boolean {
+  return model.architecture.output_modalities.includes('image')
 }
 
 /**
@@ -520,7 +520,7 @@ function detectChangedPackages(): Set<string> {
     if (!diff) return changed
 
     for (const line of diff.split('\n')) {
-      // packages/typescript/ai-openrouter/... → @tanstack/ai-openrouter
+      // packages/ai-openrouter/... → @tanstack/ai-openrouter
       const match = line.match(/^packages\/typescript\/([\w-]+)\//)
       if (match) {
         changed.add(`@tanstack/${match[1]}`)
@@ -628,14 +628,15 @@ async function main() {
       console.log(`    - ${strippedId} (${constName})`)
     }
 
-    // Filter out image-only models (they need manual curation for size/provider type maps)
-    const filteredModels = newModels.filter(
-      ({ model }) => !isImageOnlyModel(model),
-    )
-    const skippedImageOnly = newModels.length - filteredModels.length
-    if (skippedImageOnly > 0) {
+    // Filter out image-generation models (they need manual curation for
+    // size/provider type maps + the native image union). This includes
+    // text+image models like the Gemini "Nano Banana" native image family,
+    // not just image-only models.
+    const filteredModels = newModels.filter(({ model }) => !outputsImage(model))
+    const skippedImageModels = newModels.length - filteredModels.length
+    if (skippedImageModels > 0) {
       console.log(
-        `  Skipping ${skippedImageOnly} image-only models (require manual curation)`,
+        `  Skipping ${skippedImageModels} image-generation models (require manual curation)`,
       )
     }
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import type { Report, ReportState, UIEvent, UINode } from './types'
 import { applyUIEvent, createEmptyReportState } from './apply-event'
 
@@ -42,7 +42,6 @@ export function usePersistedReports() {
   const [reports, setReports] = useState<Map<string, ReportState>>(new Map())
   const [activeReportId, setActiveReportId] = useState<string | null>(null)
   const [isHydrated, setIsHydrated] = useState(false)
-  const saveRef = useRef<ReturnType<typeof debounce<() => void>> | null>(null)
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -74,29 +73,27 @@ export function usePersistedReports() {
   useEffect(() => {
     if (!isHydrated) return
 
-    if (!saveRef.current) {
-      saveRef.current = debounce(() => {
-        const data: ReportsStorage = {
-          reports: Array.from(reports.values()).map(
-            ({ report, nodes, rootIds }) => ({
-              report,
-              nodes: Array.from(nodes.entries()),
-              rootIds,
-            }),
-          ),
-          activeReportId,
-          version: STORAGE_VERSION,
-        }
-        try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
-        } catch (e) {
-          console.error('Failed to save reports to storage:', e)
-        }
-      }, 500)
-    }
+    const save = debounce(() => {
+      const data: ReportsStorage = {
+        reports: Array.from(reports.values()).map(
+          ({ report, nodes, rootIds }) => ({
+            report,
+            nodes: Array.from(nodes.entries()),
+            rootIds,
+          }),
+        ),
+        activeReportId,
+        version: STORAGE_VERSION,
+      }
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+      } catch (e) {
+        console.error('Failed to save reports to storage:', e)
+      }
+    }, 500)
 
-    saveRef.current()
-    return () => saveRef.current?.cancel()
+    save()
+    return () => save.cancel()
   }, [reports, activeReportId, isHydrated])
 
   // Create a new report

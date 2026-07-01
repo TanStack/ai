@@ -1,0 +1,74 @@
+{
+  "name": "@tanstack/ai-vue",
+  "version": "0.14.1",
+  "description": "Vue composables for TanStack AI streaming chat, structured outputs, and media generation.",
+  "author": "Tanner Linsley",
+  "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-vue"
+  },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "type": "module",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "clean": "premove ./build ./dist",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest run",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc",
+    "build": "tsdown"
+  },
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "vue",
+    "vue3",
+    "composables",
+    "chat",
+    "streaming",
+    "tool-calling",
+    "structured-outputs",
+    "media-generation"
+  ],
+  "dependencies": {
+    "@tanstack/ai-client": "workspace:*"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:^",
+    "vue": ">=3.5.0"
+  },
+  "devDependencies": {
+    "@standard-schema/spec": "^1.1.0",
+    "@tanstack/ai": "workspace:*",
+    "@types/node": "^24.10.1",
+    "@vitest/coverage-v8": "4.0.14",
+    "@vue/test-utils": "^2.4.6",
+    "jsdom": "^27.2.0",
+    "tsdown": "^0.17.0-beta.6",
+    "typescript": "5.9.3",
+    "vitest": "^4.0.14",
+    "vue": "^3.5.25"
+  }
+}

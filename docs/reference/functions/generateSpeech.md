@@ -9,7 +9,7 @@ title: generateSpeech
 function generateSpeech<TAdapter, TStream>(options): TTSActivityResult<TStream>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateSpeech/index.ts:128](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateSpeech/index.ts#L128)
+Defined in: [packages/ai/src/activities/generateSpeech/index.ts:142](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateSpeech/index.ts#L142)
 
 TTS activity - generates speech from text.
 
@@ -19,7 +19,7 @@ Uses AI text-to-speech models to create audio from natural language text.
 
 ### TAdapter
 
-`TAdapter` *extends* [`TTSAdapter`](../interfaces/TTSAdapter.md)\<`string`, `object`\>
+`TAdapter` *extends* [`TTSAdapter`](../interfaces/TTSAdapter.md)\<`string`, `TTSProviderOptions`\<`TAdapter`\>\>
 
 ### TStream
 
@@ -39,10 +39,10 @@ Uses AI text-to-speech models to create audio from natural language text.
 
 ```ts
 import { generateSpeech } from '@tanstack/ai'
-import { openaiTTS } from '@tanstack/ai-openai'
+import { openaiSpeech } from '@tanstack/ai-openai'
 
 const result = await generateSpeech({
-  adapter: openaiTTS('tts-1-hd'),
+  adapter: openaiSpeech('tts-1-hd'),
   text: 'Hello, welcome to TanStack AI!',
   voice: 'nova'
 })
@@ -52,7 +52,7 @@ console.log(result.audio) // base64-encoded audio
 
 ```ts
 const result = await generateSpeech({
-  adapter: openaiTTS('tts-1'),
+  adapter: openaiSpeech('tts-1'),
   text: 'This is slower speech.',
   voice: 'alloy',
   format: 'wav',

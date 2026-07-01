@@ -1,0 +1,80 @@
+{
+  "name": "@tanstack/ai-preact",
+  "version": "0.10.1",
+  "description": "Preact hooks for TanStack AI streaming chat and typed messages.",
+  "author": "Tanner Linsley",
+  "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-preact"
+  },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    },
+    "./mcp-apps": {
+      "types": "./dist/esm/mcp-apps.d.ts",
+      "import": "./dist/esm/mcp-apps.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest run",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc",
+    "test:build": "publint --strict",
+    "build": "vite build"
+  },
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "preact",
+    "hooks",
+    "chat",
+    "streaming",
+    "tool-calling"
+  ],
+  "dependencies": {
+    "@tanstack/ai-client": "workspace:*"
+  },
+  "devDependencies": {
+    "@mcp-ui/client": "^7.1.1",
+    "@tanstack/ai": "workspace:*",
+    "@testing-library/preact": "^3.2.4",
+    "@vitest/coverage-v8": "4.0.14",
+    "jsdom": "^27.2.0",
+    "preact": "^10.26.9",
+    "vite": "^7.3.3"
+  },
+  "peerDependencies": {
+    "@mcp-ui/client": "^7",
+    "@tanstack/ai": "workspace:^",
+    "preact": ">=10.11.0"
+  },
+  "peerDependenciesMeta": {
+    "@mcp-ui/client": {
+      "optional": true
+    }
+  }
+}

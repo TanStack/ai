@@ -2,13 +2,13 @@
 title: Client Tools
 id: client-tools
 order: 4
-description: "Client tools in TanStack AI run in the browser for UI updates, localStorage, and browser API access with type-safe onToolCall handling."
+description: "Client tools in TanStack AI run in the browser for UI updates, localStorage, and browser API access with automatic execution."
 keywords:
   - tanstack ai
   - client tools
   - browser tools
   - ui tools
-  - onToolCall
+  - automatic execution
   - clientTools
   - localStorage
 ---
@@ -28,7 +28,7 @@ sequenceDiagram
     Note over Server: No execute function<br/>= client tool
     
     Server->>Browser: Forward tool-input-available<br/>chunk via SSE/HTTP
-    Browser->>Browser: onToolCall callback<br/>triggered
+    Browser->>Browser: Find registered<br/>client tool
     Browser->>ClientTool: execute(args)
     ClientTool->>ClientTool: Update UI,<br/>localStorage, etc.
     ClientTool-->>Browser: Return result
@@ -54,9 +54,7 @@ sequenceDiagram
 1. **Tool Call from LLM**: LLM decides to call a client tool
 2. **Server Detection**: Server sees the tool has no `execute` function
 3. **Client Notification**: Server sends a `tool-input-available` chunk to the browser
-4. **Client Execution**: Browser's `onToolCall` callback is triggered with:
-   - `toolName`: Name of the tool to execute
-   - `input`: Parsed arguments
+4. **Client Execution**: The browser finds the registered `.client()` implementation by tool name and runs it with the parsed input
 5. **Result Return**: Client executes the tool and returns the result
 6. **Server Update**: Result is sent back to the server and added to the conversation
 7. **LLM Continuation**: LLM receives the result and continues the conversation
@@ -103,20 +101,20 @@ To give the LLM access to client tools, pass the tool definitions (not implement
 
 ```typescript
 // api/chat/route.ts
-import { chat, toServerSentEventsStream } from "@tanstack/ai";
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
-import { updateUIDef, saveToLocalStorageDef } from "@/tools/definitions";
+import { updateUIDef, saveToLocalStorageDef } from "./tools/definitions";
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: openaiText("gpt-5.2"),
+    adapter: openaiText("gpt-5.5"),
     messages,
     tools: [updateUIDef, saveToLocalStorageDef], // Pass definitions
   });
 
-  return toServerSentEventsStream(stream);
+  return toServerSentEventsResponse(stream);
 }
 ```
 
@@ -124,43 +122,63 @@ export async function POST(request: Request) {
 
 Create client implementations with automatic execution and full type safety:
 
-```typescript
+```tsx
 // app/chat.tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import { 
   clientTools, 
   createChatClientOptions, 
-  type InferChatMessages 
+  type InferChatMessages,
+  type ToolCallPart,
+  type MessagePart,
 } from "@tanstack/ai-client";
-import { updateUIDef, saveToLocalStorageDef } from "@/tools/definitions";
-import { useState } from "react";
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
+
+const updateUIDef = toolDefinition({
+  name: "update_ui",
+  description: "Update the UI with new information",
+  inputSchema: z.object({
+    message: z.string().meta({ description: "Message to display" }),
+    type: z.enum(["success", "error", "info"]).meta({ description: "Message type" }),
+  }),
+  outputSchema: z.object({ success: z.boolean() }),
+});
+
+const saveToLocalStorageDef = toolDefinition({
+  name: "save_to_local_storage",
+  description: "Save data to browser local storage",
+  inputSchema: z.object({
+    key: z.string().meta({ description: "Storage key" }),
+    value: z.string().meta({ description: "Value to store" }),
+  }),
+  outputSchema: z.object({ saved: z.boolean() }),
+});
+
+// Step 1: Create client implementations (module scope)
+const updateUI = updateUIDef.client((input) => {
+  // Update UI state - fully typed!
+  console.log(input.message, input.type);
+  return { success: true };
+});
+
+const saveToLocalStorage = saveToLocalStorageDef.client((input) => {
+  localStorage.setItem(input.key, input.value);
+  return { saved: true };
+});
+
+// Step 2: Create typed tools array (no 'as const' needed!)
+const tools = clientTools(updateUI, saveToLocalStorage);
+
+const chatOptions = createChatClientOptions({
+  connection: fetchServerSentEvents("/api/chat"),
+  tools,
+});
+
+// Step 3: Infer message types for full type safety
+type ChatMessages = InferChatMessages<typeof chatOptions>;
 
 function ChatComponent() {
-  const [notification, setNotification] = useState(null);
-
-  // Step 1: Create client implementations
-  const updateUI = updateUIDef.client((input) => {
-    // Update React state - fully typed!
-    setNotification({ message: input.message, type: input.type });
-    return { success: true };
-  });
-
-  const saveToLocalStorage = saveToLocalStorageDef.client((input) => {
-    localStorage.setItem(input.key, input.value);
-    return { saved: true };
-  });
-
-  // Step 2: Create typed tools array (no 'as const' needed!)
-  const tools = clientTools(updateUI, saveToLocalStorage);
-
-  const chatOptions = createChatClientOptions({
-    connection: fetchServerSentEvents("/api/chat"),
-    tools,
-  });
-
-  // Step 3: Infer message types for full type safety
-  type ChatMessages = InferChatMessages<typeof chatOptions>;
-
   const { messages, sendMessage, isLoading } = useChat(chatOptions);
 
   // Step 4: Render with full type safety
@@ -169,11 +187,6 @@ function ChatComponent() {
       {messages.map((message) => (
         <MessageComponent key={message.id} message={message} />
       ))}
-      {notification && (
-        <div className={`notification ${notification.type}`}>
-          {notification.message}
-        </div>
-      )}
     </div>
   );
 }
@@ -182,7 +195,7 @@ function ChatComponent() {
 function MessageComponent({ message }: { message: ChatMessages[number] }) {
   return (
     <div>
-      {message.parts.map((part) => {
+      {message.parts.map((part: MessagePart) => {
         if (part.type === "text") {
           return <p>{part.content}</p>;
         }
@@ -200,6 +213,7 @@ function MessageComponent({ message }: { message: ChatMessages[number] }) {
             );
           }
         }
+        return null;
       })}
     </div>
   );
@@ -208,7 +222,7 @@ function MessageComponent({ message }: { message: ChatMessages[number] }) {
 
 ## Automatic Execution
 
-Client tools are **automatically executed** when the model calls them. No manual `onToolCall` callback needed! The flow is:
+Client tools are **automatically executed** when the model calls them. The flow is:
 
 1. LLM calls a client tool
 2. Server sends `tool-input-available` chunk to browser
@@ -216,11 +230,54 @@ Client tools are **automatically executed** when the model calls them. No manual
 4. Result is sent back to server
 5. Conversation continues with the result
 
+## Client Runtime Context
+
+Client tools can receive typed runtime context as their second argument. This context is local to the `ChatClient` or framework hook instance and is not serialized to the server.
+
+```typescript
+import { createChatClientOptions, clientTools } from "@tanstack/ai-client";
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { toolDefinition } from "@tanstack/ai";
+import { toast } from "./toast";
+
+const activeProjectId = "";
+
+type ClientContext = {
+  activeProjectId: string;
+  toast(message: string): void;
+};
+
+const showToast = toolDefinition({
+  name: "show_toast",
+  description: "Show a browser notification",
+}).client<ClientContext>((_input, ctx) => {
+  ctx.context.toast(`Project ${ctx.context.activeProjectId} updated`);
+  return { ok: true };
+});
+
+const chatOptions = createChatClientOptions({
+  connection: fetchServerSentEvents("/api/chat"),
+  tools: clientTools(showToast),
+  context: {
+    activeProjectId,
+    toast: (message) => toast(message),
+  },
+});
+
+const chat = useChat(chatOptions);
+```
+
+Use `context` for local browser dependencies. If the server also needs a value from the client, send it with `forwardedProps`, validate it in your route, and map it into server `chat({ context })` explicitly. See [Runtime Context](../advanced/runtime-context) for the full pattern.
+
 ## Type Safety Benefits
 
 The isomorphic architecture provides complete end-to-end type safety:
 
 ```typescript
+import type { UIMessage } from "@tanstack/ai-client";
+
+const messages: UIMessage[] = [];
+
 messages.forEach((message) => {
   message.parts.forEach((part) => {
     if (part.type === "tool-call" && part.name === "update_ui") {
@@ -239,16 +296,20 @@ messages.forEach((message) => {
 ```
 
 ## Tool States
-Client tools go through a small set of observable lifecycle states you can surface in the UI to indicate progress:
+
+A `tool-call` part moves through a small set of observable `ToolCallState` values you can surface in the UI to indicate progress:
 
 - `awaiting-input` — the model intends to call the tool but arguments haven't arrived yet.
 - `input-streaming` — the model is streaming the tool arguments (partial input may be available).
-- `input-complete` — all arguments have been received and the tool is executing.
-- `completed` — the tool finished; part.output contains the result (or error details).
+- `input-complete` — all arguments have been received and the tool can run.
+- `approval-requested` — the tool is waiting for user approval before it can run.
+- `approval-responded` — the user has approved or denied the tool call.
 
-Use these states to show loading indicators, streaming progress, and final success/error feedback. The example below maps each state to a simple UI message.
+The `ToolCallState` union includes a `complete` value, but the runtime never transitions a tool-call part to it — a finished call settles at `input-complete`. Once the tool runs, the result appears two ways: `part.output` becomes populated on the tool-call part, and a sibling `tool-result` part is emitted whose own `state` is `complete` or `error` (the `error` case carries `part.error`). Use the tool-call states for loading/streaming progress and the tool-result part for final success/error feedback.
 
-```typescript
+```tsx
+import type { ToolCallPart } from "@tanstack/ai-client";
+
 function ToolCallDisplay({ part }: { part: ToolCallPart }) {
   if (part.state === "awaiting-input") {
     return <div>🔄 Waiting for arguments...</div>;
@@ -259,11 +320,13 @@ function ToolCallDisplay({ part }: { part: ToolCallPart }) {
   }
   
   if (part.state === "input-complete") {
-    return <div>✓ Arguments received, executing...</div>;
+    return <div>✓ Arguments received, running tool...</div>;
   }
-  
+
+  // Completion shows up as a populated `part.output` (and as a sibling
+  // `tool-result` part whose state is `complete` / `error`).
   if (part.output) {
-    return <div>✅ Tool completed successfully</div>;
+    return <div>✅ Tool complete</div>;
   }
   
   return null;
@@ -275,6 +338,11 @@ function ToolCallDisplay({ part }: { part: ToolCallPart }) {
 Tools can be implemented for both server and client, enabling flexible execution:
 
 ```typescript
+import { toolDefinition, chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { z } from "zod";
+import { db } from "./db";
+
 // Define once
 const addToCartDef = toolDefinition({
   name: "add_to_cart",
@@ -306,10 +374,10 @@ const addToCartClient = addToCartDef.client((input) => {
 });
 
 // Server: Pass definition for client execution
-chat({ adapter: openaiText('gpt-5.2'), messages: [], tools: [addToCartDef] }); // Client will execute
+chat({ adapter: openaiText('gpt-5.5'), messages: [], tools: [addToCartDef] }); // Client will execute
 
 // Or pass server implementation for server execution
-chat({ adapter: openaiText('gpt-5.2'), messages: [], tools: [addToCartServer] }); // Server will execute
+chat({ adapter: openaiText('gpt-5.5'), messages: [], tools: [addToCartServer] }); // Server will execute
 ```
 
 ## Best Practices
@@ -332,7 +400,6 @@ chat({ adapter: openaiText('gpt-5.2'), messages: [], tools: [addToCartServer] })
 
 ## Next Steps
 
-- [How Tools Work](./tools) - Deep dive into the tool architecture
+- [How Tools Work](./tool-architecture) - Deep dive into the tool architecture
 - [Server Tools](./server-tools) - Learn about server-side tool execution
 - [Tool Approval Flow](./tool-approval) - Add approval workflows for sensitive operations
-

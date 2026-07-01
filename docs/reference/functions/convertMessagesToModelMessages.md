@@ -12,7 +12,7 @@ function convertMessagesToModelMessages(messages): ModelMessage<
   | null>[];
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/messages.ts:63](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/messages.ts#L63)
+Defined in: [packages/ai/src/activities/chat/messages.ts:81](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/messages.ts#L81)
 
 Convert UIMessages or ModelMessages to ModelMessages
 
@@ -21,11 +21,11 @@ Convert UIMessages or ModelMessages to ModelMessages
 ### messages
 
 (
-  \| [`UIMessage`](../interfaces/UIMessage.md)
   \| [`ModelMessage`](../interfaces/ModelMessage.md)\<
   \| `string`
   \| [`ContentPart`](../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`, `unknown`\>[]
-  \| `null`\>)[]
+  \| `null`\>
+  \| [`UIMessage`](../interfaces/UIMessage.md)\<`unknown`\>)[]
 
 ## Returns
 

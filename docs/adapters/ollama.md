@@ -40,10 +40,10 @@ const stream = chat({
 import { chat } from "@tanstack/ai";
 import { createOllamaChat } from "@tanstack/ai-ollama";
 
-const adapter = createOllamaChat("http://your-server:11434");
+const adapter = createOllamaChat("llama3", "http://your-server:11434");
 
 const stream = chat({
-  adapter: adapter("llama3"),
+  adapter,
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
@@ -53,11 +53,14 @@ const stream = chat({
 ```typescript
 import { createOllamaChat } from "@tanstack/ai-ollama";
 
-// Default localhost
-const adapter = createOllamaChat();
+// Custom host (URL string)
+const adapter = createOllamaChat("llama3", "http://your-server:11434");
 
-// Custom host
-const adapter = createOllamaChat("http://your-server:11434");
+// Custom client config (e.g., custom headers, fetch)
+const adapter2 = createOllamaChat("llama3", {
+  host: "http://your-server:11434",
+  headers: { Authorization: "Bearer ..." },
+});
 ```
 
 ## Available Models
@@ -100,7 +103,7 @@ export async function POST(request: Request) {
 ## Example: With Tools
 
 ```typescript
-import { chat, toolDefinition } from "@tanstack/ai";
+import { chat, toServerSentEventsResponse, toolDefinition } from "@tanstack/ai";
 import { ollamaText } from "@tanstack/ai-ollama";
 import { z } from "zod";
 
@@ -117,66 +120,83 @@ const getLocalData = getLocalDataDef.server(async ({ key }) => {
   return { data: "..." };
 });
 
-const stream = chat({
-  adapter: ollamaText("llama3"),
-  messages,
-  tools: [getLocalData],
-});
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter: ollamaText("llama3"),
+    messages,
+    tools: [getLocalData],
+  });
+
+  return toServerSentEventsResponse(stream);
+}
 ```
 
 **Note:** Tool support varies by model. Models like `llama3`, `mistral`, and `qwen2` generally have good tool calling support.
 
 ## Model Options
 
-Ollama supports various provider-specific options:
+Ollama supports various provider-specific options. Unlike the other providers, Ollama nests its sampling and runner parameters inside an `options` object **within** `modelOptions` — `temperature`, `top_p`, and `num_predict` (the token-limit key) all live under `modelOptions.options`:
 
 ```typescript
+import { chat } from "@tanstack/ai";
+import { ollamaText } from "@tanstack/ai-ollama";
+
 const stream = chat({
-  adapter: ollamaText("llama3"),
-  messages,
+  adapter: ollamaText("llama3:latest"),
+  messages: [{ role: "user", content: "Hello!" }],
   modelOptions: {
-    temperature: 0.7,
-    top_p: 0.9,
-    top_k: 40,
-    num_predict: 1000, // Max tokens to generate
-    repeat_penalty: 1.1,
-    num_ctx: 4096, // Context window size
-    num_gpu: -1, // GPU layers (-1 = auto)
+    options: {
+      temperature: 0.7,
+      top_p: 0.9,
+      top_k: 40,
+      num_predict: 1000, // Max tokens to generate
+      repeat_penalty: 1.1,
+      num_ctx: 4096, // Context window size
+      num_gpu: -1, // GPU layers (-1 = auto)
+    },
   },
 });
 ```
 
+> If you previously passed `temperature` / `topP` / `maxTokens` at the root of `chat()`, note that for Ollama they map to `modelOptions.options.temperature`, `modelOptions.options.top_p`, and `modelOptions.options.num_predict`. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
+
 ### Advanced Options
 
-```typescript
+All sampling and runner parameters are nested under `modelOptions.options`:
+
+```typescript ignore
 modelOptions: {
-  // Sampling
-  temperature: 0.7,
-  top_p: 0.9,
-  top_k: 40,
-  min_p: 0.05,
-  typical_p: 1.0,
-  
-  // Generation
-  num_predict: 1000,
-  repeat_penalty: 1.1,
-  repeat_last_n: 64,
-  penalize_newline: false,
-  
-  // Performance
-  num_ctx: 4096,
-  num_batch: 512,
-  num_gpu: -1,
-  num_thread: 0, // 0 = auto
-  
-  // Memory
-  use_mmap: true,
-  use_mlock: false,
-  
-  // Mirostat sampling
-  mirostat: 0, // 0 = disabled, 1 = Mirostat, 2 = Mirostat 2.0
-  mirostat_tau: 5.0,
-  mirostat_eta: 0.1,
+  options: {
+    // Sampling
+    temperature: 0.7,
+    top_p: 0.9,
+    top_k: 40,
+    min_p: 0.05,
+    typical_p: 1.0,
+
+    // Generation
+    num_predict: 1000,
+    repeat_penalty: 1.1,
+    repeat_last_n: 64,
+    penalize_newline: false,
+
+    // Performance
+    num_ctx: 4096,
+    num_batch: 512,
+    num_gpu: -1,
+    num_thread: 0, // 0 = auto
+
+    // Memory
+    use_mmap: true,
+    use_mlock: false,
+
+    // Mirostat sampling
+    mirostat: 0, // 0 = disabled, 1 = Mirostat, 2 = Mirostat 2.0
+    mirostat_tau: 5.0,
+    mirostat_eta: 0.1,
+  },
 }
 ```
 
@@ -184,7 +204,7 @@ modelOptions: {
 
 Summarize long text content locally:
 
-```typescript
+```typescript ignore
 import { summarize } from "@tanstack/ai";
 import { ollamaSummarize } from "@tanstack/ai-ollama";
 
@@ -230,7 +250,9 @@ The server runs on `http://localhost:11434` by default.
 ## Running on a Remote Server
 
 ```typescript
-const adapter = createOllamaChat("http://your-server:11434");
+import { createOllamaChat } from "@tanstack/ai-ollama";
+
+const adapter = createOllamaChat("llama3", "http://your-server:11434");
 ```
 
 To expose Ollama on a network interface:
@@ -249,38 +271,26 @@ OLLAMA_HOST=http://localhost:11434
 
 ## API Reference
 
-### `ollamaText(options?)`
+### `ollamaText(model)`
 
-Creates an Ollama text/chat adapter.
-
-**Parameters:**
-
-- `options.model?` - Default model (optional)
-
-**Returns:** An Ollama text adapter instance.
-
-### `createOllamaText(host?, options?)`
-
-Creates an Ollama text/chat adapter with a custom host.
+Creates an Ollama text/chat adapter using `OLLAMA_HOST` from the environment (defaults to `http://localhost:11434`).
 
 **Parameters:**
 
-- `host` - Ollama server URL (default: `http://localhost:11434`)
-- `options.model?` - Default model (optional)
+- `model` - Model name (e.g. `"llama3"`, `"mistral:7b"`)
 
-**Returns:** An Ollama text adapter instance.
+### `createOllamaChat(model, hostOrConfig?)`
 
-### `ollamaSummarize(options?)`
+Creates an Ollama text/chat adapter with an explicit host or client config.
 
-Creates an Ollama summarization adapter.
+**Parameters:**
 
-**Returns:** An Ollama summarize adapter instance.
+- `model` - Model name
+- `hostOrConfig?` - Either an `OLLAMA_HOST`-style URL string, or an `OllamaClientConfig` object (e.g. `{ host, headers, fetch }`).
 
-### `createOllamaSummarize(host?, options?)`
+### `ollamaSummarize(model)` / `createOllamaSummarize(model, hostOrConfig?)`
 
-Creates an Ollama summarization adapter with a custom host.
-
-**Returns:** An Ollama summarize adapter instance.
+Creates an Ollama summarization adapter — same signature shape as the chat adapter.
 
 ## Benefits of Ollama
 

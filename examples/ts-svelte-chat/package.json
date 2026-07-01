@@ -1,7 +1,7 @@
 {
   "name": "ts-svelte-chat",
   "private": true,
-  "version": "0.1.36",
+  "version": "0.1.45",
   "type": "module",
   "scripts": {
     "dev": "vite dev --port 3000",
@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
-    "test": "exit 0"
+    "test": "exit 0",
+    "test:types": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
   },
   "dependencies": {
     "@tanstack/ai": "workspace:*",
@@ -36,6 +37,6 @@
     "tailwindcss": "^4.1.18",
     "tslib": "^2.8.1",
     "typescript": "5.9.3",
-    "vite": "^7.2.7"
+    "vite": "^7.3.3"
   }
 }

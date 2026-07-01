@@ -18,6 +18,10 @@ Get started with TanStack AI in minutes. This guide will walk you through creati
 
 > **Using a different framework?** See quick-starts for [Vue](./quick-start-vue), [Svelte](./quick-start-svelte), or [server-only Node.js](./quick-start-server).
 
+> **React Native or Expo app?** Use the headless React hooks with an absolute
+> server URL and a mobile-compatible transport. See
+> [Quick Start: React Native](./quick-start-react-native).
+
 > **Tip:** If you'd prefer not to sign up with individual AI providers, [OpenRouter](../adapters/openrouter) gives you access to 300+ models with a single API key and is the easiest way to get started.
 
 ## Installation
@@ -36,7 +40,7 @@ First, create an API route that handles chat requests. Here's a simplified examp
 
 ### TanStack Start
 
-```typescript
+```typescript ignore
 import { chat, toServerSentEventsResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { createFileRoute } from "@tanstack/react-router";
@@ -58,14 +62,14 @@ export const Route = createFileRoute("/api/chat")({
           );
         }
 
-        const { messages, conversationId } = await request.json();
+        const body = await request.json();
 
         try {
-          // Create a streaming chat response
+          // Create a streaming chat response. `chat()` reads the AG-UI
+          // `threadId` for devtools correlation when available.
           const stream = chat({
-            adapter: openaiText("gpt-5.2"),
-            messages,
-            conversationId,
+            adapter: openaiText("gpt-5.5"),
+            messages: body.messages,
           });
 
           // Convert stream to HTTP response
@@ -108,14 +112,14 @@ export async function POST(request: Request) {
     );
   }
 
-  const { messages, conversationId } = await request.json();
+  const body = await request.json();
 
   try {
-    // Create a streaming chat response
+    // Create a streaming chat response. `chat()` reads the AG-UI
+    // `threadId` for devtools correlation when available.
     const stream = chat({
-      adapter: openaiText("gpt-5.2"),
-      messages,
-      conversationId
+      adapter: openaiText("gpt-5.5"),
+      messages: body.messages,
     });
 
     // Convert stream to HTTP response
@@ -138,7 +142,7 @@ export async function POST(request: Request) {
 
 To use the chat API from your React frontend, create a `Chat` component:
 
-```typescript
+```tsx
 // components/Chat.tsx
 import { useState } from "react";
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
@@ -146,7 +150,7 @@ import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 export function Chat() {
   const [input, setInput] = useState("");
 
-  const { messages, sendMessage, isLoading } = useChat({
+  const { messages, sendMessage, isLoading, error } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
   });
 
@@ -193,6 +197,13 @@ export function Chat() {
           </div>
         ))}
       </div>
+
+      {/* Error */}
+      {error && (
+        <p role="alert" className="px-4 text-red-600">
+          {error.message}
+        </p>
+      )}
 
       {/* Input */}
       <form onSubmit={handleSubmit} className="p-4 border-t">
@@ -250,23 +261,26 @@ You now have a working chat application. The `useChat` hook handles:
 Since TanStack AI is framework-agnostic, you can define and use tools in any environment. Here's a quick example of defining a tool and using it in a chat:
 
 ```typescript
-import { chat } from '@tanstack/ai'
-import { toolDefinition } from '@tanstack/ai'
+import { chat, toolDefinition } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
+import { z } from 'zod'
+import { db } from './db'
 
 const getProductsDef = toolDefinition({
   name: 'getProducts',
+  description: 'Search the product catalog',
   inputSchema: z.object({ query: z.string() }),
+  outputSchema: z.array(z.object({ id: z.string(), name: z.string() })),
 })
 
 const getProducts = getProductsDef.server(async ({ query }) => {
   return await db.products.search(query)
 })
 
-chat({
-  adapter: openaiText('gpt-5.2'),
+const stream = chat({
+  adapter: openaiText('gpt-5.5'),
   messages: [{ role: 'user', content: 'Find products' }],
-  tools: [getProducts]
+  tools: [getProducts],
 })
 ```
 
