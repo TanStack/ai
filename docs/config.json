@@ -257,7 +257,8 @@
         {
           "label": "Transcription",
           "to": "media/transcription",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-01"
         },
         {
           "label": "Audio Recording",
@@ -528,7 +529,8 @@
         {
           "label": "Groq",
           "to": "adapters/groq",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-01"
         },
         {
           "label": "Mistral",
