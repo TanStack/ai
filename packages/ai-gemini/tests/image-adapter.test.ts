@@ -14,7 +14,7 @@ describe('Gemini Image Adapter', () => {
   describe('createGeminiImage', () => {
     it('creates an adapter with the provided API key', () => {
       const adapter = createGeminiImage(
-        'imagen-3.0-generate-002',
+        'imagen-4.0-generate-001',
         'test-api-key',
       )
       expect(adapter).toBeInstanceOf(GeminiImageAdapter)
@@ -24,10 +24,10 @@ describe('Gemini Image Adapter', () => {
 
     it('has the correct model', () => {
       const adapter = createGeminiImage(
-        'imagen-3.0-generate-002',
+        'imagen-4.0-generate-001',
         'test-api-key',
       )
-      expect(adapter.model).toBe('imagen-3.0-generate-002')
+      expect(adapter.model).toBe('imagen-4.0-generate-001')
     })
   })
 
@@ -52,7 +52,7 @@ describe('Gemini Image Adapter', () => {
   describe('validateImageSize', () => {
     it('accepts valid sizes that map to aspect ratios', () => {
       expect(() =>
-        validateImageSize('imagen-3.0-generate-002', '1024x1024'),
+        validateImageSize('imagen-4.0-generate-001', '1024x1024'),
       ).not.toThrow()
       expect(() =>
         validateImageSize('imagen-4.0-generate-001', '1920x1080'),
@@ -61,13 +61,13 @@ describe('Gemini Image Adapter', () => {
 
     it('rejects invalid sizes', () => {
       expect(() =>
-        validateImageSize('imagen-3.0-generate-002', '999x999'),
+        validateImageSize('imagen-4.0-generate-001', '999x999'),
       ).toThrow()
     })
 
     it('accepts undefined size', () => {
       expect(() =>
-        validateImageSize('imagen-3.0-generate-002', undefined),
+        validateImageSize('imagen-4.0-generate-001', undefined),
       ).not.toThrow()
     })
   })
@@ -75,16 +75,16 @@ describe('Gemini Image Adapter', () => {
   describe('validateNumberOfImages', () => {
     it('accepts 1-4 images', () => {
       expect(() =>
-        validateNumberOfImages('imagen-3.0-generate-002', 1),
+        validateNumberOfImages('imagen-4.0-generate-001', 1),
       ).not.toThrow()
       expect(() =>
-        validateNumberOfImages('imagen-3.0-generate-002', 4),
+        validateNumberOfImages('imagen-4.0-generate-001', 4),
       ).not.toThrow()
     })
 
     it('rejects more than 4 images', () => {
       expect(() =>
-        validateNumberOfImages('imagen-3.0-generate-002', 5),
+        validateNumberOfImages('imagen-4.0-generate-001', 5),
       ).toThrow()
     })
 
@@ -108,13 +108,13 @@ describe('Gemini Image Adapter', () => {
 
     it('rejects 0 images', () => {
       expect(() =>
-        validateNumberOfImages('imagen-3.0-generate-002', 0),
+        validateNumberOfImages('imagen-4.0-generate-001', 0),
       ).toThrow()
     })
 
     it('accepts undefined', () => {
       expect(() =>
-        validateNumberOfImages('imagen-3.0-generate-002', undefined),
+        validateNumberOfImages('imagen-4.0-generate-001', undefined),
       ).not.toThrow()
     })
   })
@@ -122,16 +122,16 @@ describe('Gemini Image Adapter', () => {
   describe('validatePrompt', () => {
     it('rejects empty prompts', () => {
       expect(() =>
-        validatePrompt({ prompt: '', model: 'imagen-3.0-generate-002' }),
+        validatePrompt({ prompt: '', model: 'imagen-4.0-generate-001' }),
       ).toThrow()
       expect(() =>
-        validatePrompt({ prompt: '   ', model: 'imagen-3.0-generate-002' }),
+        validatePrompt({ prompt: '   ', model: 'imagen-4.0-generate-001' }),
       ).toThrow()
     })
 
     it('accepts non-empty prompts', () => {
       expect(() =>
-        validatePrompt({ prompt: 'A cat', model: 'imagen-3.0-generate-002' }),
+        validatePrompt({ prompt: 'A cat', model: 'imagen-4.0-generate-001' }),
       ).not.toThrow()
     })
   })
@@ -175,7 +175,7 @@ describe('Gemini Image Adapter', () => {
       const mockGenerateImages = vi.fn().mockResolvedValueOnce(mockResponse)
 
       const adapter = createGeminiImage(
-        'imagen-3.0-generate-002',
+        'imagen-4.0-generate-001',
         'test-api-key',
       )
       // Replace the internal Gemini SDK client with our mock
@@ -197,7 +197,7 @@ describe('Gemini Image Adapter', () => {
       })
 
       expect(mockGenerateImages).toHaveBeenCalledWith({
-        model: 'imagen-3.0-generate-002',
+        model: 'imagen-4.0-generate-001',
         prompt: 'A cat wearing a hat',
         config: {
           numberOfImages: 1,
@@ -205,7 +205,7 @@ describe('Gemini Image Adapter', () => {
         },
       })
 
-      expect(result.model).toBe('imagen-3.0-generate-002')
+      expect(result.model).toBe('imagen-4.0-generate-001')
       expect(result.images).toHaveLength(1)
       expect(result.images[0]!.b64Json).toBe('base64encodedimage')
     })
@@ -218,7 +218,7 @@ describe('Gemini Image Adapter', () => {
       const mockGenerateImages = vi.fn().mockResolvedValue(mockResponse)
 
       const adapter = createGeminiImage(
-        'imagen-3.0-generate-002',
+        'imagen-4.0-generate-001',
         'test-api-key',
       )
       ;(

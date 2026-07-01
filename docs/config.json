@@ -274,13 +274,13 @@
           "label": "Image Generation",
           "to": "media/image-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-06-08"
+          "updatedAt": "2026-07-01"
         },
         {
           "label": "Video Generation",
           "to": "media/video-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-06-24"
+          "updatedAt": "2026-07-01"
         },
         {
           "label": "Generation Hooks",
@@ -510,7 +510,8 @@
         {
           "label": "Google Gemini",
           "to": "adapters/gemini",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-01"
         },
         {
           "label": "Ollama",

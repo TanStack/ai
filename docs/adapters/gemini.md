@@ -538,7 +538,6 @@ These models use the dedicated `generateImages` API.
 | `imagen-4.0-ultra-generate-001` | Best quality Imagen image generation |
 | `imagen-4.0-generate-001` | High quality Imagen image generation |
 | `imagen-4.0-fast-generate-001` | Fast Imagen image generation |
-| `imagen-3.0-generate-002` | Imagen 3 image generation |
 
 ## API Reference
 

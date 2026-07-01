@@ -457,7 +457,6 @@ if (result.usage?.unitsBilled != null) {
 | `imagen-4.0-ultra-generate-001` | 1-4 |
 | `imagen-4.0-generate-001` | 1-4 |
 | `imagen-4.0-fast-generate-001` | 1-4 |
-| `imagen-3.0-generate-002` | 1-4 |
 
 ## Error Handling
 
