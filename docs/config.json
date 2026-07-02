@@ -507,7 +507,8 @@
         {
           "label": "Anthropic",
           "to": "adapters/anthropic",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-06-26"
         },
         {
           "label": "Google Gemini",

@@ -297,6 +297,16 @@ Per-provider sampling keys (all live inside `modelOptions`):
 some sampling options use provider-native names. Ollama nests all sampling under
 `modelOptions.options`.
 
+> **Anthropic `max_tokens` default:** Anthropic's API _requires_ `max_tokens`,
+> so the adapter always sends one. When you omit `modelOptions.max_tokens`, it
+> defaults to the selected model's full output ceiling (its `max_output_tokens`
+> from model metadata — e.g. 64K for Sonnet, 128K for Opus), not a low constant.
+> `max_tokens` is a ceiling, not a reservation (billing is per token generated),
+> so leaving it unset is the right default for codegen / agentic / long-form
+> output and avoids silent `stop_reason: "max_tokens"` truncation. Set it only to
+> cap output below the model ceiling. Other providers treat token limits as
+> optional and don't apply this flooring.
+
 ### 6. Capability Flag: `supportsCombinedToolsAndSchema`
 
 Adapters can declare an optional capability method:
