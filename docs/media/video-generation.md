@@ -582,9 +582,12 @@ finished clip comes back **inline as a `data:video/mp4;base64,…` URL**
 (when Google delivers by reference instead, the Files API URI passes
 through and needs your API key to download, like Veo).
 
-Clips are 720p at 24 FPS and a fixed **10 seconds** today (`duration` is
-typed as `10`; `snapDuration(n)` always returns `10`). The `size` option
-maps onto the interaction's output aspect ratio:
+Clips are 720p at 24 FPS, and `duration` accepts any value in the **3–10
+second** range (fractional seconds included), defaulting to 10 seconds when
+omitted. `availableDurations()` reports
+`{ kind: 'range', min: 3, max: 10, unit: 'seconds' }` and `snapDuration(n)`
+clamps raw seconds into it. The `size` option maps onto the interaction's
+output aspect ratio:
 
 ```typescript ignore
 import { generateVideo, getVideoJobStatus } from '@tanstack/ai'
@@ -596,6 +599,7 @@ const { jobId } = await generateVideo({
   adapter,
   prompt: 'A woman playing violin outdoors at golden hour',
   size: '9:16', // aspect ratio: '16:9' (default) or '9:16'
+  duration: 6, // 3-10 seconds; omit for the 10s default
 })
 
 const status = await getVideoJobStatus({ adapter, jobId })

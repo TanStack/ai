@@ -145,8 +145,9 @@ export type GeminiVideoModelInputModalitiesByName = {
 
 /**
  * Per-model duration unions (seconds, as numbers — Veo's
- * `parameters.durationSeconds` field is numeric; Omni Flash clips are a
- * fixed 10 seconds today, with longer durations "coming soon" per Google).
+ * `parameters.durationSeconds` field is numeric; Omni Flash accepts a
+ * continuous 3–10 second range, fractional seconds included, so it stays
+ * `number` and is clamped by the range entry below).
  *
  * @experimental Video generation is an experimental feature and may change.
  */
@@ -154,18 +155,21 @@ export type GeminiVideoModelDurationByName = {
   'veo-3.1-generate-preview': 4 | 6 | 8
   'veo-3.1-fast-generate-preview': 4 | 6 | 8
   'veo-3.1-lite-generate-preview': 4 | 6 | 8
-  'gemini-omni-flash-preview': 10
+  'gemini-omni-flash-preview': number
 }
 
 /**
  * Runtime duration table backing `availableDurations()` / `snapDuration()`.
  *
- * Curated from the official docs
- * (https://ai.google.dev/gemini-api/docs/video,
- * https://ai.google.dev/gemini-api/docs/omni) — the Gemini OpenAPI spec
+ * Veo values are curated from the official docs
+ * (https://ai.google.dev/gemini-api/docs/video) — the Gemini OpenAPI spec
  * types the `:predictLongRunning` request's `parameters` as unconstrained,
  * so it carries no per-model duration information to derive these from.
- * Omni Flash has no duration request field at all; clips are 10 seconds.
+ * Omni Flash's 3–10s range was verified against the live API
+ * (2026-07-02): `response_format.duration` takes a `"<seconds>s"` string,
+ * fractional values are accepted, out-of-range values are rejected with
+ * "minimum allowed 3s" / "maximum allowed 10s", and omitting it defaults
+ * to a 10-second clip.
  *
  * @experimental Video generation is an experimental feature and may change.
  */
@@ -177,7 +181,12 @@ export const GEMINI_VIDEO_DURATIONS: {
   'veo-3.1-generate-preview': { kind: 'discrete', values: [4, 6, 8] },
   'veo-3.1-fast-generate-preview': { kind: 'discrete', values: [4, 6, 8] },
   'veo-3.1-lite-generate-preview': { kind: 'discrete', values: [4, 6, 8] },
-  'gemini-omni-flash-preview': { kind: 'discrete', values: [10] },
+  'gemini-omni-flash-preview': {
+    kind: 'range',
+    min: 3,
+    max: 10,
+    unit: 'seconds',
+  },
 }
 
 /**

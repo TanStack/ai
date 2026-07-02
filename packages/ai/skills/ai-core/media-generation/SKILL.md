@@ -469,8 +469,9 @@ const { jobId } = await generateVideo({
 
 Gemini Omni Flash (`geminiVideo('gemini-omni-flash-preview')`) is served by
 the Interactions API instead of Veo's operations flow — same adapter, routed
-by model. Clips are a fixed 10s at 720p (`duration` is typed `10`), `size`
-is the aspect ratio (`'16:9' | '9:16'`), and the finished video arrives
+by model. Clips are 720p; `duration` is any number of seconds in the 3–10
+range (fractional ok, default 10 — availableDurations() reports the range),
+`size` is the aspect ratio (`'16:9' | '9:16'`), and the finished video arrives
 **inline** as a `data:video/mp4;base64,…` URL (no key needed to use it).
 Image/video prompt parts are sent as interaction content in order (no
 `metadata.role` routing); `data` sources go inline, `url` sources pass

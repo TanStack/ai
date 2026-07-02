@@ -313,7 +313,7 @@ export class GeminiVideoAdapter<
       GeminiVideoModelDurationByName[TModel]
     >,
   ): Promise<VideoJobResult> {
-    const { prompt, size, logger } = options
+    const { prompt, size, duration, logger } = options
     const modelOptions = options.modelOptions as
       | GeminiOmniVideoProviderOptions
       | undefined
@@ -340,18 +340,28 @@ export class GeminiVideoAdapter<
         )
       }
 
+      // Aspect ratio and clip length ride on `response_format`. Duration is
+      // a `"<seconds>s"` string, accepted anywhere in the 3–10s range
+      // (fractional included) and defaulting to 10s when omitted — verified
+      // against the live API; the docs don't publish the field.
+      const responseFormat =
+        size !== undefined || duration !== undefined
+          ? {
+              response_format: {
+                type: 'video' as const,
+                ...(size !== undefined && { aspect_ratio: size }),
+                ...(duration !== undefined && { duration: `${duration}s` }),
+              },
+            }
+          : {}
+
       const interaction = await this.client.interactions.create({
         ...modelOptions,
         model: this.model,
         input: [{ type: 'user_input', content }],
         response_modalities: ['video'],
         background: true,
-        // Omni's clip length is fixed (10s) and not a request field, so the
-        // typed `duration` option is compile-time-only here. Aspect ratio is
-        // the one output knob the API exposes today.
-        ...(size !== undefined && {
-          response_format: { type: 'video' as const, aspect_ratio: size },
-        }),
+        ...responseFormat,
       })
 
       if (!interaction.id) {

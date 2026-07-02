@@ -104,7 +104,9 @@ describe('Gemini Video Adapter', () => {
       for (const model of Object.keys(
         GEMINI_VIDEO_DURATIONS,
       ) as Array<GeminiVideoModel>) {
-        expect(getGeminiVideoDurationOptions(model).kind).toBe('discrete')
+        expect(['discrete', 'range']).toContain(
+          getGeminiVideoDurationOptions(model).kind,
+        )
       }
     })
   })
@@ -565,21 +567,28 @@ class StubbedGeminiOmniVideoAdapter extends GeminiVideoAdapter<'gemini-omni-flas
 
 describe('Gemini Omni Flash Video Adapter (Interactions API)', () => {
   describe('durations', () => {
-    it('reports the fixed 10-second clip length', () => {
+    it('reports the 3-10 second range and clamps raw seconds into it', () => {
       const adapter = createGeminiVideo('gemini-omni-flash-preview', 'test-key')
       expect(adapter.availableDurations()).toEqual({
-        kind: 'discrete',
-        values: [10],
+        kind: 'range',
+        min: 3,
+        max: 10,
+        unit: 'seconds',
       })
-      expect(adapter.snapDuration(3)).toBe(10)
+      expect(adapter.snapDuration(1)).toBe(3)
+      expect(adapter.snapDuration(7)).toBe(7)
       expect(adapter.snapDuration(60)).toBe(10)
     })
 
-    it('types duration as the fixed 10-second literal at compile time', () => {
+    it('types duration as number (continuous range) at compile time', () => {
       const omni = createGeminiVideo('gemini-omni-flash-preview', 'test-key')
-      expectTypeOf(omni.snapDuration).returns.toEqualTypeOf<10 | undefined>()
+      expectTypeOf(omni.snapDuration).returns.toEqualTypeOf<
+        number | undefined
+      >()
       type OmniOptions = Parameters<typeof omni.createVideoJob>[0]
-      expectTypeOf<OmniOptions['duration']>().toEqualTypeOf<10 | undefined>()
+      expectTypeOf<OmniOptions['duration']>().toEqualTypeOf<
+        number | undefined
+      >()
     })
   })
 
@@ -592,6 +601,7 @@ describe('Gemini Omni Flash Video Adapter (Interactions API)', () => {
         model: 'gemini-omni-flash-preview',
         prompt: 'a sunset over the ocean',
         size: '9:16',
+        duration: 8,
         logger: testLogger,
       })
 
@@ -609,7 +619,11 @@ describe('Gemini Omni Flash Video Adapter (Interactions API)', () => {
         ],
         response_modalities: ['video'],
         background: true,
-        response_format: { type: 'video', aspect_ratio: '9:16' },
+        response_format: {
+          type: 'video',
+          aspect_ratio: '9:16',
+          duration: '8s',
+        },
       })
     })
 
