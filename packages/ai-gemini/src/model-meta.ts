@@ -712,6 +712,37 @@ const VEO_3_1_LITE_PREVIEW = {
     GeminiCachedContentOptions
 >
 
+/**
+ * Gemini Omni Flash — multimodal video generation with conversational
+ * editing. Serves only the Interactions API (`generateContent` rejects it),
+ * so it routes through the interactions-based path of the video adapter,
+ * not Veo's `:predictLongRunning` flow. Pricing is per second of generated
+ * video ($0.10/sec). 720p / 24 FPS, 10-second clips.
+ * @experimental Omni video generation is an experimental feature and may change.
+ */
+const GEMINI_OMNI_FLASH_PREVIEW = {
+  name: 'gemini-omni-flash-preview',
+  max_input_tokens: 1_048_576,
+  max_output_tokens: 1,
+  supports: {
+    input: ['text', 'image', 'video'],
+    output: ['video', 'audio'],
+  },
+  pricing: {
+    input: {
+      normal: 0,
+    },
+    output: {
+      normal: 0.1,
+    },
+  },
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions
+>
+
 const GEMINI_3_5_FLASH = {
   name: 'gemini-3.5-flash',
   max_input_tokens: 1_048_576,
@@ -845,13 +876,25 @@ export const GEMINI_TTS_VOICES = [
 export type GeminiTTSVoice = (typeof GEMINI_TTS_VOICES)[number]
 
 /**
- * Veo video generation models.
- * @experimental Veo video generation is an experimental feature and may change.
+ * Video generation models. Veo models run on the long-running
+ * `:predictLongRunning` flow; Gemini Omni Flash runs on the Interactions
+ * API — the video adapter routes by model.
+ * @experimental Video generation is an experimental feature and may change.
  */
 export const GEMINI_VIDEO_MODELS = [
   VEO_3_1_PREVIEW.name,
   VEO_3_1_FAST_PREVIEW.name,
   VEO_3_1_LITE_PREVIEW.name,
+  GEMINI_OMNI_FLASH_PREVIEW.name,
+] as const
+
+/**
+ * Video models served by the Interactions API rather than Veo's
+ * `:predictLongRunning` operations flow.
+ * @experimental Omni video generation is an experimental feature and may change.
+ */
+export const GEMINI_INTERACTIONS_VIDEO_MODELS = [
+  GEMINI_OMNI_FLASH_PREVIEW.name,
 ] as const
 
 // Manual type map for per-model provider options

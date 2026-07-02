@@ -41,6 +41,7 @@ export type Feature =
   | 'transcription'
   | 'video-gen'
   | 'image-to-video'
+  | 'interactions-video'
   | 'stateful-interactions'
 
 export const ALL_PROVIDERS: Provider[] = [
@@ -85,5 +86,6 @@ export const ALL_FEATURES: Feature[] = [
   'transcription',
   'video-gen',
   'image-to-video',
+  'interactions-video',
   'stateful-interactions',
 ]

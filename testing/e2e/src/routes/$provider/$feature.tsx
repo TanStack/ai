@@ -47,6 +47,7 @@ const MEDIA_FEATURES = new Set<Feature>([
   'transcription',
   'video-gen',
   'image-to-video',
+  'interactions-video',
   'audio-gen',
   'sound-effects',
 ])
@@ -179,6 +180,16 @@ function MediaFeature({
           testId={testId}
           aimockPort={aimockPort}
           withImageInput
+        />
+      )
+    case 'interactions-video':
+      return (
+        <VideoGenUI
+          provider={provider}
+          mode={mode}
+          testId={testId}
+          aimockPort={aimockPort}
+          feature="interactions-video"
         />
       )
     case 'audio-gen':

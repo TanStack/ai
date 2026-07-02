@@ -467,6 +467,34 @@ const { jobId } = await generateVideo({
 // (x-goog-api-key header or ?key= query parameter).
 ```
 
+Gemini Omni Flash (`geminiVideo('gemini-omni-flash-preview')`) is served by
+the Interactions API instead of Veo's operations flow — same adapter, routed
+by model. Clips are 720p; `duration` is any number of seconds in the 3–10
+range (fractional ok, default 10 — availableDurations() reports the range),
+`size` is the aspect ratio (`'16:9' | '9:16'`), and the finished video arrives
+**inline** as a `data:video/mp4;base64,…` URL (no key needed to use it).
+Image/video prompt parts are sent as interaction content in order (no
+`metadata.role` routing); `data` sources go inline, `url` sources pass
+through as-is (never downloaded — use Gemini Files API URIs for remote
+media). For conversational editing, pass a prior generation's `jobId` as
+`modelOptions.previous_interaction_id` with a prompt describing the change:
+
+```typescript
+import { geminiVideo } from '@tanstack/ai-gemini'
+
+const omni = geminiVideo('gemini-omni-flash-preview')
+const first = await generateVideo({
+  adapter: omni,
+  prompt: 'A violinist outdoors',
+})
+// …poll first.jobId to completion, then edit it:
+const edited = await generateVideo({
+  adapter: omni,
+  prompt: 'Make the violin invisible',
+  modelOptions: { previous_interaction_id: first.jobId },
+})
+```
+
 Other video adapters: `openaiVideo('sora-2')` (pixel sizes like `'1280x720'`,
 durations 4/8/12s, single `input_reference` image prompt part), `grokVideo(...)`
 (`grok-imagine-video` does text-to-video + image-to-video; `grok-imagine-video-1.5` is

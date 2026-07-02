@@ -2,12 +2,14 @@
 title: Video Generation
 id: video-generation
 order: 6
-description: "Generate video from text prompts with OpenAI Sora, Google Veo, xAI Grok Imagine, or fal.ai using TanStack AI's experimental generateVideo() jobs/polling API."
+description: "Generate video from text prompts with OpenAI Sora, Google Veo, Gemini Omni Flash, xAI Grok Imagine, or fal.ai using TanStack AI's experimental generateVideo() jobs/polling API."
 keywords:
   - tanstack ai
   - video generation
   - sora
   - veo
+  - omni flash
+  - interactions api
   - gemini
   - grok imagine
   - fal
@@ -40,7 +42,7 @@ TanStack AI provides experimental support for video generation through dedicated
 
 Currently supported:
 - **OpenAI**: Sora-2 and Sora-2-Pro models (when available)
-- **Google Gemini**: Veo 3.1, Veo 3, and Veo 2 models (via the long-running operations API)
+- **Google Gemini**: Veo 3.1, Veo 3, and Veo 2 models (via the long-running operations API), and Gemini Omni Flash (via the Interactions API)
 - **Grok (xAI)**: grok-imagine-video (text-to-video + image-to-video) and grok-imagine-video-1.5 (image-to-video only) models
 - **fal.ai**: MiniMax, Luma, Kling, Hunyuan, and other hosted video models
 
@@ -568,6 +570,82 @@ Adapters that haven't declared a per-model duration map keep the plain
 > **Note:** The video URL returned for Veo jobs is served by the Gemini
 > Files API and requires your API key to download (send it as an
 > `x-goog-api-key` header or `key` query parameter).
+
+### Gemini Omni Flash (Interactions API) Model Options
+
+Gemini Omni Flash (`gemini-omni-flash-preview`) is Google's multimodal
+video-generation model with conversational editing. It only serves the
+[Interactions API](https://ai.google.dev/gemini-api/docs/omni) — the same
+`geminiVideo()` adapter routes it automatically: `generateVideo` creates a
+background interaction, `getVideoJobStatus` polls it by id, and the
+finished clip comes back **inline as a `data:video/mp4;base64,…` URL**
+(when Google delivers by reference instead, the Files API URI passes
+through and needs your API key to download, like Veo).
+
+Clips are 720p at 24 FPS, and `duration` accepts any value in the **3–10
+second** range (fractional seconds included), defaulting to 10 seconds when
+omitted. `availableDurations()` reports
+`{ kind: 'range', min: 3, max: 10, unit: 'seconds' }` and `snapDuration(n)`
+clamps raw seconds into it. The `size` option maps onto the interaction's
+output aspect ratio:
+
+```typescript ignore
+import { generateVideo, getVideoJobStatus } from '@tanstack/ai'
+import { geminiVideo } from '@tanstack/ai-gemini'
+
+const adapter = geminiVideo('gemini-omni-flash-preview')
+
+const { jobId } = await generateVideo({
+  adapter,
+  prompt: 'A woman playing violin outdoors at golden hour',
+  size: '9:16', // aspect ratio: '16:9' (default) or '9:16'
+  duration: 6, // 3-10 seconds; omit for the 10s default
+})
+
+const status = await getVideoJobStatus({ adapter, jobId })
+// status.url → 'data:video/mp4;base64,…' once completed
+```
+
+Image and video prompt parts are sent to the interaction as content blocks
+in order (Omni doesn't use Veo's `metadata.role` routing), so you can
+condition the generation on stills or short reference clips. `data` sources
+are sent inline as base64; `url` sources pass through as-is — the adapter
+never downloads them, so use Gemini Files API URIs (upload large media via
+the Files API first).
+
+#### Conversational video editing
+
+Omni's headline capability is iterative refinement: pass the interaction id
+of a prior generation (its `jobId`) as
+`modelOptions.previous_interaction_id` and describe the change — the model
+edits the video while preserving everything you didn't mention:
+
+```typescript ignore
+import { generateVideo } from '@tanstack/ai'
+import { geminiVideo } from '@tanstack/ai-gemini'
+
+const adapter = geminiVideo('gemini-omni-flash-preview')
+
+// Turn 1: generate
+const first = await generateVideo({
+  adapter,
+  prompt: 'A woman playing violin outdoors at golden hour',
+})
+
+// …poll first.jobId to completion, then…
+
+// Turn 2: edit the result conversationally
+const second = await generateVideo({
+  adapter,
+  prompt: 'Make the violin invisible',
+  modelOptions: { previous_interaction_id: first.jobId },
+})
+```
+
+`modelOptions` also passes through the Interactions API's request fields
+(e.g. `generation_config.video_config.task` to pin
+`'text_to_video' | 'image_to_video' | 'reference_to_video' | 'edit'`
+instead of letting the model infer the task mode).
 
 ### Grok (xAI Imagine) Model Options
 

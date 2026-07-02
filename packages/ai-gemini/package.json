@@ -64,7 +64,7 @@
     "text-to-speech"
   ],
   "dependencies": {
-    "@google/genai": "^2.8.0",
+    "@google/genai": "^2.10.0",
     "@tanstack/ai-utils": "workspace:*",
     "partial-json": "^0.1.7"
   },

@@ -1,6 +1,6 @@
 import { createServerFn } from '@tanstack/react-start'
 import { falImage, falVideo } from '@tanstack/ai-fal'
-import { geminiImage } from '@tanstack/ai-gemini'
+import { geminiImage, geminiVideo } from '@tanstack/ai-gemini'
 import { grokImage, grokVideo } from '@tanstack/ai-grok'
 import { generateImage, generateVideo, getVideoJobStatus } from '@tanstack/ai'
 
@@ -9,12 +9,19 @@ import type {
   MediaInputMetadata,
   MediaPrompt,
   TextPart,
+  VideoPart,
 } from '@tanstack/ai/client'
 
 /** A prompt restricted to text — accepted by every (incl. text-only) model. */
 type TextPrompt = string | Array<TextPart>
 /** A prompt of text + image parts — accepted by image-conditioned models. */
 type ImagePrompt = string | Array<TextPart | ImagePart<MediaInputMetadata>>
+/** A prompt of text + image + video parts — Gemini Omni Flash accepts all three. */
+type OmniPrompt =
+  | string
+  | Array<
+      TextPart | ImagePart<MediaInputMetadata> | VideoPart<MediaInputMetadata>
+    >
 
 /** True when the prompt carries text — a non-empty string or any prompt part. */
 function hasPromptContent(prompt: MediaPrompt): boolean {
@@ -51,6 +58,19 @@ function asTextPrompt(prompt: MediaPrompt): TextPrompt {
 }
 
 /**
+ * Narrows a wire `MediaPrompt` for Gemini Omni Flash, which accepts text,
+ * image, and video prompt parts (audio would be the only rejected kind).
+ */
+function asOmniPrompt(prompt: MediaPrompt): OmniPrompt {
+  if (typeof prompt === 'string') return prompt
+  return prompt.map((part) => {
+    if (part.type === 'text' || part.type === 'image' || part.type === 'video')
+      return part
+    throw new Error(`Unsupported prompt part for Omni Flash: ${part.type}`)
+  })
+}
+
+/**
  * Like `asImagePrompt`, but additionally requires at least one image part —
  * image-to-video endpoints need a start frame.
  */
@@ -78,6 +98,11 @@ function videoAdapterForModel(model: string) {
   }
   if (model === 'grok-imagine-video-1.5/image-to-video') {
     return grokVideo('grok-imagine-video-1.5')
+  }
+  if (model.startsWith('gemini-omni-flash-preview')) {
+    // Both UI entries (text-to-video and image-to-video) run on the one
+    // Omni model over the Interactions API (GEMINI_API_KEY).
+    return geminiVideo('gemini-omni-flash-preview')
   }
   return falVideo(model)
 }
@@ -206,11 +231,21 @@ export const generateImageFn = createServerFn({ method: 'POST' })
   })
 
 export const createVideoJobFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: { prompt: MediaPrompt; model: string }) => {
-    if (!hasPromptContent(data.prompt)) throw new Error('Prompt is required')
-    if (!data.model) throw new Error('Model is required')
-    return data
-  })
+  .inputValidator(
+    (data: {
+      prompt: MediaPrompt
+      model: string
+      /**
+       * Gemini Omni Flash conversational editing: the jobId (interaction id)
+       * of a prior Omni generation to refine. Ignored by other models.
+       */
+      previousInteractionId?: string
+    }) => {
+      if (!hasPromptContent(data.prompt)) throw new Error('Prompt is required')
+      if (!data.model) throw new Error('Model is required')
+      return data
+    },
+  )
   .handler(async ({ data }) => {
     // Image-to-video models receive the start frame as a prompt part
     // (role: 'start_frame') — the fal adapter routes it to the endpoint's
@@ -315,6 +350,36 @@ export const createVideoJobFn = createServerFn({ method: 'POST' })
           adapter: falVideo('fal-ai/ltx-2.3/image-to-video/fast'),
           prompt: asImageToVideoPrompt(data.prompt),
           size: '16:9_2160p',
+        })
+      }
+      // Gemini Omni Flash (Interactions API, GEMINI_API_KEY). One model
+      // serves both UI entries; it accepts text, image, AND video prompt
+      // parts (sent as interaction content blocks in order). Clips are a
+      // fixed 10s at 720p; `size` is the output aspect ratio. Passing
+      // `previous_interaction_id` chains a prompt onto a prior generation
+      // for conversational editing.
+      case 'gemini-omni-flash-preview':
+      case 'gemini-omni-flash-preview/image-to-video': {
+        const prompt = asOmniPrompt(data.prompt)
+        if (
+          data.model.endsWith('/image-to-video') &&
+          !data.previousInteractionId &&
+          (typeof prompt === 'string' ||
+            !prompt.some((part) => part.type === 'image'))
+        ) {
+          throw new Error('Start image is required for image-to-video')
+        }
+        return generateVideo({
+          adapter: geminiVideo('gemini-omni-flash-preview'),
+          prompt,
+          size: '16:9',
+          ...(data.previousInteractionId
+            ? {
+                modelOptions: {
+                  previous_interaction_id: data.previousInteractionId,
+                },
+              }
+            : {}),
         })
       }
       default:

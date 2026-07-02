@@ -131,8 +131,21 @@ export function createVideoAdapter(
   provider: Provider,
   aimockPort?: number,
   testId?: string,
+  feature: Feature = 'video-gen',
 ) {
   const headers = testHeaders(testId)
+  // Gemini Omni Flash only serves the Interactions API; its background
+  // video jobs run through a dedicated aimock mount (see geminiOmniVideoMount
+  // in global-setup.ts) addressed via a distinct baseUrl prefix so aimock's
+  // native /v1beta/interactions text handling is untouched.
+  if (feature === 'interactions-video') {
+    if (provider !== 'gemini') {
+      throw new Error(`No interactions-video adapter for provider: ${provider}`)
+    }
+    return createGeminiVideo('gemini-omni-flash-preview', DUMMY_KEY, {
+      httpOptions: { baseUrl: `${llmockBase(aimockPort)}/omni-video`, headers },
+    })
+  }
   const factories: Record<string, () => any> = {
     openai: () =>
       createOpenaiVideo('sora-2', DUMMY_KEY, {
