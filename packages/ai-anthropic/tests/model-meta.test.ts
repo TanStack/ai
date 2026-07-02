@@ -160,6 +160,40 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
       expectTypeOf<Options>().toHaveProperty('tool_choice')
       expectTypeOf<Options>().toHaveProperty('top_k')
     })
+
+    it('claude-sonnet-5 should support thinking options', () => {
+      type Options = AnthropicChatModelProviderOptionsByName['claude-sonnet-5']
+
+      expectTypeOf<Options>().toExtend<AnthropicThinkingOptions>()
+      expectTypeOf<Options>().toExtend<AnthropicServiceTierOptions>()
+      expectTypeOf<Options>().toExtend<BaseOptions>()
+
+      expectTypeOf<Options>().toHaveProperty('thinking')
+      expectTypeOf<Options>().toHaveProperty('service_tier')
+      expectTypeOf<Options>().toHaveProperty('container')
+      expectTypeOf<Options>().toHaveProperty('context_management')
+      expectTypeOf<Options>().toHaveProperty('mcp_servers')
+      expectTypeOf<Options>().toHaveProperty('stop_sequences')
+      expectTypeOf<Options>().toHaveProperty('tool_choice')
+      expectTypeOf<Options>().toHaveProperty('top_k')
+    })
+
+    it('claude-fable-5 should support thinking options', () => {
+      type Options = AnthropicChatModelProviderOptionsByName['claude-fable-5']
+
+      expectTypeOf<Options>().toExtend<AnthropicThinkingOptions>()
+      expectTypeOf<Options>().toExtend<AnthropicServiceTierOptions>()
+      expectTypeOf<Options>().toExtend<BaseOptions>()
+
+      expectTypeOf<Options>().toHaveProperty('thinking')
+      expectTypeOf<Options>().toHaveProperty('service_tier')
+      expectTypeOf<Options>().toHaveProperty('container')
+      expectTypeOf<Options>().toHaveProperty('context_management')
+      expectTypeOf<Options>().toHaveProperty('mcp_servers')
+      expectTypeOf<Options>().toHaveProperty('stop_sequences')
+      expectTypeOf<Options>().toHaveProperty('tool_choice')
+      expectTypeOf<Options>().toHaveProperty('top_k')
+    })
   })
 
   describe('Models WITHOUT extended_thinking support', () => {
@@ -221,6 +255,8 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
       expectTypeOf<'claude-opus-4'>().toExtend<Keys>()
       expectTypeOf<'claude-3-5-haiku'>().toExtend<Keys>()
       expectTypeOf<'claude-3-haiku'>().toExtend<Keys>()
+      expectTypeOf<'claude-sonnet-5'>().toExtend<Keys>()
+      expectTypeOf<'claude-fable-5'>().toExtend<Keys>()
     })
   })
 
@@ -256,6 +292,12 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
       expectTypeOf<
         AnthropicChatModelProviderOptionsByName['claude-3-haiku']
       >().toHaveProperty('container')
+      expectTypeOf<
+        AnthropicChatModelProviderOptionsByName['claude-sonnet-5']
+      >().toHaveProperty('container')
+      expectTypeOf<
+        AnthropicChatModelProviderOptionsByName['claude-fable-5']
+      >().toHaveProperty('container')
     })
 
     it('all models should have context management options', () => {
@@ -288,6 +330,12 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
       >().toHaveProperty('context_management')
       expectTypeOf<
         AnthropicChatModelProviderOptionsByName['claude-3-haiku']
+      >().toHaveProperty('context_management')
+      expectTypeOf<
+        AnthropicChatModelProviderOptionsByName['claude-sonnet-5']
+      >().toHaveProperty('context_management')
+      expectTypeOf<
+        AnthropicChatModelProviderOptionsByName['claude-fable-5']
       >().toHaveProperty('context_management')
     })
 
@@ -322,6 +370,12 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
       expectTypeOf<
         AnthropicChatModelProviderOptionsByName['claude-3-haiku']
       >().toHaveProperty('mcp_servers')
+      expectTypeOf<
+        AnthropicChatModelProviderOptionsByName['claude-sonnet-5']
+      >().toHaveProperty('mcp_servers')
+      expectTypeOf<
+        AnthropicChatModelProviderOptionsByName['claude-fable-5']
+      >().toHaveProperty('mcp_servers')
     })
 
     it('all models should have stop sequences options', () => {
@@ -354,6 +408,12 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
       >().toHaveProperty('stop_sequences')
       expectTypeOf<
         AnthropicChatModelProviderOptionsByName['claude-3-haiku']
+      >().toHaveProperty('stop_sequences')
+      expectTypeOf<
+        AnthropicChatModelProviderOptionsByName['claude-sonnet-5']
+      >().toHaveProperty('stop_sequences')
+      expectTypeOf<
+        AnthropicChatModelProviderOptionsByName['claude-fable-5']
       >().toHaveProperty('stop_sequences')
     })
 
@@ -388,6 +448,12 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
       expectTypeOf<
         AnthropicChatModelProviderOptionsByName['claude-3-haiku']
       >().toHaveProperty('tool_choice')
+      expectTypeOf<
+        AnthropicChatModelProviderOptionsByName['claude-sonnet-5']
+      >().toHaveProperty('tool_choice')
+      expectTypeOf<
+        AnthropicChatModelProviderOptionsByName['claude-fable-5']
+      >().toHaveProperty('tool_choice')
     })
 
     it('all models should have sampling options (top_k)', () => {
@@ -421,6 +487,12 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
       expectTypeOf<
         AnthropicChatModelProviderOptionsByName['claude-3-haiku']
       >().toHaveProperty('top_k')
+      expectTypeOf<
+        AnthropicChatModelProviderOptionsByName['claude-sonnet-5']
+      >().toHaveProperty('top_k')
+      expectTypeOf<
+        AnthropicChatModelProviderOptionsByName['claude-fable-5']
+      >().toHaveProperty('top_k')
     })
   })
 
@@ -449,6 +521,12 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
       >().toExtend<AnthropicThinkingOptions>()
       expectTypeOf<
         AnthropicChatModelProviderOptionsByName['claude-opus-4']
+      >().toExtend<AnthropicThinkingOptions>()
+      expectTypeOf<
+        AnthropicChatModelProviderOptionsByName['claude-sonnet-5']
+      >().toExtend<AnthropicThinkingOptions>()
+      expectTypeOf<
+        AnthropicChatModelProviderOptionsByName['claude-fable-5']
       >().toExtend<AnthropicThinkingOptions>()
     })
 
@@ -489,6 +567,12 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
       expectTypeOf<
         AnthropicChatModelProviderOptionsByName['claude-3-5-haiku']
       >().toExtend<AnthropicServiceTierOptions>()
+      expectTypeOf<
+        AnthropicChatModelProviderOptionsByName['claude-sonnet-5']
+      >().toExtend<AnthropicServiceTierOptions>()
+      expectTypeOf<
+        AnthropicChatModelProviderOptionsByName['claude-fable-5']
+      >().toExtend<AnthropicServiceTierOptions>()
     })
 
     it('models without priority_tier should NOT extend AnthropicServiceTierOptions', () => {
@@ -527,6 +611,12 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
       >().toExtend<BaseOptions>()
       expectTypeOf<
         AnthropicChatModelProviderOptionsByName['claude-3-haiku']
+      >().toExtend<BaseOptions>()
+      expectTypeOf<
+        AnthropicChatModelProviderOptionsByName['claude-sonnet-5']
+      >().toExtend<BaseOptions>()
+      expectTypeOf<
+        AnthropicChatModelProviderOptionsByName['claude-fable-5']
       >().toExtend<BaseOptions>()
     })
   })
@@ -760,6 +850,50 @@ describe('Anthropic Model Input Modality Type Assertions', () => {
 
   describe('Claude 3 Haiku (text + image + document)', () => {
     type Modalities = AnthropicModelInputModalitiesByName['claude-3-haiku']
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
+
+    it('should allow TextPart, ImagePart, and DocumentPart', () => {
+      expectTypeOf<MessageWithContent<AnthropicTextPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<AnthropicImagePart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicDocumentPart>
+      >().toExtend<Message>()
+    })
+
+    it('should NOT allow AudioPart or VideoPart', () => {
+      expectTypeOf<
+        MessageWithContent<AnthropicAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicVideoPart>
+      >().not.toExtend<Message>()
+    })
+  })
+
+  describe('Claude Sonnet 5 (text + image + document)', () => {
+    type Modalities = AnthropicModelInputModalitiesByName['claude-sonnet-5']
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
+
+    it('should allow TextPart, ImagePart, and DocumentPart', () => {
+      expectTypeOf<MessageWithContent<AnthropicTextPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<AnthropicImagePart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicDocumentPart>
+      >().toExtend<Message>()
+    })
+
+    it('should NOT allow AudioPart or VideoPart', () => {
+      expectTypeOf<
+        MessageWithContent<AnthropicAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicVideoPart>
+      >().not.toExtend<Message>()
+    })
+  })
+
+  describe('Claude Fable 5 (text + image + document)', () => {
+    type Modalities = AnthropicModelInputModalitiesByName['claude-fable-5']
     type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart, ImagePart, and DocumentPart', () => {

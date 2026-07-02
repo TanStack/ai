@@ -830,6 +830,10 @@ export const ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS = new Set<string>([
   CLAUDE_SONNET_4_5.id,
   CLAUDE_SONNET_4_6.id,
   CLAUDE_HAIKU_4_5.id,
+  CLAUDE_OPUS_4_8.id,
+  CLAUDE_OPUS_4_8_FAST.id,
+  CLAUDE_FABLE_5.id,
+  CLAUDE_SONNET_5.id,
 ])
 
 // const ANTHROPIC_IMAGE_MODELS = [] as const
@@ -1004,6 +1008,11 @@ export type AnthropicChatModelToolCapabilitiesByName = {
   [CLAUDE_HAIKU_3.id]: typeof CLAUDE_HAIKU_3.supports.tools
   [CLAUDE_OPUS_4_6_FAST.id]: typeof CLAUDE_OPUS_4_6_FAST.supports.tools
   [CLAUDE_OPUS_4_7.id]: typeof CLAUDE_OPUS_4_7.supports.tools
+  [CLAUDE_OPUS_4_7_FAST.id]: typeof CLAUDE_OPUS_4_7_FAST.supports.tools
+  [CLAUDE_OPUS_4_8.id]: typeof CLAUDE_OPUS_4_8.supports.tools
+  [CLAUDE_OPUS_4_8_FAST.id]: typeof CLAUDE_OPUS_4_8_FAST.supports.tools
+  [CLAUDE_FABLE_5.id]: typeof CLAUDE_FABLE_5.supports.tools
+  [CLAUDE_SONNET_5.id]: typeof CLAUDE_SONNET_5.supports.tools
 }
 
 /**
