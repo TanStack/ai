@@ -25,10 +25,11 @@ export const kind = 'summarize' as const
 // ===========================
 
 /** Extract provider options from a SummarizeAdapter via ~types */
-export type SummarizeProviderOptions<TAdapter> =
-  TAdapter extends SummarizeAdapter<any, any>
-    ? TAdapter['~types']['providerOptions']
-    : object
+export type SummarizeProviderOptions<TAdapter> = TAdapter extends {
+  '~types': { providerOptions: infer P extends object }
+}
+  ? P
+  : object
 
 // ===========================
 // Activity Options Type
@@ -159,18 +160,12 @@ export function summarize<
 
   if (stream) {
     return runStreamingSummarize(
-      options as SummarizeActivityOptions<
-        SummarizeAdapter<string, object>,
-        true
-      >,
+      options as SummarizeActivityOptions<TAdapter, true>,
     ) as SummarizeActivityResult<TStream>
   }
 
   return runSummarize(
-    options as SummarizeActivityOptions<
-      SummarizeAdapter<string, object>,
-      false
-    >,
+    options as SummarizeActivityOptions<TAdapter, false>,
   ) as SummarizeActivityResult<TStream>
 }
 
