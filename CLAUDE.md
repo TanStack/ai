@@ -230,7 +230,7 @@ The single canonical command is:
 pnpm test:pr
 ```
 
-This runs the exact target set the `PR` workflow runs in CI (`nx affected --targets=test:sherif,test:knip,test:docs,test:eslint,test:lib,test:types,test:build,build --exclude=examples/**,testing/**`).
+This runs the exact target set the `PR` workflow runs in CI: first `nx affected --targets=test:sherif,test:knip,test:docs,test:kiira,test:eslint,test:lib,test:types,test:build,build --exclude=examples/**,testing/**` (the heavy targets, packages only), then a second `nx affected --targets=test:types --projects=examples/**,testing/**` pass that **does** type-check the example apps and `testing/` packages. The example/testing surfaces are deliberately excluded from the heavy targets (build/lib/etc.) but included for `test:types`, because call-site type regressions often only manifest where the library is actually consumed (see issue #820). Use `pnpm test:types:examples` to run just that second pass locally.
 
 If you can't run `test:pr` (e.g. it's too slow on your machine), at minimum run each of these and confirm they're green before pushing:
 
@@ -238,7 +238,8 @@ If you can't run `test:pr` (e.g. it's too slow on your machine), at minimum run 
 - `pnpm test:knip` — unused dependencies
 - `pnpm test:docs` — doc link verification
 - `pnpm test:eslint` — lint
-- `pnpm test:types` — typecheck
+- `pnpm test:types` — typecheck (packages)
+- `pnpm test:types:examples` — typecheck the example apps + `testing/` packages
 - `pnpm test:lib` — unit tests
 - `pnpm test:build` — build artifact verification
 - `pnpm build` — build all affected packages

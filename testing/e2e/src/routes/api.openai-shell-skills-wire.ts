@@ -158,7 +158,7 @@ export const Route = createFileRoute('/api/openai-shell-skills-wire')({
           })
         }
 
-        const adapter = createOpenaiChat('gpt-4o', DUMMY_KEY, {
+        const adapter = createOpenaiChat('gpt-5.2', DUMMY_KEY, {
           fetch: capturingFetch,
         })
 
