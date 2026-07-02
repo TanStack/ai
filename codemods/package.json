@@ -14,9 +14,9 @@
   "devDependencies": {
     "@types/jscodeshift": "^17.1.1",
     "@types/node": "^24.10.1",
-    "jscodeshift": "^17.1.1",
-    "prettier": "^3.7.4",
+    "jscodeshift": "^17.3.0",
+    "prettier": "^3.9.4",
     "typescript": "5.9.3",
-    "vitest": "^4.0.14"
+    "vitest": "^4.1.9"
   }
 }

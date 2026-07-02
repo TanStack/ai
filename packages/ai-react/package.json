@@ -76,11 +76,11 @@
     "@mcp-ui/client": "^7.1.1",
     "@standard-schema/spec": "^1.1.0",
     "@tanstack/ai": "workspace:*",
-    "@testing-library/react": "^16.3.0",
+    "@testing-library/react": "^16.3.2",
     "@types/react": "^19.2.7",
-    "@vitest/coverage-v8": "4.0.14",
-    "jsdom": "^27.2.0",
+    "@vitest/coverage-v8": "4.1.9",
+    "jsdom": "^27.4.0",
     "react": "^19.2.3",
-    "vite": "^7.3.3"
+    "vite": "^7.3.6"
   }
 }

@@ -42,13 +42,13 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "@daytona/sdk": "^0.191.0"
+    "@daytona/sdk": "^0.192.0"
   },
   "peerDependencies": {
     "@tanstack/ai-sandbox": "workspace:^"
   },
   "devDependencies": {
     "@tanstack/ai-sandbox": "workspace:*",
-    "@vitest/coverage-v8": "4.0.14"
+    "@vitest/coverage-v8": "4.1.9"
   }
 }

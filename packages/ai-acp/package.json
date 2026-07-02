@@ -43,7 +43,7 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "@agentclientprotocol/sdk": "^0.25.0"
+    "@agentclientprotocol/sdk": "^0.29.0"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
@@ -53,6 +53,6 @@
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-sandbox": "workspace:*",
     "@tanstack/ai-sandbox-local-process": "workspace:*",
-    "@vitest/coverage-v8": "4.0.14"
+    "@vitest/coverage-v8": "4.1.9"
   }
 }

@@ -63,10 +63,10 @@
     "vue": ">=3.5.0"
   },
   "devDependencies": {
-    "@vitejs/plugin-vue": "^6.0.2",
-    "@vitest/coverage-v8": "4.0.14",
-    "vite": "^7.3.3",
+    "@vitejs/plugin-vue": "^6.0.7",
+    "@vitest/coverage-v8": "4.1.9",
+    "vite": "^7.3.6",
     "vue": "^3.5.25",
-    "vue-tsc": "^2.2.10"
+    "vue-tsc": "^2.2.12"
   }
 }

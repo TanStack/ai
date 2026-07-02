@@ -62,10 +62,10 @@
     "@mcp-ui/client": "^7.1.1",
     "@tanstack/ai": "workspace:*",
     "@testing-library/preact": "^3.2.4",
-    "@vitest/coverage-v8": "4.0.14",
-    "jsdom": "^27.2.0",
-    "preact": "^10.26.9",
-    "vite": "^7.3.3"
+    "@vitest/coverage-v8": "4.1.9",
+    "jsdom": "^27.4.0",
+    "preact": "^10.29.3",
+    "vite": "^7.3.6"
   },
   "peerDependencies": {
     "@mcp-ui/client": "^7",

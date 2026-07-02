@@ -42,14 +42,14 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "dockerode": "^4.0.2"
+    "dockerode": "^4.0.12"
   },
   "peerDependencies": {
     "@tanstack/ai-sandbox": "workspace:^"
   },
   "devDependencies": {
     "@tanstack/ai-sandbox": "workspace:*",
-    "@types/dockerode": "^3.3.31",
-    "@vitest/coverage-v8": "4.0.14"
+    "@types/dockerode": "^3.3.47",
+    "@vitest/coverage-v8": "4.1.9"
   }
 }

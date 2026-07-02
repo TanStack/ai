@@ -9,26 +9,26 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@angular/common": "^21.2.0",
-    "@angular/compiler": "^21.2.0",
-    "@angular/core": "^21.2.0",
-    "@angular/forms": "^21.2.0",
-    "@angular/platform-browser": "^21.2.0",
+    "@angular/common": "^21.2.17",
+    "@angular/compiler": "^21.2.17",
+    "@angular/core": "^21.2.17",
+    "@angular/forms": "^21.2.17",
+    "@angular/platform-browser": "^21.2.17",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-angular": "workspace:*",
     "@tanstack/ai-client": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
-    "rxjs": "^7.8.0",
-    "zod": "^4.2.0",
-    "zone.js": "^0.15.0"
+    "rxjs": "^7.8.2",
+    "zod": "^4.4.3",
+    "zone.js": "^0.16.2"
   },
   "devDependencies": {
-    "@analogjs/vite-plugin-angular": "^1.10.0",
-    "@angular/build": "^21.2.0",
-    "@tailwindcss/vite": "^4.1.18",
+    "@analogjs/vite-plugin-angular": "^1.22.5",
+    "@angular/build": "^21.2.17",
+    "@tailwindcss/vite": "^4.3.2",
     "@types/node": "^24.10.1",
-    "dotenv": "^17.2.3",
+    "dotenv": "^17.4.2",
     "typescript": "5.9.3",
-    "vite": "^7.3.3"
+    "vite": "^7.3.6"
   }
 }

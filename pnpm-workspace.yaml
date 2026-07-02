@@ -20,7 +20,7 @@ trustPolicyExclude:
 # pnpm v11 dropped support for these fields in package.json — they must live
 # here. See https://github.com/pnpm/pnpm/releases/tag/v11.0.0.
 overrides:
-  abbrev: ^3.0.0
+  abbrev: ^3.0.1
 
 patchedDependencies:
   '@changesets/assemble-release-plan@6.0.9': patches/@changesets__assemble-release-plan@6.0.9.patch

@@ -92,17 +92,17 @@
   "dependencies": {
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-event-client": "workspace:*",
-    "@tanstack/devtools-ui": "^0.5.1",
-    "@tanstack/devtools-utils": "^0.4.0",
-    "goober": "^2.1.18",
-    "solid-js": "^1.9.10"
+    "@tanstack/devtools-ui": "^0.6.0",
+    "@tanstack/devtools-utils": "^0.6.0",
+    "goober": "^2.1.19",
+    "solid-js": "^1.9.13"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "4.0.14",
-    "jsdom": "^27.2.0",
+    "@vitest/coverage-v8": "4.1.9",
+    "jsdom": "^27.4.0",
     "tsup": "^8.5.1",
     "tsup-preset-solid": "^2.2.0",
-    "vite": "^7.3.3",
-    "vite-plugin-solid": "^2.11.10"
+    "vite": "^7.3.6",
+    "vite-plugin-solid": "^2.11.12"
   }
 }

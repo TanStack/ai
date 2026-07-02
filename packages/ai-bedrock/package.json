@@ -45,8 +45,8 @@
     "tool-calling"
   ],
   "devDependencies": {
-    "@vitest/coverage-v8": "4.0.14",
-    "vite": "^7.3.3"
+    "@vitest/coverage-v8": "4.1.9",
+    "vite": "^7.3.6"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:*",
@@ -54,11 +54,11 @@
   },
   "dependencies": {
     "@aws-crypto/sha256-js": "^5.2.0",
-    "@aws-sdk/client-bedrock-runtime": "^3.1057.0",
-    "@aws-sdk/credential-providers": "^3.1057.0",
-    "@smithy/signature-v4": "^5.4.5",
-    "@smithy/types": "^4.14.2",
+    "@aws-sdk/client-bedrock-runtime": "^3.1077.0",
+    "@aws-sdk/credential-providers": "^3.1077.0",
+    "@smithy/signature-v4": "^5.6.0",
+    "@smithy/types": "^4.15.0",
     "@tanstack/openai-base": "workspace:*",
-    "openai": "^6.41.0"
+    "openai": "^6.45.0"
   }
 }

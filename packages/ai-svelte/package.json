@@ -64,15 +64,15 @@
   },
   "devDependencies": {
     "@standard-schema/spec": "^1.1.0",
-    "@sveltejs/package": "^2.3.10",
+    "@sveltejs/package": "^2.5.8",
     "@sveltejs/vite-plugin-svelte": "^5.1.1",
     "@tanstack/ai": "workspace:*",
     "@types/node": "^24.10.1",
-    "@vitest/coverage-v8": "4.0.14",
-    "jsdom": "^27.2.0",
-    "svelte": "^5.20.0",
-    "svelte-check": "^4.2.0",
+    "@vitest/coverage-v8": "4.1.9",
+    "jsdom": "^27.4.0",
+    "svelte": "^5.56.4",
+    "svelte-check": "^4.7.1",
     "typescript": "5.9.3",
-    "vite": "^7.3.3"
+    "vite": "^7.3.6"
   }
 }

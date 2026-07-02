@@ -65,11 +65,11 @@
     "@tanstack/ai": "workspace:*"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "4.0.14",
-    "jiti": "^2.4.2",
+    "@vitest/coverage-v8": "4.1.9",
+    "jiti": "^2.7.0",
     "json-schema-to-typescript": "^15.0.4",
     "tsup": "^8.5.1",
-    "vite": "^7.3.3",
-    "zod": "^4.2.0"
+    "vite": "^7.3.6",
+    "zod": "^4.4.3"
   }
 }

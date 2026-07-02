@@ -52,7 +52,7 @@
   ],
   "dependencies": {
     "@tanstack/ai-devtools-core": "workspace:*",
-    "@tanstack/devtools-utils": "^0.4.0"
+    "@tanstack/devtools-utils": "^0.6.0"
   },
   "peerDependencies": {
     "@types/react": "^17.0.0 || ^18.0.0 || ^19.0.0",
@@ -60,9 +60,9 @@
   },
   "devDependencies": {
     "@types/react": "^19.2.7",
-    "@vitest/coverage-v8": "4.0.14",
+    "@vitest/coverage-v8": "4.1.9",
     "react": "^19.2.3",
-    "vite": "^7.3.3"
+    "vite": "^7.3.6"
   },
   "keywords": [
     "ai",

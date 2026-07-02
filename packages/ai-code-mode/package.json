@@ -60,7 +60,7 @@
     "tanstack-intent"
   ],
   "dependencies": {
-    "sucrase": "^3.35.0"
+    "sucrase": "^3.35.1"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:*",
@@ -68,7 +68,7 @@
   },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
-    "@vitest/coverage-v8": "4.0.14",
-    "zod": "^4.2.0"
+    "@vitest/coverage-v8": "4.1.9",
+    "zod": "^4.4.3"
   }
 }

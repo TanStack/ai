@@ -63,12 +63,12 @@
     "@standard-schema/spec": "^1.1.0",
     "@tanstack/ai": "workspace:*",
     "@types/node": "^24.10.1",
-    "@vitest/coverage-v8": "4.0.14",
-    "@vue/test-utils": "^2.4.6",
-    "jsdom": "^27.2.0",
-    "tsdown": "^0.17.0-beta.6",
+    "@vitest/coverage-v8": "4.1.9",
+    "@vue/test-utils": "^2.4.11",
+    "jsdom": "^27.4.0",
+    "tsdown": "^0.22.3",
     "typescript": "5.9.3",
-    "vitest": "^4.0.14",
+    "vitest": "^4.1.9",
     "vue": "^3.5.25"
   }
 }

@@ -10,7 +10,7 @@
 #
 # Pin the base tag to the @cloudflare/sandbox version in package.json so the
 # control-server protocol matches the SDK the Worker is built against.
-FROM docker.io/cloudflare/sandbox:0.12.1
+FROM docker.io/cloudflare/sandbox:0.12.2
 
 # Claude Code CLI (HARNESS=claude-code). `node` + `npm` are already on the base
 # image. `--include=optional` is required: the CLI's native binary ships as a

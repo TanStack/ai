@@ -42,13 +42,13 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "@vercel/sandbox": "^2.2.1"
+    "@vercel/sandbox": "^2.3.0"
   },
   "peerDependencies": {
     "@tanstack/ai-sandbox": "workspace:^"
   },
   "devDependencies": {
     "@tanstack/ai-sandbox": "workspace:*",
-    "@vitest/coverage-v8": "4.0.14"
+    "@vitest/coverage-v8": "4.1.9"
   }
 }

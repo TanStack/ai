@@ -24,15 +24,15 @@
   "dependencies": {
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
-    "expo": "~56.0.5",
+    "expo": "~56.0.12",
     "react": "^19.2.3",
-    "react-native": "0.85.3"
+    "react-native": "0.86.0"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",
-    "esbuild": "^0.25.12",
-    "tsx": "^4.21.0",
+    "esbuild": "^0.28.1",
+    "tsx": "^4.22.4",
     "typescript": "5.9.3"
   }
 }

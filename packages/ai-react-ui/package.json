@@ -69,9 +69,9 @@
     "@tanstack/ai-client": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
     "@types/react": "^19.2.7",
-    "@vitest/coverage-v8": "4.0.14",
+    "@vitest/coverage-v8": "4.1.9",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
-    "vite": "^7.3.3"
+    "vite": "^7.3.6"
   }
 }

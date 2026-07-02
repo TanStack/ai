@@ -44,14 +44,14 @@
   ],
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
-    "@vitest/coverage-v8": "4.0.14",
-    "vite": "^7.3.3"
+    "@vitest/coverage-v8": "4.1.9",
+    "vite": "^7.3.6"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
     "zod": "^4.0.0"
   },
   "dependencies": {
-    "@mistralai/mistralai": "2.2.0"
+    "@mistralai/mistralai": "2.3.0"
   }
 }

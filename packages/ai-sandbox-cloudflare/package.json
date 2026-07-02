@@ -51,7 +51,7 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "@cloudflare/sandbox": "^0.12.1"
+    "@cloudflare/sandbox": "^0.12.2"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
@@ -60,12 +60,12 @@
     "zod": "^4.0.0"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260317.1",
+    "@cloudflare/workers-types": "^4.20260630.1",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-sandbox": "workspace:*",
     "@tanstack/ai-sandbox-local-process": "workspace:*",
     "@types/node": "^24.10.1",
-    "@vitest/coverage-v8": "4.0.14",
-    "zod": "^4.2.0"
+    "@vitest/coverage-v8": "4.1.9",
+    "zod": "^4.4.3"
   }
 }
