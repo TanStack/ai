@@ -41,6 +41,12 @@ execution until the user explicitly approves or denies the action. This
 creates a human-in-the-loop checkpoint for sensitive operations (sending
 emails, making purchases, deleting data).
 
+The primary durable wait signal is now the AG-UI terminal event
+`RUN_FINISHED.outcome.type === 'interrupt'`. The legacy
+`CUSTOM { name: "approval-requested" }` event is kept as a compatibility
+projection for older clients and UI state updates, but new persistence and
+resume logic should treat actionable waits as interrupts.
+
 The flow spans three layers:
 
 ```mermaid
@@ -55,9 +61,9 @@ flowchart TD
 
 | Layer | Responsibility |
 |-------|----------------|
-| **Server (TextEngine)** | `chat()` detects `needsApproval` → emits CUSTOM `approval-requested` instead of executing the tool |
-| **StreamProcessor** | Receives CUSTOM chunk → `updateToolCallApproval()` → fires `onApprovalRequest` callback |
-| **ChatClient** | Exposes `addToolApprovalResponse()` → updates message state → triggers `checkForContinuation()` → sends new stream |
+| **Server (TextEngine)** | `chat()` detects `needsApproval` -> emits a `RUN_FINISHED` interrupt outcome and may project legacy `approval-requested` events |
+| **StreamProcessor** | Receives interrupt outcome / compatibility custom event -> `updateToolCallApproval()` -> fires `onApprovalRequest` callback |
+| **ChatClient** | Exposes `addToolApprovalResponse()` -> updates message state -> sends AG-UI `RunAgentInput.resume[]` entries through the next request |
 
 Framework hooks (`useChat` in React, Solid, Vue, Svelte) delegate to
 `ChatClient`, which owns all concurrency and continuation logic.
@@ -70,15 +76,23 @@ Framework hooks (`useChat` in React, Solid, Vue, Svelte) delegate to
 
 - Runs the agent loop: calls the LLM adapter, accumulates tool calls, executes
   tools, and re-invokes the adapter with results.
-- When a tool has `needsApproval: true`, the engine emits a
-  `CUSTOM { name: "approval-requested" }` event instead of executing the tool.
-- The stream ends with `RUN_FINISHED { finishReason: "tool_calls" }` so the
-  client knows tools are pending.
+- When a tool has `needsApproval: true`, the engine emits a terminal
+  `RUN_FINISHED` event with `outcome.type === 'interrupt'` instead of executing
+  the tool.
+- Compatibility `CUSTOM { name: "approval-requested" }` events may still be
+  emitted or projected so older approval UI can render the same tool-call state.
+- Persistence stores pending interrupts and validates the later
+  `RunAgentInput.resume[]` response before accepting normal new input on the
+  same thread.
 
 ### StreamProcessor (`packages/ai/src/activities/chat/stream/processor.ts`)
 
 - Single source of truth for `UIMessage[]` state.
-- On `approval-requested` custom event:
+- On `RUN_FINISHED.outcome.type === 'interrupt'`:
+  1. Persists/surfaces each interrupt as a pending user-actionable wait.
+  2. Calls `updateToolCallApproval()` for approval-shaped interrupts so legacy
+     approval UI renders as before.
+- On legacy `approval-requested` custom event:
   1. Calls `updateToolCallApproval()` to set the tool-call part's state to
      `approval-requested` and attach approval metadata.
   2. Fires `onApprovalRequest` so the ChatClient can emit devtools events.
@@ -192,24 +206,31 @@ Step-by-step flow for a single tool requiring approval:
 TOOL_CALL_START   { toolCallId: "tc-1", toolName: "send_email" }
 TOOL_CALL_ARGS    { toolCallId: "tc-1", delta: '{"to":"..."}' }
 TOOL_CALL_END     { toolCallId: "tc-1" }
-CUSTOM            { name: "approval-requested", value: {
-                      toolCallId: "tc-1",
-                      toolName: "send_email",
-                      input: { to: "..." },
-                      approval: { id: "appr-1", needsApproval: true }
+RUN_FINISHED      { outcome: {
+                      type: "interrupt",
+                      interrupts: [{
+                        id: "appr-1",
+                        reason: "approval_required",
+                        metadata: {
+                          kind: "approval",
+                          toolCallId: "tc-1",
+                          toolName: "send_email",
+                          input: { to: "..." }
+                        }
+                      }]
                   }}
-RUN_FINISHED      { finishReason: "tool_calls" }
 ```
 
-### 2. StreamProcessor processes the CUSTOM chunk
+### 2. StreamProcessor processes the interrupt outcome
 
 ```
-handleCustomEvent():
+handleRunFinished():
   1. updateToolCallApproval(messages, messageId, "tc-1", "appr-1")
      → Sets part.state = "approval-requested"
      → Sets part.approval = { id: "appr-1", needsApproval: true }
-  2. emitMessagesChange()
-  3. fires onApprovalRequest({ toolCallId, toolName, input, approvalId })
+  2. records the pending interrupt on the client
+  3. emitMessagesChange()
+  4. fires onApprovalRequest({ toolCallId, toolName, input, approvalId })
 ```
 
 ### 3. Stream ends, ChatClient processes
@@ -233,7 +254,9 @@ addToolApprovalResponse({ id: "appr-1", approved: true }):
      → updateToolCallApprovalResponse():
        part.approval.approved = true
        part.state = "approval-responded"
-  2. isLoading is false → call checkForContinuation() directly
+  2. queue a resume entry:
+     { interruptId: "appr-1", status: "resolved", payload: { approved: true } }
+  3. isLoading is false → call checkForContinuation() directly
 ```
 
 ### 5. Continuation
@@ -244,8 +267,9 @@ checkForContinuation():
   2. shouldAutoSend() → areAllToolsComplete():
      part.state === "approval-responded" → true
   3. continuationPending = true
-  4. streamResponse() → new stream to server with approval in messages
-  5. Server sees approval, executes tool, returns result + LLM response
+  4. streamResponse() → new stream to server with `resume[]`
+  5. Persistence validates `resume[]`, resolves the pending interrupt, then the
+     server executes or cancels the tool and returns result + LLM response
   6. continuationPending = false
 ```
 
@@ -388,11 +412,52 @@ Timeline (with fix):
 
 ### Approval-related AG-UI events
 
-These are `CUSTOM` events emitted by the TextEngine, not by adapters directly.
+The primary wait event is `RUN_FINISHED` with an interrupt outcome:
+
+```typescript ignore
+{
+  type: 'RUN_FINISHED',
+  outcome: {
+    type: 'interrupt',
+    interrupts: [
+      {
+        id: string,
+        reason: 'approval_required',
+        metadata: {
+          kind: 'approval',
+          toolCallId: string,
+          toolName: string,
+          input: unknown
+        }
+      }
+    ]
+  }
+}
+```
+
+Resume uses AG-UI `RunAgentInput.resume[]` on the next request:
+
+```typescript ignore
+{
+  resume: [
+    {
+      interruptId: 'appr-1',
+      status: 'resolved',
+      payload: { approved: true }
+    }
+  ]
+}
+```
+
+Pending user-actionable interrupts block normal input on the same thread by
+default. A stale cursor replay may read the public event tail, but a new
+non-resume input must resolve the pending interrupts first.
 
 #### `approval-requested`
 
-Emitted when a tool with `needsApproval: true` has its arguments finalized.
+Legacy compatibility/projection event emitted when a tool with
+`needsApproval: true` has its arguments finalized. Use this to keep older UI
+rendering paths working; do not use it as the primary durable wait signal.
 
 ```typescript ignore
 {
@@ -422,13 +487,15 @@ TOOL_CALL_START     → creates tool-call part (state: awaiting-input)
 TOOL_CALL_ARGS*     → accumulates arguments (state: input-streaming)
 TOOL_CALL_END       → finalizes arguments (state: input-complete)
 CUSTOM              → approval-requested (state: approval-requested)
-RUN_FINISHED        → finishReason: "tool_calls"
+RUN_FINISHED        → outcome.type: "interrupt"
 ```
 
 After the stream ends and the user responds, the ChatClient:
 1. Updates the tool-call part (state: `approval-responded`)
-2. Sends a new stream request with the full conversation (including approval)
-3. The server sees the approval and either executes or cancels the tool
+2. Sends a new stream request with `RunAgentInput.resume[]` entries resolving
+   the pending interrupt
+3. Persistence validates the resume entries, resolves the interrupt, and the
+   server executes or cancels the tool based on the resume payload
 
 ---
 

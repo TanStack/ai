@@ -11,8 +11,13 @@
  * or let the backend auto-migrate.
  */
 import { createSqlPersistence, ddl } from '@tanstack/ai-persistence-sql'
-import type { Dialect, SqlDriver, SqlRow } from '@tanstack/ai-persistence-sql'
-import type { ChatPersistence, PersistenceMode } from '@tanstack/ai-persistence'
+import type {
+  Dialect,
+  SqlDriver,
+  SqlPersistence,
+  SqlRow,
+} from '@tanstack/ai-persistence-sql'
+import type { PersistenceMode } from '@tanstack/ai-persistence'
 
 export { ddl }
 
@@ -68,8 +73,8 @@ function pgDriver(client: PgClient): SqlDriver {
     ) {
       return (await client.query(sql, params)).rows as Array<T>
     },
-    // Without a dedicated connection we can't BEGIN/COMMIT; stores only group
-    // DDL in a transaction, so a pass-through is acceptable here.
+    // Without a dedicated connection we can't BEGIN/COMMIT; stores use
+    // constraints plus reconciliation for CAS when this is a pass-through.
     transaction(fn) {
       return fn(driver)
     },
@@ -85,10 +90,10 @@ export interface DrizzlePersistenceOptions {
   migrate?: boolean
 }
 
-/** Drizzle-backed {@link ChatPersistence}. */
+/** Drizzle-backed {@link SqlPersistence}. */
 export function drizzlePersistence(
   opts: DrizzlePersistenceOptions,
-): ChatPersistence {
+): SqlPersistence {
   const driver =
     opts.dialect === 'postgres'
       ? pgDriver(opts.db.$client as PgClient)

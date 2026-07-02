@@ -75,7 +75,39 @@ describe('chat() resume seam', () => {
     expect(chunks.map((c) => c.cursor)).toEqual(['3', '4'])
   })
 
-  it('re-attaches (continues the agent loop) when the run is still running and the adapter supports it', async () => {
+  it('does not replay when cursor is paired with interrupt resume entries', async () => {
+    let replayCalled = false
+    const source: ResumeSource = {
+      hasRun: async (runId) => runId === 'run-1',
+      replay: async function* () {
+        replayCalled = true
+        yield { ...ev.textContent('SHOULD NOT REPLAY'), cursor: '3' }
+      },
+      getStatus: async () => 'interrupted',
+    }
+
+    const { adapter, calls } = createMockAdapter({
+      iterations: [
+        [ev.runStarted(), ev.textContent('continued'), ev.runFinished('stop')],
+      ],
+    })
+
+    const stream = chat({
+      adapter,
+      messages: [],
+      runId: 'run-1',
+      cursor: '2',
+      resume: [{ interruptId: 'interrupt-1', status: 'resolved' }],
+      middleware: [withFakeResumeSource(source)],
+    })
+
+    const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+    expect(replayCalled).toBe(false)
+    expect(calls.length).toBe(1)
+    expect(getDeltas(chunks).join('')).toBe('continued')
+  })
+
+  it('replays public events and does NOT re-attach even when the run is still running and the adapter supports it', async () => {
     const source: ResumeSource = {
       hasRun: async () => true,
       replay: async function* () {
@@ -101,9 +133,10 @@ describe('chat() resume seam', () => {
     })
 
     const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
-    // Adapter ran (live continuation) AND the replayed tail was delivered first.
-    expect(calls.length).toBe(1)
-    expect(getDeltas(chunks).join('')).toBe('replayed live')
+    // Durable resume is replay-only; live adapter continuation is not part of
+    // the core chat resume seam.
+    expect(calls.length).toBe(0)
+    expect(getDeltas(chunks).join('')).toBe('replayed')
   })
 
   it('does NOT re-attach for a finished run even if the adapter supports it', async () => {

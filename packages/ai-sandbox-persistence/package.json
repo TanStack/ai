@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-sandbox-persistence",
   "version": "0.1.0",
-  "description": "Bridge between @tanstack/ai-sandbox and the persistence layer — provides a durable SQL-backed SandboxStore and wires a durable LockStore into withSandbox, so sandbox resume + ensure-locking survive across processes (agent mode).",
+  "description": "Bridge between @tanstack/ai-sandbox and the persistence layer — provides sandbox-backed harness persistence with a durable SQL-backed SandboxStore and LockStore for resumes across processes.",
   "author": "",
   "license": "MIT",
   "repository": {

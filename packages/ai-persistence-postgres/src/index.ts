@@ -1,6 +1,6 @@
 /**
  * Postgres backend. Wraps a `pg`-style pool in the shared `SqlDriver` and
- * assembles a `ChatPersistence` via `@tanstack/ai-persistence-sql`.
+ * assembles a `SqlPersistence` via `@tanstack/ai-persistence-sql`.
  *
  * - convenience: `postgresPersistence({ connectionString })` lazily creates a
  *   `pg.Pool` (the `pg` package is an optional peer, imported on first use).
@@ -8,8 +8,12 @@
  *   and `connect() => client` (node-postgres `Pool`).
  */
 import { createSqlPersistence } from '@tanstack/ai-persistence-sql'
-import type { SqlDriver, SqlRow } from '@tanstack/ai-persistence-sql'
-import type { ChatPersistence, PersistenceMode } from '@tanstack/ai-persistence'
+import type {
+  SqlDriver,
+  SqlPersistence,
+  SqlRow,
+} from '@tanstack/ai-persistence-sql'
+import type { PersistenceMode } from '@tanstack/ai-persistence'
 
 /** Minimal node-postgres surface the driver relies on. */
 export interface PgQueryable {
@@ -115,10 +119,10 @@ export interface PostgresPersistenceOptions extends PostgresDriverOptions {
   migrate?: boolean
 }
 
-/** Postgres-backed {@link ChatPersistence}. */
+/** Postgres-backed {@link SqlPersistence}. */
 export function postgresPersistence(
   opts: PostgresPersistenceOptions,
-): ChatPersistence {
+): SqlPersistence {
   const driver = createPostgresDriver({
     connectionString: opts.connectionString,
     client: opts.client,

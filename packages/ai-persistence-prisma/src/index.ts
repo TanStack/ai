@@ -9,8 +9,13 @@
  * or let the backend auto-migrate the tables directly.
  */
 import { createSqlPersistence } from '@tanstack/ai-persistence-sql'
-import type { Dialect, SqlDriver, SqlRow } from '@tanstack/ai-persistence-sql'
-import type { ChatPersistence, PersistenceMode } from '@tanstack/ai-persistence'
+import type {
+  Dialect,
+  SqlDriver,
+  SqlPersistence,
+  SqlRow,
+} from '@tanstack/ai-persistence-sql'
+import type { PersistenceMode } from '@tanstack/ai-persistence'
 
 /** The PrismaClient surface this adapter relies on. */
 export interface PrismaRawClient {
@@ -53,10 +58,10 @@ export interface PrismaPersistenceOptions {
   migrate?: boolean
 }
 
-/** Prisma-backed {@link ChatPersistence}. */
+/** Prisma-backed {@link SqlPersistence}. */
 export function prismaPersistence(
   opts: PrismaPersistenceOptions,
-): ChatPersistence {
+): SqlPersistence {
   const driver = createPrismaDriver(opts.prisma, opts.dialect)
   return createSqlPersistence(driver, {
     mode: opts.mode,

@@ -239,9 +239,12 @@ function ChatPage() {
 
 ### Pattern 3: Tool with Approval Flow
 
-Set `needsApproval: true` in the definition. Execution pauses until the client
-calls `addToolApprovalResponse()`. The part has `state: "approval-requested"`
-and an `approval` object with an `id`.
+Set `needsApproval: true` in the definition. Execution pauses with
+`RUN_FINISHED.outcome.type === 'interrupt'`; legacy approval UI still sees a
+tool-call part with `state: "approval-requested"` and an `approval` object with
+an `id`. The primary resume path is AG-UI `RunAgentInput.resume[]` via
+`resumeInterrupts(...)`. `addToolApprovalResponse()` remains the compatibility
+UI helper and forwards matching pending approval interrupts when present.
 
 ```typescript
 import { toolDefinition } from '@tanstack/ai'
@@ -271,7 +274,12 @@ Client -- render approval UI and respond:
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
 function ChatPage() {
-  const { messages, addToolApprovalResponse } = useChat({
+  const {
+    messages,
+    pendingInterrupts,
+    resumeInterrupts,
+    addToolApprovalResponse,
+  } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
   });
 
@@ -320,6 +328,19 @@ function ChatPage() {
     </div>
   );
 }
+```
+
+For new interrupt-aware UIs, render `pendingInterrupts` and resume them
+directly:
+
+```typescript
+await resumeInterrupts([
+  {
+    interruptId: pendingInterrupts[0].id,
+    status: 'resolved',
+    payload: { approved: true },
+  },
+])
 ```
 
 ### Pattern 4: Lazy Tool Discovery
@@ -635,7 +656,7 @@ import { anthropicText } from '@tanstack/ai-anthropic'
 export async function POST(request: Request) {
   const { messages } = await request.json()
   const stream = chat({
-    adapter: anthropicText('claude-sonnet-4-5'),
+    adapter: anthropicText('claude-sonnet-4-6'),
     messages,
     tools: [
       codeExecutionTool(
@@ -671,7 +692,7 @@ import { openaiText } from '@tanstack/ai-openai'
 export async function POST(request: Request) {
   const { messages } = await request.json()
   const stream = chat({
-    adapter: openaiText('gpt-5.2'),
+    adapter: openaiText('gpt-5.5'),
     messages,
     tools: [
       shellTool({

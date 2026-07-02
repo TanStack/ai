@@ -125,6 +125,52 @@ describe('xhr connection adapters', () => {
       })
     })
 
+    it('sends cursor and resume in the AG-UI request body', async () => {
+      const { xhr, xhrFactory } = createFakeXhrFactory()
+      const adapter = xhrServerSentEvents('/api/chat', { xhrFactory })
+
+      const iterator = adapter
+        .connect([], undefined, undefined, {
+          threadId: 'thread-1',
+          runId: 'run-1',
+          cursor: 'cursor-1',
+          resume: [
+            {
+              interruptId: 'interrupt-1',
+              status: 'resolved',
+              payload: { approved: true },
+            },
+            {
+              interruptId: 'interrupt-2',
+              status: 'cancelled',
+            },
+          ],
+        })
+        [Symbol.asyncIterator]()
+      const nextChunk = iterator.next()
+      await nextTick()
+
+      const body = JSON.parse(xhr.requestBody ?? '{}')
+      expect(body.cursor).toBe('cursor-1')
+      expect(body.resume).toEqual([
+        {
+          interruptId: 'interrupt-1',
+          status: 'resolved',
+          payload: { approved: true },
+        },
+        {
+          interruptId: 'interrupt-2',
+          status: 'cancelled',
+        },
+      ])
+
+      xhr.progress('data: [DONE]\n\n')
+      await expect(nextChunk).resolves.toMatchObject({
+        done: false,
+        value: { type: EventType.RUN_FINISHED },
+      })
+    })
+
     it('synthesizes RUN_FINISHED for [DONE] and ignores later bytes', async () => {
       const { xhr, xhrFactory } = createFakeXhrFactory()
       const adapter = xhrServerSentEvents('/api/chat', { xhrFactory })

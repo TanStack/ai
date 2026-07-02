@@ -160,7 +160,8 @@
         {
           "label": "Connection Adapters",
           "to": "chat/connection-adapters",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-02"
         },
         {
           "label": "Thinking & Reasoning",
@@ -386,7 +387,8 @@
         {
           "label": "Overview",
           "to": "persistence/overview",
-          "addedAt": "2026-06-18"
+          "addedAt": "2026-06-18",
+          "updatedAt": "2026-07-02"
         }
       ]
     },

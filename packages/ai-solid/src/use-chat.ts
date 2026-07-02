@@ -11,6 +11,8 @@ import { ChatClient } from '@tanstack/ai-client'
 import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import type {
   ChatClientState,
+  ChatPendingInterrupt,
+  ChatResumeState,
   ConnectionStatus,
   InferredClientContext,
   StructuredOutputPart,
@@ -19,6 +21,7 @@ import type {
   AnyClientTool,
   InferSchemaType,
   ModelMessage,
+  RunAgentResumeItem,
   SchemaInput,
   StreamChunk,
 } from '@tanstack/ai'
@@ -54,6 +57,17 @@ export function useChat<
   const [connectionStatus, setConnectionStatus] =
     createSignal<ConnectionStatus>('disconnected')
   const [sessionGenerating, setSessionGenerating] = createSignal(false)
+  const [resumeState, setResumeState] = createSignal<ChatResumeState | null>(
+    options.initialResumeSnapshot?.resumeState ?? null,
+  )
+  const [pendingInterrupts, setPendingInterrupts] = createSignal<
+    Array<ChatPendingInterrupt>
+  >(options.initialResumeSnapshot?.pendingInterrupts ?? [])
+
+  const syncResumeState = () => {
+    setResumeState(client().getResumeState())
+    setPendingInterrupts(client().getPendingInterrupts())
+  }
 
   // Structured-output `partial` / `final` are derived from `messages` —
   // specifically from the structured-output part on the latest assistant
@@ -85,6 +99,9 @@ export function useChat<
       }),
       ...(options.persistence !== undefined && {
         persistence: options.persistence,
+      }),
+      ...(options.initialResumeSnapshot !== undefined && {
+        initialResumeSnapshot: options.initialResumeSnapshot,
       }),
       body: options.body,
       ...(options.threadId !== undefined && { threadId: options.threadId }),
@@ -119,6 +136,7 @@ export function useChat<
       },
       onLoadingChange: (newIsLoading: boolean) => {
         setIsLoading(newIsLoading)
+        syncResumeState()
       },
       onStatusChange: (newStatus: ChatClientState) => {
         setStatus(newStatus)
@@ -134,6 +152,10 @@ export function useChat<
       },
       onSessionGeneratingChange: (isGenerating: boolean) => {
         setSessionGenerating(isGenerating)
+      },
+      onResumeStateChange: (nextResumeState, nextPendingInterrupts) => {
+        setResumeState(nextResumeState)
+        setPendingInterrupts(nextPendingInterrupts)
       },
     })
     // Only recreate when clientId changes
@@ -190,15 +212,27 @@ export function useChat<
   // or mutated options propagate without recreating the client.
 
   const sendMessage = async (content: string | MultimodalContent) => {
-    await client().sendMessage(content)
+    try {
+      await client().sendMessage(content)
+    } finally {
+      syncResumeState()
+    }
   }
 
   const append = async (message: ModelMessage | UIMessage<TTools>) => {
-    await client().append(message)
+    try {
+      await client().append(message)
+    } finally {
+      syncResumeState()
+    }
   }
 
   const reload = async () => {
-    await client().reload()
+    try {
+      await client().reload()
+    } finally {
+      syncResumeState()
+    }
   }
 
   const stop = () => {
@@ -207,6 +241,7 @@ export function useChat<
 
   const clear = () => {
     client().clear()
+    syncResumeState()
   }
 
   const setMessagesManually = (newMessages: Array<UIMessage<TTools>>) => {
@@ -228,6 +263,22 @@ export function useChat<
     approved: boolean
   }) => {
     await client().addToolApprovalResponse(response)
+    syncResumeState()
+  }
+
+  const resume = async (state?: ChatResumeState) => {
+    const result = await client().resume(state)
+    syncResumeState()
+    return result
+  }
+
+  const resumeInterrupts = async (
+    resumeItems: Array<RunAgentResumeItem>,
+    state?: ChatResumeState,
+  ) => {
+    const result = await client().resumeInterrupts(resumeItems, state)
+    syncResumeState()
+    return result
   }
 
   // The "active" structured-output part is on the assistant message after
@@ -287,6 +338,10 @@ export function useChat<
     clear,
     addToolResult,
     addToolApprovalResponse,
+    resumeState,
+    pendingInterrupts,
+    resume,
+    resumeInterrupts,
     partial,
     final,
   } as unknown as UseChatReturn<TTools, TSchema>

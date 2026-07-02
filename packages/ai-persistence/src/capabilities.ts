@@ -8,21 +8,38 @@
  * resume seam).
  */
 import { createCapability } from '@tanstack/ai'
-import type { ApprovalStore, ChatPersistence, EventLog } from './types'
+import type { AIPersistence, InterruptStore, PublicEventStore } from './types'
 
 export const PersistenceCapability =
-  createCapability<ChatPersistence>()('persistence')
+  createCapability<AIPersistence>()('persistence')
 
-export const EventsCapability =
-  createCapability<EventLog>()('persistence.events')
+export const EventsCapability = createCapability<PublicEventStore>()(
+  'persistence.publicEvents',
+)
 
-export const ApprovalsCapability = createCapability<ApprovalStore>()(
-  'persistence.approvals',
+export const InterruptsCapability = createCapability<InterruptStore>()(
+  'persistence.interrupts',
 )
 
 export const [getPersistence, providePersistence] = PersistenceCapability
 export const [getEvents, provideEvents] = EventsCapability
-export const [getApprovals, provideApprovals] = ApprovalsCapability
+export const [getInterrupts, provideInterrupts] = InterruptsCapability
+
+/**
+ * @deprecated Use InterruptsCapability.
+ * @alias
+ */
+export const ApprovalsCapability = InterruptsCapability
+/**
+ * @deprecated Use getInterrupts.
+ * @alias
+ */
+export const getApprovals = getInterrupts
+/**
+ * @deprecated Use provideInterrupts.
+ * @alias
+ */
+export const provideApprovals = provideInterrupts
 
 // Shared, single-owner tokens live in core; re-export so consumers import
 // everything persistence-related from this package.

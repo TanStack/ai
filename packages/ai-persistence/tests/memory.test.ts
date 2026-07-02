@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { EventType } from '@tanstack/ai'
 import { memoryPersistence } from '../src/memory'
+import {
+  defineAIPersistence,
+  defineChatPersistence,
+  validatePersistenceFeatures,
+} from '../src/types'
+import { AppendConflictError } from '../src/types'
 import type { StreamChunk } from '@tanstack/ai'
+import type { AIPersistence, ChatPersistence } from '../src/types'
 
 const chunk = (delta: string): StreamChunk => ({
   type: EventType.TEXT_MESSAGE_CONTENT,
@@ -11,24 +18,52 @@ const chunk = (delta: string): StreamChunk => ({
 })
 
 describe('memoryPersistence', () => {
-  it('defaults to agent mode with every store present', () => {
+  it('returns a namespaced AIPersistence with every reference store present', () => {
     const p = memoryPersistence()
-    expect(p.mode).toBe('agent')
-    expect(p.messages).toBeDefined()
-    expect(p.runs).toBeDefined()
-    expect(p.events).toBeDefined()
-    expect(p.approvals).toBeDefined()
-    expect(p.artifacts).toBeDefined()
-    expect(p.locks).toBeDefined()
+    expect(p.stores.messages).toBeDefined()
+    expect(p.stores.runs).toBeDefined()
+    expect(p.stores.publicEvents).toBeDefined()
+    expect(p.stores.internalEvents).toBeDefined()
+    expect(p.stores.interrupts).toBeDefined()
+    expect(p.stores.artifacts).toBeDefined()
+    expect(p.stores.locks).toBeDefined()
   })
 
-  it('honors a requested mode', () => {
-    expect(memoryPersistence({ mode: 'chat' }).mode).toBe('chat')
+  it('defineAIPersistence is an identity helper', () => {
+    const persistence = memoryPersistence()
+    expect(defineAIPersistence(persistence)).toBe(persistence)
+  })
+
+  it('keeps deprecated ChatPersistence compatibility exports as aliases', () => {
+    const persistence: ChatPersistence = memoryPersistence()
+    const aiPersistence: AIPersistence = persistence
+    expect(defineChatPersistence(persistence)).toBe(aiPersistence)
+  })
+
+  it('fails loudly when requested feature stores are missing', () => {
+    expect(() =>
+      validatePersistenceFeatures(
+        defineAIPersistence({
+          stores: { messages: memoryPersistence().stores.messages },
+        }),
+        ['durable-replay'],
+      ),
+    ).toThrow(/durable-replay.*stores\.runs.*stores\.publicEvents/i)
+  })
+
+  it('allows message-only persistence without event stores', () => {
+    const messages = memoryPersistence().stores.messages!
+    expect(() =>
+      validatePersistenceFeatures(
+        defineAIPersistence({ stores: { messages } }),
+        ['messages'],
+      ),
+    ).not.toThrow()
   })
 
   describe('runs', () => {
     it('createOrResume is idempotent and update patches status', async () => {
-      const { runs } = memoryPersistence()
+      const { runs } = memoryPersistence().stores
       const a = await runs!.createOrResume({
         runId: 'r1',
         threadId: 't1',
@@ -50,38 +85,113 @@ describe('memoryPersistence', () => {
     })
   })
 
-  describe('events', () => {
-    it('appends, reports hasRun/latestSeq, and reads after a seq', async () => {
-      const { events } = memoryPersistence()
-      expect(await events!.hasRun('r1')).toBe(false)
-      await events!.append('r1', 1, chunk('a'))
-      await events!.append('r1', 2, chunk('b'))
-      await events!.append('r1', 3, chunk('c'))
-      expect(await events!.hasRun('r1')).toBe(true)
-      expect(await events!.latestSeq('r1')).toBe(3)
+  describe('publicEvents', () => {
+    it('appends with CAS, reports hasRun/latestSeq, and reads after a seq', async () => {
+      const { publicEvents } = memoryPersistence().stores
+      expect(await publicEvents!.hasRun('r1')).toBe(false)
+      await publicEvents!.append({
+        runId: 'r1',
+        expectedSeq: 0,
+        event: chunk('a'),
+      })
+      await publicEvents!.append({
+        runId: 'r1',
+        expectedSeq: 1,
+        event: chunk('b'),
+      })
+      await publicEvents!.append({
+        runId: 'r1',
+        expectedSeq: 2,
+        event: chunk('c'),
+      })
+      expect(await publicEvents!.hasRun('r1')).toBe(true)
+      expect(await publicEvents!.latestSeq('r1')).toBe(3)
 
       const seen: Array<number> = []
-      for await (const e of events!.read('r1', { afterSeq: 1 })) {
+      for await (const e of publicEvents!.read('r1', { afterSeq: 1 })) {
         seen.push(e.seq)
       }
       expect(seen).toEqual([2, 3])
     })
 
+    it('returns an existing identical event for idempotent CAS append', async () => {
+      const { publicEvents } = memoryPersistence().stores
+      const event = chunk('a')
+      const first = await publicEvents!.append({
+        runId: 'r1',
+        expectedSeq: 0,
+        event,
+      })
+      const second = await publicEvents!.append({
+        runId: 'r1',
+        expectedSeq: 0,
+        event,
+      })
+      expect(second).toEqual(first)
+    })
+
+    it('throws AppendConflictError when CAS append observes a different event', async () => {
+      const { publicEvents } = memoryPersistence().stores
+      await publicEvents!.append({
+        runId: 'r1',
+        expectedSeq: 0,
+        event: chunk('a'),
+      })
+      await expect(
+        publicEvents!.append({
+          runId: 'r1',
+          expectedSeq: 0,
+          event: chunk('b'),
+        }),
+      ).rejects.toBeInstanceOf(AppendConflictError)
+    })
+
     it('reads all events when no afterSeq is given', async () => {
-      const { events } = memoryPersistence()
-      await events!.append('r1', 1, chunk('a'))
-      await events!.append('r1', 2, chunk('b'))
+      const { publicEvents } = memoryPersistence().stores
+      await publicEvents!.append({
+        runId: 'r1',
+        expectedSeq: 0,
+        event: chunk('a'),
+      })
+      await publicEvents!.append({
+        runId: 'r1',
+        expectedSeq: 1,
+        event: chunk('b'),
+      })
       const seen: Array<string> = []
-      for await (const e of events!.read('r1')) {
+      for await (const e of publicEvents!.read('r1')) {
         if (e.event.type === 'TEXT_MESSAGE_CONTENT') seen.push(e.event.delta)
       }
       expect(seen).toEqual(['a', 'b'])
     })
   })
 
+  describe('internalEvents', () => {
+    it('uses the same CAS semantics for namespaced events', async () => {
+      const { internalEvents } = memoryPersistence().stores
+      const first = await internalEvents!.append({
+        runId: 'r1',
+        expectedSeq: 0,
+        namespace: 'checkpoint',
+        type: 'saved',
+        payload: { ok: true },
+      })
+      expect(first.seq).toBe(1)
+      await expect(
+        internalEvents!.append({
+          runId: 'r1',
+          expectedSeq: 0,
+          namespace: 'checkpoint',
+          type: 'saved',
+          payload: { ok: false },
+        }),
+      ).rejects.toBeInstanceOf(AppendConflictError)
+    })
+  })
+
   describe('messages', () => {
     it('round-trips a thread transcript', async () => {
-      const { messages } = memoryPersistence()
+      const { messages } = memoryPersistence().stores
       expect(await messages!.loadThread('t1')).toEqual([])
       await messages!.saveThread('t1', [{ role: 'user', content: 'hi' }])
       expect(await messages!.loadThread('t1')).toEqual([
@@ -90,28 +200,69 @@ describe('memoryPersistence', () => {
     })
   })
 
-  describe('approvals', () => {
-    it('creates, resolves, and reports thread decisions', async () => {
-      const { approvals } = memoryPersistence()
-      await approvals!.create({
-        approvalId: 'a1',
+  describe('interrupts', () => {
+    it('creates, resolves, and lists pending interrupts by thread', async () => {
+      const { interrupts } = memoryPersistence().stores
+      await interrupts!.create({
+        interruptId: 'i1',
         runId: 'r1',
         threadId: 't1',
         status: 'pending',
         requestedAt: 1,
-        payload: {},
+        payload: { kind: 'approval' },
       })
-      expect((await approvals!.get('a1'))?.status).toBe('pending')
-      await approvals!.resolve('a1', true)
-      expect((await approvals!.get('a1'))?.status).toBe('granted')
-      const decisions = await approvals!.decisionsForThread('t1')
-      expect(decisions.get('a1')).toBe(true)
+      expect((await interrupts!.get('i1'))?.status).toBe('pending')
+      expect(await interrupts!.listPending('t1')).toHaveLength(1)
+      await interrupts!.resolve('i1', { action: 'approve' })
+      expect((await interrupts!.get('i1'))?.status).toBe('resolved')
+      expect(await interrupts!.listPending('t1')).toHaveLength(0)
+    })
+
+    it('lists interrupts and pending interrupts by run', async () => {
+      const { interrupts } = memoryPersistence().stores
+      await interrupts!.create({
+        interruptId: 'i1',
+        runId: 'r1',
+        threadId: 't1',
+        status: 'pending',
+        requestedAt: 1,
+        payload: { kind: 'approval' },
+      })
+      await interrupts!.create({
+        interruptId: 'i2',
+        runId: 'r1',
+        threadId: 't2',
+        status: 'pending',
+        requestedAt: 2,
+        payload: { kind: 'input' },
+      })
+      await interrupts!.create({
+        interruptId: 'i3',
+        runId: 'r2',
+        threadId: 't1',
+        status: 'pending',
+        requestedAt: 3,
+        payload: { kind: 'other' },
+      })
+
+      await interrupts!.resolve('i2')
+
+      expect(
+        (await interrupts!.listByRun('r1')).map(
+          (interrupt) => interrupt.interruptId,
+        ),
+      ).toEqual(['i1', 'i2'])
+      expect(
+        (await interrupts!.listPendingByRun('r1')).map(
+          (interrupt) => interrupt.interruptId,
+        ),
+      ).toEqual(['i1'])
     })
   })
 
   describe('artifacts', () => {
     it('saves, gets, and lists by run', async () => {
-      const { artifacts } = memoryPersistence()
+      const { artifacts } = memoryPersistence().stores
       await artifacts!.save({
         artifactId: 'art1',
         runId: 'r1',
@@ -124,6 +275,19 @@ describe('memoryPersistence', () => {
       expect((await artifacts!.get('art1'))?.name).toBe('out.txt')
       expect(await artifacts!.list('r1')).toHaveLength(1)
       expect(await artifacts!.list('other')).toHaveLength(0)
+    })
+  })
+
+  describe('metadata', () => {
+    it('returns null for missing metadata and preserves stored undefined', async () => {
+      const { metadata } = memoryPersistence().stores
+      expect(await metadata!.get('scope', 'missing')).toBeNull()
+
+      await metadata!.set('scope', 'present', undefined)
+      expect(await metadata!.get('scope', 'present')).toBeUndefined()
+
+      await metadata!.delete('scope', 'present')
+      expect(await metadata!.get('scope', 'present')).toBeNull()
     })
   })
 })

@@ -17,6 +17,7 @@ import type {
   AnyClientTool,
   ContentPart,
   ModelMessage,
+  RunAgentResumeItem,
   StreamChunk,
 } from '@tanstack/ai/client'
 import type {
@@ -36,6 +37,8 @@ import type {
   ChatClientOptions,
   ChatClientState,
   ChatFetcher,
+  ChatPendingInterrupt,
+  ChatResumeState,
   ConnectionStatus,
   MessagePart,
   MultimodalContent,
@@ -59,6 +62,10 @@ type ChatClientUpdateOptionsWithoutContext<
   onSubscriptionChange?: (isSubscribed: boolean) => void
   onConnectionStatusChange?: (status: ConnectionStatus) => void
   onSessionGeneratingChange?: (isGenerating: boolean) => void
+  onResumeStateChange?: (
+    resumeState: ChatResumeState | null,
+    pendingInterrupts: Array<ChatPendingInterrupt>,
+  ) => void
   onCustomEvent?: (
     eventType: string,
     data: unknown,
@@ -104,12 +111,22 @@ export class ChatClient<
   private currentRunId: string | null = null
   // Resume tracking: the latest in-band cursor seen for the active run, so a
   // reconnect can replay events after it. Cleared when the run terminates.
-  private lastResume: { runId: string; cursor: string } | null = null
+  private lastResume: ChatResumeState | null = null
+  private pendingInterrupts: Array<ChatPendingInterrupt> = []
+  private pendingInterruptRunId: string | null = null
+  private readonly pendingInterruptResumeItems = new Map<
+    string,
+    RunAgentResumeItem
+  >()
   private readonly autoResume: boolean
   // When set, the next streamResponse() resumes this run/cursor instead of
   // starting a fresh run (consumed once).
   private pendingResumeRunId: string | null = null
+  private pendingResumeThreadId: string | null = null
   private pendingResumeCursor: string | null = null
+  private pendingResumeItems: Array<RunAgentResumeItem> | null = null
+  private activeResumeThreadId: string | null = null
+  private activeResumeRunId: string | null = null
   // Track the legacy `body` option and the canonical `forwardedProps`
   // option as separate slots so that `updateOptions({ forwardedProps })`
   // doesn't wipe a previously-set `body` (and vice versa). They are
@@ -167,6 +184,10 @@ export class ChatClient<
       onSubscriptionChange: (isSubscribed: boolean) => void
       onConnectionStatusChange: (status: ConnectionStatus) => void
       onSessionGeneratingChange: (isGenerating: boolean) => void
+      onResumeStateChange: (
+        resumeState: ChatResumeState | null,
+        pendingInterrupts: Array<ChatPendingInterrupt>,
+      ) => void
       onCustomEvent: (
         eventType: string,
         data: unknown,
@@ -224,8 +245,18 @@ export class ChatClient<
           options.onConnectionStatusChange || (() => {}),
         onSessionGeneratingChange:
           options.onSessionGeneratingChange || (() => {}),
+        onResumeStateChange: options.onResumeStateChange || (() => {}),
         onCustomEvent: options.onCustomEvent || (() => {}),
       },
+    }
+
+    if (options.initialResumeSnapshot) {
+      this.lastResume = { ...options.initialResumeSnapshot.resumeState }
+      this.pendingInterrupts = [
+        ...(options.initialResumeSnapshot.pendingInterrupts ?? []),
+      ]
+      this.pendingInterruptRunId =
+        this.pendingInterrupts.length > 0 ? this.lastResume.runId : null
     }
 
     // Create StreamProcessor with event handlers.
@@ -473,6 +504,11 @@ export class ChatClient<
   ): void {
     if (chunk.type === 'RUN_STARTED') {
       const chunkRunId = getChunkRunId(chunk) ?? chunk.runId
+      this.activeResumeThreadId =
+        'threadId' in chunk && typeof chunk.threadId === 'string'
+          ? chunk.threadId
+          : this.activeResumeThreadId
+      this.activeResumeRunId = chunkRunId
       this.activeRunIds.add(chunkRunId)
       this.persistor?.onRunStarted(chunkRunId)
       this.setSessionGenerating(true)
@@ -508,9 +544,79 @@ export class ChatClient<
       // state. (A stream that merely ends without a terminal is an interruption
       // and keeps its resume state so it can be continued.)
       const runId = getChunkRunId(chunk)
-      if (!runId || this.lastResume?.runId === runId) {
+      const threadId =
+        'threadId' in chunk && typeof chunk.threadId === 'string'
+          ? chunk.threadId
+          : this.activeResumeThreadId
+      const cursor =
+        'cursor' in chunk && typeof chunk.cursor === 'string'
+          ? chunk.cursor
+          : undefined
+      if (
+        chunk.type === 'RUN_FINISHED' &&
+        chunk.outcome?.type === 'interrupt'
+      ) {
+        const interruptedRunId =
+          this.currentRunId &&
+          (cursor || this.lastResume?.runId === this.currentRunId)
+            ? this.currentRunId
+            : (runId ?? this.activeResumeRunId ?? this.currentRunId ?? '')
+        const resumeTarget =
+          this.lastResume?.runId === interruptedRunId ? this.lastResume : null
+        if (cursor) {
+          this.lastResume = {
+            threadId: threadId ?? this.threadId,
+            runId: interruptedRunId,
+            cursor,
+          }
+        } else if (!resumeTarget) {
+          this.pendingInterrupts = []
+          this.pendingInterruptRunId = null
+          this.pendingInterruptResumeItems.clear()
+          this.notifyResumeStateChange()
+          return
+        }
+        this.pendingInterruptRunId = interruptedRunId
+        this.pendingInterrupts = [...chunk.outcome.interrupts]
+        this.pendingInterruptResumeItems.clear()
+        this.notifyResumeStateChange()
+        return
+      }
+
+      const isRunlessSessionError = chunk.type === 'RUN_ERROR' && !runId
+      const isTrackedRunTerminal = Boolean(
+        runId && this.lastResume?.runId === runId,
+      )
+      const isPendingInterruptRunTerminal = Boolean(
+        runId && this.pendingInterruptRunId === runId,
+      )
+      const isCurrentRunTerminal = Boolean(
+        (runId && this.currentRunId === runId) ||
+        (this.currentRunId && this.lastResume?.runId === this.currentRunId),
+      )
+      const isCurrentStreamTerminal =
+        this.isLoading && chunk.type === 'RUN_FINISHED' && !runId
+      if (
+        isRunlessSessionError ||
+        isTrackedRunTerminal ||
+        isPendingInterruptRunTerminal ||
+        isCurrentRunTerminal ||
+        isCurrentStreamTerminal
+      ) {
         this.lastResume = null
       }
+      if (
+        isRunlessSessionError ||
+        isTrackedRunTerminal ||
+        isPendingInterruptRunTerminal ||
+        isCurrentRunTerminal ||
+        isCurrentStreamTerminal
+      ) {
+        this.pendingInterrupts = []
+        this.pendingInterruptRunId = null
+        this.pendingInterruptResumeItems.clear()
+      }
+      this.notifyResumeStateChange()
       return
     }
     const cursor =
@@ -518,7 +624,12 @@ export class ChatClient<
         ? chunk.cursor
         : undefined
     if (cursor && this.currentRunId) {
-      this.lastResume = { runId: this.currentRunId, cursor }
+      this.lastResume = {
+        threadId: this.activeResumeThreadId ?? this.threadId,
+        runId: this.currentRunId,
+        cursor,
+      }
+      this.notifyResumeStateChange()
     }
   }
 
@@ -528,8 +639,12 @@ export class ChatClient<
    * to resume across a full reload; in-session reconnects use it automatically
    * via {@link maybeAutoResume}.
    */
-  getResumeState(): { runId: string; cursor: string } | null {
+  getResumeState(): ChatResumeState | null {
     return this.lastResume ? { ...this.lastResume } : null
+  }
+
+  getPendingInterrupts(): Array<ChatPendingInterrupt> {
+    return [...this.pendingInterrupts]
   }
 
   /**
@@ -538,11 +653,25 @@ export class ChatClient<
    * the tracked in-session state. No-op (returns false) when there is nothing to
    * resume or a stream is already in flight.
    */
-  resume(state?: { runId: string; cursor: string }): Promise<boolean> {
+  resume(state?: ChatResumeState): Promise<boolean> {
     const target = state ?? this.lastResume
     if (!target || this.isLoading) return Promise.resolve(false)
+    this.pendingResumeThreadId = target.threadId
     this.pendingResumeRunId = target.runId
     this.pendingResumeCursor = target.cursor
+    return this.streamResponse()
+  }
+
+  resumeInterrupts(
+    resume: Array<RunAgentResumeItem>,
+    state?: ChatResumeState,
+  ): Promise<boolean> {
+    const target = state ?? this.lastResume
+    if (!target || this.isLoading) return Promise.resolve(false)
+    this.pendingResumeThreadId = target.threadId
+    this.pendingResumeRunId = target.runId
+    this.pendingResumeCursor = target.cursor
+    this.pendingResumeItems = [...resume]
     return this.streamResponse()
   }
 
@@ -591,6 +720,13 @@ export class ChatClient<
     this.sessionGenerating = isGenerating
     this.callbacksRef.current.onSessionGeneratingChange(isGenerating)
     this.devtoolsBridge.emitSnapshot()
+  }
+
+  private notifyResumeStateChange(): void {
+    this.callbacksRef.current.onResumeStateChange(
+      this.getResumeState(),
+      this.getPendingInterrupts(),
+    )
   }
 
   private resetSessionGenerating(): void {
@@ -834,7 +970,7 @@ export class ChatClient<
    *     ],
    *     id: 'custom-message-id'
    *   },
-   *   { model: 'gpt-4-audio' }
+   *   { model: 'gpt-5.5' }
    * )
    * ```
    */
@@ -846,6 +982,11 @@ export class ChatClient<
     const emptyMessage = typeof content === 'string' && !content.trim()
     if (emptyMessage || this.isLoading) {
       return
+    }
+    if (this.pendingInterrupts.length > 0 && this.lastResume) {
+      throw new Error(
+        'ChatClient: cannot send normal input while pending interrupts exist. Use resumeInterrupts() instead.',
+      )
     }
     // Normalize input to extract content, id, and validate
     const normalizedContent = this.normalizeMessageInput(content)
@@ -882,6 +1023,11 @@ export class ChatClient<
    */
   async append(message: UIMessage | ModelMessage): Promise<void> {
     this.mountDevtools()
+    if (this.pendingInterrupts.length > 0 && this.lastResume) {
+      throw new Error(
+        'ChatClient: cannot append normal input while pending interrupts exist. Use resumeInterrupts() instead.',
+      )
+    }
     // Normalize the message to ensure it has id and createdAt
     const normalizedMessage = normalizeToUIMessage(message, generateMessageId)
 
@@ -925,14 +1071,23 @@ export class ChatClient<
     // Track generation so a superseded stream's cleanup doesn't clobber the new one
     const generation = ++this.streamGeneration
     // Resuming reuses the original runId so the server replays that run's events.
+    const resumeThreadId = this.pendingResumeThreadId
     const resumeRunId = this.pendingResumeRunId
     const resumeCursor = this.pendingResumeCursor
+    const resumeItems = this.pendingResumeItems
+    const isResumeRequest = Boolean(
+      resumeThreadId || resumeRunId || resumeCursor || resumeItems,
+    )
+    this.pendingResumeThreadId = null
     this.pendingResumeRunId = null
     this.pendingResumeCursor = null
+    this.pendingResumeItems = null
     const runId =
       resumeRunId ??
       `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     this.currentRunId = runId
+    this.activeResumeThreadId = resumeThreadId ?? this.threadId
+    this.activeResumeRunId = runId
 
     this.setIsLoading(true)
     this.setStatus('submitted')
@@ -951,7 +1106,7 @@ export class ChatClient<
 
     try {
       // Get UIMessages with parts (preserves approval state and client tool results)
-      const messages = this.processor.getMessages()
+      const messages = isResumeRequest ? [] : this.processor.getMessages()
       const clientTools = new Map(this.clientToolsRef.current)
       const runtimeContext = this.context
 
@@ -1012,7 +1167,7 @@ export class ChatClient<
       // JSON Schema; sending a Standard Schema instance directly would
       // serialize to an unusable shape.
       const runContext = {
-        threadId: this.threadId,
+        threadId: resumeThreadId ?? this.threadId,
         runId,
         clientTools: Array.from(clientTools.values()).map((t) => ({
           name: t.name,
@@ -1023,8 +1178,9 @@ export class ChatClient<
         })),
         forwardedProps: { ...mergedBody },
         ...(resumeCursor ? { cursor: resumeCursor } : {}),
+        ...(resumeItems ? { resume: resumeItems } : {}),
       }
-      this.devtoolsBridge.beginRun(runContext.runId, this.threadId)
+      this.devtoolsBridge.beginRun(runContext.runId, runContext.threadId)
       activeDevtoolsRunId = runContext.runId
       this.devtoolsBridge.emitRunLifecycle(
         'run:created',
@@ -1260,6 +1416,15 @@ export class ChatClient<
     }
     this.processor.clearMessages()
     this.persistor?.remove()
+    this.lastResume = null
+    this.pendingInterrupts = []
+    this.pendingInterruptRunId = null
+    this.pendingInterruptResumeItems.clear()
+    this.pendingResumeThreadId = null
+    this.pendingResumeRunId = null
+    this.pendingResumeCursor = null
+    this.pendingResumeItems = null
+    this.notifyResumeStateChange()
     this.setError(undefined)
     this.events.messagesCleared()
   }
@@ -1312,6 +1477,35 @@ export class ChatClient<
         : undefined,
     )
 
+    const pendingInterrupt = this.pendingInterrupts.find(
+      (interrupt) =>
+        interrupt.toolCallId === result.toolCallId ||
+        interrupt.id === result.toolCallId,
+    )
+    if (pendingInterrupt && this.lastResume) {
+      const resumeItem: RunAgentResumeItem = {
+        interruptId: pendingInterrupt.id,
+        status: 'resolved',
+        payload:
+          result.state === 'output-error'
+            ? { error: result.errorText || 'Tool execution failed' }
+            : result.output,
+      }
+      const resumeItems = this.collectPendingInterruptResumeItems(resumeItem)
+      if (!resumeItems) {
+        return
+      }
+      if (this.isLoading) {
+        this.queuePostStreamAction(async () => {
+          await this.resumeInterrupts(resumeItems)
+        })
+        return
+      }
+
+      await this.resumeInterrupts(resumeItems)
+      return
+    }
+
     // If stream is in progress, queue continuation check for after it ends
     if (this.isLoading) {
       this.queuePostStreamAction(() => this.checkForContinuation())
@@ -1339,6 +1533,9 @@ export class ChatClient<
     id: string // approval.id, not toolCallId
     approved: boolean
   }): Promise<void> {
+    const pendingInterrupt = this.pendingInterrupts.find(
+      (interrupt) => interrupt.id === response.id,
+    )
     // Find the tool call ID from the approval ID
     const messages = this.processor.getMessages()
     let foundToolCallId: string | undefined
@@ -1366,6 +1563,25 @@ export class ChatClient<
     this.processor.addToolApprovalResponse(response.id, response.approved)
     this.devtoolsBridge.emitSnapshot()
 
+    if (pendingInterrupt && this.lastResume) {
+      const resumeItems = this.collectPendingInterruptResumeItems({
+        interruptId: response.id,
+        status: response.approved ? 'resolved' : 'cancelled',
+        payload: { approved: response.approved },
+      })
+      if (!resumeItems) {
+        return
+      }
+      if (this.isLoading) {
+        this.queuePostStreamAction(async () => {
+          await this.resumeInterrupts(resumeItems)
+        })
+        return
+      }
+      await this.resumeInterrupts(resumeItems)
+      return
+    }
+
     // If stream is in progress, queue continuation check for after it ends
     if (this.isLoading) {
       this.queuePostStreamAction(() => this.checkForContinuation())
@@ -1373,6 +1589,23 @@ export class ChatClient<
     }
 
     await this.checkForContinuation()
+  }
+
+  private collectPendingInterruptResumeItems(
+    resumeItem: RunAgentResumeItem,
+  ): Array<RunAgentResumeItem> | null {
+    this.pendingInterruptResumeItems.set(resumeItem.interruptId, resumeItem)
+    const resumeItems: Array<RunAgentResumeItem> = []
+    for (const interrupt of this.pendingInterrupts) {
+      const answeredInterrupt = this.pendingInterruptResumeItems.get(
+        interrupt.id,
+      )
+      if (!answeredInterrupt) {
+        return null
+      }
+      resumeItems.push(answeredInterrupt)
+    }
+    return resumeItems
   }
 
   /**
@@ -1589,6 +1822,10 @@ export class ChatClient<
     if (options.onSessionGeneratingChange !== undefined) {
       this.callbacksRef.current.onSessionGeneratingChange =
         options.onSessionGeneratingChange
+    }
+    if (options.onResumeStateChange !== undefined) {
+      this.callbacksRef.current.onResumeStateChange =
+        options.onResumeStateChange
     }
     if (options.onCustomEvent !== undefined) {
       this.callbacksRef.current.onCustomEvent = options.onCustomEvent

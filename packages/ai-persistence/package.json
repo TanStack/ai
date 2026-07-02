@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-persistence",
   "version": "0.1.0",
-  "description": "Headless persistence layer for TanStack AI — durable runs, message history, an append-only AG-UI event log, durable streams, approvals, artifacts, and resumable runs (runId + cursor) as composable chat() middleware (withPersistence, defineChatPersistence, memoryPersistence).",
+  "description": "Headless AIPersistence layer for TanStack AI — durable runs, message history, append-only AG-UI public events, interrupts, artifacts, and resumable runs as composable chat() middleware (withPersistence, defineAIPersistence, memoryPersistence; defineChatPersistence is deprecated compatibility).",
   "author": "",
   "license": "MIT",
   "repository": {

@@ -49,6 +49,7 @@ import type {
 } from './types'
 import type {
   ContentPart,
+  Interrupt,
   MessagePart,
   ModelMessage,
   StreamChunk,
@@ -1295,11 +1296,72 @@ export class StreamProcessor {
     this.finishReason = chunk.finishReason ?? null
     this.activeRuns.delete(chunk.runId)
 
+    if (chunk.outcome?.type === 'interrupt') {
+      this.handleInterrupts(chunk.outcome.interrupts)
+    }
+
     if (this.activeRuns.size === 0) {
       this.isDone = true
       this.completeAllToolCalls()
       this.finalizeStream()
     }
+  }
+
+  private handleInterrupts(interrupts: Array<Interrupt>): void {
+    for (const interrupt of interrupts) {
+      const metadata =
+        interrupt.metadata && typeof interrupt.metadata === 'object'
+          ? interrupt.metadata
+          : {}
+      const kind = typeof metadata.kind === 'string' ? metadata.kind : undefined
+      const toolCallId = interrupt.toolCallId
+      if (!toolCallId) continue
+
+      const toolName =
+        typeof metadata.toolName === 'string'
+          ? metadata.toolName
+          : this.findToolCallName(toolCallId)
+      const input = Object.hasOwn(metadata, 'input') ? metadata.input : {}
+
+      if (kind === 'approval' || interrupt.reason === 'approval_required') {
+        const resolvedMessageId =
+          this.getActiveAssistantMessageId() ??
+          this.toolCallToMessage.get(toolCallId)
+        if (resolvedMessageId) {
+          this.messages = updateToolCallApproval(
+            this.messages,
+            resolvedMessageId,
+            toolCallId,
+            interrupt.id,
+          )
+          this.emitMessagesChange()
+        }
+
+        this.events.onApprovalRequest?.({
+          toolCallId,
+          toolName,
+          input,
+          approvalId: interrupt.id,
+        })
+        continue
+      }
+
+      if (kind === 'client_tool' || interrupt.reason === 'client_tool_input') {
+        this.events.onToolCall?.({
+          toolCallId,
+          toolName,
+          input,
+        })
+      }
+    }
+  }
+
+  private findToolCallName(toolCallId: string): string {
+    for (const state of this.messageStates.values()) {
+      const toolCall = state.toolCalls.get(toolCallId)
+      if (toolCall) return toolCall.name
+    }
+    return ''
   }
 
   /**
@@ -1522,10 +1584,15 @@ export class StreamProcessor {
   /**
    * Handle CUSTOM event.
    *
-   * Handles special custom events emitted by the TextEngine (not adapters):
-   * - 'tool-input-available': Client tool needs execution. Fires onToolCall.
-   * - 'approval-requested': Tool needs user approval. Updates tool-call part
-   *   state and fires onApprovalRequest.
+   * Handles custom events consumed by the processor:
+   * - 'tool-input-available': Legacy/replay-compatible input for client tool
+   *   execution. Fires onToolCall.
+   * - 'approval-requested': Legacy/replay-compatible input for tool approval.
+   *   Updates tool-call part state and fires onApprovalRequest.
+   *
+   * Current core streams represent user-actionable waits through
+   * RUN_FINISHED.outcome.type === 'interrupt'; these custom events are not the
+   * source of truth for new emissions.
    *
    * @see docs/chat-architecture.md#client-tools-and-approval-flows — Full flow details
    */
@@ -1756,6 +1823,13 @@ export class StreamProcessor {
       return
     }
 
+    // RUN_FINISHED interrupt handling can mark the rendered part as waiting on
+    // user action before the completion safety net runs. Keep the parsed
+    // argument bookkeeping above, but do not downgrade that visible state.
+    if (this.isToolCallPartAwaitingUserAction(toolCall.id)) {
+      return
+    }
+
     // Update UIMessage
     this.messages = updateToolCallPart(this.messages, messageId, {
       id: toolCall.id,
@@ -1772,6 +1846,18 @@ export class StreamProcessor {
       toolCall.id,
       'input-complete',
       toolCall.arguments,
+    )
+  }
+
+  private isToolCallPartAwaitingUserAction(toolCallId: string): boolean {
+    return this.messages.some((msg) =>
+      msg.parts.some(
+        (part) =>
+          part.type === 'tool-call' &&
+          part.id === toolCallId &&
+          (part.state === 'approval-requested' ||
+            part.state === 'approval-responded'),
+      ),
     )
   }
 

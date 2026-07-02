@@ -1,6 +1,6 @@
 /**
  * SQLite backend. Wraps a SQLite client in the shared `SqlDriver` and assembles
- * a `ChatPersistence` via `@tanstack/ai-persistence-sql`.
+ * a `SqlPersistence` via `@tanstack/ai-persistence-sql`.
  *
  * Two client paths:
  * - convenience: `sqlitePersistence({ path })` lazily opens a `node:sqlite`
@@ -8,10 +8,14 @@
  * - BYO: pass `{ db }` — an existing `node:sqlite` `DatabaseSync` OR a
  *   `better-sqlite3` `Database` (both expose `prepare(sql).run/all(...params)`).
  */
-import { DatabaseSync } from 'node:sqlite'
+import { createRequire } from 'node:module'
 import { createSqlPersistence } from '@tanstack/ai-persistence-sql'
-import type { SqlDriver, SqlRow } from '@tanstack/ai-persistence-sql'
-import type { ChatPersistence, PersistenceMode } from '@tanstack/ai-persistence'
+import type {
+  SqlDriver,
+  SqlPersistence,
+  SqlRow,
+} from '@tanstack/ai-persistence-sql'
+import type { PersistenceMode } from '@tanstack/ai-persistence'
 
 /** The subset of a SQLite client the driver needs (node:sqlite & better-sqlite3 both satisfy it). */
 interface SqliteClient {
@@ -28,10 +32,29 @@ export interface SqliteDriverOptions {
   db?: SqliteClient
 }
 
+type DatabaseSyncConstructor = new (path: string) => SqliteClient
+
+function loadNodeSqliteDatabaseSync(): DatabaseSyncConstructor {
+  try {
+    const require = createRequire(import.meta.url)
+    const sqlite = require('node:sqlite') as {
+      DatabaseSync?: DatabaseSyncConstructor
+    }
+    if (typeof sqlite.DatabaseSync === 'function') {
+      return sqlite.DatabaseSync
+    }
+  } catch {
+    // Throw the package-level guidance below.
+  }
+  throw new Error(
+    'sqlitePersistence({ path }) requires node:sqlite, available in Node 22+. Pass sqlitePersistence({ db }) with a compatible SQLite handle on older Node versions.',
+  )
+}
+
 /** Build a {@link SqlDriver} backed by SQLite. */
 export function createSqliteDriver(opts?: SqliteDriverOptions): SqlDriver {
   const client: SqliteClient =
-    opts?.db ?? (new DatabaseSync(opts?.path ?? ':memory:') as SqliteClient)
+    opts?.db ?? new (loadNodeSqliteDatabaseSync())(opts?.path ?? ':memory:')
 
   const driver: SqlDriver = {
     dialect: 'sqlite',
@@ -60,10 +83,10 @@ export interface SqlitePersistenceOptions extends SqliteDriverOptions {
   migrate?: boolean
 }
 
-/** SQLite-backed {@link ChatPersistence}. */
+/** SQLite-backed {@link SqlPersistence}. */
 export function sqlitePersistence(
   opts?: SqlitePersistenceOptions,
-): ChatPersistence {
+): SqlPersistence {
   const driver = createSqliteDriver({ path: opts?.path, db: opts?.db })
   return createSqlPersistence(driver, {
     mode: opts?.mode,

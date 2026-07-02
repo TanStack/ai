@@ -18,6 +18,7 @@ import type {
 import type {
   BaseEvent as AGUIBaseEvent,
   CustomEvent as AGUICustomEvent,
+  Interrupt as AGUIInterrupt,
   MessagesSnapshotEvent as AGUIMessagesSnapshotEvent,
   ReasoningEncryptedValueEvent as AGUIReasoningEncryptedValueEvent,
   ReasoningEndEvent as AGUIReasoningEndEvent,
@@ -25,8 +26,10 @@ import type {
   ReasoningMessageEndEvent as AGUIReasoningMessageEndEvent,
   ReasoningMessageStartEvent as AGUIReasoningMessageStartEvent,
   ReasoningStartEvent as AGUIReasoningStartEvent,
+  ResumeEntry as AGUIResumeEntry,
   RunErrorEvent as AGUIRunErrorEvent,
   RunFinishedEvent as AGUIRunFinishedEvent,
+  RunFinishedOutcome as AGUIRunFinishedOutcome,
   RunStartedEvent as AGUIRunStartedEvent,
   StateDeltaEvent as AGUIStateDeltaEvent,
   StateSnapshotEvent as AGUIStateSnapshotEvent,
@@ -959,6 +962,13 @@ export interface TextOptions<
   cursor?: string
 
   /**
+   * AG-UI interrupt resume responses supplied by the client on a follow-up run.
+   * Threaded through request parsing now so later runtime behavior can resolve
+   * upstream-native interrupts.
+   */
+  resume?: Array<RunAgentResumeItem>
+
+  /**
    * Middleware capability context for this run. The engine populates it with
    * the live middleware context so harness adapters that declare
    * `requires: [SomeCapability]` can read provided capabilities from inside
@@ -1046,6 +1056,12 @@ export type {
  * future release.
  */
 export type UsageTotals = TokenUsage
+
+export type Interrupt = AGUIInterrupt
+
+export type RunFinishedOutcome = AGUIRunFinishedOutcome
+
+export type RunAgentResumeItem = AGUIResumeEntry
 
 /**
  * Emitted when a run completes successfully.
@@ -1372,11 +1388,15 @@ export interface UIResourceEvent extends CustomEvent {
 /**
  * Public type for streams returned by `chat({ outputSchema, stream: true })`.
  *
- * Yields all standard `StreamChunk` lifecycle events plus the three tagged
- * `CUSTOM` events the orchestrator can emit through this path:
+ * Yields all standard `StreamChunk` lifecycle events plus the typed
+ * structured-output `CUSTOM` event emitted through this path:
  * - `structured-output.complete` — terminal event with typed `value.object: T`
- * - `approval-requested` — server tool needs approval (pauses the run)
- * - `tool-input-available` — client tool invocation (pauses the run)
+ *
+ * User-actionable waits, such as tool approval and client tool input, are
+ * represented by `RUN_FINISHED.outcome.type === 'interrupt'` in current core
+ * streams. Legacy `approval-requested` and `tool-input-available` custom
+ * events may still be consumed for replay and backward compatibility, but
+ * they are not the current source of truth for waits.
  *
  * Each variant has a literal `name`, so a single discriminated narrow gives
  * you a typed `value` with no helper or cast:
@@ -1385,8 +1405,6 @@ export interface UIResourceEvent extends CustomEvent {
  * for await (const chunk of stream) {
  *   if (chunk.type === 'CUSTOM' && chunk.name === 'structured-output.complete') {
  *     chunk.value.object // typed as T
- *   } else if (chunk.type === 'CUSTOM' && chunk.name === 'approval-requested') {
- *     chunk.value.toolCallId // typed as string
  *   }
  * }
  * ```

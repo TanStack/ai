@@ -5,11 +5,14 @@ import type {
   AnyClientTool,
   InferSchemaType,
   ModelMessage,
+  RunAgentResumeItem,
   SchemaInput,
   StreamChunk,
 } from '@tanstack/ai/client'
 import type {
   ChatClientState,
+  ChatPendingInterrupt,
+  ChatResumeState,
   ConnectionStatus,
   InferredClientContext,
   StructuredOutputPart,
@@ -43,6 +46,12 @@ export function useChat<
   const [connectionStatus, setConnectionStatus] =
     useState<ConnectionStatus>('disconnected')
   const [sessionGenerating, setSessionGenerating] = useState(false)
+  const [resumeState, setResumeState] = useState<ChatResumeState | null>(
+    options.initialResumeSnapshot?.resumeState ?? null,
+  )
+  const [pendingInterrupts, setPendingInterrupts] = useState<
+    Array<ChatPendingInterrupt>
+  >(options.initialResumeSnapshot?.pendingInterrupts ?? [])
 
   type Partial = DeepPartial<InferSchemaType<NonNullable<TSchema>>>
   type Final = InferSchemaType<NonNullable<TSchema>>
@@ -63,6 +72,12 @@ export function useChat<
   // Track current options in a ref to avoid recreating client when options change
   const optionsRef = useRef<UseChatOptions<TTools, TSchema, TContext>>(options)
   optionsRef.current = options
+
+  const syncResumeState = useCallback((target: ChatClient | null) => {
+    if (!target) return
+    setResumeState(target.getResumeState())
+    setPendingInterrupts(target.getPendingInterrupts())
+  }, [])
 
   // Create ChatClient instance with callbacks to sync state
   const client = useMemo(() => {
@@ -92,6 +107,9 @@ export function useChat<
       }),
       ...(initialOptions.persistence !== undefined && {
         persistence: initialOptions.persistence,
+      }),
+      ...(initialOptions.initialResumeSnapshot !== undefined && {
+        initialResumeSnapshot: initialOptions.initialResumeSnapshot,
       }),
       ...(initialOptions.context !== undefined && {
         context: initialOptions.context,
@@ -135,6 +153,7 @@ export function useChat<
       onLoadingChange: (newIsLoading: boolean) => {
         if (activeClientRef.current !== instance) return
         setIsLoading(newIsLoading)
+        syncResumeState(instance)
       },
       onErrorChange: (newError: Error | undefined) => {
         if (activeClientRef.current !== instance) return
@@ -156,10 +175,15 @@ export function useChat<
         if (activeClientRef.current !== instance) return
         setSessionGenerating(isGenerating)
       },
+      onResumeStateChange: (nextResumeState, nextPendingInterrupts) => {
+        if (activeClientRef.current !== instance) return
+        setResumeState(nextResumeState)
+        setPendingInterrupts(nextPendingInterrupts)
+      },
     })
     activeClientRef.current = instance
     return instance
-  }, [clientId])
+  }, [clientId, syncResumeState])
 
   useEffect(() => {
     const clientMessages = client.getMessages()
@@ -230,21 +254,33 @@ export function useChat<
 
   const sendMessage = useCallback(
     async (content: string | MultimodalContent) => {
-      await client.sendMessage(content)
+      try {
+        await client.sendMessage(content)
+      } finally {
+        syncResumeState(client)
+      }
     },
-    [client],
+    [client, syncResumeState],
   )
 
   const append = useCallback(
     async (message: ModelMessage | UIMessage) => {
-      await client.append(message)
+      try {
+        await client.append(message)
+      } finally {
+        syncResumeState(client)
+      }
     },
-    [client],
+    [client, syncResumeState],
   )
 
   const reload = useCallback(async () => {
-    await client.reload()
-  }, [client])
+    try {
+      await client.reload()
+    } finally {
+      syncResumeState(client)
+    }
+  }, [client, syncResumeState])
 
   const stop = useCallback(() => {
     client.stop()
@@ -252,7 +288,8 @@ export function useChat<
 
   const clear = useCallback(() => {
     client.clear()
-  }, [client])
+    syncResumeState(client)
+  }, [client, syncResumeState])
 
   const setMessagesManually = useCallback(
     (newMessages: Array<UIMessage<TTools>>) => {
@@ -277,8 +314,30 @@ export function useChat<
   const addToolApprovalResponse = useCallback(
     async (response: { id: string; approved: boolean }) => {
       await client.addToolApprovalResponse(response)
+      syncResumeState(client)
     },
-    [client],
+    [client, syncResumeState],
+  )
+
+  const resume = useCallback(
+    async (state?: ChatResumeState) => {
+      const result = await client.resume(state ?? undefined)
+      syncResumeState(client)
+      return result
+    },
+    [client, syncResumeState],
+  )
+
+  const resumeInterrupts = useCallback(
+    async (resumeItems: Array<RunAgentResumeItem>, state?: ChatResumeState) => {
+      const result = await client.resumeInterrupts(
+        resumeItems,
+        state ?? undefined,
+      )
+      syncResumeState(client)
+      return result
+    },
+    [client, syncResumeState],
   )
 
   // The "active" structured-output part is the one on the assistant message
@@ -346,6 +405,10 @@ export function useChat<
     clear,
     addToolResult,
     addToolApprovalResponse,
+    resumeState,
+    pendingInterrupts,
+    resume,
+    resumeInterrupts,
     partial,
     final,
   } as unknown as UseChatReturn<TTools, TSchema>

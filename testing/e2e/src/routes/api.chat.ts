@@ -6,12 +6,28 @@ import {
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import type { StreamChunk } from '@tanstack/ai'
+import {
+  memoryPersistence,
+  withPersistence,
+  type AIPersistence,
+} from '@tanstack/ai-persistence'
 import type { Feature, Provider } from '@/lib/types'
 import { createTextAdapter } from '@/lib/providers'
 import { featureConfigs } from '@/lib/features'
 import { guitarRecommendationSchema, recipeSchema } from '@/lib/schemas'
 
 const DEFAULT_SYSTEM_PROMPT = 'You are a helpful assistant for a guitar store.'
+const persistenceByTestId = new Map<string, AIPersistence>()
+
+function getPersistence(testId: string | undefined): AIPersistence {
+  const key = testId ?? '__default__'
+  let persistence = persistenceByTestId.get(key)
+  if (!persistence) {
+    persistence = memoryPersistence()
+    persistenceByTestId.set(key, persistence)
+  }
+  return persistence
+}
 
 export const Route = createFileRoute('/api/chat')({
   server: {
@@ -48,6 +64,7 @@ export const Route = createFileRoute('/api/chat')({
           typeof fp.previousInteractionId === 'string'
             ? fp.previousInteractionId
             : undefined
+        const serverPersistence = fp.serverPersistence === true
 
         const config = featureConfigs[feature]
         const modelOverride = config.modelOverrides?.[provider]
@@ -68,6 +85,13 @@ export const Route = createFileRoute('/api/chat')({
 
         try {
           const systemPrompt = config.systemPrompt ?? DEFAULT_SYSTEM_PROMPT
+          const middleware = serverPersistence
+            ? [
+                withPersistence(getPersistence(testId), {
+                  features: ['messages', 'durable-replay', 'interrupts'],
+                }),
+              ]
+            : undefined
 
           // Test-only flag — when truthy, the route promotes the system
           // prompt to object-form and attaches Anthropic `cache_control`
@@ -119,6 +143,9 @@ export const Route = createFileRoute('/api/chat')({
                   messages: params.messages,
                   threadId: params.threadId,
                   runId: params.runId,
+                  ...(params.cursor && { cursor: params.cursor }),
+                  ...(params.resume && { resume: params.resume }),
+                  ...(middleware && { middleware }),
                   outputSchema: guitarRecommendationSchema,
                   stream: true,
                   abortController,
@@ -131,6 +158,9 @@ export const Route = createFileRoute('/api/chat')({
                     messages: params.messages,
                     threadId: params.threadId,
                     runId: params.runId,
+                    ...(params.cursor && { cursor: params.cursor }),
+                    ...(params.resume && { resume: params.resume }),
+                    ...(middleware && { middleware }),
                     outputSchema: recipeSchema,
                     stream: true,
                     abortController,
@@ -145,6 +175,9 @@ export const Route = createFileRoute('/api/chat')({
                       messages: params.messages,
                       threadId: params.threadId,
                       runId: params.runId,
+                      ...(params.cursor && { cursor: params.cursor }),
+                      ...(params.resume && { resume: params.resume }),
+                      ...(middleware && { middleware }),
                       outputSchema: guitarRecommendationSchema,
                       stream: true,
                       abortController,
@@ -158,6 +191,9 @@ export const Route = createFileRoute('/api/chat')({
                       messages: params.messages,
                       threadId: params.threadId,
                       runId: params.runId,
+                      ...(params.cursor && { cursor: params.cursor }),
+                      ...(params.resume && { resume: params.resume }),
+                      ...(middleware && { middleware }),
                       ...(rootObservabilityMetadata && {
                         metadata: rootObservabilityMetadata,
                       }),

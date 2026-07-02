@@ -3,6 +3,7 @@ import type { Context as AGUIContext } from '@ag-ui/core'
 import type {
   JSONSchema,
   ModelMessage,
+  RunAgentResumeItem,
   SchemaInput,
   Tool,
   UIMessage,
@@ -29,6 +30,23 @@ function isValidParts(value: unknown): value is Array<{ type: string }> {
   return true
 }
 
+function getRequestCursor(body: unknown): string | undefined {
+  if (!body || typeof body !== 'object' || !('cursor' in body)) {
+    return undefined
+  }
+
+  const cursor = (body as { cursor?: unknown }).cursor
+  if (cursor === undefined) {
+    return undefined
+  }
+
+  if (typeof cursor !== 'string') {
+    throw new AGUIError('Request body cursor must be a string when provided.')
+  }
+
+  return cursor
+}
+
 /**
  * Parse and validate an HTTP request body as an AG-UI `RunAgentInput`.
  *
@@ -38,7 +56,7 @@ function isValidParts(value: unknown): value is Array<{ type: string }> {
  * reasoning/activity/developer-role normalization internally.
  *
  * @throws An error with a migration-pointing message when the body does
- *   not conform to AG-UI 0.0.52 `RunAgentInputSchema`. Surface this as a
+ *   not conform to AG-UI `RunAgentInputSchema`. Surface this as a
  *   400 Bad Request to the client.
  */
 export function chatParamsFromRequestBody(body: unknown): Promise<{
@@ -49,6 +67,8 @@ export function chatParamsFromRequestBody(body: unknown): Promise<{
   tools: Array<{ name: string; description: string; parameters: JSONSchema }>
   forwardedProps: Record<string, unknown>
   state: unknown
+  cursor?: string
+  resume?: Array<RunAgentResumeItem>
   /**
    * @deprecated Use `aguiContext` instead. This alias will be removed in a
    * future release.
@@ -69,6 +89,12 @@ export function chatParamsFromRequestBody(body: unknown): Promise<{
   }
 
   const parsed = parseResult.data
+  let cursor: string | undefined
+  try {
+    cursor = getRequestCursor(body)
+  } catch (cause) {
+    return Promise.reject(cause)
+  }
   const aguiContext = parsed.context
 
   // AG-UI Zod uses `.strip()` so extra fields like `parts` on messages are
@@ -101,6 +127,8 @@ export function chatParamsFromRequestBody(body: unknown): Promise<{
     }>,
     forwardedProps: (parsed.forwardedProps ?? {}) as Record<string, unknown>,
     state: parsed.state,
+    cursor,
+    resume: parsed.resume,
     context: aguiContext,
     aguiContext,
   })

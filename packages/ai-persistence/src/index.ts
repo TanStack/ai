@@ -1,18 +1,32 @@
 // Store contracts + aggregate
-export { defineChatPersistence } from './types'
+export {
+  AppendConflictError,
+  defineAIPersistence,
+  defineChatPersistence,
+  validatePersistenceFeatures,
+} from './types'
 export type {
   PersistenceMode,
+  PersistenceFeature,
   PersistedEvent,
+  PersistedPublicEvent,
+  PersistedInternalEvent,
   MessageStore,
   RunStatus,
   RunRecord,
   RunStore,
   EventLog,
+  PublicEventStore,
+  InternalEventStore,
   DurableRunStream,
+  InterruptRecord,
+  InterruptStore,
   ApprovalRecord,
   ApprovalStore,
+  MetadataStore,
   ArtifactRecord,
   ArtifactStore,
+  AIPersistence,
   ChatPersistence,
 } from './types'
 
@@ -37,7 +51,11 @@ export { createResumeSource } from './resume-source'
 // History projection (events -> StreamChunk[] timeline for devtools / replay)
 export { loadRunHistory } from './history'
 
-// Approval controller
+// Interrupt controller
+export { createInterruptController } from './interrupts'
+export type { InterruptController } from './interrupts'
+
+// Deprecated approval compatibility
 export { createApprovalController } from './approval-controller'
 export type { ApprovalController } from './approval-controller'
 
@@ -45,11 +63,14 @@ export type { ApprovalController } from './approval-controller'
 export {
   PersistenceCapability,
   EventsCapability,
+  InterruptsCapability,
   ApprovalsCapability,
   getPersistence,
   providePersistence,
   getEvents,
   provideEvents,
+  getInterrupts,
+  provideInterrupts,
   getApprovals,
   provideApprovals,
   LocksCapability,

@@ -22,8 +22,8 @@ export function createTestSqliteDriver(path = ':memory:'): SqlDriver {
       const rows = db.prepare(sql).all(...(params as Array<never>))
       return Promise.resolve(rows as Array<T>)
     },
-    // node:sqlite has no async transaction API; run statements directly. The
-    // stores only group DDL here, which is acceptable for tests.
+    // node:sqlite has no async transaction API; stores use constraints plus
+    // reconciliation for CAS when this is a pass-through.
     transaction(fn) {
       return fn(driver)
     },

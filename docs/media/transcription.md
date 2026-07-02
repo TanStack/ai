@@ -2,7 +2,7 @@
 title: Transcription
 id: transcription
 order: 4
-description: "Transcribe audio to text with OpenAI Whisper and GPT-4o-transcribe via TanStack AI's generateTranscription() API."
+description: "Transcribe audio to text with OpenAI Whisper and current transcription models via TanStack AI's generateTranscription() API."
 keywords:
   - tanstack ai
   - transcription
@@ -15,14 +15,14 @@ keywords:
 
 # Audio Transcription
 
-TanStack AI provides support for audio transcription (speech-to-text) through dedicated transcription adapters. This guide covers how to convert spoken audio into text using OpenAI's Whisper and GPT-4o transcription models.
+TanStack AI provides support for audio transcription (speech-to-text) through dedicated transcription adapters. This guide covers how to convert spoken audio into text using OpenAI's Whisper and current transcription models.
 
 ## Overview
 
 Audio transcription is handled by transcription adapters that follow the same tree-shakeable architecture as other adapters in TanStack AI.
 
 Currently supported:
-- **OpenAI**: Whisper-1, GPT-4o-transcribe, GPT-4o-mini-transcribe
+- **OpenAI**: Whisper-1 and current OpenAI transcription models
 - **fal.ai**: Whisper, Wizper, speech-to-text turbo, ElevenLabs speech-to-text
 
 ## Basic Usage
@@ -247,9 +247,7 @@ await transcribeAudio('./meeting-recording.mp3')
 | Model | Description | Use Case |
 |-------|-------------|----------|
 | `whisper-1` | Whisper large-v2 | General transcription |
-| `gpt-4o-transcribe` | GPT-4o-based transcription | Higher accuracy |
-| `gpt-4o-transcribe-diarize` | With speaker diarization | Multi-speaker audio |
-| `gpt-4o-mini-transcribe` | Faster, lighter model | Cost-effective |
+| Current OpenAI transcription models | Latest dedicated speech-to-text models | Higher accuracy and model-specific capabilities |
 
 ### Supported Audio Formats
 
@@ -559,4 +557,3 @@ const adapter = createOpenaiTranscription('whisper-1', 'your-openai-api-key')
 5. **Prompting**: Use the `prompt` option to provide context or expected vocabulary (e.g., technical terms, names).
 
 6. **Timestamps**: Request `verbose_json` format and enable `timestamp_granularities: ['word', 'segment']` when you need timing information for captions or synchronization.
-

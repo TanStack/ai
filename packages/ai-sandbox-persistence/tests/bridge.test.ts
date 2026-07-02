@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { DatabaseSync } from 'node:sqlite'
-import { getLocks, InMemoryLockStore } from '@tanstack/ai'
-import { getSandboxStore } from '@tanstack/ai-sandbox'
+import {
+  getLocks,
+  getSandboxStore,
+  InMemoryLockStore,
+} from '@tanstack/ai-sandbox'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import type { SqlDriver, SqlRow } from '@tanstack/ai-persistence-sql'
 import { createSqlSandboxStore, withPersistenceBridge } from '../src/index'
@@ -69,7 +72,7 @@ describe('withPersistenceBridge', () => {
   it('provides the durable LockStore and SandboxStore into the context', async () => {
     const persistence = memoryPersistence()
     const lock = new InMemoryLockStore()
-    persistence.locks = lock
+    persistence.stores.locks = lock
     const sandboxStore = createSqlSandboxStore(sqliteDriver())
 
     const mw = withPersistenceBridge({ persistence, sandboxStore })

@@ -22,10 +22,6 @@ interface Migration {
 function v1(dialect: Dialect): Array<string> {
   const ts = bigIntColumn(dialect)
   return [
-    `CREATE TABLE IF NOT EXISTS message_threads (
-      thread_id TEXT PRIMARY KEY,
-      messages TEXT NOT NULL
-    )`,
     `CREATE TABLE IF NOT EXISTS runs (
       run_id TEXT PRIMARY KEY,
       thread_id TEXT NOT NULL,
@@ -35,31 +31,39 @@ function v1(dialect: Dialect): Array<string> {
       error TEXT,
       usage TEXT
     )`,
-    `CREATE TABLE IF NOT EXISTS run_events (
+    `CREATE TABLE IF NOT EXISTS public_events (
       run_id TEXT NOT NULL,
       seq INTEGER NOT NULL,
       event TEXT NOT NULL,
       PRIMARY KEY (run_id, seq)
     )`,
-    `CREATE TABLE IF NOT EXISTS approvals (
-      approval_id TEXT PRIMARY KEY,
+    `CREATE TABLE IF NOT EXISTS internal_events (
+      run_id TEXT NOT NULL,
+      namespace TEXT NOT NULL,
+      seq INTEGER NOT NULL,
+      type TEXT NOT NULL,
+      payload TEXT NOT NULL,
+      PRIMARY KEY (run_id, namespace, seq)
+    )`,
+    `CREATE TABLE IF NOT EXISTS messages (
+      thread_id TEXT PRIMARY KEY,
+      messages TEXT NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS interrupts (
+      interrupt_id TEXT PRIMARY KEY,
       run_id TEXT NOT NULL,
       thread_id TEXT NOT NULL,
       status TEXT NOT NULL,
       requested_at ${ts} NOT NULL,
       resolved_at ${ts},
-      payload TEXT NOT NULL
+      payload TEXT NOT NULL,
+      response TEXT
     )`,
-    `CREATE TABLE IF NOT EXISTS artifacts (
-      artifact_id TEXT PRIMARY KEY,
-      run_id TEXT NOT NULL,
-      thread_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      mime_type TEXT NOT NULL,
-      size INTEGER NOT NULL,
-      bytes_b64 TEXT,
-      external_url TEXT,
-      created_at ${ts} NOT NULL
+    `CREATE TABLE IF NOT EXISTS metadata (
+      scope TEXT NOT NULL,
+      key TEXT NOT NULL,
+      value TEXT NOT NULL,
+      PRIMARY KEY (scope, key)
     )`,
   ]
 }
@@ -97,7 +101,7 @@ export async function migrate(driver: SqlDriver): Promise<void> {
         `INSERT INTO _tanstack_ai_migrations (version, applied_at) VALUES (${param(
           tx.dialect,
           1,
-        )}, ${param(tx.dialect, 2)})`,
+        )}, ${param(tx.dialect, 2)}) ON CONFLICT (version) DO NOTHING`,
         [migration.version, Date.now()],
       )
     })

@@ -6,14 +6,14 @@
  * unchanged; this adds the read-from-store side.
  */
 import type { StreamChunk } from '@tanstack/ai'
-import type { EventLog } from './types'
+import type { PublicEventStore } from './types'
 
 /**
  * Collect a run's persisted events into an ordered `StreamChunk[]` timeline.
  * `afterSeq` skips events up to and including that sequence (e.g. for paging).
  */
 export async function loadRunHistory(
-  events: EventLog,
+  events: PublicEventStore,
   runId: string,
   opts?: { afterSeq?: number },
 ): Promise<Array<StreamChunk>> {

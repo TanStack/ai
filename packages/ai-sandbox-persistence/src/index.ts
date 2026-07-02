@@ -5,27 +5,25 @@
  *   sandbox `ensure` algorithm can resume the same provider sandbox across
  *   processes (the in-memory default only resumes within one process).
  * - {@link withPersistenceBridge} — middleware that provides the durable
- *   `LockStore` (from a `ChatPersistence`) and/or a durable `SandboxStore` into
+ *   `LockStore` (from an `AIPersistence`) and/or a durable `SandboxStore` into
  *   the capabilities `withSandbox` optionally requires. Ordered BETWEEN
  *   `withPersistence` and `withSandbox`.
  *
  * This package depends on both sides so neither core package has to: persistence
  * stays sandbox-free, and ai-sandbox doesn't force a SQL dependency.
  */
+import { defineChatMiddleware } from '@tanstack/ai'
 import {
   LocksCapability,
-  defineChatMiddleware,
-  provideLocks,
-} from '@tanstack/ai'
-import {
   SandboxStoreCapability,
+  provideLocks,
   provideSandboxStore,
 } from '@tanstack/ai-sandbox'
 import { param } from '@tanstack/ai-persistence-sql'
 import type { SqlDriver } from '@tanstack/ai-persistence-sql'
 import type { SandboxRecord, SandboxStore } from '@tanstack/ai-sandbox'
 import type { ChatMiddleware } from '@tanstack/ai'
-import type { ChatPersistence } from '@tanstack/ai-persistence'
+import type { AIPersistence } from '@tanstack/ai-persistence'
 
 /** Durable, SQL-backed {@link SandboxStore}. Creates its table lazily on first use. */
 export function createSqlSandboxStore(driver: SqlDriver): SandboxStore {
@@ -106,8 +104,8 @@ export function createSqlSandboxStore(driver: SqlDriver): SandboxStore {
 }
 
 export interface PersistenceBridgeOptions {
-  /** Source of the durable `LockStore` (uses `persistence.locks` when present). */
-  persistence?: ChatPersistence
+  /** Source of the durable `LockStore` (uses `persistence.stores.locks` when present). */
+  persistence?: AIPersistence
   /** Durable sandbox store (e.g. {@link createSqlSandboxStore}). */
   sandboxStore?: SandboxStore
 }
@@ -121,7 +119,7 @@ export interface PersistenceBridgeOptions {
 export function withPersistenceBridge(
   opts: PersistenceBridgeOptions,
 ): ChatMiddleware {
-  const lock = opts.persistence?.locks
+  const lock = opts.persistence?.stores.locks
   const provides = [
     ...(lock ? [LocksCapability] : []),
     ...(opts.sandboxStore ? [SandboxStoreCapability] : []),

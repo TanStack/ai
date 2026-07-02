@@ -3,7 +3,15 @@ import {
   StreamProcessor,
   createReplayStream,
 } from '../src/activities/chat/stream/processor'
+import { chat } from '../src/activities/chat/index'
 import { EventType } from '../src/types'
+import {
+  createMockAdapter,
+  collectChunks,
+  serverTool,
+  clientTool,
+  ev as chatEv,
+} from './test-utils'
 import type { Mock } from 'vitest'
 import type { StreamProcessorEvents } from '../src/activities/chat/stream/processor'
 import type { ChunkStrategy } from '../src/activities/chat/stream/types'
@@ -1143,6 +1151,129 @@ describe('StreamProcessor', () => {
       })
     })
 
+    it('should handle approval interrupts on RUN_FINISHED', () => {
+      const events = spyEvents()
+      const processor = new StreamProcessor({ events })
+      processor.prepareAssistantMessage()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.toolStart('tc-1', 'dangerousTool'))
+      processor.processChunk(ev.toolArgs('tc-1', '{"action":"delete"}'))
+      processor.processChunk({
+        ...ev.runFinished('tool_calls'),
+        outcome: {
+          type: 'interrupt',
+          interrupts: [
+            {
+              id: 'approval-1',
+              reason: 'approval_required',
+              toolCallId: 'tc-1',
+              metadata: {
+                kind: 'approval',
+                toolName: 'dangerousTool',
+                input: { action: 'delete' },
+              },
+            },
+          ],
+        },
+      })
+
+      const toolCallPart = processor
+        .getMessages()[0]!
+        .parts.find((p) => p.type === 'tool-call') as ToolCallPart
+      expect(toolCallPart.state).toBe('approval-requested')
+      expect(toolCallPart.approval).toEqual({
+        id: 'approval-1',
+        needsApproval: true,
+      })
+      expect(events.onApprovalRequest).toHaveBeenCalledWith({
+        toolCallId: 'tc-1',
+        toolName: 'dangerousTool',
+        input: { action: 'delete' },
+        approvalId: 'approval-1',
+      })
+    })
+
+    it('should handle client tool interrupts on RUN_FINISHED', () => {
+      const events = spyEvents()
+      const processor = new StreamProcessor({ events })
+      processor.prepareAssistantMessage()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.toolStart('tc-1', 'clientSearch'))
+      processor.processChunk(ev.toolArgs('tc-1', '{"query":"test"}'))
+      processor.processChunk({
+        ...ev.runFinished('tool_calls'),
+        outcome: {
+          type: 'interrupt',
+          interrupts: [
+            {
+              id: 'client_tool_tc-1',
+              reason: 'client_tool_input',
+              toolCallId: 'tc-1',
+              metadata: {
+                kind: 'client_tool',
+                toolName: 'clientSearch',
+                input: { query: 'test' },
+              },
+            },
+          ],
+        },
+      })
+
+      expect(events.onToolCall).toHaveBeenCalledWith({
+        toolCallId: 'tc-1',
+        toolName: 'clientSearch',
+        input: { query: 'test' },
+      })
+    })
+
+    it('should deliver client tool interrupt before stream end for mixed tool streams', async () => {
+      const order: Array<string> = []
+      const events = spyEvents()
+      events.onToolCall.mockImplementation(() => {
+        order.push('tool-call')
+      })
+      events.onStreamEnd.mockImplementation(() => {
+        order.push('stream-end')
+      })
+      const processor = new StreamProcessor({ events })
+      processor.prepareAssistantMessage()
+
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            chatEv.runStarted(),
+            chatEv.toolStart('call_server', 'searchTools'),
+            chatEv.toolArgs('call_server', '{"query":"hello"}'),
+            chatEv.toolStart('call_client', 'showNotification'),
+            chatEv.toolArgs('call_client', '{"message":"done"}'),
+            chatEv.runFinished('tool_calls'),
+          ],
+        ],
+      })
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Search and notify' }],
+        tools: [
+          serverTool('searchTools', () => ({ results: ['a', 'b'] })),
+          clientTool('showNotification'),
+        ],
+      })
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      for (const streamChunk of chunks) {
+        processor.processChunk(streamChunk)
+      }
+
+      expect(events.onToolCall).toHaveBeenCalledWith({
+        toolCallId: 'call_client',
+        toolName: 'showNotification',
+        input: { message: 'done' },
+      })
+      expect(order).toEqual(['tool-call', 'stream-end'])
+    })
+
     it('addToolApprovalResponse should approve a tool call', () => {
       const events = spyEvents()
       const processor = new StreamProcessor({ events })
@@ -1998,6 +2129,51 @@ describe('StreamProcessor', () => {
 
       await StreamProcessor.replay(recording, { events })
       expect(events.onStreamEnd).toHaveBeenCalledTimes(1)
+    })
+
+    it('replay should consume legacy approval-requested CUSTOM chunks after RUN_FINISHED', async () => {
+      const events = spyEvents()
+      const recording = {
+        version: '1.0' as const,
+        timestamp: Date.now(),
+        chunks: [
+          { chunk: ev.runStarted(), timestamp: Date.now(), index: 0 },
+          {
+            chunk: ev.toolStart('tc-1', 'dangerousTool'),
+            timestamp: Date.now(),
+            index: 1,
+          },
+          {
+            chunk: ev.toolArgs('tc-1', '{"action":"delete"}'),
+            timestamp: Date.now(),
+            index: 2,
+          },
+          {
+            chunk: ev.runFinished('tool_calls'),
+            timestamp: Date.now(),
+            index: 3,
+          },
+          {
+            chunk: ev.custom('approval-requested', {
+              toolCallId: 'tc-1',
+              toolName: 'dangerousTool',
+              input: { action: 'delete' },
+              approval: { id: 'approval-1', needsApproval: true },
+            }),
+            timestamp: Date.now(),
+            index: 4,
+          },
+        ],
+      }
+
+      await StreamProcessor.replay(recording, { events })
+
+      expect(events.onApprovalRequest).toHaveBeenCalledWith({
+        toolCallId: 'tc-1',
+        toolName: 'dangerousTool',
+        input: { action: 'delete' },
+        approvalId: 'approval-1',
+      })
     })
   })
 

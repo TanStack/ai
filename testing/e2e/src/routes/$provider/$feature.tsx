@@ -1,9 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { uiMessagesToWire } from '@tanstack/ai'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { clientTools } from '@tanstack/ai-client'
-import type { ChatClientPersistence, UIMessage } from '@tanstack/ai-client'
+import type {
+  ChatClientPersistence,
+  ChatPendingInterrupt,
+  ChatResumeSnapshot,
+  UIMessage,
+} from '@tanstack/ai-client'
 import type { GeminiInteractionsCustomEventValue } from '@tanstack/ai-gemini/experimental'
 import type { Feature, Mode, Provider } from '@/lib/types'
 import { ALL_FEATURES, ALL_PROVIDERS } from '@/lib/types'
@@ -23,9 +28,11 @@ export const Route = createFileRoute('/$provider/$feature')({
   component: FeaturePage,
   validateSearch: (search: Record<string, unknown>) => {
     const port =
-      typeof search.aimockPort === 'string'
-        ? parseInt(search.aimockPort, 10)
-        : undefined
+      typeof search.aimockPort === 'number'
+        ? search.aimockPort
+        : typeof search.aimockPort === 'string'
+          ? parseInt(search.aimockPort, 10)
+          : undefined
     const rawMode = typeof search.mode === 'string' ? search.mode : undefined
     return {
       testId: typeof search.testId === 'string' ? search.testId : undefined,
@@ -36,6 +43,10 @@ export const Route = createFileRoute('/$provider/$feature')({
           : undefined,
       persistence:
         search.persistence === 'localStorage' ? 'localStorage' : undefined,
+      serverPersistence:
+        search.serverPersistence === true ||
+        search.serverPersistence === 1 ||
+        search.serverPersistence === '1',
     }
   },
 })
@@ -83,6 +94,63 @@ const isProvider = (s: string): s is Provider =>
   (ALL_PROVIDERS as ReadonlyArray<string>).includes(s)
 const isFeature = (s: string): s is Feature =>
   (ALL_FEATURES as ReadonlyArray<string>).includes(s)
+
+function parsePendingInterrupts(value: unknown): Array<ChatPendingInterrupt> {
+  if (!Array.isArray(value)) return []
+
+  const interrupts: Array<ChatPendingInterrupt> = []
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue
+    const interrupt = item as Record<string, unknown>
+    if (
+      typeof interrupt.id !== 'string' ||
+      typeof interrupt.reason !== 'string'
+    ) {
+      continue
+    }
+    interrupts.push({
+      id: interrupt.id,
+      reason: interrupt.reason,
+      ...(typeof interrupt.toolCallId === 'string'
+        ? { toolCallId: interrupt.toolCallId }
+        : {}),
+      ...(interrupt.metadata !== undefined
+        ? { metadata: interrupt.metadata }
+        : {}),
+    })
+  }
+  return interrupts
+}
+
+function parseStoredResumeSnapshot(
+  raw: string | null,
+): ChatResumeSnapshot | null {
+  if (!raw) return null
+  const parsed = JSON.parse(raw) as unknown
+  if (!parsed || typeof parsed !== 'object') return null
+  const value = parsed as Record<string, unknown>
+  const resumeState =
+    value.resumeState && typeof value.resumeState === 'object'
+      ? (value.resumeState as Record<string, unknown>)
+      : value
+
+  if (
+    typeof resumeState.threadId !== 'string' ||
+    typeof resumeState.runId !== 'string' ||
+    typeof resumeState.cursor !== 'string'
+  ) {
+    return null
+  }
+
+  return {
+    resumeState: {
+      threadId: resumeState.threadId,
+      runId: resumeState.runId,
+      cursor: resumeState.cursor,
+    },
+    pendingInterrupts: parsePendingInterrupts(value.pendingInterrupts),
+  }
+}
 
 function FeaturePage() {
   const { provider, feature } = Route.useParams()
@@ -212,8 +280,10 @@ function ChatFeature({
 
   const tools = needsApproval ? clientTools(addToCartClient) : undefined
 
-  const { testId, aimockPort, persistence } = Route.useSearch()
+  const { testId, aimockPort, persistence, serverPersistence } =
+    Route.useSearch()
   const persistenceEnabled = persistence === 'localStorage'
+  const serverPersistenceEnabled = serverPersistence === true
   const baseChatId = `e2e-chat-${testId ?? `${provider}-${feature}`}`
   // When persistence is on, expose a tiny thread switcher so e2e can verify that
   // changing the `id` in place swaps to that id's own persisted history (the
@@ -224,6 +294,20 @@ function ChatFeature({
     persistenceEnabled ? 'a' : null,
   )
   const chatId = activeThread ? `${baseChatId}:${activeThread}` : baseChatId
+  const resumeStorageKey = `${chatId}:resume-state`
+  const attemptedStoredResumeRef = useRef(false)
+  const [initialResumeSnapshot] = useState<ChatResumeSnapshot | null>(() => {
+    if (!serverPersistenceEnabled) return null
+    if (typeof window === 'undefined') return null
+    try {
+      return parseStoredResumeSnapshot(
+        window.localStorage.getItem(resumeStorageKey),
+      )
+    } catch {
+      window.localStorage.removeItem(resumeStorageKey)
+      return null
+    }
+  })
 
   const [structuredObject, setStructuredObject] = useState<unknown>(null)
   const [contentDeltaCount, setContentDeltaCount] = useState(0)
@@ -240,6 +324,8 @@ function ChatFeature({
               data?: unknown
               threadId: string
               runId: string
+              cursor?: string
+              resume?: Array<unknown>
             },
             options: { signal: AbortSignal },
           ) =>
@@ -266,6 +352,8 @@ function ChatFeature({
                 tools: [],
                 context: [],
                 forwardedProps: input.data,
+                ...(input.cursor ? { cursor: input.cursor } : {}),
+                ...(input.resume ? { resume: input.resume } : {}),
               }),
               signal: options.signal,
             }),
@@ -277,6 +365,9 @@ function ChatFeature({
     sendMessage,
     isLoading,
     addToolApprovalResponse,
+    resumeState,
+    pendingInterrupts,
+    resume,
     stop,
     clear,
   } = useChat({
@@ -289,9 +380,13 @@ function ChatFeature({
       testId,
       aimockPort,
       previousInteractionId: interactionId,
+      serverPersistence: serverPersistenceEnabled,
     },
     persistence:
-      persistence === 'localStorage' ? localStoragePersistence : undefined,
+      persistence === 'localStorage' || serverPersistenceEnabled
+        ? localStoragePersistence
+        : undefined,
+    ...(initialResumeSnapshot ? { initialResumeSnapshot } : {}),
     onCustomEvent: (eventType, data) => {
       if (eventType === 'structured-output.complete') {
         const value = data as { object: unknown; raw: string } | undefined
@@ -310,8 +405,57 @@ function ChatFeature({
     },
   })
 
+  useEffect(() => {
+    if (!serverPersistenceEnabled || attemptedStoredResumeRef.current) return
+    attemptedStoredResumeRef.current = true
+    if (!initialResumeSnapshot) return
+    if ((initialResumeSnapshot.pendingInterrupts ?? []).length > 0) return
+    try {
+      void resume(initialResumeSnapshot.resumeState)
+    } catch {
+      window.localStorage.removeItem(resumeStorageKey)
+    }
+  }, [
+    initialResumeSnapshot,
+    resume,
+    resumeStorageKey,
+    serverPersistenceEnabled,
+  ])
+
+  useEffect(() => {
+    if (!serverPersistenceEnabled || !attemptedStoredResumeRef.current) return
+    if (resumeState) {
+      const snapshot: ChatResumeSnapshot = {
+        resumeState,
+        pendingInterrupts,
+      }
+      window.localStorage.setItem(resumeStorageKey, JSON.stringify(snapshot))
+    } else {
+      window.localStorage.removeItem(resumeStorageKey)
+    }
+  }, [
+    pendingInterrupts,
+    resumeState,
+    resumeStorageKey,
+    serverPersistenceEnabled,
+  ])
+
   return (
     <>
+      {resumeState && (
+        <div
+          data-testid="resume-state"
+          data-thread-id={resumeState.threadId}
+          data-run-id={resumeState.runId}
+          data-cursor={resumeState.cursor}
+          hidden
+        />
+      )}
+      <div
+        data-testid="pending-interrupt-count"
+        data-count={String(pendingInterrupts.length)}
+        hidden
+      />
       {interactionId && (
         <div data-testid="gemini-interaction-id" hidden>
           {interactionId}
@@ -373,6 +517,7 @@ function ChatFeature({
         addToolApprovalResponse={
           needsApproval ? addToolApprovalResponse : undefined
         }
+        hasPendingInterrupt={pendingInterrupts.length > 0}
         showImageInput={showImageInput}
         onStop={stop}
       />

@@ -1854,6 +1854,59 @@ describe('useChat', () => {
   })
 
   describe('sessionGenerating', () => {
+    it('updates resume state from live interrupt chunks without a wrapper call', async () => {
+      const chunks: Array<StreamChunk> = [
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'run-live-interrupt',
+          threadId: 'thread-live',
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: 'msg-live-interrupt',
+          timestamp: Date.now(),
+          delta: 'needs input',
+          cursor: 'content-cursor',
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'run-live-interrupt',
+          threadId: 'thread-live',
+          timestamp: Date.now(),
+          cursor: 'terminal-cursor',
+          outcome: {
+            type: 'interrupt',
+            interrupts: [
+              {
+                id: 'interrupt-live',
+                reason: 'client_tool_input',
+              },
+            ],
+          },
+        },
+      ]
+      const adapter: SubscribeConnectionAdapter = {
+        subscribe: async function* () {
+          for (const chunk of chunks) yield chunk
+        },
+        send: vi.fn(async () => {}),
+      }
+
+      const { result } = renderUseChat({ connection: adapter, live: true })
+
+      await waitFor(() => {
+        expect(result.current.resumeState).toEqual({
+          threadId: 'thread-live',
+          runId: 'run-live-interrupt',
+          cursor: 'terminal-cursor',
+        })
+        expect(result.current.pendingInterrupts).toEqual([
+          expect.objectContaining({ id: 'interrupt-live' }),
+        ])
+      })
+    })
+
     it('should expose sessionGenerating and update from stream run events', async () => {
       // Build chunks as a typed StreamChunk array so each yielded event is
       // checked against the AGUI discriminated union — no inline `as any`.

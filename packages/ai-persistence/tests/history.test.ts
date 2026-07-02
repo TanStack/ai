@@ -13,29 +13,51 @@ const text = (delta: string): StreamChunk => ({
 
 describe('loadRunHistory', () => {
   it('projects a persisted run into an ordered StreamChunk timeline', async () => {
-    const { events } = memoryPersistence()
-    await events!.append('r1', 1, text('a'))
-    await events!.append('r1', 2, text('b'))
-    await events!.append('r1', 3, text('c'))
+    const { publicEvents, internalEvents } = memoryPersistence().stores
+    await publicEvents!.append({
+      runId: 'r1',
+      expectedSeq: 0,
+      event: text('a'),
+    })
+    await internalEvents!.append({
+      runId: 'r1',
+      expectedSeq: 0,
+      namespace: 'checkpoint',
+      type: 'saved',
+      payload: { hidden: true },
+    })
+    await publicEvents!.append({
+      runId: 'r1',
+      expectedSeq: 1,
+      event: text('b'),
+    })
 
-    const timeline = await loadRunHistory(events!, 'r1')
+    const timeline = await loadRunHistory(publicEvents!, 'r1')
     expect(
       timeline.map((c) =>
         c.type === 'TEXT_MESSAGE_CONTENT' ? c.delta : c.type,
       ),
-    ).toEqual(['a', 'b', 'c'])
+    ).toEqual(['a', 'b'])
   })
 
   it('supports paging via afterSeq', async () => {
-    const { events } = memoryPersistence()
-    await events!.append('r1', 1, text('a'))
-    await events!.append('r1', 2, text('b'))
-    const timeline = await loadRunHistory(events!, 'r1', { afterSeq: 1 })
+    const { publicEvents } = memoryPersistence().stores
+    await publicEvents!.append({
+      runId: 'r1',
+      expectedSeq: 0,
+      event: text('a'),
+    })
+    await publicEvents!.append({
+      runId: 'r1',
+      expectedSeq: 1,
+      event: text('b'),
+    })
+    const timeline = await loadRunHistory(publicEvents!, 'r1', { afterSeq: 1 })
     expect(timeline).toHaveLength(1)
   })
 
   it('returns an empty timeline for an unknown run', async () => {
-    const { events } = memoryPersistence()
-    expect(await loadRunHistory(events!, 'nope')).toEqual([])
+    const { publicEvents } = memoryPersistence().stores
+    expect(await loadRunHistory(publicEvents!, 'nope')).toEqual([])
   })
 })

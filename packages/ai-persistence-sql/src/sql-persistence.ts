@@ -1,5 +1,5 @@
 /**
- * Assemble a {@link ChatPersistence} backed by SQL stores over a {@link SqlDriver}.
+ * Assemble a {@link SqlPersistence} backed by SQL stores over a {@link SqlDriver}.
  *
  * By default the schema is migrated on first use (`migrate: true`); pass
  * `migrate: false` to manage the schema yourself (call {@link migrate}/{@link ddl}).
@@ -14,13 +14,23 @@
 import { migrate as runMigrations } from './migrations'
 import {
   createApprovalStore,
-  createArtifactStore,
   createEventLog,
+  createInternalEventStore,
+  createInterruptStore,
+  createLegacyEventLog,
   createMessageStore,
+  createMetadataStore,
   createRunStore,
 } from './stores'
 import type { SqlDriver } from './driver'
-import type { ChatPersistence, PersistenceMode } from '@tanstack/ai-persistence'
+import type {
+  AIPersistence,
+  ApprovalStore,
+  MessageStore,
+  PersistenceMode,
+  RunStore,
+} from '@tanstack/ai-persistence'
+import type { LegacyEventLog } from './stores'
 
 export interface SqlPersistenceOptions {
   mode?: PersistenceMode
@@ -28,10 +38,23 @@ export interface SqlPersistenceOptions {
   migrate?: boolean
 }
 
+export type SqlPersistence = AIPersistence & {
+  /** @deprecated Use stores.messages. */
+  messages: MessageStore
+  /** @deprecated Use stores.runs. */
+  runs: RunStore
+  /** @deprecated Use stores.publicEvents. */
+  events: LegacyEventLog
+  /** @deprecated Use stores.interrupts. */
+  approvals: ApprovalStore
+  /** @deprecated Use feature-based configuration instead of mode. */
+  mode: PersistenceMode
+}
+
 export function createSqlPersistence(
   driver: SqlDriver,
   opts?: SqlPersistenceOptions,
-): ChatPersistence {
+): SqlPersistence {
   const shouldMigrate = opts?.migrate ?? true
 
   let migrated: Promise<void> | undefined
@@ -57,12 +80,26 @@ export function createSqlPersistence(
     },
   }
 
+  const messages = createMessageStore(gated)
+  const runs = createRunStore(gated)
+  const publicEvents = createEventLog(gated)
+  const internalEvents = createInternalEventStore(gated)
+  const interrupts = createInterruptStore(gated)
+  const metadata = createMetadataStore(gated)
+  const approvals = createApprovalStore(gated)
   return {
+    stores: {
+      messages,
+      runs,
+      publicEvents,
+      internalEvents,
+      interrupts,
+      metadata,
+    },
+    messages,
+    runs,
+    events: createLegacyEventLog(gated),
+    approvals,
     mode: opts?.mode ?? 'agent',
-    messages: createMessageStore(gated),
-    runs: createRunStore(gated),
-    events: createEventLog(gated),
-    approvals: createApprovalStore(gated),
-    artifacts: createArtifactStore(gated),
   }
 }

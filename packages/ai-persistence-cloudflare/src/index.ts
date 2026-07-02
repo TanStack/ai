@@ -6,12 +6,15 @@
  * COMPILE-VERIFIED ONLY: this package type-checks against real `@cloudflare`
  * types but is not runtime-verified here (it needs a Workers runtime). The D1
  * driver itself is unit-tested against a fake D1 so the adapter logic is
- * covered. R2-backed artifact bytes are a documented follow-up — artifacts
- * persist inline in D1 today.
+ * covered.
  */
 import { createSqlPersistence } from '@tanstack/ai-persistence-sql'
-import type { SqlDriver, SqlRow } from '@tanstack/ai-persistence-sql'
-import type { ChatPersistence, PersistenceMode } from '@tanstack/ai-persistence'
+import type {
+  SqlDriver,
+  SqlPersistence,
+  SqlRow,
+} from '@tanstack/ai-persistence-sql'
+import type { PersistenceMode } from '@tanstack/ai-persistence'
 import type { LockStore } from '@tanstack/ai'
 
 /** Build a {@link SqlDriver} over a Cloudflare D1 database (SQLite dialect). */
@@ -34,8 +37,8 @@ export function createD1Driver(d1: D1Database): SqlDriver {
         .all<T>()
       return result.results
     },
-    // D1 has no interactive transaction API (only batch); run statements
-    // directly. The stores only group DDL in a transaction, which is safe here.
+    // D1 has no interactive transaction API (only batch); stores use
+    // constraints plus reconciliation for CAS when this is a pass-through.
     transaction(fn) {
       return fn(driver)
     },
@@ -47,23 +50,28 @@ export interface CloudflarePersistenceOptions {
   d1: D1Database
   /** Optional Durable Object namespace for the distributed lock (see {@link createDurableObjectLockStore}). */
   durableObjects?: DurableObjectNamespace
-  /** Optional R2 bucket for artifact blobs (follow-up; artifacts persist in D1 for now). */
-  r2?: R2Bucket
   mode?: PersistenceMode
   /** Run migrations on first use (default true). */
   migrate?: boolean
 }
 
-/** Cloudflare-backed {@link ChatPersistence} (D1 SQL stores). */
+export type CloudflarePersistence = SqlPersistence & {
+  /** @deprecated Use stores.locks. */
+  locks?: LockStore
+}
+
+/** Cloudflare-backed {@link CloudflarePersistence} (D1 SQL stores). */
 export function cloudflarePersistence(
   opts: CloudflarePersistenceOptions,
-): ChatPersistence {
+): CloudflarePersistence {
   const persistence = createSqlPersistence(createD1Driver(opts.d1), {
     mode: opts.mode,
     migrate: opts.migrate,
-  })
+  }) as CloudflarePersistence
   if (opts.durableObjects) {
-    persistence.locks = createDurableObjectLockStore(opts.durableObjects)
+    const locks = createDurableObjectLockStore(opts.durableObjects)
+    persistence.stores.locks = locks
+    persistence.locks = locks
   }
   return persistence
 }

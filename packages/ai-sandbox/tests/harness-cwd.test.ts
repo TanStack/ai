@@ -3,6 +3,10 @@ import * as path from 'node:path'
 import { resolveHarnessCwd } from '../src/harness-cwd'
 import type { SandboxHandle } from '../src/contracts'
 
+function normalizePathSeparators(value: string): string {
+  return value.replaceAll('\\', '/')
+}
+
 function fakeHandle(
   provider: string,
   id: string,
@@ -23,8 +27,13 @@ describe('resolveHarnessCwd', () => {
   it('maps nested virtual paths under /workspace on local-process', () => {
     const root = '/tmp/tanstack-ai-sandboxes/abc'
     expect(
-      resolveHarnessCwd(fakeHandle('local-process', root), '/workspace/my-app'),
-    ).toBe(path.join(root, 'my-app'))
+      normalizePathSeparators(
+        resolveHarnessCwd(
+          fakeHandle('local-process', root),
+          '/workspace/my-app',
+        ),
+      ),
+    ).toBe(normalizePathSeparators(path.join(root, 'my-app')))
   })
 
   it('passes virtual paths through when workspaceRoot is /workspace', () => {

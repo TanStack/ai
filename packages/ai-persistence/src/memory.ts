@@ -1,21 +1,19 @@
-/**
- * In-memory {@link ChatPersistence} — the reference implementation of every
- * store. Correct within a single process (no durability across restarts); used
- * by tests, examples, and the devtools demo. Durable backends live in the
- * `@tanstack/ai-persistence-*` packages.
- */
 import { InMemoryLockStore } from '@tanstack/ai'
+import { encodeCursor } from './cursor'
+import { AppendConflictError, defineAIPersistence } from './types'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import type {
-  ApprovalRecord,
-  ApprovalStore,
+  AIPersistence,
   ArtifactRecord,
   ArtifactStore,
-  ChatPersistence,
-  EventLog,
+  InternalEventStore,
+  InterruptRecord,
+  InterruptStore,
   MessageStore,
-  PersistedEvent,
-  PersistenceMode,
+  MetadataStore,
+  PersistedInternalEvent,
+  PersistedPublicEvent,
+  PublicEventStore,
   RunRecord,
   RunStore,
 } from './types'
@@ -65,21 +63,73 @@ class MemoryRunStore implements RunStore {
   }
 }
 
-class MemoryEventLog implements EventLog {
-  private readonly logs = new Map<string, Array<PersistedEvent>>()
-  append(runId: string, seq: number, event: StreamChunk): Promise<void> {
-    const log = this.logs.get(runId)
-    if (log) log.push({ seq, event })
-    else this.logs.set(runId, [{ seq, event }])
-    return Promise.resolve()
+function stableJsonValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => stableJsonValue(item))
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, item]) => [key, stableJsonValue(item)]),
+    )
+  }
+  return value
+}
+
+function sameJsonValue(a: unknown, b: unknown): boolean {
+  return (
+    JSON.stringify(stableJsonValue(a)) === JSON.stringify(stableJsonValue(b))
+  )
+}
+
+class MemoryPublicEventStore implements PublicEventStore {
+  private readonly logs = new Map<string, Array<PersistedPublicEvent>>()
+  append(input: {
+    runId: string
+    expectedSeq: number
+    event: StreamChunk
+  }): Promise<PersistedPublicEvent> {
+    const log = this.logs.get(input.runId) ?? []
+    const targetSeq = input.expectedSeq + 1
+    const existingAtTarget = log.find((e) => e.seq === targetSeq)
+    if (existingAtTarget) {
+      if (sameJsonValue(existingAtTarget.event, input.event)) {
+        return Promise.resolve(existingAtTarget)
+      }
+      return Promise.reject(
+        new AppendConflictError(
+          `Public event append conflict for run ${input.runId} at seq ${targetSeq}`,
+        ),
+      )
+    }
+
+    const latest = log.at(-1)?.seq ?? 0
+    if (latest !== input.expectedSeq) {
+      return Promise.reject(
+        new AppendConflictError(
+          `Public event append conflict for run ${input.runId}: expected latest seq ${input.expectedSeq}, got ${latest}`,
+        ),
+      )
+    }
+
+    const persisted = {
+      seq: targetSeq,
+      event: input.event,
+      cursor: input.event.cursor ?? encodeCursor(input.runId, targetSeq),
+    }
+    log.push(persisted)
+    this.logs.set(input.runId, log)
+    return Promise.resolve(persisted)
   }
   read(
     runId: string,
     opts?: { afterSeq?: number },
-  ): AsyncIterable<PersistedEvent> {
+  ): AsyncIterable<PersistedPublicEvent> {
     const after = opts?.afterSeq ?? -Infinity
     const events = (this.logs.get(runId) ?? []).filter((e) => e.seq > after)
     return (async function* () {
+      await Promise.resolve()
       for (const e of events) yield e
     })()
   }
@@ -87,37 +137,163 @@ class MemoryEventLog implements EventLog {
     return Promise.resolve((this.logs.get(runId)?.length ?? 0) > 0)
   }
   latestSeq(runId: string): Promise<number> {
-    const log = this.logs.get(runId)
-    const last = log && log.length ? log[log.length - 1] : undefined
-    return Promise.resolve(last ? last.seq : 0)
+    return Promise.resolve(this.logs.get(runId)?.at(-1)?.seq ?? 0)
   }
 }
 
-class MemoryApprovalStore implements ApprovalStore {
-  private readonly approvals = new Map<string, ApprovalRecord>()
-  create(record: Omit<ApprovalRecord, 'resolvedAt'>): Promise<void> {
-    this.approvals.set(record.approvalId, { ...record })
-    return Promise.resolve()
-  }
-  resolve(approvalId: string, granted: boolean): Promise<void> {
-    const existing = this.approvals.get(approvalId)
-    if (existing) {
-      existing.status = granted ? 'granted' : 'denied'
-      existing.resolvedAt = Date.now()
-    }
-    return Promise.resolve()
-  }
-  get(approvalId: string): Promise<ApprovalRecord | null> {
-    return Promise.resolve(this.approvals.get(approvalId) ?? null)
-  }
-  decisionsForThread(threadId: string): Promise<Map<string, boolean>> {
-    const decisions = new Map<string, boolean>()
-    for (const a of this.approvals.values()) {
-      if (a.threadId === threadId && a.status !== 'pending') {
-        decisions.set(a.approvalId, a.status === 'granted')
+class MemoryInternalEventStore implements InternalEventStore {
+  private readonly logs = new Map<string, Array<PersistedInternalEvent>>()
+  append(input: {
+    runId: string
+    expectedSeq: number
+    namespace: string
+    type: string
+    payload: unknown
+  }): Promise<PersistedInternalEvent> {
+    const log = this.logs.get(input.runId) ?? []
+    const targetSeq = input.expectedSeq + 1
+    const existingAtTarget = log.find(
+      (e) => e.namespace === input.namespace && e.seq === targetSeq,
+    )
+    if (existingAtTarget) {
+      if (
+        existingAtTarget.type === input.type &&
+        sameJsonValue(existingAtTarget.payload, input.payload)
+      ) {
+        return Promise.resolve(existingAtTarget)
       }
+      return Promise.reject(
+        new AppendConflictError(
+          `Internal event append conflict for run ${input.runId} namespace ${input.namespace} at seq ${targetSeq}`,
+        ),
+      )
     }
-    return Promise.resolve(decisions)
+
+    const latest =
+      log.filter((e) => e.namespace === input.namespace).at(-1)?.seq ?? 0
+    if (latest !== input.expectedSeq) {
+      return Promise.reject(
+        new AppendConflictError(
+          `Internal event append conflict for run ${input.runId} namespace ${input.namespace}: expected latest seq ${input.expectedSeq}, got ${latest}`,
+        ),
+      )
+    }
+
+    const persisted = {
+      seq: targetSeq,
+      namespace: input.namespace,
+      type: input.type,
+      payload: input.payload,
+      cursor: encodeCursor(input.runId, targetSeq),
+    }
+    log.push(persisted)
+    this.logs.set(input.runId, log)
+    return Promise.resolve(persisted)
+  }
+  read(
+    runId: string,
+    opts?: { namespace?: string; afterSeq?: number },
+  ): AsyncIterable<PersistedInternalEvent> {
+    const after = opts?.afterSeq ?? -Infinity
+    const events = (this.logs.get(runId) ?? []).filter(
+      (e) =>
+        e.seq > after &&
+        (opts?.namespace === undefined || e.namespace === opts.namespace),
+    )
+    return (async function* () {
+      await Promise.resolve()
+      for (const e of events) yield e
+    })()
+  }
+  latestSeq(runId: string, namespace?: string): Promise<number> {
+    const log = this.logs.get(runId) ?? []
+    const filtered =
+      namespace === undefined
+        ? log
+        : log.filter((event) => event.namespace === namespace)
+    return Promise.resolve(filtered.at(-1)?.seq ?? 0)
+  }
+}
+
+class MemoryInterruptStore implements InterruptStore {
+  private readonly interrupts = new Map<string, InterruptRecord>()
+  create(record: Omit<InterruptRecord, 'resolvedAt'>): Promise<void> {
+    this.interrupts.set(record.interruptId, { ...record })
+    return Promise.resolve()
+  }
+  resolve(interruptId: string, response?: unknown): Promise<void> {
+    const existing = this.interrupts.get(interruptId)
+    if (existing) {
+      this.interrupts.set(interruptId, {
+        ...existing,
+        status: 'resolved',
+        resolvedAt: Date.now(),
+        response,
+      })
+    }
+    return Promise.resolve()
+  }
+  cancel(interruptId: string): Promise<void> {
+    const existing = this.interrupts.get(interruptId)
+    if (existing) {
+      this.interrupts.set(interruptId, {
+        ...existing,
+        status: 'cancelled',
+        resolvedAt: Date.now(),
+      })
+    }
+    return Promise.resolve()
+  }
+  get(interruptId: string): Promise<InterruptRecord | null> {
+    return Promise.resolve(this.interrupts.get(interruptId) ?? null)
+  }
+  list(threadId: string): Promise<Array<InterruptRecord>> {
+    return Promise.resolve(
+      [...this.interrupts.values()].filter(
+        (interrupt) => interrupt.threadId === threadId,
+      ),
+    )
+  }
+  listPending(threadId: string): Promise<Array<InterruptRecord>> {
+    return Promise.resolve(
+      [...this.interrupts.values()].filter(
+        (interrupt) =>
+          interrupt.threadId === threadId && interrupt.status === 'pending',
+      ),
+    )
+  }
+  listByRun(runId: string): Promise<Array<InterruptRecord>> {
+    return Promise.resolve(
+      [...this.interrupts.values()].filter(
+        (interrupt) => interrupt.runId === runId,
+      ),
+    )
+  }
+  listPendingByRun(runId: string): Promise<Array<InterruptRecord>> {
+    return Promise.resolve(
+      [...this.interrupts.values()].filter(
+        (interrupt) =>
+          interrupt.runId === runId && interrupt.status === 'pending',
+      ),
+    )
+  }
+}
+
+class MemoryMetadataStore implements MetadataStore {
+  private readonly values = new Map<string, unknown>()
+  get(scope: string, key: string): Promise<unknown | null> {
+    const storageKey = `${scope}:${key}`
+    return Promise.resolve(
+      this.values.has(storageKey) ? this.values.get(storageKey) : null,
+    )
+  }
+  set(scope: string, key: string, value: unknown): Promise<void> {
+    this.values.set(`${scope}:${key}`, value)
+    return Promise.resolve()
+  }
+  delete(scope: string, key: string): Promise<void> {
+    this.values.delete(`${scope}:${key}`)
+    return Promise.resolve()
   }
 }
 
@@ -137,20 +313,17 @@ class MemoryArtifactStore implements ArtifactStore {
   }
 }
 
-/**
- * Build an in-memory persistence aggregate. All stores are always present (the
- * `mode` only declares intended coverage); durability is per-process only.
- */
-export function memoryPersistence(opts?: {
-  mode?: PersistenceMode
-}): ChatPersistence {
-  return {
-    mode: opts?.mode ?? 'agent',
-    messages: new MemoryMessageStore(),
-    runs: new MemoryRunStore(),
-    events: new MemoryEventLog(),
-    approvals: new MemoryApprovalStore(),
-    artifacts: new MemoryArtifactStore(),
-    locks: new InMemoryLockStore(),
-  }
+export function memoryPersistence(): AIPersistence {
+  return defineAIPersistence({
+    stores: {
+      messages: new MemoryMessageStore(),
+      runs: new MemoryRunStore(),
+      publicEvents: new MemoryPublicEventStore(),
+      internalEvents: new MemoryInternalEventStore(),
+      interrupts: new MemoryInterruptStore(),
+      metadata: new MemoryMetadataStore(),
+      artifacts: new MemoryArtifactStore(),
+      locks: new InMemoryLockStore(),
+    },
+  })
 }

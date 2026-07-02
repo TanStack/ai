@@ -23,7 +23,10 @@ export type {
   // Client configuration types
   ChatClientPersistence,
   ChatClientOptions,
+  ChatPendingInterrupt,
   ClientContextOptionFromTools,
+  ChatResumeState,
+  ChatResumeSnapshot,
   ChatRequestBody,
   InferChatMessages,
   InferredClientContext,
@@ -72,7 +75,12 @@ export type {
   ExtractToolInput,
   ExtractToolOutput,
 } from './tool-types'
-export type { AnyClientTool } from '@tanstack/ai/client'
+export type {
+  AnyClientTool,
+  Interrupt,
+  RunAgentResumeItem,
+  RunFinishedOutcome,
+} from '@tanstack/ai/client'
 export type {
   RealtimeAdapter,
   RealtimeConnection,

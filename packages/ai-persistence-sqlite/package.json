@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-persistence-sqlite",
   "version": "0.1.0",
-  "description": "SQLite backend for TanStack AI persistence — durable runs, messages, event log, approvals, and artifacts over node:sqlite (zero-dep, Node 22+) or a bring-your-own better-sqlite3 handle.",
+  "description": "SQLite backend for TanStack AI persistence — durable runs, messages, events, interrupts, and metadata over node:sqlite (zero-dep, Node 22+) or a bring-your-own better-sqlite3 handle.",
   "author": "",
   "license": "MIT",
   "repository": {

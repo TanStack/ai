@@ -17,10 +17,13 @@ export {
   createMessageStore,
   createRunStore,
   createEventLog,
+  createLegacyEventLog,
+  createInternalEventStore,
+  createInterruptStore,
   createApprovalStore,
-  createArtifactStore,
+  createMetadataStore,
 } from './stores'
 
-// Assemble a ChatPersistence from a driver
+// Assemble a SqlPersistence from a driver
 export { createSqlPersistence } from './sql-persistence'
-export type { SqlPersistenceOptions } from './sql-persistence'
+export type { SqlPersistence, SqlPersistenceOptions } from './sql-persistence'

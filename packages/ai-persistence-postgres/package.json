@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-persistence-postgres",
   "version": "0.1.0",
-  "description": "Postgres backend for TanStack AI persistence — durable runs, messages, event log, approvals, and artifacts over node-postgres (pg) or a bring-your-own pool.",
+  "description": "Postgres backend for TanStack AI persistence — durable runs, messages, events, interrupts, and metadata over node-postgres (pg) or a bring-your-own pool.",
   "author": "",
   "license": "MIT",
   "repository": {

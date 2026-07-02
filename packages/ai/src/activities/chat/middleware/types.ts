@@ -1,6 +1,7 @@
 import type {
   JSONSchema,
   ModelMessage,
+  RunAgentResumeItem,
   StreamChunk,
   TokenUsage,
   Tool,
@@ -120,7 +121,7 @@ export interface ChatMiddlewareContext<TContext = unknown> {
   activity: 'chat'
   /** Provider name (e.g., 'openai', 'anthropic') */
   provider: string
-  /** Model identifier (e.g., 'gpt-4o') */
+  /** Model identifier (e.g., 'gpt-5.5') */
   model: string
   /** Source of the chat invocation — always 'server' for server-side chat */
   source: 'client' | 'server'
@@ -195,8 +196,21 @@ export interface ChatMiddlewareConfig {
   messages: Array<ModelMessage>
   systemPrompts: Array<SystemPrompt>
   tools: Array<Tool>
+  cursor?: string | undefined
+  resume?: Array<RunAgentResumeItem> | undefined
+  resumeToolState?: ChatResumeToolState | undefined
   metadata?: Record<string, unknown> | undefined
   modelOptions?: Record<string, unknown> | undefined
+}
+
+/**
+ * Tool decisions reconstructed by server-side middleware from validated resume
+ * entries. This lets empty-message interrupt resumes continue tool execution
+ * without relying on client message history.
+ */
+export interface ChatResumeToolState {
+  approvals?: ReadonlyMap<string, boolean> | undefined
+  clientToolResults?: ReadonlyMap<string, unknown> | undefined
 }
 
 /**

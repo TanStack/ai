@@ -1,11 +1,3 @@
-/**
- * Persistence store contracts.
- *
- * The persisted run log is the AG-UI `StreamChunk` stream itself — there is no
- * separate event type. Each store is an independently swappable seam; a
- * `ChatPersistence` aggregate bundles the ones a deployment uses, gated by
- * {@link PersistenceMode}.
- */
 import type {
   LockStore,
   ModelMessage,
@@ -13,32 +5,48 @@ import type {
   TokenUsage,
 } from '@tanstack/ai'
 
-/**
- * How much to persist.
- * - `messages`: thread message history only.
- * - `chat`: messages + runs + event log + durable stream + usage (everything
- *   needed for resumable conversations).
- * - `agent`: everything in `chat` plus sandbox records, approvals, and
- *   artifacts (for sandbox-backed harness runs).
- */
 export type PersistenceMode = 'messages' | 'chat' | 'agent'
 
-/** A persisted, sequenced event (a chunk plus its per-run sequence). */
-export interface PersistedEvent {
-  seq: number
-  event: StreamChunk
+export type PersistenceFeature =
+  | 'messages'
+  | 'durable-replay'
+  | 'interrupts'
+  | 'internal-events'
+  | 'metadata'
+  | 'locks'
+  | 'artifacts'
+
+export class AppendConflictError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'AppendConflictError'
+  }
 }
 
-/** Conversation history, keyed by threadId. Holds server-canonical messages. */
+export interface PersistedPublicEvent {
+  seq: number
+  event: StreamChunk
+  cursor: string
+}
+
+export interface PersistedInternalEvent {
+  seq: number
+  namespace: string
+  type: string
+  payload: unknown
+  cursor: string
+}
+
+/** @deprecated Use PersistedPublicEvent. */
+export type PersistedEvent = PersistedPublicEvent
+
 export interface MessageStore {
   loadThread: (threadId: string) => Promise<Array<ModelMessage>>
   saveThread: (threadId: string, messages: Array<ModelMessage>) => Promise<void>
 }
 
-/** Lifecycle status of a run. */
 export type RunStatus = 'running' | 'completed' | 'failed' | 'interrupted'
 
-/** One execution attempt of `chat()`. */
 export interface RunRecord {
   runId: string
   threadId: string
@@ -50,7 +58,6 @@ export interface RunRecord {
 }
 
 export interface RunStore {
-  /** Create the run if new, or return the existing record (idempotent resume). */
   createOrResume: (
     input: Pick<RunRecord, 'runId' | 'threadId'> & {
       status?: RunStatus
@@ -66,26 +73,65 @@ export interface RunStore {
   get: (runId: string) => Promise<RunRecord | null>
 }
 
-/** Append-only AG-UI event log — the source of truth for a run. */
-export interface EventLog {
-  append: (runId: string, seq: number, event: StreamChunk) => Promise<void>
-  /** Replay persisted events for a run, optionally only those after a seq. */
+export interface PublicEventStore {
+  append: (input: {
+    runId: string
+    expectedSeq: number
+    event: StreamChunk
+  }) => Promise<PersistedPublicEvent>
   read: (
     runId: string,
     opts?: { afterSeq?: number },
-  ) => AsyncIterable<PersistedEvent>
-  /** Whether any events have been persisted for the run. */
+  ) => AsyncIterable<PersistedPublicEvent>
   hasRun: (runId: string) => Promise<boolean>
-  /** Highest persisted seq for the run, or 0 when none. */
   latestSeq: (runId: string) => Promise<number>
 }
 
-/** Live fan-out of run events to subscribers (e.g. CF Durable Objects). */
+export interface InternalEventStore {
+  append: (input: {
+    runId: string
+    expectedSeq: number
+    namespace: string
+    type: string
+    payload: unknown
+  }) => Promise<PersistedInternalEvent>
+  read: (
+    runId: string,
+    opts?: { namespace?: string; afterSeq?: number },
+  ) => AsyncIterable<PersistedInternalEvent>
+  latestSeq: (runId: string, namespace?: string) => Promise<number>
+}
+
+/** @deprecated Use PublicEventStore. */
+export type EventLog = PublicEventStore
+
 export interface DurableRunStream {
   publish: (runId: string, seq: number, event: StreamChunk) => Promise<void>
 }
 
-/** A persisted approval request + its resolution. */
+export interface InterruptRecord {
+  interruptId: string
+  runId: string
+  threadId: string
+  status: 'pending' | 'resolved' | 'cancelled'
+  requestedAt: number
+  resolvedAt?: number
+  payload: Record<string, unknown>
+  response?: unknown
+}
+
+export interface InterruptStore {
+  create: (record: Omit<InterruptRecord, 'resolvedAt'>) => Promise<void>
+  resolve: (interruptId: string, response?: unknown) => Promise<void>
+  cancel: (interruptId: string) => Promise<void>
+  get: (interruptId: string) => Promise<InterruptRecord | null>
+  list: (threadId: string) => Promise<Array<InterruptRecord>>
+  listPending: (threadId: string) => Promise<Array<InterruptRecord>>
+  listByRun: (runId: string) => Promise<Array<InterruptRecord>>
+  listPendingByRun: (runId: string) => Promise<Array<InterruptRecord>>
+}
+
+/** @deprecated Use InterruptRecord. */
 export interface ApprovalRecord {
   approvalId: string
   runId: string
@@ -96,15 +142,20 @@ export interface ApprovalRecord {
   payload: Record<string, unknown>
 }
 
+/** @deprecated Use InterruptStore. */
 export interface ApprovalStore {
   create: (record: Omit<ApprovalRecord, 'resolvedAt'>) => Promise<void>
   resolve: (approvalId: string, granted: boolean) => Promise<void>
   get: (approvalId: string) => Promise<ApprovalRecord | null>
-  /** All decided approvals for a thread, as an approvalId→granted map. */
   decisionsForThread: (threadId: string) => Promise<Map<string, boolean>>
 }
 
-/** Metadata (and optionally inline bytes) for an agent-produced artifact. */
+export interface MetadataStore {
+  get: (scope: string, key: string) => Promise<unknown | null>
+  set: (scope: string, key: string, value: unknown) => Promise<void>
+  delete: (scope: string, key: string) => Promise<void>
+}
+
 export interface ArtifactRecord {
   artifactId: string
   runId: string
@@ -112,7 +163,6 @@ export interface ArtifactRecord {
   name: string
   mimeType: string
   size: number
-  /** Inline bytes for small artifacts; large ones use an external store (R2). */
   bytes?: Uint8Array
   externalUrl?: string
   createdAt: number
@@ -124,28 +174,63 @@ export interface ArtifactStore {
   list: (runId: string) => Promise<Array<ArtifactRecord>>
 }
 
-/**
- * Aggregate of the stores a deployment uses. `mode` declares the intended
- * coverage; individual stores are present according to it (and to what a
- * backend supports). `locks` (durable mutex) is the core {@link LockStore}.
- */
-export interface ChatPersistence {
-  mode: PersistenceMode
-  messages?: MessageStore
-  runs?: RunStore
-  events?: EventLog
+export interface AIPersistence {
+  stores: {
+    messages?: MessageStore
+    runs?: RunStore
+    publicEvents?: PublicEventStore
+    internalEvents?: InternalEventStore
+    interrupts?: InterruptStore
+    metadata?: MetadataStore
+    locks?: LockStore
+    artifacts?: ArtifactStore
+  }
   stream?: DurableRunStream
-  approvals?: ApprovalStore
-  artifacts?: ArtifactStore
-  locks?: LockStore
+}
+
+/** @deprecated Use AIPersistence. */
+export type ChatPersistence = AIPersistence
+
+const featureRequirements: Record<PersistenceFeature, Array<string>> = {
+  messages: ['messages'],
+  'durable-replay': ['runs', 'publicEvents'],
+  interrupts: ['runs', 'publicEvents', 'interrupts'],
+  'internal-events': ['internalEvents'],
+  metadata: ['metadata'],
+  locks: ['locks'],
+  artifacts: ['artifacts'],
+}
+
+export function validatePersistenceFeatures(
+  persistence: AIPersistence,
+  features: Array<PersistenceFeature>,
+): void {
+  const missing = new Map<PersistenceFeature, Array<string>>()
+  for (const feature of features) {
+    const missingStores = featureRequirements[feature].filter(
+      (store) => !persistence.stores[store as keyof AIPersistence['stores']],
+    )
+    if (missingStores.length > 0) {
+      missing.set(feature, missingStores)
+    }
+  }
+  if (missing.size === 0) return
+
+  const details = [...missing]
+    .map(
+      ([feature, stores]) =>
+        `${feature} requires ${stores.map((s) => `stores.${s}`).join(', ')}`,
+    )
+    .join('; ')
+  throw new Error(`AIPersistence is missing required stores: ${details}`)
+}
+
+export function defineAIPersistence(persistence: AIPersistence): AIPersistence {
+  return persistence
 }
 
 /**
- * Identity helper for assembling a {@link ChatPersistence} from low-level
- * stores. Pure pass-through today; the named entry point advanced users wire.
+ * @deprecated Use defineAIPersistence.
+ * @alias
  */
-export function defineChatPersistence(
-  persistence: ChatPersistence,
-): ChatPersistence {
-  return persistence
-}
+export const defineChatPersistence = defineAIPersistence
