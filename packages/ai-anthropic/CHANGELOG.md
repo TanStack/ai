@@ -1,5 +1,38 @@
 # @tanstack/ai-anthropic
 
+## 0.16.0
+
+### Minor Changes
+
+- [#884](https://github.com/TanStack/ai/pull/884) [`091e820`](https://github.com/TanStack/ai/commit/091e82087ac42c5ee9a5a383b123c52bf10b467a) - Add first-class support for Claude Sonnet 5 (`claude-sonnet-5`) and Claude Fable 5 (`claude-fable-5`), and clean up the model registry so every registered id resolves against the first-party Anthropic API.
+
+  **New model support.** Both 5-generation models carry accurate metadata (adaptive thinking, sticker pricing for Sonnet 5) and per-model provider-option types that match the API: adaptive-only `thinking` on Fable 5 (explicit `disabled` and `budget_tokens` are rejected), adaptive-or-disabled `thinking` on Sonnet 5, and no `temperature` / `top_p` / `top_k` on either. `output_config.effort` gains the `'xhigh'` level. Both models (plus Opus 4.8) are registered for native combined tools + output-schema requests. Closes [#880](https://github.com/TanStack/ai/issues/880).
+
+  **Corrected ids (breaking).** `claude-opus-4.8` is now `claude-opus-4-8` — the dot spelling came from an OpenRouter metadata sync and returns 404 on the Anthropic API. Opus 4.7 and 4.8 also get correct per-model types (adaptive thinking, no `budget_tokens`, no sampling parameters) and Opus/Sonnet 4.6 now accept `thinking: { type: 'adaptive' }`.
+
+  **Removed retired models (breaking).** The following ids no longer resolve on the Anthropic API (verified live) and were removed from `ANTHROPIC_MODELS`: `claude-3-7-sonnet`, `claude-3-5-haiku`, `claude-3-haiku`, `claude-opus-4`, `claude-sonnet-4`, and the `claude-opus-4-6-fast` / `claude-opus-4-7-fast` / `claude-opus-4.8-fast` variants (fast mode is requested via the `speed` parameter, not a model id). If you were pinning one of these, migrate to a current model (`claude-sonnet-5`, `claude-haiku-4-5`, `claude-opus-4-8`).
+
+### Patch Changes
+
+- [#855](https://github.com/TanStack/ai/pull/855) [`afba322`](https://github.com/TanStack/ai/commit/afba32236022589afce4d5a165fd4a8a884ae57d) - Preserve Anthropic server-tool results (`web_search` / `web_fetch`) across turns.
+
+  Previously the Anthropic adapter dropped `server_tool_use` and
+  `web_search_tool_result` / `web_fetch_tool_result` blocks while streaming, so the
+  evidence never round-tripped — a follow-up turn could no longer see the prior
+  web-search sources (issue [#839](https://github.com/TanStack/ai/issues/839)). These now stream as a **provider-executed**
+  tool call carrying the raw result, which the agent loop skips (never executed
+  client-side) and the adapter replays verbatim into the next request. Adds the
+  `ProviderExecutedToolMetadata` convention plus `isProviderExecutedToolCall` /
+  `getProviderExecutedMetadata` helpers to `@tanstack/ai`.
+
+  (No e2e: aimock cannot synthesize `server_tool_use` blocks; covered by unit
+  tests and verified live against the Anthropic API.)
+
+- [#882](https://github.com/TanStack/ai/pull/882) [`f8b145f`](https://github.com/TanStack/ai/commit/f8b145ff21fd44ff37a15014e1d4bd58139d9dc6) - Added Claude Sonnet 5, Claude Fable 5, Opus 4.7 Fast, Opus 4.8, and Opus 4.8 Fast to `ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS` and `AnthropicChatModelToolCapabilitiesByName`
+
+- Updated dependencies [[`afba322`](https://github.com/TanStack/ai/commit/afba32236022589afce4d5a165fd4a8a884ae57d), [`e7ad181`](https://github.com/TanStack/ai/commit/e7ad181cad20c5d6560f480835c99ff1142b40af)]:
+  - @tanstack/ai@0.39.1
+
 ## 0.15.13
 
 ### Patch Changes
