@@ -156,7 +156,7 @@ export interface AnthropicAdaptiveThinkingOptions {
 
 /**
  * Thinking configuration for models where thinking is always on
- * (Claude Fable 5).
+ * (e.g. Claude Fable 5).
  *
  * On these models the only accepted explicit configuration is
  * `{type: 'adaptive'}` — both `{type: 'disabled'}` and
@@ -180,10 +180,13 @@ export interface AnthropicAdaptiveOnlyThinkingOptions {
 
 /**
  * Thinking configuration for models that accept adaptive thinking or an
- * explicit opt-out, but no manual token budget (Claude Sonnet 5).
+ * explicit opt-out, but no manual token budget (e.g. Claude Sonnet 5,
+ * Claude Opus 4.7/4.8).
  *
  * `{type: 'enabled', budget_tokens}` is rejected with a 400 on these
- * models. Omitting the `thinking` field runs adaptive thinking by default.
+ * models. On Claude Sonnet 5, omitting the `thinking` field runs adaptive
+ * thinking by default; on Opus 4.7/4.8 it runs without thinking — set
+ * `{type: 'adaptive'}` explicitly there.
  */
 export interface AnthropicAdaptiveOrDisabledThinkingOptions {
   thinking?:
@@ -203,8 +206,9 @@ export interface AnthropicAdaptiveOrDisabledThinkingOptions {
 
 /**
  * `max_tokens` on its own, for models that reject the sampling parameters
- * (`temperature`, `top_p`, `top_k`) — Claude Fable 5 and Claude Sonnet 5
- * return a 400 when a non-default sampling value is sent.
+ * (`temperature`, `top_p`, `top_k`) — e.g. Claude Fable 5 and Claude Opus
+ * 4.7/4.8 reject them outright, and Claude Sonnet 5 returns a 400 when a
+ * non-default sampling value is sent.
  */
 export interface AnthropicMaxTokensOptions {
   /**

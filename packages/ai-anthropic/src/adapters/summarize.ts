@@ -17,7 +17,7 @@ export type AnthropicSummarizeModel = (typeof ANTHROPIC_MODELS)[number]
  * Creates an Anthropic summarize adapter with explicit API key.
  * Type resolution happens here at the call site.
  *
- * @param model - The model name (e.g., 'claude-sonnet-4-5', 'claude-3-5-haiku-latest')
+ * @param model - The model name (e.g., 'claude-sonnet-5', 'claude-haiku-4-5')
  * @param apiKey - Your Anthropic API key
  * @param config - Optional additional configuration
  * @returns Configured Anthropic summarize adapter instance with resolved types
@@ -48,7 +48,7 @@ export function createAnthropicSummarize<
  * Creates an Anthropic summarize adapter with automatic API key detection.
  * Type resolution happens here at the call site.
  *
- * @param model - The model name (e.g., 'claude-sonnet-4-5', 'claude-3-5-haiku-latest')
+ * @param model - The model name (e.g., 'claude-sonnet-5', 'claude-haiku-4-5')
  * @param config - Optional configuration (excluding apiKey which is auto-detected)
  * @returns Configured Anthropic summarize adapter instance with resolved types
  *
