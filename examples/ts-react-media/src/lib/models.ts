@@ -162,6 +162,22 @@ export const VIDEO_MODELS = [
     mode: 'image-to-video' as const,
     provider: 'fal' as const,
   },
+  {
+    id: 'gemini-omni-flash-preview',
+    name: 'Gemini Omni Flash (Text-to-Video)',
+    description:
+      'Google multimodal video generation with conversational editing, via the Interactions API (10s, 720p)',
+    mode: 'text-to-video' as const,
+    provider: 'gemini' as const,
+  },
+  {
+    id: 'gemini-omni-flash-preview/image-to-video',
+    name: 'Gemini Omni Flash (Image-to-Video)',
+    description:
+      'Animate an image with Gemini Omni Flash via the Interactions API',
+    mode: 'image-to-video' as const,
+    provider: 'gemini' as const,
+  },
 ] as const
 
 export type ImageModel = (typeof IMAGE_MODELS)[number]
