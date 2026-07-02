@@ -2,31 +2,35 @@
 title: Code Mode Isolate Drivers
 id: code-mode-isolates
 order: 4
-description: "Compare Code Mode sandbox drivers — Node isolated-vm, QuickJS WASM, and Cloudflare Workers — and choose the right runtime for your deployment."
+description: "Compare Code Mode sandbox drivers — Node isolated-vm, QuickJS WASM, QuickJS Bun (bun:ffi), and Cloudflare Workers — and choose the right runtime for your deployment."
 keywords:
   - tanstack ai
   - code mode
   - isolate driver
   - isolated-vm
   - quickjs
+  - quickjs-bun
+  - bun
+  - bun:ffi
   - cloudflare workers
   - sandbox
   - secure execution
----
 
 Isolate drivers provide the secure sandbox runtimes that [Code Mode](./code-mode.md) uses to execute generated TypeScript. All drivers implement the same `IsolateDriver` interface, so you can swap them without changing any other code.
 
 ## Choosing a Driver
 
-| | Node (`isolated-vm`) | QuickJS (WASM) | Cloudflare Workers |
-|---|---|---|---|
-| **Best for** | Server-side Node.js apps | Browsers, edge, portability | Edge deployments on Cloudflare |
-| **Performance** | Fast (V8 JIT) | Slower (interpreted) | Fast (V8 on Cloudflare edge) |
-| **Native deps** | Yes (C++ addon) | None | None |
-| **Browser support** | No | Yes | N/A |
-| **Memory limit** | Configurable | Configurable | N/A |
-| **Stack size limit** | N/A | Configurable | N/A |
-| **Setup** | `pnpm add` | `pnpm add` | Deploy a Worker first |
+
+|                      | Node (`isolated-vm`)     | QuickJS (WASM)              | QuickJS Bun (`bun:ffi`)  | Cloudflare Workers             |
+| -------------------- | ------------------------ | --------------------------- | ------------------------ | ------------------------------ |
+| **Best for**         | Server-side Node.js apps | Browsers, edge, portability | Bun servers              | Edge deployments on Cloudflare |
+| **Performance**      | Fast (V8 JIT)            | Slower (interpreted)        | Fast (native QuickJS)    | Fast (V8 on Cloudflare edge)   |
+| **Native deps**      | Yes (C++ addon)          | None                        | None (TinyCC on the fly) | None                           |
+| **Browser support**  | No                       | Yes                         | No (Bun only)            | N/A                            |
+| **Memory limit**     | Configurable             | Configurable                | Configurable             | N/A                            |
+| **Stack size limit** | N/A                      | Configurable                | Configurable             | N/A                            |
+| **Setup**            | `pnpm add`               | `pnpm add`                  | `bun add`                | Deploy a Worker first          |
+
 
 ---
 
@@ -55,10 +59,12 @@ const driver = createNodeIsolateDriver({
 
 ### Options
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `memoryLimit` | `number` | `128` | Maximum heap size for the V8 isolate, in megabytes. Execution is terminated if this limit is exceeded. |
-| `timeout` | `number` | `30000` | Maximum wall-clock time per execution, in milliseconds. |
+
+| Option        | Type     | Default | Description                                                                                            |
+| ------------- | -------- | ------- | ------------------------------------------------------------------------------------------------------ |
+| `memoryLimit` | `number` | `128`   | Maximum heap size for the V8 isolate, in megabytes. Execution is terminated if this limit is exceeded. |
+| `timeout`     | `number` | `30000` | Maximum wall-clock time per execution, in milliseconds.                                                |
+
 
 ### How it works
 
@@ -90,17 +96,61 @@ const driver = createQuickJSIsolateDriver({
 
 ### Options
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `memoryLimit` | `number` | `128` | Maximum heap memory for the QuickJS VM, in megabytes. |
-| `timeout` | `number` | `30000` | Maximum wall-clock time per execution, in milliseconds. |
+
+| Option         | Type     | Default  | Description                                                                                                                          |
+| -------------- | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `memoryLimit`  | `number` | `128`    | Maximum heap memory for the QuickJS VM, in megabytes.                                                                                |
+| `timeout`      | `number` | `30000`  | Maximum wall-clock time per execution, in milliseconds.                                                                              |
 | `maxStackSize` | `number` | `524288` | Maximum call stack size in bytes (default: 512 KiB). Increase for deeply recursive code; decrease to catch runaway recursion sooner. |
+
 
 ### How it works
 
 QuickJS WASM uses an asyncified execution model — the WASM module can pause while awaiting host async functions (your tools). Executions are serialized through a global queue to prevent concurrent WASM calls, which the asyncify model does not support. Fatal errors (memory exhaustion, stack overflow) are detected, the VM is disposed, and a structured error is returned. Console output is captured and returned with the result.
 
-> **Performance note:** QuickJS interprets JavaScript rather than JIT-compiling it, so compute-heavy scripts run slower than with the Node driver. For typical LLM-generated scripts that are mostly waiting on `external_*` tool calls, this difference is not significant.
+> **Performance note:** QuickJS interprets JavaScript rather than JIT-compiling it, so compute-heavy scripts run slower than with the Node driver. For typical LLM-generated scripts that are mostly waiting on `external_`* tool calls, this difference is not significant.
+
+---
+
+## QuickJS Bun Driver (`@tanstack/ai-isolate-quickjs-bun`)
+
+Runs [QuickJS](https://bellard.org/quickjs/) natively on the [Bun](https://bun.sh/) runtime through `bun:ffi`, via the [`quickjs-bun`](https://github.com/superpowerdotcom/quickjs-bun) package. There are no native dependencies and no build step — the vendored QuickJS C sources are compiled on the fly with Bun's embedded TinyCC, once per process. This makes it the fastest sandboxed option for Code Mode on Bun.
+
+### Installation
+
+```bash
+bun add @tanstack/ai-isolate-quickjs-bun
+```
+
+Requires Bun 1.3.14 or later. On Windows, provide a prebuilt QuickJS dynamic library via the `QUICKJS_BUN_NATIVE_LIBRARY` environment variable.
+
+### Usage
+
+```typescript
+import { createQuickJSBunIsolateDriver } from '@tanstack/ai-isolate-quickjs-bun'
+
+const driver = createQuickJSBunIsolateDriver({
+  memoryLimit: 128,     // MB
+  timeout: 30_000,      // ms
+  maxStackSize: 524288, // bytes (512 KiB)
+})
+```
+
+### Options
+
+
+| Option         | Type     | Default  | Description                                                                                                                          |
+| -------------- | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `memoryLimit`  | `number` | `128`    | Maximum heap memory for the QuickJS runtime, in megabytes.                                                                           |
+| `timeout`      | `number` | `30000`  | Maximum wall-clock time per execution, in milliseconds.                                                                              |
+| `maxStackSize` | `number` | `524288` | Maximum call stack size in bytes (default: 512 KiB). Increase for deeply recursive code; decrease to catch runaway recursion sooner. |
+
+
+### How it works
+
+Each context gets a dedicated native QuickJS runtime with its own memory limit, stack size, and interrupt-based timeout, so contexts execute independently — unlike the WASM driver, which serializes all executions through one shared asyncified WASM module. Fatal errors (memory exhaustion, stack overflow) are detected, the VM is disposed, and a structured error is returned; create a fresh context afterwards. Console output is captured and returned with the result.
+
+> **Bun only:** This driver requires Bun 1.3.14 or later and throws a descriptive error when creating a context on Node.js — use the Node or QuickJS WASM driver there. On Bun, prefer this driver over the WASM one: it runs QuickJS natively, and quickjs-emscripten's asyncify bridge is unreliable for async host tool calls under Bun.
 
 ---
 
@@ -129,12 +179,14 @@ const driver = createCloudflareIsolateDriver({
 
 ### Options
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `workerUrl` | `string` | — | **Required.** Full URL of the deployed Cloudflare Worker. |
-| `authorization` | `string` | — | Optional value sent as the `Authorization` header on every request. Use this to prevent unauthorized access to your Worker. |
-| `timeout` | `number` | `30000` | Maximum wall-clock time for the entire execution (including all tool round-trips), in milliseconds. |
-| `maxToolRounds` | `number` | `10` | Maximum number of tool-call/result cycles per execution. Prevents infinite loops when generated code calls tools in a loop. |
+
+| Option          | Type     | Default | Description                                                                                                                 |
+| --------------- | -------- | ------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `workerUrl`     | `string` | —       | **Required.** Full URL of the deployed Cloudflare Worker.                                                                   |
+| `authorization` | `string` | —       | Optional value sent as the `Authorization` header on every request. Use this to prevent unauthorized access to your Worker. |
+| `timeout`       | `number` | `30000` | Maximum wall-clock time for the entire execution (including all tool round-trips), in milliseconds.                         |
+| `maxToolRounds` | `number` | `10`    | Maximum number of tool-call/result cycles per execution. Prevents infinite loops when generated code calls tools in a loop. |
+
 
 ### Deploying the Worker
 
@@ -184,7 +236,7 @@ Each round-trip adds network latency, so the `maxToolRounds` limit both prevents
 
 ## The `IsolateDriver` Interface
 
-All three drivers satisfy this interface, exported from `@tanstack/ai-code-mode`:
+All four drivers satisfy this interface, exported from `@tanstack/ai-code-mode`:
 
 ```typescript
 import type { ToolBinding, NormalizedError } from "@tanstack/ai-code-mode";
@@ -219,3 +271,4 @@ You can implement this interface to build a custom driver — for example, a Doc
 - [Code Mode](./code-mode) — Core setup, API reference, and getting started guide
 - [Showing Code Mode in the UI](./client-integration) — Display execution progress in your React app
 - [Code Mode with Skills](./code-mode-with-skills) — Add persistent, reusable skill libraries
+

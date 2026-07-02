@@ -15,7 +15,7 @@ export interface LLMTool {
 }
 
 // Isolate VM options
-export type IsolateVM = 'node' | 'quickjs' | 'cloudflare'
+export type IsolateVM = 'node' | 'quickjs' | 'quickjs-bun' | 'cloudflare'
 
 export interface IsolateVMOption {
   id: IsolateVM
@@ -101,6 +101,12 @@ export const DEFAULT_ISOLATE_VM_OPTIONS: Array<IsolateVMOption> = [
     id: 'quickjs',
     name: 'QuickJS',
     description: 'Lightweight JavaScript engine',
+    available: true,
+  },
+  {
+    id: 'quickjs-bun',
+    name: 'QuickJS Bun',
+    description: 'Native QuickJS engine (requires running the server with Bun)',
     available: true,
   },
   {

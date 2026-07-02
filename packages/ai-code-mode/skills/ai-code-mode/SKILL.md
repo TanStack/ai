@@ -3,7 +3,8 @@ name: ai-code-mode
 description: >
   LLM-generated TypeScript execution in sandboxed environments:
   createCodeModeTool() with isolate drivers (createNodeIsolateDriver,
-  createQuickJSIsolateDriver, createCloudflareIsolateDriver),
+  createQuickJSIsolateDriver, createQuickJSBunIsolateDriver,
+  createCloudflareIsolateDriver),
   codeModeWithSkills() for persistent skill libraries, trust strategies,
   skill storage (FileSystem, LocalStorage, InMemory, Mongo), client-side
   execution progress via code_mode:* custom events in useChat.
@@ -90,7 +91,7 @@ const stream = chat({
 
 ### 1. Choosing an Isolate Driver
 
-Three drivers implement the `IsolateDriver` interface. All are interchangeable.
+Four drivers implement the `IsolateDriver` interface. All are interchangeable.
 
 **Node.js** (`createNodeIsolateDriver`) -- Full V8 with JIT. Fastest option. Requires `isolated-vm` native C++ addon.
 
@@ -116,6 +117,18 @@ const driver = createQuickJSIsolateDriver({
 })
 ```
 
+**QuickJS Bun** (`createQuickJSBunIsolateDriver`) -- Native QuickJS on the Bun runtime via `bun:ffi`. Requires Bun >= 1.3.14 (throws a descriptive error on Node.js). No native deps or build step. Each context gets a dedicated QuickJS runtime with its own memory limit, stack size, and interrupt-based timeout. Recommended QuickJS option on Bun, where the WASM driver's asyncify bridge is unreliable for async host tool calls.
+
+```typescript
+import { createQuickJSBunIsolateDriver } from '@tanstack/ai-isolate-quickjs-bun'
+
+const driver = createQuickJSBunIsolateDriver({
+  memoryLimit: 128, // MB, default 128
+  timeout: 30_000, // ms, default 30000
+  maxStackSize: 524288, // bytes, default 512 KiB
+})
+```
+
 **Cloudflare** (`createCloudflareIsolateDriver`) -- Edge execution via a deployed Cloudflare Worker. Requires a `workerUrl` pointing to your deployed worker. Network latency on each tool call.
 
 ```typescript
@@ -129,11 +142,12 @@ const driver = createCloudflareIsolateDriver({
 })
 ```
 
-| Driver     | Best for                    | Native deps     | Browser support | Performance          |
-| ---------- | --------------------------- | --------------- | --------------- | -------------------- |
-| Node       | Server-side Node.js         | Yes (C++ addon) | No              | Fast (V8 JIT)        |
-| QuickJS    | Browsers, edge, portability | None (WASM)     | Yes             | Slower (interpreted) |
-| Cloudflare | Edge deployments            | None            | N/A             | Fast (V8 on edge)    |
+| Driver      | Best for                    | Native deps     | Browser support | Performance           |
+| ----------- | --------------------------- | --------------- | --------------- | --------------------- |
+| Node        | Server-side Node.js         | Yes (C++ addon) | No              | Fast (V8 JIT)         |
+| QuickJS     | Browsers, edge, portability | None (WASM)     | Yes             | Slower (interpreted)  |
+| QuickJS Bun | Bun servers                 | None            | No              | Fast (native QuickJS) |
+| Cloudflare  | Edge deployments            | None            | N/A             | Fast (V8 on edge)     |
 
 ### 2. Adding Persistent Skills with codeModeWithSkills()
 
@@ -495,10 +509,11 @@ Source: ai-isolate-node source (probeIsolatedVm implementation)
 
 ### MEDIUM: Expecting identical behavior across isolate drivers
 
-The three drivers have different capabilities. Same code may work in Node but fail elsewhere.
+The four drivers have different capabilities. Same code may work in Node but fail elsewhere.
 
 - **Node**: Full V8 support, JIT compilation, configurable memory limit
 - **QuickJS**: Interpreted, limited stdlib (no File I/O), configurable stack size, asyncified execution (serialized through global queue)
+- **QuickJS Bun**: Bun runtime only (throws on Node.js), native QuickJS via `bun:ffi`, dedicated runtime per context with per-context memory/stack limits and normalized `MemoryLimitError`/`StackOverflowError`/`TimeoutError`
 - **Cloudflare**: Network latency per tool call round-trip, `maxToolRounds` limit (default 10), requires deployed worker with `UNSAFE_EVAL` or `eval` unsafe binding
 
 Test generated code against your target driver. If you need portability, target QuickJS's subset.

@@ -1,6 +1,6 @@
 import type { IsolateDriver } from '@tanstack/ai-code-mode'
 
-export type IsolateVM = 'node' | 'quickjs' | 'cloudflare'
+export type IsolateVM = 'node' | 'quickjs' | 'quickjs-bun' | 'cloudflare'
 
 const driverCache = new Map<IsolateVM, IsolateDriver>()
 
@@ -17,6 +17,12 @@ export async function createIsolateDriver(
       const { createQuickJSIsolateDriver } =
         await import('@tanstack/ai-isolate-quickjs')
       driver = createQuickJSIsolateDriver()
+      break
+    }
+    case 'quickjs-bun': {
+      const { createQuickJSBunIsolateDriver } =
+        await import('@tanstack/ai-isolate-quickjs-bun')
+      driver = createQuickJSBunIsolateDriver()
       break
     }
     case 'cloudflare': {

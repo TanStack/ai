@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // quickjs-bun ships TypeScript sources that use import attributes
+    // (`with { type: "file" }`), which require a newer module target.
+    "module": "ESNext",
+    "outDir": "dist"
+  },
+  "include": ["src", "tests", "benchmarks"],
+  "exclude": ["node_modules", "dist"]
+}
