@@ -7,6 +7,7 @@ import {
 } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../internal/request-options'
+import { openRouterSupportsCombinedToolsAndSchema } from '../internal/combined-tools-and-schema'
 import { makeStructuredOutputCompatible } from '../internal/schema-converter'
 import { convertFunctionToolToResponsesFormat } from '../internal/responses-tool-converter'
 import { isWebSearchTool } from '../tools/web-search-tool'
@@ -29,6 +30,7 @@ import type {
 } from '@tanstack/ai/adapters'
 import type {
   ContentPart,
+  JSONSchema,
   ModelMessage,
   StreamChunk,
   TextOptions,
@@ -1566,6 +1568,23 @@ export class OpenRouterResponsesTextAdapter<
         )
       : undefined
 
+    // Native combined mode (#612): the engine populates `options.outputSchema`
+    // on the `chatStream` call ONLY when this adapter declared
+    // `supportsCombinedToolsAndSchema()` for the model. When set, attach the
+    // schema via `text.format: json_schema` alongside `tools` so it rides the
+    // same streaming request and the engine harvests it from the final-turn
+    // text. The legacy `structuredOutput*` methods strip `outputSchema` before
+    // calling this, so the branch only fires on the combined path.
+    const combinedOutputSchema: JSONSchema | undefined = options.outputSchema
+    const combinedSchema =
+      combinedOutputSchema &&
+      this.supportsCombinedToolsAndSchema(options.modelOptions)
+        ? this.makeStructuredOutputCompatible(
+            combinedOutputSchema,
+            combinedOutputSchema.required,
+          )
+        : undefined
+
     const built: Pick<
       ResponsesRequest,
       | 'model'
@@ -1578,6 +1597,7 @@ export class OpenRouterResponsesTextAdapter<
       | 'tools'
       | 'toolChoice'
       | 'parallelToolCalls'
+      | 'text'
     > = {
       ...modelOptions,
       model: options.model + variantSuffix,
@@ -1596,9 +1616,37 @@ export class OpenRouterResponsesTextAdapter<
         tools.length > 0 && {
           tools,
         }),
+      ...(combinedSchema && {
+        // Merge onto any caller-supplied `text` (spread above via
+        // `...modelOptions`) so sibling fields like `text.verbosity` survive;
+        // only `text.format` is overridden by the combined-mode schema.
+        text: {
+          ...modelOptions.text,
+          format: {
+            type: 'json_schema' as const,
+            name: 'structured_output',
+            schema: combinedSchema,
+            strict: true,
+          },
+        },
+      }),
     }
 
     return built
+  }
+
+  /**
+   * Native combined tools + `outputSchema` (#612). OpenRouter routes to many
+   * upstream providers, so capability is per-request: `modelOptions.models`
+   * can add fallback routes, and native combined mode is safe only when every
+   * possible routed model supports it. `:variant` suffixes are routing
+   * directives and do not change combined-mode support. Models not in the set
+   * fall back to the legacy finalization path.
+   */
+  supportsCombinedToolsAndSchema(
+    modelOptions?: OpenRouterResponsesTextProviderOptions,
+  ): boolean {
+    return openRouterSupportsCombinedToolsAndSchema(this.model, modelOptions)
   }
 
   /**

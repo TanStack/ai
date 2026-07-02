@@ -50,6 +50,7 @@ export type {
   OpenRouterModelInputModalitiesByName,
   OpenRouterChatModelToolCapabilitiesByName,
 } from './model-meta'
+export { OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS } from './model-meta'
 export type {
   OpenRouterTextMetadata,
   OpenRouterImageMetadata,
