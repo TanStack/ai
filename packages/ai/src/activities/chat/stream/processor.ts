@@ -887,14 +887,10 @@ export class StreamProcessor {
     // `toolCallId` + `content`, and an assistant message in the snapshot may
     // drop `toolCalls` the client already observed via `TOOL_CALL_*` events.
     // Without the matching `tool-call` part, later `addToolResult(toolCallId)`
-    // calls cannot locate the call and silently no-op (see #859). To keep the
+    // calls cannot locate the call and warn + no-op (see #859). To keep the
     // UI representation consistent with the streaming fan-out and preserve the
-    // unreconstructable metadata, run a post-pass that (a) anchors detached
-    // `tool-result`-only assistant messages (produced by `aguiSnapshotMessageToUIMessage`
-    // for `role: 'tool'` wire messages) into the preceding assistant message,
-    // and (b) carries forward any `tool-call` part from the pre-snapshot state
-    // when the snapshot references its `toolCallId` via a `tool-result` but does
-    // not itself supply the corresponding `tool-call` part.
+    // unreconstructable metadata, reconcile the normalized snapshot against
+    // the pre-snapshot state; see `reconcileSnapshotToolCalls`.
     const prevMessages = this.messages
     const normalized = chunk.messages.map(aguiSnapshotMessageToUIMessage)
     this.messages = this.reconcileSnapshotToolCalls(normalized, prevMessages)
@@ -905,11 +901,13 @@ export class StreamProcessor {
    * Reconcile a freshly normalized snapshot with the pre-snapshot message
    * state so unreconstructable tool-call metadata is preserved.
    *
-   * Post-pass (a): anchor `tool-result`-only assistant messages (emitted by
-   * `aguiSnapshotMessageToUIMessage` for AG-UI `role: 'tool'` wire messages)
-   * into the preceding assistant message, matching the in-stream fan-out
-   * shape `assistant: [text, tool-call, tool-result, ...]`. Detached messages
-   * with no preceding assistant in the snapshot are kept verbatim.
+   * Post-pass (a): anchor `tool-result`-only assistant messages (the shape
+   * `aguiSnapshotMessageToUIMessage` emits for AG-UI `role: 'tool'` wire
+   * messages) into the message containing the matching `tool-call` part, or —
+   * when the snapshot supplies no such part — the nearest earlier anchorable
+   * assistant message, matching the in-stream fan-out shape
+   * `assistant: [text, tool-call, tool-result, ...]`. Detached messages with
+   * no earlier anchorable assistant are kept verbatim.
    *
    * Post-pass (b): when a `tool-result` part references a `toolCallId` whose
    * `tool-call` part is absent from the snapshot, carry the `tool-call` part
@@ -921,8 +919,9 @@ export class StreamProcessor {
     prevMessages: Array<UIMessage>,
   ): Array<UIMessage> {
     // Index tool-call parts observed before the snapshot by id so we can
-    // restore metadata the snapshot cannot re-emit. Bump last-write-wins: a
-    // tool call can route through multiple messages across reconnects.
+    // restore metadata the snapshot cannot re-emit. Duplicate ids resolve
+    // last-write-wins: the same tool call can appear in multiple messages
+    // across reconnects, and the most recent part carries the freshest state.
     const prevToolCalls = new Map<string, ToolCallPart>()
     for (const msg of prevMessages) {
       for (const part of msg.parts) {
@@ -932,7 +931,7 @@ export class StreamProcessor {
       }
     }
     // Index tool-call parts already present in the snapshot so (b) only fills
-    // genuine gaps rather than overwriting the server's own description.
+    // genuine gaps rather than duplicating a tool-call the snapshot supplies.
     const snapshotToolCallIds = new Set<string>()
     for (const msg of snapshot) {
       for (const part of msg.parts) {
@@ -954,36 +953,63 @@ export class StreamProcessor {
         continue
       }
 
-      const target = reconciled.findLast(
-        (m) =>
-          m.role === 'assistant' &&
-          !(m.parts.length === 1 && m.parts[0]?.type === 'tool-result'),
-      )
+      // Prefer the message that actually contains the matching tool-call
+      // part. AG-UI `reasoning`/`activity` messages also normalize to
+      // `role: 'assistant'`, so anchoring into the nearest assistant alone
+      // could separate a result from its call (and a later
+      // `addToolResult(toolCallId)` would then append a duplicate result
+      // next to the call).
+      const target =
+        reconciled.findLast((m) =>
+          m.parts.some(
+            (p) => p.type === 'tool-call' && p.id === toolResultPart.toolCallId,
+          ),
+        ) ??
+        reconciled.findLast(
+          (m) =>
+            m.role === 'assistant' &&
+            !(m.parts.length === 1 && m.parts[0]?.type === 'tool-result'),
+        )
 
       if (!target) {
         // No assistant to anchor into — keep the detached message intact.
+        if (!snapshotToolCallIds.has(toolResultPart.toolCallId)) {
+          console.warn(
+            `[StreamProcessor] MESSAGES_SNAPSHOT contains a tool-result for "${toolResultPart.toolCallId}" but no matching tool-call exists in the snapshot, and there is no assistant message to anchor into; addToolResult("${toolResultPart.toolCallId}") will not be able to locate this call`,
+          )
+        }
         reconciled.push(msg)
         continue
       }
 
+      const parts = [...target.parts]
       // (b) Fill in a missing tool-call part from the pre-snapshot state when
       // the snapshot references its id via a tool-result but supplies no
       // tool-call metadata of its own.
       if (
         !snapshotToolCallIds.has(toolResultPart.toolCallId) &&
-        !target.parts.some(
+        !parts.some(
           (p) => p.type === 'tool-call' && p.id === toolResultPart.toolCallId,
         )
       ) {
         const prev = prevToolCalls.get(toolResultPart.toolCallId)
         if (prev) {
-          // Append the carried-over tool-call part first so the resulting
-          // call→result ordering matches the streaming fan-out.
-          target.parts.push(prev)
+          // Insert the carried-over tool-call before its tool-result (pushed
+          // below) so call→result ordering matches the streaming fan-out.
+          parts.push({ ...prev })
           snapshotToolCallIds.add(prev.id)
+        } else {
+          console.warn(
+            `[StreamProcessor] MESSAGES_SNAPSHOT contains a tool-result for "${toolResultPart.toolCallId}" but no matching tool-call exists in the snapshot or the pre-snapshot state; addToolResult("${toolResultPart.toolCallId}") will not be able to locate this call`,
+          )
         }
       }
-      target.parts.push(toolResultPart)
+      parts.push(toolResultPart)
+      // Replace rather than push into `target.parts`: a snapshot message that
+      // arrived already carrying `parts` (TanStack server echoing UIMessages)
+      // shares its array with the incoming chunk, and mutating it in place
+      // would corrupt the caller's event object.
+      target.parts = parts
     }
 
     return reconciled
