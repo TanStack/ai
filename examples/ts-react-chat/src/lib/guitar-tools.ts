@@ -173,9 +173,16 @@ export const compareGuitars = compareGuitarsToolDef.server((args) => {
     .map((id) => guitars.find((g) => g.id === id))
     .filter(Boolean) as (typeof guitars)[number][]
 
+  if (selected.length === 0) {
+    throw new Error('No valid guitars found for the provided IDs')
+  }
+
   const prices = selected.map((g) => g.price)
   const minPrice = Math.min(...prices)
   const maxPrice = Math.max(...prices)
+
+  const cheapestGuitar = selected.find((g) => g.price === minPrice)
+  const mostExpensiveGuitar = selected.find((g) => g.price === maxPrice)
 
   return {
     comparison: selected.map((g) => ({
@@ -185,11 +192,11 @@ export const compareGuitars = compareGuitarsToolDef.server((args) => {
       description: g.shortDescription,
       priceDifference:
         g.price === minPrice
-          ? 'Cheapest'
-          : `+$${g.price - minPrice} more than cheapest`,
+          ? 'Cheapest in selection'
+          : `+$${g.price - minPrice} more than cheapest in selection`,
     })),
-    cheapest: selected.find((g) => g.price === minPrice)!.name,
-    mostExpensive: selected.find((g) => g.price === maxPrice)!.name,
+    cheapest: cheapestGuitar?.name ?? 'Unknown',
+    mostExpensive: mostExpensiveGuitar?.name ?? 'Unknown',
   }
 })
 
