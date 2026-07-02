@@ -30,7 +30,7 @@ vi.mock('@anthropic-ai/sdk', () => {
 })
 
 const createAdapter = () =>
-  new AnthropicTextAdapter({ apiKey: 'test-key' }, 'claude-opus-4')
+  new AnthropicTextAdapter({ apiKey: 'test-key' }, 'claude-opus-4-1')
 
 function createMockStream(
   chunks: Array<Record<string, unknown>>,
@@ -59,7 +59,7 @@ describe('Anthropic usage extraction', () => {
           type: 'message',
           role: 'assistant',
           content: [],
-          model: 'claude-3-7-sonnet-20250219',
+          model: 'claude-opus-4-1',
           usage: {
             input_tokens: 100,
             output_tokens: 0,
@@ -117,7 +117,7 @@ describe('Anthropic usage extraction', () => {
           type: 'message',
           role: 'assistant',
           content: [],
-          model: 'claude-3-7-sonnet-20250219',
+          model: 'claude-opus-4-1',
           usage: {
             input_tokens: 100,
             output_tokens: 0,
@@ -178,7 +178,7 @@ describe('Anthropic usage extraction', () => {
           type: 'message',
           role: 'assistant',
           content: [],
-          model: 'claude-3-7-sonnet-20250219',
+          model: 'claude-opus-4-1',
           usage: {
             input_tokens: 100,
             output_tokens: 0,
@@ -241,7 +241,7 @@ describe('Anthropic usage extraction', () => {
           type: 'message',
           role: 'assistant',
           content: [],
-          model: 'claude-3-7-sonnet-20250219',
+          model: 'claude-opus-4-1',
           usage: {
             input_tokens: 100,
             output_tokens: 0,
@@ -299,7 +299,7 @@ describe('Anthropic usage extraction', () => {
           type: 'message',
           role: 'assistant',
           content: [],
-          model: 'claude-3-7-sonnet-20250219',
+          model: 'claude-opus-4-1',
           usage: {
             input_tokens: 100,
             output_tokens: 0,
