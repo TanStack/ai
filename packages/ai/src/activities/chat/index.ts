@@ -726,6 +726,9 @@ class TextEngine<
           }),
         )
       },
+      emitFileDiff: (value: { path: string; diff: string }) => {
+        this.sandboxFileQueue.push(this.createCustomEventChunk('sandbox.file.diff', value))
+      },
     })
   }
 
