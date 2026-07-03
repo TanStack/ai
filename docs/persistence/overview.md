@@ -148,6 +148,28 @@ Raw drivers create and migrate their tables automatically (opt out with
 `{ migrate: false }` and apply the exported `ddl(...)` / `migrate(...)`
 yourself). Drizzle and Prisma own their own schema/migrations.
 
+Cloudflare uses D1 for core persistence and can attach R2 for artifacts and
+blob bytes. Runs, events, messages, interrupts, and metadata remain in D1 as the
+source of truth; R2 stores artifact metadata indexes separately from optional
+artifact bytes:
+
+```ts
+import { cloudflarePersistence } from '@tanstack/ai-persistence-cloudflare'
+
+interface Env {
+  AI_D1: D1Database
+  AI_ARTIFACTS: R2Bucket
+}
+
+export function persistence(env: Env) {
+  return cloudflarePersistence({
+    d1: env.AI_D1,
+    r2: env.AI_ARTIFACTS,
+    r2ArtifactPrefix: 'tanstack-ai/artifacts/',
+  })
+}
+```
+
 The base SQL schema is deliberately small:
 
 - `runs`

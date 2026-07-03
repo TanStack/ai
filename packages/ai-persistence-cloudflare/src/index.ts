@@ -15,7 +15,124 @@ import type {
   SqlRow,
 } from '@tanstack/ai-persistence-sql'
 import type { PersistenceMode } from '@tanstack/ai-persistence'
+import type {
+  ArtifactRecord,
+  ArtifactStore,
+} from '@tanstack/ai-persistence'
 import type { LockStore } from '@tanstack/ai'
+
+const DEFAULT_R2_ARTIFACT_PREFIX = 'tanstack-ai/artifacts/'
+
+export interface R2ArtifactStoreOptions {
+  /** Prefix for all artifact metadata, run indexes, and blob objects. */
+  prefix?: string
+}
+
+type R2ArtifactMetadata = Omit<ArtifactRecord, 'bytes'> & {
+  blobKey?: string
+}
+
+function normalizeR2Prefix(prefix?: string): string {
+  const normalized = (prefix ?? DEFAULT_R2_ARTIFACT_PREFIX).replace(/^\/+/, '')
+  return normalized.endsWith('/') ? normalized : `${normalized}/`
+}
+
+function keyPart(value: string): string {
+  return encodeURIComponent(value)
+}
+
+function metadataFor(
+  record: ArtifactRecord,
+  blobKey?: string,
+): R2ArtifactMetadata {
+  const { bytes: _bytes, ...metadata } = record
+  return blobKey ? { ...metadata, blobKey } : metadata
+}
+
+async function readMetadata(
+  bucket: R2Bucket,
+  key: string,
+): Promise<R2ArtifactMetadata | null> {
+  const object = await bucket.get(key)
+  if (!object) return null
+  return JSON.parse(await object.text()) as R2ArtifactMetadata
+}
+
+function recordFromMetadata(metadata: R2ArtifactMetadata): ArtifactRecord {
+  const { blobKey: _blobKey, ...record } = metadata
+  return record
+}
+
+function withBytes(
+  metadata: R2ArtifactMetadata,
+  bytes: Uint8Array,
+): ArtifactRecord {
+  return { ...recordFromMetadata(metadata), bytes }
+}
+
+/** Build an R2-backed artifact store with metadata indexes separated from blob bytes. */
+export function createR2ArtifactStore(
+  bucket: R2Bucket,
+  options?: R2ArtifactStoreOptions,
+): ArtifactStore {
+  const prefix = normalizeR2Prefix(options?.prefix)
+  const idKey = (artifactId: string) =>
+    `${prefix}by-id/${keyPart(artifactId)}/metadata.json`
+  const runKey = (runId: string, artifactId: string) =>
+    `${prefix}by-run/${keyPart(runId)}/${keyPart(artifactId)}.json`
+  const runPrefix = (runId: string) => `${prefix}by-run/${keyPart(runId)}/`
+  const blobKey = (artifactId: string) => `${prefix}blobs/${keyPart(artifactId)}`
+
+  return {
+    async save(record) {
+      const existing = await readMetadata(bucket, idKey(record.artifactId))
+      const nextBlobKey = record.bytes ? blobKey(record.artifactId) : undefined
+      const nextMetadata = metadataFor(record, nextBlobKey)
+      const encodedMetadata = JSON.stringify(nextMetadata)
+
+      if (record.bytes && nextBlobKey) {
+        await bucket.put(nextBlobKey, record.bytes)
+      }
+
+      await bucket.put(idKey(record.artifactId), encodedMetadata)
+      await bucket.put(runKey(record.runId, record.artifactId), encodedMetadata)
+
+      if (existing && existing.runId !== record.runId) {
+        await bucket.delete(runKey(existing.runId, existing.artifactId))
+      }
+      if (existing?.blobKey && !record.bytes) {
+        await bucket.delete(existing.blobKey)
+      }
+    },
+
+    async get(artifactId) {
+      const metadata = await readMetadata(bucket, idKey(artifactId))
+      if (!metadata) return null
+      if (!metadata.blobKey) return recordFromMetadata(metadata)
+
+      const blob = await bucket.get(metadata.blobKey)
+      if (!blob) return recordFromMetadata(metadata)
+      return withBytes(metadata, new Uint8Array(await blob.arrayBuffer()))
+    },
+
+    async list(runId) {
+      const records: Array<ArtifactRecord> = []
+      let cursor: string | undefined
+      do {
+        const result = await bucket.list({
+          prefix: runPrefix(runId),
+          cursor,
+        })
+        for (const object of result.objects) {
+          const metadata = await readMetadata(bucket, object.key)
+          if (metadata) records.push(recordFromMetadata(metadata))
+        }
+        cursor = result.truncated ? result.cursor : undefined
+      } while (cursor)
+      return records
+    },
+  }
+}
 
 /** Build a {@link SqlDriver} over a Cloudflare D1 database (SQLite dialect). */
 export function createD1Driver(d1: D1Database): SqlDriver {
@@ -48,6 +165,10 @@ export function createD1Driver(d1: D1Database): SqlDriver {
 
 export interface CloudflarePersistenceOptions {
   d1: D1Database
+  /** Optional R2 bucket for artifact metadata, run indexes, and blob bytes. */
+  r2?: R2Bucket
+  /** Optional R2 artifact prefix (default `tanstack-ai/artifacts/`). */
+  r2ArtifactPrefix?: string
   /** Optional Durable Object namespace for the distributed lock (see {@link createDurableObjectLockStore}). */
   durableObjects?: DurableObjectNamespace
   mode?: PersistenceMode
@@ -58,6 +179,8 @@ export interface CloudflarePersistenceOptions {
 export type CloudflarePersistence = SqlPersistence & {
   /** @deprecated Use stores.locks. */
   locks?: LockStore
+  /** @deprecated Use stores.artifacts. */
+  artifacts?: ArtifactStore
 }
 
 /** Cloudflare-backed {@link CloudflarePersistence} (D1 SQL stores). */
@@ -72,6 +195,13 @@ export function cloudflarePersistence(
     const locks = createDurableObjectLockStore(opts.durableObjects)
     persistence.stores.locks = locks
     persistence.locks = locks
+  }
+  if (opts.r2) {
+    const artifacts = createR2ArtifactStore(opts.r2, {
+      prefix: opts.r2ArtifactPrefix,
+    })
+    persistence.stores.artifacts = artifacts
+    persistence.artifacts = artifacts
   }
   return persistence
 }

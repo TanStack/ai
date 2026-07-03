@@ -43,12 +43,13 @@ is missing its required stores.
 minimal `SqlDriver` (`@tanstack/ai-persistence-sql`), with dialect support for
 SQLite, Postgres, and MySQL and backends for SQLite (`-sqlite`,
 node:sqlite/better-sqlite3), Postgres (`-postgres`, pg), Cloudflare D1
-(`-cloudflare`), and bring-your-own Drizzle (`-drizzle`) and Prisma
-(`-prisma`). The shared SQL core emits MySQL-safe DDL and conflict handling
-(binary key columns, `LONGTEXT` persisted payloads, and no-op
-`ON DUPLICATE KEY UPDATE` idempotent inserts). Raw drivers auto-migrate the
-small base schema (`runs`, `public_events`, `internal_events`, `messages`,
-`interrupts`, `metadata`, `_tanstack_ai_migrations`); ORMs own their schema.
+(`-cloudflare`, with optional R2-backed artifacts and blob storage), and
+bring-your-own Drizzle (`-drizzle`) and Prisma (`-prisma`). The shared SQL core
+emits MySQL-safe DDL and conflict handling (binary key columns, `LONGTEXT`
+persisted payloads, and no-op `ON DUPLICATE KEY UPDATE` idempotent inserts).
+Raw drivers auto-migrate the small base schema (`runs`, `public_events`,
+`internal_events`, `messages`, `interrupts`, `metadata`,
+`_tanstack_ai_migrations`); ORMs own their schema.
 `memoryPersistence()` ships in core for tests/examples.
 
 **Sandboxes, MCP, and workflows.** `@tanstack/ai-sandbox-persistence` bridges a
