@@ -11,6 +11,7 @@ import { z } from 'zod'
 import type { StandardJSONSchemaV1 } from '@standard-schema/spec'
 import type { TextActivityResult } from '../src/activities/chat'
 import type {
+  ChatStream,
   InferSchemaType,
   StreamChunk,
   StructuredOutputStream,
@@ -88,9 +89,9 @@ describe('chat() return type', () => {
   })
 
   describe('without outputSchema', () => {
-    it('stream: true → AsyncIterable<StreamChunk>', () => {
+    it('stream: true → ChatStream', () => {
       expectTypeOf<TextActivityResult<undefined, true>>().toEqualTypeOf<
-        AsyncIterable<StreamChunk>
+        ChatStream
       >()
     })
 
@@ -100,9 +101,9 @@ describe('chat() return type', () => {
       >()
     })
 
-    it('default stream (boolean) → AsyncIterable<StreamChunk>', () => {
+    it('default stream (boolean) → ChatStream', () => {
       expectTypeOf<TextActivityResult<undefined>>().toEqualTypeOf<
-        AsyncIterable<StreamChunk>
+        ChatStream
       >()
     })
   })

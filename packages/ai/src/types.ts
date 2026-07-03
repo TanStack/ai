@@ -1472,6 +1472,14 @@ export type KnownCustomEvent =
   | ToolInputAvailableEvent
   | UIResourceEvent
 
+/** The default chat streaming result: standard chunks plus every typed
+ *  framework CUSTOM event, with the `value: any` catch-all excluded so
+ *  literal-`name` narrowing types `value`. User-emitted custom names are typed
+ *  out (still flow at runtime — branch outside the name narrows or cast). */
+export type ChatStream = AsyncIterable<
+  Exclude<StreamChunk, CustomEvent> | KnownCustomEvent
+>
+
 /**
  * Public type for streams returned by `chat({ outputSchema, stream: true })`.
  *

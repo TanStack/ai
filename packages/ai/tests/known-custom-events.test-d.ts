@@ -1,5 +1,5 @@
 import { expectTypeOf } from 'vitest'
-import type { KnownCustomEvent, SessionIdEvent } from '../src/types'
+import type { ChatStream, KnownCustomEvent, SessionIdEvent } from '../src/types'
 
 // A KnownCustomEvent narrowed by literal name yields the concrete value.
 declare const ev: KnownCustomEvent
@@ -22,3 +22,12 @@ function isSessionIdEvent(e: KnownCustomEvent): e is SessionIdEvent {
 if (ev.type === 'CUSTOM' && isSessionIdEvent(ev)) {
   expectTypeOf(ev.value).toEqualTypeOf<{ sessionId: string }>()
 }
+
+async function narrowsOnRealStream(stream: ChatStream) {
+  for await (const chunk of stream) {
+    if (chunk.type === 'CUSTOM' && chunk.name === 'sandbox.file') {
+      expectTypeOf(chunk.value.path).toEqualTypeOf<string>()
+    }
+  }
+}
+void narrowsOnRealStream

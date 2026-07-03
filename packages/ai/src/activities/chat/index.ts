@@ -45,6 +45,7 @@ import type {
 import type {
   AgentLoopStrategy,
   AnyTool,
+  ChatStream,
   ConstrainedModelMessage,
   CustomEvent,
   InferSchemaType,
@@ -404,7 +405,7 @@ export type TextActivityResult<
     : Promise<InferSchemaType<TSchema>>
   : [TStream] extends [false]
     ? Promise<string>
-    : AsyncIterable<StreamChunk>
+    : ChatStream
 
 // ===========================
 // ChatEngine Implementation
