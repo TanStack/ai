@@ -6,7 +6,7 @@ import type {
   GenerationClientState,
   GenerationFetcher,
   ImageGenerateInput,
-  InferGenerationOutput,
+  InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
 import type { Accessor } from 'solid-js'
 
@@ -96,15 +96,12 @@ export interface UseGenerateImageReturn<TOutput = ImageGenerationResult> {
  * }
  * ```
  */
-export function useGenerateImage<
-  TOnResult extends ((result: ImageGenerationResult) => any) | undefined =
-    undefined,
->(
+export function useGenerateImage<TTransformed = void>(
   options: Omit<UseGenerateImageOptions, 'onResult'> & {
-    onResult?: TOnResult
+    onResult?: (result: ImageGenerationResult) => TTransformed
   },
 ): UseGenerateImageReturn<
-  InferGenerationOutput<ImageGenerationResult, TOnResult>
+  InferGenerationOutputFromReturn<ImageGenerationResult, TTransformed>
 > {
   const devtools = {
     ...options.devtools,
@@ -113,7 +110,7 @@ export function useGenerateImage<
     outputKind: 'image' as const,
   }
   const { generate, result, isLoading, error, status, stop, reset } =
-    useGeneration<ImageGenerateInput, ImageGenerationResult, TOnResult>({
+    useGeneration<ImageGenerateInput, ImageGenerationResult, TTransformed>({
       ...options,
       devtools,
     })

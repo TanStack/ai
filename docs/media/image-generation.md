@@ -447,6 +447,7 @@ if (result.usage?.unitsBilled != null) {
 | Model | Description |
 |-------|-------------|
 | `gemini-3.1-flash-image-preview` | Latest and fastest Gemini native image generation |
+| `gemini-3.1-flash-lite-image` | Nano Banana 2 Lite — ultra-low-latency, low-cost image generation |
 | `gemini-3-pro-image-preview` | Higher quality Gemini native image generation |
 | `gemini-2.5-flash-image` | Gemini 2.5 Flash with image generation |
 
@@ -457,7 +458,6 @@ if (result.usage?.unitsBilled != null) {
 | `imagen-4.0-ultra-generate-001` | 1-4 |
 | `imagen-4.0-generate-001` | 1-4 |
 | `imagen-4.0-fast-generate-001` | 1-4 |
-| `imagen-3.0-generate-002` | 1-4 |
 
 ## Error Handling
 

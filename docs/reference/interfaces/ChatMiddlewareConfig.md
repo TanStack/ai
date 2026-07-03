@@ -5,7 +5,7 @@ title: ChatMiddlewareConfig
 
 # Interface: ChatMiddlewareConfig
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:163](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L163)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:194](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L194)
 
 Chat configuration that middleware can observe or transform.
 This is a subset of the chat engine's effective configuration
@@ -22,7 +22,7 @@ messages: ModelMessage<
   | null>[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:164](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L164)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:195](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L195)
 
 ***
 
@@ -32,7 +32,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:164](https://gi
 optional metadata: Record<string, unknown>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:167](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L167)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:198](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L198)
 
 ***
 
@@ -42,7 +42,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:167](https://gi
 optional modelOptions: Record<string, unknown>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:168](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L168)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:199](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L199)
 
 ***
 
@@ -52,7 +52,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:168](https://gi
 systemPrompts: SystemPrompt[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:165](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L165)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:196](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L196)
 
 ***
 
@@ -62,4 +62,4 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:165](https://gi
 tools: Tool<SchemaInput, SchemaInput, string, unknown>[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:166](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L166)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:197](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L197)

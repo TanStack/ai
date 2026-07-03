@@ -6,7 +6,7 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  InferGenerationOutput,
+  InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
 import type { Signal } from '@angular/core'
 import type { ReactiveOption } from './internal/to-reactive'
@@ -96,15 +96,12 @@ export interface InjectGenerateAudioResult<TOutput = AudioGenerationResult> {
  * }
  * ```
  */
-export function injectGenerateAudio<
-  TOnResult extends ((result: AudioGenerationResult) => any) | undefined =
-    undefined,
->(
+export function injectGenerateAudio<TTransformed = void>(
   options: Omit<InjectGenerateAudioOptions, 'onResult'> & {
-    onResult?: TOnResult
+    onResult?: (result: AudioGenerationResult) => TTransformed
   },
 ): InjectGenerateAudioResult<
-  InferGenerationOutput<AudioGenerationResult, TOnResult>
+  InferGenerationOutputFromReturn<AudioGenerationResult, TTransformed>
 > {
   const devtools = {
     ...options.devtools,
@@ -113,7 +110,7 @@ export function injectGenerateAudio<
     outputKind: 'audio' as const,
   }
   const { generate, result, isLoading, error, status, stop, reset } =
-    injectGeneration<AudioGenerateInput, AudioGenerationResult, TOnResult>({
+    injectGeneration<AudioGenerateInput, AudioGenerationResult, TTransformed>({
       ...options,
       devtools,
     })

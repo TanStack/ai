@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { chat, type Tool, type StreamChunk } from '@tanstack/ai'
+import {
+  chat,
+  StreamProcessor,
+  type Tool,
+  type StreamChunk,
+  type UIMessage,
+} from '@tanstack/ai'
 import { AnthropicTextAdapter } from '../src/adapters/text'
 import type { AnthropicTextProviderOptions } from '../src/adapters/text'
 import { z } from 'zod'
@@ -35,7 +41,7 @@ vi.mock('@anthropic-ai/sdk', () => {
   return { default: MockAnthropic }
 })
 
-const createAdapter = <TModel extends 'claude-3-7-sonnet'>(model: TModel) =>
+const createAdapter = <TModel extends 'claude-opus-4-1'>(model: TModel) =>
   new AnthropicTextAdapter({ apiKey: 'test-key' }, model)
 
 const toolArguments = JSON.stringify({ location: 'Berlin' })
@@ -97,7 +103,7 @@ describe('Anthropic adapter option mapping', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-3-7-sonnet')
+    const adapter = createAdapter('claude-opus-4-1')
 
     const chunks: StreamChunk[] = []
     for await (const chunk of chat({
@@ -139,7 +145,7 @@ describe('Anthropic adapter option mapping', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-3-7-sonnet')
+    const adapter = createAdapter('claude-opus-4-1')
 
     for await (const _ of chat({
       adapter,
@@ -197,7 +203,7 @@ describe('Anthropic adapter option mapping', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-3-7-sonnet')
+    const adapter = createAdapter('claude-opus-4-1')
 
     const logger = {
       debug: vi.fn(),
@@ -291,7 +297,7 @@ describe('Anthropic adapter option mapping', () => {
       temperature: 0.4,
     } satisfies AnthropicTextProviderOptions
 
-    const adapter = createAdapter('claude-3-7-sonnet')
+    const adapter = createAdapter('claude-opus-4-1')
 
     // Consume the stream to trigger the API call
     const chunks: StreamChunk[] = []
@@ -322,7 +328,7 @@ describe('Anthropic adapter option mapping', () => {
     const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
 
     expect(payload).toMatchObject({
-      model: 'claude-3-7-sonnet',
+      model: 'claude-opus-4-1',
       max_tokens: 3000,
       temperature: 0.4,
       container: providerOptions.container,
@@ -372,7 +378,7 @@ describe('Anthropic adapter option mapping', () => {
   it('sources temperature and max_tokens from modelOptions', async () => {
     mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
 
-    const adapter = createAdapter('claude-3-7-sonnet')
+    const adapter = createAdapter('claude-opus-4-1')
 
     for await (const _ of chat({
       adapter,
@@ -393,7 +399,7 @@ describe('Anthropic adapter option mapping', () => {
   it('does not warn about dropped keys when max_tokens is passed via modelOptions', async () => {
     mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
 
-    const adapter = createAdapter('claude-3-7-sonnet')
+    const adapter = createAdapter('claude-opus-4-1')
 
     const logger = {
       debug: vi.fn(),
@@ -428,7 +434,7 @@ describe('Anthropic adapter option mapping', () => {
     // top_p is mutually exclusive with temperature, so exercise it alone.
     mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
 
-    const adapter = createAdapter('claude-3-7-sonnet')
+    const adapter = createAdapter('claude-opus-4-1')
 
     for await (const _ of chat({
       adapter,
@@ -447,7 +453,7 @@ describe('Anthropic adapter option mapping', () => {
   it('defaults max_tokens to 1024 when not provided via modelOptions', async () => {
     mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
 
-    const adapter = createAdapter('claude-3-7-sonnet')
+    const adapter = createAdapter('claude-opus-4-1')
 
     for await (const _ of chat({
       adapter,
@@ -528,9 +534,29 @@ describe('Anthropic adapter option mapping', () => {
   it('native combined mode (#605): pre-4.5 models keep the forced-tool finalization path', async () => {
     const adapter = new AnthropicTextAdapter(
       { apiKey: 'test-key' },
-      'claude-3-7-sonnet',
+      'claude-opus-4-1',
     )
     expect(adapter.supportsCombinedToolsAndSchema()).toBe(false)
+  })
+
+  it('native combined mode (#605): claude-sonnet-5, claude-fable-5, and claude-opus-4-8 use the single-request path', () => {
+    const sonnet5 = new AnthropicTextAdapter(
+      { apiKey: 'test-key' },
+      'claude-sonnet-5',
+    )
+    expect(sonnet5.supportsCombinedToolsAndSchema()).toBe(true)
+
+    const fable5 = new AnthropicTextAdapter(
+      { apiKey: 'test-key' },
+      'claude-fable-5',
+    )
+    expect(fable5.supportsCombinedToolsAndSchema()).toBe(true)
+
+    const opus48 = new AnthropicTextAdapter(
+      { apiKey: 'test-key' },
+      'claude-opus-4-8',
+    )
+    expect(opus48.supportsCombinedToolsAndSchema()).toBe(true)
   })
 
   it('merges consecutive user messages when tool results precede a follow-up user message', async () => {
@@ -562,7 +588,7 @@ describe('Anthropic adapter option mapping', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-3-7-sonnet')
+    const adapter = createAdapter('claude-opus-4-1')
 
     // Multi-turn: user -> assistant(tool_calls) -> tool_result -> follow-up user
     const chunks: StreamChunk[] = []
@@ -635,7 +661,7 @@ describe('Anthropic adapter option mapping', () => {
       createTextStream('Follow-up answer'),
     )
 
-    const adapter = createAdapter('claude-3-7-sonnet')
+    const adapter = createAdapter('claude-opus-4-1')
 
     const chunks: StreamChunk[] = []
     for await (const chunk of chat({
@@ -694,7 +720,7 @@ describe('Anthropic adapter option mapping', () => {
       createTextStream('Next answer'),
     )
 
-    const adapter = createAdapter('claude-3-7-sonnet')
+    const adapter = createAdapter('claude-opus-4-1')
 
     const chunks: StreamChunk[] = []
     for await (const chunk of chat({
@@ -760,7 +786,7 @@ describe('Anthropic adapter option mapping', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-3-7-sonnet')
+    const adapter = createAdapter('claude-opus-4-1')
 
     const chunks: StreamChunk[] = []
     for await (const chunk of chat({
@@ -876,7 +902,7 @@ describe('Anthropic adapter option mapping', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-3-7-sonnet')
+    const adapter = createAdapter('claude-opus-4-1')
 
     const chunks: StreamChunk[] = []
     for await (const chunk of chat({
@@ -988,7 +1014,7 @@ describe('Anthropic adapter option mapping', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-3-7-sonnet')
+    const adapter = createAdapter('claude-opus-4-1')
 
     const chunks: StreamChunk[] = []
     for await (const chunk of chat({
@@ -1052,7 +1078,7 @@ describe('Anthropic stream processing', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-3-7-sonnet')
+    const adapter = createAdapter('claude-opus-4-1')
 
     const chunks: StreamChunk[] = []
     for await (const chunk of chat({
@@ -1133,7 +1159,7 @@ describe('Anthropic stream processing', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-3-7-sonnet')
+    const adapter = createAdapter('claude-opus-4-1')
 
     const chunks: StreamChunk[] = []
     for await (const chunk of chat({
@@ -1144,20 +1170,41 @@ describe('Anthropic stream processing', () => {
       chunks.push(chunk)
     }
 
-    const toolEnds = chunks.filter((c) => c.type === 'TOOL_CALL_END')
-    expect(toolEnds).toHaveLength(1)
-    expect(toolEnds[0]).toMatchObject({
+    // The client tool's input must NOT absorb the server tool's deltas.
+    const clientEnd = chunks.find(
+      (c) =>
+        c.type === 'TOOL_CALL_END' &&
+        (c as { toolCallId: string }).toolCallId === 'tool_client',
+    )
+    expect(clientEnd).toMatchObject({
       toolCallId: 'tool_client',
       input: { location: 'Berlin' },
     })
 
-    expect(
-      chunks.some(
-        (c) =>
-          c.type === 'TOOL_CALL_START' &&
-          (c as { toolCallId: string }).toolCallId === 'srv_fetch',
-      ),
-    ).toBe(false)
+    // The server tool now round-trips as a provider-executed tool call carrying
+    // its own input plus the raw result block.
+    const serverStart = chunks.find(
+      (c) =>
+        c.type === 'TOOL_CALL_START' &&
+        (c as { toolCallId: string }).toolCallId === 'srv_fetch',
+    ) as (StreamChunk & { metadata?: Record<string, unknown> }) | undefined
+    expect(serverStart).toBeDefined()
+    expect(serverStart!.metadata).toMatchObject({
+      providerExecuted: true,
+      anthropic: {
+        serverToolType: 'web_fetch',
+        resultBlockType: 'web_fetch_tool_result',
+      },
+    })
+    const serverEnd = chunks.find(
+      (c) =>
+        c.type === 'TOOL_CALL_END' &&
+        (c as { toolCallId: string }).toolCallId === 'srv_fetch',
+    )
+    expect(serverEnd).toMatchObject({
+      toolCallId: 'srv_fetch',
+      input: { url: 'https://example.com' },
+    })
   })
 
   it.each([
@@ -1185,10 +1232,11 @@ describe('Anthropic stream processing', () => {
       ],
     ],
   ] as const)(
-    'cleanly handles a server-only %s response with no prior client tool_use',
+    'emits a provider-executed tool call for a server-only %s response with no prior client tool_use',
     async (toolName, resultType, resultContent) => {
-      // With no prior client tool_use, currentToolIndex is -1; server-tool
-      // deltas must not crash or create phantom client tool calls.
+      // With no prior client tool_use, currentToolIndex is -1; the server tool
+      // must emit its own provider-executed call without crashing or colliding
+      // with a phantom client tool call.
       const mockStream = (async function* () {
         yield {
           type: 'content_block_start',
@@ -1228,7 +1276,7 @@ describe('Anthropic stream processing', () => {
 
       mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-      const adapter = createAdapter('claude-3-7-sonnet')
+      const adapter = createAdapter('claude-opus-4-1')
 
       const chunks: StreamChunk[] = []
       for await (const chunk of chat({
@@ -1238,13 +1286,181 @@ describe('Anthropic stream processing', () => {
         chunks.push(chunk)
       }
 
-      expect(chunks.some((c) => c.type === 'TOOL_CALL_START')).toBe(false)
-      expect(chunks.some((c) => c.type === 'TOOL_CALL_END')).toBe(false)
+      const start = chunks.find((c) => c.type === 'TOOL_CALL_START') as
+        | (StreamChunk & { metadata?: Record<string, unknown> })
+        | undefined
+      expect(start).toMatchObject({
+        toolCallId: 'srv_only',
+        toolCallName: toolName,
+      })
+      expect(start!.metadata).toMatchObject({
+        providerExecuted: true,
+        anthropic: {
+          serverToolType: toolName,
+          resultBlockType: resultType,
+          result: resultContent,
+        },
+      })
+
+      const end = chunks.find((c) => c.type === 'TOOL_CALL_END')
+      expect(end).toMatchObject({
+        toolCallId: 'srv_only',
+        input: { url: 'https://example.com' },
+      })
 
       const runFinished = chunks.filter((c) => c.type === 'RUN_FINISHED')
       expect(runFinished).toHaveLength(1)
     },
   )
+
+  it('round-trips web_search evidence across turns (issue #839)', async () => {
+    // Turn 1: thinking + server_tool_use(web_search) + result + final text.
+    const searchResults = [
+      {
+        type: 'web_search_result',
+        encrypted_content: 'enc-1',
+        page_age: null,
+        title: 'Defense Drone Market',
+        url: 'https://example.com/drones',
+      },
+    ]
+    const turn1 = (async function* () {
+      yield {
+        type: 'content_block_start',
+        index: 0,
+        content_block: { type: 'thinking', thinking: '' },
+      }
+      yield {
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'thinking_delta', thinking: 'I should search.' },
+      }
+      yield {
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'signature_delta', signature: 'sig-abc' },
+      }
+      yield { type: 'content_block_stop', index: 0 }
+      yield {
+        type: 'content_block_start',
+        index: 1,
+        content_block: {
+          type: 'server_tool_use',
+          id: 'srv_search',
+          name: 'web_search',
+        },
+      }
+      yield {
+        type: 'content_block_delta',
+        index: 1,
+        delta: {
+          type: 'input_json_delta',
+          partial_json: '{"query":"defense drone market"}',
+        },
+      }
+      yield { type: 'content_block_stop', index: 1 }
+      yield {
+        type: 'content_block_start',
+        index: 2,
+        content_block: {
+          type: 'web_search_tool_result',
+          tool_use_id: 'srv_search',
+          content: searchResults,
+        },
+      }
+      yield { type: 'content_block_stop', index: 2 }
+      yield {
+        type: 'content_block_start',
+        index: 3,
+        content_block: { type: 'text', text: '' },
+      }
+      yield {
+        type: 'content_block_delta',
+        index: 3,
+        delta: { type: 'text_delta', text: 'Found one source.' },
+      }
+      yield { type: 'content_block_stop', index: 3 }
+      yield {
+        type: 'message_delta',
+        delta: { stop_reason: 'end_turn' },
+        usage: { output_tokens: 20 },
+      }
+      yield { type: 'message_stop' }
+    })()
+
+    mocks.betaMessagesCreate.mockResolvedValueOnce(turn1)
+
+    const adapter = createAdapter('claude-opus-4-1')
+
+    const firstMessages = [
+      { role: 'user' as const, content: 'Search the drone market.' },
+    ]
+    // Seed the processor with the same (ModelMessage-shaped) messages passed to
+    // chat() — exactly the pattern from issue #839. The processor must tolerate
+    // these parts-less entries.
+    const processor = new StreamProcessor({
+      initialMessages: firstMessages as unknown as Array<UIMessage>,
+    })
+    for await (const chunk of chat({ adapter, messages: firstMessages })) {
+      processor.processChunk(chunk)
+    }
+    processor.finalizeStream()
+
+    const afterTurn1 = processor.getMessages()
+    const assistant = afterTurn1.find((m) => m.role === 'assistant')
+    // The assistant message carries the server tool as a provider-executed
+    // tool-call part with the raw result on its metadata.
+    const serverPart = assistant?.parts.find(
+      (p) => p.type === 'tool-call' && p.id === 'srv_search',
+    )
+    expect(serverPart).toBeDefined()
+    expect((serverPart as { metadata?: unknown }).metadata).toMatchObject({
+      providerExecuted: true,
+      anthropic: {
+        serverToolType: 'web_search',
+        resultBlockType: 'web_search_tool_result',
+        result: searchResults,
+      },
+    })
+
+    // Turn 2: replay prior messages + a new user turn. Assert the request the
+    // adapter sends preserves the server_tool_use + result blocks.
+    mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('Sources:'))
+
+    for await (const _ of chat({
+      adapter,
+      messages: [
+        ...afterTurn1,
+        { role: 'user', content: 'List the sources you used.' },
+      ],
+    })) {
+      // consume
+    }
+
+    expect(mocks.betaMessagesCreate).toHaveBeenCalledTimes(2)
+    const [secondPayload] = mocks.betaMessagesCreate.mock.calls[1]!
+    const replayedAssistant = (
+      secondPayload.messages as Array<{
+        role: string
+        content: unknown
+      }>
+    ).find((m) => m.role === 'assistant')
+    expect(Array.isArray(replayedAssistant?.content)).toBe(true)
+    const blocks = replayedAssistant!.content as Array<{ type: string }>
+    const serverToolUse = blocks.find((b) => b.type === 'server_tool_use')
+    const resultBlock = blocks.find((b) => b.type === 'web_search_tool_result')
+    expect(serverToolUse).toMatchObject({
+      type: 'server_tool_use',
+      id: 'srv_search',
+      name: 'web_search',
+      input: { query: 'defense drone market' },
+    })
+    expect(resultBlock).toMatchObject({
+      type: 'web_search_tool_result',
+      tool_use_id: 'srv_search',
+      content: searchResults,
+    })
+  })
 
   it('logs an error when a server tool result block carries an error variant', async () => {
     // A failed web_fetch (e.g. url_not_accessible) is otherwise invisible —
@@ -1291,7 +1507,7 @@ describe('Anthropic stream processing', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-3-7-sonnet')
+    const adapter = createAdapter('claude-opus-4-1')
 
     const logger = {
       debug: vi.fn(),
@@ -1363,7 +1579,7 @@ describe('Anthropic stream processing', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-3-7-sonnet')
+    const adapter = createAdapter('claude-opus-4-1')
 
     const chunks: StreamChunk[] = []
     for await (const chunk of chat({
@@ -1428,7 +1644,7 @@ describe('Anthropic stream processing', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-3-7-sonnet')
+    const adapter = createAdapter('claude-opus-4-1')
 
     const chunks: StreamChunk[] = []
     for await (const chunk of chat({
@@ -1468,10 +1684,10 @@ describe('Anthropic adapter error handling', () => {
       }),
     )
 
-    const adapter = createAdapter('claude-3-7-sonnet')
+    const adapter = createAdapter('claude-opus-4-1')
     const chunks: StreamChunk[] = []
     for await (const chunk of adapter.chatStream({
-      model: 'claude-3-7-sonnet',
+      model: 'claude-opus-4-1',
       messages: [{ role: 'user', content: 'hi' }],
       logger: { request: () => {}, errors: () => {} } as any,
     })) {

@@ -97,6 +97,49 @@ async function handleRequest(request: Request) {
 }
 ```
 
+## Controlling the Discovery Catalog
+
+By default, the `__lazy__tool__discovery__` tool's description lists only the
+**names** of available lazy tools. The optional `lazyToolsConfig` on `chat()`
+controls how much of each lazy tool's description appears in that pre-discovery
+catalog:
+
+```typescript
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { getProducts, searchProducts, compareProducts } from "./tools";
+
+async function handleRequest(request: Request) {
+  const { messages } = await request.json();
+  const stream = chat({
+    adapter: openaiText("gpt-5.5"),
+    messages,
+    tools: [getProducts, searchProducts, compareProducts],
+    lazyToolsConfig: {
+      // 'none' (default) | 'first-sentence' | 'full'
+      includeDescription: "first-sentence",
+    },
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+| `includeDescription` | Catalog entry for `searchProducts`              |
+| -------------------- | ----------------------------------------------- |
+| `'none'` (default)   | `searchProducts`                                |
+| `'first-sentence'`   | `searchProducts — Search products by keyword.`  |
+| `'full'`             | `searchProducts — <full description>`           |
+
+This only affects the **pre-discovery** catalog. Regardless of the setting, the
+discovery tool's result always returns each tool's full description and argument
+schema — `includeDescription` just tunes how much the LLM sees before it
+decides what to discover. The default `'none'` keeps the catalog as lean as
+possible.
+
+`lazyToolsConfig` is optional and the same option is accepted by Code Mode's
+`createCodeMode()` — see [Code Mode Lazy Tools](../code-mode/lazy-tools).
+
 ## When to Use Lazy Tools
 
 Lazy tools are useful when:

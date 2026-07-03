@@ -1,8 +1,10 @@
 import type {
+  LazyToolsConfig,
   SchemaInput,
   ServerTool,
   ToolExecutionContext,
 } from '@tanstack/ai'
+import type { SecretParameterHandler } from './validate-bindings'
 
 // ============================================================================
 // Isolate Driver Interfaces
@@ -197,6 +199,28 @@ export interface CodeModeToolConfig {
   getSkillBindings?: () => Promise<Record<string, ToolBinding>>
 
   /**
+   * How to surface tool parameters whose names look like secrets.
+   * Defaults to `'warn'` (logs via `console.warn`).
+   *
+   * - `'warn'`: log a warning for each match.
+   * - `'throw'`: throw an Error on the first match — useful in tests/CI.
+   * - `'ignore'`: suppress the check entirely.
+   * - `(info) => void`: receive each match and decide how to react.
+   *
+   * Matches are deduplicated per `(toolName, paramPath)` across the lifetime
+   * of a single `createCodeModeTool` instance.
+   */
+  onSecretParameter?: SecretParameterHandler
+
+  /**
+   * Optional lazy-tool discovery config. Tools marked `lazy: true` are kept out
+   * of the system prompt's full documentation and listed in a Discoverable APIs
+   * catalog instead; this tunes how much of each lazy tool's description that
+   * catalog shows. Optional — defaults to `{ includeDescription: 'none' }`.
+   */
+  lazyToolsConfig?: LazyToolsConfig
+
+  /**
    * Optional escape hatch to swap out the TypeScript-stripping step.
    *
    * Receives the raw model-generated code and must return runnable JavaScript
@@ -263,4 +287,20 @@ export interface CodeModeToolResult {
         line?: number | undefined
       }
     | undefined
+}
+
+/**
+ * Return shape of `createCodeMode`. `tool` (execute_typescript) and
+ * `systemPrompt` are preserved for backward compatibility; `discoveryTool` and
+ * `tools` are additive. Spread `tools` into `chat({ tools })`.
+ */
+export interface CreateCodeModeResult {
+  /** The execute_typescript tool. */
+  tool: ServerTool<SchemaInput, SchemaInput, 'execute_typescript'>
+  /** The discover_tools tool, or null when there are no lazy tools. */
+  discoveryTool: ServerTool<SchemaInput, SchemaInput, 'discover_tools'> | null
+  /** [tool] or [tool, discoveryTool] — the array to spread into chat({ tools }). */
+  tools: Array<ServerTool<SchemaInput, SchemaInput, string>>
+  /** The matching system prompt. */
+  systemPrompt: string
 }

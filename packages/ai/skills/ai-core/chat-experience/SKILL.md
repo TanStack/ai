@@ -278,7 +278,35 @@ if (part.type === 'image') {
 }
 ```
 
-### 4. HTTP Stream Format (Alternative to SSE)
+### 4. Sending Audio Messages (Browser Recording)
+
+Use `useAudioRecorder` from `@tanstack/ai-react` (or `createAudioRecorder` in Svelte) to capture audio in the browser. The resolved `AudioRecording` includes a ready-to-use `part` that slots directly into `sendMessage`.
+
+```typescript
+import {
+  useAudioRecorder,
+  useChat,
+  fetchServerSentEvents,
+} from '@tanstack/ai-react'
+
+const { isRecording, isSupported, start, stop } = useAudioRecorder()
+const { sendMessage } = useChat({
+  connection: fetchServerSentEvents('/api/chat'),
+})
+
+async function toggle() {
+  if (!isRecording) {
+    await start()
+    return
+  }
+  const recording = await stop()
+  await sendMessage({ content: [recording.part] })
+}
+```
+
+`recording.part` is `{ type: 'audio', source: { type: 'data', value: base64, mimeType } }`. Returns the recorder's native format (`audio/webm` or `audio/mp4`) with no transcoding.
+
+### 5. HTTP Stream Format (Alternative to SSE)
 
 Use `toHttpResponse` + `fetchHttpStream` for newline-delimited JSON instead of SSE.
 
@@ -310,7 +338,7 @@ const { messages, sendMessage } = useChat({
 The only difference is swapping `toServerSentEventsResponse` / `fetchServerSentEvents`
 for `toHttpResponse` / `fetchHttpStream`. Everything else stays identical.
 
-### 5. MCP Tool Discovery via `chat({ mcp })`
+### 6. MCP Tool Discovery via `chat({ mcp })`
 
 Pass `mcp` to let `chat()` own discovery **and** lifecycle for one or more MCP
 clients. Useful when you want minimal boilerplate and don't need to reuse the

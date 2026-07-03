@@ -5,7 +5,7 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  InferGenerationOutput,
+  InferGenerationOutputFromReturn,
   SummarizeGenerateInput,
 } from '@tanstack/ai-client'
 
@@ -95,15 +95,12 @@ export interface CreateSummarizeReturn<TOutput = SummarizationResult> {
  * </div>
  * ```
  */
-export function createSummarize<
-  TOnResult extends ((result: SummarizationResult) => any) | undefined =
-    undefined,
->(
+export function createSummarize<TTransformed = void>(
   options: Omit<CreateSummarizeOptions, 'onResult'> & {
-    onResult?: TOnResult
+    onResult?: (result: SummarizationResult) => TTransformed
   },
 ): CreateSummarizeReturn<
-  InferGenerationOutput<SummarizationResult, TOnResult>
+  InferGenerationOutputFromReturn<SummarizationResult, TTransformed>
 > {
   const devtools = {
     ...options.devtools,
@@ -114,7 +111,7 @@ export function createSummarize<
   const gen = createGeneration<
     SummarizeGenerateInput,
     SummarizationResult,
-    TOnResult
+    TTransformed
   >({
     ...options,
     devtools,

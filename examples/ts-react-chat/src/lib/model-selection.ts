@@ -7,6 +7,7 @@ export type Provider =
   | 'grok'
   | 'groq'
   | 'openrouter'
+  | 'bedrock'
 
 export interface ModelOption {
   provider: Provider
@@ -198,6 +199,23 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
     provider: 'grok',
     model: 'grok-4.3',
     label: 'Grok - Grok 4.3',
+  },
+
+  // Bedrock (default Converse API — reaches Claude, Nova, Llama, gpt-oss, …)
+  {
+    provider: 'bedrock',
+    model: 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
+    label: 'Bedrock - Claude Haiku 4.5 (Converse)',
+  },
+  {
+    provider: 'bedrock',
+    model: 'us.amazon.nova-pro-v1:0',
+    label: 'Bedrock - Nova Pro (Converse)',
+  },
+  {
+    provider: 'bedrock',
+    model: 'openai.gpt-oss-120b-1:0',
+    label: 'Bedrock - GPT-OSS 120B (Converse)',
   },
 ]
 

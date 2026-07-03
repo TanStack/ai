@@ -120,6 +120,8 @@ export type {
   FinishInfo,
   AbortInfo,
   ErrorInfo,
+  SandboxFileEvent,
+  ChatSandboxHooks,
 } from './activities/chat/middleware/index'
 
 // Base, activity-agnostic middleware. The observe-only superset that media
@@ -149,10 +151,17 @@ export type {
   CapabilityContext,
   CapabilityGetter,
   CapabilityProvider,
+  DefinedChatMiddleware,
+  AnyChatMiddleware,
 } from './activities/chat/middleware/index'
 
 // All types
 export * from './types'
+
+export {
+  firstSentence,
+  renderLazyCatalogEntry,
+} from './activities/chat/tools/lazy-tools'
 
 // Usage utilities
 export { buildBaseUsage, type BaseUsageInput } from './utilities/usage'
@@ -246,6 +255,11 @@ export {
   isContentPartArray,
   normalizeToolResult,
 } from './utilities/tool-result'
+
+export {
+  getProviderExecutedMetadata,
+  isProviderExecutedToolCall,
+} from './utilities/provider-executed'
 
 // Adapter extension utilities
 export { createModel, extendAdapter } from './extend-adapter'

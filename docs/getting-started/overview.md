@@ -112,6 +112,7 @@ With the help of adapters, TanStack AI can connect to various LLM providers. Ava
 - **@tanstack/ai-ollama** - Ollama (local models)
 - **@tanstack/ai-groq** - Groq
 - **@tanstack/ai-grok** - xAI Grok
+- **@tanstack/ai-bedrock** - Amazon Bedrock (Claude, Nova, Llama, and more via AWS)
 - **@tanstack/ai-fal** - fal (image & video generation)
 
 ## Next Steps

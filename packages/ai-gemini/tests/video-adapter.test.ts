@@ -90,18 +90,13 @@ describe('Gemini Video Adapter', () => {
 
   describe('availableDurations', () => {
     it('returns the discrete Veo 3.x duration set', () => {
-      const adapter = createGeminiVideo('veo-3.0-generate-001', 'test-key')
+      const adapter = createGeminiVideo(
+        'veo-3.1-lite-generate-preview',
+        'test-key',
+      )
       expect(adapter.availableDurations()).toEqual({
         kind: 'discrete',
         values: [4, 6, 8],
-      })
-    })
-
-    it('returns the discrete Veo 2 duration set', () => {
-      const adapter = createGeminiVideo('veo-2.0-generate-001', 'test-key')
-      expect(adapter.availableDurations()).toEqual({
-        kind: 'discrete',
-        values: [5, 6, 8],
       })
     })
 
@@ -116,39 +111,29 @@ describe('Gemini Video Adapter', () => {
 
   describe('snapDuration', () => {
     it('snaps to the closest valid duration', () => {
-      const adapter = createGeminiVideo('veo-3.0-generate-001', 'test-key')
+      const adapter = createGeminiVideo(
+        'veo-3.1-lite-generate-preview',
+        'test-key',
+      )
       expect(adapter.snapDuration(3)).toBe(4)
       expect(adapter.snapDuration(5)).toBe(4)
       expect(adapter.snapDuration(7)).toBe(6)
       expect(adapter.snapDuration(100)).toBe(8)
     })
-
-    it('snaps Veo 2 values to its own set', () => {
-      const adapter = createGeminiVideo('veo-2.0-generate-001', 'test-key')
-      expect(adapter.snapDuration(1)).toBe(5)
-      expect(adapter.snapDuration(7)).toBe(6)
-      expect(adapter.snapDuration(9)).toBe(8)
-    })
   })
 
   describe('per-model duration typing', () => {
     it('types duration as the model-specific union at compile time', () => {
-      const veo3 = createGeminiVideo('veo-3.0-generate-001', 'test-key')
+      const veo3 = createGeminiVideo(
+        'veo-3.1-lite-generate-preview',
+        'test-key',
+      )
       expectTypeOf(veo3.snapDuration).returns.toEqualTypeOf<
         4 | 6 | 8 | undefined
       >()
       type Veo3Options = Parameters<typeof veo3.createVideoJob>[0]
       expectTypeOf<Veo3Options['duration']>().toEqualTypeOf<
         4 | 6 | 8 | undefined
-      >()
-
-      const veo2 = createGeminiVideo('veo-2.0-generate-001', 'test-key')
-      expectTypeOf(veo2.snapDuration).returns.toEqualTypeOf<
-        5 | 6 | 8 | undefined
-      >()
-      type Veo2Options = Parameters<typeof veo2.createVideoJob>[0]
-      expectTypeOf<Veo2Options['duration']>().toEqualTypeOf<
-        5 | 6 | 8 | undefined
       >()
     })
   })
@@ -188,18 +173,18 @@ describe('Gemini Video Adapter', () => {
     it('omits aspectRatio and durationSeconds when size/duration are not given', async () => {
       const stub = createClientStub()
       const adapter = new StubbedGeminiVideoAdapter(
-        'veo-2.0-generate-001',
+        'veo-3.1-lite-generate-preview',
         stub,
       )
 
       await adapter.createVideoJob({
-        model: 'veo-2.0-generate-001',
+        model: 'veo-3.1-lite-generate-preview',
         prompt: 'a sunset',
         logger: testLogger,
       })
 
       expect(stub.models.generateVideos).toHaveBeenCalledWith({
-        model: 'veo-2.0-generate-001',
+        model: 'veo-3.1-lite-generate-preview',
         prompt: 'a sunset',
         config: {},
       })
@@ -208,13 +193,13 @@ describe('Gemini Video Adapter', () => {
     it('throws when the operation comes back without a name', async () => {
       const stub = createClientStub({ createResult: {} })
       const adapter = new StubbedGeminiVideoAdapter(
-        'veo-3.0-generate-001',
+        'veo-3.1-lite-generate-preview',
         stub,
       )
 
       await expect(
         adapter.createVideoJob({
-          model: 'veo-3.0-generate-001',
+          model: 'veo-3.1-lite-generate-preview',
           prompt: 'a sunset',
           logger: testLogger,
         }),
@@ -292,12 +277,12 @@ describe('Gemini Video Adapter', () => {
     it('decodes base64 data: URI image sources', async () => {
       const stub = createClientStub()
       const adapter = new StubbedGeminiVideoAdapter(
-        'veo-3.0-generate-001',
+        'veo-3.1-lite-generate-preview',
         stub,
       )
 
       await adapter.createVideoJob({
-        model: 'veo-3.0-generate-001',
+        model: 'veo-3.1-lite-generate-preview',
         prompt: [
           { type: 'text', content: 'animate' },
           {

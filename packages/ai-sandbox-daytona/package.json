@@ -1,0 +1,54 @@
+{
+  "name": "@tanstack/ai-sandbox-daytona",
+  "version": "0.2.0",
+  "description": "Daytona sandbox provider for TanStack AI — run harness adapters inside isolated Daytona cloud sandboxes through the uniform SandboxHandle.",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-sandbox-daytona"
+  },
+  "keywords": [
+    "ai",
+    "tanstack",
+    "sandbox",
+    "daytona",
+    "harness",
+    "agent",
+    "isolation"
+  ],
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:build": "publint --strict",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "dependencies": {
+    "@daytona/sdk": "^0.191.0"
+  },
+  "peerDependencies": {
+    "@tanstack/ai-sandbox": "workspace:^"
+  },
+  "devDependencies": {
+    "@tanstack/ai-sandbox": "workspace:*",
+    "@vitest/coverage-v8": "4.0.14"
+  }
+}

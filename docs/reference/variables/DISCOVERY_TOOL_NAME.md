@@ -9,7 +9,7 @@ title: DISCOVERY_TOOL_NAME
 const DISCOVERY_TOOL_NAME: "__lazy__tool__discovery__" = '__lazy__tool__discovery__';
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/lazy-tool-manager.ts:11](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/lazy-tool-manager.ts#L11)
+Defined in: [packages/ai/src/activities/chat/tools/lazy-tool-manager.ts:12](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/lazy-tool-manager.ts#L12)
 
 Name of the synthetic tool the LLM calls to discover lazy tools.
 

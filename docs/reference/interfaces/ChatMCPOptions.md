@@ -5,7 +5,7 @@ title: ChatMCPOptions
 
 # Interface: ChatMCPOptions
 
-Defined in: [packages/ai/src/activities/chat/mcp/types.ts:32](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/mcp/types.ts#L32)
+Defined in: [packages/ai/src/activities/chat/mcp/types.ts:55](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/mcp/types.ts#L55)
 
 Options controlling MCP tool discovery and lifecycle for a `chat()` call.
 
@@ -17,7 +17,7 @@ Options controlling MCP tool discovery and lifecycle for a `chat()` call.
 clients: MCPToolSource[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/mcp/types.ts:36](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/mcp/types.ts#L36)
+Defined in: [packages/ai/src/activities/chat/mcp/types.ts:59](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/mcp/types.ts#L59)
 
 The MCP clients or client pools to discover tools from and manage.
 
@@ -29,7 +29,7 @@ The MCP clients or client pools to discover tools from and manage.
 optional connection: MCPConnectionPolicy;
 ```
 
-Defined in: [packages/ai/src/activities/chat/mcp/types.ts:43](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/mcp/types.ts#L43)
+Defined in: [packages/ai/src/activities/chat/mcp/types.ts:66](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/mcp/types.ts#L66)
 
 Connection lifecycle policy applied to all clients when the run ends.
 
@@ -43,7 +43,7 @@ Defaults to `'close'`.
 optional lazyTools: boolean;
 ```
 
-Defined in: [packages/ai/src/activities/chat/mcp/types.ts:51](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/mcp/types.ts#L51)
+Defined in: [packages/ai/src/activities/chat/mcp/types.ts:74](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/mcp/types.ts#L74)
 
 When `true`, tool schemas are fetched lazily (forwarded to
 `tools({ lazy: true })`).
@@ -58,7 +58,7 @@ Defaults to `false`.
 optional onDiscoveryError: (error, source) => void | Promise<void>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/mcp/types.ts:62](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/mcp/types.ts#L62)
+Defined in: [packages/ai/src/activities/chat/mcp/types.ts:85](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/mcp/types.ts#L85)
 
 Called when tool discovery fails for a single source.
 

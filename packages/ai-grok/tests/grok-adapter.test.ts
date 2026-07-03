@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
-import { EventType } from '@tanstack/ai'
+import { EventType, summarize } from '@tanstack/ai'
 import { createGrokText, grokText } from '../src/adapters/text'
 import { createGrokImage, grokImage } from '../src/adapters/image'
 import { createGrokSummarize, grokSummarize } from '../src/adapters/summarize'
@@ -497,6 +497,19 @@ describe('Grok adapters', () => {
       expect(() => grokSummarize('grok-build-0.1')).toThrow(
         'XAI_API_KEY is required',
       )
+    })
+
+    it('grokSummarize is assignable to summarize() adapter param for every model (#821)', () => {
+      // Type-level regression guard: the SummarizeAdapter constraint only
+      // instantiates at the summarize() call site, so constructing the adapter
+      // (covered above) is not enough. This closure is type-checked but never
+      // executed — passing CI's test:types is the assertion.
+      const _typeCheck = () => {
+        void summarize({ adapter: grokSummarize('grok-4.3'), text: '' })
+        void summarize({ adapter: grokSummarize('grok-build-0.1'), text: '' })
+      }
+
+      expect(_typeCheck).toBeInstanceOf(Function)
     })
   })
 })

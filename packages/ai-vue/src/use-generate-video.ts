@@ -14,7 +14,7 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  InferGenerationOutput,
+  InferGenerationOutputFromReturn,
   VideoGenerateInput,
   VideoGenerateResult,
   VideoStatusInfo,
@@ -114,17 +114,20 @@ export interface UseGenerateVideoReturn<TOutput = VideoGenerateResult> {
  * </template>
  * ```
  */
-export function useGenerateVideo<
-  TOnResult extends ((result: VideoGenerateResult) => any) | undefined =
-    undefined,
->(
+// `TTransformed` infers from the `onResult` return position so the callback
+// parameter is typed as `VideoGenerateResult` and `result` narrows to the
+// transform's return. See issue #848.
+export function useGenerateVideo<TTransformed = void>(
   options: Omit<UseGenerateVideoOptions, 'onResult'> & {
-    onResult?: TOnResult
+    onResult?: (result: VideoGenerateResult) => TTransformed
   },
 ): UseGenerateVideoReturn<
-  InferGenerationOutput<VideoGenerateResult, TOnResult>
+  InferGenerationOutputFromReturn<VideoGenerateResult, TTransformed>
 > {
-  type TOutput = InferGenerationOutput<VideoGenerateResult, TOnResult>
+  type TOutput = InferGenerationOutputFromReturn<
+    VideoGenerateResult,
+    TTransformed
+  >
   const hookId = useId()
   const clientId = options.id || hookId
 
@@ -148,7 +151,12 @@ export function useGenerateVideo<
       hookName: 'useGenerateVideo',
       outputKind: 'video' as const,
     },
-    onResult: (r: VideoGenerateResult) => options.onResult?.(r),
+    // The transform's raw return type (`TTransformed`) and the stored output
+    // (`TOutput`, with null/void/undefined stripped) are identical at runtime;
+    // the cast bridges the relationship that the conditional type hides.
+    onResult: ((r: VideoGenerateResult) => options.onResult?.(r)) as (
+      result: VideoGenerateResult,
+    ) => TOutput | null | void,
     onError: (e: Error) => options.onError?.(e),
     onProgress: (p: number, m?: string) => options.onProgress?.(p, m),
     onChunk: (c: StreamChunk) => options.onChunk?.(c),
@@ -227,7 +235,11 @@ export function useGenerateVideo<
 
   return {
     generate,
-    result: readonly(result),
+    // `readonly()` distributes `DeepReadonly`/`UnwrapNestedRefs` over the
+    // `TOutput` conditional, which TS can't prove equal to the declared
+    // `DeepReadonly<ShallowRef<TOutput | null>>` while `TTransformed` is free.
+    // They are identical at runtime; the cast restores the declared shape.
+    result: readonly(result) as UseGenerateVideoReturn<TOutput>['result'],
     jobId: readonly(jobId),
     videoStatus: readonly(videoStatus),
     isLoading: readonly(isLoading),
