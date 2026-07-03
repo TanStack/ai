@@ -26,6 +26,13 @@ export type {
   MetadataStore,
   ArtifactRecord,
   ArtifactStore,
+  BlobBody,
+  BlobRecord,
+  BlobObject,
+  BlobListPage,
+  BlobPutOptions,
+  BlobListOptions,
+  BlobStore,
   AIPersistence,
   ChatPersistence,
 } from './types'

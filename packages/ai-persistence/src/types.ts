@@ -15,6 +15,7 @@ export type PersistenceFeature =
   | 'metadata'
   | 'locks'
   | 'artifacts'
+  | 'blobs'
 
 export class AppendConflictError extends Error {
   constructor(message: string) {
@@ -172,6 +173,61 @@ export interface ArtifactStore {
   save: (record: ArtifactRecord) => Promise<void>
   get: (artifactId: string) => Promise<ArtifactRecord | null>
   list: (runId: string) => Promise<Array<ArtifactRecord>>
+  delete?: (artifactId: string) => Promise<void>
+  deleteForRun?: (runId: string) => Promise<void>
+}
+
+export type BlobBody =
+  | ReadableStream<Uint8Array>
+  | ArrayBuffer
+  | ArrayBufferView
+  | string
+  | Blob
+  | Uint8Array
+
+export interface BlobRecord {
+  key: string
+  size?: number
+  etag?: string
+  contentType?: string
+  customMetadata?: Record<string, string>
+  createdAt?: number
+  updatedAt?: number
+}
+
+export interface BlobObject extends BlobRecord {
+  arrayBuffer: () => Promise<ArrayBuffer>
+  text: () => Promise<string>
+  body?: ReadableStream<Uint8Array>
+}
+
+export interface BlobListPage {
+  objects: Array<BlobRecord>
+  cursor?: string
+  truncated?: boolean
+}
+
+export interface BlobPutOptions {
+  contentType?: string
+  customMetadata?: Record<string, string>
+}
+
+export interface BlobListOptions {
+  prefix?: string
+  cursor?: string
+  limit?: number
+}
+
+export interface BlobStore {
+  put: (
+    key: string,
+    body: BlobBody,
+    options?: BlobPutOptions,
+  ) => Promise<BlobRecord>
+  get: (key: string) => Promise<BlobObject | null>
+  head: (key: string) => Promise<BlobRecord | null>
+  delete: (key: string) => Promise<void>
+  list: (options?: BlobListOptions) => Promise<BlobListPage>
 }
 
 export interface AIPersistence {
@@ -184,6 +240,7 @@ export interface AIPersistence {
     metadata?: MetadataStore
     locks?: LockStore
     artifacts?: ArtifactStore
+    blobs?: BlobStore
   }
   stream?: DurableRunStream
 }
@@ -199,6 +256,7 @@ const featureRequirements: Record<PersistenceFeature, Array<string>> = {
   metadata: ['metadata'],
   locks: ['locks'],
   artifacts: ['artifacts'],
+  blobs: ['blobs'],
 }
 
 export function validatePersistenceFeatures(

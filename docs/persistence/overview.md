@@ -118,6 +118,7 @@ dropping durability:
 | `metadata` | `stores.metadata` |
 | `locks` | `stores.locks` |
 | `artifacts` | `stores.artifacts` |
+| `blobs` | `stores.blobs` |
 
 Public stream events and internal CAS/checkpoint events are separate stores.
 `PublicEventStore` is the user-visible replay stream: persisted AG-UI
@@ -148,26 +149,45 @@ Raw drivers create and migrate their tables automatically (opt out with
 `{ migrate: false }` and apply the exported `ddl(...)` / `migrate(...)`
 yourself). Drizzle and Prisma own their own schema/migrations.
 
-Cloudflare uses D1 for core persistence and can attach R2 for artifacts and
-blob bytes. Runs, events, messages, interrupts, and metadata remain in D1 as the
-source of truth; R2 stores artifact metadata indexes separately from optional
-artifact bytes:
+Cloudflare uses D1 for core persistence and can attach R2 for artifact and blob
+bytes. Runs, events, messages, interrupts, metadata, and artifact indexes remain
+in D1 as the source of truth; R2 stores the byte payloads behind
+`stores.blobs` and artifact records that include bytes. A Durable Object
+namespace can provide `stores.locks` for cross-isolate mutual exclusion:
 
 ```ts
 import { cloudflarePersistence } from '@tanstack/ai-persistence-cloudflare'
 
 interface Env {
   AI_D1: D1Database
-  AI_ARTIFACTS: R2Bucket
+  AI_BLOBS: R2Bucket
+  AI_LOCKS: DurableObjectNamespace
 }
 
 export function persistence(env: Env) {
   return cloudflarePersistence({
     d1: env.AI_D1,
-    r2: env.AI_ARTIFACTS,
+    r2: env.AI_BLOBS,
+    durableObjects: env.AI_LOCKS,
     r2ArtifactPrefix: 'tanstack-ai/artifacts/',
   })
 }
+```
+
+When an artifact is saved with `bytes`, Cloudflare persistence writes the bytes
+to R2 through the BlobStore and stores only metadata plus the blob key in D1.
+Artifact `list(runId)` reads the D1 index without downloading R2 bodies, while
+`get(artifactId)` hydrates bytes when present. Optional artifact cleanup APIs
+delete both D1 rows and associated R2 objects.
+
+If you disable Cloudflare migrations with `migrate: false`, apply both the core
+SQL DDL and the Cloudflare artifact index DDL yourself:
+
+```ts
+import { ddl } from '@tanstack/ai-persistence-sql'
+import { cloudflareArtifactDdl } from '@tanstack/ai-persistence-cloudflare'
+
+const statements = [...ddl('sqlite'), ...cloudflareArtifactDdl()]
 ```
 
 The base SQL schema is deliberately small:

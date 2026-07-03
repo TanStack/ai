@@ -56,6 +56,7 @@ function defaultFeatures(
   if (persistence.stores.metadata) features.push('metadata')
   if (persistence.stores.locks) features.push('locks')
   if (persistence.stores.artifacts) features.push('artifacts')
+  if (persistence.stores.blobs) features.push('blobs')
   return features
 }
 

@@ -26,6 +26,7 @@ describe('memoryPersistence', () => {
     expect(p.stores.internalEvents).toBeDefined()
     expect(p.stores.interrupts).toBeDefined()
     expect(p.stores.artifacts).toBeDefined()
+    expect(p.stores.blobs).toBeDefined()
     expect(p.stores.locks).toBeDefined()
   })
 
@@ -58,6 +59,15 @@ describe('memoryPersistence', () => {
         defineAIPersistence({ stores: { messages } }),
         ['messages'],
       ),
+    ).not.toThrow()
+  })
+
+  it('allows blob persistence when a blob store is present', () => {
+    const blobs = memoryPersistence().stores.blobs!
+    expect(() =>
+      validatePersistenceFeatures(defineAIPersistence({ stores: { blobs } }), [
+        'blobs',
+      ]),
     ).not.toThrow()
   })
 
@@ -275,6 +285,130 @@ describe('memoryPersistence', () => {
       expect((await artifacts!.get('art1'))?.name).toBe('out.txt')
       expect(await artifacts!.list('r1')).toHaveLength(1)
       expect(await artifacts!.list('other')).toHaveLength(0)
+    })
+
+    it('deletes individual artifacts', async () => {
+      const { artifacts } = memoryPersistence().stores
+      await artifacts!.save({
+        artifactId: 'art1',
+        runId: 'r1',
+        threadId: 't1',
+        name: 'out.txt',
+        mimeType: 'text/plain',
+        size: 3,
+        createdAt: 1,
+      })
+
+      await artifacts!.delete!('art1')
+
+      expect(await artifacts!.get('art1')).toBeNull()
+      expect(await artifacts!.list('r1')).toEqual([])
+    })
+
+    it('deletes artifacts for a run without touching other runs', async () => {
+      const { artifacts } = memoryPersistence().stores
+      await artifacts!.save({
+        artifactId: 'art1',
+        runId: 'r1',
+        threadId: 't1',
+        name: 'one.txt',
+        mimeType: 'text/plain',
+        size: 3,
+        createdAt: 1,
+      })
+      await artifacts!.save({
+        artifactId: 'art2',
+        runId: 'r1',
+        threadId: 't1',
+        name: 'two.txt',
+        mimeType: 'text/plain',
+        size: 3,
+        createdAt: 2,
+      })
+      await artifacts!.save({
+        artifactId: 'art3',
+        runId: 'r2',
+        threadId: 't1',
+        name: 'three.txt',
+        mimeType: 'text/plain',
+        size: 5,
+        createdAt: 3,
+      })
+
+      await artifacts!.deleteForRun!('r1')
+
+      expect(await artifacts!.list('r1')).toEqual([])
+      expect((await artifacts!.get('art3'))?.name).toBe('three.txt')
+    })
+  })
+
+  describe('blobs', () => {
+    it('puts, reads, heads, lists, and deletes blobs', async () => {
+      const { blobs } = memoryPersistence().stores
+
+      const written = await blobs!.put('runs/r1/out.txt', 'hello', {
+        contentType: 'text/plain',
+        customMetadata: { runId: 'r1' },
+      })
+
+      expect(written.key).toBe('runs/r1/out.txt')
+      expect(written.size).toBe(5)
+      expect(written.contentType).toBe('text/plain')
+      expect(written.customMetadata).toEqual({ runId: 'r1' })
+
+      const head = await blobs!.head('runs/r1/out.txt')
+      expect(head).toMatchObject({
+        key: 'runs/r1/out.txt',
+        size: 5,
+        contentType: 'text/plain',
+      })
+
+      const object = await blobs!.get('runs/r1/out.txt')
+      expect(await object!.text()).toBe('hello')
+      expect(new Uint8Array(await object!.arrayBuffer())).toEqual(
+        new TextEncoder().encode('hello'),
+      )
+
+      await blobs!.put('runs/r2/out.txt', new Uint8Array([1, 2, 3]))
+      expect(
+        (await blobs!.list({ prefix: 'runs/r1/' })).objects.map(
+          (record) => record.key,
+        ),
+      ).toEqual(['runs/r1/out.txt'])
+
+      await blobs!.delete('runs/r1/out.txt')
+
+      expect(await blobs!.get('runs/r1/out.txt')).toBeNull()
+      expect(await blobs!.head('runs/r1/out.txt')).toBeNull()
+    })
+
+    it('uses the same string ordering for pagination cursors as sorting', async () => {
+      const { blobs } = memoryPersistence().stores
+      await blobs!.put('k-a', 'a')
+      await blobs!.put('k-B', 'b')
+      await blobs!.put('k-c', 'c')
+
+      const first = await blobs!.list({ prefix: 'k-', limit: 1 })
+      const second = await blobs!.list({
+        prefix: 'k-',
+        limit: 10,
+        cursor: first.cursor,
+      })
+
+      expect([
+        ...first.objects.map((record) => record.key),
+        ...second.objects.map((record) => record.key),
+      ]).toEqual(['k-B', 'k-a', 'k-c'])
+    })
+
+    it('treats limit zero as an empty untruncated page without a cursor', async () => {
+      const { blobs } = memoryPersistence().stores
+      await blobs!.put('runs/r1/out.txt', 'hello')
+
+      await expect(blobs!.list({ limit: 0 })).resolves.toEqual({
+        objects: [],
+        truncated: false,
+      })
     })
   })
 
