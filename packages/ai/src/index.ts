@@ -121,6 +121,7 @@ export type {
   AbortInfo,
   ErrorInfo,
   SandboxFileEvent,
+  SandboxFileHookEvent,
   ChatSandboxHooks,
 } from './activities/chat/middleware/index'
 
