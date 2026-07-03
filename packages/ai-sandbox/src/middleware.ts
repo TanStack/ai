@@ -168,7 +168,12 @@ export function withSandbox(
         const runtime = getSandboxRuntime(ctx, { optional: true })
         watcher = await watchWorkspace(handle, {
           onEvent: (event: SandboxFileEvent) => {
-            const enriched = buildFileHookEvent(handle, watchRoot, baseSha, event)
+            const enriched = buildFileHookEvent(
+              handle,
+              watchRoot,
+              baseSha,
+              event,
+            )
             void dispatchDefinitionHooks(hooks, enriched)
             runtime?.emit(enriched)
             if (fe.diff) {

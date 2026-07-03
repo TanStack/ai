@@ -44,7 +44,10 @@ export function buildFileHookEvent(
     if (baseSha === '') return ''
     const rel = relTo(root, event.path)
     try {
-      const res = await handle.process.exec(`git show ${q(baseSha)}:${q(rel)}`, { cwd: root })
+      const res = await handle.process.exec(
+        `git show ${q(baseSha)}:${q(rel)}`,
+        { cwd: root },
+      )
       return res.exitCode === 0 ? res.stdout : ''
     } catch {
       return ''
@@ -59,9 +62,12 @@ export function buildFileHookEvent(
     // `/workspace` (e.g. every local-process sandbox).
     const rel = relTo(root, event.path)
     try {
-      const res = await handle.process.exec(`git diff ${q(baseSha)} -- ${q(rel)}`, {
-        cwd: root,
-      })
+      const res = await handle.process.exec(
+        `git diff ${q(baseSha)} -- ${q(rel)}`,
+        {
+          cwd: root,
+        },
+      )
       return res.exitCode === 0 ? res.stdout : ''
     } catch {
       return ''

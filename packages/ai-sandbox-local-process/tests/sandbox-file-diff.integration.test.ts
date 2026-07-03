@@ -112,122 +112,124 @@ describe('sandbox.file + sandbox.file.diff — real localProcessSandbox integrat
     while (workDirs.length > 0) {
       const dir = workDirs.pop()
       if (dir) {
-        await retryOnFailure(() => fsp.rm(dir, { recursive: true, force: true }))
+        await retryOnFailure(() =>
+          fsp.rm(dir, { recursive: true, force: true }),
+        )
       }
     }
   })
 
-  it(
-    'emits sandbox.file and sandbox.file.diff CUSTOM chunks off a real git-backed handle',
-    async () => {
-      const workDir = path.join(
-        os.tmpdir(),
-        `tanstack-ai-sbx-diff-${randomUUID()}`,
-      )
-      await fsp.mkdir(workDir, { recursive: true })
-      workDirs.push(workDir)
+  it('emits sandbox.file and sandbox.file.diff CUSTOM chunks off a real git-backed handle', async () => {
+    const workDir = path.join(
+      os.tmpdir(),
+      `tanstack-ai-sbx-diff-${randomUUID()}`,
+    )
+    await fsp.mkdir(workDir, { recursive: true })
+    workDirs.push(workDir)
 
-      // Fixed-`dir` config: every create/resume from this provider uses this
-      // exact host directory, so the git repo we seed below is what
-      // `withSandbox`'s setup actually captures `baseSha` against.
-      const provider = localProcessSandbox({ dir: workDir, removeOnDestroy: true })
-      const seedHandle = await provider.create({})
+    // Fixed-`dir` config: every create/resume from this provider uses this
+    // exact host directory, so the git repo we seed below is what
+    // `withSandbox`'s setup actually captures `baseSha` against.
+    const provider = localProcessSandbox({
+      dir: workDir,
+      removeOnDestroy: true,
+    })
+    const seedHandle = await provider.create({})
 
-      const run = async (cmd: string): Promise<void> => {
-        const res = await seedHandle.process.exec(cmd, { cwd: '/workspace' })
-        if (res.exitCode !== 0) {
-          throw new Error(`"${cmd}" failed (exit ${res.exitCode}): ${res.stderr}`)
-        }
+    const run = async (cmd: string): Promise<void> => {
+      const res = await seedHandle.process.exec(cmd, { cwd: '/workspace' })
+      if (res.exitCode !== 0) {
+        throw new Error(`"${cmd}" failed (exit ${res.exitCode}): ${res.stderr}`)
       }
+    }
 
-      // Real git repo + baseline commit, so `git rev-parse HEAD` (captured by
-      // withSandbox's setup) and `git diff <baseSha>` (the diff() accessor)
-      // have real history to work against.
-      await seedHandle.fs.write('/workspace/notes.txt', 'line one\n')
-      await run('git init')
-      await run('git config user.email "tanstack-ai-test@example.com"')
-      await run('git config user.name "tanstack-ai-test"')
-      await run('git add -A')
-      await run('git commit -m baseline')
+    // Real git repo + baseline commit, so `git rev-parse HEAD` (captured by
+    // withSandbox's setup) and `git diff <baseSha>` (the diff() accessor)
+    // have real history to work against.
+    await seedHandle.fs.write('/workspace/notes.txt', 'line one\n')
+    await run('git init')
+    await run('git config user.email "tanstack-ai-test@example.com"')
+    await run('git config user.name "tanstack-ai-test"')
+    await run('git add -A')
+    await run('git commit -m baseline')
 
-      const chunks: Array<KnownCustomEvent> = []
-      const sandbox = defineSandbox({
-        id: 's-diff-int',
-        provider,
-        fileEvents: { diff: true },
-      })
+    const chunks: Array<KnownCustomEvent> = []
+    const sandbox = defineSandbox({
+      id: 's-diff-int',
+      provider,
+      fileEvents: { diff: true },
+    })
 
-      const ctx = makeCtx()
-      // Mirrors the production sink built in
-      // `packages/ai/src/activities/chat/index.ts` (`createCustomEventChunk`
-      // for `sandbox.file` / `sandbox.file.diff`), minus the `model` field
-      // (no adapter/model in this harness-only integration test).
-      provideSandboxRuntime(ctx, {
-        logger: resolveDebugOption(false),
-        emit: (event) => {
-          chunks.push({
-            type: EventType.CUSTOM,
-            name: 'sandbox.file',
+    const ctx = makeCtx()
+    // Mirrors the production sink built in
+    // `packages/ai/src/activities/chat/index.ts` (`createCustomEventChunk`
+    // for `sandbox.file` / `sandbox.file.diff`), minus the `model` field
+    // (no adapter/model in this harness-only integration test).
+    provideSandboxRuntime(ctx, {
+      logger: resolveDebugOption(false),
+      emit: (event) => {
+        chunks.push({
+          type: EventType.CUSTOM,
+          name: 'sandbox.file',
+          timestamp: event.timestamp,
+          value: {
+            type: event.type,
+            path: event.path,
             timestamp: event.timestamp,
-            value: {
-              type: event.type,
-              path: event.path,
-              timestamp: event.timestamp,
-            },
-          })
-        },
-        emitFileDiff: (value) => {
-          chunks.push({
-            type: EventType.CUSTOM,
-            name: 'sandbox.file.diff',
-            timestamp: Date.now(),
-            value,
-          })
-        },
-      })
+          },
+        })
+      },
+      emitFileDiff: (value) => {
+        chunks.push({
+          type: EventType.CUSTOM,
+          name: 'sandbox.file.diff',
+          timestamp: Date.now(),
+          value,
+        })
+      },
+    })
 
-      const mw = withSandbox(sandbox)
-      await mw.setup!(ctx)
+    const mw = withSandbox(sandbox)
+    await mw.setup!(ctx)
 
-      try {
-        // Mutate the tracked file so the real (native, on this non-Linux box)
-        // fs.watch fires a 'change' event.
-        await seedHandle.fs.write(
-          '/workspace/notes.txt',
-          'line one\nline two\n',
-        )
+    try {
+      // Mutate the tracked file so the real (native, on this non-Linux box)
+      // fs.watch fires a 'change' event.
+      await seedHandle.fs.write('/workspace/notes.txt', 'line one\nline two\n')
 
-        await waitFor(() => chunks.some((c) => c.name === 'sandbox.file.diff'))
+      await waitFor(() => chunks.some((c) => c.name === 'sandbox.file.diff'))
 
-        // Literal-`name` discriminated-union narrowing on the public
-        // `KnownCustomEvent` type — no `as` cast anywhere below.
-        const fileEvents: Array<SandboxFileCustomEvent> = []
-        const diffEvents: Array<SandboxFileDiffEvent> = []
-        for (const chunk of chunks) {
-          if (chunk.name === 'sandbox.file') fileEvents.push(chunk)
-          else if (chunk.name === 'sandbox.file.diff') diffEvents.push(chunk)
-        }
-
-        expect(fileEvents.length).toBeGreaterThan(0)
-        const fileEvent = fileEvents[0]
-        expect(fileEvent).toBeDefined()
-        expect(['create', 'change']).toContain(fileEvent?.value.type)
-        expect(fileEvent?.value.path).toBe('/workspace/notes.txt')
-        expect(fileEvent?.value.timestamp).toBeGreaterThan(0)
-
-        expect(diffEvents.length).toBeGreaterThan(0)
-        const diffEvent = diffEvents[0]
-        expect(diffEvent).toBeDefined()
-        expect(diffEvent?.value.path).toBe('/workspace/notes.txt')
-        expect(diffEvent?.value.diff).toContain('line two')
-      } finally {
-        // Stops the watcher (no lingering fs.watch/exec-poll timers).
-        await mw.onFinish!(ctx, { finishReason: 'stop', duration: 0, content: '' })
-        // `destroy()` (removeOnDestroy: true) removes `workDir` itself — see
-        // `retryOnFailure` above for why this can't be a bare await on Windows.
-        await retryOnFailure(() => seedHandle.destroy())
+      // Literal-`name` discriminated-union narrowing on the public
+      // `KnownCustomEvent` type — no `as` cast anywhere below.
+      const fileEvents: Array<SandboxFileCustomEvent> = []
+      const diffEvents: Array<SandboxFileDiffEvent> = []
+      for (const chunk of chunks) {
+        if (chunk.name === 'sandbox.file') fileEvents.push(chunk)
+        else if (chunk.name === 'sandbox.file.diff') diffEvents.push(chunk)
       }
-    },
-    15000,
-  )
+
+      expect(fileEvents.length).toBeGreaterThan(0)
+      const fileEvent = fileEvents[0]
+      expect(fileEvent).toBeDefined()
+      expect(['create', 'change']).toContain(fileEvent?.value.type)
+      expect(fileEvent?.value.path).toBe('/workspace/notes.txt')
+      expect(fileEvent?.value.timestamp).toBeGreaterThan(0)
+
+      expect(diffEvents.length).toBeGreaterThan(0)
+      const diffEvent = diffEvents[0]
+      expect(diffEvent).toBeDefined()
+      expect(diffEvent?.value.path).toBe('/workspace/notes.txt')
+      expect(diffEvent?.value.diff).toContain('line two')
+    } finally {
+      // Stops the watcher (no lingering fs.watch/exec-poll timers).
+      await mw.onFinish!(ctx, {
+        finishReason: 'stop',
+        duration: 0,
+        content: '',
+      })
+      // `destroy()` (removeOnDestroy: true) removes `workDir` itself — see
+      // `retryOnFailure` above for why this can't be a bare await on Windows.
+      await retryOnFailure(() => seedHandle.destroy())
+    }
+  }, 15000)
 })

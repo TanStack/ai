@@ -393,12 +393,12 @@ const auditMiddleware = defineChatMiddleware({
 })
 ```
 
-| Hook             | Fires for                    |
-| ---------------- | ----------------------------- |
-| `onFile`         | Every create/change/delete    |
-| `onFileCreate`   | File creates only             |
-| `onFileChange`   | File changes only             |
-| `onFileDelete`   | File deletes only             |
+| Hook           | Fires for                  |
+| -------------- | -------------------------- |
+| `onFile`       | Every create/change/delete |
+| `onFileCreate` | File creates only          |
+| `onFileChange` | File changes only          |
+| `onFileDelete` | File deletes only          |
 
 These are independent of the stream: the engine also emits a `sandbox.file`
 `CUSTOM` chunk per change regardless of whether any `sandbox` hooks are

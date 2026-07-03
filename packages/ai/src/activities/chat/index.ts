@@ -715,7 +715,11 @@ class TextEngine<
       logger: this.logger,
       emit: (event: SandboxFileHookEvent) => {
         this.logger.sandbox(`file ${event.type} ${event.path}`, {
-          event: { type: event.type, path: event.path, timestamp: event.timestamp },
+          event: {
+            type: event.type,
+            path: event.path,
+            timestamp: event.timestamp,
+          },
         })
         void this.middlewareRunner.runSandboxFile(this.middlewareCtx, event)
         this.sandboxFileQueue.push(
@@ -727,7 +731,9 @@ class TextEngine<
         )
       },
       emitFileDiff: (value: { path: string; diff: string }) => {
-        this.sandboxFileQueue.push(this.createCustomEventChunk('sandbox.file.diff', value))
+        this.sandboxFileQueue.push(
+          this.createCustomEventChunk('sandbox.file.diff', value),
+        )
       },
     })
   }

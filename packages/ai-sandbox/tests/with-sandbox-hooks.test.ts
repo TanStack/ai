@@ -57,7 +57,10 @@ function fakeHandleAndFire(present: Set<string>) {
 // succeed (buildFileHookEvent's diff() falls back to '' on a rejected exec).
 function fakeHandleWithGit(
   knownPath: string,
-  execResults: Record<string, { stdout: string; stderr: string; exitCode: number }>,
+  execResults: Record<
+    string,
+    { stdout: string; stderr: string; exitCode: number }
+  >,
 ) {
   let onRaw: (e: { type: string; path: string }) => void = () => undefined
   const handle: SandboxHandle = {

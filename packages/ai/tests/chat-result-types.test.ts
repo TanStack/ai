@@ -90,9 +90,9 @@ describe('chat() return type', () => {
 
   describe('without outputSchema', () => {
     it('stream: true → ChatStream', () => {
-      expectTypeOf<TextActivityResult<undefined, true>>().toEqualTypeOf<
-        ChatStream
-      >()
+      expectTypeOf<
+        TextActivityResult<undefined, true>
+      >().toEqualTypeOf<ChatStream>()
     })
 
     it('stream: false → Promise<string>', () => {
@@ -102,9 +102,7 @@ describe('chat() return type', () => {
     })
 
     it('default stream (boolean) → ChatStream', () => {
-      expectTypeOf<TextActivityResult<undefined>>().toEqualTypeOf<
-        ChatStream
-      >()
+      expectTypeOf<TextActivityResult<undefined>>().toEqualTypeOf<ChatStream>()
     })
   })
 })
