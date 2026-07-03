@@ -72,6 +72,77 @@ engine automatically emits one `CUSTOM` [`sandbox.file`](./events#custom-events)
 event per change regardless of whether you register any hooks — so the client
 can react to the same edits without extra middleware.
 
+## Reading content and diffs in hooks
+
+The event every hook receives isn't just `{ type, path, timestamp }` — it also
+carries lazy, git-backed accessors for the file's content:
+
+```ts
+interface SandboxFileHookEvent {
+  type: "create" | "change" | "delete";
+  path: string;
+  timestamp: number;
+  before(): Promise<string>; // content at the session baseline ('' if new / non-git)
+  after(): Promise<string>; // current content ('' if deleted)
+  diff(): Promise<string>; // unified patch vs the baseline
+}
+```
+
+Reach for `diff()` to show what the agent changed — no need to hand-roll a
+`git diff` yourself:
+
+```ts
+import { defineSandbox } from "@tanstack/ai-sandbox";
+import { dockerSandbox } from "@tanstack/ai-sandbox-docker";
+
+const repoSandbox = defineSandbox({
+  id: "repo-agent",
+  provider: dockerSandbox({ image: "node:22" }),
+  hooks: {
+    onFileChange: async (e) => {
+      const patch = await e.diff();
+      console.log(`${e.path} changed:\n${patch}`);
+    },
+  },
+});
+```
+
+The same accessors are available on run-scoped hooks, where `e` is the
+second argument:
+
+```ts
+import { defineChatMiddleware } from "@tanstack/ai";
+import { db } from "./db";
+
+const auditMiddleware = defineChatMiddleware({
+  name: "audit",
+  sandbox: {
+    onFileChange: async (ctx, e) => {
+      const [before, after] = await Promise.all([e.before(), e.after()]);
+      db.log({ run: ctx.runId, path: e.path, before, after });
+    },
+  },
+});
+```
+
+**Lazy — path-only hooks pay nothing.** `before()`, `after()`, and `diff()`
+are methods, not fields: each one only reads the file or shells out to `git`
+when you call it. A hook that only reads `e.path` / `e.type` (like the
+catch-all logger in [Sandbox-scoped hooks](#sandbox-scoped-hooks) above)
+never touches the filesystem or spawns a process.
+
+**Git session baseline.** At `onReady`, the sandbox snapshots
+`git rev-parse HEAD` once, as the session's baseline commit (empty if the
+workspace isn't a git repo, or has no commits yet). Every `before()` and
+`diff()` call for the rest of the session diffs against that same fixed
+baseline, so `onFileChange` always reports the file's **cumulative** change
+since the run started — not just the delta since the watcher's last poll.
+`after()` always reads the file's current on-disk content, independent of
+the baseline. None of the three accessors throw: a deleted file, a new file,
+or a non-git workspace all resolve to `''` for `before()`/`after()`; a
+non-git workspace makes `diff()` fall back to a synthesized add-patch built
+from `after()`.
+
 ## Disabling file watching
 
 To stop the watcher and suppress `sandbox.file` events for a sandbox entirely,
