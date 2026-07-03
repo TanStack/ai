@@ -70,7 +70,7 @@ import type {
   ChatMiddleware,
   ChatMiddlewareConfig,
   ChatMiddlewareContext,
-  SandboxFileEvent,
+  SandboxFileHookEvent,
   StructuredOutputMiddlewareConfig,
 } from './middleware/types'
 import type { CheckCoverage } from './middleware/builder'
@@ -713,11 +713,17 @@ class TextEngine<
     // a `sandbox.file` custom chunk to be drained into the public stream.
     provideSandboxRuntime(this.middlewareCtx, {
       logger: this.logger,
-      emit: (event: SandboxFileEvent) => {
-        this.logger.sandbox(`file ${event.type} ${event.path}`, { event })
+      emit: (event: SandboxFileHookEvent) => {
+        this.logger.sandbox(`file ${event.type} ${event.path}`, {
+          event: { type: event.type, path: event.path, timestamp: event.timestamp },
+        })
         void this.middlewareRunner.runSandboxFile(this.middlewareCtx, event)
         this.sandboxFileQueue.push(
-          this.createCustomEventChunk('sandbox.file', { ...event }),
+          this.createCustomEventChunk('sandbox.file', {
+            type: event.type,
+            path: event.path,
+            timestamp: event.timestamp,
+          }),
         )
       },
     })
