@@ -4,8 +4,14 @@ export {
   params,
   autoIncrementPk,
   jsonColumn,
+  textColumn,
   blobColumn,
   bigIntColumn,
+  identifier,
+  stringKeyColumn,
+  insertDoNothingPrefix,
+  insertDoNothingSuffix,
+  upsertUpdateSuffix,
 } from './driver'
 export type { Dialect, SqlRow, SqlDriver } from './driver'
 

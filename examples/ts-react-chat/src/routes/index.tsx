@@ -28,7 +28,7 @@ import {
 import { clientTools } from '@tanstack/ai-client'
 import { ThinkingPart } from '@tanstack/ai-react-ui'
 import type { UIMessage } from '@tanstack/ai-react'
-import type { ContentPart, TranscriptionResult } from '@tanstack/ai'
+import type { ContentPart } from '@tanstack/ai'
 import type { GeminiInteractionsCustomEventValue } from '@tanstack/ai-gemini/experimental'
 import type { ModelOption } from '@/lib/model-selection'
 import GuitarRecommendation from '@/components/example-GuitarRecommendation'
@@ -445,9 +445,7 @@ function ChatPage() {
   // mic button is the worst outcome.
   const [recordError, setRecordError] = useState<string | null>(null)
 
-  const { generate: transcribe, isLoading: isTranscribing } = useTranscription<
-    (r: TranscriptionResult) => void
-  >({
+  const { generate: transcribe, isLoading: isTranscribing } = useTranscription({
     connection: fetchServerSentEvents('/api/transcribe'),
     onResult: (r) => setInput((prev) => (prev ? `${prev} ${r.text}` : r.text)),
     // A failed transcription (network/provider) is just as silent as a mic

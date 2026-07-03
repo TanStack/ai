@@ -4,7 +4,7 @@
  * implements this over its client; the stores never see a concrete driver.
  */
 
-export type Dialect = 'sqlite' | 'postgres'
+export type Dialect = 'sqlite' | 'postgres' | 'mysql'
 
 export type SqlRow = Record<string, unknown>
 
@@ -22,7 +22,7 @@ export interface SqlDriver {
 }
 
 /**
- * Positional placeholder for the dialect: `?` for SQLite, `$n` for Postgres.
+ * Positional placeholder for the dialect: `?` for SQLite/MySQL, `$n` for Postgres.
  * `index` is 1-based to match Postgres `$1`, `$2`, …
  */
 export function param(dialect: Dialect, index: number): string {
@@ -38,14 +38,20 @@ export function params(dialect: Dialect, count: number, start = 1): string {
 
 /** Auto-incrementing integer primary-key column definition for the dialect. */
 export function autoIncrementPk(dialect: Dialect): string {
-  return dialect === 'postgres'
-    ? 'BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY'
-    : 'INTEGER PRIMARY KEY AUTOINCREMENT'
+  if (dialect === 'postgres')
+    return 'BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY'
+  if (dialect === 'mysql') return 'BIGINT AUTO_INCREMENT PRIMARY KEY'
+  return 'INTEGER PRIMARY KEY AUTOINCREMENT'
 }
 
 /** JSON column type for the dialect. */
 export function jsonColumn(dialect: Dialect): string {
   return dialect === 'postgres' ? 'JSONB' : 'TEXT'
+}
+
+/** Large text payload column type for the dialect. */
+export function textColumn(dialect: Dialect): string {
+  return dialect === 'mysql' ? 'LONGTEXT' : 'TEXT'
 }
 
 /** Binary/blob column type for the dialect. */
@@ -59,5 +65,51 @@ export function blobColumn(dialect: Dialect): string {
  * already 64-bit.
  */
 export function bigIntColumn(dialect: Dialect): string {
-  return dialect === 'postgres' ? 'BIGINT' : 'INTEGER'
+  return dialect === 'sqlite' ? 'INTEGER' : 'BIGINT'
+}
+
+/** Bounded text key column for dialects that cannot index unrestricted TEXT. */
+export function stringKeyColumn(dialect: Dialect): string {
+  return dialect === 'mysql'
+    ? 'VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin'
+    : 'TEXT'
+}
+
+/** Quote an identifier for the target dialect. */
+export function identifier(dialect: Dialect, name: string): string {
+  if (dialect === 'mysql') return `\`${name.replaceAll('`', '``')}\``
+  if (dialect === 'postgres') return `"${name.replaceAll('"', '""')}"`
+  return `"${name.replaceAll('"', '""')}"`
+}
+
+/** Insert prefix for idempotent writes that should do nothing on unique conflicts. */
+export function insertDoNothingPrefix(dialect: Dialect): string {
+  void dialect
+  return 'INSERT INTO'
+}
+
+/** Insert suffix for idempotent writes that should do nothing on unique conflicts. */
+export function insertDoNothingSuffix(
+  dialect: Dialect,
+  conflictColumns: ReadonlyArray<string>,
+): string {
+  if (dialect === 'mysql') {
+    const noopColumn = conflictColumns[0]
+    return ` ON DUPLICATE KEY UPDATE ${noopColumn} = ${noopColumn}`
+  }
+  return ` ON CONFLICT (${conflictColumns.join(', ')}) DO NOTHING`
+}
+
+/** Upsert suffix for insert-or-update writes. */
+export function upsertUpdateSuffix(
+  dialect: Dialect,
+  conflictColumns: ReadonlyArray<string>,
+  assignments: ReadonlyArray<string>,
+): string {
+  if (dialect === 'mysql') {
+    return ` ON DUPLICATE KEY UPDATE ${assignments.join(', ')}`
+  }
+  return ` ON CONFLICT (${conflictColumns.join(
+    ', ',
+  )}) DO UPDATE SET ${assignments.join(', ')}`
 }

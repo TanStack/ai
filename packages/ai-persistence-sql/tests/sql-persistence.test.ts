@@ -6,7 +6,7 @@ import {
 } from '@tanstack/ai-persistence'
 import type { StreamChunk } from '@tanstack/ai'
 import { createSqlPersistence } from '../src/sql-persistence'
-import { migrate } from '../src/migrations'
+import { ddl, migrate } from '../src/migrations'
 import { createTestSqliteDriver } from './sqlite-driver'
 import type { SqlDriver } from '../src/driver'
 
@@ -79,6 +79,35 @@ function createInsertRaceDriver(opts: {
   return makeDriver(false)
 }
 
+function createRecordingDriver(): SqlDriver & {
+  statements: Array<string>
+  queueQueryRows: (rows: Array<Record<string, unknown>>) => void
+} {
+  const statements: Array<string> = []
+  const queuedRows: Array<Array<Record<string, unknown>>> = []
+  const driver: SqlDriver & {
+    statements: Array<string>
+    queueQueryRows: (rows: Array<Record<string, unknown>>) => void
+  } = {
+    dialect: 'mysql' as SqlDriver['dialect'],
+    statements,
+    queueQueryRows(rows) {
+      queuedRows.push(rows)
+    },
+    async exec(sql) {
+      statements.push(sql)
+    },
+    async query(sql) {
+      statements.push(sql)
+      return (queuedRows.shift() ?? []) as Array<any>
+    },
+    async transaction(fn) {
+      return fn(driver)
+    },
+  }
+  return driver
+}
+
 describe('migrate', () => {
   it('is idempotent (re-running applies nothing new)', async () => {
     const driver = createTestSqliteDriver()
@@ -148,6 +177,137 @@ describe('migrate', () => {
       'SELECT version FROM _tanstack_ai_migrations',
     )
     expect(rows.map((row) => Number(row.version))).toEqual([1])
+  })
+})
+
+describe('mysql dialect SQL generation', () => {
+  it('uses MySQL-safe binary key columns and LONGTEXT payload columns in DDL', () => {
+    const statements = ddl('mysql' as SqlDriver['dialect'])
+    const schema = statements.join('\n')
+    const mysqlKey = 'VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin'
+
+    expect(schema).toContain(`run_id ${mysqlKey} PRIMARY KEY`)
+    expect(schema).toContain(`thread_id ${mysqlKey} PRIMARY KEY`)
+    expect(schema).toContain(`interrupt_id ${mysqlKey} PRIMARY KEY`)
+    expect(schema).toContain(`namespace ${mysqlKey} NOT NULL`)
+    expect(schema).toContain(`\`key\` ${mysqlKey} NOT NULL`)
+    expect(schema).toContain('PRIMARY KEY (scope, `key`)')
+    expect(schema).toContain('error LONGTEXT')
+    expect(schema).toContain('usage LONGTEXT')
+    expect(schema).toContain('event LONGTEXT NOT NULL')
+    expect(schema).toContain('payload LONGTEXT NOT NULL')
+    expect(schema).toContain('messages LONGTEXT NOT NULL')
+    expect(schema).toContain('response LONGTEXT')
+    expect(schema).toContain('value LONGTEXT NOT NULL')
+    expect(schema).not.toContain('TEXT PRIMARY KEY')
+    expect(schema).not.toContain(' key VARCHAR(191)')
+  })
+
+  it('uses no-op upsert for MySQL migration markers', async () => {
+    const driver = createRecordingDriver()
+    await migrate(driver)
+
+    expect(driver.statements.join('\n')).toContain(
+      'INSERT INTO _tanstack_ai_migrations',
+    )
+    expect(driver.statements.join('\n')).toContain(
+      'ON DUPLICATE KEY UPDATE version = version',
+    )
+    expect(driver.statements.join('\n')).not.toContain('INSERT IGNORE')
+    expect(driver.statements.join('\n')).not.toContain('ON CONFLICT')
+  })
+
+  it('emits MySQL-compatible no-op insert and upsert SQL for stores', async () => {
+    const driver = createRecordingDriver()
+    const persistence = createSqlPersistence(driver, { migrate: false })
+
+    driver.queueQueryRows([])
+    driver.queueQueryRows([
+      {
+        run_id: 'r1',
+        thread_id: 't1',
+        status: 'running',
+        started_at: 1,
+      },
+    ])
+    await persistence.stores.runs!.createOrResume({
+      runId: 'r1',
+      threadId: 't1',
+      startedAt: 1,
+    })
+
+    await persistence.stores.messages!.saveThread('t1', [
+      { role: 'user', content: 'hi' },
+    ])
+    await persistence.stores.metadata!.set('scope', 'key', { ok: true })
+    await persistence.stores.metadata!.get('scope', 'key')
+    await persistence.stores.metadata!.delete('scope', 'key')
+    await persistence.stores.interrupts!.create({
+      interruptId: 'i1',
+      runId: 'r1',
+      threadId: 't1',
+      status: 'pending',
+      requestedAt: 1,
+      payload: { kind: 'input' },
+    })
+    await persistence.approvals!.create({
+      approvalId: 'a1',
+      runId: 'r1',
+      threadId: 't1',
+      status: 'pending',
+      requestedAt: 1,
+      payload: { kind: 'approval' },
+    })
+    await persistence.events!.append('r1', 1, text('legacy'))
+
+    driver.queueQueryRows([])
+    driver.queueQueryRows([{ max_seq: 0 }])
+    driver.queueQueryRows([
+      {
+        seq: 1,
+        event: JSON.stringify(text('public')),
+      },
+    ])
+    await persistence.stores.publicEvents!.append({
+      runId: 'r1',
+      expectedSeq: 0,
+      event: text('public'),
+    })
+
+    driver.queueQueryRows([])
+    driver.queueQueryRows([{ max_seq: 0 }])
+    driver.queueQueryRows([
+      {
+        seq: 1,
+        namespace: 'agent',
+        type: 'step',
+        payload: JSON.stringify({ ok: true }),
+      },
+    ])
+    await persistence.stores.internalEvents!.append({
+      runId: 'r1',
+      namespace: 'agent',
+      expectedSeq: 0,
+      type: 'step',
+      payload: { ok: true },
+    })
+
+    const sql = driver.statements.join('\n')
+    expect(sql).toContain('INSERT INTO runs')
+    expect(sql).toContain('ON DUPLICATE KEY UPDATE run_id = run_id')
+    expect(sql).toContain('INSERT INTO interrupts')
+    expect(sql).toContain('ON DUPLICATE KEY UPDATE interrupt_id = interrupt_id')
+    expect(sql).toContain('INSERT INTO public_events')
+    expect(sql).toContain('INSERT INTO internal_events')
+    expect(sql).toContain('INSERT INTO metadata (scope, `key`, value) VALUES')
+    expect(sql).toContain(
+      'SELECT value FROM metadata WHERE scope = ? AND `key` = ?',
+    )
+    expect(sql).toContain('DELETE FROM metadata WHERE scope = ? AND `key` = ?')
+    expect(sql).toContain('ON DUPLICATE KEY UPDATE messages = ?')
+    expect(sql).toContain('ON DUPLICATE KEY UPDATE value = ?')
+    expect(sql).not.toContain('INSERT IGNORE')
+    expect(sql).not.toContain('ON CONFLICT')
   })
 })
 

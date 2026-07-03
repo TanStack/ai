@@ -40,13 +40,16 @@ public replay. Optional feature validation fails loudly when a requested feature
 is missing its required stores.
 
 **Backends (shared SQL core + thin adapters).** One SQL implementation behind a
-minimal `SqlDriver` (`@tanstack/ai-persistence-sql`), with backends for SQLite
-(`-sqlite`, node:sqlite/better-sqlite3), Postgres (`-postgres`, pg), Cloudflare
-D1 (`-cloudflare`), and bring-your-own Drizzle (`-drizzle`) and Prisma
-(`-prisma`). Raw drivers auto-migrate the small base schema (`runs`,
-`public_events`, `internal_events`, `messages`, `interrupts`, `metadata`,
-`_tanstack_ai_migrations`); ORMs own their schema. `memoryPersistence()` ships
-in core for tests/examples.
+minimal `SqlDriver` (`@tanstack/ai-persistence-sql`), with dialect support for
+SQLite, Postgres, and MySQL and backends for SQLite (`-sqlite`,
+node:sqlite/better-sqlite3), Postgres (`-postgres`, pg), Cloudflare D1
+(`-cloudflare`), and bring-your-own Drizzle (`-drizzle`) and Prisma
+(`-prisma`). The shared SQL core emits MySQL-safe DDL and conflict handling
+(binary key columns, `LONGTEXT` persisted payloads, and no-op
+`ON DUPLICATE KEY UPDATE` idempotent inserts). Raw drivers auto-migrate the
+small base schema (`runs`, `public_events`, `internal_events`, `messages`,
+`interrupts`, `metadata`, `_tanstack_ai_migrations`); ORMs own their schema.
+`memoryPersistence()` ships in core for tests/examples.
 
 **Sandboxes, MCP, and workflows.** `@tanstack/ai-sandbox-persistence` bridges a
 durable SQL-backed `SandboxStore` and the durable `LockStore` into

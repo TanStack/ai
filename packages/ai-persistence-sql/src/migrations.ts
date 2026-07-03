@@ -5,12 +5,20 @@
  * migration is applied at most once, tracked in `_tanstack_ai_migrations`.
  * Idempotent: re-running `migrate` is a no-op once all versions are applied.
  *
- * JSON is stored as TEXT in BOTH dialects (the stores stringify/parse) so reads
- * don't depend on a driver's JSONB return shape; bytes are stored base64-encoded
- * in a TEXT column for the same portability reason. Epoch-ms timestamps use
+ * JSON is stored as large text (TEXT, or LONGTEXT on MySQL) so reads don't
+ * depend on a driver's JSONB return shape; bytes are stored base64-encoded in
+ * a text column for the same portability reason. Epoch-ms timestamps use
  * {@link bigIntColumn}.
  */
-import { bigIntColumn, param } from './driver'
+import {
+  bigIntColumn,
+  identifier,
+  insertDoNothingPrefix,
+  insertDoNothingSuffix,
+  param,
+  stringKeyColumn,
+  textColumn,
+} from './driver'
 import type { Dialect, SqlDriver } from './driver'
 
 interface Migration {
@@ -21,49 +29,52 @@ interface Migration {
 /** DDL for schema v1. */
 function v1(dialect: Dialect): Array<string> {
   const ts = bigIntColumn(dialect)
+  const key = stringKeyColumn(dialect)
+  const text = textColumn(dialect)
+  const metadataKey = identifier(dialect, 'key')
   return [
     `CREATE TABLE IF NOT EXISTS runs (
-      run_id TEXT PRIMARY KEY,
-      thread_id TEXT NOT NULL,
+      run_id ${key} PRIMARY KEY,
+      thread_id ${key} NOT NULL,
       status TEXT NOT NULL,
       started_at ${ts} NOT NULL,
       finished_at ${ts},
-      error TEXT,
-      usage TEXT
+      error ${text},
+      usage ${text}
     )`,
     `CREATE TABLE IF NOT EXISTS public_events (
-      run_id TEXT NOT NULL,
+      run_id ${key} NOT NULL,
       seq INTEGER NOT NULL,
-      event TEXT NOT NULL,
+      event ${text} NOT NULL,
       PRIMARY KEY (run_id, seq)
     )`,
     `CREATE TABLE IF NOT EXISTS internal_events (
-      run_id TEXT NOT NULL,
-      namespace TEXT NOT NULL,
+      run_id ${key} NOT NULL,
+      namespace ${key} NOT NULL,
       seq INTEGER NOT NULL,
       type TEXT NOT NULL,
-      payload TEXT NOT NULL,
+      payload ${text} NOT NULL,
       PRIMARY KEY (run_id, namespace, seq)
     )`,
     `CREATE TABLE IF NOT EXISTS messages (
-      thread_id TEXT PRIMARY KEY,
-      messages TEXT NOT NULL
+      thread_id ${key} PRIMARY KEY,
+      messages ${text} NOT NULL
     )`,
     `CREATE TABLE IF NOT EXISTS interrupts (
-      interrupt_id TEXT PRIMARY KEY,
-      run_id TEXT NOT NULL,
-      thread_id TEXT NOT NULL,
+      interrupt_id ${key} PRIMARY KEY,
+      run_id ${key} NOT NULL,
+      thread_id ${key} NOT NULL,
       status TEXT NOT NULL,
       requested_at ${ts} NOT NULL,
       resolved_at ${ts},
-      payload TEXT NOT NULL,
-      response TEXT
+      payload ${text} NOT NULL,
+      response ${text}
     )`,
     `CREATE TABLE IF NOT EXISTS metadata (
-      scope TEXT NOT NULL,
-      key TEXT NOT NULL,
-      value TEXT NOT NULL,
-      PRIMARY KEY (scope, key)
+      scope ${key} NOT NULL,
+      ${metadataKey} ${key} NOT NULL,
+      value ${text} NOT NULL,
+      PRIMARY KEY (scope, ${metadataKey})
     )`,
   ]
 }
@@ -98,10 +109,14 @@ export async function migrate(driver: SqlDriver): Promise<void> {
         await tx.exec(statement)
       }
       await tx.exec(
-        `INSERT INTO _tanstack_ai_migrations (version, applied_at) VALUES (${param(
+        `${insertDoNothingPrefix(
+          tx.dialect,
+        )} _tanstack_ai_migrations (version, applied_at) VALUES (${param(
           tx.dialect,
           1,
-        )}, ${param(tx.dialect, 2)}) ON CONFLICT (version) DO NOTHING`,
+        )}, ${param(tx.dialect, 2)})${insertDoNothingSuffix(tx.dialect, [
+          'version',
+        ])}`,
         [migration.version, Date.now()],
       )
     })

@@ -4,7 +4,13 @@
  * portability across SQLite, Postgres, D1, Drizzle, and Prisma raw drivers.
  */
 import { AppendConflictError } from '@tanstack/ai-persistence'
-import { param } from './driver'
+import {
+  identifier,
+  insertDoNothingPrefix,
+  insertDoNothingSuffix,
+  param,
+  upsertUpdateSuffix,
+} from './driver'
 import type {
   ApprovalRecord,
   ApprovalStore,
@@ -63,7 +69,11 @@ export function createMessageStore(driver: SqlDriver): MessageStore {
       await driver.exec(
         `INSERT INTO messages (thread_id, messages) VALUES (${p(1)}, ${p(
           2,
-        )}) ON CONFLICT (thread_id) DO UPDATE SET messages = ${p(3)}`,
+        )})${upsertUpdateSuffix(
+          driver.dialect,
+          ['thread_id'],
+          [`messages = ${p(3)}`],
+        )}`,
         [threadId, serialized, serialized],
       )
     },
@@ -97,9 +107,13 @@ export function createRunStore(driver: SqlDriver): RunStore {
         startedAt: input.startedAt,
       }
       await driver.exec(
-        `INSERT INTO runs (run_id, thread_id, status, started_at) VALUES (${p(
+        `${insertDoNothingPrefix(
+          driver.dialect,
+        )} runs (run_id, thread_id, status, started_at) VALUES (${p(
           1,
-        )}, ${p(2)}, ${p(3)}, ${p(4)}) ON CONFLICT (run_id) DO NOTHING`,
+        )}, ${p(2)}, ${p(3)}, ${p(4)})${insertDoNothingSuffix(driver.dialect, [
+          'run_id',
+        ])}`,
         [record.runId, record.threadId, record.status, record.startedAt],
       )
       return (await this.get(input.runId)) ?? record
@@ -200,9 +214,14 @@ export function createEventLog(driver: SqlDriver): PublicEventStore {
         }
 
         await tx.exec(
-          `INSERT INTO public_events (run_id, seq, event) VALUES (${p(
+          `${insertDoNothingPrefix(
+            tx.dialect,
+          )} public_events (run_id, seq, event) VALUES (${p(
             1,
-          )}, ${p(2)}, ${p(3)}) ON CONFLICT (run_id, seq) DO NOTHING`,
+          )}, ${p(2)}, ${p(3)})${insertDoNothingSuffix(tx.dialect, [
+            'run_id',
+            'seq',
+          ])}`,
           [input.runId, targetSeq, JSON.stringify(input.event)],
         )
         const persisted = await readAt(tx, input.runId, targetSeq)
@@ -278,9 +297,14 @@ export function createLegacyEventLog(driver: SqlDriver): LegacyEventLog {
       throw new Error(`Legacy event append requires runId, seq, and event.`)
     }
     await driver.exec(
-      `INSERT INTO public_events (run_id, seq, event) VALUES (${p(
+      `${insertDoNothingPrefix(
+        driver.dialect,
+      )} public_events (run_id, seq, event) VALUES (${p(
         1,
-      )}, ${p(2)}, ${p(3)}) ON CONFLICT (run_id, seq) DO NOTHING`,
+      )}, ${p(2)}, ${p(3)})${insertDoNothingSuffix(driver.dialect, [
+        'run_id',
+        'seq',
+      ])}`,
       [inputOrRunId, seq, JSON.stringify(event)],
     )
   }
@@ -379,9 +403,14 @@ export function createInternalEventStore(
         }
 
         await tx.exec(
-          `INSERT INTO internal_events (run_id, namespace, seq, type, payload) VALUES (${p(
+          `${insertDoNothingPrefix(
+            tx.dialect,
+          )} internal_events (run_id, namespace, seq, type, payload) VALUES (${p(
             1,
-          )}, ${p(2)}, ${p(3)}, ${p(4)}, ${p(5)}) ON CONFLICT (run_id, namespace, seq) DO NOTHING`,
+          )}, ${p(2)}, ${p(3)}, ${p(4)}, ${p(5)})${insertDoNothingSuffix(
+            tx.dialect,
+            ['run_id', 'namespace', 'seq'],
+          )}`,
           [
             input.runId,
             input.namespace,
@@ -459,9 +488,11 @@ export function createInterruptStore(driver: SqlDriver): InterruptStore {
   return {
     async create(record) {
       await driver.exec(
-        `INSERT INTO interrupts (interrupt_id, run_id, thread_id, status, requested_at, payload, response)
+        `${insertDoNothingPrefix(
+          driver.dialect,
+        )} interrupts (interrupt_id, run_id, thread_id, status, requested_at, payload, response)
          VALUES (${p(1)}, ${p(2)}, ${p(3)}, ${p(4)}, ${p(5)}, ${p(6)}, ${p(7)})
-         ON CONFLICT (interrupt_id) DO NOTHING`,
+         ${insertDoNothingSuffix(driver.dialect, ['interrupt_id'])}`,
         [
           record.interruptId,
           record.runId,
@@ -566,9 +597,11 @@ export function createApprovalStore(driver: SqlDriver): ApprovalStore {
   return {
     async create(record) {
       await driver.exec(
-        `INSERT INTO interrupts (interrupt_id, run_id, thread_id, status, requested_at, payload, response)
+        `${insertDoNothingPrefix(
+          driver.dialect,
+        )} interrupts (interrupt_id, run_id, thread_id, status, requested_at, payload, response)
          VALUES (${p(1)}, ${p(2)}, ${p(3)}, ${p(4)}, ${p(5)}, ${p(6)}, ${p(7)})
-         ON CONFLICT (interrupt_id) DO NOTHING`,
+         ${insertDoNothingSuffix(driver.dialect, ['interrupt_id'])}`,
         [
           record.approvalId,
           record.runId,
@@ -620,10 +653,13 @@ export function createApprovalStore(driver: SqlDriver): ApprovalStore {
 
 export function createMetadataStore(driver: SqlDriver): MetadataStore {
   const p = (i: number) => param(driver.dialect, i)
+  const metadataKey = identifier(driver.dialect, 'key')
   return {
     async get(scope, key) {
       const rows = await driver.query<{ value: string }>(
-        `SELECT value FROM metadata WHERE scope = ${p(1)} AND key = ${p(2)}`,
+        `SELECT value FROM metadata WHERE scope = ${p(
+          1,
+        )} AND ${metadataKey} = ${p(2)}`,
         [scope, key],
       )
       const row = rows[0]
@@ -632,15 +668,21 @@ export function createMetadataStore(driver: SqlDriver): MetadataStore {
     async set(scope, key, value) {
       const serialized = JSON.stringify(value)
       await driver.exec(
-        `INSERT INTO metadata (scope, key, value) VALUES (${p(1)}, ${p(
-          2,
-        )}, ${p(3)}) ON CONFLICT (scope, key) DO UPDATE SET value = ${p(4)}`,
+        `INSERT INTO metadata (scope, ${metadataKey}, value) VALUES (${p(
+          1,
+        )}, ${p(2)}, ${p(3)})${upsertUpdateSuffix(
+          driver.dialect,
+          ['scope', metadataKey],
+          [`value = ${p(4)}`],
+        )}`,
         [scope, key, serialized, serialized],
       )
     },
     async delete(scope, key) {
       await driver.exec(
-        `DELETE FROM metadata WHERE scope = ${p(1)} AND key = ${p(2)}`,
+        `DELETE FROM metadata WHERE scope = ${p(
+          1,
+        )} AND ${metadataKey} = ${p(2)}`,
         [scope, key],
       )
     },

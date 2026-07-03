@@ -13,6 +13,7 @@ import { Route as ThreadsRouteImport } from './routes/threads'
 import { Route as ServerFnChatRouteImport } from './routes/server-fn-chat'
 import { Route as SandboxesRouteImport } from './routes/sandboxes'
 import { Route as RealtimeRouteImport } from './routes/realtime'
+import { Route as MysqlPersistenceRouteImport } from './routes/mysql-persistence'
 import { Route as McpDemoRouteImport } from './routes/mcp-demo'
 import { Route as McpAppsRouteImport } from './routes/mcp-apps'
 import { Route as Issue176ToolResultRouteImport } from './routes/issue-176-tool-result'
@@ -36,6 +37,7 @@ import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiStructuredOutputRouteImport } from './routes/api.structured-output'
 import { Route as ApiStructuredChatRouteImport } from './routes/api.structured-chat'
 import { Route as ApiSandboxTriageRouteImport } from './routes/api.sandbox-triage'
+import { Route as ApiMysqlPersistentChatRouteImport } from './routes/api.mysql-persistent-chat'
 import { Route as ApiMcpStatusRouteImport } from './routes/api.mcp-status'
 import { Route as ApiMcpPoolRouteImport } from './routes/api.mcp-pool'
 import { Route as ApiMcpManualRouteImport } from './routes/api.mcp-manual'
@@ -72,6 +74,11 @@ const SandboxesRoute = SandboxesRouteImport.update({
 const RealtimeRoute = RealtimeRouteImport.update({
   id: '/realtime',
   path: '/realtime',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MysqlPersistenceRoute = MysqlPersistenceRouteImport.update({
+  id: '/mysql-persistence',
+  path: '/mysql-persistence',
   getParentRoute: () => rootRouteImport,
 } as any)
 const McpDemoRoute = McpDemoRouteImport.update({
@@ -192,6 +199,11 @@ const ApiSandboxTriageRoute = ApiSandboxTriageRouteImport.update({
   path: '/api/sandbox-triage',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMysqlPersistentChatRoute = ApiMysqlPersistentChatRouteImport.update({
+  id: '/api/mysql-persistent-chat',
+  path: '/api/mysql-persistent-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMcpStatusRoute = ApiMcpStatusRouteImport.update({
   id: '/api/mcp-status',
   path: '/api/mcp-status',
@@ -287,6 +299,7 @@ export interface FileRoutesByFullPath {
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/mcp-apps': typeof McpAppsRoute
   '/mcp-demo': typeof McpDemoRoute
+  '/mysql-persistence': typeof MysqlPersistenceRoute
   '/realtime': typeof RealtimeRoute
   '/sandboxes': typeof SandboxesRoute
   '/server-fn-chat': typeof ServerFnChatRoute
@@ -302,6 +315,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp-manual': typeof ApiMcpManualRoute
   '/api/mcp-pool': typeof ApiMcpPoolRoute
   '/api/mcp-status': typeof ApiMcpStatusRoute
+  '/api/mysql-persistent-chat': typeof ApiMysqlPersistentChatRoute
   '/api/sandbox-triage': typeof ApiSandboxTriageRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
@@ -333,6 +347,7 @@ export interface FileRoutesByTo {
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/mcp-apps': typeof McpAppsRoute
   '/mcp-demo': typeof McpDemoRoute
+  '/mysql-persistence': typeof MysqlPersistenceRoute
   '/realtime': typeof RealtimeRoute
   '/sandboxes': typeof SandboxesRoute
   '/server-fn-chat': typeof ServerFnChatRoute
@@ -348,6 +363,7 @@ export interface FileRoutesByTo {
   '/api/mcp-manual': typeof ApiMcpManualRoute
   '/api/mcp-pool': typeof ApiMcpPoolRoute
   '/api/mcp-status': typeof ApiMcpStatusRoute
+  '/api/mysql-persistent-chat': typeof ApiMysqlPersistentChatRoute
   '/api/sandbox-triage': typeof ApiSandboxTriageRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
@@ -380,6 +396,7 @@ export interface FileRoutesById {
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/mcp-apps': typeof McpAppsRoute
   '/mcp-demo': typeof McpDemoRoute
+  '/mysql-persistence': typeof MysqlPersistenceRoute
   '/realtime': typeof RealtimeRoute
   '/sandboxes': typeof SandboxesRoute
   '/server-fn-chat': typeof ServerFnChatRoute
@@ -395,6 +412,7 @@ export interface FileRoutesById {
   '/api/mcp-manual': typeof ApiMcpManualRoute
   '/api/mcp-pool': typeof ApiMcpPoolRoute
   '/api/mcp-status': typeof ApiMcpStatusRoute
+  '/api/mysql-persistent-chat': typeof ApiMysqlPersistentChatRoute
   '/api/sandbox-triage': typeof ApiSandboxTriageRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
@@ -428,6 +446,7 @@ export interface FileRouteTypes {
     | '/issue-176-tool-result'
     | '/mcp-apps'
     | '/mcp-demo'
+    | '/mysql-persistence'
     | '/realtime'
     | '/sandboxes'
     | '/server-fn-chat'
@@ -443,6 +462,7 @@ export interface FileRouteTypes {
     | '/api/mcp-manual'
     | '/api/mcp-pool'
     | '/api/mcp-status'
+    | '/api/mysql-persistent-chat'
     | '/api/sandbox-triage'
     | '/api/structured-chat'
     | '/api/structured-output'
@@ -474,6 +494,7 @@ export interface FileRouteTypes {
     | '/issue-176-tool-result'
     | '/mcp-apps'
     | '/mcp-demo'
+    | '/mysql-persistence'
     | '/realtime'
     | '/sandboxes'
     | '/server-fn-chat'
@@ -489,6 +510,7 @@ export interface FileRouteTypes {
     | '/api/mcp-manual'
     | '/api/mcp-pool'
     | '/api/mcp-status'
+    | '/api/mysql-persistent-chat'
     | '/api/sandbox-triage'
     | '/api/structured-chat'
     | '/api/structured-output'
@@ -520,6 +542,7 @@ export interface FileRouteTypes {
     | '/issue-176-tool-result'
     | '/mcp-apps'
     | '/mcp-demo'
+    | '/mysql-persistence'
     | '/realtime'
     | '/sandboxes'
     | '/server-fn-chat'
@@ -535,6 +558,7 @@ export interface FileRouteTypes {
     | '/api/mcp-manual'
     | '/api/mcp-pool'
     | '/api/mcp-status'
+    | '/api/mysql-persistent-chat'
     | '/api/sandbox-triage'
     | '/api/structured-chat'
     | '/api/structured-output'
@@ -567,6 +591,7 @@ export interface RootRouteChildren {
   Issue176ToolResultRoute: typeof Issue176ToolResultRoute
   McpAppsRoute: typeof McpAppsRoute
   McpDemoRoute: typeof McpDemoRoute
+  MysqlPersistenceRoute: typeof MysqlPersistenceRoute
   RealtimeRoute: typeof RealtimeRoute
   SandboxesRoute: typeof SandboxesRoute
   ServerFnChatRoute: typeof ServerFnChatRoute
@@ -582,6 +607,7 @@ export interface RootRouteChildren {
   ApiMcpManualRoute: typeof ApiMcpManualRoute
   ApiMcpPoolRoute: typeof ApiMcpPoolRoute
   ApiMcpStatusRoute: typeof ApiMcpStatusRoute
+  ApiMysqlPersistentChatRoute: typeof ApiMysqlPersistentChatRoute
   ApiSandboxTriageRoute: typeof ApiSandboxTriageRoute
   ApiStructuredChatRoute: typeof ApiStructuredChatRoute
   ApiStructuredOutputRoute: typeof ApiStructuredOutputRoute
@@ -633,6 +659,13 @@ declare module '@tanstack/react-router' {
       path: '/realtime'
       fullPath: '/realtime'
       preLoaderRoute: typeof RealtimeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mysql-persistence': {
+      id: '/mysql-persistence'
+      path: '/mysql-persistence'
+      fullPath: '/mysql-persistence'
+      preLoaderRoute: typeof MysqlPersistenceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mcp-demo': {
@@ -796,6 +829,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSandboxTriageRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mysql-persistent-chat': {
+      id: '/api/mysql-persistent-chat'
+      path: '/api/mysql-persistent-chat'
+      fullPath: '/api/mysql-persistent-chat'
+      preLoaderRoute: typeof ApiMysqlPersistentChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/mcp-status': {
       id: '/api/mcp-status'
       path: '/api/mcp-status'
@@ -927,6 +967,7 @@ const rootRouteChildren: RootRouteChildren = {
   Issue176ToolResultRoute: Issue176ToolResultRoute,
   McpAppsRoute: McpAppsRoute,
   McpDemoRoute: McpDemoRoute,
+  MysqlPersistenceRoute: MysqlPersistenceRoute,
   RealtimeRoute: RealtimeRoute,
   SandboxesRoute: SandboxesRoute,
   ServerFnChatRoute: ServerFnChatRoute,
@@ -942,6 +983,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpManualRoute: ApiMcpManualRoute,
   ApiMcpPoolRoute: ApiMcpPoolRoute,
   ApiMcpStatusRoute: ApiMcpStatusRoute,
+  ApiMysqlPersistentChatRoute: ApiMysqlPersistentChatRoute,
   ApiSandboxTriageRoute: ApiSandboxTriageRoute,
   ApiStructuredChatRoute: ApiStructuredChatRoute,
   ApiStructuredOutputRoute: ApiStructuredOutputRoute,

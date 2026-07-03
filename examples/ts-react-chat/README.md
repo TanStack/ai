@@ -37,7 +37,25 @@ An example chat application built with TanStack Start, TanStack Store, and **Tan
 
 ```env
 OPENAI_API_KEY=your_openai_api_key
+MYSQL_URL=mysql://root:password@127.0.0.1:3306/tanstack_ai_chat
 ```
+
+## MySQL Persistence Demo
+
+The `/mysql-persistence` route demonstrates durable chat resume with MySQL.
+Create a database, set either `MYSQL_URL` or the individual `MYSQL_HOST`,
+`MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, and `MYSQL_DATABASE` variables,
+then run the app and open `/mysql-persistence`.
+
+```sql
+CREATE DATABASE tanstack_ai_chat;
+```
+
+The example stores messages, durable replay events, and interrupts through
+`@tanstack/ai-persistence-sql`. Refresh while a response is streaming to
+continue tailing the in-progress run from MySQL within the same dev/server
+process. Reattaching to a producer after restarting the server process is out
+of scope for this example.
 
 ## Trying Out Lazy Tool Discovery
 
@@ -78,7 +96,7 @@ The lazy tools are: `compareGuitars`, `calculateFinancing`, and `searchGuitars`.
 
 ### AI Capabilities
 
-- 🤖 Powered by **TanStack AI** with OpenAI GPT-4o
+- 🤖 Powered by **TanStack AI** with OpenAI `gpt-5.5`
 - 📝 Rich markdown formatting with syntax highlighting
 - 🎯 Customizable system prompts for tailored AI behavior
 - 🔄 Real-time streaming responses with Server-Sent Events
@@ -107,7 +125,7 @@ The lazy tools are: `compareGuitars`, `calculateFinancing`, and `searchGuitars`.
 - **Routing**: TanStack Router
 - **State Management**: TanStack Store
 - **Styling**: Tailwind CSS
-- **AI Integration**: TanStack AI with OpenAI GPT-4o
+- **AI Integration**: TanStack AI with OpenAI `gpt-5.5`
 - **Chat Client**: `@tanstack/ai-react` with connection adapters
 - **Streaming**: Server-Sent Events via `fetchServerSentEvents`
 - **Tool Execution**: Automatic loop with `ToolCallManager`

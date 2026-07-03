@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-persistence-sql",
   "version": "0.1.0",
-  "description": "Shared SQL store core for TanStack AI persistence — durable runs, messages, public/internal events, interrupts, and metadata behind a minimal SqlDriver (sqlite | postgres dialect), with versioned migrations. Consumed by the sqlite/postgres/cloudflare/drizzle/prisma backends.",
+  "description": "Shared SQL store core for TanStack AI persistence — durable runs, messages, public/internal events, interrupts, and metadata behind a minimal SqlDriver (sqlite | postgres | mysql dialect), with versioned migrations. Consumed by the sqlite/postgres/cloudflare/drizzle/prisma backends.",
   "author": "",
   "license": "MIT",
   "repository": {
@@ -18,6 +18,7 @@
     "sql",
     "sqlite",
     "postgres",
+    "mysql",
     "migrations"
   ],
   "type": "module",
