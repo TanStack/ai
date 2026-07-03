@@ -103,7 +103,8 @@
         {
           "label": "Tool Approval Flow",
           "to": "tools/tool-approval",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-03"
         },
         {
           "label": "Lazy Tool Discovery",
@@ -140,7 +141,7 @@
           "label": "MCP Apps",
           "to": "mcp/apps",
           "addedAt": "2026-06-24",
-          "updatedAt": "2026-06-26"
+          "updatedAt": "2026-07-03"
         }
       ]
     },
@@ -161,7 +162,7 @@
           "label": "Connection Adapters",
           "to": "chat/connection-adapters",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-02"
+          "updatedAt": "2026-07-03"
         },
         {
           "label": "Thinking & Reasoning",
@@ -171,7 +172,8 @@
         {
           "label": "Persistence",
           "to": "chat/persistence",
-          "addedAt": "2026-06-02"
+          "addedAt": "2026-06-02",
+          "updatedAt": "2026-07-03"
         }
       ]
     },
@@ -320,7 +322,7 @@
           "label": "Overview",
           "to": "sandbox/overview",
           "addedAt": "2026-06-16",
-          "updatedAt": "2026-06-30"
+          "updatedAt": "2026-07-03"
         },
         {
           "label": "Quick Start",
@@ -362,7 +364,8 @@
         {
           "label": "Lifecycle & Snapshots",
           "to": "sandbox/lifecycle",
-          "addedAt": "2026-06-29"
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-07-03"
         },
         {
           "label": "Events",
@@ -389,6 +392,36 @@
           "to": "persistence/overview",
           "addedAt": "2026-06-18",
           "updatedAt": "2026-07-03"
+        },
+        {
+          "label": "Resumable Chat",
+          "to": "persistence/resumable-chat",
+          "addedAt": "2026-07-03"
+        },
+        {
+          "label": "Interrupts and Approvals",
+          "to": "persistence/interrupts-and-approvals",
+          "addedAt": "2026-07-03"
+        },
+        {
+          "label": "SQL Backends",
+          "to": "persistence/sql-backends",
+          "addedAt": "2026-07-03"
+        },
+        {
+          "label": "Cloudflare",
+          "to": "persistence/cloudflare",
+          "addedAt": "2026-07-03"
+        },
+        {
+          "label": "Custom Stores",
+          "to": "persistence/custom-stores",
+          "addedAt": "2026-07-03"
+        },
+        {
+          "label": "Sandbox Runs",
+          "to": "persistence/sandbox-runs",
+          "addedAt": "2026-07-03"
         }
       ]
     },

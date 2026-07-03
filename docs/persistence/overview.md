@@ -3,264 +3,89 @@ title: Persistence Overview
 id: overview
 ---
 
-Persistence makes a `chat()` run **durable** and **resumable** without changing
-how you write `chat()`. It is composable middleware, so it is entirely optional:
-a run with no persistence middleware behaves exactly as before.
+Persistence makes server-side `chat()` runs durable and resumable. Add
+`withPersistence(...)` when the server should own the thread transcript, replay
+streamed AG-UI events after a reconnect, resume pending user decisions, or share
+storage primitives with sandbox and workflow extensions.
 
-`withPersistence(...)`:
+Persistence is optional middleware. A run with no persistence middleware behaves
+exactly as before.
 
-- loads and saves the thread's message history (the server is authoritative),
-- records each run (status, usage, errors),
-- appends every streamed AG-UI event to an append-only **public event log**,
-- stamps each streamed chunk with an opaque **cursor** so a disconnected client
-  can resume,
-- validates optional stores fail-loud when a feature requires them,
-- and stores pending user-actionable interrupts so they can be resumed safely.
+## What persistence stores
 
-The primary extension point is `AIPersistence`, usually built with
-`defineAIPersistence(...)` or a backend factory such as `sqlitePersistence(...)`.
-The older `ChatPersistence` / `defineChatPersistence` names remain as deprecated
-compatibility aliases only.
+`withPersistence(...)` can:
+
+- load and save a thread's server-authoritative message history,
+- create and update run records with status, usage, and errors,
+- append every streamed public AG-UI event with an opaque cursor,
+- replay persisted events after `{ threadId, runId, cursor }`,
+- persist pending user-actionable interrupts,
+- validate optional stores before a feature silently loses durability,
+- provide locks, metadata, artifacts, and blobs to integrations that need them.
+
+The primary extension point is `AIPersistence`, usually created with
+`defineAIPersistence(...)` or a backend factory such as
+`sqlitePersistence(...)`. The older `ChatPersistence` and
+`defineChatPersistence` names remain deprecated compatibility aliases.
+
+## Pick the page for your scenario
+
+If you are building a persisted chat UI, start with
+[Resumable Chat](./resumable-chat). It shows both sides: a server endpoint using
+`withPersistence` and a client that forwards `threadId`, `runId`, `cursor`, and
+`resume` so reconnects continue the same run. Full page reload recovery also
+requires storing the client's latest resume snapshot.
+
+If your run can pause for a human decision, read
+[Interrupts and Approvals](./interrupts-and-approvals). It covers durable
+pending waits, AG-UI `resume[]` payloads, and how legacy approval UI maps onto
+the newer interrupt path.
+
+If you are choosing a Node database backend, read
+[SQL Backends](./sql-backends). SQLite, Postgres, Drizzle, and Prisma share the
+same persistence model but differ in migration ownership. The shared SQL core
+also has a MySQL dialect for adapter authors, but there is not a standalone
+MySQL backend package.
+
+If you deploy on Workers, read [Cloudflare](./cloudflare). D1 stores the core
+run state, R2 can store blobs and artifact bytes, and Durable Objects can
+provide cross-isolate locks.
+
+If you own the storage layer or are extending persistence for MCP/workflows,
+read [Custom Stores](./custom-stores). It explains the optional `AIPersistence`
+stores, public versus internal events, metadata, locks, artifacts, and blobs.
+
+If you persist coding-agent sandboxes, read
+[Sandbox Runs](./sandbox-runs). It shows how
+`@tanstack/ai-sandbox-persistence` bridges durable sandbox records and locks
+between `withPersistence` and `withSandbox`.
 
 ## Installation
 
-Pick a backend. SQLite is the simplest durable option:
+Install the core package and the backend package that matches your deployment:
 
 ```sh
-npm install @tanstack/ai-persistence @tanstack/ai-persistence-sqlite
+pnpm add @tanstack/ai-persistence @tanstack/ai-persistence-sqlite
 ```
 
-Other backends: `@tanstack/ai-persistence-postgres`, `-cloudflare`, `-drizzle`,
-`-prisma`. For tests and prototypes, `memoryPersistence()` ships in
-`@tanstack/ai-persistence`.
+For prototypes and tests, `memoryPersistence()` ships in
+`@tanstack/ai-persistence`. Durable apps usually use one of the backend
+packages: `@tanstack/ai-persistence-sqlite`,
+`@tanstack/ai-persistence-postgres`, `@tanstack/ai-persistence-cloudflare`,
+`@tanstack/ai-persistence-drizzle`, or `@tanstack/ai-persistence-prisma`.
 
-## Server: a persisted, resumable endpoint
+## Durable replay state
+
+The replay identity is:
 
 ```ts
-import { chat, toServerSentEventsResponse } from '@tanstack/ai'
-import { anthropicText } from '@tanstack/ai-anthropic'
-import { withPersistence } from '@tanstack/ai-persistence'
-import { sqlitePersistence } from '@tanstack/ai-persistence-sqlite'
-
-// Build once and reuse across requests.
-const persistence = sqlitePersistence({
-  path: '.tanstack-ai/state.sqlite',
-})
-
-export async function POST(request: Request) {
-  // `runId` is reused on replay; `cursor` is present only when replaying.
-  // `resume` carries AG-UI interrupt responses for pending actionable waits.
-  const { messages, threadId, runId, cursor, resume } = await request.json()
-
-  const stream = chat({
-    threadId,
-    runId,
-    cursor,
-    resume,
-    adapter: anthropicText('claude-sonnet-4-6'),
-    messages,
-    middleware: [withPersistence(persistence)],
-  })
-  return toServerSentEventsResponse(stream)
+type ResumeState = {
+  threadId: string
+  runId: string
+  cursor: string
 }
 ```
 
-When `cursor` is present, `chat()` replays the persisted events after that
-cursor instead of re-running the adapter, so a reconnecting client catches up
-without duplicating work or burning tokens.
-
-The durable replay state is `{ threadId, runId, cursor }`. Persist all three if
-you want to resume after a full page reload.
-
-## Client: automatic resume
-
-The headless client tracks the last cursor it saw and can resume an interrupted
-run. In React:
-
-```tsx
-import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-
-function Chat() {
-  const chat = useChat({
-    threadId: 'thread-123',
-    connection: fetchServerSentEvents('/api/chat'),
-    // Auto-resume is on by default; opt out with `autoResume: false`.
-  })
-
-  // Auto-resume continues interrupted runs on mount / when the tab comes
-  // back online. To continue on demand, call `chat.resume()`.
-
-  return <>{/* ...render chat.messages... */}</>
-}
-```
-
-`chat.resumeState` contains `{ threadId, runId, cursor }` for the
-active/interrupted run (or `null`). `chat.resume()` continues it on demand.
-
-If a run finishes with `RUN_FINISHED.outcome.type === 'interrupt'`, the client
-surfaces pending interrupts. Resume them with AG-UI `RunAgentInput.resume[]`
-entries; while a thread has pending user-actionable interrupts, normal new input
-on that same thread is rejected by default so the server cannot accidentally
-fork the conversation around an unresolved decision.
-
-## Stores and feature validation
-
-`AIPersistence` is a collection of optional stores. `withPersistence` can
-validate features up front so missing storage fails loudly instead of silently
-dropping durability:
-
-| Feature | Required stores |
-| --- | --- |
-| `messages` | `stores.messages` |
-| `durable-replay` | `stores.runs`, `stores.publicEvents` |
-| `interrupts` | `stores.runs`, `stores.publicEvents`, `stores.interrupts` |
-| `internal-events` | `stores.internalEvents` |
-| `metadata` | `stores.metadata` |
-| `locks` | `stores.locks` |
-| `artifacts` | `stores.artifacts` |
-| `blobs` | `stores.blobs` |
-
-Public stream events and internal CAS/checkpoint events are separate stores.
-`PublicEventStore` is the user-visible replay stream: persisted AG-UI
-`StreamChunk` values with cursors. `InternalEventStore` is for implementation
-checkpoints, compare-and-swap style coordination, and package-owned internals
-that must not leak into public replay.
-
-## Bring your own database
-
-`sqlitePersistence` / `postgresPersistence` accept a connection (`{ path }` /
-`{ connectionString }`) **or** an existing handle. Drizzle and Prisma users pass
-their client directly:
-
-```ts
-import { drizzlePersistence } from '@tanstack/ai-persistence-drizzle'
-import { prismaPersistence } from '@tanstack/ai-persistence-prisma'
-import type { DrizzleDb } from '@tanstack/ai-persistence-drizzle'
-import type { PrismaRawClient } from '@tanstack/ai-persistence-prisma'
-
-declare const db: DrizzleDb
-declare const prisma: PrismaRawClient
-
-const a = drizzlePersistence({ db, dialect: 'postgres' })
-const b = prismaPersistence({ prisma, dialect: 'postgres' })
-```
-
-Raw drivers create and migrate their tables automatically (opt out with
-`{ migrate: false }` and apply the exported `ddl(...)` / `migrate(...)`
-yourself). Drizzle and Prisma own their own schema/migrations.
-
-Cloudflare uses D1 for core persistence and can attach R2 for artifact and blob
-bytes. Runs, events, messages, interrupts, metadata, and artifact indexes remain
-in D1 as the source of truth; R2 stores the byte payloads behind
-`stores.blobs` and artifact records that include bytes. A Durable Object
-namespace can provide `stores.locks` for cross-isolate mutual exclusion:
-
-```ts
-import { cloudflarePersistence } from '@tanstack/ai-persistence-cloudflare'
-
-interface Env {
-  AI_D1: D1Database
-  AI_BLOBS: R2Bucket
-  AI_LOCKS: DurableObjectNamespace
-}
-
-export function persistence(env: Env) {
-  return cloudflarePersistence({
-    d1: env.AI_D1,
-    r2: env.AI_BLOBS,
-    durableObjects: env.AI_LOCKS,
-    r2ArtifactPrefix: 'tanstack-ai/artifacts/',
-  })
-}
-```
-
-When an artifact is saved with `bytes`, Cloudflare persistence writes the bytes
-to R2 through the BlobStore and stores only metadata plus the blob key in D1.
-Artifact `list(runId)` reads the D1 index without downloading R2 bodies, while
-`get(artifactId)` hydrates bytes when present. Optional artifact cleanup APIs
-delete both D1 rows and associated R2 objects.
-
-If you disable Cloudflare migrations with `migrate: false`, apply both the core
-SQL DDL and the Cloudflare artifact index DDL yourself:
-
-```ts
-import { ddl } from '@tanstack/ai-persistence-sql'
-import { cloudflareArtifactDdl } from '@tanstack/ai-persistence-cloudflare'
-
-const statements = [...ddl('sqlite'), ...cloudflareArtifactDdl()]
-```
-
-The base SQL schema is deliberately small:
-
-- `runs`
-- `public_events`
-- `internal_events`
-- `messages`
-- `interrupts`
-- `metadata`
-- `_tanstack_ai_migrations`
-
-## MCP and workflow persistence
-
-MCP persistence is app-owned metadata plus raw stream replay. The base
-persistence layer records the public AG-UI events and offers `MetadataStore` for
-your app or adapter to associate MCP server/session state with a thread or run;
-it does not add MCP-specific tables.
-
-Long-running workflow extensions are intentionally deferred to optional
-packages. They should reuse runs, public events, internal events, interrupts,
-metadata, locks, and artifacts without increasing the base schema cost for apps
-that only need resumable chat.
-
-## Sandboxes
-
-For sandbox-backed harness runs, `@tanstack/ai-sandbox-persistence` provides a
-durable, SQL-backed sandbox store and a distributed lock so sandbox resume and
-ensure-locking survive across processes:
-
-```ts
-import { withSandbox, defineSandbox } from '@tanstack/ai-sandbox'
-import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
-import { withPersistence } from '@tanstack/ai-persistence'
-import { sqlitePersistence, createSqliteDriver } from '@tanstack/ai-persistence-sqlite'
-import { chat } from '@tanstack/ai'
-import {
-  withPersistenceBridge,
-  createSqlSandboxStore,
-} from '@tanstack/ai-sandbox-persistence'
-import { claudeCodeText } from '@tanstack/ai-claude-code'
-import type { ModelMessage } from '@tanstack/ai'
-
-const dbPath = '.tanstack-ai/state.sqlite'
-const driver = createSqliteDriver({ path: dbPath })
-const persistence = sqlitePersistence({ path: dbPath })
-const threadId = 'thread-123'
-const runId = 'run-123'
-const messages: Array<ModelMessage> = [
-  { role: 'user', content: 'Resume this repository task.' },
-]
-
-const repoSandbox = defineSandbox({
-  id: 'repo-agent',
-  provider: dockerSandbox({ image: 'node:22' }),
-})
-
-chat({
-  threadId,
-  runId,
-  adapter: claudeCodeText('claude-sonnet-4-6'),
-  messages,
-  middleware: [
-    withPersistence(persistence),
-    withPersistenceBridge({
-      persistence,
-      sandboxStore: createSqlSandboxStore(driver),
-    }),
-    withSandbox(repoSandbox),
-  ],
-})
-```
-
-A harness adapter (which runs the agent inside the still-running sandbox) can
-re-attach to its process on resume and continue live after replaying the event
-tail.
+Treat `cursor` as opaque. Store and forward it, but do not parse it. When a
+request includes a cursor, `chat()` replays the persisted event tail after that
+cursor instead of calling the model again.

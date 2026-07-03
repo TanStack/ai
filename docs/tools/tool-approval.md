@@ -23,6 +23,11 @@ The tool approval flow allows you to require user approval before executing sens
 
 After `approval-responded` the call executes (if approved). Although `complete` exists in the `ToolCallState` union, the runtime never transitions the tool-call part to it — the result surfaces as a populated `part.output` plus a sibling `tool-result` part whose own state is `complete` or `error`.
 
+For approval flows that must survive disconnects, reloads, or process restarts,
+pair approvals with server persistence. See
+[Interrupts and Approvals](../persistence/interrupts-and-approvals) for the
+durable `withPersistence` path.
+
 When a tool requires approval, the typical flow is:
 
 1. Model calls the tool

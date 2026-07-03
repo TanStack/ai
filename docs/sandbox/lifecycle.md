@@ -115,3 +115,7 @@ Providers without durable disk or snapshots (e.g. ephemeral containers)
 re-create and re-bootstrap under the same identity: the `sandboxInstanceKey`
 stays stable, but every run pays the bootstrap cost because there is nothing
 durable to resume.
+
+To make sandbox resume records and ensure-locking durable across processes, wire
+`@tanstack/ai-sandbox-persistence` between `withPersistence` and `withSandbox`.
+See [Sandbox Runs](../persistence/sandbox-runs).

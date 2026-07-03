@@ -234,6 +234,9 @@ const { messages, sendMessage } = useChat({
 
 The fetcher receives `{ messages, data, threadId, runId, cursor, resume }` plus an `AbortSignal` (triggered by `stop()` or when a send is superseded). Forward `cursor` when replaying persisted public events, and forward `resume` when responding to pending AG-UI interrupts. Return a `Response` — whose SSE body the chat client parses for you — **or** an `AsyncIterable<StreamChunk>`, which is yielded directly. If your server function returns the stream itself (instead of wrapping it in a `Response`), the fetcher handles that too. Sync and `Promise`-wrapped returns are both accepted.
 
+For the server persistence path that produces those replay cursors, see
+[Resumable Chat](../persistence/resumable-chat).
+
 > **Tip:** The choice between `fetcher` and [`stream()`](#server-functions-and-direct-async-iterables) is about **async vs sync**, not `Response`-vs-iterable — both can yield an `AsyncIterable<StreamChunk>`. `stream()`'s factory must return that iterable **synchronously**, so a server-function call (which returns a `Promise`) won't typecheck there — that's the gap `fetcher` fills ([issue #509](https://github.com/TanStack/ai/issues/509)). Use `stream()` when you can hand back an async iterable synchronously (in-process `chat()`, an RPC client, tests); use `fetcher` for anything you have to `await`. Both normalize to the same request-scoped adapter, so `stop()`/abort, error handling, and tool calls behave identically.
 
 ## RPC Streams
@@ -435,6 +438,10 @@ const { messages } = useChat({ connection: myAdapter });
 ```
 
 `runContext` carries `threadId`, `runId`, `cursor`, `resume`, `clientTools`, and `forwardedProps`. Include them in your request payload so the server can build an AG-UI-compliant response, replay from `{ threadId, runId, cursor }`, and validate `RunAgentInput.resume[]` for pending interrupts. If your `connect` stream completes without emitting `RUN_FINISHED`, the runtime synthesizes one for you; if it throws, a `RUN_ERROR` is synthesized.
+
+If the request-scoped adapter talks to a persisted `chat()` endpoint, those
+fields are the durable replay identity described in
+[Resumable Chat](../persistence/resumable-chat).
 
 ## The Adapter Interface
 

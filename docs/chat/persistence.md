@@ -17,6 +17,11 @@ By default a `ChatClient` (and every framework `useChat`/`createChat` wrapper) k
 
 This is especially useful for SPAs, Electron apps, and offline-first setups where the client is the source of truth and there's no server managing conversation state.
 
+If your server owns the transcript and you need durable event replay after a
+reconnect or reload, use server-side persistence instead. See
+[Resumable Chat](../persistence/resumable-chat) for the full `withPersistence`
+server/client wiring.
+
 ## The adapter interface
 
 A persistence adapter is any object with three methods — the same `getItem`/`setItem`/`removeItem` shape used elsewhere in TanStack AI. Each method may be synchronous or return a `Promise`:
