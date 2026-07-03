@@ -420,14 +420,14 @@ export class GeminiImageAdapter<
  * Creates a Gemini image adapter with explicit API key.
  * Type resolution happens here at the call site.
  *
- * @param model - The model name (e.g., 'imagen-3.0-generate-002')
+ * @param model - The model name (e.g., 'imagen-4.0-generate-001')
  * @param apiKey - Your Google API key
  * @param config - Optional additional configuration
  * @returns Configured Gemini image adapter instance with resolved types
  *
  * @example
  * ```typescript
- * const adapter = createGeminiImage('imagen-3.0-generate-002', "your-api-key");
+ * const adapter = createGeminiImage('imagen-4.0-generate-001', "your-api-key");
  *
  * const result = await generateImage({
  *   adapter,

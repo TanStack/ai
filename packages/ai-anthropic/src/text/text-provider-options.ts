@@ -154,6 +154,70 @@ export interface AnthropicAdaptiveThinkingOptions {
       }
 }
 
+/**
+ * Thinking configuration for models where thinking is always on
+ * (e.g. Claude Fable 5).
+ *
+ * On these models the only accepted explicit configuration is
+ * `{type: 'adaptive'}` — both `{type: 'disabled'}` and
+ * `{type: 'enabled', budget_tokens}` are rejected with a 400. Omitting the
+ * `thinking` field entirely also runs adaptive thinking.
+ */
+export interface AnthropicAdaptiveOnlyThinkingOptions {
+  thinking?: {
+    type: 'adaptive'
+    /**
+     * Controls what (if any) thinking content is streamed back.
+     *
+     * - `'summarized'`: stream summarized thinking via `thinking_delta`
+     *   events (the user-visible reasoning text).
+     * - `'omitted'` (default): stream the thinking block's
+     *   `signature_delta` only (no reasoning text reaches the client).
+     */
+    display?: 'summarized' | 'omitted'
+  }
+}
+
+/**
+ * Thinking configuration for models that accept adaptive thinking or an
+ * explicit opt-out, but no manual token budget (e.g. Claude Sonnet 5,
+ * Claude Opus 4.7/4.8).
+ *
+ * `{type: 'enabled', budget_tokens}` is rejected with a 400 on these
+ * models. On Claude Sonnet 5, omitting the `thinking` field runs adaptive
+ * thinking by default; on Opus 4.7/4.8 it runs without thinking — set
+ * `{type: 'adaptive'}` explicitly there.
+ */
+export interface AnthropicAdaptiveOrDisabledThinkingOptions {
+  thinking?:
+    | {
+        type: 'adaptive'
+        /**
+         * Controls what (if any) thinking content is streamed back.
+         * Defaults to `'omitted'` — set `'summarized'` to receive the
+         * reasoning text.
+         */
+        display?: 'summarized' | 'omitted'
+      }
+    | {
+        type: 'disabled'
+      }
+}
+
+/**
+ * `max_tokens` on its own, for models that reject the sampling parameters
+ * (`temperature`, `top_p`, `top_k`) — e.g. Claude Fable 5 and Claude Opus
+ * 4.7/4.8 reject them outright, and Claude Sonnet 5 returns a 400 when a
+ * non-default sampling value is sent.
+ */
+export interface AnthropicMaxTokensOptions {
+  /**
+   * The maximum number of tokens to generate before stopping. This parameter only specifies the absolute maximum number of tokens to generate. Required by the API; the adapter defaults to 1024 when omitted.
+   * Range x >= 1.
+   */
+  max_tokens?: number
+}
+
 export interface AnthropicEffortOptions {
   /**
    * Controls the thinking depth for adaptive thinking mode (Opus 4.6+).
@@ -182,7 +246,11 @@ export interface AnthropicOutputConfigOptions {
    * preserved when the engine adds `format`.
    */
   output_config?: {
-    effort?: 'low' | 'medium' | 'high' | 'max' | null
+    /**
+     * `'xhigh'` is accepted on Claude Opus 4.7+, Claude Sonnet 5, and
+     * Claude Fable 5; older models support `'low'`–`'max'` only.
+     */
+    effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max' | null
   }
 }
 
@@ -275,7 +343,7 @@ export interface InternalTextProviderOptions extends ExternalTextProviderOptions
    * cast.
    */
   output_config?: {
-    effort?: 'low' | 'medium' | 'high' | 'max' | null
+    effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max' | null
     format?: {
       type: 'json_schema'
       schema: Record<string, unknown>

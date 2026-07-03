@@ -1,5 +1,106 @@
 # @tanstack/ai-react
 
+## 0.16.3
+
+### Patch Changes
+
+- Updated dependencies [[`afba322`](https://github.com/TanStack/ai/commit/afba32236022589afce4d5a165fd4a8a884ae57d), [`e7ad181`](https://github.com/TanStack/ai/commit/e7ad181cad20c5d6560f480835c99ff1142b40af)]:
+  - @tanstack/ai@0.39.1
+  - @tanstack/ai-client@0.19.2
+
+## 0.16.2
+
+### Patch Changes
+
+- [#772](https://github.com/TanStack/ai/pull/772) [`00505fe`](https://github.com/TanStack/ai/commit/00505fe6acdbafdd490ba1c903991e067384e0c7) - Restructure the `@tanstack/ai-react/mcp-apps` entry so its source is resolvable by the docs snippet type-checker: the JSX implementation moves to `mcp-app-resource.tsx` and `mcp-apps.ts` re-exports it. Public exports (`MCPAppResource`, `MCPAppResourceProps`) and the subpath are unchanged.
+
+## 0.16.1
+
+### Patch Changes
+
+- Updated dependencies [[`b628a4d`](https://github.com/TanStack/ai/commit/b628a4da5fd21184922c6944059768d1ed6071d4), [`b628a4d`](https://github.com/TanStack/ai/commit/b628a4da5fd21184922c6944059768d1ed6071d4)]:
+  - @tanstack/ai@0.39.0
+  - @tanstack/ai-client@0.19.1
+
+## 0.16.0
+
+### Minor Changes
+
+- [#810](https://github.com/TanStack/ai/pull/810) [`33acdd4`](https://github.com/TanStack/ai/commit/33acdd4df4aef13d594700d9b52087252091bd40) - Add `AudioRecorder` (`@tanstack/ai-client`) and framework hooks for recording an
+  audio message in the browser: `useAudioRecorder` (React/Solid/Vue),
+  `createAudioRecorder` (Svelte), and `injectAudioRecorder` (Angular). The
+  recording exposes a ready-to-use audio content part (`.part`) for `sendMessage`
+  and base64 (`.base64`) for the generation hooks. Native recorder output
+  (webm/mp4), no transcoding, no new dependency.
+
+  Each hook also returns a reactive `recording` field — the latest resolved
+  recording (`AudioRecording | null`), available without awaiting `stop()`. Pass
+  `onComplete: (recording) => T | Promise<T>` to transform the output: `stop()`
+  then resolves to `T` and `recording` becomes `T | null`. Omitting `onComplete`
+  keeps the raw `AudioRecording`.
+
+- [#843](https://github.com/TanStack/ai/pull/843) [`c1a8732`](https://github.com/TanStack/ai/commit/c1a87327b4a3463d37158f32ca90184b5fd092bb) - feat: MCP Apps support — render interactive `ui://` widgets served by MCP servers
+
+  Adds support for the ratified [MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview) standard, letting MCP server tools return interactive UI widgets that render in the chat.
+  - **`@tanstack/ai`** — MCP tool results that link a `ui://` resource (via `_meta.ui.resourceUri`) now surface as a new `UIResourcePart` on the assistant `UIMessage` (carried as an AG-UI `CUSTOM` event). The widget never enters model input. The `ui://` resource is read eagerly during the run, fail-soft.
+  - **`@tanstack/ai-mcp`** — tool discovery now captures `serverId` + the UI resource link; `MCPClient` gains a public `callTool` and `getInfo()` (returns the client's transport descriptor); `MCPClients` gains `getServers()` (returns all pool entries' descriptors). New `@tanstack/ai-mcp/apps` subpath exports `createMcpAppCallHandler` — a server-side tool-call proxy for interactive widgets that takes the MCP client(s)/pool you already created (`clients: MCPClient | MCPClients | Array<MCPClient | MCPClients>`), reads each client's transport descriptor via `MCPClient.getInfo()` / `MCPClients.getServers()` (pure config, no live socket required), and **reconnects per call** (stateless, serverless-safe by default, same-server allowlist). Also exports an in-memory `McpSessionStore` seam for stateful transports.
+  - **`@tanstack/ai-client`** — `createMcpAppBridge`, a framework-agnostic bridge routing widget tool-calls to the call handler, follow-up prompts into the chat, and blocking links unless a handler is supplied.
+  - **`@tanstack/ai-react` / `@tanstack/ai-preact`** — a `MCPAppResource` component (new `./mcp-apps` subpath) that renders a `UIResourcePart` via `@mcp-ui/client`'s `AppRenderer` (optional peer dependency), wired to the bridge. Plus a `useMcpAppBridge` hook (main entry) that returns a stable `createMcpAppBridge` for a given `threadId`/`callEndpoint` while always calling the latest `sendMessage`/`onLink`.
+
+  Persistence is intentionally out of scope (in-memory seams only); Solid/Vue/Svelte/Angular renderers are deferred (the renderer SDK is currently React-only).
+
+### Patch Changes
+
+- [#856](https://github.com/TanStack/ai/pull/856) [`c22c663`](https://github.com/TanStack/ai/commit/c22c6632fdca761033cb9c4273bf61fc8ce86662) - Fix `onResult` transform type inference on the generation hooks across every
+  framework package — the base generation hook plus `generateImage`,
+  `generateAudio`, `generateSpeech`, `generateVideo`, `transcription`, and
+  `summarize` (React `use*`, Vue `use*`, Solid `use*`, Svelte `create*`, and
+  Angular `inject*`).
+
+  The hooks declared the `onResult` transform via a single defaulted type
+  parameter inferred from an optional nested property, which TypeScript collapses
+  to its default — leaving the callback parameter typed `any` (a hard error under
+  `strict`) and never narrowing `result` to the transform's return type. The
+  hooks now infer the transform type from the `onResult` return position (a
+  covariant inference site that works for an optional nested property), so the
+  callback parameter is typed as the raw result and `result` narrows to the
+  transform's return type; omitting the transform keeps the raw result type. See
+  issue [#848](https://github.com/TanStack/ai/issues/848).
+
+- Updated dependencies [[`33acdd4`](https://github.com/TanStack/ai/commit/33acdd4df4aef13d594700d9b52087252091bd40), [`c1a8732`](https://github.com/TanStack/ai/commit/c1a87327b4a3463d37158f32ca90184b5fd092bb)]:
+  - @tanstack/ai-client@0.19.0
+  - @tanstack/ai@0.38.0
+
+## 0.15.15
+
+### Patch Changes
+
+- [#844](https://github.com/TanStack/ai/pull/844) [`a6cceba`](https://github.com/TanStack/ai/commit/a6cceba4812e7e986183ee856112fcf5f8fa12ff) - Republish all packages with their compiled `dist/` output.
+
+  Releases `0.33.0`–`0.36.0` were published without a `dist/` directory: the
+  release workflow relied on an Nx-cached `build` whose outputs were not
+  materialized to disk before `changeset publish` packed the tarballs, and
+  `files: ["dist"]` silently includes nothing when `dist/` is absent. The
+  published packages therefore contained only `src/`, so every export
+  (`./dist/esm/*.js`) resolved to a missing file and the packages were
+  uninstallable.
+
+  The publish step now runs a fresh, cache-bypassing build of all packages
+  immediately before publishing, guaranteeing compiled artifacts are present in
+  every tarball.
+
+- Updated dependencies [[`a6cceba`](https://github.com/TanStack/ai/commit/a6cceba4812e7e986183ee856112fcf5f8fa12ff)]:
+  - @tanstack/ai@0.37.0
+  - @tanstack/ai-client@0.18.6
+
+## 0.15.14
+
+### Patch Changes
+
+- Updated dependencies [[`fbd3762`](https://github.com/TanStack/ai/commit/fbd37623b287e370aa5678e161dec19cf13ae33b)]:
+  - @tanstack/ai@0.36.0
+  - @tanstack/ai-client@0.18.5
+
 ## 0.15.13
 
 ### Patch Changes

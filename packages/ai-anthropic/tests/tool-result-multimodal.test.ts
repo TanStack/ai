@@ -59,7 +59,7 @@ describe('anthropic multimodal tool result', () => {
 
     const adapter = new AnthropicTextAdapter(
       { apiKey: 'test-key' },
-      'claude-3-7-sonnet',
+      'claude-opus-4-1',
     )
 
     for await (const _ of chat({

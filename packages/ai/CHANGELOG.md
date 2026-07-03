@@ -1,5 +1,101 @@
 # @tanstack/ai
 
+## 0.39.1
+
+### Patch Changes
+
+- [#855](https://github.com/TanStack/ai/pull/855) [`afba322`](https://github.com/TanStack/ai/commit/afba32236022589afce4d5a165fd4a8a884ae57d) - Preserve Anthropic server-tool results (`web_search` / `web_fetch`) across turns.
+
+  Previously the Anthropic adapter dropped `server_tool_use` and
+  `web_search_tool_result` / `web_fetch_tool_result` blocks while streaming, so the
+  evidence never round-tripped — a follow-up turn could no longer see the prior
+  web-search sources (issue [#839](https://github.com/TanStack/ai/issues/839)). These now stream as a **provider-executed**
+  tool call carrying the raw result, which the agent loop skips (never executed
+  client-side) and the adapter replays verbatim into the next request. Adds the
+  `ProviderExecutedToolMetadata` convention plus `isProviderExecutedToolCall` /
+  `getProviderExecutedMetadata` helpers to `@tanstack/ai`.
+
+  (No e2e: aimock cannot synthesize `server_tool_use` blocks; covered by unit
+  tests and verified live against the Anthropic API.)
+
+- [#867](https://github.com/TanStack/ai/pull/867) [`e7ad181`](https://github.com/TanStack/ai/commit/e7ad181cad20c5d6560f480835c99ff1142b40af) - Fix `addToolResult` / `addToolOutput` silently no-op'ing after a `MESSAGES_SNAPSHOT`. The AG-UI snapshot wire shape cannot reconstruct client-side tool-call metadata a server may omit (a `role: 'tool'` message only carries `toolCallId` + `content`, and an assistant message may drop `toolCalls` the client already observed via `TOOL_CALL_*` events). `handleMessagesSnapshotEvent` now runs a reconciliation pass that anchors detached `tool-result`-only assistant messages into the preceding assistant message (matching the streaming fan-out shape) and carries forward a `tool-call` part from the pre-snapshot state when the snapshot references its `toolCallId` via a `tool-result` but omits the corresponding `tool-call` part. This keeps the UI representation consistent and lets a subsequent `addToolResult(toolCallId)` locate the call. Fixes [#859](https://github.com/TanStack/ai/issues/859).
+
+## 0.39.0
+
+### Minor Changes
+
+- [#774](https://github.com/TanStack/ai/pull/774) [`b628a4d`](https://github.com/TanStack/ai/commit/b628a4da5fd21184922c6944059768d1ed6071d4) - Declarative sandbox file-event hooks: observe file create / change / delete
+  inside a sandbox and have them fire automatically during a chat run.
+  - `@tanstack/ai`: chat middleware gains an optional `sandbox` hook group
+    (`onFile`/`onFileCreate`/`onFileChange`/`onFileDelete`), a `SandboxFileEvent`
+    type, and a `sandbox` debug-logging category. The engine auto-emits a
+    `CUSTOM` `sandbox.file` event per change (client reads it from `parts`).
+  - `@tanstack/ai-sandbox`: `defineSandbox({ hooks, fileEvents })` declares
+    file + lifecycle hooks (`onFile*`/`onReady`/`onError`/`onDestroy`) that fire
+    automatically while the sandbox runs in a chat — `withSandbox` owns the
+    watcher. The watcher is provider-agnostic: a native `fs.watch` fast-path when
+    the provider advertises it, otherwise a portable `find -printf` mtime
+    snapshot-diff poll (no extra deps; `.git`/`node_modules` ignored by default).
+    `watchWorkspace()` / `diffSnapshots` remain as low-level building blocks.
+  - `@tanstack/ai-sandbox-local-process`: implements the optional `fs.watch` seam
+    via Node's recursive `fs.watch` (Windows/macOS); Linux falls back to the core
+    exec-poll automatically.
+
+- [#774](https://github.com/TanStack/ai/pull/774) [`b628a4d`](https://github.com/TanStack/ai/commit/b628a4da5fd21184922c6944059768d1ed6071d4) - New provider-agnostic sandbox layer so harness adapters can run **inside** isolated sandboxes.
+  - **`@tanstack/ai-sandbox`** — `defineSandbox()` (lazy controller + resume→restoreSnapshot→create+bootstrap ensure algorithm), `withSandbox()` middleware, `defineWorkspace()` (git/local source, package-manager detection, setup, skills, secrets), `defineSandboxPolicy()`, the `SandboxProvider`/`SandboxHandle`/`SandboxCapabilities` contracts, capability tokens (`SandboxCapability` plus the optional `SandboxStore`/`Locks` persistence seams with in-memory defaults), `bootstrapWorkspace`, `createExecBackedGit`, `spawnNdjson` (run an agent CLI in a sandbox and stream its NDJSON stdout), the host MCP tool-proxy bridge (`startHostToolBridge` — exposes `chat()` server tools to the in-sandbox agent, with an optional permission-prompt tool), and the shared interactive-approval primitives (`resolveApproval`, `approvalId`, `buildApprovalRequestedEvent`) harness adapters use to enforce a policy and surface `approval-requested` events for client-in-the-loop approvals.
+  - **`@tanstack/ai-sandbox-local-process`** — `localProcessSandbox()`: runs the agent on the host through the uniform `SandboxHandle` (no isolation; the fast dev loop).
+  - **`@tanstack/ai-sandbox-docker`** — `dockerSandbox()`: runs the agent inside an isolated Docker container (dockerode), with commit-based snapshots, fork, and resume-by-id.
+  - **`@tanstack/ai`** — `TextOptions.capabilities` exposes the middleware capability context to adapters so harness adapters that declare `requires: [...]` can read provided capabilities from `chatStream`; `TextOptions.approvals` threads client approval decisions through to adapters for the interactive-approval (deny + `approval-requested` + re-run) flow; `DefinedChatMiddleware` and `AnyChatMiddleware` are now exported for portable middleware authoring.
+
+## 0.38.0
+
+### Minor Changes
+
+- [#843](https://github.com/TanStack/ai/pull/843) [`c1a8732`](https://github.com/TanStack/ai/commit/c1a87327b4a3463d37158f32ca90184b5fd092bb) - feat: MCP Apps support — render interactive `ui://` widgets served by MCP servers
+
+  Adds support for the ratified [MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview) standard, letting MCP server tools return interactive UI widgets that render in the chat.
+  - **`@tanstack/ai`** — MCP tool results that link a `ui://` resource (via `_meta.ui.resourceUri`) now surface as a new `UIResourcePart` on the assistant `UIMessage` (carried as an AG-UI `CUSTOM` event). The widget never enters model input. The `ui://` resource is read eagerly during the run, fail-soft.
+  - **`@tanstack/ai-mcp`** — tool discovery now captures `serverId` + the UI resource link; `MCPClient` gains a public `callTool` and `getInfo()` (returns the client's transport descriptor); `MCPClients` gains `getServers()` (returns all pool entries' descriptors). New `@tanstack/ai-mcp/apps` subpath exports `createMcpAppCallHandler` — a server-side tool-call proxy for interactive widgets that takes the MCP client(s)/pool you already created (`clients: MCPClient | MCPClients | Array<MCPClient | MCPClients>`), reads each client's transport descriptor via `MCPClient.getInfo()` / `MCPClients.getServers()` (pure config, no live socket required), and **reconnects per call** (stateless, serverless-safe by default, same-server allowlist). Also exports an in-memory `McpSessionStore` seam for stateful transports.
+  - **`@tanstack/ai-client`** — `createMcpAppBridge`, a framework-agnostic bridge routing widget tool-calls to the call handler, follow-up prompts into the chat, and blocking links unless a handler is supplied.
+  - **`@tanstack/ai-react` / `@tanstack/ai-preact`** — a `MCPAppResource` component (new `./mcp-apps` subpath) that renders a `UIResourcePart` via `@mcp-ui/client`'s `AppRenderer` (optional peer dependency), wired to the bridge. Plus a `useMcpAppBridge` hook (main entry) that returns a stable `createMcpAppBridge` for a given `threadId`/`callEndpoint` while always calling the latest `sendMessage`/`onLink`.
+
+  Persistence is intentionally out of scope (in-memory seams only); Solid/Vue/Svelte/Angular renderers are deferred (the renderer SDK is currently React-only).
+
+## 0.37.0
+
+### Minor Changes
+
+- [#844](https://github.com/TanStack/ai/pull/844) [`a6cceba`](https://github.com/TanStack/ai/commit/a6cceba4812e7e986183ee856112fcf5f8fa12ff) - Republish all packages with their compiled `dist/` output.
+
+  Releases `0.33.0`–`0.36.0` were published without a `dist/` directory: the
+  release workflow relied on an Nx-cached `build` whose outputs were not
+  materialized to disk before `changeset publish` packed the tarballs, and
+  `files: ["dist"]` silently includes nothing when `dist/` is absent. The
+  published packages therefore contained only `src/`, so every export
+  (`./dist/esm/*.js`) resolved to a missing file and the packages were
+  uninstallable.
+
+  The publish step now runs a fresh, cache-bypassing build of all packages
+  immediately before publishing, guaranteeing compiled artifacts are present in
+  every tarball.
+
+### Patch Changes
+
+- Updated dependencies [[`a6cceba`](https://github.com/TanStack/ai/commit/a6cceba4812e7e986183ee856112fcf5f8fa12ff)]:
+  - @tanstack/ai-event-client@0.6.8
+  - @tanstack/ai-utils@0.3.1
+
+## 0.36.0
+
+### Minor Changes
+
+- [#726](https://github.com/TanStack/ai/pull/726) [`fbd3762`](https://github.com/TanStack/ai/commit/fbd37623b287e370aa5678e161dec19cf13ae33b) - Add lazy tool support (progressive disclosure) to Code Mode. Tools marked `lazy: true` are kept out of the `execute_typescript` system prompt and listed in a discoverable catalog; the model fetches their TypeScript signatures on demand via a new `discover_tools` tool. A shared optional `lazyToolsConfig` (`includeDescription: 'none' | 'first-sentence' | 'full'`) tunes the catalog detail for both `chat()` and `createCodeMode()`. `createCodeMode` now also returns `discoveryTool` and a `tools` array (backward compatible — `tool` and `systemPrompt` are unchanged).
+
+### Patch Changes
+
+- Updated dependencies [[`e3ee4ae`](https://github.com/TanStack/ai/commit/e3ee4ae385d124619586f7c6de96b5c7de5954c5)]:
+  - @tanstack/ai-event-client@0.6.7
+
 ## 0.35.0
 
 ### Minor Changes

@@ -2,13 +2,14 @@
 name: ai-core/adapter-configuration
 description: >
   Provider adapter selection and configuration: openaiText, anthropicText,
-  geminiText, ollamaText, grokText, groqText, openRouterText, openaiCompatible. Per-model
-  type safety with modelOptions, reasoning/thinking configuration,
+  geminiText, ollamaText, grokText, groqText, openRouterText, bedrockText,
+  openaiCompatible. Per-model type safety with modelOptions, reasoning/thinking configuration,
   runtime adapter switching, extendAdapter() for custom models, createModel().
   Generic OpenAI-compatible providers (DeepSeek, Together, Fireworks, etc.) via
   openaiCompatible({ baseURL, apiKey, models }) from @tanstack/ai-openai/compatible.
   API key env vars: OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_API_KEY/GEMINI_API_KEY,
-  XAI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY, OLLAMA_HOST.
+  XAI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY, OLLAMA_HOST,
+  BEDROCK_API_KEY (or AWS_BEARER_TOKEN_BEDROCK).
 type: sub-skill
 library: tanstack-ai
 library_version: '0.10.0'
@@ -78,6 +79,7 @@ The text adapter is the primary one for chat/completions:
 | Groq              | `@tanstack/ai-groq`              | `groqText`                                  | `GROQ_API_KEY`                                    |
 | OpenRouter        | `@tanstack/ai-openrouter`        | `openRouterText`                            | `OPENROUTER_API_KEY`                              |
 | Ollama            | `@tanstack/ai-ollama`            | `ollamaText`                                | `OLLAMA_HOST` (default: `http://localhost:11434`) |
+| Bedrock           | `@tanstack/ai-bedrock`           | `bedrockText`                               | `BEDROCK_API_KEY` or `AWS_BEARER_TOKEN_BEDROCK`   |
 | OpenAI-compatible | `@tanstack/ai-openai/compatible` | `openaiCompatible` / `openaiCompatibleText` | provider-specific (passed via `apiKey`)           |
 
 ```typescript
@@ -89,6 +91,7 @@ import { grokText } from '@tanstack/ai-grok'
 import { groqText } from '@tanstack/ai-groq'
 import { openRouterText } from '@tanstack/ai-openrouter'
 import { ollamaText } from '@tanstack/ai-ollama'
+import { bedrockText } from '@tanstack/ai-bedrock'
 
 // Model string is passed to the factory, NOT to chat()
 const adapter = openaiText('gpt-5.2')
@@ -98,12 +101,21 @@ const adapter4 = grokText('grok-4')
 const adapter5 = groqText('llama-3.3-70b-versatile')
 const adapter6 = openRouterText('anthropic/claude-sonnet-4')
 const adapter7 = ollamaText('llama3.3')
+const adapter8 = bedrockText('us.anthropic.claude-3-7-sonnet-20250219-v1:0')
 
 // Optional: pass explicit API key
 const adapterWithKey = openaiText('gpt-5.2', {
   apiKey: 'sk-...',
 })
 ```
+
+`@tanstack/ai-bedrock` (Amazon Bedrock) branches on `config.api`:
+
+- `bedrockText(model)` or `bedrockText(model, { api: 'converse' })` (the default) — Bedrock's native Converse API via `@aws-sdk/client-bedrock-runtime` (adapter name `bedrock-converse`). Reaches the broad catalog: Claude, Nova, Llama, Mistral, DeepSeek, and more.
+- `bedrockText(model, { api: 'chat' })` — OpenAI-compatible Chat Completions endpoint (adapter name `bedrock`). Open-weight models only (gpt-oss, DeepSeek V3.x, Gemma, Qwen, etc.). Does NOT reach Claude, Nova, or Llama.
+- `bedrockText(model, { api: 'responses' })` — OpenAI-compatible Responses API, mantle-only (adapter name `bedrock-responses`). Currently gpt-oss family.
+
+Use `createBedrockText(model, apiKey, config?)` to pass the key explicitly. Auth resolves from `BEDROCK_API_KEY` / `AWS_BEARER_TOKEN_BEDROCK`, or SigV4 via the standard AWS credential chain (no extra packages needed — handled by `@aws-sdk/client-bedrock-runtime`).
 
 ### 2. Runtime Adapter Switching
 
@@ -397,15 +409,16 @@ Source: docs/migration/migration.md
 Each provider uses a specific env var name. Using the wrong one causes a
 runtime error:
 
-| Provider   | Correct Env Var                      | Common Mistake                                                           |
-| ---------- | ------------------------------------ | ------------------------------------------------------------------------ |
-| OpenAI     | `OPENAI_API_KEY`                     |                                                                          |
-| Anthropic  | `ANTHROPIC_API_KEY`                  |                                                                          |
-| Gemini     | `GOOGLE_API_KEY` or `GEMINI_API_KEY` | `GOOGLE_GENAI_API_KEY` (does not work)                                   |
-| Grok (xAI) | `XAI_API_KEY`                        | `GROK_API_KEY` (does not work)                                           |
-| Groq       | `GROQ_API_KEY`                       |                                                                          |
-| OpenRouter | `OPENROUTER_API_KEY`                 |                                                                          |
-| Ollama     | `OLLAMA_HOST`                        | No API key needed, just the host URL (default: `http://localhost:11434`) |
+| Provider   | Correct Env Var                                | Common Mistake                                                           |
+| ---------- | ---------------------------------------------- | ------------------------------------------------------------------------ |
+| OpenAI     | `OPENAI_API_KEY`                               |                                                                          |
+| Anthropic  | `ANTHROPIC_API_KEY`                            |                                                                          |
+| Gemini     | `GOOGLE_API_KEY` or `GEMINI_API_KEY`           | `GOOGLE_GENAI_API_KEY` (does not work)                                   |
+| Grok (xAI) | `XAI_API_KEY`                                  | `GROK_API_KEY` (does not work)                                           |
+| Groq       | `GROQ_API_KEY`                                 |                                                                          |
+| OpenRouter | `OPENROUTER_API_KEY`                           |                                                                          |
+| Ollama     | `OLLAMA_HOST`                                  | No API key needed, just the host URL (default: `http://localhost:11434`) |
+| Bedrock    | `BEDROCK_API_KEY` / `AWS_BEARER_TOKEN_BEDROCK` | Falls back to SigV4 credentials when no API key is set                   |
 
 Source: adapter source code (`utils/client.ts` in each adapter package).
 

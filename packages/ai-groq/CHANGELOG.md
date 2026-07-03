@@ -1,5 +1,62 @@
 # @tanstack/ai-groq
 
+## 0.5.0
+
+### Minor Changes
+
+- [#649](https://github.com/TanStack/ai/pull/649) [`011ef69`](https://github.com/TanStack/ai/commit/011ef69b0119713f790c65bc65a34293f5d06716) - Adds Groq as a transcription provider. Groq's API is mostly OpenAI SDK-compatible,
+  but its transcription endpoint additionally accepts HTTP URLs as input, so this
+  is implemented as a custom integration rather than going through the SDK.
+
+- [#346](https://github.com/TanStack/ai/pull/346) [`b3464cb`](https://github.com/TanStack/ai/commit/b3464cb5919ef7fdce41bc71144a43ac23a8d554) - Add tree-shakeable Text-to-Speech (TTS) adapter for Groq with English and Arabic Orpheus voices, multiple output formats (default WAV), configurable speed and sample rate, model metadata, and unit tests.
+
+## 0.4.16
+
+### Patch Changes
+
+- Updated dependencies [[`b628a4d`](https://github.com/TanStack/ai/commit/b628a4da5fd21184922c6944059768d1ed6071d4), [`b628a4d`](https://github.com/TanStack/ai/commit/b628a4da5fd21184922c6944059768d1ed6071d4)]:
+  - @tanstack/ai@0.39.0
+  - @tanstack/openai-base@0.9.6
+
+## 0.4.15
+
+### Patch Changes
+
+- Updated dependencies [[`c1a8732`](https://github.com/TanStack/ai/commit/c1a87327b4a3463d37158f32ca90184b5fd092bb)]:
+  - @tanstack/ai@0.38.0
+  - @tanstack/openai-base@0.9.5
+
+## 0.4.14
+
+### Patch Changes
+
+- [#844](https://github.com/TanStack/ai/pull/844) [`a6cceba`](https://github.com/TanStack/ai/commit/a6cceba4812e7e986183ee856112fcf5f8fa12ff) - Republish all packages with their compiled `dist/` output.
+
+  Releases `0.33.0`–`0.36.0` were published without a `dist/` directory: the
+  release workflow relied on an Nx-cached `build` whose outputs were not
+  materialized to disk before `changeset publish` packed the tarballs, and
+  `files: ["dist"]` silently includes nothing when `dist/` is absent. The
+  published packages therefore contained only `src/`, so every export
+  (`./dist/esm/*.js`) resolved to a missing file and the packages were
+  uninstallable.
+
+  The publish step now runs a fresh, cache-bypassing build of all packages
+  immediately before publishing, guaranteeing compiled artifacts are present in
+  every tarball.
+
+- Updated dependencies [[`a6cceba`](https://github.com/TanStack/ai/commit/a6cceba4812e7e986183ee856112fcf5f8fa12ff)]:
+  - @tanstack/ai@0.37.0
+  - @tanstack/ai-utils@0.3.1
+  - @tanstack/openai-base@0.9.4
+
+## 0.4.13
+
+### Patch Changes
+
+- Updated dependencies [[`fbd3762`](https://github.com/TanStack/ai/commit/fbd37623b287e370aa5678e161dec19cf13ae33b)]:
+  - @tanstack/ai@0.36.0
+  - @tanstack/openai-base@0.9.3
+
 ## 0.4.12
 
 ### Patch Changes

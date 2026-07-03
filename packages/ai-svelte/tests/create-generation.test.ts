@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { createGeneration } from '../src/create-generation.svelte'
 import { createGenerateImage } from '../src/create-generate-image.svelte'
 import { createGenerateSpeech } from '../src/create-generate-speech.svelte'
@@ -7,6 +7,7 @@ import { createSummarize } from '../src/create-summarize.svelte'
 import { createGenerateVideo } from '../src/create-generate-video.svelte'
 import { createMockConnectionAdapter } from './test-utils'
 import { EventType, type StreamChunk } from '@tanstack/ai'
+import type { TTSResult, TranscriptionResult } from '@tanstack/ai'
 
 // Helper to create generation stream chunks
 function createGenerationChunks(result: unknown): Array<StreamChunk> {
@@ -665,5 +666,117 @@ describe('createGenerateVideo', () => {
     expect(typeof gen.stop).toBe('function')
     expect(typeof gen.reset).toBe('function')
     expect(typeof gen.updateBody).toBe('function')
+  })
+})
+
+describe('onResult transform', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('should transform result when onResult returns a value (fetcher)', async () => {
+    // Inference (issue #848): `onResult`'s parameter is contextually typed from
+    // the fetcher's return, and `result` narrows to the transform's return —
+    // no explicit type arguments needed.
+    const gen = createGeneration({
+      fetcher: async () => ({ id: '1', audio: 'base64data' }),
+      onResult: (raw) => ({ playable: raw.audio.length > 0 }),
+    })
+    expectTypeOf(gen.result).toEqualTypeOf<{ playable: boolean } | null>()
+
+    await gen.generate({ prompt: 'test' })
+
+    expect(gen.result).toEqual({ playable: true })
+    expect(gen.status).toBe('success')
+  })
+
+  it('should use raw result when onResult returns void', async () => {
+    const onResult = vi.fn()
+
+    const gen = createGeneration({
+      fetcher: async () => ({ id: '1', data: 'test' }),
+      onResult,
+    })
+
+    await gen.generate({ prompt: 'test' })
+
+    expect(onResult).toHaveBeenCalledWith({ id: '1', data: 'test' })
+    expect(gen.result).toEqual({ id: '1', data: 'test' })
+  })
+
+  it('should keep previous result when onResult returns null', async () => {
+    const gen = createGeneration({
+      fetcher: async () => ({ id: '1' }),
+      onResult: () => null,
+    })
+
+    await gen.generate({ prompt: 'test' })
+
+    // null return → keep previous (which was null initially)
+    expect(gen.result).toBeNull()
+    expect(gen.status).toBe('success')
+  })
+
+  it('should transform result from connection stream', async () => {
+    type StreamResult = { id: string; images: Array<string> }
+    const mockResult: StreamResult = { id: '1', images: ['img1', 'img2'] }
+    const chunks = createGenerationChunks(mockResult)
+    const adapter = createMockConnectionAdapter({ chunks })
+
+    // In connection mode there's no fetcher to infer `TResult` from, so annotate
+    // the `onResult` parameter — `TResult` infers from the annotation and
+    // `result` narrows to the transform's return. No explicit type args needed.
+    const gen = createGeneration({
+      connection: adapter,
+      onResult: (raw: StreamResult) => ({ count: raw.images.length }),
+    })
+    expectTypeOf(gen.result).toEqualTypeOf<{ count: number } | null>()
+
+    await gen.generate({ prompt: 'test' })
+
+    expect(gen.result).toEqual({ count: 2 })
+  })
+
+  it('should work with createGenerateSpeech transform', async () => {
+    const mockTTSResult: TTSResult = {
+      id: '1',
+      model: 'tts-1',
+      audio: 'base64audio',
+      format: 'mp3',
+      contentType: 'audio/mpeg',
+    }
+
+    // Inference (issue #848): the wrapper hooks infer the output type from
+    // `onResult` with no explicit type argument. `raw` is contextually typed
+    // as `TTSResult`.
+    const gen = createGenerateSpeech({
+      fetcher: async () => mockTTSResult,
+      onResult: (raw) => ({
+        audioUrl: `data:${raw.contentType};base64,${raw.audio}`,
+      }),
+    })
+    expectTypeOf(gen.result).toEqualTypeOf<{ audioUrl: string } | null>()
+
+    await gen.generate({ text: 'Hello' })
+
+    expect(gen.result).toEqual({
+      audioUrl: 'data:audio/mpeg;base64,base64audio',
+    })
+  })
+
+  it('infers the raw result type when no onResult is provided', () => {
+    const gen = createTranscription({
+      fetcher: async () => ({ id: '1', text: 'hi', model: 'whisper-1' }),
+    })
+    // Without a transform, `result` stays the raw TranscriptionResult.
+    expectTypeOf(gen.result).toEqualTypeOf<TranscriptionResult | null>()
+  })
+
+  it('narrows the wrapper result type to the transform return', () => {
+    const gen = createTranscription({
+      fetcher: async () => ({ id: '1', text: 'hi', model: 'whisper-1' }),
+      onResult: (res) => res.text,
+    })
+    expectTypeOf(gen.result).toEqualTypeOf<string | null>()
   })
 })

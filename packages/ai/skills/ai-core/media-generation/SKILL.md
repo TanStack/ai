@@ -151,7 +151,7 @@ function ImageGenerator() {
 
 Supported adapters: `openaiImage` (dall-e-2, dall-e-3, gpt-image-1,
 gpt-image-1-mini, gpt-image-2) and `geminiImage` (gemini-3.1-flash-image-preview,
-imagen-4.0-generate-001, etc.).
+gemini-3.1-flash-lite-image, imagen-4.0-generate-001, etc.).
 
 ```typescript
 import { generateImage } from '@tanstack/ai'
@@ -358,6 +358,19 @@ const { generate, result, isLoading } = useGenerateSpeech({
 
 Adapter: `openaiTranscription` (whisper-1, gpt-4o-transcribe,
 gpt-4o-mini-transcribe).
+
+> **Capturing audio in the browser:** Use `useAudioRecorder` from `@tanstack/ai-react` to record directly in the browser, then pass the recording as the `audio` input to `generate()`, or use `recording.part` as a prompt part in chat/generation calls. No transcoding or extra dependencies required — the recorder returns the native browser format (`audio/webm` or `audio/mp4`). For transcription, wrap it as a `data:` URL so the provider gets the real content type; passing raw `recording.base64` makes the adapter assume `audio/mpeg` and mislabel the webm/mp4 bytes.
+>
+> ```typescript
+> const { isRecording, start, stop } = useAudioRecorder()
+> const { generate } = useTranscription({
+>   connection: fetchServerSentEvents('/api/transcribe'),
+> })
+> // ...
+> const recording = await stop()
+> const mimeType = recording.mimeType.split(';')[0] // strip ;codecs=...
+> await generate({ audio: `data:${mimeType};base64,${recording.base64}` })
+> ```
 
 ```typescript
 import { generateTranscription } from '@tanstack/ai'

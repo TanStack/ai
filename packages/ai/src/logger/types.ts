@@ -60,6 +60,11 @@ export interface DebugCategories {
    * Outgoing call metadata (provider, model, message/tool counts) emitted before each adapter SDK call.
    */
   request?: boolean
+  /**
+   * Sandbox internals: watcher start/stop + mechanism, file events, sandbox
+   * hook dispatch, ensure/bootstrap and lifecycle transitions. Chat-only.
+   */
+  sandbox?: boolean
 }
 
 /**

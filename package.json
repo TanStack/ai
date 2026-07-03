@@ -57,6 +57,7 @@
     ]
   },
   "devDependencies": {
+    "@aws-sdk/client-bedrock": "^3.1057.0",
     "@changesets/changelog-github": "^0.7.0",
     "@changesets/cli": "^2.30.0",
     "@faker-js/faker": "^10.1.0",

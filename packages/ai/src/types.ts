@@ -4,6 +4,7 @@ import type {
 } from '@standard-schema/spec'
 import type { InternalLogger } from './logger/internal-logger'
 import type { SystemPrompt } from './system-prompts'
+import type { CapabilityContext } from './activities/chat/middleware/capabilities'
 // The canonical usage types live in the leaf `@tanstack/ai-event-client`
 // package (which `@tanstack/ai` already depends on) so there is a single source
 // of truth without a dependency cycle. They are re-exported below.
@@ -157,6 +158,26 @@ export interface ToolCall<TMetadata = unknown> {
    * Typed per-adapter via `TToolCallMetadata`. For example,
    * `@tanstack/ai-gemini` sets this to `{ thoughtSignature?: string }`. */
   metadata?: TMetadata
+}
+
+/**
+ * Convention for tool-call `metadata` that marks a call as **provider-executed**
+ * — run by the provider's own infrastructure (e.g. Anthropic `web_search` /
+ * `web_fetch` server tools) rather than by the agent loop. Adapters set
+ * `providerExecuted: true` so that:
+ *
+ * 1. The agent loop never tries to execute the call client-side (see
+ *    {@link isProviderExecutedToolCall} usage in the chat engine), and
+ * 2. The adapter can stash the raw provider result alongside it so the call —
+ *    and its evidence — round-trips into the next turn's request.
+ *
+ * Provider-specific payloads live under a namespaced key (e.g. `anthropic`),
+ * keeping this convention opaque to the framework core. The index signature
+ * preserves those per-adapter fields.
+ */
+export interface ProviderExecutedToolMetadata {
+  providerExecuted?: boolean
+  [key: string]: unknown
 }
 
 // ============================================================================
@@ -361,7 +382,9 @@ export interface ToolCallPart<TMetadata = unknown> {
   /** Tool execution output (for client tools or after approval) */
   output?: any
   /** Provider-specific metadata that round-trips with the tool call.
-   * Typed per-adapter via `TToolCallMetadata`. */
+   * Typed per-adapter via `TToolCallMetadata`. May follow the
+   * {@link ProviderExecutedToolMetadata} convention to mark provider-executed
+   * server tools (e.g. Anthropic `web_search`). */
   metadata?: TMetadata
 }
 
@@ -416,6 +439,23 @@ export interface StructuredOutputPart<TData = unknown> {
   errorMessage?: string
 }
 
+export interface UIResourcePart {
+  type: 'ui-resource'
+  /** The ui:// resource object in MCP-native shape — fed straight to the renderer. */
+  resource: { uri: string; mimeType: string; text?: string; blob?: string }
+  /** Pool prefix / config key — routes interactive calls to the right MCP server. */
+  serverId?: string
+  /** Links the widget to the originating tool call — correlates it with the
+   *  sibling ToolCallPart/ToolResultPart in the same message. */
+  toolCallId: string
+  /** Server-native (unprefixed) MCP tool name whose UI this resource renders.
+   *  Required by the renderer (`@mcp-ui/client`'s `AppRenderer` `toolName` prop). */
+  toolName: string
+  /** Reserved for future passthrough of the resource/tool `_meta.ui` (e.g. frame-size hints).
+   *  Currently always `undefined` — nothing populates this field yet. */
+  meta?: Record<string, unknown>
+}
+
 export type MessagePart<TData = unknown> =
   | TextPart
   | ImagePart
@@ -426,6 +466,7 @@ export type MessagePart<TData = unknown> =
   | ToolResultPart
   | ThinkingPart
   | StructuredOutputPart<TData>
+  | UIResourcePart
 
 /**
  * UIMessage - Domain-specific message format optimized for building chat UIs
@@ -654,11 +695,27 @@ export interface Tool<
   /** If true, tool execution requires user approval before running. Works with both server and client tools. */
   needsApproval?: boolean
 
-  /** If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Only meaningful when used with chat(). */
+  /** If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Works with both chat() (the synthetic discovery tool) and Code Mode (kept out of the system prompt and revealed via discover_tools). */
   lazy?: boolean
 
   /** Additional metadata for adapters or custom extensions */
   metadata?: Record<string, any> | undefined
+}
+
+/**
+ * Configuration for the lazy-tool discovery catalog, shared by chat() and
+ * Code Mode. Optional in both — lazy behavior is triggered purely by tools
+ * marked `lazy: true`; this only tunes how much of each lazy tool's
+ * description appears in the pre-discovery catalog. The post-discovery payload
+ * always returns the full description + schema.
+ */
+export interface LazyToolsConfig {
+  /**
+   * How much of each lazy tool's description appears in the pre-discovery
+   * catalog (the names list shown before the model discovers the tool).
+   * @default 'none'
+   */
+  includeDescription?: 'full' | 'first-sentence' | 'none'
 }
 
 export type AnyTool = Omit<Tool<any, any, any, any>, 'execute'> & {
@@ -820,6 +877,12 @@ export interface TextOptions<
   systemPrompts?: Array<SystemPrompt>
   agentLoopStrategy?: AgentLoopStrategy
   /**
+   * Optional configuration for lazy-tool discovery (tools marked `lazy: true`).
+   * Tunes how much of each lazy tool's description appears in the discovery
+   * catalog. Optional — defaults to `{ includeDescription: 'none' }`.
+   */
+  lazyToolsConfig?: LazyToolsConfig
+  /**
    * Observability metadata attached to this call. Surfaced to middleware,
    * devtools, and the event client; values may be arbitrarily structured
    * (objects, arrays). Adapters never forward this field onto the provider
@@ -906,6 +969,25 @@ export interface TextOptions<
    * Surfaced for observability/middleware; not consumed by the LLM call.
    */
   parentRunId?: string
+
+  /**
+   * Middleware capability context for this run. The engine populates it with
+   * the live middleware context so harness adapters that declare
+   * `requires: [SomeCapability]` can read provided capabilities from inside
+   * `chatStream` — e.g. `getSandbox(options.capabilities)`. Capabilities are
+   * provisioned by middleware `setup` before the adapter runs. Undefined for
+   * direct adapter usage outside the chat engine.
+   */
+  capabilities?: CapabilityContext
+
+  /**
+   * Client approval decisions for this run, keyed by approval id. The engine
+   * populates this from approvals carried on the incoming messages. Harness
+   * adapters consult it to resolve `ask`-policy permission requests (the agent
+   * pauses on a risky action; the client re-runs with a decision recorded
+   * here). Undefined for direct adapter usage outside the chat engine.
+   */
+  approvals?: ReadonlyMap<string, boolean>
 }
 
 // ============================================================================
@@ -1283,6 +1365,19 @@ export interface ToolInputAvailableEvent extends CustomEvent {
     toolCallId: string
     toolName: string
     input: unknown
+  }
+}
+
+/** Emitted when an MCP tool returns a ui:// resource (MCP Apps). Reconciled into
+ *  a UIResourcePart on the assistant UIMessage. Never enters model input. */
+export interface UIResourceEvent extends CustomEvent {
+  name: 'ui-resource'
+  value: {
+    resource: UIResourcePart['resource']
+    serverId?: string
+    toolCallId: string
+    toolName: string
+    meta?: Record<string, unknown>
   }
 }
 

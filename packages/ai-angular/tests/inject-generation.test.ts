@@ -54,4 +54,18 @@ describe('injectGeneration', () => {
   it('throws without connection or fetcher', () => {
     expect(() => renderInjectGeneration({})).toThrow()
   })
+
+  it('transforms the result when onResult returns a value', async () => {
+    const { result, flush } = renderInjectGeneration({
+      fetcher: async () => ({ id: '1', audio: 'base64data' }),
+      onResult: (raw: { id: string; audio: string }) => ({
+        playable: raw.audio.length > 0,
+      }),
+    })
+
+    await result.generate({ prompt: 'x' })
+    flush()
+    expect(result.result()).toEqual({ playable: true })
+    expect(result.status()).toBe('success')
+  })
 })

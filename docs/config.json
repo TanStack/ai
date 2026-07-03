@@ -62,7 +62,8 @@
         {
           "label": "TanStack AI vs Vercel AI SDK",
           "to": "comparison/vercel-ai-sdk",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-01"
         }
       ]
     },
@@ -77,7 +78,8 @@
         {
           "label": "Provider Tools",
           "to": "tools/provider-tools",
-          "addedAt": "2026-04-21"
+          "addedAt": "2026-04-21",
+          "updatedAt": "2026-07-02"
         },
         {
           "label": "Provider Skills",
@@ -107,7 +109,8 @@
         {
           "label": "Lazy Tool Discovery",
           "to": "tools/lazy-tool-discovery",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-06-08"
         }
       ]
     },
@@ -133,6 +136,12 @@
           "label": "MCP Type Generation",
           "to": "tools/mcp-codegen",
           "addedAt": "2026-06-05"
+        },
+        {
+          "label": "MCP Apps",
+          "to": "mcp/apps",
+          "addedAt": "2026-06-24",
+          "updatedAt": "2026-06-26"
         }
       ]
     },
@@ -220,6 +229,11 @@
           "label": "Code Mode Isolate Drivers",
           "to": "code-mode/code-mode-isolates",
           "addedAt": "2026-04-15"
+        },
+        {
+          "label": "Lazy Tools",
+          "to": "code-mode/lazy-tools",
+          "addedAt": "2026-06-08"
         }
       ]
     },
@@ -244,7 +258,14 @@
         {
           "label": "Transcription",
           "to": "media/transcription",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-01"
+        },
+        {
+          "label": "Audio Recording",
+          "to": "media/audio-recording",
+          "addedAt": "2026-06-23",
+          "updatedAt": "2026-06-26"
         },
         {
           "label": "Audio Generation",
@@ -256,13 +277,13 @@
           "label": "Image Generation",
           "to": "media/image-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-06-08"
+          "updatedAt": "2026-07-01"
         },
         {
           "label": "Video Generation",
           "to": "media/video-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-06-24"
+          "updatedAt": "2026-07-01"
         },
         {
           "label": "Generation Hooks",
@@ -290,6 +311,74 @@
           "to": "advanced/otel",
           "addedAt": "2026-05-08",
           "updatedAt": "2026-06-17"
+        }
+      ]
+    },
+    {
+      "label": "Sandboxes",
+      "children": [
+        {
+          "label": "Overview",
+          "to": "sandbox/overview",
+          "addedAt": "2026-06-16",
+          "updatedAt": "2026-06-30"
+        },
+        {
+          "label": "Quick Start",
+          "to": "sandbox/quick-start",
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-06-30"
+        },
+        {
+          "label": "Providers",
+          "to": "sandbox/providers",
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-06-30"
+        },
+        {
+          "label": "Harnesses",
+          "to": "sandbox/harnesses",
+          "addedAt": "2026-06-30"
+        },
+        {
+          "label": "Workspace",
+          "to": "sandbox/workspace",
+          "addedAt": "2026-06-29"
+        },
+        {
+          "label": "Provisioning",
+          "to": "sandbox/provisioning",
+          "addedAt": "2026-06-29"
+        },
+        {
+          "label": "Tools",
+          "to": "sandbox/tools",
+          "addedAt": "2026-06-29"
+        },
+        {
+          "label": "Policy",
+          "to": "sandbox/policy",
+          "addedAt": "2026-06-29"
+        },
+        {
+          "label": "Lifecycle & Snapshots",
+          "to": "sandbox/lifecycle",
+          "addedAt": "2026-06-29"
+        },
+        {
+          "label": "Events",
+          "to": "sandbox/events",
+          "addedAt": "2026-06-29"
+        },
+        {
+          "label": "Observability",
+          "to": "sandbox/observability",
+          "addedAt": "2026-06-29"
+        },
+        {
+          "label": "Cloudflare (Edge)",
+          "to": "sandbox/cloudflare",
+          "addedAt": "2026-06-29"
         }
       ]
     },
@@ -419,12 +508,14 @@
         {
           "label": "Anthropic",
           "to": "adapters/anthropic",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-02"
         },
         {
           "label": "Google Gemini",
           "to": "adapters/gemini",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-01"
         },
         {
           "label": "Ollama",
@@ -440,7 +531,12 @@
         {
           "label": "Groq",
           "to": "adapters/groq",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-01"
+        },
+        {
+          "label": "Mistral",
+          "to": "adapters/mistral"
         },
         {
           "label": "ElevenLabs",
@@ -462,6 +558,39 @@
           "to": "adapters/openai-compatible",
           "addedAt": "2026-06-01",
           "updatedAt": "2026-06-20"
+        },
+        {
+          "label": "Claude Code",
+          "to": "adapters/claude-code",
+          "addedAt": "2026-06-12",
+          "updatedAt": "2026-06-30"
+        },
+        {
+          "label": "Codex",
+          "to": "adapters/codex",
+          "addedAt": "2026-06-12",
+          "updatedAt": "2026-06-30"
+        },
+        {
+          "label": "OpenCode",
+          "to": "adapters/opencode",
+          "addedAt": "2026-06-12",
+          "updatedAt": "2026-06-30"
+        },
+        {
+          "label": "Grok Build",
+          "to": "adapters/grok-build",
+          "addedAt": "2026-06-29"
+        },
+        {
+          "label": "ACP-Compatible",
+          "to": "adapters/acp-compatible",
+          "addedAt": "2026-06-30"
+        },
+        {
+          "label": "Amazon Bedrock",
+          "to": "adapters/bedrock",
+          "addedAt": "2026-06-25"
         }
       ]
     },
