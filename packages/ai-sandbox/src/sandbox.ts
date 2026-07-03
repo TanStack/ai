@@ -10,7 +10,7 @@ import { bootstrapWorkspace } from './bootstrap'
 import { resolveAllSecrets } from './secrets'
 import { computeSandboxKey } from './key'
 import { InMemoryLockStore, InMemorySandboxStore } from './store'
-import type { SandboxFileEvent } from '@tanstack/ai'
+import type { SandboxFileHookEvent } from '@tanstack/ai'
 import type { SandboxHandle, SandboxProvider } from './contracts'
 import type { SandboxKeyInput } from './key'
 import type { LockStore, SandboxStore } from './store'
@@ -22,10 +22,10 @@ import type { WorkspaceDefinition } from './workspace'
  * create/change/delete during a chat run; lifecycle hooks fire server-side.
  */
 export interface SandboxHooks {
-  onFile?: (e: SandboxFileEvent) => void | Promise<void>
-  onFileCreate?: (e: SandboxFileEvent) => void | Promise<void>
-  onFileChange?: (e: SandboxFileEvent) => void | Promise<void>
-  onFileDelete?: (e: SandboxFileEvent) => void | Promise<void>
+  onFile?: (e: SandboxFileHookEvent) => void | Promise<void>
+  onFileCreate?: (e: SandboxFileHookEvent) => void | Promise<void>
+  onFileChange?: (e: SandboxFileHookEvent) => void | Promise<void>
+  onFileDelete?: (e: SandboxFileHookEvent) => void | Promise<void>
   onReady?: (handle: SandboxHandle) => void | Promise<void>
   onError?: (err: unknown) => void | Promise<void>
   onDestroy?: () => void | Promise<void>

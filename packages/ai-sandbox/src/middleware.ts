@@ -24,6 +24,7 @@ import {
   provideSandboxPolicy,
 } from './capabilities'
 import { computeWorkspaceHash } from './key'
+import { buildFileHookEvent, resolveFileEvents } from './file-diff'
 import { ProjectionCapability, provideWorkspaceProjection } from './projection'
 import { resolveSecret } from './secrets'
 import { watchWorkspace } from './watch'
@@ -33,6 +34,7 @@ import type {
   ChatMiddlewareContext,
   DefinedChatMiddleware,
   SandboxFileEvent,
+  SandboxFileHookEvent,
 } from '@tanstack/ai'
 import type { SandboxHandle } from './contracts'
 import type {
@@ -81,7 +83,7 @@ function buildEnsureCtx(ctx: ChatMiddlewareContext): SandboxEnsureContext {
  */
 async function dispatchDefinitionHooks(
   hooks: SandboxHooks | undefined,
-  event: SandboxFileEvent,
+  event: SandboxFileHookEvent,
 ): Promise<void> {
   if (!hooks) return
   const typed = (
@@ -122,6 +124,17 @@ export function withSandbox(
       provideSandbox(ctx, handle)
       if (definition.policy) provideSandboxPolicy(ctx, definition.policy)
 
+      const watchRoot = definition.workspace?.root ?? DEFAULT_WORKSPACE_ROOT
+      let baseSha = ''
+      try {
+        const shaRes = await handle.process.exec('git rev-parse HEAD', {
+          cwd: watchRoot,
+        })
+        if (shaRes.exitCode === 0) baseSha = shaRes.stdout.trim()
+      } catch {
+        // non-git workspace / exec rejects → baseSha stays '' (accessors fall back)
+      }
+
       const workspace = definition.workspace
       if (workspace !== undefined) {
         const root = workspace.root ?? DEFAULT_WORKSPACE_ROOT
@@ -149,13 +162,16 @@ export function withSandbox(
       const hooks = definition.hooks
       await hooks?.onReady?.(handle)
 
+      const fe = resolveFileEvents(definition.fileEvents)
       let watcher: SandboxWatchHandle | undefined
-      if (definition.fileEvents !== false) {
+      if (fe.enabled) {
         const runtime = getSandboxRuntime(ctx, { optional: true })
         watcher = await watchWorkspace(handle, {
           onEvent: (event: SandboxFileEvent) => {
-            void dispatchDefinitionHooks(hooks, event)
-            runtime?.emit(event)
+            const enriched = buildFileHookEvent(handle, watchRoot, baseSha, event)
+            void dispatchDefinitionHooks(hooks, enriched)
+            runtime?.emit(enriched)
+            // fe.diff handling added in Task 4
           },
           ...(ctx.signal !== undefined ? { signal: ctx.signal } : {}),
         })
