@@ -187,6 +187,9 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
       }
 
       const created = await config.provider.create({
+        // Deterministic id so consumers can reconstruct the provider sandbox
+        // address from run context (not just from the store record).
+        id: key,
         workspace: config.workspace,
         policy: config.policy,
         env:
