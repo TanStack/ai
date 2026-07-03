@@ -59,8 +59,9 @@ export interface SandboxConfig {
   lifecycle?: SandboxLifecycle
   /** Sandbox-scoped file/lifecycle hooks. */
   hooks?: SandboxHooks
-  /** Watch the workspace for file events (default true). Set false to disable. */
-  fileEvents?: boolean
+  /** Watch the workspace for file events (default true). `false` disables the
+   *  watcher; `{ diff: true }` also emits a per-file `sandbox.file.diff` event. */
+  fileEvents?: boolean | { diff?: boolean }
 }
 
 /** Context passed to `ensure()` by `withSandbox` (or advanced callers). */
@@ -83,8 +84,9 @@ export interface SandboxDefinition {
   readonly lifecycle?: SandboxLifecycle
   /** Sandbox-scoped file/lifecycle hooks. */
   readonly hooks?: SandboxHooks
-  /** Watch the workspace for file events (default true). Set false to disable. */
-  readonly fileEvents?: boolean
+  /** Watch the workspace for file events (default true). `false` disables the
+   *  watcher; `{ diff: true }` also emits a per-file `sandbox.file.diff` event. */
+  readonly fileEvents?: boolean | { diff?: boolean }
   /** Compound instance key for a given run context. */
   key: (ctx: SandboxEnsureContext) => string
   /** Resume-or-create the sandbox for this thread/run. */

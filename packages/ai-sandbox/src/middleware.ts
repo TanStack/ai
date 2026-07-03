@@ -171,7 +171,14 @@ export function withSandbox(
             const enriched = buildFileHookEvent(handle, watchRoot, baseSha, event)
             void dispatchDefinitionHooks(hooks, enriched)
             runtime?.emit(enriched)
-            // fe.diff handling added in Task 4
+            if (fe.diff) {
+              void enriched
+                .diff()
+                .then((diff) => {
+                  runtime?.emitFileDiff({ path: event.path, diff })
+                })
+                .catch(() => undefined)
+            }
           },
           ...(ctx.signal !== undefined ? { signal: ctx.signal } : {}),
         })
