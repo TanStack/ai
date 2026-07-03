@@ -93,7 +93,8 @@ class SpritesProvider implements SandboxProvider {
     // an out-of-band reconnect (a preview iframe) on a different sprite than the
     // one the agent edits. Fall back to a random name for direct/advanced use.
     const name =
-      input.id ?? `${NAME_PREFIX}-${randomUUID().replace(/-/g, '').slice(0, 12)}`
+      input.id ??
+      `${NAME_PREFIX}-${randomUUID().replace(/-/g, '').slice(0, 12)}`
     const sprite = await this.client.createSprite(name, {
       ...(this.config.waitForCapacity !== undefined
         ? { waitForCapacity: this.config.waitForCapacity }
