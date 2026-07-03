@@ -80,10 +80,10 @@ describe('watchWorkspace (exec-poll)', () => {
   it('diffs successive `find` snapshots into file events', async () => {
     vi.useFakeTimers()
     const snapshots = [
-      // initial
-      '1.0\t10\t/workspace/a.js\n2.0\t20\t/workspace/b.js\n',
+      // initial — `find .` prints cwd-relative paths (normalized back under root)
+      '1.0\t10\t./a.js\n2.0\t20\t./b.js\n',
       // after the agent edits b, adds c, removes a
-      '2.5\t25\t/workspace/b.js\n3.0\t30\t/workspace/c.js\n',
+      '2.5\t25\t./b.js\n3.0\t30\t./c.js\n',
     ]
     let call = 0
     const handle = fakeHandle({})
