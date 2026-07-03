@@ -448,9 +448,12 @@ or has no commits). `before()` and `diff()` always diff against that same
 fixed baseline for the rest of the run, so `onFileChange` reports the file's
 **cumulative** change since the run started, not just the delta since the
 last poll. `after()` always reads current on-disk content. None of the three
-accessors throw: a deleted file, a new file, or a non-git workspace resolve
-`before()`/`after()` to `''`; a non-git workspace makes `diff()` fall back to
-a synthesized add-patch built from `after()`.
+accessors throw: a deleted file resolves `after()` to `''` (it still has
+`before()`); a new file resolves `before()` to `''` (it still has `after()`);
+a non-git workspace resolves **both** `before()` and `after()` to `''` and
+makes `diff()` fall back to a synthesized add-patch built from `after()` —
+except for a `delete` event in a non-git workspace, where there's nothing to
+synthesize and `diff()` resolves to `''`.
 
 **Hook errors are swallowed per hook.** A throwing `sandbox` hook is caught
 and logged under the `sandbox` debug category — it cannot break the run or

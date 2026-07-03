@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { buildFileHookEvent } from '../src/file-diff'
 import type { SandboxHandle } from '../src/contracts'
 
@@ -70,6 +70,16 @@ describe('buildFileHookEvent', () => {
     )
     const patch = await e.diff()
     expect(patch).toContain('+line1')
+  })
+
+  it('diff() with empty base and a delete event resolves to "" (no bogus add-patch)', async () => {
+    const e = buildFileHookEvent(
+      fakeHandle({ read: async () => 'AFTER' }),
+      '/workspace',
+      '',
+      { type: 'delete', path: '/workspace/a.ts', timestamp: 1 },
+    )
+    expect(await e.diff()).toBe('')
   })
 
   it('diff() with a base runs `git diff <base> -- <rel-path>`', async () => {

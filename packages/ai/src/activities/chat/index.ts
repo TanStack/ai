@@ -721,7 +721,11 @@ class TextEngine<
             timestamp: event.timestamp,
           },
         })
-        void this.middlewareRunner.runSandboxFile(this.middlewareCtx, event)
+        void this.middlewareRunner
+          .runSandboxFile(this.middlewareCtx, event)
+          .catch((err: unknown) => {
+            this.logger.errors('sandbox file hook failed', { error: err })
+          })
         this.sandboxFileQueue.push(
           this.createCustomEventChunk('sandbox.file', {
             type: event.type,

@@ -3,10 +3,10 @@ import type { ChatStream, KnownCustomEvent, SessionIdEvent } from '../src/types'
 
 // A KnownCustomEvent narrowed by literal name yields the concrete value.
 declare const ev: KnownCustomEvent
-if (ev.type === 'CUSTOM' && ev.name === 'sandbox.file.diff') {
+if (ev.name === 'sandbox.file.diff') {
   expectTypeOf(ev.value).toEqualTypeOf<{ path: string; diff: string }>()
 }
-if (ev.type === 'CUSTOM' && ev.name === 'code_mode:console') {
+if (ev.name === 'code_mode:console') {
   expectTypeOf(ev.value.level).toEqualTypeOf<
     'log' | 'warn' | 'error' | 'info'
   >()
@@ -19,7 +19,7 @@ if (ev.type === 'CUSTOM' && ev.name === 'code_mode:console') {
 function isSessionIdEvent(e: KnownCustomEvent): e is SessionIdEvent {
   return e.name.endsWith('.session-id')
 }
-if (ev.type === 'CUSTOM' && isSessionIdEvent(ev)) {
+if (isSessionIdEvent(ev)) {
   expectTypeOf(ev.value).toEqualTypeOf<{ sessionId: string }>()
 }
 

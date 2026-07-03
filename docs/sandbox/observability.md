@@ -138,10 +138,13 @@ workspace isn't a git repo, or has no commits yet). Every `before()` and
 baseline, so `onFileChange` always reports the file's **cumulative** change
 since the run started — not just the delta since the watcher's last poll.
 `after()` always reads the file's current on-disk content, independent of
-the baseline. None of the three accessors throw: a deleted file, a new file,
-or a non-git workspace all resolve to `''` for `before()`/`after()`; a
-non-git workspace makes `diff()` fall back to a synthesized add-patch built
-from `after()`.
+the baseline. None of the three accessors throw: a deleted file resolves
+`after()` to `''` (it still has `before()`); a new file resolves `before()`
+to `''` (it still has `after()`); a non-git workspace resolves **both**
+`before()` and `after()` to `''` and makes `diff()` fall back to a
+synthesized add-patch built from `after()` — except for a `delete` event in
+a non-git workspace, where there's nothing to synthesize and `diff()`
+resolves to `''`.
 
 ## Disabling file watching
 

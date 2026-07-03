@@ -49,6 +49,10 @@ interface SandboxRunState {
   handle: SandboxHandle
   ensureCtx: SandboxEnsureContext
   watcher?: SandboxWatchHandle
+  /** In-flight `enriched.diff()` promises queued by the `fileEvents.diff`
+   * watcher callback, awaited before teardown so a pending diff isn't
+   * dropped when the run finishes/aborts/errors mid-computation. */
+  pendingDiffs: Array<Promise<void>>
 }
 
 const runState = new WeakMap<object, SandboxRunState>()
@@ -163,6 +167,7 @@ export function withSandbox(
       await hooks?.onReady?.(handle)
 
       const fe = resolveFileEvents(definition.fileEvents)
+      const pendingDiffs: Array<Promise<void>> = []
       let watcher: SandboxWatchHandle | undefined
       if (fe.enabled) {
         const runtime = getSandboxRuntime(ctx, { optional: true })
@@ -177,19 +182,26 @@ export function withSandbox(
             void dispatchDefinitionHooks(hooks, enriched)
             runtime?.emit(enriched)
             if (fe.diff) {
-              void enriched
-                .diff()
-                .then((diff) => {
-                  runtime?.emitFileDiff({ path: event.path, diff })
-                })
-                .catch(() => undefined)
+              pendingDiffs.push(
+                enriched
+                  .diff()
+                  .then((diff) => {
+                    runtime?.emitFileDiff({ path: event.path, diff })
+                  })
+                  .catch(() => undefined),
+              )
             }
           },
           ...(ctx.signal !== undefined ? { signal: ctx.signal } : {}),
         })
       }
 
-      runState.set(ctx, { handle, ensureCtx, ...(watcher ? { watcher } : {}) })
+      runState.set(ctx, {
+        handle,
+        ensureCtx,
+        pendingDiffs,
+        ...(watcher ? { watcher } : {}),
+      })
     },
 
     async onFinish(ctx) {
@@ -198,6 +210,7 @@ export function withSandbox(
       const { handle, ensureCtx } = state
 
       await state.watcher?.stop()
+      await Promise.allSettled(state.pendingDiffs)
 
       const lifecycle = definition.lifecycle
 
@@ -232,6 +245,7 @@ export function withSandbox(
       if (!state) return
 
       await state.watcher?.stop()
+      await Promise.allSettled(state.pendingDiffs)
 
       // ALWAYS tear down on an explicit abort, regardless of `destroyOnComplete`.
       // The in-sandbox agent process is not killed by closing its IO stream
@@ -248,6 +262,7 @@ export function withSandbox(
       if (!state) return
 
       await state.watcher?.stop()
+      await Promise.allSettled(state.pendingDiffs)
       await definition.hooks?.onError?.(info.error)
 
       // On failure, only tear down when the lifecycle says so; otherwise leave

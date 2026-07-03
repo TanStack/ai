@@ -25,7 +25,7 @@ function makeSink(
       name: 'sandbox.file',
       value: { type: event.type, path: event.path, timestamp: event.timestamp },
       timestamp: event.timestamp,
-    } as StreamChunk)
+    })
   }
 }
 

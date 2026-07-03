@@ -54,7 +54,10 @@ export function buildFileHookEvent(
     }
   }
   const diff = async (): Promise<string> => {
-    if (baseSha === '') return synthesizeAddPatch(event.path, await after())
+    if (baseSha === '') {
+      if (event.type === 'delete') return ''
+      return synthesizeAddPatch(event.path, await after())
+    }
     // Pathspec must be relative to `root` (like `before()` above) — a bare
     // leading `/` (e.g. the virtual `/workspace/x.ts`) is resolved by git
     // against the filesystem root, not the repo root, and fails with
