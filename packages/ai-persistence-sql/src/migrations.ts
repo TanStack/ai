@@ -32,6 +32,7 @@ function v1(dialect: Dialect): Array<string> {
   const key = stringKeyColumn(dialect)
   const text = textColumn(dialect)
   const metadataKey = identifier(dialect, 'key')
+  const usageKey = identifier(dialect, 'usage')
   return [
     `CREATE TABLE IF NOT EXISTS runs (
       run_id ${key} PRIMARY KEY,
@@ -40,7 +41,7 @@ function v1(dialect: Dialect): Array<string> {
       started_at ${ts} NOT NULL,
       finished_at ${ts},
       error ${text},
-      usage ${text}
+      ${usageKey} ${text}
     )`,
     `CREATE TABLE IF NOT EXISTS public_events (
       run_id ${key} NOT NULL,

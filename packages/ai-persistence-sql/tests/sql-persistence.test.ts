@@ -193,7 +193,7 @@ describe('mysql dialect SQL generation', () => {
     expect(schema).toContain(`\`key\` ${mysqlKey} NOT NULL`)
     expect(schema).toContain('PRIMARY KEY (scope, `key`)')
     expect(schema).toContain('error LONGTEXT')
-    expect(schema).toContain('usage LONGTEXT')
+    expect(schema).toContain('`usage` LONGTEXT')
     expect(schema).toContain('event LONGTEXT NOT NULL')
     expect(schema).toContain('payload LONGTEXT NOT NULL')
     expect(schema).toContain('messages LONGTEXT NOT NULL')
@@ -234,6 +234,9 @@ describe('mysql dialect SQL generation', () => {
       runId: 'r1',
       threadId: 't1',
       startedAt: 1,
+    })
+    await persistence.stores.runs!.update('r1', {
+      usage: { promptTokens: 1, completionTokens: 2, totalTokens: 3 },
     })
 
     await persistence.stores.messages!.saveThread('t1', [
@@ -294,6 +297,10 @@ describe('mysql dialect SQL generation', () => {
 
     const sql = driver.statements.join('\n')
     expect(sql).toContain('INSERT INTO runs')
+    expect(sql).toContain(
+      'SELECT run_id, thread_id, status, started_at, finished_at, error, `usage` FROM runs WHERE run_id = ?',
+    )
+    expect(sql).toContain('UPDATE runs SET `usage` = ? WHERE run_id = ?')
     expect(sql).toContain('ON DUPLICATE KEY UPDATE run_id = run_id')
     expect(sql).toContain('INSERT INTO interrupts')
     expect(sql).toContain('ON DUPLICATE KEY UPDATE interrupt_id = interrupt_id')

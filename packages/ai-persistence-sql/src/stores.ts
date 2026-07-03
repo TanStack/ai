@@ -96,6 +96,16 @@ function mapRun(row: Record<string, unknown>): RunRecord {
 
 export function createRunStore(driver: SqlDriver): RunStore {
   const p = (i: number) => param(driver.dialect, i)
+  const usageKey = identifier(driver.dialect, 'usage')
+  const runColumns = [
+    'run_id',
+    'thread_id',
+    'status',
+    'started_at',
+    'finished_at',
+    'error',
+    usageKey,
+  ].join(', ')
   return {
     async createOrResume(input) {
       const existing = await this.get(input.runId)
@@ -135,7 +145,7 @@ export function createRunStore(driver: SqlDriver): RunStore {
         values.push(patch.error)
       }
       if (patch.usage !== undefined) {
-        sets.push(`usage = ${p(i++)}`)
+        sets.push(`${usageKey} = ${p(i++)}`)
         values.push(JSON.stringify(patch.usage))
       }
       if (!sets.length) return
@@ -147,7 +157,7 @@ export function createRunStore(driver: SqlDriver): RunStore {
     },
     async get(runId) {
       const rows = await driver.query(
-        `SELECT * FROM runs WHERE run_id = ${p(1)}`,
+        `SELECT ${runColumns} FROM runs WHERE run_id = ${p(1)}`,
         [runId],
       )
       const row = rows[0]
