@@ -27,11 +27,11 @@ export interface SandboxFileEvent {
  *  `sandbox.file` CUSTOM chunk. */
 export interface SandboxFileHookEvent extends SandboxFileEvent {
   /** Content at the session baseline (`''` for a new file or non-git workspace). */
-  before(): Promise<string>
+  before: () => Promise<string>
   /** Current content (`''` when the event is a delete). */
-  after(): Promise<string>
+  after: () => Promise<string>
   /** Unified patch vs the session baseline (synthesized add-patch when non-git). */
-  diff(): Promise<string>
+  diff: () => Promise<string>
 }
 
 /**
