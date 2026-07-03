@@ -56,7 +56,7 @@ describe('sandbox runtime emit', () => {
     expect(queue[0]).toMatchObject({
       type: EventType.CUSTOM,
       name: 'sandbox.file',
-      value: { type: 'change', path: '/workspace/x.ts' },
     })
+    expect(queue[0].value).toEqual({ type: 'change', path: '/workspace/x.ts', timestamp: 1 })
   })
 })

@@ -9,11 +9,8 @@ function relTo(root: string, path: string): string {
 
 /**
  * POSIX single-quote escape for embedding a value in a shell command.
- * Unused until a later hardening pass quotes `git show`/`git diff` paths for
- * spaces (see the Step 4 note in the plan); exported now so `tsc`'s
- * `noUnusedLocals` doesn't fail the build in the meantime.
  */
-export function q(value: string): string {
+function q(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
@@ -46,13 +43,23 @@ export function buildFileHookEvent(
   const before = async (): Promise<string> => {
     if (baseSha === '') return ''
     const rel = relTo(root, event.path)
-    const res = await handle.process.exec(`git show ${baseSha}:${rel}`, { cwd: root })
-    return res.exitCode === 0 ? res.stdout : ''
+    try {
+      const res = await handle.process.exec(`git show ${q(baseSha)}:${q(rel)}`, { cwd: root })
+      return res.exitCode === 0 ? res.stdout : ''
+    } catch {
+      return ''
+    }
   }
   const diff = async (): Promise<string> => {
     if (baseSha === '') return synthesizeAddPatch(event.path, await after())
-    const res = await handle.process.exec(`git diff ${baseSha} -- ${event.path}`, { cwd: root })
-    return res.exitCode === 0 ? res.stdout : ''
+    try {
+      const res = await handle.process.exec(`git diff ${q(baseSha)} -- ${q(event.path)}`, {
+        cwd: root,
+      })
+      return res.exitCode === 0 ? res.stdout : ''
+    } catch {
+      return ''
+    }
   }
   return { ...event, before, after, diff }
 }

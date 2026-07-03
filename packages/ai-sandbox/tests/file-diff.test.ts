@@ -25,7 +25,7 @@ describe('buildFileHookEvent', () => {
     const h = fakeHandle({ exec: async (cmd: string) => { calls.push(cmd); return { stdout: 'OLD', stderr: '', exitCode: 0 } } })
     const e = buildFileHookEvent(h, '/workspace', 'sha1', { type: 'change', path: '/workspace/src/a.ts', timestamp: 1 })
     expect(await e.before()).toBe('OLD')
-    expect(calls[0]).toBe('git show sha1:src/a.ts')
+    expect(calls[0]).toBe("git show 'sha1':'src/a.ts'")
 
     const missing = buildFileHookEvent(
       fakeHandle({ exec: async () => ({ stdout: '', stderr: 'x', exitCode: 128 }) }),
@@ -45,6 +45,6 @@ describe('buildFileHookEvent', () => {
     const h = fakeHandle({ exec: async (cmd: string) => { calls.push(cmd); return { stdout: 'DIFF', stderr: '', exitCode: 0 } } })
     const e = buildFileHookEvent(h, '/workspace', 'sha1', { type: 'change', path: '/workspace/a.ts', timestamp: 1 })
     expect(await e.diff()).toBe('DIFF')
-    expect(calls[0]).toBe('git diff sha1 -- /workspace/a.ts')
+    expect(calls[0]).toBe("git diff 'sha1' -- '/workspace/a.ts'")
   })
 })
