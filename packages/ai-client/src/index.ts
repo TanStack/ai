@@ -21,7 +21,10 @@ export type {
   ThinkingPart,
   StructuredOutputPart,
   // Client configuration types
+  ChatStorageAdapter,
   ChatClientPersistence,
+  ChatServerPersistence,
+  ChatPersistenceOptions,
   ChatClientOptions,
   ChatPendingInterrupt,
   ClientContextOptionFromTools,
@@ -39,6 +42,8 @@ export type {
   DistributedOmit,
   MultimodalContent,
 } from './types'
+export { localStorageChatPersistence } from './client-persistor'
+export type { LocalStorageChatPersistenceOptions } from './client-persistor'
 // Generation client types
 export type {
   InferGenerationOutput,

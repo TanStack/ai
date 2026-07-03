@@ -1,13 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import { localStorageChatPersistence } from '@tanstack/ai-client'
 import { Square } from 'lucide-react'
-import type {
-  ChatClientPersistence,
-  ChatPendingInterrupt,
-  ChatResumeSnapshot,
-  UIMessage,
-} from '@tanstack/ai-client'
+import type { ChatResumeSnapshot, UIMessage } from '@tanstack/ai-client'
 
 const THREAD_ID_KEY = 'tanstack-ai:mysql-persistence:thread-id'
 const RESUME_KEY_PREFIX = 'tanstack-ai:mysql-persistence:resume:'
@@ -22,87 +18,13 @@ function getStableThreadId(): string {
   return id
 }
 
-function parsePendingInterrupts(value: unknown): Array<ChatPendingInterrupt> {
-  if (!Array.isArray(value)) return []
-  const interrupts: Array<ChatPendingInterrupt> = []
-  for (const item of value) {
-    if (!item || typeof item !== 'object') continue
-    const record = item as Record<string, unknown>
-    if (typeof record.id !== 'string' || typeof record.reason !== 'string') {
-      continue
-    }
-    const pendingInterrupt: ChatPendingInterrupt = {
-      id: record.id,
-      reason: record.reason,
-      ...(typeof record.toolCallId === 'string'
-        ? { toolCallId: record.toolCallId }
-        : {}),
-    }
-    if (
-      record.metadata &&
-      typeof record.metadata === 'object' &&
-      !Array.isArray(record.metadata)
-    ) {
-      pendingInterrupt.metadata = record.metadata as Record<string, unknown>
-    }
-    interrupts.push(pendingInterrupt)
-  }
-  return interrupts
-}
+const messagePersistence = localStorageChatPersistence<Array<UIMessage>>({
+  keyPrefix: MESSAGES_KEY_PREFIX,
+})
 
-function parseStoredResumeSnapshot(
-  raw: string | null,
-): ChatResumeSnapshot | null {
-  if (!raw) return null
-  const parsed = JSON.parse(raw) as unknown
-  if (!parsed || typeof parsed !== 'object') return null
-  const value = parsed as Record<string, unknown>
-  const resumeState =
-    value.resumeState && typeof value.resumeState === 'object'
-      ? (value.resumeState as Record<string, unknown>)
-      : value
-  if (
-    typeof resumeState.threadId !== 'string' ||
-    typeof resumeState.runId !== 'string' ||
-    typeof resumeState.cursor !== 'string'
-  ) {
-    return null
-  }
-  return {
-    resumeState: {
-      threadId: resumeState.threadId,
-      runId: resumeState.runId,
-      cursor: resumeState.cursor,
-    },
-    pendingInterrupts: parsePendingInterrupts(value.pendingInterrupts),
-  }
-}
-
-const messagePersistence: ChatClientPersistence = {
-  getItem(id) {
-    if (typeof window === 'undefined') return null
-    const raw = window.localStorage.getItem(MESSAGES_KEY_PREFIX + id)
-    if (!raw) return null
-    return (JSON.parse(raw) as Array<UIMessage>).map((message) => ({
-      ...message,
-      createdAt:
-        typeof message.createdAt === 'string'
-          ? new Date(message.createdAt)
-          : message.createdAt,
-    }))
-  },
-  setItem(id, messages) {
-    if (typeof window === 'undefined') return
-    window.localStorage.setItem(
-      MESSAGES_KEY_PREFIX + id,
-      JSON.stringify(messages),
-    )
-  },
-  removeItem(id) {
-    if (typeof window === 'undefined') return
-    window.localStorage.removeItem(MESSAGES_KEY_PREFIX + id)
-  },
-}
+const resumePersistence = localStorageChatPersistence<ChatResumeSnapshot>({
+  keyPrefix: RESUME_KEY_PREFIX,
+})
 
 function messageText(message: UIMessage): string {
   return message.parts
@@ -118,22 +40,6 @@ function messageText(message: UIMessage): string {
 
 function MysqlPersistenceRoute() {
   const [threadId] = useState(getStableThreadId)
-  const resumeStorageKey = useMemo(
-    () => RESUME_KEY_PREFIX + threadId,
-    [threadId],
-  )
-  const attemptedStoredResumeRef = useRef(false)
-  const [initialResumeSnapshot] = useState<ChatResumeSnapshot | null>(() => {
-    if (typeof window === 'undefined') return null
-    try {
-      return parseStoredResumeSnapshot(
-        window.localStorage.getItem(RESUME_KEY_PREFIX + getStableThreadId()),
-      )
-    } catch {
-      window.localStorage.removeItem(RESUME_KEY_PREFIX + getStableThreadId())
-      return null
-    }
-  })
   const [input, setInput] = useState('')
 
   const {
@@ -142,42 +48,17 @@ function MysqlPersistenceRoute() {
     isLoading,
     error,
     resumeState,
-    pendingInterrupts,
-    resume,
     stop,
     clear,
   } = useChat({
     id: threadId,
     threadId,
     connection: fetchServerSentEvents('/api/mysql-persistent-chat'),
-    persistence: messagePersistence,
-    ...(initialResumeSnapshot ? { initialResumeSnapshot } : {}),
+    persistence: {
+      client: messagePersistence,
+      server: resumePersistence,
+    },
   })
-
-  useEffect(() => {
-    if (attemptedStoredResumeRef.current) return
-    attemptedStoredResumeRef.current = true
-    if (!initialResumeSnapshot) return
-    if ((initialResumeSnapshot.pendingInterrupts ?? []).length > 0) return
-    try {
-      void resume(initialResumeSnapshot.resumeState)
-    } catch {
-      window.localStorage.removeItem(resumeStorageKey)
-    }
-  }, [initialResumeSnapshot, resume, resumeStorageKey])
-
-  useEffect(() => {
-    if (!attemptedStoredResumeRef.current) return
-    if (resumeState) {
-      const snapshot: ChatResumeSnapshot = {
-        resumeState,
-        pendingInterrupts,
-      }
-      window.localStorage.setItem(resumeStorageKey, JSON.stringify(snapshot))
-    } else {
-      window.localStorage.removeItem(resumeStorageKey)
-    }
-  }, [pendingInterrupts, resumeState, resumeStorageKey])
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault()
@@ -190,7 +71,7 @@ function MysqlPersistenceRoute() {
   const handleReset = () => {
     clear()
     messagePersistence.removeItem(threadId)
-    window.localStorage.removeItem(resumeStorageKey)
+    resumePersistence.removeItem(threadId)
     window.localStorage.removeItem(THREAD_ID_KEY)
     window.location.reload()
   }

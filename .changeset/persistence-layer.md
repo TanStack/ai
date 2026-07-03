@@ -1,6 +1,12 @@
 ---
 '@tanstack/ai': minor
 '@tanstack/ai-client': minor
+'@tanstack/ai-angular': minor
+'@tanstack/ai-preact': minor
+'@tanstack/ai-react': minor
+'@tanstack/ai-solid': minor
+'@tanstack/ai-svelte': minor
+'@tanstack/ai-vue': minor
 '@tanstack/ai-persistence': minor
 '@tanstack/ai-persistence-sql': minor
 '@tanstack/ai-persistence-sqlite': minor

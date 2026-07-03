@@ -1,6 +1,47 @@
 import { getChunkRunId } from './connection-adapters'
 import type { StreamChunk } from '@tanstack/ai/client'
-import type { ChatClientPersistence, UIMessage } from './types'
+import type {
+  ChatClientPersistence,
+  ChatStorageAdapter,
+  UIMessage,
+} from './types'
+
+export interface LocalStorageChatPersistenceOptions<TValue> {
+  keyPrefix?: string
+  serialize?: (value: TValue) => string
+  deserialize?: (value: string) => TValue
+}
+
+export function localStorageChatPersistence<TValue>(
+  options: LocalStorageChatPersistenceOptions<TValue> = {},
+): ChatStorageAdapter<TValue> {
+  const {
+    keyPrefix = 'tanstack-ai:',
+    serialize = JSON.stringify,
+    deserialize = JSON.parse,
+  } = options
+
+  const getStorage = (): Storage | undefined =>
+    typeof globalThis.localStorage === 'undefined'
+      ? undefined
+      : globalThis.localStorage
+  const getKey = (id: string) => `${keyPrefix}${id}`
+
+  return {
+    getItem(id) {
+      const storage = getStorage()
+      if (!storage) return undefined
+      const item = storage.getItem(getKey(id))
+      return item === null ? null : deserialize(item)
+    },
+    setItem(id, value) {
+      getStorage()?.setItem(getKey(id), serialize(value))
+    },
+    removeItem(id) {
+      getStorage()?.removeItem(getKey(id))
+    },
+  }
+}
 
 // `StreamChunk` is a discriminated union; `toolCallId` / `messageId` /
 // `parentMessageId` exist on only some members. Narrow with `in` (matching
@@ -113,6 +154,12 @@ export class ChatPersistor {
       .catch(() => {
         // Persistence adapters are best-effort and must not break chat setup.
       })
+  }
+
+  /** Invalidate in-flight hydration and queued persistence operations. */
+  dispose(): void {
+    this.messagesGeneration++
+    this.generation++
   }
 
   /**

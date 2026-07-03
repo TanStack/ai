@@ -51,19 +51,21 @@ import { adapter, myPersistenceAdapter } from "./chat-setup";
 const client = new ChatClient({
   id: "conversation-123",
   connection: adapter,
-  persistence: myPersistenceAdapter,
+  persistence: {
+    client: myPersistenceAdapter,
+  },
 });
 ```
 
 ## What the client does for you
 
-When a `persistence` adapter is provided, `ChatClient`:
+When a `persistence.client` adapter is provided, `ChatClient`:
 
 - **Hydrates on construction** — calls `getItem(id)`. If it returns an array, those messages populate the client (overriding `initialMessages`). Async adapters hydrate as soon as the promise resolves, unless you've already started a new conversation in the meantime.
 - **Saves on every change** — calls `setItem(id, messages)` whenever the message list changes (new user message, streamed assistant content, tool calls/results, approval responses). Writes are queued so they never overlap or land out of order.
 - **Clears on `clear()`** — calls `removeItem(id)` and discards any in-flight stream so a cleared conversation doesn't get repopulated by late chunks.
 
-When `persistence` is omitted, nothing changes — the client behaves exactly as before. The option is fully backwards compatible.
+When `persistence` is omitted, nothing changes — the client behaves exactly as before. Passing a message adapter directly as `persistence: adapter` remains supported for compatibility, but it is deprecated. Use `persistence: { client: adapter }` in new code.
 
 Persistence is **best-effort**: if an adapter method throws or rejects, the error is swallowed so storage problems never break the chat. Handle and surface errors inside your adapter if you need to react to them.
 
@@ -79,7 +81,9 @@ import { myPersistenceAdapter } from "./persistence";
 const chat = useChat({
   id: "conversation-123",
   connection: fetchServerSentEvents("/api/chat"),
-  persistence: myPersistenceAdapter,
+  persistence: {
+    client: myPersistenceAdapter,
+  },
 });
 ```
 
@@ -91,7 +95,9 @@ import { myPersistenceAdapter } from "./persistence";
 const chat = useChat({
   id: "conversation-123",
   connection: fetchServerSentEvents("/api/chat"),
-  persistence: myPersistenceAdapter,
+  persistence: {
+    client: myPersistenceAdapter,
+  },
 });
 ```
 
@@ -100,7 +106,9 @@ const chat = useChat({
 const chat = createChat({
   id: "conversation-123",
   connection: fetchServerSentEvents("/api/chat"),
-  persistence: myPersistenceAdapter,
+  persistence: {
+    client: myPersistenceAdapter,
+  },
 });
 ```
 

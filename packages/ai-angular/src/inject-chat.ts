@@ -80,6 +80,14 @@ export function injectChat<
     ? { connection: options.connection }
     : { fetcher: options.fetcher }
 
+  let lifecycleOwned = false
+  const resumeIfLifecycleOwned = () => {
+    if (!lifecycleOwned) {
+      return
+    }
+    void client.maybeAutoResume()
+  }
+
   const client = new ChatClient<TTools, TContext>({
     devtoolsBridgeFactory: createChatDevtoolsBridge,
     ...transport,
@@ -89,6 +97,9 @@ export function injectChat<
     }),
     ...(options.persistence !== undefined && {
       persistence: options.persistence,
+    }),
+    ...(options.initialResumeSnapshot !== undefined && {
+      initialResumeSnapshot: options.initialResumeSnapshot,
     }),
     ...(bodySource !== undefined && { body: bodySource() }),
     ...(options.threadId !== undefined && { threadId: options.threadId }),
@@ -106,6 +117,10 @@ export function injectChat<
     onChunk: (chunk: StreamChunk) => options.onChunk?.(chunk),
     onFinish: (message) => options.onFinish?.(message),
     onError: (err) => options.onError?.(err),
+    onResumeStateChange: (resumeState, pendingInterrupts) => {
+      options.onResumeStateChange?.(resumeState, pendingInterrupts)
+      resumeIfLifecycleOwned()
+    },
     tools: options.tools,
     onCustomEvent: (eventType, data, context) =>
       options.onCustomEvent?.(eventType, data, context),
@@ -156,9 +171,27 @@ export function injectChat<
     )
   }
 
-  afterNextRender(() => client.mountDevtools(), { injector })
+  afterNextRender(
+    () => {
+      lifecycleOwned = true
+      client.mountDevtools()
+      void client.maybeAutoResume()
+      if (typeof window !== 'undefined') {
+        window.addEventListener('online', handleOnline)
+      }
+    },
+    { injector },
+  )
+
+  const handleOnline = () => {
+    void client.maybeAutoResume()
+  }
 
   destroyRef.onDestroy(() => {
+    lifecycleOwned = false
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('online', handleOnline)
+    }
     if (liveSource?.()) {
       client.unsubscribe()
     } else {

@@ -154,6 +154,7 @@ export function useChat<
     onResumeStateChange: (nextResumeState, nextPendingInterrupts) => {
       resumeState.value = nextResumeState
       pendingInterrupts.value = nextPendingInterrupts
+      resumeIfLifecycleOwned()
     },
   })
 
@@ -161,6 +162,15 @@ export function useChat<
     resumeState.value = client.getResumeState()
     pendingInterrupts.value = client.getPendingInterrupts()
   }
+
+  function resumeIfLifecycleOwned() {
+    if (!lifecycleOwned) return
+    if (!lifecycleAutoResumeArmed) return
+    if (typeof window === 'undefined') return
+    void client.maybeAutoResume().then(syncResumeState, syncResumeState)
+  }
+  let lifecycleOwned = false
+  let lifecycleAutoResumeArmed = false
 
   messages.value = client.getMessages()
 
@@ -195,12 +205,37 @@ export function useChat<
   )
 
   onMounted(() => {
+    lifecycleOwned = true
+    lifecycleAutoResumeArmed = false
     client.mountDevtools()
+    void client.maybeAutoResume().then(
+      () => {
+        syncResumeState()
+        lifecycleAutoResumeArmed = true
+      },
+      () => {
+        syncResumeState()
+        lifecycleAutoResumeArmed = true
+      },
+    )
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', handleOnline)
+    }
   })
+
+  const handleOnline = () => {
+    resumeIfLifecycleOwned()
+  }
 
   // Cleanup on unmount: stop any in-flight requests
   // Note: client.stop() is safe to call even if nothing is in progress
   onScopeDispose(() => {
+    lifecycleOwned = false
+    lifecycleAutoResumeArmed = false
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('online', handleOnline)
+    }
     if (options.live) {
       client.unsubscribe()
     } else {

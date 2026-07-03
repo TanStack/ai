@@ -35,10 +35,14 @@ import type {
 } from './devtools'
 import type {
   ChatClientOptions,
+  ChatClientPersistence,
   ChatClientState,
   ChatFetcher,
   ChatPendingInterrupt,
+  ChatPersistenceOptions,
   ChatResumeState,
+  ChatResumeSnapshot,
+  ChatServerPersistence,
   ConnectionStatus,
   MessagePart,
   MultimodalContent,
@@ -96,6 +100,21 @@ function resolveTransport(transport: {
   throw new Error('ChatClient: either `connection` or `fetcher` is required.')
 }
 
+function normalizePersistence<TTools extends ReadonlyArray<AnyClientTool>>(
+  persistence: ChatPersistenceOptions<TTools> | undefined,
+): {
+  client?: ChatClientPersistence<TTools>
+  server?: ChatServerPersistence
+} {
+  if (!persistence) {
+    return {}
+  }
+  if ('getItem' in persistence) {
+    return { client: persistence }
+  }
+  return persistence
+}
+
 export class ChatClient<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TContext = unknown,
@@ -108,6 +127,9 @@ export class ChatClient<
   // chunks after a mid-stream clear) live in ChatPersistor so this class stays
   // focused on streaming. Undefined when no `persistence` adapter is configured.
   private readonly persistor?: ChatPersistor
+  private readonly serverPersistence?: ChatServerPersistence
+  private serverPersistenceGeneration = 0
+  private disposed = false
   private currentRunId: string | null = null
   // Resume tracking: the latest in-band cursor seen for the active run, so a
   // reconnect can replay events after it. Cleared when the run terminates.
@@ -169,6 +191,8 @@ export class ChatClient<
   private draining = false
   private sessionGenerating = false
   private readonly activeRunIds = new Set<string>()
+  private readonly clearedRunIds = new Set<string>()
+  private clearedRunlessRunId: string | null = null
   private devtoolsMounted = false
 
   private readonly callbacksRef: {
@@ -200,13 +224,15 @@ export class ChatClient<
     this.uniqueId = options.id || this.generateUniqueId('chat')
     this.threadId = options.threadId || this.generateUniqueId('thread')
     this.autoResume = options.autoResume ?? true
-    if (options.persistence) {
+    const persistence = normalizePersistence(options.persistence)
+    if (persistence.client) {
       this.persistor = new ChatPersistor(
-        options.persistence,
+        persistence.client,
         this.uniqueId,
         (messages) => this.processor.setMessages(messages),
       )
     }
+    this.serverPersistence = persistence.server
     // Both `body` (deprecated) and `forwardedProps` populate the AG-UI
     // `RunAgentInput.forwardedProps` wire field. They are stored
     // separately so `updateOptions` can replace one without touching the
@@ -250,13 +276,12 @@ export class ChatClient<
       },
     }
 
-    if (options.initialResumeSnapshot) {
-      this.lastResume = { ...options.initialResumeSnapshot.resumeState }
-      this.pendingInterrupts = [
-        ...(options.initialResumeSnapshot.pendingInterrupts ?? []),
-      ]
-      this.pendingInterruptRunId =
-        this.pendingInterrupts.length > 0 ? this.lastResume.runId : null
+    const storedResumeSnapshot = options.initialResumeSnapshot
+      ? undefined
+      : this.readInitialResumeSnapshot()
+    const resumeSnapshot = options.initialResumeSnapshot ?? storedResumeSnapshot
+    if (resumeSnapshot && !(resumeSnapshot instanceof Promise)) {
+      this.applyResumeSnapshot(resumeSnapshot)
     }
 
     // Create StreamProcessor with event handlers.
@@ -473,6 +498,52 @@ export class ChatClient<
     })
 
     this.persistor?.hydrateAsync(persistedMessages)
+    if (
+      !options.initialResumeSnapshot &&
+      storedResumeSnapshot instanceof Promise
+    ) {
+      this.hydrateResumeSnapshotAsync(storedResumeSnapshot)
+    }
+  }
+
+  private readInitialResumeSnapshot():
+    | ChatResumeSnapshot
+    | null
+    | undefined
+    | Promise<ChatResumeSnapshot | null | undefined> {
+    try {
+      return this.serverPersistence?.getItem(this.threadId)
+    } catch {
+      return undefined
+    }
+  }
+
+  private hydrateResumeSnapshotAsync(
+    snapshot: Promise<ChatResumeSnapshot | null | undefined>,
+  ): void {
+    const generation = this.serverPersistenceGeneration
+    snapshot
+      .then((resolvedSnapshot) => {
+        if (
+          resolvedSnapshot &&
+          !this.lastResume &&
+          !this.disposed &&
+          generation === this.serverPersistenceGeneration
+        ) {
+          this.applyResumeSnapshot(resolvedSnapshot)
+          this.notifyResumeStateChange()
+        }
+      })
+      .catch(() => {
+        // Persistence adapters are best-effort and must not break chat setup.
+      })
+  }
+
+  private applyResumeSnapshot(snapshot: ChatResumeSnapshot): void {
+    this.lastResume = { ...snapshot.resumeState }
+    this.pendingInterrupts = [...(snapshot.pendingInterrupts ?? [])]
+    this.pendingInterruptRunId =
+      this.pendingInterrupts.length > 0 ? this.lastResume.runId : null
   }
 
   mountDevtools(): void {
@@ -485,17 +556,40 @@ export class ChatClient<
   }
 
   /**
-   * Drain a runId-less RUN_ERROR that belongs to a cleared run the client is
-   * still tracking. The persistor owns the cleared-run bookkeeping; the client
-   * owns the active-run / session / processing state.
+   * Retire cleared-run tracking for ignored terminal chunks without processing
+   * their stale message or resume payloads.
    */
-  private drainIgnoredRunlessChunk(chunk: StreamChunk): void {
-    if (chunk.type !== 'RUN_ERROR') return
-    const runId = this.persistor?.takeRunlessRunId()
+  private retireIgnoredClearedTerminalChunk(chunk: StreamChunk): void {
+    if (chunk.type !== 'RUN_FINISHED' && chunk.type !== 'RUN_ERROR') return
+    const runId =
+      getChunkRunId(chunk) ??
+      this.persistor?.takeRunlessRunId() ??
+      this.clearedRunlessRunId
     if (!runId) return
+    this.clearedRunIds.delete(runId)
+    if (this.clearedRunlessRunId === runId) {
+      this.clearedRunlessRunId = null
+    }
     this.activeRunIds.delete(runId)
     this.setSessionGenerating(this.activeRunIds.size > 0)
-    this.resolveProcessing()
+    if (!getChunkRunId(chunk)) {
+      this.resolveProcessing()
+    }
+  }
+
+  private shouldIgnoreClearedChunk(chunk: StreamChunk): boolean {
+    if (this.persistor) {
+      return false
+    }
+    const runId = getChunkRunId(chunk)
+    if (runId && this.clearedRunIds.has(runId)) {
+      this.clearedRunlessRunId = runId
+      return true
+    }
+    if (!runId && this.clearedRunlessRunId) {
+      return true
+    }
+    return false
   }
 
   private updateRunLifecycle(
@@ -723,10 +817,75 @@ export class ChatClient<
   }
 
   private notifyResumeStateChange(): void {
+    const resumeState = this.getResumeState()
+    const pendingInterrupts = this.getPendingInterrupts()
+    this.persistResumeSnapshot(resumeState, pendingInterrupts)
     this.callbacksRef.current.onResumeStateChange(
-      this.getResumeState(),
-      this.getPendingInterrupts(),
+      resumeState,
+      pendingInterrupts,
     )
+  }
+
+  private persistResumeSnapshot(
+    resumeState: ChatResumeState | null,
+    pendingInterrupts: Array<ChatPendingInterrupt>,
+  ): void {
+    if (!this.serverPersistence) {
+      return
+    }
+
+    try {
+      const generation = ++this.serverPersistenceGeneration
+      const result = resumeState
+        ? this.serverPersistence.setItem(this.threadId, {
+            resumeState,
+            pendingInterrupts,
+          })
+        : this.serverPersistence.removeItem(this.threadId)
+      if (result instanceof Promise) {
+        result
+          .catch(() => {
+            // Persistence adapters are best-effort and must not break chat.
+          })
+          .finally(() => {
+            if (generation !== this.serverPersistenceGeneration) {
+              this.reconcileStaleServerPersistenceWrite()
+            }
+          })
+      }
+    } catch {
+      // Persistence adapters are best-effort and must not break chat.
+    }
+  }
+
+  private reconcileStaleServerPersistenceWrite(): void {
+    if (!this.serverPersistence) {
+      return
+    }
+
+    try {
+      const generation = this.serverPersistenceGeneration
+      const resumeState = this.getResumeState()
+      const result = resumeState
+        ? this.serverPersistence.setItem(this.threadId, {
+            resumeState,
+            pendingInterrupts: this.getPendingInterrupts(),
+          })
+        : this.serverPersistence.removeItem(this.threadId)
+      if (result instanceof Promise) {
+        result
+          .catch(() => {
+            // Persistence adapters are best-effort and must not break chat.
+          })
+          .finally(() => {
+            if (generation !== this.serverPersistenceGeneration) {
+              this.reconcileStaleServerPersistenceWrite()
+            }
+          })
+      }
+    } catch {
+      // Persistence adapters are best-effort and must not break chat.
+    }
   }
 
   private resetSessionGenerating(): void {
@@ -880,14 +1039,15 @@ export class ChatClient<
       if (this.connectionStatus === 'connecting') {
         this.setConnectionStatus('connected')
       }
-      const shouldIgnore = this.persistor?.shouldIgnoreChunk(chunk) ?? false
+      const shouldIgnore =
+        this.shouldIgnoreClearedChunk(chunk) ||
+        (this.persistor?.shouldIgnoreChunk(chunk) ?? false)
       if (shouldIgnore) {
         if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
           if (getChunkRunId(chunk)) {
             this.updateRunLifecycle(chunk, { resolveProcessing: false })
-          } else {
-            this.drainIgnoredRunlessChunk(chunk)
           }
+          this.retireIgnoredClearedTerminalChunk(chunk)
         }
         continue
       }
@@ -1197,6 +1357,10 @@ export class ChatClient<
       // Send through normalized connection (pushes chunks to subscription queue)
       await this.connection.send(messages, mergedBody, signal, runContext)
 
+      if (generation !== this.streamGeneration || signal.aborted) {
+        return false
+      }
+
       // Wait for subscription loop to finish processing all chunks
       await processingComplete
 
@@ -1398,21 +1562,29 @@ export class ChatClient<
    * Clear all messages
    */
   clear(): void {
+    const hadLocalStream = this.abortController !== null
+    for (const runId of this.activeRunIds) {
+      this.clearedRunIds.add(runId)
+    }
+    if (this.currentRunId) {
+      this.clearedRunIds.add(this.currentRunId)
+      this.clearedRunlessRunId = this.currentRunId
+    }
     if (this.persistor) {
       this.persistor.snapshotClear({
         messages: this.processor.getMessages(),
         activeRunIds: this.activeRunIds,
         currentRunId: this.currentRunId,
       })
-      if (this.isLoading) {
-        this.cancelInFlightStream({ setReadyStatus: true })
-        this.resetSessionGenerating()
-      } else if (this.activeRunIds.size > 0) {
-        this.resetSessionGenerating()
-      }
       // Suppress persisting the empty snapshot that clearMessages emits, then
       // remove the stored conversation outright.
       this.persistor.beginClear()
+    }
+    if (this.isLoading || hadLocalStream) {
+      this.cancelInFlightStream({ setReadyStatus: true })
+      this.resetSessionGenerating()
+    } else if (this.activeRunIds.size > 0) {
+      this.resetSessionGenerating()
     }
     this.processor.clearMessages()
     this.persistor?.remove()
@@ -1833,6 +2005,9 @@ export class ChatClient<
   }
 
   dispose(): void {
+    this.disposed = true
+    this.serverPersistenceGeneration++
+    this.persistor?.dispose()
     this.unsubscribe()
     this.devtoolsBridge.dispose()
     this.devtoolsMounted = false

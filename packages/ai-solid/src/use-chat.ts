@@ -69,6 +69,15 @@ export function useChat<
     setPendingInterrupts(client().getPendingInterrupts())
   }
 
+  const resumeIfLifecycleOwned = () => {
+    if (!lifecycleOwned) return
+    if (!lifecycleAutoResumeArmed) return
+    if (typeof window === 'undefined') return
+    void client().maybeAutoResume().then(syncResumeState, syncResumeState)
+  }
+  let lifecycleOwned = false
+  let lifecycleAutoResumeArmed = false
+
   // Structured-output `partial` / `final` are derived from `messages` —
   // specifically from the structured-output part on the latest assistant
   // message (the one after the most recent user message). Per-turn parts
@@ -156,6 +165,7 @@ export function useChat<
       onResumeStateChange: (nextResumeState, nextPendingInterrupts) => {
         setResumeState(nextResumeState)
         setPendingInterrupts(nextPendingInterrupts)
+        resumeIfLifecycleOwned()
       },
     })
     // Only recreate when clientId changes
@@ -195,11 +205,38 @@ export function useChat<
   })
 
   onMount(() => {
+    lifecycleOwned = true
+    lifecycleAutoResumeArmed = false
     client().mountDevtools()
+    void client()
+      .maybeAutoResume()
+      .then(
+        () => {
+          syncResumeState()
+          lifecycleAutoResumeArmed = true
+        },
+        () => {
+          syncResumeState()
+          lifecycleAutoResumeArmed = true
+        },
+      )
+
+    const handleOnline = () => {
+      resumeIfLifecycleOwned()
+    }
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', handleOnline)
+      onCleanup(() => {
+        window.removeEventListener('online', handleOnline)
+      })
+    }
   })
 
   // Cleanup on unmount: stop any in-flight requests.
   onCleanup(() => {
+    lifecycleOwned = false
+    lifecycleAutoResumeArmed = false
     if (options.live) {
       client().unsubscribe()
     } else {

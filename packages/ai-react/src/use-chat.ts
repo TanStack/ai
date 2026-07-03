@@ -62,9 +62,15 @@ export function useChat<
   )
   const isFirstMountRef = useRef(true)
   const activeClientRef = useRef<ChatClient | null>(null)
+  const lifecycleOwnedClientRef = useRef<ChatClient | null>(null)
+  const lifecycleAutoResumeArmedRef = useRef(false)
   const cleanupInvalidationRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   )
+  const cleanupDisposalRef = useRef<{
+    client: ChatClient
+    timeout: ReturnType<typeof setTimeout>
+  } | null>(null)
 
   // Update ref synchronously during render so it's always current when useMemo runs.
   messagesRef.current = messages
@@ -78,6 +84,34 @@ export function useChat<
     setResumeState(target.getResumeState())
     setPendingInterrupts(target.getPendingInterrupts())
   }, [])
+
+  const isLifecycleOwnedClient = useCallback((target: ChatClient) => {
+    return (
+      activeClientRef.current === target &&
+      lifecycleOwnedClientRef.current === target
+    )
+  }, [])
+
+  const resumeIfLifecycleOwned = useCallback(
+    (target: ChatClient) => {
+      if (!isLifecycleOwnedClient(target)) return
+      if (!lifecycleAutoResumeArmedRef.current) return
+      if (typeof window === 'undefined') return
+      void target.maybeAutoResume().then(
+        () => {
+          if (!isLifecycleOwnedClient(target)) return
+          if (!lifecycleAutoResumeArmedRef.current) return
+          syncResumeState(target)
+        },
+        () => {
+          if (!isLifecycleOwnedClient(target)) return
+          if (!lifecycleAutoResumeArmedRef.current) return
+          syncResumeState(target)
+        },
+      )
+    },
+    [isLifecycleOwnedClient, syncResumeState],
+  )
 
   // Create ChatClient instance with callbacks to sync state
   const client = useMemo(() => {
@@ -179,11 +213,12 @@ export function useChat<
         if (activeClientRef.current !== instance) return
         setResumeState(nextResumeState)
         setPendingInterrupts(nextPendingInterrupts)
+        resumeIfLifecycleOwned(instance)
       },
     })
     activeClientRef.current = instance
     return instance
-  }, [clientId, syncResumeState])
+  }, [clientId, resumeIfLifecycleOwned, syncResumeState])
 
   useEffect(() => {
     const clientMessages = client.getMessages()
@@ -225,14 +260,47 @@ export function useChat<
   }, [client, options.live])
 
   useEffect(() => {
+    if (cleanupDisposalRef.current?.client === client) {
+      clearTimeout(cleanupDisposalRef.current.timeout)
+      cleanupDisposalRef.current = null
+    }
     if (cleanupInvalidationRef.current) {
       clearTimeout(cleanupInvalidationRef.current)
       cleanupInvalidationRef.current = null
     }
     activeClientRef.current = client
+    lifecycleOwnedClientRef.current = client
+    lifecycleAutoResumeArmedRef.current = false
     client.mountDevtools()
+    void client.maybeAutoResume().then(
+      () => {
+        if (!isLifecycleOwnedClient(client)) return
+        syncResumeState(client)
+        lifecycleAutoResumeArmedRef.current = true
+      },
+      () => {
+        if (!isLifecycleOwnedClient(client)) return
+        syncResumeState(client)
+        lifecycleAutoResumeArmedRef.current = true
+      },
+    )
+
+    const handleOnline = () => {
+      resumeIfLifecycleOwned(client)
+    }
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', handleOnline)
+    }
 
     return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('online', handleOnline)
+      }
+      if (lifecycleOwnedClientRef.current === client) {
+        lifecycleOwnedClientRef.current = null
+      }
+      lifecycleAutoResumeArmedRef.current = false
       cleanupInvalidationRef.current = setTimeout(() => {
         if (activeClientRef.current === client) {
           activeClientRef.current = null
@@ -248,9 +316,18 @@ export function useChat<
       } else {
         client.stop()
       }
-      client.dispose()
+      const disposal = {
+        client,
+        timeout: setTimeout(() => {
+          client.dispose()
+          if (cleanupDisposalRef.current === disposal) {
+            cleanupDisposalRef.current = null
+          }
+        }, 0),
+      }
+      cleanupDisposalRef.current = disposal
     }
-  }, [client])
+  }, [client, isLifecycleOwnedClient, resumeIfLifecycleOwned, syncResumeState])
 
   const sendMessage = useCallback(
     async (content: string | MultimodalContent) => {

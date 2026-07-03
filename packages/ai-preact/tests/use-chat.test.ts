@@ -1,10 +1,15 @@
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import { EventType } from '@tanstack/ai'
-import type { SubscribeConnectionAdapter } from '@tanstack/ai-client'
+import { ChatClient } from '@tanstack/ai-client'
+import type {
+  ChatResumeSnapshot,
+  ChatServerPersistence,
+  SubscribeConnectionAdapter,
+} from '@tanstack/ai-client'
 import { act, renderHook, waitFor } from '@testing-library/preact'
 import { StrictMode } from 'preact/compat'
 import { useState } from 'preact/hooks'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { UIMessage } from '../src/types'
 import { useChat } from '../src/use-chat'
 import {
@@ -15,6 +20,10 @@ import {
 } from './test-utils'
 
 describe('useChat', () => {
+  afterEach(() => {
+    vi.doUnmock('preact/hooks')
+  })
+
   function createDeferred<T>() {
     let resolve!: (value: T) => void
     const promise = new Promise<T>((promiseResolve) => {
@@ -234,6 +243,131 @@ describe('useChat', () => {
 
       // Client should be the same instance, state should persist
       expect(result.current.messages).toBe(initialMessages)
+    })
+
+    it('should keep async server hydration active through StrictMode effect replay', async () => {
+      const hooks = await vi.importActual<typeof import('preact/hooks')>(
+        'preact/hooks',
+      )
+      vi.resetModules()
+      vi.doMock('preact/hooks', () => ({
+        ...hooks,
+        useEffect: (
+          effect: () => void | (() => void),
+          deps?: Array<unknown>,
+        ) => {
+          hooks.useEffect(() => {
+            const cleanup = effect()
+            cleanup?.()
+            return effect()
+          }, deps)
+        },
+      }))
+      const { useChat: useReplayChat } = await import('../src/use-chat')
+      const { ChatClient: ReplayChatClient } = await import(
+        '@tanstack/ai-client'
+      )
+      const adapter = createMockConnectionAdapter()
+      const hydrate = createDeferred<ChatResumeSnapshot>()
+      const persistence: ChatServerPersistence = {
+        getItem: vi.fn(() => hydrate.promise),
+        setItem: vi.fn(),
+        removeItem: vi.fn(),
+      }
+      const dispose = vi.spyOn(ReplayChatClient.prototype, 'dispose')
+      const maybeAutoResume = vi
+        .spyOn(ReplayChatClient.prototype, 'maybeAutoResume')
+        .mockResolvedValue(false)
+
+      const { result } = renderHook(
+        () =>
+          useReplayChat({
+            connection: adapter,
+            threadId: 'thread-strict',
+            persistence: { server: persistence },
+          }),
+        { wrapper: StrictMode },
+      )
+
+      await waitFor(() => {
+        expect(maybeAutoResume).toHaveBeenCalled()
+      })
+      expect(dispose).not.toHaveBeenCalled()
+      const mountResumeAttempts = maybeAutoResume.mock.calls.length
+
+      await act(async () => {
+        hydrate.resolve({
+          resumeState: {
+            threadId: 'thread-strict',
+            runId: 'stored-run',
+            cursor: 'stored-cursor',
+          },
+          pendingInterrupts: [],
+        })
+        await hydrate.promise
+      })
+
+      await waitFor(() => {
+        expect(result.current.resumeState).toEqual({
+          threadId: 'thread-strict',
+          runId: 'stored-run',
+          cursor: 'stored-cursor',
+        })
+        expect(maybeAutoResume.mock.calls.length).toBeGreaterThan(
+          mountResumeAttempts,
+        )
+      })
+      dispose.mockRestore()
+      maybeAutoResume.mockRestore()
+    })
+
+    it('should ignore stale mount auto-resume completion after client id changes', async () => {
+      const oldAutoResume = createDeferred<boolean>()
+      const newAutoResume = createDeferred<boolean>()
+      const maybeAutoResume = vi
+        .spyOn(ChatClient.prototype, 'maybeAutoResume')
+        .mockImplementationOnce(() => oldAutoResume.promise)
+        .mockImplementationOnce(() => newAutoResume.promise)
+
+      const { result, rerender } = renderHook(
+        (id: string) =>
+          useChat({
+            connection: createMockConnectionAdapter(),
+            id,
+            initialResumeSnapshot: {
+              resumeState: {
+                threadId: id,
+                runId: `${id}-run`,
+                cursor: `${id}-cursor`,
+              },
+              pendingInterrupts: [],
+            },
+          }),
+        { initialProps: 'old-chat' },
+      )
+
+      await waitFor(() => {
+        expect(maybeAutoResume).toHaveBeenCalledTimes(1)
+      })
+
+      rerender('new-chat')
+
+      await waitFor(() => {
+        expect(maybeAutoResume).toHaveBeenCalledTimes(2)
+      })
+
+      await act(async () => {
+        oldAutoResume.resolve(false)
+        await oldAutoResume.promise
+      })
+
+      expect(result.current.resumeState).not.toEqual({
+        threadId: 'old-chat',
+        runId: 'old-chat-run',
+        cursor: 'old-chat-cursor',
+      })
+
+      maybeAutoResume.mockRestore()
     })
   })
 

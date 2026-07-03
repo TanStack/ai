@@ -1,5 +1,6 @@
 import { ChatClient } from '@tanstack/ai-client'
 import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
+import { onMount } from 'svelte'
 import type {
   ChatClientState,
   ChatPendingInterrupt,
@@ -80,6 +81,7 @@ export function createChat<
   let pendingInterrupts = $state<Array<ChatPendingInterrupt>>(
     options.initialResumeSnapshot?.pendingInterrupts ?? [],
   )
+  let browserResumeStarted = false
 
   // Structured-output `partial` / `final` are derived from `messages` —
   // specifically from the structured-output part on the latest assistant
@@ -169,12 +171,20 @@ export function createChat<
     onResumeStateChange: (nextResumeState, nextPendingInterrupts) => {
       resumeState = nextResumeState
       pendingInterrupts = nextPendingInterrupts
+      resumeIfLifecycleOwned()
     },
   })
 
   function syncResumeState() {
     resumeState = client.getResumeState()
     pendingInterrupts = client.getPendingInterrupts()
+  }
+
+  function resumeIfLifecycleOwned() {
+    if (!browserResumeStarted) {
+      return
+    }
+    void client.maybeAutoResume().then(syncResumeState, syncResumeState)
   }
 
   messages = client.getMessages()
@@ -184,6 +194,38 @@ export function createChat<
   }
 
   client.mountDevtools()
+
+  const handleOnline = () => {
+    void client.maybeAutoResume().then(syncResumeState, syncResumeState)
+  }
+
+  let onlineListenerRegistered = false
+  const startBrowserResume = () => {
+    if (typeof window === 'undefined') {
+      return
+    }
+    browserResumeStarted = true
+    void client.maybeAutoResume().then(syncResumeState, syncResumeState)
+    window.addEventListener('online', handleOnline)
+    onlineListenerRegistered = true
+  }
+
+  if (typeof window !== 'undefined') {
+    try {
+      onMount(() => {
+        startBrowserResume()
+        return () => {
+          window.removeEventListener('online', handleOnline)
+          onlineListenerRegistered = false
+          browserResumeStarted = false
+        }
+      })
+    } catch {
+      // Svelte lifecycle hooks are only valid during component initialization.
+      // If createChat is constructed outside that lifecycle, auto-resume must
+      // not run until lifecycle-owned browser execution is available.
+    }
+  }
 
   // Note: Cleanup is handled by calling stop() directly when needed.
   // Unlike React/Vue/Solid, Svelte 5 runes like $effect can only be used
@@ -220,6 +262,10 @@ export function createChat<
   }
 
   const dispose = () => {
+    if (typeof window !== 'undefined' && onlineListenerRegistered) {
+      window.removeEventListener('online', handleOnline)
+      onlineListenerRegistered = false
+    }
     client.dispose()
   }
 

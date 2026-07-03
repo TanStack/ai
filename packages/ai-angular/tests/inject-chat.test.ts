@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
+import { EventType } from '@tanstack/ai/client'
 import { Component, signal } from '@angular/core'
 import { TestBed } from '@angular/core/testing'
-import { ChatClient } from '@tanstack/ai-client'
+import { ChatClient, type ConnectionAdapter } from '@tanstack/ai-client'
 import { injectChat } from '../src/inject-chat'
 import {
   createMockConnectionAdapter,
@@ -117,6 +118,86 @@ describe('injectChat — reactive options', () => {
     } finally {
       updateSpy.mockRestore()
     }
+  })
+})
+
+describe('injectChat — resume', () => {
+  it('forwards onResumeStateChange to ChatClient', async () => {
+    const onResumeStateChange = vi.fn()
+    const adapter = createMockConnectionAdapter({
+      chunks: [
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: 'msg-1',
+          timestamp: Date.now(),
+          delta: 'Hi',
+          cursor: 'cursor-1',
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+          outcome: { type: 'success' },
+        },
+      ],
+    })
+    const { result } = renderInjectChat({
+      connection: adapter,
+      threadId: 'thread-1',
+      onResumeStateChange,
+    })
+
+    await result.sendMessage('Hi')
+
+    expect(onResumeStateChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        threadId: 'thread-1',
+        runId: expect.any(String),
+        cursor: 'cursor-1',
+      }),
+      [],
+    )
+  })
+
+  it('forwards initialResumeSnapshot to ChatClient auto-resume', async () => {
+    type RunContext = Parameters<Extract<ConnectionAdapter, {
+      connect: unknown
+    }>['connect']>[3]
+    const contexts: Array<RunContext> = []
+    const adapter: Extract<ConnectionAdapter, { connect: unknown }> = {
+      async *connect(_messages, _data, _signal, runContext) {
+        contexts.push(runContext)
+      },
+    }
+    const { flush } = renderInjectChat({
+      connection: adapter,
+      initialResumeSnapshot: {
+        resumeState: {
+          threadId: 'thread-1',
+          runId: 'run-1',
+          cursor: 'cursor-1',
+        },
+        pendingInterrupts: [],
+      },
+    })
+
+    flush()
+    await tick()
+
+    expect(contexts).toEqual([
+      expect.objectContaining({
+        threadId: 'thread-1',
+        runId: 'run-1',
+        cursor: 'cursor-1',
+      }),
+    ])
   })
 })
 

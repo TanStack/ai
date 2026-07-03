@@ -33,8 +33,9 @@ The primary extension point is `AIPersistence`, usually created with
 If you are building a persisted chat UI, start with
 [Resumable Chat](./resumable-chat). It shows both sides: a server endpoint using
 `withPersistence` and a client that forwards `threadId`, `runId`, `cursor`, and
-`resume` so reconnects continue the same run. Full page reload recovery also
-requires storing the client's latest resume snapshot.
+`resume` so reconnects continue the same run. Use the headless
+`persistence.server` option to store the client's latest resume snapshot for
+full page reload recovery.
 
 If your run can pause for a human decision, read
 [Interrupts and Approvals](./interrupts-and-approvals). It covers durable

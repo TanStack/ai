@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ChatClient } from '@tanstack/ai-client'
+import * as svelte from 'svelte'
 import { createChat } from '../src/create-chat.svelte'
 import { createMockConnectionAdapter, createTextChunks } from './test-utils'
 
@@ -78,6 +80,69 @@ describe('createChat', () => {
 
     expect(chat.messages).toEqual(persistedMessages)
     expect(persistence.getItem).toHaveBeenCalledWith('persisted-chat')
+  })
+
+  it('does not auto-resume during server-side construction', () => {
+    const maybeAutoResumeSpy = vi.spyOn(ChatClient.prototype, 'maybeAutoResume')
+    vi.stubGlobal('window', undefined)
+
+    try {
+      createChat({
+        connection: createMockConnectionAdapter({ chunks: [] }),
+        initialResumeSnapshot: {
+          resumeState: {
+            threadId: 'thread-1',
+            runId: 'run-1',
+            cursor: 'cursor-1',
+          },
+          pendingInterrupts: [],
+        },
+      })
+
+      expect(maybeAutoResumeSpy).not.toHaveBeenCalled()
+    } finally {
+      vi.unstubAllGlobals()
+      maybeAutoResumeSpy.mockRestore()
+    }
+  })
+
+  it('does not auto-resume during construction when browser lifecycle registration is unavailable', () => {
+    const maybeAutoResumeSpy = vi
+      .spyOn(ChatClient.prototype, 'maybeAutoResume')
+      .mockResolvedValue(false)
+    const addEventListener = vi.fn()
+    const removeEventListener = vi.fn()
+    const onMountSpy = vi.spyOn(svelte, 'onMount').mockImplementation(() => {
+      throw new Error('onMount unavailable outside component initialization')
+    })
+    vi.stubGlobal('window', {
+      addEventListener,
+      removeEventListener,
+    })
+
+    try {
+      createChat({
+        connection: createMockConnectionAdapter({ chunks: [] }),
+        initialResumeSnapshot: {
+          resumeState: {
+            threadId: 'thread-1',
+            runId: 'run-1',
+            cursor: 'cursor-1',
+          },
+          pendingInterrupts: [],
+        },
+      })
+
+      expect(maybeAutoResumeSpy).not.toHaveBeenCalled()
+      expect(addEventListener).not.toHaveBeenCalledWith(
+        'online',
+        expect.any(Function),
+      )
+    } finally {
+      vi.unstubAllGlobals()
+      onMountSpy.mockRestore()
+      maybeAutoResumeSpy.mockRestore()
+    }
   })
 
   it('should let persisted empty arrays override initial messages', () => {

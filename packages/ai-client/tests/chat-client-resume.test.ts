@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { EventType } from '@tanstack/ai/client'
 import { ChatClient } from '../src/chat-client'
 import {
@@ -10,6 +10,7 @@ import type {
   RunAgentInputContext,
 } from '../src/connection-adapters'
 import type { RunAgentResumeItem, StreamChunk } from '@tanstack/ai/client'
+import type { ChatResumeSnapshot, ChatServerPersistence } from '../src/types'
 
 /**
  * Adapter that records each connect's runContext and yields scripted chunks.
@@ -51,6 +52,16 @@ const runStarted: StreamChunk = {
   runId: 'run-1',
   threadId: 'thread-1',
   timestamp: Date.now(),
+}
+
+function createResumePersistence(
+  initial?: ChatResumeSnapshot | null,
+): ChatServerPersistence {
+  return {
+    getItem: vi.fn(() => initial),
+    setItem: vi.fn(),
+    removeItem: vi.fn(),
+  }
 }
 
 describe('ChatClient resume', () => {
@@ -1095,6 +1106,505 @@ describe('ChatClient resume', () => {
         payload: { approved: true },
       },
     ])
+  })
+
+  it('hydrates resume state and pending interrupts from persistence.server using thread id', async () => {
+    const persistence = createResumePersistence({
+      resumeState: {
+        threadId: 'thread-1',
+        runId: 'run-1',
+        cursor: 'stored-cursor',
+      },
+      pendingInterrupts: [
+        {
+          id: 'approval-1',
+          reason: 'approval_required',
+          toolCallId: 'tool-1',
+        },
+      ],
+    })
+    const { adapter } = recordingAdapter([[]])
+
+    const client = new ChatClient({
+      connection: adapter,
+      threadId: 'thread-1',
+      persistence: { server: persistence },
+    })
+
+    expect(persistence.getItem).toHaveBeenCalledWith('thread-1')
+    expect(client.getResumeState()).toEqual({
+      threadId: 'thread-1',
+      runId: 'run-1',
+      cursor: 'stored-cursor',
+    })
+    expect(client.getPendingInterrupts()).toEqual([
+      expect.objectContaining({ id: 'approval-1' }),
+    ])
+  })
+
+  it('persists resume snapshots to persistence.server using thread id', async () => {
+    const persistence = createResumePersistence()
+    const { adapter } = recordingAdapter([
+      (ctx) => [
+        {
+          type: EventType.RUN_STARTED,
+          runId: ctx?.runId ?? 'run-1',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+        },
+        text('a', 'cursor-1'),
+        {
+          type: EventType.RUN_FINISHED,
+          runId: ctx?.runId ?? 'run-1',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+          outcome: {
+            type: 'interrupt',
+            interrupts: [{ id: 'interrupt-1', reason: 'client_tool_input' }],
+          },
+        },
+      ],
+    ])
+    const onResumeStateChange = vi.fn()
+    const client = new ChatClient({
+      connection: adapter,
+      threadId: 'thread-1',
+      persistence: { server: persistence },
+      onResumeStateChange,
+    })
+
+    await client.sendMessage('hi')
+
+    expect(persistence.setItem).toHaveBeenLastCalledWith('thread-1', {
+      resumeState: client.getResumeState(),
+      pendingInterrupts: client.getPendingInterrupts(),
+    })
+    expect(onResumeStateChange).toHaveBeenCalled()
+  })
+
+  it('removes the server snapshot when resume state is cleared', async () => {
+    const persistence = createResumePersistence()
+    const { adapter } = recordingAdapter([
+      (ctx) => [
+        {
+          type: EventType.RUN_STARTED,
+          runId: ctx?.runId ?? 'run-1',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+        },
+        text('a', 'cursor-1'),
+        {
+          type: EventType.RUN_FINISHED,
+          runId: ctx?.runId ?? 'run-1',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+          outcome: {
+            type: 'interrupt',
+            interrupts: [{ id: 'interrupt-1', reason: 'client_tool_input' }],
+          },
+        },
+      ],
+    ])
+    const client = new ChatClient({
+      connection: adapter,
+      threadId: 'thread-1',
+      persistence: { server: persistence },
+    })
+
+    await client.sendMessage('hi')
+    client.clear()
+
+    expect(persistence.removeItem).toHaveBeenCalledWith('thread-1')
+  })
+
+  it('swallows server persistence failures', async () => {
+    const persistence: ChatServerPersistence = {
+      getItem: vi.fn(() => {
+        throw new Error('read failed')
+      }),
+      setItem: vi.fn(() => {
+        throw new Error('write failed')
+      }),
+      removeItem: vi.fn(() => {
+        throw new Error('remove failed')
+      }),
+    }
+    const { adapter } = recordingAdapter([
+      (ctx) => [
+        {
+          type: EventType.RUN_STARTED,
+          runId: ctx?.runId ?? 'run-1',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+        },
+        text('a', 'cursor-1'),
+        {
+          type: EventType.RUN_FINISHED,
+          runId: ctx?.runId ?? 'run-1',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+          outcome: {
+            type: 'interrupt',
+            interrupts: [{ id: 'interrupt-1', reason: 'client_tool_input' }],
+          },
+        },
+      ],
+    ])
+
+    const client = new ChatClient({
+      connection: adapter,
+      threadId: 'thread-1',
+      persistence: { server: persistence },
+    })
+
+    await expect(client.sendMessage('hi')).resolves.toBeUndefined()
+    expect(() => client.clear()).not.toThrow()
+  })
+
+  it('prefers explicit initialResumeSnapshot over persistence.server', () => {
+    const persistence = createResumePersistence({
+      resumeState: {
+        threadId: 'thread-1',
+        runId: 'stored-run',
+        cursor: 'stored-cursor',
+      },
+      pendingInterrupts: [{ id: 'stored', reason: 'client_tool_input' }],
+    })
+    const { adapter } = recordingAdapter([[]])
+
+    const client = new ChatClient({
+      connection: adapter,
+      threadId: 'thread-1',
+      persistence: { server: persistence },
+      initialResumeSnapshot: {
+        resumeState: {
+          threadId: 'thread-1',
+          runId: 'explicit-run',
+          cursor: 'explicit-cursor',
+        },
+        pendingInterrupts: [{ id: 'explicit', reason: 'client_tool_input' }],
+      },
+    })
+
+    expect(client.getResumeState()).toEqual({
+      threadId: 'thread-1',
+      runId: 'explicit-run',
+      cursor: 'explicit-cursor',
+    })
+    expect(client.getPendingInterrupts()).toEqual([
+      expect.objectContaining({ id: 'explicit' }),
+    ])
+  })
+
+  it('does not read persistence.server when explicit initialResumeSnapshot is provided', async () => {
+    const persistence: ChatServerPersistence = {
+      getItem: vi.fn(() => Promise.reject(new Error('read failed'))),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    }
+    const { adapter } = recordingAdapter([[]])
+
+    const client = new ChatClient({
+      connection: adapter,
+      threadId: 'thread-1',
+      persistence: { server: persistence },
+      initialResumeSnapshot: {
+        resumeState: {
+          threadId: 'thread-1',
+          runId: 'explicit-run',
+          cursor: 'explicit-cursor',
+        },
+        pendingInterrupts: [{ id: 'explicit', reason: 'client_tool_input' }],
+      },
+    })
+
+    await Promise.resolve()
+
+    expect(persistence.getItem).not.toHaveBeenCalled()
+    expect(client.getResumeState()).toEqual({
+      threadId: 'thread-1',
+      runId: 'explicit-run',
+      cursor: 'explicit-cursor',
+    })
+    expect(client.getPendingInterrupts()).toEqual([
+      expect.objectContaining({ id: 'explicit' }),
+    ])
+  })
+
+  it('ignores async server hydrate that resolves after clear', async () => {
+    const storedSnapshot: ChatResumeSnapshot = {
+      resumeState: {
+        threadId: 'thread-1',
+        runId: 'stored-run',
+        cursor: 'stored-cursor',
+      },
+      pendingInterrupts: [{ id: 'stored', reason: 'client_tool_input' }],
+    }
+    let resolveHydrate: (snapshot: ChatResumeSnapshot) => void = () => {}
+    const persistence: ChatServerPersistence = {
+      getItem: vi.fn(
+        () =>
+          new Promise<ChatResumeSnapshot>((resolve) => {
+            resolveHydrate = resolve
+          }),
+      ),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    }
+    const { adapter } = recordingAdapter([[]])
+    const client = new ChatClient({
+      connection: adapter,
+      threadId: 'thread-1',
+      persistence: { server: persistence },
+    })
+
+    client.clear()
+    resolveHydrate(storedSnapshot)
+    await Promise.resolve()
+
+    expect(client.getResumeState()).toBeNull()
+    expect(client.getPendingInterrupts()).toEqual([])
+    expect(persistence.removeItem).toHaveBeenCalledWith('thread-1')
+    expect(persistence.setItem).not.toHaveBeenCalled()
+  })
+
+  it('ignores async server hydrate that resolves after dispose', async () => {
+    const storedSnapshot: ChatResumeSnapshot = {
+      resumeState: {
+        threadId: 'thread-1',
+        runId: 'stored-run',
+        cursor: 'stored-cursor',
+      },
+      pendingInterrupts: [{ id: 'stored', reason: 'client_tool_input' }],
+    }
+    let resolveHydrate: (snapshot: ChatResumeSnapshot) => void = () => {}
+    const persistence: ChatServerPersistence = {
+      getItem: vi.fn(
+        () =>
+          new Promise<ChatResumeSnapshot>((resolve) => {
+            resolveHydrate = resolve
+          }),
+      ),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    }
+    const { adapter } = recordingAdapter([[]])
+    const onResumeStateChange = vi.fn()
+    const client = new ChatClient({
+      connection: adapter,
+      threadId: 'thread-1',
+      persistence: { server: persistence },
+      onResumeStateChange,
+    })
+
+    client.dispose()
+    resolveHydrate(storedSnapshot)
+    await Promise.resolve()
+
+    expect(client.getResumeState()).toBeNull()
+    expect(client.getPendingInterrupts()).toEqual([])
+    expect(onResumeStateChange).not.toHaveBeenCalled()
+    expect(persistence.setItem).not.toHaveBeenCalled()
+  })
+
+  it('can auto-resume after async server hydration resolves', async () => {
+    const storedSnapshot: ChatResumeSnapshot = {
+      resumeState: {
+        threadId: 'thread-1',
+        runId: 'stored-run',
+        cursor: 'stored-cursor',
+      },
+      pendingInterrupts: [],
+    }
+    let resolveHydrate: (snapshot: ChatResumeSnapshot) => void = () => {}
+    const persistence: ChatServerPersistence = {
+      getItem: vi.fn(
+        () =>
+          new Promise<ChatResumeSnapshot>((resolve) => {
+            resolveHydrate = resolve
+          }),
+      ),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    }
+    const { adapter, contexts } = recordingAdapter([[]])
+    const client = new ChatClient({
+      connection: adapter,
+      threadId: 'thread-1',
+      persistence: { server: persistence },
+      autoResume: true,
+    })
+
+    await expect(client.maybeAutoResume()).resolves.toBe(false)
+
+    resolveHydrate(storedSnapshot)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    await expect(client.maybeAutoResume()).resolves.toBe(true)
+
+    expect(contexts).toHaveLength(1)
+    expect(contexts[0]?.threadId).toBe('thread-1')
+    expect(contexts[0]?.runId).toBe('stored-run')
+    expect(contexts[0]?.cursor).toBe('stored-cursor')
+  })
+
+  it('does not auto-resume directly from async server hydration', async () => {
+    const storedSnapshot: ChatResumeSnapshot = {
+      resumeState: {
+        threadId: 'thread-1',
+        runId: 'stored-run',
+        cursor: 'stored-cursor',
+      },
+      pendingInterrupts: [],
+    }
+    let resolveHydrate: (snapshot: ChatResumeSnapshot) => void = () => {}
+    const persistence: ChatServerPersistence = {
+      getItem: vi.fn(
+        () =>
+          new Promise<ChatResumeSnapshot>((resolve) => {
+            resolveHydrate = resolve
+          }),
+      ),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    }
+    const { adapter, contexts } = recordingAdapter([[]])
+    const onResumeStateChange = vi.fn()
+
+    const client = new ChatClient({
+      connection: adapter,
+      threadId: 'thread-1',
+      persistence: { server: persistence },
+      onResumeStateChange,
+      autoResume: true,
+    })
+
+    resolveHydrate(storedSnapshot)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(client.getResumeState()).toEqual(storedSnapshot.resumeState)
+    expect(onResumeStateChange).toHaveBeenCalledWith(
+      storedSnapshot.resumeState,
+      [],
+    )
+    expect(contexts).toHaveLength(0)
+  })
+
+  it('does not persist late resume snapshots after server-only clear', async () => {
+    const writes: Array<ChatResumeSnapshot | null> = []
+    let releaseLateChunk: () => void = () => {}
+    let lateChunkReady: Promise<void>
+    let markLateChunkReady: () => void = () => {}
+    lateChunkReady = new Promise<void>((resolve) => {
+      markLateChunkReady = resolve
+    })
+    const persistence: ChatServerPersistence = {
+      getItem: vi.fn(() => null),
+      setItem: vi.fn((_id, snapshot) => {
+        writes.push(snapshot)
+      }),
+      removeItem: vi.fn(() => {
+        writes.push(null)
+      }),
+    }
+    const adapter: ConnectConnectionAdapter = {
+      async *connect(_messages, _data, _signal, runContext) {
+        yield {
+          type: EventType.RUN_STARTED,
+          runId: runContext?.runId ?? 'run-1',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+        }
+        await new Promise<void>((resolve) => {
+          releaseLateChunk = resolve
+          markLateChunkReady()
+        })
+        yield text('late', 'late-cursor')
+      },
+    }
+    const client = new ChatClient({
+      connection: adapter,
+      threadId: 'thread-1',
+      persistence: { server: persistence },
+    })
+
+    const sendPromise = client.sendMessage('hi')
+    await lateChunkReady
+    client.clear()
+    releaseLateChunk()
+    await sendPromise
+
+    expect(persistence.removeItem).toHaveBeenCalledWith('thread-1')
+    expect(writes.at(-1)).toBeNull()
+  })
+
+  it('keeps server resume persistence removed when async set resolves after clear', async () => {
+    let storedSnapshot: ChatResumeSnapshot | null = null
+    const pendingSets: Array<{
+      snapshot: ChatResumeSnapshot
+      resolve: () => void
+    }> = []
+    const persistence: ChatServerPersistence = {
+      getItem: vi.fn(() => storedSnapshot),
+      setItem: vi.fn((_id, snapshot) => {
+        return new Promise<void>((resolve) => {
+          pendingSets.push({
+            snapshot,
+            resolve: () => {
+              storedSnapshot = snapshot
+              resolve()
+            },
+          })
+        })
+      }),
+      removeItem: vi.fn(() => {
+        storedSnapshot = null
+      }),
+    }
+    const { adapter } = recordingAdapter([
+      (ctx) => [
+        {
+          type: EventType.RUN_STARTED,
+          runId: ctx?.runId ?? 'run-1',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+        },
+        text('a', 'cursor-1'),
+        {
+          type: EventType.RUN_FINISHED,
+          runId: ctx?.runId ?? 'run-1',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+          outcome: {
+            type: 'interrupt',
+            interrupts: [{ id: 'interrupt-1', reason: 'client_tool_input' }],
+          },
+        },
+      ],
+    ])
+    const client = new ChatClient({
+      connection: adapter,
+      threadId: 'thread-1',
+      persistence: { server: persistence },
+    })
+
+    await client.sendMessage('hi')
+    expect(pendingSets.length).toBeGreaterThan(0)
+
+    client.clear()
+    for (const pendingSet of pendingSets) {
+      pendingSet.resolve()
+    }
+    await Promise.all(
+      pendingSets.map(
+        () => new Promise<void>((resolve) => queueMicrotask(resolve)),
+      ),
+    )
+
+    expect(persistence.removeItem).toHaveBeenCalledWith('thread-1')
+    expect(storedSnapshot).toBeNull()
   })
 
   it('addToolResult for pending client-tool input sends a resume item', async () => {
