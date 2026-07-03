@@ -521,7 +521,7 @@ function detectChangedPackages(): Set<string> {
 
     for (const line of diff.split('\n')) {
       // packages/ai-openrouter/... → @tanstack/ai-openrouter
-      const match = line.match(/^packages\/typescript\/([\w-]+)\//)
+      const match = line.match(/^packages\/([\w-]+)\//)
       if (match) {
         changed.add(`@tanstack/${match[1]}`)
       }
