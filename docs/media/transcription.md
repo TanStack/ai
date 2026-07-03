@@ -188,7 +188,7 @@ const result = await generateTranscription({
 | `timestamp_granularities` | `Array<'word' \| 'segment'>` | Timestamp granularity to populate (`whisper-1` only; requires top-level `responseFormat: 'verbose_json'`) |
 | `include` | `string[]` | Additional values to include in the response (e.g., `logprobs`) |
 | `response_format` | `'json' \| 'text' \| 'srt' \| 'verbose_json' \| 'vtt' \| 'diarized_json'` | Raw OpenAI response format. Use `diarized_json` here for speaker-labeled diarization output. |
-| `chunking_strategy` | `'auto' \| { type: 'server_vad', ... } \| null` | Audio chunking strategy for `gpt-4o-transcribe-diarize`; required by OpenAI for diarization inputs longer than 30 seconds |
+| `chunking_strategy` | `'auto' \| { type: 'server_vad', ... } \| null` | Audio chunking strategy (any model; unset transcribes the audio as a single block). Required by OpenAI for `gpt-4o-transcribe-diarize` inputs longer than 30 seconds — the adapter defaults it to `'auto'` for that model |
 | `known_speaker_names` | `string[]` | Up to four speaker labels for diarization |
 | `known_speaker_references` | `string[]` | 2-10 second data URL audio samples matching `known_speaker_names` |
 
@@ -208,14 +208,17 @@ OpenAI's `gpt-4o-transcribe-diarize` also supports `modelOptions.response_format
 
 ### Speaker Diarization
 
-Use `gpt-4o-transcribe-diarize` when you need speaker labels. TanStack AI defaults this model to `modelOptions.response_format: 'diarized_json'` and sends `chunking_strategy: 'auto'` unless you provide a chunking strategy yourself.
+Use `gpt-4o-transcribe-diarize` when you need speaker labels. When no response format is specified, TanStack AI defaults the request to `response_format: 'diarized_json'` and sends `chunking_strategy: 'auto'` unless you provide a chunking strategy yourself. Passing a top-level `responseFormat: 'json'` or `'text'` opts out of speaker segments.
 
 ```typescript
+import { generateTranscription } from '@tanstack/ai'
+import { openaiTranscription } from '@tanstack/ai-openai'
+import { meetingAudioFile } from './audio'
+
 const result = await generateTranscription({
   adapter: openaiTranscription('gpt-4o-transcribe-diarize'),
   audio: meetingAudioFile,
   modelOptions: {
-    chunking_strategy: 'auto',
     known_speaker_names: ['agent', 'customer'],
     known_speaker_references: [
       'data:audio/wav;base64,...',
@@ -229,7 +232,7 @@ for (const segment of result.segments ?? []) {
 }
 ```
 
-OpenAI accepts up to four known speaker references. The diarization model does not support `prompt`, `include`, or `timestamp_granularities`; the adapter rejects those combinations before making the API request.
+OpenAI accepts up to four known speaker references; `known_speaker_names` and `known_speaker_references` must be provided together with matching lengths. The diarization model does not support `prompt`, `include`, or `timestamp_granularities`; the adapter rejects those combinations before making the API request.
 
 ## Response Format
 
@@ -533,9 +536,14 @@ import { transcribeStreamFn } from '../lib/server-functions'
 
 function AudioTranscriber() {
   const { generate, result, isLoading } = useTranscription({
-    fetcher: (input) => transcribeStreamFn({
-      data: { ...input, audio: input.audio as string },
-    }),
+    fetcher: (input) => {
+      if (typeof input.audio !== 'string') {
+        throw new Error('Expected base64 or data URL audio')
+      }
+      return transcribeStreamFn({
+        data: { ...input, audio: input.audio },
+      })
+    },
   })
   // ... same UI as above
 }

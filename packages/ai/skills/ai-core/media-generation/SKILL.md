@@ -389,12 +389,13 @@ const result = await generateTranscription({
 // result.text       -- full transcribed text
 // result.language   -- detected/specified language
 // result.duration   -- audio duration in seconds
-// result.segments   -- timestamped segments with optional word-level timestamps
+// result.segments   -- timestamped segments (word-level timestamps are in result.words)
 ```
 
 For speaker diarization, use `openaiTranscription('gpt-4o-transcribe-diarize')`.
-It defaults to `modelOptions.response_format: 'diarized_json'` and `chunking_strategy: 'auto'`;
-do not pass `prompt`, `include`, or `timestamp_granularities` with this model.
+When no response format is given it defaults the request to `response_format: 'diarized_json'`
+and `chunking_strategy: 'auto'` (a top-level `responseFormat` of `'json'`/`'text'` opts out of
+speaker segments); do not pass `prompt`, `include`, or `timestamp_granularities` with this model.
 
 Client hook:
 

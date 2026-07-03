@@ -330,11 +330,14 @@ console.log(result.text);
 Use `gpt-4o-transcribe-diarize` for speaker-labeled transcripts:
 
 ```typescript
+import { generateTranscription } from "@tanstack/ai";
+import { openaiTranscription } from "@tanstack/ai-openai";
+import { meetingAudioFile } from "./audio";
+
 const result = await generateTranscription({
   adapter: openaiTranscription("gpt-4o-transcribe-diarize"),
   audio: meetingAudioFile,
   modelOptions: {
-    chunking_strategy: "auto",
     known_speaker_names: ["agent", "customer"],
     known_speaker_references: [
       "data:audio/wav;base64,...",
@@ -348,7 +351,7 @@ for (const segment of result.segments ?? []) {
 }
 ```
 
-`gpt-4o-transcribe-diarize` defaults to `modelOptions.response_format: "diarized_json"` and `chunking_strategy: "auto"`. OpenAI does not support `prompt`, `include`, or `timestamp_granularities` with diarized transcription.
+When no response format is specified, `gpt-4o-transcribe-diarize` requests default to `response_format: "diarized_json"` and `chunking_strategy: "auto"`; passing a top-level `responseFormat` of `"json"` or `"text"` opts out of speaker segments. `known_speaker_names` and `known_speaker_references` must be provided together (up to 4, matching lengths). OpenAI does not support `prompt`, `include`, or `timestamp_granularities` with diarized transcription.
 
 ## Environment Variables
 

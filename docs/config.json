@@ -259,7 +259,7 @@
           "label": "Transcription",
           "to": "media/transcription",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-01"
+          "updatedAt": "2026-07-03"
         },
         {
           "label": "Audio Recording",
@@ -503,7 +503,8 @@
         {
           "label": "OpenAI",
           "to": "adapters/openai",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-03"
         },
         {
           "label": "Anthropic",
