@@ -147,7 +147,8 @@ export type GeminiVideoModelInputModalitiesByName = {
  * Per-model duration unions (seconds, as numbers — Veo's
  * `parameters.durationSeconds` field is numeric; Omni Flash accepts a
  * continuous 3–10 second range, fractional seconds included, so it stays
- * `number` and is clamped by the range entry below).
+ * `number` — the adapter rejects out-of-range values at job creation,
+ * against the range entry below).
  *
  * @experimental Video generation is an experimental feature and may change.
  */

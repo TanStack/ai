@@ -443,8 +443,8 @@ return toServerSentEventsResponse(stream)
 ```
 
 Google Veo (`@tanstack/ai-gemini`) uses the same jobs/polling flow. Its
-`duration` option is typed per model (e.g. `4 | 6 | 8` for Veo 3.x,
-`5 | 6 | 8` for Veo 2); use `adapter.snapDuration(seconds)` to coerce raw
+`duration` option is typed per model (`4 | 6 | 8` for the Veo 3.1 models);
+use `adapter.snapDuration(seconds)` to coerce raw
 seconds and `adapter.availableDurations()` to enumerate the valid set.
 Image prompt parts route by `metadata.role`: first un-roled /
 `'start_frame'` image → input image, `'end_frame'` → `lastFrame`,
@@ -473,7 +473,8 @@ by model. Clips are 720p; `duration` is any number of seconds in the 3–10
 range (fractional ok, default 10 — availableDurations() reports the range),
 `size` is the aspect ratio (`'16:9' | '9:16'`), and the finished video arrives
 **inline** as a `data:video/mp4;base64,…` URL (no key needed to use it).
-Image/video prompt parts are sent as interaction content in order (no
+Image/video prompt parts are sent as interaction content blocks, grouped
+as images, then videos, then text (no
 `metadata.role` routing); `data` sources go inline, `url` sources pass
 through as-is (never downloaded — use Gemini Files API URIs for remote
 media). For conversational editing, pass a prior generation's `jobId` as

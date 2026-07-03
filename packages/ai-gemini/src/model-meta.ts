@@ -717,7 +717,7 @@ const VEO_3_1_LITE_PREVIEW = {
  * editing. Serves only the Interactions API (`generateContent` rejects it),
  * so it routes through the interactions-based path of the video adapter,
  * not Veo's `:predictLongRunning` flow. Pricing is per second of generated
- * video ($0.10/sec). 720p / 24 FPS, 10-second clips.
+ * video ($0.10/sec). 720p / 24 FPS, 3–10 second clips (default 10s).
  * @experimental Omni video generation is an experimental feature and may change.
  */
 const GEMINI_OMNI_FLASH_PREVIEW = {

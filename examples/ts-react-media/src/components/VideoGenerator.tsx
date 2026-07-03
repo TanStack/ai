@@ -145,6 +145,19 @@ export default function VideoGenerator({
             progress: status.progress,
           },
         }))
+      } else if (status.status === 'failed') {
+        const interval = pollingRefs.current.get(model)
+        if (interval) {
+          clearInterval(interval)
+          pollingRefs.current.delete(model)
+        }
+        setJobStates((prev) => ({
+          ...prev,
+          [model]: {
+            status: 'error',
+            message: status.error ?? 'Video generation failed',
+          },
+        }))
       } else {
         setJobStates((prev) => ({
           ...prev,

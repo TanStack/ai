@@ -354,8 +354,9 @@ export const createVideoJobFn = createServerFn({ method: 'POST' })
       }
       // Gemini Omni Flash (Interactions API, GEMINI_API_KEY). One model
       // serves both UI entries; it accepts text, image, AND video prompt
-      // parts (sent as interaction content blocks in order). Clips are a
-      // fixed 10s at 720p; `size` is the output aspect ratio. Passing
+      // parts (sent as interaction content blocks: images, then videos,
+      // then text). Clips are 3–10s at 720p (default 10s when `duration`
+      // is omitted); `size` is the output aspect ratio. Passing
       // `previous_interaction_id` chains a prompt onto a prior generation
       // for conversational editing.
       case 'gemini-omni-flash-preview':

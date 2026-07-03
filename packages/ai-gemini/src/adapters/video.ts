@@ -206,7 +206,8 @@ function interactionUsageToTokenUsage(
  * `response_modalities: ['video']`, `getVideoStatus` polls it by id, and
  * `getVideoUrl` returns the inline base64 MP4 as a `data:` URL (or the
  * Files API URI when the server delivers by reference). Image and video
- * prompt parts are sent as interaction content blocks in order; pass
+ * prompt parts are sent as interaction content blocks, grouped as images,
+ * then videos, then the text prompt (interleaving is not preserved); pass
  * `modelOptions.previous_interaction_id` to conversationally edit a prior
  * Omni generation.
  *
@@ -340,10 +341,24 @@ export class GeminiVideoAdapter<
         )
       }
 
+      // Reject out-of-range durations locally rather than snapping (which
+      // would silently change the clip length the caller asked for) or
+      // letting the live API reject them after the round trip.
+      const durations = this.availableDurations()
+      if (
+        duration !== undefined &&
+        durations.kind === 'range' &&
+        (duration < durations.min || duration > durations.max)
+      ) {
+        throw new Error(
+          `${this.name}.createVideoJob: duration ${duration}s is outside the ${durations.min}–${durations.max}s range supported by ${this.model}. Use snapDuration() to snap arbitrary values into range.`,
+        )
+      }
+
       // Aspect ratio and clip length ride on `response_format`. Duration is
       // a `"<seconds>s"` string, accepted anywhere in the 3–10s range
       // (fractional included) and defaulting to 10s when omitted — verified
-      // against the live API; the docs don't publish the field.
+      // against the live API; the docs don't publish the range constraints.
       const responseFormat =
         size !== undefined || duration !== undefined
           ? {
@@ -475,7 +490,11 @@ export class GeminiVideoAdapter<
    * Poll an Omni background interaction. `in_progress` maps to
    * 'processing'; a `completed` interaction with no video content (e.g.
    * filtered output) is surfaced as a failure so `getVideoUrl` doesn't
-   * throw on an empty response.
+   * throw on an empty response. `requires_action` also fails: the adapter
+   * never sends tools, so it can only arise via
+   * `previous_interaction_id` chaining onto a tool-bearing interaction —
+   * and such an interaction never progresses without a client response,
+   * so polling it would spin until timeout.
    */
   private async getInteractionsVideoStatus(
     jobId: string,
@@ -483,8 +502,16 @@ export class GeminiVideoAdapter<
     const interaction = await this.getInteraction(jobId)
     const status = interaction.status
 
-    if (status === 'in_progress' || status === 'requires_action') {
+    if (status === 'in_progress') {
       return { jobId, status: 'processing' }
+    }
+    if (status === 'requires_action') {
+      return {
+        jobId,
+        status: 'failed',
+        error:
+          'Gemini Omni interaction is waiting on a client action (tool response), which the video jobs flow does not support.',
+      }
     }
     if (status === 'completed') {
       if (!extractInteractionVideo(interaction)) {
@@ -548,7 +575,7 @@ export class GeminiVideoAdapter<
     const interaction = await this.getInteraction(jobId)
     const status = interaction.status
 
-    if (status === 'in_progress' || status === 'requires_action') {
+    if (status === 'in_progress') {
       throw new Error(
         `Video is not ready yet. Check status first. Job ID: ${jobId}`,
       )

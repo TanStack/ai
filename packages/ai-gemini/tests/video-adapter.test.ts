@@ -1,4 +1,5 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
+import { generateVideo } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import {
   GeminiVideoAdapter,
@@ -137,6 +138,25 @@ describe('Gemini Video Adapter', () => {
       expectTypeOf<Veo3Options['duration']>().toEqualTypeOf<
         4 | 6 | 8 | undefined
       >()
+    })
+
+    it('satisfies generateVideo constraints despite narrowed per-model maps', () => {
+      // Regression guard for the VideoAdapter generic-arity fix:
+      // generateVideo's constraints once spelled `VideoAdapter<_, _, _, _>`
+      // (four generics), whose duration-map parameter defaulted to
+      // Record<string, number> — the closed-key
+      // GeminiVideoModelDurationByName is not assignable to that, so these
+      // instantiations failed to compile. They must keep compiling, with
+      // `duration` narrowed per model.
+      const veo3 = createGeminiVideo('veo-3.1-generate-preview', 'test-key')
+      type VeoCreate = Parameters<typeof generateVideo<typeof veo3>>[0]
+      expectTypeOf<VeoCreate['duration']>().toEqualTypeOf<
+        4 | 6 | 8 | undefined
+      >()
+
+      const omni = createGeminiVideo('gemini-omni-flash-preview', 'test-key')
+      type OmniCreate = Parameters<typeof generateVideo<typeof omni>>[0]
+      expectTypeOf<OmniCreate['duration']>().toEqualTypeOf<number | undefined>()
     })
   })
 
@@ -735,6 +755,41 @@ describe('Gemini Omni Flash Video Adapter (Interactions API)', () => {
         }),
       ).rejects.toThrow(/interaction id/)
     })
+
+    it('rejects out-of-range durations without calling the API', async () => {
+      const stub = createInteractionsClientStub()
+      const adapter = new StubbedGeminiOmniVideoAdapter(stub)
+
+      for (const duration of [2, 15]) {
+        await expect(
+          adapter.createVideoJob({
+            model: 'gemini-omni-flash-preview',
+            prompt: 'a sunset',
+            duration,
+            logger: testLogger,
+          }),
+        ).rejects.toThrow(/outside the 3–10s range/)
+      }
+      expect(stub.interactions.create).not.toHaveBeenCalled()
+    })
+
+    it('passes fractional in-range durations through verbatim', async () => {
+      const stub = createInteractionsClientStub()
+      const adapter = new StubbedGeminiOmniVideoAdapter(stub)
+
+      await adapter.createVideoJob({
+        model: 'gemini-omni-flash-preview',
+        prompt: 'a sunset',
+        duration: 4.5,
+        logger: testLogger,
+      })
+
+      expect(stub.interactions.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          response_format: { type: 'video', duration: '4.5s' },
+        }),
+      )
+    })
   })
 
   describe('getVideoStatus', () => {
@@ -761,6 +816,17 @@ describe('Gemini Omni Flash Video Adapter (Interactions API)', () => {
         jobId,
         status: 'completed',
       })
+    })
+
+    it('maps requires_action to failed instead of polling forever', async () => {
+      const stub = createInteractionsClientStub({
+        getResult: { id: jobId, status: 'requires_action' },
+      })
+      const adapter = new StubbedGeminiOmniVideoAdapter(stub)
+
+      const status = await adapter.getVideoStatus(jobId)
+      expect(status.status).toBe('failed')
+      expect(status.error).toMatch(/client action/)
     })
 
     it('maps a completed interaction without video output to failed', async () => {
