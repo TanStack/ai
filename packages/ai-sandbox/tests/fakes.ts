@@ -193,7 +193,11 @@ export function makeFakeProvider(
       calls.create++
       // Honor the deterministic id when supplied (mirrors real providers like
       // Cloudflare); fall back to a counter for direct/advanced use.
-      const handle = makeFakeHandle(input.id ?? `${name}-${++counter}`, name, caps)
+      const handle = makeFakeHandle(
+        input.id ?? `${name}-${++counter}`,
+        name,
+        caps,
+      )
       created.push(handle)
       return Promise.resolve(handle)
     },
