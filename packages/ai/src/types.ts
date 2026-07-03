@@ -1381,6 +1381,97 @@ export interface UIResourceEvent extends CustomEvent {
   }
 }
 
+// ── Sandbox events ──────────────────────────────────────────────────────────
+export interface SandboxFileCustomEvent extends CustomEvent {
+  name: 'sandbox.file'
+  value: {
+    type: 'create' | 'change' | 'delete'
+    path: string
+    timestamp: number
+  }
+}
+export interface SandboxFileDiffEvent extends CustomEvent {
+  name: 'sandbox.file.diff'
+  value: { path: string; diff: string }
+}
+
+// ── Harness events ──────────────────────────────────────────────────────────
+export interface FileChangedEvent extends CustomEvent {
+  name: 'file.changed'
+  value: { path: string; diff: string }
+}
+export interface SessionIdEvent extends CustomEvent {
+  name: `${string}.session-id`
+  value: { sessionId: string }
+}
+
+// ── Code-mode events ────────────────────────────────────────────────────────
+export interface CodeModeExecutionStartedEvent extends CustomEvent {
+  name: 'code_mode:execution_started'
+  value: { timestamp: number; codeLength: number }
+}
+export interface CodeModeConsoleEvent extends CustomEvent {
+  name: 'code_mode:console'
+  value: {
+    level: 'log' | 'warn' | 'error' | 'info'
+    message: string
+    timestamp: number
+  }
+}
+export interface CodeModeExternalCallEvent extends CustomEvent {
+  name: 'code_mode:external_call'
+  value: { function: string; args: unknown; timestamp: number }
+}
+export interface CodeModeExternalResultEvent extends CustomEvent {
+  name: 'code_mode:external_result'
+  value: { function: string; result: unknown; duration: number }
+}
+export interface CodeModeExternalErrorEvent extends CustomEvent {
+  name: 'code_mode:external_error'
+  value: { function: string; error: string; duration: number }
+}
+export interface CodeModeSkillCallEvent extends CustomEvent {
+  name: 'code_mode:skill_call'
+  value: { skill: string; input: unknown; timestamp: number }
+}
+export interface CodeModeSkillResultEvent extends CustomEvent {
+  name: 'code_mode:skill_result'
+  value: { skill: string; result: unknown; duration: number; timestamp: number }
+}
+export interface CodeModeSkillErrorEvent extends CustomEvent {
+  name: 'code_mode:skill_error'
+  value: { skill: string; error: string; duration: number; timestamp: number }
+}
+export interface SkillRegisteredEvent extends CustomEvent {
+  name: 'skill:registered'
+  value: { id: string; name: string; description: string; timestamp: number }
+}
+
+/**
+ * Every CUSTOM event TanStack AI itself emits, as a discriminated union on
+ * `name`. User-emitted custom events (via `emitCustomEvent` with a custom name)
+ * are intentionally absent — they still flow at runtime.
+ */
+export type KnownCustomEvent =
+  | SandboxFileCustomEvent
+  | SandboxFileDiffEvent
+  | FileChangedEvent
+  | SessionIdEvent
+  | CodeModeExecutionStartedEvent
+  | CodeModeConsoleEvent
+  | CodeModeExternalCallEvent
+  | CodeModeExternalResultEvent
+  | CodeModeExternalErrorEvent
+  | CodeModeSkillCallEvent
+  | CodeModeSkillResultEvent
+  | CodeModeSkillErrorEvent
+  | SkillRegisteredEvent
+  | StructuredOutputStartEvent
+  | StructuredOutputCompleteEvent
+  | ApprovalRequestedEvent
+  | ToolInputAvailableEvent
+  | UIResourceEvent
+
 /**
  * Public type for streams returned by `chat({ outputSchema, stream: true })`.
  *
