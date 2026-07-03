@@ -1,5 +1,25 @@
 # @tanstack/ai
 
+## 0.39.1
+
+### Patch Changes
+
+- [#855](https://github.com/TanStack/ai/pull/855) [`afba322`](https://github.com/TanStack/ai/commit/afba32236022589afce4d5a165fd4a8a884ae57d) - Preserve Anthropic server-tool results (`web_search` / `web_fetch`) across turns.
+
+  Previously the Anthropic adapter dropped `server_tool_use` and
+  `web_search_tool_result` / `web_fetch_tool_result` blocks while streaming, so the
+  evidence never round-tripped — a follow-up turn could no longer see the prior
+  web-search sources (issue [#839](https://github.com/TanStack/ai/issues/839)). These now stream as a **provider-executed**
+  tool call carrying the raw result, which the agent loop skips (never executed
+  client-side) and the adapter replays verbatim into the next request. Adds the
+  `ProviderExecutedToolMetadata` convention plus `isProviderExecutedToolCall` /
+  `getProviderExecutedMetadata` helpers to `@tanstack/ai`.
+
+  (No e2e: aimock cannot synthesize `server_tool_use` blocks; covered by unit
+  tests and verified live against the Anthropic API.)
+
+- [#867](https://github.com/TanStack/ai/pull/867) [`e7ad181`](https://github.com/TanStack/ai/commit/e7ad181cad20c5d6560f480835c99ff1142b40af) - Fix `addToolResult` / `addToolOutput` silently no-op'ing after a `MESSAGES_SNAPSHOT`. The AG-UI snapshot wire shape cannot reconstruct client-side tool-call metadata a server may omit (a `role: 'tool'` message only carries `toolCallId` + `content`, and an assistant message may drop `toolCalls` the client already observed via `TOOL_CALL_*` events). `handleMessagesSnapshotEvent` now runs a reconciliation pass that anchors detached `tool-result`-only assistant messages into the preceding assistant message (matching the streaming fan-out shape) and carries forward a `tool-call` part from the pre-snapshot state when the snapshot references its `toolCallId` via a `tool-result` but omits the corresponding `tool-call` part. This keeps the UI representation consistent and lets a subsequent `addToolResult(toolCallId)` locate the call. Fixes [#859](https://github.com/TanStack/ai/issues/859).
+
 ## 0.39.0
 
 ### Minor Changes

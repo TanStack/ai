@@ -1,5 +1,13 @@
 # @tanstack/ai-solid
 
+## 0.14.2
+
+### Patch Changes
+
+- Updated dependencies [[`afba322`](https://github.com/TanStack/ai/commit/afba32236022589afce4d5a165fd4a8a884ae57d), [`e7ad181`](https://github.com/TanStack/ai/commit/e7ad181cad20c5d6560f480835c99ff1142b40af)]:
+  - @tanstack/ai@0.39.1
+  - @tanstack/ai-client@0.19.2
+
 ## 0.14.1
 
 ### Patch Changes
