@@ -52,8 +52,14 @@ export function buildFileHookEvent(
   }
   const diff = async (): Promise<string> => {
     if (baseSha === '') return synthesizeAddPatch(event.path, await after())
+    // Pathspec must be relative to `root` (like `before()` above) — a bare
+    // leading `/` (e.g. the virtual `/workspace/x.ts`) is resolved by git
+    // against the filesystem root, not the repo root, and fails with
+    // "fatal: Invalid path" whenever the real repo root differs from
+    // `/workspace` (e.g. every local-process sandbox).
+    const rel = relTo(root, event.path)
     try {
-      const res = await handle.process.exec(`git diff ${q(baseSha)} -- ${q(event.path)}`, {
+      const res = await handle.process.exec(`git diff ${q(baseSha)} -- ${q(rel)}`, {
         cwd: root,
       })
       return res.exitCode === 0 ? res.stdout : ''

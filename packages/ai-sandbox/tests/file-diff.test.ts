@@ -40,11 +40,23 @@ describe('buildFileHookEvent', () => {
     expect(patch).toContain('+line1')
   })
 
-  it('diff() with a base runs `git diff <base> -- <path>`', async () => {
+  it('diff() with a base runs `git diff <base> -- <rel-path>`', async () => {
     const calls: Array<string> = []
     const h = fakeHandle({ exec: async (cmd: string) => { calls.push(cmd); return { stdout: 'DIFF', stderr: '', exitCode: 0 } } })
     const e = buildFileHookEvent(h, '/workspace', 'sha1', { type: 'change', path: '/workspace/a.ts', timestamp: 1 })
     expect(await e.diff()).toBe('DIFF')
-    expect(calls[0]).toBe("git diff 'sha1' -- '/workspace/a.ts'")
+    // Pathspec is relativized (like before()'s `git show`) — a bare leading
+    // `/` is resolved by git against the filesystem root, not the repo root,
+    // and would fail with "fatal: Invalid path" once `root` isn't literally
+    // `/workspace` on disk (e.g. every local-process sandbox).
+    expect(calls[0]).toBe("git diff 'sha1' -- 'a.ts'")
+  })
+
+  it('diff() relativizes a nested path the same way before() does', async () => {
+    const calls: Array<string> = []
+    const h = fakeHandle({ exec: async (cmd: string) => { calls.push(cmd); return { stdout: 'DIFF', stderr: '', exitCode: 0 } } })
+    const e = buildFileHookEvent(h, '/workspace', 'sha1', { type: 'change', path: '/workspace/src/a.ts', timestamp: 1 })
+    expect(await e.diff()).toBe('DIFF')
+    expect(calls[0]).toBe("git diff 'sha1' -- 'src/a.ts'")
   })
 })
