@@ -1335,4 +1335,37 @@ describe('usageAttributes', () => {
     // No cost reported → key absent.
     expect('gen_ai.usage.cost' in attrs).toBe(false)
   })
+
+  it('emits the self-describing billed quantity with its unit', () => {
+    const usage: TokenUsage = {
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      billed: { quantity: 8, unit: 'seconds' },
+    }
+    const attrs = usageAttributes(usage)
+
+    expect(attrs['tanstack.ai.usage.billed_quantity']).toBe(8)
+    expect(attrs['tanstack.ai.usage.billed_unit']).toBe('seconds')
+  })
+
+  it('omits both billed attributes when billed is absent or non-numeric', () => {
+    const attrs = usageAttributes({
+      promptTokens: 1,
+      completionTokens: 2,
+      totalTokens: 3,
+    })
+    expect('tanstack.ai.usage.billed_quantity' in attrs).toBe(false)
+    expect('tanstack.ai.usage.billed_unit' in attrs).toBe(false)
+
+    // A NaN quantity (bad provider data) must not emit a dangling unit.
+    const bad = usageAttributes({
+      promptTokens: 1,
+      completionTokens: 2,
+      totalTokens: 3,
+      billed: { quantity: Number.NaN, unit: 'units' },
+    })
+    expect('tanstack.ai.usage.billed_quantity' in bad).toBe(false)
+    expect('tanstack.ai.usage.billed_unit' in bad).toBe(false)
+  })
 })

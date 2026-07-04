@@ -625,7 +625,7 @@ adapter.snapDuration(2.5) // 3 — clamped/rounded into range
 adapter.snapDuration(99) // 15
 ```
 
-Generated clips include an audio track. When the job completes, the adapter reports `usage.unitsBilled` (billed seconds of video) and `usage.cost` (exact USD cost as returned by the API) on the result.
+Generated clips include an audio track. When the job completes, the adapter reports `usage.billed` (`{ quantity, unit: 'seconds' }` — billed seconds of video) and `usage.cost` (exact USD cost as returned by the API) on the result.
 
 ## Response Types
 
@@ -660,19 +660,24 @@ interface VideoUrlResult {
   jobId: string
   url: string        // URL to download/stream the video
   expiresAt?: Date   // When the URL expires
-  // Usage for the completed generation, when the adapter reports it. fal
-  // populates `usage.unitsBilled` from its `x-fal-billable-units` header.
+  // Usage for the completed generation, when the adapter reports it. The
+  // billed quantity is self-describing: fal reports
+  // `usage.billed = { quantity, unit: 'units' }` (from its
+  // `x-fal-billable-units` header), Grok Imagine reports
+  // `{ quantity, unit: 'seconds' }`.
   usage?: TokenUsage
 }
 ```
 
 > **Cost tracking (fal):** fal bills media generation by usage-based units
 > rather than tokens. The fal adapters surface the real billed quantity as
-> `usage.unitsBilled` (denominated in the endpoint's priced unit). Combine it
-> with the endpoint's unit price from
-> `GET https://api.fal.ai/v1/models/pricing?endpoint_id=…` to compute the exact
-> cost (`unitsBilled * unitPrice`). The same `usage.unitsBilled` is surfaced
-> on image, audio, speech, and transcription results.
+> `usage.billed` — `{ quantity, unit: 'units' }`, where `'units'` marks fal's
+> endpoint-defined priced unit. Combine the quantity with the endpoint's unit
+> price from `GET https://api.fal.ai/v1/models/pricing?endpoint_id=…` to
+> compute the exact cost (`billed.quantity * unitPrice`). The same
+> `usage.billed` is surfaced on image, audio, speech, and transcription
+> results. (The deprecated bare count `usage.unitsBilled` is still populated
+> for backward compatibility.)
 
 ## Model Variants
 

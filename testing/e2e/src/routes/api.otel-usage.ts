@@ -3,104 +3,10 @@ import { chat, createChatOptions } from '@tanstack/ai'
 import { otelMiddleware } from '@tanstack/ai/middlewares/otel'
 import { createOpenaiChatCompletions } from '@tanstack/ai-openai'
 import { createOpenRouterText } from '@tanstack/ai-openrouter'
-import type {
-  AttributeValue,
-  Context,
-  Span,
-  SpanContext,
-  Tracer,
-} from '@opentelemetry/api'
+import { createLocalCaptureTracer } from '@/lib/otel-local-tracer'
 
 const LLMOCK_DEFAULT_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
 const DUMMY_KEY = 'sk-e2e-test-dummy-key'
-
-interface CapturedSpan {
-  name: string
-  kind?: number
-  attributes: Record<string, AttributeValue>
-  ended: boolean
-}
-
-/**
- * Single-request in-memory tracer. Unlike the per-testId capture in
- * `api.middleware-test.ts`, everything here happens inside one POST, so spans
- * collect into a local array returned directly in the response body.
- */
-function createLocalCaptureTracer(): {
-  tracer: Tracer
-  spans: Array<CapturedSpan>
-} {
-  const spans: Array<CapturedSpan> = []
-  let spanSeq = 0
-  const tracer: Tracer = {
-    startSpan(name, options = {}, _ctx?: Context): Span {
-      const id = `span-${spanSeq++}`
-      const attributes: Record<string, AttributeValue> = {}
-      for (const [k, v] of Object.entries(options.attributes ?? {})) {
-        if (v !== undefined) attributes[k] = v as AttributeValue
-      }
-      const captured: CapturedSpan = {
-        name,
-        kind: options.kind,
-        attributes,
-        ended: false,
-      }
-      spans.push(captured)
-      const span: Span = {
-        spanContext(): SpanContext {
-          return { traceId: 'otel-usage-trace', spanId: id, traceFlags: 1 }
-        },
-        setAttribute(key, value) {
-          captured.attributes[key] = value as AttributeValue
-          return span
-        },
-        setAttributes(next) {
-          for (const [k, v] of Object.entries(next)) {
-            captured.attributes[k] = v as AttributeValue
-          }
-          return span
-        },
-        addEvent() {
-          return span
-        },
-        addLink() {
-          return span
-        },
-        addLinks() {
-          return span
-        },
-        setStatus() {
-          return span
-        },
-        updateName(next) {
-          captured.name = next
-          return span
-        },
-        end() {
-          captured.ended = true
-        },
-        isRecording() {
-          return !captured.ended
-        },
-        recordException() {},
-      }
-      return span
-    },
-    // Minimal implementation — otelMiddleware never calls startActiveSpan.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    startActiveSpan(...args: Array<any>) {
-      const fn = args[args.length - 1] as (span: Span) => unknown
-      const name = args[0] as string
-      const span = tracer.startSpan(name, {})
-      try {
-        return fn(span)
-      } finally {
-        span.end()
-      }
-    },
-  }
-  return { tracer, spans }
-}
 
 /**
  * Drives a chat adapter with `otelMiddleware` against the existing

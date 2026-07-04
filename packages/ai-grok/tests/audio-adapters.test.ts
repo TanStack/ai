@@ -300,6 +300,15 @@ describe('GrokTranscriptionAdapter', () => {
     expect(result.text).toBe('hello world')
     expect(result.language).toBe('en')
     expect(result.duration).toBe(1.23)
+    // STT is duration-billed: the audio duration doubles as the billed
+    // quantity, self-described in seconds.
+    expect(result.usage).toEqual({
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      billed: { quantity: 1.23, unit: 'seconds' },
+      durationSeconds: 1.23,
+    })
     // Grok returns `confidence` per word when the model provides one; we
     // surface it under `GrokTranscriptionWord` so callers that know they're
     // using Grok can narrow the result via `as Array<GrokTranscriptionWord>`.

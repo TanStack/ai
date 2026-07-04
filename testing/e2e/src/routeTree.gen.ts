@@ -28,6 +28,7 @@ import { Route as ApiToolsTestRouteImport } from './routes/api.tools-test'
 import { Route as ApiToolCallLifecycleWireRouteImport } from './routes/api.tool-call-lifecycle-wire'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiOtelUsageRouteImport } from './routes/api.otel-usage'
+import { Route as ApiOtelTranscriptionRouteImport } from './routes/api.otel-transcription'
 import { Route as ApiOtelMediaRouteImport } from './routes/api.otel-media'
 import { Route as ApiOpenrouterWebToolsWireRouteImport } from './routes/api.openrouter-web-tools-wire'
 import { Route as ApiOpenrouterCostRouteImport } from './routes/api.openrouter-cost'
@@ -152,6 +153,11 @@ const ApiSummarizeRoute = ApiSummarizeRouteImport.update({
 const ApiOtelUsageRoute = ApiOtelUsageRouteImport.update({
   id: '/api/otel-usage',
   path: '/api/otel-usage',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOtelTranscriptionRoute = ApiOtelTranscriptionRouteImport.update({
+  id: '/api/otel-transcription',
+  path: '/api/otel-transcription',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiOtelMediaRoute = ApiOtelMediaRouteImport.update({
@@ -340,6 +346,7 @@ export interface FileRoutesByFullPath {
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
+  '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
@@ -390,6 +397,7 @@ export interface FileRoutesByTo {
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
+  '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
@@ -441,6 +449,7 @@ export interface FileRoutesById {
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
+  '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
@@ -493,6 +502,7 @@ export interface FileRouteTypes {
     | '/api/openrouter-cost'
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
+    | '/api/otel-transcription'
     | '/api/otel-usage'
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
@@ -543,6 +553,7 @@ export interface FileRouteTypes {
     | '/api/openrouter-cost'
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
+    | '/api/otel-transcription'
     | '/api/otel-usage'
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
@@ -593,6 +604,7 @@ export interface FileRouteTypes {
     | '/api/openrouter-cost'
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
+    | '/api/otel-transcription'
     | '/api/otel-usage'
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
@@ -644,6 +656,7 @@ export interface RootRouteChildren {
   ApiOpenrouterCostRoute: typeof ApiOpenrouterCostRoute
   ApiOpenrouterWebToolsWireRoute: typeof ApiOpenrouterWebToolsWireRoute
   ApiOtelMediaRoute: typeof ApiOtelMediaRoute
+  ApiOtelTranscriptionRoute: typeof ApiOtelTranscriptionRoute
   ApiOtelUsageRoute: typeof ApiOtelUsageRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
   ApiToolCallLifecycleWireRoute: typeof ApiToolCallLifecycleWireRoute
@@ -787,6 +800,13 @@ declare module '@tanstack/react-router' {
       path: '/api/otel-usage'
       fullPath: '/api/otel-usage'
       preLoaderRoute: typeof ApiOtelUsageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/otel-transcription': {
+      id: '/api/otel-transcription'
+      path: '/api/otel-transcription'
+      fullPath: '/api/otel-transcription'
+      preLoaderRoute: typeof ApiOtelTranscriptionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/otel-media': {
@@ -1089,6 +1109,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOpenrouterCostRoute: ApiOpenrouterCostRoute,
   ApiOpenrouterWebToolsWireRoute: ApiOpenrouterWebToolsWireRoute,
   ApiOtelMediaRoute: ApiOtelMediaRoute,
+  ApiOtelTranscriptionRoute: ApiOtelTranscriptionRoute,
   ApiOtelUsageRoute: ApiOtelUsageRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
   ApiToolCallLifecycleWireRoute: ApiToolCallLifecycleWireRoute,

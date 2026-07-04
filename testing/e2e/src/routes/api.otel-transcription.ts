@@ -1,8 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { generateImage } from '@tanstack/ai'
+import { generateTranscription } from '@tanstack/ai'
 import { otelMiddleware } from '@tanstack/ai/middlewares/otel'
 import type { Provider } from '@/lib/types'
-import { createImageAdapter } from '@/lib/media-providers'
+import { createTranscriptionAdapter } from '@/lib/media-providers'
 import { createLocalCaptureTracer } from '@/lib/otel-local-tracer'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -23,13 +23,13 @@ function recordFromBody(body: unknown): Record<string, unknown> {
 }
 
 /**
- * Drives `generateImage` with `otelMiddleware` against the same aimock mount
- * the image-gen feature tests use, and returns the captured spans. End-to-end
- * proof that the unified middleware emits a `gen_ai.*` span tagged
- * `image_generation` for a non-chat activity — the same `otelMiddleware` value
- * used for chat, passed through the media `middleware` slot.
+ * Drives `generateTranscription` with `otelMiddleware` against the whisper
+ * aimock fixture (which reports an audio `duration`), and returns the captured
+ * spans. End-to-end proof that a duration-billed activity surfaces the
+ * self-describing billed quantity on its span:
+ * `tanstack.ai.usage.billed_quantity` + `tanstack.ai.usage.billed_unit`.
  */
-export const Route = createFileRoute('/api/otel-media')({
+export const Route = createFileRoute('/api/otel-transcription')({
   server: {
     handlers: {
       POST: async ({ request }) => {
@@ -38,26 +38,26 @@ export const Route = createFileRoute('/api/otel-media')({
         try {
           const body: unknown = await request.json()
           const data = recordFromBody(body)
-          const prompt = data.prompt
+          const audio = data.audio
           const provider = data.provider
-          if (typeof prompt !== 'string' || typeof provider !== 'string') {
-            throw new Error('Missing required fields: prompt/provider')
+          if (typeof audio !== 'string' || typeof provider !== 'string') {
+            throw new Error('Missing required fields: audio/provider')
           }
 
           const testId =
             typeof data.testId === 'string' ? data.testId : undefined
           const aimockPort =
             typeof data.aimockPort === 'number' ? data.aimockPort : undefined
-          const adapter = createImageAdapter(
+          const adapter = createTranscriptionAdapter(
             provider as Provider,
             aimockPort,
             testId,
           )
           const { tracer, spans } = createLocalCaptureTracer()
 
-          await generateImage({
+          await generateTranscription({
             adapter,
-            prompt,
+            audio,
             middleware: [otelMiddleware({ tracer })],
           })
 
