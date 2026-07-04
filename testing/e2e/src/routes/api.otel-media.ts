@@ -4,23 +4,7 @@ import { otelMiddleware } from '@tanstack/ai/middlewares/otel'
 import type { Provider } from '@/lib/types'
 import { createImageAdapter } from '@/lib/media-providers'
 import { createLocalCaptureTracer } from '@/lib/otel-local-tracer'
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
-
-function recordFromBody(body: unknown): Record<string, unknown> {
-  if (!isRecord(body)) {
-    throw new Error('Invalid request body')
-  }
-
-  const data = body.forwardedProps ?? body.data ?? body
-  if (!isRecord(data)) {
-    throw new Error('Invalid request body')
-  }
-
-  return data
-}
+import { recordFromBody } from '@/lib/request-body'
 
 /**
  * Drives `generateImage` with `otelMiddleware` against the same aimock mount

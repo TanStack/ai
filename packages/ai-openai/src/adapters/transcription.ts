@@ -52,6 +52,22 @@ function mapDiarizedSegmentId(id: string, index: number): number {
  * Build TokenUsage from transcription response.
  * Whisper-1 uses duration-based billing, GPT-4o models use token-based billing.
  */
+/**
+ * Duration-billed usage: zeroed token fields with the billed seconds carried
+ * on `billed` and, for backward compatibility, the deprecated
+ * `durationSeconds`. Shared by the gpt-4o duration branch and the whisper-1
+ * path so the two fields can't drift apart.
+ */
+function durationUsage(seconds: number): TokenUsage {
+  return {
+    promptTokens: 0,
+    completionTokens: 0,
+    totalTokens: 0,
+    billed: { quantity: seconds, unit: 'seconds' },
+    durationSeconds: seconds,
+  }
+}
+
 function buildTranscriptionUsage(
   model: string,
   duration?: number,
@@ -72,13 +88,7 @@ function buildTranscriptionUsage(
     // gpt-4o-transcribe-diarize responses may report duration-based usage;
     // surface it rather than discarding billing data the API returned.
     if (usage.type === 'duration') {
-      return {
-        promptTokens: 0,
-        completionTokens: 0,
-        totalTokens: 0,
-        billed: { quantity: usage.seconds, unit: 'seconds' },
-        durationSeconds: usage.seconds,
-      }
+      return durationUsage(usage.seconds)
     }
 
     const result: TokenUsage = {
@@ -112,13 +122,7 @@ function buildTranscriptionUsage(
 
   // Whisper-1 uses duration-based billing
   if (duration !== undefined && duration > 0) {
-    return {
-      promptTokens: 0,
-      completionTokens: 0,
-      totalTokens: 0,
-      billed: { quantity: duration, unit: 'seconds' },
-      durationSeconds: duration,
-    }
+    return durationUsage(duration)
   }
 
   return undefined
