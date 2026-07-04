@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Film, Loader2, Shuffle, Upload, Wand2, X } from 'lucide-react'
+import type { BilledUsage } from '@tanstack/ai'
 import type { VideoMode } from '@/lib/models'
 import type { AttachedMedia } from '@/lib/media'
 import type { MediaPromptPart } from '@tanstack/ai/client'
@@ -27,10 +28,26 @@ type JobState =
       status: 'completed'
       url: string
       jobId: string
-      unitsBilled?: number
+      billed?: BilledUsage
       cost?: number
     }
   | { status: 'error'; message: string }
+
+/**
+ * Human label for a billed quantity, driven by the unit the adapter reported —
+ * no guessing from provider identity or cost presence.
+ */
+function describeBilled({ quantity, unit }: BilledUsage): string {
+  const plural = quantity === 1 ? '' : 's'
+  switch (unit) {
+    case 'seconds':
+      return `${quantity} second${plural} of video`
+    case 'units':
+      return `${quantity} fal unit${plural}`
+    default:
+      return `${quantity} ${unit}`
+  }
+}
 
 interface VideoGeneratorProps {
   initialImageUrl?: string | null
@@ -131,7 +148,7 @@ export default function VideoGenerator({
             status: 'completed',
             url: url,
             jobId,
-            unitsBilled: urlResult.usage?.unitsBilled,
+            billed: urlResult.usage?.billed,
             cost: urlResult.usage?.cost,
           },
         }))
@@ -574,16 +591,17 @@ export default function VideoGenerator({
                     {state.cost != null ? (
                       <p className="text-xs text-gray-500">
                         Billed ${state.cost.toFixed(3)}
-                        {state.unitsBilled != null
-                          ? ` for ${state.unitsBilled} second${state.unitsBilled === 1 ? '' : 's'} of video`
+                        {state.billed
+                          ? ` for ${describeBilled(state.billed)}`
                           : ''}
                       </p>
                     ) : (
-                      state.unitsBilled != null && (
+                      state.billed && (
                         <p className="text-xs text-gray-500">
-                          Billed {state.unitsBilled} fal unit
-                          {state.unitsBilled === 1 ? '' : 's'} — multiply by the
-                          endpoint unit price for USD cost
+                          Billed {describeBilled(state.billed)}
+                          {state.billed.unit === 'units'
+                            ? ' — multiply by the endpoint unit price for USD cost'
+                            : ''}
                         </p>
                       )
                     )}

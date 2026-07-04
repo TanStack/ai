@@ -76,6 +76,7 @@ function buildTranscriptionUsage(
         promptTokens: 0,
         completionTokens: 0,
         totalTokens: 0,
+        billed: { quantity: usage.seconds, unit: 'seconds' },
         durationSeconds: usage.seconds,
       }
     }
@@ -115,6 +116,7 @@ function buildTranscriptionUsage(
       promptTokens: 0,
       completionTokens: 0,
       totalTokens: 0,
+      billed: { quantity: duration, unit: 'seconds' },
       durationSeconds: duration,
     }
   }
