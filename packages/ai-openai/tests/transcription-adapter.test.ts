@@ -687,7 +687,9 @@ describe('OpenAI transcription adapter', () => {
     )
     const mockCreate = adapter
       .spyOnTranscriptionsCreate()
-      .mockResolvedValueOnce('Hello world' as unknown as OpenAI.Audio.Transcription)
+      .mockResolvedValueOnce(
+        'Hello world' as unknown as OpenAI.Audio.Transcription,
+      )
 
     const result = await adapter.transcribe({
       model: 'whisper-1',
@@ -767,11 +769,9 @@ describe('OpenAI transcription adapter', () => {
       { apiKey: 'test-api-key' },
       'gpt-4o-transcribe-diarize',
     )
-    adapter
-      .spyOnTranscriptionsCreate()
-      .mockResolvedValueOnce({
-        text: 'Hello',
-      } as unknown as OpenAI.Audio.TranscriptionDiarized)
+    adapter.spyOnTranscriptionsCreate().mockResolvedValueOnce({
+      text: 'Hello',
+    } as unknown as OpenAI.Audio.TranscriptionDiarized)
 
     await expect(
       adapter.transcribe({
