@@ -2,6 +2,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest'
 import {
   ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS,
   ANTHROPIC_MAX_NONSTREAMING_TOKENS,
+  ANTHROPIC_MODELS,
   getAnthropicDefaultMaxTokens,
 } from '../src/model-meta'
 import type {
@@ -333,11 +334,11 @@ describe('Anthropic Model Input Modality Type Assertions', () => {
 
 describe('getAnthropicDefaultMaxTokens (#849)', () => {
   it("returns the model's max_output_tokens for known models", () => {
-    expect(getAnthropicDefaultMaxTokens('claude-opus-4.8')).toBe(128_000)
+    expect(getAnthropicDefaultMaxTokens('claude-opus-4-8')).toBe(128_000)
     expect(getAnthropicDefaultMaxTokens('claude-opus-4-6')).toBe(128_000)
     expect(getAnthropicDefaultMaxTokens('claude-sonnet-4-6')).toBe(64_000)
-    expect(getAnthropicDefaultMaxTokens('claude-3-7-sonnet')).toBe(64_000)
-    expect(getAnthropicDefaultMaxTokens('claude-3-haiku')).toBe(4_000)
+    expect(getAnthropicDefaultMaxTokens('claude-sonnet-4-5')).toBe(64_000)
+    expect(getAnthropicDefaultMaxTokens('claude-opus-4-5')).toBe(32_000)
   })
 
   it('falls back to the safe constant for unknown models', () => {
@@ -348,7 +349,7 @@ describe('getAnthropicDefaultMaxTokens (#849)', () => {
   })
 
   it('never returns the old hard-coded 1024 floor for a known model', () => {
-    expect(getAnthropicDefaultMaxTokens('claude-opus-4.8')).toBeGreaterThan(
+    expect(getAnthropicDefaultMaxTokens('claude-opus-4-8')).toBeGreaterThan(
       1024,
     )
   })
@@ -361,7 +362,7 @@ describe('getAnthropicDefaultMaxTokens (#849)', () => {
 
     // Opus 128K and Sonnet 64K both exceed the non-streaming limit → clamped.
     expect(
-      getAnthropicDefaultMaxTokens('claude-opus-4.8', { stream: false }),
+      getAnthropicDefaultMaxTokens('claude-opus-4-8', { stream: false }),
     ).toBe(ANTHROPIC_MAX_NONSTREAMING_TOKENS)
     expect(
       getAnthropicDefaultMaxTokens('claude-sonnet-4-6', { stream: false }),
@@ -374,19 +375,22 @@ describe('getAnthropicDefaultMaxTokens (#849)', () => {
     ).toBe(ANTHROPIC_MAX_NONSTREAMING_TOKENS)
   })
 
-  it('does not clamp a model whose ceiling is already below the non-streaming limit (#849)', () => {
-    // claude-3-haiku's 4K ceiling is under the non-streaming limit, so the
-    // non-streaming path returns the real ceiling, not the (larger) cap.
-    expect(
-      getAnthropicDefaultMaxTokens('claude-3-haiku', { stream: false }),
-    ).toBe(4_000)
+  it('clamps every current model on the non-streaming path (#849)', () => {
+    // Every model in today's lineup has a ceiling (32K–128K) above the
+    // non-streaming limit, so all of them clamp. (The clamp is a Math.min, so
+    // a future sub-21K model would keep its real ceiling instead.)
+    for (const model of ANTHROPIC_MODELS) {
+      expect(getAnthropicDefaultMaxTokens(model, { stream: false })).toBe(
+        ANTHROPIC_MAX_NONSTREAMING_TOKENS,
+      )
+    }
   })
 
   it('keeps the full ceiling for streaming requests (default) (#849)', () => {
     expect(
-      getAnthropicDefaultMaxTokens('claude-opus-4.8', { stream: true }),
+      getAnthropicDefaultMaxTokens('claude-opus-4-8', { stream: true }),
     ).toBe(128_000)
     // Omitting the option defaults to streaming.
-    expect(getAnthropicDefaultMaxTokens('claude-opus-4.8')).toBe(128_000)
+    expect(getAnthropicDefaultMaxTokens('claude-opus-4-8')).toBe(128_000)
   })
 })

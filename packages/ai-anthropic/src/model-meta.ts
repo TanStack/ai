@@ -537,16 +537,10 @@ const ANTHROPIC_MODEL_MAX_OUTPUT_TOKENS: Record<string, number> = {
   [CLAUDE_SONNET_4_5.id]: CLAUDE_SONNET_4_5.max_output_tokens,
   [CLAUDE_HAIKU_4_5.id]: CLAUDE_HAIKU_4_5.max_output_tokens,
   [CLAUDE_OPUS_4_1.id]: CLAUDE_OPUS_4_1.max_output_tokens,
-  [CLAUDE_SONNET_4.id]: CLAUDE_SONNET_4.max_output_tokens,
-  [CLAUDE_SONNET_3_7.id]: CLAUDE_SONNET_3_7.max_output_tokens,
-  [CLAUDE_OPUS_4.id]: CLAUDE_OPUS_4.max_output_tokens,
-  [CLAUDE_HAIKU_3_5.id]: CLAUDE_HAIKU_3_5.max_output_tokens,
-  [CLAUDE_HAIKU_3.id]: CLAUDE_HAIKU_3.max_output_tokens,
-  [CLAUDE_OPUS_4_6_FAST.id]: CLAUDE_OPUS_4_6_FAST.max_output_tokens,
   [CLAUDE_OPUS_4_7.id]: CLAUDE_OPUS_4_7.max_output_tokens,
-  [CLAUDE_OPUS_4_7_FAST.id]: CLAUDE_OPUS_4_7_FAST.max_output_tokens,
   [CLAUDE_OPUS_4_8.id]: CLAUDE_OPUS_4_8.max_output_tokens,
-  [CLAUDE_OPUS_4_8_FAST.id]: CLAUDE_OPUS_4_8_FAST.max_output_tokens,
+  [CLAUDE_FABLE_5.id]: CLAUDE_FABLE_5.max_output_tokens,
+  [CLAUDE_SONNET_5.id]: CLAUDE_SONNET_5.max_output_tokens,
 }
 
 /**

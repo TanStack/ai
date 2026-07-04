@@ -464,7 +464,7 @@ describe('Anthropic adapter option mapping', () => {
     }
 
     const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
-    // claude-3-7-sonnet's model-meta max_output_tokens is 64_000 — not the old
+    // claude-opus-4-1's model-meta max_output_tokens is 64_000 — not the old
     // hard-coded 1024 floor that silently truncated long responses.
     expect(payload.max_tokens).toBe(64_000)
   })
@@ -492,7 +492,7 @@ describe('Anthropic adapter option mapping', () => {
     })()
     mocks.betaMessagesCreate.mockResolvedValueOnce(truncatedStream)
 
-    const adapter = createAdapter('claude-3-7-sonnet')
+    const adapter = createAdapter('claude-opus-4-1')
 
     const logger = {
       debug: vi.fn(),
@@ -526,7 +526,7 @@ describe('Anthropic adapter option mapping', () => {
     })()
     mocks.betaMessagesCreate.mockResolvedValueOnce(truncatedStream)
 
-    const adapter = createAdapter('claude-3-7-sonnet')
+    const adapter = createAdapter('claude-opus-4-1')
 
     const logger = {
       debug: vi.fn(),
@@ -560,7 +560,7 @@ describe('Anthropic adapter option mapping', () => {
       id: 'msg_structured',
       type: 'message',
       role: 'assistant',
-      model: 'claude-3-7-sonnet',
+      model: 'claude-opus-4-1',
       content: [
         {
           type: 'tool_use',
@@ -573,7 +573,7 @@ describe('Anthropic adapter option mapping', () => {
       usage: { input_tokens: 10, output_tokens: 20 },
     })
 
-    const adapter = createAdapter('claude-3-7-sonnet')
+    const adapter = createAdapter('claude-opus-4-1')
 
     for await (const _ of chat({
       adapter,
@@ -589,7 +589,7 @@ describe('Anthropic adapter option mapping', () => {
 
     const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
     expect(payload.stream).toBe(false)
-    // Clamped to the non-streaming limit — NOT claude-3-7-sonnet's full 64K
+    // Clamped to the non-streaming limit — NOT claude-opus-4-1's full 64K
     // streaming ceiling, which would make the SDK throw before the request.
     expect(payload.max_tokens).toBe(ANTHROPIC_MAX_NONSTREAMING_TOKENS)
     expect(payload.max_tokens).toBeLessThanOrEqual(21_333)
