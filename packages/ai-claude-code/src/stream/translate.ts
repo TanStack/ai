@@ -111,6 +111,8 @@ export async function* translateSdkStream(
   const unresolvedToolCalls = new Set<string>()
   /** Anthropic message ids whose text/thinking already streamed via partials. */
   const streamedMessageIds = new Set<string>()
+  /** Tool-call ids already streamed via partials, so the complete message dedupes them. */
+  const streamedToolCallIds = new Set<string>()
 
   // Partial-stream state
   let partialMessageId: string | null = null
@@ -119,6 +121,9 @@ export async function* translateSdkStream(
   let partialTextContent = ''
   let partialTextStarted = false
   let partialReasoningId: string | null = null
+  let partialToolCallId: string | null = null
+  let partialToolCallName: string | null = null
+  let partialToolArgs = ''
 
   function* startRun(): Generator<StreamChunk> {
     if (runStarted) return
@@ -177,6 +182,33 @@ export async function* translateSdkStream(
       }
     }
     partialReasoningId = null
+  }
+
+  function* closePartialToolUse(): Generator<StreamChunk> {
+    if (partialToolCallId) {
+      // At content_block_stop the accumulated JSON is complete; the try/catch
+      // mirrors the model adapters and only guards a truncated/aborted stream.
+      let input: unknown = {}
+      try {
+        const parsed = partialToolArgs ? JSON.parse(partialToolArgs) : {}
+        input = parsed && typeof parsed === 'object' ? parsed : {}
+      } catch {
+        input = {}
+      }
+      yield {
+        type: EventType.TOOL_CALL_END,
+        toolCallId: partialToolCallId,
+        toolCallName: partialToolCallName ?? '',
+        toolName: partialToolCallName ?? '',
+        model,
+        timestamp: now(),
+        input,
+      }
+      unresolvedToolCalls.add(partialToolCallId)
+    }
+    partialToolCallId = null
+    partialToolCallName = null
+    partialToolArgs = ''
   }
 
   function* emitToolUse(block: {
@@ -284,9 +316,10 @@ export async function* translateSdkStream(
           timestamp: now(),
         }
       } else if (block.type === 'tool_use') {
-        yield* emitToolUse(
-          block as { id: string; name: string; input: unknown },
-        )
+        const toolBlock = block as { id: string; name: string; input: unknown }
+        // Skip the tool call if the partial stream already emitted it.
+        if (streamedToolCallIds.has(toolBlock.id)) continue
+        yield* emitToolUse(toolBlock)
       }
     }
   }
@@ -317,6 +350,7 @@ export async function* translateSdkStream(
   function* handleResult(message: SdkResultMessage): Generator<StreamChunk> {
     yield* closePartialText()
     yield* closePartialReasoning()
+    yield* closePartialToolUse()
     yield* synthesizeUnresolvedResults()
 
     const usage = buildUsage(message.usage, message.total_cost_usd)
@@ -393,6 +427,30 @@ export async function* translateSdkStream(
           model,
           timestamp: now(),
         }
+      } else if (partialBlockType === 'tool_use') {
+        // The partial content_block_start carries the tool id + name; stream
+        // the call so its args paint incrementally instead of arriving whole.
+        const block = event.content_block
+        if (block.id) {
+          partialToolCallId = block.id
+          partialToolCallName = stripMcpPrefix(block.name ?? '')
+          partialToolArgs = ''
+          streamedToolCallIds.add(block.id)
+          yield {
+            type: EventType.TOOL_CALL_START,
+            toolCallId: block.id,
+            toolCallName: partialToolCallName,
+            toolName: partialToolCallName,
+            model,
+            timestamp: now(),
+            // Group under the same message as sibling text/thinking blocks (as
+            // the partial text path does) so a downstream message rename can't
+            // orphan this call's later result.
+            ...(partialMessageId !== null && {
+              parentMessageId: partialMessageId,
+            }),
+          }
+        }
       }
     } else if (event.type === 'content_block_delta') {
       if (
@@ -422,12 +480,28 @@ export async function* translateSdkStream(
           model,
           timestamp: now(),
         }
+      } else if (
+        event.delta.type === 'input_json_delta' &&
+        partialToolCallId &&
+        typeof event.delta.partial_json === 'string'
+      ) {
+        partialToolArgs += event.delta.partial_json
+        yield {
+          type: EventType.TOOL_CALL_ARGS,
+          toolCallId: partialToolCallId,
+          model,
+          timestamp: now(),
+          delta: event.delta.partial_json,
+          args: partialToolArgs,
+        }
       }
     } else if (event.type === 'content_block_stop') {
       if (partialBlockType === 'text') {
         yield* closePartialText()
       } else if (partialBlockType === 'thinking') {
         yield* closePartialReasoning()
+      } else if (partialBlockType === 'tool_use') {
+        yield* closePartialToolUse()
       }
       partialBlockType = null
     }
@@ -473,10 +547,13 @@ export async function* translateSdkStream(
       // harness-internal and intentionally ignored.
     }
   } catch (error) {
-    // The run is dying (abort or SDK failure). Pair any started tool calls
-    // with a synthetic result first so the next request's pending-tool-call
-    // scan doesn't try to execute them, then let the adapter surface the
-    // error as RUN_ERROR.
+    // The run is dying (abort or SDK failure). Close any in-flight partial
+    // tool call first (mirrors handleResult) so its TOOL_CALL_START is paired
+    // with a TOOL_CALL_END and registered as unresolved, then synthesize
+    // results for every started-but-unresolved tool call so the next request's
+    // pending-tool-call scan doesn't try to execute them. Finally let the
+    // adapter surface the error as RUN_ERROR.
+    yield* closePartialToolUse()
     yield* synthesizeUnresolvedResults()
     throw error
   }
