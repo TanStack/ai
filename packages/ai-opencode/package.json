@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-opencode",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "OpenCode harness adapter for TanStack AI — run OpenCode as a chat backend with local tool execution and stateful sessions.",
   "author": "",
   "license": "MIT",
