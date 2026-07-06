@@ -409,6 +409,53 @@ export const Route = createFileRoute('/api/chat')({
 })
 ```
 
+### 7. Queueing Messages Sent While Streaming
+
+By default, a `sendMessage` call that arrives while a stream is in flight is
+**queued** and sent automatically once the stream settles — this is a
+behavior change: such sends used to be silently dropped. Configure it with
+the `queue` option on `useChat`:
+
+```typescript
+import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
+
+const { messages, queue, sendMessage, cancelQueued, isLoading } = useChat({
+  connection: fetchServerSentEvents('/api/chat'),
+  queue: { whenBusy: 'queue', drain: 'fifo', maxSize: 5, onOverflow: 'reject' },
+})
+```
+
+- **`whenBusy`** — `'queue'` (default) holds the message; `'drop'` ignores
+  the send; `'interrupt'` aborts the current stream (like `stop()`) and
+  sends immediately. Also accepts a plain `WhenBusy` string as shorthand, or
+  a `QueueStrategy` function for full per-send control.
+- **`drain`** — `'fifo'` (default) sends queued items one at a time in
+  order; `'batch'` merges everything queued into a single send once the
+  stream settles.
+- **`maxSize`** / **`onOverflow`** — cap the queue length; `'reject'`
+  (default) ignores overflow sends, `'drop-oldest'` evicts the oldest
+  queued item to make room.
+
+`queue: Array<QueuedMessage>` (`{ id, content, createdAt }`) is separate
+from `messages` — render pending sends distinctly and cancel with
+`cancelQueued(id)`:
+
+```typescript
+{queue.map((q) => (
+  <div key={q.id}>
+    {typeof q.content === 'string' ? q.content : '[attachment]'}
+    <button onClick={() => cancelQueued(q.id)}>Cancel</button>
+  </div>
+))}
+```
+
+Override the configured policy for a single send with the second argument
+to `sendMessage`:
+
+```typescript
+sendMessage('Never mind, do this instead', { whenBusy: 'interrupt' })
+```
+
 ## Common Mistakes
 
 ### a. CRITICAL: Using Vercel AI SDK patterns (streamText, generateText)
