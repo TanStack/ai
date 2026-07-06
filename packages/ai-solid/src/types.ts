@@ -127,8 +127,7 @@ interface BaseUseChatReturn<
   messages: Accessor<Array<UIMessage<TTools, TData>>>
 
   /**
-   * Messages currently queued because a request was in flight when they
-   * were sent (see `sendMessage`'s `whenBusy: 'enqueue'` option).
+   * Pending messages queued while a stream is in flight.
    */
   queue: Accessor<Array<QueuedMessage>>
 

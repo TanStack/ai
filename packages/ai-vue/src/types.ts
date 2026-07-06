@@ -21,7 +21,13 @@ import type {
 import type { DeepReadonly, ShallowRef } from 'vue'
 
 // Re-export types from ai-client
-export type { ChatRequestBody, MultimodalContent, QueuedMessage, UIMessage, WhenBusy }
+export type {
+  ChatRequestBody,
+  MultimodalContent,
+  QueuedMessage,
+  UIMessage,
+  WhenBusy,
+}
 
 /**
  * Recursive partial — every property and every nested array element is optional.
