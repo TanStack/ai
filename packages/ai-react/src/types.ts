@@ -15,9 +15,9 @@ import type {
   InferredClientContext,
   MultimodalContent,
   QueueConfig,
-  QueuedMessage,
   QueueOption,
   QueueStrategy,
+  QueuedMessage,
   UIMessage,
   WhenBusy,
 } from '@tanstack/ai-client'
