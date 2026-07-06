@@ -40,8 +40,8 @@ import type {
   ChatFetcher,
   ChatPendingInterrupt,
   ChatPersistenceOptions,
-  ChatResumeState,
   ChatResumeSnapshot,
+  ChatResumeState,
   ChatServerPersistence,
   ConnectionStatus,
   MessagePart,
@@ -1357,6 +1357,7 @@ export class ChatClient<
       // Send through normalized connection (pushes chunks to subscription queue)
       await this.connection.send(messages, mergedBody, signal, runContext)
 
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- mutated asynchronously during await
       if (generation !== this.streamGeneration || signal.aborted) {
         return false
       }

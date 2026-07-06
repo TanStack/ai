@@ -1985,7 +1985,8 @@ export class StreamProcessor {
 
   private isToolCallPartAwaitingUserAction(toolCallId: string): boolean {
     return this.messages.some((msg) =>
-      msg.parts.some(
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- `parts` is typed as required, but seeded ModelMessage-shaped messages can lack it at runtime.
+      msg.parts?.some(
         (part) =>
           part.type === 'tool-call' &&
           part.id === toolCallId &&

@@ -353,6 +353,7 @@ async function bytesFromStream(
   const chunks: Array<Uint8Array> = []
   let total = 0
   try {
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     while (true) {
       const { done, value } = await reader.read()
       if (done) break
@@ -480,9 +481,13 @@ class MemoryBlobStore implements BlobStore {
       .filter((key) => options?.cursor === undefined || key > options.cursor)
       .sort()
     const pageKeys = limit === undefined ? keys : keys.slice(0, limit)
-    const objects = pageKeys.map((key) =>
-      blobRecordSnapshot(this.blobs.get(key)!.record),
-    )
+    const objects = pageKeys.map((key) => {
+      const blob = this.blobs.get(key)
+      if (blob === undefined) {
+        throw new Error(`Missing blob for listed key: ${key}`)
+      }
+      return blobRecordSnapshot(blob.record)
+    })
     const truncated = limit !== undefined && keys.length > limit
     return Promise.resolve({
       objects,
