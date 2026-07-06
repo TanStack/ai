@@ -1830,4 +1830,37 @@ describe('ChatClient resume', () => {
     expect(resumed).toBe(false)
     expect(contexts).toHaveLength(1)
   })
+
+  it('maybeAutoResume is a no-op while hydrated interrupts are pending', async () => {
+    const { adapter, contexts } = recordingAdapter([[]])
+    const client = new ChatClient({
+      connection: adapter,
+      initialResumeSnapshot: {
+        resumeState: {
+          threadId: 'thread-1',
+          runId: 'run-1',
+          cursor: 'cursor-1',
+        },
+        pendingInterrupts: [
+          {
+            id: 'approval-1',
+            reason: 'approval_required',
+            toolCallId: 'tool-1',
+          },
+        ],
+      },
+    })
+
+    await expect(client.maybeAutoResume()).resolves.toBe(false)
+
+    expect(contexts).toHaveLength(0)
+    expect(client.getResumeState()).toEqual({
+      threadId: 'thread-1',
+      runId: 'run-1',
+      cursor: 'cursor-1',
+    })
+    expect(client.getPendingInterrupts()).toEqual([
+      expect.objectContaining({ id: 'approval-1' }),
+    ])
+  })
 })

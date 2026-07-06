@@ -775,7 +775,12 @@ export class ChatClient<
    * fires when an interrupted run is tracked and no stream is in flight.
    */
   maybeAutoResume(): Promise<boolean> {
-    if (!this.autoResume || this.isLoading || !this.lastResume) {
+    if (
+      !this.autoResume ||
+      this.isLoading ||
+      !this.lastResume ||
+      this.pendingInterrupts.length > 0
+    ) {
       return Promise.resolve(false)
     }
     return this.resume()
