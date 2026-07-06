@@ -35,6 +35,12 @@ export type {
   ChatTransport,
   DistributedOmit,
   MultimodalContent,
+  QueuedMessage,
+  WhenBusy,
+  QueueConfig,
+  QueueStrategy,
+  QueueOption,
+  SendMessageOptions,
 } from './types'
 // Generation client types
 export type {
