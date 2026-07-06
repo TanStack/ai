@@ -3081,6 +3081,49 @@ describe('StreamProcessor', () => {
         },
       ])
     })
+
+    it('routes a tool result to the renamed message in tool-first flows without parentMessageId', () => {
+      const processor = new StreamProcessor()
+
+      // Tool call arrives BEFORE any text and WITHOUT parentMessageId, so the
+      // processor auto-creates a placeholder assistant message and registers
+      // the tool call under that placeholder id.
+      processor.processChunk(ev.toolStart('tc-1', 'lookupWeather'))
+      processor.processChunk(ev.toolArgs('tc-1', '{"location":"Berlin"}'))
+      processor.processChunk(ev.toolEnd('tc-1', 'lookupWeather'))
+
+      // The real provider message id arrives on TEXT_MESSAGE_START, renaming
+      // the placeholder. The rename must remap toolCallToMessage too, or the
+      // later result is orphaned onto the vanished placeholder id.
+      processor.processChunk(
+        chunk(EventType.TEXT_MESSAGE_START, {
+          messageId: 'anthropic-msg-1',
+          role: 'assistant' as const,
+        }),
+      )
+      processor.processChunk(ev.textContent('It is sunny.', 'anthropic-msg-1'))
+      processor.processChunk(ev.textEnd('anthropic-msg-1'))
+
+      // The tool result arrives after the rename.
+      processor.processChunk(
+        chunk(EventType.TOOL_CALL_RESULT, {
+          toolCallId: 'tc-1',
+          content: '{"temp":72}',
+        }),
+      )
+      processor.finalizeStream()
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+      expect(messages[0]?.id).toBe('anthropic-msg-1')
+
+      const toolResultPart = messages[0]?.parts.find(
+        (p) => p.type === 'tool-result',
+      ) as ToolResultPart
+      expect(toolResultPart).toBeDefined()
+      expect(toolResultPart.content).toBe('{"temp":72}')
+      expect(toolResultPart.state).toBe('complete')
+    })
   })
 
   describe('double onStreamEnd guard', () => {

@@ -433,6 +433,107 @@ describe('translateSdkStream', () => {
     expect(chunks[4]).toMatchObject({ delta: 'lo', content: 'Hello' })
   })
 
+  it('streams partial tool-call args and dedupes the complete assistant message', async () => {
+    const chunks = await collect([
+      init,
+      {
+        type: 'stream_event',
+        event: { type: 'message_start', message: { id: 'msg-1' } },
+        parent_tool_use_id: null,
+      },
+      {
+        type: 'stream_event',
+        event: {
+          type: 'content_block_start',
+          index: 0,
+          content_block: { type: 'tool_use', id: 'toolu_1', name: 'Read' },
+        },
+        parent_tool_use_id: null,
+      },
+      {
+        type: 'stream_event',
+        event: {
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'input_json_delta', partial_json: '{"file":' },
+        },
+        parent_tool_use_id: null,
+      },
+      {
+        type: 'stream_event',
+        event: {
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'input_json_delta', partial_json: '"a.ts"}' },
+        },
+        parent_tool_use_id: null,
+      },
+      {
+        type: 'stream_event',
+        event: { type: 'content_block_stop', index: 0 },
+        parent_tool_use_id: null,
+      },
+      // The complete assistant message restates the tool call; it must be deduped.
+      {
+        type: 'assistant',
+        message: {
+          id: 'msg-1',
+          content: [
+            {
+              type: 'tool_use',
+              id: 'toolu_1',
+              name: 'Read',
+              input: { file: 'a.ts' },
+            },
+          ],
+        },
+        parent_tool_use_id: null,
+      },
+      // The harness executes the tool and feeds the result back.
+      {
+        type: 'user',
+        message: {
+          role: 'user',
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'toolu_1',
+              content: 'file contents',
+            },
+          ],
+        },
+        parent_tool_use_id: null,
+      },
+      resultSuccess,
+    ])
+
+    expect(chunks.map((c) => c.type)).toEqual([
+      'RUN_STARTED',
+      'CUSTOM',
+      'TOOL_CALL_START',
+      'TOOL_CALL_ARGS',
+      'TOOL_CALL_ARGS',
+      'TOOL_CALL_END',
+      'TOOL_CALL_RESULT',
+      'RUN_FINISHED',
+    ])
+    // Args stream incrementally, accumulating to the full JSON.
+    expect(chunks[3]).toMatchObject({ delta: '{"file":', args: '{"file":' })
+    expect(chunks[4]).toMatchObject({
+      delta: '"a.ts"}',
+      args: '{"file":"a.ts"}',
+    })
+    // END carries the parsed input; the complete message re-emitted nothing.
+    expect(chunks[5]).toMatchObject({
+      type: 'TOOL_CALL_END',
+      toolCallId: 'toolu_1',
+      toolCallName: 'Read',
+      input: { file: 'a.ts' },
+    })
+    expect(chunks.filter((c) => c.type === 'TOOL_CALL_START')).toHaveLength(1)
+    expect(chunks.filter((c) => c.type === 'TOOL_CALL_END')).toHaveLength(1)
+  })
+
   it('emits synthetic tool results then rethrows when the SDK stream throws mid-run', async () => {
     async function* throwing(): AsyncIterable<AgentSdkMessage> {
       yield init
@@ -481,5 +582,235 @@ describe('translateSdkStream', () => {
       'TEXT_MESSAGE_END',
       'RUN_FINISHED',
     ])
+  })
+
+  it('synthesizes an interrupted result when the stream throws mid partial tool-args', async () => {
+    async function* throwing(): AsyncIterable<AgentSdkMessage> {
+      yield init
+      yield {
+        type: 'stream_event',
+        event: { type: 'message_start', message: { id: 'msg-1' } },
+        parent_tool_use_id: null,
+      }
+      yield {
+        type: 'stream_event',
+        event: {
+          type: 'content_block_start',
+          index: 0,
+          content_block: { type: 'tool_use', id: 'toolu_9', name: 'Read' },
+        },
+        parent_tool_use_id: null,
+      }
+      yield {
+        type: 'stream_event',
+        event: {
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'input_json_delta', partial_json: '{"file":' },
+        },
+        parent_tool_use_id: null,
+      }
+      throw new Error('aborted')
+    }
+
+    const chunks: Array<StreamChunk> = []
+    await expect(async () => {
+      for await (const chunk of translateSdkStream(throwing(), makeContext())) {
+        chunks.push(chunk)
+      }
+    }).rejects.toThrow('aborted')
+
+    // START was emitted for the partial tool call; the abort must still pair it
+    // with a TOOL_CALL_END and an interrupted TOOL_CALL_RESULT (the module
+    // invariant documented at the top of translate.ts).
+    expect(chunks.filter((c) => c.type === 'TOOL_CALL_START')).toHaveLength(1)
+    expect(chunks.find((c) => c.type === 'TOOL_CALL_END')).toMatchObject({
+      toolCallId: 'toolu_9',
+    })
+    expect(chunks.find((c) => c.type === 'TOOL_CALL_RESULT')).toMatchObject({
+      toolCallId: 'toolu_9',
+      content: JSON.stringify({ status: 'interrupted' }),
+    })
+  })
+
+  it('tags a streamed tool call with the parent message id shared with sibling text', async () => {
+    const chunks = await collect([
+      init,
+      {
+        type: 'stream_event',
+        event: { type: 'message_start', message: { id: 'msg-1' } },
+        parent_tool_use_id: null,
+      },
+      {
+        type: 'stream_event',
+        event: {
+          type: 'content_block_start',
+          index: 0,
+          content_block: { type: 'text' },
+        },
+        parent_tool_use_id: null,
+      },
+      {
+        type: 'stream_event',
+        event: {
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: 'Reading…' },
+        },
+        parent_tool_use_id: null,
+      },
+      {
+        type: 'stream_event',
+        event: { type: 'content_block_stop', index: 0 },
+        parent_tool_use_id: null,
+      },
+      {
+        type: 'stream_event',
+        event: {
+          type: 'content_block_start',
+          index: 1,
+          content_block: { type: 'tool_use', id: 'toolu_7', name: 'Read' },
+        },
+        parent_tool_use_id: null,
+      },
+      {
+        type: 'stream_event',
+        event: {
+          type: 'content_block_delta',
+          index: 1,
+          delta: { type: 'input_json_delta', partial_json: '{"file":"a.ts"}' },
+        },
+        parent_tool_use_id: null,
+      },
+      {
+        type: 'stream_event',
+        event: { type: 'content_block_stop', index: 1 },
+        parent_tool_use_id: null,
+      },
+      resultSuccess,
+    ])
+
+    // The tool call must be grouped under the same message as the sibling text,
+    // so a downstream message rename can't orphan its later result.
+    expect(chunks.find((c) => c.type === 'TEXT_MESSAGE_START')).toMatchObject({
+      messageId: 'msg-1',
+    })
+    expect(chunks.find((c) => c.type === 'TOOL_CALL_START')).toMatchObject({
+      parentMessageId: 'msg-1',
+    })
+  })
+
+  it('streams two sequential tool_use blocks without arg bleed', async () => {
+    const chunks = await collect([
+      init,
+      {
+        type: 'stream_event',
+        event: { type: 'message_start', message: { id: 'msg-1' } },
+        parent_tool_use_id: null,
+      },
+      {
+        type: 'stream_event',
+        event: {
+          type: 'content_block_start',
+          index: 0,
+          content_block: { type: 'tool_use', id: 'toolu_a', name: 'Read' },
+        },
+        parent_tool_use_id: null,
+      },
+      {
+        type: 'stream_event',
+        event: {
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'input_json_delta', partial_json: '{"file":"a.ts"}' },
+        },
+        parent_tool_use_id: null,
+      },
+      {
+        type: 'stream_event',
+        event: { type: 'content_block_stop', index: 0 },
+        parent_tool_use_id: null,
+      },
+      {
+        type: 'stream_event',
+        event: {
+          type: 'content_block_start',
+          index: 1,
+          content_block: { type: 'tool_use', id: 'toolu_b', name: 'Bash' },
+        },
+        parent_tool_use_id: null,
+      },
+      {
+        type: 'stream_event',
+        event: {
+          type: 'content_block_delta',
+          index: 1,
+          delta: { type: 'input_json_delta', partial_json: '{"cmd":"ls"}' },
+        },
+        parent_tool_use_id: null,
+      },
+      {
+        type: 'stream_event',
+        event: { type: 'content_block_stop', index: 1 },
+        parent_tool_use_id: null,
+      },
+      resultSuccess,
+    ])
+
+    const ends = chunks.filter((c) => c.type === 'TOOL_CALL_END')
+    expect(ends).toHaveLength(2)
+    expect(ends[0]).toMatchObject({
+      toolCallId: 'toolu_a',
+      input: { file: 'a.ts' },
+    })
+    expect(ends[1]).toMatchObject({
+      toolCallId: 'toolu_b',
+      input: { cmd: 'ls' },
+    })
+
+    const args = chunks.filter((c) => c.type === 'TOOL_CALL_ARGS')
+    expect(args[0]).toMatchObject({ args: '{"file":"a.ts"}' })
+    expect(args[1]).toMatchObject({ args: '{"cmd":"ls"}' })
+  })
+
+  it('streams a zero-argument tool call as START → END with no args frame', async () => {
+    const chunks = await collect([
+      init,
+      {
+        type: 'stream_event',
+        event: { type: 'message_start', message: { id: 'msg-1' } },
+        parent_tool_use_id: null,
+      },
+      {
+        type: 'stream_event',
+        event: {
+          type: 'content_block_start',
+          index: 0,
+          content_block: { type: 'tool_use', id: 'toolu_z', name: 'Now' },
+        },
+        parent_tool_use_id: null,
+      },
+      {
+        type: 'stream_event',
+        event: { type: 'content_block_stop', index: 0 },
+        parent_tool_use_id: null,
+      },
+      resultSuccess,
+    ])
+
+    // Mirrors the @tanstack/ai-anthropic streaming path: no input_json_delta
+    // means no ARGS frame — START → END(input={}), never a synthesized one.
+    const toolTypes = chunks
+      .map((c) => c.type)
+      .filter((t) => t.startsWith('TOOL_CALL_'))
+    expect(toolTypes).toEqual([
+      'TOOL_CALL_START',
+      'TOOL_CALL_END',
+      'TOOL_CALL_RESULT',
+    ])
+    expect(chunks.find((c) => c.type === 'TOOL_CALL_END')).toMatchObject({
+      toolCallId: 'toolu_z',
+      input: {},
+    })
   })
 })
