@@ -29,6 +29,11 @@ import { ProjectionCapability, provideWorkspaceProjection } from './projection'
 import { resolveSecret } from './secrets'
 import { watchWorkspace } from './watch'
 import { DEFAULT_WORKSPACE_ROOT } from './bootstrap'
+import {
+  checkpointWorkspacePersistenceEvent,
+  restoreWorkspacePersistence,
+} from './workspace-persistence'
+import { resolveWorkspacePersistenceOptions } from './workspace-persistence-types'
 import type {
   AbortInfo,
   ChatMiddlewareContext,
@@ -45,16 +50,21 @@ import type {
 } from './sandbox'
 import type { SandboxRecord, SandboxStore } from './store'
 import type { SandboxWatchHandle } from './watch'
+import type { ResolvedWorkspacePersistenceOptions } from './workspace-persistence-types'
 
 /** Per-request state we need to carry from `setup` to the terminal hooks. */
 interface SandboxRunState {
   handle: SandboxHandle
   ensureCtx: SandboxEnsureContext
-  watcher?: SandboxWatchHandle
+  watchers: Array<SandboxWatchHandle>
   /** In-flight `enriched.diff()` promises queued by the `fileEvents.diff`
    * watcher callback, awaited before teardown so a pending diff isn't
    * dropped when the run finishes/aborts/errors mid-computation. */
   pendingDiffs: Array<Promise<void>>
+  /** In-flight workspace persistence checkpoints queued by file events. */
+  pendingWorkspacePersistence: Array<Promise<void>>
+  workspacePersistenceErrors: Array<unknown>
+  workspacePersistenceOptions?: ResolvedWorkspacePersistenceOptions
 }
 
 const runState = new WeakMap<object, SandboxRunState>()
@@ -134,10 +144,10 @@ function tenantFrom(
   return { userId, orgId }
 }
 
-async function buildEnsureCtx(
+function buildEnsureCtx(
   ctx: ChatMiddlewareContext,
-): Promise<SandboxEnsureContext> {
-  const persistence = await getOptionalPersistence(ctx)
+  persistence?: AIPersistence,
+): SandboxEnsureContext {
   return {
     threadId: ctx.threadId,
     runId: ctx.runId,
@@ -177,6 +187,19 @@ async function dispatchDefinitionHooks(
   }
 }
 
+async function workspacePersistenceError(
+  state: SandboxRunState,
+): Promise<unknown | undefined> {
+  await Promise.allSettled(state.pendingWorkspacePersistence)
+  if (
+    state.workspacePersistenceOptions?.consistency === 'strict' &&
+    state.workspacePersistenceErrors.length > 0
+  ) {
+    return state.workspacePersistenceErrors[0]
+  }
+  return undefined
+}
+
 export function withSandbox(
   definition: SandboxDefinition,
 ): DefinedChatMiddleware<
@@ -193,16 +216,22 @@ export function withSandbox(
     optionalRequires: [SandboxStoreCapability, LocksCapability],
 
     async setup(ctx) {
-      const ensureCtx = await buildEnsureCtx(ctx)
+      const persistence = await getOptionalPersistence(ctx)
+      const ensureCtx = buildEnsureCtx(ctx, persistence)
       const handle = await definition.ensure(ensureCtx)
       provideSandbox(ctx, handle)
       if (definition.policy) provideSandboxPolicy(ctx, definition.policy)
 
-      const watchRoot = definition.workspace?.root ?? DEFAULT_WORKSPACE_ROOT
+      const workspacePersistenceOptions = resolveWorkspacePersistenceOptions({
+        workspacePersistence: definition.persistence?.workspace,
+        workspace: definition.workspace,
+        defaultKey: definition.key(ensureCtx),
+      })
+      const publicWatchRoot = definition.workspace?.root ?? DEFAULT_WORKSPACE_ROOT
       let baseSha = ''
       try {
         const shaRes = await handle.process.exec('git rev-parse HEAD', {
-          cwd: watchRoot,
+          cwd: publicWatchRoot,
         })
         if (shaRes.exitCode === 0) baseSha = shaRes.stdout.trim()
       } catch {
@@ -234,43 +263,96 @@ export function withSandbox(
       }
 
       const hooks = definition.hooks
+      if (workspacePersistenceOptions) {
+        await restoreWorkspacePersistence({
+          handle,
+          persistence,
+          options: workspacePersistenceOptions,
+          runId: ctx.runId,
+          threadId: ctx.threadId,
+        })
+      }
       await hooks?.onReady?.(handle)
 
       const fe = resolveFileEvents(definition.fileEvents)
       const pendingDiffs: Array<Promise<void>> = []
-      let watcher: SandboxWatchHandle | undefined
-      if (fe.enabled) {
-        const runtime = getSandboxRuntime(ctx, { optional: true })
-        watcher = await watchWorkspace(handle, {
-          onEvent: (event: SandboxFileEvent) => {
-            const enriched = buildFileHookEvent(
+      const pendingWorkspacePersistence: Array<Promise<void>> = []
+      const workspacePersistenceErrors: Array<unknown> = []
+      const watchers: Array<SandboxWatchHandle> = []
+      const runtime = getSandboxRuntime(ctx, { optional: true })
+      const enqueueWorkspacePersistence = (
+        event: SandboxFileEvent,
+      ): void => {
+        if (!workspacePersistenceOptions) return
+        pendingWorkspacePersistence.push(
+          checkpointWorkspacePersistenceEvent(
+            {
               handle,
-              watchRoot,
-              baseSha,
-              event,
-            )
-            void dispatchDefinitionHooks(hooks, enriched)
-            runtime?.emit(enriched)
-            if (fe.diff) {
-              pendingDiffs.push(
-                enriched
-                  .diff()
-                  .then((diff) => {
-                    runtime?.emitFileDiff({ path: event.path, diff })
-                  })
-                  .catch(() => undefined),
+              persistence,
+              options: workspacePersistenceOptions,
+              runId: ctx.runId,
+              threadId: ctx.threadId,
+            },
+            event,
+          ).catch((error) => {
+            workspacePersistenceErrors.push(error)
+          }),
+        )
+      }
+      if (fe.enabled) {
+        const persistenceSharesPublicRoot =
+          workspacePersistenceOptions?.root === publicWatchRoot
+        watchers.push(
+          await watchWorkspace(handle, {
+            root: publicWatchRoot,
+            onEvent: (event: SandboxFileEvent) => {
+              const enriched = buildFileHookEvent(
+                handle,
+                publicWatchRoot,
+                baseSha,
+                event,
               )
-            }
-          },
-          ...(ctx.signal !== undefined ? { signal: ctx.signal } : {}),
-        })
+              void dispatchDefinitionHooks(hooks, enriched)
+              runtime?.emit(enriched)
+              if (persistenceSharesPublicRoot) {
+                enqueueWorkspacePersistence(event)
+              }
+              if (fe.diff) {
+                pendingDiffs.push(
+                  enriched
+                    .diff()
+                    .then((diff) => {
+                      runtime?.emitFileDiff({ path: event.path, diff })
+                    })
+                    .catch(() => undefined),
+                )
+              }
+            },
+            ...(ctx.signal !== undefined ? { signal: ctx.signal } : {}),
+          }),
+        )
+      }
+      if (
+        workspacePersistenceOptions &&
+        (!fe.enabled || workspacePersistenceOptions.root !== publicWatchRoot)
+      ) {
+        watchers.push(
+          await watchWorkspace(handle, {
+            root: workspacePersistenceOptions.root,
+            onEvent: enqueueWorkspacePersistence,
+            ...(ctx.signal !== undefined ? { signal: ctx.signal } : {}),
+          }),
+        )
       }
 
       runState.set(ctx, {
         handle,
         ensureCtx,
         pendingDiffs,
-        ...(watcher ? { watcher } : {}),
+        pendingWorkspacePersistence,
+        workspacePersistenceErrors,
+        watchers,
+        ...(workspacePersistenceOptions ? { workspacePersistenceOptions } : {}),
       })
     },
 
@@ -279,10 +361,18 @@ export function withSandbox(
       if (!state) return
       const { handle, ensureCtx } = state
 
-      await state.watcher?.stop()
+      await Promise.all(state.watchers.map((watcher) => watcher.stop()))
       await Promise.allSettled(state.pendingDiffs)
+      const persistenceError = await workspacePersistenceError(state)
 
       const lifecycle = definition.lifecycle
+      if (persistenceError) {
+        if (lifecycle?.destroyOnComplete) {
+          await definition.destroy(ensureCtx)
+          await definition.hooks?.onDestroy?.()
+        }
+        throw persistenceError
+      }
 
       if (
         lifecycle?.snapshot === 'after-run' &&
@@ -314,8 +404,9 @@ export function withSandbox(
       const state = runState.get(ctx)
       if (!state) return
 
-      await state.watcher?.stop()
+      await Promise.all(state.watchers.map((watcher) => watcher.stop()))
       await Promise.allSettled(state.pendingDiffs)
+      const persistenceError = await workspacePersistenceError(state)
 
       // ALWAYS tear down on an explicit abort, regardless of `destroyOnComplete`.
       // The in-sandbox agent process is not killed by closing its IO stream
@@ -325,14 +416,16 @@ export function withSandbox(
       // `destroyOnComplete:false` governs *successful completion*, never cancel.
       await definition.destroy(state.ensureCtx)
       await definition.hooks?.onDestroy?.()
+      if (persistenceError) throw persistenceError
     },
 
     async onError(ctx, info) {
       const state = runState.get(ctx)
       if (!state) return
 
-      await state.watcher?.stop()
+      await Promise.all(state.watchers.map((watcher) => watcher.stop()))
       await Promise.allSettled(state.pendingDiffs)
+      const persistenceError = await workspacePersistenceError(state)
       await definition.hooks?.onError?.(info.error)
 
       // On failure, only tear down when the lifecycle says so; otherwise leave
@@ -341,6 +434,7 @@ export function withSandbox(
         await definition.destroy(state.ensureCtx)
         await definition.hooks?.onDestroy?.()
       }
+      if (persistenceError) throw persistenceError
     },
   })
 }

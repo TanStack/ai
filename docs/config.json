@@ -427,12 +427,19 @@
         {
           "label": "Cloudflare",
           "to": "persistence/cloudflare",
-          "addedAt": "2026-07-03"
+          "addedAt": "2026-07-03",
+          "updatedAt": "2026-07-06"
+        },
+        {
+          "label": "Files and Artifacts",
+          "to": "persistence/files-and-artifacts",
+          "addedAt": "2026-07-06"
         },
         {
           "label": "Custom Stores",
           "to": "persistence/custom-stores",
-          "addedAt": "2026-07-03"
+          "addedAt": "2026-07-03",
+          "updatedAt": "2026-07-06"
         },
         {
           "label": "Sandbox Runs",

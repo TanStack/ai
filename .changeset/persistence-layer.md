@@ -68,6 +68,8 @@ and garbage collection.
 configured persistence capabilities directly. Place `withPersistence(...)`
 before `withSandbox(...)` and sandbox resume records are stored in persistence
 metadata while sandbox ensure-locking uses the shared persistence lock
-capability when present. MCP persistence is app-owned metadata plus raw stream
-replay only. Workflow extensions are deferred to optional packages and should
-reuse these primitives without adding base schema cost.
+capability when present. `defineSandbox({ persistence: { workspace } })` can
+checkpoint managed sandbox workspace files to persistence metadata/artifacts
+and restore them before `hooks.onReady`. MCP persistence is app-owned metadata
+plus raw stream replay only. Workflow extensions are deferred to optional
+packages and should reuse these primitives without adding base schema cost.

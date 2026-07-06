@@ -12,6 +12,11 @@ a packaged backend, start with [SQL Backends](./sql-backends) or
 [Cloudflare](./cloudflare). If you need the end-to-end chat journey, start with
 [Resumable Chat](./resumable-chat).
 
+If you are deciding how to model generated files, workspace checkpoints, object
+bytes, metadata manifests, and locks together, read
+[Files and Artifacts](./files-and-artifacts) first. This page explains the store
+interfaces behind those patterns.
+
 ## Define an `AIPersistence`
 
 `AIPersistence` is an aggregate of optional stores. Implement only the stores
@@ -110,6 +115,8 @@ durable resource at the same time.
 `threadId`. `stores.blobs` stores raw bytes and can be shared by artifacts or
 other integrations. A backend may store artifact metadata in SQL and bytes in
 object storage, as the [Cloudflare backend](./cloudflare) does with D1 and R2.
+For concrete run-artifact, blob, and sandbox workspace examples, see
+[Files and Artifacts](./files-and-artifacts).
 
 ## Extend without growing the base schema
 

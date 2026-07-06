@@ -32,6 +32,10 @@ export function persistence(env: Env) {
 `d1` is required. `r2` and `durableObjects` are optional; include them only when
 your app needs blob/artifact storage or distributed locks.
 
+For the end-to-end file persistence model, including generated artifacts,
+app-owned blobs, and sandbox workspace checkpoints backed by R2, see
+[Files and Artifacts](./files-and-artifacts).
+
 ## Core state lives in D1
 
 D1 backs the shared SQL stores:
@@ -58,6 +62,12 @@ Artifact `list(runId)` reads the D1 index without downloading byte bodies.
 Artifact `get(artifactId)` hydrates bytes from R2 when the artifact record
 points at a blob. Optional artifact cleanup deletes both the D1 row and the R2
 object.
+
+Use artifacts for files tied to a chat run, such as generated reports,
+downloads, screenshots, or sandbox workspace file checkpoints. Use blobs for
+lower-level object storage when your app owns the index shape. [Files and
+Artifacts](./files-and-artifacts) shows both patterns and the Cloudflare layout
+for project-builder apps.
 
 ## Use Durable Objects for locks
 

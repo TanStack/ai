@@ -8,6 +8,12 @@ sandbox across processes, not just within one Node.js process. Add
 `withPersistence(...)` before `withSandbox(...)`; the sandbox middleware reads
 optional persistence capabilities directly.
 
+This page is about sandbox identity: the durable record and lock that let
+`withSandbox(...)` find or create the right provider sandbox. If you need the
+files inside the sandbox workspace to survive provider eviction, container
+deletion, or a non-durable filesystem, add managed workspace persistence from
+[Files and Artifacts](./files-and-artifacts).
+
 ## Install
 
 Install the sandbox package, persistence package, and the persistence backend
@@ -78,3 +84,9 @@ Persistence replay and sandbox resume are separate pieces that work together.
 sandbox record lets `withSandbox` find the same provider sandbox. A harness
 adapter that supports reattach can then reconnect to the still-running agent
 process and continue live after replay.
+
+That resume path does not copy changed project files by itself. Durable sandbox
+records answer "which sandbox should this run use?"; workspace persistence
+answers "which files should be restored if that sandbox's filesystem is gone?"
+Use [Files and Artifacts](./files-and-artifacts) when the edited workspace is a
+product output, not just a warm execution environment.

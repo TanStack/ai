@@ -52,6 +52,12 @@ If you deploy on Workers, read [Cloudflare](./cloudflare). D1 stores the core
 run state, R2 can store blobs and artifact bytes, and Durable Objects can
 provide cross-isolate locks.
 
+If a run creates downloadable files, generated artifacts, large blobs, or
+workspace files that must survive sandbox/container eviction, read
+[Files and Artifacts](./files-and-artifacts). It covers normal run artifacts,
+app-owned blobs, sandbox workspace checkpointing, and the D1/R2/Durable Object
+layout used on Cloudflare.
+
 If you own the storage layer or are extending persistence for MCP/workflows,
 read [Custom Stores](./custom-stores). It explains the optional `AIPersistence`
 stores, public versus internal events, metadata, locks, artifacts, and blobs.
