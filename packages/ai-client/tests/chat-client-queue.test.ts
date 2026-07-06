@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
+import { EventType } from '@tanstack/ai/client'
 import { ChatClient, normalizeQueueOption } from '../src/chat-client'
 import { createTextChunks } from './test-utils'
 import type { ConnectConnectionAdapter } from '../src/connection-adapters'
+import type { StreamChunk } from '@tanstack/ai/client'
 
 describe('normalizeQueueOption', () => {
   it('defaults to queue + fifo + reject', () => {
@@ -126,6 +128,15 @@ describe('ChatClient message queue', () => {
 
     release()
     await firstSend
+
+    // The dropped message must never have become a real message either —
+    // it should be gone entirely, not just missing from the queue.
+    const userMessages = client
+      .getMessages()
+      .filter((m) => m.role === 'user')
+    expect(userMessages.map((m) => m.parts[0])).toEqual([
+      { type: 'text', content: 'first' },
+    ])
   })
 })
 
@@ -148,6 +159,30 @@ function createSequencedHoldingConnection(): {
         await deferred.promise
       }
       yield* createTextChunks('done', `msg-${call}`)
+    },
+  }
+  return { connection, release: () => deferred.resolve() }
+}
+
+/**
+ * Like {@link createHoldingConnection}, but `release()` settles the stream
+ * with a `RUN_ERROR` chunk instead of a successful text response.
+ */
+function createErroringHoldingConnection(): {
+  connection: ConnectConnectionAdapter
+  release: () => void
+} {
+  const deferred = createDeferred<void>()
+  const connection: ConnectConnectionAdapter = {
+    async *connect(): AsyncGenerator<StreamChunk> {
+      await deferred.promise
+      yield {
+        type: EventType.RUN_ERROR,
+        threadId: 'thread-1',
+        timestamp: Date.now(),
+        message: 'boom',
+        error: { message: 'boom' },
+      } as StreamChunk
     },
   }
   return { connection, release: () => deferred.resolve() }
@@ -229,5 +264,31 @@ describe('ChatClient queue drain', () => {
     // Let the held-open stream settle so it doesn't leak into other tests.
     release()
     await firstSend
+  })
+
+  it('flushes the queue when the stream errors', async () => {
+    const { connection, release } = createErroringHoldingConnection()
+    const client = new ChatClient({ connection })
+
+    const firstSend = client.sendMessage('first')
+    await vi.waitFor(() => {
+      expect(client.getIsLoading()).toBe(true)
+    })
+
+    await client.sendMessage('second')
+    expect(client.getQueue()).toHaveLength(1)
+
+    release()
+    await firstSend
+
+    // The queue must be flushed, not stranded or auto-drained into the
+    // now-broken endpoint.
+    expect(client.getQueue()).toEqual([])
+    const userMessages = client
+      .getMessages()
+      .filter((m) => m.role === 'user')
+    expect(userMessages.map((m) => m.parts[0])).toEqual([
+      { type: 'text', content: 'first' },
+    ])
   })
 })

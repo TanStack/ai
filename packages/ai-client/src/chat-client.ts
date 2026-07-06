@@ -1215,6 +1215,12 @@ export class ChatClient<
             // continuation's own finally drains the queue.
             await this.drainQueue()
           }
+        } else {
+          // Error/abort settle for the active generation: don't strand or
+          // later mis-order queued messages. A failed turn flushes the queue
+          // (consistent with stop()); it must NOT auto-drain into a likely
+          // broken endpoint.
+          this.flushQueue()
         }
       }
     }
