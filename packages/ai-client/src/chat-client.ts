@@ -40,8 +40,8 @@ import type {
   MessagePart,
   MultimodalContent,
   QueueOption,
-  QueuedMessage,
   QueueStrategy,
+  QueuedMessage,
   SendMessageOptions,
   ToolCallPart,
   UIMessage,
@@ -142,6 +142,9 @@ export class ChatClient<
   private forwardedPropsOption: Record<string, any> = {}
   private context: TContext | undefined = undefined
   private pendingMessageBody: Record<string, any> | undefined = undefined
+  private readonly queueConfig: NormalizedQueueConfig
+  private messageQueue: Array<QueuedMessage & { body?: Record<string, any> }> =
+    []
   private isLoading = false
   private isSubscribed = false
   private error: Error | undefined = undefined
@@ -191,6 +194,7 @@ export class ChatClient<
       onSubscriptionChange: (isSubscribed: boolean) => void
       onConnectionStatusChange: (status: ConnectionStatus) => void
       onSessionGeneratingChange: (isGenerating: boolean) => void
+      onQueueChange: (queue: Array<QueuedMessage>) => void
       onCustomEvent: (
         eventType: string,
         data: unknown,
@@ -217,6 +221,7 @@ export class ChatClient<
     this.bodyOption = options.body || {}
     this.forwardedPropsOption = options.forwardedProps || {}
     this.context = options.context
+    this.queueConfig = normalizeQueueOption(options.queue)
     this.connection = normalizeConnectionAdapter(resolveTransport(options))
 
     // Build client tools map
@@ -247,6 +252,7 @@ export class ChatClient<
           options.onConnectionStatusChange || (() => {}),
         onSessionGeneratingChange:
           options.onSessionGeneratingChange || (() => {}),
+        onQueueChange: options.onQueueChange || (() => {}),
         onCustomEvent: options.onCustomEvent || (() => {}),
       },
     }
@@ -803,26 +809,84 @@ export class ChatClient<
   async sendMessage(
     content: string | MultimodalContent,
     body?: Record<string, any>,
+    sendOptions?: SendMessageOptions,
   ): Promise<void> {
     this.mountDevtools()
     const emptyMessage = typeof content === 'string' && !content.trim()
-    if (emptyMessage || this.isLoading) {
+    if (emptyMessage) {
       return
     }
-    // Normalize input to extract content, id, and validate
+
+    if (this.isLoading) {
+      const action = this.decideWhenBusy(content, sendOptions)
+      if (action === 'drop') {
+        return
+      }
+      if (action === 'enqueue') {
+        this.enqueueMessage(content, body)
+        return
+      }
+      // 'interrupt': abort the current stream, then fall through to send now.
+      this.cancelInFlightStream({ setReadyStatus: true })
+      this.resetSessionGenerating()
+    }
+
     const normalizedContent = this.normalizeMessageInput(content)
-
-    // Store the per-message body for use in streamResponse
     this.pendingMessageBody = body
-
-    // Add user message via processor
     const userMessage = this.processor.addUserMessage(
       normalizedContent.content,
       normalizedContent.id,
     )
     this.events.messageSent(userMessage.id, normalizedContent.content)
-
     await this.streamResponse()
+  }
+
+  /**
+   * Resolve the effective action for a send that arrives while streaming.
+   * A strategy that returns `'send'` while streaming is coerced to
+   * `'enqueue'` — you cannot start a second concurrent stream.
+   */
+  private decideWhenBusy(
+    content: string | MultimodalContent,
+    sendOptions?: SendMessageOptions,
+  ): 'drop' | 'enqueue' | 'interrupt' {
+    if (sendOptions?.whenBusy) {
+      return sendOptions.whenBusy === 'queue' ? 'enqueue' : sendOptions.whenBusy
+    }
+    const { strategy, whenBusy } = this.queueConfig
+    if (strategy) {
+      const { action } = strategy({
+        pending: {
+          id: this.generateUniqueId('queued'),
+          content,
+          createdAt: Date.now(),
+        },
+        isStreaming: true,
+        queued: this.getQueue(),
+      })
+      return action === 'send' ? 'enqueue' : action
+    }
+    return whenBusy === 'queue' ? 'enqueue' : whenBusy
+  }
+
+  private enqueueMessage(
+    content: string | MultimodalContent,
+    body?: Record<string, any>,
+  ): void {
+    const { maxSize, onOverflow } = this.queueConfig
+    if (maxSize !== undefined && this.messageQueue.length >= maxSize) {
+      if (onOverflow === 'reject') {
+        return
+      }
+      this.messageQueue.shift() // drop-oldest
+    }
+    this.messageQueue.push({
+      id: this.generateUniqueId('queued'),
+      content,
+      createdAt: Date.now(),
+      ...(body !== undefined ? { body } : {}),
+    })
+    this.emitQueueChange()
   }
 
   /**
@@ -1406,6 +1470,38 @@ export class ChatClient<
    */
   getMessages(): Array<UIMessage<TTools>> {
     return this.processor.getMessages() as Array<UIMessage<TTools>>
+  }
+
+  /**
+   * Get the current send queue (messages held while a stream was in flight).
+   */
+  getQueue(): Array<QueuedMessage> {
+    return this.messageQueue.map(({ id, content, createdAt }) => ({
+      id,
+      content,
+      createdAt,
+    }))
+  }
+
+  private emitQueueChange(): void {
+    this.callbacksRef.current.onQueueChange(this.getQueue())
+    this.devtoolsBridge.emitSnapshot()
+  }
+
+  /**
+   * Remove a queued message by id before it drains.
+   */
+  cancelQueued(id: string): void {
+    const index = this.messageQueue.findIndex((m) => m.id === id)
+    if (index === -1) return
+    this.messageQueue.splice(index, 1)
+    this.emitQueueChange()
+  }
+
+  protected flushQueue(): void {
+    if (this.messageQueue.length === 0) return
+    this.messageQueue = []
+    this.emitQueueChange()
   }
 
   /**
