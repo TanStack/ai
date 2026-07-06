@@ -14,12 +14,20 @@ import type {
   DistributedOmit,
   InferredClientContext,
   MultimodalContent,
+  QueuedMessage,
   UIMessage,
+  WhenBusy,
 } from '@tanstack/ai-client'
 import type { Accessor } from 'solid-js'
 
 // Re-export types from ai-client
-export type { ChatRequestBody, MultimodalContent, UIMessage }
+export type {
+  ChatRequestBody,
+  MultimodalContent,
+  QueuedMessage,
+  UIMessage,
+  WhenBusy,
+}
 
 /**
  * Recursive partial — every property and every nested array element is optional.
@@ -67,6 +75,7 @@ export type UseChatOptions<
   | 'onSubscriptionChange'
   | 'onConnectionStatusChange'
   | 'onSessionGeneratingChange'
+  | 'onQueueChange'
   | 'context'
   | 'devtools'
 > & {
@@ -118,10 +127,24 @@ interface BaseUseChatReturn<
   messages: Accessor<Array<UIMessage<TTools, TData>>>
 
   /**
+   * Messages currently queued because a request was in flight when they
+   * were sent (see `sendMessage`'s `whenBusy: 'enqueue'` option).
+   */
+  queue: Accessor<Array<QueuedMessage>>
+
+  /**
+   * Cancel a previously queued message by id.
+   */
+  cancelQueued: (id: string) => void
+
+  /**
    * Send a message and get a response.
    * Can be a simple string or multimodal content with images, audio, etc.
    */
-  sendMessage: (content: string | MultimodalContent) => Promise<void>
+  sendMessage: (
+    content: string | MultimodalContent,
+    options?: { whenBusy?: WhenBusy },
+  ) => Promise<void>
 
   /**
    * Append a message to the conversation
