@@ -216,8 +216,18 @@ import { openaiTranscription } from '@tanstack/ai-openai'
 import { meetingAudioFile } from './audio'
 
 const diarizationModel = process.env.OPENAI_DIARIZATION_TRANSCRIPTION_MODEL
-if (!diarizationModel) {
-  throw new Error('Set OPENAI_DIARIZATION_TRANSCRIPTION_MODEL')
+
+function isDiarizationTranscriptionModel(
+  model: string,
+): model is Parameters<typeof openaiTranscription>[0] {
+  return model.endsWith('-diarize')
+}
+
+if (
+  !diarizationModel ||
+  !isDiarizationTranscriptionModel(diarizationModel)
+) {
+  throw new Error('Set OPENAI_DIARIZATION_TRANSCRIPTION_MODEL to a diarization model')
 }
 
 const result = await generateTranscription({

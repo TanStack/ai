@@ -80,6 +80,11 @@ import {
   cloudflarePersistence,
 } from '@tanstack/ai-persistence-cloudflare'
 
+interface Env {
+  AI_D1: D1Database
+  AI_LOCKS: DurableObjectNamespace
+}
+
 export { LockDurableObject }
 
 export function persistence(env: Env) {

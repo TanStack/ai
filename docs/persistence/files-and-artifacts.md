@@ -26,8 +26,9 @@ artifact APIs.
 Use `stores.artifacts` when a run produces a file the user may download, preview,
 or reopen later.
 
-```ts
+```ts group=files-and-artifacts
 import { chat } from '@tanstack/ai'
+import { anthropicText } from '@tanstack/ai-anthropic'
 import { withPersistence } from '@tanstack/ai-persistence'
 import { sqlitePersistence } from '@tanstack/ai-persistence-sqlite'
 
@@ -55,6 +56,7 @@ async function saveReport(input: {
 chat({
   threadId: 'thread-123',
   runId: 'run-123',
+  adapter: anthropicText('claude-sonnet-4-6'),
   messages: [{ role: 'user', content: 'Write the report.' }],
   middleware: [
     withPersistence(persistence, {
@@ -67,7 +69,7 @@ chat({
 `list(runId)` returns artifact metadata for a run. `get(artifactId)` returns the
 metadata and hydrates `bytes` when the backend has the byte body available.
 
-```ts
+```ts group=files-and-artifacts
 const artifacts = await persistence.stores.artifacts?.list('run-123')
 const report = await persistence.stores.artifacts?.get('report:run-123')
 
@@ -83,7 +85,9 @@ Use `stores.blobs` for app-owned objects that are not themselves run artifacts:
 project archives, cache entries, screenshots, or large files referenced from
 metadata.
 
-```ts
+```ts group=files-and-artifacts
+const zipBytes = new Uint8Array()
+
 await persistence.stores.blobs?.put(
   'projects/project-123/archive.zip',
   zipBytes,
@@ -180,6 +184,15 @@ metadata. On the next run, it restores the manifest before `hooks.onReady` runs.
 Set `persistence.workspace` to `true` for defaults:
 
 ```ts
+import { defineSandbox, defineWorkspace } from '@tanstack/ai-sandbox'
+import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
+
+const provider = dockerSandbox({ image: 'node:22' })
+const workspace = defineWorkspace({
+  source: { type: 'none' },
+  root: '/workspace',
+})
+
 const projectSandbox = defineSandbox({
   id: 'project-builder',
   provider,
@@ -194,6 +207,15 @@ Set it to `false` or omit it when the provider already owns durable filesystem
 state and you do not want TanStack AI to copy workspace files.
 
 ```ts
+import { defineSandbox, defineWorkspace } from '@tanstack/ai-sandbox'
+import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
+
+const provider = dockerSandbox({ image: 'node:22' })
+const workspace = defineWorkspace({
+  source: { type: 'none' },
+  root: '/workspace',
+})
+
 const projectSandbox = defineSandbox({
   id: 'project-builder',
   provider,

@@ -25,7 +25,7 @@ development, `memoryPersistence()` is a useful complete baseline: replace one
 store at a time with your backend implementation while keeping the feature
 validation behavior realistic.
 
-```ts
+```ts group=custom-stores
 import {
   defineAIPersistence,
   memoryPersistence,
@@ -94,7 +94,7 @@ or integration. MCP session correlation is a good example: the base persistence
 schema records public stream replay, while app-owned metadata can map a thread
 or run to an MCP session id.
 
-```ts
+```ts group=custom-stores
 await persistence.stores.metadata?.set(
   'thread:weather-chat',
   'mcp-session',

@@ -40,7 +40,7 @@
       "ignoreDependencies": ["@standard-schema/spec"]
     },
     "packages/ai-sandbox": {
-      "ignoreDependencies": ["@ngrok/ngrok"]
+      "ignoreDependencies": ["@ngrok/ngrok", "@tanstack/ai-persistence"]
     },
     "packages/ai-sandbox-cloudflare": {
       "ignoreDependencies": ["cloudflare"]

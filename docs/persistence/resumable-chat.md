@@ -139,6 +139,10 @@ before the user answers, `persistence.server` restores the pending interrupts
 the client needs to render and resume.
 
 ```ts
+import type { UseChatReturn } from '@tanstack/ai-react'
+
+declare const chat: Pick<UseChatReturn, 'resumeInterrupts'>
+
 await chat.resumeInterrupts([
   {
     interruptId: 'interrupt-1',

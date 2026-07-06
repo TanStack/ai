@@ -107,6 +107,14 @@ file names. CLIs refuse to overwrite an existing output file by default; pass
 `--force` to replace it. Pass `--help` to print the full option reference.
 
 ```ts
+import { drizzlePersistence } from '@tanstack/ai-persistence-drizzle'
+import { prismaPersistence } from '@tanstack/ai-persistence-prisma'
+import type { DrizzleDb } from '@tanstack/ai-persistence-drizzle'
+import type { PrismaRawClient } from '@tanstack/ai-persistence-prisma'
+
+declare const db: DrizzleDb
+declare const prisma: PrismaRawClient
+
 export const drizzle = drizzlePersistence({
   db,
   dialect: 'postgres',

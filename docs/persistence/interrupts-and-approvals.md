@@ -60,6 +60,10 @@ pending interrupt ids, ask the user for a decision, then resume the same run
 with AG-UI `RunAgentInput.resume[]` entries.
 
 ```ts
+import type { UseChatReturn } from '@tanstack/ai-react'
+
+declare const chat: Pick<UseChatReturn, 'resumeInterrupts'>
+
 await chat.resumeInterrupts([
   {
     interruptId: 'send-email-approval',
