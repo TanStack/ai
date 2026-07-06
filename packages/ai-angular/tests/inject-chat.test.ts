@@ -167,9 +167,14 @@ describe('injectChat — resume', () => {
   })
 
   it('forwards initialResumeSnapshot to ChatClient auto-resume', async () => {
-    type RunContext = Parameters<Extract<ConnectionAdapter, {
-      connect: unknown
-    }>['connect']>[3]
+    type RunContext = Parameters<
+      Extract<
+        ConnectionAdapter,
+        {
+          connect: unknown
+        }
+      >['connect']
+    >[3]
     const contexts: Array<RunContext> = []
     const adapter: Extract<ConnectionAdapter, { connect: unknown }> = {
       async *connect(_messages, _data, _signal, runContext) {

@@ -42,23 +42,16 @@ function MysqlPersistenceRoute() {
   const [threadId] = useState(getStableThreadId)
   const [input, setInput] = useState('')
 
-  const {
-    messages,
-    sendMessage,
-    isLoading,
-    error,
-    resumeState,
-    stop,
-    clear,
-  } = useChat({
-    id: threadId,
-    threadId,
-    connection: fetchServerSentEvents('/api/mysql-persistent-chat'),
-    persistence: {
-      client: messagePersistence,
-      server: resumePersistence,
-    },
-  })
+  const { messages, sendMessage, isLoading, error, resumeState, stop, clear } =
+    useChat({
+      id: threadId,
+      threadId,
+      connection: fetchServerSentEvents('/api/mysql-persistent-chat'),
+      persistence: {
+        client: messagePersistence,
+        server: resumePersistence,
+      },
+    })
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault()

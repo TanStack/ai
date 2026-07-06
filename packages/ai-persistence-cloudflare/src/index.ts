@@ -230,7 +230,10 @@ export function createR2ArtifactStore(
     const records: Array<ArtifactRecord> = []
     const entries = await listRunIndexEntries(runId)
     for (const entry of entries) {
-      const metadata = await readMetadata(bucket, idKey(entry.metadata.artifactId))
+      const metadata = await readMetadata(
+        bucket,
+        idKey(entry.metadata.artifactId),
+      )
       if (
         metadata?.artifactId === entry.metadata.artifactId &&
         metadata.runId === runId
@@ -470,7 +473,9 @@ function jsonResponse(body: unknown, init?: ResponseInit): Response {
 
 function validatePositiveFiniteNumber(name: string, value: number): number {
   if (!Number.isFinite(value) || value < MIN_LOCK_TIMING_MS) {
-    throw new TypeError(`${name} must be a finite positive number of milliseconds.`)
+    throw new TypeError(
+      `${name} must be a finite positive number of milliseconds.`,
+    )
   }
   return value
 }
@@ -511,7 +516,10 @@ export class LockDurableObject {
       }
     }
     if (!owner) {
-      return jsonResponse({ ok: false, error: 'missing owner' }, { status: 400 })
+      return jsonResponse(
+        { ok: false, error: 'missing owner' },
+        { status: 400 },
+      )
     }
 
     if (url.pathname === '/acquire') return this.acquire(owner, leaseMs)
@@ -625,32 +633,35 @@ export function createDurableObjectLockStore(
       const renewalFailed = new Promise<never>((_, reject) => {
         failRenewal = reject
       })
-      const renew = setInterval(() => {
-        if (released) return
-        if (renewing) return
-        renewing = true
-        void (async () => {
-          try {
-            const response = await stub.fetch('https://lock/renew', {
-              method: 'POST',
-              body: JSON.stringify({ owner, leaseMs }),
-            })
-            if (!response.ok) {
+      const renew = setInterval(
+        () => {
+          if (released) return
+          if (renewing) return
+          renewing = true
+          void (async () => {
+            try {
+              const response = await stub.fetch('https://lock/renew', {
+                method: 'POST',
+                body: JSON.stringify({ owner, leaseMs }),
+              })
+              if (!response.ok) {
+                released = true
+                clearInterval(renew)
+                failRenewal(await responseError('renew', response))
+              }
+            } catch (cause) {
               released = true
               clearInterval(renew)
-              failRenewal(await responseError('renew', response))
+              failRenewal(
+                new Error('Durable Object lock renew failed', { cause }),
+              )
+            } finally {
+              renewing = false
             }
-          } catch (cause) {
-            released = true
-            clearInterval(renew)
-            failRenewal(
-              new Error('Durable Object lock renew failed', { cause }),
-            )
-          } finally {
-            renewing = false
-          }
-        })()
-      }, Math.max(1, Math.floor(leaseMs / 2)))
+          })()
+        },
+        Math.max(1, Math.floor(leaseMs / 2)),
+      )
 
       let result: T | undefined
       let primaryError: unknown
@@ -706,7 +717,8 @@ function artifactFromRow(row: ArtifactRow): ArtifactRecord {
     name: String(row.name),
     mimeType: String(row.mime_type),
     size: Number(row.size),
-    externalUrl: row.external_url === null ? undefined : String(row.external_url),
+    externalUrl:
+      row.external_url === null ? undefined : String(row.external_url),
     createdAt: Number(row.created_at),
   }
 }
@@ -737,7 +749,9 @@ export function createCloudflareArtifactStore(
   blobStore: BlobStore,
   options?: CloudflareArtifactStoreOptions,
 ): ArtifactStore {
-  const blobKeyPrefix = normalizeBlobPrefix(options?.blobKeyPrefix ?? 'artifacts/')
+  const blobKeyPrefix = normalizeBlobPrefix(
+    options?.blobKeyPrefix ?? 'artifacts/',
+  )
   const now = options?.now ?? Date.now
   const migrate = options?.migrate ?? true
   let migrated: Promise<void> | undefined

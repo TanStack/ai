@@ -225,19 +225,18 @@ class FakeDurableObjectNamespace {
   }
 
   get(id: { name: string }) {
-    const current =
-      this.instances.get(id.name) ??
-      {
-        object: new LockDurableObject(
-          new FakeDurableObjectState() as unknown as DurableObjectState,
-        ),
-        chain: Promise.resolve(),
-      }
+    const current = this.instances.get(id.name) ?? {
+      object: new LockDurableObject(
+        new FakeDurableObjectState() as unknown as DurableObjectState,
+      ),
+      chain: Promise.resolve(),
+    }
     this.instances.set(id.name, current)
 
     return {
       fetch: (input: RequestInfo | URL, init?: RequestInit) => {
-        const request = input instanceof Request ? input : new Request(input, init)
+        const request =
+          input instanceof Request ? input : new Request(input, init)
         const run = current.chain.then(() => current.object.fetch(request))
         current.chain = run.then(
           () => undefined,
@@ -276,9 +275,7 @@ class FetchDurableObjectNamespace {
   }
 }
 
-const artifact = (
-  overrides: Partial<ArtifactRecord> = {},
-): ArtifactRecord => ({
+const artifact = (overrides: Partial<ArtifactRecord> = {}): ArtifactRecord => ({
   artifactId: 'art1',
   runId: 'run1',
   threadId: 'thread1',
@@ -410,9 +407,7 @@ describe('createR2ArtifactStore', () => {
 
     await expect(store.list('old-run')).resolves.toEqual([])
     await expect(store.list('new-run')).resolves.toHaveLength(1)
-    expect(bucket.deleted).toContain(
-      'test-artifacts/by-run/old-run/art1.json',
-    )
+    expect(bucket.deleted).toContain('test-artifacts/by-run/old-run/art1.json')
     expect(
       bucket.deleted.some((key) =>
         key.startsWith('test-artifacts/blobs/art1/'),
@@ -655,9 +650,7 @@ describe('createR2ArtifactStore', () => {
     await deleteForRun('run1')
 
     await expect(store.list('run1')).resolves.toEqual([])
-    expect(bucket.deleted).toContain(
-      'test-artifacts/by-id/art1/metadata.json',
-    )
+    expect(bucket.deleted).toContain('test-artifacts/by-id/art1/metadata.json')
     expect(
       bucket.deleted.some((key) =>
         key.startsWith('test-artifacts/blobs/art1/'),
@@ -1056,7 +1049,9 @@ describe('D1-indexed R2 artifacts', () => {
 
   it('exports artifact table DDL for self-managed Cloudflare migrations', () => {
     const statements = cloudflareArtifactDdl()
-    expect(statements.join('\n')).toMatch(/CREATE TABLE IF NOT EXISTS artifacts/)
+    expect(statements.join('\n')).toMatch(
+      /CREATE TABLE IF NOT EXISTS artifacts/,
+    )
     expect(statements.join('\n')).toMatch(/idx_artifacts_run_id/)
   })
 })
@@ -1135,9 +1130,9 @@ describe('Durable Object locks', () => {
       pollMs: 1,
     })
 
-    await expect(locks.withLock('thread1', async () => 'never')).rejects.toThrow(
-      /acquire.*503.*storage unavailable/,
-    )
+    await expect(
+      locks.withLock('thread1', async () => 'never'),
+    ).rejects.toThrow(/acquire.*503.*storage unavailable/)
     expect(attempts).toBe(1)
   })
 
@@ -1228,14 +1223,20 @@ describe('Durable Object locks', () => {
 
   it('rejects invalid lock timing options before creating a store', () => {
     expect(() =>
-      createDurableObjectLockStore(new FakeDurableObjectNamespace().namespace(), {
-        leaseMs: 0,
-      }),
+      createDurableObjectLockStore(
+        new FakeDurableObjectNamespace().namespace(),
+        {
+          leaseMs: 0,
+        },
+      ),
     ).toThrow(/leaseMs/)
     expect(() =>
-      createDurableObjectLockStore(new FakeDurableObjectNamespace().namespace(), {
-        pollMs: Number.POSITIVE_INFINITY,
-      }),
+      createDurableObjectLockStore(
+        new FakeDurableObjectNamespace().namespace(),
+        {
+          pollMs: Number.POSITIVE_INFINITY,
+        },
+      ),
     ).toThrow(/pollMs/)
   })
 

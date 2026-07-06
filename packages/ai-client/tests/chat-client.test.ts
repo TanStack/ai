@@ -787,19 +787,21 @@ describe('ChatClient', () => {
                         timestamp: Date.now(),
                       } as StreamChunk,
                     ]
-                  : createTextChunks('fresh server-only response', 'fresh-msg')
-                      .map((chunk) => {
-                        if (
-                          chunk.type === 'TEXT_MESSAGE_START' ||
-                          chunk.type === 'TEXT_MESSAGE_CONTENT' ||
-                          chunk.type === 'TEXT_MESSAGE_END' ||
-                          chunk.type === 'RUN_FINISHED'
-                        ) {
-                          const { runId: _runId, ...withoutRunId } = chunk
-                          return withoutRunId as StreamChunk
-                        }
-                        return chunk
-                      }),
+                  : createTextChunks(
+                      'fresh server-only response',
+                      'fresh-msg',
+                    ).map((chunk) => {
+                      if (
+                        chunk.type === 'TEXT_MESSAGE_START' ||
+                        chunk.type === 'TEXT_MESSAGE_CONTENT' ||
+                        chunk.type === 'TEXT_MESSAGE_END' ||
+                        chunk.type === 'RUN_FINISHED'
+                      ) {
+                        const { runId: _runId, ...withoutRunId } = chunk
+                        return withoutRunId as StreamChunk
+                      }
+                      return chunk
+                    }),
             })
             wakeQueuedSubscriber()
           },

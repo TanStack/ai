@@ -84,7 +84,8 @@ function fakeWorkspaceHandle() {
     watchedPaths,
     async fire(path) {
       for (const watcher of watchers) {
-        if (isUnderRoot(path, watcher.root)) watcher.cb({ type: 'change', path })
+        if (isUnderRoot(path, watcher.root))
+          watcher.cb({ type: 'change', path })
       }
       await Promise.resolve()
     },
@@ -351,7 +352,8 @@ describe('managed workspace persistence', () => {
     expect(decoder.decode(artifact?.bytes)).toBe('export const app = 2\n')
     expect(
       chunks.some(
-        (chunk) => chunk.type === EventType.CUSTOM && chunk.name === 'sandbox.file',
+        (chunk) =>
+          chunk.type === EventType.CUSTOM && chunk.name === 'sandbox.file',
       ),
     ).toBe(false)
   })
@@ -363,7 +365,10 @@ describe('managed workspace persistence', () => {
     const sandbox = defineSandbox({
       id: 'project',
       provider: fakeProvider(handle),
-      workspace: defineWorkspace({ source: { type: 'none' }, root: '/project' }),
+      workspace: defineWorkspace({
+        source: { type: 'none' },
+        root: '/project',
+      }),
       persistence: {
         workspace: {
           key: 'project-123',
@@ -449,7 +454,10 @@ describe('managed workspace persistence', () => {
     await collect(
       chat({
         adapter: adapter(async () => {
-          handle.files.set(path, encoder.encode('export const transient = true\n'))
+          handle.files.set(
+            path,
+            encoder.encode('export const transient = true\n'),
+          )
           handle.readBytesErrors.add(path)
           await handle.fire(path)
           handle.files.delete(path)
@@ -517,7 +525,10 @@ describe('managed workspace persistence', () => {
         threadId: 'thread-1',
         runId: 'run-1',
         messages: [{ role: 'user', content: 'restore workspace' }],
-        middleware: [withPersistence(persistence), withSandbox(workspaceSandbox(handle))],
+        middleware: [
+          withPersistence(persistence),
+          withSandbox(workspaceSandbox(handle)),
+        ],
       }),
     )
 

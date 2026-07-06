@@ -321,9 +321,8 @@ describe('useChat', () => {
         },
       }))
       const { useChat: useReplayChat } = await import('../src/use-chat')
-      const { ChatClient: ReplayChatClient } = await import(
-        '@tanstack/ai-client'
-      )
+      const { ChatClient: ReplayChatClient } =
+        await import('@tanstack/ai-client')
       const adapter = createMockConnectionAdapter()
       const hydrate = createDeferred<ChatResumeSnapshot>()
       const persistence: ChatServerPersistence = {

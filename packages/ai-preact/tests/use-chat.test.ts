@@ -246,9 +246,8 @@ describe('useChat', () => {
     })
 
     it('should keep async server hydration active through StrictMode effect replay', async () => {
-      const hooks = await vi.importActual<typeof import('preact/hooks')>(
-        'preact/hooks',
-      )
+      const hooks =
+        await vi.importActual<typeof import('preact/hooks')>('preact/hooks')
       vi.resetModules()
       vi.doMock('preact/hooks', () => ({
         ...hooks,
@@ -264,9 +263,8 @@ describe('useChat', () => {
         },
       }))
       const { useChat: useReplayChat } = await import('../src/use-chat')
-      const { ChatClient: ReplayChatClient } = await import(
-        '@tanstack/ai-client'
-      )
+      const { ChatClient: ReplayChatClient } =
+        await import('@tanstack/ai-client')
       const adapter = createMockConnectionAdapter()
       const hydrate = createDeferred<ChatResumeSnapshot>()
       const persistence: ChatServerPersistence = {

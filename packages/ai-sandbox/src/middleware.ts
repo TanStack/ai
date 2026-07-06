@@ -227,7 +227,8 @@ export function withSandbox(
         workspace: definition.workspace,
         defaultKey: definition.key(ensureCtx),
       })
-      const publicWatchRoot = definition.workspace?.root ?? DEFAULT_WORKSPACE_ROOT
+      const publicWatchRoot =
+        definition.workspace?.root ?? DEFAULT_WORKSPACE_ROOT
       let baseSha = ''
       try {
         const shaRes = await handle.process.exec('git rev-parse HEAD', {
@@ -280,9 +281,7 @@ export function withSandbox(
       const workspacePersistenceErrors: Array<unknown> = []
       const watchers: Array<SandboxWatchHandle> = []
       const runtime = getSandboxRuntime(ctx, { optional: true })
-      const enqueueWorkspacePersistence = (
-        event: SandboxFileEvent,
-      ): void => {
+      const enqueueWorkspacePersistence = (event: SandboxFileEvent): void => {
         if (!workspacePersistenceOptions) return
         pendingWorkspacePersistence.push(
           checkpointWorkspacePersistenceEvent(
