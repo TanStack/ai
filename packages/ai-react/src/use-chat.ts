@@ -12,7 +12,9 @@ import type {
   ChatClientState,
   ConnectionStatus,
   InferredClientContext,
+  QueuedMessage,
   StructuredOutputPart,
+  WhenBusy,
 } from '@tanstack/ai-client'
 
 import type {
@@ -43,6 +45,7 @@ export function useChat<
   const [connectionStatus, setConnectionStatus] =
     useState<ConnectionStatus>('disconnected')
   const [sessionGenerating, setSessionGenerating] = useState(false)
+  const [queue, setQueue] = useState<Array<QueuedMessage>>([])
 
   type Partial = DeepPartial<InferSchemaType<NonNullable<TSchema>>>
   type Final = InferSchemaType<NonNullable<TSchema>>
@@ -156,6 +159,13 @@ export function useChat<
         if (activeClientRef.current !== instance) return
         setSessionGenerating(isGenerating)
       },
+      ...(optionsRef.current.queue !== undefined && {
+        queue: optionsRef.current.queue,
+      }),
+      onQueueChange: (nextQueue: Array<QueuedMessage>) => {
+        if (activeClientRef.current !== instance) return
+        setQueue(nextQueue)
+      },
     })
     activeClientRef.current = instance
     return instance
@@ -229,8 +239,18 @@ export function useChat<
   }, [client])
 
   const sendMessage = useCallback(
-    async (content: string | MultimodalContent) => {
-      await client.sendMessage(content)
+    async (
+      content: string | MultimodalContent,
+      sendOptions?: { whenBusy?: WhenBusy },
+    ) => {
+      await client.sendMessage(content, undefined, sendOptions)
+    },
+    [client],
+  )
+
+  const cancelQueued = useCallback(
+    (id: string) => {
+      client.cancelQueued(id)
     },
     [client],
   )
@@ -346,6 +366,8 @@ export function useChat<
     clear,
     addToolResult,
     addToolApprovalResponse,
+    queue,
+    cancelQueued,
     partial,
     final,
   } as unknown as UseChatReturn<TTools, TSchema>
