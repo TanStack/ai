@@ -6,6 +6,11 @@ export type {
   UseChatReturn,
   UIMessage,
   ChatRequestBody,
+  QueuedMessage,
+  WhenBusy,
+  QueueConfig,
+  QueueStrategy,
+  QueueOption,
 } from './types'
 
 export {
