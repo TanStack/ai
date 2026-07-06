@@ -131,9 +131,7 @@ describe('ChatClient message queue', () => {
 
     // The dropped message must never have become a real message either —
     // it should be gone entirely, not just missing from the queue.
-    const userMessages = client
-      .getMessages()
-      .filter((m) => m.role === 'user')
+    const userMessages = client.getMessages().filter((m) => m.role === 'user')
     expect(userMessages.map((m) => m.parts[0])).toEqual([
       { type: 'text', content: 'first' },
     ])
@@ -200,18 +198,13 @@ describe('ChatClient queue drain', () => {
 
     await client.sendMessage('second')
     await client.sendMessage('third')
-    expect(client.getQueue().map((m) => m.content)).toEqual([
-      'second',
-      'third',
-    ])
+    expect(client.getQueue().map((m) => m.content)).toEqual(['second', 'third'])
 
     release()
     await firstSend
 
     expect(client.getQueue()).toEqual([])
-    const userMessages = client
-      .getMessages()
-      .filter((m) => m.role === 'user')
+    const userMessages = client.getMessages().filter((m) => m.role === 'user')
     expect(userMessages.map((m) => m.parts[0])).toEqual([
       { type: 'text', content: 'first' },
       { type: 'text', content: 'second' },
@@ -236,9 +229,7 @@ describe('ChatClient queue drain', () => {
     await firstSend
 
     expect(client.getQueue()).toEqual([])
-    const userMessages = client
-      .getMessages()
-      .filter((m) => m.role === 'user')
+    const userMessages = client.getMessages().filter((m) => m.role === 'user')
     expect(userMessages).toHaveLength(2)
     expect(userMessages[1]?.parts[0]).toEqual({
       type: 'text',
@@ -273,9 +264,7 @@ describe('ChatClient queue drain', () => {
     await firstSend
 
     expect(client.getQueue()).toEqual([])
-    const userMessages = client
-      .getMessages()
-      .filter((m) => m.role === 'user')
+    const userMessages = client.getMessages().filter((m) => m.role === 'user')
     // 'first' streamed immediately; the two queued sends above are merged
     // into a single batched send, so there should be exactly 2 user messages.
     expect(userMessages).toHaveLength(2)
@@ -331,9 +320,7 @@ describe('ChatClient queue drain', () => {
     // The queue must be flushed, not stranded or auto-drained into the
     // now-broken endpoint.
     expect(client.getQueue()).toEqual([])
-    const userMessages = client
-      .getMessages()
-      .filter((m) => m.role === 'user')
+    const userMessages = client.getMessages().filter((m) => m.role === 'user')
     expect(userMessages.map((m) => m.parts[0])).toEqual([
       { type: 'text', content: 'first' },
     ])
