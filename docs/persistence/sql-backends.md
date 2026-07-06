@@ -90,31 +90,49 @@ export const prismaStore = prismaPersistence({ prisma, dialect: 'postgres' })
 
 Drizzle and Prisma users usually manage schema changes through their own
 migration workflow. Pass `migrate: false` when you want that workflow to be the
-only source of schema changes. Prisma can use the shared SQL dialects exposed
-by `@tanstack/ai-persistence-sql`; Drizzle's built-in unwrapping currently
-targets SQLite-shaped and node-postgres clients.
+only source of schema changes. Both ORM packages ship a CLI that writes the
+TanStack AI persistence DDL into a migration file for SQLite or Postgres.
+
+```sh
+pnpm exec tanstack-ai-persistence-prisma --dialect postgres
+pnpm exec tanstack-ai-persistence-drizzle --dialect postgres
+```
+
+The default Prisma path is
+`prisma/migrations/<timestamp>_tanstack_ai_persistence/migration.sql`. The
+default Drizzle path is `drizzle/<timestamp>_tanstack_ai_persistence.sql`.
+Use `--out <path>` for a custom migration file, `--stdout` to print the SQL, or
+`--timestamp <yyyymmddhhmmss>` and `--name <name>` when you need deterministic
+file names. CLIs refuse to overwrite an existing output file by default; pass
+`--force` to replace it. Pass `--help` to print the full option reference.
+
+```ts
+export const drizzle = drizzlePersistence({
+  db,
+  dialect: 'postgres',
+  migrate: false,
+})
+
+export const prismaStore = prismaPersistence({
+  prisma,
+  dialect: 'postgres',
+  migrate: false,
+})
+```
+
+Run the generated file through `prisma migrate` or your Drizzle migration
+workflow before traffic reaches the app.
 
 ## MySQL-compatible deployments
 
 There is no `@tanstack/ai-persistence-mysql` package today. If your app needs a
 MySQL-compatible database, use the shared SQL core from
 `@tanstack/ai-persistence-sql` through an adapter that provides a `SqlDriver`
-with `dialect: 'mysql'`, or use `@tanstack/ai-persistence-prisma` with
-`dialect: 'mysql'` and your own Prisma migration workflow.
+with `dialect: 'mysql'`. The Prisma and Drizzle persistence adapters currently
+support SQLite and Postgres.
 
 ```ts
 import { ddl } from '@tanstack/ai-persistence-sql'
-import { prismaPersistence } from '@tanstack/ai-persistence-prisma'
-import type { PrismaRawClient } from '@tanstack/ai-persistence-prisma'
-
-declare const prisma: PrismaRawClient
-
-export const persistence = prismaPersistence({
-  prisma,
-  dialect: 'mysql',
-  migrate: false,
-})
-
 export const migrationStatements = ddl('mysql')
 ```
 
@@ -122,7 +140,7 @@ export const migrationStatements = ddl('mysql')
 
 Use SQLite when one process owns the database file. Use Postgres when multiple
 app instances need the same durable run state. Use Drizzle or Prisma when those
-clients are already how your application accesses its database. Use the shared
-SQL core or Prisma path when you need a MySQL-compatible deployment. Use
-[Cloudflare](./cloudflare) instead of the Node SQL backends when your runtime is
-Workers and your database is D1.
+clients are already how your application accesses a SQLite or Postgres
+database. Use the shared SQL core when you need a MySQL-compatible deployment.
+Use [Cloudflare](./cloudflare) instead of the Node SQL backends when your
+runtime is Workers and your database is D1.

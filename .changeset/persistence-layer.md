@@ -56,6 +56,9 @@ handling (binary key columns, `LONGTEXT` persisted payloads, and no-op
 `ON DUPLICATE KEY UPDATE` idempotent inserts). Raw drivers auto-migrate the
 small base schema (`runs`, `public_events`, `internal_events`, `messages`,
 `interrupts`, `metadata`, `_tanstack_ai_migrations`); ORMs own their schema.
+The Drizzle and Prisma packages now include `tanstack-ai-persistence-drizzle`
+and `tanstack-ai-persistence-prisma` CLIs that generate migration SQL files for
+manual `migrate: false` workflows.
 Cloudflare artifact metadata is lazily indexed in D1 while artifact bytes and
 generic blobs live in R2, with optional artifact/blob cleanup APIs for deletion
 and garbage collection.

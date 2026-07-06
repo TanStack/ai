@@ -406,7 +406,8 @@
         {
           "label": "SQL Backends",
           "to": "persistence/sql-backends",
-          "addedAt": "2026-07-03"
+          "addedAt": "2026-07-03",
+          "updatedAt": "2026-07-06"
         },
         {
           "label": "Cloudflare",
