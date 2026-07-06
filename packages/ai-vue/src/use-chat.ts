@@ -20,7 +20,9 @@ import type {
   ChatClientState,
   ConnectionStatus,
   InferredClientContext,
+  QueuedMessage,
   StructuredOutputPart,
+  WhenBusy,
 } from '@tanstack/ai-client'
 import type {
   DeepPartial,
@@ -53,6 +55,7 @@ export function useChat<
   const isSubscribed = shallowRef(false)
   const connectionStatus = shallowRef<ConnectionStatus>('disconnected')
   const sessionGenerating = shallowRef(false)
+  const queue = shallowRef<Array<QueuedMessage>>([])
 
   // Structured-output `partial` / `final` are derived from `messages` —
   // specifically from the structured-output part on the latest assistant
@@ -138,6 +141,10 @@ export function useChat<
     onSessionGeneratingChange: (isGenerating: boolean) => {
       sessionGenerating.value = isGenerating
     },
+    ...(options.queue !== undefined && { queue: options.queue }),
+    onQueueChange: (nextQueue: Array<QueuedMessage>) => {
+      queue.value = nextQueue
+    },
   })
 
   messages.value = client.getMessages()
@@ -190,9 +197,14 @@ export function useChat<
   // Callback options are read through `options.xxx` at call time, so reactive
   // or mutated options propagate without recreating the client.
 
-  const sendMessage = async (content: string | MultimodalContent) => {
-    await client.sendMessage(content)
+  const sendMessage = async (
+    content: string | MultimodalContent,
+    sendOptions?: { whenBusy?: WhenBusy },
+  ) => {
+    await client.sendMessage(content, undefined, sendOptions)
   }
+
+  const cancelQueued = (id: string) => client.cancelQueued(id)
 
   const append = async (message: ModelMessage | UIMessage<TTools>) => {
     await client.append(message)
@@ -279,6 +291,8 @@ export function useChat<
   return {
     messages: readonly(messages),
     sendMessage,
+    queue: readonly(queue),
+    cancelQueued,
     append,
     reload,
     stop,
