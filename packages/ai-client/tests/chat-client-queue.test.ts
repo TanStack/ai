@@ -246,6 +246,53 @@ describe('ChatClient queue drain', () => {
     })
   })
 
+  it('batch drain flattens multimodal queued items into ContentPart[]', async () => {
+    const { connection, release } = createSequencedHoldingConnection()
+    const client = new ChatClient({ connection, queue: { drain: 'batch' } })
+
+    const firstSend = client.sendMessage('first')
+    await vi.waitFor(() => {
+      expect(client.getIsLoading()).toBe(true)
+    })
+
+    // Queued item 1: multimodal content (array of ContentPart).
+    await client.sendMessage({
+      content: [
+        { type: 'text', content: 'look' },
+        {
+          type: 'image',
+          source: { type: 'url', value: 'https://example.com/a.png' },
+        },
+      ],
+    })
+    // Queued item 2: plain string content.
+    await client.sendMessage('note')
+    expect(client.getQueue()).toHaveLength(2)
+
+    release()
+    await firstSend
+
+    expect(client.getQueue()).toEqual([])
+    const userMessages = client
+      .getMessages()
+      .filter((m) => m.role === 'user')
+    // 'first' streamed immediately; the two queued sends above are merged
+    // into a single batched send, so there should be exactly 2 user messages.
+    expect(userMessages).toHaveLength(2)
+    // The merged message's parts must be the multimodal item's parts
+    // (flattened, in order) followed by the string item flattened to text —
+    // proving the MULTIMODAL branch of `mergeQueuedMessages` ran, not just
+    // the all-string join.
+    expect(userMessages[1]?.parts).toEqual([
+      { type: 'text', content: 'look' },
+      {
+        type: 'image',
+        source: { type: 'url', value: 'https://example.com/a.png' },
+      },
+      { type: 'text', content: 'note' },
+    ])
+  })
+
   it('flushes the queue on stop()', async () => {
     const { connection, release } = createHoldingConnection()
     const client = new ChatClient({ connection })

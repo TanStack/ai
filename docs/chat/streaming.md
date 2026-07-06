@@ -224,7 +224,7 @@ const { messages, queue, sendMessage, cancelQueued, isLoading } = useChat({
 - **`maxSize`** — caps how many messages can be queued.
 - **`onOverflow`** — `"reject"` (default) ignores a send once `maxSize` is reached; `"drop-oldest"` evicts the oldest queued item to make room.
 
-You can also pass a plain `WhenBusy` string as shorthand for `queue: "interrupt"`, or a `QueueStrategy` function for full control over the per-send decision (the drain order stays FIFO for the function form).
+You can also pass a plain `WhenBusy` string (e.g. `queue: "interrupt"`) as shorthand for `{ whenBusy: "interrupt" }` — this applies for any `WhenBusy` value (`"queue"`, `"drop"`, or `"interrupt"`), not just `"interrupt"` — or a `QueueStrategy` function for full control over the per-send decision (the drain order stays FIFO for the function form).
 
 `useChat` exposes the pending queue as `queue` so you can render it distinctly from `messages`, along with `cancelQueued(id)` to cancel an item before it sends:
 
