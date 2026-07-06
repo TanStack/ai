@@ -761,6 +761,49 @@ export class StreamProcessor {
     return { messageId: id, state }
   }
 
+  /**
+   * Rename a message id across every structure keyed by it.
+   *
+   * A placeholder id (from ensureAssistantMessage / startAssistantMessage) is
+   * renamed to the real provider id on TEXT_MESSAGE_START. Every structure that
+   * holds that id must move together — miss one and the data it holds is
+   * silently orphaned onto the vanished id (e.g. a tool result whose
+   * toolCallToMessage entry still points at the placeholder). This is the same
+   * id-keyed set enumerated by pruneToMessages() and reset().
+   */
+  private renameMessageId(oldId: string, newId: string): void {
+    if (oldId === newId) return
+
+    this.messages = this.messages.map((msg) =>
+      msg.id === oldId ? { ...msg, id: newId } : msg,
+    )
+
+    const state = this.messageStates.get(oldId)
+    if (state) {
+      state.id = newId
+      this.messageStates.delete(oldId)
+      this.messageStates.set(newId, state)
+    }
+
+    this.activeMessageIds.delete(oldId)
+    this.activeMessageIds.add(newId)
+
+    // toolCallToMessage is keyed by toolCallId with the message id as the value.
+    for (const [toolCallId, msgId] of this.toolCallToMessage) {
+      if (msgId === oldId) this.toolCallToMessage.set(toolCallId, newId)
+    }
+
+    if (this.structuredMessageIds.delete(oldId)) {
+      this.structuredMessageIds.add(newId)
+    }
+
+    const batch = this.structuredOutputUpdateBatches.get(oldId)
+    if (batch !== undefined) {
+      this.structuredOutputUpdateBatches.delete(oldId)
+      this.structuredOutputUpdateBatches.set(newId, batch)
+    }
+  }
+
   // ============================================
   // Event Handlers
   // ============================================
@@ -784,24 +827,9 @@ export class StreamProcessor {
       const pendingId = this.pendingManualMessageId
       this.pendingManualMessageId = null
 
-      if (pendingId !== messageId) {
-        // Update the message's ID in the messages array
-        this.messages = this.messages.map((msg) =>
-          msg.id === pendingId ? { ...msg, id: messageId } : msg,
-        )
-
-        // Move state to the new key
-        const existingState = this.messageStates.get(pendingId)
-        if (existingState) {
-          existingState.id = messageId
-          this.messageStates.delete(pendingId)
-          this.messageStates.set(messageId, existingState)
-        }
-
-        // Update activeMessageIds
-        this.activeMessageIds.delete(pendingId)
-        this.activeMessageIds.add(messageId)
-      }
+      // Rename the placeholder to the real provider id across every id-keyed
+      // structure (no-op when they already match).
+      this.renameMessageId(pendingId, messageId)
 
       // Ensure state exists
       if (!this.messageStates.has(messageId)) {
