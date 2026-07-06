@@ -14,7 +14,7 @@
 '@tanstack/ai-persistence-cloudflare': minor
 '@tanstack/ai-persistence-drizzle': minor
 '@tanstack/ai-persistence-prisma': minor
-'@tanstack/ai-sandbox-persistence': minor
+'@tanstack/ai-sandbox': minor
 ---
 
 Persistence + resumable runs as composable `chat()` middleware.
@@ -61,9 +61,10 @@ generic blobs live in R2, with optional artifact/blob cleanup APIs for deletion
 and garbage collection.
 `memoryPersistence()` ships in core for tests/examples.
 
-**Sandboxes, MCP, and workflows.** `@tanstack/ai-sandbox-persistence` bridges a
-durable SQL-backed `SandboxStore` and the durable `LockStore` into
-`withSandbox`, so sandbox resume and ensure-locking survive across processes.
-MCP persistence is app-owned metadata plus raw stream replay only. Workflow
-extensions are deferred to optional packages and should reuse these primitives
-without adding base schema cost.
+**Sandboxes, MCP, and workflows.** `@tanstack/ai-sandbox` now consumes
+configured persistence capabilities directly. Place `withPersistence(...)`
+before `withSandbox(...)` and sandbox resume records are stored in persistence
+metadata while sandbox ensure-locking uses the shared persistence lock
+capability when present. MCP persistence is app-owned metadata plus raw stream
+replay only. Workflow extensions are deferred to optional packages and should
+reuse these primitives without adding base schema cost.

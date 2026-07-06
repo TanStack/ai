@@ -34,12 +34,14 @@ import type {
   DefinedChatMiddleware,
   SandboxFileEvent,
 } from '@tanstack/ai'
+import type { AIPersistence } from '@tanstack/ai-persistence'
 import type { SandboxHandle } from './contracts'
 import type {
   SandboxDefinition,
   SandboxEnsureContext,
   SandboxHooks,
 } from './sandbox'
+import type { SandboxRecord, SandboxStore } from './store'
 import type { SandboxWatchHandle } from './watch'
 
 /** Per-request state we need to carry from `setup` to the terminal hooks. */
@@ -50,6 +52,69 @@ interface SandboxRunState {
 }
 
 const runState = new WeakMap<object, SandboxRunState>()
+const persistenceStores = new WeakMap<AIPersistence, SandboxStore>()
+const SANDBOX_METADATA_SCOPE = 'tanstack.ai.sandbox'
+
+async function getOptionalPersistence(
+  ctx: ChatMiddlewareContext,
+): Promise<AIPersistence | undefined> {
+  try {
+    const { PersistenceCapability } = await import('@tanstack/ai-persistence')
+    return ctx.getOptional(PersistenceCapability)
+  } catch (error) {
+    if (isMissingOptionalPersistence(error)) return undefined
+    throw error
+  }
+}
+
+function isMissingOptionalPersistence(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.message.includes('@tanstack/ai-persistence') ||
+      error.message.includes('ERR_MODULE_NOT_FOUND') ||
+      error.message.includes('MODULE_NOT_FOUND'))
+  )
+}
+
+function isSandboxRecord(value: unknown): value is SandboxRecord {
+  if (value === null || typeof value !== 'object') return false
+  const record = value as Record<string, unknown>
+  return (
+    typeof record.key === 'string' &&
+    typeof record.provider === 'string' &&
+    typeof record.providerSandboxId === 'string' &&
+    typeof record.threadId === 'string' &&
+    typeof record.updatedAt === 'number' &&
+    (record.latestSnapshotId === undefined ||
+      typeof record.latestSnapshotId === 'string') &&
+    (record.latestRunId === undefined || typeof record.latestRunId === 'string')
+  )
+}
+
+function sandboxStoreFromPersistence(
+  persistence: AIPersistence | undefined,
+): SandboxStore | undefined {
+  const metadata = persistence?.stores.metadata
+  if (!persistence || !metadata) return undefined
+
+  const existing = persistenceStores.get(persistence)
+  if (existing) return existing
+
+  const store: SandboxStore = {
+    async get(key) {
+      const value = await metadata.get(SANDBOX_METADATA_SCOPE, key)
+      return isSandboxRecord(value) ? value : null
+    },
+    async upsert(record) {
+      await metadata.set(SANDBOX_METADATA_SCOPE, record.key, record)
+    },
+    async delete(key) {
+      await metadata.delete(SANDBOX_METADATA_SCOPE, key)
+    },
+  }
+  persistenceStores.set(persistence, store)
+  return store
+}
 
 /** Defensively pull tenant scoping out of the runtime context, if present. */
 function tenantFrom(
@@ -63,11 +128,16 @@ function tenantFrom(
   return { userId, orgId }
 }
 
-function buildEnsureCtx(ctx: ChatMiddlewareContext): SandboxEnsureContext {
+async function buildEnsureCtx(
+  ctx: ChatMiddlewareContext,
+): Promise<SandboxEnsureContext> {
+  const persistence = await getOptionalPersistence(ctx)
   return {
     threadId: ctx.threadId,
     runId: ctx.runId,
-    store: ctx.getOptional(SandboxStoreCapability),
+    store:
+      ctx.getOptional(SandboxStoreCapability) ??
+      sandboxStoreFromPersistence(persistence),
     locks: ctx.getOptional(LocksCapability),
     tenant: tenantFrom(ctx.context),
     signal: ctx.signal,
@@ -117,7 +187,7 @@ export function withSandbox(
     optionalRequires: [SandboxStoreCapability, LocksCapability],
 
     async setup(ctx) {
-      const ensureCtx = buildEnsureCtx(ctx)
+      const ensureCtx = await buildEnsureCtx(ctx)
       const handle = await definition.ensure(ensureCtx)
       provideSandbox(ctx, handle)
       if (definition.policy) provideSandboxPolicy(ctx, definition.policy)

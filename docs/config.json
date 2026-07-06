@@ -365,7 +365,7 @@
           "label": "Lifecycle & Snapshots",
           "to": "sandbox/lifecycle",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-07-03"
+          "updatedAt": "2026-07-06"
         },
         {
           "label": "Events",
@@ -391,7 +391,7 @@
           "label": "Overview",
           "to": "persistence/overview",
           "addedAt": "2026-06-18",
-          "updatedAt": "2026-07-03"
+          "updatedAt": "2026-07-06"
         },
         {
           "label": "Resumable Chat",
@@ -421,7 +421,8 @@
         {
           "label": "Sandbox Runs",
           "to": "persistence/sandbox-runs",
-          "addedAt": "2026-07-03"
+          "addedAt": "2026-07-03",
+          "updatedAt": "2026-07-06"
         }
       ]
     },

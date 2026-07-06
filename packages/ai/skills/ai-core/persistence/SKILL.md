@@ -129,10 +129,10 @@ should reuse the existing primitives without adding base schema cost.
 
 ## Sandboxes
 
-`@tanstack/ai-sandbox-persistence` provides `createSqlSandboxStore(driver)` and
-`withPersistenceBridge({ persistence, sandboxStore })`; order it between
-`withPersistence` and `withSandbox` to make sandbox resume + ensure-locking
-durable across processes. The shared `locks` capability lives in `@tanstack/ai`.
+Place `withPersistence(...)` before `withSandbox(...)` to make sandbox resume
+and ensure-locking durable across processes. `withSandbox(...)` reads the
+configured persistence metadata store for sandbox records and uses the shared
+`locks` capability from `@tanstack/ai` when `withPersistence(...)` provides it.
 
 ## Gotchas
 

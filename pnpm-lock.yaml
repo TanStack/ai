@@ -2199,6 +2199,9 @@ importers:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
+      '@tanstack/ai-persistence':
+        specifier: workspace:*
+        version: link:../ai-persistence
       '@vitest/coverage-v8':
         specifier: 4.0.14
         version: 4.0.14(vitest@4.1.4)
@@ -2262,24 +2265,6 @@ importers:
 
   packages/ai-sandbox-local-process:
     devDependencies:
-      '@tanstack/ai-sandbox':
-        specifier: workspace:*
-        version: link:../ai-sandbox
-      '@vitest/coverage-v8':
-        specifier: 4.0.14
-        version: 4.0.14(vitest@4.1.4)
-
-  packages/ai-sandbox-persistence:
-    devDependencies:
-      '@tanstack/ai':
-        specifier: workspace:*
-        version: link:../ai
-      '@tanstack/ai-persistence':
-        specifier: workspace:*
-        version: link:../ai-persistence
-      '@tanstack/ai-persistence-sql':
-        specifier: workspace:*
-        version: link:../ai-persistence-sql
       '@tanstack/ai-sandbox':
         specifier: workspace:*
         version: link:../ai-sandbox

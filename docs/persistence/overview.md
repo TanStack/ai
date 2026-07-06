@@ -58,8 +58,8 @@ stores, public versus internal events, metadata, locks, artifacts, and blobs.
 
 If you persist coding-agent sandboxes, read
 [Sandbox Runs](./sandbox-runs). It shows how
-`@tanstack/ai-sandbox-persistence` bridges durable sandbox records and locks
-between `withPersistence` and `withSandbox`.
+`withSandbox(...)` consumes durable sandbox records and locks directly from
+`withPersistence(...)`.
 
 ## Installation
 
