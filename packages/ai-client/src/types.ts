@@ -145,6 +145,62 @@ export interface MultimodalContent {
 }
 
 /**
+ * Action taken when `sendMessage` is called while a stream is in flight.
+ * - `queue`: hold the message; it auto-sends when the stream settles.
+ * - `drop`: ignore the send.
+ * - `interrupt`: abort the current stream (like `stop()`) and send now.
+ */
+export type WhenBusy = 'queue' | 'drop' | 'interrupt'
+
+/**
+ * A user message held in the send queue while a stream is active.
+ * Rendered separately from `messages`; cancellable via `cancelQueued(id)`
+ * until it drains.
+ */
+export interface QueuedMessage {
+  id: string
+  content: string | MultimodalContent
+  createdAt: number
+}
+
+/**
+ * Declarative queue policy.
+ */
+export interface QueueConfig {
+  /** Action when a stream is in flight. Default `'queue'`. */
+  whenBusy?: WhenBusy
+  /**
+   * How queued items leave the queue.
+   * - `'fifo'`: one at a time, in order (default).
+   * - `'batch'`: merge all queued items into one send when the stream settles.
+   */
+  drain?: 'fifo' | 'batch'
+  /** Max queued items. Unlimited when omitted. */
+  maxSize?: number
+  /** Behavior when `maxSize` is reached. Default `'reject'`. */
+  onOverflow?: 'reject' | 'drop-oldest'
+}
+
+/**
+ * Escape hatch: decide the action for a single send. Drain stays FIFO for the
+ * function form (no `batch` via function).
+ */
+export type QueueStrategy = (ctx: {
+  pending: QueuedMessage
+  isStreaming: boolean
+  queued: ReadonlyArray<QueuedMessage>
+}) => { action: 'send' | 'enqueue' | 'drop' | 'interrupt' }
+
+/** A `WhenBusy` shorthand, a full config, or a strategy function. */
+export type QueueOption = WhenBusy | QueueConfig | QueueStrategy
+
+/** Per-call overrides for `sendMessage`. */
+export interface SendMessageOptions {
+  /** Overrides the configured `whenBusy` for this one send. */
+  whenBusy?: WhenBusy
+}
+
+/**
  * Message parts - building blocks of UIMessage
  */
 export interface TextPart {
@@ -491,6 +547,19 @@ export interface ChatClientBaseOptions<
    * activity visible to all subscribers (e.g. across tabs/devices).
    */
   onSessionGeneratingChange?: (isGenerating: boolean) => void
+
+  /**
+   * Policy for messages sent while a stream is in flight. Accepts a
+   * `WhenBusy` string, a `QueueConfig`, or a `QueueStrategy` function.
+   * Default: `{ whenBusy: 'queue', drain: 'fifo' }`.
+   */
+  queue?: QueueOption
+
+  /**
+   * Callback when the pending send queue changes (enqueue, cancel, drain,
+   * or flush).
+   */
+  onQueueChange?: (queue: Array<QueuedMessage>) => void
 
   /**
    * Callback when a custom event is received from a server-side tool.
