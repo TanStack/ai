@@ -230,7 +230,7 @@ The single canonical command is:
 pnpm test:pr
 ```
 
-This runs the exact target set the `PR` workflow runs in CI: first `nx affected --targets=test:sherif,test:knip,test:docs,test:kiira,test:eslint,test:lib,test:types,test:build,build --exclude=examples/**,testing/**` (the heavy targets, packages only), then a second `nx affected --targets=test:types --projects=examples/**,testing/**` pass that **does** type-check the example apps and `testing/` packages. The example/testing surfaces are deliberately excluded from the heavy targets (build/lib/etc.) but included for `test:types`, because call-site type regressions often only manifest where the library is actually consumed (see issue #820). Use `pnpm test:types:examples` to run just that second pass locally.
+This runs the exact target set the `PR` workflow runs in CI: `nx affected --targets=test:sherif,test:knip,test:docs,test:kiira,test:eslint,test:lib,test:types,test:build,build`. There is **no** `--exclude=examples/**,testing/**` carve-out — the example apps and `testing/` packages are included, so Nx runs whatever of these targets they define (in practice `build` and `test:types`). Including them means `test:types` is checked at the call sites where the library is actually consumed, catching call-site type regressions that only manifest there (see issue #820). To type-check just the example apps + `testing/` packages locally, run `nx run-many --targets=test:types --projects=examples/**,testing/**`.
 
 If you can't run `test:pr` (e.g. it's too slow on your machine), at minimum run each of these and confirm they're green before pushing:
 
@@ -239,7 +239,7 @@ If you can't run `test:pr` (e.g. it's too slow on your machine), at minimum run 
 - `pnpm test:docs` — doc link verification
 - `pnpm test:eslint` — lint
 - `pnpm test:types` — typecheck (packages)
-- `pnpm test:types:examples` — typecheck the example apps + `testing/` packages
+- `nx run-many --targets=test:types --projects=examples/**,testing/**` — typecheck the example apps + `testing/` packages
 - `pnpm test:lib` — unit tests
 - `pnpm test:build` — build artifact verification
 - `pnpm build` — build all affected packages
@@ -249,7 +249,7 @@ Do **not** rely on CI as your first signal. Run locally, fix, then push.
 
 ### Working with Examples
 
-Examples are not built by Nx. To run an example:
+Nx type-checks and builds examples as part of `test:pr`/`test:ci` (via their inferred `test:types` and `build` targets). To run an example locally:
 
 ```bash
 cd examples/ts-react-chat
