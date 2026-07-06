@@ -203,6 +203,54 @@ export async function POST(request: Request) {
 }
 ```
 
+## Queueing Messages
+
+By default, calling `sendMessage` while a stream is already in flight **queues** the message instead of dropping it — it sends automatically once the current run settles. Configure this with the `queue` option, which accepts a `QueueConfig` object, a plain shorthand string, or a strategy function:
+
+```tsx group=queueing-messages
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
+const { messages, queue, sendMessage, cancelQueued, isLoading } = useChat({
+  connection: fetchServerSentEvents("/api/chat"),
+  queue: { whenBusy: "queue", drain: "fifo", maxSize: 5 },
+});
+```
+
+- **`whenBusy`** — what happens to a send that arrives mid-stream:
+  - `"queue"` (default) — hold the message; it sends once the stream settles.
+  - `"drop"` — ignore the send.
+  - `"interrupt"` — abort the current stream (like calling `stop()`) and send the new message immediately.
+- **`drain`** — how queued items leave the queue: `"fifo"` (default) sends them one at a time in order; `"batch"` merges everything currently queued into a single send once the stream settles (string contents joined with `\n`, multimodal content concatenated in order).
+- **`maxSize`** — caps how many messages can be queued.
+- **`onOverflow`** — `"reject"` (default) ignores a send once `maxSize` is reached; `"drop-oldest"` evicts the oldest queued item to make room.
+
+You can also pass a plain `WhenBusy` string as shorthand for `queue: "interrupt"`, or a `QueueStrategy` function for full control over the per-send decision (the drain order stays FIFO for the function form).
+
+`useChat` exposes the pending queue as `queue` so you can render it distinctly from `messages`, along with `cancelQueued(id)` to cancel an item before it sends:
+
+```tsx group=queueing-messages
+function PendingQueue() {
+  return (
+    <>
+      {queue.map((q) => (
+        <div key={q.id} className="pending">
+          {typeof q.content === "string" ? q.content : "[attachment]"}
+          <button onClick={() => cancelQueued(q.id)}>Cancel</button>
+        </div>
+      ))}
+    </>
+  );
+}
+```
+
+Override the configured policy for a single send with the second argument to `sendMessage`:
+
+```tsx group=queueing-messages
+sendMessage("Never mind, do this instead", { whenBusy: "interrupt" });
+```
+
+> **Note:** This is a default-behavior change — messages sent while streaming used to be silently dropped. They are now queued unless you opt into `whenBusy: "drop"` or `"interrupt"`.
+
 ## Best Practices
 
 1. **Handle loading states** - Use `isLoading` to show loading indicators
@@ -210,6 +258,7 @@ export async function POST(request: Request) {
 3. **Cancel on unmount** - Clean up streams when components unmount
 4. **Optimize rendering** - Batch updates if needed for performance
 5. **Show progress** - Display partial content as it streams
+6. **Render queued messages distinctly** - Use `queue` to show pending sends separately from `messages`
 
 ## Next Steps
 
