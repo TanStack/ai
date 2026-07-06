@@ -128,3 +128,106 @@ describe('ChatClient message queue', () => {
     await firstSend
   })
 })
+
+/**
+ * Like {@link createHoldingConnection}, but only the first `connect()` call
+ * waits on the deferred; every subsequent call (i.e. a drained queue item's
+ * own send) resolves immediately with a unique messageId so chained drains
+ * don't collide on the same assistant message id.
+ */
+function createSequencedHoldingConnection(): {
+  connection: ConnectConnectionAdapter
+  release: () => void
+} {
+  const deferred = createDeferred<void>()
+  let call = 0
+  const connection: ConnectConnectionAdapter = {
+    async *connect() {
+      call += 1
+      if (call === 1) {
+        await deferred.promise
+      }
+      yield* createTextChunks('done', `msg-${call}`)
+    },
+  }
+  return { connection, release: () => deferred.resolve() }
+}
+
+describe('ChatClient queue drain', () => {
+  it('drains FIFO after the stream settles, in order', async () => {
+    const { connection, release } = createSequencedHoldingConnection()
+    const client = new ChatClient({ connection })
+
+    const firstSend = client.sendMessage('first')
+    await vi.waitFor(() => {
+      expect(client.getIsLoading()).toBe(true)
+    })
+
+    await client.sendMessage('second')
+    await client.sendMessage('third')
+    expect(client.getQueue().map((m) => m.content)).toEqual([
+      'second',
+      'third',
+    ])
+
+    release()
+    await firstSend
+
+    expect(client.getQueue()).toEqual([])
+    const userMessages = client
+      .getMessages()
+      .filter((m) => m.role === 'user')
+    expect(userMessages.map((m) => m.parts[0])).toEqual([
+      { type: 'text', content: 'first' },
+      { type: 'text', content: 'second' },
+      { type: 'text', content: 'third' },
+    ])
+  })
+
+  it('batch drain merges string queued items with newlines', async () => {
+    const { connection, release } = createSequencedHoldingConnection()
+    const client = new ChatClient({ connection, queue: { drain: 'batch' } })
+
+    const firstSend = client.sendMessage('first')
+    await vi.waitFor(() => {
+      expect(client.getIsLoading()).toBe(true)
+    })
+
+    await client.sendMessage('a')
+    await client.sendMessage('b')
+    expect(client.getQueue().map((m) => m.content)).toEqual(['a', 'b'])
+
+    release()
+    await firstSend
+
+    expect(client.getQueue()).toEqual([])
+    const userMessages = client
+      .getMessages()
+      .filter((m) => m.role === 'user')
+    expect(userMessages).toHaveLength(2)
+    expect(userMessages[1]?.parts[0]).toEqual({
+      type: 'text',
+      content: 'a\nb',
+    })
+  })
+
+  it('flushes the queue on stop()', async () => {
+    const { connection, release } = createHoldingConnection()
+    const client = new ChatClient({ connection })
+
+    const firstSend = client.sendMessage('first')
+    await vi.waitFor(() => {
+      expect(client.getIsLoading()).toBe(true)
+    })
+
+    await client.sendMessage('second')
+    expect(client.getQueue()).toHaveLength(1)
+
+    client.stop()
+    expect(client.getQueue()).toEqual([])
+
+    // Let the held-open stream settle so it doesn't leak into other tests.
+    release()
+    await firstSend
+  })
+})

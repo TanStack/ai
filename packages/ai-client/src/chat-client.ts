@@ -121,6 +121,38 @@ export function normalizeQueueOption(
   }
 }
 
+/**
+ * Merge a run of queued messages into a single send for `drain: 'batch'`.
+ * All-string content is joined with newlines; mixed/multimodal content is
+ * flattened into a single `ContentPart` array. The last item's `body` wins.
+ */
+function mergeQueuedMessages(
+  items: Array<QueuedMessage & { body?: Record<string, any> }>,
+): { content: string | MultimodalContent; body?: Record<string, any> } {
+  const body = items.at(-1)?.body
+  const allString = items.every((i) => typeof i.content === 'string')
+  if (allString) {
+    return {
+      content: items.map((i) => i.content as string).join('\n'),
+      ...(body !== undefined ? { body } : {}),
+    }
+  }
+  const parts: Array<ContentPart> = []
+  for (const item of items) {
+    if (typeof item.content === 'string') {
+      parts.push({ type: 'text', content: item.content })
+    } else if (typeof item.content.content === 'string') {
+      parts.push({ type: 'text', content: item.content.content })
+    } else {
+      parts.push(...item.content.content)
+    }
+  }
+  return {
+    content: { content: parts },
+    ...(body !== undefined ? { body } : {}),
+  }
+}
+
 export class ChatClient<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TContext = unknown,
@@ -609,6 +641,7 @@ export class ChatClient<
       connectionStatus: this.connectionStatus,
       sessionGenerating: this.sessionGenerating,
       activeRunIds: Array.from(this.activeRunIds),
+      queue: this.getQueue(),
       ...(this.error ? { error: this.error.message } : {}),
     }
   }
@@ -1169,11 +1202,18 @@ export class ChatClient<
             } catch (error) {
               console.error('Failed to continue flow after tool result:', error)
             }
-          } else if (this.status !== 'ready') {
-            // Terminal run, but onStreamEnd never fired: the processor had no
-            // assistant message to emit it for (e.g. a bare RUN_FINISHED{stop},
-            // #421). The normal path already set 'ready', so this is a no-op.
-            this.setStatus('ready')
+          } else {
+            if (this.status !== 'ready') {
+              // Terminal run, but onStreamEnd never fired: the processor had
+              // no assistant message to emit it for (e.g. a bare
+              // RUN_FINISHED{stop}, #421). The normal path already set
+              // 'ready', so this is a no-op.
+              this.setStatus('ready')
+            }
+            // Auto-send queued messages once the run fully settles. When a
+            // continuation runs instead (tool-result branch above), that
+            // continuation's own finally drains the queue.
+            await this.drainQueue()
           }
         }
       }
@@ -1210,6 +1250,7 @@ export class ChatClient<
       setReadyStatus: true,
       abortSubscription: true,
     })
+    this.flushQueue()
     this.resetSessionGenerating()
     this.setIsSubscribed(false)
     this.setConnectionStatus('disconnected')
@@ -1250,6 +1291,7 @@ export class ChatClient<
   stop(): void {
     const hadLocalStream = this.abortController !== null
     this.cancelInFlightStream({ setReadyStatus: true })
+    this.flushQueue()
     if (hadLocalStream) {
       this.resetSessionGenerating()
     }
@@ -1277,6 +1319,7 @@ export class ChatClient<
       this.persistor.beginClear()
     }
     this.processor.clearMessages()
+    this.flushQueue()
     this.persistor?.remove()
     this.setError(undefined)
     this.events.messagesCleared()
@@ -1473,6 +1516,30 @@ export class ChatClient<
   }
 
   /**
+   * Send the next queued message (fifo) or all queued messages merged into one
+   * (batch). Called from streamResponse's finally once the run has settled;
+   * the fifo case relies on the resulting stream's own finally to continue the
+   * chain.
+   */
+  private async drainQueue(): Promise<void> {
+    if (this.isLoading || this.messageQueue.length === 0) {
+      return
+    }
+    if (this.queueConfig.drain === 'batch') {
+      const items = this.messageQueue.splice(0)
+      this.emitQueueChange()
+      const merged = mergeQueuedMessages(items)
+      await this.sendMessage(merged.content, merged.body)
+      return
+    }
+    const next = this.messageQueue.shift()
+    this.emitQueueChange()
+    if (next) {
+      await this.sendMessage(next.content, next.body)
+    }
+  }
+
+  /**
    * Get the current send queue (messages held while a stream was in flight).
    */
   getQueue(): Array<QueuedMessage> {
@@ -1498,7 +1565,7 @@ export class ChatClient<
     this.emitQueueChange()
   }
 
-  protected flushQueue(): void {
+  private flushQueue(): void {
     if (this.messageQueue.length === 0) return
     this.messageQueue = []
     this.emitQueueChange()
