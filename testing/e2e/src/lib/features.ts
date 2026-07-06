@@ -124,6 +124,10 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
     tools: [],
     modelOptions: {},
   },
+  'transcription-diarization': {
+    tools: [],
+    modelOptions: {},
+  },
   'video-gen': {
     tools: [],
     modelOptions: {},

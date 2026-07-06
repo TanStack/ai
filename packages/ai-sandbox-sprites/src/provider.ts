@@ -88,7 +88,13 @@ class SpritesProvider implements SandboxProvider {
   }
 
   async create(input: SandboxCreateInput): Promise<SandboxHandle> {
-    const name = `${NAME_PREFIX}-${randomUUID().replace(/-/g, '').slice(0, 12)}`
+    // Honor the deterministic id ensure() supplies (see SandboxCreateInput.id).
+    // The sprite's preview URL is keyed by name, so a random name would strand
+    // an out-of-band reconnect (a preview iframe) on a different sprite than the
+    // one the agent edits. Fall back to a random name for direct/advanced use.
+    const name =
+      input.id ??
+      `${NAME_PREFIX}-${randomUUID().replace(/-/g, '').slice(0, 12)}`
     const sprite = await this.client.createSprite(name, {
       ...(this.config.waitForCapacity !== undefined
         ? { waitForCapacity: this.config.waitForCapacity }

@@ -19,7 +19,7 @@ type MessagePart<TData> =
   | UIResourcePart;
 ```
 
-Defined in: [packages/ai/src/types.ts:437](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L437)
+Defined in: [packages/ai/src/types.ts:459](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L459)
 
 ## Type Parameters
 

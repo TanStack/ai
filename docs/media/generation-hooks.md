@@ -214,7 +214,7 @@ The `generate` function accepts a `TranscriptionGenerateInput`:
 | `audio` | `string \| File \| Blob \| ArrayBuffer` | Audio data -- base64 string, File, Blob, or ArrayBuffer (required) |
 | `language` | `string` | Language in ISO-639-1 format (e.g., `"en"`) |
 | `prompt` | `string` | Optional prompt to guide the transcription |
-| `responseFormat` | `'json' \| 'text' \| 'srt' \| 'verbose_json' \| 'vtt'` | Output format |
+| `responseFormat` | `'json' \| 'text' \| 'srt' \| 'verbose_json' \| 'vtt'` | Common output format |
 | `modelOptions` | `Record<string, any>` | Model-specific options |
 
 ## useSummarize

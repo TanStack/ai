@@ -13,6 +13,7 @@ import { resolveDebugOption } from '../../logger/resolve'
 import { EventType } from '../../types'
 import { getResumeSource } from '../../resume'
 import { normalizeToolResult } from '../../utilities/tool-result'
+import { isProviderExecutedToolCall } from '../../utilities/provider-executed'
 import { LazyToolManager } from './tools/lazy-tool-manager'
 import {
   MiddlewareAbortError,
@@ -45,6 +46,7 @@ import type {
 import type {
   AgentLoopStrategy,
   AnyTool,
+  ChatStream,
   ConstrainedModelMessage,
   CustomEvent,
   InferSchemaType,
@@ -70,7 +72,7 @@ import type {
   ChatMiddleware,
   ChatMiddlewareConfig,
   ChatMiddlewareContext,
-  SandboxFileEvent,
+  SandboxFileHookEvent,
   StructuredOutputMiddlewareConfig,
 } from './middleware/types'
 import type { CheckCoverage } from './middleware/builder'
@@ -416,7 +418,7 @@ export type TextActivityResult<
     : Promise<InferSchemaType<TSchema>>
   : [TStream] extends [false]
     ? Promise<string>
-    : AsyncIterable<StreamChunk>
+    : ChatStream
 
 // ===========================
 // ChatEngine Implementation
@@ -730,11 +732,30 @@ class TextEngine<
     // a `sandbox.file` custom chunk to be drained into the public stream.
     provideSandboxRuntime(this.middlewareCtx, {
       logger: this.logger,
-      emit: (event: SandboxFileEvent) => {
-        this.logger.sandbox(`file ${event.type} ${event.path}`, { event })
-        void this.middlewareRunner.runSandboxFile(this.middlewareCtx, event)
+      emit: (event: SandboxFileHookEvent) => {
+        this.logger.sandbox(`file ${event.type} ${event.path}`, {
+          event: {
+            type: event.type,
+            path: event.path,
+            timestamp: event.timestamp,
+          },
+        })
+        void this.middlewareRunner
+          .runSandboxFile(this.middlewareCtx, event)
+          .catch((err: unknown) => {
+            this.logger.errors('sandbox file hook failed', { error: err })
+          })
         this.sandboxFileQueue.push(
-          this.createCustomEventChunk('sandbox.file', { ...event }),
+          this.createCustomEventChunk('sandbox.file', {
+            type: event.type,
+            path: event.path,
+            timestamp: event.timestamp,
+          }),
+        )
+      },
+      emitFileDiff: (value: { path: string; diff: string }) => {
+        this.sandboxFileQueue.push(
+          this.createCustomEventChunk('sandbox.file.diff', value),
         )
       },
     })
@@ -1984,6 +2005,13 @@ class TextEngine<
     for (const message of this.messages) {
       if (message.role === 'assistant' && message.toolCalls) {
         for (const toolCall of message.toolCalls) {
+          // Provider-executed tool calls (e.g. Anthropic `web_search`) were
+          // already run by the provider; they carry no client result, so they
+          // would otherwise look "pending" forever and the loop would try (and
+          // fail) to execute them client-side. Skip them.
+          if (isProviderExecutedToolCall(toolCall)) {
+            continue
+          }
           if (!completedToolIds.has(toolCall.id)) {
             pending.push(toolCall)
           }

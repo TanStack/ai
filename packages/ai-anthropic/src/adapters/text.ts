@@ -10,7 +10,10 @@ import {
   generateId,
   getAnthropicApiKeyFromEnv,
 } from '../utils'
-import { ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS } from '../model-meta'
+import {
+  ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS,
+  getAnthropicDefaultMaxTokens,
+} from '../model-meta'
 import type {
   ANTHROPIC_MODELS,
   AnthropicChatModelProviderOptionsByName,
@@ -28,11 +31,14 @@ import type {
   ContentBlockParam,
   DocumentBlockParam,
   ImageBlockParam,
+  ServerToolUseBlockParam,
   TextBlockParam,
   ThinkingBlockParam,
   ToolUseBlockParam,
   URLImageSource,
   URLPDFSource,
+  WebFetchToolResultBlockParam,
+  WebSearchToolResultBlockParam,
 } from '@anthropic-ai/sdk/resources/messages'
 import type Anthropic_SDK from '@anthropic-ai/sdk'
 import type { AnthropicBeta } from '@anthropic-ai/sdk/resources/beta/beta'
@@ -56,6 +62,83 @@ import type {
   AnthropicTextMetadata,
 } from '../message-types'
 import type { AnthropicClientConfig } from '../utils'
+
+/**
+ * The block type carried by an Anthropic provider-executed (server) tool's
+ * stored result. Mirrors the `*_tool_result` block emitted by the streaming
+ * API so it can be replayed verbatim into a later turn.
+ */
+type AnthropicServerToolResultBlockType =
+  | 'web_search_tool_result'
+  | 'web_fetch_tool_result'
+
+/**
+ * Anthropic payload stashed on a provider-executed tool call's `metadata`
+ * (under the `anthropic` key, alongside `providerExecuted: true`). Holds enough
+ * to reconstruct the original `server_tool_use` + `*_tool_result` blocks so the
+ * model still sees prior `web_search` / `web_fetch` evidence on the next turn.
+ */
+interface AnthropicServerToolMetadata {
+  serverToolType: ServerToolUseBlockParam['name']
+  resultBlockType: AnthropicServerToolResultBlockType
+  /** Raw result block content, preserved verbatim from the stream. */
+  result: unknown
+}
+
+/**
+ * Narrow an opaque tool-call `metadata` to {@link AnthropicServerToolMetadata}
+ * when it follows the provider-executed convention, else `null`.
+ */
+function readAnthropicServerToolMetadata(
+  metadata: unknown,
+): AnthropicServerToolMetadata | null {
+  if (typeof metadata !== 'object' || metadata === null) return null
+  const outer = metadata as { providerExecuted?: unknown; anthropic?: unknown }
+  if (outer.providerExecuted !== true) return null
+  const inner = outer.anthropic
+  if (typeof inner !== 'object' || inner === null) return null
+  const { serverToolType, resultBlockType, result } = inner as {
+    serverToolType?: unknown
+    resultBlockType?: unknown
+    result?: unknown
+  }
+  if (
+    typeof serverToolType !== 'string' ||
+    (resultBlockType !== 'web_search_tool_result' &&
+      resultBlockType !== 'web_fetch_tool_result')
+  ) {
+    return null
+  }
+  return {
+    // Validated as a string above; widen back to the SDK's tool-name union.
+    serverToolType: serverToolType as ServerToolUseBlockParam['name'],
+    resultBlockType,
+    result,
+  }
+}
+
+/**
+ * Reconstruct the `*_tool_result` block param from stored server-tool metadata.
+ * The `result` content is opaque round-trip data, asserted to the SDK's param
+ * content type at this single boundary.
+ */
+function buildServerToolResultBlock(
+  toolUseId: string,
+  meta: AnthropicServerToolMetadata,
+): WebSearchToolResultBlockParam | WebFetchToolResultBlockParam {
+  if (meta.resultBlockType === 'web_search_tool_result') {
+    return {
+      type: 'web_search_tool_result',
+      tool_use_id: toolUseId,
+      content: meta.result as WebSearchToolResultBlockParam['content'],
+    }
+  }
+  return {
+    type: 'web_fetch_tool_result',
+    tool_use_id: toolUseId,
+    content: meta.result as WebFetchToolResultBlockParam['content'],
+  }
+}
 
 /**
  * Computes the `betas` array for a Messages request. Unions:
@@ -263,7 +346,12 @@ export class AnthropicTextAdapter<
     const { chatOptions, outputSchema } = options
     const { logger } = chatOptions
 
-    const requestParams = this.mapCommonOptionsToAnthropic(chatOptions)
+    // `structuredOutput()` issues a non-streaming `messages.create({ stream:
+    // false })` below, so the defaulted `max_tokens` must stay under the SDK's
+    // non-streaming 10-minute guard (issue #849) — pass `stream: false`.
+    const requestParams = this.mapCommonOptionsToAnthropic(chatOptions, {
+      stream: false,
+    })
 
     // Create a tool that will capture the structured output
     // Anthropic's SDK requires input_schema with type: 'object' literal
@@ -352,6 +440,7 @@ export class AnthropicTextAdapter<
 
   private mapCommonOptionsToAnthropic(
     options: TextOptions<AnthropicTextProviderOptions>,
+    { stream = true }: { stream?: boolean } = {},
   ) {
     const modelOptions = options.modelOptions
 
@@ -420,7 +509,18 @@ export class AnthropicTextAdapter<
       validProviderOptions.thinking?.type === 'enabled'
         ? validProviderOptions.thinking.budget_tokens
         : undefined
-    const defaultMaxTokens = modelOptions?.max_tokens ?? 1024
+    // Anthropic's Messages API *requires* `max_tokens`, so we must always send a
+    // value. When the caller doesn't specify one, default to the resolved
+    // model's real output ceiling (from model-meta) rather than a low constant
+    // that silently truncates long responses with `stop_reason: "max_tokens"`
+    // (issue #849). `max_tokens` is a ceiling, not a reservation — billing is on
+    // tokens actually generated, so a higher default costs nothing extra.
+    // For non-streaming requests (the `structuredOutput()` path) the default is
+    // clamped to the SDK's non-streaming-safe limit so it doesn't trip the
+    // "streaming required" 10-minute guard — see getAnthropicDefaultMaxTokens.
+    const defaultMaxTokens =
+      modelOptions?.max_tokens ??
+      getAnthropicDefaultMaxTokens(this.model, { stream })
     const maxTokens =
       thinkingBudget && thinkingBudget >= defaultMaxTokens
         ? thinkingBudget + 1
@@ -636,6 +736,25 @@ export class AnthropicTextAdapter<
             parsedInput = toolCall.function.arguments
           }
 
+          // Provider-executed server tools (e.g. web_search) replay as the
+          // original `server_tool_use` + result blocks so the model still sees
+          // the prior evidence. Their result was captured verbatim during
+          // streaming (see processAnthropicStream).
+          const serverMeta = readAnthropicServerToolMetadata(toolCall.metadata)
+          if (serverMeta) {
+            const serverToolUseBlock: ServerToolUseBlockParam = {
+              type: 'server_tool_use',
+              id: toolCall.id,
+              name: serverMeta.serverToolType,
+              input: parsedInput,
+            }
+            contentBlocks.push(serverToolUseBlock)
+            contentBlocks.push(
+              buildServerToolResultBlock(toolCall.id, serverMeta),
+            )
+            continue
+          }
+
           const toolUseBlock: ToolUseBlockParam = {
             type: 'tool_use',
             id: toolCall.id,
@@ -806,6 +925,14 @@ export class AnthropicTextAdapter<
     // input.
     let currentServerTool: { id: string; name: string; input: string } | null =
       null
+    // Completed server tools awaiting their matching result block. Anthropic
+    // emits `server_tool_use` then a separate `*_tool_result` block; we hold
+    // the call here (keyed by id) until the result arrives so we can emit a
+    // single provider-executed tool call carrying the raw result for round-trip.
+    const completedServerTools = new Map<
+      string,
+      { id: string; name: string; input: string }
+    >()
 
     // AG-UI lifecycle tracking
     const runId = options.runId ?? genId()
@@ -880,6 +1007,61 @@ export class AnthropicTextAdapter<
                   source: 'anthropic.processAnthropicStream',
                 },
               )
+            }
+
+            // Emit the server tool as a single provider-executed tool call,
+            // carrying its raw result so the evidence (e.g. web_search sources)
+            // round-trips into the next turn's request. The agent loop skips
+            // provider-executed calls, so this never triggers client execution.
+            const serverTool = completedServerTools.get(
+              event.content_block.tool_use_id,
+            )
+            if (serverTool) {
+              completedServerTools.delete(serverTool.id)
+
+              let parsedInput: unknown = {}
+              try {
+                const parsed = serverTool.input
+                  ? JSON.parse(serverTool.input)
+                  : {}
+                parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
+              } catch {
+                parsedInput = {}
+              }
+
+              const serverToolMetadata = {
+                providerExecuted: true,
+                anthropic: {
+                  serverToolType: serverTool.name,
+                  resultBlockType: event.content_block.type,
+                  result: content,
+                },
+              }
+
+              currentToolIndex++
+              yield {
+                type: EventType.TOOL_CALL_START,
+                toolCallId: serverTool.id,
+                toolCallName: serverTool.name,
+                toolName: serverTool.name,
+                parentMessageId: messageId,
+                model,
+                timestamp: Date.now(),
+                index: currentToolIndex,
+                metadata: serverToolMetadata,
+              }
+              yield {
+                type: EventType.TOOL_CALL_END,
+                toolCallId: serverTool.id,
+                toolCallName: serverTool.name,
+                toolName: serverTool.name,
+                model,
+                timestamp: Date.now(),
+                input: parsedInput,
+              }
+
+              // Text after the server tool starts a fresh message segment.
+              hasEmittedTextMessageStart = false
             }
           } else if (event.content_block.type === 'thinking') {
             accumulatedThinking = ''
@@ -1095,6 +1277,9 @@ export class AnthropicTextAdapter<
                   input: currentServerTool.input,
                 },
               )
+              // Hold the call until its result block arrives so we can emit
+              // both together as one provider-executed tool call.
+              completedServerTools.set(currentServerTool.id, currentServerTool)
             }
             currentServerTool = null
           } else if (
@@ -1181,6 +1366,22 @@ export class AnthropicTextAdapter<
                 break
               }
               case 'max_tokens': {
+                // Surface a warning when the truncating cap was the
+                // adapter-supplied default (caller didn't pass `max_tokens`), so
+                // the truncation isn't silently attributed to the model "doing
+                // nothing" (issue #849). When the caller set `max_tokens`
+                // themselves, hitting it is their own deliberate ceiling.
+                if (options.modelOptions?.max_tokens == null) {
+                  const defaultedMaxTokens = getAnthropicDefaultMaxTokens(model)
+                  logger.warn(
+                    `anthropic response truncated at the default max_tokens (${defaultedMaxTokens}) for model=${model}; pass maxTokens (or modelOptions.max_tokens) to raise the output ceiling`,
+                    {
+                      source: 'anthropic.processAnthropicStream',
+                      model,
+                      defaultedMaxTokens,
+                    },
+                  )
+                }
                 yield {
                   type: EventType.RUN_ERROR,
                   model,

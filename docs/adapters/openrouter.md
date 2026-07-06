@@ -222,7 +222,7 @@ accounts for routing, fallback providers, BYOK, and cached-token pricing. See
 OpenRouter's [Usage Accounting](https://openrouter.ai/docs/use-cases/usage-accounting)
 docs for the meaning and units of these fields.
 
-```typescript
+```typescript ignore
 import { chat, type RunFinishedEvent, type StreamChunk } from "@tanstack/ai";
 import { openRouterText } from "@tanstack/ai-openrouter";
 

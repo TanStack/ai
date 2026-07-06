@@ -2,18 +2,19 @@
 title: Anthropic
 id: anthropic-adapter
 order: 2
-description: "Use Anthropic Claude models with TanStack AI — Claude Sonnet 4.5, Claude Opus, and more via the @tanstack/ai-anthropic adapter."
+description: "Use Anthropic Claude models with TanStack AI — Claude Fable 5, Claude Sonnet 5, Claude Opus, and more via the @tanstack/ai-anthropic adapter."
 keywords:
   - tanstack ai
   - anthropic
   - claude
-  - claude sonnet 4.5
+  - claude fable 5
+  - claude sonnet 5
   - claude opus
   - adapter
   - llm
 ---
 
-The Anthropic adapter provides access to Claude models, including Claude Sonnet 4.5, Claude Opus 4.5, and more.
+The Anthropic adapter provides access to Claude models, including Claude Fable 5, Claude Sonnet 5, Claude Opus 4.8, and more.
 
 ## Installation
 
@@ -136,6 +137,12 @@ const stream = chat({
 
 > If you previously passed `temperature` / `topP` / `maxTokens` at the root of `chat()`, see [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
 
+#### `max_tokens` default
+
+Anthropic's Messages API _requires_ `max_tokens` on every request, so the adapter always sends a value. When you don't set `modelOptions.max_tokens`, it defaults to the selected model's full output ceiling (`max_output_tokens` from the model metadata — e.g. 64K for Sonnet, 128K for Opus), falling back to a safe constant for unrecognized models. `max_tokens` is a ceiling, not a reservation — billing is on tokens actually generated — so this default costs nothing extra and avoids the silent mid-response truncation (`stop_reason: "max_tokens"`) that a low default would cause. Set `max_tokens` explicitly only when you want to _cap_ output below the model ceiling. If a response is truncated while using the default cap, the adapter logs a warning (visible with [debug logging](../advanced/debug-logging) enabled).
+
+One exception: structured output (`chat({ outputSchema })`) on models that use the non-streaming finalization path clamps this default to ~21K tokens. The Anthropic SDK rejects a non-streaming request whose `max_tokens` could exceed its 10-minute timeout, so the full ceiling can't be used there. Streaming chat is unaffected. To raise the structured-output ceiling toward a model's true max, stream the response.
+
 ### Thinking (Extended Thinking)
 
 Enable extended thinking with a token budget. This allows Claude to show its reasoning process, which is streamed as `thinking` chunks:
@@ -150,6 +157,48 @@ modelOptions: {
 ```
 
 **Note:** `budget_tokens` must be less than `modelOptions.max_tokens` — set `max_tokens` high enough to leave room for the visible response alongside the thinking budget, or the request is rejected.
+
+### Adaptive Thinking (Claude 4.6+, Sonnet 5, Fable 5)
+
+Newer Claude models use adaptive thinking — the model decides when and how
+much to think, and depth is tuned with `output_config.effort` instead of a
+token budget:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { anthropicText } from "@tanstack/ai-anthropic";
+
+const stream = chat({
+  adapter: anthropicText("claude-sonnet-5"),
+  messages: [{ role: "user", content: "Plan a database migration." }],
+  modelOptions: {
+    thinking: { type: "adaptive", display: "summarized" },
+    output_config: { effort: "xhigh" },
+    max_tokens: 64_000,
+  },
+});
+```
+
+Per-model rules (enforced by the adapter's types):
+
+- **`claude-sonnet-5`, `claude-opus-4-8`, `claude-opus-4-7`** — adaptive
+  thinking with an explicit `{ type: "disabled" }` opt-out. The manual
+  `{ type: "enabled", budget_tokens }` shape is rejected with a 400, and
+  the sampling parameters (`temperature`, `top_p`, `top_k`) are not
+  accepted (on Sonnet 5 the API rejects non-default values; on Opus
+  4.7/4.8 the parameters are removed entirely).
+- **`claude-fable-5`** — thinking is always on. The only accepted explicit
+  config is `{ type: "adaptive" }` (both `disabled` and `budget_tokens`
+  return a 400), and sampling parameters are rejected.
+- **`claude-opus-4-6` / `claude-sonnet-4-6`** — accept
+  `{ type: "adaptive" }` alongside the deprecated
+  `{ type: "enabled", budget_tokens }` shape, and still accept sampling
+  parameters.
+- **`display`** defaults to `"omitted"` on Opus 4.7+ and the 5-generation
+  models — set `"summarized"` to stream the reasoning text.
+- **`effort`** accepts `"low" | "medium" | "high" | "xhigh" | "max"`;
+  `"xhigh"` is available on Claude Opus 4.7+, Claude Sonnet 5, and
+  Claude Fable 5.
 
 ### Prompt Caching
 
@@ -216,7 +265,7 @@ Creates an Anthropic chat adapter.
 
 **Parameters:**
 
-- `model` - Claude model id (e.g. `"claude-sonnet-4-6"`, `"claude-opus-4.8"`)
+- `model` - Claude model id (e.g. `"claude-sonnet-5"`, `"claude-fable-5"`, `"claude-opus-4-8"`)
 - `config?.baseURL` - Custom base URL (optional)
 
 ### `anthropicSummarize(model, config?)` / `createAnthropicSummarize(model, apiKey, config?)`
@@ -266,8 +315,7 @@ const stream = chat({
 });
 ```
 
-**Supported models:** every current Claude model. `claude-3-haiku` supports
-only `web_search` (not `web_fetch`). See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+**Supported models:** every registered Claude model. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
 
 ### `webFetchTool`
 

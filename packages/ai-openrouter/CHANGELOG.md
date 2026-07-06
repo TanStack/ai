@@ -1,5 +1,18 @@
 # @tanstack/ai-openrouter
 
+## 0.15.7
+
+### Patch Changes
+
+- [#887](https://github.com/TanStack/ai/pull/887) [`f80a279`](https://github.com/TanStack/ai/commit/f80a279ce191eb841e931782b78c4fefc7db54a9) - Update model metadata from OpenRouter API
+
+  Releases the model-metadata syncs from [#772](https://github.com/TanStack/ai/issues/772) and [#883](https://github.com/TanStack/ai/issues/883) that were generated
+  without a changeset: adds Claude Sonnet 5 (`anthropic/claude-sonnet-5`),
+  Claude Fable 5 (`anthropic/claude-fable-5`), DeepSeek V3.2, GLM-5.2,
+  Kimi K2.7 Code, Qwen 3.7 Plus, Nemotron 3 Ultra, and other new models;
+  refreshes pricing and capability flags; and removes ids retired upstream
+  (e.g. `anthropic/claude-3.5-haiku`, `anthropic/claude-opus-4.6-fast`).
+
 ## 0.15.6
 
 ### Patch Changes

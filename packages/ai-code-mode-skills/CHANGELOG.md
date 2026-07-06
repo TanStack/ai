@@ -1,5 +1,20 @@
 # @tanstack/ai-code-mode-skills
 
+## 0.3.8
+
+### Patch Changes
+
+- Updated dependencies [[`afba322`](https://github.com/TanStack/ai/commit/afba32236022589afce4d5a165fd4a8a884ae57d), [`e7ad181`](https://github.com/TanStack/ai/commit/e7ad181cad20c5d6560f480835c99ff1142b40af)]:
+  - @tanstack/ai@0.39.1
+  - @tanstack/ai-code-mode@0.3.5
+
+## 0.3.7
+
+### Patch Changes
+
+- Updated dependencies [[`8f8be19`](https://github.com/TanStack/ai/commit/8f8be1983bdb0f29d26b1961a52a1b810b47866c)]:
+  - @tanstack/ai-code-mode@0.3.4
+
 ## 0.3.6
 
 ### Patch Changes

@@ -11,7 +11,7 @@ import type {
   ErrorInfo,
   FinishInfo,
   IterationInfo,
-  SandboxFileEvent,
+  SandboxFileHookEvent,
   StructuredOutputMiddlewareConfig,
   ToolCallHookContext,
   ToolPhaseCompleteInfo,
@@ -352,7 +352,7 @@ export class MiddlewareRunner<TContext = unknown> {
    */
   async runSandboxFile(
     ctx: ChatMiddlewareContext<TContext>,
-    event: SandboxFileEvent,
+    event: SandboxFileHookEvent,
   ): Promise<void> {
     const typed = (
       {

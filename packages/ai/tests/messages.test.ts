@@ -99,6 +99,45 @@ describe('convertMessagesToModelMessages — AG-UI dedup pre-pass', () => {
     expect(result[0]?.role).toBe('system')
     expect(result[0]?.content).toBe('You are helpful')
   })
+
+  it('round-trips a provider-executed tool call without emitting a tool result (issue #839)', () => {
+    const metadata = {
+      providerExecuted: true,
+      anthropic: {
+        serverToolType: 'web_search',
+        resultBlockType: 'web_search_tool_result',
+        result: [{ type: 'web_search_result', url: 'https://example.com' }],
+      },
+    }
+    const messages = [
+      {
+        id: 'a1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            id: 'srv_search',
+            name: 'web_search',
+            arguments: '{"query":"drones"}',
+            state: 'input-complete',
+            metadata,
+          },
+          { type: 'text', content: 'Found a source.' },
+        ],
+      } as UIMessage,
+    ]
+
+    const result = convertMessagesToModelMessages(messages)
+
+    // No tool result message — the provider executed the call, there is no
+    // client output to deliver.
+    expect(result.some((m) => m.role === 'tool')).toBe(false)
+
+    const assistant = result.find((m) => m.role === 'assistant')
+    expect(assistant?.toolCalls).toHaveLength(1)
+    // Metadata round-trips so the adapter can replay the server tool blocks.
+    expect(assistant?.toolCalls?.[0]?.metadata).toMatchObject(metadata)
+  })
 })
 
 describe('convertMessagesToModelMessages — MCP Apps ui-resource exclusion', () => {

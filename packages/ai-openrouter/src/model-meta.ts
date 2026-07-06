@@ -1652,11 +1652,11 @@ const DEEPSEEK_DEEPSEEK_CHAT_V3_0324 = {
   pricing: {
     text: {
       input: {
-        normal: 0.2,
+        normal: 0.24,
         cached: 0.135,
       },
       output: {
-        normal: 0.77,
+        normal: 0.9,
       },
     },
     image: 0,
@@ -1938,11 +1938,11 @@ const DEEPSEEK_DEEPSEEK_V4_FLASH = {
   pricing: {
     text: {
       input: {
-        normal: 0.098,
-        cached: 0.02,
+        normal: 0.089,
+        cached: 0.018,
       },
       output: {
-        normal: 0.196,
+        normal: 0.18,
       },
     },
     image: 0,
@@ -3892,7 +3892,6 @@ const MINIMAX_MINIMAX_M2 = {
     output: ['text'],
     supports: [
       'frequencyPenalty',
-      'logitBias',
       'logprobs',
       'maxCompletionTokens',
       'presencePenalty',
@@ -3907,15 +3906,15 @@ const MINIMAX_MINIMAX_M2 = {
     ],
   },
   context_window: 204800,
-  max_output_tokens: 196608,
+  max_output_tokens: 131072,
   pricing: {
     text: {
       input: {
         normal: 0.255,
-        cached: 0.03,
+        cached: 0,
       },
       output: {
-        normal: 1,
+        normal: 1.02,
       },
     },
     image: 0,
@@ -3952,7 +3951,6 @@ const MINIMAX_MINIMAX_M2_1 = {
     output: ['text'],
     supports: [
       'frequencyPenalty',
-      'logitBias',
       'maxCompletionTokens',
       'presencePenalty',
       'reasoning',
@@ -3965,15 +3963,15 @@ const MINIMAX_MINIMAX_M2_1 = {
     ],
   },
   context_window: 204800,
-  max_output_tokens: 196608,
+  max_output_tokens: 131072,
   pricing: {
     text: {
       input: {
-        normal: 0.29,
+        normal: 0.3,
         cached: 0.03,
       },
       output: {
-        normal: 0.95,
+        normal: 1.2,
       },
     },
     image: 0,
@@ -4757,7 +4755,6 @@ const MOONSHOTAI_KIMI_K2_0905 = {
     output: ['text'],
     supports: [
       'frequencyPenalty',
-      'logitBias',
       'maxCompletionTokens',
       'presencePenalty',
       'responseFormat',
@@ -4791,7 +4788,6 @@ const MOONSHOTAI_KIMI_K2_THINKING = {
     output: ['text'],
     supports: [
       'frequencyPenalty',
-      'logitBias',
       'logprobs',
       'maxCompletionTokens',
       'presencePenalty',
@@ -4806,12 +4802,12 @@ const MOONSHOTAI_KIMI_K2_THINKING = {
     ],
   },
   context_window: 262144,
-  max_output_tokens: 262144,
+  max_output_tokens: 100352,
   pricing: {
     text: {
       input: {
         normal: 0.6,
-        cached: 0.6,
+        cached: 0.15,
       },
       output: {
         normal: 2.5,
@@ -8215,31 +8211,26 @@ const QWEN_QWEN3_30B_A3B_THINKING_2507 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequencyPenalty',
-      'logitBias',
-      'logprobs',
       'maxCompletionTokens',
       'presencePenalty',
       'reasoning',
       'responseFormat',
       'seed',
-      'stop',
       'temperature',
       'toolChoice',
-      'topLogprobs',
       'topP',
     ],
   },
   context_window: 131072,
-  max_output_tokens: 131072,
+  max_output_tokens: 32768,
   pricing: {
     text: {
       input: {
-        normal: 0.08,
-        cached: 0.08,
+        normal: 0.13,
+        cached: 0,
       },
       output: {
-        normal: 0.4,
+        normal: 1.56,
       },
     },
     image: 0,
@@ -8289,14 +8280,11 @@ const QWEN_QWEN3_8B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequencyPenalty',
-      'logitBias',
       'maxCompletionTokens',
       'presencePenalty',
       'reasoning',
       'responseFormat',
       'seed',
-      'stop',
       'temperature',
       'toolChoice',
       'topP',
@@ -8307,11 +8295,11 @@ const QWEN_QWEN3_8B = {
   pricing: {
     text: {
       input: {
-        normal: 0.05,
-        cached: 0.05,
+        normal: 0.117,
+        cached: 0,
       },
       output: {
-        normal: 0.4,
+        normal: 0.455,
       },
     },
     image: 0,
@@ -8663,7 +8651,6 @@ const QWEN_QWEN3_NEXT_80B_A3B_THINKING = {
     output: ['text'],
     supports: [
       'frequencyPenalty',
-      'logitBias',
       'logprobs',
       'maxCompletionTokens',
       'presencePenalty',
@@ -12190,7 +12177,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'frequencyPenalty'
-      | 'logitBias'
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
@@ -12209,7 +12195,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'frequencyPenalty'
-      | 'logitBias'
       | 'maxCompletionTokens'
       | 'presencePenalty'
       | 'reasoning'
@@ -12550,7 +12535,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'frequencyPenalty'
-      | 'logitBias'
       | 'maxCompletionTokens'
       | 'presencePenalty'
       | 'responseFormat'
@@ -12564,7 +12548,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'frequencyPenalty'
-      | 'logitBias'
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
@@ -13846,18 +13829,13 @@ export type OpenRouterModelOptionsByName = {
   [QWEN_QWEN3_30B_A3B_THINKING_2507.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequencyPenalty'
-      | 'logitBias'
-      | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
       | 'reasoning'
       | 'responseFormat'
       | 'seed'
-      | 'stop'
       | 'temperature'
       | 'toolChoice'
-      | 'topLogprobs'
       | 'topP'
     >
   [QWEN_QWEN3_32B.id]: OpenRouterCommonOptions &
@@ -13880,14 +13858,11 @@ export type OpenRouterModelOptionsByName = {
   [QWEN_QWEN3_8B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequencyPenalty'
-      | 'logitBias'
       | 'maxCompletionTokens'
       | 'presencePenalty'
       | 'reasoning'
       | 'responseFormat'
       | 'seed'
-      | 'stop'
       | 'temperature'
       | 'toolChoice'
       | 'topP'
@@ -14035,7 +14010,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'frequencyPenalty'
-      | 'logitBias'
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
