@@ -4,6 +4,7 @@
 '@tanstack/ai-solid': minor
 '@tanstack/ai-vue': minor
 '@tanstack/ai-svelte': minor
+'@tanstack/ai-preact': minor
 ---
 
 Messages sent while a stream is already in flight are now queued by default and automatically sent once the in-flight stream settles, instead of being silently dropped. **This is a behavior change.**

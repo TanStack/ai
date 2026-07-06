@@ -14,7 +14,10 @@ import type {
   DistributedOmit,
   InferredClientContext,
   MultimodalContent,
+  QueueConfig,
   QueuedMessage,
+  QueueOption,
+  QueueStrategy,
   UIMessage,
   WhenBusy,
 } from '@tanstack/ai-client'
@@ -23,7 +26,10 @@ import type {
 export type {
   ChatRequestBody,
   MultimodalContent,
+  QueueConfig,
   QueuedMessage,
+  QueueOption,
+  QueueStrategy,
   UIMessage,
   WhenBusy,
 }
