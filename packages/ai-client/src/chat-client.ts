@@ -39,8 +39,13 @@ import type {
   ConnectionStatus,
   MessagePart,
   MultimodalContent,
+  QueueOption,
+  QueuedMessage,
+  QueueStrategy,
+  SendMessageOptions,
   ToolCallPart,
   UIMessage,
+  WhenBusy,
 } from './types'
 
 type ChatClientUpdateOptionsWithoutContext<
@@ -87,6 +92,33 @@ function resolveTransport(transport: {
   if (connection) return connection
   if (fetcher) return fetcherToConnectionAdapter(fetcher)
   throw new Error('ChatClient: either `connection` or `fetcher` is required.')
+}
+
+export interface NormalizedQueueConfig {
+  whenBusy: WhenBusy
+  drain: 'fifo' | 'batch'
+  onOverflow: 'reject' | 'drop-oldest'
+  maxSize?: number
+  strategy?: QueueStrategy
+}
+
+export function normalizeQueueOption(
+  option: QueueOption | undefined,
+): NormalizedQueueConfig {
+  const base: NormalizedQueueConfig = {
+    whenBusy: 'queue',
+    drain: 'fifo',
+    onOverflow: 'reject',
+  }
+  if (!option) return base
+  if (typeof option === 'string') return { ...base, whenBusy: option }
+  if (typeof option === 'function') return { ...base, strategy: option }
+  return {
+    whenBusy: option.whenBusy ?? 'queue',
+    drain: option.drain ?? 'fifo',
+    onOverflow: option.onOverflow ?? 'reject',
+    ...(option.maxSize !== undefined ? { maxSize: option.maxSize } : {}),
+  }
 }
 
 export class ChatClient<
