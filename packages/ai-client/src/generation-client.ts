@@ -208,7 +208,11 @@ export class GenerationClient<
         if (signal.aborted) return
         if (result instanceof Response) {
           // Server function returned SSE Response — parse stream
-          await this.processStream(parseSSEResponse(result, signal), runId, signal)
+          await this.processStream(
+            parseSSEResponse(result, signal),
+            runId,
+            signal,
+          )
         } else {
           this.devtoolsBridge.ensureRunStarted(runId)
           this.setResult(result)

@@ -340,9 +340,9 @@ function decodeBase64(value: string): Uint8Array {
   return bytes
 }
 
-function parseDataUrl(value: string):
-  | { mimeType: string; bytes: Uint8Array }
-  | undefined {
+function parseDataUrl(
+  value: string,
+): { mimeType: string; bytes: Uint8Array } | undefined {
   const match = /^data:([^;,]+)?(;base64)?,(.*)$/s.exec(value)
   if (!match) return undefined
   const mimeType = match[1] || 'application/octet-stream'
@@ -391,7 +391,11 @@ function sourcePartDescriptors(
   const record = objectValue(part)
   const type = stringField(record ?? {}, 'type')
   const source = objectValue(record?.source)
-  if (!record || !source || (type !== 'image' && type !== 'audio' && type !== 'video')) {
+  if (
+    !record ||
+    !source ||
+    (type !== 'image' && type !== 'audio' && type !== 'video')
+  ) {
     return []
   }
   const sourceType = stringField(source, 'type')
@@ -417,7 +421,9 @@ function sourcePartDescriptors(
   return []
 }
 
-function promptInputDescriptors(inputs: unknown): Array<GenerationArtifactDescriptor> {
+function promptInputDescriptors(
+  inputs: unknown,
+): Array<GenerationArtifactDescriptor> {
   const prompt = objectValue(inputs)?.prompt
   if (!Array.isArray(prompt)) return []
 
@@ -530,7 +536,8 @@ function builtInArtifactDescriptors(
       mimeType: 'video/mp4',
       url: output.url,
       jobId: stringField(output, 'jobId'),
-      expiresAt: output.expiresAt instanceof Date ? output.expiresAt : undefined,
+      expiresAt:
+        output.expiresAt instanceof Date ? output.expiresAt : undefined,
     })
   }
 
@@ -578,7 +585,12 @@ function builtInArtifactDescriptors(
 
 async function descriptorBody(
   descriptor: GenerationArtifactDescriptor,
-): Promise<{ body: BlobBody; size: number; mimeType: string; externalUrl?: string }> {
+): Promise<{
+  body: BlobBody
+  size: number
+  mimeType: string
+  externalUrl?: string
+}> {
   if (descriptor.json !== undefined) {
     const body = JSON.stringify(descriptor.json)
     return {
@@ -636,7 +648,9 @@ async function descriptorBody(
     }
   }
 
-  throw new Error(`Artifact descriptor ${descriptor.path} has no bytes, url, or json.`)
+  throw new Error(
+    `Artifact descriptor ${descriptor.path} has no bytes, url, or json.`,
+  )
 }
 
 async function persistGenerationArtifacts(
@@ -681,7 +695,8 @@ async function persistGenerationArtifacts(
   const refs: Array<PersistedArtifactRef> = [...existingRefs]
   for (const [index, descriptor] of descriptors.entries()) {
     const artifactId = ctx.createId('artifact')
-    const { body, size, mimeType, externalUrl } = await descriptorBody(descriptor)
+    const { body, size, mimeType, externalUrl } =
+      await descriptorBody(descriptor)
     const key = `artifacts/${runId}/${artifactId}`
     await persistence.stores.blobs.put(key, body, {
       contentType: mimeType,
@@ -822,10 +837,7 @@ export function withPersistence(
         const existing = objectValue(result)?.artifacts
         return {
           ...(objectValue(result) ?? {}),
-          artifacts: [
-            ...(Array.isArray(existing) ? existing : []),
-            ...refs,
-          ],
+          artifacts: [...(Array.isArray(existing) ? existing : []), ...refs],
         }
       })
     },

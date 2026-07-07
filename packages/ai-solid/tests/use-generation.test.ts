@@ -297,7 +297,6 @@ describe('useGeneration', () => {
 
       expect(onChunk).toHaveBeenCalledTimes(3)
     })
-
   })
 
   describe('connection mode', () => {
@@ -1169,7 +1168,6 @@ describe('useGenerateVideo', () => {
         }),
       )
     })
-
   })
 
   describe('error handling', () => {

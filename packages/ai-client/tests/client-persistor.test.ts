@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { EventType } from '@tanstack/ai/client'
-import { ChatPersistor, localStorageAIPersistence } from '../src/client-persistor'
+import {
+  ChatPersistor,
+  localStorageAIPersistence,
+} from '../src/client-persistor'
 import { createMockPersistence, createUIMessage } from './test-utils'
 import type { StreamChunk } from '@tanstack/ai/client'
 import type { ChatClientPersistence, UIMessage } from '../src/types'
@@ -89,7 +92,9 @@ describe('ChatPersistor', () => {
         },
         clear: vi.fn(() => storage.clear()),
         getItem: vi.fn((key: string) => storage.get(key) ?? null),
-        key: vi.fn((index: number) => Array.from(storage.keys())[index] ?? null),
+        key: vi.fn(
+          (index: number) => Array.from(storage.keys())[index] ?? null,
+        ),
         removeItem: vi.fn((key: string) => {
           storage.delete(key)
         }),
