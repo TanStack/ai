@@ -1019,8 +1019,17 @@ export class MistralTextAdapter<
       }
     }
 
+    if (part.type === 'document') {
+      const documentValue = part.source.value
+      const documentUrl =
+        part.source.type === 'data' && !documentValue.startsWith('data:')
+          ? `data:${part.source.mimeType};base64,${documentValue}`
+          : documentValue
+      return { type: 'document_url', documentUrl }
+    }
+
     throw new Error(
-      `Mistral text adapter does not support content part of type '${(part as ContentPart).type}'. Supported types: text, image. Use a vision-capable model (pixtral-large-latest, pixtral-12b-2409, mistral-medium-latest, or mistral-small-latest) for images.`,
+      `Mistral text adapter does not support content part of type '${(part as ContentPart).type}'. Supported types: text, image, document. Use a vision-capable model (mistral-medium-latest or mistral-small-latest) for images and documents.`,
     )
   }
 
