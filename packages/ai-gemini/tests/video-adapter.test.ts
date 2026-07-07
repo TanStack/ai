@@ -56,8 +56,12 @@ function createClientStub(
 class StubbedGeminiVideoAdapter<
   TModel extends GeminiVideoModel,
 > extends GeminiVideoAdapter<TModel> {
-  constructor(model: TModel, stub: ClientStub) {
-    super({ apiKey: 'test-key' }, model)
+  constructor(
+    model: TModel,
+    stub: ClientStub,
+    config?: { allowUrlFetch?: boolean },
+  ) {
+    super({ apiKey: 'test-key', ...config }, model)
     this.client = stub as unknown as GoogleGenAI
   }
 }
@@ -297,6 +301,68 @@ describe('Gemini Video Adapter', () => {
       expect(call.image).toEqual({
         imageBytes: 'aGVsbG8=',
         mimeType: 'image/png',
+      })
+    })
+
+    it('throws on an HTTP(S) URL image input by default instead of buffering it (#907)', async () => {
+      const stub = createClientStub()
+      const adapter = new StubbedGeminiVideoAdapter(
+        'veo-3.1-generate-preview',
+        stub,
+      )
+
+      await expect(
+        adapter.createVideoJob({
+          model: 'veo-3.1-generate-preview',
+          prompt: [
+            { type: 'text', content: 'animate' },
+            {
+              type: 'image',
+              source: { type: 'url', value: 'https://example.com/frame.jpg' },
+            },
+          ],
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/allowUrlFetch/)
+      expect(stub.models.generateVideos).not.toHaveBeenCalled()
+    })
+
+    it('fetches HTTP(S) URL image inputs when allowUrlFetch is set', async () => {
+      const stub = createClientStub()
+      const adapter = new StubbedGeminiVideoAdapter(
+        'veo-3.1-generate-preview',
+        stub,
+        { allowUrlFetch: true },
+      )
+      // 'hi' → base64 'aGk='
+      const fetchMock = vi.fn().mockResolvedValue(
+        new Response(new Uint8Array([104, 105]), {
+          headers: { 'content-type': 'image/jpeg' },
+        }),
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      try {
+        await adapter.createVideoJob({
+          model: 'veo-3.1-generate-preview',
+          prompt: [
+            { type: 'text', content: 'animate' },
+            {
+              type: 'image',
+              source: { type: 'url', value: 'https://example.com/frame.jpg' },
+            },
+          ],
+          logger: testLogger,
+        })
+      } finally {
+        vi.unstubAllGlobals()
+      }
+
+      expect(fetchMock).toHaveBeenCalledWith('https://example.com/frame.jpg')
+      const call = stub.models.generateVideos.mock.calls[0]?.[0]
+      expect(call.image).toEqual({
+        imageBytes: 'aGk=',
+        mimeType: 'image/jpeg',
       })
     })
 

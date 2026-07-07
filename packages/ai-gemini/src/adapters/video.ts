@@ -38,7 +38,17 @@ import type { GeminiClientConfig } from '../utils'
  *
  * @experimental Video generation is an experimental feature and may change.
  */
-export interface GeminiVideoConfig extends GeminiClientConfig {}
+export interface GeminiVideoConfig extends GeminiClientConfig {
+  /**
+   * Opt into fetching HTTP(S) image URL inputs. Veo's predict API accepts
+   * only inline `imageBytes` or a `gcsUri`, so an HTTP(S) URL has to be
+   * downloaded and base64-encoded locally — which buffers the whole image in
+   * memory and can OOM constrained runtimes (e.g. Cloudflare Workers). When
+   * `false` (the default), HTTP(S) URL image inputs throw; pass a `data:` URI
+   * or a `gs://` reference, or set this to `true` to opt into buffering.
+   */
+  allowUrlFetch?: boolean
+}
 
 /**
  * Extract a human-readable message from a long-running operation's error,
@@ -58,11 +68,14 @@ function operationErrorMessage(error: Record<string, unknown>): string {
  *
  * Unlike `generateContent` (chat / native image generation), Veo's predict
  * API has no `fileData.fileUri` equivalent — `Image` only accepts
- * `imageBytes` or `gcsUri` — so HTTP(S) URLs must still be fetched and
- * inlined here. Prefer `gs://` references on memory-constrained runtimes.
+ * `imageBytes` or `gcsUri`. An HTTP(S) URL therefore has to be fetched and
+ * inlined locally, which buffers the whole image in memory; that only happens
+ * when the caller opts in via `allowUrlFetch`, otherwise it throws. Prefer a
+ * `gs://` reference on memory-constrained runtimes.
  */
 async function imagePartToVeoImage(
   part: ImagePart<MediaInputMetadata>,
+  allowUrlFetch: boolean,
 ): Promise<Image> {
   if (part.source.type === 'data') {
     return {
@@ -88,6 +101,15 @@ async function imagePartToVeoImage(
       imageBytes: match[3] ?? '',
       mimeType: match[1] || part.source.mimeType || 'image/png',
     }
+  }
+  if (!allowUrlFetch) {
+    throw new Error(
+      `gemini Veo: HTTP(S) URL image inputs are not fetched by default because ` +
+        `Veo accepts only inline bytes, so the image would be downloaded and ` +
+        `buffered in memory (risking OOM on constrained runtimes). Pass a ` +
+        `data: URI or a gs:// reference, or set \`allowUrlFetch: true\` on the ` +
+        `adapter config to opt into fetching. URL: ${url}`,
+    )
   }
   const response = await fetch(url)
   if (!response.ok) {
@@ -137,10 +159,12 @@ export class GeminiVideoAdapter<
   readonly name = 'gemini' as const
 
   protected client: GoogleGenAI
+  private readonly allowUrlFetch: boolean
 
   constructor(config: GeminiVideoConfig, model: TModel) {
     super({}, model)
     this.client = createGeminiClient(config)
+    this.allowUrlFetch = config.allowUrlFetch ?? false
   }
 
   async createVideoJob(
@@ -229,13 +253,13 @@ export class GeminiVideoAdapter<
               `${this.name}: Veo accepts at most one 'end_frame' image.`,
             )
           }
-          lastFrame = await imagePartToVeoImage(part)
+          lastFrame = await imagePartToVeoImage(part, this.allowUrlFetch)
           break
         }
         case 'reference':
         case 'character': {
           referenceImages.push({
-            image: await imagePartToVeoImage(part),
+            image: await imagePartToVeoImage(part, this.allowUrlFetch),
             referenceType: VideoGenerationReferenceType.ASSET,
           })
           break
@@ -247,7 +271,7 @@ export class GeminiVideoAdapter<
               `${this.name}: Veo accepts at most one starting image; received multiple 'start_frame'/un-roled images. Use metadata.role ('end_frame', 'reference') to disambiguate the others.`,
             )
           }
-          image = await imagePartToVeoImage(part)
+          image = await imagePartToVeoImage(part, this.allowUrlFetch)
           break
         }
         case 'mask':
